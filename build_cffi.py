@@ -14,7 +14,7 @@ if "DEBUG" in os.environ:
 else:
     extra_compile_args = ['-fopenmp', '-Ofast', '-w']
 
-library_dirs = []
+library_dirs = ['/opt/local/lib']
 for k,v in os.environ.items():
     if "inc" in k.lower():
         include_dirs += [v]
