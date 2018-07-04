@@ -4,7 +4,7 @@ import os
 ffi = FFI()
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 CLOC = os.path.join(LOCATION, 'src', 'py21cmmc', '_21cmfast', 'src')
-include_dirs = [CLOC]
+include_dirs = [CLOC,'/opt/local/include']
 
 # =================================================================
 # Set compilation arguments dependent on environment... a bit buggy
@@ -20,6 +20,7 @@ for k,v in os.environ.items():
         include_dirs += [v]
     elif "lib" in k.lower():
         library_dirs += [v]
+
 # =================================================================
 
 # This is the overall C code.
