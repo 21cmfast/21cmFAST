@@ -3,21 +3,107 @@ A thin python wrapper for the 21cmFAST C-code.
 """
 from ._21cmfast import ffi, lib
 import numpy as np
+from ._utils import StructWithDefaults
+from astropy.cosmology import Planck15
 
 
+# ======================================================================================================================
+# PARAMETER STRUCTURES
+# ======================================================================================================================
+class CosmoParams(StructWithDefaults):
+    """
+    Ctypes Structure with cosmological parameters (with defaults) for :func:`drive_21cmMC`.
+
+    Parameters
+    ----------
+    RANDOM_SEED : float, optional
+        A seed to set the IC generator. If None, chosen from uniform distribution.
+
+    SIGMA_8 : float, optional
+        RMS mass variance (power spectrum normalisation).
+
+    hlittle : float, optional
+        H_0/100.
+
+    OMm : float, optional
+        Omega matter.
+
+    OMb : float, optional
+        Omega baryon, the baryon component.
+
+    POWER_INDEX : float, optional
+        Spectral index of the power spectrum.
+    """
+
+    _defaults_ = dict(
+        RANDOM_SEED = None,
+        SIGMA_8 = 0.82,
+        hlittle = Planck15.h,
+        OMm = Planck15.Om0,
+        OMb = Planck15.Ob0,
+        POWER_INDEX = 0.97
+    )
+
+    @property
+    def RANDOM_SEED(self):
+        return self._RANDOM_SEED or int(np.random.randint(1, 1e12))
+
+    @property
+    def OMl(self):
+        return 1 - self.OMm
+
+    def cosmology(self):
+        return Planck15.clone(h = self.hlittle, Om0 = self.OMm, Ob0 = self.OMb)
+
+
+class UserParams(StructWithDefaults):
+    """
+    Structure containing user parameters (with defaults).
+
+    Parameters
+    ----------
+    HII_DIM : int, optional
+        Number of cells for the low-res box.
+
+    DIM : int,optional
+        Number of cells for the high-res box (sampling ICs) along a principal axis. To avoid
+        sampling issues, DIM should be at least 3 or 4 times HII_DIM, and an integer multiple.
+        By default, it is set to 4*HII_DIM.
+
+    BOX_LEN : float, optional
+        Length of the box, in Mpc.
+    """
+    _defaults_ = dict(
+        BOX_LEN = 150.0,
+        DIM = None,
+        HII_DIM = 100,
+    )
+
+    @property
+    def DIM(self):
+        return self._DIM or 4 * self.HII_DIM
+
+
+# ======================================================================================================================
+# OUTPUT STRUCTURES
+# ======================================================================================================================
 class InitialConditions:
     """
     A class containing all initial conditions boxes.
     """
     def __init__(self, box_dim):
-        self.lowres_density = np.zeros(box_dim.HII_tot_num_pixels)
-        self.lowres_vx = np.zeros(box_dim.HII_tot_num_pixels)
-        self.lowres_vy = np.zeros(box_dim.HII_tot_num_pixels)
-        self.lowres_vz = np.zeros(box_dim.HII_tot_num_pixels)
-        self.lowres_vx_2LPT = np.zeros(box_dim.HII_tot_num_pixels)
-        self.lowres_vy_2LPT = np.zeros(box_dim.HII_tot_num_pixels)
-        self.lowres_vz_2LPT = np.zeros(box_dim.HII_tot_num_pixels)
+        # self.lowres_density = np.zeros(box_dim.HII_tot_num_pixels)
+        # self.lowres_vx = np.zeros(box_dim.HII_tot_num_pixels)
+        # self.lowres_vy = np.zeros(box_dim.HII_tot_num_pixels)
+        # self.lowres_vz = np.zeros(box_dim.HII_tot_num_pixels)
+        # self.lowres_vx_2LPT = np.zeros(box_dim.HII_tot_num_pixels)
+        # self.lowres_vy_2LPT = np.zeros(box_dim.HII_tot_num_pixels)
+        # self.lowres_vz_2LPT = np.zeros(box_dim.HII_tot_num_pixels)
         self.hires_density = np.zeros(box_dim.tot_fft_num_pixels)
+
+        # Put everything in the struct
+        self.cstruct = ffi.new("struct InitialConditions*")
+        self.cstruct.hires_density = ffi.cast("float", ffi.from_buffer(self.hires_density))
 
 
 class PerturbedField:
@@ -29,7 +115,7 @@ class PerturbedField:
         self.velocity = np.zeros(n)
 
 
-def initial_conditions(box_dim, cosmo_params, regenerate=False, write=True):
+def initial_conditions(user_params, cosmo_params, regenerate=False, write=True):
     """
     Compute initial conditions.
 
@@ -46,10 +132,10 @@ def initial_conditions(box_dim, cosmo_params, regenerate=False, write=True):
 
     """
     # First initialize memory for the boxes that will be returned.
-    boxes = InitialConditions(box_dim)
+    boxes = InitialConditions(user_params)
 
     # Run the C code
-    lib.ComputeInitialConditions(box_dim.cstruct, cosmo_params.cstruct, boxes)
+    lib.ComputeInitialConditions(user_params(), cosmo_params(), boxes.cstruct)
 
     # Optionally do stuff with the result (like writing it)
     if write:

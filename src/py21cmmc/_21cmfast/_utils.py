@@ -13,9 +13,7 @@ class StructWithDefaults:
     This provides a *fully initialised* structure, and will fail if not all fields are specified with defaults.
 
     .. note:: The actual C structure is gotten by calling an instance. This is auto-generated when called, based on the
-              parameters in the class, and is *not* saved within the class (for reasons of pickle-ability). In order
-              for Python not to garbage-collect the C structure, it must be saved to a variable before passing to
-              a wrapped C-function.
+              parameters in the class.
 
     .. warning:: This class will *not* deal well with parameters of the struct which are pointers. All parameters
                  should be primitive types, except for strings, which are dealt with specially.
@@ -26,7 +24,7 @@ class StructWithDefaults:
         The ffi object from any cffi-wrapped library.
     """
     _name = None
-    _defaults = {}
+    _defaults_ = {}
     
     def __init__(self, ffi, **kwargs):
 
@@ -98,4 +96,4 @@ class StructWithDefaults:
         return {fld[0]:getattr(self, fld[0]) for fld in self.ffi.typeof(obj[0]).fields}
 
     def __getstate__(self):
-        return {k:v for k,v in self.__dict__.items() if k not in ["_strings", "_obj"]}
+        return {k:v for k,v in self.__dict__.items() if k not in ["_strings", "_cstruct"]}
