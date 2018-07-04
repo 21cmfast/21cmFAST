@@ -14,14 +14,12 @@ if "DEBUG" in os.environ:
 else:
     extra_compile_args = ['-fopenmp', '-Ofast', '-w']
 
-if "FFTW_INC" in os.environ:
-    include_dirs += [os.environ["FFTW_INC"]]
-
 library_dirs = []
-if "FFTW_DIR" in os.environ:
-    library_dirs += [os.environ["FFTW_DIR"]]
-if "GSL_DIR" in os.environ:
-    library_dirs += [os.environ["GSL_DIR"]+'/lib']
+for k,v in os.environ.items():
+    if "inc" in k.lower():
+        include_dirs += [v]
+    elif "lib" in k.lower():
+        library_dirs += [v]
 # =================================================================
 
 # This is the overall C code.

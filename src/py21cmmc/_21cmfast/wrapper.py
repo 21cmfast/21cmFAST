@@ -34,6 +34,7 @@ class CosmoParams(StructWithDefaults):
     POWER_INDEX : float, optional
         Spectral index of the power spectrum.
     """
+    ffi = ffi
 
     _defaults_ = dict(
         RANDOM_SEED = None,
@@ -73,6 +74,8 @@ class UserParams(StructWithDefaults):
     BOX_LEN : float, optional
         Length of the box, in Mpc.
     """
+    ffi = ffi
+
     _defaults_ = dict(
         BOX_LEN = 150.0,
         DIM = None,
@@ -119,21 +122,28 @@ class PerturbedField:
         self.velocity = np.zeros(n)
 
 
-def initial_conditions(user_params, cosmo_params, regenerate=False, write=True):
+def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), regenerate=False, write=True):
     """
     Compute initial conditions.
 
     Parameters
     ----------
-    box_dim
-    cosmo_params
-    regenerate
-    write
-    dir
+    user_params : `~UserParams` instance, optional
+        Defines the overall options and parameters of the run.
+
+    cosmo_params : `~CosmoParams` instance, optional
+        Defines the cosmological parameters used to compute initial conditions.
+
+    regenerate : bool, optional
+        Whether to force regeneration of the initial conditions, even if a corresponding box is found.
+
+    write : bool, optional
+        Whether to write results to file.
 
     Returns
     -------
-
+    `~InitialConditions`
+        The class which contains the various boxes defining the initial conditions.
     """
     # First initialize memory for the boxes that will be returned.
     boxes = InitialConditions(user_params)

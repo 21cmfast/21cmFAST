@@ -1,1 +1,1 @@
-from .wrapper import initial_conditions, perturb_field, ionize, run_21cmfast
+from .wrapper import initial_conditions, CosmoParams, UserParams

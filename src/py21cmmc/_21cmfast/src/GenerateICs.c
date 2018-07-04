@@ -17,7 +17,7 @@
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_spline.h>
 #include <gsl/gsl_errno.h>
-#include "21cmmc.h"
+#include "21CMMC.h"
 
 void ComputeInitialConditions(struct UserParams user_params, struct CosmoParams cosmo_params, struct InitialConditions boxes) {
     

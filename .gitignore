@@ -2,3 +2,7 @@
 \.idea/
 
 *.pyc
+
+src/py21cmmc\.egg-info/
+
+*.so

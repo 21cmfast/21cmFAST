@@ -25,8 +25,9 @@ class StructWithDefaults:
     """
     _name = None
     _defaults_ = {}
-    
-    def __init__(self, ffi, **kwargs):
+    ffi = None
+
+    def __init__(self, **kwargs):
 
         for k, v in self._defaults_.items():
 
@@ -50,8 +51,6 @@ class StructWithDefaults:
         # A little list to hold references to strings so they don't de-reference
         self._strings = []
 
-        self.ffi = ffi
-        
     def _logic(self):
         pass
 
