@@ -107,7 +107,7 @@ class InitialConditions:
 
         # Put everything in the struct
         self.cstruct = ffi.new("struct InitialConditions*")
-        self.cstruct.hires_density = ffi.cast("float", ffi.from_buffer(self.hires_density))
+        self.cstruct.hires_density = ffi.cast("float *", ffi.from_buffer(self.hires_density))
 
 
 class PerturbedField:
