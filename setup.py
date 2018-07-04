@@ -45,7 +45,7 @@ if 'TOXENV' in os.environ and 'SETUPPY_CFLAGS' in os.environ:
 
 setup(
     name='py21cmmc',
-    version=find_version("py21cmmc", "__init__.py"),
+    version=find_version("src", "py21cmmc", "__init__.py"),
     license='MIT license',
     description='An extensible MCMC framework for 21cmFAST',
     long_description='%s\n%s' % (
@@ -94,5 +94,5 @@ setup(
             '21CMMC = py21cmmc.cli:main',
         ]
     },
-    cffi_modules=["cffi.py:ffi"],
+    cffi_modules=["build_cffi.py:ffi"],
 )
