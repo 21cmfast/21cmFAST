@@ -38,7 +38,7 @@ ffi.set_source(
 )
 
 # This is the Header file
-with open(os.path.join(CLOC, "21cmmc.h")) as f:
+with open(os.path.join(CLOC, "21CMMC.h")) as f:
     ffi.cdef(f.read())
 
 
