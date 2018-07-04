@@ -28,7 +28,7 @@ if "GSL_DIR" in os.environ:
 ffi.set_source(
     "py21cmmc._21cmfast._21cmfast",  # Name/Location of shared library module
     '''
-    #include "drive_21cmMC_streamlined.c"
+    #include "GenerateICs.c"
     ''',
     include_dirs = include_dirs,
     library_dirs=library_dirs,
