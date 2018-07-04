@@ -83,6 +83,10 @@ class UserParams(StructWithDefaults):
     def DIM(self):
         return self._DIM or 4 * self.HII_DIM
 
+    @property
+    def tot_fft_num_pixels(self):
+        return self.DIM**3
+
 
 # ======================================================================================================================
 # OUTPUT STRUCTURES
