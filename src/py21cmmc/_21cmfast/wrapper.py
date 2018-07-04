@@ -103,7 +103,7 @@ class InitialConditions:
         # self.lowres_vx_2LPT = np.zeros(box_dim.HII_tot_num_pixels)
         # self.lowres_vy_2LPT = np.zeros(box_dim.HII_tot_num_pixels)
         # self.lowres_vz_2LPT = np.zeros(box_dim.HII_tot_num_pixels)
-        self.hires_density = np.zeros(box_dim.tot_fft_num_pixels)
+        self.hires_density = np.zeros(box_dim.tot_fft_num_pixels,dtype=np.float32)
 
         # Put everything in the struct
         self.cstruct = ffi.new("struct InitialConditions*")
