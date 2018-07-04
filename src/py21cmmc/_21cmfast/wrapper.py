@@ -12,7 +12,7 @@ from astropy.cosmology import Planck15
 # ======================================================================================================================
 class CosmoParams(StructWithDefaults):
     """
-    Ctypes Structure with cosmological parameters (with defaults) for :func:`drive_21cmMC`.
+    Cosmological parameters (with defaults) which translates to a C struct.
 
     Parameters
     ----------
@@ -149,7 +149,7 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
     boxes = InitialConditions(user_params)
 
     # Run the C code
-    lib.ComputeInitialConditions(user_params()[0], cosmo_params()[0], boxes.cstruct[0])
+    lib.ComputeInitialConditions(user_params(), cosmo_params(), boxes.cstruct)
 
     # Optionally do stuff with the result (like writing it)
     if write:
