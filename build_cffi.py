@@ -4,7 +4,7 @@ import os
 ffi = FFI()
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 CLOC = os.path.join(LOCATION, 'src', 'py21cmmc', '_21cmfast', 'src')
-include_dirs = [CLOC]
+include_dirs = [CLOC,'/opt/local/include']
 
 # =================================================================
 # Set compilation arguments dependent on environment... a bit buggy
@@ -17,7 +17,7 @@ else:
 if "FFTW_INC" in os.environ:
     include_dirs += [os.environ["FFTW_INC"]]
 
-library_dirs = []
+library_dirs = ['/opt/local/lib']
 if "FFTW_DIR" in os.environ:
     library_dirs += [os.environ["FFTW_DIR"]]
 if "GSL_DIR" in os.environ:
