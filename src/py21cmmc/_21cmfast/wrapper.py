@@ -139,14 +139,13 @@ def initial_conditions(user_params, cosmo_params, regenerate=False, write=True):
     boxes = InitialConditions(user_params)
 
     # Run the C code
-    lib.ComputeInitialConditions(user_params(), cosmo_params(), boxes.cstruct)
+    lib.ComputeInitialConditions(user_params()[0], cosmo_params()[0], boxes.cstruct[0])
 
     # Optionally do stuff with the result (like writing it)
     if write:
         pass
 
     return boxes
-
 
 def perturb_field(redshift, init_boxes,  write=True, regenerate=False, read=False):
     """
