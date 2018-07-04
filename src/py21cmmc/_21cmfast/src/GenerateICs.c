@@ -19,7 +19,7 @@
 #include <gsl/gsl_errno.h>
 #include "21CMMC.h"
 
-void ComputeInitialConditions(struct UserParams user_params, struct CosmoParams cosmo_params, struct InitialConditions boxes) {
+void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes) {
     
     /*
      Generates the initial conditions: gaussian random density field (DIM^3) as well as the equal or lower resolution velocity fields, and smoothed density field (HII_DIM^3).
@@ -45,7 +45,7 @@ void ComputeInitialConditions(struct UserParams user_params, struct CosmoParams 
     
     // Removed all references to threads as 21CMMC is always a single core implementation
 
-    printf("%d\n",cosmo_params.RANDOM_SEED);
+    printf("%d\n", cosmo_params->RANDOM_SEED);
     // seed the random number generators
 //    r = gsl_rng_alloc(gsl_rng_mt19937);
 //    gsl_rng_set(r, cosmo_params.RANDOM_SEED);
