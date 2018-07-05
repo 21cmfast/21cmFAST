@@ -61,6 +61,7 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
     // use HII_DIM from ANAL_PARAMS
     printf("%e\n",boxes->hires_density[0]);
     printf("%e\n",boxes->hires_density[R_INDEX(100,100,100)]);
+    printf("%e\n",boxes->lowres_density[0]);
 //    LOWRES_density = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
 //    LOWRES_vx = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
 //    LOWRES_vy= (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
