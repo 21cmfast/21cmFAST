@@ -4,6 +4,9 @@
 
     Do a text search to find parameters from a specific .H file from 21cmFAST 
     (i.e. INIT_PARAMS.H, COSMOLOGY.H, ANAL_PARAMS.H and HEAT_PARAMS)
+ 
+    NOTE: Not all 21cmFAST variables will be found below. Only those useful for 21CMMC
+ 
  */
 
 // ----------------------------------------------------------------------------------------- //
