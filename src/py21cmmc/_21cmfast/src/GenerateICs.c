@@ -17,9 +17,11 @@
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_spline.h>
 #include <gsl/gsl_errno.h>
-#include "21CMMC.h"
 
-void ComputeInitialConditions(struct UserParams user_params, struct CosmoParams cosmo_params, struct InitialConditions boxes) {
+#include "21CMMC.h"
+#include "Constants.h"
+
+void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes) {
     
     /*
      Generates the initial conditions: gaussian random density field (DIM^3) as well as the equal or lower resolution velocity fields, and smoothed density field (HII_DIM^3).
@@ -45,23 +47,25 @@ void ComputeInitialConditions(struct UserParams user_params, struct CosmoParams 
     
     // Removed all references to threads as 21CMMC is always a single core implementation
 
-    printf("%d\n",cosmo_params.RANDOM_SEED);
     // seed the random number generators
-//    r = gsl_rng_alloc(gsl_rng_mt19937);
-//    gsl_rng_set(r, cosmo_params.RANDOM_SEED);
+    r = gsl_rng_alloc(gsl_rng_mt19937);
+    gsl_rng_set(r, cosmo_params->RANDOM_SEED);
 
-/*
     // allocate array for the k-space and real-space boxes
-    HIRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*user_params.KSPACE_NUM_PIXELS);
-    HIRES_box_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*user_params.KSPACE_NUM_PIXELS);
-    
+    fftwf_complex *HIRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+    fftwf_complex *HIRES_box_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+
+    printf("%e\n",cosmo_params->hlittle);
+
     // now allocate memory for the lower-resolution box
     // use HII_DIM from ANAL_PARAMS
-    LOWRES_density = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
-    LOWRES_vx = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
-    LOWRES_vy= (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
-    LOWRES_vz = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
-    
+    printf("%e\n",boxes->hires_density[0]);
+    printf("%e\n",boxes->hires_density[R_INDEX(100,100,100)]);
+//    LOWRES_density = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
+//    LOWRES_vx = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
+//    LOWRES_vy= (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
+//    LOWRES_vz = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
+/*
     if(SECOND_ORDER_LPT_CORRECTIONS){
         LOWRES_vx_2LPT = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
         LOWRES_vy_2LPT = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
@@ -425,8 +429,8 @@ void ComputeInitialConditions(struct UserParams user_params, struct CosmoParams 
      * *********************************************** */
     
     // deallocate
-//    fftwf_free(HIRES_box);
-//    fftwf_free(HIRES_box_saved);
+    fftwf_free(HIRES_box);
+    fftwf_free(HIRES_box_saved);
 }
 
 /*****  Adjust the complex conjugate relations for a real array  *****/

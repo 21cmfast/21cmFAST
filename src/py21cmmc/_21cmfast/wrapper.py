@@ -99,7 +99,7 @@ class InitialConditions:
     A class containing all initial conditions boxes.
     """
     def __init__(self, box_dim):
-        # self.lowres_density = np.zeros(box_dim.HII_tot_num_pixels)
+        # self.lowres_density = np.zeros(box_dim.HII_tot_num_pixels, dtype=np.float32)
         # self.lowres_vx = np.zeros(box_dim.HII_tot_num_pixels)
         # self.lowres_vy = np.zeros(box_dim.HII_tot_num_pixels)
         # self.lowres_vz = np.zeros(box_dim.HII_tot_num_pixels)
@@ -149,7 +149,7 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
     boxes = InitialConditions(user_params)
 
     # Run the C code
-    lib.ComputeInitialConditions(user_params()[0], cosmo_params()[0], boxes.cstruct[0])
+    lib.ComputeInitialConditions(user_params(), cosmo_params(), boxes.cstruct)
 
     # Optionally do stuff with the result (like writing it)
     if write:

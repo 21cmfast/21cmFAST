@@ -17,11 +17,11 @@
 
 
 
-#define MIDDLE (user_params.DIM/2)
-#define D (unsigned long long)user_params.DIM // the unsigned long long dimension
+#define MIDDLE (user_params->DIM/2)
+#define D (unsigned long long)user_params->DIM // the unsigned long long dimension
 #define MID ((unsigned long long)MIDDLE)
-#define VOLUME (user_params.BOX_LEN*user_params.BOX_LEN*user_params.BOX_LEN) // in Mpc^3
-#define DELTA_K (TWOPI/user_params.BOX_LEN)
+#define VOLUME (user_params->BOX_LEN*user_params->BOX_LEN*user_params->BOX_LEN) // in Mpc^3
+#define DELTA_K (TWOPI/user_params->BOX_LEN)
 #define TOT_NUM_PIXELS ((unsigned long long)(D*D*D)) // no padding
 #define TOT_FFT_NUM_PIXELS ((unsigned long long)(D*D*2llu*(MID+1llu)))
 #define KSPACE_NUM_PIXELS ((unsigned long long)(D*D*(MID+1llu)))
@@ -168,8 +168,8 @@
 
 #define L_FACTOR (float) (0.620350491) // factor relating cube length to filter radius = (4PI/3)^(-1/3)
 
-#define HII_D (unsigned long long) (user_params.HII_DIM)
-#define HII_MIDDLE (user_params.HII_DIM/2)
+#define HII_D (unsigned long long) (user_params->HII_DIM)
+#define HII_MIDDLE (user_params->HII_DIM/2)
 #define HII_MID ((unsigned long long)HII_MIDDLE)
 
 #define HII_TOT_NUM_PIXELS (unsigned long long)(HII_D*HII_D*HII_D)
@@ -341,7 +341,7 @@
 #define NUIONIZATION (double) (13.60*NU_over_EV)  // ionization frequency of H
 #define HeII_NUIONIZATION (double) (NUIONIZATION*4) // ionization frequency of HeII
 #define HeI_NUIONIZATION (double) (24.59*NU_over_EV) // ionization frequency of HeI
-#define Ho  (double) (cosmo_params.hlittle*3.2407e-18) // s^-1 at z=0
+#define Ho  (double) (cosmo_params->hlittle*3.2407e-18) // s^-1 at z=0
 #define RHOcrit (double) ( (3.0*Ho*Ho / (8.0*PI*G)) * (CMperMPC*CMperMPC*CMperMPC)/Msun) // Msun Mpc^-3 ---- at z=0
 #define RHOcrit_cgs (double) (3.0*Ho*Ho / (8.0*PI*G)) // g pcm^-3 ---- at z=0
 #define No  (double) (RHOcrit_cgs*OMb*(1-Y_He)/m_p)  //  current hydrogen number density estimate  (#/cm^3)  ~1.92e-7
