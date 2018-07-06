@@ -53,7 +53,7 @@ double init_ps(){
     lower_limit = kstart;//log(kstart);
     upper_limit = kend;//log(kend);
     
-    printf("%e\n",cosmo_params_ps->OMm);
+//    printf("%e\n",cosmo_params_ps->OMm);
  
 /*
 //    F.function = &dsigma_dk;
