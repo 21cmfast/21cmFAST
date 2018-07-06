@@ -6,6 +6,17 @@ import numpy as np
 from ._utils import StructWithDefaults
 from astropy.cosmology import Planck15
 
+from os import path
+import h5py
+import yaml
+import re, glob
+
+from hashlib import md5
+
+# Global Options
+with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:
+    opts = yaml.load(f)
+
 
 # ======================================================================================================================
 # PARAMETER STRUCTURES
@@ -47,7 +58,9 @@ class CosmoParams(StructWithDefaults):
 
     @property
     def RANDOM_SEED(self):
-        return self._RANDOM_SEED or int(np.random.randint(1, 1e12))
+        while not self._RANDOM_SEED:
+            self._RANDOM_SEED = int(np.random.randint(1, 1e12))
+        return self._RANDOM_SEED
 
     @property
     def OMl(self):
@@ -98,7 +111,9 @@ class InitialConditions:
     """
     A class containing all initial conditions boxes.
     """
-    def __init__(self, box_dim):
+    filled = False
+
+    def __init__(self, user_params, cosmo_params):
         # self.lowres_density = np.zeros(box_dim.HII_tot_num_pixels)
         # self.lowres_vx = np.zeros(box_dim.HII_tot_num_pixels)
         # self.lowres_vy = np.zeros(box_dim.HII_tot_num_pixels)
@@ -106,11 +121,160 @@ class InitialConditions:
         # self.lowres_vx_2LPT = np.zeros(box_dim.HII_tot_num_pixels)
         # self.lowres_vy_2LPT = np.zeros(box_dim.HII_tot_num_pixels)
         # self.lowres_vz_2LPT = np.zeros(box_dim.HII_tot_num_pixels)
-        self.hires_density = np.zeros(box_dim.tot_fft_num_pixels, dtype=np.float32)
+        self.hires_density = np.zeros(user_params.tot_fft_num_pixels, dtype=np.float32)
+
+        self.user_params = user_params
+        self.cosmo_params = cosmo_params
 
         # Put everything in the struct
         self.cstruct = ffi.new("struct InitialConditions*")
         self.cstruct.hires_density = ffi.cast("float *", ffi.from_buffer(self.hires_density))
+
+    @property
+    def _md5(self):
+        return md5(repr(self).encode()).hexdigest()
+
+    @property
+    def _hashname(self):
+        return self._md5 + "_r%s" % self.cosmo_params.RANDOM_SEED + ".h5"
+
+    def _get_fname(self, direc=None, fname=None):
+        if direc:
+            fname = fname or self._hashname
+        else:
+            fname = self._hashname
+
+        direc = direc or path.expanduser(opts['boxdir'])
+
+        return path.join(direc, fname)
+
+    def write(self, direc=None, fname=None):
+        """
+        Write the initial conditions boxes in standard HDF5 format.
+
+        Parameters
+        ----------
+        direc : str, optional
+            The directory in which to write the boxes. By default, this is the centrally-managed directory, given
+            by the ``config.yml`` in ``.21CMMC`.
+
+        fname : str, optional
+            The filename to write to. This is only used if `direc` is not None. By default, the filename is a hash
+            which accounts for the various parameters that define the boxes, to ensure uniqueness.
+        """
+        if not self.filled:
+            raise IOError("The boxes have not yet been computed.")
+
+        with h5py.File(self._get_fname(direc,fname), 'w') as f:
+            # Save the cosmo and user params to the file
+            cosmo = f.create_group("cosmo")
+            for k,v in self.cosmo_params.pystruct.items():
+                cosmo.attrs[k] = v
+
+            user = f.create_group("user_params")
+            for k, v in self.user_params.pystruct.items():
+                user.attrs[k] = v
+
+            # Save the boxes to the file
+            boxes = f.create_group("init_boxes")
+            boxes.create_dataset("hires_density", data = self.hires_density)
+
+    @staticmethod
+    def _find_file_without_seed(f):
+        f = re.sub("r\d+\.", "r*.", f)
+        allfiles = glob.glob(f)
+        if allfiles:
+            return allfiles[0]
+        else:
+            return None
+
+    def find_existing(self, direc=None, fname=None, match_seed=False):
+        """
+        Try to find existing boxes which match the parameters of this instance.
+
+        Parameters
+        ----------
+        direc : str, optional
+            The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
+            by the ``config.yml`` in ``.21CMMC`. This central directory will be searched in addition to whatever is
+            passed to `direc`.
+
+        fname : str, optional
+            The filename to search for. This is used in addition to the filename automatically assigned by the hash
+            of this instance.
+
+        match_seed : bool, optional
+            Whether to force the random seed to also match in order to be considered a match.
+
+        Returns
+        -------
+        str
+            The filename of an existing set of boxes, or None.
+        """
+        if direc is not None:
+            if fname is not None:
+                if path.exists(self._get_fname(direc, fname)):
+                    return self._get_fname(direc, fname)
+
+            f = self._get_fname(direc, None)
+            if path.exists(f):
+                return f
+            elif not match_seed:
+                f = self._find_file_without_seed(f)
+                if f: return f
+
+        f = self._get_fname(None, None)
+        if path.exists(f):
+            return f
+        else:
+            f = self._find_file_without_seed(f)
+            if f: return f
+
+        return None
+
+    def exists(self, direc=None, fname=None, match_seed=False):
+        return self.find_existing(direc, fname, match_seed) is not None
+
+    def read(self, direc=None, fname=None, match_seed=False):
+        """
+        Try to find and read in existing boxes which match the parameters of this instance.
+
+        Parameters
+        ----------
+        direc : str, optional
+            The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
+            by the ``config.yml`` in ``.21CMMC`. This central directory will be searched in addition to whatever is
+            passed to `direc`.
+
+        fname : str, optional
+            The filename to search for. This is used in addition to the filename automatically assigned by the hash
+            of this instance.
+
+        match_seed : bool, optional
+            Whether to force the random seed to also match in order to be considered a match.
+        """
+        pth = self.find_existing(direc, fname, match_seed)
+        if pth is None:
+            raise IOError("No boxes exist for these cosmo and user parameters.")
+
+        with h5py.File(pth,'r') as f:
+            boxes = f['init_boxes']
+
+            # Fill our arrays.
+            for k in boxes.keys():
+                getattr(self, k)[...] = boxes[k][...]
+
+            # Need to make sure that the seed is set to the one that's read in.
+            seed = f['cosmo'].attrs['RANDOM_SEED']
+            self.cosmo_params._RANDOM_SEED = seed
+
+        self.filled = True
+
+    def __repr__(self):
+        return self.__class__.__name__ + "("+repr(self.user_params) + repr(self.cosmo_params)+")"
+
+    def __hash__(self):
+        return hash(repr(self.user_params)+repr(self.cosmo_params))
 
 
 class PerturbedField:
@@ -122,7 +286,11 @@ class PerturbedField:
         self.velocity = np.zeros(n)
 
 
-def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), regenerate=False, write=True):
+# ======================================================================================================================
+# WRAPPING FUNCTIONS
+# ======================================================================================================================
+def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), regenerate=False, write=True, direc=None,
+                       fname=None):
     """
     Compute initial conditions.
 
@@ -140,20 +308,35 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
     write : bool, optional
         Whether to write results to file.
 
+    direc : str, optional
+        The directory in which to search for the boxes and write them. By default, this is the centrally-managed
+        directory, given by the ``config.yml`` in ``.21CMMC`.
+
+    fname : str, optional
+        The filename to search for/write to.
+
     Returns
     -------
     `~InitialConditions`
         The class which contains the various boxes defining the initial conditions.
     """
     # First initialize memory for the boxes that will be returned.
-    boxes = InitialConditions(user_params)
+    boxes = InitialConditions(user_params, cosmo_params)
+
+    # First check whether the boxes already exist.
+    if not regenerate:
+        if boxes.exists(direc, fname):
+            print("Existing init_boxes found, reading them in...")
+            boxes.read(direc, fname)
+            return boxes
 
     # Run the C code
     lib.ComputeInitialConditions(user_params(), cosmo_params(), boxes.cstruct)
+    boxes.filled = True
 
     # Optionally do stuff with the result (like writing it)
     if write:
-        pass
+        boxes.write(direc, fname)
 
     return boxes
 

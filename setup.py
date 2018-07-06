@@ -13,6 +13,7 @@ from os.path import join
 from os.path import relpath
 from os.path import splitext
 from os.path import expanduser
+from os import path
 
 from setuptools import Extension
 from setuptools import find_packages
@@ -36,6 +37,18 @@ def find_version(*file_paths):
     if version_match:
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
+
+# ======================================================================================================================
+# Create a user-level config directory for 21CMMC, for configuration.
+try:
+    pkgdir = expanduser(join("~", ".21CMMC"))
+    os.mkdir(pkgdir)
+except:
+    pass
+
+if not path.exists(join(pkgdir, "config.yml")):
+    copyfile("config.yml", join(pkgdir, "config.yml"))
+# ======================================================================================================================
 
 # Enable code coverage for C code: we can't use CFLAGS=-coverage in tox.ini, since that may mess with compiling
 # dependencies (e.g. numpy). Therefore we set SETUPPY_CFLAGS=-coverage in tox.ini and copy it to CFLAGS here (after

@@ -94,5 +94,20 @@ class StructWithDefaults:
         obj = self.new()
         return {fld[0]:getattr(self, fld[0]) for fld in self.ffi.typeof(obj[0]).fields}
 
+    @property
+    def __defining_dict(self):
+        # The defining dictionary is everything that defines the structure,
+        # but without anything that constitutes a random seed, which should be defined as RANDOM_SEED*
+        return {k:getattr(self, k) for k in self._defaults_ if not k.startswith("RANDOM_SEED")}
+
+    def __repr__(self):
+        return ", ".join(sorted([k+":"+str(v) for k,v in self.__defining_dict.items()]))
+
+    def __eq__(self, other):
+        return isinstance(self, other) and self.__repr__() == repr(other)
+
+    def __hash__(self):
+        return hash(self.__repr__)
+
     def __getstate__(self):
         return {k:v for k,v in self.__dict__.items() if k not in ["_strings", "_cstruct"]}
