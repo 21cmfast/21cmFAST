@@ -146,6 +146,9 @@ class OutputStruct:
         self.user_params = user_params
         self.cosmo_params = cosmo_params
 
+        for k,v in kwargs.items():
+            setattr(self, k, v)
+            
         self._fields_ = self._init_boxes()
 
         # Set the name of this struct in the C code

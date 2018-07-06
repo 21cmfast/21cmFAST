@@ -103,6 +103,10 @@ class UserParams(StructWithDefaults):
     def tot_fft_num_pixels(self):
         return self.DIM**3
 
+    @property
+    def HII_tot_num_pixels(self):
+        return self.DIM ** 3
+
 
 # ======================================================================================================================
 # OUTPUT STRUCTURES
@@ -112,10 +116,6 @@ class InitialConditions(OutputStruct):
     A class containing all initial conditions boxes.
     """
     ffi = ffi
-
-    def __init__(self, user_params, cosmo_params):
-        # This just *limits* the passed parameters to these.
-        super().__init__(user_params, cosmo_params)
 
     def _init_boxes(self):
         self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype= np.float32)

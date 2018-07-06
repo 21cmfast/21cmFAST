@@ -1,0 +1,12 @@
+# Specify parameters that 21cmFAST uses. These are broken into flags, astro and cosmo parameters.
+# Not all options are specified here, and all available parameters, along with their defaults,
+# can be found using "py21cmmc defaults".
+user_params: {
+    BOX_LEN: 50.0,
+    HII_DIM: 20
+}
+
+cosmo_params: {
+    OMm: 0.31,
+    RANDOM_SEED: 12345
+}

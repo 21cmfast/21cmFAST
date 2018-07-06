@@ -48,6 +48,7 @@ except:
 
 if not path.exists(join(pkgdir, "config.yml")):
     copyfile("config.yml", join(pkgdir, "config.yml"))
+copyfile("runconfig_example.yml", join(pkgdir, "runconfig_example.yml"))
 # ======================================================================================================================
 
 # Enable code coverage for C code: we can't use CFLAGS=-coverage in tox.ini, since that may mess with compiling
