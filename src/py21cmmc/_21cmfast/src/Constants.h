@@ -126,13 +126,6 @@
 #define NUIONIZATION (double) (13.60*NU_over_EV)  // ionization frequency of H
 #define HeII_NUIONIZATION (double) (NUIONIZATION*4) // ionization frequency of HeII
 #define HeI_NUIONIZATION (double) (24.59*NU_over_EV) // ionization frequency of HeI
-#define Ho  (double) (cosmo_params->hlittle*3.2407e-18) // s^-1 at z=0
-#define RHOcrit (double) ( (3.0*Ho*Ho / (8.0*PI*G)) * (CMperMPC*CMperMPC*CMperMPC)/Msun) // Msun Mpc^-3 ---- at z=0
-#define RHOcrit_cgs (double) (3.0*Ho*Ho / (8.0*PI*G)) // g pcm^-3 ---- at z=0
-#define No  (double) (RHOcrit_cgs*OMb*(1-Y_He)/m_p)  //  current hydrogen number density estimate  (#/cm^3)  ~1.92e-7
-#define He_No (double) (RHOcrit_cgs*OMb*Y_He/(4.0*m_p)) //  current helium number density estimate
-#define N_b0 (double) (No+He_No) // present-day baryon num density, H + He
-#define f_H (double) (No/(No+He_No))  // hydrogen number fraction
-#define f_He (double) (He_No/(No+He_No))  // helium number fraction
 #define T21 (double) 0.0628 // temperature corresponding to the 21cm photon
 #define A10_HYPERFINE (double) 2.85e-15 // spontaneous emission coefficient in s^-1
+

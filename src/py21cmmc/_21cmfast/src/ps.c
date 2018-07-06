@@ -11,76 +11,11 @@ double power_in_k(double k); /* Returns the value of the linear power spectrum d
 double TFmdm(double k); //Eisenstien & Hu power spectrum transfer function
 void TFset_parameters();
 
+
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params){
  
     cosmo_params_ps = cosmo_params;
 }
-
-double init_ps(){
-    double result, error, lower_limit, upper_limit;
-    gsl_function F;
-    double rel_tol  = FRACT_FLOAT_ERR*10; //<- relative tolerance
-    gsl_integration_workspace * w
-    = gsl_integration_workspace_alloc (1000);
-    double kstart, kend;
-    int i;
-    double x;
-    
-    // Set cuttoff scale for WDM (eq. 4 in Barkana et al. 2001) in comoving Mpc
-    R_CUTOFF = 0.201*pow((cosmo_params_ps->OMm-cosmo_params_ps->OMb)*cosmo_params_ps->hlittle*cosmo_params_ps->hlittle/0.15, 0.15)*pow(g_x/1.5, -0.29)*pow(M_WDM, -1.15);
-    
-    //  fprintf(stderr, "For M_DM = %.2e keV, R_CUTOFF is: %.2e comoving Mpc\n", M_WDM, R_CUTOFF);
-//    if (!P_CUTOFF)
-        //    fprintf(stderr, "But you have selected CDM, so this is ignored\n");
-        
-    omhh = cosmo_params_ps->OMm*cosmo_params_ps->hlittle*cosmo_params_ps->hlittle;
-    theta_cmb = T_cmb / 2.7;
-    
-    // Translate Parameters into forms GLOBALVARIABLES form
-    f_nu = OMn/cosmo_params_ps->OMm;
-    f_baryon = cosmo_params_ps->OMb/cosmo_params_ps->OMm;
-    if (f_nu < TINY) f_nu = 1e-10;
-    if (f_baryon < TINY) f_baryon = 1e-10;
-    
-    
-//    TFset_parameters();
-    
-    sigma_norm = -1;
-    
-    R = 8.0/cosmo_params_ps->hlittle;
-    kstart = 1.0e-99/R;
-    kend = 350.0/R;
-    lower_limit = kstart;//log(kstart);
-    upper_limit = kend;//log(kend);
-    
-//    printf("%e\n",cosmo_params_ps->OMm);
- 
-/*
-//    F.function = &dsigma_dk;
-    
-//    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
-//                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
-//    gsl_integration_workspace_free (w);
-    
-//    sigma_norm = SIGMA8/sqrt(result); //takes care of volume factor
-*/
-    
-    /* initialize the lookup table for erfc */
-    /*
-     for (i=0; i<=ERFC_NPTS; i++){
-     erfc_params[i] = i*ERFC_PARAM_DELTA;
-     log_erfc_table[i] = log(erfcc(erfc_params[i]));
-     }
-     // Set up spline table
-     erfc_acc   = gsl_interp_accel_alloc ();
-     erfc_spline  = gsl_spline_alloc (gsl_interp_cspline, ERFC_NPTS);
-     gsl_spline_init(erfc_spline, erfc_params, log_erfc_table, ERFC_NPTS);
-     */
-    
-    return R_CUTOFF;
-}
-
-/*
 
 // FUNCTION sigma_z0(M)
 // Returns the standard deviation of the normalized, density excess (delta(x)) field,
@@ -103,34 +38,34 @@ double dsigma_dk(double k, void *params){
         T = TFmdm(k);
         // check if we should cuttoff power spectrum according to Bode et al. 2000 transfer function
         if (P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
-        p = pow(k, POWER_INDEX) * T * T;
+        p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
     }
     else if (POWER_SPECTRUM == 1){ // BBKS
-        gamma = OMm * hlittle * pow(E, -OMb - OMb/OMm);
-        q = k / (hlittle*gamma);
+        gamma = cosmo_params_ps->OMm * cosmo_params_ps->hlittle * pow(E, -(cosmo_params_ps->OMb) - (cosmo_params_ps->OMb/cosmo_params_ps->OMm));
+        q = k / (cosmo_params_ps->hlittle*gamma);
         T = (log(1.0+2.34*q)/(2.34*q)) *
         pow( 1.0+3.89*q + pow(16.1*q, 2) + pow( 5.46*q, 3) + pow(6.71*q, 4), -0.25);
-        p = pow(k, POWER_INDEX) * T * T;
+        p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
     }
     else if (POWER_SPECTRUM == 2){ // Efstathiou,G., Bond,J.R., and White,S.D.M., MNRAS,258,1P (1992)
         gamma = 0.25;
-        aa = 6.4/(hlittle*gamma);
-        bb = 3.0/(hlittle*gamma);
-        cc = 1.7/(hlittle*gamma);
-        p = pow(k, POWER_INDEX) / pow( 1+pow( aa*k + pow(bb*k, 1.5) + pow(cc*k,2), 1.13), 2.0/1.13 );
+        aa = 6.4/(cosmo_params_ps->hlittle*gamma);
+        bb = 3.0/(cosmo_params_ps->hlittle*gamma);
+        cc = 1.7/(cosmo_params_ps->hlittle*gamma);
+        p = pow(k, cosmo_params_ps->POWER_INDEX) / pow( 1+pow( aa*k + pow(bb*k, 1.5) + pow(cc*k,2), 1.13), 2.0/1.13 );
     }
     else if (POWER_SPECTRUM == 3){ // Peebles, pg. 626
-        gamma = OMm * hlittle * pow(E, -OMb - OMb/OMm);
-        aa = 8.0 / (hlittle*gamma);
-        bb = 4.7 / pow(hlittle*gamma, 2);
-        p = pow(k, POWER_INDEX) / pow(1 + aa*k + bb*k*k, 2);
+        gamma = cosmo_params_ps->OMm * cosmo_params_ps->hlittle * pow(E, -(cosmo_params_ps->OMb) - (cosmo_params_ps->OMb/cosmo_params_ps->OMm));
+        aa = 8.0 / (cosmo_params_ps->hlittle*gamma);
+        bb = 4.7 / pow(cosmo_params_ps->hlittle*gamma, 2);
+        p = pow(k, cosmo_params_ps->POWER_INDEX) / pow(1 + aa*k + bb*k*k, 2);
     }
     else if (POWER_SPECTRUM == 4){ // White, SDM and Frenk, CS, 1991, 379, 52
-        gamma = OMm * hlittle * pow(E, -OMb - OMb/OMm);
-        aa = 1.7/(hlittle*gamma);
-        bb = 9.0/pow(hlittle*gamma, 1.5);
-        cc = 1.0/pow(hlittle*gamma, 2);
-        p = pow(k, POWER_INDEX) * 19400.0 / pow(1 + aa*k + bb*pow(k, 1.5) + cc*k*k, 2);
+        gamma = cosmo_params_ps->OMm * cosmo_params_ps->hlittle * pow(E, -(cosmo_params_ps->OMb) - (cosmo_params_ps->OMb/cosmo_params_ps->OMm));
+        aa = 1.7/(cosmo_params_ps->hlittle*gamma);
+        bb = 9.0/pow(cosmo_params_ps->hlittle*gamma, 1.5);
+        cc = 1.0/pow(cosmo_params_ps->hlittle*gamma, 2);
+        p = pow(k, cosmo_params_ps->POWER_INDEX) * 19400.0 / pow(1 + aa*k + bb*pow(k, 1.5) + cc*k*k, 2);
     }
     else{
         fprintf(stderr, "No such power spectrum defined: %i\nOutput is bogus.\n", POWER_SPECTRUM);
@@ -210,13 +145,13 @@ void TFset_parameters(){
     k_equality = 0.0746*omhh/(theta_cmb*theta_cmb);
     
     z_drag = 0.313*pow(omhh,-0.419) * (1 + 0.607*pow(omhh, 0.674));
-    z_drag = 1 + z_drag*pow(OMb*hlittle*hlittle, 0.238*pow(omhh, 0.223));
+    z_drag = 1 + z_drag*pow(cosmo_params_ps->OMb*cosmo_params_ps->hlittle*cosmo_params_ps->hlittle, 0.238*pow(omhh, 0.223));
     z_drag *= 1291 * pow(omhh, 0.251) / (1 + 0.659*pow(omhh, 0.828));
     
     y_d = (1 + z_equality) / (1.0 + z_drag);
     
-    R_drag = 31.5 * OMb*hlittle*hlittle * pow(theta_cmb, -4) * 1000 / (1.0 + z_drag);
-    R_equality = 31.5 * OMb*hlittle*hlittle * pow(theta_cmb, -4) * 1000 / (1.0 + z_equality);
+    R_drag = 31.5 * cosmo_params_ps->OMb*cosmo_params_ps->hlittle*cosmo_params_ps->hlittle * pow(theta_cmb, -4) * 1000 / (1.0 + z_drag);
+    R_equality = 31.5 * cosmo_params_ps->OMb*cosmo_params_ps->hlittle*cosmo_params_ps->hlittle * pow(theta_cmb, -4) * 1000 / (1.0 + z_equality);
     
     sound_horizon = 2.0/3.0/k_equality * sqrt(6.0/R_equality) *
     log( (sqrt(1+R_drag) + sqrt(R_drag+R_equality)) / (1.0 + sqrt(R_equality)) );
@@ -235,7 +170,7 @@ void TFset_parameters(){
     beta_c = 1.0/(1.0-0.949*f_nub);
 }
 
-
+/*
 // Returns the value of the linear power spectrum DENSITY (i.e. <|delta_k|^2>/V)
 // at a given k mode linearly extrapolated to z=0
 double power_in_k(double k){
@@ -285,3 +220,62 @@ double power_in_k(double k){
     return p*TWOPI*PI*sigma_norm*sigma_norm;
 }
 */
+
+double init_ps(){
+    double result, error, lower_limit, upper_limit;
+    gsl_function F;
+    double rel_tol  = FRACT_FLOAT_ERR*10; //<- relative tolerance
+    gsl_integration_workspace * w
+    = gsl_integration_workspace_alloc (1000);
+    double kstart, kend;
+    int i;
+    double x;
+    
+    // Set cuttoff scale for WDM (eq. 4 in Barkana et al. 2001) in comoving Mpc
+    R_CUTOFF = 0.201*pow((cosmo_params_ps->OMm-cosmo_params_ps->OMb)*cosmo_params_ps->hlittle*cosmo_params_ps->hlittle/0.15, 0.15)*pow(g_x/1.5, -0.29)*pow(M_WDM, -1.15);
+    
+    //  fprintf(stderr, "For M_DM = %.2e keV, R_CUTOFF is: %.2e comoving Mpc\n", M_WDM, R_CUTOFF);
+    //    if (!P_CUTOFF)
+    //    fprintf(stderr, "But you have selected CDM, so this is ignored\n");
+    
+    omhh = cosmo_params_ps->OMm*cosmo_params_ps->hlittle*cosmo_params_ps->hlittle;
+    theta_cmb = T_cmb / 2.7;
+    
+    // Translate Parameters into forms GLOBALVARIABLES form
+    f_nu = OMn/cosmo_params_ps->OMm;
+    f_baryon = cosmo_params_ps->OMb/cosmo_params_ps->OMm;
+    if (f_nu < TINY) f_nu = 1e-10;
+    if (f_baryon < TINY) f_baryon = 1e-10;
+    
+    TFset_parameters();
+    
+    sigma_norm = -1;
+    
+    R = 8.0/cosmo_params_ps->hlittle;
+    kstart = 1.0e-99/R;
+    kend = 350.0/R;
+    lower_limit = kstart;//log(kstart);
+    upper_limit = kend;//log(kend);
+    
+    F.function = &dsigma_dk;
+    
+    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
+    gsl_integration_workspace_free (w);
+    
+    sigma_norm = cosmo_params_ps->SIGMA_8/sqrt(result); //takes care of volume factor
+    
+    /* initialize the lookup table for erfc */
+    /*
+     for (i=0; i<=ERFC_NPTS; i++){
+     erfc_params[i] = i*ERFC_PARAM_DELTA;
+     log_erfc_table[i] = log(erfcc(erfc_params[i]));
+     }
+     // Set up spline table
+     erfc_acc   = gsl_interp_accel_alloc ();
+     erfc_spline  = gsl_spline_alloc (gsl_interp_cspline, ERFC_NPTS);
+     gsl_spline_init(erfc_spline, erfc_params, log_erfc_table, ERFC_NPTS);
+     */
+    
+    return R_CUTOFF;
+}

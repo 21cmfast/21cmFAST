@@ -21,6 +21,7 @@
 #include "21CMMC.h"
 #include "Constants.h"
 #include "Globals.h"
+#include "UsefulFunctions.c"
 #include "ps.c"
 
 void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes) {
@@ -33,6 +34,10 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
      Author: Andrei Mesinger
      Date: 9/29/06
      */
+    
+    // Makes the parameter structs visible to a variety of functions/macros
+    Broadcast_struct_global_PS(user_params,cosmo_params);
+    Broadcast_struct_global_UF(user_params,cosmo_params);
     
     fftwf_plan plan;
     
@@ -64,7 +69,6 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
 //    LOWRES_vy= (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
 //    LOWRES_vz = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
 
-    printf("%d\n",SECOND_ORDER_LPT_CORRECTIONS);
 // Leave out for now
 /*
     if(SECOND_ORDER_LPT_CORRECTIONS){
@@ -81,7 +85,9 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
     /************ CREATE K-SPACE GAUSSIAN RANDOM FIELD ***********/
 
 //    init_ps();
-    Broadcast_struct_global_PS(user_params,cosmo_params);
+    
+//    printf("%e\n",Ho);
+    
     init_ps();
 //    p = power_in_k(1.0);
 /*
