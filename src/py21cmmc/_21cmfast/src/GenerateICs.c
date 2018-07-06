@@ -20,6 +20,7 @@
 
 #include "21CMMC.h"
 #include "Constants.h"
+#include "Globals.h"
 #include "ps.c"
 
 void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes) {
@@ -63,6 +64,7 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
 //    LOWRES_vy= (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
 //    LOWRES_vz = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
 
+    printf("%d\n",SECOND_ORDER_LPT_CORRECTIONS);
 // Leave out for now
 /*
     if(SECOND_ORDER_LPT_CORRECTIONS){
