@@ -9,10 +9,6 @@ from astropy.cosmology import Planck15
 from os import path
 import yaml
 
-# Global Options
-with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:
-    config = yaml.load(f)
-
 
 # ======================================================================================================================
 # PARAMETER STRUCTURES
