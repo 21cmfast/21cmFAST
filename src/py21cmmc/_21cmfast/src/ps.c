@@ -170,7 +170,7 @@ void TFset_parameters(){
     beta_c = 1.0/(1.0-0.949*f_nub);
 }
 
-/*
+
 // Returns the value of the linear power spectrum DENSITY (i.e. <|delta_k|^2>/V)
 // at a given k mode linearly extrapolated to z=0
 double power_in_k(double k){
@@ -181,35 +181,35 @@ double power_in_k(double k){
         T = TFmdm(k);
         // check if we should cuttoff power spectrum according to Bode et al. 2000 transfer function
         if (P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
-        p = pow(k, POWER_INDEX) * T * T;
+        p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
         //p = pow(k, POWER_INDEX - 0.05*log(k/0.05)) * T * T; //running, alpha=0.05
     }
     else if (POWER_SPECTRUM == 1){ // BBKS
-        gamma = OMm * hlittle * pow(E, -OMb - OMb/OMm);
-        q = k / (hlittle*gamma);
+        gamma = cosmo_params_ps->OMm * cosmo_params_ps->hlittle * pow(E, -(cosmo_params_ps->OMb) - (cosmo_params_ps->OMb/cosmo_params_ps->OMm));
+        q = k / (cosmo_params_ps->hlittle*gamma);
         T = (log(1.0+2.34*q)/(2.34*q)) *
         pow( 1.0+3.89*q + pow(16.1*q, 2) + pow( 5.46*q, 3) + pow(6.71*q, 4), -0.25);
-        p = pow(k, POWER_INDEX) * T * T;
+        p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
     }
     else if (POWER_SPECTRUM == 2){ // Efstathiou,G., Bond,J.R., and White,S.D.M., MNRAS,258,1P (1992)
         gamma = 0.25;
-        aa = 6.4/(hlittle*gamma);
-        bb = 3.0/(hlittle*gamma);
-        cc = 1.7/(hlittle*gamma);
-        p = pow(k, POWER_INDEX) / pow( 1+pow( aa*k + pow(bb*k, 1.5) + pow(cc*k,2), 1.13), 2.0/1.13 );
+        aa = 6.4/(cosmo_params_ps->hlittle*gamma);
+        bb = 3.0/(cosmo_params_ps->hlittle*gamma);
+        cc = 1.7/(cosmo_params_ps->hlittle*gamma);
+        p = pow(k, cosmo_params_ps->POWER_INDEX) / pow( 1+pow( aa*k + pow(bb*k, 1.5) + pow(cc*k,2), 1.13), 2.0/1.13 );
     }
     else if (POWER_SPECTRUM == 3){ // Peebles, pg. 626
-        gamma = OMm * hlittle * pow(E, -OMb - OMb/OMm);
-        aa = 8.0 / (hlittle*gamma);
-        bb = 4.7 / pow(hlittle*gamma, 2);
-        p = pow(k, POWER_INDEX) / pow(1 + aa*k + bb*k*k, 2);
+        gamma = cosmo_params_ps->OMm * cosmo_params_ps->hlittle * pow(E, -(cosmo_params_ps->OMb) - (cosmo_params_ps->OMb)/(cosmo_params_ps->OMm));
+        aa = 8.0 / (cosmo_params_ps->hlittle*gamma);
+        bb = 4.7 / pow(cosmo_params_ps->hlittle*gamma, 2);
+        p = pow(k, cosmo_params_ps->POWER_INDEX) / pow(1 + aa*k + bb*k*k, 2);
     }
     else if (POWER_SPECTRUM == 4){ // White, SDM and Frenk, CS, 1991, 379, 52
-        gamma = OMm * hlittle * pow(E, -OMb - OMb/OMm);
-        aa = 1.7/(hlittle*gamma);
-        bb = 9.0/pow(hlittle*gamma, 1.5);
-        cc = 1.0/pow(hlittle*gamma, 2);
-        p = pow(k, POWER_INDEX) * 19400.0 / pow(1 + aa*k + bb*pow(k, 1.5) + cc*k*k, 2);
+        gamma = cosmo_params_ps->OMm * cosmo_params_ps->hlittle * pow(E, -(cosmo_params_ps->OMb) - (cosmo_params_ps->OMb/cosmo_params_ps->OMm));
+        aa = 1.7/(cosmo_params_ps->hlittle*gamma);
+        bb = 9.0/pow(cosmo_params_ps->hlittle*gamma, 1.5);
+        cc = 1.0/pow(cosmo_params_ps->hlittle*gamma, 2);
+        p = pow(k, cosmo_params_ps->POWER_INDEX) * 19400.0 / pow(1 + aa*k + bb*pow(k, 1.5) + cc*k*k, 2);
     }
     else{
         fprintf(stderr, "No such power spectrum defined: %i\nOutput is bogus.\n", POWER_SPECTRUM);
@@ -219,7 +219,7 @@ double power_in_k(double k){
     
     return p*TWOPI*PI*sigma_norm*sigma_norm;
 }
-*/
+
 
 double init_ps(){
     double result, error, lower_limit, upper_limit;

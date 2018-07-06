@@ -47,7 +47,8 @@ class CosmoParams(StructWithDefaults):
 
     @property
     def RANDOM_SEED(self):
-        return self._RANDOM_SEED or int(np.random.randint(1, 1e12))
+#        return self._RANDOM_SEED or int(np.random.randint(1, 1e12))
+        return 1
 
     @property
     def OMl(self):

@@ -11,36 +11,6 @@
 
 // ----------------------------------------------------------------------------------------- //
 
-// Taken from INIT_PARAMS.H
-
-// ----------------------------------------------------------------------------------------- //
-
-
-
-#define MIDDLE (user_params->DIM/2)
-#define D (unsigned long long)user_params->DIM // the unsigned long long dimension
-#define MID ((unsigned long long)MIDDLE)
-#define VOLUME (user_params->BOX_LEN*user_params->BOX_LEN*user_params->BOX_LEN) // in Mpc^3
-#define DELTA_K (TWOPI/user_params->BOX_LEN)
-#define TOT_NUM_PIXELS ((unsigned long long)(D*D*D)) // no padding
-#define TOT_FFT_NUM_PIXELS ((unsigned long long)(D*D*2llu*(MID+1llu)))
-#define KSPACE_NUM_PIXELS ((unsigned long long)(D*D*(MID+1llu)))
-
-// Define some useful macros
-
-// for 3D complex array
-#define C_INDEX(x,y,z)((unsigned long long)((z)+(MID+1llu)*((y)+D*(x))))
-
-// for 3D real array with the FFT padding
-#define R_FFT_INDEX(x,y,z)((unsigned long long)((z)+2llu*(MID+1llu)*((y)+D*(x))))
-
-// for 3D real array with no padding
-#define R_INDEX(x,y,z)((unsigned long long)((z)+D*((y)+D*(x))))
-
-
-
-// ----------------------------------------------------------------------------------------- //
-
 // Taken from ANAL_PARAMS.H
 
 // ----------------------------------------------------------------------------------------- //
@@ -52,22 +22,6 @@
 // shot noise if the find_HII_bubble algorithm is run on a fine, non-linear density grid.
 
 #define L_FACTOR (float) (0.620350491) // factor relating cube length to filter radius = (4PI/3)^(-1/3)
-
-#define HII_D (unsigned long long) (user_params->HII_DIM)
-#define HII_MIDDLE (user_params->HII_DIM/2)
-#define HII_MID ((unsigned long long)HII_MIDDLE)
-
-#define HII_TOT_NUM_PIXELS (unsigned long long)(HII_D*HII_D*HII_D)
-#define HII_TOT_FFT_NUM_PIXELS ((unsigned long long)(HII_D*HII_D*2llu*(HII_MID+1llu)))
-#define HII_KSPACE_NUM_PIXELS ((unsigned long long)(HII_D*HII_D*(HII_MID+1llu)))
-
-// INDEXING MACROS //
-// for 3D complex array
-#define HII_C_INDEX(x,y,z)((unsigned long long)((z)+(HII_MID+1llu)*((y)+HII_D*(x))))
-// for 3D real array with the FFT padding
-#define HII_R_FFT_INDEX(x,y,z)((unsigned long long)((z)+2llu*(HII_MID+1llu)*((y)+HII_D*(x))))
-// for 3D real array with no padding
-#define HII_R_INDEX(x,y,z)((unsigned long long)((z)+HII_D*((y)+HII_D*(x))))
 
 
 
