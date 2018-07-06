@@ -11,7 +11,7 @@
     --------------------------------------------------------------------------------------------------------------------
 */
 
-typedef struct CosmoParams{
+struct CosmoParams{
     
     unsigned long long RANDOM_SEED;
     float SIGMA_8;
@@ -38,3 +38,5 @@ struct InitialConditions{
 };
 
 void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes);
+
+void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params);

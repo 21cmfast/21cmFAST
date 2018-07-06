@@ -20,6 +20,7 @@
 
 #include "21CMMC.h"
 #include "Constants.h"
+#include "ps.c"
 
 void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes) {
     
@@ -55,43 +56,44 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
     fftwf_complex *HIRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
     fftwf_complex *HIRES_box_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
-    printf("%e\n",cosmo_params->hlittle);
-
     // now allocate memory for the lower-resolution box
     // use HII_DIM from ANAL_PARAMS
-    printf("%e\n",boxes->hires_density[0]);
-    printf("%e\n",boxes->hires_density[R_INDEX(100,100,100)]);
-    printf("%e\n",boxes->lowres_density[0]);
 //    LOWRES_density = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
 //    LOWRES_vx = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
 //    LOWRES_vy= (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
 //    LOWRES_vz = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
+
+// Leave out for now
 /*
     if(SECOND_ORDER_LPT_CORRECTIONS){
         LOWRES_vx_2LPT = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
         LOWRES_vy_2LPT = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
         LOWRES_vz_2LPT = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
     }
-    
-    // find factor of HII pixel size / deltax pixel size
-    f_pixel_factor = DIM/(float)HII_DIM;
 */
+    // find factor of HII pixel size / deltax pixel size
+    f_pixel_factor = user_params->DIM/(float)user_params->HII_DIM;
  
     /************  END INITIALIZATION ******************/
     
     /************ CREATE K-SPACE GAUSSIAN RANDOM FIELD ***********/
+
+//    init_ps();
+    Broadcast_struct_global_PS(user_params,cosmo_params);
+    init_ps();
+//    p = power_in_k(1.0);
 /*
-    for (n_x=0; n_x<DIM; n_x++){
+    for (n_x=0; n_x<user_params->DIM; n_x++){
         // convert index to numerical value for this component of the k-mode: k = (2*pi/L) * n
         if (n_x>MIDDLE)
-            k_x =(n_x-DIM) * DELTA_K;  // wrap around for FFT convention
+            k_x =(n_x-user_params->DIM) * DELTA_K;  // wrap around for FFT convention
         else
             k_x = n_x * DELTA_K;
         
-        for (n_y=0; n_y<DIM; n_y++){
+        for (n_y=0; n_y<user_params->DIM; n_y++){
             // convert index to numerical value for this component of the k-mode: k = (2*pi/L) * n
             if (n_y>MIDDLE)
-                k_y =(n_y-DIM) * DELTA_K;
+                k_y =(n_y-user_params->DIM) * DELTA_K;
             else
                 k_y = n_y * DELTA_K;
             
@@ -103,13 +105,13 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
                 // now get the power spectrum; remember, only the magnitude of k counts (due to issotropy)
                 // this could be used to speed-up later maybe
                 k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
-                p = power_in_k(k_mag);
+//                p = power_in_k(k_mag);
                 
                 // ok, now we can draw the values of the real and imaginary part
                 // of our k entry from a Gaussian distribution
                 a = gsl_ran_ugaussian(r);
                 b = gsl_ran_ugaussian(r);
-                HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME*p/2.0) * (a + b*I);
+//                HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME*p/2.0) * (a + b*I);
             }
         }
     }
@@ -478,4 +480,3 @@ void adj_complex_conj(){
  
 }
 */
-
