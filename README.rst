@@ -22,10 +22,10 @@ Then just do (from top-level directory)::
 
 Various options exist to manage compilation via environment variables. Basically, any variable with "INC" in its name
 will add to the includes directories, while any variable with "lib" in its name will add to the directories searched
-for libraries. Finally, if you want to compile the C-library in dev mode (so you can do stuff like valgrid and gdb with
-it), install with DEBUG=True. So for example::
+for libraries. To change the C compiler, use ``CC``. Finally, if you want to compile the C-library in dev mode (so you
+can do stuff like valgrid and gdb with it), install with DEBUG=True. So for example::
 
-    DEBUG=True GSL_LIB=/opt/local/lib FFTW_INC=/usr/local/include pip install -e .
+    CC=/usr/bin/gcc DEBUG=True GSL_LIB=/opt/local/lib FFTW_INC=/usr/local/include pip install -e .
 
 While the ``-e`` option will keep your library up-to-date with any (Python) changes, this will *not* work when changing
 the C extension. If the C code changes, you need to manually run ``rm -rf build/*`` then re-install as above.
@@ -46,8 +46,7 @@ To get help on any subcommand, simply use::
 
     $ 21CMMC <subcommand> --help
 
-.. note:: The only subcommand implemented so far (for testing) is ``init``, which will run ``initial_conditions`` with
-          default arguments.
+.. note:: The only subcommands implemented so far (for testing) are ``init`` and ``perturb``.
 
 Library
 ~~~~~~~
@@ -56,8 +55,6 @@ wrapped results that are ready for further analysis/plotting. The main namespace
 
     >>> from py21cmmc import initial_conditions, ...
 
-.. note:: For testing, only ``initial_conditions`` is defined, and can be called without passing any arguments (they
-          have sensible defaults).
 
 Documentation
 =============

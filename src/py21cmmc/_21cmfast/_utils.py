@@ -148,7 +148,7 @@ class OutputStruct:
 
         for k,v in kwargs.items():
             setattr(self, k, v)
-            
+
         self._fields_ = self._init_boxes()
 
         # Set the name of this struct in the C code

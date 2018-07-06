@@ -7,11 +7,7 @@ from ._utils import StructWithDefaults, OutputStruct
 from astropy.cosmology import Planck15
 
 from os import path
-import h5py
 import yaml
-import re, glob
-
-from hashlib import md5
 
 # Global Options
 with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:
