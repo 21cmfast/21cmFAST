@@ -12,7 +12,7 @@ from astropy.cosmology import Planck15
 # ======================================================================================================================
 class CosmoParams(StructWithDefaults):
     """
-    Ctypes Structure with cosmological parameters (with defaults) for :func:`drive_21cmMC`.
+    Cosmological parameters (with defaults) which translates to a C struct.
 
     Parameters
     ----------
