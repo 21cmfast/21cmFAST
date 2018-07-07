@@ -156,11 +156,11 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
 double MtoR(double M){
     
     // set R according to M<->R conversion defined by the filter type in ../Parameter_files/COSMOLOGY.H
-    if (FILTER == 0) //top hat M = (4/3) PI <rho> R^3
+    if (global_params.FILTER == 0) //top hat M = (4/3) PI <rho> R^3
         return pow(3*M/(4*PI*cosmo_params_ufunc->OMm*RHOcrit), 1.0/3.0);
-    else if (FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
+    else if (global_params.FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
         return pow( M/(pow(2*PI, 1.5) * cosmo_params_ufunc->OMm * RHOcrit), 1.0/3.0 );
     else // filter not defined
-        fprintf(stderr, "No such filter = %i.\nResults are bogus.\n", FILTER);
+        fprintf(stderr, "No such filter = %i.\nResults are bogus.\n", global_params.FILTER);
     return -1;
 }

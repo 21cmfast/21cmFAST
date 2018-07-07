@@ -9,6 +9,108 @@
  
  */
 
+struct GlobalParams{
+    float ALPHA_UVB;
+    int EVOLVE_DENSITY_LINEARLY;
+    int SMOOTH_EVOLVED_DENSITY_FIELD;
+    float R_smooth_density;
+    int SECOND_ORDER_LPT_CORRECTIONS;
+    float HII_ROUND_ERR;
+    int FIND_BUBBLE_ALGORITHM;
+    int N_POISSON;
+    int T_USE_VELOCITIES;
+    float MAX_DVDR;
+    int DIMENSIONAL_T_POWER_SPEC;
+    float DELTA_R_FACTOR;
+    float DELTA_R_HII_FACTOR;
+    float R_OVERLAP_FACTOR;
+    int DELTA_CRIT_MODE;
+    int HII_FILTER;
+    float INITIAL_REDSHIFT;
+    
+    int HEAT_FILTER;
+    double CLUMPING_FACTOR;
+    float Z_HEAT_MAX;
+    float R_XLy_MAX;
+    int NUM_FILTER_STEPS_FOR_Ts;
+    float ZPRIME_STEP_FACTOR;
+    double TK_at_Z_HEAT_MAX;
+    double XION_at_Z_HEAT_MAX;
+    int Ts_verbose;
+    int Pop;
+    float Pop2_ion;
+    float Pop3_ion;
+    int DEBUG_ON;
+
+    int P_CUTOFF;
+    float M_WDM;
+    float g_x;
+    float OMn;
+    float OMk;
+    float OMr;
+    float OMtot;
+    float Y_He;
+    float wl;
+    float SHETH_b;
+    float SHETH_c;
+    double Zreion_HeII;
+    int FILTER;
+    int POWER_SPECTRUM;
+};
+
+struct GlobalParams global_params = {
+    
+    .ALPHA_UVB = 5.0,
+    .EVOLVE_DENSITY_LINEARLY = 0,
+    .SMOOTH_EVOLVED_DENSITY_FIELD = 0,
+    .R_smooth_density = 0.2,
+    .SECOND_ORDER_LPT_CORRECTIONS = 1,
+    .HII_ROUND_ERR = 1e-3,
+    .FIND_BUBBLE_ALGORITHM = 2,
+    .N_POISSON = -1,
+    .T_USE_VELOCITIES = 1,
+    .MAX_DVDR = 0.2,
+    .DIMENSIONAL_T_POWER_SPEC = 1,
+    .DELTA_R_FACTOR = 1.1,
+    .DELTA_R_HII_FACTOR = 1.1,
+    .R_OVERLAP_FACTOR = 1.0,
+    .DELTA_CRIT_MODE = 1,
+    .HII_FILTER = 1,
+    .INITIAL_REDSHIFT = 300.,
+    
+    .HEAT_FILTER = 0,
+    .CLUMPING_FACTOR = 2.,
+    .Z_HEAT_MAX = 35.,
+    .R_XLy_MAX = 500.,
+    .NUM_FILTER_STEPS_FOR_Ts = 40,
+    .ZPRIME_STEP_FACTOR = 1.02,
+    .TK_at_Z_HEAT_MAX = -1,
+    .XION_at_Z_HEAT_MAX = -1,
+    .Ts_verbose = 1,
+    .Pop = 2,
+    .Pop2_ion = 4361,
+    .Pop3_ion = 44021,
+    .DEBUG_ON = 0,
+    
+    .P_CUTOFF = 0,
+    .M_WDM = 2,
+    .g_x = 1.5,
+    .OMn = 0.0,
+    .OMk = 0.0,
+    .OMr = 8.6e-5,
+    .OMtot = 1.0,
+    .Y_He = 0.245,
+    .wl = -1.0,
+    .SHETH_b = 0.15,
+    .SHETH_c = 0.05,
+    .Zreion_HeII = 3.0,
+    .FILTER = 0,
+    .POWER_SPECTRUM = 0
+     
+};
+
+/*
+
 // ----------------------------------------------------------------------------------------- //
 
 // Taken from ANAL_PARAMS.H
@@ -232,3 +334,5 @@ static double Zreion_HeII = 3; // redshift of helium reionization, currently onl
 
 static int FILTER = 0; // smoothing: 0=tophat, 1=gaussian
 static int POWER_SPECTRUM = 0; // EH=0 BBKS=1  EFSTATHIOU=2  PEEBLES=3  WHITE=4
+
+*/
