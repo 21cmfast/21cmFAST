@@ -107,19 +107,14 @@ class InitialConditions(OutputStruct):
     """
     A class containing all initial conditions boxes.
     """
-    def __init__(self, box_dim):
-        self.lowres_density = np.zeros(box_dim.HII_tot_num_pixels, dtype=np.float32)
-        self.lowres_vz = np.zeros(box_dim.HII_tot_num_pixels, dtype=np.float32)        
-        self.lowres_vz_2LPT = np.zeros(box_dim.HII_tot_num_pixels, dtype=np.float32)
-        self.hires_density = np.zeros(box_dim.tot_fft_num_pixels, dtype=np.float32)
+    ffi = ffi
 
-        # Put everything in the struct
-        self.cstruct = ffi.new("struct InitialConditions*")
-        self.cstruct.lowres_density = ffi.cast("float *", ffi.from_buffer(self.lowres_density))
-        self.cstruct.lowres_vz = ffi.cast("float *", ffi.from_buffer(self.lowres_vz))
-        self.cstruct.lowres_vz_2LPT = ffi.cast("float *", ffi.from_buffer(self.lowres_vz_2LPT))
-        self.cstruct.hires_density = ffi.cast("float *", ffi.from_buffer(self.hires_density))
-
+    def _init_boxes(self):
+        self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
+        self.lowres_density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.lowres_vz = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
+        self.lowres_vz_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
+        return ['hires_density','lowres_density','lowres_vz','lowres_vz_2LPT']
 
 class PerturbedField(InitialConditions):
     """
@@ -177,8 +172,8 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
         The class which contains the various boxes defining the initial conditions.
     """
     # First initialize memory for the boxes that will be returned.
-    boxes = InitialConditions(user_params, cosmo_params)
-
+    boxes = InitialConditions(user_params,cosmo_params)
+        
     # First check whether the boxes already exist.
     if not regenerate:
         try:

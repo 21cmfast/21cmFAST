@@ -34,7 +34,8 @@ struct UserParams{
 
 
 struct InitialConditions{
-    float PSnormalisation, *lowres_density, *hires_density, *lowres_vz, *lowres_vz_2LPT;
+//    float PSnormalisation, *lowres_density, *hires_density, *lowres_vz, *lowres_vz_2LPT;
+    float *lowres_density, *hires_density, *lowres_vz, *lowres_vz_2LPT,PSnormalisation;
 };
 
 void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes);
