@@ -122,21 +122,22 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
                     if (kR > 1e-4){
 //                        box[HII_C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR);
 //                        printf("n_x = %d n_y = %d n_z = %d HIRES_box = %e\n",n_x,n_y,n_z,box[C_INDEX(n_x, n_y, n_z)]);
-                        box[C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR);
+                        if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
+                        if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
 //                        printf("k_x = %e k_y = %e k_z = %e k_mag = %e kR = %e arg = %e HIRES_box = %e\n",k_x,k_y,k_z,k_mag,kR,3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR),box[C_INDEX(n_x, n_y, n_z)]);
                     }
                 }
                 else if (filter_type == 1){ // k-space top hat
                     kR *= 0.413566994; // equates integrated volume to the real space top-hat (9pi/2)^(-1/3)
                     if (kR > 1){
-//                        box[HII_C_INDEX(n_x, n_y, n_z)] = 0;
-                        box[C_INDEX(n_x, n_y, n_z)] = 0;
+                        if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] = 0; }
+                        if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] = 0; }
                     }
                 }
                 else if (filter_type == 2){ // gaussian
                     kR *= 0.643; // equates integrated volume to the real space top-hat
-//                    box[HII_C_INDEX(n_x, n_y, n_z)] *= pow(E, -kR*kR/2.0);
-                    box[C_INDEX(n_x, n_y, n_z)] *= pow(E, -kR*kR/2.0);
+                    if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= pow(E, -kR*kR/2.0); }
+                    if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= pow(E, -kR*kR/2.0); }
                 }
                 else{
                     if ( (n_x==0) && (n_y==0) && (n_z==0) )
@@ -151,6 +152,11 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
     return;
 }
 
+double MtoR(double M);
+double dicke(double z);
+double dtdz(float z);
+double ddickedt(double z);
+
 
 /* R in Mpc, M in Msun */
 double MtoR(double M){
@@ -162,5 +168,86 @@ double MtoR(double M){
         return pow( M/(pow(2*PI, 1.5) * cosmo_params_ufunc->OMm * RHOcrit), 1.0/3.0 );
     else // filter not defined
         fprintf(stderr, "No such filter = %i.\nResults are bogus.\n", global_params.FILTER);
+    return -1;
+}
+
+/*
+ FUNCTION dicke(z)
+ Computes the dicke growth function at redshift z, i.e. the z dependance part of sigma
+ 
+ References: Peebles, "Large-Scale...", pg.53 (eq. 11.16). Includes omega<=1
+ Nonzero Lambda case from Liddle et al, astro-ph/9512102, eqs. 6-8.
+ and quintessence case from Wang et al, astro-ph/9804015
+ 
+ Normalized to dicke(z=0)=1
+ */
+double dicke(double z){
+    double omegaM_z, dick_z, dick_0, x, x_0;
+    double tiny = 1e-4;
+    
+    if (fabs(cosmo_params_ufunc->OMm-1.0) < tiny){ //OMm = 1 (Einstein de-Sitter)
+        return 1.0/(1.0+z);
+    }
+    else if ( (cosmo_params_ufunc->OMl > (-tiny)) && (fabs(cosmo_params_ufunc->OMl+cosmo_params_ufunc->OMm+global_params.OMr-1.0) < 0.01) && (fabs(global_params.wl+1.0) < tiny) ){
+        //this is a flat, cosmological CONSTANT universe, with only lambda, matter and radiation
+        //it is taken from liddle et al.
+        omegaM_z = cosmo_params_ufunc->OMm*pow(1+z,3) / ( cosmo_params_ufunc->OMl + cosmo_params_ufunc->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4) );
+        dick_z = 2.5*omegaM_z / ( 1.0/70.0 + omegaM_z*(209-omegaM_z)/140.0 + pow(omegaM_z, 4.0/7.0) );
+        dick_0 = 2.5*cosmo_params_ufunc->OMm / ( 1.0/70.0 + cosmo_params_ufunc->OMm*(209-cosmo_params_ufunc->OMm)/140.0 + pow(cosmo_params_ufunc->OMm, 4.0/7.0) );
+        return dick_z / (dick_0 * (1.0+z));
+    }
+    else if ( (global_params.OMtot < (1+tiny)) && (fabs(cosmo_params_ufunc->OMl) < tiny) ){ //open, zero lambda case (peebles, pg. 53)
+        x_0 = 1.0/(cosmo_params_ufunc->OMm+0.0) - 1.0;
+        dick_0 = 1 + 3.0/x_0 + 3*log(sqrt(1+x_0)-sqrt(x_0))*sqrt(1+x_0)/pow(x_0,1.5);
+        x = fabs(1.0/(cosmo_params_ufunc->OMm+0.0) - 1.0) / (1+z);
+        dick_z = 1 + 3.0/x + 3*log(sqrt(1+x)-sqrt(x))*sqrt(1+x)/pow(x,1.5);
+        return dick_z/dick_0;
+    }
+    else if ( (cosmo_params_ufunc->OMl > (-tiny)) && (fabs(global_params.OMtot-1.0) < tiny) && (fabs(global_params.wl+1) > tiny) ){
+        fprintf(stderr, "IN WANG\n");
+        return -1;
+    }
+    
+    fprintf(stderr, "No growth function!!! Output will be fucked up.");
+    return -1;
+}
+
+/* function DTDZ returns the value of dt/dz at the redshift parameter z. */
+double dtdz(float z){
+    double x, dxdz, const1, denom, numer;
+    x = sqrt( cosmo_params_ufunc->OMl/cosmo_params_ufunc->OMm ) * pow(1+z, -3.0/2.0);
+    dxdz = sqrt( cosmo_params_ufunc->OMl/cosmo_params_ufunc->OMm ) * pow(1+z, -5.0/2.0) * (-3.0/2.0);
+    const1 = 2 * sqrt( 1 + cosmo_params_ufunc->OMm/cosmo_params_ufunc->OMl ) / (3.0 * Ho) ;
+    
+    numer = dxdz * (1 + x*pow( pow(x,2) + 1, -0.5));
+    denom = x + sqrt(pow(x,2) + 1);
+    return (const1 * numer / denom);
+}
+
+/* Time derivative of the growth function at z */
+double ddickedt(double z){
+    float dz = 1e-10;
+    double omegaM_z, ddickdz, dick_0, x, x_0, domegaMdz;
+    double tiny = 1e-4;
+    
+    return (dicke(z+dz)-dicke(z))/dz/dtdz(z); // lazy non-analytic form getting
+    
+    if (fabs(cosmo_params_ufunc->OMm-1.0) < tiny){ //OMm = 1 (Einstein de-Sitter)
+        return -pow(1+z,-2)/dtdz(z);
+    }
+    else if ( (cosmo_params_ufunc->OMl > (-tiny)) && (fabs(cosmo_params_ufunc->OMl+cosmo_params_ufunc->OMm+global_params.OMr-1.0) < 0.01) && (fabs(global_params.wl+1.0) < tiny) ){
+        //this is a flat, cosmological CONSTANT universe, with only lambda, matter and radiation
+        //it is taken from liddle et al.
+        omegaM_z = cosmo_params_ufunc->OMm*pow(1+z,3) / ( cosmo_params_ufunc->OMl + cosmo_params_ufunc->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4) );
+        domegaMdz = omegaM_z*3/(1+z) - cosmo_params_ufunc->OMm*pow(1+z,3)*pow(cosmo_params_ufunc->OMl + cosmo_params_ufunc->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4), -2) * (3*cosmo_params_ufunc->OMm*(1+z)*(1+z) + 4*global_params.OMr*pow(1+z,3));
+        dick_0 = cosmo_params_ufunc->OMm / ( 1.0/70.0 + cosmo_params_ufunc->OMm*(209-cosmo_params_ufunc->OMm)/140.0 + pow(cosmo_params_ufunc->OMm, 4.0/7.0) );
+        
+        ddickdz = (domegaMdz/(1+z)) * (1.0/70.0*pow(omegaM_z,-2) + 1.0/140.0 + 3.0/7.0*pow(omegaM_z, -10.0/3.0)) * pow(1.0/70.0/omegaM_z + (209.0-omegaM_z)/140.0 + pow(omegaM_z, -3.0/7.0) , -2);
+        ddickdz -= pow(1+z,-2)/(1.0/70.0/omegaM_z + (209.0-omegaM_z)/140.0 + pow(omegaM_z, -3.0/7.0));
+        
+        return ddickdz / dick_0 / dtdz(z);
+    }
+    
+    fprintf(stderr, "No growth function!!! Output will be fucked up.");
     return -1;
 }

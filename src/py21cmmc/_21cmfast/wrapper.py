@@ -50,10 +50,11 @@ class CosmoParams(StructWithDefaults):
 
     @property
     def RANDOM_SEED(self):
-        while not self._RANDOM_SEED:
-            self._RANDOM_SEED = int(np.random.randint(1, 1e12))
-        return self._RANDOM_SEED
-
+#        while not self._RANDOM_SEED:
+#            self._RANDOM_SEED = int(np.random.randint(1, 1e12))
+#        return self._RANDOM_SEED
+        return 1
+    
     @property
     def OMl(self):
         return 1 - self.OMm
@@ -84,7 +85,7 @@ class UserParams(StructWithDefaults):
     _defaults_ = dict(
         BOX_LEN = 150.0,
         DIM = None,
-        HII_DIM = 100,
+        HII_DIM = 50,
     )
 
     @property
@@ -112,14 +113,21 @@ class InitialConditions(OutputStruct):
     def _init_boxes(self):
         self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
         self.lowres_density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.lowres_vx = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
+        self.lowres_vy = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
         self.lowres_vz = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
+        self.lowres_vx_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
+        self.lowres_vy_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
         self.lowres_vz_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
-        return ['hires_density','lowres_density','lowres_vz','lowres_vz_2LPT']
+        return ['hires_density','lowres_density','lowres_vx','lowres_vy','lowres_vz',
+            'lowres_vx_2LPT','lowres_vy_2LPT','lowres_vz_2LPT']
 
 class PerturbedField(InitialConditions):
     """
     A class containing all perturbed field boxes
     """
+#    ffi = ffi
+
     _id = "InitialConditions" # Makes it look at the InitialConditions files for writing.
 
     def __init__(self, user_params, cosmo_params, redshift):
@@ -291,12 +299,15 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
             pass
 
     # Run the C Code
-    lib.ComputePerturbField(redshift, init_boxes(), fields())
+    lib.ComputePerturbField(redshift, user_params(), cosmo_params(), init_boxes(), fields())
     fields.filled = True
 
     # Optionally do stuff with the result (like writing it)
     if write:
         fields.write(direc, fname)
+
+    print(fields.density[0],fields.density[100],fields.density[1000],fields.density[10000])
+    print(fields.velocity[0],fields.velocity[100],fields.velocity[1000],fields.velocity[10000])
 
     return fields
 
