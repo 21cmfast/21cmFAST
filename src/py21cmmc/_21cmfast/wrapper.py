@@ -97,7 +97,7 @@ class UserParams(StructWithDefaults):
 
     @property
     def HII_tot_num_pixels(self):
-        return self.DIM ** 3
+        return self.HII_DIM**3
 
 
 # ======================================================================================================================
@@ -108,10 +108,21 @@ class InitialConditions(OutputStruct):
     A class containing all initial conditions boxes.
     """
     ffi = ffi
+    def __init__(self, box_dim):
+        self.lowres_density = np.zeros(box_dim.HII_tot_num_pixels, dtype=np.float32)
+        self.lowres_vz = np.zeros(box_dim.HII_tot_num_pixels, dtype=np.float32)        
+        self.lowres_vz_2LPT = np.zeros(box_dim.HII_tot_num_pixels, dtype=np.float32)
+        self.hires_density = np.zeros(box_dim.tot_fft_num_pixels, dtype=np.float32)
 
     def _init_boxes(self):
         self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype= np.float32)
         return ['hires_density']
+        # Put everything in the struct
+        self.cstruct = ffi.new("struct InitialConditions*")
+        self.cstruct.lowres_density = ffi.cast("float *", ffi.from_buffer(self.lowres_density))
+        self.cstruct.lowres_vz = ffi.cast("float *", ffi.from_buffer(self.lowres_vz))
+        self.cstruct.lowres_vz_2LPT = ffi.cast("float *", ffi.from_buffer(self.lowres_vz_2LPT))
+        self.cstruct.hires_density = ffi.cast("float *", ffi.from_buffer(self.hires_density))
 
 
 class PerturbedField(InitialConditions):
