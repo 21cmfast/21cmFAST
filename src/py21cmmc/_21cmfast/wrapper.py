@@ -3,7 +3,7 @@ A thin python wrapper for the 21cmFAST C-code.
 """
 from ._21cmfast import ffi, lib
 import numpy as np
-from ._utils import StructWithDefaults, OutputStruct
+from ._utils import StructWithDefaults, OutputStruct as _OS
 from astropy.cosmology import Planck15
 
 
@@ -219,61 +219,66 @@ class FlagOptions(StructWithDefaults):
 
     def _logic(self):
         # TODO: this needs to be discussed and fixed.
-        if self.GenerateNewICs and (self.USE_FCOLL_IONISATION_TABLE or self.SHORTEN_FCOLL):
-            raise ValueError(
-                """
-                Cannot use interpolation tables when generating new initial conditions on the fly.
-                (Interpolation tables are only valid for a single cosmology/initial condition)
-                """
-            )
-
-        if self.USE_TS_FLUCT and self.INCLUDE_ZETA_PL:
-            raise NotImplementedError(
-                """
-                Cannot use a non-constant ionising efficiency (zeta) in conjuction with the IGM spin temperature part of the code.
-                (This will be changed in future)
-                """
-            )
+        # if self.GenerateNewICs and (self.USE_FCOLL_IONISATION_TABLE or self.SHORTEN_FCOLL):
+        #     raise ValueError(
+        #         """
+        #         Cannot use interpolation tables when generating new initial conditions on the fly.
+        #         (Interpolation tables are only valid for a single cosmology/initial condition)
+        #         """
+        #     )
+        #
+        # if self.USE_TS_FLUCT and self.INCLUDE_ZETA_PL:
+        #     raise NotImplementedError(
+        #         """
+        #         Cannot use a non-constant ionising efficiency (zeta) in conjuction with the IGM spin temperature part of the code.
+        #         (This will be changed in future)
+        #         """
+        #     )
 
         if self.USE_FCOLL_IONISATION_TABLE and self.INHOMO_RECO:
             raise ValueError(
                 "Cannot use the f_coll interpolation table for find_hii_bubbles with inhomogeneous recombinations")
 
-        if self.INHOMO_RECO and self.USE_TS_FLUCT:
-            raise ValueError(
-                """
-                Inhomogeneous recombinations have been set, but the spin temperature is not being computed.
-                "Inhomogeneous recombinations can only be used in combination with the spin temperature calculation (different from 21cmFAST).
-                """
-            )
+        # if self.INHOMO_RECO and not self.USE_TS_FLUCT:
+        #     raise ValueError(
+        #         """
+        #         Inhomogeneous recombinations have been set, but the spin temperature is not being computed.
+        #         "Inhomogeneous recombinations can only be used in combination with the spin temperature calculation (different from 21cmFAST).
+        #         """
+        #     )
+
+
 # ======================================================================================================================
 # OUTPUT STRUCTURES
 # ======================================================================================================================
+class OutputStruct(_OS):
+    ffi = ffi
+
+
+class OutputStructZ(OutputStruct):
+    @property
+    def _name(self):
+        self.__class__.__name__ + "_z%.4f"%self.redshift
+
+
 class InitialConditions(OutputStruct):
     """
     A class containing all initial conditions boxes.
     """
-    ffi = ffi
-
     def _init_boxes(self):
         self.lowres_density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vz = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vz_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype= np.float32)
-        return ['lowres_density', 'lowres_vz', 'lowre_vz_2LPT', 'hires_density']
+        return ['lowres_density', 'lowres_vz', 'lowres_vz_2LPT', 'hires_density']
 
 
-class PerturbedField(InitialConditions):
+class PerturbedField(OutputStructZ):
     """
     A class containing all perturbed field boxes
     """
-    _id = "InitialConditions" # Makes it look at the InitialConditions files for writing.
-
     def __init__(self, user_params, cosmo_params, redshift):
         super().__init__(user_params, cosmo_params, redshift=float(redshift))
-
-        # Extend its group name to include the redshift, so that
-        self._group += "_z%.4f"%self.redshift
 
     def _init_boxes(self):
         self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
@@ -281,7 +286,7 @@ class PerturbedField(InitialConditions):
         return ['density', 'velocity']
 
 
-class IonizedBox(OutputStruct):
+class IonizedBox(OutputStructZ):
     def __init__(self, user_params, cosmo_params, redshift, astro_params, flag_options):
         super().__init__(user_params, cosmo_params, redshift=float(redshift), astro_params=astro_params,
                          flag_options=flag_options)
@@ -464,7 +469,7 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
     return fields
 
 
-def ionize_box(astro_params=AstroParams(), flag_options=FlagOptions(),
+def ionize_box(astro_params=None, flag_options=FlagOptions(),
                redshift=None, perturbed_field=None,
                init_boxes=None, cosmo_params=None, user_params=None,
                regenerate=False, write=True, direc=None,
@@ -527,6 +532,10 @@ def ionize_box(astro_params=AstroParams(), flag_options=FlagOptions(),
         raise ValueError("Either perturbed_field or redshift must be provided.")
     elif perturbed_field is not None:
         redshift = perturbed_field.redshift
+
+    # Set the default astro params, using the INHOMO_RECO flag.
+    if astro_params is None:
+        astro_params = AstroParams(FlagOptions.INHOMO_RECO)
 
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:

@@ -126,11 +126,7 @@ class StructWithDefaults:
 class OutputStruct:
     filled = False
     _fields_ = []
-
-    # BY DEFAULT, ALL THE FOLLOWING MATCH THE NAME OF THE SUBCLASS.
     _name = None   # This must match the name of the C struct
-    _group = None  # This is the HDF5 group name under which boxes are saved.
-    _id = None     # This determines the filename of the backend.
 
     ffi = None
 
@@ -154,12 +150,6 @@ class OutputStruct:
         # Set the name of this struct in the C code
         if self._name is None:
             self._name = self.__class__.__name__
-
-        if self._group is None:
-            self._group = self._name
-
-        if self._id is None:
-            self._id = self._name
 
     def _ary2buf(self, ary):
         if not isinstance(ary, np.ndarray):
@@ -275,7 +265,7 @@ class OutputStruct:
                 user.attrs[k] = v
 
             # Save the boxes to the file
-            boxes = f.create_group(self._group)
+            boxes = f.create_group(self._name)
 
             # Go through all fields in this struct, and save
             for k in self._fields_:
@@ -306,9 +296,9 @@ class OutputStruct:
 
         with h5py.File(pth,'r') as f:
             try:
-                boxes = f[self._group]
+                boxes = f[self._name]
             except:
-                raise IOError("There is no group %s in the file"%self._group)
+                raise IOError("There is no group %s in the file"%self._name)
 
             # Fill our arrays.
             for k in boxes.keys():
@@ -338,7 +328,7 @@ class OutputStruct:
 
     @property
     def _hashname(self):
-        return self._id + "_" + self._md5 + "_r%s" % self.cosmo_params.RANDOM_SEED + ".h5"
+        return self._name + "_" + self._md5 + "_r%s" % self.cosmo_params.RANDOM_SEED + ".h5"
 
     def __getstate__(self):
         return {k:v for k,v in self.__dict__.items() if not isinstance(k, self.ffi.CData)}
