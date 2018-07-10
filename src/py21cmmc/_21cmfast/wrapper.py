@@ -109,26 +109,15 @@ class AstroParams(StructWithDefaults):
     ION_Tvir_MIN : float, optional
     L_X : float, optional
     NU_X_THRESH : float, optional
-    NU_X_BAND_MAX : float, optional
-    NU_X_MAX : float, optional
     X_RAY_SPEC_INDEX : float, optional
     X_RAY_Tvir_MIN : float, optional
-    X_RAY_Tvir_LOWERBOUND : float, optional
-    X_RAY_Tvir_UPPERBOUND : float, optional
     F_STAR : float, optional
     t_STAR : float, optional
     N_RSD_STEPS : float, optional
-    LOS_direction : int < 3, optional
-    Z_HEAT_MAX : float, optional
-        Maximum redshift used in the Ts.c computation. Typically fixed at z = 35,
-        but can be set to lower if the user wants light-cones in the saturated
-        spin temperature limit (T_S >> T_CMB)
-
-    ZPRIME_STEP_FACTOR : float, optional
-        Used to control the redshift step-size for the Ts.c integrals. Typically fixed at 1.02,
-        can consider increasing to make the code faster if the user wants
-        light-cones in the saturated spin temperature limit (T_S >> T_CMB)
     """
+
+    ffi = ffi
+
     _defaults_ = dict(
         EFF_FACTOR_PL_INDEX = 0.0,
         HII_EFF_FACTOR = 30.0,
@@ -136,18 +125,11 @@ class AstroParams(StructWithDefaults):
         ION_Tvir_MIN = 4.69897,
         L_X = 40.0,
         NU_X_THRESH = 500.0,
-        NU_X_BAND_MAX = 2000.0,
-        NU_X_MAX = 10000.0,
         X_RAY_SPEC_INDEX = 1.0,
         X_RAY_Tvir_MIN = None,
-        X_RAY_Tvir_LOWERBOUND = 4.0,
-        X_RAY_Tvir_UPPERBOUND = 6.0,
         F_STAR = 0.05,
         t_STAR = 0.5,
         N_RSD_STEPS = 20,
-        LOS_direction = 2,
-        Z_HEAT_MAX = 10.0,
-        ZPRIME_STEP_FACTOR = 1.02,
     )
 
     def __init__(self, INHOMO_RECO, **kwargs):
@@ -174,17 +156,9 @@ class AstroParams(StructWithDefaults):
     def X_RAY_Tvir_MIN(self):
         return 10 ** self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
 
-    @property
-    def NU_X_THRESH(self):
-        return self._NU_X_THRESH * lib.NU_over_EV
-
-    @property
-    def NU_X_BAND_MAX(self):
-        return self._NU_X_BAND_MAX * lib.NU_over_EV
-
-    @property
-    def NU_X_MAX(self):
-        return self._NU_X_MAX * lib.NU_over_EV
+#    @property
+#    def NU_X_THRESH(self):
+#        return self._NU_X_THRESH * lib.NU_over_EV
 
 
 class FlagOptions(StructWithDefaults):
@@ -199,24 +173,19 @@ class FlagOptions(StructWithDefaults):
     SUBCELL_RSDS : bool, optional
         Add sub-cell RSDs (currently doesn't work if Ts is not used)
 
-    IONISATION_FCOLL_TABLE : bool, optional
-        An interpolation table for ionisation collapsed fraction (will be removing this at some point)
-
-    USE_FCOLL_TABLE : bool, optional
-        An interpolation table for ionisation collapsed fraction (for Ts.c; will be removing this at some point)
-
     INHOMO_RECO : bool, optional
         Whether to perform inhomogeneous recombinations
     """
+
+    ffi = ffi
+
     _defaults_ = dict(
         INCLUDE_ZETA_PL=False,
         SUBCELL_RSD=False,
-        USE_FCOLL_IONISATION_TABLE=False,
-        SHORTEN_FCOLL=False,
         INHOMO_RECO=False,
     )
 
-    def _logic(self):
+#    def _logic(self):
         # TODO: this needs to be discussed and fixed.
         # if self.GenerateNewICs and (self.USE_FCOLL_IONISATION_TABLE or self.SHORTEN_FCOLL):
         #     raise ValueError(
@@ -234,9 +203,9 @@ class FlagOptions(StructWithDefaults):
         #         """
         #     )
 
-        if self.USE_FCOLL_IONISATION_TABLE and self.INHOMO_RECO:
-            raise ValueError(
-                "Cannot use the f_coll interpolation table for find_hii_bubbles with inhomogeneous recombinations")
+        #if self.USE_FCOLL_IONISATION_TABLE and self.INHOMO_RECO:
+        #    raise ValueError(
+        #        "Cannot use the f_coll interpolation table for find_hii_bubbles with inhomogeneous recombinations")
 
         # if self.INHOMO_RECO and not self.USE_TS_FLUCT:
         #     raise ValueError(
@@ -476,7 +445,6 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
 
     return fields
 
-
 def ionize_box(astro_params=None, flag_options=FlagOptions(),
                redshift=None, perturbed_field=None,
                init_boxes=None, cosmo_params=None, user_params=None,
@@ -537,10 +505,10 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         raise ValueError("Either perturbed_field or redshift must be provided.")
     elif perturbed_field is not None:
         redshift = perturbed_field.redshift
-
+    
     # Set the default astro params, using the INHOMO_RECO flag.
     if astro_params is None:
-        astro_params = AstroParams(FlagOptions.INHOMO_RECO)
+        astro_params = AstroParams(FlagOptions().INHOMO_RECO)
 
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
@@ -549,7 +517,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             regenerate=regenerate, write=write, direc=direc,
             fname=None, match_seed=match_seed
         )
-
+    
     box = IonizedBox(user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
               redshift=redshift, astro_params=astro_params, flag_options=flag_options)
 
@@ -562,8 +530,10 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         except IOError:
             pass
 
-    # Run the C Code
-    lib.ComputeIonizedBox(redshift, perturbed_field(), box())
+    # Run the C Code    
+    lib.ComputeIonizedBox(redshift, redshift + 0.2, perturbed_field.user_params(), 
+        perturbed_field.cosmo_params(), astro_params(), flag_options(),
+        perturbed_field(), box())
     box.filled = True
 
     # Optionally do stuff with the result (like writing it)

@@ -1,6 +1,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <time.h>
@@ -23,8 +24,8 @@
 #include "Globals.h"
 #include "UsefulFunctions.c"
 #include "ps.c"
-
 #include "PerturbField.c"
+#include "IonisationBox.c"
 
 // Re-write of init.c for being accessible within the MCMC
 
@@ -40,8 +41,12 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
      */
     
     // Makes the parameter structs visible to a variety of functions/macros
-    Broadcast_struct_global_PS(user_params,cosmo_params);
-    Broadcast_struct_global_UF(user_params,cosmo_params);
+    if(StructInit==0) {
+        Broadcast_struct_global_PS(user_params,cosmo_params);
+        Broadcast_struct_global_UF(user_params,cosmo_params);
+        
+        StructInit = 1;
+    }
     
     fftwf_plan plan;
     
@@ -425,11 +430,6 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
     // * *********************************************** * //
     // *               END 2LPT PART                     * //
     // * *********************************************** * //
- 
-//    printf("high-res density; %e %e %e %e\n",boxes->hires_density[0],boxes->hires_density[100],boxes->hires_density[1000],boxes->hires_density[10000]);
-//    printf("low-res density; %e %e %e %e\n",boxes->lowres_density[0],boxes->lowres_density[100],boxes->lowres_density[1000],boxes->lowres_density[10000]);
-//    printf("low-res density (vz); %e %e %e %e\n",boxes->lowres_vz[0],boxes->lowres_vz[100],boxes->lowres_vz[1000],boxes->lowres_vz[10000]);
-//    printf("low-res density (vz 2LPT); %e %e %e %e\n",boxes->lowres_vz_2LPT[0],boxes->lowres_vz_2LPT[100],boxes->lowres_vz_2LPT[1000],boxes->lowres_vz_2LPT[10000]);
     
     // deallocate
     fftwf_free(HIRES_box);
@@ -480,9 +480,4 @@ void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, 
     } // end loop over remaining j
 
 }
-/*
-void ComputePerturbField(float redshift, struct InitialConditions *boxes, struct PerturbedField *p_cubes) {
- 
-    printf("Hello\n");
-}
-*/
+

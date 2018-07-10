@@ -11,6 +11,14 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
      to move the grid "particles" onto the lower-res grid we use for the maps.  Then we recalculate the velocity fields on the perturbed grid.
      */
     
+    // Makes the parameter structs visible to a variety of functions/macros
+    if(StructInit==0) {
+        Broadcast_struct_global_PS(user_params,cosmo_params);
+        Broadcast_struct_global_UF(user_params,cosmo_params);
+        
+        StructInit = 1;
+    }
+    
     printf("high-res density; %e %e %e %e\n",boxes->hires_density[0],boxes->hires_density[100],boxes->hires_density[1000],boxes->hires_density[10000]);
     printf("low-res density; %e %e %e %e\n",boxes->lowres_density[0],boxes->lowres_density[100],boxes->lowres_density[1000],boxes->lowres_density[10000]);
     printf("low-res density (vx); %e %e %e %e\n",boxes->lowres_vx[0],boxes->lowres_vx[100],boxes->lowres_vx[1000],boxes->lowres_vx[10000]);

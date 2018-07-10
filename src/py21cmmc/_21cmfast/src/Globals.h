@@ -42,6 +42,9 @@ struct GlobalParams{
     float Pop3_ion;
     int DEBUG_ON;
 
+    float NU_X_BAND_MAX;
+    float NU_X_MAX;
+    
     int P_CUTOFF;
     float M_WDM;
     float g_x;
@@ -91,6 +94,9 @@ struct GlobalParams global_params = {
     .Pop2_ion = 4361,
     .Pop3_ion = 44021,
     .DEBUG_ON = 0,
+    
+    .NU_X_BAND_MAX = 2000.0,
+    .NU_X_MAX = 10000.0,
     
     .P_CUTOFF = 0,
     .M_WDM = 2,
