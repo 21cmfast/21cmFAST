@@ -95,8 +95,6 @@ class UserParams(StructWithDefaults):
     @property
     def HII_tot_num_pixels(self):
         return self.HII_DIM**3
-<<<<<<< HEAD
-
 
 class AstroParams(StructWithDefaults):
     """
@@ -247,8 +245,6 @@ class FlagOptions(StructWithDefaults):
         #         "Inhomogeneous recombinations can only be used in combination with the spin temperature calculation (different from 21cmFAST).
         #         """
         #     )
-=======
->>>>>>> origin/develop-brad
 
 
 # ======================================================================================================================
@@ -268,43 +264,24 @@ class InitialConditions(OutputStruct):
     """
     A class containing all initial conditions boxes.
     """
-<<<<<<< HEAD
     def _init_boxes(self):
         self.lowres_density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.lowres_vx = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.lowres_vy = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vz = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.lowres_vx_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.lowres_vy_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vz_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype= np.float32)
-        return ['lowres_density', 'lowres_vz', 'lowres_vz_2LPT', 'hires_density']
+        return ['lowres_density', 'lowres_vx', 'lowres_vy', 'lowres_vz',
+                'lowres_vx_2LPT','lowres_vy_2LPT', 'lowres_vz_2LPT', 'hires_density']
 
 
 class PerturbedField(OutputStructZ):
     """
     A class containing all perturbed field boxes
     """
-=======
-    ffi = ffi
 
-    def _init_boxes(self):
-        self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
-        self.lowres_density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.lowres_vx = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
-        self.lowres_vy = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
-        self.lowres_vz = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
-        self.lowres_vx_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
-        self.lowres_vy_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
-        self.lowres_vz_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)        
-        return ['hires_density','lowres_density','lowres_vx','lowres_vy','lowres_vz',
-            'lowres_vx_2LPT','lowres_vy_2LPT','lowres_vz_2LPT']
-
-class PerturbedField(InitialConditions):
-    """
-    A class containing all perturbed field boxes
-    """
-#    ffi = ffi
-
-    _id = "InitialConditions" # Makes it look at the InitialConditions files for writing.
-
->>>>>>> origin/develop-brad
     def __init__(self, user_params, cosmo_params, redshift):
         super().__init__(user_params, cosmo_params, redshift=float(redshift))
 
