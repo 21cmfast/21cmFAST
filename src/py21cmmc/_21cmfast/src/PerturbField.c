@@ -172,10 +172,10 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
                     
                     // now move the mass
                     if(HII_R_FFT_INDEX(xi, yi, zi)==0) {
-                        printf("i = %d j = %d k = %d xi = %d yi = %d zi = %d xf = %e yf = %e zf = %e dens = %e val = %e sum = %e\n",i,j,k,xi,yi,zi,xf,yf,zf,(boxes->hires_density)[R_FFT_INDEX(i,j,k)],(1 + init_growth_factor*(boxes->hires_density)[R_FFT_INDEX(i,j,k)]),LOWRES_density_perturb[HII_R_FFT_INDEX(xi, yi, zi)]);
+                        printf("i = %d j = %d k = %d xi = %d yi = %d zi = %d xf = %e yf = %e zf = %e dens = %e val = %e sum = %e\n",i,j,k,xi,yi,zi,xf,yf,zf,(boxes->hires_density)[R_INDEX(i,j,k)],(1 + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)]),LOWRES_density_perturb[HII_R_FFT_INDEX(xi, yi, zi)]);
                     }
                     *( (float *)LOWRES_density_perturb + HII_R_FFT_INDEX(xi, yi, zi) ) +=
-                    (1 + init_growth_factor*(boxes->hires_density)[R_FFT_INDEX(i,j,k)]);
+                    (1 + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)]);
                 }
             }
         }
