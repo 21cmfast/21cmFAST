@@ -443,7 +443,7 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
     if init_boxes is None or not init_boxes.filled:
         init_boxes = initial_conditions(
             user_params, cosmo_params, regenerate=regenerate, write=write,
-            direc=direc, fname=fname
+            direc=direc, fname=None
         )
 
     # Initialize perturbed boxes.
@@ -542,7 +542,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         perturbed_field = perturb_field(
             redshift,init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
             regenerate=regenerate, write=write, direc=direc,
-            fname=fname, match_seed=match_seed
+            fname=None, match_seed=match_seed
         )
 
     if not do_spin_temp:
