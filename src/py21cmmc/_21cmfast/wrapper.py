@@ -100,6 +100,155 @@ class UserParams(StructWithDefaults):
         return self.HII_DIM**3
 
 
+class AstroParams(StructWithDefaults):
+    """
+    Astrophysical parameters.
+
+    Parameters
+    ----------
+    INHOMO_RECO : bool, optional
+    EFF_FACTOR_PL_INDEX : float, optional
+    HII_EFF_FACTOR : float, optional
+    R_BUBBLE_MAX : float, optional
+    ION_Tvir_MIN : float, optional
+    L_X : float, optional
+    NU_X_THRESH : float, optional
+    NU_X_BAND_MAX : float, optional
+    NU_X_MAX : float, optional
+    X_RAY_SPEC_INDEX : float, optional
+    X_RAY_Tvir_MIN : float, optional
+    X_RAY_Tvir_LOWERBOUND : float, optional
+    X_RAY_Tvir_UPPERBOUND : float, optional
+    F_STAR : float, optional
+    t_STAR : float, optional
+    N_RSD_STEPS : float, optional
+    LOS_direction : int < 3, optional
+    Z_HEAT_MAX : float, optional
+        Maximum redshift used in the Ts.c computation. Typically fixed at z = 35,
+        but can be set to lower if the user wants light-cones in the saturated
+        spin temperature limit (T_S >> T_CMB)
+
+    ZPRIME_STEP_FACTOR : float, optional
+        Used to control the redshift step-size for the Ts.c integrals. Typically fixed at 1.02,
+        can consider increasing to make the code faster if the user wants
+        light-cones in the saturated spin temperature limit (T_S >> T_CMB)
+    """
+    _defaults_ = dict(
+        EFF_FACTOR_PL_INDEX = 0.0,
+        HII_EFF_FACTOR = 30.0,
+        R_BUBBLE_MAX = None,
+        ION_Tvir_MIN = 4.69897,
+        L_X = 40.0,
+        NU_X_THRESH = 500.0,
+        NU_X_BAND_MAX = 2000.0,
+        NU_X_MAX = 10000.0,
+        X_RAY_SPEC_INDEX = 1.0,
+        X_RAY_Tvir_MIN = None,
+        X_RAY_Tvir_LOWERBOUND = 4.0,
+        X_RAY_Tvir_UPPERBOUND = 6.0,
+        F_STAR = 0.05,
+        t_STAR = 0.5,
+        N_RSD_STEPS = 20,
+        LOS_direction = 2,
+        Z_HEAT_MAX = 10.0,
+        ZPRIME_STEP_FACTOR = 1.02,
+    )
+
+    def __init__(self, INHOMO_RECO, **kwargs):
+        # TODO: should try to get inhomo_reco out of here... just needed for default of R_BUBBLE_MAX.
+        self.INHOMO_RECO = INHOMO_RECO
+        super().__init__(**kwargs)
+
+    @property
+    def R_BUBBLE_MAX(self):
+        if not self._R_BUBBLE_MAX:
+            return 50.0 if self.INHOMO_RECO else 15.0
+        else:
+            return self._R_BUBBLE_MAX
+
+    @property
+    def ION_Tvir_MIN(self):
+        return 10 ** self._ION_Tvir_MIN
+
+    @property
+    def L_X(self):
+        return 10 ** self._L_X
+
+    @property
+    def X_RAY_Tvir_MIN(self):
+        return 10 ** self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
+
+    @property
+    def NU_X_THRESH(self):
+        return self._NU_X_THRESH * lib.NU_over_EV
+
+    @property
+    def NU_X_BAND_MAX(self):
+        return self._NU_X_BAND_MAX * lib.NU_over_EV
+
+    @property
+    def NU_X_MAX(self):
+        return self._NU_X_MAX * lib.NU_over_EV
+
+
+class FlagOptions(StructWithDefaults):
+    """
+    Flag-style options for the ionization routines.
+
+    Parameters
+    ----------
+    INCLUDE_ZETA_PL : bool, optional
+        Should always be zero (have yet to include this option)
+
+    SUBCELL_RSDS : bool, optional
+        Add sub-cell RSDs (currently doesn't work if Ts is not used)
+
+    IONISATION_FCOLL_TABLE : bool, optional
+        An interpolation table for ionisation collapsed fraction (will be removing this at some point)
+
+    USE_FCOLL_TABLE : bool, optional
+        An interpolation table for ionisation collapsed fraction (for Ts.c; will be removing this at some point)
+
+    INHOMO_RECO : bool, optional
+        Whether to perform inhomogeneous recombinations
+    """
+    _defaults_ = dict(
+        INCLUDE_ZETA_PL=False,
+        SUBCELL_RSD=False,
+        USE_FCOLL_IONISATION_TABLE=False,
+        SHORTEN_FCOLL=False,
+        INHOMO_RECO=False,
+    )
+
+    def _logic(self):
+        # TODO: this needs to be discussed and fixed.
+        if self.GenerateNewICs and (self.USE_FCOLL_IONISATION_TABLE or self.SHORTEN_FCOLL):
+            raise ValueError(
+                """
+                Cannot use interpolation tables when generating new initial conditions on the fly.
+                (Interpolation tables are only valid for a single cosmology/initial condition)
+                """
+            )
+
+        if self.USE_TS_FLUCT and self.INCLUDE_ZETA_PL:
+            raise NotImplementedError(
+                """
+                Cannot use a non-constant ionising efficiency (zeta) in conjuction with the IGM spin temperature part of the code.
+                (This will be changed in future)
+                """
+            )
+
+        if self.USE_FCOLL_IONISATION_TABLE and self.INHOMO_RECO:
+            raise ValueError(
+                "Cannot use the f_coll interpolation table for find_hii_bubbles with inhomogeneous recombinations")
+
+        if self.INHOMO_RECO and self.USE_TS_FLUCT:
+            raise ValueError(
+                """
+                Inhomogeneous recombinations have been set, but the spin temperature is not being computed.
+                "Inhomogeneous recombinations can only be used in combination with the spin temperature calculation (different from 21cmFAST).
+                """
+            )
 # ======================================================================================================================
 # OUTPUT STRUCTURES
 # ======================================================================================================================
@@ -108,21 +257,13 @@ class InitialConditions(OutputStruct):
     A class containing all initial conditions boxes.
     """
     ffi = ffi
-    def __init__(self, box_dim):
-        self.lowres_density = np.zeros(box_dim.HII_tot_num_pixels, dtype=np.float32)
-        self.lowres_vz = np.zeros(box_dim.HII_tot_num_pixels, dtype=np.float32)        
-        self.lowres_vz_2LPT = np.zeros(box_dim.HII_tot_num_pixels, dtype=np.float32)
-        self.hires_density = np.zeros(box_dim.tot_fft_num_pixels, dtype=np.float32)
 
     def _init_boxes(self):
+        self.lowres_density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.lowres_vz = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.lowres_vz_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype= np.float32)
-        return ['hires_density']
-        # Put everything in the struct
-        self.cstruct = ffi.new("struct InitialConditions*")
-        self.cstruct.lowres_density = ffi.cast("float *", ffi.from_buffer(self.lowres_density))
-        self.cstruct.lowres_vz = ffi.cast("float *", ffi.from_buffer(self.lowres_vz))
-        self.cstruct.lowres_vz_2LPT = ffi.cast("float *", ffi.from_buffer(self.lowres_vz_2LPT))
-        self.cstruct.hires_density = ffi.cast("float *", ffi.from_buffer(self.hires_density))
+        return ['lowres_density', 'lowres_vz', 'lowre_vz_2LPT', 'hires_density']
 
 
 class PerturbedField(InitialConditions):
@@ -141,6 +282,22 @@ class PerturbedField(InitialConditions):
         self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         return ['density', 'velocity']
+
+
+class IonizedBox(OutputStruct):
+    def __init__(self, user_params, cosmo_params, redshift, astro_params, flag_options):
+        super().__init__(user_params, cosmo_params, redshift=float(redshift), astro_params=astro_params,
+                         flag_options=flag_options)
+
+    def _init_boxes(self):
+        self.ionized_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        return ['ionized_box']
+
+
+class TsBox(IonizedBox):
+    def _init_boxes(self):
+        self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        return ['Ts_box']
 
 
 # ======================================================================================================================
@@ -309,13 +466,111 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
 
     return fields
 
-#
-# def ionize(redshifts, flag_options, astro_params):
-#     for z in redshifts:
-#         lib.ComputeIonisationBoxes(z, z+0.2, flag_options, astro_params)
-#
-#     return something
-#
+
+def ionize_box(astro_params=AstroParams(), flag_options=FlagOptions(),
+               redshift=None, perturbed_field=None,
+               init_boxes=None, cosmo_params=None, user_params=None,
+               regenerate=False, write=True, direc=None,
+               fname=None, match_seed=False, do_spin_temp=False):
+    """
+    Compute an ionized box at a given redshift.
+
+    Parameters
+    ----------
+    astro_params: :class:`~AstroParams` instance, optional
+        The astrophysical parameters defining the course of reionization.
+
+    flag_options: :class:`~FlagOptions` instance, optional
+        Some options passed to the reionization routine.
+
+    redshift : float, optional
+        The redshift at which to compute the ionized box. If `perturbed_field` is given, its inherent redshift
+        will take precedence over this argument. If not, this argument is mandatory.
+
+    perturbed_field : :class:`~PerturbField` instance, optional
+        If given, this field will be used, otherwise it will be generated. To be generated, either `init_boxes` and
+        `redshift` must be given, or `user_params`, `cosmo_params` and `redshift`.
+
+    init_boxes : :class:`~InitialConditions` instance, optional
+        If given, and `perturbed_field` *not* given, these initial conditions boxes will be used to generate the
+        perturbed field, otherwise initial conditions will be generated on the fly. If given,
+        the user and cosmo params will be set from this object.
+
+    user_params : `~UserParams` instance, optional
+        Defines the overall options and parameters of the run.
+
+    cosmo_params : `~CosmoParams` instance, optional
+        Defines the cosmological parameters used to compute initial conditions.
+
+    regenerate : bool, optional
+        Whether to force regeneration of the initial conditions, even if a corresponding box is found.
+
+    write : bool, optional
+        Whether to write results to file.
+
+    direc : str, optional
+        The directory in which to search for the boxes and write them. By default, this is the centrally-managed
+        directory, given by the ``config.yml`` in ``.21CMMC`.
+
+    fname : str, optional
+        The filename to search for/write to.
+
+    match_seed : bool, optional
+        Whether to force the random seed to also match in order to be considered a match.
+
+    do_spin_temp: bool, optional
+        Whether to use spin temperature fluctuations in the calculations.
+
+    Returns
+    -------
+    :class:`~IonizedBox` or :class:`~TsBox`
+        An object containing the ionized box data.
+    """
+    if perturbed_field is None and redshift is None:
+        raise ValueError("Either perturbed_field or redshift must be provided.")
+    elif perturbed_field is not None:
+        redshift = perturbed_field.redshift
+
+    # Dynamically produce the perturbed field.
+    if perturbed_field is None or not perturbed_field.filled:
+        perturbed_field = perturb_field(
+            redshift,init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
+            regenerate=regenerate, write=write, direc=direc,
+            fname=fname, match_seed=match_seed
+        )
+
+    if not do_spin_temp:
+        cls = IonizedBox
+    else:
+        cls = TsBox
+
+    box = cls(user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
+              redshift=redshift, astro_params=astro_params, flag_options=flag_options)
+
+    # Check whether the boxes already exist
+    if not regenerate:
+        try:
+            box.read(direc, fname, match_seed=match_seed)
+            print("Existing perturb_field boxes found and read in.")
+            return box
+        except IOError:
+            pass
+
+    # Run the C Code
+    if not do_spin_temp:
+        lib.ComputeIonizedBox(redshift, perturbed_field(), box())
+    else:
+        lib.ComputeTsBox(redshift, perturbed_field(), box())
+
+    box.filled = True
+
+    # Optionally do stuff with the result (like writing it)
+    if write:
+        box.write(direc, fname)
+
+    return box
+
+
 #
 # def run_21cmfast(redshifts, box_dim=None, flag_options=None, astro_params=None, cosmo_params=None,
 #                  write=True, regenerate=False, run_perturb=True, run_ionize=True, init_boxes=None,
