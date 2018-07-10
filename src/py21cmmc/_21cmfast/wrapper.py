@@ -6,9 +6,6 @@ import numpy as np
 from ._utils import StructWithDefaults, OutputStruct
 from astropy.cosmology import Planck15
 
-from os import path
-import yaml
-
 
 # ======================================================================================================================
 # PARAMETER STRUCTURES

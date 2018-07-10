@@ -3,12 +3,9 @@ Module that contains the command line app.
 """
 import click
 import yaml
-import pickle
 from . import initial_conditions, perturb_field, CosmoParams, UserParams#run_21cmfast
 
-import sys
 from os import path
-import os
 # from .mcmc import run_mcmc
 
 
