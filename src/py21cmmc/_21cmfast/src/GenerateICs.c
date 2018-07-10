@@ -151,7 +151,7 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
     for (i=0; i<user_params->DIM; i++){
         for (j=0; j<user_params->DIM; j++){
             for (k=0; k<user_params->DIM; k++){
-                *((float *)boxes->hires_density + R_FFT_INDEX(i,j,k)) = *((float *)HIRES_box + R_FFT_INDEX(i,j,k));
+                *((float *)boxes->hires_density + R_INDEX(i,j,k)) = *((float *)HIRES_box + R_FFT_INDEX(i,j,k));
             }
         }
     }

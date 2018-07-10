@@ -127,8 +127,8 @@ class OutputStruct:
     filled = False
     _fields_ = []
     _name = None   # This must match the name of the C struct
-
-    ffi = None    
+    _id = None
+    ffi = None
 
     _TYPEMAP = {
         'float32': 'float *',
@@ -151,6 +151,10 @@ class OutputStruct:
         if self._name is None:
             self._name = self.__class__.__name__
 
+        # Set the name of this struct in the C code
+        if self._id is None:
+            self._id = self.__class__.__name__
+
     def _ary2buf(self, ary):
         if not isinstance(ary, np.ndarray):
             raise ValueError("ary must be a numpy array")
@@ -168,7 +172,7 @@ class OutputStruct:
         """
         Return a new empty C structure corresponding to this class.
         """
-        obj = self.ffi.new("struct " + self._name + "*")
+        obj = self.ffi.new("struct " + self._id + "*")
         return obj
 
     def _get_fname(self, direc=None, fname=None):

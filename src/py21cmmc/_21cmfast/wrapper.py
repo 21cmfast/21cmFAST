@@ -255,9 +255,9 @@ class OutputStruct(_OS):
 
 
 class OutputStructZ(OutputStruct):
-    @property
-    def _name(self):
-        self.__class__.__name__ + "_z%.4f"%self.redshift
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._name += "_z%.4f" % self.redshift
 
 
 class InitialConditions(OutputStruct):
@@ -481,7 +481,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
                redshift=None, perturbed_field=None,
                init_boxes=None, cosmo_params=None, user_params=None,
                regenerate=False, write=True, direc=None,
-               fname=None, match_seed=False, do_spin_temp=False):
+               fname=None, match_seed=False):
     """
     Compute an ionized box at a given redshift.
 
@@ -528,12 +528,9 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     match_seed : bool, optional
         Whether to force the random seed to also match in order to be considered a match.
 
-    do_spin_temp: bool, optional
-        Whether to use spin temperature fluctuations in the calculations.
-
     Returns
     -------
-    :class:`~IonizedBox` or :class:`~TsBox`
+    :class:`~IonizedBox`
         An object containing the ionized box data.
     """
     if perturbed_field is None and redshift is None:
@@ -553,12 +550,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             fname=None, match_seed=match_seed
         )
 
-    if not do_spin_temp:
-        cls = IonizedBox
-    else:
-        cls = TsBox
-
-    box = cls(user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
+    box = IonizedBox(user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
               redshift=redshift, astro_params=astro_params, flag_options=flag_options)
 
     # Check whether the boxes already exist
@@ -571,11 +563,101 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             pass
 
     # Run the C Code
-    if not do_spin_temp:
-        lib.ComputeIonizedBox(redshift, perturbed_field(), box())
-    else:
-        lib.ComputeTsBox(redshift, perturbed_field(), box())
+    lib.ComputeIonizedBox(redshift, perturbed_field(), box())
+    box.filled = True
 
+    # Optionally do stuff with the result (like writing it)
+    if write:
+        box.write(direc, fname)
+
+    return box
+
+
+def spin_temperature(astro_params=None, flag_options=FlagOptions(),redshift=None, perturbed_field=None,
+                     init_boxes=None, cosmo_params=None, user_params=None, regenerate=False, write=True, direc=None,
+                     fname=None, match_seed=False):
+    """
+    Compute spin temperature boxes at a given redshift.
+
+    Parameters
+    ----------
+    astro_params: :class:`~AstroParams` instance, optional
+        The astrophysical parameters defining the course of reionization.
+
+    flag_options: :class:`~FlagOptions` instance, optional
+        Some options passed to the reionization routine.
+
+    redshift : float, optional
+        The redshift at which to compute the ionized box. If `perturbed_field` is given, its inherent redshift
+        will take precedence over this argument. If not, this argument is mandatory.
+
+    perturbed_field : :class:`~PerturbField` instance, optional
+        If given, this field will be used, otherwise it will be generated. To be generated, either `init_boxes` and
+        `redshift` must be given, or `user_params`, `cosmo_params` and `redshift`.
+
+    init_boxes : :class:`~InitialConditions` instance, optional
+        If given, and `perturbed_field` *not* given, these initial conditions boxes will be used to generate the
+        perturbed field, otherwise initial conditions will be generated on the fly. If given,
+        the user and cosmo params will be set from this object.
+
+    user_params : `~UserParams` instance, optional
+        Defines the overall options and parameters of the run.
+
+    cosmo_params : `~CosmoParams` instance, optional
+        Defines the cosmological parameters used to compute initial conditions.
+
+    regenerate : bool, optional
+        Whether to force regeneration of the initial conditions, even if a corresponding box is found.
+
+    write : bool, optional
+        Whether to write results to file.
+
+    direc : str, optional
+        The directory in which to search for the boxes and write them. By default, this is the centrally-managed
+        directory, given by the ``config.yml`` in ``.21CMMC`.
+
+    fname : str, optional
+        The filename to search for/write to.
+
+    match_seed : bool, optional
+        Whether to force the random seed to also match in order to be considered a match.
+
+    Returns
+    -------
+    :class:`~TsBox`
+        An object containing the spin temperature box data.
+    """
+    if perturbed_field is None and redshift is None:
+        raise ValueError("Either perturbed_field or redshift must be provided.")
+    elif perturbed_field is not None:
+        redshift = perturbed_field.redshift
+
+    # Set the default astro params, using the INHOMO_RECO flag.
+    if astro_params is None:
+        astro_params = AstroParams(FlagOptions.INHOMO_RECO)
+
+    # Dynamically produce the perturbed field.
+    if perturbed_field is None or not perturbed_field.filled:
+        perturbed_field = perturb_field(
+            redshift,init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
+            regenerate=regenerate, write=write, direc=direc,
+            fname=None, match_seed=match_seed
+        )
+
+    box = TsBox(user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
+              redshift=redshift, astro_params=astro_params, flag_options=flag_options)
+
+    # Check whether the boxes already exist
+    if not regenerate:
+        try:
+            box.read(direc, fname, match_seed=match_seed)
+            print("Existing perturb_field boxes found and read in.")
+            return box
+        except IOError:
+            pass
+
+    # Run the C Code
+    lib.ComputeTsBox(redshift, perturbed_field(), box())
     box.filled = True
 
     # Optionally do stuff with the result (like writing it)

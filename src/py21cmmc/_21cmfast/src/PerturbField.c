@@ -151,9 +151,9 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
                         zf -= (boxes->lowres_vz_2LPT)[HII_R_INDEX(HII_i,HII_j,HII_k)];
                     }
                     
-                    xf *= (user_params->HII_DIM);
-                    yf *= (user_params->HII_DIM);
-                    zf *= (user_params->HII_DIM);
+                    xf *= (float)(user_params->HII_DIM);
+                    yf *= (float)(user_params->HII_DIM);
+                    zf *= (float)(user_params->HII_DIM);
                     while (xf >= (float)(user_params->HII_DIM)){ xf -= (user_params->HII_DIM);}
                     while (xf < 0){ xf += (user_params->HII_DIM);}
                     while (yf >= (float)(user_params->HII_DIM)){ yf -= (user_params->HII_DIM);}
@@ -171,11 +171,11 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
                     if (zi < 0) {zi += (user_params->HII_DIM);}
                     
                     // now move the mass
-                    if(HII_R_FFT_INDEX(xi, yi, zi)==0) {
-                        printf("i = %d j = %d k = %d xi = %d yi = %d zi = %d xf = %e yf = %e zf = %e dens = %e val = %e sum = %e\n",i,j,k,xi,yi,zi,xf,yf,zf,(boxes->hires_density)[R_FFT_INDEX(i,j,k)],(1 + init_growth_factor*(boxes->hires_density)[R_FFT_INDEX(i,j,k)]),LOWRES_density_perturb[HII_R_FFT_INDEX(xi, yi, zi)]);
-                    }
+//                    if(HII_R_FFT_INDEX(xi, yi, zi)==0) {
+//                        printf("i = %d j = %d k = %d xi = %d yi = %d zi = %d xf = %e yf = %e zf = %e dens = %e val = %e sum = %e\n",i,j,k,xi,yi,zi,xf,yf,zf,(boxes->hires_density)[R_FFT_INDEX(i,j,k)],(1 + init_growth_factor*(boxes->hires_density)[R_FFT_INDEX(i,j,k)]),LOWRES_density_perturb[HII_R_FFT_INDEX(xi, yi, zi)]);
+//                    }
                     *( (float *)LOWRES_density_perturb + HII_R_FFT_INDEX(xi, yi, zi) ) +=
-                    (1 + init_growth_factor*(boxes->hires_density)[R_FFT_INDEX(i,j,k)]);
+                    (1 + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)]);
                 }
             }
         }
