@@ -55,7 +55,7 @@ if boxdir:
         lines = f.readlines()
         for i,line in enumerate(lines):
             if line.strip().startswith("boxdir"):
-                lines[i] = line.replace(line.split(":")[-1], boxdir)
+                lines[i] = line.replace(line.split(": ")[-1], boxdir)
 
     with open("config.yml", 'w') as f:
         f.write("\n".join(lines))
