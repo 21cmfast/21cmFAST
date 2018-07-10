@@ -128,7 +128,7 @@ class OutputStruct:
     _fields_ = []
     _name = None   # This must match the name of the C struct
 
-    ffi = None
+    ffi = None    
 
     _TYPEMAP = {
         'float32': 'float *',
@@ -136,7 +136,7 @@ class OutputStruct:
         'int32': 'int *'
     }
 
-    def __init__(self, user_params, cosmo_params, **kwargs):
+    def __init__(self, user_params, cosmo_params, **kwargs):        
         # These two parameter dicts will exist for every output struct.
         # Additional ones can be supplied with kwargs.
         self.user_params = user_params
