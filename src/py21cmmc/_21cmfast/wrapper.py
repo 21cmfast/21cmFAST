@@ -289,18 +289,16 @@ class PerturbedField(OutputStructZ):
 
 
 class IonizedBox(OutputStructZ):
-    def __init__(self, user_params, cosmo_params, redshift, astro_params, flag_options):
+    def __init__(self, user_params, cosmo_params, redshift, astro_params, flag_options, first_box=False):
         super().__init__(user_params, cosmo_params, redshift=float(redshift), astro_params=astro_params,
                          flag_options=flag_options)
+        self.first_box = first_box
 
     def _init_arrays(self):
         self.ionized_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
 
 class TsBox(IonizedBox):
-    def __init__(self, first_box=False, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._first_box = bool(first_box)
 
     def _init_arrays(self):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
@@ -480,8 +478,8 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
 
 def ionize_box(astro_params=None, flag_options=FlagOptions(),
                redshift=None, perturbed_field=None,
-               previous_redshift=None,
-               do_spin_temp=False, spin_temp=None,
+               previous_ionize_box=None,
+               spin_temp=None,
                init_boxes=None, cosmo_params=None, user_params=None,
                regenerate=False, write=True, direc=None,
                fname=None, match_seed=False):
@@ -508,6 +506,14 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         If given, and `perturbed_field` *not* given, these initial conditions boxes will be used to generate the
         perturbed field, otherwise initial conditions will be generated on the fly. If given,
         the user and cosmo params will be set from this object.
+
+    previous_ionize_box: :class:`IonizedBox`, optional
+        An ionized box at higher redshift. This is only used if `INHOMO_RECO` and/or `do_spin_temp` are true. If either
+        of these are true, and this is not given, then it will be assumed that this is the "first box", i.e. that it
+        can be populated accurately without knowing source statistics.
+
+    spin_temp: :class:`TsBox`, optional
+        A spin-temperature box. If not given, will assume the saturated limit.
 
     user_params : `~UserParams` instance, optional
         Defines the overall options and parameters of the run.
@@ -545,9 +551,11 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     if astro_params is None:
         astro_params = AstroParams(flag_options.INHOMO_RECO)
 
-    if (flag_options.INHOMO_RECO or do_spin_temp) and previous_redshift is None:
-        raise ValueError("If performing inhomogeneous recombinations (specified in flag_options), then a previous"+\
-                         "redshift must be supplied")
+    if previous_ionize_box is not None and previous_ionize_box.redshift < redshift:
+        raise ValueError("The previous ionization box must have higher redshift than this one.")
+
+    if spin_temp is not None and spin_temp.redshift != redshift:
+        raise ValueError("The redshift of the spin_temp field needs to be the current redshift")
 
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
@@ -557,13 +565,21 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             fname=None, match_seed=match_seed
         )
 
-    if do_spin_temp and spin_temp is None:
-        spin_temp = spin_temperature(
-            astro_params=astro_params, flag_options=flag_options,redshift=redshift, previous_redshift=previous_redshift,
-            perturbed_field=perturbed_field, init_boxes=None, cosmo_params=None, user_params=None, regenerate=False, write=True, direc=None,
-                     fname=None, match_seed=False )
+    if spin_temp is None:
+        do_spin_temp=False
+        spin_temp = TsBox(cosmo_params=cosmo_params, redshift=0, user_params=user_params,
+                          astro_params=astro_params, flag_options=flag_options)
+
     box = IonizedBox(user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
-              redshift=redshift, astro_params=astro_params, flag_options=flag_options)
+                     redshift=redshift, astro_params=astro_params, flag_options=flag_options)
+
+    if previous_ionize_box is None:
+        previous_ionize_box = IonizedBox(
+            user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
+            redshift=redshift, astro_params=astro_params, flag_options=flag_options
+        )
+        if flag_options.INHOMO_RECO or do_spin_temp:
+            previous_ionize_box.first_box = True
 
     # Check whether the boxes already exist
     if not regenerate:
@@ -575,7 +591,8 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             pass
 
     # Run the C Code
-    lib.ComputeIonizedBox(redshift, perturbed_field(), box())
+    lib.ComputeIonizedBox(redshift, user_params(), cosmo_params(), astro_params(), flag_options(), perturbed_field(),
+                          previous_ionize_box(), do_spin_temp, spin_temp(), box())
     box.filled = True
     box._expose()
 
