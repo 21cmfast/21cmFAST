@@ -289,6 +289,7 @@ class PerturbedField(OutputStructZ):
 
 
 class IonizedBox(OutputStructZ):
+    "A class containing all ionized boxes"
     def __init__(self, user_params, cosmo_params, redshift, astro_params, flag_options, first_box=False):
         super().__init__(user_params, cosmo_params, redshift=float(redshift), astro_params=astro_params,
                          flag_options=flag_options)
@@ -299,9 +300,15 @@ class IonizedBox(OutputStructZ):
 
 
 class TsBox(IonizedBox):
-
+    "A class containing all spin temperature boxes"
     def _init_arrays(self):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+
+
+class BrightnessTemp(IonizedBox):
+    "A class containin the brightness temperature box."
+    def _init_arrays(self):
+        self.brightness_temp = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
 
 # ======================================================================================================================
@@ -717,7 +724,29 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     return box
 
 
-#
+def brightness_temperature(spin_temp, ionized_box, perturb_field):
+    if spin_temp.redshift != ionized_box.redshift != perturb_field.redshift:
+        raise ValueError("all box redshifts must be the same.")
+
+    if spin_temp.user_params != ionized_box.user_params != perturb_field.user_params:
+        raise ValueError("all box user_params must be the same")
+
+    if spin_temp.cosmo_params != ionized_box.cosmo_params != perturb_field.cosmo_params:
+        raise ValueError("all box cosmo_params must be the same")
+
+    if spin_temp.astro_params != ionized_box.astro_params:
+        raise ValueError("all box astro_params must be the same")
+
+    box = BrightnessTemp(user_params=spin_temp.user_params, cosmo_params=spin_temp.cosmo_params,
+                         astro_params=spin_temp.astro_params, flag_options=ionized_box.flag_options,
+                         redshift=spin_temp.redshift)
+
+    lib.ComputeBrightnessTemp(spin_temp.redshift, spin_temp(), ionized_box(), perturb_field(), box())
+    box.filled= True
+    box._expose()
+
+    return box
+
 # def run_21cmfast(redshifts, box_dim=None, flag_options=None, astro_params=None, cosmo_params=None,
 #                  write=True, regenerate=False, run_perturb=True, run_ionize=True, init_boxes=None,
 #                  free_ps=True, progress_bar=True):
