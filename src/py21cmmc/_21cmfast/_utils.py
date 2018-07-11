@@ -175,7 +175,7 @@ class OutputStruct:
             return self.__cstruct
         else:
             self.__cstruct = self._new()
-
+            return self.__cstruct
     @property
     def fields(self):
         return self.ffi.typeof(self._cstruct[0]).fields
@@ -356,6 +356,10 @@ class OutputStruct:
 
         if pth is None:
             raise IOError("No boxes exist for these cosmo and user parameters.")
+
+        # Need to make sure arrays are initialized before reading in data to them.
+        if not self.arrays_initialized:
+            self._init_arrays()
 
         with h5py.File(pth,'r') as f:
             try:

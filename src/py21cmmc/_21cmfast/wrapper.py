@@ -264,7 +264,7 @@ class InitialConditions(OutputStruct):
     """
     A class containing all initial conditions boxes.
     """
-    def _init_boxes(self):
+    def _init_arrays(self):
         self.lowres_density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vx = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vy = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
@@ -283,7 +283,7 @@ class PerturbedField(OutputStructZ):
     def __init__(self, user_params, cosmo_params, redshift):
         super().__init__(user_params, cosmo_params, redshift=float(redshift))
 
-    def _init_boxes(self):
+    def _init_arrays(self):
         self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
@@ -293,12 +293,12 @@ class IonizedBox(OutputStructZ):
         super().__init__(user_params, cosmo_params, redshift=float(redshift), astro_params=astro_params,
                          flag_options=flag_options)
 
-    def _init_boxes(self):
+    def _init_arrays(self):
         self.ionized_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
 
 class TsBox(IonizedBox):
-    def _init_boxes(self):
+    def _init_arrays(self):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
 
