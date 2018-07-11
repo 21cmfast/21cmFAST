@@ -331,8 +331,11 @@ class OutputStruct:
             boxes = f.create_group(self._name)
 
             # Go through all fields in this struct, and save
-            for k in self._fields_:
+            for k in self.pointer_fields:
                 boxes.create_dataset(k, data = getattr(self, k))
+
+            for k in self.primitive_fields:
+                boxes.attrs[k] = getattr(self, k)
 
     def read(self, direc=None, fname=None, match_seed=False):
         """
@@ -370,6 +373,9 @@ class OutputStruct:
             # Fill our arrays.
             for k in boxes.keys():
                 getattr(self, k)[...] = boxes[k][...]
+
+            for k in boxes.attrs.keys():
+                setattr(self, k, boxes.attrs[k])
 
             # Need to make sure that the seed is set to the one that's read in.
             seed = f['cosmo'].attrs['RANDOM_SEED']

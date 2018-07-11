@@ -354,6 +354,7 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
     # Run the C code
     lib.ComputeInitialConditions(user_params(), cosmo_params(), boxes())
     boxes.filled = True
+    boxes._expose()
 
     # Optionally do stuff with the result (like writing it)
     if write:
@@ -461,6 +462,7 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
     # Run the C Code
     lib.ComputePerturbField(redshift, user_params(), cosmo_params(), init_boxes(), fields())
     fields.filled = True
+    fields._expose()
 
     # Optionally do stuff with the result (like writing it)
     if write:
@@ -560,6 +562,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     # Run the C Code
     lib.ComputeIonizedBox(redshift, perturbed_field(), box())
     box.filled = True
+    box._expose()
 
     # Optionally do stuff with the result (like writing it)
     if write:
