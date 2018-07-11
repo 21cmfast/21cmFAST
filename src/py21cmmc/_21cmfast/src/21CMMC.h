@@ -46,9 +46,17 @@ struct PerturbedField{
     float *density, *velocity;
 };
 
+struct TsBox{
+    int first_box;
+    float *Ts_box;
+};
+
 void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes);
 //void ComputePerturbField(float redshift, struct InitialConditions *boxes, struct PerturbedField *p_cubes);
 void ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *p_cubes);
+void ComputeTsBox(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                  struct AstroParams *astro_params, float perturbed_field_redshift,
+                  struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox this_spin_temp);
 
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params);

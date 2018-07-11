@@ -207,16 +207,20 @@ class OutputStruct:
             raise ValueError("ary must be a numpy array")
         return ffi.cast(OutputStruct._TYPEMAP[ary.dtype.name], ffi.from_buffer(ary))
 
-    def __call__(self, init_arrays=True):
+    def __call__(self):
         # Always set the arrays/pointers to their respective memory before actually returning the cstruct.
-        if init_arrays and not self.arrays_initialized:
+        if not self.arrays_initialized:
             self._init_arrays()
             if not self.arrays_initialized:
                 raise AttributeError("%s is ill-defined. It has not initialized all necessary arrays."%self.__class__.__name__)
 
-        if init_arrays:
-            for k in self.pointer_fields:
-                setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
+        for k in self.pointer_fields:
+            setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
+        for k in self.primitive_fields:
+            try:
+                setattr(self._cstruct, k, getattr(self, k))
+            except AttributeError:
+                pass
 
         return self._cstruct
 
