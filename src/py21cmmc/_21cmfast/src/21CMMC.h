@@ -65,23 +65,31 @@ struct PerturbedField{
     float *density, *velocity;
 };
 
+struct TsBox{
+    int first_box;
+    float *Ts_box;
+};
+
 struct IonizedBox{
+    int first_box;
     float *ionized_box;
 };
 
-struct TsBox{
-    float *Ts_box;
+struct BrightnessTemp{
+    float *brightness_temp;
 };
 
 void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes);
 void ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *p_cubes);
+void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                  struct AstroParams *astro_params, float perturbed_field_redshift,
+                  struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp);
 void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                       struct PerturbedField *p_cubes, struct TsBox *Ts_boxes, struct IonizedBox *i_boxes);
-
-void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                       struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                       struct PerturbedField *p_cubes, struct TsBox *Ts_boxes);
+                       struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
+                       int do_spin_temp, struct TsBox *spin_temp, struct IonizedBox *box)
+void ComputeBrightnessTemp(float redshift, int saturated_limit, struct TsBox *spin_temp, struct IonizedBox *ionized_box,
+                           struct PerturbedField *perturb_field, struct BrightnessTemp *box)
 
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params);
