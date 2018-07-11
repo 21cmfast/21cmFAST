@@ -3,7 +3,7 @@
 
 void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                       struct PerturbedField *p_cubes, struct IonizedBox *i_boxes) {
+                       struct PerturbedField *p_cubes, struct TsBox *Ts_boxes, struct IonizedBox *i_boxes) {
 
     // Makes the parameter structs visible to a variety of functions/macros
     if(StructInit==0) {
@@ -31,13 +31,13 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
 
     // Other parameters used in the code
     int i,j,k,ii, x,y,z, N_min_cell, LAST_FILTER_STEP, short_completely_ionised,skip_deallocate,first_step_R;
-    int n_x, n_y, n_z,counter,LOOP_INDEX;
+    int n_x, n_y, n_z,counter;
     unsigned long long ct;
 
     float growth_factor,MFEEDBACK, R, pixel_mass, cell_length_factor, ave_N_min_cell, M_MIN, nf;
     float f_coll_crit, erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, sqrtarg, xHI_from_xrays, curr_dens, stored_R, massofscaleR;
 
-    double global_xH, global_step_xH, ST_over_PS, mean_f_coll_st, f_coll, f_coll_temp, f_coll_from_table, f_coll_from_table_1, f_coll_from_table_2;
+    double global_xH, global_step_xH, ST_over_PS, mean_f_coll_st, f_coll;
 
     double t_ast, dfcolldt, Gamma_R_prefactor, rec, dNrec;
     float growth_factor_dz, fabs_dtdz, ZSTEP, Gamma_R, z_eff;
@@ -45,19 +45,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
 
     const gsl_rng_type * T;
     gsl_rng * r;
-
-    skip_deallocate = 0;
-
-    // Choice of DIM is arbitrary, just needs to be a value larger than HII_DIM. DIM should be sufficient as it shouldn't exceeded DIM (provided DIM > HII_DIM by a factor of at least ~3)
-    int *LOS_index = calloc(DIM,sizeof(int));
-    int *slice_index = calloc(DIM,sizeof(int));
-
-    int total_in_z = 0;
-
-    float d1_low, d1_high, d2_low, d2_high, gradient_component, min_gradient_component, subcell_width, x_val1, x_val2, subcell_displacement;
-    float RSD_pos_new, RSD_pos_new_boundary_low,RSD_pos_new_boundary_high, fraction_within, fraction_outside, cell_distance;
-
-    int min_slice_index,slice_index_reducedLC;
 
     min_slice_index = HII_DIM + 1;
     slice_index_reducedLC = 0;
@@ -85,39 +72,28 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     }
 
     // initialize power spectrum
-    growth_factor = dicke(REDSHIFT_SAMPLE);
+     growth_factor = dicke(REDSHIFT_SAMPLE);
 
-    init_21cmMC_HII_arrays();
-    if(GenerateNewICs) {
+     fftwf_complex *deltax_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+     fftwf_complex *deltax_unfiltered_original = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+     fftwf_complex *deltax_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+     fftwf_complex *xe_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+     fftwf_complex *xe_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+     
+     float *deltax = (float *) calloc(HII_TOT_FFT_NUM_PIXELS,sizeof(float));
+     float *Fcoll = (float *) calloc(HII_TOT_NUM_PIXELS,sizeof(float));
+     float *xH = (float *)calloc(HII_TOT_NUM_PIXELS,sizeof(float));
+     
+    // Calculate the density field for this redshift if the initial conditions/cosmology are changing
     
-        // Calculate the density field for this redshift if the initial conditions/cosmology are changing
-        ComputePerturbField(REDSHIFT_SAMPLE);
-    
-        for (i=0; i<HII_DIM; i++){
-            for (j=0; j<HII_DIM; j++){
-                for (k=0; k<HII_DIM; k++){
-                    *((float *)deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = LOWRES_density_REDSHIFT[HII_R_INDEX(i,j,k)];
-                }
+    for (i=0; i<HII_DIM; i++){
+        for (j=0; j<HII_DIM; j++){
+            for (k=0; k<HII_DIM; k++){
+                *((float *)deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = LOWRES_density_REDSHIFT[HII_R_INDEX(i,j,k)];
             }
         }
+    }
     
-    }
-    else {
-        // Read the desnity field of this redshift from file
-        sprintf(filename, "../Boxes/updated_smoothed_deltax_z%06.2f_%i_%.0fMpc", REDSHIFT_SAMPLE, HII_DIM, BOX_LEN);
-        F = fopen(filename, "rb");
-        for (i=0; i<HII_DIM; i++){
-            for (j=0; j<HII_DIM; j++){
-                for (k=0; k<HII_DIM; k++){
-                    if (fread((float *)deltax_unfiltered + HII_R_FFT_INDEX(i,j,k), sizeof(float), 1, F)!=1){
-                        printf("Read error occured while reading deltax box.\n");
-                    }
-                }
-            }
-        }
-        fclose(F);
-    }
-
     // keep the unfiltered density field in an array, to save it for later
     memcpy(deltax_unfiltered_original, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
@@ -165,6 +141,8 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     else {
         mean_f_coll_st = FgtrM_st(REDSHIFT_SAMPLE, M_MIN);
     }
+     
+     
     if (mean_f_coll_st/(1./HII_EFF_FACTOR) < HII_ROUND_ERR){ // way too small to ionize anything...
     //        printf( "The ST mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll_st, f_coll_crit);
     
@@ -338,92 +316,63 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                 initialiseGL_Fcoll(NGLlow,NGLhigh,M_MIN,massofscaleR);
                 initialiseFcoll_spline(REDSHIFT_SAMPLE,M_MIN,massofscaleR,massofscaleR,MFEEDBACK,EFF_FACTOR_PL_INDEX);
             }
-        
-            if(!USE_FCOLL_IONISATION_TABLE) {
             
-                // Determine the global averaged f_coll for the overall normalisation
+            // Determine the global averaged f_coll for the overall normalisation
             
-                // renormalize the collapse fraction so that the mean matches ST,
-                // since we are using the evolved (non-linear) density field
-                for (x=0; x<HII_DIM; x++){
-                    for (y=0; y<HII_DIM; y++){
-                        for (z=0; z<HII_DIM; z++){
+            // renormalize the collapse fraction so that the mean matches ST,
+            // since we are using the evolved (non-linear) density field
+            for (x=0; x<HII_DIM; x++){
+                for (y=0; y<HII_DIM; y++){
+                    for (z=0; z<HII_DIM; z++){
                         
-                            // delta cannot be less than -1
-                            *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
+                        // delta cannot be less than -1
+                        *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
                         
-                            // <N_rec> cannot be less than zero
-                            if (INHOMO_RECO){
-                                *((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
+                        // <N_rec> cannot be less than zero
+                        if (INHOMO_RECO){
+                            *((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
+                        }
+                        
+                        // x_e has to be between zero and unity
+                        if (USE_TS_IN_21CM){
+                            *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.);
+                            *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMIN(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.999);
+                        }
+                        
+                        curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                        
+                        if(EFF_FACTOR_PL_INDEX!=0.) {
+                            // Usage of 0.99*Deltac arises due to the fact that close to the critical density, the collapsed fraction becomes a little unstable
+                            // However, such densities should always be collapsed, so just set f_coll to unity. Additionally, the fraction of points in this regime relative
+                            // to the entire simulation volume is extremely small.
+                            if(curr_dens <= 0.99*Deltac) {
+                                FcollSpline(curr_dens,&(Splined_Fcoll));
                             }
-                        
-                            // x_e has to be between zero and unity
-                            if (USE_TS_IN_21CM){
-                                *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.);
-                                *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMIN(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.999);
+                            else { // the entrire cell belongs to a collpased halo...  this is rare...
+                                Splined_Fcoll =  1.0;
                             }
-                        
-                            curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
-                        
-                            if(EFF_FACTOR_PL_INDEX!=0.) {
-                                // Usage of 0.99*Deltac arises due to the fact that close to the critical density, the collapsed fraction becomes a little unstable
-                                // However, such densities should always be collapsed, so just set f_coll to unity. Additionally, the fraction of points in this regime relative
-                                // to the entire simulation volume is extremely small.
-                                if(curr_dens <= 0.99*Deltac) {
-                                    FcollSpline(curr_dens,&(Splined_Fcoll));
-                                }
-                                else { // the entrire cell belongs to a collpased halo...  this is rare...
-                                    Splined_Fcoll =  1.0;
-                                }
+                        }
+                        else {
+                            
+                            erfc_arg_val = (Deltac - curr_dens)*erfc_denom;
+                            if( erfc_arg_val < erfc_arg_min || erfc_arg_val > erfc_arg_max ) {
+                                Splined_Fcoll = splined_erfc(erfc_arg_val);
                             }
                             else {
-                            
-                                erfc_arg_val = (Deltac - curr_dens)*erfc_denom;
-                                if( erfc_arg_val < erfc_arg_min || erfc_arg_val > erfc_arg_max ) {
-                                    Splined_Fcoll = splined_erfc(erfc_arg_val);
-                                }
-                                else {
-                                    erfc_arg_val_index = (int)floor(( erfc_arg_val - erfc_arg_min )*InvArgBinWidth);
-                                    Splined_Fcoll = ERFC_VALS[erfc_arg_val_index] + (erfc_arg_val - (erfc_arg_min + ArgBinWidth*(double)erfc_arg_val_index))*ERFC_VALS_DIFF[erfc_arg_val_index]*InvArgBinWidth;
-                                }
+                                erfc_arg_val_index = (int)floor(( erfc_arg_val - erfc_arg_min )*InvArgBinWidth);
+                                Splined_Fcoll = ERFC_VALS[erfc_arg_val_index] + (erfc_arg_val - (erfc_arg_min + ArgBinWidth*(double)erfc_arg_val_index))*ERFC_VALS_DIFF[erfc_arg_val_index]*InvArgBinWidth;
                             }
-                        
-                            // save the value of the collasped fraction into the Fcoll array
-                            Fcoll[HII_R_INDEX(x,y,z)] = Splined_Fcoll;
-                            f_coll += Splined_Fcoll;
                         }
+     
+                        // save the value of the collasped fraction into the Fcoll array
+                        Fcoll[HII_R_INDEX(x,y,z)] = Splined_Fcoll;
+                        f_coll += Splined_Fcoll;
                     }
-                } //  end loop through Fcoll box
-            
-                f_coll /= (double) HII_TOT_NUM_PIXELS;
-            }
-            else {
-            
-                // Evaluate the interpolation table of the global average f_coll
-            
-                R_MFP_INT_1 = (int)floor((R - R_MFP_MIN)/R_MFP_BINWIDTH);
-                R_MFP_INT_2 = R_MFP_INT_1 + 1;
-            
-                R_MFP_VAL_1 = R_MFP_MIN + (R_MFP_UB - R_MFP_MIN)*(float)R_MFP_INT_1/((float)R_MFP_STEPS - 1.);
-                R_MFP_VAL_2 = R_MFP_MIN + (R_MFP_UB - R_MFP_MIN)*(float)R_MFP_INT_2/((float)R_MFP_STEPS - 1.);
-            
-                if (LAST_FILTER_STEP){
-                    f_coll = Ionisation_fcoll_table_final[TVIR_INT_1 + TVIR_STEPS*sample_index] + ( log10(ION_Tvir_MIN) - TVIR_VAL_1 )*( Ionisation_fcoll_table_final[TVIR_INT_2 + TVIR_STEPS*sample_index] - Ionisation_fcoll_table_final[TVIR_INT_1 + TVIR_STEPS*sample_index] )/( TVIR_VAL_2 - TVIR_VAL_1 );
                 }
-                else {
-                
-                    f_coll_from_table_1 = ( R_MFP_VAL_2 - R )*Ionisation_fcoll_table[TVIR_INT_1 + TVIR_STEPS*( R_MFP_INT_1 + R_MFP_STEPS*sample_index )];
-                    f_coll_from_table_1 += ( R - R_MFP_VAL_1 )*Ionisation_fcoll_table[TVIR_INT_1 + TVIR_STEPS*( R_MFP_INT_2 + R_MFP_STEPS*sample_index )];
-                    f_coll_from_table_1 /= ( R_MFP_VAL_2 - R_MFP_VAL_1 );
-                
-                    f_coll_from_table_2 = ( R_MFP_VAL_2 - R )*Ionisation_fcoll_table[TVIR_INT_2 + TVIR_STEPS*( R_MFP_INT_1 + R_MFP_STEPS*sample_index )];
-                    f_coll_from_table_2 += ( R - R_MFP_VAL_1 )*Ionisation_fcoll_table[TVIR_INT_2 + TVIR_STEPS*( R_MFP_INT_2 + R_MFP_STEPS*sample_index )];
-                    f_coll_from_table_2 /= ( R_MFP_VAL_2 - R_MFP_VAL_1 );
-                
-                    f_coll = ( ( TVIR_VAL_2 - log10(ION_Tvir_MIN) )*f_coll_from_table_1 + ( log10(ION_Tvir_MIN) - TVIR_VAL_1 )*f_coll_from_table_2 )/( TVIR_VAL_2 - TVIR_VAL_1 );
-                }
-            }
-        
+            } //  end loop through Fcoll box
+            
+            f_coll /= (double) HII_TOT_NUM_PIXELS;
+     
             ST_over_PS = mean_f_coll_st/f_coll;
         
             //////////////////////////////  MAIN LOOP THROUGH THE BOX ///////////////////////////////////
@@ -433,79 +382,15 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
         
             xHI_from_xrays = 1;
             Gamma_R_prefactor = pow(1+REDSHIFT_SAMPLE, 2) * (R*CMperMPC) * SIGMA_HI * ALPHA_UVB / (ALPHA_UVB+2.75) * N_b0 * HII_EFF_FACTOR / 1.0e-12;
-        
-            if(!USE_FCOLL_IONISATION_TABLE) {
-                LOOP_INDEX = HII_DIM;
-            }
-            else {
-                LOOP_INDEX = total_in_z;
-            }
-        
+     
             for (x=0; x<HII_DIM; x++){
                 for (y=0; y<HII_DIM; y++){
-                    for (z=0; z<LOOP_INDEX; z++){
-                    
-                        if(USE_FCOLL_IONISATION_TABLE) {
-                            if((min_slice_index + z) >= HII_DIM) {
-                                slice_index_reducedLC = (min_slice_index + z) - HII_DIM;
-                            }
-                            else {
-                                slice_index_reducedLC = (min_slice_index + z);
-                            }
-                        
-                            // delta cannot be less than -1
-                            *((float *)deltax_filtered + coeval_box_pos_FFT(Default_LOS_direction,x,y,slice_index_reducedLC)) = FMAX(*((float *)deltax_filtered + coeval_box_pos_FFT(Default_LOS_direction,x,y,slice_index_reducedLC)) , -1.+FRACT_FLOAT_ERR);
-                        
-                            // <N_rec> cannot be less than zero
-                            if (INHOMO_RECO){
-                                *((float *)N_rec_filtered + coeval_box_pos_FFT(Default_LOS_direction,x,y,slice_index_reducedLC)) = FMAX(*((float *)N_rec_filtered + coeval_box_pos_FFT(Default_LOS_direction,x,y,slice_index_reducedLC)) , 0.0);
-                            }
-                        
-                            // x_e has to be between zero and unity
-                            if (USE_TS_IN_21CM){
-                                *((float *)xe_filtered + coeval_box_pos_FFT(Default_LOS_direction,x,y,slice_index_reducedLC)) = FMAX(*((float *)xe_filtered + coeval_box_pos_FFT(Default_LOS_direction,x,y,slice_index_reducedLC)) , 0.);
-                                *((float *)xe_filtered + coeval_box_pos_FFT(Default_LOS_direction,x,y,slice_index_reducedLC)) = FMIN(*((float *)xe_filtered + coeval_box_pos_FFT(Default_LOS_direction,x,y,slice_index_reducedLC)) , 0.999);
-                            }
-                        }
-                        else {
-                            slice_index_reducedLC = z;
-                        }
-                    
+                    for (z=0; z<HII_DIM; z++){
+     
                         curr_dens = *((float *)deltax_filtered + coeval_box_pos_FFT(Default_LOS_direction,x,y,slice_index_reducedLC));
-                    
-                        if(USE_FCOLL_IONISATION_TABLE) {
-                        
-                            if(EFF_FACTOR_PL_INDEX!=0.) {
-                                if(curr_dens <= 0.99*Deltac) {
-                                    // This is here as the interpolation tables have some issues very close
-                                    // to Deltac. So lets just assume these voxels collapse anyway.
-                                    FcollSpline(curr_dens,&(Splined_Fcoll));
-                                    // Using the fcoll ionisation table, fcoll is not computed in each cell.
-                                    // For this option, fcoll must be calculated.
-                                }
-                                else {
-                                    Splined_Fcoll = 1.;
-                                }
-                            }
-                            // check for aliasing which can occur for small R and small cell sizes,
-                            // since we are using the analytic form of the window function for speed and simplicity
-                            else {
-                            
-                                erfc_arg_val = (Deltac - curr_dens)*erfc_denom;
-                                if( erfc_arg_val < erfc_arg_min || erfc_arg_val > erfc_arg_max ) {
-                                    Splined_Fcoll = splined_erfc(erfc_arg_val);
-                                }
-                                else {
-                                    erfc_arg_val_index = (int)floor(( erfc_arg_val - erfc_arg_min )*InvArgBinWidth);
-                                    Splined_Fcoll = ERFC_VALS[erfc_arg_val_index] + (erfc_arg_val - (erfc_arg_min + ArgBinWidth*(double)erfc_arg_val_index))*ERFC_VALS_DIFF[erfc_arg_val_index]*InvArgBinWidth;
-                                }
-                            }
-                        }
-                        else {
-                        
-                            Splined_Fcoll = Fcoll[coeval_box_pos(Default_LOS_direction,x,y,slice_index_reducedLC)];
-                        }
-                    
+     
+                        Splined_Fcoll = Fcoll[coeval_box_pos(Default_LOS_direction,x,y,slice_index_reducedLC)];
+     
                         f_coll = ST_over_PS * Splined_Fcoll;
                     
                         if (INHOMO_RECO){
@@ -569,19 +454,16 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                     } // k
                 } // j
             } // i
-        
-            if(!USE_FCOLL_IONISATION_TABLE) {
+     
+            global_step_xH = 0;
+            for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
+                global_step_xH += xH[ct];
+            }
+            global_step_xH /= (float)HII_TOT_NUM_PIXELS;
             
-                global_step_xH = 0;
-                for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
-                    global_step_xH += xH[ct];
-                }
-                global_step_xH /= (float)HII_TOT_NUM_PIXELS;
-            
-                if(global_step_xH==0.0) {
-                    short_completely_ionised = 1;
-                    break;
-                }
+            if(global_step_xH==0.0) {
+                short_completely_ionised = 1;
+                break;
             }
         
             if(first_step_R) {
@@ -594,34 +476,14 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             counter_R -= 1;
         
         }
-        if(!USE_FCOLL_IONISATION_TABLE) {
-            // find the neutral fraction
-            global_xH = 0;
+     
+        // find the neutral fraction
+        global_xH = 0;
         
-            for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
-                global_xH += xH[ct];
-            }
-            global_xH /= (float)HII_TOT_NUM_PIXELS;
+        for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
+            global_xH += xH[ct];
         }
-        else {
-            // Estimate the neutral fraction from the reduced box. Can be handy to have, but shouldn't be trusted for anything more as only a fraction of the co-eval box is being used
-            global_xH = 0;
-            for (x=0; x<HII_DIM; x++){
-                for (y=0; y<HII_DIM; y++){
-                    for (z=0; z<total_in_z; z++){
-                    
-                        if((min_slice_index + z) >= HII_DIM) {
-                            slice_index_reducedLC = (min_slice_index + z) - HII_DIM;
-                        }
-                        else {
-                            slice_index_reducedLC = (min_slice_index + z);
-                        }
-                        global_xH += xH[coeval_box_pos(Default_LOS_direction,x,y,slice_index_reducedLC)];
-                    }
-                }
-            }
-            global_xH /= ((float)HII_DIM*(float)HII_DIM*(float)total_in_z);
-        }
+        global_xH /= (float)HII_TOT_NUM_PIXELS;
     
         // update the N_rec field
         if (INHOMO_RECO){
@@ -654,9 +516,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     gsl_rng_free (r);
 
     nf = global_xH;
-    if(STORE_DATA) {
-        aveNF[sample_index] = nf;
-    }
     */
 }
 

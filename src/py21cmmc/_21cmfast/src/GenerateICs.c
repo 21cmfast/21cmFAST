@@ -26,6 +26,7 @@
 #include "ps.c"
 #include "PerturbField.c"
 #include "IonisationBox.c"
+#include "SpinTemperatureBox.c"
 
 // Re-write of init.c for being accessible within the MCMC
 

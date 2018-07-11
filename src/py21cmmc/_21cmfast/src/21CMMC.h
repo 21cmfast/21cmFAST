@@ -69,11 +69,19 @@ struct IonizedBox{
     float *ionized_box;
 };
 
+struct TsBox{
+    float *Ts_box;
+};
+
 void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes);
 void ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *p_cubes);
 void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                       struct PerturbedField *p_cubes, struct IonizedBox *i_boxes);
+                       struct PerturbedField *p_cubes, struct TsBox *Ts_boxes, struct IonizedBox *i_boxes);
+
+void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                       struct AstroParams *astro_params, struct FlagOptions *flag_options,
+                       struct PerturbedField *p_cubes, struct TsBox *Ts_boxes);
 
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params);

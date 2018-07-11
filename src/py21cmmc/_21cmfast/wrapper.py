@@ -446,7 +446,7 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
     return fields
 
 def ionize_box(astro_params=None, flag_options=FlagOptions(),
-               redshift=None, perturbed_field=None,
+               redshift=None, perturbed_field=None, Ts_boxes=None,
                init_boxes=None, cosmo_params=None, user_params=None,
                regenerate=False, write=True, direc=None,
                fname=None, match_seed=False):
@@ -518,6 +518,15 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             fname=None, match_seed=match_seed
         )
     
+    # Dynamically produce the Ts boxes.
+    if Ts_boxes is None or not Ts_boxes.filled:
+        Ts_boxes = spin_temperature(
+            redshift, perturbed_field=perturbed_field, user_params=user_params, cosmo_params=cosmo_params,
+            astro_params=astro_params,flag_options=flag_options,
+            regenerate=regenerate, write=write, direc=direc,
+            fname=None, match_seed=match_seed
+        )
+
     box = IonizedBox(user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
               redshift=redshift, astro_params=astro_params, flag_options=flag_options)
 
@@ -533,7 +542,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     # Run the C Code    
     lib.ComputeIonizedBox(redshift, redshift + 0.2, perturbed_field.user_params(), 
         perturbed_field.cosmo_params(), astro_params(), flag_options(),
-        perturbed_field(), box())
+        perturbed_field(), Ts_boxes(), box())
     box.filled = True
 
     # Optionally do stuff with the result (like writing it)
@@ -544,7 +553,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
 
 
 def spin_temperature(astro_params=None, flag_options=FlagOptions(),redshift=None, perturbed_field=None,
-                     init_boxes=None, cosmo_params=None, user_params=None, regenerate=False, write=True, direc=None,
+                     cosmo_params=None, user_params=None, regenerate=False, write=True, direc=None,
                      fname=None, match_seed=False):
     """
     Compute spin temperature boxes at a given redshift.
@@ -604,7 +613,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(),redshift=None
 
     # Set the default astro params, using the INHOMO_RECO flag.
     if astro_params is None:
-        astro_params = AstroParams(FlagOptions.INHOMO_RECO)
+        astro_params = AstroParams(FlagOptions().INHOMO_RECO)
 
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
@@ -627,7 +636,9 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(),redshift=None
             pass
 
     # Run the C Code
-    lib.ComputeTsBox(redshift, perturbed_field(), box())
+    lib.ComputeTsBox(redshift, redshift + 0.2, perturbed_field.user_params(), 
+        perturbed_field.cosmo_params(), astro_params(), flag_options(),
+        perturbed_field(), box())
     box.filled = True
 
     # Optionally do stuff with the result (like writing it)

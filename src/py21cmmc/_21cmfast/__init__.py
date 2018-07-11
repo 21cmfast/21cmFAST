@@ -1,1 +1,1 @@
-from .wrapper import initial_conditions, CosmoParams, UserParams, perturb_field, ionize_box, AstroParams, FlagOptions
+from .wrapper import initial_conditions, CosmoParams, UserParams, perturb_field, ionize_box, AstroParams, FlagOptions, spin_temperature
