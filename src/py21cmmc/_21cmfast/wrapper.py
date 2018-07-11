@@ -724,7 +724,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     return box
 
 
-def brightness_temperature(spin_temp, ionized_box, perturb_field):
+def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
     if spin_temp.redshift != ionized_box.redshift != perturb_field.redshift:
         raise ValueError("all box redshifts must be the same.")
 
@@ -737,11 +737,18 @@ def brightness_temperature(spin_temp, ionized_box, perturb_field):
     if spin_temp.astro_params != ionized_box.astro_params:
         raise ValueError("all box astro_params must be the same")
 
+    if spin_temp is None:
+        saturated_limit = True
+        spin_temp = ffi.new("struct TsBox*")
+    else:
+        saturated_limit = False
+        spin_temp = spin_temp()
+
     box = BrightnessTemp(user_params=spin_temp.user_params, cosmo_params=spin_temp.cosmo_params,
                          astro_params=spin_temp.astro_params, flag_options=ionized_box.flag_options,
                          redshift=spin_temp.redshift)
 
-    lib.ComputeBrightnessTemp(spin_temp.redshift, spin_temp(), ionized_box(), perturb_field(), box())
+    lib.ComputeBrightnessTemp(spin_temp.redshift, saturated_limit, spin_temp, ionized_box(), perturb_field(), box())
     box.filled= True
     box._expose()
 

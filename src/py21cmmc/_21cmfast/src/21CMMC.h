@@ -70,7 +70,7 @@ void ComputeIonizedBox(float redshift, struct UserParams *user_params, struct Co
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field(), struct IonizedBox *previous_ionize_box,
                        int do_spin_temp, struct TsBox *spin_temp, struct IonizedBox *box)
-void ComputeBrightnessTemp(float redshift, struct TsBox *spin_temp, struct IonizedBox *ionized_box,
+void ComputeBrightnessTemp(float redshift, int saturated_limit, struct TsBox *spin_temp, struct IonizedBox *ionized_box,
                            struct PerturbedField *perturb_field, struct BrightnessTemp *box)
 
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params);
