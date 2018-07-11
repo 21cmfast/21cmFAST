@@ -12,6 +12,11 @@ import h5py
 with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:
     config = yaml.load(f)
 
+# The following is just an *empty* ffi object, which can perform certain operations which are not specific
+# to a certain library.
+from cffi import FFI
+ffi = FFI()
+
 
 class StructWithDefaults:
     """
@@ -136,7 +141,7 @@ class OutputStruct:
         'int32': 'int *'
     }
 
-    def __init__(self, user_params, cosmo_params, **kwargs):        
+    def __init__(self, user_params, cosmo_params, init_arrays=False, **kwargs):
         # These two parameter dicts will exist for every output struct.
         # Additional ones can be supplied with kwargs.
         self.user_params = user_params
@@ -145,7 +150,8 @@ class OutputStruct:
         for k,v in kwargs.items():
             setattr(self, k, v)
 
-        self._fields_ = self._init_boxes()
+        if init_arrays:
+            self._init_arrays()
 
         # Set the name of this struct in the C code
         if self._name is None:
@@ -155,18 +161,71 @@ class OutputStruct:
         if self._id is None:
             self._id = self.__class__.__name__
 
-    def _ary2buf(self, ary):
+    @property
+    def _cstruct(self):
+        """
+        This is the actual structure which needs to be passed around to C functions.
+        It is best accessed by calling the instance (see __call__)
+
+        Note that the reason it is defined as this cached property is so that it can be created dynamically, but not
+        lost. It must not be lost, or else C functions which use it will lose access to its memory. But it also must
+        be created dynamically so that it can be recreated after pickling (pickle can't handle CData).
+        """
+        if hasattr(self, "__cstruct"):
+            return self.__cstruct
+        else:
+            self.__cstruct = self._new()
+
+    @property
+    def fields(self):
+        return self.ffi.typeof(self._cstruct[0]).fields
+
+    @property
+    def fieldnames(self):
+        return [f for f, t in self.fields]
+
+    @property
+    def pointer_fields(self):
+        return [f for f, t in self.fields if t.type.kind == "pointer"]
+
+    @property
+    def primitive_fields(self):
+        return [f for f, t in self.fields if t.type.kind == "primitive"]
+
+    @property
+    def arrays_initialized(self):
+        "Check whether all necessary arrays are initialized."
+        # This assumes that all pointer fields will be arrays...
+        for k in self.pointer_fields:
+            if not hasattr(self, k):
+                return False
+        return True
+
+    @staticmethod
+    def _ary2buf(ary):
         if not isinstance(ary, np.ndarray):
             raise ValueError("ary must be a numpy array")
+        return ffi.cast(OutputStruct._TYPEMAP[ary.dtype.name], ffi.from_buffer(ary))
 
-        return self.ffi.cast(OutputStruct._TYPEMAP[ary.dtype.name], self.ffi.from_buffer(ary))
+    def __call__(self, init_arrays=True):
+        # Always set the arrays/pointers to their respective memory before actually returning the cstruct.
+        if init_arrays and not self.arrays_initialized:
+            self._init_arrays()
+            if not self.arrays_initialized:
+                raise AttributeError("%s is ill-defined. It has not initialized all necessary arrays."%self.__class__.__name__)
 
-    def __call__(self):
-        self._cstruct = self._new()
-        for k in self._fields_:
-            setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
+        if init_arrays:
+            for k in self.pointer_fields:
+                setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
         return self._cstruct
+
+    def _expose(self):
+        "This method exposes the non-array primitives of the ctype to the top-level object."
+        if not self.filled:
+            raise Exception("You need to have actually called the C code before the primitives can be exposed.")
+        for k in self.primitive_fields:
+            setattr(self, k, getattr(self._cstruct, k))
 
     def _new(self):
         """

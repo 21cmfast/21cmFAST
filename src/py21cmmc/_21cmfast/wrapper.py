@@ -273,8 +273,6 @@ class InitialConditions(OutputStruct):
         self.lowres_vy_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vz_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype= np.float32)
-        return ['lowres_density', 'lowres_vx', 'lowres_vy', 'lowres_vz',
-                'lowres_vx_2LPT','lowres_vy_2LPT', 'lowres_vz_2LPT', 'hires_density']
 
 
 class PerturbedField(OutputStructZ):
@@ -288,7 +286,6 @@ class PerturbedField(OutputStructZ):
     def _init_boxes(self):
         self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        return ['density', 'velocity']
 
 
 class IonizedBox(OutputStructZ):
@@ -298,13 +295,11 @@ class IonizedBox(OutputStructZ):
 
     def _init_boxes(self):
         self.ionized_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        return ['ionized_box']
 
 
 class TsBox(IonizedBox):
     def _init_boxes(self):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        return ['Ts_box']
 
 
 # ======================================================================================================================
