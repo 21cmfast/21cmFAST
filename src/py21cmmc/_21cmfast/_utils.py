@@ -185,7 +185,7 @@ class OutputStruct:
         return [f for f, t in self.fields]
 
     @property
-    def pointer_fields(self):
+    def pointer_fields(self):        
         return [f for f, t in self.fields if t.type.kind == "pointer"]
 
     @property
@@ -196,6 +196,7 @@ class OutputStruct:
     def arrays_initialized(self):
         "Check whether all necessary arrays are initialized."
         # This assumes that all pointer fields will be arrays...
+        print('Here?')
         for k in self.pointer_fields:
             if not hasattr(self, k):
                 return False
@@ -209,12 +210,15 @@ class OutputStruct:
 
     def __call__(self):
         # Always set the arrays/pointers to their respective memory before actually returning the cstruct.
+        print('Here?')
         if not self.arrays_initialized:
             self._init_arrays()
             if not self.arrays_initialized:
                 raise AttributeError("%s is ill-defined. It has not initialized all necessary arrays."%self.__class__.__name__)
 
+        print(self.pointer_fields)
         for k in self.pointer_fields:
+            print(getattr(self, k))
             setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
         for k in self.primitive_fields:
             try:
@@ -222,6 +226,7 @@ class OutputStruct:
             except AttributeError:
                 pass
 
+        print(self._cstruct[0])
         return self._cstruct
 
     def _expose(self):

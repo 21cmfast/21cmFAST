@@ -58,7 +58,7 @@ struct FlagOptions{
 
 
 struct InitialConditions{
-    float *lowres_density, *hires_density, *lowres_vx, *lowres_vy, *lowres_vz, *lowres_vx_2LPT, *lowres_vy_2LPT, *lowres_vz_2LPT;
+    float *lowres_density, *lowres_vx, *lowres_vy, *lowres_vz, *lowres_vx_2LPT, *lowres_vy_2LPT, *lowres_vz_2LPT, *hires_density;
 };
 
 struct PerturbedField{
@@ -87,9 +87,11 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
 void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
-                       int do_spin_temp, struct TsBox *spin_temp, struct IonizedBox *box)
-void ComputeBrightnessTemp(float redshift, int saturated_limit, struct TsBox *spin_temp, struct IonizedBox *ionized_box,
-                           struct PerturbedField *perturb_field, struct BrightnessTemp *box)
+                       int do_spin_temp, struct TsBox *spin_temp, struct IonizedBox *box);
+void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                           struct AstroParams *astro_params, struct FlagOptions *flag_options,
+                           struct TsBox *spin_temp, struct IonizedBox *ionized_box,
+                           struct PerturbedField *perturb_field, struct BrightnessTemp *box);
 
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params);

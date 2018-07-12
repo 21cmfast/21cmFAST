@@ -2,8 +2,8 @@
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
 
 void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                       struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                       struct PerturbedField *p_cubes, struct TsBox *Ts_boxes) {
+                  struct AstroParams *astro_params, float perturbed_field_redshift,
+                  struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp) {
 
     // Makes the parameter structs visible to a variety of functions/macros
     if(StructInit==0) {
@@ -21,7 +21,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     printf("NU_X_BAND_MAX = %e NU_X_MAX = %e\n",global_params.NU_X_BAND_MAX,global_params.NU_X_MAX);
     printf("Z_HEAT_MAX = %e ZPRIME_STEP_FACTOR = %e\n",global_params.Z_HEAT_MAX,global_params.ZPRIME_STEP_FACTOR);
     
-    printf("INCLUDE_ZETA_PL = %s SUBCELL_RSD = %s INHOMO_RECO = %s\n",flag_options->INCLUDE_ZETA_PL ?"true" : "false",flag_options->SUBCELL_RSD ?"true" : "false",flag_options->INHOMO_RECO ?"true" : "false");
+//    printf("INCLUDE_ZETA_PL = %s SUBCELL_RSD = %s INHOMO_RECO = %s\n",flag_options->INCLUDE_ZETA_PL ?"true" : "false",flag_options->SUBCELL_RSD ?"true" : "false",flag_options->INHOMO_RECO ?"true" : "false");
     
     /*
     

@@ -329,6 +329,9 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
         except IOError:
             pass
 
+    print(type(boxes))
+    print(boxes.hires_density)
+
     # Run the C code
     lib.ComputeInitialConditions(user_params(), cosmo_params(), boxes())
     boxes.filled = True
@@ -726,7 +729,9 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
                          astro_params=spin_temp.astro_params, flag_options=ionized_box.flag_options,
                          redshift=spin_temp.redshift)
 
-    lib.ComputeBrightnessTemp(spin_temp.redshift, saturated_limit, spin_temp, ionized_box(), perturb_field(), box())
+    lib.ComputeBrightnessTemp(spin_temp.redshift, saturated_limit, spin_temp, 
+        spin_temp.user_params, spin_temp.cosmo_params, spin_temp.astro_params, ionized_box.flag_options,
+        ionized_box(), perturb_field(), box())
     box.filled= True
     box._expose()
 

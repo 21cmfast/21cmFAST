@@ -496,57 +496,72 @@ static void (*_cffi_call_python_org)(struct _cffi_externpy_s *, char *);
 /************************************************************/
 
 static void *_cffi_types[] = {
-/*  0 */ _CFFI_OP(_CFFI_OP_FUNCTION, 50), // void()(float, float, struct UserParams *, struct CosmoParams *, struct AstroParams *, struct FlagOptions *, struct PerturbedField *, struct TsBox *)
+/*  0 */ _CFFI_OP(_CFFI_OP_FUNCTION, 65), // void()(float, float, struct UserParams *, struct CosmoParams *, struct AstroParams *, float, struct PerturbedField *, struct TsBox *, struct TsBox *)
 /*  1 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 13), // float
 /*  2 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 13),
-/*  3 */ _CFFI_OP(_CFFI_OP_POINTER, 48), // struct UserParams *
-/*  4 */ _CFFI_OP(_CFFI_OP_POINTER, 42), // struct CosmoParams *
-/*  5 */ _CFFI_OP(_CFFI_OP_POINTER, 41), // struct AstroParams *
-/*  6 */ _CFFI_OP(_CFFI_OP_POINTER, 43), // struct FlagOptions *
-/*  7 */ _CFFI_OP(_CFFI_OP_POINTER, 46), // struct PerturbedField *
-/*  8 */ _CFFI_OP(_CFFI_OP_POINTER, 47), // struct TsBox *
-/*  9 */ _CFFI_OP(_CFFI_OP_FUNCTION_END, 0),
-/* 10 */ _CFFI_OP(_CFFI_OP_FUNCTION, 50), // void()(float, float, struct UserParams *, struct CosmoParams *, struct AstroParams *, struct FlagOptions *, struct PerturbedField *, struct TsBox *, struct IonizedBox *)
-/* 11 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 13),
+/*  3 */ _CFFI_OP(_CFFI_OP_POINTER, 63), // struct UserParams *
+/*  4 */ _CFFI_OP(_CFFI_OP_POINTER, 57), // struct CosmoParams *
+/*  5 */ _CFFI_OP(_CFFI_OP_POINTER, 55), // struct AstroParams *
+/*  6 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 13),
+/*  7 */ _CFFI_OP(_CFFI_OP_POINTER, 61), // struct PerturbedField *
+/*  8 */ _CFFI_OP(_CFFI_OP_POINTER, 62), // struct TsBox *
+/*  9 */ _CFFI_OP(_CFFI_OP_NOOP, 8),
+/* 10 */ _CFFI_OP(_CFFI_OP_FUNCTION_END, 0),
+/* 11 */ _CFFI_OP(_CFFI_OP_FUNCTION, 65), // void()(float, float, struct UserParams *, struct CosmoParams *, struct AstroParams *, struct FlagOptions *, struct PerturbedField *, struct IonizedBox *, int, struct TsBox *, struct IonizedBox *)
 /* 12 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 13),
-/* 13 */ _CFFI_OP(_CFFI_OP_NOOP, 3),
-/* 14 */ _CFFI_OP(_CFFI_OP_NOOP, 4),
-/* 15 */ _CFFI_OP(_CFFI_OP_NOOP, 5),
-/* 16 */ _CFFI_OP(_CFFI_OP_NOOP, 6),
-/* 17 */ _CFFI_OP(_CFFI_OP_NOOP, 7),
-/* 18 */ _CFFI_OP(_CFFI_OP_NOOP, 8),
-/* 19 */ _CFFI_OP(_CFFI_OP_POINTER, 45), // struct IonizedBox *
-/* 20 */ _CFFI_OP(_CFFI_OP_FUNCTION_END, 0),
-/* 21 */ _CFFI_OP(_CFFI_OP_FUNCTION, 50), // void()(float, struct UserParams *, struct CosmoParams *, struct InitialConditions *, struct PerturbedField *)
-/* 22 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 13),
-/* 23 */ _CFFI_OP(_CFFI_OP_NOOP, 3),
-/* 24 */ _CFFI_OP(_CFFI_OP_NOOP, 4),
-/* 25 */ _CFFI_OP(_CFFI_OP_POINTER, 44), // struct InitialConditions *
-/* 26 */ _CFFI_OP(_CFFI_OP_NOOP, 7),
-/* 27 */ _CFFI_OP(_CFFI_OP_FUNCTION_END, 0),
-/* 28 */ _CFFI_OP(_CFFI_OP_FUNCTION, 50), // void()(struct UserParams *, struct CosmoParams *)
-/* 29 */ _CFFI_OP(_CFFI_OP_NOOP, 3),
-/* 30 */ _CFFI_OP(_CFFI_OP_NOOP, 4),
-/* 31 */ _CFFI_OP(_CFFI_OP_FUNCTION_END, 0),
-/* 32 */ _CFFI_OP(_CFFI_OP_FUNCTION, 50), // void()(struct UserParams *, struct CosmoParams *, struct InitialConditions *)
-/* 33 */ _CFFI_OP(_CFFI_OP_NOOP, 3),
-/* 34 */ _CFFI_OP(_CFFI_OP_NOOP, 4),
-/* 35 */ _CFFI_OP(_CFFI_OP_NOOP, 25),
-/* 36 */ _CFFI_OP(_CFFI_OP_FUNCTION_END, 0),
-/* 37 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 1), // _Bool
-/* 38 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 14), // double
-/* 39 */ _CFFI_OP(_CFFI_OP_POINTER, 1), // float *
-/* 40 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 7), // int
-/* 41 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 0), // struct AstroParams
-/* 42 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 1), // struct CosmoParams
-/* 43 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 2), // struct FlagOptions
-/* 44 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 3), // struct InitialConditions
-/* 45 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 4), // struct IonizedBox
-/* 46 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 5), // struct PerturbedField
-/* 47 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 6), // struct TsBox
-/* 48 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 7), // struct UserParams
-/* 49 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 12), // unsigned long long
-/* 50 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 0), // void
+/* 13 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 13),
+/* 14 */ _CFFI_OP(_CFFI_OP_NOOP, 3),
+/* 15 */ _CFFI_OP(_CFFI_OP_NOOP, 4),
+/* 16 */ _CFFI_OP(_CFFI_OP_NOOP, 5),
+/* 17 */ _CFFI_OP(_CFFI_OP_POINTER, 58), // struct FlagOptions *
+/* 18 */ _CFFI_OP(_CFFI_OP_NOOP, 7),
+/* 19 */ _CFFI_OP(_CFFI_OP_POINTER, 60), // struct IonizedBox *
+/* 20 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 7), // int
+/* 21 */ _CFFI_OP(_CFFI_OP_NOOP, 8),
+/* 22 */ _CFFI_OP(_CFFI_OP_NOOP, 19),
+/* 23 */ _CFFI_OP(_CFFI_OP_FUNCTION_END, 0),
+/* 24 */ _CFFI_OP(_CFFI_OP_FUNCTION, 65), // void()(float, int, struct UserParams *, struct CosmoParams *, struct AstroParams *, struct FlagOptions *, struct TsBox *, struct IonizedBox *, struct PerturbedField *, struct BrightnessTemp *)
+/* 25 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 13),
+/* 26 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 7),
+/* 27 */ _CFFI_OP(_CFFI_OP_NOOP, 3),
+/* 28 */ _CFFI_OP(_CFFI_OP_NOOP, 4),
+/* 29 */ _CFFI_OP(_CFFI_OP_NOOP, 5),
+/* 30 */ _CFFI_OP(_CFFI_OP_NOOP, 17),
+/* 31 */ _CFFI_OP(_CFFI_OP_NOOP, 8),
+/* 32 */ _CFFI_OP(_CFFI_OP_NOOP, 19),
+/* 33 */ _CFFI_OP(_CFFI_OP_NOOP, 7),
+/* 34 */ _CFFI_OP(_CFFI_OP_POINTER, 56), // struct BrightnessTemp *
+/* 35 */ _CFFI_OP(_CFFI_OP_FUNCTION_END, 0),
+/* 36 */ _CFFI_OP(_CFFI_OP_FUNCTION, 65), // void()(float, struct UserParams *, struct CosmoParams *, struct InitialConditions *, struct PerturbedField *)
+/* 37 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 13),
+/* 38 */ _CFFI_OP(_CFFI_OP_NOOP, 3),
+/* 39 */ _CFFI_OP(_CFFI_OP_NOOP, 4),
+/* 40 */ _CFFI_OP(_CFFI_OP_POINTER, 59), // struct InitialConditions *
+/* 41 */ _CFFI_OP(_CFFI_OP_NOOP, 7),
+/* 42 */ _CFFI_OP(_CFFI_OP_FUNCTION_END, 0),
+/* 43 */ _CFFI_OP(_CFFI_OP_FUNCTION, 65), // void()(struct UserParams *, struct CosmoParams *)
+/* 44 */ _CFFI_OP(_CFFI_OP_NOOP, 3),
+/* 45 */ _CFFI_OP(_CFFI_OP_NOOP, 4),
+/* 46 */ _CFFI_OP(_CFFI_OP_FUNCTION_END, 0),
+/* 47 */ _CFFI_OP(_CFFI_OP_FUNCTION, 65), // void()(struct UserParams *, struct CosmoParams *, struct InitialConditions *)
+/* 48 */ _CFFI_OP(_CFFI_OP_NOOP, 3),
+/* 49 */ _CFFI_OP(_CFFI_OP_NOOP, 4),
+/* 50 */ _CFFI_OP(_CFFI_OP_NOOP, 40),
+/* 51 */ _CFFI_OP(_CFFI_OP_FUNCTION_END, 0),
+/* 52 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 1), // _Bool
+/* 53 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 14), // double
+/* 54 */ _CFFI_OP(_CFFI_OP_POINTER, 1), // float *
+/* 55 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 0), // struct AstroParams
+/* 56 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 1), // struct BrightnessTemp
+/* 57 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 2), // struct CosmoParams
+/* 58 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 3), // struct FlagOptions
+/* 59 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 4), // struct InitialConditions
+/* 60 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 5), // struct IonizedBox
+/* 61 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 6), // struct PerturbedField
+/* 62 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 7), // struct TsBox
+/* 63 */ _CFFI_OP(_CFFI_OP_STRUCT_UNION, 8), // struct UserParams
+/* 64 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 12), // unsigned long long
+/* 65 */ _CFFI_OP(_CFFI_OP_PRIMITIVE, 0), // void
 };
 
 static void _cffi_d_Broadcast_struct_global_PS(struct UserParams * x0, struct CosmoParams * x1)
@@ -655,6 +670,149 @@ _cffi_f_Broadcast_struct_global_UF(PyObject *self, PyObject *args)
 #  define _cffi_f_Broadcast_struct_global_UF _cffi_d_Broadcast_struct_global_UF
 #endif
 
+static void _cffi_d_ComputeBrightnessTemp(float x0, int x1, struct UserParams * x2, struct CosmoParams * x3, struct AstroParams * x4, struct FlagOptions * x5, struct TsBox * x6, struct IonizedBox * x7, struct PerturbedField * x8, struct BrightnessTemp * x9)
+{
+  ComputeBrightnessTemp(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9);
+}
+#ifndef PYPY_VERSION
+static PyObject *
+_cffi_f_ComputeBrightnessTemp(PyObject *self, PyObject *args)
+{
+  float x0;
+  int x1;
+  struct UserParams * x2;
+  struct CosmoParams * x3;
+  struct AstroParams * x4;
+  struct FlagOptions * x5;
+  struct TsBox * x6;
+  struct IonizedBox * x7;
+  struct PerturbedField * x8;
+  struct BrightnessTemp * x9;
+  Py_ssize_t datasize;
+  PyObject *arg0;
+  PyObject *arg1;
+  PyObject *arg2;
+  PyObject *arg3;
+  PyObject *arg4;
+  PyObject *arg5;
+  PyObject *arg6;
+  PyObject *arg7;
+  PyObject *arg8;
+  PyObject *arg9;
+
+  if (!PyArg_UnpackTuple(args, "ComputeBrightnessTemp", 10, 10, &arg0, &arg1, &arg2, &arg3, &arg4, &arg5, &arg6, &arg7, &arg8, &arg9))
+    return NULL;
+
+  x0 = (float)_cffi_to_c_float(arg0);
+  if (x0 == (float)-1 && PyErr_Occurred())
+    return NULL;
+
+  x1 = _cffi_to_c_int(arg1, int);
+  if (x1 == (int)-1 && PyErr_Occurred())
+    return NULL;
+
+  datasize = _cffi_prepare_pointer_call_argument(
+      _cffi_type(3), arg2, (char **)&x2);
+  if (datasize != 0) {
+    if (datasize < 0)
+      return NULL;
+    x2 = (struct UserParams *)alloca((size_t)datasize);
+    memset((void *)x2, 0, (size_t)datasize);
+    if (_cffi_convert_array_from_object((char *)x2, _cffi_type(3), arg2) < 0)
+      return NULL;
+  }
+
+  datasize = _cffi_prepare_pointer_call_argument(
+      _cffi_type(4), arg3, (char **)&x3);
+  if (datasize != 0) {
+    if (datasize < 0)
+      return NULL;
+    x3 = (struct CosmoParams *)alloca((size_t)datasize);
+    memset((void *)x3, 0, (size_t)datasize);
+    if (_cffi_convert_array_from_object((char *)x3, _cffi_type(4), arg3) < 0)
+      return NULL;
+  }
+
+  datasize = _cffi_prepare_pointer_call_argument(
+      _cffi_type(5), arg4, (char **)&x4);
+  if (datasize != 0) {
+    if (datasize < 0)
+      return NULL;
+    x4 = (struct AstroParams *)alloca((size_t)datasize);
+    memset((void *)x4, 0, (size_t)datasize);
+    if (_cffi_convert_array_from_object((char *)x4, _cffi_type(5), arg4) < 0)
+      return NULL;
+  }
+
+  datasize = _cffi_prepare_pointer_call_argument(
+      _cffi_type(17), arg5, (char **)&x5);
+  if (datasize != 0) {
+    if (datasize < 0)
+      return NULL;
+    x5 = (struct FlagOptions *)alloca((size_t)datasize);
+    memset((void *)x5, 0, (size_t)datasize);
+    if (_cffi_convert_array_from_object((char *)x5, _cffi_type(17), arg5) < 0)
+      return NULL;
+  }
+
+  datasize = _cffi_prepare_pointer_call_argument(
+      _cffi_type(8), arg6, (char **)&x6);
+  if (datasize != 0) {
+    if (datasize < 0)
+      return NULL;
+    x6 = (struct TsBox *)alloca((size_t)datasize);
+    memset((void *)x6, 0, (size_t)datasize);
+    if (_cffi_convert_array_from_object((char *)x6, _cffi_type(8), arg6) < 0)
+      return NULL;
+  }
+
+  datasize = _cffi_prepare_pointer_call_argument(
+      _cffi_type(19), arg7, (char **)&x7);
+  if (datasize != 0) {
+    if (datasize < 0)
+      return NULL;
+    x7 = (struct IonizedBox *)alloca((size_t)datasize);
+    memset((void *)x7, 0, (size_t)datasize);
+    if (_cffi_convert_array_from_object((char *)x7, _cffi_type(19), arg7) < 0)
+      return NULL;
+  }
+
+  datasize = _cffi_prepare_pointer_call_argument(
+      _cffi_type(7), arg8, (char **)&x8);
+  if (datasize != 0) {
+    if (datasize < 0)
+      return NULL;
+    x8 = (struct PerturbedField *)alloca((size_t)datasize);
+    memset((void *)x8, 0, (size_t)datasize);
+    if (_cffi_convert_array_from_object((char *)x8, _cffi_type(7), arg8) < 0)
+      return NULL;
+  }
+
+  datasize = _cffi_prepare_pointer_call_argument(
+      _cffi_type(34), arg9, (char **)&x9);
+  if (datasize != 0) {
+    if (datasize < 0)
+      return NULL;
+    x9 = (struct BrightnessTemp *)alloca((size_t)datasize);
+    memset((void *)x9, 0, (size_t)datasize);
+    if (_cffi_convert_array_from_object((char *)x9, _cffi_type(34), arg9) < 0)
+      return NULL;
+  }
+
+  Py_BEGIN_ALLOW_THREADS
+  _cffi_restore_errno();
+  { ComputeBrightnessTemp(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9); }
+  _cffi_save_errno();
+  Py_END_ALLOW_THREADS
+
+  (void)self; /* unused */
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+#else
+#  define _cffi_f_ComputeBrightnessTemp _cffi_d_ComputeBrightnessTemp
+#endif
+
 static void _cffi_d_ComputeInitialConditions(struct UserParams * x0, struct CosmoParams * x1, struct InitialConditions * x2)
 {
   ComputeInitialConditions(x0, x1, x2);
@@ -697,13 +855,13 @@ _cffi_f_ComputeInitialConditions(PyObject *self, PyObject *args)
   }
 
   datasize = _cffi_prepare_pointer_call_argument(
-      _cffi_type(25), arg2, (char **)&x2);
+      _cffi_type(40), arg2, (char **)&x2);
   if (datasize != 0) {
     if (datasize < 0)
       return NULL;
     x2 = (struct InitialConditions *)alloca((size_t)datasize);
     memset((void *)x2, 0, (size_t)datasize);
-    if (_cffi_convert_array_from_object((char *)x2, _cffi_type(25), arg2) < 0)
+    if (_cffi_convert_array_from_object((char *)x2, _cffi_type(40), arg2) < 0)
       return NULL;
   }
 
@@ -721,9 +879,9 @@ _cffi_f_ComputeInitialConditions(PyObject *self, PyObject *args)
 #  define _cffi_f_ComputeInitialConditions _cffi_d_ComputeInitialConditions
 #endif
 
-static void _cffi_d_ComputeIonizedBox(float x0, float x1, struct UserParams * x2, struct CosmoParams * x3, struct AstroParams * x4, struct FlagOptions * x5, struct PerturbedField * x6, struct TsBox * x7, struct IonizedBox * x8)
+static void _cffi_d_ComputeIonizedBox(float x0, float x1, struct UserParams * x2, struct CosmoParams * x3, struct AstroParams * x4, struct FlagOptions * x5, struct PerturbedField * x6, struct IonizedBox * x7, int x8, struct TsBox * x9, struct IonizedBox * x10)
 {
-  ComputeIonizedBox(x0, x1, x2, x3, x4, x5, x6, x7, x8);
+  ComputeIonizedBox(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10);
 }
 #ifndef PYPY_VERSION
 static PyObject *
@@ -736,8 +894,10 @@ _cffi_f_ComputeIonizedBox(PyObject *self, PyObject *args)
   struct AstroParams * x4;
   struct FlagOptions * x5;
   struct PerturbedField * x6;
-  struct TsBox * x7;
-  struct IonizedBox * x8;
+  struct IonizedBox * x7;
+  int x8;
+  struct TsBox * x9;
+  struct IonizedBox * x10;
   Py_ssize_t datasize;
   PyObject *arg0;
   PyObject *arg1;
@@ -748,8 +908,10 @@ _cffi_f_ComputeIonizedBox(PyObject *self, PyObject *args)
   PyObject *arg6;
   PyObject *arg7;
   PyObject *arg8;
+  PyObject *arg9;
+  PyObject *arg10;
 
-  if (!PyArg_UnpackTuple(args, "ComputeIonizedBox", 9, 9, &arg0, &arg1, &arg2, &arg3, &arg4, &arg5, &arg6, &arg7, &arg8))
+  if (!PyArg_UnpackTuple(args, "ComputeIonizedBox", 11, 11, &arg0, &arg1, &arg2, &arg3, &arg4, &arg5, &arg6, &arg7, &arg8, &arg9, &arg10))
     return NULL;
 
   x0 = (float)_cffi_to_c_float(arg0);
@@ -794,13 +956,13 @@ _cffi_f_ComputeIonizedBox(PyObject *self, PyObject *args)
   }
 
   datasize = _cffi_prepare_pointer_call_argument(
-      _cffi_type(6), arg5, (char **)&x5);
+      _cffi_type(17), arg5, (char **)&x5);
   if (datasize != 0) {
     if (datasize < 0)
       return NULL;
     x5 = (struct FlagOptions *)alloca((size_t)datasize);
     memset((void *)x5, 0, (size_t)datasize);
-    if (_cffi_convert_array_from_object((char *)x5, _cffi_type(6), arg5) < 0)
+    if (_cffi_convert_array_from_object((char *)x5, _cffi_type(17), arg5) < 0)
       return NULL;
   }
 
@@ -816,30 +978,45 @@ _cffi_f_ComputeIonizedBox(PyObject *self, PyObject *args)
   }
 
   datasize = _cffi_prepare_pointer_call_argument(
-      _cffi_type(8), arg7, (char **)&x7);
+      _cffi_type(19), arg7, (char **)&x7);
   if (datasize != 0) {
     if (datasize < 0)
       return NULL;
-    x7 = (struct TsBox *)alloca((size_t)datasize);
+    x7 = (struct IonizedBox *)alloca((size_t)datasize);
     memset((void *)x7, 0, (size_t)datasize);
-    if (_cffi_convert_array_from_object((char *)x7, _cffi_type(8), arg7) < 0)
+    if (_cffi_convert_array_from_object((char *)x7, _cffi_type(19), arg7) < 0)
+      return NULL;
+  }
+
+  x8 = _cffi_to_c_int(arg8, int);
+  if (x8 == (int)-1 && PyErr_Occurred())
+    return NULL;
+
+  datasize = _cffi_prepare_pointer_call_argument(
+      _cffi_type(8), arg9, (char **)&x9);
+  if (datasize != 0) {
+    if (datasize < 0)
+      return NULL;
+    x9 = (struct TsBox *)alloca((size_t)datasize);
+    memset((void *)x9, 0, (size_t)datasize);
+    if (_cffi_convert_array_from_object((char *)x9, _cffi_type(8), arg9) < 0)
       return NULL;
   }
 
   datasize = _cffi_prepare_pointer_call_argument(
-      _cffi_type(19), arg8, (char **)&x8);
+      _cffi_type(19), arg10, (char **)&x10);
   if (datasize != 0) {
     if (datasize < 0)
       return NULL;
-    x8 = (struct IonizedBox *)alloca((size_t)datasize);
-    memset((void *)x8, 0, (size_t)datasize);
-    if (_cffi_convert_array_from_object((char *)x8, _cffi_type(19), arg8) < 0)
+    x10 = (struct IonizedBox *)alloca((size_t)datasize);
+    memset((void *)x10, 0, (size_t)datasize);
+    if (_cffi_convert_array_from_object((char *)x10, _cffi_type(19), arg10) < 0)
       return NULL;
   }
 
   Py_BEGIN_ALLOW_THREADS
   _cffi_restore_errno();
-  { ComputeIonizedBox(x0, x1, x2, x3, x4, x5, x6, x7, x8); }
+  { ComputeIonizedBox(x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10); }
   _cffi_save_errno();
   Py_END_ALLOW_THREADS
 
@@ -901,13 +1078,13 @@ _cffi_f_ComputePerturbField(PyObject *self, PyObject *args)
   }
 
   datasize = _cffi_prepare_pointer_call_argument(
-      _cffi_type(25), arg3, (char **)&x3);
+      _cffi_type(40), arg3, (char **)&x3);
   if (datasize != 0) {
     if (datasize < 0)
       return NULL;
     x3 = (struct InitialConditions *)alloca((size_t)datasize);
     memset((void *)x3, 0, (size_t)datasize);
-    if (_cffi_convert_array_from_object((char *)x3, _cffi_type(25), arg3) < 0)
+    if (_cffi_convert_array_from_object((char *)x3, _cffi_type(40), arg3) < 0)
       return NULL;
   }
 
@@ -936,9 +1113,9 @@ _cffi_f_ComputePerturbField(PyObject *self, PyObject *args)
 #  define _cffi_f_ComputePerturbField _cffi_d_ComputePerturbField
 #endif
 
-static void _cffi_d_ComputeTsBox(float x0, float x1, struct UserParams * x2, struct CosmoParams * x3, struct AstroParams * x4, struct FlagOptions * x5, struct PerturbedField * x6, struct TsBox * x7)
+static void _cffi_d_ComputeTsBox(float x0, float x1, struct UserParams * x2, struct CosmoParams * x3, struct AstroParams * x4, float x5, struct PerturbedField * x6, struct TsBox * x7, struct TsBox * x8)
 {
-  ComputeTsBox(x0, x1, x2, x3, x4, x5, x6, x7);
+  ComputeTsBox(x0, x1, x2, x3, x4, x5, x6, x7, x8);
 }
 #ifndef PYPY_VERSION
 static PyObject *
@@ -949,9 +1126,10 @@ _cffi_f_ComputeTsBox(PyObject *self, PyObject *args)
   struct UserParams * x2;
   struct CosmoParams * x3;
   struct AstroParams * x4;
-  struct FlagOptions * x5;
+  float x5;
   struct PerturbedField * x6;
   struct TsBox * x7;
+  struct TsBox * x8;
   Py_ssize_t datasize;
   PyObject *arg0;
   PyObject *arg1;
@@ -961,8 +1139,9 @@ _cffi_f_ComputeTsBox(PyObject *self, PyObject *args)
   PyObject *arg5;
   PyObject *arg6;
   PyObject *arg7;
+  PyObject *arg8;
 
-  if (!PyArg_UnpackTuple(args, "ComputeTsBox", 8, 8, &arg0, &arg1, &arg2, &arg3, &arg4, &arg5, &arg6, &arg7))
+  if (!PyArg_UnpackTuple(args, "ComputeTsBox", 9, 9, &arg0, &arg1, &arg2, &arg3, &arg4, &arg5, &arg6, &arg7, &arg8))
     return NULL;
 
   x0 = (float)_cffi_to_c_float(arg0);
@@ -1006,16 +1185,9 @@ _cffi_f_ComputeTsBox(PyObject *self, PyObject *args)
       return NULL;
   }
 
-  datasize = _cffi_prepare_pointer_call_argument(
-      _cffi_type(6), arg5, (char **)&x5);
-  if (datasize != 0) {
-    if (datasize < 0)
-      return NULL;
-    x5 = (struct FlagOptions *)alloca((size_t)datasize);
-    memset((void *)x5, 0, (size_t)datasize);
-    if (_cffi_convert_array_from_object((char *)x5, _cffi_type(6), arg5) < 0)
-      return NULL;
-  }
+  x5 = (float)_cffi_to_c_float(arg5);
+  if (x5 == (float)-1 && PyErr_Occurred())
+    return NULL;
 
   datasize = _cffi_prepare_pointer_call_argument(
       _cffi_type(7), arg6, (char **)&x6);
@@ -1039,9 +1211,20 @@ _cffi_f_ComputeTsBox(PyObject *self, PyObject *args)
       return NULL;
   }
 
+  datasize = _cffi_prepare_pointer_call_argument(
+      _cffi_type(8), arg8, (char **)&x8);
+  if (datasize != 0) {
+    if (datasize < 0)
+      return NULL;
+    x8 = (struct TsBox *)alloca((size_t)datasize);
+    memset((void *)x8, 0, (size_t)datasize);
+    if (_cffi_convert_array_from_object((char *)x8, _cffi_type(8), arg8) < 0)
+      return NULL;
+  }
+
   Py_BEGIN_ALLOW_THREADS
   _cffi_restore_errno();
-  { ComputeTsBox(x0, x1, x2, x3, x4, x5, x6, x7); }
+  { ComputeTsBox(x0, x1, x2, x3, x4, x5, x6, x7, x8); }
   _cffi_save_errno();
   Py_END_ALLOW_THREADS
 
@@ -1082,6 +1265,15 @@ static void _cffi_checkfld_struct_AstroParams(struct AstroParams *p)
 struct _cffi_align_struct_AstroParams { char x; struct AstroParams y; };
 
 _CFFI_UNUSED_FN
+static void _cffi_checkfld_struct_BrightnessTemp(struct BrightnessTemp *p)
+{
+  /* only to generate compile-time warnings or errors */
+  (void)p;
+  { float * *tmp = &p->brightness_temp; (void)tmp; }
+}
+struct _cffi_align_struct_BrightnessTemp { char x; struct BrightnessTemp y; };
+
+_CFFI_UNUSED_FN
 static void _cffi_checkfld_struct_CosmoParams(struct CosmoParams *p)
 {
   /* only to generate compile-time warnings or errors */
@@ -1113,13 +1305,13 @@ static void _cffi_checkfld_struct_InitialConditions(struct InitialConditions *p)
   /* only to generate compile-time warnings or errors */
   (void)p;
   { float * *tmp = &p->lowres_density; (void)tmp; }
-  { float * *tmp = &p->hires_density; (void)tmp; }
   { float * *tmp = &p->lowres_vx; (void)tmp; }
   { float * *tmp = &p->lowres_vy; (void)tmp; }
   { float * *tmp = &p->lowres_vz; (void)tmp; }
   { float * *tmp = &p->lowres_vx_2LPT; (void)tmp; }
   { float * *tmp = &p->lowres_vy_2LPT; (void)tmp; }
   { float * *tmp = &p->lowres_vz_2LPT; (void)tmp; }
+  { float * *tmp = &p->hires_density; (void)tmp; }
 }
 struct _cffi_align_struct_InitialConditions { char x; struct InitialConditions y; };
 
@@ -1128,6 +1320,7 @@ static void _cffi_checkfld_struct_IonizedBox(struct IonizedBox *p)
 {
   /* only to generate compile-time warnings or errors */
   (void)p;
+  (void)((p->first_box) | 0);  /* check that 'struct IonizedBox.first_box' is an integer */
   { float * *tmp = &p->ionized_box; (void)tmp; }
 }
 struct _cffi_align_struct_IonizedBox { char x; struct IonizedBox y; };
@@ -1147,6 +1340,7 @@ static void _cffi_checkfld_struct_TsBox(struct TsBox *p)
 {
   /* only to generate compile-time warnings or errors */
   (void)p;
+  (void)((p->first_box) | 0);  /* check that 'struct TsBox.first_box' is an integer */
   { float * *tmp = &p->Ts_box; (void)tmp; }
 }
 struct _cffi_align_struct_TsBox { char x; struct TsBox y; };
@@ -1163,11 +1357,12 @@ static void _cffi_checkfld_struct_UserParams(struct UserParams *p)
 struct _cffi_align_struct_UserParams { char x; struct UserParams y; };
 
 static const struct _cffi_global_s _cffi_globals[] = {
-  { "Broadcast_struct_global_PS", (void *)_cffi_f_Broadcast_struct_global_PS, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 28), (void *)_cffi_d_Broadcast_struct_global_PS },
-  { "Broadcast_struct_global_UF", (void *)_cffi_f_Broadcast_struct_global_UF, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 28), (void *)_cffi_d_Broadcast_struct_global_UF },
-  { "ComputeInitialConditions", (void *)_cffi_f_ComputeInitialConditions, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 32), (void *)_cffi_d_ComputeInitialConditions },
-  { "ComputeIonizedBox", (void *)_cffi_f_ComputeIonizedBox, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 10), (void *)_cffi_d_ComputeIonizedBox },
-  { "ComputePerturbField", (void *)_cffi_f_ComputePerturbField, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 21), (void *)_cffi_d_ComputePerturbField },
+  { "Broadcast_struct_global_PS", (void *)_cffi_f_Broadcast_struct_global_PS, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 43), (void *)_cffi_d_Broadcast_struct_global_PS },
+  { "Broadcast_struct_global_UF", (void *)_cffi_f_Broadcast_struct_global_UF, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 43), (void *)_cffi_d_Broadcast_struct_global_UF },
+  { "ComputeBrightnessTemp", (void *)_cffi_f_ComputeBrightnessTemp, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 24), (void *)_cffi_d_ComputeBrightnessTemp },
+  { "ComputeInitialConditions", (void *)_cffi_f_ComputeInitialConditions, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 47), (void *)_cffi_d_ComputeInitialConditions },
+  { "ComputeIonizedBox", (void *)_cffi_f_ComputeIonizedBox, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 11), (void *)_cffi_d_ComputeIonizedBox },
+  { "ComputePerturbField", (void *)_cffi_f_ComputePerturbField, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 36), (void *)_cffi_d_ComputePerturbField },
   { "ComputeTsBox", (void *)_cffi_f_ComputeTsBox, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 0), (void *)_cffi_d_ComputeTsBox },
   { "StructInit", (void *)_cffi_const_StructInit, _CFFI_OP(_CFFI_OP_CONSTANT_INT, -1), (void *)0 },
 };
@@ -1187,7 +1382,7 @@ static const struct _cffi_field_s _cffi_fields[] = {
                     _CFFI_OP(_CFFI_OP_NOOP, 1) },
   { "L_X", offsetof(struct AstroParams, L_X),
            sizeof(((struct AstroParams *)0)->L_X),
-           _CFFI_OP(_CFFI_OP_NOOP, 38) },
+           _CFFI_OP(_CFFI_OP_NOOP, 53) },
   { "NU_X_THRESH", offsetof(struct AstroParams, NU_X_THRESH),
                    sizeof(((struct AstroParams *)0)->NU_X_THRESH),
                    _CFFI_OP(_CFFI_OP_NOOP, 1) },
@@ -1205,10 +1400,13 @@ static const struct _cffi_field_s _cffi_fields[] = {
               _CFFI_OP(_CFFI_OP_NOOP, 1) },
   { "N_RSD_STEPS", offsetof(struct AstroParams, N_RSD_STEPS),
                    sizeof(((struct AstroParams *)0)->N_RSD_STEPS),
-                   _CFFI_OP(_CFFI_OP_NOOP, 40) },
+                   _CFFI_OP(_CFFI_OP_NOOP, 20) },
+  { "brightness_temp", offsetof(struct BrightnessTemp, brightness_temp),
+                       sizeof(((struct BrightnessTemp *)0)->brightness_temp),
+                       _CFFI_OP(_CFFI_OP_NOOP, 54) },
   { "RANDOM_SEED", offsetof(struct CosmoParams, RANDOM_SEED),
                    sizeof(((struct CosmoParams *)0)->RANDOM_SEED),
-                   _CFFI_OP(_CFFI_OP_NOOP, 49) },
+                   _CFFI_OP(_CFFI_OP_NOOP, 64) },
   { "SIGMA_8", offsetof(struct CosmoParams, SIGMA_8),
                sizeof(((struct CosmoParams *)0)->SIGMA_8),
                _CFFI_OP(_CFFI_OP_NOOP, 1) },
@@ -1229,77 +1427,85 @@ static const struct _cffi_field_s _cffi_fields[] = {
                    _CFFI_OP(_CFFI_OP_NOOP, 1) },
   { "INCLUDE_ZETA_PL", offsetof(struct FlagOptions, INCLUDE_ZETA_PL),
                        sizeof(((struct FlagOptions *)0)->INCLUDE_ZETA_PL),
-                       _CFFI_OP(_CFFI_OP_NOOP, 37) },
+                       _CFFI_OP(_CFFI_OP_NOOP, 52) },
   { "SUBCELL_RSD", offsetof(struct FlagOptions, SUBCELL_RSD),
                    sizeof(((struct FlagOptions *)0)->SUBCELL_RSD),
-                   _CFFI_OP(_CFFI_OP_NOOP, 37) },
+                   _CFFI_OP(_CFFI_OP_NOOP, 52) },
   { "INHOMO_RECO", offsetof(struct FlagOptions, INHOMO_RECO),
                    sizeof(((struct FlagOptions *)0)->INHOMO_RECO),
-                   _CFFI_OP(_CFFI_OP_NOOP, 37) },
+                   _CFFI_OP(_CFFI_OP_NOOP, 52) },
   { "lowres_density", offsetof(struct InitialConditions, lowres_density),
                       sizeof(((struct InitialConditions *)0)->lowres_density),
-                      _CFFI_OP(_CFFI_OP_NOOP, 39) },
-  { "hires_density", offsetof(struct InitialConditions, hires_density),
-                     sizeof(((struct InitialConditions *)0)->hires_density),
-                     _CFFI_OP(_CFFI_OP_NOOP, 39) },
+                      _CFFI_OP(_CFFI_OP_NOOP, 54) },
   { "lowres_vx", offsetof(struct InitialConditions, lowres_vx),
                  sizeof(((struct InitialConditions *)0)->lowres_vx),
-                 _CFFI_OP(_CFFI_OP_NOOP, 39) },
+                 _CFFI_OP(_CFFI_OP_NOOP, 54) },
   { "lowres_vy", offsetof(struct InitialConditions, lowres_vy),
                  sizeof(((struct InitialConditions *)0)->lowres_vy),
-                 _CFFI_OP(_CFFI_OP_NOOP, 39) },
+                 _CFFI_OP(_CFFI_OP_NOOP, 54) },
   { "lowres_vz", offsetof(struct InitialConditions, lowres_vz),
                  sizeof(((struct InitialConditions *)0)->lowres_vz),
-                 _CFFI_OP(_CFFI_OP_NOOP, 39) },
+                 _CFFI_OP(_CFFI_OP_NOOP, 54) },
   { "lowres_vx_2LPT", offsetof(struct InitialConditions, lowres_vx_2LPT),
                       sizeof(((struct InitialConditions *)0)->lowres_vx_2LPT),
-                      _CFFI_OP(_CFFI_OP_NOOP, 39) },
+                      _CFFI_OP(_CFFI_OP_NOOP, 54) },
   { "lowres_vy_2LPT", offsetof(struct InitialConditions, lowres_vy_2LPT),
                       sizeof(((struct InitialConditions *)0)->lowres_vy_2LPT),
-                      _CFFI_OP(_CFFI_OP_NOOP, 39) },
+                      _CFFI_OP(_CFFI_OP_NOOP, 54) },
   { "lowres_vz_2LPT", offsetof(struct InitialConditions, lowres_vz_2LPT),
                       sizeof(((struct InitialConditions *)0)->lowres_vz_2LPT),
-                      _CFFI_OP(_CFFI_OP_NOOP, 39) },
+                      _CFFI_OP(_CFFI_OP_NOOP, 54) },
+  { "hires_density", offsetof(struct InitialConditions, hires_density),
+                     sizeof(((struct InitialConditions *)0)->hires_density),
+                     _CFFI_OP(_CFFI_OP_NOOP, 54) },
+  { "first_box", offsetof(struct IonizedBox, first_box),
+                 sizeof(((struct IonizedBox *)0)->first_box),
+                 _CFFI_OP(_CFFI_OP_NOOP, 20) },
   { "ionized_box", offsetof(struct IonizedBox, ionized_box),
                    sizeof(((struct IonizedBox *)0)->ionized_box),
-                   _CFFI_OP(_CFFI_OP_NOOP, 39) },
+                   _CFFI_OP(_CFFI_OP_NOOP, 54) },
   { "density", offsetof(struct PerturbedField, density),
                sizeof(((struct PerturbedField *)0)->density),
-               _CFFI_OP(_CFFI_OP_NOOP, 39) },
+               _CFFI_OP(_CFFI_OP_NOOP, 54) },
   { "velocity", offsetof(struct PerturbedField, velocity),
                 sizeof(((struct PerturbedField *)0)->velocity),
-                _CFFI_OP(_CFFI_OP_NOOP, 39) },
+                _CFFI_OP(_CFFI_OP_NOOP, 54) },
+  { "first_box", offsetof(struct TsBox, first_box),
+                 sizeof(((struct TsBox *)0)->first_box),
+                 _CFFI_OP(_CFFI_OP_NOOP, 20) },
   { "Ts_box", offsetof(struct TsBox, Ts_box),
               sizeof(((struct TsBox *)0)->Ts_box),
-              _CFFI_OP(_CFFI_OP_NOOP, 39) },
+              _CFFI_OP(_CFFI_OP_NOOP, 54) },
   { "HII_DIM", offsetof(struct UserParams, HII_DIM),
                sizeof(((struct UserParams *)0)->HII_DIM),
-               _CFFI_OP(_CFFI_OP_NOOP, 40) },
+               _CFFI_OP(_CFFI_OP_NOOP, 20) },
   { "DIM", offsetof(struct UserParams, DIM),
            sizeof(((struct UserParams *)0)->DIM),
-           _CFFI_OP(_CFFI_OP_NOOP, 40) },
+           _CFFI_OP(_CFFI_OP_NOOP, 20) },
   { "BOX_LEN", offsetof(struct UserParams, BOX_LEN),
                sizeof(((struct UserParams *)0)->BOX_LEN),
                _CFFI_OP(_CFFI_OP_NOOP, 1) },
 };
 
 static const struct _cffi_struct_union_s _cffi_struct_unions[] = {
-  { "AstroParams", 41, _CFFI_F_CHECK_FIELDS,
+  { "AstroParams", 55, _CFFI_F_CHECK_FIELDS,
     sizeof(struct AstroParams), offsetof(struct _cffi_align_struct_AstroParams, y), 0, 11 },
-  { "CosmoParams", 42, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct CosmoParams), offsetof(struct _cffi_align_struct_CosmoParams, y), 11, 7 },
-  { "FlagOptions", 43, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct FlagOptions), offsetof(struct _cffi_align_struct_FlagOptions, y), 18, 3 },
-  { "InitialConditions", 44, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct InitialConditions), offsetof(struct _cffi_align_struct_InitialConditions, y), 21, 8 },
-  { "IonizedBox", 45, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct IonizedBox), offsetof(struct _cffi_align_struct_IonizedBox, y), 29, 1 },
-  { "PerturbedField", 46, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct PerturbedField), offsetof(struct _cffi_align_struct_PerturbedField, y), 30, 2 },
-  { "TsBox", 47, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct TsBox), offsetof(struct _cffi_align_struct_TsBox, y), 32, 1 },
-  { "UserParams", 48, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct UserParams), offsetof(struct _cffi_align_struct_UserParams, y), 33, 3 },
+  { "BrightnessTemp", 56, _CFFI_F_CHECK_FIELDS,
+    sizeof(struct BrightnessTemp), offsetof(struct _cffi_align_struct_BrightnessTemp, y), 11, 1 },
+  { "CosmoParams", 57, _CFFI_F_CHECK_FIELDS,
+    sizeof(struct CosmoParams), offsetof(struct _cffi_align_struct_CosmoParams, y), 12, 7 },
+  { "FlagOptions", 58, _CFFI_F_CHECK_FIELDS,
+    sizeof(struct FlagOptions), offsetof(struct _cffi_align_struct_FlagOptions, y), 19, 3 },
+  { "InitialConditions", 59, _CFFI_F_CHECK_FIELDS,
+    sizeof(struct InitialConditions), offsetof(struct _cffi_align_struct_InitialConditions, y), 22, 8 },
+  { "IonizedBox", 60, _CFFI_F_CHECK_FIELDS,
+    sizeof(struct IonizedBox), offsetof(struct _cffi_align_struct_IonizedBox, y), 30, 2 },
+  { "PerturbedField", 61, _CFFI_F_CHECK_FIELDS,
+    sizeof(struct PerturbedField), offsetof(struct _cffi_align_struct_PerturbedField, y), 32, 2 },
+  { "TsBox", 62, _CFFI_F_CHECK_FIELDS,
+    sizeof(struct TsBox), offsetof(struct _cffi_align_struct_TsBox, y), 34, 2 },
+  { "UserParams", 63, _CFFI_F_CHECK_FIELDS,
+    sizeof(struct UserParams), offsetof(struct _cffi_align_struct_UserParams, y), 36, 3 },
 };
 
 static const struct _cffi_type_context_s _cffi_type_context = {
@@ -1309,12 +1515,12 @@ static const struct _cffi_type_context_s _cffi_type_context = {
   _cffi_struct_unions,
   NULL,  /* no enums */
   NULL,  /* no typenames */
-  7,  /* num_globals */
-  8,  /* num_struct_unions */
+  8,  /* num_globals */
+  9,  /* num_struct_unions */
   0,  /* num_enums */
   0,  /* num_typenames */
   NULL,  /* no includes */
-  51,  /* num_types */
+  66,  /* num_types */
   0,  /* flags */
 };
 
