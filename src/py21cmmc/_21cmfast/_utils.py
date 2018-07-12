@@ -146,7 +146,7 @@ class StructWithDefaults:
         return ", ".join(sorted([k+":"+str(v) for k,v in self.__defining_dict.items()]))
 
     def __eq__(self, other):
-        return isinstance(self, other) and self.__repr__() == repr(other)
+        return self.__class__.__name__==other.__class__.__name__ and self.__repr__() == repr(other)
 
     def __hash__(self):
         return hash(self.__repr__)
