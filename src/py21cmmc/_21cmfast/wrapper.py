@@ -753,6 +753,8 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
 
     return box
 
+global_params = lib.global_params
+
 # def run_21cmfast(redshifts, box_dim=None, flag_options=None, astro_params=None, cosmo_params=None,
 #                  write=True, regenerate=False, run_perturb=True, run_ionize=True, init_boxes=None,
 #                  free_ps=True, progress_bar=True):
