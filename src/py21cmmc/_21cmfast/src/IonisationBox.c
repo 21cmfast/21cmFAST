@@ -29,7 +29,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
 //    
 //    printf("INCLUDE_ZETA_PL = %s SUBCELL_RSD = %s INHOMO_RECO = %s\n",flag_options->INCLUDE_ZETA_PL ?"true" : "false",flag_options->SUBCELL_RSD ?"true" : "false",flag_options->INHOMO_RECO ?"true" : "false");
     
-    printf("low-res perturbed density; %e %e %e %e\n",perturbed_field->density[0],perturbed_field->density[100],perturbed_field->density[1000],perturbed_field->density[10000]);
+//    printf("low-res perturbed density; %e %e %e %e\n",perturbed_field->density[0],perturbed_field->density[100],perturbed_field->density[1000],perturbed_field->density[10000]);
     
     char filename[500];
     FILE *F;
@@ -54,7 +54,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
 
     // For recombinations
     if(flag_options->INHOMO_RECO) {
-        printf("With recombinations\n");
+//        printf("With recombinations\n");
         ZSTEP = prev_redshift - redshift;
     
 //        for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++) {
@@ -62,7 +62,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
 //        }
     }
     else {
-        printf("No recombinations\n");
+//        printf("No recombinations\n");
         ZSTEP = 0.2;
     }
     fabs_dtdz = fabs(dtdz(redshift));
@@ -110,18 +110,21 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     // initialize power spectrum
     growth_factor = dicke(redshift);
     
-    fftwf_complex *deltax_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    fftwf_complex *deltax_unfiltered_original = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    fftwf_complex *deltax_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    fftwf_complex *xe_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    fftwf_complex *xe_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    fftwf_complex *deltax_unfiltered, *deltax_unfiltered_original, *deltax_filtered, *xe_unfiltered, *xe_filtered, *N_rec_unfiltered, *N_rec_filtered;
     
-    fftwf_complex *N_rec_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS); // cumulative number of recombinations
-    fftwf_complex *N_rec_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    deltax_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    deltax_unfiltered_original = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    deltax_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    if(flag_options->USE_TS_FLUCT) {
+        xe_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        xe_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    }
+    if (flag_options->INHOMO_RECO){
+        N_rec_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS); // cumulative number of recombinations
+        N_rec_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    }
     
-//     float *deltax = (float *) calloc(HII_TOT_FFT_NUM_PIXELS,sizeof(float));
-     float *Fcoll = (float *) calloc(HII_TOT_NUM_PIXELS,sizeof(float));
-//     float *xH = (float *)calloc(HII_TOT_NUM_PIXELS,sizeof(float));
+    float *Fcoll = (float *) calloc(HII_TOT_NUM_PIXELS,sizeof(float));
      
     // Calculate the density field for this redshift if the initial conditions/cosmology are changing
     
@@ -133,7 +136,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
         }
     }
     
-    printf("low-res perturbed density; %e %e\n",*((float *)deltax_unfiltered + HII_R_FFT_INDEX(0,0,0)),deltax_unfiltered[HII_R_FFT_INDEX(0,0,0)]);
+//    printf("low-res perturbed density; %e %e\n",*((float *)deltax_unfiltered + HII_R_FFT_INDEX(0,0,0)),deltax_unfiltered[HII_R_FFT_INDEX(0,0,0)]);
     
     // keep the unfiltered density field in an array, to save it for later
     memcpy(deltax_unfiltered_original, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -189,8 +192,8 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
         mean_f_coll_st = FgtrM_st(redshift, M_MIN);
     }
     
-    printf("redshift = %e M_MIN = %e\n",redshift, M_MIN);
-    printf("mean_f_coll_st = %e\n",mean_f_coll_st);
+//    printf("redshift = %e M_MIN = %e\n",redshift, M_MIN);
+//    printf("mean_f_coll_st = %e\n",mean_f_coll_st);
     
     if (mean_f_coll_st/(1./(astro_params->HII_EFF_FACTOR)) < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
     //        printf( "The ST mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll_st, f_coll_crit);
@@ -520,7 +523,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
         }
         global_xH /= (float)HII_TOT_NUM_PIXELS;
                 
-        printf("global_xH = %e\n",global_xH);
+//        printf("global_xH = %e\n",global_xH);
                 
         /*
         // update the N_rec field
@@ -554,5 +557,19 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     // deallocate
     gsl_rng_free (r);
 
+    
+    fftwf_free(deltax_unfiltered);
+    fftwf_free(deltax_unfiltered_original);
+    fftwf_free(deltax_filtered);
+    if(flag_options->USE_TS_FLUCT) {
+        fftwf_free(xe_unfiltered);
+        fftwf_free(xe_filtered);
+    }
+    if (flag_options->INHOMO_RECO){
+        fftwf_free(N_rec_unfiltered);
+        fftwf_free(N_rec_filtered);
+    }
+    
+    free(Fcoll);
 }
 
