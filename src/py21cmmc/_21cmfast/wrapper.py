@@ -251,12 +251,15 @@ class FlagOptions(StructWithDefaults):
 # OUTPUT STRUCTURES
 # ======================================================================================================================
 class OutputStruct(_OS):
+    def __init__(self, user_params=UserParams(), cosmo_params=CosmoParams(), **kwargs):
+        super().__init__(user_params=user_params, cosmo_params=cosmo_params, **kwargs)
+
     ffi = ffi
 
 
 class OutputStructZ(OutputStruct):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, redshift, user_params=UserParams(), cosmo_params=CosmoParams(), **kwargs):
+        super().__init__(user_params=user_params, cosmo_params=cosmo_params, redshift=float(redshift), **kwargs)
         self._name += "_z%.4f" % self.redshift
 
 
@@ -279,10 +282,6 @@ class PerturbedField(OutputStructZ):
     """
     A class containing all perturbed field boxes
     """
-
-    def __init__(self, user_params, cosmo_params, redshift):
-        super().__init__(user_params, cosmo_params, redshift=float(redshift))
-
     def _init_arrays(self):
         self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
@@ -290,10 +289,10 @@ class PerturbedField(OutputStructZ):
 
 class IonizedBox(OutputStructZ):
     "A class containing all ionized boxes"
-    def __init__(self, user_params, cosmo_params, redshift, astro_params, flag_options, first_box=False):
-        super().__init__(user_params, cosmo_params, redshift=float(redshift), astro_params=astro_params,
-                         flag_options=flag_options)
-        self.first_box = first_box
+    def __init__(self, astro_params=None, flag_options=FlagOptions(), first_box=False, **kwargs):
+        if astro_params is None:
+            astro_params = AstroParams(flag_options.INHOMO_RECO)
+        super().__init__(astro_params=astro_params, flag_options=flag_options, first_box=first_box)
 
     def _init_arrays(self):
         self.ionized_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
