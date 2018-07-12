@@ -220,12 +220,15 @@ class FlagOptions(StructWithDefaults):
 # OUTPUT STRUCTURES
 # ======================================================================================================================
 class OutputStruct(_OS):
+    def __init__(self, user_params=UserParams(), cosmo_params=CosmoParams(), **kwargs):
+        super().__init__(user_params=user_params, cosmo_params=cosmo_params, **kwargs)
+
     ffi = ffi
 
 
 class OutputStructZ(OutputStruct):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, redshift, user_params=UserParams(), cosmo_params=CosmoParams(), **kwargs):
+        super().__init__(user_params=user_params, cosmo_params=cosmo_params, redshift=float(redshift), **kwargs)
         self._name += "_z%.4f" % self.redshift
 
 
@@ -248,10 +251,6 @@ class PerturbedField(OutputStructZ):
     """
     A class containing all perturbed field boxes
     """
-
-    def __init__(self, user_params, cosmo_params, redshift):
-        super().__init__(user_params, cosmo_params, redshift=float(redshift))
-
     def _init_arrays(self):
         self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
@@ -259,10 +258,10 @@ class PerturbedField(OutputStructZ):
 
 class IonizedBox(OutputStructZ):
     "A class containing all ionized boxes"
-    def __init__(self, user_params, cosmo_params, redshift, astro_params, flag_options, first_box=False):
-        super().__init__(user_params, cosmo_params, redshift=float(redshift), astro_params=astro_params,
-                         flag_options=flag_options)
-        self.first_box = first_box
+    def __init__(self, astro_params=None, flag_options=FlagOptions(), first_box=False, **kwargs):
+        if astro_params is None:
+            astro_params = AstroParams(flag_options.INHOMO_RECO)
+        super().__init__(astro_params=astro_params, flag_options=flag_options, first_box=first_box, **kwargs)
 
     def _init_arrays(self):
         self.ionized_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
@@ -328,9 +327,6 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
             return boxes
         except IOError:
             pass
-
-    print(type(boxes))
-    print(boxes.hires_density)
 
     # Run the C code
     lib.ComputeInitialConditions(user_params(), cosmo_params(), boxes())
@@ -429,7 +425,7 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
         )
 
     # Initialize perturbed boxes.
-    fields = PerturbedField(user_params, cosmo_params, redshift)
+    fields = PerturbedField(redshift, user_params, cosmo_params)
 
     # Check whether the boxes already exist
     if not regenerate:
@@ -544,14 +540,15 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         )
     
     # Dynamically produce the Ts boxes.
-    if Ts_boxes is None or not Ts_boxes.filled:
-        Ts_boxes = spin_temperature(
-            redshift, perturbed_field=perturbed_field, user_params=user_params, cosmo_params=cosmo_params,
-            astro_params=astro_params,flag_options=flag_options,
-            regenerate=regenerate, write=write, direc=direc,
-            fname=None, match_seed=match_seed
-        )
+#    if spin_temp is None or not Ts_boxes.filled:
+#        Ts_boxes = spin_temperature(
+#            redshift, perturbed_field=perturbed_field, user_params=user_params, cosmo_params=cosmo_params,
+#            astro_params=astro_params,flag_options=flag_options,
+#            regenerate=regenerate, write=write, direc=direc,
+#            fname=None, match_seed=match_seed
+#        )
 
+    do_spin_temp = True
     if spin_temp is None:
         do_spin_temp=False
         spin_temp = TsBox(cosmo_params=cosmo_params, redshift=0, user_params=user_params,
@@ -578,7 +575,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             pass
 
     # Run the C Code
-    lib.ComputeIonizedBox(redshift, user_params(), cosmo_params(), astro_params(), flag_options(), perturbed_field(),
+    lib.ComputeIonizedBox(redshift, previous_ionize_box.redshift, perturbed_field.user_params(), perturbed_field.cosmo_params(), astro_params(), flag_options(), perturbed_field(),
                           previous_ionize_box(), do_spin_temp, spin_temp(), box())
 
     box.filled = True
@@ -695,7 +692,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             pass
 
     # Run the C Code
-    lib.ComputeTsBox(redshift, user_params(), cosmo_params(), astro_params(), perturbed_field.redshift, perturbed_field(), previous_spin_temp(), box())
+    lib.ComputeTsBox(redshift, previous_spin_temp.redshift, perturbed_field.user_params(), perturbed_field.cosmo_params(), astro_params(), perturbed_field.redshift, perturbed_field(), previous_spin_temp(), box())
     box.filled = True
 
     # Optionally do stuff with the result (like writing it)

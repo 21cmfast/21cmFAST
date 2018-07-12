@@ -83,7 +83,7 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
     init_ps();
 
 //    boxes->PSnormalisation = sigma_norm;
-    printf("This far?\n");
+
     for (n_x=0; n_x<user_params->DIM; n_x++){
         // convert index to numerical value for this component of the k-mode: k = (2*pi/L) * n
         if (n_x>MIDDLE)
@@ -116,32 +116,24 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
             }
         }
     }
-    printf("This far?\n");
+
     // *****  Adjust the complex conjugate relations for a real array  ***** //
     adj_complex_conj(HIRES_box,user_params,cosmo_params);
     // *** Let's also create a lower-resolution version of the density field  *** //
-    printf("This far?\n");
+
     memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-    printf("This far?\n");
+
     if (user_params->DIM != user_params->HII_DIM)
         filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-    printf("This far?\n");
+
     // FFT back to real space
     plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
     fftwf_execute(plan);
-    printf("This far?\n");
-    printf("%d\n",user_params->HII_DIM);
-    printf("val = %e\n",*((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(0*f_pixel_factor+0.5),
-                                                           (unsigned long long)(0*f_pixel_factor+0.5),
-                                                           (unsigned long long)(0*f_pixel_factor+0.5)))/VOLUME);
-    printf("val = %e\n",boxes->lowres_density[0]);
+
     // now sample the filtered box
     for (i=0; i<user_params->HII_DIM; i++){
         for (j=0; j<user_params->HII_DIM; j++){
             for (k=0; k<user_params->HII_DIM; k++){
-                printf("i = %d j = %d k = %d macro_HII = %lu macro_DIM = %lu\n",i,j,k,HII_R_INDEX(i,j,k),R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                                                     (unsigned long long)(j*f_pixel_factor+0.5),
-                                                                                     (unsigned long long)(k*f_pixel_factor+0.5)));
                 boxes->lowres_density[HII_R_INDEX(i,j,k)] =
                 *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
                                                    (unsigned long long)(j*f_pixel_factor+0.5),
@@ -149,22 +141,18 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
             }
         }
     }
-    printf("This far?\n");
     // ******* PERFORM INVERSE FOURIER TRANSFORM ***************** //
     // add the 1/VOLUME factor when converting from k space to real space
-    printf("This far?\n");
     memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-    printf("This far?\n");
+
     for (ct=0; ct<KSPACE_NUM_PIXELS; ct++){
         HIRES_box[ct] /= VOLUME;
     }
-    printf("This far?\n");
+
     plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
     fftwf_cleanup();
-    
-    printf("This far?\n");
     
     for (i=0; i<user_params->DIM; i++){
         for (j=0; j<user_params->DIM; j++){
@@ -173,8 +161,6 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
             }
         }
     }
-
-    printf("Maybe here?\n");
     
     for(ii=0;ii<3;ii++) {
 
