@@ -5,7 +5,7 @@ from ._21cmfast import ffi, lib
 import numpy as np
 from ._utils import StructWithDefaults, OutputStruct as _OS
 from astropy.cosmology import Planck15
-
+import numbers
 
 # ======================================================================================================================
 # PARAMETER STRUCTURES
@@ -457,10 +457,11 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
 
     return fields
 
+
 def ionize_box(astro_params=None, flag_options=FlagOptions(),
                redshift=None, perturbed_field=None,
                previous_ionize_box=None,
-               spin_temp=None,
+               do_spin_temp=True, spin_temp=None,
                init_boxes=None, cosmo_params=None, user_params=None,
                regenerate=False, write=True, direc=None,
                fname=None, match_seed=False):
@@ -493,8 +494,13 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         of these are true, and this is not given, then it will be assumed that this is the "first box", i.e. that it
         can be populated accurately without knowing source statistics.
 
-    spin_temp: :class:`TsBox`, optional
-        A spin-temperature box. If not given, will assume the saturated limit.
+    do_spin_temp: bool, optional
+        Whether to use the spin temperature.
+
+    spin_temp: :class:`TsBox` or None, optional
+        A spin-temperature box, only required if `do_spin_temp` is True.
+        If None, will try to read in a spin temp box at the current redshift, and failing that will try to
+        automatically create one, using the previous ionized box redshift as the previous spin temperature redshift.
 
     user_params : `~UserParams` instance, optional
         Defines the overall options and parameters of the run.
@@ -532,8 +538,6 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     if astro_params is None:
         astro_params = AstroParams(flag_options.INHOMO_RECO)
 
-    if previous_ionize_box is not None and previous_ionize_box.redshift < redshift:
-        raise ValueError("The previous ionization box must have higher redshift than this one.")
 
     if spin_temp is not None and spin_temp.redshift != redshift:
         raise ValueError("The redshift of the spin_temp field needs to be the current redshift")
@@ -545,24 +549,42 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             regenerate=regenerate, write=write, direc=direc,
             fname=None, match_seed=match_seed
         )
-    
-    # Dynamically produce the Ts boxes.
-#    if spin_temp is None or not Ts_boxes.filled:
-#        Ts_boxes = spin_temperature(
-#            redshift, perturbed_field=perturbed_field, user_params=user_params, cosmo_params=cosmo_params,
-#            astro_params=astro_params,flag_options=flag_options,
-#            regenerate=regenerate, write=write, direc=direc,
-#            fname=None, match_seed=match_seed
-#        )
 
-    do_spin_temp = True
-    if spin_temp is None:
-        do_spin_temp=False
-        spin_temp = TsBox(cosmo_params=perturbed_field.cosmo_params, redshift=0, user_params=perturbed_field.user_params,
-                          astro_params=astro_params, flag_options=flag_options)
+    if isinstance(previous_ionize_box, IonizedBox):
+        prev_ion_z = previous_ionize_box.redshift
+    else:
+        prev_ion_z = previous_ionize_box
+
+    # Set empty spin temp box if necessary.
+    if not do_spin_temp:
+        spin_temp = TsBox(redshift=0)
+    elif spin_temp is None:
+        # The following will raise an error (rightly) if the previous spin temperature does not exist.
+        spin_temp = spin_temperature(
+            redshift=redshift, perturbed_field=perturbed_field, previous_spin_temp=prev_ion_z,
+            astro_params=astro_params, cosmo_params=cosmo_params, flag_options=flag_options, user_params=user_params
+        )
 
     box = IonizedBox(user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
                      redshift=redshift, astro_params=astro_params, flag_options=flag_options)
+
+    # Check whether the boxes already exist
+    if not regenerate:
+        try:
+            box.read(direc, fname, match_seed=match_seed)
+            print("Existing ionized boxes found and read in.")
+            return box
+        except IOError:
+            pass
+
+    # Ensure that previous redshift is greater than this one.
+    if previous_ionize_box is not None:
+        if hasattr(previous_ionize_box, "redshift"):
+            if previous_ionize_box.redshift < redshift:
+                raise ValueError("The previous ionization box must have higher redshift than this one.")
+        elif isinstance(previous_ionize_box, numbers.Number):
+            if previous_ionize_box < redshift:
+                raise ValueError("The previous ionization box must have higher redshift than this one.")
 
     if previous_ionize_box is None:
         previous_ionize_box = IonizedBox(
@@ -571,18 +593,18 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         )
         if flag_options.INHOMO_RECO or do_spin_temp:
             previous_ionize_box.first_box = True
-
-    # Check whether the boxes already exist
-    if not regenerate:
+    elif isinstance(previous_ionize_box, numbers.Number):
+        previous_ionize_box = IonizedBox(redshift=previous_ionize_box, user_params=perturbed_field.user_params,
+                                         cosmo_params=perturbed_field.cosmo_params, astro_params=astro_params,
+                                         flag_options=flag_options)
         try:
-            box.read(direc, fname, match_seed=match_seed)
-            print("Existing perturb_field boxes found and read in.")
-            return box
+            previous_ionize_box.read(direc, fname, match_seed=match_seed)
         except IOError:
-            pass
+            raise IOError("The previous ionize box redshift does not yet exist.")
 
     # Run the C Code
-    lib.ComputeIonizedBox(redshift, previous_ionize_box.redshift, perturbed_field.user_params(), perturbed_field.cosmo_params(), astro_params(), flag_options(), perturbed_field(),
+    lib.ComputeIonizedBox(redshift, previous_ionize_box.redshift, perturbed_field.user_params(),
+                          perturbed_field.cosmo_params(), astro_params(), flag_options(), perturbed_field(),
                           previous_ionize_box(), do_spin_temp, spin_temp(), box())
 
     box.filled = True
@@ -620,9 +642,10 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
         at the same redshift as the spin temperature box. However, it does not need to be defined at the same redshift.
         If at a different redshift, it will be linearly evolved to the redshift of the spin temperature box.
 
-    previous_spin_temp : :class:`TsBox`, optional
-        The previous spin temperature box. Its redshift must be greater than `redshift`. If not given, will assume
-        that this is the initial, high redshift box.
+    previous_spin_temp : :class:`TsBox` or float, optional
+        The previous spin temperature box, or its redshift. This redshift must be greater than `redshift`. If not given,
+        will assume that this is the initial, high redshift box. If a redshift, then this will try to read in the
+        previous spin temp box at this redshift, and if it doesn't exist, will raise an exception.
 
     init_boxes : :class:`~InitialConditions` instance, optional
         If given, and `perturbed_field` *not* given, these initial conditions boxes will be used to generate the
@@ -667,23 +690,11 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
-        if user_params is None or cosmo_params is None:
-            raise ValueError("If perturbed_field is not given, both user_params and cosmo_params must be given.")
-
         perturbed_field = perturb_field(
             redshift = redshift if perturbed_field is None else perturbed_field.redshift,
             init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
             regenerate=regenerate, write=write, direc=direc,
             fname=None, match_seed=match_seed
-        )
-
-    if previous_spin_temp is not None and previous_spin_temp.redshift < redshift:
-        raise ValueError("Previous spin temperature box must have a higher redshift than that being evaluated.")
-
-    if previous_spin_temp is None:
-        previous_spin_temp = TsBox(
-            first_box=True, user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
-            redshift=0, astro_params=astro_params, flag_options=flag_options
         )
 
     box = TsBox(user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
@@ -693,10 +704,32 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     if not regenerate:
         try:
             box.read(direc, fname, match_seed=match_seed)
-            print("Existing perturb_field boxes found and read in.")
+            print("Existing spin_temp boxes found and read in.")
             return box
         except IOError:
             pass
+
+    # Ensure the previous spin temperature has a higher redshift than this one.
+    if previous_spin_temp is not None:
+        if hasattr(previous_spin_temp, "redshift"):
+            if previous_spin_temp.redshift < redshift:
+                raise ValueError("Previous spin temperature box must have a higher redshift than that being evaluated.")
+        elif isinstance(previous_spin_temp, numbers.Number):
+            if previous_spin_temp < redshift:
+                raise ValueError("Previous spin temperature box must have a higher redshift than that being evaluated.")
+
+    # If previous spin temperature is None, just make an empty box.
+    if previous_spin_temp is None:
+        previous_spin_temp = TsBox(first_box=True, redshift=0)
+    # Otherwise, if it's just a redshift, try to read in a box at that redshift, otherwise exception.
+    elif isinstance(previous_spin_temp, numbers.Number):
+        previous_spin_temp = TsBox(redshift=previous_spin_temp, user_params=perturbed_field.user_params,
+                                   cosmo_params=perturbed_field.cosmo_params, astro_params=astro_params,
+                                   flag_options=flag_options)
+        try:
+            previous_spin_temp.read(direc, fname, match_seed=match_seed)
+        except IOError:
+            raise IOError("The previous spin temperature redshift does not yet exist.")
 
     # Run the C Code
     lib.ComputeTsBox(redshift, previous_spin_temp.redshift, perturbed_field.user_params(), perturbed_field.cosmo_params(), astro_params(), perturbed_field.redshift, perturbed_field(), previous_spin_temp(), box())
@@ -740,6 +773,11 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
     box._expose()
 
     return box
+
+
+# The global parameter struct which can be modified.
+global_params = lib.global_params
+
 
 # def run_21cmfast(redshifts, box_dim=None, flag_options=None, astro_params=None, cosmo_params=None,
 #                  write=True, regenerate=False, run_perturb=True, run_ionize=True, init_boxes=None,
