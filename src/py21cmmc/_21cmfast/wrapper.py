@@ -175,6 +175,9 @@ class FlagOptions(StructWithDefaults):
 
     INHOMO_RECO : bool, optional
         Whether to perform inhomogeneous recombinations
+
+    USE_TS_FLUCT : bool, optional
+        Whether to perform IGM spin temperature fluctuations (i.e. X-ray heating)
     """
 
     ffi = ffi
@@ -183,6 +186,7 @@ class FlagOptions(StructWithDefaults):
         INCLUDE_ZETA_PL=False,
         SUBCELL_RSD=False,
         INHOMO_RECO=False,
+        USE_TS_FLUCT=False,
     )
 
 #    def _logic(self):
@@ -264,13 +268,16 @@ class IonizedBox(OutputStructZ):
         super().__init__(astro_params=astro_params, flag_options=flag_options, first_box=first_box, **kwargs)
 
     def _init_arrays(self):
-        self.ionized_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        # ionized_box is always initialised to be neutral, for excursion set algorithm. Hence np.ones instead of np.zeros
+        self.xH_box = np.ones(self.user_params.HII_tot_num_pixels, dtype=np.float32) 
+        self.Gamma12_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
 
 class TsBox(IonizedBox):
     "A class containing all spin temperature boxes"
     def _init_arrays(self):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.x_e_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
 
 class BrightnessTemp(IonizedBox):
@@ -445,8 +452,8 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
     if write:
         fields.write(direc, fname)
 
-    print(fields.density[0],fields.density[100],fields.density[1000],fields.density[10000])
-    print(fields.velocity[0],fields.velocity[100],fields.velocity[1000],fields.velocity[10000])
+#    print(fields.density[0],fields.density[100],fields.density[1000],fields.density[10000])
+#    print(fields.velocity[0],fields.velocity[100],fields.velocity[1000],fields.velocity[10000])
 
     return fields
 
@@ -551,7 +558,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     do_spin_temp = True
     if spin_temp is None:
         do_spin_temp=False
-        spin_temp = TsBox(cosmo_params=cosmo_params, redshift=0, user_params=user_params,
+        spin_temp = TsBox(cosmo_params=perturbed_field.cosmo_params, redshift=0, user_params=perturbed_field.user_params,
                           astro_params=astro_params, flag_options=flag_options)
 
     box = IonizedBox(user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,

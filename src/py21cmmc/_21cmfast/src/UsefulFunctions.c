@@ -64,8 +64,8 @@
 #define Ho  (double) (cosmo_params_ufunc->hlittle*3.2407e-18) // s^-1 at z=0
 #define RHOcrit (double) ( (3.0*Ho*Ho / (8.0*PI*G)) * (CMperMPC*CMperMPC*CMperMPC)/Msun) // Msun Mpc^-3 ---- at z=0
 #define RHOcrit_cgs (double) (3.0*Ho*Ho / (8.0*PI*G)) // g pcm^-3 ---- at z=0
-#define No  (double) (RHOcrit_cgs*cosmo_params_ufunc->OMb*(1-Y_He)/m_p)  //  current hydrogen number density estimate  (#/cm^3)  ~1.92e-7
-#define He_No (double) (RHOcrit_cgs*cosmo_params_ufunc->OMb*Y_He/(4.0*m_p)) //  current helium number density estimate
+#define No  (double) (RHOcrit_cgs*cosmo_params_ufunc->OMb*(1-global_params.Y_He)/m_p)  //  current hydrogen number density estimate  (#/cm^3)  ~1.92e-7
+#define He_No (double) (RHOcrit_cgs*cosmo_params_ufunc->OMb*global_params.Y_He/(4.0*m_p)) //  current helium number density estimate
 #define N_b0 (double) (No+He_No) // present-day baryon num density, H + He
 #define f_H (double) (No/(No+He_No))  // hydrogen number fraction
 #define f_He (double) (He_No/(No+He_No))  // helium number fraction
@@ -153,9 +153,13 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
 }
 
 double MtoR(double M);
+double RtoM(double R);
+float TtoM(float z, float T, float mu);
 double dicke(double z);
 double dtdz(float z);
 double ddickedt(double z);
+double omega_mz(float z);
+double Deltac_nonlinear(float z);
 
 
 /* R in Mpc, M in Msun */
@@ -170,6 +174,59 @@ double MtoR(double M){
         fprintf(stderr, "No such filter = %i.\nResults are bogus.\n", global_params.FILTER);
     return -1;
 }
+
+/* R in Mpc, M in Msun */
+double RtoM(double R){
+    // set M according to M<->R conversion defined by the filter type in ../Parameter_files/COSMOLOGY.H
+    if (global_params.FILTER == 0) //top hat M = (4/3) PI <rho> R^3
+        return (4.0/3.0)*PI*pow(R,3)*(cosmo_params_ufunc->OMm*RHOcrit);
+    else if (global_params.FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
+        return pow(2*PI, 1.5) * cosmo_params_ufunc->OMm*RHOcrit * pow(R, 3);
+    else // filter not defined
+        fprintf(stderr, "No such filter = %i.\nResults are bogus.\n", global_params.FILTER);
+    return -1;
+}
+
+/*
+ T in K, M in Msun, mu is mean molecular weight
+ from Barkana & Loeb 2001
+ 
+ SUPRESS = 0 for no radiation field supression;
+ SUPRESS = 1 for supression (step function at z=z_ss, at v=v_zz)
+ */
+float TtoM(float z, float T, float mu){
+    return 7030.97 / (cosmo_params_ufunc->hlittle) * sqrt( omega_mz(z) / (cosmo_params_ufunc->OMm*Deltac_nonlinear(z)) ) *
+    pow( T/(mu * (1+z)), 1.5 );
+    /*  if (!SUPRESS || (z >= z_re) ) // pre-reionization or don't worry about supression
+     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
+     pow( T/(mu * (1+z)), 1.5 );
+     
+     if (z >= z_ss) // self-shielding dominates, use T = 1e4 K
+     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
+     pow( 1.0e4 /(mu * (1+z)), 1.5 );
+     
+     // optically thin
+     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
+     pow( VcirtoT(v_ss, mu) /(mu * (1+z)), 1.5 );
+     */
+}
+
+
+/* Physical (non-linear) overdensity at virialization (relative to critical density)
+ i.e. answer is rho / rho_crit
+ In Einstein de sitter model = 178
+ (fitting formula from Bryan & Norman 1998) */
+double Deltac_nonlinear(float z){
+    double d;
+    d = omega_mz(z) - 1.0;
+    return 18*PI*PI + 82*d - 39*d*d;
+}
+
+/* Omega matter at redshift z */
+double omega_mz(float z){
+    return cosmo_params_ufunc->OMm*pow(1+z,3) / (cosmo_params_ufunc->OMm*pow(1+z,3) + cosmo_params_ufunc->OMl + global_params.OMr*pow(1+z,4) + global_params.OMk*pow(1+z, 2));
+}
+
 
 /*
  FUNCTION dicke(z)
@@ -251,3 +308,17 @@ double ddickedt(double z){
     fprintf(stderr, "No growth function!!! Output will be fucked up.");
     return -1;
 }
+
+/* returns the hubble "constant" (in 1/sec) at z */
+double hubble(float z){
+    return Ho*sqrt(cosmo_params_ufunc->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4) + cosmo_params_ufunc->OMl);
+}
+
+
+/* returns hubble time (in sec), t_h = 1/H */
+double t_hubble(float z){
+    return 1.0/hubble(z);
+}
+
+
+

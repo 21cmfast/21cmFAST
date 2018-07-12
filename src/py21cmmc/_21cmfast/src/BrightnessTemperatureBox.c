@@ -7,12 +7,9 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
                            struct PerturbedField *perturb_field, struct BrightnessTemp *box) {
 
     // Makes the parameter structs visible to a variety of functions/macros
-    if(StructInit==0) {
-        Broadcast_struct_global_PS(user_params,cosmo_params);
-        Broadcast_struct_global_UF(user_params,cosmo_params);
-        
-        StructInit = 1;
-    }
+    // Do each time to avoid Python garbage collection issues
+    Broadcast_struct_global_PS(user_params,cosmo_params);
+    Broadcast_struct_global_UF(user_params,cosmo_params);
     
     printf("EFF_FACTOR_PL_INDEX = %e HII_EFF_FACTOR = %e R_BUBBLE_MAX = %e ION_Tvir_MIN = %e L_X = %e\n",astro_params->EFF_FACTOR_PL_INDEX,astro_params->HII_EFF_FACTOR,
            astro_params->R_BUBBLE_MAX,astro_params->ION_Tvir_MIN,astro_params->L_X);

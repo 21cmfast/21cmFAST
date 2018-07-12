@@ -17,7 +17,6 @@
 #include <gsl/gsl_roots.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_spline.h>
-#include <gsl/gsl_errno.h>
 
 #include "21CMMC.h"
 #include "Constants.h"
@@ -28,6 +27,7 @@
 #include "IonisationBox.c"
 #include "SpinTemperatureBox.c"
 #include "BrightnessTemperatureBox.c"
+#include "bubble_helper_progs.c"
 
 // Re-write of init.c for being accessible within the MCMC
 
@@ -43,12 +43,9 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
      */
     
     // Makes the parameter structs visible to a variety of functions/macros
-    if(StructInit==0) {
-        Broadcast_struct_global_PS(user_params,cosmo_params);
-        Broadcast_struct_global_UF(user_params,cosmo_params);
-        
-        StructInit = 1;
-    }
+    // Do each time to avoid Python garbage collection issues
+    Broadcast_struct_global_PS(user_params,cosmo_params);
+    Broadcast_struct_global_UF(user_params,cosmo_params);
     
     fftwf_plan plan;
     

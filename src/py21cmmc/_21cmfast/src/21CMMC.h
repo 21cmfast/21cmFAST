@@ -54,6 +54,7 @@ struct FlagOptions{
     bool INCLUDE_ZETA_PL;
     bool SUBCELL_RSD;
     bool INHOMO_RECO;
+    bool USE_TS_FLUCT;
 };
 
 
@@ -68,11 +69,13 @@ struct PerturbedField{
 struct TsBox{
     int first_box;
     float *Ts_box;
+    float *x_e_box;
 };
 
 struct IonizedBox{
     int first_box;
-    float *ionized_box;
+    float *xH_box;
+    float *Gamma12_box;
 };
 
 struct BrightnessTemp{
@@ -80,7 +83,7 @@ struct BrightnessTemp{
 };
 
 void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes);
-void ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *p_cubes);
+void ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field);
 void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, float perturbed_field_redshift,
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp);
@@ -95,5 +98,3 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
 
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params);
-
-int StructInit = 0;

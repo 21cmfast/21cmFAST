@@ -1237,15 +1237,6 @@ _cffi_f_ComputeTsBox(PyObject *self, PyObject *args)
 #  define _cffi_f_ComputeTsBox _cffi_d_ComputeTsBox
 #endif
 
-static int _cffi_const_StructInit(unsigned long long *o)
-{
-  int n = (StructInit) <= 0;
-  *o = (unsigned long long)((StructInit) | 0);  /* check that StructInit is an integer */
-  if (!_cffi_check_int(*o, n, 0))
-    n |= 2;
-  return n;
-}
-
 _CFFI_UNUSED_FN
 static void _cffi_checkfld_struct_AstroParams(struct AstroParams *p)
 {
@@ -1297,6 +1288,7 @@ static void _cffi_checkfld_struct_FlagOptions(struct FlagOptions *p)
   (void)((p->INCLUDE_ZETA_PL) | 0);  /* check that 'struct FlagOptions.INCLUDE_ZETA_PL' is an integer */
   (void)((p->SUBCELL_RSD) | 0);  /* check that 'struct FlagOptions.SUBCELL_RSD' is an integer */
   (void)((p->INHOMO_RECO) | 0);  /* check that 'struct FlagOptions.INHOMO_RECO' is an integer */
+  (void)((p->USE_TS_FLUCT) | 0);  /* check that 'struct FlagOptions.USE_TS_FLUCT' is an integer */
 }
 struct _cffi_align_struct_FlagOptions { char x; struct FlagOptions y; };
 
@@ -1376,7 +1368,8 @@ static void _cffi_checkfld_struct_IonizedBox(struct IonizedBox *p)
   /* only to generate compile-time warnings or errors */
   (void)p;
   (void)((p->first_box) | 0);  /* check that 'struct IonizedBox.first_box' is an integer */
-  { float * *tmp = &p->ionized_box; (void)tmp; }
+  { float * *tmp = &p->xH_box; (void)tmp; }
+  { float * *tmp = &p->Gamma12_box; (void)tmp; }
 }
 struct _cffi_align_struct_IonizedBox { char x; struct IonizedBox y; };
 
@@ -1397,6 +1390,7 @@ static void _cffi_checkfld_struct_TsBox(struct TsBox *p)
   (void)p;
   (void)((p->first_box) | 0);  /* check that 'struct TsBox.first_box' is an integer */
   { float * *tmp = &p->Ts_box; (void)tmp; }
+  { float * *tmp = &p->x_e_box; (void)tmp; }
 }
 struct _cffi_align_struct_TsBox { char x; struct TsBox y; };
 
@@ -1424,7 +1418,6 @@ static const struct _cffi_global_s _cffi_globals[] = {
   { "ComputeIonizedBox", (void *)_cffi_f_ComputeIonizedBox, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 11), (void *)_cffi_d_ComputeIonizedBox },
   { "ComputePerturbField", (void *)_cffi_f_ComputePerturbField, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 36), (void *)_cffi_d_ComputePerturbField },
   { "ComputeTsBox", (void *)_cffi_f_ComputeTsBox, _CFFI_OP(_CFFI_OP_CPYTHON_BLTN_V, 0), (void *)_cffi_d_ComputeTsBox },
-  { "StructInit", (void *)_cffi_const_StructInit, _CFFI_OP(_CFFI_OP_CONSTANT_INT, -1), (void *)0 },
   { "global_params", (void *)_cffi_var_global_params, _CFFI_OP(_CFFI_OP_GLOBAL_VAR_F, 59), (void *)0 },
 };
 
@@ -1495,6 +1488,9 @@ static const struct _cffi_field_s _cffi_fields[] = {
   { "INHOMO_RECO", offsetof(struct FlagOptions, INHOMO_RECO),
                    sizeof(((struct FlagOptions *)0)->INHOMO_RECO),
                    _CFFI_OP(_CFFI_OP_NOOP, 52) },
+  { "USE_TS_FLUCT", offsetof(struct FlagOptions, USE_TS_FLUCT),
+                    sizeof(((struct FlagOptions *)0)->USE_TS_FLUCT),
+                    _CFFI_OP(_CFFI_OP_NOOP, 52) },
   { "ALPHA_UVB", offsetof(struct GlobalParams, ALPHA_UVB),
                  sizeof(((struct GlobalParams *)0)->ALPHA_UVB),
                  _CFFI_OP(_CFFI_OP_NOOP, 1) },
@@ -1660,8 +1656,11 @@ static const struct _cffi_field_s _cffi_fields[] = {
   { "first_box", offsetof(struct IonizedBox, first_box),
                  sizeof(((struct IonizedBox *)0)->first_box),
                  _CFFI_OP(_CFFI_OP_NOOP, 20) },
-  { "ionized_box", offsetof(struct IonizedBox, ionized_box),
-                   sizeof(((struct IonizedBox *)0)->ionized_box),
+  { "xH_box", offsetof(struct IonizedBox, xH_box),
+              sizeof(((struct IonizedBox *)0)->xH_box),
+              _CFFI_OP(_CFFI_OP_NOOP, 54) },
+  { "Gamma12_box", offsetof(struct IonizedBox, Gamma12_box),
+                   sizeof(((struct IonizedBox *)0)->Gamma12_box),
                    _CFFI_OP(_CFFI_OP_NOOP, 54) },
   { "density", offsetof(struct PerturbedField, density),
                sizeof(((struct PerturbedField *)0)->density),
@@ -1675,6 +1674,9 @@ static const struct _cffi_field_s _cffi_fields[] = {
   { "Ts_box", offsetof(struct TsBox, Ts_box),
               sizeof(((struct TsBox *)0)->Ts_box),
               _CFFI_OP(_CFFI_OP_NOOP, 54) },
+  { "x_e_box", offsetof(struct TsBox, x_e_box),
+               sizeof(((struct TsBox *)0)->x_e_box),
+               _CFFI_OP(_CFFI_OP_NOOP, 54) },
   { "HII_DIM", offsetof(struct UserParams, HII_DIM),
                sizeof(((struct UserParams *)0)->HII_DIM),
                _CFFI_OP(_CFFI_OP_NOOP, 20) },
@@ -1694,19 +1696,19 @@ static const struct _cffi_struct_union_s _cffi_struct_unions[] = {
   { "CosmoParams", 57, _CFFI_F_CHECK_FIELDS,
     sizeof(struct CosmoParams), offsetof(struct _cffi_align_struct_CosmoParams, y), 12, 7 },
   { "FlagOptions", 58, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct FlagOptions), offsetof(struct _cffi_align_struct_FlagOptions, y), 19, 3 },
+    sizeof(struct FlagOptions), offsetof(struct _cffi_align_struct_FlagOptions, y), 19, 4 },
   { "GlobalParams", 59, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct GlobalParams), offsetof(struct _cffi_align_struct_GlobalParams, y), 22, 46 },
+    sizeof(struct GlobalParams), offsetof(struct _cffi_align_struct_GlobalParams, y), 23, 46 },
   { "InitialConditions", 60, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct InitialConditions), offsetof(struct _cffi_align_struct_InitialConditions, y), 68, 8 },
+    sizeof(struct InitialConditions), offsetof(struct _cffi_align_struct_InitialConditions, y), 69, 8 },
   { "IonizedBox", 61, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct IonizedBox), offsetof(struct _cffi_align_struct_IonizedBox, y), 76, 2 },
+    sizeof(struct IonizedBox), offsetof(struct _cffi_align_struct_IonizedBox, y), 77, 3 },
   { "PerturbedField", 62, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct PerturbedField), offsetof(struct _cffi_align_struct_PerturbedField, y), 78, 2 },
+    sizeof(struct PerturbedField), offsetof(struct _cffi_align_struct_PerturbedField, y), 80, 2 },
   { "TsBox", 63, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct TsBox), offsetof(struct _cffi_align_struct_TsBox, y), 80, 2 },
+    sizeof(struct TsBox), offsetof(struct _cffi_align_struct_TsBox, y), 82, 3 },
   { "UserParams", 64, _CFFI_F_CHECK_FIELDS,
-    sizeof(struct UserParams), offsetof(struct _cffi_align_struct_UserParams, y), 82, 3 },
+    sizeof(struct UserParams), offsetof(struct _cffi_align_struct_UserParams, y), 85, 3 },
 };
 
 static const struct _cffi_type_context_s _cffi_type_context = {
@@ -1716,7 +1718,7 @@ static const struct _cffi_type_context_s _cffi_type_context = {
   _cffi_struct_unions,
   NULL,  /* no enums */
   NULL,  /* no typenames */
-  9,  /* num_globals */
+  8,  /* num_globals */
   10,  /* num_struct_unions */
   0,  /* num_enums */
   0,  /* num_typenames */
