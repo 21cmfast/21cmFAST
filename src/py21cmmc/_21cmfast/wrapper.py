@@ -734,7 +734,10 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
 
     return box
 
+
+# The global parameter struct which can be modified.
 global_params = lib.global_params
+
 
 # def run_21cmfast(redshifts, box_dim=None, flag_options=None, astro_params=None, cosmo_params=None,
 #                  write=True, regenerate=False, run_perturb=True, run_ionize=True, init_boxes=None,
