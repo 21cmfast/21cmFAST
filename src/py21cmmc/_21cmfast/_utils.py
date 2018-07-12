@@ -66,26 +66,55 @@ class StructWithDefaults:
         # A little list to hold references to strings so they don't de-reference
         self._strings = []
 
+    @property
+    def _cstruct(self):
+        """
+        This is the actual structure which needs to be passed around to C functions.
+        It is best accessed by calling the instance (see __call__)
+
+        Note that the reason it is defined as this cached property is so that it can be created dynamically, but not
+        lost. It must not be lost, or else C functions which use it will lose access to its memory. But it also must
+        be created dynamically so that it can be recreated after pickling (pickle can't handle CData).
+        """
+        if hasattr(self, "_StructWithDefaults__cstruct"):
+            return self.__cstruct
+        else:
+            self.__cstruct = self._new()
+            return self.__cstruct
+
     def _logic(self):
         pass
 
-    def new(self):
+    def _new(self):
         """
         Return a new empty C structure corresponding to this class.
         """
-        obj = self.ffi.new("struct " + self._name + "*")
-        return obj
+        return self.ffi.new("struct " + self._name + "*")
+
+    def update(self, **kwargs):
+        for k in self._defaults_:
+            # Prefer arguments given to the constructor.
+            if k in kwargs:
+                v = kwargs[k]
+
+                try:
+                    setattr(self, k, v)
+                except AttributeError:
+                    # The attribute has been defined as a property, save it as a hidden variable
+                    setattr(self, "_" + k, v)
+
+        self._logic()
+        self._strings = []
+
+        # Start a fresh cstruct.
+        delattr(self, "_StructWithDefaults__cstruct")
 
     def __call__(self):
         """
         Return a filled C Structure corresponding to this instance.
         """
 
-        obj = self.new()
-
-        self._logic() # call this here to make sure any changes by the user to the arguments are re-processed.
-
-        for fld in self.ffi.typeof(obj[0]).fields:
+        for fld in self.ffi.typeof(self._cstruct[0]).fields:
             key = fld[0]
             val = getattr(self, key)
 
@@ -95,19 +124,17 @@ class StructWithDefaults:
                 val = self.ffi.new('char[]', getattr(self, key).encode())
 
             try:
-                setattr(obj, key, val)
+                setattr(self._cstruct, key, val)
             except TypeError:
                 print("For key %s, value %s:" % (key, val))
                 raise
 
-        self._cstruct = obj
-        return obj
+        return self._cstruct
 
     @property
     def pystruct(self):
         "A Python dictionary containing every field which needs to be initialized in the C struct."
-        obj = self.new()
-        return {fld[0]:getattr(self, fld[0]) for fld in self.ffi.typeof(obj[0]).fields}
+        return {fld[0]:getattr(self, fld[0]) for fld in self.ffi.typeof(self._cstruct[0]).fields}
 
     @property
     def __defining_dict(self):
