@@ -202,3 +202,47 @@ def spin(ctx, redshift, prev_z, config, regen, direc, fname, match_seed):
         user_params=user_params, cosmo_params=cosmo_params,
         regenerate=regen, write=True, direc=direc, fname=fname, match_seed=match_seed
     )
+
+
+@main.command(
+    context_settings = dict(  # Doing this allows arbitrary options to override config
+        ignore_unknown_options=True,
+        allow_extra_args=True
+    )
+)
+@click.argument("redshift", type=float)
+@click.option("-p", "--prev_z", type=float, default=None,
+              help="Previous redshift (the ionized box data must already exist for this redshift)")
+@click.option("--config", type=click.Path(exists=True, dir_okay=False), default=None,
+              help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)")
+@click.option("--regen/--no-regen", default=False,
+              help="Whether to force regeneration of init/perturb files if they already exist.")
+@click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
+              help="directory to write data and plots to -- must exist.")
+@click.option("--fname", type=click.Path(dir_okay=False), default=None,
+              help="filename of output.")
+@click.option("--match-seed/--no-match-seed", default=False,
+              help="whether to force the random seed to also match in order to be considered a match")
+@click.pass_context
+def ionize(ctx, redshift, prev_z, config, regen, direc, fname, match_seed):
+    """
+    Run 21cmFAST perturb_field at the specified redshift, saving results to file.
+    The same operation can be done with ``py21cmmc single --no-ionize``.
+    """
+    cfg = _get_config(config)
+
+    # Set user/cosmo params from config.
+    user_params = lib.UserParams(**cfg['user_params'])
+    cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
+    flag_options = lib.FlagOptions(**cfg['flag_options'])
+    astro_params = lib.AstroParams(flag_options.INHOMO_RECO, **cfg['astro_params'])
+
+    _override(ctx, user_params, cosmo_params, astro_params, flag_options)
+
+    lib.ionize_box(
+        redshift=redshift,
+        astro_params=astro_params, flag_options=flag_options,
+        previous_ionize_box=prev_z,
+        user_params=user_params, cosmo_params=cosmo_params,
+        regenerate=regen, write=True, direc=direc, fname=fname, match_seed=match_seed
+    )
