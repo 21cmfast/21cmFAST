@@ -83,14 +83,18 @@ struct BrightnessTemp{
 };
 
 void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes);
+
 void ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field);
+
 void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, float perturbed_field_redshift,
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp);
+
 void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
                        int do_spin_temp, struct TsBox *spin_temp, struct IonizedBox *box);
+
 void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                            struct AstroParams *astro_params, struct FlagOptions *flag_options,
                            struct TsBox *spin_temp, struct IonizedBox *ionized_box,
