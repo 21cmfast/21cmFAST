@@ -186,7 +186,7 @@ class OutputStruct:
         return [f for f, t in self.fields]
 
     @property
-    def pointer_fields(self):
+    def pointer_fields(self):        
         return [f for f, t in self.fields if t.type.kind == "pointer"]
 
     @property

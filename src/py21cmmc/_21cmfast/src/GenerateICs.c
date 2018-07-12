@@ -1,6 +1,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <time.h>
@@ -23,8 +24,10 @@
 #include "Globals.h"
 #include "UsefulFunctions.c"
 #include "ps.c"
-
 #include "PerturbField.c"
+#include "IonisationBox.c"
+#include "SpinTemperatureBox.c"
+#include "BrightnessTemperatureBox.c"
 
 // Re-write of init.c for being accessible within the MCMC
 
@@ -40,8 +43,12 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
      */
     
     // Makes the parameter structs visible to a variety of functions/macros
-    Broadcast_struct_global_PS(user_params,cosmo_params);
-    Broadcast_struct_global_UF(user_params,cosmo_params);
+    if(StructInit==0) {
+        Broadcast_struct_global_PS(user_params,cosmo_params);
+        Broadcast_struct_global_UF(user_params,cosmo_params);
+        
+        StructInit = 1;
+    }
     
     fftwf_plan plan;
     
@@ -76,7 +83,7 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
     init_ps();
 
 //    boxes->PSnormalisation = sigma_norm;
-    
+
     for (n_x=0; n_x<user_params->DIM; n_x++){
         // convert index to numerical value for this component of the k-mode: k = (2*pi/L) * n
         if (n_x>MIDDLE)
@@ -115,7 +122,7 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
     // *** Let's also create a lower-resolution version of the density field  *** //
 
     memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-    
+
     if (user_params->DIM != user_params->HII_DIM)
         filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
 
@@ -134,15 +141,14 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
             }
         }
     }
-
     // ******* PERFORM INVERSE FOURIER TRANSFORM ***************** //
     // add the 1/VOLUME factor when converting from k space to real space
-
     memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-    
+
     for (ct=0; ct<KSPACE_NUM_PIXELS; ct++){
         HIRES_box[ct] /= VOLUME;
     }
+
     plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
@@ -425,11 +431,6 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
     // * *********************************************** * //
     // *               END 2LPT PART                     * //
     // * *********************************************** * //
- 
-//    printf("high-res density; %e %e %e %e\n",boxes->hires_density[0],boxes->hires_density[100],boxes->hires_density[1000],boxes->hires_density[10000]);
-//    printf("low-res density; %e %e %e %e\n",boxes->lowres_density[0],boxes->lowres_density[100],boxes->lowres_density[1000],boxes->lowres_density[10000]);
-//    printf("low-res density (vz); %e %e %e %e\n",boxes->lowres_vz[0],boxes->lowres_vz[100],boxes->lowres_vz[1000],boxes->lowres_vz[10000]);
-//    printf("low-res density (vz 2LPT); %e %e %e %e\n",boxes->lowres_vz_2LPT[0],boxes->lowres_vz_2LPT[100],boxes->lowres_vz_2LPT[1000],boxes->lowres_vz_2LPT[10000]);
     
     // deallocate
     fftwf_free(HIRES_box);
@@ -480,9 +481,4 @@ void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, 
     } // end loop over remaining j
 
 }
-/*
-void ComputePerturbField(float redshift, struct InitialConditions *boxes, struct PerturbedField *p_cubes) {
- 
-    printf("Hello\n");
-}
-*/
+

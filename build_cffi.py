@@ -40,6 +40,8 @@ ffi.set_source(
 with open(os.path.join(CLOC, "21CMMC.h")) as f:
     ffi.cdef(f.read())
 
+with open(os.path.join(CLOC, "Globals.h")) as f:
+    ffi.cdef(f.read())
 
 if __name__ == "__main__":
     ffi.compile()
