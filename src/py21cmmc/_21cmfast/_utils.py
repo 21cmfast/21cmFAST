@@ -141,7 +141,7 @@ class OutputStruct:
         'int32': 'int *'
     }
 
-    def __init__(self, user_params, cosmo_params, init_arrays=False, **kwargs):
+    def __init__(self, user_params, cosmo_params, init=False, **kwargs):
         # These two parameter dicts will exist for every output struct.
         # Additional ones can be supplied with kwargs.
         self.user_params = user_params
@@ -150,8 +150,8 @@ class OutputStruct:
         for k,v in kwargs.items():
             setattr(self, k, v)
 
-        if init_arrays:
-            self._init_arrays()
+        if init:
+            self._init_cstruct()
 
         # Set the name of this struct in the C code
         if self._name is None:
@@ -171,11 +171,12 @@ class OutputStruct:
         lost. It must not be lost, or else C functions which use it will lose access to its memory. But it also must
         be created dynamically so that it can be recreated after pickling (pickle can't handle CData).
         """
-        if hasattr(self, "__cstruct"):
+        if hasattr(self, "_OutputStruct__cstruct"):
             return self.__cstruct
         else:
             self.__cstruct = self._new()
             return self.__cstruct
+
     @property
     def fields(self):
         return self.ffi.typeof(self._cstruct[0]).fields
@@ -201,18 +202,11 @@ class OutputStruct:
                 return False
         return True
 
-    @staticmethod
-    def _ary2buf(ary):
-        if not isinstance(ary, np.ndarray):
-            raise ValueError("ary must be a numpy array")
-        return ffi.cast(OutputStruct._TYPEMAP[ary.dtype.name], ffi.from_buffer(ary))
-
-    def __call__(self):
-        # Always set the arrays/pointers to their respective memory before actually returning the cstruct.
+    def _init_cstruct(self):
+        self._init_arrays()
         if not self.arrays_initialized:
-            self._init_arrays()
-            if not self.arrays_initialized:
-                raise AttributeError("%s is ill-defined. It has not initialized all necessary arrays."%self.__class__.__name__)
+            raise AttributeError(
+                "%s is ill-defined. It has not initialized all necessary arrays." % self.__class__.__name__)
 
         for k in self.pointer_fields:
             setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
@@ -221,6 +215,15 @@ class OutputStruct:
                 setattr(self._cstruct, k, getattr(self, k))
             except AttributeError:
                 pass
+
+    def _ary2buf(self, ary):
+        if not isinstance(ary, np.ndarray):
+            raise ValueError("ary must be a numpy array")
+        return self.ffi.cast(OutputStruct._TYPEMAP[ary.dtype.name], self.ffi.from_buffer(ary))
+
+    def __call__(self):
+        if not self.arrays_initialized:
+            self._init_cstruct()
 
         return self._cstruct
 
