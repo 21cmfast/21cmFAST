@@ -523,7 +523,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
         }
         global_xH /= (float)HII_TOT_NUM_PIXELS;
                 
-//        printf("global_xH = %e\n",global_xH);
+        printf("global_xH = %e\n",global_xH);
                 
         /*
         // update the N_rec field

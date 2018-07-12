@@ -319,7 +319,7 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
         }
     }
     
-    printf("low-res perturbed density; %e %e %e %e\n",perturbed_field->density[0],perturbed_field->density[100],perturbed_field->density[1000],perturbed_field->density[10000]);
+//    printf("low-res perturbed density; %e %e %e %e\n",perturbed_field->density[0],perturbed_field->density[100],perturbed_field->density[1000],perturbed_field->density[10000]);
 //    printf("low-res perturbed velocity (vz); %e %e %e %e\n",perturbed_field->velocity[0],perturbed_field->velocity[100],perturbed_field->velocity[1000],perturbed_field->velocity[10000]);
     
     // deallocate
