@@ -5,7 +5,7 @@ from ._21cmfast import ffi, lib
 import numpy as np
 from ._utils import StructWithDefaults, OutputStruct as _OS
 from astropy.cosmology import Planck15
-
+import numbers
 
 # ======================================================================================================================
 # PARAMETER STRUCTURES
@@ -605,9 +605,10 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
         at the same redshift as the spin temperature box. However, it does not need to be defined at the same redshift.
         If at a different redshift, it will be linearly evolved to the redshift of the spin temperature box.
 
-    previous_spin_temp : :class:`TsBox`, optional
-        The previous spin temperature box. Its redshift must be greater than `redshift`. If not given, will assume
-        that this is the initial, high redshift box.
+    previous_spin_temp : :class:`TsBox` or float, optional
+        The previous spin temperature box, or its redshift. This redshift must be greater than `redshift`. If not given,
+        will assume that this is the initial, high redshift box. If a redshift, then this will try to read in the
+        previous spin temp box at this redshift, and if it doesn't exist, will raise an exception.
 
     init_boxes : :class:`~InitialConditions` instance, optional
         If given, and `perturbed_field` *not* given, these initial conditions boxes will be used to generate the
@@ -652,23 +653,11 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
-        if user_params is None or cosmo_params is None:
-            raise ValueError("If perturbed_field is not given, both user_params and cosmo_params must be given.")
-
         perturbed_field = perturb_field(
             redshift = redshift if perturbed_field is None else perturbed_field.redshift,
             init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
             regenerate=regenerate, write=write, direc=direc,
             fname=None, match_seed=match_seed
-        )
-
-    if previous_spin_temp is not None and previous_spin_temp.redshift < redshift:
-        raise ValueError("Previous spin temperature box must have a higher redshift than that being evaluated.")
-
-    if previous_spin_temp is None:
-        previous_spin_temp = TsBox(
-            first_box=True, user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
-            redshift=0, astro_params=astro_params, flag_options=flag_options
         )
 
     box = TsBox(user_params=perturbed_field.user_params, cosmo_params=perturbed_field.cosmo_params,
@@ -678,10 +667,32 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     if not regenerate:
         try:
             box.read(direc, fname, match_seed=match_seed)
-            print("Existing perturb_field boxes found and read in.")
+            print("Existing spin_temp boxes found and read in.")
             return box
         except IOError:
             pass
+
+    # Ensure the previous spin temperature has a higher redshift than this one.
+    if previous_spin_temp is not None:
+        if hasattr(previous_spin_temp, "redshift"):
+            if previous_spin_temp.redshift < redshift:
+                raise ValueError("Previous spin temperature box must have a higher redshift than that being evaluated.")
+        elif isinstance(previous_spin_temp, numbers.Number):
+            if previous_spin_temp < redshift:
+                raise ValueError("Previous spin temperature box must have a higher redshift than that being evaluated.")
+
+    # If previous spin temperature is None, just make an empty box.
+    if previous_spin_temp is None:
+        previous_spin_temp = TsBox(first_box=True, redshift=0)
+    # Otherwise, if it's just a redshift, try to read in a box at that redshift, otherwise exception.
+    elif isinstance(previous_spin_temp, numbers.Number):
+        previous_spin_temp = TsBox(redshift=previous_spin_temp, user_params=perturbed_field.user_params,
+                                   cosmo_params=perturbed_field.cosmo_params, astro_params=astro_params,
+                                   flag_options=flag_options)
+        try:
+            previous_spin_temp.read(direc, fname, match_seed=match_seed)
+        except IOError:
+            raise IOError("The previous spin temperature redshift does not yet exist.")
 
     # Run the C Code
     lib.ComputeTsBox(redshift, previous_spin_temp.redshift, perturbed_field.user_params(), perturbed_field.cosmo_params(), astro_params(), perturbed_field.redshift, perturbed_field(), previous_spin_temp(), box())

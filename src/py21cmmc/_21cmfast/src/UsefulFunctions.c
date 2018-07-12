@@ -184,7 +184,7 @@ double MtoR(double M){
 double dicke(double z){
     double omegaM_z, dick_z, dick_0, x, x_0;
     double tiny = 1e-4;
-    
+
     if (fabs(cosmo_params_ufunc->OMm-1.0) < tiny){ //OMm = 1 (Einstein de-Sitter)
         return 1.0/(1.0+z);
     }
