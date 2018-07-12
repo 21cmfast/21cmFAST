@@ -450,6 +450,7 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
 
     return fields
 
+
 def ionize_box(astro_params=None, flag_options=FlagOptions(),
                redshift=None, perturbed_field=None,
                previous_ionize_box=None,
@@ -538,15 +539,6 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             regenerate=regenerate, write=write, direc=direc,
             fname=None, match_seed=match_seed
         )
-    
-    # Dynamically produce the Ts boxes.
-#    if spin_temp is None or not Ts_boxes.filled:
-#        Ts_boxes = spin_temperature(
-#            redshift, perturbed_field=perturbed_field, user_params=user_params, cosmo_params=cosmo_params,
-#            astro_params=astro_params,flag_options=flag_options,
-#            regenerate=regenerate, write=write, direc=direc,
-#            fname=None, match_seed=match_seed
-#        )
 
     do_spin_temp = True
     if spin_temp is None:

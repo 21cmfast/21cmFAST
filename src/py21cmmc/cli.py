@@ -3,8 +3,8 @@ Module that contains the command line app.
 """
 import click
 import yaml
-from . import initial_conditions, perturb_field, CosmoParams, UserParams#run_21cmfast
-
+from . import wrapper as lib #initial_conditions, perturb_field, CosmoParams, UserParams#run_21cmfast
+import warnings
 from os import path
 # from .mcmc import run_mcmc
 
@@ -20,21 +20,49 @@ def _get_config(config=None):
 
 
 def _ctx_to_dct(args):
-    return {args[i][2:]: args[i + 1] for i in range(0, len(args), 2)}
+    dct = {}
+    j = 0
+    while j < len(args):
+        arg = args[j]
+        if '=' in arg:
+            a = arg.split("=")
+            dct[a[0].replace("--","")] = a[-1]
+            j += 1
+        else:
+            dct[arg.replace("--","")] = args[j+1]
+            j += 2
+
+    return dct
 
 
 def _update(obj, ctx):
     # Try to use the extra arguments as an override of config.
-    for k,v in ctx.items():
+    kk = list(ctx.keys())
+    for k in kk:
         try:
             val = getattr(obj, "_"+k)
-            setattr(obj, "_" + k, type(val)(v))
+            setattr(obj, "_" + k, type(val)(ctx[k]))
+            ctx.pop(k)
         except AttributeError:
             try:
                 val = getattr(obj, k)
-                setattr(obj, k, type(val)(v))
+                setattr(obj, k, type(val)(ctx[k]))
+                ctx.pop(k)
             except AttributeError:
                 pass
+
+
+def _override(ctx, *param_dicts):
+    # Try to use the extra arguments as an override of config.
+    if ctx.args:
+        ctx = _ctx_to_dct(ctx.args)
+        for p in param_dicts:
+            _update(p, ctx)
+
+        # Also update globals, always.
+        _update(lib.global_params, ctx)
+        if ctx:
+            warnings.warn("The following arguments were not able to be set: %s"%ctx)
 
 
 main = click.Group()
@@ -84,16 +112,12 @@ def init(ctx, config, regen, direc, fname, match_seed):
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = UserParams(**cfg['user_params'])
-    cosmo_params = CosmoParams(**cfg['cosmo_params'])
+    user_params = lib.UserParams(**cfg['user_params'])
+    cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
 
-    # Try to use the extra arguments as an override of config.
-    if ctx.args:
-        ctx = _ctx_to_dct(ctx.args)
-        _update(user_params, ctx)
-        _update(cosmo_params, ctx)
+    _override(ctx, user_params, cosmo_params)
 
-    initial_conditions(
+    lib.initial_conditions(
         user_params, cosmo_params,
         regenerate=regen, write=True, direc=direc, fname=fname, match_seed=match_seed
     )
@@ -125,16 +149,12 @@ def perturb(ctx, redshift, config, regen, direc, fname, match_seed):
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = UserParams(**cfg['user_params'])
-    cosmo_params = CosmoParams(**cfg['cosmo_params'])
+    user_params = lib.UserParams(**cfg['user_params'])
+    cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
 
-    # Try to use the extra arguments as an override of config.
-    if ctx.args:
-        ctx = _ctx_to_dct(ctx.args)
-        _update(user_params, ctx)
-        _update(cosmo_params, ctx)
+    _override(ctx, user_params, cosmo_params)
 
-    perturb_field(
+    lib.perturb_field(
         redshift, user_params=user_params, cosmo_params=cosmo_params,
         regenerate=regen, write=True, direc=direc, fname=fname, match_seed=match_seed
     )
