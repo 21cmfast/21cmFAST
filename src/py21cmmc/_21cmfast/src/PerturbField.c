@@ -1,7 +1,7 @@
 
 // Re-write of perturb_field.c for being accessible within the MCMC
 
-void ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *p_cubes) {
+void ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field) {
     
     /*
      USAGE: perturb_field <REDSHIFT>
@@ -12,21 +12,18 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
      */
     
     // Makes the parameter structs visible to a variety of functions/macros
-    if(StructInit==0) {
-        Broadcast_struct_global_PS(user_params,cosmo_params);
-        Broadcast_struct_global_UF(user_params,cosmo_params);
-        
-        StructInit = 1;
-    }
+    // Do each time to avoid Python garbage collection issues
+    Broadcast_struct_global_PS(user_params,cosmo_params);
+    Broadcast_struct_global_UF(user_params,cosmo_params);
     
-    printf("high-res density; %e %e %e %e\n",boxes->hires_density[0],boxes->hires_density[100],boxes->hires_density[1000],boxes->hires_density[10000]);
-    printf("low-res density; %e %e %e %e\n",boxes->lowres_density[0],boxes->lowres_density[100],boxes->lowres_density[1000],boxes->lowres_density[10000]);
-    printf("low-res density (vx); %e %e %e %e\n",boxes->lowres_vx[0],boxes->lowres_vx[100],boxes->lowres_vx[1000],boxes->lowres_vx[10000]);
-    printf("low-res density (vy); %e %e %e %e\n",boxes->lowres_vy[0],boxes->lowres_vy[100],boxes->lowres_vy[1000],boxes->lowres_vy[10000]);
-    printf("low-res density (vz); %e %e %e %e\n",boxes->lowres_vz[0],boxes->lowres_vz[100],boxes->lowres_vz[1000],boxes->lowres_vz[10000]);
-    printf("low-res density (vx 2LPT); %e %e %e %e\n",boxes->lowres_vx_2LPT[0],boxes->lowres_vx_2LPT[100],boxes->lowres_vx_2LPT[1000],boxes->lowres_vx_2LPT[10000]);
-    printf("low-res density (vy 2LPT); %e %e %e %e\n",boxes->lowres_vy_2LPT[0],boxes->lowres_vy_2LPT[100],boxes->lowres_vy_2LPT[1000],boxes->lowres_vy_2LPT[10000]);
-    printf("low-res density (vz 2LPT); %e %e %e %e\n",boxes->lowres_vz_2LPT[0],boxes->lowres_vz_2LPT[100],boxes->lowres_vz_2LPT[1000],boxes->lowres_vz_2LPT[10000]);
+//    printf("high-res density; %e %e %e %e\n",boxes->hires_density[0],boxes->hires_density[100],boxes->hires_density[1000],boxes->hires_density[10000]);
+//    printf("low-res density; %e %e %e %e\n",boxes->lowres_density[0],boxes->lowres_density[100],boxes->lowres_density[1000],boxes->lowres_density[10000]);
+//    printf("low-res density (vx); %e %e %e %e\n",boxes->lowres_vx[0],boxes->lowres_vx[100],boxes->lowres_vx[1000],boxes->lowres_vx[10000]);
+//    printf("low-res density (vy); %e %e %e %e\n",boxes->lowres_vy[0],boxes->lowres_vy[100],boxes->lowres_vy[1000],boxes->lowres_vy[10000]);
+//    printf("low-res density (vz); %e %e %e %e\n",boxes->lowres_vz[0],boxes->lowres_vz[100],boxes->lowres_vz[1000],boxes->lowres_vz[10000]);
+//    printf("low-res density (vx 2LPT); %e %e %e %e\n",boxes->lowres_vx_2LPT[0],boxes->lowres_vx_2LPT[100],boxes->lowres_vx_2LPT[1000],boxes->lowres_vx_2LPT[10000]);
+//    printf("low-res density (vy 2LPT); %e %e %e %e\n",boxes->lowres_vy_2LPT[0],boxes->lowres_vy_2LPT[100],boxes->lowres_vy_2LPT[1000],boxes->lowres_vy_2LPT[10000]);
+//    printf("low-res density (vz 2LPT); %e %e %e %e\n",boxes->lowres_vz_2LPT[0],boxes->lowres_vz_2LPT[100],boxes->lowres_vz_2LPT[1000],boxes->lowres_vz_2LPT[10000]);
     
 //    struct UserParams temp;
     
@@ -62,7 +59,7 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
     dDdt = ddickedt(redshift); // time derivative of the growth factor (1/s)
     init_growth_factor = dicke(global_params.INITIAL_REDSHIFT);
     init_displacement_factor_2LPT = -(3.0/7.0) * init_growth_factor*init_growth_factor; // 2LPT eq. D8
-    printf("gf = %e dDdt = %e displacement_factor_2LPT = %e init_growth_factor = %e init_displacement_factor_2LPT = %e\n",growth_factor,dDdt,displacement_factor_2LPT,init_growth_factor,init_displacement_factor_2LPT);
+//    printf("gf = %e dDdt = %e displacement_factor_2LPT = %e init_growth_factor = %e init_displacement_factor_2LPT = %e\n",growth_factor,dDdt,displacement_factor_2LPT,init_growth_factor,init_displacement_factor_2LPT);
     
     
     // allocate memory for the updated density, and initialize
@@ -120,12 +117,12 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
             }
         }
         
-        printf("low-res perturbed vx; %e %e %e %e\n",boxes->lowres_vx[0],boxes->lowres_vx[100],boxes->lowres_vx[1000],boxes->lowres_vx[10000]);
-        printf("low-res perturbed vy; %e %e %e %e\n",boxes->lowres_vy[0],boxes->lowres_vy[100],boxes->lowres_vy[1000],boxes->lowres_vy[10000]);
-        printf("low-res perturbed vz; %e %e %e %e\n",boxes->lowres_vz[0],boxes->lowres_vz[100],boxes->lowres_vz[1000],boxes->lowres_vz[10000]);
-        printf("low-res perturbed vx (2LPT); %e %e %e %e\n",boxes->lowres_vx_2LPT[0],boxes->lowres_vx_2LPT[100],boxes->lowres_vx_2LPT[1000],boxes->lowres_vx_2LPT[10000]);
-        printf("low-res perturbed vy (2LPT); %e %e %e %e\n",boxes->lowres_vy_2LPT[0],boxes->lowres_vy_2LPT[100],boxes->lowres_vy_2LPT[1000],boxes->lowres_vy_2LPT[10000]);
-        printf("low-res perturbed vz (2LPT); %e %e %e %e\n",boxes->lowres_vz_2LPT[0],boxes->lowres_vz_2LPT[100],boxes->lowres_vz_2LPT[1000],boxes->lowres_vz_2LPT[10000]);
+//        printf("low-res perturbed vx; %e %e %e %e\n",boxes->lowres_vx[0],boxes->lowres_vx[100],boxes->lowres_vx[1000],boxes->lowres_vx[10000]);
+//        printf("low-res perturbed vy; %e %e %e %e\n",boxes->lowres_vy[0],boxes->lowres_vy[100],boxes->lowres_vy[1000],boxes->lowres_vy[10000]);
+//        printf("low-res perturbed vz; %e %e %e %e\n",boxes->lowres_vz[0],boxes->lowres_vz[100],boxes->lowres_vz[1000],boxes->lowres_vz[10000]);
+//        printf("low-res perturbed vx (2LPT); %e %e %e %e\n",boxes->lowres_vx_2LPT[0],boxes->lowres_vx_2LPT[100],boxes->lowres_vx_2LPT[1000],boxes->lowres_vx_2LPT[10000]);
+//        printf("low-res perturbed vy (2LPT); %e %e %e %e\n",boxes->lowres_vy_2LPT[0],boxes->lowres_vy_2LPT[100],boxes->lowres_vy_2LPT[1000],boxes->lowres_vy_2LPT[10000]);
+//        printf("low-res perturbed vz (2LPT); %e %e %e %e\n",boxes->lowres_vz_2LPT[0],boxes->lowres_vz_2LPT[100],boxes->lowres_vz_2LPT[1000],boxes->lowres_vz_2LPT[10000]);
         
         // * ************************************************************************* * //
         // *                            END 2LPT PART                                  * //
@@ -189,7 +186,7 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
             }
         }
         
-        printf("low-res density perturbed; %e %e %e %e\n",LOWRES_density_perturb[0],LOWRES_density_perturb[100],LOWRES_density_perturb[1000],LOWRES_density_perturb[10000]);
+//        printf("low-res density perturbed; %e %e %e %e\n",LOWRES_density_perturb[0],LOWRES_density_perturb[100],LOWRES_density_perturb[1000],LOWRES_density_perturb[10000]);
         
         // renormalize to the new pixel size, and make into delta
         for (i=0; i<user_params->HII_DIM; i++){
@@ -201,7 +198,7 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
             }
         }
         
-        printf("low-res density perturbed (normalised); %e %e %e %e\n",LOWRES_density_perturb[0],LOWRES_density_perturb[100],LOWRES_density_perturb[1000],LOWRES_density_perturb[10000]);
+//        printf("low-res density perturbed (normalised); %e %e %e %e\n",LOWRES_density_perturb[0],LOWRES_density_perturb[100],LOWRES_density_perturb[1000],LOWRES_density_perturb[10000]);
         
         // deallocate
         for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
@@ -224,7 +221,7 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
         for (i=0; i<user_params->HII_DIM; i++){
             for (j=0; j<user_params->HII_DIM; j++){
                 for (k=0; k<user_params->HII_DIM; k++){
-                    *((float *)p_cubes->density + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
+                    *((float *)perturbed_field->density + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
                 }
             }
         }
@@ -271,7 +268,7 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
         for (i=0; i<user_params->HII_DIM; i++){
             for (j=0; j<user_params->HII_DIM; j++){
                 for (k=0; k<user_params->HII_DIM; k++){
-                    *((float *)p_cubes->density + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
+                    *((float *)perturbed_field->density + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
                 }
             }
         }
@@ -317,13 +314,13 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
     for (i=0; i<user_params->HII_DIM; i++){
         for (j=0; j<user_params->HII_DIM; j++){
             for (k=0; k<user_params->HII_DIM; k++){
-                *((float *)p_cubes->velocity + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
+                *((float *)perturbed_field->velocity + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
             }
         }
     }
     
-    printf("low-res perturbed density; %e %e %e %e\n",p_cubes->density[0],p_cubes->density[100],p_cubes->density[1000],p_cubes->density[10000]);
-    printf("low-res perturbed velocity (vz); %e %e %e %e\n",p_cubes->velocity[0],p_cubes->velocity[100],p_cubes->velocity[1000],p_cubes->velocity[10000]);
+//    printf("low-res perturbed density; %e %e %e %e\n",perturbed_field->density[0],perturbed_field->density[100],perturbed_field->density[1000],perturbed_field->density[10000]);
+//    printf("low-res perturbed velocity (vz); %e %e %e %e\n",perturbed_field->velocity[0],perturbed_field->velocity[100],perturbed_field->velocity[1000],perturbed_field->velocity[10000]);
     
     // deallocate
     fftwf_free(LOWRES_density_perturb);

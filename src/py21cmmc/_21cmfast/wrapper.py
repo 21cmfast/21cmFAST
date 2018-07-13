@@ -173,6 +173,9 @@ class FlagOptions(StructWithDefaults):
 
     INHOMO_RECO : bool, optional
         Whether to perform inhomogeneous recombinations
+
+    USE_TS_FLUCT : bool, optional
+        Whether to perform IGM spin temperature fluctuations (i.e. X-ray heating)
     """
 
     ffi = ffi
@@ -181,6 +184,7 @@ class FlagOptions(StructWithDefaults):
         INCLUDE_ZETA_PL=False,
         SUBCELL_RSD=False,
         INHOMO_RECO=False,
+        USE_TS_FLUCT=False,
     )
 
 # ======================================================================================================================
@@ -234,7 +238,9 @@ class IonizedBox(OutputStructZ):
         super().__init__(astro_params=astro_params, flag_options=flag_options, first_box=first_box, **kwargs)
 
     def _init_arrays(self):
-        self.ionized_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        # ionized_box is always initialised to be neutral, for excursion set algorithm. Hence np.ones instead of np.zeros
+        self.xH_box = np.ones(self.user_params.HII_tot_num_pixels, dtype=np.float32) 
+        self.Gamma12_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
 
 class TsBox(IonizedBox):
@@ -242,6 +248,7 @@ class TsBox(IonizedBox):
 
     def _init_arrays(self):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.x_e_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
 
 class BrightnessTemp(IonizedBox):
@@ -416,9 +423,6 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
     # Optionally do stuff with the result (like writing it)
     if write:
         fields.write(direc, fname)
-
-    print(fields.density[0], fields.density[100], fields.density[1000], fields.density[10000])
-    print(fields.velocity[0], fields.velocity[100], fields.velocity[1000], fields.velocity[10000])
 
     return fields
 
@@ -709,34 +713,36 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
 
 def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
-    if spin_temp.redshift != ionized_box.redshift != perturb_field.redshift:
-        raise ValueError("all box redshifts must be the same.")
-
-    if spin_temp.user_params != ionized_box.user_params != perturb_field.user_params:
-        raise ValueError("all box user_params must be the same")
-
-    if spin_temp.cosmo_params != ionized_box.cosmo_params != perturb_field.cosmo_params:
-        raise ValueError("all box cosmo_params must be the same")
-
-    if spin_temp.astro_params != ionized_box.astro_params:
-        raise ValueError("all box astro_params must be the same")
 
     if spin_temp is None:
         saturated_limit = True
-        spin_temp = ffi.new("struct TsBox*")
+#        spin_temp = ffi.new("struct TsBox*")
+        spin_temp = TsBox(redshift=0)
+        
     else:
         saturated_limit = False
         spin_temp = spin_temp()
 
-    box = BrightnessTemp(user_params=spin_temp.user_params, cosmo_params=spin_temp.cosmo_params,
-                         astro_params=spin_temp.astro_params, flag_options=ionized_box.flag_options,
-                         redshift=spin_temp.redshift)
+#    if spin_temp.redshift != ionized_box.redshift != perturb_field.redshift:
+#        raise ValueError("all box redshifts must be the same.")
 
-    lib.ComputeBrightnessTemp(spin_temp.redshift, saturated_limit, spin_temp,
-                              spin_temp.user_params, spin_temp.cosmo_params, spin_temp.astro_params,
-                              ionized_box.flag_options,
-                              ionized_box(), perturb_field(), box())
-    box.filled = True
+#    if spin_temp.user_params != ionized_box.user_params != perturb_field.user_params:
+#        raise ValueError("all box user_params must be the same")
+
+#    if spin_temp.cosmo_params != ionized_box.cosmo_params != perturb_field.cosmo_params:
+#        raise ValueError("all box cosmo_params must be the same")
+
+#    if spin_temp.astro_params != ionized_box.astro_params:
+#        raise ValueError("all box astro_params must be the same")
+
+    box = BrightnessTemp(user_params=ionized_box.user_params, cosmo_params=ionized_box.cosmo_params,
+                         astro_params=ionized_box.astro_params, flag_options=ionized_box.flag_options,
+                         redshift=ionized_box.redshift)
+
+    lib.ComputeBrightnessTemp(ionized_box.redshift, saturated_limit,  
+        ionized_box.user_params(), ionized_box.cosmo_params(), ionized_box.astro_params(), ionized_box.flag_options(),
+        spin_temp(), ionized_box(), perturb_field(), box())
+    box.filled= True
     box._expose()
 
     return box
