@@ -7,6 +7,13 @@ from ._utils import StructWithDefaults, OutputStruct as _OS
 from astropy.cosmology import Planck15
 import numbers
 import warnings
+from os import path
+
+# The global parameter struct which can be modified.
+global_params = lib.global_params
+
+EXTERNALTABLES = ffi.new("char[]", path.join(path.expanduser("~"), ".21CMMC", "External_tables").encode())
+global_params.external_table_path = EXTERNALTABLES
 
 # ======================================================================================================================
 # PARAMETER STRUCTURES
@@ -968,8 +975,6 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
     return box
 
 
-# The global parameter struct which can be modified.
-global_params = lib.global_params
 
 
 # def run_21cmfast(redshifts, box_dim=None, flag_options=None, astro_params=None, cosmo_params=None,
