@@ -8,12 +8,14 @@ from astropy.cosmology import Planck15
 import numbers
 import warnings
 from os import path
+import copy
 
 # The global parameter struct which can be modified.
 global_params = lib.global_params
 
 EXTERNALTABLES = ffi.new("char[]", path.join(path.expanduser("~"), ".21CMMC", "External_tables").encode())
 global_params.external_table_path = EXTERNALTABLES
+
 
 # ======================================================================================================================
 # PARAMETER STRUCTURES
@@ -975,7 +977,120 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
     return box
 
 
+def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(), astro_params = None,
+               flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
+               fname=None, match_seed=True, z_step_factor = 1.02, z_heat_max=None):
+    """
+    Evaluates a coeval ionized box at a given redshift, or multiple redshifts.
 
+    User-supplied redshifts are *not* used as previous redshifts in any scrolling, so that pristine log-sampling
+    can be maintained.
+    
+    Parameters
+    ----------
+    redshift: array_like
+        A single redshift, or multiple redshifts, at which to return results. The minimum of these
+        will define the log-scrolling behaviour (if necessary).
+    z_step_factor: float
+        How large the logarithmic steps between redshifts are (if required).
+
+    Returns
+    -------
+    init_box: :class:`~InitialConditions`
+        The initial conditions data.
+
+    perturb: :class:`~PerturbedField` or list thereof
+        The perturbed field at the given redshift(s)
+
+    xHI: :class:`~IonizedBox` or list thereof
+        The ionization field(s).
+
+    bt: :class:`~BrightnessTemp` or list thereof
+        The brightness temperature box(es)
+    """
+    if z_heat_max:
+        global_params.Z_HEAT_MAX = z_heat_max
+
+    if not hasattr(redshift, "__len__"):
+        redshift = [redshift]
+
+    init_box = initial_conditions(user_params, cosmo_params, write=write, regenerate=regenerate, direc=direc,
+                                  fname=fname, match_seed=match_seed)
+
+    perturb = []
+    for z in redshift:
+        perturb += [perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
+                                direc=direc, fname=fname, match_seed=True)]
+
+    # Get the list of redshifts we need to scroll through.
+    if flag_options.INHOMO_RECO or do_spin_temp:
+        redshifts = [min(redshift)*1.0001] #mult by 1.001 is probably bad...
+        while redshifts[-1] < flag_options.Z_HEAT_MAX:
+            redshifts.append(redshifts[-1]*z_step_factor)
+    else:
+        redshifts = [min(redshift)]
+
+    # Add in the redshifts defined by the user, and sort in order, omitting the minimum,
+    # because it won't be exactly reproduced. Turn into a set so that exact matching user-set redshifts
+    # don't double-up with scrolling ones.
+    redshifts += redshift
+    redshifts = sorted(list(set(redshifts)), reverse=True)[:-1]
+
+    # Get the "first" spin temp box
+    if do_spin_temp:
+        st = spin_temperature(
+            redshift=redshifts[0],
+            astro_params=astro_params, flag_options=flag_options,
+            perturbed_field=perturb, write=write, direc=direc, fname=fname, match_seed=True
+        )
+
+        ib = ionize_box(spin_temp=st, write=write, direc=direc, fname=fname, match_seed=True)
+    else:
+        ib = ionize_box(
+            redshift=redshifts[0], do_spin_temp=False,
+            astro_params=astro_params, flag_options=flag_options,
+            perturbed_field=perturb, write=write, direc=direc, fname=fname, match_seed=True
+        )
+
+    ib_tracker = []
+    bt = []
+
+    # Iterate through redshift from top to bottom (except first one...)
+    for z in redshifts[1:]:
+        if do_spin_temp:
+            st2 = spin_temperature(
+                redshift=z,
+                previous_spin_temp=st,
+                perturbed_field=perturb, write=write, direc=direc, fname=fname, match_seed=True
+            )
+            ib2 = ionize_box(
+                redshift=z, previous_ionize_box=ib,
+                spin_temp=st2,
+                write=write, direc=direc, fname=fname, match_seed=True
+            )
+
+            if z not in redshift:
+                st = copy.deepcopy(st2)
+
+        else:
+            ib2 = ionize_box(
+                redshift=z, previous_ionize_box=ib,
+                write=write, direc=direc, fname=fname, match_seed=True
+            )
+
+        if z not in redshift:
+            ib = copy.deepcopy(ib2)
+        else:
+            ib_tracker.append(ib2)
+            bt += [brightness_temperature(ib2, perturb, st2 if do_spin_temp else None)]
+
+    # If a single redshift was passed, then pass back singletons.
+    if len(ib_tracker) == 1:
+        ib_tracker = ib_tracker[0]
+        bt = bt[0]
+        perturb = perturb[0]
+
+    return init_box, perturb, ib_tracker, bt
 
 # def run_21cmfast(redshifts, box_dim=None, flag_options=None, astro_params=None, cosmo_params=None,
 #                  write=True, regenerate=False, run_perturb=True, run_ionize=True, init_boxes=None,

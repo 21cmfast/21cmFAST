@@ -8,6 +8,7 @@ import numpy as np
 import os
 import h5py
 
+
 class HDFStorage:
     """
     A HDF Storage utility, based pretty much exclusively on the HDFBackend from emcee v3.0.0.
