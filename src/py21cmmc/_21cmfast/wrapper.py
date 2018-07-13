@@ -7,6 +7,7 @@ from ._utils import StructWithDefaults, OutputStruct as _OS
 from astropy.cosmology import Planck15
 import numbers
 
+
 # ======================================================================================================================
 # PARAMETER STRUCTURES
 # ======================================================================================================================
@@ -37,12 +38,12 @@ class CosmoParams(StructWithDefaults):
     ffi = ffi
 
     _defaults_ = dict(
-        RANDOM_SEED = None,
-        SIGMA_8 = 0.82,
-        hlittle = Planck15.h,
-        OMm = Planck15.Om0,
-        OMb = Planck15.Ob0,
-        POWER_INDEX = 0.97
+        RANDOM_SEED=None,
+        SIGMA_8=0.82,
+        hlittle=Planck15.h,
+        OMm=Planck15.Om0,
+        OMb=Planck15.Ob0,
+        POWER_INDEX=0.97
     )
 
     @property
@@ -50,13 +51,13 @@ class CosmoParams(StructWithDefaults):
         while not self._RANDOM_SEED:
             self._RANDOM_SEED = int(np.random.randint(1, 1e12))
         return self._RANDOM_SEED
-    
+
     @property
     def OMl(self):
         return 1 - self.OMm
 
     def cosmology(self):
-        return Planck15.clone(h = self.hlittle, Om0 = self.OMm, Ob0 = self.OMb)
+        return Planck15.clone(h=self.hlittle, Om0=self.OMm, Ob0=self.OMb)
 
 
 class UserParams(StructWithDefaults):
@@ -79,9 +80,9 @@ class UserParams(StructWithDefaults):
     ffi = ffi
 
     _defaults_ = dict(
-        BOX_LEN = 150.0,
-        DIM = None,
-        HII_DIM = 50,
+        BOX_LEN=150.0,
+        DIM=None,
+        HII_DIM=50,
     )
 
     @property
@@ -90,11 +91,12 @@ class UserParams(StructWithDefaults):
 
     @property
     def tot_fft_num_pixels(self):
-        return self.DIM**3
+        return self.DIM ** 3
 
     @property
     def HII_tot_num_pixels(self):
-        return self.HII_DIM**3
+        return self.HII_DIM ** 3
+
 
 class AstroParams(StructWithDefaults):
     """
@@ -119,17 +121,17 @@ class AstroParams(StructWithDefaults):
     ffi = ffi
 
     _defaults_ = dict(
-        EFF_FACTOR_PL_INDEX = 0.0,
-        HII_EFF_FACTOR = 30.0,
-        R_BUBBLE_MAX = None,
-        ION_Tvir_MIN = 4.69897,
-        L_X = 40.0,
-        NU_X_THRESH = 500.0,
-        X_RAY_SPEC_INDEX = 1.0,
-        X_RAY_Tvir_MIN = None,
-        F_STAR = 0.05,
-        t_STAR = 0.5,
-        N_RSD_STEPS = 20,
+        EFF_FACTOR_PL_INDEX=0.0,
+        HII_EFF_FACTOR=30.0,
+        R_BUBBLE_MAX=None,
+        ION_Tvir_MIN=4.69897,
+        L_X=40.0,
+        NU_X_THRESH=500.0,
+        X_RAY_SPEC_INDEX=1.0,
+        X_RAY_Tvir_MIN=None,
+        F_STAR=0.05,
+        t_STAR=0.5,
+        N_RSD_STEPS=20,
     )
 
     def __init__(self, INHOMO_RECO, **kwargs):
@@ -156,10 +158,6 @@ class AstroParams(StructWithDefaults):
     def X_RAY_Tvir_MIN(self):
         return 10 ** self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
 
-#    @property
-#    def NU_X_THRESH(self):
-#        return self._NU_X_THRESH * lib.NU_over_EV
-
 
 class FlagOptions(StructWithDefaults):
     """
@@ -185,37 +183,6 @@ class FlagOptions(StructWithDefaults):
         INHOMO_RECO=False,
     )
 
-#    def _logic(self):
-        # TODO: this needs to be discussed and fixed.
-        # if self.GenerateNewICs and (self.USE_FCOLL_IONISATION_TABLE or self.SHORTEN_FCOLL):
-        #     raise ValueError(
-        #         """
-        #         Cannot use interpolation tables when generating new initial conditions on the fly.
-        #         (Interpolation tables are only valid for a single cosmology/initial condition)
-        #         """
-        #     )
-        #
-        # if self.USE_TS_FLUCT and self.INCLUDE_ZETA_PL:
-        #     raise NotImplementedError(
-        #         """
-        #         Cannot use a non-constant ionising efficiency (zeta) in conjuction with the IGM spin temperature part of the code.
-        #         (This will be changed in future)
-        #         """
-        #     )
-
-        #if self.USE_FCOLL_IONISATION_TABLE and self.INHOMO_RECO:
-        #    raise ValueError(
-        #        "Cannot use the f_coll interpolation table for find_hii_bubbles with inhomogeneous recombinations")
-
-        # if self.INHOMO_RECO and not self.USE_TS_FLUCT:
-        #     raise ValueError(
-        #         """
-        #         Inhomogeneous recombinations have been set, but the spin temperature is not being computed.
-        #         "Inhomogeneous recombinations can only be used in combination with the spin temperature calculation (different from 21cmFAST).
-        #         """
-        #     )
-
-
 # ======================================================================================================================
 # OUTPUT STRUCTURES
 # ======================================================================================================================
@@ -236,6 +203,7 @@ class InitialConditions(OutputStruct):
     """
     A class containing all initial conditions boxes.
     """
+
     def _init_arrays(self):
         self.lowres_density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vx = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
@@ -244,13 +212,14 @@ class InitialConditions(OutputStruct):
         self.lowres_vx_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vy_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vz_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype= np.float32)
+        self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
 
 
 class PerturbedField(OutputStructZ):
     """
     A class containing all perturbed field boxes
     """
+
     def _init_arrays(self):
         self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
@@ -258,6 +227,7 @@ class PerturbedField(OutputStructZ):
 
 class IonizedBox(OutputStructZ):
     "A class containing all ionized boxes"
+
     def __init__(self, astro_params=None, flag_options=FlagOptions(), first_box=False, **kwargs):
         if astro_params is None:
             astro_params = AstroParams(flag_options.INHOMO_RECO)
@@ -269,12 +239,14 @@ class IonizedBox(OutputStructZ):
 
 class TsBox(IonizedBox):
     "A class containing all spin temperature boxes"
+
     def _init_arrays(self):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
 
 class BrightnessTemp(IonizedBox):
     "A class containin the brightness temperature box."
+
     def _init_arrays(self):
         self.brightness_temp = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
@@ -317,8 +289,8 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
         The class which contains the various boxes defining the initial conditions.
     """
     # First initialize memory for the boxes that will be returned.
-    boxes = InitialConditions(user_params,cosmo_params)
-        
+    boxes = InitialConditions(user_params, cosmo_params)
+
     # First check whether the boxes already exist.
     if not regenerate:
         try:
@@ -445,8 +417,8 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
     if write:
         fields.write(direc, fname)
 
-    print(fields.density[0],fields.density[100],fields.density[1000],fields.density[10000])
-    print(fields.velocity[0],fields.velocity[100],fields.velocity[1000],fields.velocity[10000])
+    print(fields.density[0], fields.density[100], fields.density[1000], fields.density[10000])
+    print(fields.velocity[0], fields.velocity[100], fields.velocity[1000], fields.velocity[10000])
 
     return fields
 
@@ -526,11 +498,10 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         raise ValueError("Either perturbed_field or redshift must be provided.")
     elif perturbed_field is not None:
         redshift = perturbed_field.redshift
-    
+
     # Set the default astro params, using the INHOMO_RECO flag.
     if astro_params is None:
         astro_params = AstroParams(flag_options.INHOMO_RECO)
-
 
     if spin_temp is not None and spin_temp.redshift != redshift:
         raise ValueError("The redshift of the spin_temp field needs to be the current redshift")
@@ -538,7 +509,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
         perturbed_field = perturb_field(
-            redshift,init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
+            redshift, init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
             regenerate=regenerate, write=write, direc=direc,
             fname=None, match_seed=match_seed
         )
@@ -684,7 +655,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
         perturbed_field = perturb_field(
-            redshift = redshift if perturbed_field is None else perturbed_field.redshift,
+            redshift=redshift if perturbed_field is None else perturbed_field.redshift,
             init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
             regenerate=regenerate, write=write, direc=direc,
             fname=None, match_seed=match_seed
@@ -725,7 +696,9 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             raise IOError("The previous spin temperature redshift does not yet exist.")
 
     # Run the C Code
-    lib.ComputeTsBox(redshift, previous_spin_temp.redshift, perturbed_field.user_params(), perturbed_field.cosmo_params(), astro_params(), perturbed_field.redshift, perturbed_field(), previous_spin_temp(), box())
+    lib.ComputeTsBox(redshift, previous_spin_temp.redshift, perturbed_field.user_params(),
+                     perturbed_field.cosmo_params(), astro_params(), perturbed_field.redshift, perturbed_field(),
+                     previous_spin_temp(), box())
     box.filled = True
 
     # Optionally do stuff with the result (like writing it)
@@ -759,10 +732,11 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
                          astro_params=spin_temp.astro_params, flag_options=ionized_box.flag_options,
                          redshift=spin_temp.redshift)
 
-    lib.ComputeBrightnessTemp(spin_temp.redshift, saturated_limit, spin_temp, 
-        spin_temp.user_params, spin_temp.cosmo_params, spin_temp.astro_params, ionized_box.flag_options,
-        ionized_box(), perturb_field(), box())
-    box.filled= True
+    lib.ComputeBrightnessTemp(spin_temp.redshift, saturated_limit, spin_temp,
+                              spin_temp.user_params, spin_temp.cosmo_params, spin_temp.astro_params,
+                              ionized_box.flag_options,
+                              ionized_box(), perturb_field(), box())
+    box.filled = True
     box._expose()
 
     return box
@@ -770,7 +744,6 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
 
 # The global parameter struct which can be modified.
 global_params = lib.global_params
-
 
 # def run_21cmfast(redshifts, box_dim=None, flag_options=None, astro_params=None, cosmo_params=None,
 #                  write=True, regenerate=False, run_perturb=True, run_ionize=True, init_boxes=None,
@@ -804,4 +777,3 @@ global_params = lib.global_params
 #         output += [ionized_boxes]
 #
 #     return output
-
