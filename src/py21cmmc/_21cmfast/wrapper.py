@@ -278,6 +278,7 @@ class TsBox(IonizedBox):
     def _init_arrays(self):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.x_e_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.Tk_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
 
 class BrightnessTemp(IonizedBox):

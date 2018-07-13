@@ -160,6 +160,13 @@ double dtdz(float z);
 double ddickedt(double z);
 double omega_mz(float z);
 double Deltac_nonlinear(float z);
+double drdz(float z); /* comoving distance, (1+z)*C*dtdz(in cm) per unit z */
+double alpha_A(double T);
+
+double HeI_ion_crosssec(double nu);
+double HeII_ion_crosssec(double nu);
+double HI_ion_crosssec(double nu);
+
 
 
 /* R in Mpc, M in Msun */
@@ -320,5 +327,69 @@ double t_hubble(float z){
     return 1.0/hubble(z);
 }
 
+/* comoving distance (in cm) per unit redshift */
+double drdz(float z){
+    return (1.0+z)*C*dtdz(z);
+}
+
+/* returns the case A hydrogen recombination coefficient (Abel et al. 1997) in cm^3 s^-1*/
+double alpha_A(double T){
+    double logT, ans;
+    logT = log(T/(double)1.1604505e4);
+    ans = pow(E, -28.6130338 - 0.72411256*logT - 2.02604473e-2*pow(logT, 2)
+              - 2.38086188e-3*pow(logT, 3) - 3.21260521e-4*pow(logT, 4)
+              - 1.42150291e-5*pow(logT, 5) + 4.98910892e-6*pow(logT, 6)
+              + 5.75561414e-7*pow(logT, 7) - 1.85676704e-8*pow(logT, 8)
+              - 3.07113524e-9 * pow(logT, 9));
+    return ans;
+}
 
 
+/* function HeI_ion_crosssec returns the HI ionization cross section at parameter frequency
+ (taken from Verner et al (1996) */
+double HeI_ion_crosssec(double nu){
+    double x,y,Fy;
+    
+    if (nu < HeI_NUIONIZATION)
+        return 0;
+    
+    x = nu/NU_over_EV/13.61 - 0.4434;
+    y = sqrt(x*x + pow(2.136, 2));
+    return  9.492e-16*((x-1)*(x-1) + 2.039*2.039) *
+    pow(y, (0.5 * 3.188 - 5.5))
+    * pow(1.0 + sqrt(y/1.469), -3.188);
+}
+
+
+/* function HeII_ion_crosssec returns the HeII ionization cross section at parameter frequency
+ (taken from Osterbrock, pg. 14) */
+double HeII_ion_crosssec(double nu){
+    double epsilon, Z = 2;
+    
+    if (nu < HeII_NUIONIZATION)
+        return 0;
+    
+    if (nu == HeII_NUIONIZATION)
+        nu+=TINY;
+    
+    epsilon = sqrt( nu/HeII_NUIONIZATION - 1);
+    return (6.3e-18)/Z/Z * pow(HeII_NUIONIZATION/nu, 4)
+    * pow(E, 4-(4*atan(epsilon)/epsilon)) / (1-pow(E, -2*PI/epsilon));
+}
+
+
+/* function HI_ion_crosssec returns the HI ionization cross section at parameter frequency
+ (taken from Osterbrock, pg. 14) */
+double HI_ion_crosssec(double nu){
+    double epsilon, Z = 1;
+    
+    if (nu < NUIONIZATION)
+        return 0;
+    
+    if (nu == NUIONIZATION)
+        nu+=TINY;
+    
+    epsilon = sqrt( nu/NUIONIZATION - 1);
+    return (6.3e-18)/Z/Z * pow(NUIONIZATION/nu, 4)
+    * pow(E, 4-(4*atan(epsilon)/epsilon)) / (1-pow(E, -2*PI/epsilon));
+}

@@ -24,10 +24,14 @@
 #include "UsefulFunctions.c"
 #include "ps.c"
 #include "PerturbField.c"
+#include "bubble_helper_progs.c"
 #include "IonisationBox.c"
+#include "elec_interp.c"
+#include "heating_helper_progs.c"
 #include "SpinTemperatureBox.c"
 #include "BrightnessTemperatureBox.c"
-#include "bubble_helper_progs.c"
+
+
 
 // Re-write of init.c for being accessible within the MCMC
 

@@ -82,7 +82,7 @@ void initialiseFcoll_spline(float z, float Mmin, float Mmax, float Mval, float M
 double dFdlnM_st_PL (double lnM, void *params);
 double FgtrM_st_PL(double z, double Mmin, double MFeedback, double alpha_pl);
 
-
+double sigmaparam_FgtrM_bias(float z, float sigsmallR, float del_bias, float sig_bias);
 
 
 unsigned long *lvector(long nl, long nh);
@@ -1062,4 +1062,28 @@ void free_lvector(unsigned long *v, long nl, long nh)
 /* free an unsigned long vector allocated with lvector() */
 {
     free((FREE_ARG) (v+nl-NR_END));
+}
+
+/* Uses sigma parameters instead of Mass for scale */
+double sigmaparam_FgtrM_bias(float z, float sigsmallR, float del_bias, float sig_bias){
+    double del, sig;
+    
+    if (!(sig_bias < sigsmallR)){ // biased region is smaller that halo!
+        //    fprintf(stderr, "local_FgtrM_bias: Biased region is smaller than halo!\nResult is bogus.\n");
+        //    return 0;
+        return 0.000001;
+    }
+    
+    del = Deltac/dicke(z) - del_bias;
+    sig = sqrt(sigsmallR*sigsmallR - sig_bias*sig_bias);
+    
+    return splined_erfc(del / (sqrt(2)*sig));
+}
+
+/* redshift derivative of the growth function at z */
+double ddicke_dz(double z){
+    float dz = 1e-10;
+    double omegaM_z, ddickdz, dick_0, x, x_0, domegaMdz;
+    
+    return (dicke(z+dz)-dicke(z))/dz;
 }
