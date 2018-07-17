@@ -1,0 +1,22 @@
+py21cmmc.mcmc
+=============
+
+.. automodule:: py21cmmc.mcmc
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      run_mcmc
+   
+   
+
+   
+   
+   
+
+   
+   
+   

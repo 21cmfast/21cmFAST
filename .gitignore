@@ -14,3 +14,5 @@ build/temp\.linux-x86_64-3\.6/
 *.*~
 
 .pytest_cache/
+/docs/_build/html/_static/fonts/RobotoSlab/
+docs/_build/*
