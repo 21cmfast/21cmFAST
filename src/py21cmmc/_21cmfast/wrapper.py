@@ -1,14 +1,16 @@
 """
 A thin python wrapper for the 21cmFAST C-code.
 """
-from ._21cmfast import ffi, lib
-import numpy as np
-from ._utils import StructWithDefaults, OutputStruct as _OS
-from astropy.cosmology import Planck15
+import copy
 import numbers
 import warnings
 from os import path
-import copy
+
+import numpy as np
+from astropy.cosmology import Planck15, z_at_value
+
+from ._21cmfast import ffi, lib
+from ._utils import StructWithDefaults, OutputStruct as _OS
 
 # The global parameter struct which can be modified.
 global_params = lib.global_params
@@ -977,22 +979,58 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
     return box
 
 
+def _logscroll_redshifts(min_redshift, z_step_factor):
+    redshifts = [min_redshift * 1.0001]  # mult by 1.001 is probably bad...
+    while redshifts[-1] < global_params.Z_HEAT_MAX:
+        redshifts.append(redshifts[-1] * z_step_factor)
+    return redshifts
+
 def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(), astro_params = None,
                flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
-               fname=None, match_seed=True, z_step_factor = 1.02, z_heat_max=None):
+               match_seed=True, z_step_factor=1.02, z_heat_max=None):
     """
     Evaluates a coeval ionized box at a given redshift, or multiple redshifts.
 
-    User-supplied redshifts are *not* used as previous redshifts in any scrolling, so that pristine log-sampling
-    can be maintained.
-    
+    This is generally the easiest and most efficient way to generate a set of coeval cubes at a given set of redshifts.
+    It self-consistently deals with situations in which the field needs to be evolved, and does this with the highest
+    memory-efficiency, only returning the desired redshifts. All other calculations are by default stored in the
+    on-disk cache so they can be re-used at a later time.
+
+    .. note:: User-supplied redshifts are *not* used as previous redshifts in any scrolling, so that pristine
+              log-sampling can be maintained.
+
     Parameters
     ----------
     redshift: array_like
         A single redshift, or multiple redshifts, at which to return results. The minimum of these
         will define the log-scrolling behaviour (if necessary).
-    z_step_factor: float
+    user_params : `~UserParams` instance, optional
+        Defines the overall options and parameters of the run.
+    cosmo_params : `~CosmoParams` instance, optional
+        Defines the cosmological parameters used to compute initial conditions.
+    astro_params: :class:`~AstroParams` instance, optional
+        The astrophysical parameters defining the course of reionization.
+    flag_options: :class:`~FlagOptions` instance, optional
+        Some options passed to the reionization routine.
+    do_spin_temp: bool, optional
+        Whether to use spin temperature in the calculation, or assume the saturated limit.
+    regenerate : bool, optional
+        Whether to force regeneration of the boxes, even if corresponding boxes are found in the on-disk cache.
+    write : bool, optional
+        Whether to write results to the on-disk cache.
+    direc : str, optional
+        The directory in which to search for the boxes and write them. By default, this is the centrally-managed
+        directory, given by the ``config.yml`` in ``.21CMMC`.
+    match_seed : bool, optional
+        Whether to force the random seed to also match in order for the *initial conditions* to be considered a match.
+        Otherwise any initial conditions matching the given cosmological parameters will be used. This is only used
+        for the initial conditions -- once they have been read in, all dependent boxes must have the same seed.
+    z_step_factor: float, optional
         How large the logarithmic steps between redshifts are (if required).
+    z_heat_max: float, optional
+        Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift up to which heating sources
+        are required to specify the ionization field. Beyond this, the ionization field is specified directly from
+        the perturbed density field.
 
     Returns
     -------
@@ -1015,20 +1053,20 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
         redshift = [redshift]
 
     init_box = initial_conditions(user_params, cosmo_params, write=write, regenerate=regenerate, direc=direc,
-                                  fname=fname, match_seed=match_seed)
+                                  match_seed=match_seed)
 
     perturb = []
     for z in redshift:
         perturb += [perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
-                                direc=direc, fname=fname, match_seed=True)]
+                                  direc=direc, match_seed=True)]
+
+    minarg = np.argmin(redshift)
 
     # Get the list of redshifts we need to scroll through.
     if flag_options.INHOMO_RECO or do_spin_temp:
-        redshifts = [min(redshift)*1.0001] #mult by 1.001 is probably bad...
-        while redshifts[-1] < flag_options.Z_HEAT_MAX:
-            redshifts.append(redshifts[-1]*z_step_factor)
+        redshifts = _logscroll_redshifts(min(redshift) * 1.0001, z_step_factor)
     else:
-        redshifts = [min(redshift)]
+        redshifts = [min(redshift) / 1.001]
 
     # Add in the redshifts defined by the user, and sort in order, omitting the minimum,
     # because it won't be exactly reproduced. Turn into a set so that exact matching user-set redshifts
@@ -1041,15 +1079,16 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
         st = spin_temperature(
             redshift=redshifts[0],
             astro_params=astro_params, flag_options=flag_options,
-            perturbed_field=perturb, write=write, direc=direc, fname=fname, match_seed=True
+            perturbed_field=perturb[minarg], regenerate=regenerate,
+            write=write, direc=direc, match_seed=True
         )
 
-        ib = ionize_box(spin_temp=st, write=write, direc=direc, fname=fname, match_seed=True)
+        ib = ionize_box(spin_temp=st, write=write, direc=direc, match_seed=True)
     else:
         ib = ionize_box(
             redshift=redshifts[0], do_spin_temp=False,
-            astro_params=astro_params, flag_options=flag_options,
-            perturbed_field=perturb, write=write, direc=direc, fname=fname, match_seed=True
+            astro_params=astro_params, flag_options=flag_options, regenerate=regenerate,
+            perturbed_field=perturb[minarg], write=write, direc=direc, match_seed=True
         )
 
     ib_tracker = []
@@ -1061,12 +1100,13 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
             st2 = spin_temperature(
                 redshift=z,
                 previous_spin_temp=st,
-                perturbed_field=perturb, write=write, direc=direc, fname=fname, match_seed=True
+                perturbed_field=perturb[minarg], regenerate=regenerate,
+                write=write, direc=direc, match_seed=True
             )
             ib2 = ionize_box(
                 redshift=z, previous_ionize_box=ib,
-                spin_temp=st2,
-                write=write, direc=direc, fname=fname, match_seed=True
+                spin_temp=st2, regenerate=regenerate,
+                write=write, direc=direc, match_seed=True
             )
 
             if z not in redshift:
@@ -1074,15 +1114,19 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
 
         else:
             ib2 = ionize_box(
-                redshift=z, previous_ionize_box=ib,
-                write=write, direc=direc, fname=fname, match_seed=True
+                redshift=z, previous_ionize_box=ib, regenerate=regenerate,
+                write=write, direc=direc, match_seed=True
             )
 
         if z not in redshift:
             ib = copy.deepcopy(ib2)
         else:
             ib_tracker.append(ib2)
-            bt += [brightness_temperature(ib2, perturb, st2 if do_spin_temp else None)]
+            bt += [brightness_temperature(ib2, perturb[minarg], st2 if do_spin_temp else None)]
+
+    # The last one won't get in because of the dodgy redshift thing
+    ib_tracker += [ib]
+    bt += [brightness_temperature(ib, perturb[minarg], st if do_spin_temp else None)]
 
     # If a single redshift was passed, then pass back singletons.
     if len(ib_tracker) == 1:
@@ -1092,35 +1136,139 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
 
     return init_box, perturb, ib_tracker, bt
 
-# def run_21cmfast(redshifts, box_dim=None, flag_options=None, astro_params=None, cosmo_params=None,
-#                  write=True, regenerate=False, run_perturb=True, run_ionize=True, init_boxes=None,
-#                  free_ps=True, progress_bar=True):
-#
-#     # Create structures of parameters
-#     box_dim = box_dim or {}
-#     flag_options = flag_options or {}
-#     astro_params = astro_params or {}
-#     cosmo_params = cosmo_params or {}
-#
-#     box_dim = BoxDim(**box_dim)
-#     flag_options = FlagOptions(**flag_options)
-#     astro_params = AstroParams(**astro_params)
-#     cosmo_params = CosmoParams(**cosmo_params)
-#
-#     # Compute initial conditions, but only if they aren't passed in directly by the user.
-#     if init_boxes is None:
-#         init_boxes = initial_conditions(box_dim, cosmo_params, regenerate, write)
-#
-#     output = [init_boxes]
-#
-#     # Run perturb if desired
-#     if run_perturb:
-#         for z in redshifts:
-#             perturb_fields = perturb_field(z, init_boxes, regenerate=regenerate)
-#
-#     # Run ionize if desired
-#     if run_ionize:
-#         ionized_boxes = ionize(redshifts, flag_options, astro_params)
-#         output += [ionized_boxes]
-#
-#     return output
+
+def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(), astro_params=None,
+                  flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
+                  fname=None, match_seed=True, z_step_factor=1.02, z_heat_max=None):
+    """
+    Evaluates a full lightcone ending at a given redshift.
+
+    This is generally the easiest and most efficient way to generate a lightcone, though it can be done manually by
+    using the lower-level functions which are called by this function.
+
+    Parameters
+    ----------
+    redshift: float
+        The minimum redshift of the lightcone.
+    max_redshift: float, optional
+        The maximum redshift at which to keep lightcone information. By default, this is equal to `z_heat_max`.
+        Note that this is not *exact*, but will be typically slightly exceeded.
+    user_params : `~UserParams` instance, optional
+        Defines the overall options and parameters of the run.
+    cosmo_params : `~CosmoParams` instance, optional
+        Defines the cosmological parameters used to compute initial conditions.
+    astro_params: :class:`~AstroParams` instance, optional
+        The astrophysical parameters defining the course of reionization.
+    flag_options: :class:`~FlagOptions` instance, optional
+        Some options passed to the reionization routine.
+    do_spin_temp: bool, optional
+        Whether to use spin temperature in the calculation, or assume the saturated limit.
+    regenerate : bool, optional
+        Whether to force regeneration of boxes, even if corresponding boxes are found in the on-disk cache.
+    write : bool, optional
+        Whether to write results to the on-disk cache.
+    direc : str, optional
+        The directory in which to search for the boxes and write them. By default, this is the centrally-managed
+        directory, given by the ``config.yml`` in ``.21CMMC`.
+    match_seed : bool, optional
+        Whether to force the random seed to also match in order for the *initial conditions* to be considered a match.
+        Otherwise any initial conditions matching the given cosmological parameters will be used. This is only used
+        for the initial conditions -- once they have been read in, all dependent boxes must have the same seed.
+    z_step_factor: float, optional
+        How large the logarithmic steps between redshifts are (if required).
+    z_heat_max: float, optional
+        Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift up to which heating sources
+        are required to specify the ionization field. Beyond this, the ionization field is specified directly from
+        the perturbed density field.
+
+    Returns
+    -------
+    lightcone: :class:`~LightCone`
+        The lightcone object.
+    """
+    if z_heat_max:
+        global_params.Z_HEAT_MAX = z_heat_max
+    if max_redshift is None:
+        max_redshift = global_params.Z_HEAT_MAX
+
+    init_box = initial_conditions(user_params, cosmo_params, write=write, regenerate=regenerate, direc=direc,
+                                  match_seed=match_seed)
+
+    perturb = perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
+                            direc=direc, match_seed=True)
+
+    # Get the redshifts through which we scroll and evaluate the ionization field.
+    scrollz = _logscroll_redshifts(redshift, z_step_factor)
+    scrollz = sorted(scrollz, reverse=True)
+
+    # Get the "first" spin temp box
+    if do_spin_temp:
+        st = spin_temperature(
+            redshift=scrollz[0],
+            astro_params=astro_params, flag_options=flag_options,
+            perturbed_field=perturb, regenerate=regenerate,
+            write=write, direc=direc, match_seed=True
+        )
+
+        ib = ionize_box(spin_temp=st, write=write, direc=direc, match_seed=True)
+    else:
+        ib = ionize_box(
+            redshift=scrollz[0], do_spin_temp=False,
+            astro_params=astro_params, flag_options=flag_options, regenerate=regenerate,
+            perturbed_field=perturb, write=write, direc=direc, match_seed=True
+        )
+
+    # Here set up the lightcone box.
+    # Get a length of the lightcone (bigger than it needs to be at first).
+    Ltotal = cosmo_params.cosmo.comoving_distance(scrollz[0] * z_step_factor) - cosmo_params.cosmo.comoving_distance(
+        redshift)
+    distances = np.arange(0, Ltotal, user_params.BOX_LEN / user_params.HII_DIM)
+
+    # Use max_redshift to get the actual distances we require.
+    Lmax = cosmo_params.cosmo.comoving_distance(max_redshift) - cosmo_params.cosmo.comoving_distance(redshift)
+    first_greater = np.argwhere(distances > Lmax)[0]
+
+    # Get *at least* as far as max_redshift
+    distances = distances[:(first_greater + 1)]
+    lc_redshifts = z_at_value(cosmo_params.cosmo.comoving_distance, distances * Lmax.unit)
+    n_lightcone = len(distances)
+    lc = np.zeros((user_params.HII_DIM, user_params.HII_DIM, n_lightcone))
+
+    # Iterate through redshift from top to bottom (except first one...)
+    prev_z = scrollz[0]
+    for iz, z in enumerate(scrollz[1:]):
+        if do_spin_temp:
+            st2 = spin_temperature(
+                redshift=z,
+                previous_spin_temp=st,
+                perturbed_field=perturb, regenerate=regenerate,
+                write=write, direc=direc, match_seed=True
+            )
+            ib2 = ionize_box(
+                redshift=z, previous_ionize_box=ib,
+                spin_temp=st2, regenerate=regenerate,
+                write=write, direc=direc, match_seed=True
+            )
+        else:
+            ib2 = ionize_box(
+                redshift=z, previous_ionize_box=ib, regenerate=regenerate,
+                write=write, direc=direc, match_seed=True
+            )
+
+        # HERE IS WHERE WE NEED TO DO THE INTERPOLATION ONTO THE LIGHTCONE!
+        if z < max_redshift:
+            # Get the cells that need to be filled on this iteration.
+            these_redshifts = lc_redshifts[np.logical_and(lc_redshifts < prev_z, lc_redshifts >= z)]
+
+            # Do linear interpolation only.
+            prev_d = cosmo_params.cosmo.comoving_distance(prev_z)
+            this_d = cosmo_params.cosmo.comoving_distance(z)
+
+            # TODO: need brad to help here.
+
+        # Save current ones as old ones.
+        if do_spin_temp: st = copy.deepcopy(st2)
+        ib = copy.deepcopy(ib2)
+        prev_z = 1 * z
+
+    return lightcone
