@@ -1,5 +1,93 @@
 """
-A thin python wrapper for the 21cmFAST C-code.
+This is the main wrapper for the underlying 21cmFAST C-code, and the module provides a number of:
+
+* Input-parameter classes which wrap various C structs (these are the classes ending with ``*Params`` or ``*Options``)
+* Output objects which simplify access to underlying data structures, such as density, velocity and ionization fields
+* Low-level functions which simplify calling the background C functions which populate these output objects given the
+  input classes.
+* High-level functions which provide the most efficient and simplest way to generate the most commonly desired outputs.
+
+Along with these, the module exposes ``global_params``, which is a simple class providing read/write access to a number
+of parameters used throughout the computation which are very rarely varied. These parameters can be accessed as
+standard instance attributes of ``global_params``, and listed using ``dir(global_params)``. When set, they are used
+globally for all proceeding calculations.
+
+**Input Parameter Classes**
+
+There are four input parameter/option classes, not all of which are required for any given function. They are
+:class:`UserParams`, :class:`CosmoParams`, :class:`AstroParams` and :class:`FlagOptions`. Each of them defines a number
+of variables, and all of these have default values, to minimize the burden on the user. These defaults are accessed via
+the ``_defaults_`` class attribute of each class. The available parameters for each are listed in the documentation
+for each class below.
+
+**Output Objects**
+
+The remainder of the classes defined in this module are output classes. These exist to simplify access to large datasets
+created within C. Fundamentally, ownership of the data belongs to these classes, and the C functions merely accesses
+this and fills it. The various boxes and quantities associated with each output are available as instance attributes.
+Along with the output data, each output object contains the various input parameter objects necessary to define it.
+
+.. warning:: These should not be instantiated or filled by the user, but always handled as output objects from the
+             various functions contained here. Only the data within the objects should be accessed.
+
+**Low-level functions**
+
+The low-level functions provided here ease the production of the aforementioned output objects. Functions exist for
+each low-level C routine, which have been decoupled as far as possible. So, functions exist to create
+:func:`initial_conditions`, :func:`perturb_field`, :class:`ionize_box` and so on. Creating a brightness temperature
+box (often the desired final output) would generally require calling each of these in turn, as each depends on the
+result of a previous function. Nevertheless, each function has the capability of generating the required previous
+outputs on-the-fly, so one can instantly call :func:`ionize_box` and get a self-consistent result. Doing so, while
+convenient, is sometimes not *efficient*, especially when using inhomogeneous recombinations or the spin temperature
+field, which intrinsically require consistent evolution of the ionization field through redshift. In these cases, for
+best efficiency it is recommended to either use a customised manual approach to calling these low-level functions, or
+to call a higher-level function which optimizes this process.
+
+Finally, note that ``21CMMC`` attempts to optimize the production of the large amount of data via on-disk caching.
+By default, if a previous set of data has been computed using the current input parameters, it will be read-in from
+a caching repository and returned directly. This behaviour can be tuned in any of the low-level (or high-level)
+functions by setting the `write`, `fname`, `direc`, `regenerate` and `match_seed` parameters (see docs for
+:func:`initial_conditions` for details).
+
+**High-level functions**
+
+As previously mentioned, calling the low-level functions in some cases is non-optimal, especially when full evolution
+of the field is required, and thus iteration through a series of redshifts. In addition, while
+:class:`InitialConditions` and :class:`PerturbedField` are necessary intermediate data, it is *usually* the resulting
+brightness temperature which is of most interest, and it is easier to not have to worry about the intermediate steps
+explicitly. For these typical use-cases, two high-level functions are available: :func:`run_coeval` and
+:func:`run_lightcone`, whose purpose should be self-explanatory. These will optimally run all necessary intermediate
+steps (using cached results by default if possible) and return all datasets of interest.
+
+
+Examples
+--------
+A typical example of using this module would be the following.
+
+>>> import py21cmmc as p21
+
+Get coeval cubes at redshifts 7,8 and 9, without spin temperature or inhomogeneous recombinations:
+
+>>> init, perturb, xHI, Tb = p21.run_coeval(
+>>>                              redshift=[7,8,9],
+>>>                              cosmo_params=p21.CosmoParams(hlittle=0.7),
+>>>                              user_params=p21.UserParams(HII_DIM=100)
+>>>                          )
+
+Get coeval cubes at the same redshifts, with both spin temperature and inhomogeneous recombinations, pulled from the
+natural evolution of the fields:
+
+>>> all_boxes = p21.run_coeval(
+>>>                 redshift=[7,8,9],
+>>>                 user_params=p21.UserParams(HII_DIM=100),
+>>>                 flag_options=p21.FlagOptions(INHOMO_RECO=True),
+>>>                 do_spin_temp=True
+>>>             )
+
+Get a self-consistent lightcone defined between z1 and z2 (`z_step_factor` changes the logarithmic steps between
+redshifts that are actually evaluated, which are then interpolated onto the lightcone cells):
+
+>>> lightcone = p21.run_lightcone(redshift=z2, max_redshift=z2, z_step_factor=1.03)
 """
 import copy
 import numbers
@@ -26,6 +114,10 @@ class CosmoParams(StructWithDefaults):
     """
     Cosmological parameters (with defaults) which translates to a C struct.
 
+    To see default values for each parameter, use ``CosmoParams._defaults_``.
+    All parameters passed in the constructor are also saved as instance attributes which should
+    be considered read-only. This is true of all input-parameter classes.
+
     Parameters
     ----------
     RANDOM_SEED : float, optional
@@ -46,7 +138,7 @@ class CosmoParams(StructWithDefaults):
     POWER_INDEX : float, optional
         Spectral index of the power spectrum.
     """
-    ffi = ffi
+    _ffi = ffi
 
     _defaults_ = dict(
         RANDOM_SEED=None,
@@ -59,21 +151,34 @@ class CosmoParams(StructWithDefaults):
 
     @property
     def RANDOM_SEED(self):
+        """
+        The current random seed for the cosmology, which determines the initial conditions.
+        """
         while not self._RANDOM_SEED:
             self._RANDOM_SEED = int(np.random.randint(1, 1e12))
         return self._RANDOM_SEED
 
     @property
     def OMl(self):
+        """
+        Omega lambda, dark energy density.
+        """
         return 1 - self.OMm
 
-    def cosmology(self):
+    def cosmo(self):
+        """
+        Return an astropy cosmology object for this cosmology.
+        """
         return Planck15.clone(h=self.hlittle, Om0=self.OMm, Ob0=self.OMb)
 
 
 class UserParams(StructWithDefaults):
     """
     Structure containing user parameters (with defaults).
+
+    To see default values for each parameter, use ``UserParams._defaults_``.
+    All parameters passed in the constructor are also saved as instance attributes which should
+    be considered read-only. This is true of all input-parameter classes.
 
     Parameters
     ----------
@@ -88,7 +193,7 @@ class UserParams(StructWithDefaults):
     BOX_LEN : float, optional
         Length of the box, in Mpc.
     """
-    ffi = ffi
+    _ffi = ffi
 
     _defaults_ = dict(
         BOX_LEN=150.0,
@@ -98,14 +203,19 @@ class UserParams(StructWithDefaults):
 
     @property
     def DIM(self):
+        """
+        Number of cells for the high-res box (sampling ICs) along a principal axis. Dynamically generated.
+        """
         return self._DIM or 4 * self.HII_DIM
 
     @property
     def tot_fft_num_pixels(self):
+        "Number of pixels in the high-res box."
         return self.DIM ** 3
 
     @property
     def HII_tot_num_pixels(self):
+        "Number of pixels in the low-res box."
         return self.HII_DIM ** 3
 
 
@@ -113,23 +223,31 @@ class AstroParams(StructWithDefaults):
     """
     Astrophysical parameters.
 
+    To see default values for each parameter, use ``AstroParams._defaults_``.
+    All parameters passed in the constructor are also saved as instance attributes which should
+    be considered read-only. This is true of all input-parameter classes.
+
     Parameters
     ----------
     INHOMO_RECO : bool, optional
+        Whether inhomogeneous recombinations are being calculated. This is not a part of the astro parameters structure,
+        but is required by this class to set some default behaviour.
     EFF_FACTOR_PL_INDEX : float, optional
     HII_EFF_FACTOR : float, optional
     R_BUBBLE_MAX : float, optional
+        Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
     ION_Tvir_MIN : float, optional
     L_X : float, optional
     NU_X_THRESH : float, optional
     X_RAY_SPEC_INDEX : float, optional
     X_RAY_Tvir_MIN : float, optional
+        Default is `ION_Tvir_MIN`.
     F_STAR : float, optional
     t_STAR : float, optional
     N_RSD_STEPS : float, optional
     """
 
-    ffi = ffi
+    _ffi = ffi
 
     _defaults_ = dict(
         EFF_FACTOR_PL_INDEX=0.0,
@@ -152,6 +270,7 @@ class AstroParams(StructWithDefaults):
 
     @property
     def R_BUBBLE_MAX(self):
+        "Maximum radius of bubbles to be searched. Set dynamically."
         if not self._R_BUBBLE_MAX:
             return 50.0 if self.INHOMO_RECO else 15.0
         else:
@@ -159,20 +278,27 @@ class AstroParams(StructWithDefaults):
 
     @property
     def ION_Tvir_MIN(self):
+        "Minimum virial temperature of ionization (unlogged)."
         return 10 ** self._ION_Tvir_MIN
 
     @property
     def L_X(self):
+        "X-ray luminosity (unlogged)"
         return 10 ** self._L_X
 
     @property
     def X_RAY_Tvir_MIN(self):
+        "Minimum virial temperature of X-ray emitting sources (unlogged and set dynamically)."
         return 10 ** self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
 
 
 class FlagOptions(StructWithDefaults):
     """
     Flag-style options for the ionization routines.
+
+    To see default values for each parameter, use ``FlagOptions._defaults_``.
+    All parameters passed in the constructor are also saved as instance attributes which should
+    be considered read-only. This is true of all input-parameter classes.
 
     Parameters
     ----------
@@ -189,7 +315,7 @@ class FlagOptions(StructWithDefaults):
         Whether to perform IGM spin temperature fluctuations (i.e. X-ray heating)
     """
 
-    ffi = ffi
+    _ffi = ffi
 
     _defaults_ = dict(
         INCLUDE_ZETA_PL=False,
@@ -201,20 +327,20 @@ class FlagOptions(StructWithDefaults):
 # ======================================================================================================================
 # OUTPUT STRUCTURES
 # ======================================================================================================================
-class OutputStruct(_OS):
+class _OutputStruct(_OS):
     def __init__(self, user_params=UserParams(), cosmo_params=CosmoParams(), **kwargs):
         super().__init__(user_params=user_params, cosmo_params=cosmo_params, **kwargs)
 
-    ffi = ffi
+    _ffi = ffi
 
 
-class OutputStructZ(OutputStruct):
+class _OutputStructZ(_OutputStruct):
     def __init__(self, redshift, user_params=UserParams(), cosmo_params=CosmoParams(), **kwargs):
         super().__init__(user_params=user_params, cosmo_params=cosmo_params, redshift=float(redshift), **kwargs)
         self._name += "_z%.4f" % self.redshift
 
 
-class InitialConditions(OutputStruct):
+class InitialConditions(_OutputStruct):
     """
     A class containing all initial conditions boxes.
     """
@@ -230,7 +356,7 @@ class InitialConditions(OutputStruct):
         self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
 
 
-class PerturbedField(OutputStructZ):
+class PerturbedField(_OutputStructZ):
     """
     A class containing all perturbed field boxes
     """
@@ -240,7 +366,7 @@ class PerturbedField(OutputStructZ):
         self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
 
-class IonizedBox(OutputStructZ):
+class IonizedBox(_OutputStructZ):
     "A class containing all ionized boxes"
 
     def __init__(self, astro_params=None, flag_options=FlagOptions(), first_box=False, **kwargs):
@@ -279,32 +405,39 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
 
     Parameters
     ----------
-    user_params : `~UserParams` instance, optional
+    user_params : :class:`~UserParams` instance, optional
         Defines the overall options and parameters of the run.
 
-    cosmo_params : `~CosmoParams` instance, optional
+    cosmo_params : :class:`~CosmoParams` instance, optional
         Defines the cosmological parameters used to compute initial conditions.
 
     regenerate : bool, optional
-        Whether to force regeneration of the initial conditions, even if a corresponding box is found.
+        Whether to force regeneration of data, even if matching cached data is found. This is applied recursively to
+        any potential sub-calculations. It is ignored in the case of dependent data only if that data is explicitly
+        passed to the function.
 
     write : bool, optional
-        Whether to write results to file.
+        Whether to write results to file (i.e. cache). This is recursively applied to any potential sub-calculations.
 
     direc : str, optional
-        The directory in which to search for the boxes and write them. By default, this is the centrally-managed
-        directory, given by the ``config.yml`` in ``.21CMMC`.
+        The directory in which to search for the boxes and write them. By default, this is the directory given by
+        ``boxdir`` in the configuration file, ``~/.21CMMC/config.yml``. Note that for *reading* data, while the
+        specified `direc` is searched first, the default directory will *also* be searched if no appropriate data is
+        found in `direc`. This is recursively applied to any potential sub-calculations.
 
     fname : str, optional
-        The filename to search for/write to.
+        The filename to search for/write to. This is used in tandem with `direc` to search for cached data. Like `direc`,
+        for reading data, it is used first, but default (automatic) filenames are used failing this. This is *not*
+        recursively applied to sub-calculations.
 
     match_seed : bool, optional
-        Whether to force the random seed to also match in order to be considered a match.
+        If `False`, then the caching mechanism will consider any initial conditions boxes with the same defining parameters
+        to be a match, without considering the random seed. Otherwise, the random seed must also be matched to be read
+        in from cache. Any other kinds of boxes will always require matching the seed to be self-consistent.
 
     Returns
     -------
-    `~InitialConditions`
-        The class which contains the various boxes defining the initial conditions.
+    :class:`~InitialConditions`
     """
     # First initialize memory for the boxes that will be returned.
     boxes = InitialConditions(user_params, cosmo_params)
@@ -341,37 +474,24 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
     redshift : float
         The redshift at which to compute the perturbed field.
 
-    init_boxes : :class:`~InitialConditions` instance, optional
+    init_boxes : :class:`~InitialConditions`, optional
         If given, these initial conditions boxes will be used, otherwise initial conditions will be generated. If given,
         the user and cosmo params will be set from this object.
 
-    user_params : `~UserParams` instance, optional
+    user_params : :class:`~UserParams`, optional
         Defines the overall options and parameters of the run.
 
-    cosmo_params : `~CosmoParams` instance, optional
+    cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
-
-
-    regenerate : bool, optional
-        Whether to force regeneration of the initial conditions, even if a corresponding box is found.
-
-    write : bool, optional
-        Whether to write results to file.
-
-    direc : str, optional
-        The directory in which to search for the boxes and write them. By default, this is the centrally-managed
-        directory, given by the ``config.yml`` in ``.21CMMC`.
-
-    fname : str, optional
-        The filename to search for/write to.
-
-    match_seed : bool, optional
-        Whether to force the random seed to also match in order to be considered a match.
 
     Returns
     -------
-    :class:`~PerturbField`
-        An object containing the density and velocity fields at the specified redshift.
+    :class:`~PerturbedField`
+
+    Other Parameters
+    ----------------
+    regenerate, write, direc, fname, match_seed:
+        See docs of :func:`initial_conditions` for more information.
 
     Examples
     --------
@@ -463,11 +583,11 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         The redshift at which to compute the ionized box. If `perturbed_field` is given, its inherent redshift
         will take precedence over this argument. If not, this argument is mandatory.
 
-    perturbed_field : :class:`~PerturbField` instance, optional
+    perturbed_field : :class:`~PerturbField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated, either `init_boxes` and
         `redshift` must be given, or `user_params`, `cosmo_params` and `redshift`.
 
-    init_boxes : :class:`~InitialConditions` instance, optional
+    init_boxes : :class:`~InitialConditions` , optional
         If given, and `perturbed_field` *not* given, these initial conditions boxes will be used to generate the
         perturbed field, otherwise initial conditions will be generated on the fly. If given,
         the user and cosmo params will be set from this object.
@@ -494,33 +614,21 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         If None, will try to read in a spin temp box at the current redshift, and failing that will try to
         automatically create one, using the previous ionized box redshift as the previous spin temperature redshift.
 
-    user_params : `~UserParams` instance, optional
+    user_params : :class:`~UserParams`, optional
         Defines the overall options and parameters of the run.
 
-    cosmo_params : `~CosmoParams` instance, optional
+    cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
-
-    regenerate : bool, optional
-        Whether to force regeneration of the initial conditions, even if a corresponding box is found.
-
-    write : bool, optional
-        Whether to write results to file.
-
-    direc : str, optional
-        The directory in which to search for the boxes and write them. By default, this is the centrally-managed
-        directory, given by the ``config.yml`` in ``.21CMMC`.
-
-    fname : str, optional
-        The filename to search for/write to.
-
-    match_seed : bool, optional
-        Whether to force the random seed to also match in order to be considered a match.
 
     Returns
     -------
     :class:`~IonizedBox`
         An object containing the ionized box data.
 
+    Other Parameters
+    ----------------
+    regenerate, write, direc, fname, match_seed:
+        See docs of :func:`initial_conditions` for more information.
 
     Notes
     -----
@@ -535,7 +643,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     just the final field at the current redshift, or (iv) the function is instructed to treat the current field as
     being an initial "high-redshift" field such that specific sources need not be found and evolved.
 
-    .. note:: if a previous specific redshift is given, but no cached field is found at that redshift, the previous
+    .. note:: If a previous specific redshift is given, but no cached field is found at that redshift, the previous
               ionization field will be evaluated based on `z_step_factor`.
 
     Examples
@@ -739,17 +847,17 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
     Parameters
     ----------
-    astro_params: :class:`~AstroParams` instance, optional
+    astro_params: :class:`~AstroParams`, optional
         The astrophysical parameters defining the course of reionization.
 
-    flag_options: :class:`~FlagOptions` instance, optional
+    flag_options: :class:`~FlagOptions`, optional
         Some options passed to the reionization routine.
 
     redshift : float, optional
         The redshift at which to compute the ionized box. If not given, the redshift from `perturbed_field` will be used.
         Either `redshift`, `perturbed_field` or both must be given.
 
-    perturbed_field : :class:`~PerturbField` instance, optional
+    perturbed_field : :class:`~PerturbField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated, either `init_boxes` and
         `redshift` must be given, or `user_params`, `cosmo_params` and `redshift`. By default, this will be generated
         at the same redshift as the spin temperature box. However, it does not need to be defined at the same redshift.
@@ -769,40 +877,26 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
         at which the spin temperature can be defined purely from the background perturbed field rather than by evolving
         from a previous spin temperature field. Default is the global parameter `Z_HEAT_MAX`.
 
-    init_boxes : :class:`~InitialConditions` instance, optional
+    init_boxes : :class:`~InitialConditions`, optional
         If given, and `perturbed_field` *not* given, these initial conditions boxes will be used to generate the
         perturbed field, otherwise initial conditions will be generated on the fly. If given,
         the user and cosmo params will be set from this object.
 
-    user_params : `~UserParams` instance, optional
+    user_params : :class:`~UserParams`, optional
         Defines the overall options and parameters of the run.
 
-    cosmo_params : `~CosmoParams` instance, optional
+    cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
-
-    regenerate : bool, optional
-        Whether to force regeneration of the initial conditions, even if a corresponding box is found.
-
-    write : bool, optional
-        Whether to write results to file.
-
-    direc : str, optional
-        The directory in which to search for the boxes and write them. By default, this is the centrally-managed
-        directory, given by the ``config.yml`` in ``.21CMMC`.
-
-    fname : str, optional
-        The filename to search for/write to.
-
-    match_seed : bool, optional
-        Whether to force the random seed to also match in order to be considered a match. This will always be true
-        when looking for previous spin temperature boxes, but does not need to be true when identifying the primary
-        density field.
 
     Returns
     -------
     :class:`~TsBox`
         An object containing the spin temperature box data.
 
+    Other Parameters
+    ----------------
+    regenerate, write, direc, fname, match_seed:
+        See docs of :func:`initial_conditions` for more information.
 
     Notes
     -----
@@ -816,11 +910,9 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     (iv) the function is instructed to treat the current field as being an initial "high-redshift" field such that
     specific sources need not be found and evolved.
 
-    .. note:: if a previous specific redshift is given, but no cached field is found at that redshift, the previous
+    .. note:: If a previous specific redshift is given, but no cached field is found at that redshift, the previous
               spin temperature field will be evaluated based on `z_step_factor`.
 
-    .. warning:: though it is convenient to have this function recursively determine the history of re-ionization, it
-                 is by no means efficient. It requires to keep all intermediate boxes
     Examples
     --------
     To calculate and return a fully evolved spin temperature field at a given redshift (with default input parameters),
@@ -944,7 +1036,24 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
 
 def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
+    """
+    Compute a coeval brightness temperature box.
 
+    Parameters
+    ----------
+    ionized_box: :class:`IonizedBox`
+        A pre-computed ionized box.
+
+    perturb_field: :class:`PerturbedField`
+        A pre-computed perturbed field at the same redshift as `ionized_box`.
+
+    spin_temp: :class:`TsBox`, optional
+        A pre-computed spin temperature, at the same redshift as the other boxes.
+
+    Returns
+    -------
+    :class:`BrightnessTemp` instance.
+    """
     if spin_temp is None:
         saturated_limit = True
 #        spin_temp = ffi.new("struct TsBox*")
@@ -985,6 +1094,7 @@ def _logscroll_redshifts(min_redshift, z_step_factor):
         redshifts.append(redshifts[-1] * z_step_factor)
     return redshifts
 
+
 def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(), astro_params = None,
                flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
                match_seed=True, z_step_factor=1.02, z_heat_max=None):
@@ -1004,27 +1114,16 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
     redshift: array_like
         A single redshift, or multiple redshifts, at which to return results. The minimum of these
         will define the log-scrolling behaviour (if necessary).
-    user_params : `~UserParams` instance, optional
+    user_params : :class:`~UserParams`, optional
         Defines the overall options and parameters of the run.
-    cosmo_params : `~CosmoParams` instance, optional
+    cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
-    astro_params: :class:`~AstroParams` instance, optional
+    astro_params: :class:`~AstroParams`, optional
         The astrophysical parameters defining the course of reionization.
-    flag_options: :class:`~FlagOptions` instance, optional
+    flag_options: :class:`~FlagOptions`, optional
         Some options passed to the reionization routine.
     do_spin_temp: bool, optional
         Whether to use spin temperature in the calculation, or assume the saturated limit.
-    regenerate : bool, optional
-        Whether to force regeneration of the boxes, even if corresponding boxes are found in the on-disk cache.
-    write : bool, optional
-        Whether to write results to the on-disk cache.
-    direc : str, optional
-        The directory in which to search for the boxes and write them. By default, this is the centrally-managed
-        directory, given by the ``config.yml`` in ``.21CMMC`.
-    match_seed : bool, optional
-        Whether to force the random seed to also match in order for the *initial conditions* to be considered a match.
-        Otherwise any initial conditions matching the given cosmological parameters will be used. This is only used
-        for the initial conditions -- once they have been read in, all dependent boxes must have the same seed.
     z_step_factor: float, optional
         How large the logarithmic steps between redshifts are (if required).
     z_heat_max: float, optional
@@ -1045,6 +1144,11 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
 
     bt: :class:`~BrightnessTemp` or list thereof
         The brightness temperature box(es)
+
+    Other Parameters
+    ----------------
+    regenerate, write, direc, match_seed:
+        See docs of :func:`initial_conditions` for more information.
     """
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
@@ -1153,27 +1257,16 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
     max_redshift: float, optional
         The maximum redshift at which to keep lightcone information. By default, this is equal to `z_heat_max`.
         Note that this is not *exact*, but will be typically slightly exceeded.
-    user_params : `~UserParams` instance, optional
+    user_params : `~UserParams`, optional
         Defines the overall options and parameters of the run.
-    cosmo_params : `~CosmoParams` instance, optional
+    user_params : :class:`~UserParams`, optional
+        Defines the overall options and parameters of the run.
+    cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
-    astro_params: :class:`~AstroParams` instance, optional
-        The astrophysical parameters defining the course of reionization.
-    flag_options: :class:`~FlagOptions` instance, optional
+    flag_options: :class:`~FlagOptions`, optional
         Some options passed to the reionization routine.
     do_spin_temp: bool, optional
         Whether to use spin temperature in the calculation, or assume the saturated limit.
-    regenerate : bool, optional
-        Whether to force regeneration of boxes, even if corresponding boxes are found in the on-disk cache.
-    write : bool, optional
-        Whether to write results to the on-disk cache.
-    direc : str, optional
-        The directory in which to search for the boxes and write them. By default, this is the centrally-managed
-        directory, given by the ``config.yml`` in ``.21CMMC`.
-    match_seed : bool, optional
-        Whether to force the random seed to also match in order for the *initial conditions* to be considered a match.
-        Otherwise any initial conditions matching the given cosmological parameters will be used. This is only used
-        for the initial conditions -- once they have been read in, all dependent boxes must have the same seed.
     z_step_factor: float, optional
         How large the logarithmic steps between redshifts are (if required).
     z_heat_max: float, optional
@@ -1185,6 +1278,11 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
     -------
     lightcone: :class:`~LightCone`
         The lightcone object.
+
+    Other Parameters
+    ----------------
+    regenerate, write, direc, match_seed:
+        See docs of :func:`initial_conditions` for more information.
     """
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
