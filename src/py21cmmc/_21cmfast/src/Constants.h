@@ -27,6 +27,36 @@
 
 // ----------------------------------------------------------------------------------------- //
 
+// Taken from elec_interp.c
+
+// ----------------------------------------------------------------------------------------- //
+
+
+
+/*
+ Filenames of the appropriate output from RECFAST to be used as boundary conditions in Ts.c
+ as well as other tables used to compute the spin temperature
+ */
+#define RECFAST_FILENAME (const char *) "External_tables/recfast_LCDM.dat"
+#define STELLAR_SPECTRA_FILENAME (const char *) "External_tables/stellar_spectra.dat"
+#define KAPPA_EH_FILENAME (const char *) "External_tables/kappa_eH_table.dat"
+#define KAPPA_PH_FILENAME (const char *) "External_tables/kappa_pH_table.dat"
+
+
+// ----------------------------------------------------------------------------------------- //
+
+// Taken from HEAT_PARAMS.H
+
+// ----------------------------------------------------------------------------------------- //
+
+
+/* Maximum allowed value for the kinetic temperature. Useful to set to avoid some spurious behaviour
+ when the code is run with redshift poor resolution and very high X-ray heating efficiency */
+#define MAX_TK (float) 5e4
+
+
+// ----------------------------------------------------------------------------------------- //
+
 // Taken from COSMOLOGY.H
 
 // ----------------------------------------------------------------------------------------- //
@@ -51,7 +81,7 @@
 #define TWOPI (double) (2.0*PI)
 #define FOURPI (double) (4.0*PI)
 #define G (double) 6.67259e-8 // cm^3 g^-1 s^-2
-#define hplank (double) 6.62606896e-27 /. erg s
+#define hplank (double) 6.62606896e-27 // erg s
 #define TINY (double) 1e-30
 #define FRACT_FLOAT_ERR (double) 1e-7 // fractional floating point error
 #define f_alpha (float) 0.4162 / oscillator strength of Lya
@@ -83,3 +113,36 @@
 #define T21 (double) 0.0628 // temperature corresponding to the 21cm photon
 #define A10_HYPERFINE (double) 2.85e-15 // spontaneous emission coefficient in s^-1
 
+
+// ----------------------------------------------------------------------------------------- //
+
+// Taken from heating_helper_progs.c
+
+// ----------------------------------------------------------------------------------------- //
+
+
+
+#define NSPEC_MAX (int) 23
+#define RECFAST_NPTS (int) 501
+#define KAPPA_10_NPTS (int) 27
+#define KAPPA_10_elec_NPTS (int) 20
+#define KAPPA_10_pH_NPTS (int) 17
+
+#define KAPPA_10_NPTS_Spline (int) 30
+#define KAPPA_10_elec_NPTS_Spline (int) 30
+#define KAPPA_10_pH_NPTS_Spline (int) 30
+
+#define zpp_interp_points (int) (400)                  /* Number of interpolation points for the interpolation table for z'' */
+#define dens_Ninterp (int) (400)                       /* Number of interpolation points for the interpolation table for the value of the density field */
+
+
+// ----------------------------------------------------------------------------------------- //
+
+// Taken from elec_interp.c
+
+// ----------------------------------------------------------------------------------------- //
+
+
+
+#define x_int_NXHII  14
+#define x_int_NENERGY  258
