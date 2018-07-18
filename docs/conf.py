@@ -14,6 +14,8 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
+    'sphinx.ext.mathjax',
+    'numpydoc'
 ]
 if os.getenv('SPELLCHECK'):
     extensions += 'sphinxcontrib.spelling',
@@ -21,20 +23,21 @@ if os.getenv('SPELLCHECK'):
     spelling_lang = 'en_US'
 
 autosummary_generate=True
+numpydoc_show_class_members = False
 
 source_suffix = '.rst'
 master_doc = 'index'
-project = 'py21cmmc'
+project = '21CMMC'
 year = '2018'
-author = 'Steven Murray'
+author = 'Brad Greig and Steven Murray'
 copyright = '{0}, {1}'.format(year, author)
 version = release = '0.1.0'
+templates_path = ['templates']
 
 pygments_style = 'trac'
-templates_path = ['.']
 extlinks = {
-    'issue': ('https://github.com/steven-murray/py21cmmc/issues/%s', '#'),
-    'pr': ('https://github.com/steven-murray/py21cmmc/pull/%s', 'PR #'),
+    'issue': ('https://github.com/BradGreig/21CMMC/issues/%s', '#'),
+    'pr': ('https://github.com/BradGreig/21CMMC/pull/%s', 'PR #'),
 }
 # on_rtd is whether we are on readthedocs.org
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
@@ -53,3 +56,5 @@ html_short_title = '%s-%s' % (project, version)
 napoleon_use_ivar = True
 napoleon_use_rtype = False
 napoleon_use_param = False
+
+mathjax_path = "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"

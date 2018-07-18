@@ -7,6 +7,7 @@ py21cmmc
 
 .. autosummary::
     :toctree: _autosummary
+    :template: module.rst
 
     py21cmmc._21cmfast.wrapper
 
