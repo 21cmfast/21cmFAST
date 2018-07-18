@@ -253,13 +253,13 @@ class OutputStruct:
         for k in self._pointer_fields:
             if not hasattr(self, k):
                 return False
+            elif getattr(self._cstruct, k) == self._ffi.NULL:
+                return False
         return True
 
     def _init_cstruct(self):
+
         self._init_arrays()
-        if not self.arrays_initialized:
-            raise AttributeError(
-                "%s is ill-defined. It has not initialized all necessary arrays." % self.__class__.__name__)
 
         for k in self._pointer_fields:
             setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
@@ -268,6 +268,10 @@ class OutputStruct:
                 setattr(self._cstruct, k, getattr(self, k))
             except AttributeError:
                 pass
+
+        if not self.arrays_initialized:
+            raise AttributeError(
+                "%s is ill-defined. It has not initialized all necessary arrays." % self.__class__.__name__)
 
     def _ary2buf(self, ary):
         if not isinstance(ary, np.ndarray):
@@ -439,7 +443,7 @@ class OutputStruct:
 
         # Need to make sure arrays are initialized before reading in data to them.
         if not self.arrays_initialized:
-            self._init_arrays()
+            self._init_cstruct()
 
         with h5py.File(pth,'r') as f:
             try:
