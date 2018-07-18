@@ -523,17 +523,11 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
     if init_boxes is not None:
         user_params = init_boxes.user_params
         cosmo_params = init_boxes.cosmo_params
+        match_seed = True # Need to match seed if matching an init box.
 
     # Set to defaults if init_boxes wasn't provided and neither were they.
     user_params = user_params or UserParams()
     cosmo_params = cosmo_params or CosmoParams()
-
-    # Make sure we've got computed init boxes.
-    if init_boxes is None or not init_boxes.filled:
-        init_boxes = initial_conditions(
-            user_params, cosmo_params, regenerate=regenerate, write=write,
-            direc=direc, fname=None
-        )
 
     # Initialize perturbed boxes.
     fields = PerturbedField(redshift, user_params, cosmo_params)
@@ -546,6 +540,13 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
             return fields
         except IOError:
             pass
+
+    # Make sure we've got computed init boxes.
+    if init_boxes is None or not init_boxes.filled:
+        init_boxes = initial_conditions(
+            user_params, cosmo_params, regenerate=regenerate, write=write,
+            direc=direc, match_seed=match_seed
+        )
 
     # Run the C Code
     lib.ComputePerturbField(redshift, user_params(), cosmo_params(), init_boxes(), fields())
@@ -692,6 +693,9 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     If automatic recursion is used, then it is done in such a way that no large boxes are kept around in memory for
     longer than they need to be (only two at a time are required).
     """
+    if spin_temp is not None or perturbed_field is not None or init_boxes is not None:
+        match_seed = True
+
     if spin_temp is not None:
         do_spin_temp = True
 
@@ -801,8 +805,9 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
                 z_step_factor=z_step_factor, z_heat_max=z_heat_max,
                 do_spin_temp=do_spin_temp,
                 init_boxes=init_boxes, regenerate=regenerate, write=write, direc=direc,
-                match_seed=True
+                match_seed=match_seed
             )
+            match_seed = True
 
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
@@ -811,16 +816,18 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             regenerate=regenerate, write=write, direc=direc,
             fname=None, match_seed=match_seed
         )
+        match_seed = True
 
     # Set empty spin temp box if necessary.
     if not do_spin_temp:
         spin_temp = TsBox(redshift=0)
     elif spin_temp is None:
-        # The following will raise an error (rightly) if the previous spin temperature does not exist.
         spin_temp = spin_temperature(
             redshift=redshift, perturbed_field=perturbed_field,  previous_spin_temp=prev_z,
-            astro_params=astro_params, cosmo_params=cosmo_params, flag_options=flag_options, user_params=user_params
+            astro_params=astro_params, cosmo_params=cosmo_params, flag_options=flag_options, user_params=user_params,
+            match_seed=match_seed, direc=direc, write=write, regenerate=regenerate
         )
+
 
     # Run the C Code
     lib.ComputeIonizedBox(redshift, previous_ionize_box.redshift, perturbed_field.user_params(),
@@ -945,6 +952,9 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
     This is usually a bad idea, and will give a warning, but it is possible.
     """
+    if perturbed_field is not None or previous_spin_temp is not None or init_boxes is not None:
+        match_seed = True
+
     # Set the upper limit on redshift at which we require a previous spin temp box.
     if z_heat_max is not None:
         global_params.Z_HEAT_MAX = z_heat_max
@@ -1009,6 +1019,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             regenerate=regenerate, write=write, direc=direc,
             fname=None, match_seed=match_seed
         )
+        match_seed = True
 
     # Create appropriate previous_spin_temp
     if not isinstance(previous_spin_temp, TsBox):
@@ -1019,7 +1030,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
                 astro_params=astro_params, flag_options=flag_options, redshift=prev_z, perturbed_field=perturbed_field,
                 z_step_factor = z_step_factor, z_heat_max = z_heat_max,
                 init_boxes=init_boxes, regenerate=regenerate, write=write, direc=direc,
-                match_seed=True
+                match_seed=match_seed
             )
 
     # Run the C Code
@@ -1098,7 +1109,7 @@ def _logscroll_redshifts(min_redshift, z_step_factor):
 
 def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(), astro_params = None,
                flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
-               match_seed=True, z_step_factor=1.02, z_heat_max=None):
+               match_seed=False, z_step_factor=1.02, z_heat_max=None):
     """
     Evaluates a coeval ionized box at a given redshift, or multiple redshifts.
 
@@ -1244,7 +1255,7 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
 
 def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(), astro_params=None,
                   flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
-                  match_seed=True, z_step_factor=1.02, z_heat_max=None):
+                  match_seed=False, z_step_factor=1.02, z_heat_max=None):
     """
     Evaluates a full lightcone ending at a given redshift.
 
