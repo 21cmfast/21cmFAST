@@ -109,7 +109,6 @@ main = click.Group()
 def init(ctx, config, regen, direc, fname, match_seed):
     """
     Run a single iteration of 21cmFAST init, saving results to file.
-    The same operation can be done with ``py21cmmc single --no-perturb``.
     """
     cfg = _get_config(config)
 
@@ -146,7 +145,6 @@ def init(ctx, config, regen, direc, fname, match_seed):
 def perturb(ctx, redshift, config, regen, direc, fname, match_seed):
     """
     Run 21cmFAST perturb_field at the specified redshift, saving results to file.
-    The same operation can be done with ``py21cmmc single --no-ionize``.
     """
     cfg = _get_config(config)
 
@@ -188,8 +186,7 @@ def perturb(ctx, redshift, config, regen, direc, fname, match_seed):
 @click.pass_context
 def spin(ctx, redshift, prev_z, config, regen, direc, fname, match_seed, z_step_factor, z_heat_max):
     """
-    Run 21cmFAST perturb_field at the specified redshift, saving results to file.
-    The same operation can be done with ``py21cmmc single --no-ionize``.
+    Run 21cmFAST spin_temperature at the specified redshift, saving results to file.
     """
     cfg = _get_config(config)
 
@@ -244,8 +241,7 @@ def spin(ctx, redshift, prev_z, config, regen, direc, fname, match_seed, z_step_
 @click.pass_context
 def ionize(ctx, redshift, prev_z, config, regen, direc, fname, match_seed, do_spin, z_step_factor, z_heat_max):
     """
-    Run 21cmFAST perturb_field at the specified redshift, saving results to file.
-    The same operation can be done with ``py21cmmc single --no-ionize``.
+    Run 21cmFAST ionize_box at the specified redshift, saving results to file.
     """
     cfg = _get_config(config)
 
@@ -261,7 +257,7 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, fname, match_seed, do_sp
         z_step_factor = cfg['z_step_factor']
     if z_heat_max is None and "z_heat_max" in cfg:
         z_heat_max = cfg['z_heat_max']
-    
+
     lib.ionize_box(
         redshift=redshift,
         astro_params=astro_params, flag_options=flag_options,
@@ -270,4 +266,120 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, fname, match_seed, do_sp
         do_spin_temp=do_spin,
         user_params=user_params, cosmo_params=cosmo_params,
         regenerate=regen, write=True, direc=direc, fname=fname, match_seed=match_seed
+    )
+
+
+@main.command(
+    context_settings=dict(  # Doing this allows arbitrary options to override config
+        ignore_unknown_options=True,
+        allow_extra_args=True
+    )
+)
+@click.argument("redshift", type=str)
+@click.option("--config", type=click.Path(exists=True, dir_okay=False), default=None,
+              help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)")
+@click.option("--regen/--no-regen", default=False,
+              help="Whether to force regeneration of init/perturb files if they already exist.")
+@click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
+              help="directory to write data and plots to -- must exist.")
+@click.option("--match-seed/--no-match-seed", default=False,
+              help="whether to force the random seed to also match in order to be considered a match")
+@click.option("--do-spin/--no-spin", default=False,
+              help="whether to do spin temperature calculations")
+@click.option("-z", "--z-step-factor", type=float, default=None,
+              help="logarithmic steps in redshift for evolution")
+@click.option("-Z", "--z-heat-max", type=float, default=None,
+              help="maximum redshift at which to search for heating sources")
+@click.pass_context
+def coeval(ctx, redshift, config, regen, direc, match_seed, do_spin, z_step_factor, z_heat_max):
+    """
+    Efficiently generate coeval cubes at a given redshift.
+    """
+
+    try:
+        redshift = [float(z.strip()) for z in redshift.split(",")]
+    except TypeError:
+        raise TypeError("redshift argument must be comma-separated list of values.")
+
+    cfg = _get_config(config)
+
+    # Set user/cosmo params from config.
+    user_params = lib.UserParams(**cfg['user_params'])
+    cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
+    flag_options = lib.FlagOptions(**cfg['flag_options'])
+    astro_params = lib.AstroParams(flag_options.INHOMO_RECO, **cfg['astro_params'])
+
+    _override(ctx, user_params, cosmo_params, astro_params, flag_options)
+
+    if z_step_factor is None and "z_step_factor" in cfg:
+        z_step_factor = cfg['z_step_factor']
+    if z_heat_max is None and "z_heat_max" in cfg:
+        z_heat_max = cfg['z_heat_max']
+
+    lib.run_coeval(
+        redshift=redshift,
+        astro_params=astro_params, flag_options=flag_options,
+        z_step_factor=z_step_factor, z_heat_max=z_heat_max,
+        do_spin_temp=do_spin,
+        user_params=user_params, cosmo_params=cosmo_params,
+        regenerate=regen, write=True, direc=direc, match_seed=match_seed
+    )
+
+
+@main.command(
+    context_settings=dict(  # Doing this allows arbitrary options to override config
+        ignore_unknown_options=True,
+        allow_extra_args=True
+    )
+)
+@click.argument("redshift", type=str)
+@click.option("--config", type=click.Path(exists=True, dir_okay=False), default=None,
+              help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)")
+@click.option("--regen/--no-regen", default=False,
+              help="Whether to force regeneration of init/perturb files if they already exist.")
+@click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
+              help="directory to write data and plots to -- must exist.")
+@click.option("--match-seed/--no-match-seed", default=False,
+              help="whether to force the random seed to also match in order to be considered a match")
+@click.option("--do-spin/--no-spin", default=False,
+              help="whether to do spin temperature calculations")
+@click.option("-X", "--max-z", type=float, default=None,
+              help="maximum redshift of the stored lightcone data")
+@click.option("-z", "--z-step-factor", type=float, default=None,
+              help="logarithmic steps in redshift for evolution")
+@click.option("-Z", "--z-heat-max", type=float, default=None,
+              help="maximum redshift at which to search for heating sources")
+@click.pass_context
+def lightcone(ctx, redshift, config, regen, direc, match_seed, do_spin, max_z, z_step_factor, z_heat_max):
+    """
+    Efficiently generate coeval cubes at a given redshift.
+    """
+
+    try:
+        redshift = [float(z.strip()) for z in redshift.split(",")]
+    except TypeError:
+        raise TypeError("redshift argument must be comma-separated list of values.")
+
+    cfg = _get_config(config)
+
+    # Set user/cosmo params from config.
+    user_params = lib.UserParams(**cfg['user_params'])
+    cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
+    flag_options = lib.FlagOptions(**cfg['flag_options'])
+    astro_params = lib.AstroParams(flag_options.INHOMO_RECO, **cfg['astro_params'])
+
+    _override(ctx, user_params, cosmo_params, astro_params, flag_options)
+
+    if z_step_factor is None and "z_step_factor" in cfg:
+        z_step_factor = cfg['z_step_factor']
+    if z_heat_max is None and "z_heat_max" in cfg:
+        z_heat_max = cfg['z_heat_max']
+
+    lib.run_lightcone(
+        redshift=redshift, max_redshift=max_z,
+        astro_params=astro_params, flag_options=flag_options,
+        z_step_factor=z_step_factor, z_heat_max=z_heat_max,
+        do_spin_temp=do_spin,
+        user_params=user_params, cosmo_params=cosmo_params,
+        regenerate=regen, write=True, direc=direc, match_seed=match_seed
     )

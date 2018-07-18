@@ -1244,7 +1244,7 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
 
 def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(), astro_params=None,
                   flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
-                  fname=None, match_seed=True, z_step_factor=1.02, z_heat_max=None):
+                  match_seed=True, z_step_factor=1.02, z_heat_max=None):
     """
     Evaluates a full lightcone ending at a given redshift.
 
