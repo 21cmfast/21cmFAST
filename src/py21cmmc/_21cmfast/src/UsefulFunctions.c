@@ -162,6 +162,8 @@ double omega_mz(float z);
 double Deltac_nonlinear(float z);
 double drdz(float z); /* comoving distance, (1+z)*C*dtdz(in cm) per unit z */
 double alpha_A(double T);
+/* returns the case B hydrogen recombination coefficient (Spitzer 1978) in cm^3 s^-1*/
+double alpha_B(double T);
 
 double HeI_ion_crosssec(double nu);
 double HeII_ion_crosssec(double nu);
@@ -344,6 +346,40 @@ double alpha_A(double T){
     return ans;
 }
 
+/* returns the case B hydrogen recombination coefficient (Spitzer 1978) in cm^3 s^-1*/
+double alpha_B(double T){
+    return alphaB_10k * pow (T/1.0e4, -0.75);
+}
+
+
+/*
+ Function NEUTRAL_FRACTION returns the hydrogen neutral fraction, chi, given:
+ hydrogen density (pcm^-3)
+ gas temperature (10^4 K)
+ ionization rate (1e-12 s^-1)
+ */
+double neutral_fraction(double density, double T4, double gamma, int usecaseB){
+    double chi, b, alpha, corr_He = 1.0/(4.0/global_params.Y_He - 3);
+    
+    if (usecaseB)
+        alpha = alpha_B(T4*1e4);
+    else
+        alpha = alpha_A(T4*1e4);
+    
+    gamma *= 1e-12;
+    
+    // approximation chi << 1
+    chi = (1+corr_He)*density * alpha / gamma;
+    if (chi < TINY){ return 0;}
+    if (chi < 1e-5)
+        return chi;
+    
+    //  this code, while mathematically accurate, is numerically buggy for very small x_HI, so i will use valid approximation x_HI <<1 above when x_HI < 1e-5, and this otherwise... the two converge seemlessly
+    //get solutions of quadratic of chi (neutral fraction)
+    b = -2 - gamma / (density*(1+corr_He)*alpha);
+    chi = ( -b - sqrt(b*b - 4) ) / 2.0; //correct root
+    return chi;
+}
 
 /* function HeI_ion_crosssec returns the HI ionization cross section at parameter frequency
  (taken from Verner et al (1996) */

@@ -25,9 +25,10 @@
 #include "ps.c"
 #include "PerturbField.c"
 #include "bubble_helper_progs.c"
-#include "IonisationBox.c"
 #include "elec_interp.c"
 #include "heating_helper_progs.c"
+#include "recombinations.c"
+#include "IonisationBox.c"
 #include "SpinTemperatureBox.c"
 #include "BrightnessTemperatureBox.c"
 

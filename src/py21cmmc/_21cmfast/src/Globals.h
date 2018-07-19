@@ -59,6 +59,8 @@ struct GlobalParams{
     double Zreion_HeII;
     int FILTER;
     int POWER_SPECTRUM;
+
+    char *external_table_path;
 };
 
 struct GlobalParams global_params = {
@@ -111,8 +113,7 @@ struct GlobalParams global_params = {
     .SHETH_c = 0.05,
     .Zreion_HeII = 3.0,
     .FILTER = 0,
-    .POWER_SPECTRUM = 0
-     
+    .POWER_SPECTRUM = 0,
 };
 
 /*

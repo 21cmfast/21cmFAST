@@ -77,6 +77,8 @@ struct IonizedBox{
     int first_box;
     float *xH_box;
     float *Gamma12_box;
+    float *z_re_box;
+    float *dNrec_box;
 };
 
 struct BrightnessTemp{

@@ -39,29 +39,29 @@ def find_version(*file_paths):
     raise RuntimeError("Unable to find version string.")
 
 
-
 # ======================================================================================================================
 # Create a user-level config directory for 21CMMC, for configuration.
-try:
-    pkgdir = expanduser(join("~", ".21CMMC"))
-    os.mkdir(pkgdir)
-except:
-    pass
+pkgdir = expanduser(join("~", ".21CMMC")) #os.environ.get("CFGDIR", expanduser(join("~", ".21CMMC")))
+
+if not os.path.exists(pkgdir):
+    os.makedirs(pkgdir)
+
+copyfile("config.yml", join(pkgdir, "config.yml"))
+copyfile("runconfig_example.yml", join(pkgdir, "runconfig_example.yml"))
+copy_tree("External_tables", join(pkgdir, "External_tables"))
 
 boxdir=os.environ.get("BOXDIR", None)
 
 if boxdir:
-    with open("config.yml", 'r') as f:
+    with open(join(pkgdir,"config.yml"), 'r') as f:
         lines = f.readlines()
         for i,line in enumerate(lines):
             if line.strip().startswith("boxdir"):
                 lines[i] = line.replace(line.split(": ")[-1], boxdir)
 
-    with open("config.yml", 'w') as f:
+    with open(join(pkgdir, "config.yml"), 'w') as f:
         f.write("\n".join(lines))
 
-copyfile("config.yml", join(pkgdir, "config.yml"))
-copyfile("runconfig_example.yml", join(pkgdir, "runconfig_example.yml"))
 # ======================================================================================================================
 
 # Enable code coverage for C code: we can't use CFLAGS=-coverage in tox.ini, since that may mess with compiling
