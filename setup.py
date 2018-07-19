@@ -109,12 +109,13 @@ setup(
         #'tqdm',
         'numpy',
         'pyyaml',
-        #'cosmoHammer',
+        'cosmoHammer',
         'cffi>=1.0',
         'scipy',
         'astropy>=2.0',
-        #'powerbox>=0.5.4',
-        #'h5py'
+        'emcee<3.0.0'
+        'powerbox>=0.5.4',
+        'h5py'
     ],
     entry_points={
         'console_scripts': [

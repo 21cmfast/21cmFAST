@@ -7,6 +7,7 @@ import yaml
 import re, glob
 import numpy as np
 import h5py
+import warnings
 
 # Global Options
 with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:
@@ -15,7 +16,7 @@ with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:
 # The following is just an *empty* ffi object, which can perform certain operations which are not specific
 # to a certain library.
 from cffi import FFI
-ffi = FFI()
+_ffi = FFI()
 
 
 class StructWithDefaults:
@@ -40,7 +41,7 @@ class StructWithDefaults:
     """
     _name = None
     _defaults_ = {}
-    ffi = None
+    _ffi = None
 
     def __init__(self, **kwargs):
 
@@ -89,19 +90,33 @@ class StructWithDefaults:
         """
         Return a new empty C structure corresponding to this class.
         """
-        return self.ffi.new("struct " + self._name + "*")
+        return self._ffi.new("struct " + self._name + "*")
 
     def update(self, **kwargs):
+        """
+        Update the parameters of an existing class structure.
+
+        This should always be used instead of attempting to *assign* values to instance attributes.
+        It consistently re-generates the underlying C memory space and sets some book-keeping variables.
+
+        Parameters
+        ----------
+        kwargs:
+            Any argument that may be passed to the class constructor.
+        """
         for k in self._defaults_:
             # Prefer arguments given to the constructor.
             if k in kwargs:
-                v = kwargs[k]
+                v = kwargs.pop(k)
 
                 try:
                     setattr(self, k, v)
                 except AttributeError:
                     # The attribute has been defined as a property, save it as a hidden variable
                     setattr(self, "_" + k, v)
+
+        if kwargs:
+            warnings.warn("The following arguments to be updated are not compatible with this class: %s"%kwargs)
 
         self._logic()
         self._strings = []
@@ -114,7 +129,7 @@ class StructWithDefaults:
         Return a filled C Structure corresponding to this instance.
         """
 
-        for fld in self.ffi.typeof(self._cstruct[0]).fields:
+        for fld in self._ffi.typeof(self._cstruct[0]).fields:
             key = fld[0]
             val = getattr(self, key)
 
@@ -134,7 +149,7 @@ class StructWithDefaults:
     @property
     def pystruct(self):
         "A Python dictionary containing every field which needs to be initialized in the C struct."
-        return {fld[0]:getattr(self, fld[0]) for fld in self.ffi.typeof(self._cstruct[0]).fields}
+        return {fld[0]:getattr(self, fld[0]) for fld in self._ffi.typeof(self._cstruct[0]).fields}
 
     @property
     def __defining_dict(self):
@@ -143,24 +158,25 @@ class StructWithDefaults:
         return {k:getattr(self, k) for k in self._defaults_ if not k.startswith("RANDOM_SEED")}
 
     def __repr__(self):
-        return ", ".join(sorted([k+":"+str(v) for k,v in self.__defining_dict.items()]))
+        return self.__class__.__name__+"(" + ", ".join(sorted([k+":"+str(v) for k,v in self.__defining_dict.items()]))+")"
 
     def __eq__(self, other):
-        return self.__class__.__name__==other.__class__.__name__ and self.__repr__() == repr(other)
+        return self.__repr__() == repr(other)
 
     def __hash__(self):
         return hash(self.__repr__)
 
     def __getstate__(self):
-        return {k:v for k,v in self.__dict__.items() if k not in ["_strings", "_cstruct"]}
+        return {k:v for k,v in self.__dict__.items() if k not in ["_strings", "_StructWithDefaults__cstruct"]}
 
 
 class OutputStruct:
-    filled = False
+
+
     _fields_ = []
     _name = None   # This must match the name of the C struct
     _id = None
-    ffi = None
+    _ffi = None
 
     _TYPEMAP = {
         'float32': 'float *',
@@ -188,6 +204,8 @@ class OutputStruct:
         if self._id is None:
             self._id = self.__class__.__name__
 
+        self.filled = False
+
     @property
     def _cstruct(self):
         """
@@ -206,47 +224,59 @@ class OutputStruct:
 
     @property
     def fields(self):
-        return self.ffi.typeof(self._cstruct[0]).fields
+        """
+        List of fields of the underlying C struct (a list of tuples of "name, type")
+        """
+        return self._ffi.typeof(self._cstruct[0]).fields
 
     @property
     def fieldnames(self):
+        """
+        List names of fields of the underlying C struct.
+        """
         return [f for f, t in self.fields]
 
     @property
-    def pointer_fields(self):        
+    def _pointer_fields(self):
+        "List of names of fields which have pointer type in the C struct"
         return [f for f, t in self.fields if t.type.kind == "pointer"]
 
     @property
-    def primitive_fields(self):
+    def _primitive_fields(self):
+        "List of names of fields which have primitive type in the C struct"
         return [f for f, t in self.fields if t.type.kind == "primitive"]
 
     @property
     def arrays_initialized(self):
-        "Check whether all necessary arrays are initialized."
+        "Whether all necessary arrays are initialized (this must be true before passing to a C function)."
         # This assumes that all pointer fields will be arrays...
-        for k in self.pointer_fields:
+        for k in self._pointer_fields:
             if not hasattr(self, k):
+                return False
+            elif getattr(self._cstruct, k) == self._ffi.NULL:
                 return False
         return True
 
     def _init_cstruct(self):
-        self._init_arrays()
-        if not self.arrays_initialized:
-            raise AttributeError(
-                "%s is ill-defined. It has not initialized all necessary arrays." % self.__class__.__name__)
 
-        for k in self.pointer_fields:
+        self._init_arrays()
+
+        for k in self._pointer_fields:
             setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
-        for k in self.primitive_fields:
+        for k in self._primitive_fields:
             try:
                 setattr(self._cstruct, k, getattr(self, k))
             except AttributeError:
                 pass
 
+        if not self.arrays_initialized:
+            raise AttributeError(
+                "%s is ill-defined. It has not initialized all necessary arrays." % self.__class__.__name__)
+
     def _ary2buf(self, ary):
         if not isinstance(ary, np.ndarray):
             raise ValueError("ary must be a numpy array")
-        return self.ffi.cast(OutputStruct._TYPEMAP[ary.dtype.name], self.ffi.from_buffer(ary))
+        return self._ffi.cast(OutputStruct._TYPEMAP[ary.dtype.name], self._ffi.from_buffer(ary))
 
     def __call__(self):
         if not self.arrays_initialized:
@@ -258,14 +288,14 @@ class OutputStruct:
         "This method exposes the non-array primitives of the ctype to the top-level object."
         if not self.filled:
             raise Exception("You need to have actually called the C code before the primitives can be exposed.")
-        for k in self.primitive_fields:
+        for k in self._primitive_fields:
             setattr(self, k, getattr(self._cstruct, k))
 
     def _new(self):
         """
         Return a new empty C structure corresponding to this class.
         """
-        obj = self.ffi.new("struct " + self._id + "*")
+        obj = self._ffi.new("struct " + self._id + "*")
         return obj
 
     def _get_fname(self, direc=None, fname=None):
@@ -295,7 +325,7 @@ class OutputStruct:
         ----------
         direc : str, optional
             The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-            by the ``config.yml`` in ``.21CMMC`. This central directory will be searched in addition to whatever is
+            by the ``config.yml`` in ``.21CMMC``. This central directory will be searched in addition to whatever is
             passed to `direc`.
 
         fname : str, optional
@@ -332,6 +362,23 @@ class OutputStruct:
         return None
 
     def exists(self, direc=None, fname=None, match_seed=False):
+        """
+        Return a bool indicating whether a box matching the parameters of this instance is in cache.
+
+        Parameters
+        ----------
+        direc : str, optional
+            The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
+            by the ``config.yml`` in ``.21CMMC``. This central directory will be searched in addition to whatever is
+            passed to `direc`.
+
+        fname : str, optional
+            The filename to search for. This is used in addition to the filename automatically assigned by the hash
+            of this instance.
+
+        match_seed : bool, optional
+            Whether to force the random seed to also match in order to be considered a match.
+        """
         return self.find_existing(direc, fname, match_seed) is not None
 
     def write(self, direc=None, fname=None):
@@ -342,7 +389,7 @@ class OutputStruct:
         ----------
         direc : str, optional
             The directory in which to write the boxes. By default, this is the centrally-managed directory, given
-            by the ``config.yml`` in ``.21CMMC`.
+            by the ``config.yml`` in ``.21CMMC``.
 
         fname : str, optional
             The filename to write to. This is only used if `direc` is not None. By default, the filename is a hash
@@ -365,21 +412,21 @@ class OutputStruct:
             boxes = f.create_group(self._name)
 
             # Go through all fields in this struct, and save
-            for k in self.pointer_fields:
+            for k in self._pointer_fields:
                 boxes.create_dataset(k, data = getattr(self, k))
 
-            for k in self.primitive_fields:
+            for k in self._primitive_fields:
                 boxes.attrs[k] = getattr(self, k)
 
     def read(self, direc=None, fname=None, match_seed=False):
         """
-        Try to find and read in existing boxes which match the parameters of this instance.
+        Try to find and read in existing boxes from cache, which match the parameters of this instance.
 
         Parameters
         ----------
         direc : str, optional
             The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-            by the ``config.yml`` in ``.21CMMC`. This central directory will be searched in addition to whatever is
+            by the ``config.yml`` in ``.21CMMC``. This central directory will be searched in addition to whatever is
             passed to `direc`.
 
         fname : str, optional
@@ -396,7 +443,7 @@ class OutputStruct:
 
         # Need to make sure arrays are initialized before reading in data to them.
         if not self.arrays_initialized:
-            self._init_arrays()
+            self._init_cstruct()
 
         with h5py.File(pth,'r') as f:
             try:
@@ -420,7 +467,7 @@ class OutputStruct:
     def __repr__(self):
         # This is the class name and all parameters which belong to C-based input structs,
         # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
-        return self._name + "("+ "".join([repr(v) for k,v in self.__dict__.items() if isinstance(v, StructWithDefaults)]) +")"
+        return self._name + "("+ "; ".join([repr(v) for k,v in self.__dict__.items() if isinstance(v, StructWithDefaults)]) +")"
 
     def __str__(self):
         return self.__repr__()

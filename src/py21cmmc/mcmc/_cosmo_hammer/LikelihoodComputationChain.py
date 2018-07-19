@@ -1,19 +1,32 @@
 from cosmoHammer.LikelihoodComputationChain import LikelihoodComputationChain as LCC
-import emcee
 
-if emcee.__version__ >= '3.0.0':
-    class LikelihoodComputationChain(LCC):
 
-        def __call__(self, p, ret_dict=False):
-            likelihood, data = super().__call__(p)
+class LikelihoodComputationChain(LCC):
 
-            if ret_dict:
-                return data
+    def simulate(self):
+        # TODO: this might not work, and if it does, it's not obvious.
+        ctx = self.createChainContext({})
+        self.invokeCoreModules(ctx)
 
-            if type(data)==dict:
-                return (likelihood,) + tuple(data.values())
-            else:
-                return likelihood, data
+        for lk in self.getLikelihoodModules():
+            lk.simulate(ctx)
 
-else:
-    LikelihoodComputationChain = LCC
+    def addLikelihoodModule(self, module):
+        """
+        adds a module to the likelihood module list
+
+        :param module: callable
+            the callable module to add for the likelihood computation
+        """
+        self.getLikelihoodModules().append(module)
+        module.LikelihoodComputationChain = self
+
+    def addCoreModule(self, module):
+        """
+        adds a module to the likelihood module list
+
+        :param module: callable
+            the callable module to add for the computation of the data
+        """
+        self.getCoreModules().append(module)
+        module.LikelihoodComputationChain = self
