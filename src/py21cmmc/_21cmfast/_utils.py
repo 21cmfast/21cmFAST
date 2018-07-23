@@ -339,23 +339,38 @@ class OutputStruct:
         str
             The filename of an existing set of boxes, or None.
         """
-        if direc is not None:
+        f = self._get_fname(direc)
 
-            f = self._get_fname(direc)
-            if path.exists(f):
-                return f
-            elif not match_seed:
-                f = self._find_file_without_seed(f)
-                if f: return f
-
-        f = self._get_fname(None)
-        if path.exists(f):
+        if path.exists(f) and self._check_parameters(f, match_seed):
             return f
-        else:
+
+        if not match_seed:
             f = self._find_file_without_seed(f)
-            if f: return f
+            if f and self._check_parameters(f, match_seed):
+                return f
 
         return None
+
+    def _check_parameters(self, fname, match_seed=False):
+        with h5py.File(fname, 'r') as f:
+            for k in self._inputs +["_global_params"]:
+                q = getattr(self, k)
+
+                if isinstance(q, StructWithDefaults) or isinstance(q, _StructWrapper):
+                    grp = f[k]
+                    dct = q.pystruct if isinstance(q, StructWithDefaults) else q
+
+                    for kk, v in dct.items():
+                        if not match_seed and kk=="RANDOM_SEED":
+                            continue
+
+                        if kk not in self._filter_params:
+                            if grp.attrs[kk] != v:
+                                return False
+                else:
+                    if f.attrs[k] != q:
+                        return False
+        return True
 
     def exists(self, direc=None, match_seed=False):
         """
