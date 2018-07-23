@@ -2,7 +2,7 @@
 A module providing Core Modules for cosmoHammer. This is the basis of the plugin system for py21cmmc.
 """
 import warnings
-from .._21cmfast import wrapper as lib
+import py21cmmc as p21
 
 
 class CoreCoEvalModule:
@@ -10,8 +10,8 @@ class CoreCoEvalModule:
     disable_progress_bar = True
 
     def __init__(self, parameter_names, redshifts, store = [],
-                 user_params=lib.UserParams(), flag_options=lib.FlagOptions(), astro_params=lib.AstroParams(),
-                 cosmo_params=lib.CosmoParams(), direc=".", regenerate=False, do_spin_temp=False):
+                 user_params=p21.UserParams(), flag_options=p21.FlagOptions(), astro_params=p21.AstroParams(),
+                 cosmo_params=p21.CosmoParams(), direc=".", regenerate=False, do_spin_temp=False):
 
         # SETUP variables
         self.parameter_names = parameter_names
@@ -28,11 +28,7 @@ class CoreCoEvalModule:
         self.direc = direc
         self.regenerate = regenerate
 
-        if do_spin_temp:
-            raise NotImplementedError("Can't yet do spin temperature...")
-
-        if self.flag_options.INHOMO_RECO:
-            raise NotImplementedError("Can't yet do INHOMO_RECO")
+        self.do_spin_temp = do_spin_temp
 
     def setup(self):
 
@@ -53,7 +49,7 @@ class CoreCoEvalModule:
         # on the fly on every iteration. We don't need to save any values in memory because
         # they will be read from file.
         if not self._modifying_cosmo:
-            self.initial_conditions = lib.initial_conditions(
+            self.initial_conditions = p21.initial_conditions(
                 user_params=self.user_params,
                 cosmo_params=self.cosmo_params,
                 write=True,
@@ -63,7 +59,7 @@ class CoreCoEvalModule:
 
             print("Initializing init and perturb boxes for the run...")
             for z in self.redshifts:
-                self.perturb_field = lib.perturb_field(
+                self.perturb_field = p21.perturb_field(
                     redshift = z,
                     init_boxes=self.initial_conditions,
                     write=True,
@@ -131,8 +127,8 @@ class CoreCoEvalModule:
         if self._regen_init:
             del cpkeys['RANDOM_SEED']
 
-        astro_params = lib.AstroParams(**apkeys)
-        cosmo_params = lib.CosmoParams(**cpkeys)
+        astro_params = p21.AstroParams(**apkeys)
+        cosmo_params = p21.CosmoParams(**cpkeys)
 
         return astro_params, cosmo_params
 
@@ -141,26 +137,15 @@ class CoreCoEvalModule:
         Actually run the 21cmFAST code.
         """
         # TODO: almost certainly not the best way to iterate through redshift...
-        ionized_box = []
-        brightness_temp = []
-        for z in self.redshifts:
-            if not self._modifying_cosmo:
-                perturbed_field = self.perturb_field
-            else:
-                perturbed_field = None
-
-            ionized_box += [lib.ionize_box(
-                astro_params=astro_params, flag_options=self.flag_options,
-                redshift=z, perturbed_field=perturbed_field,
-                cosmo_params=cosmo_params, user_params=self.user_params,
-                regenerate=self.regenerate,
-                write=True, direc=self.direc,
-                match_seed=True
-            )]
-
-            brightness_temp += [lib.brightness_temperature(
-                ionized_box=ionized_box[-1],
-                perturbed_field=perturbed_field
-            )]
+        init, perturb, xHI, brightness_temp = p21.run_coeval(
+            self.redshifts,
+            astro_params=astro_params, flag_options=self.flag_options,
+            perturbed_field=perturbed_field,
+            cosmo_params=cosmo_params, user_params=self.user_params,
+            regenerate=self.regenerate,
+            write=True, # TODO: unsure if this is a good idea...
+            direc=self.direc,
+            match_seed=True
+        )
 
         return brightness_temp
