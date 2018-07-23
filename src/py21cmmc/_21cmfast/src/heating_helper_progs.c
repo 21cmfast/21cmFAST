@@ -197,10 +197,13 @@ double T_RECFAST(float z, int flag)
     int i;
     FILE *F;
     
+    char filename[500];
+    
     if (flag == 1) {
         // Read in the recfast data
-        if ( !(F=fopen(RECFAST_FILENAME, "r")) ){
-            printf("T_RECFAST: Unable to open file: %s for reading\nAborting\n", RECFAST_FILENAME);
+        sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
+        if ( !(F=fopen(filename, "r")) ){
+            printf("T_RECFAST: Unable to open file: %s for reading\nAborting\n", filename);
             return -1;
         }
         
@@ -248,10 +251,12 @@ double xion_RECFAST(float z, int flag)
     int i;
     FILE *F;
     
+    char filename[500];
     
     if (flag == 1) {
         // Initialize vectors
-        if ( !(F=fopen(RECFAST_FILENAME, "r")) ){
+        sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
+        if ( !(F=fopen(filename, "r")) ){
             printf("xion_RECFAST: Unable to open file: %s for reading\nAborting\n", RECFAST_FILENAME);
             return -1;
         }
@@ -374,9 +379,12 @@ double spectral_emissivity(double nu_norm, int flag)
     int i;
     FILE *F;
     
+    char filename[500];
+    
     if (flag == 1) {
         // * Read in the data * //
-        if (!(F = fopen(STELLAR_SPECTRA_FILENAME, "r"))){
+        sprintf(filename,"%s/%s",global_params.external_table_path,STELLAR_SPECTRA_FILENAME);
+        if (!(F = fopen(filename, "r"))){
             printf("spectral_emissivity: Unable to open file: stellar_spectra.dat for reading\nAborting\n");
             return -1;
         }

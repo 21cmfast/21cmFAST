@@ -103,7 +103,7 @@ from ._utils import StructWithDefaults, OutputStruct as _OS
 # The global parameter struct which can be modified.
 global_params = lib.global_params
 
-EXTERNALTABLES = ffi.new("char[]", path.join(path.expanduser("~"), ".21CMMC", "External_tables").encode())
+EXTERNALTABLES = ffi.new("char[]", path.join(path.expanduser("~"), ".21CMMC").encode())
 global_params.external_table_path = EXTERNALTABLES
 
 
@@ -378,7 +378,8 @@ class IonizedBox(_OutputStructZ):
         # ionized_box is always initialised to be neutral, for excursion set algorithm. Hence np.ones instead of np.zeros
         self.xH_box = np.ones(self.user_params.HII_tot_num_pixels, dtype=np.float32) 
         self.Gamma12_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-
+        self.z_re_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.dNrec_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
 class TsBox(IonizedBox):
     "A class containing all spin temperature boxes"
@@ -447,7 +448,7 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
     if not regenerate:
         try:
             boxes.read(direc, fname, match_seed)
-            print("Existing init_boxes found and read in.")
+            print("Existing init_boxes found and read in.")            
             return boxes
         except IOError:
             pass
@@ -698,14 +699,14 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
 
     if spin_temp is not None:
         do_spin_temp = True
-
+    
     # Set the upper limit on redshift at which we require a previous spin temp box.
     if z_heat_max is not None:
         global_params.Z_HEAT_MAX = z_heat_max
-
+    
     if spin_temp is not None and not isinstance(spin_temp, TsBox):
         raise ValueError("spin_temp must be a TsBox instance")
-
+    
     if isinstance(previous_ionize_box, IonizedBox):
         cosmo_params = previous_ionize_box.cosmo_params
         astro_params = previous_ionize_box.astro_params
@@ -719,7 +720,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     elif perturbed_field is not None:
         cosmo_params = perturbed_field.cosmo_params
         user_params = perturbed_field.user_params
-
+    
     if spin_temp is not None and isinstance(previous_ionize_box, IonizedBox):
         if (
             spin_temp.cosmo_params != previous_ionize_box.cosmo_params or
@@ -728,7 +729,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             spin_temp.flag_options != previous_ionize_box.flag_options
         ):
             raise ValueError("spin_temp and previous_ionize_box must have the same input parameters.")
-
+    
     if perturbed_field is None and redshift is None and spin_temp is None:
         raise ValueError("Either perturbed_field, spin_temp, or redshift must be provided.")
     elif spin_temp is not None:
@@ -745,9 +746,9 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
 
     if perturbed_field is not None and perturbed_field.redshift != redshift:
         raise ValueError("The provided perturbed_field must have the same redshift as the provided spin_temp")
-
+    
     box = IonizedBox(
-        first_box=redshift > global_params.Z_HEAT_MAX and (not isinstance(previous_ionize_box, IonizedBox) or not previous_ionize_box.filled),
+        first_box= ((1 + redshift) * z_step_factor - 1) > global_params.Z_HEAT_MAX and (not isinstance(previous_ionize_box, IonizedBox) or not previous_ionize_box.filled),
         user_params=user_params, cosmo_params=cosmo_params,
         redshift=redshift, astro_params=astro_params, flag_options=flag_options
     )
@@ -766,8 +767,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     # Get the previous redshift
     if flag_options.INHOMO_RECO or do_spin_temp:
 
-        if previous_ionize_box is not None:
-            print('1')
+        if previous_ionize_box is not None:            
             if hasattr(previous_ionize_box, "redshift"):
                 prev_z = previous_ionize_box.redshift
             elif isinstance(previous_ionize_box, numbers.Number):
@@ -775,11 +775,8 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             else:
                 raise ValueError("previous_ionize_box must be an IonizedBox or a float")
         elif z_step_factor is not None:
-
-            prev_z = (1 + redshift) * z_step_factor - 1
-            print(redshift, z_step_factor, prev_z)
+            prev_z = (1 + redshift) * z_step_factor - 1            
         else:
-            print('3')
             prev_z = None
             if redshift < global_params.Z_HEAT_MAX:
                 warnings.warn(
@@ -795,7 +792,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     # Get appropriate previous ionization box
     if not isinstance(previous_ionize_box, IonizedBox):
         # If we are beyond Z_HEAT_MAX, just make an empty box
-        if redshift > global_params.Z_HEAT_MAX or prev_z is None:
+        if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
             previous_ionize_box = IonizedBox(redshift=0)
 
         # Otherwise recursively create new previous box.
@@ -827,7 +824,6 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             astro_params=astro_params, cosmo_params=cosmo_params, flag_options=flag_options, user_params=user_params,
             match_seed=match_seed, direc=direc, write=write, regenerate=regenerate
         )
-
 
     # Run the C Code
     lib.ComputeIonizedBox(redshift, previous_ionize_box.redshift, perturbed_field.user_params(),
@@ -978,7 +974,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
         astro_params = AstroParams(flag_options.INHOMO_RECO)
 
     box = TsBox(
-        first_box= redshift > global_params.Z_HEAT_MAX and (not isinstance(previous_spin_temp, IonizedBox) or not previous_spin_temp.filled),
+        first_box= ((1+redshift)*z_step_factor - 1) > global_params.Z_HEAT_MAX and (not isinstance(previous_spin_temp, IonizedBox) or not previous_spin_temp.filled),
         user_params=user_params, cosmo_params=cosmo_params,
         redshift=redshift, astro_params=astro_params, flag_options=flag_options
     )
@@ -1002,6 +998,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             prev_z = previous_spin_temp
     elif z_step_factor is not None:
         prev_z = (1+redshift)*z_step_factor - 1
+
     else:
         prev_z = None
         if redshift < global_params.Z_HEAT_MAX:
@@ -1023,9 +1020,9 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
     # Create appropriate previous_spin_temp
     if not isinstance(previous_spin_temp, TsBox):
-        if redshift > global_params.Z_HEAT_MAX or prev_z is None:
+        if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
             previous_spin_temp = TsBox(redshift=0)
-        else:
+        else:        
             previous_spin_temp = spin_temperature(
                 astro_params=astro_params, flag_options=flag_options, redshift=prev_z, perturbed_field=perturbed_field,
                 z_step_factor = z_step_factor, z_heat_max = z_heat_max,

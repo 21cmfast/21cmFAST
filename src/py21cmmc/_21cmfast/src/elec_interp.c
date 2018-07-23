@@ -82,9 +82,9 @@ void initialize_interp_arrays()
 
     // Construct filename
     if (x_int_XHII[n_ion] < 0.3) {
-      sprintf(input_file_name,"%slog_xi_%1.1f%s",input_base,log10(x_int_XHII[n_ion]),input_tail);
+      sprintf(input_file_name,"%s/%slog_xi_%1.1f%s",global_params.external_table_path,input_base,log10(x_int_XHII[n_ion]),input_tail);
     } else {
-      sprintf(input_file_name,"%sxi_%1.3f%s",input_base,x_int_XHII[n_ion],input_tail);      
+      sprintf(input_file_name,"%s/%sxi_%1.3f%s",global_params.external_table_path,input_base,x_int_XHII[n_ion],input_tail);
     }
 
     //    printf("%s\n",input_file_name);
