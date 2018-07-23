@@ -746,7 +746,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
 
     if perturbed_field is not None and perturbed_field.redshift != redshift:
         raise ValueError("The provided perturbed_field must have the same redshift as the provided spin_temp")
-    
+
     box = IonizedBox(
         first_box= ((1 + redshift) * z_step_factor - 1) > global_params.Z_HEAT_MAX and (not isinstance(previous_ionize_box, IonizedBox) or not previous_ionize_box.filled),
         user_params=user_params, cosmo_params=cosmo_params,
@@ -792,7 +792,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     # Get appropriate previous ionization box
     if not isinstance(previous_ionize_box, IonizedBox):
         # If we are beyond Z_HEAT_MAX, just make an empty box
-        if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
+        if prev_z is None or prev_z > global_params.Z_HEAT_MAX:
             previous_ionize_box = IonizedBox(redshift=0)
 
         # Otherwise recursively create new previous box.

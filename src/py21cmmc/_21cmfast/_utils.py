@@ -477,8 +477,7 @@ class OutputStruct:
 
     @property
     def _md5(self):
-        # this hash takes only the stuff after the class's name, so that different classes can have the same hash.
-        return md5(repr(self).split("(")[-1].encode()).hexdigest()
+        return md5(repr(self).encode()).hexdigest()
 
     @property
     def _hashname(self):

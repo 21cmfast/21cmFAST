@@ -7,7 +7,7 @@ from . import wrapper as lib #initial_conditions, perturb_field, CosmoParams, Us
 import warnings
 from os import path
 # from .mcmc import run_mcmc
-
+import inspect
 
 def _get_config(config=None):
     if config is None:
@@ -179,7 +179,7 @@ def perturb(ctx, redshift, config, regen, direc, fname, match_seed):
               help="filename of output.")
 @click.option("--match-seed/--no-match-seed", default=False,
               help="whether to force the random seed to also match in order to be considered a match")
-@click.option("-z", "--z-step-factor", type=float, default=None,
+@click.option("-z", "--z-step-factor", type=float, default=inspect.signature(lib.spin_temperature).parameters['z_step_factor'].default,
               help="logarithmic steps in redshift for evolution")
 @click.option("-Z", "--z-heat-max", type=float, default=None,
               help="maximum redshift at which to search for heating sources")
@@ -234,7 +234,7 @@ def spin(ctx, redshift, prev_z, config, regen, direc, fname, match_seed, z_step_
               help="whether to force the random seed to also match in order to be considered a match")
 @click.option("--do-spin/--no-spin", default=False,
               help="whether to do spin temperature calculations")
-@click.option("-z", "--z-step-factor", type=float, default=None,
+@click.option("-z", "--z-step-factor", type=float, default=inspect.signature(lib.ionize_box).parameters['z_step_factor'].default,
               help="logarithmic steps in redshift for evolution")
 @click.option("-Z", "--z-heat-max", type=float, default=None,
               help="maximum redshift at which to search for heating sources")
@@ -286,7 +286,7 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, fname, match_seed, do_sp
               help="whether to force the random seed to also match in order to be considered a match")
 @click.option("--do-spin/--no-spin", default=False,
               help="whether to do spin temperature calculations")
-@click.option("-z", "--z-step-factor", type=float, default=None,
+@click.option("-z", "--z-step-factor", type=float, default=inspect.signature(lib.run_coeval).parameters['z_step_factor'].default,
               help="logarithmic steps in redshift for evolution")
 @click.option("-Z", "--z-heat-max", type=float, default=None,
               help="maximum redshift at which to search for heating sources")
@@ -345,7 +345,7 @@ def coeval(ctx, redshift, config, regen, direc, match_seed, do_spin, z_step_fact
               help="whether to do spin temperature calculations")
 @click.option("-X", "--max-z", type=float, default=None,
               help="maximum redshift of the stored lightcone data")
-@click.option("-z", "--z-step-factor", type=float, default=None,
+@click.option("-z", "--z-step-factor", type=float, default=inspect.signature(lib.run_lightcone).parameters['z_step_factor'].default,
               help="logarithmic steps in redshift for evolution")
 @click.option("-Z", "--z-heat-max", type=float, default=None,
               help="maximum redshift at which to search for heating sources")
