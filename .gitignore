@@ -11,3 +11,4 @@ build/
 .pytest_cache/
 _build/
 _autosummary
+vgcore.*

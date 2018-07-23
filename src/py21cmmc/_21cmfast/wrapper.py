@@ -98,11 +98,10 @@ import numpy as np
 from astropy.cosmology import Planck15, z_at_value
 
 from ._21cmfast import ffi, lib
-from ._utils import StructWithDefaults, OutputStruct as _OS
+from ._utils import StructWithDefaults, OutputStruct as _OS,_StructWrapper
 
-# The global parameter struct which can be modified.
-global_params = lib.global_params
 
+global_params = _StructWrapper(lib.global_params, ffi)
 EXTERNALTABLES = ffi.new("char[]", path.join(path.expanduser("~"), ".21CMMC").encode())
 global_params.external_table_path = EXTERNALTABLES
 
@@ -324,10 +323,13 @@ class FlagOptions(StructWithDefaults):
         USE_TS_FLUCT=False,
     )
 
+
 # ======================================================================================================================
 # OUTPUT STRUCTURES
 # ======================================================================================================================
 class _OutputStruct(_OS):
+    _global_params = global_params
+
     def __init__(self, user_params=UserParams(), cosmo_params=CosmoParams(), **kwargs):
         super().__init__(user_params=user_params, cosmo_params=cosmo_params, **kwargs)
 
@@ -335,9 +337,11 @@ class _OutputStruct(_OS):
 
 
 class _OutputStructZ(_OutputStruct):
-    def __init__(self, redshift, user_params=UserParams(), cosmo_params=CosmoParams(), **kwargs):
-        super().__init__(user_params=user_params, cosmo_params=cosmo_params, redshift=float(redshift), **kwargs)
-        self._name += "_z%.4f" % self.redshift
+    _inputs = ['redshift', 'user_params', 'cosmo_params']
+
+    # def __init__(self, redshift, user_params=UserParams(), cosmo_params=CosmoParams(), **kwargs):
+    #     super().__init__(user_params=user_params, cosmo_params=cosmo_params, redshift=float(redshift), **kwargs)
+    #     self._name += "_z%.4f" % self.redshift
 
 
 class InitialConditions(_OutputStruct):
@@ -368,11 +372,14 @@ class PerturbedField(_OutputStructZ):
 
 class IonizedBox(_OutputStructZ):
     "A class containing all ionized boxes"
+    _inputs = ['redshift', 'user_params', 'cosmo_params', 'flag_options', 'astro_params']
 
     def __init__(self, astro_params=None, flag_options=FlagOptions(), first_box=False, **kwargs):
         if astro_params is None:
             astro_params = AstroParams(flag_options.INHOMO_RECO)
-        super().__init__(astro_params=astro_params, flag_options=flag_options, first_box=first_box, **kwargs)
+        self.first_box = first_box
+
+        super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
 
     def _init_arrays(self):
         # ionized_box is always initialised to be neutral, for excursion set algorithm. Hence np.ones instead of np.zeros
@@ -380,6 +387,7 @@ class IonizedBox(_OutputStructZ):
         self.Gamma12_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.z_re_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.dNrec_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+
 
 class TsBox(IonizedBox):
     "A class containing all spin temperature boxes"
@@ -401,7 +409,7 @@ class BrightnessTemp(IonizedBox):
 # WRAPPING FUNCTIONS
 # ======================================================================================================================
 def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), regenerate=False, write=True, direc=None,
-                       fname=None, match_seed=False):
+                       match_seed=False):
     """
     Compute initial conditions.
 
@@ -427,11 +435,6 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
         specified `direc` is searched first, the default directory will *also* be searched if no appropriate data is
         found in `direc`. This is recursively applied to any potential sub-calculations.
 
-    fname : str, optional
-        The filename to search for/write to. This is used in tandem with `direc` to search for cached data. Like `direc`,
-        for reading data, it is used first, but default (automatic) filenames are used failing this. This is *not*
-        recursively applied to sub-calculations.
-
     match_seed : bool, optional
         If `False`, then the caching mechanism will consider any initial conditions boxes with the same defining parameters
         to be a match, without considering the random seed. Otherwise, the random seed must also be matched to be read
@@ -447,7 +450,7 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
     # First check whether the boxes already exist.
     if not regenerate:
         try:
-            boxes.read(direc, fname, match_seed)
+            boxes.read(direc, match_seed)
             print("Existing init_boxes found and read in.")            
             return boxes
         except IOError:
@@ -460,14 +463,14 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
 
     # Optionally do stuff with the result (like writing it)
     if write:
-        boxes.write(direc, fname)
+        boxes.write(direc)
 
     return boxes
 
 
 def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None,
                   regenerate=False, write=True, direc=None,
-                  fname=None, match_seed=False):
+                  match_seed=False):
     """
     Compute a perturbed field at a given redshift.
 
@@ -492,7 +495,7 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
 
     Other Parameters
     ----------------
-    regenerate, write, direc, fname, match_seed:
+    regenerate, write, direc, match_seed:
         See docs of :func:`initial_conditions` for more information.
 
     Examples
@@ -531,12 +534,12 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
     cosmo_params = cosmo_params or CosmoParams()
 
     # Initialize perturbed boxes.
-    fields = PerturbedField(redshift, user_params, cosmo_params)
+    fields = PerturbedField(redshift=redshift, user_params=user_params, cosmo_params=cosmo_params)
 
     # Check whether the boxes already exist
     if not regenerate:
         try:
-            fields.read(direc, fname, match_seed=match_seed)
+            fields.read(direc, match_seed=match_seed)
             print("Existing perturb_field boxes found and read in.")
             return fields
         except IOError:
@@ -556,7 +559,7 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
 
     # Optionally do stuff with the result (like writing it)
     if write:
-        fields.write(direc, fname)
+        fields.write(direc)
 
     return fields
 
@@ -567,7 +570,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
                do_spin_temp=False, spin_temp=None,
                init_boxes=None, cosmo_params=CosmoParams(), user_params=UserParams(),
                regenerate=False, write=True, direc=None,
-               fname=None, match_seed=False):
+               match_seed=False):
     """
     Compute an ionized box at a given redshift.
 
@@ -630,7 +633,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
 
     Other Parameters
     ----------------
-    regenerate, write, direc, fname, match_seed:
+    regenerate, write, direc, match_seed:
         See docs of :func:`initial_conditions` for more information.
 
     Notes
@@ -756,7 +759,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     # Check whether the boxes already exist
     if not regenerate:
         try:
-            box.read(direc, fname, match_seed=match_seed)
+            box.read(direc, match_seed=match_seed)
             print("Existing ionized boxes found and read in.")
             return box
         except IOError:
@@ -811,7 +814,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         perturbed_field = perturb_field(
             redshift=redshift, init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
             regenerate=regenerate, write=write, direc=direc,
-            fname=None, match_seed=match_seed
+            match_seed=match_seed
         )
         match_seed = True
 
@@ -835,7 +838,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
 
     # Optionally do stuff with the result (like writing it)
     if write:
-        box.write(direc, fname)
+        box.write(direc)
 
     return box
 
@@ -843,7 +846,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
 def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=None, perturbed_field=None,
                      previous_spin_temp=None, z_step_factor = 1.02, z_heat_max = None,
                      init_boxes=None, cosmo_params=CosmoParams(), user_params=UserParams(), regenerate=False, write=True, direc=None,
-                     fname=None, match_seed=False):
+                     match_seed=False):
     """
     Compute spin temperature boxes at a given redshift.
 
@@ -899,7 +902,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
     Other Parameters
     ----------------
-    regenerate, write, direc, fname, match_seed:
+    regenerate, write, direc, match_seed:
         See docs of :func:`initial_conditions` for more information.
 
     Notes
@@ -982,7 +985,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     # Check whether the boxes already exist on disk.
     if not regenerate:
         try:
-            box.read(direc, fname, match_seed=match_seed)
+            box.read(direc, match_seed=match_seed)
             print("Existing spin_temp boxes found and read in.")
             return box
         except IOError:
@@ -1014,7 +1017,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             redshift=redshift,
             init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
             regenerate=regenerate, write=write, direc=direc,
-            fname=None, match_seed=match_seed
+            match_seed=match_seed
         )
         match_seed = True
 
@@ -1039,7 +1042,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
     # Optionally do stuff with the result (like writing it)
     if write:
-        box.write(direc, fname)
+        box.write(direc)
 
     return box
 
