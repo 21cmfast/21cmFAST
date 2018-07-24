@@ -172,11 +172,13 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     //set the minimum ionizing source mass
     M_MIN_at_z = get_M_min_ion(perturbed_field_redshift);
     
+    init_ps();
+    
     // Initialize some interpolation tables
     if(this_spin_temp->first_box || (fabs(initialised_redshift - perturbed_field_redshift) > 0.0001) ) {
         init_heat();
     }
-
+    
     if (redshift > global_params.Z_HEAT_MAX){
         
         xe = xion_RECFAST(redshift,0);

@@ -51,6 +51,8 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
     double dvdx, max_v_deriv;
     float const_factor, T_rad, pixel_Ts_factor, pixel_x_HI, pixel_deltax, H;
     
+    init_ps();
+    
     T_rad = T_cmb*(1+redshift);
     H = hubble(redshift);
     const_factor = 27 * (cosmo_params->OMb*cosmo_params->hlittle*cosmo_params->hlittle/0.023) *

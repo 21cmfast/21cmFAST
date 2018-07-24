@@ -41,6 +41,8 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     const gsl_rng_type * T;
     gsl_rng * r;
     
+    init_ps();
+    
     // For recombinations
     if(flag_options->INHOMO_RECO) {
         
