@@ -5,7 +5,8 @@ import click
 import yaml
 from . import wrapper as lib #initial_conditions, perturb_field, CosmoParams, UserParams#run_21cmfast
 import warnings
-from os import path
+from os import path, remove
+
 # from .mcmc import run_mcmc
 import inspect
 
@@ -386,13 +387,24 @@ def lightcone(ctx, redshift, config, regen, direc, match_seed, do_spin, max_z, z
               help="filter by md5 hash")
 @click.option("-s", "--seed", type=str, default=None,
               help="filter by random seed")
-def query(direc,  kind, md5, seed):
+@click.option("--clear/--no-clear", default=False,
+              help="remove all data sets returned by this query.")
+def query(direc,  kind, md5, seed, clear):
     cls = list(lib.query_cache(direc, kind=kind, hash=md5, seed=seed, show=False))
 
-    print("%s Data Sets Found:"%len(cls))
-    print("------------------")
-    for file, c in cls:
-        print("  @ {%s}:" % file)
-        print("  %s"%str(c))
+    if not clear:
+        print("%s Data Sets Found:"%len(cls))
+        print("------------------")
+    else:
+        print("Removing %s data sets..."%len(cls))
 
-        print()
+    for file, c in cls:
+        if not clear:
+            print("  @ {%s}:" % file)
+            print("  %s"%str(c))
+
+            print()
+
+        else:
+            direc = direc or path.expanduser(lib.config['boxdir'])
+            remove(path.join(direc, file))
