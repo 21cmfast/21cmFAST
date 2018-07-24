@@ -190,9 +190,11 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         for (i=0; i<user_params->HII_DIM; i++){
             for (j=0; j<user_params->HII_DIM; j++){
                 for (k=0; k<user_params->HII_DIM; k++){
+                    this_spin_temp->Tk_box[HII_R_INDEX(i,j,k)] = TK;
+                    this_spin_temp->x_e_box[HII_R_INDEX(i,j,k)] = xe;
                     // compute the spin temperature
                     this_spin_temp->Ts_box[HII_R_INDEX(i,j,k)] = get_Ts(perturbed_field_redshift, perturbed_field->density[HII_R_INDEX(i,j,k)]*inverse_growth_factor_z*growth_factor_zp,
-                                                                        this_spin_temp->Tk_box[HII_R_INDEX(i,j,k)], this_spin_temp->x_e_box[HII_R_INDEX(i,j,k)], 0, &curr_xalpha);
+                                                                        TK, xe, 0, &curr_xalpha);
                 }
             }
         }
