@@ -492,10 +492,7 @@ class OutputStruct:
         return self._name + "_" + self._md5 + "_r%s" % self.cosmo_params.RANDOM_SEED + ".h5"
 
     def __getstate__(self):
-        return {k:v for k,v in self.__dict__.items() if not isinstance(k, self.ffi.CData)}
-
-
-
+        return {k:v for k,v in self.__dict__.items() if not isinstance(k, self._ffi.CData)}
 
 
 class _StructWrapper:

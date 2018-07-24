@@ -733,7 +733,10 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     elif perturbed_field is not None:
         cosmo_params = perturbed_field.cosmo_params
         user_params = perturbed_field.user_params
-    
+    elif init_boxes is not None:
+        cosmo_params = init_boxes.cosmo_params
+        user_params = init_boxes.user_params
+
     if spin_temp is not None and isinstance(previous_ionize_box, IonizedBox):
         if (
             spin_temp.cosmo_params != previous_ionize_box.cosmo_params or
@@ -976,6 +979,9 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     elif perturbed_field is not None:
         cosmo_params = perturbed_field.cosmo_params
         user_params = perturbed_field.user_params
+    elif init_boxes is not None:
+        cosmo_params = init_boxes.cosmo_params
+        user_params = init_boxes.user_params
 
     if perturbed_field is None and redshift is None:
         raise ValueError("Either perturbed_field or redshift must be provided.")
@@ -1044,9 +1050,11 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             )
 
     # Run the C Code
+    print("about to do spin...")
     lib.ComputeTsBox(redshift, previous_spin_temp.redshift, perturbed_field.user_params(),
                      perturbed_field.cosmo_params(), astro_params(), perturbed_field.redshift, perturbed_field(),
                      previous_spin_temp(), box())
+    print("done spin...")
     box.filled = True
     box._expose()
 
@@ -1200,52 +1208,41 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
     redshifts += redshift
     redshifts = sorted(list(set(redshifts)), reverse=True)[:-1]
 
-    # Get the "first" spin temp box
-    if do_spin_temp:
-        st = spin_temperature(
-            redshift=redshifts[0],
-            astro_params=astro_params, flag_options=flag_options,
-            perturbed_field=perturb[minarg], regenerate=regenerate,
-            write=write, direc=direc, match_seed=True
-        )
-
-        ib = ionize_box(spin_temp=st, write=write, direc=direc, match_seed=True)
-    else:
-        ib = ionize_box(
-            redshift=redshifts[0], do_spin_temp=False,
-            astro_params=astro_params, flag_options=flag_options, regenerate=regenerate,
-            perturbed_field=perturb[minarg], write=write, direc=direc, match_seed=True
-        )
-
     ib_tracker = []
     bt = []
+    st, ib = None, None # At first we don't have any "previous" st or ib.
+    # Iterate through redshift from top to bottom
+    for z in redshifts:
+        print("redshift=%s"%z)
 
-    # Iterate through redshift from top to bottom (except first one...)
-    for z in redshifts[1:]:
         if do_spin_temp:
             st2 = spin_temperature(
                 redshift=z,
                 previous_spin_temp=st,
+                astro_params=astro_params, flag_options=flag_options,
                 perturbed_field=perturb[minarg], regenerate=regenerate,
-                write=write, direc=direc, match_seed=True
-            )
-            ib2 = ionize_box(
-                redshift=z, previous_ionize_box=ib,
-                spin_temp=st2, regenerate=regenerate,
                 write=write, direc=direc, match_seed=True
             )
 
             if z not in redshift:
-                st = copy.deepcopy(st2)
+                st = st2
 
-        else:
-            ib2 = ionize_box(
-                redshift=z, previous_ionize_box=ib, regenerate=regenerate,
-                write=write, direc=direc, match_seed=True
-            )
+        print("got spin temp")
+
+        ib2 = ionize_box(
+            redshift=z, previous_ionize_box=ib,
+            init_boxes=init_box,
+            perturbed_field=perturb[redshift.index(z)] if z in redshift else None,
+            astro_params=astro_params, flag_options=flag_options,
+            spin_temp=st2 if do_spin_temp else None,
+            regenerate=regenerate,
+            write=write, direc=direc, match_seed=True
+        )
+
+        print("got ib")
 
         if z not in redshift:
-            ib = copy.deepcopy(ib2)
+            ib = ib2
         else:
             ib_tracker.append(ib2)
             bt += [brightness_temperature(ib2, perturb[minarg], st2 if do_spin_temp else None)]
@@ -1330,12 +1327,12 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
             write=write, direc=direc, match_seed=True
         )
 
-        ib = ionize_box(spin_temp=st, write=write, direc=direc, match_seed=True)
+        ib = ionize_box(spin_temp=st, write=write, direc=direc, match_seed=True, init_boxes=init_box)
     else:
         ib = ionize_box(
             redshift=scrollz[0], do_spin_temp=False,
             astro_params=astro_params, flag_options=flag_options, regenerate=regenerate,
-            perturbed_field=perturb, write=write, direc=direc, match_seed=True
+            init_boxes=init_box, write=write, direc=direc, match_seed=True
         )
 
     # Here set up the lightcone box.
