@@ -11,7 +11,8 @@ class CoreCoEvalModule:
 
     def __init__(self, parameter_names, redshifts, store = [],
                  user_params=p21.UserParams(), flag_options=p21.FlagOptions(), astro_params=p21.AstroParams(),
-                 cosmo_params=p21.CosmoParams(), direc=".", regenerate=False, do_spin_temp=False):
+                 cosmo_params=p21.CosmoParams(), direc=".", regenerate=False, do_spin_temp=False, z_step_factor=1.02,
+                 z_heat_max=None):
 
         # SETUP variables
         self.parameter_names = parameter_names
@@ -28,6 +29,8 @@ class CoreCoEvalModule:
         self.direc = direc
         self.regenerate = regenerate
 
+        self.z_step_factor = z_step_factor
+        self.z_heat_max = z_heat_max
         self.do_spin_temp = do_spin_temp
 
     def setup(self):
@@ -44,28 +47,35 @@ class CoreCoEvalModule:
                 self._regen_init = True
                 self._modifying_cosmo = True
 
+        if self.z_heat_max is not None:
+            p21.global_params.Z_HEAT_MAX = self.z_heat_max
+
         # Here we create the init boxes and perturb boxes, written to file.
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration. We don't need to save any values in memory because
         # they will be read from file.
         if not self._modifying_cosmo:
+            print("Initializing init and perturb boxes for the run...")
             self.initial_conditions = p21.initial_conditions(
                 user_params=self.user_params,
                 cosmo_params=self.cosmo_params,
-                write=True,
+                write=True, # TODO: maybe shouldn't write...?
                 direc=self.direc,
                 regenerate=self.regenerate
             )
 
-            print("Initializing init and perturb boxes for the run...")
+            self.perturb_field = []
             for z in self.redshifts:
-                self.perturb_field = p21.perturb_field(
+                self.perturb_field += [p21.perturb_field(
                     redshift = z,
                     init_boxes=self.initial_conditions,
                     write=True,
                     direc=self.direc,
                     regenerate=self.regenerate
-                )
+                )]
+        else:
+            self.initial_conditions = None
+            self.perturb_field = None
 
     def __call__(self, ctx):
         # Update parameters
@@ -138,14 +148,17 @@ class CoreCoEvalModule:
         """
         # TODO: almost certainly not the best way to iterate through redshift...
         init, perturb, xHI, brightness_temp = p21.run_coeval(
-            self.redshifts,
+            redshift=self.redshifts,
             astro_params=astro_params, flag_options=self.flag_options,
-            perturbed_field=perturbed_field,
             cosmo_params=cosmo_params, user_params=self.user_params,
-            regenerate=self.regenerate,
+            perturb=self.perturb_field,
+            init_box=self.initial_conditions,
+            do_spin_temp=self.do_spin_temp,
+            z_step_factor=self.z_step_factor,
+            regenerate=self.regenerate, # TODO: perhaps should always be true.
             write=True, # TODO: unsure if this is a good idea...
             direc=self.direc,
-            match_seed=True
+            match_seed=True # TODO: shouldn't matter if regenerate is always true.
         )
 
         return brightness_temp

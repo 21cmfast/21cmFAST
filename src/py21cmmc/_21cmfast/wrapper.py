@@ -1138,9 +1138,10 @@ def _logscroll_redshifts(min_redshift, z_step_factor):
     return redshifts
 
 
-def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(), astro_params = None,
+def run_coeval(redshift=None, user_params = UserParams(), cosmo_params = CosmoParams(), astro_params = None,
                flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
-               match_seed=False, z_step_factor=1.02, z_heat_max=None):
+               match_seed=False, z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None):
+
     """
     Evaluates a coeval ionized box at a given redshift, or multiple redshifts.
 
@@ -1196,15 +1197,27 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
 
+    if init_box is None: # no need to get cosmo, user params out of it.
+        init_box = initial_conditions(user_params, cosmo_params, write=write, regenerate=regenerate, direc=direc,
+                                  match_seed=match_seed)
+
+    _check_compatible_inputs(init_box, *perturb, ignore_redshift=True)
+
+    if redshift is None and perturb is None:
+        raise ValueError("Either redshift or perturb must be given")
+    if perturb is not None:
+        if not hasattr(perturb, "__len__"):
+            perturb = [perturb]
+        redshift = [p.redshift for p in perturb]
+
     if not hasattr(redshift, "__len__"):
         redshift = [redshift]
 
-    init_box = initial_conditions(user_params, cosmo_params, write=write, regenerate=regenerate, direc=direc,
-                                  match_seed=match_seed)
-    perturb = []
-    for z in redshift:
-        perturb += [perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
-                                  direc=direc, match_seed=True)]
+    if perturb is None:
+        perturb = []
+        for z in redshift:
+            perturb += [perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
+                                      direc=direc, match_seed=True)]
 
     minarg = np.argmin(redshift)
 
