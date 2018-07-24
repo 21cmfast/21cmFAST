@@ -416,6 +416,51 @@ class BrightnessTemp(IonizedBox):
 
 
 # ======================================================================================================================
+# HELPER FUNCTIONS
+# ======================================================================================================================
+def _check_compatible_inputs(*datasets, ignore_redshift=False):
+    done = []
+    for i,d in enumerate(datasets):
+        if d is None:
+            continue
+
+        for inp in d._inputs:
+            if ignore_redshift and inp=="redshift":
+                continue
+
+            if inp not in done:
+                for j, d2 in enumerate(datasets[(i+1):]):
+                    if d2 is None:
+                        continue
+
+                    if getattr(d, inp) != getattr(d2, inp):
+                        raise ValueError("%s and %s are incompatible"%(d.__class__.__name__, d2.__class__.__name__))
+                done += [inp]
+
+
+def _get_inputs(defaults, *structs):
+    for i in range(len(defaults)):
+        k = ''.join('_'+c.lower() if c.isupper() else c for c in defaults.__class__.__name__).strip('_')
+
+        for s in structs:
+            if s is None:
+                continue
+
+            if hasattr(s, k):
+                defaults[i] = getattr(s, k)
+                break
+
+
+def _get_redshift(redshift, *structs):
+    if redshift is None and all([s is None for s in structs]):
+        raise ValueError("Either redshift must be provided, or a data set containing it.")
+
+    for s in structs:
+        if hasattr(s, "redshift"):
+            return redshift
+
+    return redshift
+# ======================================================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================================================
 def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), regenerate=False, write=True, direc=None,
@@ -454,7 +499,7 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
     -------
     :class:`~InitialConditions`
     """
-    # First initialize memory for the boxes that will be returned.
+    # Initialize memory for the boxes that will be returned.
     boxes = InitialConditions(user_params, cosmo_params)
 
     # First check whether the boxes already exist.
@@ -478,7 +523,7 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
     return boxes
 
 
-def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None,
+def perturb_field(redshift, init_boxes=None, user_params=UserParams(), cosmo_params=CosmoParams(),
                   regenerate=False, write=True, direc=None,
                   match_seed=False):
     """
@@ -535,13 +580,8 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
     """
     # Try setting the user/cosmo params via the init_boxes
     if init_boxes is not None:
-        user_params = init_boxes.user_params
-        cosmo_params = init_boxes.cosmo_params
+        _get_inputs([user_params, cosmo_params], init_boxes)
         match_seed = True # Need to match seed if matching an init box.
-
-    # Set to defaults if init_boxes wasn't provided and neither were they.
-    user_params = user_params or UserParams()
-    cosmo_params = cosmo_params or CosmoParams()
 
     # Initialize perturbed boxes.
     fields = PerturbedField(redshift=redshift, user_params=user_params, cosmo_params=cosmo_params)
@@ -709,6 +749,10 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     """
     if spin_temp is not None or perturbed_field is not None or init_boxes is not None:
         match_seed = True
+        _check_compatible_inputs(spin_temp, perturbed_field, init_boxes)
+        _check_compatible_inputs(spin_temp, previous_ionize_box, ignore_redshift=True)
+
+    _get_inputs([cosmo_params, user_params, astro_params, flag_options], spin_temp, previous_ionize_box, perturbed_field, init_boxes)
 
     if spin_temp is not None:
         do_spin_temp = True
@@ -719,49 +763,12 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     
     if spin_temp is not None and not isinstance(spin_temp, TsBox):
         raise ValueError("spin_temp must be a TsBox instance")
-    
-    if isinstance(previous_ionize_box, IonizedBox):
-        cosmo_params = previous_ionize_box.cosmo_params
-        astro_params = previous_ionize_box.astro_params
-        flag_options = previous_ionize_box.flag_options
-        user_params = previous_ionize_box.user_params
-    elif spin_temp is not None:
-        cosmo_params = spin_temp.cosmo_params
-        astro_params = spin_temp.astro_params
-        flag_options = spin_temp.flag_options
-        user_params = spin_temp.user_params
-    elif perturbed_field is not None:
-        cosmo_params = perturbed_field.cosmo_params
-        user_params = perturbed_field.user_params
-    elif init_boxes is not None:
-        cosmo_params = init_boxes.cosmo_params
-        user_params = init_boxes.user_params
 
-    if spin_temp is not None and isinstance(previous_ionize_box, IonizedBox):
-        if (
-            spin_temp.cosmo_params != previous_ionize_box.cosmo_params or
-            spin_temp.user_params != previous_ionize_box.user_params or
-            spin_temp.astro_params != previous_ionize_box.astro_params or
-            spin_temp.flag_options != previous_ionize_box.flag_options
-        ):
-            raise ValueError("spin_temp and previous_ionize_box must have the same input parameters.")
-    
-    if perturbed_field is None and redshift is None and spin_temp is None:
-        raise ValueError("Either perturbed_field, spin_temp, or redshift must be provided.")
-    elif spin_temp is not None:
-        redshift = spin_temp.redshift
-    elif perturbed_field is not None:
-        redshift = perturbed_field.redshift
+    redshift = _get_redshift(redshift, perturbed_field, spin_temp)
 
     # Set the default astro params, using the INHOMO_RECO flag.
     if astro_params is None:
         astro_params = AstroParams(flag_options.INHOMO_RECO)
-
-    if spin_temp is not None and spin_temp.redshift != redshift:
-        raise ValueError("The redshift of the spin_temp field needs to be the current redshift")
-
-    if perturbed_field is not None and perturbed_field.redshift != redshift:
-        raise ValueError("The provided perturbed_field must have the same redshift as the provided spin_temp")
 
     box = IonizedBox(
         first_box= ((1 + redshift) * z_step_factor - 1) > global_params.Z_HEAT_MAX and (not isinstance(previous_ionize_box, IonizedBox) or not previous_ionize_box.filled),
@@ -966,27 +973,15 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     """
     if perturbed_field is not None or previous_spin_temp is not None or init_boxes is not None:
         match_seed = True
+        _check_compatible_inputs(perturbed_field, init_boxes, previous_spin_temp, ignore_redshift=True)
+
+    _get_inputs([cosmo_params, user_params, astro_params, flag_options], previous_spin_temp, perturbed_field, init_boxes)
 
     # Set the upper limit on redshift at which we require a previous spin temp box.
     if z_heat_max is not None:
         global_params.Z_HEAT_MAX = z_heat_max
 
-    if isinstance(previous_spin_temp, TsBox):
-        cosmo_params = previous_spin_temp.cosmo_params
-        astro_params = previous_spin_temp.astro_params
-        flag_options = previous_spin_temp.flag_options
-        user_params = previous_spin_temp.user_params
-    elif perturbed_field is not None:
-        cosmo_params = perturbed_field.cosmo_params
-        user_params = perturbed_field.user_params
-    elif init_boxes is not None:
-        cosmo_params = init_boxes.cosmo_params
-        user_params = init_boxes.user_params
-
-    if perturbed_field is None and redshift is None:
-        raise ValueError("Either perturbed_field or redshift must be provided.")
-    elif redshift is None:
-        redshift = perturbed_field.redshift
+    redshift = _get_redshift(redshift, perturbed_field)
 
     # Set the default astro params, using the INHOMO_RECO flag.
     if astro_params is None:
