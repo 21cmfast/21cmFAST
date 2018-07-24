@@ -375,3 +375,24 @@ def lightcone(ctx, redshift, config, regen, direc, match_seed, do_spin, max_z, z
         user_params=user_params, cosmo_params=cosmo_params,
         regenerate=regen, write=True, direc=direc, match_seed=match_seed
     )
+
+
+@main.command()
+@click.option("-d", "--direc", type=click.Path(exists=True, dir_okay=True), default=None,
+              help="directory to write data and plots to -- must exist.")
+@click.option("-k", "--kind", type=str, default=None,
+              help="filter by kind of data.")
+@click.option("-m", "--md5", type=str, default=None,
+              help="filter by md5 hash")
+@click.option("-s", "--seed", type=str, default=None,
+              help="filter by random seed")
+def query(direc,  kind, md5, seed):
+    cls = list(lib.query_cache(direc, kind=kind, hash=md5, seed=seed, show=False))
+
+    print("%s Data Sets Found:"%len(cls))
+    print("------------------")
+    for file, c in cls:
+        print("  @ {%s}:" % file)
+        print("  %s"%str(c))
+
+        print()

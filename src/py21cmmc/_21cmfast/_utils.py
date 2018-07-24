@@ -440,9 +440,11 @@ class OutputStruct:
         match_seed : bool, optional
             Whether to force the random seed to also match in order to be considered a match.
         """
+        if self.filled:
+            raise IOError("This data is already filled, no need to read in.")
+
         pth = self.find_existing(direc, match_seed)
-        print(self.filename)
-        print(repr(self))
+
         if pth is None:
             raise IOError("No boxes exist for these parameters.")
 
@@ -475,7 +477,7 @@ class OutputStruct:
         return self._name + "("+ "; ".join([repr(v) if isinstance(v,StructWithDefaults) else k+":"+str(v) for k,v in [(k,getattr(self, k)) for k in self._inputs]]) +")"
 
     def __str__(self):
-        return self.__repr__()
+        return self.__repr__().replace(";",";\n\t")
 
     def __hash__(self):
         # the global params are here tacked on the end to ensure the hash is reconciled to them.
@@ -491,6 +493,9 @@ class OutputStruct:
 
     def __getstate__(self):
         return {k:v for k,v in self.__dict__.items() if not isinstance(k, self.ffi.CData)}
+
+
+
 
 
 class _StructWrapper:
