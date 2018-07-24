@@ -58,8 +58,6 @@ class StructWithDefaults:
 
                 setattr(self, "_" + k, v)
 
-        self._logic()
-
         # Set the name of this struct in the C code
         if self._name is None:
             self._name = self.__class__.__name__
@@ -68,6 +66,9 @@ class StructWithDefaults:
         self._strings = []
 
         self._cstruct_inited = False
+
+    def convert(self, key, val):
+        return val
 
     @property
     def _cstruct(self):
@@ -85,9 +86,6 @@ class StructWithDefaults:
             self.__cstruct = self._new()
             self._cstruct_inited = True
             return self.__cstruct
-
-    def _logic(self):
-        pass
 
     def _new(self):
         """
@@ -126,8 +124,6 @@ class StructWithDefaults:
         if kwargs:
             warnings.warn("The following arguments to be updated are not compatible with this class: %s"%kwargs)
 
-        self._logic()
-
     def __call__(self):
         """
         Return a filled C Structure corresponding to this instance.
@@ -135,7 +131,7 @@ class StructWithDefaults:
 
         for fld in self._ffi.typeof(self._cstruct[0]).fields:
             key = fld[0]
-            val = getattr(self, key)
+            val = self.convert(key, getattr(self, key))
 
             # Find the value of this key in the current class
             if isinstance(val, str):
@@ -156,13 +152,13 @@ class StructWithDefaults:
         return {fld[0]:getattr(self, fld[0]) for fld in self._ffi.typeof(self._cstruct[0]).fields}
 
     @property
-    def __defining_dict(self):
+    def _defining_dict(self):
         # The defining dictionary is everything that defines the structure,
         # but without anything that constitutes a random seed, which should be defined as RANDOM_SEED*
         return {k:getattr(self, k) for k in self._defaults_ if not k.startswith("RANDOM_SEED")}
 
     def __repr__(self):
-        return self.__class__.__name__+"(" + ", ".join(sorted([k+":"+str(v) for k,v in self.__defining_dict.items()]))+")"
+        return self.__class__.__name__+"(" + ", ".join(sorted([k+":"+str(v) for k,v in self._defining_dict.items()]))+")"
 
     def __eq__(self, other):
         return self.__repr__() == repr(other)
@@ -358,7 +354,10 @@ class OutputStruct:
 
                 if isinstance(q, StructWithDefaults) or isinstance(q, _StructWrapper):
                     grp = f[k]
-                    dct = q.pystruct if isinstance(q, StructWithDefaults) else q
+                    if isinstance(q, StructWithDefaults):
+                        dct = q.pystruct
+                    else:
+                        dct = q
 
                     for kk, v in dct.items():
                         if not match_seed and kk=="RANDOM_SEED":
@@ -408,7 +407,10 @@ class OutputStruct:
 
                 if isinstance(q, StructWithDefaults) or isinstance(q, _StructWrapper):
                     grp = f.create_group(k)
-                    dct = q.pystruct if isinstance(q, StructWithDefaults) else q
+                    if isinstance(q, StructWithDefaults):
+                        dct = q.pystruct
+                    else:
+                        dct = q
 
                     for kk, v in dct.items():
                         if kk not in self._filter_params:

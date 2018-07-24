@@ -277,6 +277,12 @@ class AstroParams(StructWithDefaults):
         self.INHOMO_RECO = INHOMO_RECO
         super().__init__(**kwargs)
 
+    def convert(self, key, val):
+        if key in ['ION_Tvir_MIN', "L_X", "X_RAY_Tvir_MIN"]:
+            return 10**val
+        else:
+            return val
+
     @property
     def R_BUBBLE_MAX(self):
         "Maximum radius of bubbles to be searched. Set dynamically."
@@ -285,20 +291,20 @@ class AstroParams(StructWithDefaults):
         else:
             return self._R_BUBBLE_MAX
 
-    @property
-    def ION_Tvir_MIN(self):
-        "Minimum virial temperature of ionization (unlogged)."
-        return 10 ** self._ION_Tvir_MIN
-
-    @property
-    def L_X(self):
-        "X-ray luminosity (unlogged)"
-        return 10 ** self._L_X
+    # @property
+    # def ION_Tvir_MIN(self):
+    #     "Minimum virial temperature of ionization (unlogged)."
+    #     return 10 ** self._ION_Tvir_MIN
+    #
+    # @property
+    # def L_X(self):
+    #     "X-ray luminosity (unlogged)"
+    #     return 10 ** self._L_X
 
     @property
     def X_RAY_Tvir_MIN(self):
         "Minimum virial temperature of X-ray emitting sources (unlogged and set dynamically)."
-        return 10 ** self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
+        return self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
 
 
 class FlagOptions(StructWithDefaults):
@@ -433,14 +439,14 @@ def _check_compatible_inputs(*datasets, ignore_redshift=False):
                     if d2 is None:
                         continue
 
-                    if getattr(d, inp) != getattr(d2, inp):
+                    if inp in d2._inputs and getattr(d, inp) != getattr(d2, inp):
                         raise ValueError("%s and %s are incompatible"%(d.__class__.__name__, d2.__class__.__name__))
                 done += [inp]
 
 
 def _get_inputs(defaults, *structs):
     for i in range(len(defaults)):
-        k = ''.join('_'+c.lower() if c.isupper() else c for c in defaults.__class__.__name__).strip('_')
+        k = ''.join('_'+c.lower() if c.isupper() else c for c in defaults[i].__class__.__name__).strip('_')
 
         for s in structs:
             if s is None:
@@ -449,6 +455,8 @@ def _get_inputs(defaults, *structs):
             if hasattr(s, k):
                 defaults[i] = getattr(s, k)
                 break
+
+    return defaults
 
 
 def _get_redshift(redshift, *structs):
@@ -460,6 +468,8 @@ def _get_redshift(redshift, *structs):
             return redshift
 
     return redshift
+
+
 # ======================================================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================================================
@@ -499,6 +509,7 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
     -------
     :class:`~InitialConditions`
     """
+
     # Initialize memory for the boxes that will be returned.
     boxes = InitialConditions(user_params, cosmo_params)
 
@@ -580,8 +591,9 @@ def perturb_field(redshift, init_boxes=None, user_params=UserParams(), cosmo_par
     """
     # Try setting the user/cosmo params via the init_boxes
     if init_boxes is not None:
-        _get_inputs([user_params, cosmo_params], init_boxes)
+        user_params, cosmo_params = _get_inputs([user_params, cosmo_params], init_boxes)
         match_seed = True # Need to match seed if matching an init box.
+
 
     # Initialize perturbed boxes.
     fields = PerturbedField(redshift=redshift, user_params=user_params, cosmo_params=cosmo_params)
@@ -590,7 +602,7 @@ def perturb_field(redshift, init_boxes=None, user_params=UserParams(), cosmo_par
     if not regenerate:
         try:
             fields.read(direc, match_seed=match_seed)
-            print("Existing perturb_field boxes found and read in.")
+            print("Existing z=%s perturb_field boxes found and read in."%redshift)
             return fields
         except IOError:
             pass
@@ -752,7 +764,10 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         _check_compatible_inputs(spin_temp, perturbed_field, init_boxes)
         _check_compatible_inputs(spin_temp, previous_ionize_box, ignore_redshift=True)
 
-    _get_inputs([cosmo_params, user_params, astro_params, flag_options], spin_temp, previous_ionize_box, perturbed_field, init_boxes)
+    cosmo_params, user_params, astro_params, flag_options = _get_inputs(
+        [cosmo_params, user_params, astro_params, flag_options],
+        spin_temp, previous_ionize_box, perturbed_field, init_boxes
+    )
 
     if spin_temp is not None:
         do_spin_temp = True
@@ -780,7 +795,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     if not regenerate:
         try:
             box.read(direc, match_seed=match_seed)
-            print("Existing ionized boxes found and read in.")
+            print("Existing z=%s ionized boxes found and read in."%redshift)
             return box
         except IOError:
             pass
@@ -975,7 +990,11 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
         match_seed = True
         _check_compatible_inputs(perturbed_field, init_boxes, previous_spin_temp, ignore_redshift=True)
 
-    _get_inputs([cosmo_params, user_params, astro_params, flag_options], previous_spin_temp, perturbed_field, init_boxes)
+    cosmo_params, user_params, astro_params, flag_options = _get_inputs(
+        [cosmo_params, user_params, astro_params, flag_options],
+        previous_spin_temp, perturbed_field, init_boxes
+    )
+
 
     # Set the upper limit on redshift at which we require a previous spin temp box.
     if z_heat_max is not None:
@@ -997,7 +1016,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     if not regenerate:
         try:
             box.read(direc, match_seed=match_seed)
-            print("Existing spin_temp boxes found and read in.")
+            print("Existing z=%s spin_temp boxes found and read in."%redshift)
             return box
         except IOError:
             pass
@@ -1045,11 +1064,9 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             )
 
     # Run the C Code
-    print("about to do spin...")
     lib.ComputeTsBox(redshift, previous_spin_temp.redshift, perturbed_field.user_params(),
                      perturbed_field.cosmo_params(), astro_params(), perturbed_field.redshift, perturbed_field(),
                      previous_spin_temp(), box())
-    print("done spin...")
     box.filled = True
     box._expose()
 
@@ -1079,6 +1096,8 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
     -------
     :class:`BrightnessTemp` instance.
     """
+    _check_compatible_inputs(ionized_box, perturb_field, spin_temp)
+
     if spin_temp is None:
         saturated_limit = True
 #        spin_temp = ffi.new("struct TsBox*")
@@ -1086,7 +1105,6 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
         
     else:
         saturated_limit = False
-        spin_temp = spin_temp()
 
 #    if spin_temp.redshift != ionized_box.redshift != perturb_field.redshift:
 #        raise ValueError("all box redshifts must be the same.")
@@ -1114,7 +1132,7 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
 
 
 def _logscroll_redshifts(min_redshift, z_step_factor):
-    redshifts = [min_redshift * 1.0001]  # mult by 1.001 is probably bad...
+    redshifts = [min_redshift]  # mult by 1.001 is probably bad...
     while redshifts[-1] < global_params.Z_HEAT_MAX:
         redshifts.append(redshifts[-1] * z_step_factor)
     return redshifts
@@ -1183,7 +1201,6 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
 
     init_box = initial_conditions(user_params, cosmo_params, write=write, regenerate=regenerate, direc=direc,
                                   match_seed=match_seed)
-
     perturb = []
     for z in redshift:
         perturb += [perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
@@ -1193,23 +1210,21 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
 
     # Get the list of redshifts we need to scroll through.
     if flag_options.INHOMO_RECO or do_spin_temp:
-        redshifts = _logscroll_redshifts(min(redshift) * 1.0001, z_step_factor)
+        redshifts = _logscroll_redshifts(min(redshift), z_step_factor)
     else:
-        redshifts = [min(redshift) / 1.001]
+        redshifts = [min(redshift)]
 
     # Add in the redshifts defined by the user, and sort in order, omitting the minimum,
     # because it won't be exactly reproduced. Turn into a set so that exact matching user-set redshifts
     # don't double-up with scrolling ones.
     redshifts += redshift
-    redshifts = sorted(list(set(redshifts)), reverse=True)[:-1]
+    redshifts = sorted(list(set(redshifts)), reverse=True)
 
     ib_tracker = []
     bt = []
     st, ib = None, None # At first we don't have any "previous" st or ib.
     # Iterate through redshift from top to bottom
     for z in redshifts:
-        print("redshift=%s"%z)
-
         if do_spin_temp:
             st2 = spin_temperature(
                 redshift=z,
@@ -1222,8 +1237,6 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
             if z not in redshift:
                 st = st2
 
-        print("got spin temp")
-
         ib2 = ionize_box(
             redshift=z, previous_ionize_box=ib,
             init_boxes=init_box,
@@ -1234,17 +1247,16 @@ def run_coeval(redshift, user_params = UserParams(), cosmo_params = CosmoParams(
             write=write, direc=direc, match_seed=True
         )
 
-        print("got ib")
 
         if z not in redshift:
             ib = ib2
         else:
             ib_tracker.append(ib2)
-            bt += [brightness_temperature(ib2, perturb[minarg], st2 if do_spin_temp else None)]
-
-    # The last one won't get in because of the dodgy redshift thing
-    ib_tracker += [ib]
-    bt += [brightness_temperature(ib, perturb[minarg], st if do_spin_temp else None)]
+            bt += [brightness_temperature(ib2, perturb[redshift.index(z)], st2 if do_spin_temp else None)]
+    #
+    # # The last one won't get in because of the dodgy redshift thing
+    # ib_tracker += [ib]
+    # bt += [brightness_temperature(ib, perturb[minarg], st if do_spin_temp else None)]
 
     # If a single redshift was passed, then pass back singletons.
     if len(ib_tracker) == 1:
