@@ -272,7 +272,7 @@ class AstroParams(StructWithDefaults):
         N_RSD_STEPS=20,
     )
 
-    def __init__(self, INHOMO_RECO, **kwargs):
+    def __init__(self, INHOMO_RECO=False, **kwargs):
         # TODO: should try to get inhomo_reco out of here... just needed for default of R_BUBBLE_MAX.
         self.INHOMO_RECO = INHOMO_RECO
         super().__init__(**kwargs)
