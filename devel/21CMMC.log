@@ -1,0 +1,42 @@
+2018-07-25 13:10:00,662 INFO:Using CosmoHammer 0.6.1
+2018-07-25 13:10:00,662 INFO:Using emcee 2.2.1
+2018-07-25 13:10:00,689 INFO:all burnin iterations already completed
+2018-07-25 13:10:00,691 INFO:Sampler: <class 'py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler.CosmoHammerSampler'>
+configuration: 
+  Params: [30.]
+  Burnin iterations: 0
+  Samples iterations: 200
+  Walkers ratio: 10
+  Reusing burn in: True
+  init pos generator: SampleBallPositionGenerator
+  stop criteria: IterationStopCriteriaStrategy
+  storage util: <py21cmmc.mcmc.cosmoHammer.storage.HDFStorageUtil object at 0x7f7f36ef2ac8>
+likelihoodComputationChain: 
+Core Modules: 
+  CoreCoevalModule
+Likelihood Modules: 
+  Likelihood1DPowerCoeval
+
+2018-07-25 13:10:00,691 INFO:start sampling after burn in
+2018-07-25 13:11:35,246 INFO:Iteration finished:10
+2018-07-25 13:12:56,851 INFO:Iteration finished:20
+2018-07-25 13:14:27,212 INFO:Iteration finished:30
+2018-07-25 13:15:51,035 INFO:Iteration finished:40
+2018-07-25 13:17:08,352 INFO:Iteration finished:50
+2018-07-25 13:18:25,856 INFO:Iteration finished:60
+2018-07-25 13:19:40,207 INFO:Iteration finished:70
+2018-07-25 13:21:05,366 INFO:Iteration finished:80
+2018-07-25 13:22:21,423 INFO:Iteration finished:90
+2018-07-25 13:23:42,337 INFO:Iteration finished:100
+2018-07-25 13:24:59,711 INFO:Iteration finished:110
+2018-07-25 13:26:13,781 INFO:Iteration finished:120
+2018-07-25 13:27:28,009 INFO:Iteration finished:130
+2018-07-25 13:28:52,552 INFO:Iteration finished:140
+2018-07-25 13:30:14,308 INFO:Iteration finished:150
+2018-07-25 13:31:25,476 INFO:Iteration finished:160
+2018-07-25 13:32:44,352 INFO:Iteration finished:170
+2018-07-25 13:33:59,846 INFO:Iteration finished:180
+2018-07-25 13:35:21,984 INFO:Iteration finished:190
+2018-07-25 13:36:48,648 INFO:Iteration finished:200
+2018-07-25 13:36:48,648 INFO:sampling done! Took: 1607.9569s
+2018-07-25 13:36:48,649 INFO:Mean acceptance fraction:0.8245
