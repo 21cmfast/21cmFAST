@@ -41,6 +41,14 @@ class LikelihoodBase:
                 self.astro_params = m.astro_params
 
 
+    @property
+    def default_ctx(self):
+        try:
+            return self.LikelihoodComputationChain.core_context()
+        except AttributeError:
+            raise AttributeError("default_ctx is not available unless the likelihood is embedded in a LikelihoodComputationChain")
+
+
 class LikelihoodPlanck(LikelihoodBase):
     # Mean and one sigma errors for the Planck constraints
     # The Planck prior is modelled as a Gaussian: tau = 0.058 \pm 0.012 (https://arxiv.org/abs/1605.03507)
@@ -544,10 +552,9 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
     A simple likelihood model that generates "data" as a simple power spectrum from fiducial parameters,
     and applies no noise. Use for testing.
     """
-    def __init__(self, datafile=None, n_psbins=None, min_k=0.1, max_k = 1.0, logk=True, #error_on_model=True,
-                 *args, **kwargs):
+    def __init__(self, datafile=None, n_psbins=None, min_k=0.1, max_k = 1.0, logk=True):
 
-        super().__init__(*args, **kwargs)
+        #super().__init__(*args, **kwargs)
 
         self.n_psbins = n_psbins
 #        self.error_on_model = error_on_model
@@ -567,12 +574,12 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
 
         self.mask = np.logical_and(self.k_data >= self.min_k, self.k_data <= self.max_k)
         self.k_data = self.k_data[self.mask]
-        self.p_data = self.p_data[self.mask]
+        self.p_data = [p[self.mask] for p in self.p_data]
 
         if self.datafile:
             # Write out the power spectra to ASCII file
             print("Writing mock data to file")
-            np.savetxt(self.datafile, [self.k_data, self.p_data])
+            np.savetxt(self.datafile,np.vstack([self.k_data, self.p_data]).T, header="k"+"".join(["\tP,z=%s"%z for z in self.redshifts]), delimiter='\t')
 
     @staticmethod
     def compute_power(brightness_temp, L, n_psbins, log_bins=True):
@@ -592,6 +599,16 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
         res[1] = k
         return res
 
+    @property
+    def coeval_core_module(self):
+        for m in self.LikelihoodComputationChain.getCoreModules():
+            if isinstance(m, core.CoreCoevalModule):
+                return m
+
+    @property
+    def redshifts(self):
+        return self.coeval_core_module.redshifts
+
     def computeLikelihood(self, ctx, storage):
         "Compute the likelihood"
         brightness_temp = ctx.get("brightness_temp")
@@ -605,8 +622,8 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
             power, k = self.compute_power(bt, self.user_params.BOX_LEN, self.n_psbins, log_bins=self.logk)
 
             # add the power to the written data
-            storage['power'] += power
-            storage['k'] = k
+            storage['power'] += power[self.mask]
+            storage['k'] = k[self.mask]
 
             lnl += -0.5 * np.sum((power[self.mask] - self.p_data) ** 2 / (0.15*self.p_data)**2)
         return lnl
@@ -615,7 +632,7 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
         """
         Defines the data to be used in comparison. In this case, it simulates the data.
         """
-        return self.LikelihoodComputationChain.simulate()
+        return self.simulate(self.default_ctx)
 
     def simulate(self, ctx):
         brightness_temp = ctx.get("brightness_temp")
