@@ -272,10 +272,10 @@ class AstroParams(StructWithDefaults):
         N_RSD_STEPS=20,
     )
 
-    def __init__(self, INHOMO_RECO=False, **kwargs):
+    def __init__(self, *args, INHOMO_RECO=False, **kwargs):
         # TODO: should try to get inhomo_reco out of here... just needed for default of R_BUBBLE_MAX.
         self.INHOMO_RECO = INHOMO_RECO
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
 
     def convert(self, key, val):
         if key in ['ION_Tvir_MIN', "L_X", "X_RAY_Tvir_MIN"]:
@@ -405,7 +405,7 @@ class IonizedBox(_OutputStructZ):
 
     def __init__(self, astro_params=None, flag_options=FlagOptions(), first_box=False, **kwargs):
         if astro_params is None:
-            astro_params = AstroParams(flag_options.INHOMO_RECO)
+            astro_params = AstroParams(INHOMO_RECO=flag_options.INHOMO_RECO)
         self.first_box = first_box
 
         super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
@@ -498,7 +498,7 @@ def _get_redshift(redshift, *structs):
 # ======================================================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================================================
-def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), regenerate=False, write=True, direc=None,
+def initial_conditions(user_params=None, cosmo_params=None, regenerate=False, write=True, direc=None,
                        match_seed=False):
     """
     Compute initial conditions.
@@ -534,6 +534,8 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
     -------
     :class:`~InitialConditions`
     """
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
 
     # Initialize memory for the boxes that will be returned.
     boxes = InitialConditions(user_params, cosmo_params)
@@ -559,7 +561,7 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
     return boxes
 
 
-def perturb_field(redshift, init_boxes=None, user_params=UserParams(), cosmo_params=CosmoParams(),
+def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None,
                   regenerate=False, write=True, direc=None,
                   match_seed=False):
     """
@@ -614,6 +616,9 @@ def perturb_field(redshift, init_boxes=None, user_params=UserParams(), cosmo_par
     >>> field7 = perturb_field(7.0, user_params=UserParams(HII_DIM=1000))
 
     """
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+
     # Try setting the user/cosmo params via the init_boxes
     if init_boxes is not None:
         user_params, cosmo_params = _get_inputs([user_params, cosmo_params], init_boxes)
@@ -650,11 +655,11 @@ def perturb_field(redshift, init_boxes=None, user_params=UserParams(), cosmo_par
     return fields
 
 
-def ionize_box(astro_params=None, flag_options=FlagOptions(),
+def ionize_box(astro_params=None, flag_options=None,
                redshift=None, perturbed_field=None,
                previous_ionize_box=None, z_step_factor=1.02, z_heat_max=None,
                do_spin_temp=False, spin_temp=None,
-               init_boxes=None, cosmo_params=CosmoParams(), user_params=UserParams(),
+               init_boxes=None, cosmo_params=None, user_params=None,
                regenerate=False, write=True, direc=None,
                match_seed=False):
     """
@@ -783,6 +788,11 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     If automatic recursion is used, then it is done in such a way that no large boxes are kept around in memory for
     longer than they need to be (only two at a time are required).
     """
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+    flag_options = FlagOptions(flag_options)
+    astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+
     if spin_temp is not None or perturbed_field is not None or init_boxes is not None:
         match_seed = True
         _check_compatible_inputs(spin_temp, perturbed_field, init_boxes)
@@ -1012,6 +1022,11 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
     This is usually a bad idea, and will give a warning, but it is possible.
     """
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+    flag_options = FlagOptions(flag_options)
+    astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+
     if perturbed_field is not None or previous_spin_temp is not None or init_boxes is not None:
         match_seed = True
         _check_compatible_inputs(perturbed_field, init_boxes, previous_spin_temp, ignore_redshift=True)
@@ -1228,7 +1243,8 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
         init_box = initial_conditions(user_params, cosmo_params, write=write, regenerate=regenerate, direc=direc,
                                       match_seed=match_seed)
 
-    _check_compatible_inputs(init_box, *perturb, ignore_redshift=True)
+    if perturb is not None:
+        _check_compatible_inputs(init_box, *perturb, ignore_redshift=True)
 
     if redshift is None and perturb is None:
         raise ValueError("Either redshift or perturb must be given")
