@@ -43,7 +43,19 @@ class StructWithDefaults:
     _defaults_ = {}
     _ffi = None
 
-    def __init__(self, **kwargs):
+    def __init__(self, *args, **kwargs):
+
+        if args:
+            if len(args)>1:
+                raise TypeError("%s takes up to one position argument, %s were given"%(self.__class__.__name__, len(args)))
+            elif args[0] is None:
+                pass
+            elif isinstance(args[0], self.__class__):
+                kwargs.update(args[0].self)
+            elif isinstance(args[0], dict):
+                kwargs.update(args[0])
+            else:
+                raise TypeError("optional positional argument for %s must be None, dict, or an instance of itself"%self.__class__.__name__)
 
         for k, v in self._defaults_.items():
 
@@ -152,13 +164,20 @@ class StructWithDefaults:
         return {fld[0]:getattr(self, fld[0]) for fld in self._ffi.typeof(self._cstruct[0]).fields}
 
     @property
-    def _defining_dict(self):
-        # The defining dictionary is everything that defines the structure,
-        # but without anything that constitutes a random seed, which should be defined as RANDOM_SEED*
+    def defining_dict(self):
+        """
+        Everything that defines the structure, but without anything that constitutes a random seed, which should be
+        defined as RANDOM_SEED*
+        """
         return {k:getattr(self, k) for k in self._defaults_ if not k.startswith("RANDOM_SEED")}
 
+    @property
+    def self(self):
+        "Dictionary which if passed to its own constructor will yield an identical copy"
+        return {k: getattr(self, k) for k in self._defaults_}
+
     def __repr__(self):
-        return self.__class__.__name__+"(" + ", ".join(sorted([k+":"+str(v) for k,v in self._defining_dict.items()]))+")"
+        return self.__class__.__name__ +"(" + ", ".join(sorted([k +":" + str(v) for k,v in self.defining_dict.items()])) + ")"
 
     def __eq__(self, other):
         return self.__repr__() == repr(other)

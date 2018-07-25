@@ -3,6 +3,11 @@ from cosmoHammer.LikelihoodComputationChain import LikelihoodComputationChain as
 
 class LikelihoodComputationChain(LCC):
 
+    def __init__(self, params, *args, **kwargs):
+        self.params = params
+        super().__init__(min=params[:,1] if params is not None else None,
+                         max=params[:,2] if params is not None else None)
+
     def simulate(self):
         # TODO: this might not work, and if it does, it's not obvious.
         ctx = self.createChainContext({})
@@ -30,3 +35,10 @@ class LikelihoodComputationChain(LCC):
         """
         self.getCoreModules().append(module)
         module.LikelihoodComputationChain = self
+
+    def invokeCoreModule(self, coremodule, ctx):
+        coremodule(ctx)
+        coremodule.prepare_storage(ctx, ctx.getData()) # This adds the ability to store stuff.
+
+    def invokeLikelihoodModule(self, module, ctx):
+        module.computeLikelihood(ctx, ctx.getData())

@@ -11,10 +11,12 @@ import numpy as np
 
 
 class CosmoHammerSampler(CHS):
-    def __init__(self, continue_sampling=False, *args, **kwargs):
+    def __init__(self, likelihoodComputationChain, continue_sampling=False, *args, **kwargs):
         self.continue_sampling = continue_sampling
 
-        super().__init__(*args, **kwargs)
+        super().__init__(params=likelihoodComputationChain.params,
+                         likelihoodComputationChain=likelihoodComputationChain,
+                         *args, **kwargs)
 
         if not self.reuseBurnin:
             self.storageUtil.reset(self.nwalkers, self.paramCount)

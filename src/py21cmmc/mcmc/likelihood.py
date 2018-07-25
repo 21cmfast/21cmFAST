@@ -539,12 +539,12 @@ class LikelihoodGlobal(LikelihoodBase):
 #         return -0.5 * total_sum  # , nf_vals
 
 
-class Likelihood1DPowerCoEval(LikelihoodBase):
+class Likelihood1DPowerCoeval(LikelihoodBase):
     """
     A simple likelihood model that generates "data" as a simple power spectrum from fiducial parameters,
     and applies no noise. Use for testing.
     """
-    def __init__(self, n_psbins=None, min_k=0.1, max_k = 1.0, logk=True, #error_on_model=True,
+    def __init__(self, datafile=None, n_psbins=None, min_k=0.1, max_k = 1.0, logk=True, #error_on_model=True,
                  *args, **kwargs):
 
         super().__init__(*args, **kwargs)
@@ -552,15 +552,33 @@ class Likelihood1DPowerCoEval(LikelihoodBase):
         self.n_psbins = n_psbins
 #        self.error_on_model = error_on_model
 
+        self.datafile = datafile
         self.min_k = min_k
         self.max_k = max_k
         self.logk = logk
+
+    def setup(self):
+        super().setup()
+
+        if not any([isinstance(m, core.CoreCoevalModule) for m in self.LikelihoodComputationChain.getCoreModules()]):
+            raise ValueError("This likelihood needs the CoreCoevalModule to be loaded.")
+
+        self.k_data, self.p_data = self.define_data()
+
+        self.mask = np.logical_and(self.k_data >= self.min_k, self.k_data <= self.max_k)
+        self.k_data = self.k_data[self.mask]
+        self.p_data = self.p_data[self.mask]
+
+        if self.datafile:
+            # Write out the power spectra to ASCII file
+            print("Writing mock data to file")
+            np.savetxt(self.datafile, [self.k_data, self.p_data])
 
     @staticmethod
     def compute_power(brightness_temp, L, n_psbins, log_bins=True):
         res = get_power(
             brightness_temp.brightness_temp,
-            L = L,
+            boxlength = L,
             bins=n_psbins, bin_ave=False, get_variance=False, log_bins=log_bins
         )
 
@@ -574,27 +592,12 @@ class Likelihood1DPowerCoEval(LikelihoodBase):
         res[1] = k
         return res
 
-    def setup(self):
-        super().setup()
-
-        self.k_data, self.p_data = self.define_data()
-
-        self.mask = np.logical_and(self.k_data >= self.min_k, self.k_data <= self.max_k)
-        self.k_data = self.k_data[self.mask]
-        self.p_data = self.p_data[self.mask]
-
-        if not any([isinstance(m, core.CoreCoevalModule) for m in self.LikelihoodComputationChain.getCoreModules()]):
-            raise ValueError("This likelihood needs the CoreCoEvalModule to be loaded to work.")
-
-    def computeLikelihood(self, ctx):
-        """
-        Compute the likelihood, given the lightcone output from 21cmFAST.
-        """
+    def computeLikelihood(self, ctx, storage):
+        "Compute the likelihood"
         brightness_temp = ctx.get("brightness_temp")
 
         # add the power to the written data
-        data = ctx.getData()
-        data['power'] = []
+        storage['power'] = []
 
         lnl = 0
 
@@ -602,20 +605,23 @@ class Likelihood1DPowerCoEval(LikelihoodBase):
             power, k = self.compute_power(bt, self.user_params.BOX_LEN, self.n_psbins, log_bins=self.logk)
 
             # add the power to the written data
-            data['power'] += power
-            data['k'] = k
+            storage['power'] += power
+            storage['k'] = k
 
             lnl += -0.5 * np.sum((power[self.mask] - self.p_data) ** 2 / (0.15*self.p_data)**2)
         return lnl
 
     def define_data(self):
+        """
+        Defines the data to be used in comparison. In this case, it simulates the data.
+        """
         return self.LikelihoodComputationChain.simulate()
 
     def simulate(self, ctx):
         brightness_temp = ctx.get("brightness_temp")
         p = []
         for bt in brightness_temp:
-            power, k = self.compute_power(bt, self.user_params.BOX_LEN, self.n_psbins)
+            power, k = self.compute_power(bt, self.user_params.BOX_LEN, self.n_psbins, log_bins=self.logk)
             p += [power]
 
         return k, p
