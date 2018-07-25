@@ -105,7 +105,7 @@ import numpy as np
 from astropy.cosmology import Planck15, z_at_value
 
 from ._21cmfast import ffi, lib
-from ._utils import StructWithDefaults, OutputStruct as _OS,_StructWrapper
+from ._utils import StructWithDefaults, OutputStruct as _OS, _StructWrapper
 
 # Global Options
 with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:
@@ -279,7 +279,7 @@ class AstroParams(StructWithDefaults):
 
     def convert(self, key, val):
         if key in ['ION_Tvir_MIN', "L_X", "X_RAY_Tvir_MIN"]:
-            return 10**val
+            return 10 ** val
         else:
             return val
 
@@ -375,6 +375,16 @@ class InitialConditions(_OutputStruct):
         self.lowres_vz_2LPT = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.hires_density = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
 
+        shape = (self.user_params.HII_DIM, self.user_params.HII_DIM, self.user_params.HII_DIM)
+        self.lowres_density.shape = shape
+        self.lowres_vx.shape = shape
+        self.lowres_vy.shape = shape
+        self.lowres_vz.shape = shape
+        self.lowres_vx_2LPT.shape = shape
+        self.lowres_vy_2LPT.shape = shape
+        self.lowres_vz_2LPT.shape = shape
+        self.hires_density.shape = (self.user_params.DIM, self.user_params.DIM, self.user_params.DIM)
+
 
 class PerturbedField(_OutputStructZ):
     """
@@ -384,6 +394,9 @@ class PerturbedField(_OutputStructZ):
     def _init_arrays(self):
         self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+
+        self.density.shape = (self.user_params.HII_DIM, self.user_params.HII_DIM, self.user_params.HII_DIM)
+        self.velocity.shape = (self.user_params.HII_DIM, self.user_params.HII_DIM, self.user_params.HII_DIM)
 
 
 class IonizedBox(_OutputStructZ):
@@ -398,11 +411,17 @@ class IonizedBox(_OutputStructZ):
         super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
 
     def _init_arrays(self):
-        # ionized_box is always initialised to be neutral, for excursion set algorithm. Hence np.ones instead of np.zeros
-        self.xH_box = np.ones(self.user_params.HII_tot_num_pixels, dtype=np.float32) 
+        # ionized_box is always initialised to be neutral for excursion set algorithm. Hence np.ones instead of np.zeros
+        self.xH_box = np.ones(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.Gamma12_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.z_re_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.dNrec_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+
+        shape = (self.user_params.HII_DIM, self.user_params.HII_DIM, self.user_params.HII_DIM)
+        self.xH_box.shape = shape
+        self.Gamma12_box.shape = shape
+        self.z_re_box.shape = shape
+        self.dNrec_box.shape = shape
 
 
 class TsBox(IonizedBox):
@@ -413,6 +432,10 @@ class TsBox(IonizedBox):
         self.x_e_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.Tk_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
+        self.Ts_box.shape = (self.user_params.HII_DIM, self.user_params.HII_DIM, self.user_params.HII_DIM)
+        self.x_e_box.shape = (self.user_params.HII_DIM, self.user_params.HII_DIM, self.user_params.HII_DIM)
+        self.Tk_box.shape = (self.user_params.HII_DIM, self.user_params.HII_DIM, self.user_params.HII_DIM)
+
 
 class BrightnessTemp(IonizedBox):
     "A class containin the brightness temperature box."
@@ -420,33 +443,35 @@ class BrightnessTemp(IonizedBox):
     def _init_arrays(self):
         self.brightness_temp = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
+        self.brightness_temp.shape = (self.user_params.HII_DIM, self.user_params.HII_DIM, self.user_params.HII_DIM)
+
 
 # ======================================================================================================================
 # HELPER FUNCTIONS
 # ======================================================================================================================
 def _check_compatible_inputs(*datasets, ignore_redshift=False):
     done = []
-    for i,d in enumerate(datasets):
+    for i, d in enumerate(datasets):
         if d is None:
             continue
 
         for inp in d._inputs:
-            if ignore_redshift and inp=="redshift":
+            if ignore_redshift and inp == "redshift":
                 continue
 
             if inp not in done:
-                for j, d2 in enumerate(datasets[(i+1):]):
+                for j, d2 in enumerate(datasets[(i + 1):]):
                     if d2 is None:
                         continue
 
                     if inp in d2._inputs and getattr(d, inp) != getattr(d2, inp):
-                        raise ValueError("%s and %s are incompatible"%(d.__class__.__name__, d2.__class__.__name__))
+                        raise ValueError("%s and %s are incompatible" % (d.__class__.__name__, d2.__class__.__name__))
                 done += [inp]
 
 
 def _get_inputs(defaults, *structs):
     for i in range(len(defaults)):
-        k = ''.join('_'+c.lower() if c.isupper() else c for c in defaults[i].__class__.__name__).strip('_')
+        k = ''.join('_' + c.lower() if c.isupper() else c for c in defaults[i].__class__.__name__).strip('_')
 
         for s in structs:
             if s is None:
@@ -517,7 +542,7 @@ def initial_conditions(user_params=UserParams(), cosmo_params=CosmoParams(), reg
     if not regenerate:
         try:
             boxes.read(direc, match_seed)
-            print("Existing init_boxes found and read in.")            
+            print("Existing init_boxes found and read in.")
             return boxes
         except IOError:
             pass
@@ -592,8 +617,7 @@ def perturb_field(redshift, init_boxes=None, user_params=UserParams(), cosmo_par
     # Try setting the user/cosmo params via the init_boxes
     if init_boxes is not None:
         user_params, cosmo_params = _get_inputs([user_params, cosmo_params], init_boxes)
-        match_seed = True # Need to match seed if matching an init box.
-
+        match_seed = True  # Need to match seed if matching an init box.
 
     # Initialize perturbed boxes.
     fields = PerturbedField(redshift=redshift, user_params=user_params, cosmo_params=cosmo_params)
@@ -602,7 +626,7 @@ def perturb_field(redshift, init_boxes=None, user_params=UserParams(), cosmo_par
     if not regenerate:
         try:
             fields.read(direc, match_seed=match_seed)
-            print("Existing z=%s perturb_field boxes found and read in."%redshift)
+            print("Existing z=%s perturb_field boxes found and read in." % redshift)
             return fields
         except IOError:
             pass
@@ -628,7 +652,7 @@ def perturb_field(redshift, init_boxes=None, user_params=UserParams(), cosmo_par
 
 def ionize_box(astro_params=None, flag_options=FlagOptions(),
                redshift=None, perturbed_field=None,
-               previous_ionize_box=None, z_step_factor = 1.02, z_heat_max = None,
+               previous_ionize_box=None, z_step_factor=1.02, z_heat_max=None,
                do_spin_temp=False, spin_temp=None,
                init_boxes=None, cosmo_params=CosmoParams(), user_params=UserParams(),
                regenerate=False, write=True, direc=None,
@@ -771,11 +795,11 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
 
     if spin_temp is not None:
         do_spin_temp = True
-    
+
     # Set the upper limit on redshift at which we require a previous spin temp box.
     if z_heat_max is not None:
         global_params.Z_HEAT_MAX = z_heat_max
-    
+
     if spin_temp is not None and not isinstance(spin_temp, TsBox):
         raise ValueError("spin_temp must be a TsBox instance")
 
@@ -786,7 +810,8 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         astro_params = AstroParams(flag_options.INHOMO_RECO)
 
     box = IonizedBox(
-        first_box= ((1 + redshift) * z_step_factor - 1) > global_params.Z_HEAT_MAX and (not isinstance(previous_ionize_box, IonizedBox) or not previous_ionize_box.filled),
+        first_box=((1 + redshift) * z_step_factor - 1) > global_params.Z_HEAT_MAX and (
+                    not isinstance(previous_ionize_box, IonizedBox) or not previous_ionize_box.filled),
         user_params=user_params, cosmo_params=cosmo_params,
         redshift=redshift, astro_params=astro_params, flag_options=flag_options
     )
@@ -795,7 +820,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     if not regenerate:
         try:
             box.read(direc, match_seed=match_seed)
-            print("Existing z=%s ionized boxes found and read in."%redshift)
+            print("Existing z=%s ionized boxes found and read in." % redshift)
             return box
         except IOError:
             pass
@@ -805,7 +830,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
     # Get the previous redshift
     if flag_options.INHOMO_RECO or do_spin_temp:
 
-        if previous_ionize_box is not None:            
+        if previous_ionize_box is not None:
             if hasattr(previous_ionize_box, "redshift"):
                 prev_z = previous_ionize_box.redshift
             elif isinstance(previous_ionize_box, numbers.Number):
@@ -813,13 +838,13 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
             else:
                 raise ValueError("previous_ionize_box must be an IonizedBox or a float")
         elif z_step_factor is not None:
-            prev_z = (1 + redshift) * z_step_factor - 1            
+            prev_z = (1 + redshift) * z_step_factor - 1
         else:
             prev_z = None
             if redshift < global_params.Z_HEAT_MAX:
                 warnings.warn(
                     "Attempting to evaluate ionization field at z=%s as if it was beyond Z_HEAT_MAX=%s" % (
-                    redshift, global_params.Z_HEAT_MAX))
+                        redshift, global_params.Z_HEAT_MAX))
 
         # Ensure the previous spin temperature has a higher redshift than this one.
         if prev_z and prev_z <= redshift:
@@ -858,7 +883,7 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
         spin_temp = TsBox(redshift=0)
     elif spin_temp is None:
         spin_temp = spin_temperature(
-            redshift=redshift, perturbed_field=perturbed_field,  previous_spin_temp=prev_z,
+            redshift=redshift, perturbed_field=perturbed_field, previous_spin_temp=prev_z,
             astro_params=astro_params, cosmo_params=cosmo_params, flag_options=flag_options, user_params=user_params,
             match_seed=match_seed, direc=direc, write=write, regenerate=regenerate
         )
@@ -879,8 +904,9 @@ def ionize_box(astro_params=None, flag_options=FlagOptions(),
 
 
 def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=None, perturbed_field=None,
-                     previous_spin_temp=None, z_step_factor = 1.02, z_heat_max = None,
-                     init_boxes=None, cosmo_params=CosmoParams(), user_params=UserParams(), regenerate=False, write=True, direc=None,
+                     previous_spin_temp=None, z_step_factor=1.02, z_heat_max=None,
+                     init_boxes=None, cosmo_params=CosmoParams(), user_params=UserParams(), regenerate=False,
+                     write=True, direc=None,
                      match_seed=False):
     """
     Compute spin temperature boxes at a given redshift.
@@ -995,7 +1021,6 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
         previous_spin_temp, perturbed_field, init_boxes
     )
 
-
     # Set the upper limit on redshift at which we require a previous spin temp box.
     if z_heat_max is not None:
         global_params.Z_HEAT_MAX = z_heat_max
@@ -1007,7 +1032,8 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
         astro_params = AstroParams(flag_options.INHOMO_RECO)
 
     box = TsBox(
-        first_box= ((1+redshift)*z_step_factor - 1) > global_params.Z_HEAT_MAX and (not isinstance(previous_spin_temp, IonizedBox) or not previous_spin_temp.filled),
+        first_box=((1 + redshift) * z_step_factor - 1) > global_params.Z_HEAT_MAX and (
+                    not isinstance(previous_spin_temp, IonizedBox) or not previous_spin_temp.filled),
         user_params=user_params, cosmo_params=cosmo_params,
         redshift=redshift, astro_params=astro_params, flag_options=flag_options
     )
@@ -1016,7 +1042,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     if not regenerate:
         try:
             box.read(direc, match_seed=match_seed)
-            print("Existing z=%s spin_temp boxes found and read in."%redshift)
+            print("Existing z=%s spin_temp boxes found and read in." % redshift)
             return box
         except IOError:
             pass
@@ -1030,12 +1056,13 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
         elif isinstance(previous_spin_temp, numbers.Number):
             prev_z = previous_spin_temp
     elif z_step_factor is not None:
-        prev_z = (1+redshift)*z_step_factor - 1
+        prev_z = (1 + redshift) * z_step_factor - 1
 
     else:
         prev_z = None
         if redshift < global_params.Z_HEAT_MAX:
-            warnings.warn("Attempting to evaluate spin temperature field at z=%s as if it was beyond Z_HEAT_MAX=%s"%(redshift, global_params.Z_HEAT_MAX))
+            warnings.warn("Attempting to evaluate spin temperature field at z=%s as if it was beyond Z_HEAT_MAX=%s" % (
+            redshift, global_params.Z_HEAT_MAX))
 
     # Ensure the previous spin temperature has a higher redshift than this one.
     if prev_z and prev_z <= redshift:
@@ -1055,10 +1082,10 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     if not isinstance(previous_spin_temp, TsBox):
         if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
             previous_spin_temp = TsBox(redshift=0)
-        else:        
+        else:
             previous_spin_temp = spin_temperature(
                 astro_params=astro_params, flag_options=flag_options, redshift=prev_z, perturbed_field=perturbed_field,
-                z_step_factor = z_step_factor, z_heat_max = z_heat_max,
+                z_step_factor=z_step_factor, z_heat_max=z_heat_max,
                 init_boxes=init_boxes, regenerate=regenerate, write=write, direc=direc,
                 match_seed=match_seed
             )
@@ -1100,32 +1127,33 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
 
     if spin_temp is None:
         saturated_limit = True
-#        spin_temp = ffi.new("struct TsBox*")
+        #        spin_temp = ffi.new("struct TsBox*")
         spin_temp = TsBox(redshift=0)
-        
+
     else:
         saturated_limit = False
 
-#    if spin_temp.redshift != ionized_box.redshift != perturb_field.redshift:
-#        raise ValueError("all box redshifts must be the same.")
+    #    if spin_temp.redshift != ionized_box.redshift != perturb_field.redshift:
+    #        raise ValueError("all box redshifts must be the same.")
 
-#    if spin_temp.user_params != ionized_box.user_params != perturb_field.user_params:
-#        raise ValueError("all box user_params must be the same")
+    #    if spin_temp.user_params != ionized_box.user_params != perturb_field.user_params:
+    #        raise ValueError("all box user_params must be the same")
 
-#    if spin_temp.cosmo_params != ionized_box.cosmo_params != perturb_field.cosmo_params:
-#        raise ValueError("all box cosmo_params must be the same")
+    #    if spin_temp.cosmo_params != ionized_box.cosmo_params != perturb_field.cosmo_params:
+    #        raise ValueError("all box cosmo_params must be the same")
 
-#    if spin_temp.astro_params != ionized_box.astro_params:
-#        raise ValueError("all box astro_params must be the same")
+    #    if spin_temp.astro_params != ionized_box.astro_params:
+    #        raise ValueError("all box astro_params must be the same")
 
     box = BrightnessTemp(user_params=ionized_box.user_params, cosmo_params=ionized_box.cosmo_params,
                          astro_params=ionized_box.astro_params, flag_options=ionized_box.flag_options,
                          redshift=ionized_box.redshift)
 
-    lib.ComputeBrightnessTemp(ionized_box.redshift, saturated_limit,  
-        ionized_box.user_params(), ionized_box.cosmo_params(), ionized_box.astro_params(), ionized_box.flag_options(),
-        spin_temp(), ionized_box(), perturb_field(), box())
-    box.filled= True
+    lib.ComputeBrightnessTemp(ionized_box.redshift, saturated_limit,
+                              ionized_box.user_params(), ionized_box.cosmo_params(), ionized_box.astro_params(),
+                              ionized_box.flag_options(),
+                              spin_temp(), ionized_box(), perturb_field(), box())
+    box.filled = True
     box._expose()
 
     return box
@@ -1138,10 +1166,9 @@ def _logscroll_redshifts(min_redshift, z_step_factor):
     return redshifts
 
 
-def run_coeval(redshift=None, user_params = UserParams(), cosmo_params = CosmoParams(), astro_params = None,
+def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(), astro_params=None,
                flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
                match_seed=False, z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None):
-
     """
     Evaluates a coeval ionized box at a given redshift, or multiple redshifts.
 
@@ -1197,9 +1224,9 @@ def run_coeval(redshift=None, user_params = UserParams(), cosmo_params = CosmoPa
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
 
-    if init_box is None: # no need to get cosmo, user params out of it.
+    if init_box is None:  # no need to get cosmo, user params out of it.
         init_box = initial_conditions(user_params, cosmo_params, write=write, regenerate=regenerate, direc=direc,
-                                  match_seed=match_seed)
+                                      match_seed=match_seed)
 
     _check_compatible_inputs(init_box, *perturb, ignore_redshift=True)
 
@@ -1235,7 +1262,7 @@ def run_coeval(redshift=None, user_params = UserParams(), cosmo_params = CosmoPa
 
     ib_tracker = []
     bt = []
-    st, ib = None, None # At first we don't have any "previous" st or ib.
+    st, ib = None, None  # At first we don't have any "previous" st or ib.
     # Iterate through redshift from top to bottom
     for z in redshifts:
         if do_spin_temp:
@@ -1259,7 +1286,6 @@ def run_coeval(redshift=None, user_params = UserParams(), cosmo_params = CosmoPa
             regenerate=regenerate,
             write=write, direc=direc, match_seed=True
         )
-
 
         if z not in redshift:
             ib = ib2
@@ -1474,9 +1500,9 @@ def readbox(direc=None, fname=None, hash=None, kind=None, seed=None, load_data=T
 
     # Need to map the parameters to input parameters.
     passed_parameters = {}
-    for k,v in params.items():
+    for k, v in params.items():
         if "global_params" in k:
-            for kk,vv in v.items():
+            for kk, vv in v.items():
                 setattr(global_params, kk, vv)
 
         else:
@@ -1484,7 +1510,7 @@ def readbox(direc=None, fname=None, hash=None, kind=None, seed=None, load_data=T
             # that particular class with the dictionary parameters.
             passed_parameters[k] = globals()[k.title().replace("_", "")](**v)
 
-    for k,v in top_level.items():
+    for k, v in top_level.items():
         passed_parameters[k] = v
 
     # Make an instance of the object.
@@ -1542,7 +1568,7 @@ def list_datasets(direc=None, kind=None, hash=None, seed=None):
     hash = hash or "*"
     seed = seed or "*"
 
-    fname = path.join(direc, kind+"_"+hash+"_r"+seed+".h5")
+    fname = path.join(direc, kind + "_" + hash + "_r" + seed + ".h5")
 
     files = [path.basename(file) for file in glob.glob(fname)]
 
@@ -1579,5 +1605,5 @@ def query_cache(direc=None, kind=None, hash=None, seed=None, show=True):
     for file, parts in list_datasets(direc, kind, hash, seed):
         cls = readbox(direc, fname=file, load_data=False)
         if show:
-            print(file+": "+str(cls))
+            print(file + ": " + str(cls))
         yield file, cls
