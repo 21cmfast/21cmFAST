@@ -1237,7 +1237,9 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
             perturb = [perturb]
         redshift = [p.redshift for p in perturb]
 
+    singleton = False
     if not hasattr(redshift, "__len__"):
+        singleton = True
         redshift = [redshift]
 
     if perturb is None:
@@ -1298,7 +1300,7 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
     # bt += [brightness_temperature(ib, perturb[minarg], st if do_spin_temp else None)]
 
     # If a single redshift was passed, then pass back singletons.
-    if len(ib_tracker) == 1:
+    if singleton:
         ib_tracker = ib_tracker[0]
         bt = bt[0]
         perturb = perturb[0]

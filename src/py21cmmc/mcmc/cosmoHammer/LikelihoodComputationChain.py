@@ -1,12 +1,13 @@
 from cosmoHammer.LikelihoodComputationChain import LikelihoodComputationChain as LCC
-
+from .util import Params
+from cosmoHammer.ChainContext import ChainContext
 
 class LikelihoodComputationChain(LCC):
 
     def __init__(self, params, *args, **kwargs):
         self.params = params
-        super().__init__(min=params[:,1] if params is not None else None,
-                         max=params[:,2] if params is not None else None)
+        super().__init__(min=params[:, 1] if params is not None else None,
+                         max=params[:, 2] if params is not None else None)
 
     def simulate(self):
         # TODO: this might not work, and if it does, it's not obvious.
@@ -43,7 +44,18 @@ class LikelihoodComputationChain(LCC):
 
     def invokeCoreModule(self, coremodule, ctx):
         coremodule(ctx)
-        coremodule.prepare_storage(ctx, ctx.getData()) # This adds the ability to store stuff.
+        coremodule.prepare_storage(ctx, ctx.getData())  # This adds the ability to store stuff.
 
     def invokeLikelihoodModule(self, module, ctx):
-        module.computeLikelihood(ctx, ctx.getData())
+        return module.computeLikelihood(ctx, ctx.getData())
+
+    def createChainContext(self, p):
+        """
+        Returns a new instance of a chain context
+        """
+        try:
+            p = Params(*zip(self.params.keys, p))
+        except Exception:
+            # no params or params has no keys
+            pass
+        return ChainContext(self, p)

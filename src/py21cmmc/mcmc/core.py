@@ -12,6 +12,8 @@ class CoreCoevalModule:
                  z_heat_max=None, **io_options):
 
         self.redshifts = redshifts
+        if not hasattr(self.redshifts, "__len__"):
+            self.redshifts = [self.redshifts]
 
         self.user_params = p21.UserParams(user_params)
         self.flag_options = p21.FlagOptions(flag_options)
@@ -39,11 +41,7 @@ class CoreCoevalModule:
 
     def setup(self):
 
-        self.parameter_names = getattr(self.LikelihoodComputationChain.params,"keys", None)
-        if self.parameter_names is not None:
-            self.parameter_names = self.parameter_names()
-        else:
-            self.parameter_names = []
+        self.parameter_names = getattr(self.LikelihoodComputationChain.params,"keys", [])
 
         if self.z_heat_max is not None:
             p21.global_params.Z_HEAT_MAX = self.z_heat_max
@@ -51,7 +49,7 @@ class CoreCoevalModule:
         # Here we initialize the init and perturb boxes.
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration.
-        if not any([p in p21.CosmoParams.pydict.keys() for p in self.parameter_names]):
+        if not any([p in self.cosmo_params.self.keys() for p in self.parameter_names]):
             print("Initializing init and perturb boxes for the entire chain...", end='', flush=True)
             self.initial_conditions = p21.initial_conditions(
                 user_params=self.user_params,
@@ -74,10 +72,10 @@ class CoreCoevalModule:
 
     def __call__(self, ctx):
         # Update parameters
-        astro_params, cosmo_params = self._update_params(ctx.getParams())
+        self._update_params(ctx.getParams())
 
         # Call C-code
-        init, perturb, xHI, brightness_temp = self.run(astro_params, cosmo_params)
+        init, perturb, xHI, brightness_temp = self.run(self.astro_params, self.cosmo_params)
 
         ctx.add('brightness_temp', brightness_temp)
         ctx.add("init", init)
@@ -116,23 +114,15 @@ class CoreCoevalModule:
         Parameters
         ----------
         params : Parameter object from cosmoHammer
+
         """
-        apkeys = self.astro_params.defining_dict # Remember this does not have any SEED
-        cpkeys = self.cosmo_params.defining_dict
+        # Note that RANDOM_SEED is never updated. It should only change when we are modifying cosmo.
+        self.astro_params.update(**{k: getattr(params, k) for k,v in params.items() if k in self.astro_params.defining_dict})
+        self.cosmo_params.update(
+            **{k: getattr(params, k) for k,v in params.items() if k in self.cosmo_params.defining_dict})
 
-        # TODO: should explore whether this would work just with .update()... not sure if it will screw
-        # up multiple processes...
-
-        # Update the Astrophysical/Cosmological Parameters for this iteration
-        for k in params.keys():
-            if k in self.astro_params.pydict:
-                apkeys[k] = getattr(params, k)
-            elif k in self.cosmo_params.pydict:
-                cpkeys[k] = getattr(params, k)
-            else:
-                raise ValueError("Key %s is not in AstroParams or CosmoParams " % k)
-
-        return p21.AstroParams(**apkeys), p21.CosmoParams(**cpkeys)
+        if self.initial_conditions is None:
+            self.cosmo_params.update(RANDOM_SEED=None)
 
     def run(self, astro_params, cosmo_params):
         """

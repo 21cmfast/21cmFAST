@@ -76,7 +76,6 @@ class StructWithDefaults:
 
         # A little list to hold references to strings so they don't de-reference
         self._strings = []
-
         self._cstruct_inited = False
 
     def convert(self, key, val):
@@ -92,7 +91,7 @@ class StructWithDefaults:
         lost. It must not be lost, or else C functions which use it will lose access to its memory. But it also must
         be created dynamically so that it can be recreated after pickling (pickle can't handle CData).
         """
-        if self._cstruct_inited:
+        if hasattr(self, "_StructWithDefaults__cstruct") and self._cstruct_inited:
             return self.__cstruct
         else:
             self.__cstruct = self._new()
@@ -513,7 +512,7 @@ class OutputStruct:
         return self._name + "_" + self._md5 + "_r%s" % self.cosmo_params.RANDOM_SEED + ".h5"
 
     def __getstate__(self):
-        return {k:v for k,v in self.__dict__.items() if not isinstance(k, self._ffi.CData)}
+        return {k:v for k,v in self.__dict__.items() if not isinstance(v, self._ffi.CData)}
 
 
 class _StructWrapper:

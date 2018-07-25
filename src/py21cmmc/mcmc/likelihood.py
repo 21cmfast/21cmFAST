@@ -618,14 +618,14 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
 
         lnl = 0
 
-        for bt in brightness_temp:
+        for bt, pd in zip(brightness_temp, self.p_data):
             power, k = self.compute_power(bt, self.user_params.BOX_LEN, self.n_psbins, log_bins=self.logk)
 
             # add the power to the written data
-            storage['power'] += power[self.mask]
+            storage['power'] += [power[self.mask]]
             storage['k'] = k[self.mask]
 
-            lnl += -0.5 * np.sum((power[self.mask] - self.p_data) ** 2 / (0.15*self.p_data)**2)
+            lnl += -0.5 * np.sum((power[self.mask] - pd) ** 2 / (0.15*pd)**2)
         return lnl
 
     def define_data(self):

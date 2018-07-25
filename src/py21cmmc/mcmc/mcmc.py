@@ -1,8 +1,7 @@
 # from .core import CoreCoevalModule
 import sys
 from os import path, mkdir
-from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, util
-#from cosmoHammer.util import Params
+from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, Params
 
 
 def build_computation_chain(core_modules, likelihood_modules, params=None):
@@ -24,7 +23,7 @@ def build_computation_chain(core_modules, likelihood_modules, params=None):
     return chain
 
 
-def run_mcmc(core_modules, likelihood_modules, parameters,
+def run_mcmc(core_modules, likelihood_modules, params,
              datadir='.', model_name='21CMMC',
              reuse_burnin=True, continue_sampling=True,
              **mcmc_options):
@@ -37,7 +36,8 @@ def run_mcmc(core_modules, likelihood_modules, parameters,
         pass
 
     # Setup parameters.
-    params = util.Params(*[(k, v[1:]) for k, v in parameters.items()])
+    if not isinstance(params, Params):
+        params = Params(*[(k, v) for k, v in params.items()])
 
     # # Setup the Core Module
     # core_module = Core21cmFastModule(
@@ -78,7 +78,6 @@ def run_mcmc(core_modules, likelihood_modules, parameters,
 
     sampler = CosmoHammerSampler(
         continue_sampling=continue_sampling,
-        params=params,
         likelihoodComputationChain=chain,
         storageUtil= HDFStorageUtil(file_prefix),
         filePrefix=file_prefix,
