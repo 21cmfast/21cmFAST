@@ -13,3 +13,5 @@ _build/
 _autosummary
 vgcore.*
 devel/\.ipynb_checkpoints/
+
+devel/data/
