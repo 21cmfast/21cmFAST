@@ -282,7 +282,8 @@ class OutputStruct:
 
     def _init_cstruct(self):
 
-        self._init_arrays()
+        if not self.filled:
+            self._init_arrays()
 
         for k in self._pointer_fields:
             setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))

@@ -10,6 +10,9 @@ int ERFC_NUM_POINTS = 10000;
 
 double *ERFC_VALS, *ERFC_VALS_DIFF;
 
+
+
+
 void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,

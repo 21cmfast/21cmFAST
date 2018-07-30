@@ -429,3 +429,284 @@ double HI_ion_crosssec(double nu){
     return (6.3e-18)/Z/Z * pow(NUIONIZATION/nu, 4)
     * pow(E, 4-(4*atan(epsilon)/epsilon)) / (1-pow(E, -2*PI/epsilon));
 }
+
+
+
+void writeUserParams(struct UserParams *p, int print_pid){
+    if(print_pid){
+        printf("UserParams (pid=%d):\n", getpid());
+    }else{
+        printf("UserParams:\n", getpid());
+    }
+
+    printf("\tHII_DIM: %d\n",p->HII_DIM);
+    printf("\tDIM    : %d\n",p->DIM);
+    printf("\tBOX_LEN: %f\n",p->BOX_LEN);
+}
+
+void writeCosmoParams(struct CosmoParams *p, int print_pid){
+    if(print_pid){
+        printf("CosmoParams (pid=%d):\n", getpid());
+    }else{
+        printf("CosmoParams\n", getpid());
+    }
+
+    printf("\tRANDOM_SEED: %d\n",p->RANDOM_SEED);
+    printf("\tSIGMA_8    : %f\n",p->SIGMA_8);
+    printf("\thlittle    : %f\n",p->hlittle);
+    printf("\tOMm        : %f\n",p->OMm);
+    printf("\tOMl        : %f\n",p->OMl);
+    printf("\tOMb        : %f\n",p->OMb);
+    printf("\tPOWER_INDEX: %f\n",p->POWER_INDEX);
+}
+
+void writeAstroParams(struct AstroParams *p, int print_pid){
+    if(print_pid){
+        printf("AstroParams (pid=%d):\n", getpid());
+    }else{
+        printf("AstroParams:\n", getpid());
+    }
+
+    printf("\tEFF_FACTOR_PL_INDEX: %f\n",p->EFF_FACTOR_PL_INDEX);
+    printf("\tHII_EFF_FACTOR     : %f\n",p->HII_EFF_FACTOR);
+    printf("\tR_BUBBLE_MAX       : %f\n",p->R_BUBBLE_MAX);
+    printf("\tION_Tvir_MIN       : %f\n",p->ION_Tvir_MIN);
+    printf("\tL_X                : %f\n",p->L_X);
+    printf("\tNU_X_THRESH        : %f\n",p->NU_X_THRESH);
+    printf("\tX_RAY_SPEC_INDEX   : %f\n",p->X_RAY_SPEC_INDEX);
+    printf("\tX_RAY_Tvir_MIN     : %f\n",p->X_RAY_Tvir_MIN);
+    printf("\tF_STAR             : %f\n",p->F_STAR);
+    printf("\tt_STAR             : %f\n",p->t_STAR);
+    printf("\tN_RSD_STEPS        : %d\n",p->N_RSD_STEPS);
+}
+
+void writeFlagOptions(struct FlagOptions *p, int print_pid){
+    if(print_pid){
+        printf("FlagOptions (pid=%d):\n", getpid());
+    }else{
+        printf("FlagOptions:\n", getpid());
+    }
+
+    printf("\tINCLUDE_ZETA_PL: %d\n",p->INCLUDE_ZETA_PL);
+    printf("\tSUBCELL_RSD    : %d\n",p->SUBCELL_RSD);
+    printf("\tINHOMO_RECO    : %d\n",p->INHOMO_RECO);
+    printf("\tUSE_TS_FLUCT   : %d\n",p->USE_TS_FLUCT);
+}
+
+
+
+char *print_output_header(int print_pid, const char *name){
+    char * pid = malloc(12*sizeof(char));
+
+    if(print_pid){
+        sprintf(pid, "<%d>\t", getpid());
+    }else{
+        sprintf(pid, "");
+    }
+
+    printf("%s%s:\n", pid, name);
+    return (pid);
+}
+
+void inspectInitialConditions(struct InitialConditions *x, int print_pid, int print_corners, int print_first,
+                              int HII_DIM){
+    int i;
+    char *pid = print_output_header(print_pid, "InitialConditions");
+
+    if(print_first){
+        printf("%s\tFirstRow: ",pid);
+
+        printf("%s\t\tlowres_density: ");
+        for(i=0;i<10;i++){
+            printf("%f, ", x->lowres_density[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tlowres_vx     : ");
+        for(i=0;i<10;i++){
+            printf("%f, ", x->lowres_vx[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tlowres_vx_2LPT: ");
+        for(i=0;i<10;i++){
+            printf("%f, ", x->lowres_vx_2LPT[i]);
+        }
+        printf("\n");
+    }
+
+    if(print_corners){
+        printf("%s\tCorners: ",pid);
+
+        printf("%s\t\tlowres_density: ",pid);
+        print_corners_real(x->lowres_density, HII_DIM);
+
+        printf("%s\t\tlowres_vx     : ", pid);
+        print_corners_real(x->lowres_vx, HII_DIM);
+
+        printf("%s\t\tlowres_vx_2LPT: ", pid);
+        print_corners_real(x->lowres_vx_2LPT, HII_DIM);
+    }
+}
+
+
+void inspectPerturbedField(struct PerturbedField *x, int print_pid, int print_corners, int print_first,
+                           int HII_DIM){
+    int i;
+    char *pid = print_output_header(print_pid, "PerturbedField");
+
+    if(print_first){
+        printf("%s\tFirstRow: \n",pid);
+
+        printf("%s\t\tdensity: ", pid);
+        for(i=0;i<10;i++){
+            printf("%f, ", x->density[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tvelocity: ", pid);
+        for(i=0;i<10;i++){
+            printf("%f, ", x->velocity[i]);
+        }
+        printf("\n");
+
+    }
+
+    if(print_corners){
+        printf("%s\tCorners: \n",pid);
+
+        printf("%s\t\tdensity: ",pid);
+        print_corners_real(x->density, HII_DIM);
+
+        printf("%s\t\tvelocity: ", pid);
+        print_corners_real(x->velocity, HII_DIM);
+    }
+
+}
+
+
+void inspectTsBox(struct TsBox *x, int print_pid, int print_corners, int print_first, int HII_DIM){
+    int i;
+    char *pid = print_output_header(print_pid, "TsBox");
+
+    if(print_first){
+        printf("%s\tFirstRow: ",pid);
+
+        printf("%s\t\tTs_box : ");
+        for(i=0;i<10;i++){
+            printf("%f, ", x->Ts_box[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tx_e_box: ");
+        for(i=0;i<10;i++){
+            printf("%f, ", x->x_e_box[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tTk_box : ");
+        for(i=0;i<10;i++){
+            printf("%f, ", x->Tk_box[i]);
+        }
+        printf("\n");
+    }
+
+    if(print_corners){
+        printf("%s\tCorners: ",pid);
+
+        printf("%s\t\tTs_box : ",pid);
+        print_corners_real(x->Ts_box, HII_DIM);
+
+        printf("%s\t\tx_e_box: ", pid);
+        print_corners_real(x->x_e_box, HII_DIM);
+
+        printf("%s\t\tTk_box : ", pid);
+        print_corners_real(x->Tk_box, HII_DIM);
+    }
+}
+
+void inspectIonizedBox(struct IonizedBox *x, int print_pid, int print_corners, int print_first, int HII_DIM){
+    int i;
+    char *pid = print_output_header(print_pid, "IonizedBox");
+
+    if(print_first){
+        printf("%s\tFirstRow: ",pid);
+
+        printf("%s\t\txH_box     : ");
+        for(i=0;i<10;i++){
+            printf("%f, ", x->xH_box[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tGamma12_box: ");
+        for(i=0;i<10;i++){
+            printf("%f, ", x->Gamma12_box[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tz_re_box  : ");
+        for(i=0;i<10;i++){
+            printf("%f, ", x->z_re_box[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tdNrec_box : ");
+        for(i=0;i<10;i++){
+            printf("%f, ", x->dNrec_box[i]);
+        }
+        printf("\n");
+    }
+
+    if(print_corners){
+        printf("%s\tCorners: ",pid);
+
+        printf("%s\t\txH_box     : ",pid);
+        print_corners_real(x->xH_box, HII_DIM);
+
+        printf("%s\t\tGamma12_box: ", pid);
+        print_corners_real(x->Gamma12_box, HII_DIM);
+
+        printf("%s\t\tz_re_box   : ", pid);
+        print_corners_real(x->z_re_box, HII_DIM);
+
+        printf("%s\t\tdNrec_box  : ", pid);
+        print_corners_real(x->dNrec_box, HII_DIM);
+    }
+}
+
+void inspectBrightnessTemp(struct BrightnessTemp *x, int print_pid, int print_corners, int print_first, int HII_DIM){
+    int i;
+
+    char *pid = print_output_header(print_pid, "BrightnessTemp");
+
+    if(print_first){
+        printf("%s\tFirstRow: ",pid);
+
+        printf("%s\t\tbrightness_temp: ");
+        for(i=0;i<10;i++){
+            printf("%f, ", x->brightness_temp[i]);
+        }
+        printf("\n");
+    }
+
+    if(print_corners){
+        printf("%s\tCorners: ",pid);
+
+        printf("%s\t\tbrightness_temp: ",pid);
+        print_corners_real(x->brightness_temp, HII_DIM);
+    }
+}
+
+
+void print_corners_real(float *x, int size){
+    int s = size-1;
+    int i,j,k;
+    for(i=0;i<size;i=i+s){
+        for(j=0;j<size;j=j+s){
+            for(k=0;k<size;k=k+s){
+                printf("%f, ", x[k + size*(j + size*i)]);
+            }
+        }
+    }
+    printf("\n");
+}

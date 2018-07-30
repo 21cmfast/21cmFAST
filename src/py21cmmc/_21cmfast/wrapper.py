@@ -899,8 +899,8 @@ def ionize_box(astro_params=None, flag_options=None,
         )
 
     # Run the C Code
-    lib.ComputeIonizedBox(redshift, previous_ionize_box.redshift, perturbed_field.user_params(),
-                          perturbed_field.cosmo_params(), astro_params(), flag_options(), perturbed_field(),
+    lib.ComputeIonizedBox(redshift, previous_ionize_box.redshift, user_params(),
+                          cosmo_params(), astro_params(), flag_options(), perturbed_field(),
                           previous_ionize_box(), do_spin_temp, spin_temp(), box())
 
     box.filled = True
