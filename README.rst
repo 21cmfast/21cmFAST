@@ -19,7 +19,7 @@ Features
   available.
 * Convenient data objects which simplify access to and processing of the various density and ionization fields.
 * De-coupled functions mean that arbitrary functionality can be injected into the process. [TODO: docs on how to do this]
-* Seamless integration with ``emcee``-based MCMC. [TODO]
+* Seamless integration with ``emcee``-based MCMC.
 * MCMC is easily extensible via the addition of different likelihoods using the same underlying data. [TODO]
 
 Quick Usage

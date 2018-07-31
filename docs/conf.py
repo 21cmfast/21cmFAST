@@ -15,7 +15,9 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
     'sphinx.ext.mathjax',
-    'numpydoc'
+    'numpydoc',
+    'nbsphinx',
+    'IPython.sphinxext.ipython_console_highlighting',
 ]
 if os.getenv('SPELLCHECK'):
     extensions += 'sphinxcontrib.spelling',
@@ -58,3 +60,5 @@ napoleon_use_rtype = False
 napoleon_use_param = False
 
 mathjax_path = "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store','templates','**.ipynb_checkpoints']

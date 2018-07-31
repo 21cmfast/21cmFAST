@@ -19,17 +19,17 @@ class CosmoHammerSampler(CHS):
                          *args, **kwargs)
 
         if not self.reuseBurnin:
-            self.storageUtil.reset(self.nwalkers, self.paramCount)
+            self.storageUtil.reset(self.nwalkers, self.params)
 
         if not continue_sampling:
-            self.storageUtil.reset(self.nwalkers, self.paramCount, burnin=False)
+            self.storageUtil.reset(self.nwalkers, self.params, burnin=False)
 
         if not self.storageUtil.burnin_initialized:
-            self.storageUtil.reset(self.nwalkers, self.paramCount, burnin=True, samples=False)
+            self.storageUtil.reset(self.nwalkers, self.params, burnin=True, samples=False)
             with self.storageUtil.burnin_storage.open() as f:
                 print(list(f.keys()))
         if not self.storageUtil.samples_initialized:
-            self.storageUtil.reset(self.nwalkers, self.paramCount, burnin=False, samples=True)
+            self.storageUtil.reset(self.nwalkers, self.params, burnin=False, samples=True)
             ''
         if self.storageUtil.burnin_storage.iteration >= self.burninIterations:
             self.log("all burnin iterations already completed")
@@ -38,7 +38,7 @@ class CosmoHammerSampler(CHS):
 
         if self.storageUtil.sample_storage.iteration > 0 and self.storageUtil.burnin_storage.iteration < self.burninIterations:
             self.log("resetting sample iterations because more burnin iterations requested.")
-            self.storageUtil.reset(self.nwalkers, self.paramCount, samples=True)
+            self.storageUtil.reset(self.nwalkers, self.params, samples=True)
 
     def startSampling(self):
         """
@@ -164,3 +164,10 @@ class CosmoHammerSampler(CHS):
 
     def sample(self, burninPos, burninProb=None, burninRstate=None, datas=None):
         return self._sample(burninPos, burninProb, burninRstate, datas)
+
+    @property
+    def samples(self):
+        if not self.storageUtil.sample_storage.initialized:
+            raise ValueError("Cannot access samples before sampling.")
+        else:
+            return self.storageUtil.sample_storage

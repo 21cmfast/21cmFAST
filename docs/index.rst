@@ -7,6 +7,7 @@ Contents
 
    installation
    usage
+   tutorials
    reference/index
    contributing
    authors

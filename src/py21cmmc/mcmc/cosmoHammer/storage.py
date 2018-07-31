@@ -31,16 +31,18 @@ class HDFStorage:
     def open(self, mode="r"):
         return h5py.File(self.filename, mode)
 
-    def reset(self, nwalkers, ndim):
+    def reset(self, nwalkers, params):
         """Clear the state of the chain and empty the backend
         Args:
             nwakers (int): The size of the ensemble
-            ndim (int): The number of dimensions
+            params (Params): The parameter input
         """
         if os.path.exists(self.filename):
             mode = 'a'
         else:
             mode = 'w'
+
+        ndim = len(params.keys)
 
         with self.open(mode) as f:
             if self.name in f:
@@ -52,6 +54,14 @@ class HDFStorage:
             g.attrs["ndim"] = ndim
             g.attrs["has_blobs"] = False
             g.attrs["iteration"] = 0
+
+            g.create_dataset(
+                "guess",
+                data=np.array(
+                    [tuple([v[0] for v in params.values])],
+                    dtype=[(k, np.float64) for k in params.keys]
+                )
+            )
             g.create_dataset("accepted", data=np.zeros(nwalkers, dtype=int))
             g.create_dataset("chain",
                              (0, nwalkers, ndim),
@@ -62,6 +72,31 @@ class HDFStorage:
                              maxshape=(None, nwalkers),
                              dtype=np.float64)
 
+    @property
+    def param_names(self):
+        if not self.initialized:
+            raise ValueError("storage needs to be initialized to access parameter names")
+
+        with self.open() as f:
+            return f[self.name]['guess'].dtype.names
+
+    @property
+    def param_guess(self):
+        if not self.initialized:
+            raise ValueError("storage needs to be initialized to access parameter guess")
+
+        with self.open() as f:
+            return f[self.name]['guess'][...]
+
+    @property
+    def blob_names(self):
+        if not self.has_blobs:
+            return None
+
+        empty_blobs = self.get_blobs(discard=self.iteration)
+        return empty_blobs.dtype.names
+
+    @property
     def has_blobs(self):
         with self.open() as f:
             return f[self.name].attrs["has_blobs"]
@@ -143,7 +178,6 @@ class HDFStorage:
                         if len(shape) == 1: shape = shape[0]
                         blobs_dtype += [(k, (np.atleast_1d(v).dtype, shape))]
 
-                    #dt = np.dtype((blobs[0].dtype, blobs[0].shape))
                     g.create_dataset("blobs", (ntot, nwalkers),
                                      maxshape=(None, nwalkers),
                                      dtype=blobs_dtype)
@@ -185,10 +219,9 @@ class HDFStorage:
             g.attrs["iteration"] = iteration + 1
 
     def _check_blobs(self, blobs):
-        has_blobs = self.has_blobs()
-        if has_blobs and blobs is None:
+        if self.has_blobs and blobs is None:
             raise ValueError("inconsistent use of blobs")
-        if self.iteration > 0 and blobs is not None and not has_blobs:
+        if self.iteration > 0 and blobs is not None and not self.has_blobs:
             raise ValueError("inconsistent use of blobs")
 
     def get_chain(self, **kwargs):
@@ -266,7 +299,7 @@ class HDFStorage:
     def _check(self, coords, log_prob, blobs, accepted):
         self._check_blobs(blobs)
         nwalkers, ndim = self.shape
-        has_blobs = self.has_blobs()
+        has_blobs = self.has_blobs
         if coords.shape != (nwalkers, ndim):
             raise ValueError("invalid coordinate dimensions; expected {0}"
                              .format((nwalkers, ndim)))
@@ -291,11 +324,11 @@ class HDFStorageUtil:
         self.burnin_storage = HDFStorage(file_prefix + '.h5', name='burnin')
         self.sample_storage = HDFStorage(file_prefix + '.h5', name='sample_%s'%chain_number)
 
-    def reset(self, nwalkers, ndim, burnin=True, samples=True):
+    def reset(self, nwalkers, params, burnin=True, samples=True):
         if burnin:
-            self.burnin_storage.reset(nwalkers, ndim)
+            self.burnin_storage.reset(nwalkers, params=params)
         if samples:
-            self.sample_storage.reset(nwalkers, ndim)
+            self.sample_storage.reset(nwalkers, params=params)
 
     @property
     def burnin_initialized(self):
