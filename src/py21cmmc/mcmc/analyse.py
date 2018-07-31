@@ -7,6 +7,7 @@ from .cosmoHammer.storage import HDFStorage
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def get_samples(chain, indx=0):
     """
     Extract sample storage object from a chain.
@@ -34,15 +35,42 @@ def get_samples(chain, indx=0):
         except AttributeError:
             raise AttributeError("chain must either be a CosmoHammerSampler instance, or str")
 
-        return HDFStorage(chain, name="sample_%s"%indx)
+        return HDFStorage(chain, name="sample_%s" % indx)
 
 
-def corner_plot(samples, include_lnl=True, show_guess=True, **kwargs):
-    from corner import corner
+def corner_plot(samples, include_lnl=True, show_guess=True, start_iter=0, thin=1, **kwargs):
+    """
+    Make a corner plot given samples.
 
-    chain = samples.get_value("chain")
-    lnprob = samples.get_value("log_prob")
-    niter, mwalkers, nparams= chain.shape
+    Parameters
+    ----------
+    samples: :class:`py21cmmc.mcmc.cosmoHammer.storage.HDFStorage`
+        The ``samples`` attribute of a sampler (i.e. the return value of :func:`~.mcmc.run_mcmc`), or equivalently,
+        the return value of :func:`~get_samples`.
+    include_lnl: bool, optional
+        Whether to plot the log-likelihood as if it were a parameter.
+    show_guess: bool, optional
+        Whether to show the initial guess as "truths" in the corner plot.
+    start_iter: int, optional
+        The first iteration to include in the plotted samples.
+    thin: int, optional
+        Use only every "thin" sample to plot.
+    kwargs:
+        All kwargs are passed directly to the `corner` function from the `corner` package.
+
+    Returns
+    -------
+    fig:
+        Matlotlib figure object.
+    """
+    try:
+        from corner import corner
+    except ImportError:
+        raise ImportError("Please install the corner package to use this function (``pip install corner``)")
+
+    chain = samples.get_chain(discard=start_iter, thin=thin)
+    lnprob = samples.get_log_prob(discard=start_iter, thin=thin)
+    niter, mwalkers, nparams = chain.shape
 
     if show_guess:
         guess = list((samples.param_guess[0]))
@@ -57,7 +85,7 @@ def corner_plot(samples, include_lnl=True, show_guess=True, **kwargs):
     else:
         plotchain = chain.reshape((-1, nparams))
 
-    corner(
+    fig = corner(
         plotchain,
         labels=labels,
         truths=guess if show_guess else None,
@@ -67,9 +95,34 @@ def corner_plot(samples, include_lnl=True, show_guess=True, **kwargs):
         quantiles=kwargs.get("quantiles", [0.16, 0.5, 0.84])
     )
 
+    return fig
 
-def trace_plot(samples, include_lnl=True, start_iter=0, thin=1, colored=False, show_guess=True):
 
+def trace_plot(samples, include_lnl=True, show_guess=True, start_iter=0, thin=1, colored=False):
+    """
+    Make a trace plot given samples.
+
+    Parameters
+    ----------
+    samples: :class:`py21cmmc.mcmc.cosmoHammer.storage.HDFStorage`
+        The ``samples`` attribute of a sampler (i.e. the return value of :func:`~.mcmc.run_mcmc`), or equivalently,
+        the return value of :func:`~get_samples`.
+    include_lnl: bool, optional
+        Whether to plot the log-likelihood as if it were a parameter.
+    show_guess: bool, optional
+        Whether to show the initial guess as "truths" in the corner plot.
+    start_iter: int, optional
+        The first iteration to include in the plotted samples.
+    thin: int, optional
+        Use only every "thin" sample to plot.
+    colored: bool, optional
+        Whether to use a color-cycle to color each walker. Otherwise each trace is black.
+
+    Returns
+    -------
+    fig, ax:
+        Matlotlib figure and axis objects.
+    """
     nwalkers, nparams = samples.shape
     if include_lnl:
         nparams += 1
@@ -77,8 +130,8 @@ def trace_plot(samples, include_lnl=True, start_iter=0, thin=1, colored=False, s
     chain = samples.get_chain(thin=thin, discard=start_iter)
     lnprob = samples.get_log_prob(thin=thin, discard=start_iter)
 
-    fig, ax = plt.subplots(nparams, 1, sharex=True, gridspec_kw={"hspace":0.05, "wspace":0.05},
-                           figsize=(8, 3*nparams))
+    fig, ax = plt.subplots(nparams, 1, sharex=True, gridspec_kw={"hspace": 0.05, "wspace": 0.05},
+                           figsize=(8, 3 * nparams))
 
     for i in range(nwalkers):
         for j, param in enumerate(samples.param_names):
