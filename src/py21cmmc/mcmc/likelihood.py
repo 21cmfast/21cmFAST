@@ -13,14 +13,9 @@ from os import path
 
 np.seterr(invalid='ignore', divide='ignore')
 
-try:
-    from powerbox.tools import get_power
-    from powerbox import dft
-    from astropy.cosmology import Planck15
-
-    HAVE_PB_AP = True
-except ImportError:
-    HAVE_PB_AP = False
+from powerbox.tools import get_power
+from powerbox import dft
+from astropy.cosmology import Planck15
 
 TWOPLACES = Decimal(10) ** -2  # same as Decimal('0.01')
 FOURPLACES = Decimal(10) ** -4  # same as Decimal('0.0001')
@@ -252,22 +247,50 @@ class LikelihoodBase:
 
 class Likelihood1DPowerCoeval(LikelihoodBase):
     """
-    A simple likelihood model that generates "data" as a simple power spectrum from fiducial parameters,
-    and applies no noise. Use for testing.
+    A likelihood which assumes that the spherically-averaged power spectrum is iid Gaussian in each bin.
+
+    Requires the CoreCoevalModule to be loaded to work, and inherently deals with the multiple-redshift cubes
+    which that module produces.
+
+    If a `datafile` is provided and the datafile exists, then the data will be read from that file. Otherwise,
+    theoretical data will be automatically simulated to match current parameters. This will be written to
+    `datafile` if provided.
     """
     required_cores = [core.CoreCoevalModule]
 
-    def __init__(self, datafile=None, n_psbins=None, min_k=0.1, max_k = 1.0, logk=True):
+    def __init__(self, datafile=None, n_psbins=None, min_k=0.1, max_k = 1.0, logk=True, model_uncertainty=0.15,
+                 error_on_model=True,):
+        """
+        Initialize the likelihood.
 
-        #super().__init__(*args, **kwargs)
+        Parameters
+        ----------
+        datafile : str, optional
+            The file from which to read the data. Alternatively, the file to which to write the data (see class
+            docstring for how this works).
+        n_psbins : int, optional
+            The number of bins for the spherically averaged power spectrum. By default automatically
+            calculated from the number of cells.
+        min_k : float, optional
+            The minimum k value at which to compare model and data.
+        max_k : float, optional
+            The maximum k value at which to compare model and data.
+        logk : bool, optional
+            Whether the power spectrum bins should be regular in logspace or linear space.
+        model_uncertainty : float, optional
+            The amount of uncertainty in the modelling, per power spectral bin (as fraction of the amplitude).
+        error_on_model : bool, optional
+            Whether the `model_uncertainty` is applied to the model, or the data.
+        """
 
         self.n_psbins = n_psbins
-#        self.error_on_model = error_on_model
 
         self.datafile = datafile
         self.min_k = min_k
         self.max_k = max_k
         self.logk = logk
+        self.error_on_model = error_on_model
+        self.model_uncertainty = model_uncertainty
 
     def setup(self):
         super().setup()
@@ -278,9 +301,12 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
         self.k_data = self.k_data[self.mask]
         self.p_data = [p[self.mask] for p in self.p_data]
 
-        if self.datafile:
+        # This needs to be first-order (linear) so that symmetry between data and model can be preserved.
+        self.data_spline = [InterpolatedUnivariateSpline(self.k_data, p, k=1) for p in self.p_data]
+
+        if self.datafile and not path.exists(self.datafile):
             # Write out the power spectra to ASCII file
-            print("Writing mock data to file")
+            print("Writing mock data to file") # TODO: use proper logger.
             np.savetxt(self.datafile, np.vstack([self.k_data, self.p_data]).T,
                        header="k"+"".join(["\tP,z=%s" % z for z in np.atleast_1d(self.redshift)]), delimiter='\t')
 
@@ -321,24 +347,29 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
 
         lnl = 0
 
-        for bt, pd in zip(brightness_temp, self.p_data):
+        for bt, pd in zip(brightness_temp, self.data_spline):
             power, k = self.compute_power(bt, self.user_params.BOX_LEN, self.n_psbins, log_bins=self.logk)
 
             # add the power to the written data
             storage['power'] += [power[self.mask]]
-            # print("in lnl: %s" % np.mean(bt.brightness_temp))
-            # print(power)
-            # print(bt.brightness_temp.shape, self.user_params.BOX_LEN)
             storage['k'] = k[self.mask]
 
-            lnl += -0.5 * np.sum((power[self.mask] - pd) ** 2 / (0.15*pd)**2)
+            denom = self.model_uncertainty*pd(k) if not self.error_on_model else self.model_uncertainty*power[self.mask]
+
+            lnl += -0.5 * np.sum((power[self.mask] - pd(k)) ** 2 / denom**2)
         return lnl
 
     def define_data(self):
         """
         Defines the data to be used in comparison. In this case, it simulates the data.
         """
-        return self.simulate(self.default_ctx)
+        if self.datafile and path.exists(self.datafile):
+            data = np.genfromtxt(self.datafile)
+            k = data[:,0]
+            p = [data[:,i] for i in range(data.shape[1])]
+            return k, p
+        else:
+            return self.simulate(self.default_ctx)
 
     def simulate(self, ctx):
         brightness_temp = ctx.get("brightness_temp")
@@ -352,11 +383,17 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
 
 
 class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
+    """
+    A likelihood very similar to :class:`Likelihood1DPowerCoeval`, except for a lightcone.
+
+    Since most of the functionality is the same, please see the other documentation for details.
+    """
     required_cores = [core.CoreLightConeModule]
 
     def setup(self):
         super().setup()
         self.p_data = self.p_data[0] # un-list it
+        self.data_spline = self.data_spline[0]
 
     @staticmethod
     def compute_power(lightcone, n_psbins, log_bins=True):
@@ -389,7 +426,8 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         storage['power'] = power[self.mask]
         storage['k'] = k[self.mask]
 
-        lnl = -0.5 * np.sum((power[self.mask] - self.p_data) ** 2 / (0.15*self.p_data)**2)
+        denom = self.model_uncertainty * self.data_spline(k) if not self.error_on_model else self.model_uncertainty * power[self.mask]
+        lnl = -0.5 * np.sum((power[self.mask] - self.data_spline(k)) ** 2 / denom**2)
         return lnl
 
     def simulate(self, ctx):
@@ -398,125 +436,6 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         power, k = self.compute_power(lightcone, self.n_psbins, log_bins=self.logk)
 
         return k, [power]
-
-#
-# class Likelihood1DPowerLightconeNoErrors(LikelihoodBase):
-#     def __init__(self, datafile, n_psbins=None, min_k=0.1, max_k = 1.0, logk=True, error_on_model=True,
-#                  min_z = None, max_z = None, min_freq= None, max_freq=None, delta_z = None, delta_freq = None,
-#                  *args, **kwargs):
-#
-#         super().__init__(*args, **kwargs)
-#
-#         self.datafile = datafile
-#         self.n_psbins = n_psbins
-#         self.error_on_model = error_on_model
-#
-#         self.min_k = min_k
-#         self.max_k = max_k
-#         self.logk = logk
-#
-#         self.min_z = min_z
-#         self.max_z = max_z
-#         self.min_freq = min_freq
-#         self.max_freq = max_freq
-#         self.delta_z = delta_z
-#         self.delta_freq = delta_freq
-#
-#     def setup(self):
-#         if not HAVE_PB_AP:
-#             raise NotImplementedError("You need to install powerbox and astropy to use this class")
-#
-#         if not self.flag_options().USE_LIGHTCONE:
-#             raise ValueError("You need to use a lightcone for this Likelihood module")
-#
-#         data = np.genfromtxt(self.datafile)
-#         self.k_data = data[:, 0]
-#         self.p_data = data[:, 1]
-#
-#         self.mask = np.logical_and(self.k_data>=self.min_k, self.k_data<=self.max_k)
-#         self.k_data = self.k_data[self.mask]
-#         self.p_data = self.p_data[self.mask]
-#
-#     def _get_z_mask(self, z_lc):
-#
-#         mask = np.full_like(z_lc, True, dtype=bool)
-#
-#         if self.min_z is not None:
-#             mask = np.logical_and(mask, z_lc >= self.min_z)
-#         if self.max_z is not None:
-#             mask =  np.logical_and(mask, z_lc <= self.max_z)
-#
-#         if self.min_freq is not None:
-#             mask = np.logical_and(mask, 1420./(1+z_lc) >= self.min_freq)
-#         if self.max_freq is not None:
-#             mask = np.logical_and(mask, 1420. / (1 + z_lc) <= self.max_freq)
-#
-#         if self.delta_z is not None:
-#             mask = np.logical_and(mask, z_lc <= z_lc.min() + self.delta_z)
-#         if self.delta_freq is not None:
-#             mask = np.logical_and(mask, 1420. / (1 + z_lc) <= 1420. / (1 + z_lc.min()) + self.delta_freq)
-#
-#         return mask
-#
-#     def computeLikelihood(self, ctx):
-#         output = ctx.get("output")
-#         res = self.compute_power(output, n_psbins=self.n_psbins, get_var=self.error_on_model, log_bins=self.logk,
-#                                  zmask=self._get_z_mask)
-#
-#         p = res[0]
-#         k = res[1]
-#         if self.error_on_model:
-#             var = res[2]
-#
-#         # add the power to the written data
-#         data = ctx.getData()
-#         data['lightcone_power'] = p
-#         data['lightcone_k'] = k
-#         if self.error_on_model:
-#             data['lightcone_power_variance'] = var
-#
-#         err = p[self.mask] if self.error_on_model else self.p_data
-#         return - 0.5 * np.sum((p[self.mask] - self.p_data) ** 2 / (0.15*err)**2)
-#
-#     @staticmethod
-#     def compute_power(lightcone, n_psbins=None, get_var=True, log_bins=True, zmask=None):
-#         # Cut the redshift dimension to user-set limits.
-#         if zmask is not None:
-#             mask = zmask(lightcone.redshifts_slices)
-#         else:
-#             mask = np.full_like(lightcone.redshifts_slices, True, dtype=bool)
-#
-#         los_distance = lightcone.cosmo.comoving_distance(lightcone.redshifts_slices[mask].max()) - lightcone.cosmo.comoving_distance(lightcone.redshifts_slices[mask].min())
-#         res = get_power(
-#             lightcone.lightcone_box[:, :, mask],
-#             [lightcone.box_len, lightcone.box_len, los_distance.value],
-#             bins=n_psbins, bin_ave=False, get_variance=get_var, log_bins=log_bins
-#         )
-#
-#         res = list(res)
-#         k = res[1]
-#         if log_bins:
-#             k = np.exp((np.log(k[1:])+np.log(k[:-1]))/2)
-#         else:
-#             k = (k[1:] + k[:-1])/2
-#
-#         res[1] = k
-#         return res
-#
-#     def simulate_data(self, save_lightcone=False, write_data=True):
-#         output = p21c.run_21cmfast(self._flag_options['redshift'], self._box_dim, self._flag_options,
-#                                    self._astro_params, self._cosmo_params)[0]
-#
-#         if save_lightcone:
-#             with open(path.join(path.dirname(self.datafile), path.basename(self.datafile)+".pkl"), 'wb') as f:
-#                 pickle.dump(output, f)
-#
-#         p, k, var = self.compute_power(output, n_psbins=self.n_psbins, log_bins=self.logk)
-#
-#         if write_data:
-#             np.savetxt(self.datafile, np.array([k, p]).T)
-#
-#         return p, k, var
 
 
 class LikelihoodPlanck(LikelihoodBase):

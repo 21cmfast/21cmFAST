@@ -21,3 +21,7 @@ docs/faqs/\.ipynb_checkpoints/
 *.h5
 
 *.log
+
+docs/tutorials/\.ipynb_checkpoints/
+
+docs/tutorials/data/
