@@ -17,3 +17,7 @@ devel/\.ipynb_checkpoints/
 devel/data/
 
 docs/faqs/\.ipynb_checkpoints/
+
+*.h5
+
+*.log
