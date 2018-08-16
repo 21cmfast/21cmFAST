@@ -1355,11 +1355,11 @@ class LightCone:
 
     @property
     def lightcone_distances(self):
-        return self.cosmo_params.cosmo.comoving_distance(self.redshift) + self.lightcone_coords
+        return self.cosmo_params.cosmo.comoving_distance(self.redshift).value + self.lightcone_coords
 
     @property
     def lightcone_redshifts(self):
-        return np.array([z_at_value(self.cosmo_params.cosmo.comoving_distance, d) for d in self.lightcone_distances])
+        return np.array([z_at_value(self.cosmo_params.cosmo.comoving_distance, d *units.Mpc) for d in self.lightcone_distances])
 
 
 def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(), astro_params=None,
