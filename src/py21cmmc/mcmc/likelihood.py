@@ -11,19 +11,28 @@ from . import core
 import pickle
 from os import path
 
+
 np.seterr(invalid='ignore', divide='ignore')
 
 from powerbox.tools import get_power
-from powerbox import dft
-from astropy.cosmology import Planck15
 
 TWOPLACES = Decimal(10) ** -2  # same as Decimal('0.01')
 FOURPLACES = Decimal(10) ** -4  # same as Decimal('0.0001')
 SIXPLACES = Decimal(10) ** -6  # same as Decimal('0.000001')
 
+def ensure_iter(a):
+    try:
+        iter(a)
+        return a
+    except TypeError:
+        return [a]
+
 
 class LikelihoodBase:
     required_cores = None
+
+    def __init__(self, datafile):
+        self.datafile = datafile
 
     def computeLikelihood(self, ctx):
         raise NotImplementedError("The Base likelihood should never be used directly!")
@@ -31,16 +40,19 @@ class LikelihoodBase:
     def setup(self):
         # Try to get the params out of the co-eval module
         for m in self.LikelihoodComputationChain.getCoreModules():
-            if hasattr(m, "user_params"):
-                self.user_params = m.user_params
-                self.flag_options = m.flag_options
-                self.cosmo_params = m.cosmo_params
-                self.astro_params = m.astro_params
+            for k in ['user_params', 'flag_options', 'cosmo_params', 'astro_params']:
+                if hasattr(m, k):
+                    setattr(self, k, getattr(m,k))
 
         if self.required_cores:
             for rc in self.required_cores:
                 if not any([isinstance(m, rc) for m in self.LikelihoodComputationChain.getCoreModules()]):
                     raise ValueError("%s needs the %s to be loaded."%(self.__class__.__name__, rc.__class__.__name__))
+
+        self.data = self._define_data()
+
+        if self.datafile and not path.exists(self.datafile):
+            np.savez(self.datafile, **self.data)
 
     @property
     def default_ctx(self):
@@ -49,200 +61,11 @@ class LikelihoodBase:
         except AttributeError:
             raise AttributeError("default_ctx is not available unless the likelihood is embedded in a LikelihoodComputationChain")
 
-
-#
-# class Likelihood1DPowerMultiZ(LikelihoodBase):
-#
-#     def __init__(self, data_redshifts=None, NSplinePoints=8, Foreground_cut=0.15, Shot_Noise_cut=1.0,
-#                  ModUncert=0.2, log_sampling=False, model_name="FaintGalaxies", mock_dir=None,
-#                  telescope="HERA331", duration='1000hr',
-#                  *args, **kwargs):
-#
-#         # Run the LikelihoodBase init.
-#         super().__init__(*args, **kwargs)
-#
-#         self.Foreground_cut = Foreground_cut
-#         self.Shot_Noise_cut = Shot_Noise_cut
-#         self.NSplinePoints = NSplinePoints
-#         self.ModUncert = ModUncert
-#         self.data_redshifts = data_redshifts
-#         self.log_sampling = log_sampling
-#
-#         self.telescope = telescope
-#         self.duration = duration
-#         self.model_name = model_name
-#         self.mock_dir = mock_dir or path.expanduser(path.join("~", '.py21cmmc'))
-#
-#     def setup(self):
-#         """
-#         Contains any setup specific to this likelihood, that should only be performed once. Must save variables
-#         to the class.
-#         """
-#         if self.log_sampling:
-#             kSplineMin = np.log10(self.Foreground_cut)
-#             kSplineMax = np.log10(self.Shot_Noise_cut)
-#         else:
-#             kSplineMin = self.Foreground_cut
-#             kSplineMax = self.Shot_Noise_cut
-#
-#         kSpline = np.zeros(self.NSplinePoints)
-#
-#         # TODO: probably should be np.linspace.
-#         for j in range(self.NSplinePoints):
-#             kSpline[j] = kSplineMin + (kSplineMax - kSplineMin) * float(j) / (self.NSplinePoints - 1)
-#
-#         if self.log_sampling:
-#             self.kSpline = 10 ** kSpline
-#         else:
-#             self.kSpline = kSpline
-#
-#         self.k_values, self.PS_values, self.Error_k_values, self.PS_Error = self.define_data()
-#
-#     def define_data(self):
-#         """
-#         An over-rideable method which should return the k, P, and error on power spectrum at each redshift. Nominally,
-#         reads these in from files.
-#
-#         Returns
-#         -------
-#         k_values, PS_values, Error_k_values, PS_Error
-#             Must return these values.
-#         """
-#
-#         if self.use_lightcone:
-#             self.obs_filename = path.join(self.mock_dir, 'MockData',
-#                                           'LightCone21cmPS_%s_600Mpc_400.txt' % self.model_name)
-#             self.obs_error_filename = path.join(self.mock_dir, 'NoiseData',
-#                                                 'LightCone21cmPS_Error_%s_%s_%s_600Mpc_400.txt' % (
-#                                                 self.model_name, self.telescope, self.duration))
-#
-#         else:
-#             if not self.data_redshifts:
-#                 raise ValueError("If not using a lightcone, you must pass at least some data redshift")
-#
-#             if any([z not in self.redshift for z in self.data_redshifts]):
-#                 raise ValueError("One or more data redshift were not in the computed redshift %s %s." % (
-#                 self.data_redshifts, self.redshift))
-#
-#             self.obs_filename = path.join(self.mock_dir, 'MockData', self.model_name, "Co-Eval",
-#                                           'MockObs_%s_PS_200Mpc_' % self.model_name)
-#             self.obs_error_filename = path.join(self.mock_dir, 'NoiseData', self.model_name, "Co-Eval",
-#                                                 'TotalError_%s_PS_200Mpc.txt' % self.telescope)
-#
-#         if not path.exists(self.obs_filename) or not path.exists(self.obs_error_filename):
-#             raise ValueError("Those mock observations and/or noise files do not exist: %s %s" % (
-#             self.obs_filename, self.obs_error_filename))
-#
-#         # Read in the mock 21cm PS observation. Read in both k and the dimensionless PS.
-#         # These are needed for performing the chi^2 statistic for the likelihood. NOTE: To calculate the likelihood
-#         # statistic a spline is performed for each of the mock PS, simulated PS and the Error PS
-#         k_values = []
-#         PS_values = []
-#
-#         if self.use_lightcone:
-#             # Note here, we are populating the list 'Redshift' with the filenames. The length of this is needed for
-#             # ensuring the correct number of 21cm PS are used for the likelihood. Re-using the same list filename
-#             # means less conditions further down this script. The likelihood correctly accounts for it with the
-#             # 'use_lightcone' flag.
-#             with open(self.obs_filename, 'r') as f:
-#                 subfiles = [line.rstrip('\n') for line in f]
-#
-#             for fl in subfiles:
-#                 mock = np.loadtxt('%s/%s' % (path.dirname(self.obs_filename), fl), usecols=(0, 1))
-#                 k_values.append(mock[:, 0])
-#                 PS_values.append(mock[:, 1])
-#
-#         else:
-#
-#             ### NOTE ###
-#             # If Include_Ts_fluc is set, the user must ensure that the co-eval redshift to be sampled (set by the
-#             # Redshift list above) is to be sampled by the code.
-#
-#             for i, z in enumerate(self.data_redshifts):
-#                 mock = np.loadtxt(self.obs_filename + "%s" % z, usecols=(0, 1))
-#
-#                 k_values.append(mock[:, 0])
-#                 PS_values.append(mock[:, 1])
-#
-#         k_values = np.array(k_values)
-#         PS_values = np.array(PS_values)
-#
-#         ###### Read in the data for the telescope sensitivites ######
-#         Error_k_values = []
-#         PS_Error = []
-#
-#         # Total noise sensitivity as computed from 21cmSense.
-#         if self.use_lightcone:
-#             with open(self.obs_error_filename, 'r') as f:
-#                 LightConeErrors = [line.rstrip('\n') for line in f]
-#
-#             # Use LightConeSnapShots here to ensure it crashes if the number of error files is less than the number or observations
-#             for i in range(len(subfiles)):
-#                 errs = np.loadtxt('%s/%s' % (path.dirname(self.obs_error_filename), LightConeErrors[i]), usecols=(0, 1))
-#
-#                 Error_k_values.append(errs[:, 0])
-#                 PS_Error.append(errs[:, 1])
-#
-#         else:
-#
-#             for i in range(len(self.data_redshifts)):
-#                 errs = np.loadtxt(self.obs_error_filename, usecols=(0, 1))
-#                 Error_k_values.append(errs[:, 0])
-#                 PS_Error.append(errs[:, 1])
-#
-#         Error_k_values = np.array(Error_k_values)
-#         PS_Error = np.array(PS_Error)
-#         return k_values, PS_values, Error_k_values, PS_Error
-#
-#     def computeLikelihood(self, ctx):
-#         """
-#         Compute the likelihood, given the lightcone output from 21cmFAST.
-#         """
-#         lightcone = ctx.get("output")
-#
-#         # Get some useful variables out of the Lightcone box
-#         PS_Data = lightcone.power_spectrum
-#         k_Data = lightcone.k
-#
-#         total_sum = 0
-#
-#         print(lightcone.power_spectrum, lightcone.k)
-#         # Note here that the usage of len(redshift) uses the number of mock lightcone 21cm PS if use_lightcone was set to True.
-#         for i, z in enumerate(self.data_redshifts):
-#
-#             if not self.use_lightcone:
-#                 redshift_index = np.where(lightcone.redshift == z)[0][0]
-#             else:
-#                 redshift_index = i
-#
-#             splined_mock = interpolate.splrep(self.k_values[i], np.log10(self.PS_values[i]), s=0)
-#             splined_error = interpolate.splrep(self.Error_k_values[i], np.log10(self.PS_Error[i]), s=0)
-#
-#             splined_model = interpolate.splrep(k_Data, np.log10(PS_Data[redshift_index]), s=0)
-#
-#             # Interpolating the mock and error PS in log space
-#             for j in range(self.NSplinePoints):
-#
-#                 MockPS_val = 10 ** (interpolate.splev(self.kSpline[j], splined_mock, der=0))
-#                 ErrorPS_val = 10 ** (interpolate.splev(self.kSpline[j], splined_error, der=0))
-#
-#                 ModelPS_val = 10 ** (interpolate.splev(self.kSpline[j], splined_model, der=0))
-#
-#                 # Check if there are any nan values for the 21cm PS
-#                 # A nan value implies a IGM neutral fraction of zero, that is, reionisation has completed and thus no 21cm signal
-#                 # Set the value of the 21cm PS to zero. Which results in the largest available difference (i.e. if you expect a signal
-#                 # (i.e. non zero mock 21cm PS) but have no signal from the sampled model, then want a large difference for the
-#                 # chi-squared likelihood).
-#                 if np.isnan(ModelPS_val) == True:
-#                     ModelPS_val = 0.0
-#
-#                 if np.isnan(MockPS_val) == True:
-#                     MockPS_val = 0.0
-#
-#                 total_sum += np.square((MockPS_val - ModelPS_val) / (
-#                     np.sqrt(ErrorPS_val ** 2. + (self.ModUncert * ModelPS_val) ** 2.)))
-#
-#         return -0.5 * total_sum  # , nf_vals
+    def _define_data(self):
+        if self.datafile and path.exists(self.datafile):
+            return dict(**np.load(self.datafile))
+        else:
+            return self.simulate(self.default_ctx)
 
 
 class Likelihood1DPowerCoeval(LikelihoodBase):
@@ -282,6 +105,7 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
         error_on_model : bool, optional
             Whether the `model_uncertainty` is applied to the model, or the data.
         """
+        # TODO: 21cmSense noise!
 
         self.n_psbins = n_psbins
 
@@ -295,7 +119,7 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
     def setup(self):
         super().setup()
 
-        self.k_data, self.p_data = self.define_data()
+        self.k_data, self.p_data = self.data['k'], self.data['p']
 
         self.mask = np.logical_and(self.k_data >= self.min_k, self.k_data <= self.max_k)
         self.k_data = self.k_data[self.mask]
@@ -304,11 +128,6 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
         # This needs to be first-order (linear) so that symmetry between data and model can be preserved.
         self.data_spline = [InterpolatedUnivariateSpline(self.k_data, p, k=1) for p in self.p_data]
 
-        if self.datafile and not path.exists(self.datafile):
-            # Write out the power spectra to ASCII file
-            print("Writing mock data to file") # TODO: use proper logger.
-            np.savetxt(self.datafile, np.vstack([self.k_data, self.p_data]).T,
-                       header="k"+"".join(["\tP,z=%s" % z for z in np.atleast_1d(self.redshift)]), delimiter='\t')
 
     @staticmethod
     def compute_power(brightness_temp, L, n_psbins, log_bins=True):
@@ -359,18 +178,6 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
             lnl += -0.5 * np.sum((power[self.mask] - pd(k)) ** 2 / denom**2)
         return lnl
 
-    def define_data(self):
-        """
-        Defines the data to be used in comparison. In this case, it simulates the data.
-        """
-        if self.datafile and path.exists(self.datafile):
-            data = np.genfromtxt(self.datafile)
-            k = data[:,0]
-            p = [data[:,i] for i in range(data.shape[1])]
-            return k, p
-        else:
-            return self.simulate(self.default_ctx)
-
     def simulate(self, ctx):
         brightness_temp = ctx.get("brightness_temp")
         p = []
@@ -379,7 +186,7 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
             power, k = self.compute_power(bt, self.user_params.BOX_LEN, self.n_psbins, log_bins=self.logk)
             p += [power]
 
-        return k, p
+        return dict(k=k, p=np.array(p))
 
 
 class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
@@ -435,7 +242,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
         power, k = self.compute_power(lightcone, self.n_psbins, log_bins=self.logk)
 
-        return k, [power]
+        return dict(k=k, p=[power])
 
 
 class LikelihoodPlanck(LikelihoodBase):
@@ -456,9 +263,6 @@ class LikelihoodPlanck(LikelihoodBase):
         """
         Contribution to the likelihood arising from Planck (2016) (https://arxiv.org/abs/1605.03507)
         """
-        # READ_FROM_FILE = ctx.get('flag_options').READ_FROM_FILE
-        # PRINT_FILES = ctx.get('FlagOptions').PRINT_FILES
-
         # Extract relevant info from the context.
         output = ctx.get("output")
 
@@ -484,18 +288,12 @@ class LikelihoodPlanck(LikelihoodBase):
             if XHI_ExtrapVals[i] < 0.0:
                 XHI_ExtrapVals[i] = 0.0
 
-        # Set up the arguments for calculating the estimate of the optical depth. Once again, performed using command line code.
+        # Set up the arguments for calculating the estimate of the optical depth. Once again, performed using command
+        # line code.
         tau_value = lib.compute_tau(ZExtrapVals, XHI_ExtrapVals, ctx.get('cosmo_params'))
 
-        # remove the temporary files (this depends on tau being run, so don't move it to _store_data())
-        # if self.FlagOptions.PRINT_FILES:
-        #     taufile = "Tau_e_%s_%s.txt" % random_ids
-        #     if self.storage_options['KEEP_ALL_DATA']:
-        #         os.rename(taufile, "%s/TauData/%s" % (self.storage_options['DATADIR'], taufile))
-        #     else:
-        #         os.remove(taufile)
-
-        # As the likelihood is computed in log space, the addition of the prior is added linearly to the existing chi^2 likelihood
+        # As the likelihood is computed in log space, the addition of the prior is added linearly to the existing chi^2
+        # likelihood
         lnprob = np.square((self.PlanckTau_Mean - tau_value) / (self.PlanckTau_OneSigma))
 
         return lnprob
@@ -506,6 +304,62 @@ class LikelihoodPlanck(LikelihoodBase):
 
 #        nf_vals[len(self.AllRedshifts) + 2] = tau_value
 
+class LikelihoodNeutralFraction(LikelihoodBase):
+    def __init__(self, redshift, xHI, xHI_sigma):
+        self.redshift = ensure_iter(redshift)
+        self.xHI = ensure_iter(xHI)
+        self.xHI_sigma = ensure_iter(xHI_sigma)
+
+        self.require_spline = False
+
+    def setup(self):
+        self.lightcone_modules = [m for m in self.LikelihoodComputationChain.getCoreModules() if isinstance(m, core.CoreLightConeModule)]
+        self.coeval_modules = [m for m in self.LikelihoodComputationChain.getCoreModules() if isinstance(m, core.CoreCoevalModule)]
+
+        if not self.lightcone_modules + self.coeval_modules:
+            raise ValueError("LikelihoodNeutralFraction needs the CoreLightConeModule *or* CoreCoevalModule to be loaded.")
+
+        if self.coeval_modules:
+            # Get all unique redshifts from all coeval boxes in cores.
+            self.coeval_redshifts = list(set(sum([x.redshift for x in self.coeval_modules], [])))
+
+            for z in self.redshift:
+                if z not in self.coeval_redshifts and len(self.coeval_redshifts) < 3:
+                    raise ValueError("To use LikelihoodNeutralFraction, the core must be a lightcone, or coeval with >=3 redshifts, or containing the desired redshift")
+                elif z not in self.coeval_redshifts:
+                    self.require_spline = True
+
+            self.use_coeval = True
+
+        else:
+            self.use_coeval = False
+
+    def computeLikelihood(self, ctx):
+        lnprob = 0
+        if self.use_coeval:
+            xHI = np.array([np.mean(x) for x in ctx.get('xHI')])
+
+            if self.require_spline:
+                ind = np.argsort(self.coeval_redshifts)
+                model_spline = InterpolatedUnivariateSpline(self.coeval_redshifts[ind], xHI[ind], k=1)
+
+            for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
+                if z in self.coeval_redshifts:
+                    lnprob += self.lnprob(xHI[self.coeval_redshifts.index(z)], data, sigma)
+                else:
+                    lnprob += self.lnprob(model_spline(z), data, sigma)
+
+        else:
+            pass
+
+    @staticmethod
+    def lnprob(model, data, sigma):
+        model = np.clip(model, 0, 1)
+
+        if model > 0.06:
+            return ((data - model) / sigma)**2
+        else:
+            return 0
 
 class LikelihoodMcGreer(LikelihoodBase):
     # Mean and one sigma errors for the McGreer et al. constraints
@@ -611,15 +465,18 @@ class LikelihoodGreig(LikelihoodBase):
 
         else:
             raise ValueError(
-                "You cannot use the Greig prior likelihood with either less than 3 redshift or the redshift being directly evaluated.")
+                """
+                You cannot use the Greig prior likelihood with either less than 3 redshift or the redshift being 
+                directly evaluated.""")
 
         # Ensure that the neutral fraction does not exceed unity, or go negative
         NF_QSO = np.clip(NF_QSO, 0, 1)
 
         QSO_Prob = interpolate.splev(NF_QSO, spline_QSODampingPDF, der=0)
 
-        # Interpolating the PDF from the QSO damping wing might cause small negative values at the edges (i.e. x_HI ~ 0 or ~1)
-        # In case it is zero, or negative, set it to a very small non zero number (we take the log of this value, it cannot be zero)
+        # Interpolating the PDF from the QSO damping wing might cause small negative values at the edges (i.e. x_HI ~ 0
+        # or ~1) In case it is zero, or negative, set it to a very small non zero number (we take the log of this value,
+        # it cannot be zero)
         if QSO_Prob <= 0.0:
             QSO_Prob = 0.000006
 
@@ -694,7 +551,8 @@ class LikelihoodGlobal(LikelihoodBase):
 
         total_sum = 0
 
-        # Converting the redshift to frequencies for the interpolation (must be in increasing order, it is by default redshift which is decreasing)
+        # Converting the redshift to frequencies for the interpolation (must be in increasing order, it is by default
+        # redshift which is decreasing)
         FrequencyValues_mock = np.zeros(len(self.k_values[0]))
         FrequencyValues_model = np.zeros(NumRedshifts)
 

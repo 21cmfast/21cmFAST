@@ -5,7 +5,28 @@ import warnings
 import py21cmmc as p21
 
 
-class CoreCoevalModule:
+class CoreBase:
+    def __init__(self, store=None):
+        self.store = store or {}
+
+    def prepare_storage(self, ctx, storage):
+        "Add variables to special dict which cosmoHammer will automatically store with the chain."
+        for name, storage_function in self.store.items():
+            try:
+                storage[name] = storage_function(ctx)
+            except Exception:
+                print("Exception while trying to evaluate storage function %s"%name)
+                raise
+
+    @property
+    def default_ctx(self):
+        try:
+            return self.LikelihoodComputationChain.core_context()
+        except AttributeError:
+            raise AttributeError("default_ctx is not available unless the likelihood is embedded in a LikelihoodComputationChain")
+
+
+class CoreCoevalModule(CoreBase):
     """
     A Core Module which evaluates coeval cubes at given redshift.
 
@@ -84,6 +105,8 @@ class CoreCoevalModule:
 
         .. note:: only scalars and arrays are supported for storage in the chain itself.
         """
+        super().__init__(io_options.get("store", None))
+
         self.redshift = redshift
         if not hasattr(self.redshift, "__len__"):
             self.redshift = [self.redshift]
@@ -161,15 +184,6 @@ class CoreCoevalModule:
         ctx.add("init", init)
         ctx.add("perturb", perturb)
         ctx.add("xHI", xHI)
-
-    def prepare_storage(self, ctx, storage):
-        "Add variables to special dict which cosmoHammer will automatically store with the chain."
-        for name, storage_function in self.io['store'].items():
-            try:
-                storage[name] = storage_function(ctx)
-            except Exception:
-                print("Exception while trying to evaluate storage function %s"%name)
-                raise
 
     def _update_params(self, params):
         """
