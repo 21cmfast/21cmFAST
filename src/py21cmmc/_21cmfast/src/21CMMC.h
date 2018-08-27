@@ -29,6 +29,7 @@ struct UserParams{
     int HII_DIM;
     int DIM;
     float BOX_LEN;
+    bool USE_FFTW_WISDOM;
     
 };
 
@@ -51,7 +52,7 @@ struct AstroParams{
 struct FlagOptions{
     
     // Parameters taken from INIT_PARAMS.H
-    bool INCLUDE_ZETA_PL;
+    bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
     bool INHOMO_RECO;
     bool USE_TS_FLUCT;

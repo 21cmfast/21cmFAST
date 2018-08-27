@@ -211,6 +211,7 @@ class UserParams(StructWithDefaults):
         BOX_LEN=150.0,
         DIM=None,
         HII_DIM=50,
+        USE_FFTW_WISDOM=False,
     )
 
     @property
@@ -336,10 +337,10 @@ class FlagOptions(StructWithDefaults):
     _ffi = ffi
 
     _defaults_ = dict(
-        INCLUDE_ZETA_PL=False,
+        USE_MASS_DEPENDENT_ZETA=False,
         SUBCELL_RSD=False,
         INHOMO_RECO=False,
-        USE_TS_FLUCT=False,
+        USE_TS_FLUCT=False,        
     )
 
 
