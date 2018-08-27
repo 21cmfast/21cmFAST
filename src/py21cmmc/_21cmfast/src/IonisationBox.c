@@ -23,6 +23,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
     
+    char wisdom_filename[500];
     char filename[500];
     FILE *F;
     fftwf_plan plan;
@@ -216,21 +217,54 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                 }
             }
         }
+    
+        if(user_params->USE_FFTW_WISDOM) {
+            // Check to see if the wisdom exists, create it if it doesn't
+            sprintf(wisdom_filename,"real_to_complex_%d.fftwf_wisdom",user_params->HII_DIM);
+            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+            }
+            else {
+                
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_PATIENT);
+                fftwf_execute(plan);
+                
+                // Store the wisdom for later use
+                fftwf_export_wisdom_to_filename(wisdom_filename);
+                
+                // copy over unfiltered box
+                memcpy(deltax_unfiltered, deltax_unfiltered_original, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+                
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+            }
+        }
+        else {
+            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
         
         if(flag_options->USE_TS_FLUCT) {
-            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)xe_unfiltered, (fftwf_complex *)xe_unfiltered, FFTW_ESTIMATE);
+            if(user_params->USE_FFTW_WISDOM) {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)xe_unfiltered, (fftwf_complex *)xe_unfiltered, FFTW_WISDOM_ONLY);
+            }
+            else {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)xe_unfiltered, (fftwf_complex *)xe_unfiltered, FFTW_ESTIMATE);
+            }
             fftwf_execute(plan);
         }
     
         if (flag_options->INHOMO_RECO){
-            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)N_rec_unfiltered, (fftwf_complex *)N_rec_unfiltered, FFTW_ESTIMATE);
+            if(user_params->USE_FFTW_WISDOM) {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)N_rec_unfiltered, (fftwf_complex *)N_rec_unfiltered, FFTW_WISDOM_ONLY);
+            }
+            else {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)N_rec_unfiltered, (fftwf_complex *)N_rec_unfiltered, FFTW_ESTIMATE);
+            }
             fftwf_execute(plan);
         }
     
-        plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_ESTIMATE);
-        fftwf_execute(plan);
-        fftwf_destroy_plan(plan);
-        fftwf_cleanup();
         // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from
         //  real space to k-space
         // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
@@ -308,18 +342,55 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             }
         
             // Perform FFTs
-            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_ESTIMATE);
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-            fftwf_cleanup();
-        
+            if(user_params->USE_FFTW_WISDOM) {
+                // Check to see if the wisdom exists, create it if it doesn't
+                sprintf(wisdom_filename,"complex_to_real_%d.fftwf_wisdom",user_params->HII_DIM);
+                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
+                }
+                else {
+                    
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_PATIENT);
+                    fftwf_execute(plan);
+                    
+                    // Store the wisdom for later use
+                    fftwf_export_wisdom_to_filename(wisdom_filename);
+                    
+                    // copy over unfiltered box
+                    memcpy(deltax_filtered, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+                    
+                    // Repeat calculation as the FFTW WISDOM destroys the data
+                    if (!LAST_FILTER_STEP || ((R - cell_length_factor*(user_params->BOX_LEN/(double)(user_params->HII_DIM))) > FRACT_FLOAT_ERR) ){
+                        filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
+                    }
+                    
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
+                }
+            }
+            else {
+                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_ESTIMATE);
+                fftwf_execute(plan);
+            }
+            
             if (flag_options->USE_TS_FLUCT) {
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)xe_filtered, (float *)xe_filtered, FFTW_ESTIMATE);
+                if(user_params->USE_FFTW_WISDOM) {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)xe_filtered, (float *)xe_filtered, FFTW_WISDOM_ONLY);
+                }
+                else {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)xe_filtered, (float *)xe_filtered, FFTW_ESTIMATE);
+                }
                 fftwf_execute(plan);
             }
 
             if (flag_options->INHOMO_RECO){
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)N_rec_filtered, (float *)N_rec_filtered, FFTW_ESTIMATE);
+                if(user_params->USE_FFTW_WISDOM) {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)N_rec_filtered, (float *)N_rec_filtered, FFTW_WISDOM_ONLY);
+                }
+                else {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)N_rec_filtered, (float *)N_rec_filtered, FFTW_ESTIMATE);
+                }
                 fftwf_execute(plan);
             }
         
