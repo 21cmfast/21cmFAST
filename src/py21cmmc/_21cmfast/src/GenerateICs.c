@@ -167,7 +167,7 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
                                                    (unsigned long long)(k*f_pixel_factor+0.5)))/VOLUME;
             }
         }
-    }    
+    }
     
     // ******* PERFORM INVERSE FOURIER TRANSFORM ***************** //
     // add the 1/VOLUME factor when converting from k space to real space
