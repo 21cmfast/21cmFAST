@@ -1375,7 +1375,7 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
     init_box = initial_conditions(user_params, cosmo_params, write=write, regenerate=regenerate, direc=direc,
                                   match_seed=match_seed)
 
-    perturb = perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
+    perturb = perturb_field(redshift=redshift, init_boxes=init_box, regenerate=regenerate,
                             direc=direc, match_seed=True)
 
     # Get the redshifts through which we scroll and evaluate the ionization field.
