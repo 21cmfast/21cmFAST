@@ -5,14 +5,17 @@ The samplers in this module provide the ability to continue sampling if the samp
 Two samplers are provided -- one which works for emcee versions 3+, and one which works for the default v2. Note that
 the output file structure looks quite different for these versions.
 """
-from cosmoHammer import CosmoHammerSampler as CHS
+from cosmoHammer import CosmoHammerSampler as CHS, getLogger
 import time
 import numpy as np
+import logging
 
 
 class CosmoHammerSampler(CHS):
-    def __init__(self, likelihoodComputationChain, continue_sampling=False, *args, **kwargs):
+    def __init__(self, likelihoodComputationChain, continue_sampling=False, log_level_stream=logging.ERROR,
+                 *args, **kwargs):
         self.continue_sampling = continue_sampling
+        self._log_level_stream = log_level_stream
 
         super().__init__(params=likelihoodComputationChain.params,
                          likelihoodComputationChain=likelihoodComputationChain,
@@ -39,6 +42,28 @@ class CosmoHammerSampler(CHS):
         if self.storageUtil.sample_storage.iteration > 0 and self.storageUtil.burnin_storage.iteration < self.burninIterations:
             self.log("resetting sample iterations because more burnin iterations requested.")
             self.storageUtil.reset(self.nwalkers, self.params, samples=True)
+
+    def _configureLogging(self, filename, logLevel):
+        logger = getLogger()
+        logger.setLevel(logLevel)
+        fh = logging.FileHandler(filename, "w")
+        fh.setLevel(logLevel)
+        # create console handler with a higher log level
+        ch = logging.StreamHandler()
+        ch.setLevel(self._log_level_stream)
+        # create formatter and add it to the handlers
+        formatter = logging.Formatter('%(asctime)s %(levelname)s:%(message)s')
+        fh.setFormatter(formatter)
+        ch.setFormatter(formatter)
+        # add the handlers to the logger
+        for handler in logger.handlers[:]:
+            try:
+                handler.close()
+            except AttributeError:
+                pass
+            logger.removeHandler(handler)
+        logger.addHandler(fh)
+        logger.addHandler(ch)
 
     def startSampling(self):
         """

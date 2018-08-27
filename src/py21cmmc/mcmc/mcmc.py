@@ -1,10 +1,25 @@
-# from .core import CoreCoevalModule
-import sys
 from os import path, mkdir
 from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, Params
 
 
 def build_computation_chain(core_modules, likelihood_modules, params=None):
+    """
+    Build a likelihood computation chain from core and likelihood modules.
+
+    Parameters
+    ----------
+    core_modules : list
+        A list of objects which define the necessary methods to be core modules (see :mod:`~py21cmmc.mcmc.core`).
+    likelihood_modules : list
+        A list of objects which define the necessary methods to be likelihood modules (see
+        :mod:`~py21cmmc.mcmc.likelihood`)
+    params : :class:`~py21cmmc.mcmc.cosmoHammer.util.Params`, optional
+        If provided, parameters which will be sampled by the chain.
+
+    Returns
+    -------
+    chain : :class:`py21cmmc.mcmc.cosmoHammer.LikelihoodComputationChain.LikelihoodComputationChain`
+    """
     if not hasattr(core_modules, "__len__"):
         core_modules = [core_modules]
 
@@ -25,9 +40,45 @@ def build_computation_chain(core_modules, likelihood_modules, params=None):
 
 def run_mcmc(core_modules, likelihood_modules, params,
              datadir='.', model_name='21CMMC',
-             reuse_burnin=True, continue_sampling=True,
+             continue_sampling=True, reuse_burnin=True,
              **mcmc_options):
+    """
 
+    Parameters
+    ----------
+    core_modules : list
+        A list of objects which define the necessary methods to be core modules (see :mod:`~py21cmmc.mcmc.core`).
+    likelihood_modules : list
+        A list of objects which define the necessary methods to be likelihood modules (see
+        :mod:`~py21cmmc.mcmc.likelihood`)
+    params : dict
+        Parameters which will be sampled by the chain. Each entry's key specifies the name of the parameter, and
+        its value is an iterable `(val, min, max, width)`, with `val` the initial guess, `min` and `max` the hard
+        boundaries on the parameter's value, and `width` determining the size of the initial ball of walker positions
+        for the parameter.
+    datadir : str, optional
+        Directory to which MCMC info will be written (eg. logs and chain files)
+    model_name : str, optional
+        Name of the model, which determines filenames of outputs.
+    continue_sampling : bool, optional
+        If an output chain file can be found that matches these inputs, sampling can be continued from its last
+        iteration, up to the number of iterations specified. If set to `False`, any output file which matches these
+        parameters will have its samples over-written.
+    reuse_burnin : bool, optional
+        If a pre-computed chain file is found, and `continue_sampling=False`, setting `reuse_burnin` will salvage
+        the burnin part of the chain for re-use, but re-compute the samples themselves.
+
+    Other Parameters
+    ----------------
+    All other parameters are passed directly to :class:`~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler.CosmoHammerSampler`.
+    These include important options such as `walkersRatio` (the number of walkers is ``walkersRatio*nparams``),
+    `sampleIterations`, `burninIterations` and `threadCount`.
+
+    Returns
+    -------
+    sampler : `~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler.CosmoHammerSampler` instance.
+        The sampler object, from which the chain itself may be accessed (via the ``samples`` attribute).
+    """
     file_prefix = path.join(datadir, model_name)
 
     try:
@@ -38,41 +89,6 @@ def run_mcmc(core_modules, likelihood_modules, params,
     # Setup parameters.
     if not isinstance(params, Params):
         params = Params(*[(k, v) for k, v in params.items()])
-
-    # # Setup the Core Module
-    # core_module = Core21cmFastModule(
-    #     params.keys,
-    #     store = store,
-    #     box_dim = box_dim, flag_options=flag_options,
-    #     astro_params=astro_params, cosmo_params=cosmo_params
-    # )
-
-    # # Write the parameter names to a file, might be useful later.
-    # param_names = [v[0] for v in parameters.values()]
-    # with open(path.join(datadir, model_name+"_parameter_names.txt"), 'w') as f:
-    #     f.write("\n".join(param_names)+'\n')
-
-    # # Get all the likelihood modules.
-    # likelihoods = []
-    # for lk in likelihood_modules:
-    #     if isinstance(lk, tuple):
-    #         if isinstance(lk[0], str):
-    #             likelihoods += [getattr(sys.modules['py21cmmc.likelihood'],
-    #                                     "Likelihood%s" % lk[0])(box_dim = box_dim,
-    #                                                             astro_params=astro_params,
-    #                                                             cosmo_params=cosmo_params,
-    #                                                             flag_options=flag_options,
-    #                                                             **lk[1])]
-    #         else:
-    #             likelihoods += [lk[0](
-    #                 box_dim = box_dim,
-    #                 astro_params=astro_params,
-    #                 cosmo_params=cosmo_params,
-    #                 flag_options=flag_options,**lk[1]
-    #             )]
-    #
-    #     else:
-    #         likelihoods += [lk]
 
     chain = build_computation_chain(core_modules, likelihood_modules, params)
 
