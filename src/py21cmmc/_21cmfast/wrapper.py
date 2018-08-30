@@ -1457,7 +1457,7 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
 
     scroll_distances = cosmo_params.cosmo.comoving_distance(scrollz).value - d_at_redshift
 
-    # Iterate through redshift from top to bottom (except first one...)
+    # Iterate through redshift from top to bottom
     st, ib, bt = None, None, None
     lc_index = 0
     box_index = 0

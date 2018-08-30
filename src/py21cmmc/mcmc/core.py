@@ -40,7 +40,7 @@ class CoreCoevalModule(CoreBase):
     def __init__(self, redshift,
                  user_params=None, flag_options=None, astro_params=None,
                  cosmo_params=None, regenerate=True, do_spin_temp=False, z_step_factor=1.02,
-                 z_heat_max=None, **io_options):
+                 z_heat_max=None, change_seed_every_iter=False, **io_options):
         """
         Initialize the class.
 
@@ -115,7 +115,7 @@ class CoreCoevalModule(CoreBase):
         self.flag_options = p21.FlagOptions(flag_options)
         self.astro_params = p21.AstroParams(astro_params)
         self.cosmo_params = p21.CosmoParams(cosmo_params)
-
+        self.change_seed_every_iter = change_seed_every_iter
         self.regenerate = regenerate
 
         self.z_step_factor = z_step_factor
@@ -152,7 +152,7 @@ class CoreCoevalModule(CoreBase):
         # Here we initialize the init and perturb boxes.
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration.
-        if not any([p in self.cosmo_params.self.keys() for p in self.parameter_names]):
+        if not any([p in self.cosmo_params.self.keys() for p in self.parameter_names]) and not self.change_seed_every_iter:
             print("Initializing init and perturb boxes for the entire chain...", end='', flush=True)
             self.initial_conditions = p21.initial_conditions(
                 user_params=self.user_params,
@@ -199,7 +199,7 @@ class CoreCoevalModule(CoreBase):
         self.cosmo_params.update(
             **{k: getattr(params, k) for k,v in params.items() if k in self.cosmo_params.defining_dict})
 
-        if self.initial_conditions is None:
+        if self.initial_conditions is None or self.change_seed_every_iter: # Usually these will either both be true or false. But it's useful to test both of them.
             self.cosmo_params.update(RANDOM_SEED=None)
 
     def run(self, astro_params, cosmo_params):
@@ -214,7 +214,7 @@ class CoreCoevalModule(CoreBase):
             init_box=self.initial_conditions,
             do_spin_temp=self.do_spin_temp,
             z_step_factor=self.z_step_factor,
-            regenerate=self.regenerate,
+            regenerate=self.regenerate or self.change_seed_every_iter,
             write=self.io['cache_ionize'],
             direc=self.io['cache_dir'],
             match_seed=True
@@ -241,7 +241,7 @@ class CoreLightConeModule(CoreCoevalModule):
 
         # Un-list redshift and perturb
         self.redshift = self.redshift[0]
-        if self.perturb_field:
+        if self.perturb_field is not None:
             self.perturb_field = self.perturb_field[0]
 
     def __call__(self, ctx):
