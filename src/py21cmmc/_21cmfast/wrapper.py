@@ -1181,7 +1181,7 @@ def brightness_temperature(ionized_box, perturb_field, spin_temp=None):
 def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
     redshifts = [min_redshift]  # mult by 1.001 is probably bad...
     while redshifts[-1] < zmax:
-        redshifts.append(redshifts[-1] * z_step_factor)
+        redshifts.append((redshifts[-1] + 1.) * z_step_factor - 1.)
     return redshifts[::-1]
 
 
@@ -1436,6 +1436,8 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
         perturb = perturb_field(redshift=redshift, init_boxes=init_box, regenerate=regenerate,
                                 direc=direc, match_seed=True)
 
+    max_redshift = global_params.Z_HEAT_MAX if (flag_options.INHOMO_RECO or do_spin_temp) else max_redshift
+
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = _logscroll_redshifts(redshift, z_step_factor,
                                    global_params.Z_HEAT_MAX if (flag_options.INHOMO_RECO or do_spin_temp) else max_redshift)
@@ -1457,7 +1459,7 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
     lc = np.zeros((user_params.HII_DIM, user_params.HII_DIM, n_lightcone))
 
     scroll_distances = cosmo_params.cosmo.comoving_distance(scrollz).value - d_at_redshift
-
+    
     # Iterate through redshift from top to bottom (except first one...)
     st, ib, bt = None, None, None
     lc_index = 0
@@ -1510,7 +1512,7 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
         if do_spin_temp: st = st2
         ib = ib2
         bt = bt2
-
+    
     return LightCone(redshift, user_params, cosmo_params, astro_params, flag_options, lc)
 
 
