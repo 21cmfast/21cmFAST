@@ -37,6 +37,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     // This is an entire re-write of Ts.c from 21cmFAST. You can refer back to Ts.c in 21cmFAST if this become a little obtuse. The computation has remained the same //
     
     /////////////////// Defining variables for the computation of Ts.c //////////////
+    char wisdom_filename[500];
     FILE *F, *OUT;
     fftwf_plan plan;
     
@@ -250,11 +251,39 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             }
 
             ////////////////// Transform unfiltered box to k-space to prepare for filtering /////////////////
-            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_ESTIMATE);
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-            fftwf_cleanup();
-        
+            if(user_params->USE_FFTW_WISDOM) {
+                // Check to see if the wisdom exists, create it if it doesn't
+                sprintf(wisdom_filename,"real_to_complex_%d.fftwf_wisdom",user_params->HII_DIM);
+                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
+                }
+                else {
+                    
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_PATIENT);
+                    fftwf_execute(plan);
+                    
+                    // Store the wisdom for later use
+                    fftwf_export_wisdom_to_filename(wisdom_filename);
+                    
+                    // allocate memory for the nonlinear density field
+                    for (i=0; i<user_params->HII_DIM; i++){
+                        for (j=0; j<user_params->HII_DIM; j++){
+                            for (k=0; k<user_params->HII_DIM; k++){
+                                *((float *)unfiltered_box + HII_R_FFT_INDEX(i,j,k)) = perturbed_field->density[HII_R_INDEX(i,j,k)];
+                            }
+                        }
+                    }
+                    
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
+                }
+            }
+            else {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_ESTIMATE);
+                fftwf_execute(plan);
+            }
+            
             // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
             // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
             for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
@@ -274,9 +303,37 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                     filter_box(box, 1, global_params.HEAT_FILTER, R);
                 }
                 // now fft back to real space
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)box, (float *)box, FFTW_ESTIMATE);
-                fftwf_execute(plan);
-            
+                if(user_params->USE_FFTW_WISDOM) {
+                    // Check to see if the wisdom exists, create it if it doesn't
+                    sprintf(wisdom_filename,"complex_to_real_%d.fftwf_wisdom",user_params->HII_DIM);
+                    if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)box, (float *)box, FFTW_WISDOM_ONLY);
+                        fftwf_execute(plan);
+                    }
+                    else {
+                        
+                        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)box, (float *)box, FFTW_PATIENT);
+                        fftwf_execute(plan);
+                        
+                        // Store the wisdom for later use
+                        fftwf_export_wisdom_to_filename(wisdom_filename);
+                        
+                        // copy over unfiltered box
+                        memcpy(box, unfiltered_box, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+                        
+                        if (R_ct > 0){ // don't filter on cell size
+                            filter_box(box, 1, global_params.HEAT_FILTER, R);
+                        }
+                        
+                        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)box, (float *)box, FFTW_WISDOM_ONLY);
+                        fftwf_execute(plan);
+                    }
+                }
+                else {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)box, (float *)box, FFTW_ESTIMATE);
+                    fftwf_execute(plan);
+                }
+                
                 min_density = 0.0;
                 max_density = 0.0;
             

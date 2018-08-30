@@ -54,6 +54,8 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
     
     fftwf_plan plan;
     
+    char wisdom_filename[500];
+    
     unsigned long long ct;
     int n_x, n_y, n_z, i, j, k, ii;
     float k_x, k_y, k_z, k_mag, p, a, b, k_sq;
@@ -129,9 +131,32 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
         filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
 
     // FFT back to real space
-    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
-    fftwf_execute(plan);
-
+    if(user_params->USE_FFTW_WISDOM) {
+        // Check to see if the wisdom exists, create it if it doesn't
+        sprintf(wisdom_filename,"complex_to_real_%d.fftwf_wisdom",user_params->DIM);
+        if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+            fftwf_execute(plan);
+        }
+        else {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_PATIENT);
+            fftwf_execute(plan);
+            
+            // Store the wisdom for later use
+            fftwf_export_wisdom_to_filename(wisdom_filename);
+            
+            // copy over unfiltered box
+            memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+            
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+            fftwf_execute(plan);
+        }
+    }
+    else {
+        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+        fftwf_execute(plan);
+    }
+    
     // now sample the filtered box
     for (i=0; i<user_params->HII_DIM; i++){
         for (j=0; j<user_params->HII_DIM; j++){
@@ -143,6 +168,7 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
             }
         }
     }
+    
     // ******* PERFORM INVERSE FOURIER TRANSFORM ***************** //
     // add the 1/VOLUME factor when converting from k space to real space
     memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
@@ -151,10 +177,13 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
         HIRES_box[ct] /= VOLUME;
     }
 
-    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+    if(user_params->USE_FFTW_WISDOM) {
+        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+    }
+    else {
+        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+    }
     fftwf_execute(plan);
-    fftwf_destroy_plan(plan);
-    fftwf_cleanup();
     
     for (i=0; i<user_params->DIM; i++){
         for (j=0; j<user_params->DIM; j++){
@@ -208,8 +237,14 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
         if (user_params->DIM != user_params->HII_DIM)
             filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
         
-        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+        if(user_params->USE_FFTW_WISDOM) {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+        }
+        else {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+        }
         fftwf_execute(plan);
+        
         // now sample to lower res
         // now sample the filtered box
         for (i=0; i<user_params->HII_DIM; i++){
@@ -328,8 +363,52 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
             }
         }
         
-        plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_ESTIMATE);
-        fftwf_execute(plan);
+        
+        // Perform FFTs
+        if(user_params->USE_FFTW_WISDOM) {
+            // Check to see if wisdom exists, if not create it
+            sprintf(wisdom_filename,"real_to_complex_%d.fftwf_wisdom",user_params->DIM);
+            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+            }
+            else {
+                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_PATIENT);
+                fftwf_execute(plan);
+                
+                // Store the wisdom for later use
+                fftwf_export_wisdom_to_filename(wisdom_filename);
+                
+                memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+                
+                // Repeating the above computation as the creating the wisdom overwrites the input data
+                
+                // Then we will have the laplacian of phi_2 (eq. D13b)
+                // After that we have to return in Fourier space and generate the Fourier transform of phi_2
+                int m, l;
+                for (i=0; i<user_params->DIM; i++){
+                    for (j=0; j<user_params->DIM; j++){
+                        for (k=0; k<user_params->DIM; k++){
+                            *( (float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i), (unsigned long long)(j), (unsigned long long)(k) )) = 0.0;
+                            for(m = 0; m < 3; ++m){
+                                for(l = m+1; l < 3; ++l){
+                                    *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k)) ) += ( *((float *)(phi_1[PHI_INDEX(l, l)]) + R_FFT_INDEX((unsigned long long) (i),(unsigned long long) (j),(unsigned long long) (k)))  ) * (  *((float *)(phi_1[PHI_INDEX(m, m)]) + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k)))  );
+                                    *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k)) ) -= ( *((float *)(phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),(unsigned long long) (j),(unsigned long long)(k) ) )  ) * (  *((float *)(phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k) ))  );
+                                    *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k)) ) /= TOT_NUM_PIXELS;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+            }
+        }
+        else {
+            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
         
         memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
@@ -392,7 +471,12 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
             if (user_params->DIM != user_params->HII_DIM)
                 filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
             
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+            if(user_params->USE_FFTW_WISDOM) {
+                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+            }
+            else {
+                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+            }
             fftwf_execute(plan);
             // now sample to lower res
             // now sample the filtered box

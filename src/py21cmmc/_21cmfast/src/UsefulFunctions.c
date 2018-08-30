@@ -439,9 +439,10 @@ void writeUserParams(struct UserParams *p, int print_pid){
         printf("UserParams:\n", getpid());
     }
 
-    printf("\tHII_DIM: %d\n",p->HII_DIM);
-    printf("\tDIM    : %d\n",p->DIM);
-    printf("\tBOX_LEN: %f\n",p->BOX_LEN);
+    printf("\tHII_DIM        : %d\n",p->HII_DIM);
+    printf("\tDIM            : %d\n",p->DIM);
+    printf("\tBOX_LEN        : %f\n",p->BOX_LEN);
+    printf("\tUSE_FFTW_WISDOM: %d\n",p->USE_FFTW_WISDOM);
 }
 
 void writeCosmoParams(struct CosmoParams *p, int print_pid){
@@ -487,10 +488,10 @@ void writeFlagOptions(struct FlagOptions *p, int print_pid){
         printf("FlagOptions:\n", getpid());
     }
 
-    printf("\tINCLUDE_ZETA_PL: %d\n",p->INCLUDE_ZETA_PL);
-    printf("\tSUBCELL_RSD    : %d\n",p->SUBCELL_RSD);
-    printf("\tINHOMO_RECO    : %d\n",p->INHOMO_RECO);
-    printf("\tUSE_TS_FLUCT   : %d\n",p->USE_TS_FLUCT);
+    printf("\tUSE_MASS_DEPENDENT_ZETA: %d\n",p->USE_MASS_DEPENDENT_ZETA);
+    printf("\tSUBCELL_RSD            : %d\n",p->SUBCELL_RSD);
+    printf("\tINHOMO_RECO            : %d\n",p->INHOMO_RECO);
+    printf("\tUSE_TS_FLUCT           : %d\n",p->USE_TS_FLUCT);
 }
 
 
