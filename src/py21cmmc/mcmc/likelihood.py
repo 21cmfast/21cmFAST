@@ -7,6 +7,7 @@ from scipy import interpolate
 from scipy.interpolate import InterpolatedUnivariateSpline
 from .._21cmfast import wrapper as lib
 from . import core
+from io import IOBase
 
 import pickle
 from os import path
@@ -27,45 +28,122 @@ def ensure_iter(a):
     except TypeError:
         return [a]
 
+def listify(l):
+    if type(l) == list:
+        return l
+    else:
+        return [l]
 
 class LikelihoodBase:
-    required_cores = None
+    required_cores = []
 
-    def __init__(self, datafile):
+    def __init__(self, datafile=None, noisefile=None, simulate=False):
         self.datafile = datafile
+        self.noisefile = noisefile
 
-    def computeLikelihood(self, ctx):
+        # We *always* make the datafile and noisefile a list
+        if isinstance(self.datafile, str) or isinstance(self.datafile, IOBase):
+            self.datafile = [self.datafile]
+        if isinstance(self.noisefile, str) or isinstance(self.noisefile, IOBase):
+            self.noisefile = [self.noisefile]
+
+        self._simulate = simulate
+
+    def computeLikelihood(self, ctx, storage):
         raise NotImplementedError("The Base likelihood should never be used directly!")
 
-    def setup(self):
-        # Try to get the params out of the co-eval module
+    def _expose_core_parameters(self):
+        # Try to get the params out of the core module
         for m in self.LikelihoodComputationChain.getCoreModules():
             for k in ['user_params', 'flag_options', 'cosmo_params', 'astro_params']:
                 if hasattr(m, k):
-                    setattr(self, k, getattr(m,k))
+                    if hasattr(self, k) and getattr(self, k) != getattr(m, k):
+                        raise ValueError(
+                            f"Setup has detected incompatible input parameter dicts in specified cores: {k}")
+                    else:
+                        setattr(self, k, getattr(m, k))
 
-        if self.required_cores:
-            for rc in self.required_cores:
-                if not any([isinstance(m, rc) for m in self.LikelihoodComputationChain.getCoreModules()]):
-                    raise ValueError("%s needs the %s to be loaded."%(self.__class__.__name__, rc.__class__.__name__))
+    def _check_required_cores(self):
+        for rc in self.required_cores:
+            if not any([isinstance(m, rc) for m in self.LikelihoodComputationChain.getCoreModules()]):
+                raise ValueError("%s needs the %s to be loaded."%(self.__class__.__name__, rc.__class__.__name__))
 
-        self.data = self._define_data()
+    def setup(self):
+        # Expose user, flag, cosmo, astro params to this likelihood if available.
+        self._expose_core_parameters()
 
-        if self.datafile and not path.exists(self.datafile):
-            np.savez(self.datafile, **self.data)
+        # Ensure that any required cores are actually loaded.
+        self._check_required_cores()
+
+        if not self._simulate and not self.datafile:
+            raise ValueError("Either an existing datafile has to be specified, or simulate set to True.")
+
+
+        # Read in or simulate the data and noise.
+        self.data = self.simulate(self.default_ctx) if self._simulate else self._read_data()
+
+        # If we can't/won't simulate noise, and no noisefile is provided, assume no noise is necessary.
+        if not (hasattr(self, "define_noise") or self._simulate) and not self.noisefile:
+            self.noise = None
+        else:
+            self.noise = self.define_noise(self.default_ctx) if (hasattr(self, "define_noise") and self._simulate) else self._read_noise()
+
+        # Now, if data has been simulated, and a file is provided, write to the file.
+        if self.datafile:
+            self._write_data()
+
+        if self.noisefile:
+            self._write_noise()
 
     @property
     def default_ctx(self):
         try:
-            return self.LikelihoodComputationChain.core_context()
+            chain = self.LikelihoodComputationChain
         except AttributeError:
             raise AttributeError("default_ctx is not available unless the likelihood is embedded in a LikelihoodComputationChain")
 
-    def _define_data(self):
-        if self.datafile and path.exists(self.datafile):
-            return dict(**np.load(self.datafile))
-        else:
-            return self.simulate(self.default_ctx)
+        return chain.core_context()
+
+    def _read_data(self):
+        data = []
+        for fl in self.datafile:
+            if not path.exists(fl):
+                raise FileNotFoundError(f"Could not find datafile: {fl}. If you meant to simulate data, set simulate=True.")
+            else:
+                data.append(dict(**np.load(fl)))
+
+        return data
+
+    def _read_noise(self):
+        if self.noisefile:
+            noise = []
+            for fl in self.noisefile:
+                if not path.exists(fl):
+                    msg = ""
+                    if hasattr(self, "define_noise"):
+                        msg = "If you meant to simulate noise, set simulate=True."
+
+                    raise FileNotFoundError(
+                        f"Could not find noisefile: {fl}. {msg}")
+
+                else:
+                    noise.append(dict(**np.load(fl)))
+
+    def _write_data(self):
+        for fl, d in zip(self.datafile, self.data):
+            if not path.exists(fl):
+                np.savez(fl, **d)
+
+    def _write_noise(self):
+        for fl, d in zip(self.noisefile, self.noise):
+            if not path.exists(fl):
+                np.savez(fl, **d)
+
+    def _check_data_format(self):
+        pass
+
+    def _check_noise_format(self):
+        pass
 
 
 class Likelihood1DPowerCoeval(LikelihoodBase):
@@ -81,16 +159,20 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
     """
     required_cores = [core.CoreCoevalModule]
 
-    def __init__(self, datafile=None, n_psbins=None, min_k=0.1, max_k = 1.0, logk=True, model_uncertainty=0.15,
-                 error_on_model=True,):
+    def __init__(self,n_psbins=None, min_k=0.1, max_k = 1.0, logk=True, model_uncertainty=0.15,
+                 error_on_model=True, *args, **kwargs):
         """
         Initialize the likelihood.
 
         Parameters
         ----------
         datafile : str, optional
-            The file from which to read the data. Alternatively, the file to which to write the data (see class
+            The file(s) from which to read the data. Alternatively, the file to which to write the data (see class
             docstring for how this works).
+        noisefile : str, optional
+            The file(s) from which to read the noise profile. If not given, no thermal noise or cosmic variance is
+            used in the fit. The noisefile should be an .npz file with the arrays "ks" and "errs" in it. This
+            is the default output format of 21cmSense. See notes below on how to extend this behaviour.
         n_psbins : int, optional
             The number of bins for the spherically averaged power spectrum. By default automatically
             calculated from the number of cells.
@@ -104,30 +186,65 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
             The amount of uncertainty in the modelling, per power spectral bin (as fraction of the amplitude).
         error_on_model : bool, optional
             Whether the `model_uncertainty` is applied to the model, or the data.
+
+        Notes
+        -----
+        The datafile and noisefile have specific formatting required. Both should be .npz files. The datafile should
+        have 'k' and 'delta' arrays in it (k-modes in 1/Mpc and power spectrum respectively) and the noisefile should
+        have 'ks' and 'errs' arrays in it (k-modes and their standard deviations respectively). To make this more
+        flexible, simply subclass this class, and overwrite the :meth:`_define_data` or :meth:`_define_noise` methods,
+        then use that likelihood instead of this in your likelihood chain. Both of these functions should return
+        dictionaries in which the above entries exist. For example::
+
+        >>> class MyCoevalLikelihood(Likelihood1DPowerCoeval):
+        >>>    def _define_data(self):
+        >>>        data = np.genfromtxt(self.datafile)
+        >>>        return {"k": data[:, 0], "p": data[:, 1]}
+
         """
-        # TODO: 21cmSense noise!
+        super().__init__(*args, **kwargs)
+
+        if self.noisefile and self.datafile and len(self.datafile) != len(self.noisefile):
+            raise ValueError("If noisefile or datafile are provided, they should have the same number of files (one for each coeval box)")
 
         self.n_psbins = n_psbins
-
-        self.datafile = datafile
         self.min_k = min_k
         self.max_k = max_k
         self.logk = logk
         self.error_on_model = error_on_model
         self.model_uncertainty = model_uncertainty
 
+    def _check_data_format(self):
+        for i, d in enumerate(self.data):
+            if "k" not in d or "delta" not in d:
+                raise ValueError(f"datafile #{i+1} of {len(self.datafile)} has the wrong format")
+
+    def _check_noise_format(self):
+        for i, n in enumerate(self.noise):
+            if "ks" not in n or "errs" not in n:
+                raise ValueError(f"noisefile #{i+1} of {len(self.noise)} has the wrong format")
+
     def setup(self):
         super().setup()
 
-        self.k_data, self.p_data = self.data['k'], self.data['p']
+        # Ensure that there is one dataset and noiseset per redshift.
+        if len(self.data) != len(self.redshift):
+            raise ValueError("There needs to be one dataset (datafile) for each redshift!")
 
-        self.mask = np.logical_and(self.k_data >= self.min_k, self.k_data <= self.max_k)
-        self.k_data = self.k_data[self.mask]
-        self.p_data = [p[self.mask] for p in self.p_data]
+        if self.noise and len(self.noise) != len(self.redshift):
+            raise ValueError("There needs to be one dataset (noisefile) for each redshift!")
+
+        # Check if all data is formatted correctly.
+        self._check_data_format()
+        if self.noise: self._check_noise_format()
 
         # This needs to be first-order (linear) so that symmetry between data and model can be preserved.
-        self.data_spline = [InterpolatedUnivariateSpline(self.k_data, p, k=1) for p in self.p_data]
+        self.data_spline = [InterpolatedUnivariateSpline(d['k'], d['delta'], k=1) for d in self.data]
 
+        if self.noise:
+            self.noise_spline = [InterpolatedUnivariateSpline(n['ks'], n['errs'], k=1) for n in self.noise]
+        else:
+            self.noise_spline = None
 
     @staticmethod
     def compute_power(brightness_temp, L, n_psbins, log_bins=True):
@@ -159,34 +276,34 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
 
     def computeLikelihood(self, ctx, storage):
         "Compute the likelihood"
-        brightness_temp = ctx.get("brightness_temp")
+        model = self.simulate(ctx)
 
         # add the power to the written data
-        storage['power'] = []
+        for i, m in enumerate(model):
+            storage.update({k+"_z%s"%self.redshift[i]:v for k,v in m.items()})
 
         lnl = 0
+        noise = 0
+        for i, (m, pd) in enumerate(zip(model, self.data_spline)):
+            mask = np.logical_and(m['k'] <= self.max_k, m['k'] >= self.min_k)
 
-        for bt, pd in zip(brightness_temp, self.data_spline):
-            power, k = self.compute_power(bt, self.user_params.BOX_LEN, self.n_psbins, log_bins=self.logk)
+            moduncert = self.model_uncertainty*pd(m['k'][mask]) if not self.error_on_model else self.model_uncertainty*m['delta'][mask]
 
-            # add the power to the written data
-            storage['power'] += [power[self.mask]]
-            storage['k'] = k[self.mask]
+            if self.noise_spline:
+                noise = self.noise_spline[i](m['k'][mask])
 
-            denom = self.model_uncertainty*pd(k) if not self.error_on_model else self.model_uncertainty*power[self.mask]
-
-            lnl += -0.5 * np.sum((power[self.mask] - pd(k)) ** 2 / denom**2)
+            # TODO: if moduncert depends on model, not data, then it should appear as -0.5 log(sigma^2) term below.
+            lnl += -0.5 * np.sum((m['delta'][mask] - pd(m['k'][mask])) ** 2 / (moduncert**2 + noise**2))
         return lnl
 
     def simulate(self, ctx):
         brightness_temp = ctx.get("brightness_temp")
-        p = []
+        data = []
         for bt in brightness_temp:
-
             power, k = self.compute_power(bt, self.user_params.BOX_LEN, self.n_psbins, log_bins=self.logk)
-            p += [power]
+            data.append({"k":k, "delta":power * k**3 / (2*np.pi**2)})
 
-        return dict(k=k, p=np.array(p))
+        return data
 
 
 class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
@@ -197,16 +314,37 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     """
     required_cores = [core.CoreLightConeModule]
 
+    def __init__(self, *args, nchunks=1, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.nchunks = nchunks
+
     def setup(self):
-        super().setup()
-        self.p_data = self.p_data[0] # un-list it
-        self.data_spline = self.data_spline[0]
+        LikelihoodBase.setup(self)
+
+        # Ensure that there is one dataset and noiseset per redshift.
+        if len(self.data) != self.nchunks:
+            raise ValueError("There needs to be one dataset (datafile) for each chunk!!")
+
+        if self.noise and len(self.noise) != self.nchunks:
+            raise ValueError("There needs to be one dataset (noisefile) for each chunk!")
+
+        # Check if all data is formatted correctly.
+        self._check_data_format()
+        if self.noise: self._check_noise_format()
+
+        # This needs to be first-order (linear) so that symmetry between data and model can be preserved.
+        self.data_spline = [InterpolatedUnivariateSpline(d['k'], d['delta'], k=1) for d in self.data]
+
+        if self.noise:
+            self.noise_spline = [InterpolatedUnivariateSpline(n['ks'], n['errs'], k=1) for n in self.noise]
+        else:
+            self.noise_spline = None
 
     @staticmethod
-    def compute_power(lightcone, n_psbins, log_bins=True):
+    def compute_power(box, length, n_psbins, log_bins=True):
         res = get_power(
-            lightcone.brightness_temp,
-            boxlength = lightcone.lightcone_dimensions,
+            box,
+            boxlength = length,
             bins=n_psbins, bin_ave=False, get_variance=False, log_bins=log_bins
         )
 
@@ -220,29 +358,27 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         res[1] = k
         return res
 
-    def computeLikelihood(self, ctx, storage):
-        "Compute the likelihood"
-        lightcone = ctx.get("lightcone")
-
-        # add the power to the written data
-        storage['power'] = []
-
-        power, k = self.compute_power(lightcone, self.n_psbins, log_bins=self.logk)
-
-        # add the power to the written data
-        storage['power'] = power[self.mask]
-        storage['k'] = k[self.mask]
-
-        denom = self.model_uncertainty * self.data_spline(k) if not self.error_on_model else self.model_uncertainty * power[self.mask]
-        lnl = -0.5 * np.sum((power[self.mask] - self.data_spline(k)) ** 2 / denom**2)
-        return lnl
-
     def simulate(self, ctx):
-        lightcone = ctx.get("lightcone")
+        brightness_temp = ctx.get("lightcone")
+        data = []
+        chunk_indices = np.arange(0, brightness_temp.n_slices, round(brightness_temp.n_slices/self.nchunks))
 
-        power, k = self.compute_power(lightcone, self.n_psbins, log_bins=self.logk)
+        if len(chunk_indices) > self.nchunks:
+            chunk_indices = chunk_indices[:-1]
 
-        return dict(k=k, p=[power])
+        chunk_indices += [brightness_temp.n_slices]
+
+        for i in range(self.nchunks):
+            start = chunk_indices[i]
+            end = chunk_indices[i+1]
+            chunklen = (end-start) * brightness_temp.cell_size
+
+            power, k = self.compute_power(brightness_temp.brightness_temp[:,:,start:end],
+                                          (self.user_params.BOX_LEN, self.user_params.BOX_LEN, chunklen),
+                                          self.n_psbins, log_bins=self.logk)
+            data.append({"k":k, "delta":power * k**3 / (2*np.pi**2)})
+
+        return data
 
 
 class LikelihoodPlanck(LikelihoodBase):

@@ -321,8 +321,8 @@ class FlagOptions(StructWithDefaults):
 
     Parameters
     ----------
-    INCLUDE_ZETA_PL : bool, optional
-        Should always be zero (have yet to include this option)
+    USE_MASS_DEPENDENT_ZETA : bool, optional
+        Set to True if using new parameterization.
 
     SUBCELL_RSDS : bool, optional
         Add sub-cell RSDs (currently doesn't work if Ts is not used)
@@ -1338,9 +1338,13 @@ class LightCone:
         self.brightness_temp = brightness_temp
 
     @property
+    def cell_size(self):
+        return self.user_params.BOX_LEN/self.user_params.HII_DIM
+
+    @property
     def lightcone_dimensions(self):
-        return (self.user_params.HII_DIM, self.user_params.HII_DIM,
-                self.n_slices*self.user_params.BOX_LEN/self.user_params.HII_DIM)
+        return (self.user_params.BOX_LEN, self.user_params.BOX_LEN,
+                self.n_slices*self.cell_size)
 
     @property
     def shape(self):
