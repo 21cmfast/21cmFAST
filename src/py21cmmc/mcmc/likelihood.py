@@ -89,10 +89,10 @@ class LikelihoodBase:
             self.noise = self.define_noise(self.default_ctx) if (hasattr(self, "define_noise") and self._simulate) else self._read_noise()
 
         # Now, if data has been simulated, and a file is provided, write to the file.
-        if self.datafile:
+        if self.datafile and self._simulate:
             self._write_data()
 
-        if self.noisefile:
+        if self.noisefile and self._simulate and hasattr(self, "define_noise"):
             self._write_noise()
 
     @property
