@@ -183,7 +183,6 @@ class CosmoParams(StructWithDefaults):
         return Planck15.clone(H0=self.hlittle*100, Om0=self.OMm, Ob0=self.OMb)
 
 
-
 class UserParams(StructWithDefaults):
     """
     Structure containing user parameters (with defaults).

@@ -104,6 +104,9 @@ class LikelihoodBase:
 
         return chain.core_context()
 
+    def store(self, model, storage):
+        pass
+
     def _read_data(self):
         data = []
         for fl in self.datafile:
@@ -274,13 +277,8 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
     def redshift(self):
         return self.core_module.redshift
 
-    def computeLikelihood(self, ctx, storage):
+    def computeLikelihood(self, model):
         "Compute the likelihood"
-        model = self.simulate(ctx)
-
-        # add the power to the written data
-        for i, m in enumerate(model):
-            storage.update({k+"_z%s"%self.redshift[i]:v for k,v in m.items()})
 
         lnl = 0
         noise = 0
@@ -304,6 +302,11 @@ class Likelihood1DPowerCoeval(LikelihoodBase):
             data.append({"k":k, "delta":power * k**3 / (2*np.pi**2)})
 
         return data
+
+    def store(self, model, storage):
+        # add the power to the written data
+        for i, m in enumerate(model):
+            storage.update({k+"_z%s"%self.redshift[i]:v for k,v in m.items()})
 
 
 class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
@@ -361,13 +364,14 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     def simulate(self, ctx):
         brightness_temp = ctx.get("lightcone")
         data = []
-        chunk_indices = np.arange(0, brightness_temp.n_slices, round(brightness_temp.n_slices/self.nchunks))
+        chunk_indices = list(range(0, brightness_temp.n_slices, round(brightness_temp.n_slices/self.nchunks)))
 
         if len(chunk_indices) > self.nchunks:
             chunk_indices = chunk_indices[:-1]
 
-        chunk_indices += [brightness_temp.n_slices]
+        chunk_indices.append(brightness_temp.n_slices)
 
+        print(chunk_indices)
         for i in range(self.nchunks):
             start = chunk_indices[i]
             end = chunk_indices[i+1]
@@ -380,6 +384,10 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
         return data
 
+    def store(self, model, storage):
+        # add the power to the written data
+        for i, m in enumerate(model):
+            storage.update({k + "_%s" %i : v for k, v in m.items()})
 
 class LikelihoodPlanck(LikelihoodBase):
     # Mean and one sigma errors for the Planck constraints

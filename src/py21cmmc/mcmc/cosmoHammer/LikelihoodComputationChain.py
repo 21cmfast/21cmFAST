@@ -47,7 +47,9 @@ class LikelihoodComputationChain(LCC):
         coremodule.prepare_storage(ctx, ctx.getData())  # This adds the ability to store stuff.
 
     def invokeLikelihoodModule(self, module, ctx):
-        return module.computeLikelihood(ctx, ctx.getData())
+        model = module.simulate(ctx)
+        module.store(model, ctx.getData())
+        return module.computeLikelihood(model)
 
     def createChainContext(self, p):
         """
