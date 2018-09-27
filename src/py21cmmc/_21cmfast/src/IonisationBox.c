@@ -10,9 +10,6 @@ int ERFC_NUM_POINTS = 10000;
 
 double *ERFC_VALS, *ERFC_VALS_DIFF;
 
-
-
-
 void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
@@ -167,12 +164,14 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
 
     MFEEDBACK = M_MIN;
 
-    if(astro_params->EFF_FACTOR_PL_INDEX != 0.) {
-        mean_f_coll_st = FgtrM_st_PL(redshift,M_MIN,MFEEDBACK,astro_params->EFF_FACTOR_PL_INDEX);
-    }
-    else {
-        mean_f_coll_st = FgtrM_st(redshift, M_MIN);
-    }
+//    if(astro_params->EFF_FACTOR_PL_INDEX != 0.) {
+//        mean_f_coll_st = FgtrM_st_PL(redshift,M_MIN,MFEEDBACK,astro_params->EFF_FACTOR_PL_INDEX);
+//    }
+//    else {
+//        mean_f_coll_st = FgtrM_st(redshift, M_MIN);
+//    }
+    
+    mean_f_coll_st = FgtrM_st(redshift, M_MIN);
     
     if (mean_f_coll_st/(1./(astro_params->HII_EFF_FACTOR)) < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
     //        printf( "The ST mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll_st, f_coll_crit);
@@ -308,8 +307,8 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     
         LAST_FILTER_STEP = 0;
     
-        initialiseSplinedSigmaM(M_MIN,1e16);
-    
+        initialiseSigmaMInterpTable(M_MIN,1e16);
+        
         first_step_R = 1;
         
         double R_temp = (double)(astro_params->R_BUBBLE_MAX);
@@ -407,10 +406,10 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             erfc_denom = sqrt(erfc_denom);
             erfc_denom = 1./( growth_factor * erfc_denom );
         
-            if((astro_params->EFF_FACTOR_PL_INDEX)!=0.) {
-                initialiseGL_Fcoll(NGLlow,NGLhigh,M_MIN,massofscaleR);
-                initialiseFcoll_spline(redshift,M_MIN,massofscaleR,massofscaleR,MFEEDBACK,astro_params->EFF_FACTOR_PL_INDEX);
-            }
+//            if((astro_params->EFF_FACTOR_PL_INDEX)!=0.) {
+//                initialiseGL_Fcoll(NGLlow,NGLhigh,M_MIN,massofscaleR);
+//                initialiseFcoll_spline(redshift,M_MIN,massofscaleR,massofscaleR,MFEEDBACK,astro_params->EFF_FACTOR_PL_INDEX);
+//            }
             
             // Determine the global averaged f_coll for the overall normalisation
                 
@@ -435,7 +434,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                         }
                         
                         curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
-                        
+/*
                         if(astro_params->EFF_FACTOR_PL_INDEX!=0.) {
                             // Usage of 0.99*Deltac arises due to the fact that close to the critical density, the collapsed fraction becomes a little unstable
                             // However, such densities should always be collapsed, so just set f_coll to unity. Additionally, the fraction of points in this regime relative
@@ -457,6 +456,15 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                                 erfc_arg_val_index = (int)floor(( erfc_arg_val - erfc_arg_min )*InvArgBinWidth);
                                 Splined_Fcoll = ERFC_VALS[erfc_arg_val_index] + (erfc_arg_val - (erfc_arg_min + ArgBinWidth*(double)erfc_arg_val_index))*ERFC_VALS_DIFF[erfc_arg_val_index]*InvArgBinWidth;
                             }
+                        }
+ */
+                        erfc_arg_val = (Deltac - curr_dens)*erfc_denom;
+                        if( erfc_arg_val < erfc_arg_min || erfc_arg_val > erfc_arg_max ) {
+                            Splined_Fcoll = splined_erfc(erfc_arg_val);
+                        }
+                        else {
+                            erfc_arg_val_index = (int)floor(( erfc_arg_val - erfc_arg_min )*InvArgBinWidth);
+                            Splined_Fcoll = ERFC_VALS[erfc_arg_val_index] + (erfc_arg_val - (erfc_arg_min + ArgBinWidth*(double)erfc_arg_val_index))*ERFC_VALS_DIFF[erfc_arg_val_index]*InvArgBinWidth;
                         }
      
                         // save the value of the collasped fraction into the Fcoll array
