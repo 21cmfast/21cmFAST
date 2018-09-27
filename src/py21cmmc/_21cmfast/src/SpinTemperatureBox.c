@@ -497,7 +497,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             NO_LIGHT = 0;
             
         M_MIN_at_zp = get_M_min_ion(zp);
-        filling_factor_of_HI_zp = 1 - astro_params->HII_EFF_FACTOR * FgtrM_st(zp, M_MIN_at_zp) / (1.0 - x_e_ave);
+        filling_factor_of_HI_zp = 1 - astro_params->ION_EFF_FACTOR * FgtrM_st(zp, M_MIN_at_zp) / (1.0 - x_e_ave);
         if (filling_factor_of_HI_zp > 1) filling_factor_of_HI_zp=1;
         
         // let's initialize an array of redshifts (z'') corresponding to the
@@ -608,7 +608,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         Luminosity_converstion_factor *= (3.1556226e7)/(hplank);
             
         // Leave the original 21cmFAST code for reference. Refer to Greig & Mesinger (2017) for the new parameterisation.
-        const_zp_prefactor = ( (astro_params->L_X) * Luminosity_converstion_factor ) / ((astro_params->NU_X_THRESH)*NU_over_EV) * C * astro_params->F_STAR * cosmo_params->OMb * RHOcrit * pow(CMperMPC, -3) * pow(1+zp, astro_params->X_RAY_SPEC_INDEX+3);
+        const_zp_prefactor = ( (astro_params->L_X) * Luminosity_converstion_factor ) / ((astro_params->NU_X_THRESH)*NU_over_EV) * C * astro_params->F_STAR10 * cosmo_params->OMb * RHOcrit * pow(CMperMPC, -3) * pow(1+zp, astro_params->X_RAY_SPEC_INDEX+3);
         //          This line below is kept purely for reference w.r.t to the original 21cmFAST
         //            const_zp_prefactor = ZETA_X * X_RAY_SPEC_INDEX / NU_X_THRESH * C * F_STAR * OMb * RHOcrit * pow(CMperMPC, -3) * pow(1+zp, X_RAY_SPEC_INDEX+3);
             
@@ -633,7 +633,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         dcomp_dzp_prefactor = (-1.51e-4)/(hubble(zp)/Ho)/(cosmo_params->hlittle)*pow(Trad_fast,4.0)/(1.0+zp);
             
         prefactor_1 = N_b0 * pow(1+zp, 3);
-        prefactor_2 = astro_params->F_STAR * C * N_b0 / FOURPI;
+        prefactor_2 = astro_params->F_STAR10 * C * N_b0 / FOURPI;
             
         x_e_ave = 0; Tk_ave = 0; Ts_ave = 0;
             

@@ -173,7 +173,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     
     mean_f_coll_st = FgtrM_st(redshift, M_MIN);
     
-    if (mean_f_coll_st/(1./(astro_params->HII_EFF_FACTOR)) < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
+    if (mean_f_coll_st/(1./(astro_params->ION_EFF_FACTOR)) < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
     //        printf( "The ST mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll_st, f_coll_crit);
         
         // find the neutral fraction
@@ -484,7 +484,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             rec = 0.;
         
             xHI_from_xrays = 1;
-            Gamma_R_prefactor = pow(1+redshift, 2) * (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * (astro_params->HII_EFF_FACTOR) / 1.0e-12;
+            Gamma_R_prefactor = pow(1+redshift, 2) * (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * (astro_params->ION_EFF_FACTOR) / 1.0e-12;
                 
             for (x=0; x<user_params->HII_DIM; x++){
                 for (y=0; y<user_params->HII_DIM; y++){
@@ -509,7 +509,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                         }
                     
                         // check if fully ionized!
-                        if ( (f_coll > (xHI_from_xrays/(astro_params->HII_EFF_FACTOR))*(1.0+rec)) ){ //IONIZED!!
+                        if ( (f_coll > (xHI_from_xrays/(astro_params->ION_EFF_FACTOR))*(1.0+rec)) ){ //IONIZED!!
                         
                             // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
                             // this assumes photon-starved growth of HII regions...  breaks down post EoR
@@ -545,7 +545,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                             }
                             
                             if (f_coll>1) f_coll=1;
-                            res_xH = xHI_from_xrays - f_coll * (astro_params->HII_EFF_FACTOR);
+                            res_xH = xHI_from_xrays - f_coll * (astro_params->ION_EFF_FACTOR);
                             
                             // and make sure fraction doesn't blow up for underdense pixels
                             if (res_xH < 0)

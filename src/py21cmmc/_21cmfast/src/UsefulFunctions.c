@@ -461,24 +461,34 @@ void writeCosmoParams(struct CosmoParams *p, int print_pid){
     printf("\tPOWER_INDEX: %f\n",p->POWER_INDEX);
 }
 
-void writeAstroParams(struct AstroParams *p, int print_pid){
+void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p, int print_pid){
     if(print_pid){
         printf("AstroParams (pid=%d):\n", getpid());
     }else{
         printf("AstroParams:\n", getpid());
     }
-
-    printf("\tEFF_FACTOR_PL_INDEX: %f\n",p->EFF_FACTOR_PL_INDEX);
-    printf("\tHII_EFF_FACTOR     : %f\n",p->HII_EFF_FACTOR);
+    
+    if(fo->USE_MASS_DEPENDENT_ZETA) {
+        printf("\tION_EFF_FACTOR     : %f\n",p->ION_EFF_FACTOR);
+        printf("\tALPHA_STAR         : %f\n",p->ALPHA_STAR);
+        printf("\tF_ESC10            : %f\n",p->F_ESC10);
+        printf("\tALPHA_ESC          : %f\n",p->ALPHA_ESC);
+        printf("\tM_TURN             : %f\n",p->M_TURN);
+        
+    }
+    else {
+        printf("\tION_EFF_FACTOR     : %f\n",p->ION_EFF_FACTOR);
+        printf("\tION_Tvir_MIN       : %f\n",p->ION_Tvir_MIN);
+        printf("\tX_RAY_Tvir_MIN     : %f\n",p->X_RAY_Tvir_MIN);
+    }
     printf("\tR_BUBBLE_MAX       : %f\n",p->R_BUBBLE_MAX);
-    printf("\tION_Tvir_MIN       : %f\n",p->ION_Tvir_MIN);
     printf("\tL_X                : %f\n",p->L_X);
     printf("\tNU_X_THRESH        : %f\n",p->NU_X_THRESH);
     printf("\tX_RAY_SPEC_INDEX   : %f\n",p->X_RAY_SPEC_INDEX);
-    printf("\tX_RAY_Tvir_MIN     : %f\n",p->X_RAY_Tvir_MIN);
-    printf("\tF_STAR             : %f\n",p->F_STAR);
+    printf("\tF_STAR10           : %f\n",p->F_STAR10);
     printf("\tt_STAR             : %f\n",p->t_STAR);
     printf("\tN_RSD_STEPS        : %d\n",p->N_RSD_STEPS);
+    
 }
 
 void writeFlagOptions(struct FlagOptions *p, int print_pid){

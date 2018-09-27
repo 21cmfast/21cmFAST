@@ -36,16 +36,25 @@ struct UserParams{
 struct AstroParams{
     
     // Parameters taken from INIT_PARAMS.H
-    float EFF_FACTOR_PL_INDEX;
-    float HII_EFF_FACTOR;
+    float ION_EFF_FACTOR;
+    
+    float F_STAR10;
+    float ALPHA_STAR;
+    float F_ESC10;
+    float ALPHA_ESC;
+    float M_TURN;
+    
     float R_BUBBLE_MAX;
+    
     float ION_Tvir_MIN;
+    
     double L_X;
     float NU_X_THRESH;
     float X_RAY_SPEC_INDEX;
     float X_RAY_Tvir_MIN;
-    float F_STAR;
+    
     float t_STAR;
+    
     int N_RSD_STEPS;
 };
 

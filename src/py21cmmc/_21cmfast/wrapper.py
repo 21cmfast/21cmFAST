@@ -243,9 +243,8 @@ class AstroParams(StructWithDefaults):
     ----------
     INHOMO_RECO : bool, optional
         Whether inhomogeneous recombinations are being calculated. This is not a part of the astro parameters structure,
-        but is required by this class to set some default behaviour.
-    EFF_FACTOR_PL_INDEX : float, optional
-    HII_EFF_FACTOR : float, optional
+        but is required by this class to set some default behaviour.    
+    ION_EFF_FACTOR : float, optional
     R_BUBBLE_MAX : float, optional
         Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
     ION_Tvir_MIN : float, optional
@@ -261,16 +260,19 @@ class AstroParams(StructWithDefaults):
 
     _ffi = ffi
 
-    _defaults_ = dict(
-        EFF_FACTOR_PL_INDEX=0.0,
-        HII_EFF_FACTOR=30.0,
+    _defaults_ = dict(        
+        ION_EFF_FACTOR=30.0,
+        F_STAR10=-1.3,
+        ALPHA_STAR=0.5,
+        F_ESC10=-1.,
+        ALPHA_ESC=-0.5,
+        M_TURN=8.7,
         R_BUBBLE_MAX=None,
         ION_Tvir_MIN=4.69897,
         L_X=40.0,
         NU_X_THRESH=500.0,
         X_RAY_SPEC_INDEX=1.0,
-        X_RAY_Tvir_MIN=None,
-        F_STAR=0.05,
+        X_RAY_Tvir_MIN=None,        
         t_STAR=0.5,
         N_RSD_STEPS=20,
     )
@@ -281,7 +283,7 @@ class AstroParams(StructWithDefaults):
         super().__init__(*args, **kwargs)
 
     def convert(self, key, val):
-        if key in ['ION_Tvir_MIN', "L_X", "X_RAY_Tvir_MIN"]:
+        if key in ['F_STAR10','F_ESC10','M_TURN','ION_Tvir_MIN', "L_X", "X_RAY_Tvir_MIN"]:
             return 10 ** val
         else:
             return val
