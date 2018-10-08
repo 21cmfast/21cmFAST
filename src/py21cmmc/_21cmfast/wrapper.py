@@ -1328,13 +1328,18 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
 
 
 class LightCone:
-    def __init__(self, redshift, user_params, cosmo_params, astro_params, flag_options, brightness_temp):
+    def __init__(self, redshift, user_params, cosmo_params, astro_params, flag_options, brightness_temp,
+                 node_redshifts=None, global_xHI=None, global_brightness_temp=None):
         self.redshift = redshift
         self.user_params = user_params
         self.cosmo_params = cosmo_params
         self.astro_params = astro_params
         self.flag_options= flag_options
         self.brightness_temp = brightness_temp
+
+        self.node_redshifts = node_redshifts
+        self.global_xHI = global_xHI
+        self.global_brightness_temp = global_brightness_temp
 
     @property
     def cell_size(self):
@@ -1368,7 +1373,8 @@ class LightCone:
 
 def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(), astro_params=None,
                   flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
-                  match_seed=False, z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None):
+                  match_seed=False, z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None,
+                  ):
     """
     Evaluates a full lightcone ending at a given redshift.
 
@@ -1467,6 +1473,9 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
     st, ib, bt = None, None, None
     lc_index = 0
     box_index = 0
+    neutral_fraction = np.zeros(len(scrollz))
+    global_signal = np.zeros(len(scrollz))
+
     for iz, z in enumerate(scrollz):
         if do_spin_temp:
             st2 = spin_temperature(
@@ -1494,6 +1503,10 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
         # FIXME: Need perturb for this redshift, OR get it dynamically in brightness_temperature
         bt2 = brightness_temperature(ib2, this_perturb, st2 if do_spin_temp else None)
 
+        # Save mean/global quantities
+        neutral_fraction[iz] = np.mean(ib2.xH_box)
+        global_signal[iz] = np.mean(bt2.brightness_temp)
+
         # HERE IS WHERE WE NEED TO DO THE INTERPOLATION ONTO THE LIGHTCONE!
         if z < max_redshift: # i.e. now redshift is in the bit where the user wants to save the lightcone:
             # Do linear interpolation only.
@@ -1517,7 +1530,10 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
         ib = ib2
         bt = bt2
     
-    return LightCone(redshift, user_params, cosmo_params, astro_params, flag_options, lc)
+    return LightCone(
+        redshift, user_params, cosmo_params, astro_params, flag_options, lc,
+        node_redshifts=scrollz, global_xHI = neutral_fraction, global_brightness_temp=global_signal
+    )
 
 
 def readbox(direc=None, fname=None, hash=None, kind=None, seed=None, load_data=True):
