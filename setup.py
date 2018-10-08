@@ -115,7 +115,8 @@ setup(
         'astropy>=2.0',
         'emcee<3.0.0'
         'powerbox>=0.5.4',
-        'h5py>=2.8.0'
+        'h5py>=2.8.0',
+        'powerbox>=0.5.4'
     ],
     entry_points={
         'console_scripts': [
