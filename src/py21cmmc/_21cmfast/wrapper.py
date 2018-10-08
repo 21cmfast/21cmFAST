@@ -1507,7 +1507,8 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
             ind = np.arange(-(box_index+n), -box_index)
             lc[:, :, -(lc_index+n):n_lightcone-lc_index] = (np.abs(prev_d - these_distances)*bt.brightness_temp.take(ind, axis=2, mode='wrap') +
                                                np.abs(this_d - these_distances)*bt2.brightness_temp.take(ind, axis=2, mode='wrap'))/\
-                                              (np.abs(prev_d - these_distances) + np.abs(this_d - these_distances))
+                                              (np.abs(prev_d - this_d))
+
             lc_index += n
             box_index += n
 
