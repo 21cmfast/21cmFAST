@@ -113,10 +113,9 @@ setup(
         'cffi>=1.0',
         'scipy',
         'astropy>=2.0',
-        'emcee<3.0.0'
+        'emcee<3',
         'powerbox>=0.5.4',
         'h5py>=2.8.0',
-        'powerbox>=0.5.4'
     ],
     entry_points={
         'console_scripts': [
