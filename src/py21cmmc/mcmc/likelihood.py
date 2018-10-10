@@ -582,14 +582,14 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             xHI = ctx.get("lightcone").global_xHI
             redshifts = ctx.get("lightcone").node_redshifts
 
+        redshifts, xHI = np.sort([redshifts, xHI])
         return dict(xHI=xHI, redshifts=redshifts)
 
     def computeLikelihood(self, model):
         lnprob = 0
 
         if self._require_spline:
-            redshifts, xHI = np.sort(np.array([model['redshifts'], model['xHI']]))
-            model_spline = InterpolatedUnivariateSpline(redshifts, xHI, k=1)
+            model_spline = InterpolatedUnivariateSpline(model['redshifts'], model['xHI'], k=1)
 
         for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
             if z in model['redshifts']:
@@ -610,70 +610,52 @@ class LikelihoodNeutralFraction(LikelihoodBase):
 
 
 class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
-    QSO_Redshift = 7.0842  # The redshift of the QSO
+    qso_redshift = 7.0842  # The redshift of the QSO
 
-    # TODO: Implement this class (get Brad's help here)...
-    # It should be made easier by using the methods from the NeutralFraction likelihood, which can get the
-    # neutral fraction already. Just need to figure out which files are needed to get the conversion to probability.
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-    def setup(self):
-        with open(path.expanduser(path.join("~", '.py21cmmc', 'PriorData', "NeutralFractionsForPDF.out")),
-                  'rb') as handle:
-            self.NFValsQSO = pickle.loads(handle.read())
-
-        with open(path.expanduser(path.join("~", '.py21cmmc', 'PriorData', "NeutralFractionPDF_SmallHII.out")),
-                  'rb') as handle:
-            self.PDFValsQSO = pickle.loads(handle.read())
+        # Read in data files.
+        nf = np.load(path.expanduser(path.join("~", '.21CMMC', 'External_tables', "NeutralFractionsForPDF.npy")))
+        pdf = np.load(path.expanduser(path.join("~", '.21CMMC', 'External_tables', "NeutralFractionPDF_SmallHII.npy")))
 
         # Normalising the PDF to have a peak probability of unity (consistent with how other priors are treated)
         # Ultimately, this step does not matter
-        normalisation = np.amax(self.PDFValsQSO)
-        self.PDFValsQSO /= normalisation
+        pdf /= np.amax(pdf)
 
-    def computeLikelihood(self, ctx):
+        # Interpolate the QSO damping wing PDF
+        self.spline_qso_damping_pdf = InterpolatedUnivariateSpline(nf, pdf)
+
+    def computeLikelihood(self, model):
         """
         Constraints on the IGM neutral fraction at z = 7.1 from the IGM damping wing of ULASJ1120+0641
         Greig et al (2016) (http://arxiv.org/abs/1606.00441)
         """
 
-        lightcone = ctx.get("output")
+        redshifts = model['redshifts']
+        ave_nf = model['xHI']
 
-        Redshifts = lightcone.redshift
-        AveNF = lightcone.average_nf
+        if self.qso_redshift in redshifts:
+            nf_qso = redshifts.index(self.qso_redshift)
 
-        # Interpolate the QSO damping wing PDF
-        spline_QSODampingPDF = interpolate.splrep(self.NFValsQSO, self.PDFValsQSO, s=0)
-
-        if self.QSO_Redshift in Redshifts:
-
-            for i in range(len(Redshifts)):
-                if Redshifts[i] == self.QSO_Redshift:
-                    NF_QSO = AveNF[i]
-
-        elif len(lightcone.redshift) > 2:
+        elif len(redshifts) > 2:
 
             # Check the redshift range input by the user to determine whether to interpolate or extrapolate the IGM
             # neutral fraction to the QSO redshift
-            if self.QSO_Redshift < np.amin(Redshifts):
+            if self.qso_redshift < np.min(redshifts):
                 # The QSO redshift is outside the range set by the user. Need to extrapolate the reionisation history
                 # to obtain the neutral fraction at the QSO redshift
 
                 # The linear interpolation/extrapolation function, taking as input the redshift supplied by the user
                 # and the corresponding neutral fractions recovered for the specific EoR parameter set
-                LinearInterpolationFunction = InterpolatedUnivariateSpline(Redshifts, AveNF, k=1)
-
-                NF_QSO = LinearInterpolationFunction(self.QSO_Redshift)
+                global_nf_spl = InterpolatedUnivariateSpline(redshifts, ave_nf, k=1)
 
             else:
                 # The QSO redshift is within the range set by the user. Can interpolate the reionisation history to
                 # obtain the neutral fraction at the QSO redshift
-                if lightcone.params.n_redshifts == 3:
-                    spline_reionisationhistory = interpolate.splrep(Redshifts, AveNF, k=2, s=0)
-                else:
-                    spline_reionisationhistory = interpolate.splrep(Redshifts, AveNF, s=0)
+                global_nf_spl = InterpolatedUnivariateSpline(redshifts, ave_nf, k=2 if len(redshifts)==3 else 3)
 
-                NF_QSO = interpolate.splev(self.QSO_Redshift, spline_reionisationhistory, der=0)
-
+            nf_qso = global_nf_spl(self.qso_redshift)
         else:
             raise ValueError(
                 """
@@ -681,21 +663,19 @@ class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
                 directly evaluated.""")
 
         # Ensure that the neutral fraction does not exceed unity, or go negative
-        NF_QSO = np.clip(NF_QSO, 0, 1)
+        nf_qso = np.clip(nf_qso, 0, 1)
 
-        QSO_Prob = interpolate.splev(NF_QSO, spline_QSODampingPDF, der=0)
+        qso_prob = self.spline_qso_damping_pdf(nf_qso)
 
         # Interpolating the PDF from the QSO damping wing might cause small negative values at the edges (i.e. x_HI ~ 0
         # or ~1) In case it is zero, or negative, set it to a very small non zero number (we take the log of this value,
         # it cannot be zero)
-        if QSO_Prob <= 0.0:
-            QSO_Prob = 0.000006
+        # TODO: wouldn't it be better if we just returned -inf?
+        if qso_prob <= 0.0:
+            qso_prob = 0.000006
 
         # We work with the log-likelihood, therefore convert the IGM Damping wing PDF to log space
-        QSO_Prob = -2. * np.log(QSO_Prob)
-
-        lnprob = QSO_Prob
-        return lnprob
+        return -2. * np.log(qso_prob)
 
 
 class LikelihoodGlobalSignal(LikelihoodBaseFile):
