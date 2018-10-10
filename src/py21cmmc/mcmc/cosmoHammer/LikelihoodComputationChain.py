@@ -48,7 +48,8 @@ class LikelihoodComputationChain(LCC):
 
     def invokeLikelihoodModule(self, module, ctx):
         model = module.simulate(ctx)
-        module.store(model, ctx.getData())
+        if hasattr(module, "store"):
+            module.store(model, ctx.getData())
         return module.computeLikelihood(model)
 
     def createChainContext(self, p):
@@ -61,3 +62,12 @@ class LikelihoodComputationChain(LCC):
             # no params or params has no keys
             pass
         return ChainContext(self, p)
+
+    def setup(self):
+        for cModule in self.getCoreModules():
+            if hasattr(cModule, "setup"):
+                cModule.setup()
+
+        for cModule in self.getLikelihoodModules():
+            if hasattr(cModule, "setup"):
+                cModule.setup()

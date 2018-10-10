@@ -109,3 +109,5 @@ void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoPara
 void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params);
 
 void free_TsCalcBoxes();
+
+double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len);

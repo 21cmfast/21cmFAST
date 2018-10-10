@@ -78,9 +78,6 @@ class LikelihoodBase:
 
         return chain.core_context()
 
-    def store(self, model, storage):
-        pass
-
     @property
     def _core(self):
         "The *primary* core module (i.e. the first one that is a required core)."
@@ -108,7 +105,6 @@ class LikelihoodBaseFile(LikelihoodBase):
 
         if not self._simulate and not self.datafile:
             raise ValueError("Either an existing datafile has to be specified, or simulate set to True.")
-
 
         # Read in or simulate the data and noise.
         self.data = self.simulate(self.default_ctx) if self._simulate else self._read_data()
@@ -353,7 +349,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         self.nchunks = nchunks
 
     def setup(self):
-        LikelihoodBase.setup(self)
+        LikelihoodBaseFile.setup(self)
 
         # Ensure that there is one dataset and noiseset per redshift.
         if len(self.data) != self.nchunks:
@@ -402,7 +398,6 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
         chunk_indices.append(brightness_temp.n_slices)
 
-        print(chunk_indices)
         for i in range(self.nchunks):
             start = chunk_indices[i]
             end = chunk_indices[i+1]
@@ -422,6 +417,12 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
 
 class LikelihoodPlanck(LikelihoodBase):
+    """
+    A likelihood which utilises Planck optical depth data.
+
+    In practice, any optical depth measurement (or mock measurement) may be used, by defining the class variables
+    `tau_mean` and `tau_sigma`.
+    """
     # Mean and one sigma errors for the Planck constraints
     # The Planck prior is modelled as a Gaussian: tau = 0.058 \pm 0.012 (https://arxiv.org/abs/1605.03507)
     tau_mean = 0.058
@@ -494,6 +495,9 @@ class LikelihoodPlanck(LikelihoodBase):
         if len(redshifts) < 3:
             raise ValueError("You cannot use the Planck prior likelihood with less than 3 redshifts")
 
+        # Order the redshifts in increasing order
+        redshifts, xHI = np.sort(np.array([redshifts, xHI]))
+
         # The linear interpolation/extrapolation function, taking as input the redshift supplied by the user and
         # the corresponding neutral fractions recovered for the specific EoR parameter set
         neutral_frac_func = InterpolatedUnivariateSpline(redshifts, xHI, k=1)
@@ -554,7 +558,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         if not self.lightcone_modules + self.coeval_modules:
             raise ValueError("LikelihoodNeutralFraction needs the CoreLightConeModule *or* CoreCoevalModule to be loaded.")
 
-        if self.coeval_modules:
+        if not self.lightcone_modules:
             # Get all unique redshifts from all coeval boxes in cores.
             self.redshifts = list(set(sum([x.redshift for x in self.coeval_modules], [])))
 
@@ -584,14 +588,15 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         lnprob = 0
 
         if self._require_spline:
-            ind = np.argsort(model['redshifts'])
-            model_spline = InterpolatedUnivariateSpline(model['redshifts'][ind], model['xHI'][ind], k=1)
+            redshifts, xHI = np.sort(np.array([model['redshifts'], model['xHI']]))
+            model_spline = InterpolatedUnivariateSpline(redshifts, xHI, k=1)
 
         for z, data, sigma in zip(self.redshift, self.xHI, self.xHI_sigma):
-            if z in self.model['redshifts']:
+            if z in model['redshifts']:
                 lnprob += self.lnprob(model['xHI'][self.redshifts.index(z)], data, sigma)
             else:
                 lnprob += self.lnprob(model_spline(z), data, sigma)
+                print(z, model_spline(z), lnprob)
 
         return lnprob
 
