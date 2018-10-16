@@ -1445,11 +1445,10 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
         perturb = perturb_field(redshift=redshift, init_boxes=init_box, regenerate=regenerate,
                                 direc=direc, match_seed=True)
 
-    max_redshift = global_params.Z_HEAT_MAX if (flag_options.INHOMO_RECO or do_spin_temp) else max_redshift
+    max_redshift = global_params.Z_HEAT_MAX if (flag_options.INHOMO_RECO or do_spin_temp or max_redshift is None) else max_redshift
 
     # Get the redshift through which we scroll and evaluate the ionization field.
-    scrollz = _logscroll_redshifts(redshift, z_step_factor,
-                                   global_params.Z_HEAT_MAX if (flag_options.INHOMO_RECO or do_spin_temp) else max_redshift)
+    scrollz = _logscroll_redshifts(redshift, z_step_factor, max_redshift)
 
     # Here set up the lightcone box.
     # Get a length of the lightcone (bigger than it needs to be at first).

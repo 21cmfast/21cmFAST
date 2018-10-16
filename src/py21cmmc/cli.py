@@ -325,7 +325,7 @@ def coeval(ctx, redshift, config, regen, direc, match_seed, do_spin, z_step_fact
         allow_extra_args=True
     )
 )
-@click.argument("redshift", type=str)
+@click.argument("redshift", type=float)
 @click.option("--config", type=click.Path(exists=True, dir_okay=False), default=None,
               help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)")
 @click.option("--regen/--no-regen", default=False,
@@ -347,19 +347,13 @@ def lightcone(ctx, redshift, config, regen, direc, match_seed, do_spin, max_z, z
     """
     Efficiently generate coeval cubes at a given redshift.
     """
-
-    try:
-        redshift = [float(z.strip()) for z in redshift.split(",")]
-    except TypeError:
-        raise TypeError("redshift argument must be comma-separated list of values.")
-
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
     user_params = lib.UserParams(**cfg['user_params'])
     cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
     flag_options = lib.FlagOptions(**cfg['flag_options'])
-    astro_params = lib.AstroParams(flag_options.INHOMO_RECO, **cfg['astro_params'])
+    astro_params = lib.AstroParams(INHOMO_RECO=flag_options.INHOMO_RECO, **cfg['astro_params'])
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
