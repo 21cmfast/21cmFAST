@@ -186,18 +186,18 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         ----------
         datafile : str, optional
             The file(s) from which to read the data. Alternatively, the file to which to write the data (see class
-            docstring for how this works).
+            docstring for how this works). See notes below for details.
         noisefile : str, optional
             The file(s) from which to read the noise profile. If not given, no thermal noise or cosmic variance is
-            used in the fit. The noisefile should be an .npz file with the arrays "ks" and "errs" in it. This
-            is the default output format of 21cmSense. See notes below on how to extend this behaviour.
+            used in the fit. The noisefile should be an .npz file with the arrays "k" and "errs" in it. This
+            is *almost* the default output format of 21cmSense. See notes below on how to extend this behaviour.
         n_psbins : int, optional
             The number of bins for the spherically averaged power spectrum. By default automatically
             calculated from the number of cells.
         min_k : float, optional
-            The minimum k value at which to compare model and data.
+            The minimum k value at which to compare model and data (units 1/Mpc).
         max_k : float, optional
-            The maximum k value at which to compare model and data.
+            The maximum k value at which to compare model and data (units 1/Mpc).
         logk : bool, optional
             Whether the power spectrum bins should be regular in logspace or linear space.
         model_uncertainty : float, optional
@@ -209,10 +209,16 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         -----
         The datafile and noisefile have specific formatting required. Both should be .npz files. The datafile should
         have 'k' and 'delta' arrays in it (k-modes in 1/Mpc and power spectrum respectively) and the noisefile should
-        have 'ks' and 'errs' arrays in it (k-modes and their standard deviations respectively). To make this more
-        flexible, simply subclass this class, and overwrite the :meth:`_define_data` or :meth:`_define_noise` methods,
-        then use that likelihood instead of this in your likelihood chain. Both of these functions should return
-        dictionaries in which the above entries exist. For example::
+        have 'k' and 'errs' arrays in it (k-modes and their standard deviations respectively). Note that the latter is
+        *almost* the default output of 21cmSense, except that 21cmSense has k in units of h/Mpc, whereas 21cmFAST/21CMMC
+        use units of 1/Mpc.
+
+        .. warning:: Please ensure that the data/noise is in the correct units for 21CMMC, as this class
+                     does not automatically convert units!
+
+        To make this more flexible, simply subclass this class, and overwrite the :meth:`_define_data` or
+        :meth:`_define_noise` methods, then use that likelihood instead of this in your likelihood chain. Both of these
+        functions should return dictionaries in which the above entries exist. For example::
 
         >>> class MyCoevalLikelihood(Likelihood1DPowerCoeval):
         >>>    def _define_data(self):
@@ -260,7 +266,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         self.data_spline = [InterpolatedUnivariateSpline(d['k'], d['delta'], k=1) for d in self.data]
 
         if self.noise:
-            self.noise_spline = [InterpolatedUnivariateSpline(n['ks'], n['errs'], k=1) for n in self.noise]
+            self.noise_spline = [InterpolatedUnivariateSpline(n['k'], n['errs'], k=1) for n in self.noise]
         else:
             self.noise_spline = None
 
