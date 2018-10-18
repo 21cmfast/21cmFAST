@@ -493,7 +493,7 @@ def _get_redshift(redshift, *structs):
 
     for s in structs:
         if hasattr(s, "redshift"):
-            return redshift
+            return s.redshift
 
     return redshift
 
@@ -865,6 +865,15 @@ def ionize_box(astro_params=None, flag_options=None,
     else:
         prev_z = None
 
+    # Dynamically produce the initial conditions.
+    if init_boxes is None or not init_boxes.filled:
+        init_boxes = initial_conditions(
+            user_params=user_params, cosmo_params=cosmo_params,
+            regenerate=regenerate, write=write, direc=direc,
+            match_seed=match_seed
+        )
+        match_seed = True
+
     # Get appropriate previous ionization box
     if not isinstance(previous_ionize_box, IonizedBox):
         # If we are beyond Z_HEAT_MAX, just make an empty box
@@ -885,7 +894,7 @@ def ionize_box(astro_params=None, flag_options=None,
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
         perturbed_field = perturb_field(
-            redshift=redshift, init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
+            redshift=redshift, init_boxes=init_boxes, # Definition have init_boxes here.
             regenerate=regenerate, write=write, direc=direc,
             match_seed=match_seed
         )
@@ -896,8 +905,8 @@ def ionize_box(astro_params=None, flag_options=None,
         spin_temp = TsBox(redshift=0)
     elif spin_temp is None:
         spin_temp = spin_temperature(
-            redshift=redshift, perturbed_field=perturbed_field, previous_spin_temp=prev_z,
-            astro_params=astro_params, cosmo_params=cosmo_params, flag_options=flag_options, user_params=user_params,
+            perturbed_field=perturbed_field, previous_spin_temp=prev_z,
+            flag_options=flag_options, user_params=user_params,
             match_seed=match_seed, direc=direc, write=write, regenerate=regenerate
         )
 
@@ -945,13 +954,13 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
         If at a different redshift, it will be linearly evolved to the redshift of the spin temperature box.
 
     previous_spin_temp : :class:`TsBox` or float, optional
-        The previous spin temperature box, or its redshift. This redshift must be greater than `redshift`. If not given,
-        will assume that this is the initial, high redshift box. If a redshift, then this will try to read in the
-        previous spin temp box at this redshift, and if it doesn't exist, will raise an exception.
+        The previous spin temperature box, or its redshift. This redshift must be greater than `redshift`. If a
+        redshift, then this will try to read in the previous spin temp box at this redshift or generate it.
 
     z_step_factor: float, optional
         A factor greater than unity, which specifies the logarithmic steps in redshift with which the spin temperature
-        box is evolved.
+        box is evolved. If None, the code will assume that this is the first box in the evolution process, and generate
+        the spin temp directly from the perturbed field.
 
     z_heat_max: float, optional
         The maximum redshift at which to search for heating sources. Practically, this defines the limit in redshift
@@ -1032,7 +1041,11 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
     if perturbed_field is not None or previous_spin_temp is not None or init_boxes is not None:
         match_seed = True
-        _check_compatible_inputs(perturbed_field, init_boxes, previous_spin_temp, ignore_redshift=True)
+        if previous_spin_temp is None or isinstance(previous_spin_temp, _OutputStruct):
+            # This switch accounts for the case where previous_spin_temp is a float.
+            _check_compatible_inputs(perturbed_field, init_boxes, previous_spin_temp, ignore_redshift=True)
+        else:
+            _check_compatible_inputs(perturbed_field, init_boxes, ignore_redshift=True)
 
     cosmo_params, user_params, astro_params, flag_options = _get_inputs(
         [cosmo_params, user_params, astro_params, flag_options],
@@ -1075,7 +1088,6 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             prev_z = previous_spin_temp
     elif z_step_factor is not None:
         prev_z = (1 + redshift) * z_step_factor - 1
-
     else:
         prev_z = None
         if redshift < global_params.Z_HEAT_MAX:
@@ -1086,11 +1098,10 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     if prev_z and prev_z <= redshift:
         raise ValueError("Previous spin temperature box must have a higher redshift than that being evaluated.")
 
-    # Dynamically produce the perturbed field.
-    if perturbed_field is None or not perturbed_field.filled:
-        perturbed_field = perturb_field(
-            redshift=redshift,
-            init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
+    # Dynamically produce the initial conditions.
+    if init_boxes is None or not init_boxes.filled:
+        init_boxes = initial_conditions(
+            user_params=user_params, cosmo_params=cosmo_params,
             regenerate=regenerate, write=write, direc=direc,
             match_seed=match_seed
         )
@@ -1102,11 +1113,22 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             previous_spin_temp = TsBox(redshift=0)
         else:
             previous_spin_temp = spin_temperature(
-                astro_params=astro_params, flag_options=flag_options, redshift=prev_z, perturbed_field=perturbed_field,
+                init_boxes=init_boxes,
+                astro_params=astro_params, flag_options=flag_options, redshift=prev_z,
                 z_step_factor=z_step_factor, z_heat_max=z_heat_max,
-                init_boxes=init_boxes, regenerate=regenerate, write=write, direc=direc,
+                regenerate=regenerate, write=write, direc=direc,
                 match_seed=match_seed
             )
+
+    # Dynamically produce the perturbed field.
+    if perturbed_field is None or not perturbed_field.filled:
+        perturbed_field = perturb_field(
+            redshift=redshift,
+            init_boxes=init_boxes, user_params=user_params, cosmo_params=cosmo_params,
+            regenerate=regenerate, write=write, direc=direc,
+            match_seed=match_seed
+        )
+        match_seed = True
 
     # Run the C Code
     lib.ComputeTsBox(redshift, previous_spin_temp.redshift, perturbed_field.user_params(),
