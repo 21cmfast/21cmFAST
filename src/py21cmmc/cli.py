@@ -372,18 +372,7 @@ def lightcone(ctx, redshift, config, regen, direc, match_seed, do_spin, max_z, z
     )
 
 
-@main.command()
-@click.option("-d", "--direc", type=click.Path(exists=True, dir_okay=True), default=None,
-              help="directory to write data and plots to -- must exist.")
-@click.option("-k", "--kind", type=str, default=None,
-              help="filter by kind of data.")
-@click.option("-m", "--md5", type=str, default=None,
-              help="filter by md5 hash")
-@click.option("-s", "--seed", type=str, default=None,
-              help="filter by random seed")
-@click.option("--clear/--no-clear", default=False,
-              help="remove all data sets returned by this query.")
-def query(direc,  kind, md5, seed, clear):
+def _query(direc=None,  kind=None, md5=None, seed=None, clear=False):
     cls = list(lib.query_cache(direc, kind=kind, hash=md5, seed=seed, show=False))
 
     if not clear:
@@ -402,3 +391,18 @@ def query(direc,  kind, md5, seed, clear):
         else:
             direc = direc or path.expanduser(lib.config['boxdir'])
             remove(path.join(direc, file))
+
+
+@main.command()
+@click.option("-d", "--direc", type=click.Path(exists=True, dir_okay=True), default=None,
+              help="directory to write data and plots to -- must exist.")
+@click.option("-k", "--kind", type=str, default=None,
+              help="filter by kind of data.")
+@click.option("-m", "--md5", type=str, default=None,
+              help="filter by md5 hash")
+@click.option("-s", "--seed", type=str, default=None,
+              help="filter by random seed")
+@click.option("--clear/--no-clear", default=False,
+              help="remove all data sets returned by this query.")
+def query(direc,  kind, md5, seed, clear):
+    _query(direc, kind, md5, seed, clear)
