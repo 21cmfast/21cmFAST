@@ -100,3 +100,18 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
     ax.set_ylabel(f"{yax}-axis [Mpc]")
 
     return fig, ax
+
+
+def lightcone_sliceplot(lightcone, **kwargs):
+
+    slice_axis = kwargs.pop("slice_axis", 0)
+
+    fig, ax = _imshow_slice(lightcone.brightness_temp,
+                            extent=( 0, lightcone.user_params.BOX_LEN,0, lightcone.lightcone_coords[-1]),
+                            slice_axis=slice_axis)
+
+    ax.set_ylabel("Redshift Axis [Mpc]")
+    ax.set_xlabel("Y-Axis [Mpc]")
+
+    # TODO: use twinx to put a redshift axis on it.
+    return fig, ax

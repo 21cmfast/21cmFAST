@@ -7,6 +7,7 @@ The following introductory tutorials will help you get started with ``21CMMC``:
    :maxdepth: 2
 
    tutorials/coeval_cubes
+   tutorials/lightcones
    tutorials/mcmc_intro
    tutorials/mcmc_lightcone
    tutorials/mcmc_global
