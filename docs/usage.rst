@@ -81,6 +81,8 @@ This means that almost all of the functionality provided in the library is acces
 
 Library
 =======
+.. note:: See the coeval cube tutorial for a more in-depth introduction to using the ``21CMMC`` library.
+
 Typically the user will want to use ``21CMMC`` as a library -- calling underlying C routines, and obtaining nicely
 wrapped results that are ready for further analysis/plotting. The main namespace is ``py21cmmc``::
 
