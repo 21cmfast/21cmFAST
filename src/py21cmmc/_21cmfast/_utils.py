@@ -18,6 +18,8 @@ with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:
 from cffi import FFI
 _ffi = FFI()
 
+import logging
+logger = logging.getLogger("21CMMC")
 
 class StructWithDefaults:
     """
@@ -58,6 +60,7 @@ class StructWithDefaults:
                 raise TypeError("optional positional argument for %s must be None, dict, or an instance of itself"%self.__class__.__name__)
 
         for k, v in self._defaults_.items():
+
 
             # Prefer arguments given to the constructor.
             if k in kwargs:
@@ -173,7 +176,15 @@ class StructWithDefaults:
     @property
     def self(self):
         "Dictionary which if passed to its own constructor will yield an identical copy"
-        return {k: getattr(self, k) for k in self._defaults_}
+        # Try to first use the hidden variable (eg. _RANDOM_SEED) before using the non-hidden variety.
+        dct = {}
+        for k in self._defaults_:
+            if hasattr(self, "_"+k):
+                dct[k] = getattr(self, "_"+k)
+            else:
+                dct[k] = getattr(self, k)
+
+        return dct
 
     def __repr__(self):
         return self.__class__.__name__ +"(" + ", ".join(sorted([k +":" + str(v) for k,v in self.defining_dict.items()])) + ")"
@@ -326,16 +337,23 @@ class OutputStruct:
         direc = direc or path.expanduser(config['boxdir'])
         return path.join(direc, self.filename)
 
-    @staticmethod
-    def _find_file_without_seed(f):
-        f = re.sub("r\d+\.", "r*.", f)
-        allfiles = glob.glob(f)
+    def _find_file_without_seed(self, direc):
+        allfiles = glob.glob(path.join(direc, self._fname_skeleton.format(seed="*")))
         if allfiles:
             return allfiles[0]
         else:
             return None
 
-    def find_existing(self, direc=None, match_seed=False):
+    @property
+    def _current_seed(self):
+        """
+        Convenience property indicate the current random seed. Useful to check if it is (still) None.
+
+        Will return None if cosmo_params is not a part of the struct.
+        """
+        return getattr(getattr(self, "cosmo_params", None), "_RANDOM_SEED", None)
+
+    def find_existing(self, direc=None):
         """
         Try to find existing boxes which match the parameters of this instance.
 
@@ -354,19 +372,23 @@ class OutputStruct:
         str
             The filename of an existing set of boxes, or None.
         """
-        f = self._get_fname(direc)
+        # First, if appropriate, find a file without specifying seed.
+        # Need to do this first, otherwise the seed will be chosen randomly upon choosing a filename!
+        direc = direc or path.expanduser(config['boxdir'])
 
-        if path.exists(f) and self._check_parameters(f, match_seed):
-            return f
+        if not self._current_seed:
+            f = self._find_file_without_seed(direc)
+            if f and self._check_parameters(f):
+                return f
 
-        if not match_seed:
-            f = self._find_file_without_seed(f)
-            if f and self._check_parameters(f, match_seed):
+        else:
+            f = self._get_fname(direc)
+            if path.exists(f) and self._check_parameters(f):
                 return f
 
         return None
 
-    def _check_parameters(self, fname, match_seed=False):
+    def _check_parameters(self, fname):
         with h5py.File(fname, 'r') as f:
             for k in self._inputs +["_global_params"]:
                 q = getattr(self, k)
@@ -374,23 +396,27 @@ class OutputStruct:
                 if isinstance(q, StructWithDefaults) or isinstance(q, _StructWrapper):
                     grp = f[k]
                     if isinstance(q, StructWithDefaults):
+                        # The following *assigns* a random seed if one does not exist.
+                        # If the file has been read in, this will be fixed.
                         dct = q.pystruct
                     else:
                         dct = q
 
                     for kk, v in dct.items():
-                        if not match_seed and kk=="RANDOM_SEED":
-                            continue
+                        if kk not in self._filter_params + ['RANDOM_SEED']:
+                            # Never check random seed. If we need to check it, it's definitely matching (because
+                            # it's been matched in the filename). If not, then we don't check it anyway.
 
-                        if kk not in self._filter_params:
                             if grp.attrs[kk] != v:
+                                logger.debug("For file %s:"%fname)
+                                logger.debug("\tThough md5 and seed matched, the parameter %s did not match, with values %s and %s in file and user respectively"%(kk, grp.attrs[kk], v))
                                 return False
                 else:
                     if f.attrs[k] != q:
                         return False
         return True
 
-    def exists(self, direc=None, match_seed=False):
+    def exists(self, direc=None):
         """
         Return a bool indicating whether a box matching the parameters of this instance is in cache.
 
@@ -404,7 +430,7 @@ class OutputStruct:
         match_seed : bool, optional
             Whether to force the random seed to also match in order to be considered a match.
         """
-        return self.find_existing(direc, match_seed) is not None
+        return self.find_existing(direc) is not None
 
     def write(self, direc=None):
         """
@@ -447,7 +473,7 @@ class OutputStruct:
             for k in self._primitive_fields:
                 boxes.attrs[k] = getattr(self, k)
 
-    def read(self, direc=None, match_seed=False):
+    def read(self, direc=None):
         """
         Try to find and read in existing boxes from cache, which match the parameters of this instance.
 
@@ -457,14 +483,11 @@ class OutputStruct:
             The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
             by the ``config.yml`` in ``.21CMMC``. This central directory will be searched in addition to whatever is
             passed to `direc`.
-
-        match_seed : bool, optional
-            Whether to force the random seed to also match in order to be considered a match.
         """
         if self.filled:
             raise IOError("This data is already filled, no need to read in.")
 
-        pth = self.find_existing(direc, match_seed)
+        pth = self.find_existing(direc)
 
         if pth is None:
             raise IOError("No boxes exist for these parameters.")
@@ -473,7 +496,7 @@ class OutputStruct:
         if not self.arrays_initialized:
             self._init_cstruct()
 
-        with h5py.File(pth,'r') as f:
+        with h5py.File(pth, 'r') as f:
             try:
                 boxes = f[self._name]
             except:
@@ -488,7 +511,7 @@ class OutputStruct:
 
             # Need to make sure that the seed is set to the one that's read in.
             seed = f['cosmo_params'].attrs['RANDOM_SEED']
-            self.cosmo_params.update(RANDOM_SEED = seed)
+            self.cosmo_params.update(RANDOM_SEED=seed)
 
         self.filled = True
 
@@ -510,7 +533,12 @@ class OutputStruct:
 
     @property
     def filename(self):
-        return self._name + "_" + self._md5 + "_r%s" % self.cosmo_params.RANDOM_SEED + ".h5"
+        return self._fname_skeleton.format(seed=self.cosmo_params.RANDOM_SEED)
+
+    @property
+    def _fname_skeleton(self):
+        "The filename without specifying the random seed"
+        return self._name + "_" + self._md5 + "_r{seed}.h5"
 
     def __getstate__(self):
         return {k:v for k,v in self.__dict__.items() if not isinstance(v, self._ffi.CData)}

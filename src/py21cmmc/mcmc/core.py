@@ -75,7 +75,6 @@ class CoreCoevalModule(CoreBase):
             are required to specify the ionization field. Beyond this, the ionization field is specified directly from
             the perturbed density field.
 
-
         Other Parameters
         ----------------
         store :  dict, optional
@@ -144,7 +143,10 @@ class CoreCoevalModule(CoreBase):
         This method is called automatically by its parent :class:`~LikelihoodComputationChain`, and should not be
         invoked directly.
         """
-        self.parameter_names = getattr(self.LikelihoodComputationChain.params,"keys", [])
+        self.parameter_names = getattr(self.LikelihoodComputationChain.params, "keys", [])
+
+        # If the chain has different parameter truths, we want to use those for our defaults.
+        self._update_params(self.LikelihoodComputationChain.createChainContext({}).getParams())
 
         if self.z_heat_max is not None:
             p21.global_params.Z_HEAT_MAX = self.z_heat_max
@@ -159,7 +161,7 @@ class CoreCoevalModule(CoreBase):
                 cosmo_params=self.cosmo_params,
                 write=self.io['cache_init'],
                 direc=self.io['cache_dir'],
-                regenerate=self.regenerate
+                regenerate=self.regenerate,
             )
 
             self.perturb_field = []
@@ -169,9 +171,12 @@ class CoreCoevalModule(CoreBase):
                     init_boxes=self.initial_conditions,
                     write=self.io['cache_init'],
                     direc=self.io['cache_dir'],
-                    regenerate=self.regenerate
+                    regenerate=self.regenerate,
                 )]
             print(" done.")
+
+            # Update the cosmo params to the fully realized ones
+            self.cosmo_params.update(RANDOM_SEED=self.initial_conditions.cosmo_params.RANDOM_SEED)
 
     def __call__(self, ctx):
         # Update parameters
@@ -199,7 +204,8 @@ class CoreCoevalModule(CoreBase):
         self.cosmo_params.update(
             **{k: getattr(params, k) for k,v in params.items() if k in self.cosmo_params.defining_dict})
 
-        if self.initial_conditions is None or self.change_seed_every_iter: # Usually these will either both be true or false. But it's useful to test both of them.
+        # We need to reset the seed to None on every iteration if the initial conditions are changing.
+        if self.change_seed_every_iter:
             self.cosmo_params.update(RANDOM_SEED=None)
 
     def run(self, astro_params, cosmo_params):
