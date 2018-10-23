@@ -596,7 +596,7 @@ def initial_conditions(user_params=None, cosmo_params=None, regenerate=False, wr
             pass
 
     # Run the C code
-    lib.ComputeInitialConditions(user_params(), cosmo_params(), boxes())
+    lib.ComputeInitialConditions(boxes.user_params(), boxes.cosmo_params(), boxes())
     boxes.filled = True
     boxes._expose()
 
@@ -686,8 +686,11 @@ def perturb_field(redshift, init_boxes=None, user_params=None, cosmo_params=None
             user_params, cosmo_params, regenerate=regenerate, write=write, direc=direc
         )
 
+        # Need to update fields to have the same seed as init_boxes
+        fields.cosmo_params.update(RANDOM_SEED = init_boxes.cosmo_params.RANDOM_SEED)
+
     # Run the C Code
-    lib.ComputePerturbField(redshift, init_boxes.user_params(), init_boxes.cosmo_params(), init_boxes(), fields())
+    lib.ComputePerturbField(redshift, fields.user_params(), fields.cosmo_params(), init_boxes(), fields())
     fields.filled = True
     fields._expose()
 
@@ -910,6 +913,9 @@ def ionize_box(astro_params=None, flag_options=None,
             regenerate=regenerate, write=write, direc=direc,
         )
 
+        # Need to update random seed
+        box.cosmo_params.update(RANDOM_SEED = init_boxes.cosmo_params.RANDOM_SEED)
+
     # Get appropriate previous ionization box
     if not isinstance(previous_ionize_box, IonizedBox):
         # If we are beyond Z_HEAT_MAX, just make an empty box
@@ -942,13 +948,14 @@ def ionize_box(astro_params=None, flag_options=None,
         spin_temp = spin_temperature(
             perturbed_field=perturbed_field, previous_spin_temp=prev_z,
             flag_options=flag_options,
+            init_boxes=init_boxes,
             direc=direc, write=write, regenerate=regenerate
         )
 
     # Run the C Code
-    lib.ComputeIonizedBox(redshift, previous_ionize_box.redshift, perturbed_field.user_params(),
-                          perturbed_field.cosmo_params(),
-                          astro_params(), flag_options(), # We can set these directly at this point, because they can't change on read-in.
+    lib.ComputeIonizedBox(redshift, previous_ionize_box.redshift, box.user_params(),
+                          box.cosmo_params(),
+                          box.astro_params(), box.flag_options(),
                           perturbed_field(),
                           previous_ionize_box(), do_spin_temp, spin_temp(), box())
 
@@ -1140,6 +1147,9 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             regenerate=regenerate, write=write, direc=direc
         )
 
+        # Need to update random seed
+        box.cosmo_params.update(RANDOM_SEED = init_boxes.cosmo_params.RANDOM_SEED)
+
     # Create appropriate previous_spin_temp
     if not isinstance(previous_spin_temp, TsBox):
         if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
@@ -1161,8 +1171,8 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
         )
 
     # Run the C Code
-    lib.ComputeTsBox(redshift, previous_spin_temp.redshift, perturbed_field.user_params(),
-                     perturbed_field.cosmo_params(), astro_params(), perturbed_field.redshift, perturbed_field(),
+    lib.ComputeTsBox(redshift, previous_spin_temp.redshift, box.user_params(),
+                     box.cosmo_params(), box.astro_params(), perturbed_field.redshift, perturbed_field(),
                      previous_spin_temp(), box())
     box.filled = True
     box._expose()
