@@ -20,11 +20,11 @@ struct GlobalParams{
     int N_POISSON;
     int T_USE_VELOCITIES;
     float MAX_DVDR;
-    int DIMENSIONAL_T_POWER_SPEC;
-    float DELTA_R_FACTOR;
+//    int DIMENSIONAL_T_POWER_SPEC;
+//    float DELTA_R_FACTOR;
     float DELTA_R_HII_FACTOR;
-    float R_OVERLAP_FACTOR;
-    int DELTA_CRIT_MODE;
+//    float R_OVERLAP_FACTOR;
+//    int DELTA_CRIT_MODE;
     int HII_FILTER;
     float INITIAL_REDSHIFT;
     
@@ -36,11 +36,11 @@ struct GlobalParams{
     float ZPRIME_STEP_FACTOR;
     double TK_at_Z_HEAT_MAX;
     double XION_at_Z_HEAT_MAX;
-    int Ts_verbose;
+//    int Ts_verbose;
     int Pop;
     float Pop2_ion;
     float Pop3_ion;
-    int DEBUG_ON;
+//    int DEBUG_ON;
 
     float NU_X_BAND_MAX;
     float NU_X_MAX;
@@ -75,27 +75,27 @@ struct GlobalParams global_params = {
     .N_POISSON = -1,
     .T_USE_VELOCITIES = 1,
     .MAX_DVDR = 0.2,
-    .DIMENSIONAL_T_POWER_SPEC = 1,
-    .DELTA_R_FACTOR = 1.1,
+//    .DIMENSIONAL_T_POWER_SPEC = 1,
+//    .DELTA_R_FACTOR = 1.1,
     .DELTA_R_HII_FACTOR = 1.1,
-    .R_OVERLAP_FACTOR = 1.0,
-    .DELTA_CRIT_MODE = 1,
+//    .R_OVERLAP_FACTOR = 1.0,
+//    .DELTA_CRIT_MODE = 1,
     .HII_FILTER = 1,
     .INITIAL_REDSHIFT = 300.,
     
     .HEAT_FILTER = 0,
     .CLUMPING_FACTOR = 2.,
-    .Z_HEAT_MAX = 35.,
+    .Z_HEAT_MAX = 35.0,
     .R_XLy_MAX = 500.,
     .NUM_FILTER_STEPS_FOR_Ts = 40,
     .ZPRIME_STEP_FACTOR = 1.02,
     .TK_at_Z_HEAT_MAX = -1,
     .XION_at_Z_HEAT_MAX = -1,
-    .Ts_verbose = 1,
+//    .Ts_verbose = 1,
     .Pop = 2,
     .Pop2_ion = 4361,
     .Pop3_ion = 44021,
-    .DEBUG_ON = 0,
+//    .DEBUG_ON = 0,
     
     .NU_X_BAND_MAX = 2000.0,
     .NU_X_MAX = 10000.0,
