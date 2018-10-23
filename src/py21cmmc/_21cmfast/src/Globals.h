@@ -28,6 +28,9 @@ struct GlobalParams{
     int HII_FILTER;
     float INITIAL_REDSHIFT;
     
+    float CRIT_DENS_TRANSITION;
+    float MIN_DENSITY_LOW_LIMIT;
+    
     int HEAT_FILTER;
     double CLUMPING_FACTOR;
     float Z_HEAT_MAX;
@@ -83,6 +86,9 @@ struct GlobalParams global_params = {
     .HII_FILTER = 1,
     .INITIAL_REDSHIFT = 300.,
     
+    .CRIT_DENS_TRANSITION = 1.5,
+    .MIN_DENSITY_LOW_LIMIT = 9e-8,
+    
     .HEAT_FILTER = 0,
     .CLUMPING_FACTOR = 2.,
     .Z_HEAT_MAX = 35.,
@@ -93,7 +99,7 @@ struct GlobalParams global_params = {
     .XION_at_Z_HEAT_MAX = -1,
     .Ts_verbose = 1,
     .Pop = 2,
-    .Pop2_ion = 4361,
+    .Pop2_ion = 5000,
     .Pop3_ion = 44021,
     .DEBUG_ON = 0,
     

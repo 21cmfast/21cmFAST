@@ -469,7 +469,7 @@ void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p, int print_p
     }
     
     if(fo->USE_MASS_DEPENDENT_ZETA) {
-        printf("\tION_EFF_FACTOR     : %f\n",p->ION_EFF_FACTOR);
+        printf("\tHII_EFF_FACTOR     : %f\n",p->HII_EFF_FACTOR);
         printf("\tALPHA_STAR         : %f\n",p->ALPHA_STAR);
         printf("\tF_ESC10            : %f\n",p->F_ESC10);
         printf("\tALPHA_ESC          : %f\n",p->ALPHA_ESC);
@@ -477,7 +477,7 @@ void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p, int print_p
         
     }
     else {
-        printf("\tION_EFF_FACTOR     : %f\n",p->ION_EFF_FACTOR);
+        printf("\tHII_EFF_FACTOR     : %f\n",p->HII_EFF_FACTOR);
         printf("\tION_Tvir_MIN       : %f\n",p->ION_Tvir_MIN);
         printf("\tX_RAY_Tvir_MIN     : %f\n",p->X_RAY_Tvir_MIN);
     }

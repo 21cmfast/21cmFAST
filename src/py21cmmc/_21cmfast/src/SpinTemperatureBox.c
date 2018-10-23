@@ -497,7 +497,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             NO_LIGHT = 0;
             
         M_MIN_at_zp = get_M_min_ion(zp);
-        filling_factor_of_HI_zp = 1 - astro_params->ION_EFF_FACTOR * FgtrM_st(zp, M_MIN_at_zp) / (1.0 - x_e_ave);
+        filling_factor_of_HI_zp = 1 - astro_params->HII_EFF_FACTOR * FgtrM_st(zp, M_MIN_at_zp) / (1.0 - x_e_ave);
         if (filling_factor_of_HI_zp > 1) filling_factor_of_HI_zp=1;
         
         // let's initialize an array of redshifts (z'') corresponding to the

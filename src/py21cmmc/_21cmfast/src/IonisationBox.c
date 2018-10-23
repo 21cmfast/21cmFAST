@@ -30,19 +30,41 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     int n_x, n_y, n_z,counter;
     unsigned long long ct;
 
-    float growth_factor,MFEEDBACK, pixel_mass, cell_length_factor, ave_N_min_cell, M_MIN, nf;
-    float f_coll_crit, erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, sqrtarg, xHI_from_xrays, curr_dens, massofscaleR;
+    float growth_factor, pixel_mass, cell_length_factor, ave_N_min_cell, M_MIN, nf;
+    float f_coll_crit, erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, sqrtarg, xHI_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR;
 
-    double global_xH, global_step_xH, ST_over_PS, mean_f_coll_st, f_coll, R, stored_R;
+    double global_xH, global_step_xH, ST_over_PS, mean_f_coll_st, f_coll, R, stored_R, f_coll_min;
 
     double t_ast, dfcolldt, Gamma_R_prefactor, rec, dNrec;
     float growth_factor_dz, fabs_dtdz, ZSTEP, Gamma_R, z_eff;
     const float dz = 0.01;
 
+    float redshift_table_fcollz,redshift_table_fcollz_Xray;
+    int redshift_int_fcollz,redshift_int_fcollz_Xray;
+    
+    float dens_val, overdense_small_min, overdense_small_bin_width, overdense_small_bin_width_inv, overdense_large_min, overdense_large_bin_width, overdense_large_bin_width_inv;
+    
+    int overdense_int;
+    
+    overdense_large_min = global_params.CRIT_DENS_TRANSITION*0.999;
+    overdense_large_bin_width = 1./((double)NSFR_high-1.)*(Deltac-overdense_large_min);
+    overdense_large_bin_width_inv = 1./overdense_large_bin_width;
+    
+    float Mlim_Fstar, Mlim_Fesc;
+    
+    float min_density, max_density;
+    
     const gsl_rng_type * T;
     gsl_rng * r;
     
     init_ps();
+    
+    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+        ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
+    }
+    else {
+        ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;
+    }
     
     // For recombinations
     if(flag_options->INHOMO_RECO) {
@@ -120,6 +142,11 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
         N_rec_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     }
     
+    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+        xi_SFR = calloc((NGL_SFR+1),sizeof(float));
+        wi_SFR = calloc((NGL_SFR+1),sizeof(float));
+    }
+    
     float *Fcoll = (float *) calloc(HII_TOT_NUM_PIXELS,sizeof(float));
      
     // Calculate the density field for this redshift if the initial conditions/cosmology are changing
@@ -146,10 +173,22 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     cell_length_factor = L_FACTOR;
 
     //set the minimum source mass
-    if (astro_params->ION_Tvir_MIN < 9.99999e3) // neutral IGM
-        M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
-    else // ionized IGM
-        M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
+    if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+        M_MIN = astro_params->M_TURN/50.;
+        Mlim_Fstar = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+        Mlim_Fesc = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10);
+    }
+    else {
+    
+        //set the minimum source mass
+        if (astro_params->ION_Tvir_MIN < 9.99999e3) // neutral IGM
+            M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
+        else // ionized IGM
+            M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
+        
+    }
+    
+    initialiseSigmaMInterpTable(M_MIN,1e18);
     
     // check for WDM
 
@@ -161,19 +200,17 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
 
     // lets check if we are going to bother with computing the inhmogeneous field at all...
     global_xH = 0.0;
-
-    MFEEDBACK = M_MIN;
-
-//    if(astro_params->EFF_FACTOR_PL_INDEX != 0.) {
-//        mean_f_coll_st = FgtrM_st_PL(redshift,M_MIN,MFEEDBACK,astro_params->EFF_FACTOR_PL_INDEX);
-//    }
-//    else {
-//        mean_f_coll_st = FgtrM_st(redshift, M_MIN);
-//    }
     
-    mean_f_coll_st = FgtrM_st(redshift, M_MIN);
     
-    if (mean_f_coll_st/(1./(astro_params->ION_EFF_FACTOR)) < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
+    // Determine the normalisation for the excursion set algorithm
+    if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+        mean_f_coll_st = FgtrM_st_SFR(growth_factor,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+    }
+    else {
+        mean_f_coll_st = FgtrM_st(redshift, M_MIN);
+    }
+    
+    if (mean_f_coll_st * (astro_params->HII_EFF_FACTOR) < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
     //        printf( "The ST mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll_st, f_coll_crit);
         
         // find the neutral fraction
@@ -304,10 +341,9 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
         }
         
         R=fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN);
-    
         LAST_FILTER_STEP = 0;
     
-        initialiseSigmaMInterpTable(M_MIN,1e16);
+//        initialiseSigmaMInterpTable(M_MIN,1e18);
         
         first_step_R = 1;
         
@@ -339,7 +375,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                 }
                 filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
             }
-        
+            
             // Perform FFTs
             if(user_params->USE_FFTW_WISDOM) {
                 // Check to see if the wisdom exists, create it if it doesn't
@@ -382,7 +418,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                 }
                 fftwf_execute(plan);
             }
-
+            
             if (flag_options->INHOMO_RECO){
                 if(user_params->USE_FFTW_WISDOM) {
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)N_rec_filtered, (float *)N_rec_filtered, FFTW_WISDOM_ONLY);
@@ -392,24 +428,65 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                 }
                 fftwf_execute(plan);
             }
-        
+            
             // Check if this is the last filtering scale.  If so, we don't need deltax_unfiltered anymore.
             // We will re-read it to get the real-space field, which we will use to set the residual neutral fraction
             ST_over_PS = 0;
             f_coll = 0;
             massofscaleR = RtoM(R);
-        
-            erfc_denom = 2.*(pow(sigma_z0(M_MIN), 2) - pow(sigma_z0(massofscaleR), 2) );
-            if (erfc_denom < 0) { // our filtering scale has become too small
-                break;
+            
+            if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+                
+                min_density = max_density = 0.0;
+                
+                for (x=0; x<user_params->HII_DIM; x++){
+                    for (y=0; y<user_params->HII_DIM; y++){
+                        for (z=0; z<user_params->HII_DIM; z++){
+                            // delta cannot be less than -1
+                            *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
+                            
+                            if( *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) < min_density ) {
+                                min_density = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                            }
+                            if( *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) > max_density ) {
+                                max_density = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                            }
+                        }
+                    }
+                }
+                
+                if(global_params.HII_FILTER==1) {
+                    if((0.413566994*R*2.*PI/user_params->BOX_LEN) > 1.) {
+                        // The sharp k-space filter will set every cell to zero, and the interpolation table using a flexible min/max density will fail.
+                        
+                        min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
+                        max_density = global_params.CRIT_DENS_TRANSITION*1.001;
+                    }
+                }
+                
+                overdense_small_min = log10(1. + min_density);
+                if(max_density > global_params.CRIT_DENS_TRANSITION*1.001) {
+                    overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+global_params.CRIT_DENS_TRANSITION*1.001)-overdense_small_min);
+                }
+                else {
+                    overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+max_density)-overdense_small_min);
+                }
+                overdense_small_bin_width_inv = 1./overdense_small_bin_width;
+                
+                initialiseGL_FcollSFR(NGL_SFR, astro_params->M_TURN,massofscaleR);
+                initialiseFcollSFR_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
             }
-            erfc_denom = sqrt(erfc_denom);
-            erfc_denom = 1./( growth_factor * erfc_denom );
-        
-//            if((astro_params->EFF_FACTOR_PL_INDEX)!=0.) {
-//                initialiseGL_Fcoll(NGLlow,NGLhigh,M_MIN,massofscaleR);
-//                initialiseFcoll_spline(redshift,M_MIN,massofscaleR,massofscaleR,MFEEDBACK,astro_params->EFF_FACTOR_PL_INDEX);
-//            }
+            else {
+            
+                erfc_denom = 2.*(pow(sigma_z0(M_MIN), 2) - pow(sigma_z0(massofscaleR), 2) );
+                if (erfc_denom < 0) { // our filtering scale has become too small
+                    break;
+                }
+                erfc_denom = sqrt(erfc_denom);
+                erfc_denom = 1./( growth_factor * erfc_denom );
+            
+            }
+            
             
             // Determine the global averaged f_coll for the overall normalisation
                 
@@ -434,20 +511,42 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                         }
                         
                         curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
-/*
-                        if(astro_params->EFF_FACTOR_PL_INDEX!=0.) {
-                            // Usage of 0.99*Deltac arises due to the fact that close to the critical density, the collapsed fraction becomes a little unstable
-                            // However, such densities should always be collapsed, so just set f_coll to unity. Additionally, the fraction of points in this regime relative
-                            // to the entire simulation volume is extremely small.
-                            if(curr_dens <= 0.99*Deltac) {
-                                FcollSpline(curr_dens,&(Splined_Fcoll));
+
+                        if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+                            
+                            if (curr_dens < global_params.CRIT_DENS_TRANSITION){
+                                
+                                if (curr_dens < -1.) {
+                                    Splined_Fcoll = 0;
+                                }
+                                else {
+                                    dens_val = (log10f(curr_dens+1.) - overdense_small_min)*overdense_small_bin_width_inv;
+                                    
+                                    overdense_int = (int)floorf( dens_val );
+                                    
+                                    Splined_Fcoll = log10_Fcoll_spline_SFR[overdense_int]*( 1 + (float)overdense_int - dens_val ) + log10_Fcoll_spline_SFR[overdense_int+1]*( dens_val - (float)overdense_int );
+                                    
+                                    Splined_Fcoll = expf(Splined_Fcoll);
+                                    
+                                }
                             }
-                            else { // the entrire cell belongs to a collpased halo...  this is rare...
-                                Splined_Fcoll =  1.0;
+                            else {
+                                if (curr_dens < 0.99*Deltac) {
+                                    
+                                    dens_val = (curr_dens - overdense_large_min)*overdense_large_bin_width_inv;
+                                    
+                                    overdense_int = (int)floorf( dens_val );
+
+                                    Splined_Fcoll = Fcoll_spline_SFR[overdense_int]*( 1 + (float)overdense_int - dens_val ) + Fcoll_spline_SFR[overdense_int+1]*( dens_val - (float)overdense_int );
+                                }
+                                else {
+                                    Splined_Fcoll = 1.;
+                                }
                             }
+                            
                         }
                         else {
-                            
+                        
                             erfc_arg_val = (Deltac - curr_dens)*erfc_denom;
                             if( erfc_arg_val < erfc_arg_min || erfc_arg_val > erfc_arg_max ) {
                                 Splined_Fcoll = splined_erfc(erfc_arg_val);
@@ -456,15 +555,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                                 erfc_arg_val_index = (int)floor(( erfc_arg_val - erfc_arg_min )*InvArgBinWidth);
                                 Splined_Fcoll = ERFC_VALS[erfc_arg_val_index] + (erfc_arg_val - (erfc_arg_min + ArgBinWidth*(double)erfc_arg_val_index))*ERFC_VALS_DIFF[erfc_arg_val_index]*InvArgBinWidth;
                             }
-                        }
- */
-                        erfc_arg_val = (Deltac - curr_dens)*erfc_denom;
-                        if( erfc_arg_val < erfc_arg_min || erfc_arg_val > erfc_arg_max ) {
-                            Splined_Fcoll = splined_erfc(erfc_arg_val);
-                        }
-                        else {
-                            erfc_arg_val_index = (int)floor(( erfc_arg_val - erfc_arg_min )*InvArgBinWidth);
-                            Splined_Fcoll = ERFC_VALS[erfc_arg_val_index] + (erfc_arg_val - (erfc_arg_min + ArgBinWidth*(double)erfc_arg_val_index))*ERFC_VALS_DIFF[erfc_arg_val_index]*InvArgBinWidth;
                         }
      
                         // save the value of the collasped fraction into the Fcoll array
@@ -476,6 +566,14 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             
             f_coll /= (double) HII_TOT_NUM_PIXELS;
      
+            // To avoid ST_over_PS becoms nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
+            if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+                if (f_coll <= f_coll_min) f_coll = f_coll_min;
+            }
+            else {
+                if (f_coll <= FRACT_FLOAT_ERR) f_coll = FRACT_FLOAT_ERR;
+            }
+            
             ST_over_PS = mean_f_coll_st/f_coll;
         
             //////////////////////////////  MAIN LOOP THROUGH THE BOX ///////////////////////////////////
@@ -484,8 +582,10 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             rec = 0.;
         
             xHI_from_xrays = 1;
-            Gamma_R_prefactor = pow(1+redshift, 2) * (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * (astro_params->ION_EFF_FACTOR) / 1.0e-12;
-                
+            Gamma_R_prefactor = pow(1+redshift, 2) * (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
+            
+            Gamma_R_prefactor /= t_ast;
+            
             for (x=0; x<user_params->HII_DIM; x++){
                 for (y=0; y<user_params->HII_DIM; y++){
                     for (z=0; z<user_params->HII_DIM; z++){
@@ -495,10 +595,13 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                         Splined_Fcoll = Fcoll[HII_R_INDEX(x,y,z)];
      
                         f_coll = ST_over_PS * Splined_Fcoll;
+                        if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+                            if (f_coll <= f_coll_min) f_coll = f_coll_min;
+                        }
                     
                         if (flag_options->INHOMO_RECO){
-                            dfcolldt = f_coll / t_ast;
-                            Gamma_R = Gamma_R_prefactor * dfcolldt;
+//                            dfcolldt = f_coll / t_ast;
+//                            Gamma_R = Gamma_R_prefactor * dfcolldt;
                             rec = (*((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z))); // number of recombinations per mean baryon
                             rec /= (1. + curr_dens); // number of recombinations per baryon inside <R>
                         }
@@ -509,12 +612,12 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                         }
                     
                         // check if fully ionized!
-                        if ( (f_coll > (xHI_from_xrays/(astro_params->ION_EFF_FACTOR))*(1.0+rec)) ){ //IONIZED!!
+                        if ( (f_coll > (xHI_from_xrays/ION_EFF_FACTOR)*(1.0+rec)) ){ //IONIZED!!
                         
                             // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
                             // this assumes photon-starved growth of HII regions...  breaks down post EoR
                             if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
-                                box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R;
+                                box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll;
                             }
                         
                             // keep track of the first time this cell is ionized (earliest time)
@@ -545,7 +648,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                             }
                             
                             if (f_coll>1) f_coll=1;
-                            res_xH = xHI_from_xrays - f_coll * (astro_params->ION_EFF_FACTOR);
+                            res_xH = xHI_from_xrays - f_coll * ION_EFF_FACTOR;
                             
                             // and make sure fraction doesn't blow up for underdense pixels
                             if (res_xH < 0)

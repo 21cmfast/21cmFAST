@@ -244,7 +244,12 @@ class AstroParams(StructWithDefaults):
     INHOMO_RECO : bool, optional
         Whether inhomogeneous recombinations are being calculated. This is not a part of the astro parameters structure,
         but is required by this class to set some default behaviour.    
-    ION_EFF_FACTOR : float, optional
+    HII_EFF_FACTOR : float, optional
+    F_STAR10 : float, optional
+    ALPHA_STAR : float, optional
+    F_ESC10 : float, optional
+    ALPHA_ESC : float, optional
+    M_TURN : float, optional
     R_BUBBLE_MAX : float, optional
         Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
     ION_Tvir_MIN : float, optional
@@ -253,7 +258,6 @@ class AstroParams(StructWithDefaults):
     X_RAY_SPEC_INDEX : float, optional
     X_RAY_Tvir_MIN : float, optional
         Default is `ION_Tvir_MIN`.
-    F_STAR : float, optional
     t_STAR : float, optional
     N_RSD_STEPS : float, optional
     """
@@ -261,7 +265,7 @@ class AstroParams(StructWithDefaults):
     _ffi = ffi
 
     _defaults_ = dict(        
-        ION_EFF_FACTOR=30.0,
+        HII_EFF_FACTOR=30.0,
         F_STAR10=-1.3,
         ALPHA_STAR=0.5,
         F_ESC10=-1.,
