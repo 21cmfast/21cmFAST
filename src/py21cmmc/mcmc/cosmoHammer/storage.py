@@ -168,7 +168,7 @@ class HDFStorage:
             ntot = g.attrs["iteration"] + ngrow
             g["chain"].resize(ntot, axis=0)
             g["log_prob"].resize(ntot, axis=0)
-            if blobs is not None:
+            if blobs:
                 has_blobs = g.attrs["has_blobs"]
                 if not has_blobs:
                     nwalkers = g.attrs["nwalkers"]
@@ -205,7 +205,7 @@ class HDFStorage:
 
             g["chain"][iteration, :, :] = coords
             g["log_prob"][iteration, :] = log_prob
-            if blobs is not None:
+            if blobs[0]: # i.e. blobs is a list of dicts, and if the first dict is non-empty...
                 blobs = np.array([tuple([b[name] for name in g['blobs'].dtype.names]) for b in blobs],
                                   dtype=g['blobs'].dtype)
                 # Blobs must be a dict
@@ -219,9 +219,9 @@ class HDFStorage:
             g.attrs["iteration"] = iteration + 1
 
     def _check_blobs(self, blobs):
-        if self.has_blobs and blobs is None:
+        if self.has_blobs and not blobs:
             raise ValueError("inconsistent use of blobs")
-        if self.iteration > 0 and blobs is not None and not self.has_blobs:
+        if self.iteration > 0 and blobs and not self.has_blobs:
             raise ValueError("inconsistent use of blobs")
 
     def get_chain(self, **kwargs):
@@ -291,26 +291,22 @@ class HDFStorage:
             self.random_state,
         ]
         blob = self.get_blobs(discard=it - 1)
-        if blob is not None:
+        if blob:
             last.append(blob[0])
 
         return tuple(last)
 
     def _check(self, coords, log_prob, blobs, accepted):
-        self._check_blobs(blobs)
+        self._check_blobs(blobs[0])
         nwalkers, ndim = self.shape
-        has_blobs = self.has_blobs
+
         if coords.shape != (nwalkers, ndim):
             raise ValueError("invalid coordinate dimensions; expected {0}"
                              .format((nwalkers, ndim)))
         if log_prob.shape != (nwalkers,):
             raise ValueError("invalid log probability size; expected {0}"
                              .format(nwalkers))
-        if blobs is not None and not has_blobs:
-            raise ValueError("unexpected blobs")
-        if blobs is None and has_blobs:
-            raise ValueError("expected blobs, but none were given")
-        if blobs is not None and len(blobs) != nwalkers:
+        if blobs and len(blobs) != nwalkers:
             raise ValueError("invalid blobs size; expected {0}"
                              .format(nwalkers))
         if accepted.shape != (nwalkers,):

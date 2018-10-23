@@ -325,7 +325,7 @@ def coeval(ctx, redshift, config, regen, direc, match_seed, do_spin, z_step_fact
         allow_extra_args=True
     )
 )
-@click.argument("redshift", type=str)
+@click.argument("redshift", type=float)
 @click.option("--config", type=click.Path(exists=True, dir_okay=False), default=None,
               help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)")
 @click.option("--regen/--no-regen", default=False,
@@ -347,19 +347,13 @@ def lightcone(ctx, redshift, config, regen, direc, match_seed, do_spin, max_z, z
     """
     Efficiently generate coeval cubes at a given redshift.
     """
-
-    try:
-        redshift = [float(z.strip()) for z in redshift.split(",")]
-    except TypeError:
-        raise TypeError("redshift argument must be comma-separated list of values.")
-
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
     user_params = lib.UserParams(**cfg['user_params'])
     cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
     flag_options = lib.FlagOptions(**cfg['flag_options'])
-    astro_params = lib.AstroParams(flag_options.INHOMO_RECO, **cfg['astro_params'])
+    astro_params = lib.AstroParams(INHOMO_RECO=flag_options.INHOMO_RECO, **cfg['astro_params'])
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
@@ -378,18 +372,7 @@ def lightcone(ctx, redshift, config, regen, direc, match_seed, do_spin, max_z, z
     )
 
 
-@main.command()
-@click.option("-d", "--direc", type=click.Path(exists=True, dir_okay=True), default=None,
-              help="directory to write data and plots to -- must exist.")
-@click.option("-k", "--kind", type=str, default=None,
-              help="filter by kind of data.")
-@click.option("-m", "--md5", type=str, default=None,
-              help="filter by md5 hash")
-@click.option("-s", "--seed", type=str, default=None,
-              help="filter by random seed")
-@click.option("--clear/--no-clear", default=False,
-              help="remove all data sets returned by this query.")
-def query(direc,  kind, md5, seed, clear):
+def _query(direc=None,  kind=None, md5=None, seed=None, clear=False):
     cls = list(lib.query_cache(direc, kind=kind, hash=md5, seed=seed, show=False))
 
     if not clear:
@@ -408,3 +391,18 @@ def query(direc,  kind, md5, seed, clear):
         else:
             direc = direc or path.expanduser(lib.config['boxdir'])
             remove(path.join(direc, file))
+
+
+@main.command()
+@click.option("-d", "--direc", type=click.Path(exists=True, dir_okay=True), default=None,
+              help="directory to write data and plots to -- must exist.")
+@click.option("-k", "--kind", type=str, default=None,
+              help="filter by kind of data.")
+@click.option("-m", "--md5", type=str, default=None,
+              help="filter by md5 hash")
+@click.option("-s", "--seed", type=str, default=None,
+              help="filter by random seed")
+@click.option("--clear/--no-clear", default=False,
+              help="remove all data sets returned by this query.")
+def query(direc,  kind, md5, seed, clear):
+    _query(direc, kind, md5, seed, clear)
