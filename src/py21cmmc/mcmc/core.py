@@ -40,7 +40,8 @@ class CoreCoevalModule(CoreBase):
     def __init__(self, redshift,
                  user_params=None, flag_options=None, astro_params=None,
                  cosmo_params=None, regenerate=True, do_spin_temp=False, z_step_factor=1.02,
-                 z_heat_max=None, change_seed_every_iter=False, **io_options):
+                 z_heat_max=None, change_seed_every_iter=False, ctx_variables=["brightness_temp", "xHI"],
+                 **io_options):
         """
         Initialize the class.
 
@@ -74,6 +75,12 @@ class CoreCoevalModule(CoreBase):
             Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift up to which heating sources
             are required to specify the ionization field. Beyond this, the ionization field is specified directly from
             the perturbed density field.
+        ctx_variables : list of str, optional
+            A list of strings, any number of the following: "brightness_temp", "init", "perturb", "xHI". These each
+            correspond to an OutputStruct which will be stored in the context on every iteration. Omitting as many as
+            possible is useful in that it reduces the memory that needs to be transmitted to each process. Furthermore,
+            in-built pickling has a restriction that arrays cannot be larger than 4GiB, which can be easily over-run
+            when passing the hires array in the "init" structure.
 
         Other Parameters
         ----------------
@@ -116,6 +123,7 @@ class CoreCoevalModule(CoreBase):
         self.cosmo_params = p21.CosmoParams(cosmo_params)
         self.change_seed_every_iter = change_seed_every_iter
         self.regenerate = regenerate
+        self.ctx_variables = ctx_variables
 
         self.z_step_factor = z_step_factor
         self.z_heat_max = z_heat_max
@@ -185,10 +193,11 @@ class CoreCoevalModule(CoreBase):
         # Call C-code
         init, perturb, xHI, brightness_temp = self.run(self.astro_params, self.cosmo_params)
 
-        ctx.add('brightness_temp', brightness_temp)
-        ctx.add("init", init)
-        ctx.add("perturb", perturb)
-        ctx.add("xHI", xHI)
+        for key in self.ctx_variables:
+            try:
+                ctx.add(key, locals()[key])
+            except KeyError:
+                raise KeyError("ctx_variables must be drawn from the list ['init', 'perturb', 'xHI', 'brightness_temp']")
 
     def _update_params(self, params):
         """
