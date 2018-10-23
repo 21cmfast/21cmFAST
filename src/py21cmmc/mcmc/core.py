@@ -248,6 +248,9 @@ class CoreLightConeModule(CoreCoevalModule):
     1. ``lightcone``: a :class:`~py21cmmc._21cmfast.wrapper.LightCone` instance.
     """
     def __init__(self, max_redshift, *args, **kwargs):
+        if "ctx_variables" in kwargs:
+            warnings.warn("ctx_variables does not apply to the lightcone module (at least not yet). It will be ignored.")
+
         super().__init__(*args, **kwargs)
         self.max_redshift= max_redshift
 
@@ -284,5 +287,4 @@ class CoreLightConeModule(CoreCoevalModule):
             regenerate=self.regenerate,
             write=self.io['cache_ionize'],
             direc=self.io['cache_dir'],
-            match_seed=True
         )
