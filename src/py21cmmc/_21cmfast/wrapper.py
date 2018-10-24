@@ -474,6 +474,7 @@ def _check_compatible_inputs(*datasets, ignore_redshift=False):
                         continue
 
                     if inp in d2._inputs and getattr(d, inp) != getattr(d2, inp):
+                        print("%s and %s are incompatible"%(d.__class__.__name__, d2.__class__.__name__))
                         raise ValueError("%s and %s are incompatible" % (d.__class__.__name__, d2.__class__.__name__))
                 done += [inp]
 
@@ -1267,6 +1268,7 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
     regenerate, write, direc, match_seed:
         See docs of :func:`initial_conditions` for more information.
     """
+
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
 
@@ -1308,7 +1310,7 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
     # don't double-up with scrolling ones.
     redshifts += redshift
     redshifts = sorted(list(set(redshifts)), reverse=True)
-
+    
     ib_tracker = []
     bt = []
     st, ib = None, None  # At first we don't have any "previous" st or ib.
@@ -1319,8 +1321,8 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
                 redshift=z,
                 previous_spin_temp=st,
                 astro_params=astro_params, flag_options=flag_options,
-                perturbed_field=perturb[minarg], regenerate=regenerate,
-                write=write, direc=direc, match_seed=True
+                perturbed_field=perturb[minarg], z_step_factor=z_step_factor, regenerate=regenerate,
+                write=write, direc=direc, match_seed=True,
             )
 
             if z not in redshift:
@@ -1330,12 +1332,12 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
             redshift=z, previous_ionize_box=ib,
             init_boxes=init_box,
             perturbed_field=perturb[redshift.index(z)] if z in redshift else None,
-            astro_params=astro_params, flag_options=flag_options,
+            astro_params=astro_params, flag_options=flag_options, z_step_factor=z_step_factor,
             spin_temp=st2 if do_spin_temp else None,
             regenerate=regenerate,
             write=write, direc=direc, match_seed=True
         )
-
+        
         if z not in redshift:
             ib = ib2
         else:
