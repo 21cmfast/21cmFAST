@@ -178,7 +178,8 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     required_cores = [core.CoreCoevalModule]
 
     def __init__(self,n_psbins=None, min_k=0.1, max_k = 1.0, logk=True, model_uncertainty=0.15,
-                 error_on_model=True, ignore_zero_mode=True, *args, **kwargs):
+                 error_on_model=True, ignore_kperp_zero=True, ignore_kpar_zero=False, ignore_k_zero=False,
+                 *args, **kwargs):
         """
         Initialize the likelihood.
 
@@ -204,8 +205,12 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             The amount of uncertainty in the modelling, per power spectral bin (as fraction of the amplitude).
         error_on_model : bool, optional
             Whether the `model_uncertainty` is applied to the model, or the data.
-        ignore_zero_mode : bool, optional
-            Whether to ignore the DC term (or k=0 mode) when generating the power spectrum.
+        ignore_kperp_zero : bool, optional
+            Whether to ignore the kperp=0 when generating the power spectrum.
+        ignore_kpar_zero : bool, optional
+            Whether to ignore the kpar=0 when generating the power spectrum.
+        ignore_k_zero : bool, optional
+            Whether to ignore the |k| = 0 mode when generating the power spectrum.
 
         Notes
         -----
@@ -239,7 +244,9 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         self.logk = logk
         self.error_on_model = error_on_model
         self.model_uncertainty = model_uncertainty
-        self.ignore_zero_mode = ignore_zero_mode
+        self.ignore_k_zero = ignore_k_zero
+        self.ignore_kperp_zero = ignore_kperp_zero
+        self.ignore_kpar_zero = ignore_kpar_zero
 
     def _check_data_format(self):
         for i, d in enumerate(self.data):
@@ -274,11 +281,23 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             self.noise_spline = None
 
     @staticmethod
-    def compute_power(brightness_temp, L, n_psbins, log_bins=True, ignore_zero_mode=True):
+    def compute_power(brightness_temp, L, n_psbins, log_bins=True, ignore_kperp_zero=True, ignore_kpar_zero=False,
+                      ignore_k_zero=False):
+        # Determine the weighting function required from ignoring k's.
+        k_weights = np.ones(brightness_temp.brightness_temp.shape, dtype=np.int)
+        n = k_weights.shape[0]
+
+        if ignore_kperp_zero:
+            k_weights[n//2, n//2, :] = 0
+        if ignore_kpar_zero:
+            k_weights[:,:, n//2] = 0
+        if ignore_k_zero:
+            k_weights[n//2, n//2, n//2] = 0
+
         res = get_power(
             brightness_temp.brightness_temp,
             boxlength = L,
-            bins=n_psbins, bin_ave=False, get_variance=False, log_bins=log_bins, ignore_zero_mode=ignore_zero_mode
+            bins=n_psbins, bin_ave=False, get_variance=False, log_bins=log_bins, k_weights = k_weights
         )
 
         res = list(res)
@@ -333,9 +352,13 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     def simulate(self, ctx):
         brightness_temp = ctx.get("brightness_temp")
         data = []
+
         for bt in brightness_temp:
-            power, k = self.compute_power(bt, self.user_params.BOX_LEN, self.n_psbins, log_bins=self.logk,
-                                          ignore_zero_mode=self.ignore_zero_mode)
+            power, k = self.compute_power(
+                bt, self.user_params.BOX_LEN, self.n_psbins, log_bins=self.logk,
+                ignore_k_zero=self.ignore_k_zero, ignore_kpar_zero=self.ignore_kpar_zero,
+                ignore_kperp_zero=self.ignore_kperp_zero
+            )
             data.append({"k":k, "delta":power * k**3 / (2*np.pi**2)})
 
         return data
@@ -381,11 +404,24 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             self.noise_spline = None
 
     @staticmethod
-    def compute_power(box, length, n_psbins, log_bins=True, ignore_zero_mode=True):
+    def compute_power(box, length, n_psbins, log_bins=True, ignore_kperp_zero=True, ignore_kpar_zero=False,
+                      ignore_k_zero=False):
+        # Determine the weighting function required from ignoring k's.
+        k_weights = np.ones(box.shape, dtype=np.int)
+        n0 = k_weights.shape[0]
+        n1 = k_weights.shape[-1]
+
+        if ignore_kperp_zero:
+            k_weights[n0//2, n0//2, :] = 0
+        if ignore_kpar_zero:
+            k_weights[:,:, n1//2] = 0
+        if ignore_k_zero:
+            k_weights[n0//2, n0//2, n1//2] = 0
+
         res = get_power(
             box,
             boxlength = length,
-            bins=n_psbins, bin_ave=False, get_variance=False, log_bins=log_bins, ignore_zero_mode=ignore_zero_mode
+            bins=n_psbins, bin_ave=False, get_variance=False, log_bins=log_bins, k_weights=k_weights
         )
 
         res = list(res)
@@ -413,9 +449,13 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
             end = chunk_indices[i+1]
             chunklen = (end-start) * brightness_temp.cell_size
 
-            power, k = self.compute_power(brightness_temp.brightness_temp[:,:,start:end],
-                                          (self.user_params.BOX_LEN, self.user_params.BOX_LEN, chunklen),
-                                          self.n_psbins, log_bins=self.logk, ignore_zero_mode=self.ignore_zero_mode)
+            power, k = self.compute_power(
+                brightness_temp.brightness_temp[:,:,start:end],
+                (self.user_params.BOX_LEN, self.user_params.BOX_LEN, chunklen),
+                self.n_psbins, log_bins=self.logk,
+                ignore_kperp_zero=self.ignore_kperp_zero, ignore_kpar_zero=self.ignore_kpar_zero,
+                ignore_k_zero=self.ignore_k_zero
+            )
             data.append({"k":k, "delta":power * k**3 / (2*np.pi**2)})
 
         return data

@@ -115,18 +115,19 @@ class CosmoHammerSampler(CHS):
 
     def loadBurnin(self):
         """
-        loads the burn in form the file system
+        loads the burn in from the file system
         """
         self.log("reusing previous burnin: %s iterations"%self.storageUtil.burnin_storage.iteration)
         return self.storageUtil.burnin_storage.get_last_sample()
 
     def loadSamples(self):
         """
-        loads the samples form the file system
+        loads the samples from the file system
         """
         self.log("reusing previous samples: %s iterations"%self.storageUtil.sample_storage.iteration)
         pos, prob, rstate, data = self.storageUtil.sample_storage.get_last_sample()
-        data = [{k:d[k] for k in d.dtype.names} for d in data]
+        if data is not None:
+            data = [{k:d[k] for k in d.dtype.names} for d in data]
         return pos, prob, rstate, data
 
     def startSampleBurnin(self, pos=None, prob=None, rstate=None, data=None):
