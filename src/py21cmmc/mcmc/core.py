@@ -206,8 +206,6 @@ class CoreCoevalModule(CoreBase):
             if self.keep_data_in_memory:
                 self.initial_conditions = initial_conditions
                 self.perturb_field = perturb_field
-            else:
-                self.perturb_field = []
 
     def __call__(self, ctx):
         # Update parameters
