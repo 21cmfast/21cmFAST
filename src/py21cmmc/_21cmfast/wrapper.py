@@ -977,7 +977,7 @@ def ionize_box(astro_params=None, flag_options=None,
 
 
 def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=None, perturbed_field=None,
-                     previous_spin_temp=None, z_step_factor=1.02, z_heat_max=None
+                     previous_spin_temp=None, z_step_factor=1.02, z_heat_max=None,
                      init_boxes=None, cosmo_params=CosmoParams(), user_params=UserParams(), regenerate=False,
                      write=True, direc=None):
     """

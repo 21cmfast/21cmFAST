@@ -102,10 +102,33 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         ST_over_PS_arg_grid = (double *)calloc(zpp_interp_points,sizeof(double));
     
         dens_grid_int_vals = (short **)calloc(HII_TOT_NUM_PIXELS,sizeof(short *));
-        delNL0_rev = (float **)calloc(HII_TOT_NUM_PIXELS,sizeof(float *));
-        for(i=0;i<HII_TOT_NUM_PIXELS;i++) {
-            dens_grid_int_vals[i] = (short *)calloc((float)global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(short));
-            delNL0_rev[i] = (float *)calloc((float)global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
+        
+        if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+            delNL0 = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
+            for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
+                delNL0[i] = (float *)calloc((float)HII_TOT_NUM_PIXELS,sizeof(float));
+            }
+            
+            xi_SFR_Xray = calloc(NGL_SFR,sizeof(double));
+            wi_SFR_Xray = calloc(NGL_SFR,sizeof(double));
+            
+            log10_Fcollz_SFR_Xray_low_table = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
+            for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
+                log10_Fcollz_SFR_Xray_low_table[j] = (float *)calloc(NSFR_low,sizeof(float));
+            }
+            
+            Fcollz_SFR_Xray_high_table = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
+            for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
+                Fcollz_SFR_Xray_high_table[j] = (float *)calloc(NSFR_high,sizeof(float));
+            }
+
+        }
+        else {
+            delNL0_rev = (float **)calloc(HII_TOT_NUM_PIXELS,sizeof(float *));
+            for(i=0;i<HII_TOT_NUM_PIXELS;i++) {
+                dens_grid_int_vals[i] = (short *)calloc((float)global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(short));
+                delNL0_rev[i] = (float *)calloc((float)global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
+            }
         }
     
         zpp_edge = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
@@ -183,7 +206,10 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     // For the new parametrization, the number of halos hosting active galaxies (i.e. the duty cycle) is assumed to
     // exponentially decrease below M_TURNOVER Msun, : fduty \propto e^(- M_TURNOVER / M)
     // In this case, we define M_MIN = M_TURN/50, i.e. the M_MIN is integration limit to compute follapse fraction.
-    if(!flag_options->USE_MASS_DEPENDENT_ZETA) {
+    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+        M_MIN = (astro_params->M_TURN)/50.;
+    }
+    else {
         M_MIN = astro_params->M_TURN;
     }
     
@@ -192,6 +218,8 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     // Initialize some interpolation tables
     if(this_spin_temp->first_box || (fabs(initialised_redshift - perturbed_field_redshift) > 0.0001) ) {
         init_heat();
+        
+        initialiseSigmaMInterpTable(M_MIN,1e18);
     }
     
     if (redshift > global_params.Z_HEAT_MAX){
@@ -399,6 +427,9 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                         delNL0_UL[R_ct] = max_density*1.001;
                     }
                 }
+                
+                min_densities[R_ct] = min_density;
+                max_densities[R_ct] = max_density;
             
                 R *= R_factor;
             
@@ -455,9 +486,9 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 }
                 
                 /* initialise interpolation of the mean collapse fraction for global reionization.*/
-//                initialise_FgtrM_st_SFR_spline_quicker(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10);
+                initialise_FgtrM_st_SFR_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10);
                 
-//                initialise_Xray_FgtrM_st_SFR_spline_quicker(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+                initialise_Xray_FgtrM_st_SFR_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
                 
             }
             else {
@@ -526,6 +557,37 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             
             initialised_redshift = perturbed_field_redshift;
         }
+        
+        
+        printf("Before table 3\n");
+        if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+            /* generate a table for interpolation of the collapse fraction with respect to the X-ray heating, as functions of
+             filtering scale, redshift and overdensity.
+             Note that at a given zp, zpp values depends on the filtering scale R, i.e. f_coll(z(R),delta).
+             Compute the conditional mass function, but assume f_{esc10} = 1 and \alpha_{esc} = 0. */
+            
+            for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
+                if (R_ct==0){
+                    prev_zpp = redshift;
+                    prev_R = 0;
+                }
+                else{
+                    prev_zpp = zpp_edge[R_ct-1];
+                    prev_R = R_values[R_ct-1];
+                }
+                zpp_edge[R_ct] = prev_zpp - (R_values[R_ct] - prev_R)*CMperMPC / drdz(prev_zpp); // cell size
+                zpp = (zpp_edge[R_ct]+prev_zpp)*0.5; // average redshift value of shell: z'' + 0.5 * dz''
+                growth_interp_table[R_ct] = dicke(zpp);
+            }
+            
+            printf("Construct table\n");
+            
+            initialise_Xray_Fcollz_SFR_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,max_densities,growth_interp_table,R_values, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+        }
+        printf("After table 3\n");
+        
+        
+        
         
         zp = redshift;
         prev_zp = prev_redshift;
@@ -621,14 +683,6 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0);
             }
         } // end loop over R_ct filter steps
-        
-//        if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-            /* generate a table for interpolation of the collapse fraction with respect to the X-ray heating, as functions of
-             filtering scale, redshift and overdensity.
-             Note that at a given zp, zpp values depends on the filtering scale R, i.e. f_coll(z(R),delta).
-             Compute the conditional mass function, but assume f_{esc10} = 1 and \alpha_{esc} = 0. */
-            //                initialise_Xray_Fcollz_SFR_Conditional_table_quicker(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,max_densities,growth_interp_table,R_values, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
-//        }
         
         // Calculate fcoll for each smoothing radius
         

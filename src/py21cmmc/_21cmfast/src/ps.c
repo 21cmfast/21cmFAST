@@ -67,6 +67,11 @@ double sigma_norm, R, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu,
 
 float MinMass, mass_bin_width, inv_mass_bin_width;
 
+//static double z_val[zpp_interp_points_SFR],Fcollz_val[zpp_interp_points_SFR]; // For Ts.c
+//static double z_X_val[zpp_interp_points_SFR],FcollzX_val[zpp_interp_points_SFR];
+
+
+
 //double FgtrlnM_general(double lnM, void *params);
 //double FgtrM_general(float z, float M1, float M_Max, float M2, float MFeedback, float alpha, float delta1, float delta2);
 
@@ -99,9 +104,9 @@ float *xi_SFR,*wi_SFR;
 float *xi_SFR_Xray,*wi_SFR_Xray;
 
 float *Overdense_Xray_high_table, *overdense_Xray_low_table, *log10_overdense_Xray_low_table;
-float ***log10_Fcollz_SFR_Xray_low_table, ***Fcollz_SFR_Xray_high_table;
+float **log10_Fcollz_SFR_Xray_low_table, **Fcollz_SFR_Xray_high_table;
 
-double *z_X_val, *FcollzX_val;
+double *z_val, *z_X_val, *Fcollz_val, *FcollzX_val;
 
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 void initialiseGL_FcollSFR_Xray(int n, float M_TURN, float M_Max);
@@ -112,7 +117,7 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC);
 
 void initialise_Xray_Fcollz_SFR_Conditional(int Nfilter, int N_REDSHIFT, float min_density[], float max_density[], float growthf[], float R[], float MassTurnover, float Alpha_star, float Fstar10);
 
-float GaussLegendreQuad_FcollSFR_Xray_quicker(int n, float growthf, float M2, float sigma2, float delta1, float delta2, float MassTurnover, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc);
+float GaussLegendreQuad_FcollSFR_Xray(int n, float growthf, float M2, float sigma2, float delta1, float delta2, float MassTurnover, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc);
 
 
 float dNdM_conditional(float growthf, float M1, float M2, float delta1, float delta2, float sigma2);
@@ -124,6 +129,16 @@ float dNdM_conditional_Xray(float growthf, float M1, float M2, float delta1, flo
 
 float GaussLegendreQuad_FcollSFR(int n, float growthf, float M2, float sigma2, float delta1, float delta2, float MassTurnover, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc);
 
+
+
+float dNdM_conditional_second_Xray(float growthf, float M1, float M2, float delta1, float delta2, float sigma2);
+
+double FgtrConditionalM_SFR_Xray(double growthf, double M1, double M2, double sigma2, double delta1, double delta2, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar, double Mlim_Fesc);
+
+
+
+
+void initialise_Xray_Fcollz_SFR_Conditional_table(int Nfilter, float min_density[], float max_density[], float growthf[], float R[], float MassTurnover, float Alpha_star, float Fstar10);
 
 
 struct parameters_gsl_SFR_int_{
@@ -1281,6 +1296,8 @@ float GaussLegendreQuad_FcollSFR_Xray(int n, float growthf, float M2, float sigm
     //Performs the Gauss-Legendre quadrature.
     int i;
     
+//    printf("In here\n");
+    
     float integrand, x;
     integrand = 0.;
     
@@ -1305,6 +1322,7 @@ float GaussLegendreQuad_FcollSFR_Xray(int n, float growthf, float M2, float sigm
     else{
         for(i=1; i<(n+1); i++){
             x = xi_SFR_Xray[i];
+//            printf("%d %e %e\n",i,wi_SFR_Xray[i],FgtrConditionallnM_GL_SFR_Xray(x,parameters_gsl_SFR_con));
             integrand += wi_SFR_Xray[i]*FgtrConditionallnM_GL_SFR_Xray(x,parameters_gsl_SFR_con);
         }
         return integrand;
@@ -1420,6 +1438,9 @@ void initialise_Xray_FgtrM_st_SFR_InterpTable(int Nbin, float zmin, float zmax, 
     int i;
     float Mmin = MassTurn/50., Mmax = 1e16;
     float Mlim_Fstar;
+    
+    z_X_val = calloc(zpp_interp_points_SFR,sizeof(double));
+    FcollzX_val = calloc(zpp_interp_points_SFR,sizeof(double));
     
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     
@@ -1771,5 +1792,247 @@ void initialiseFcollSFR_spline(float z, float min_density, float max_density, fl
         }
     }
 }
+
+
+
+
+
+
+
+
+
+void initialise_FgtrM_st_SFR_spline(int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10){
+    int i;
+    float Mmin = MassTurn/50., Mmax = 1e16;
+    float Mlim_Fstar, Mlim_Fesc;
+    
+    z_val = calloc(zpp_interp_points_SFR,sizeof(double));
+    Fcollz_val = calloc(zpp_interp_points_SFR,sizeof(double));
+    
+    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
+    Mlim_Fesc = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc10);
+    
+    for (i=0; i<Nbin; i++){
+        z_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
+        Fcollz_val[i] = FgtrM_st_SFR(dicke(z_val[i]), MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
+    }
+}
+
+
+
+float dNdM_conditional_second_Xray(float growthf, float M1, float M2, float delta1, float delta2, float sigma2){
+    
+    float sigma1, dsigmadm,dsigma_val,MassBinLow;
+    int MassBin;
+    
+    MassBin = (int)floor( (M1 - MinMass )*inv_mass_bin_width );
+    
+    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    
+    sigma1 = Sigma_InterpTable[MassBin] + ( M1 - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    
+    dsigma_val = dSigmadm_InterpTable[MassBin] + ( M1 - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+    
+    M1 = exp(M1);
+    M2 = exp(M2);
+    
+    sigma1 = sigma1*sigma1;
+    sigma2 = sigma2*sigma2;
+    
+    dsigmadm = -pow(10.,dsigma_val)/(2.0*sigma1); // This is actually sigma1^{2} as calculated above, however, it should just be sigma1. It cancels with the same factor below. Why I have decided to write it like that I don't know!
+    
+    if((sigma1 > sigma2)) {
+        
+        return -(( delta1 - delta2 )/growthf)*( 2.*sigma1*dsigmadm )*( exp( - ( delta1 - delta2 )*( delta1 - delta2 )/( 2.*growthf*growthf*( sigma1 - sigma2 ) ) ) )/(pow( sigma1 - sigma2, 1.5));
+    }
+    else if(sigma1==sigma2) {
+        
+        return -(( delta1 - delta2 )/growthf)*( 2.*sigma1*dsigmadm )*( exp( - ( delta1 - delta2 )*( delta1 - delta2 )/( 2.*growthf*growthf*( 1.e-6 ) ) ) )/(pow( 1.e-6, 1.5));
+        
+    }
+    else {
+        return 0.;
+    }
+}
+
+
+
+
+double dFgtrConditionallnM_SFR_Xray(double lnM, void *params) {
+    struct parameters_gsl_SFR_con_int_ vals = *(struct parameters_gsl_SFR_con_int_ *)params;
+    double M = exp(lnM); // linear scale
+    double growthf = vals.gf_obs;
+    double M2 = vals.Mval; // natural log scale
+    double sigma2 = vals.sigma2;
+    double del1 = vals.delta1;
+    double del2 = vals.delta2;
+    double MassTurnover = vals.Mdrop;
+    double Alpha_star = vals.pl_star;
+    double Alpha_esc = vals.pl_esc;
+    double Fstar10 = vals.frac_star;
+    double Fesc10 = vals.frac_esc;
+    double Mlim_Fstar = vals.LimitMass_Fstar;
+    double Mlim_Fesc = vals.LimitMass_Fesc;
+    
+    double Fstar,Fesc;
+    
+    if (Alpha_star > 0. && M > Mlim_Fstar)
+        Fstar = 1./Fstar10;
+    else if (Alpha_star < 0. && M < Mlim_Fstar)
+        Fstar = 1./Fstar10;
+    else
+        Fstar = pow(M/1e10,Alpha_star);
+    
+    if (Alpha_esc > 0. && M > Mlim_Fesc)
+        Fesc = 1./Fesc10;
+    else if (Alpha_esc < 0. && M < Mlim_Fesc)
+        Fesc = 1./Fesc10;
+    else
+        Fesc = pow(M/1e10,Alpha_esc);
+    
+    return M*exp(-MassTurnover/M)*Fstar*Fesc*dNdM_conditional_second_Xray(growthf,log(M),M2,del1,del2,sigma2)/sqrt(2.*PI);
+}
+
+double FgtrConditionalM_SFR_Xray(double growthf, double M1, double M2, double sigma2, double delta1, double delta2, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar, double Mlim_Fesc) {
+    double result, error, lower_limit, upper_limit;
+    gsl_function F;
+    double rel_tol = 0.01; //<- relative tolerance
+    gsl_integration_workspace * w
+    = gsl_integration_workspace_alloc (1000);
+    
+    struct parameters_gsl_SFR_con_int_ parameters_gsl_SFR_con = {
+        .gf_obs = growthf,
+        .Mval = M2,
+        .sigma2 = sigma2,
+        .delta1 = delta1,
+        .delta2 = delta2,
+        .Mdrop = MassTurnover,
+        .pl_star = Alpha_star,
+        .pl_esc = Alpha_esc,
+        .frac_star = Fstar10,
+        .frac_esc = Fesc10,
+        .LimitMass_Fstar = Mlim_Fstar,
+        .LimitMass_Fesc = Mlim_Fesc
+    };
+    
+    F.function = &dFgtrConditionallnM_SFR_Xray;
+    F.params = &parameters_gsl_SFR_con;
+    lower_limit = M1;
+    upper_limit = M2;
+    
+    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
+    gsl_integration_workspace_free (w);
+    
+    if(delta2 > delta1) {
+        result = 1.;
+        return result;
+    }
+    else {
+        return result;
+    }
+    
+}
+
+
+
+
+void initialise_Xray_FgtrM_st_SFR_spline(int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Fstar10){
+    int i;
+    float Mmin = MassTurn/50., Mmax = 1e16;
+    float Mlim_Fstar;
+    
+    z_X_val = calloc(Nbin,sizeof(double));
+    FcollzX_val = calloc(Nbin,sizeof(double));
+    
+    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
+    
+    for (i=0; i<Nbin; i++){
+        z_X_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
+        FcollzX_val[i] = FgtrM_st_SFR(dicke(z_X_val[i]), MassTurn, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
+    }
+}
+
+
+
+void initialise_Xray_Fcollz_SFR_Conditional_table(int Nfilter, float min_density[], float max_density[], float growthf[], float R[], float MassTurnover, float Alpha_star, float Fstar10){
+    
+    double overdense_val;
+    double overdense_large_high = Deltac, overdense_large_low = global_params.CRIT_DENS_TRANSITION;
+    double overdense_small_high, overdense_small_low;
+    
+    overdense_Xray_low_table = calloc(NSFR_low,sizeof(double));
+    Overdense_Xray_high_table = calloc(NSFR_high,sizeof(double));
+    
+    float Mmin,Mmax,Mlim_Fstar,sigma2;
+    int i,j,k,i_tot;
+    
+    float ln_10;
+    
+    ln_10 = log(10);
+    
+    Mmin = MassTurnover/50;
+    Mmax = RtoM(R[Nfilter-1]);
+    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
+    
+    Mmin = log(Mmin);
+    
+    for (i=0; i<NSFR_high;i++) {
+        Overdense_Xray_high_table[i] = overdense_large_low + (float)i/((float)NSFR_high-1.)*(overdense_large_high - overdense_large_low);
+    }
+    
+    float MassBinLow;
+    int MassBin;
+    
+    for (j=0; j < Nfilter; j++) {
+        
+        Mmax = RtoM(R[j]);
+        
+        initialiseGL_FcollSFR_Xray(NGL_SFR, MassTurnover, Mmax);
+        
+        Mmax = log(Mmax);
+        MassBin = (int)floor( ( Mmax - MinMass )*inv_mass_bin_width );
+        
+        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+        
+        sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+        
+        overdense_small_low = min_density[j]*growthf[j];
+        overdense_small_high = max_density[j]*growthf[j];
+        if(overdense_small_high > global_params.CRIT_DENS_TRANSITION) {
+            overdense_small_high = global_params.CRIT_DENS_TRANSITION;
+        }
+            
+        for (i=0; i<NSFR_low; i++) {
+            overdense_val = log10(1. + overdense_small_low) + (float)i/((float)NSFR_low-1.)*(log10(1.+overdense_small_high)-log10(1.+overdense_small_low));
+            overdense_Xray_low_table[i] = pow(10.,overdense_val);
+        }
+        
+        for (i=0; i<NSFR_low; i++){
+            
+            log10_Fcollz_SFR_Xray_low_table[j][i] = log10(GaussLegendreQuad_FcollSFR_Xray(NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_Xray_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.));
+
+            log10_Fcollz_SFR_Xray_low_table[j][i] += 10.0;
+            log10_Fcollz_SFR_Xray_low_table[j][i] *= ln_10;
+                
+        }
+            
+        for(i=0;i<NSFR_high;i++) {
+            
+//            printf("i = %d j = %d\n",i,j);
+//            printf("Perform integral\n");
+//            printf("%e %e %e %e %e %e %e %e %e %e %e %e %e\n",growthf[j],Mmin,Mmax,sigma2,Deltac,Overdense_Xray_high_table[i],MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.);
+            Fcollz_SFR_Xray_high_table[j][i] = FgtrConditionalM_SFR_Xray(growthf[j],Mmin,Mmax,sigma2,Deltac,Overdense_Xray_high_table[i],MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.);
+            
+//            printf("Performed integral\n");
+            Fcollz_SFR_Xray_high_table[j][i] *= pow(10., 10.0);
+                
+        }
+    }
+}
+
+
+
+
 
 
