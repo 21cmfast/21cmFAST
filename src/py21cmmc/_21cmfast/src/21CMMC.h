@@ -100,7 +100,7 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
 void ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field);
 
 void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                  struct AstroParams *astro_params, float perturbed_field_redshift,
+                  struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp);
 
 void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,

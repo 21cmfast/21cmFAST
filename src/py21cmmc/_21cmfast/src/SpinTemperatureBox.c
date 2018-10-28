@@ -6,8 +6,8 @@
 double ***fcoll_R_grid, ***dfcoll_dz_grid;
 double **grid_dens, **density_gridpoints;
 double *Sigma_Tmin_grid, *ST_over_PS_arg_grid, *dstarlya_dt_prefactor, *zpp_edge, *sigma_atR;
-float **delNL0_rev;
-float *R_values, *delNL0_bw, *delNL0_Offset, *delNL0_LL, *delNL0_UL, *delNL0_ibw, *log10delNL0_diff, *log10delNL0_diff_UL;
+float **delNL0_rev,**delNL0;
+float *R_values, *delNL0_bw, *delNL0_Offset, *delNL0_LL, *delNL0_UL, *delNL0_ibw, *log10delNL0_diff, *log10delNL0_diff_UL,*min_densities, *max_densities, *zpp_interp_table, *growth_interp_table;
 short **dens_grid_int_vals;
 short *SingleVal_int;
 
@@ -25,7 +25,8 @@ bool TsInterpArraysInitialised = false;
 float initialised_redshift = 0.0;
 
 void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                  struct AstroParams *astro_params, float perturbed_field_redshift,
+                  struct AstroParams *astro_params, struct FlagOptions *flag_options,
+                  float perturbed_field_redshift,
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp) {
 
     // Makes the parameter structs visible to a variety of functions/macros
@@ -43,7 +44,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     
     unsigned long long ct, FCOLL_SHORT_FACTOR, box_ct;
     
-    int R_ct,i,ii,j,k,i_z,COMPUTE_Ts,x_e_ct,m_xHII_low,m_xHII_high,n_ct, zpp_gridpoint1_int, zpp_gridpoint2_int,zpp_evolve_gridpoint1_int, zpp_evolve_gridpoint2_int;
+    int R_ct,i,ii,j,k,i_z,COMPUTE_Ts,x_e_ct,m_xHII_low,m_xHII_high,n_ct, zpp_gridpoint1_int, zpp_gridpoint2_int,zpp_evolve_gridpoint1_int, zpp_evolve_gridpoint2_int,counter;
     
     short dens_grid_int;
     
@@ -53,7 +54,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     
     float growth_factor_z, inverse_growth_factor_z, R, R_factor, zp, mu_for_Ts, filling_factor_of_HI_zp, dzp, prev_zp, zpp, prev_zpp, prev_R, Tk_BC, xe_BC;
     float xHII_call, curr_xalpha, TK, TS, xe, deltax_highz;
-    float zpp_for_evolve,dzpp_for_evolve;
+    float zpp_for_evolve,dzpp_for_evolve, zp_table, M_MIN;
     
     float determine_zpp_max, determine_zpp_min, zpp_grid, zpp_gridpoint1, zpp_gridpoint2,zpp_evolve_gridpoint1, zpp_evolve_gridpoint2, grad1, grad2, grad3, grad4, zpp_bin_width, delNL0_bw_val;
     float OffsetValue, DensityValueLow, min_density, max_density;
@@ -65,7 +66,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     float M_MIN_WDM =  M_J_WDM();
     
     double total_time, total_time2, total_time3, total_time4;
-    float M_MIN_at_z, M_MIN_at_zp;
+    float M_MIN_at_zp;
     
     int NO_LIGHT = 0;
     
@@ -74,7 +75,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     
     if(!TsInterpArraysInitialised) {
-
+        
         // Grids/arrays that only need to be initialised once (i.e. the lowest redshift density cube to be sampled)
         Sigma_Tmin_grid = (double *)calloc(zpp_interp_points,sizeof(double));
     
@@ -111,6 +112,12 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         sigma_atR = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
         R_values = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
     
+        min_densities = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
+        max_densities = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
+        
+        zpp_interp_table = calloc(zpp_interp_points_SFR, sizeof(float));
+        growth_interp_table = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts, sizeof(float));
+        
         delNL0_bw = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
         delNL0_Offset = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
         delNL0_LL = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
@@ -171,7 +178,14 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         mu_for_Ts = 0.6;
     
     //set the minimum ionizing source mass
-    M_MIN_at_z = get_M_min_ion(perturbed_field_redshift);
+    // In v1.4 the miinimum ionizing source mass does not depend on redshift.
+    // For the constant ionizing efficiency parameter, M_MIN is set to be M_TURN which is a sharp cut-off.
+    // For the new parametrization, the number of halos hosting active galaxies (i.e. the duty cycle) is assumed to
+    // exponentially decrease below M_TURNOVER Msun, : fduty \propto e^(- M_TURNOVER / M)
+    // In this case, we define M_MIN = M_TURN/50, i.e. the M_MIN is integration limit to compute follapse fraction.
+    if(!flag_options->USE_MASS_DEPENDENT_ZETA) {
+        M_MIN = astro_params->M_TURN;
+    }
     
     init_ps();
     
@@ -294,7 +308,10 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
             
                 R_values[R_ct] = R;
-                sigma_atR[R_ct] = sigma_z0(RtoM(R));
+                
+                if(!flag_options->USE_MASS_DEPENDENT_ZETA) {
+                    sigma_atR[R_ct] = sigma_z0(RtoM(R));
+                }
             
                 // copy over unfiltered box
                 memcpy(box, unfiltered_box, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -350,8 +367,13 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                             // and linearly extrapolate to z=0
                             curr_delNL0 *= inverse_growth_factor_z;
                         
-                            delNL0_rev[HII_R_INDEX(i,j,k)][R_ct] = curr_delNL0;
-                        
+                            if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+                                delNL0[R_ct][HII_R_INDEX(i,j,k)] = curr_delNL0;
+                            }
+                            else {
+                                delNL0_rev[HII_R_INDEX(i,j,k)][R_ct] = curr_delNL0;
+                            }
+                            
                             if(curr_delNL0 < min_density) {
                                 min_density = curr_delNL0;
                             }
@@ -361,19 +383,21 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                         }
                     }
                 }
-                if(min_density < 0.0) {
-                    delNL0_LL[R_ct] = min_density*1.001;
-                    delNL0_Offset[R_ct] = 1.e-6 - (delNL0_LL[R_ct]);
-                }
-                else {
-                    delNL0_LL[R_ct] = min_density*0.999;
-                    delNL0_Offset[R_ct] = 1.e-6 + (delNL0_LL[R_ct]);
-                }
-                if(max_density < 0.0) {
-                    delNL0_UL[R_ct] = max_density*0.999;
-                }
-                else {
-                    delNL0_UL[R_ct] = max_density*1.001;
+                if(!flag_options->USE_MASS_DEPENDENT_ZETA) {
+                    if(min_density < 0.0) {
+                        delNL0_LL[R_ct] = min_density*1.001;
+                        delNL0_Offset[R_ct] = 1.e-6 - (delNL0_LL[R_ct]);
+                    }
+                    else {
+                        delNL0_LL[R_ct] = min_density*0.999;
+                        delNL0_Offset[R_ct] = 1.e-6 + (delNL0_LL[R_ct]);
+                    }
+                    if(max_density < 0.0) {
+                        delNL0_UL[R_ct] = max_density*0.999;
+                    }
+                    else {
+                        delNL0_UL[R_ct] = max_density*1.001;
+                    }
                 }
             
                 R *= R_factor;
@@ -422,65 +446,81 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         
             ////////////////////////////    Create and fill interpolation tables to be used by Ts.c   /////////////////////////////
             
-            // An interpolation table for f_coll (delta vs redshift)
-            init_FcollTable(determine_zpp_min,determine_zpp_max);
-        
-            // Determine the sampling of the density values, for the various interpolation tables
-            for(ii=0;ii<global_params.NUM_FILTER_STEPS_FOR_Ts;ii++) {
-                log10delNL0_diff_UL[ii] = log10( delNL0_UL[ii] + delNL0_Offset[ii] );
-                log10delNL0_diff[ii] = log10( delNL0_LL[ii] + delNL0_Offset[ii] );
-                delNL0_bw[ii] = ( log10delNL0_diff_UL[ii] - log10delNL0_diff[ii] )*dens_width;
-                delNL0_ibw[ii] = 1./delNL0_bw[ii];
-            }
-        
-            // Gridding the density values for the interpolation tables
-            for(ii=0;ii<global_params.NUM_FILTER_STEPS_FOR_Ts;ii++) {
-                for(j=0;j<dens_Ninterp;j++) {
-                    grid_dens[ii][j] = log10delNL0_diff[ii] + ( log10delNL0_diff_UL[ii] - log10delNL0_diff[ii] )*dens_width*(double)j;
-                    grid_dens[ii][j] = pow(10,grid_dens[ii][j]) - delNL0_Offset[ii];
-                }
-            }
-        
-            // Calculate the sigma_z and Fgtr_M values for each point in the interpolation table
-            for(i=0;i<zpp_interp_points;i++) {
-                zpp_grid = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points-1.0);
+            if(flag_options->USE_MASS_DEPENDENT_ZETA) {
             
-                Sigma_Tmin_grid[i] = sigma_z0(FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
-                ST_over_PS_arg_grid[i] = FgtrM_st(zpp_grid, FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                // generates an interpolation table for redshift
+                for (i=0; i<zpp_interp_points_SFR;i++) {
+                    //zpp_interp_table[i] = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points_SFR-1.0);
+                    zpp_interp_table[i] = determine_zpp_min + zpp_bin_width*(float)i;
+                }
+                
+                /* initialise interpolation of the mean collapse fraction for global reionization.*/
+//                initialise_FgtrM_st_SFR_spline_quicker(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10);
+                
+//                initialise_Xray_FgtrM_st_SFR_spline_quicker(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+                
             }
+            else {
+                // An interpolation table for f_coll (delta vs redshift)
+                init_FcollTable(determine_zpp_min,determine_zpp_max);
         
-            // Create the interpolation tables for the derivative of the collapsed fraction and the collapse fraction itself
-            for(ii=0;ii<global_params.NUM_FILTER_STEPS_FOR_Ts;ii++) {
-                for(i=0;i<zpp_interp_points;i++) {
-                
-                    zpp_grid = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points-1.0);
-                    grid_sigmaTmin = Sigma_Tmin_grid[i];
-                
+                // Determine the sampling of the density values, for the various interpolation tables
+                for(ii=0;ii<global_params.NUM_FILTER_STEPS_FOR_Ts;ii++) {
+                    log10delNL0_diff_UL[ii] = log10( delNL0_UL[ii] + delNL0_Offset[ii] );
+                    log10delNL0_diff[ii] = log10( delNL0_LL[ii] + delNL0_Offset[ii] );
+                    delNL0_bw[ii] = ( log10delNL0_diff_UL[ii] - log10delNL0_diff[ii] )*dens_width;
+                    delNL0_ibw[ii] = 1./delNL0_bw[ii];
+                }
+        
+                // Gridding the density values for the interpolation tables
+                for(ii=0;ii<global_params.NUM_FILTER_STEPS_FOR_Ts;ii++) {
                     for(j=0;j<dens_Ninterp;j++) {
-                    
-                        grid_dens_val = grid_dens[ii][j];
-                        fcoll_R_grid[ii][i][j] = sigmaparam_FgtrM_bias(zpp_grid, grid_sigmaTmin, grid_dens_val, sigma_atR[ii]);
-                        dfcoll_dz_grid[ii][i][j] = dfcoll_dz(zpp_grid, grid_sigmaTmin, grid_dens_val, sigma_atR[ii]);
+                        grid_dens[ii][j] = log10delNL0_diff[ii] + ( log10delNL0_diff_UL[ii] - log10delNL0_diff[ii] )*dens_width*(double)j;
+                        grid_dens[ii][j] = pow(10,grid_dens[ii][j]) - delNL0_Offset[ii];
                     }
                 }
-            }
         
-            // Determine the grid point locations for solving the interpolation tables
-            for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
-                for (R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
-                    SingleVal_int[R_ct] = (short)floor( ( log10(delNL0_rev[box_ct][R_ct] + delNL0_Offset[R_ct]) - log10delNL0_diff[R_ct] )*delNL0_ibw[R_ct]);
-                }
-                memcpy(dens_grid_int_vals[box_ct],SingleVal_int,sizeof(short)*global_params.NUM_FILTER_STEPS_FOR_Ts);
-            }
+                // Calculate the sigma_z and Fgtr_M values for each point in the interpolation table
+                for(i=0;i<zpp_interp_points;i++) {
+                    zpp_grid = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points-1.0);
             
-            // Evaluating the interpolated density field points (for using the interpolation tables for fcoll and dfcoll_dz)
-            for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
-                OffsetValue = delNL0_Offset[R_ct];
-                DensityValueLow = delNL0_LL[R_ct];
-                delNL0_bw_val = delNL0_bw[R_ct];
+                    Sigma_Tmin_grid[i] = sigma_z0(FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                    ST_over_PS_arg_grid[i] = FgtrM_st(zpp_grid, FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                }
+        
+                // Create the interpolation tables for the derivative of the collapsed fraction and the collapse fraction itself
+                for(ii=0;ii<global_params.NUM_FILTER_STEPS_FOR_Ts;ii++) {
+                    for(i=0;i<zpp_interp_points;i++) {
+                
+                        zpp_grid = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points-1.0);
+                        grid_sigmaTmin = Sigma_Tmin_grid[i];
+                
+                        for(j=0;j<dens_Ninterp;j++) {
+                    
+                            grid_dens_val = grid_dens[ii][j];
+                            fcoll_R_grid[ii][i][j] = sigmaparam_FgtrM_bias(zpp_grid, grid_sigmaTmin, grid_dens_val, sigma_atR[ii]);
+                            dfcoll_dz_grid[ii][i][j] = dfcoll_dz(zpp_grid, grid_sigmaTmin, grid_dens_val, sigma_atR[ii]);
+                        }
+                    }
+                }
+        
+                // Determine the grid point locations for solving the interpolation tables
+                for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
+                    for (R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
+                        SingleVal_int[R_ct] = (short)floor( ( log10(delNL0_rev[box_ct][R_ct] + delNL0_Offset[R_ct]) - log10delNL0_diff[R_ct] )*delNL0_ibw[R_ct]);
+                    }
+                    memcpy(dens_grid_int_vals[box_ct],SingleVal_int,sizeof(short)*global_params.NUM_FILTER_STEPS_FOR_Ts);
+                }
+            
+                // Evaluating the interpolated density field points (for using the interpolation tables for fcoll and dfcoll_dz)
+                for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
+                    OffsetValue = delNL0_Offset[R_ct];
+                    DensityValueLow = delNL0_LL[R_ct];
+                    delNL0_bw_val = delNL0_bw[R_ct];
 
-                for(i=0;i<dens_Ninterp;i++) {
-                    density_gridpoints[i][R_ct] = pow(10.,( log10( DensityValueLow + OffsetValue) + delNL0_bw_val*((float)i) )) - OffsetValue;
+                    for(i=0;i<dens_Ninterp;i++) {
+                        density_gridpoints[i][R_ct] = pow(10.,( log10( DensityValueLow + OffsetValue) + delNL0_bw_val*((float)i) )) - OffsetValue;
+                    }
                 }
             }
             
@@ -516,7 +556,11 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
 
             zpp_edge[R_ct] = prev_zpp - (R_values[R_ct] - prev_R)*CMperMPC / drdz(prev_zpp); // cell size
             zpp = (zpp_edge[R_ct]+prev_zpp)*0.5; // average redshift value of shell: z'' + 0.5 * dz''
-                
+            
+            if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+                growth_interp_table[R_ct] = dicke(zpp);
+            }
+            
             // Determining values for the evaluating the interpolation table
             zpp_gridpoint1_int = (int)floor((zpp - determine_zpp_min)/zpp_bin_width);
             zpp_gridpoint2_int = zpp_gridpoint1_int + 1;
@@ -577,6 +621,14 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0);
             }
         } // end loop over R_ct filter steps
+        
+//        if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+            /* generate a table for interpolation of the collapse fraction with respect to the X-ray heating, as functions of
+             filtering scale, redshift and overdensity.
+             Note that at a given zp, zpp values depends on the filtering scale R, i.e. f_coll(z(R),delta).
+             Compute the conditional mass function, but assume f_{esc10} = 1 and \alpha_{esc} = 0. */
+            //                initialise_Xray_Fcollz_SFR_Conditional_table_quicker(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,max_densities,growth_interp_table,R_values, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+//        }
         
         // Calculate fcoll for each smoothing radius
         

@@ -977,7 +977,7 @@ def ionize_box(astro_params=None, flag_options=None,
 
 
 def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=None, perturbed_field=None,
-                     previous_spin_temp=None, z_step_factor=1.02, z_heat_max=None,
+                     previous_spin_temp=None, z_step_factor=1.02, z_heat_max=None
                      init_boxes=None, cosmo_params=CosmoParams(), user_params=UserParams(), regenerate=False,
                      write=True, direc=None):
     """
@@ -1129,6 +1129,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
     # EVERYTHING PAST THIS POINT ONLY HAPPENS IF THE BOX DOESN'T ALREADY EXIST
     # ------------------------------------------------------------------------
+
     # Get the previous redshift
     if previous_spin_temp is not None:
         if hasattr(previous_spin_temp, "redshift"):
@@ -1156,7 +1157,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
         # Need to update random seed
         box.cosmo_params.update(RANDOM_SEED = init_boxes.cosmo_params.RANDOM_SEED)
-
+    
     # Create appropriate previous_spin_temp
     if not isinstance(previous_spin_temp, TsBox):
         if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
@@ -1177,9 +1178,12 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             regenerate=regenerate, write=write, direc=direc,
         )
 
+    print(redshift, previous_spin_temp.redshift)
+
     # Run the C Code
     lib.ComputeTsBox(redshift, previous_spin_temp.redshift, box.user_params(),
-                     box.cosmo_params(), box.astro_params(), perturbed_field.redshift, perturbed_field(),
+                     box.cosmo_params(), box.astro_params(), box.flag_options(),
+                     perturbed_field.redshift, perturbed_field(),
                      previous_spin_temp(), box())
     box.filled = True
     box._expose()
@@ -1361,7 +1365,7 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
                 astro_params=astro_params, flag_options=flag_options,
                 regenerate=regenerate,
                 init_boxes=init_box,
-                write=write, direc=direc, z_heat_max=global_params.Z_HEAT_MAX, z_step_factor=z_step_factor
+                write=write, direc=direc, z_heat_max=global_params.Z_HEAT_MAX, z_step_factor=z_step_factor                
             )
 
             if z not in redshift:
@@ -1373,7 +1377,7 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
             perturbed_field=perturb[redshift.index(z)] if z in redshift else None,
             astro_params=astro_params, flag_options=flag_options, z_step_factor=z_step_factor,
             spin_temp=st2 if do_spin_temp else None,
-            regenerate=regenerate,z_heat_max=global_params.Z_HEAT_MAX, z_step_factor=z_step_factor,
+            regenerate=regenerate,z_heat_max=global_params.Z_HEAT_MAX,
             write=write, direc=direc,
         )
         
