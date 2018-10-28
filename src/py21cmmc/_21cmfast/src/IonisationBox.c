@@ -189,7 +189,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     }
     
     if(!flag_options->USE_TS_FLUCT) {
-        initialiseSigmaMInterpTable(M_MIN,1e18);
+        initialiseSigmaMInterpTable(M_MIN,1e20);
     }
     
     // check for WDM

@@ -265,7 +265,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     if(this_spin_temp->first_box || (fabs(initialised_redshift - perturbed_field_redshift) > 0.0001) ) {
         init_heat();
         
-        initialiseSigmaMInterpTable(M_MIN,1e18);
+        initialiseSigmaMInterpTable(M_MIN,1e20);
     }
     
     if (redshift > global_params.Z_HEAT_MAX){
@@ -739,7 +739,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             }
             
             lower_int_limit = FMAX(nu_tau_one_approx(zp, zpp, x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
-                        
+            
             if (filling_factor_of_HI_zp < 0) filling_factor_of_HI_zp = 0; // for global evol; nu_tau_one above treats negative (post_reionization) inferred filling factors properly
 
             // set up frequency integral table for later interpolation for the cell's x_e value
@@ -884,7 +884,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 ave_fcoll = ave_fcoll_inv = 0.0;
                 
                 for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
-                    if (!COMPUTE_Ts && (previous_spin_temp->Tk_box[box_ct] > MAX_TK)) //just leave it alone and go to next value
+                    if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) //just leave it alone and go to next value
                         continue;
                     
                     curr_dens = delNL0[R_ct][box_ct]*zpp_growth[R_ct];
@@ -926,7 +926,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                         
                     }
                 }
-                ave_fcoll /= (pow(10.,10.)*(double)HII_TOT_NUM_PIXELS);
+                ave_fcoll /= (pow(10.,10.)*(double)HII_TOT_NUM_PIXELS);                
                 
                 if(ave_fcoll!=0.) {
                     ave_fcoll_inv = 1./ave_fcoll;
@@ -938,7 +938,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 
                 for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
                     
-                    if (!COMPUTE_Ts && (previous_spin_temp->Tk_box[box_ct] > MAX_TK)) //just leave it alone and go to next value
+                    if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) //just leave it alone and go to next value
                         continue;
                     
                     // I've added the addition of zero just in case. It should be zero anyway, but just in case there is some weird
@@ -952,16 +952,14 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                         dxion_source_dt_box[box_ct] += 0.;
                     }
                     
-                    if (COMPUTE_Ts){
-                        if(ave_fcoll!=0.) {
-                            dxlya_dt_box[box_ct] += (dfcoll_dz_val*(double)del_fcoll_Rct[box_ct]*( (freq_int_lya_tbl_diff[m_xHII_low_box[box_ct]][R_ct])*inverse_val_box[box_ct] + freq_int_lya_tbl[m_xHII_low_box[box_ct]][R_ct] ));
-                            dstarlya_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_dt_prefactor[R_ct];
+                    if(ave_fcoll!=0.) {
+                        dxlya_dt_box[box_ct] += (dfcoll_dz_val*(double)del_fcoll_Rct[box_ct]*( (freq_int_lya_tbl_diff[m_xHII_low_box[box_ct]][R_ct])*inverse_val_box[box_ct] + freq_int_lya_tbl[m_xHII_low_box[box_ct]][R_ct] ));
+                        dstarlya_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_dt_prefactor[R_ct];
                             
-                        }
-                        else {
-                            dxlya_dt_box[box_ct] += 0.;
-                            dstarlya_dt_box[box_ct] += 0.;
-                        }
+                    }
+                    else {
+                        dxlya_dt_box[box_ct] += 0.;
+                        dstarlya_dt_box[box_ct] += 0.;
                     }
                     
                     // If R_ct == 0, as this is the final smoothing scale (i.e. it is reversed)
@@ -973,10 +971,9 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                         // add prefactors
                         dxheat_dt_box[box_ct] *= const_zp_prefactor;
                         dxion_source_dt_box[box_ct] *= const_zp_prefactor;
-                        if (COMPUTE_Ts){
-                            dxlya_dt_box[box_ct] *= const_zp_prefactor*prefactor_1 * (1.+delNL0[0][box_ct]*growth_factor_zp);
-                            dstarlya_dt_box[box_ct] *= prefactor_2;
-                        }
+                        
+                        dxlya_dt_box[box_ct] *= const_zp_prefactor*prefactor_1 * (1.+delNL0[0][box_ct]*growth_factor_zp);
+                        dstarlya_dt_box[box_ct] *= prefactor_2;
                         
                         // Now we can solve the evolution equations  //
                         
@@ -1019,53 +1016,51 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                         this_spin_temp->x_e_box[box_ct] = x_e;
                         this_spin_temp->Tk_box[box_ct] = T;
                         
-                        if (COMPUTE_Ts){
-                            J_alpha_tot = ( dxlya_dt_box[box_ct] + dstarlya_dt_box[box_ct] ); //not really d/dz, but the lya flux
+                        J_alpha_tot = ( dxlya_dt_box[box_ct] + dstarlya_dt_box[box_ct] ); //not really d/dz, but the lya flux
                             
-                            // Note: to make the code run faster, the get_Ts function call to evaluate the spin temperature was replaced with the code below.
-                            // Algorithm is the same, but written to be more computationally efficient
+                        // Note: to make the code run faster, the get_Ts function call to evaluate the spin temperature was replaced with the code below.
+                        // Algorithm is the same, but written to be more computationally efficient
                             
-                            T_inv = expf((-1.)*logf(T));
-                            T_inv_sq = expf((-2.)*logf(T));
+                        T_inv = expf((-1.)*logf(T));
+                        T_inv_sq = expf((-2.)*logf(T));
                             
-                            xc_fast = (1.0+delNL0[0][box_ct]*growth_factor_zp)*xc_inverse*( (1.0-x_e)*No*kappa_10(T,0) + x_e*N_b0*kappa_10_elec(T,0) + x_e*No*kappa_10_pH(T,0) );
+                        xc_fast = (1.0+delNL0[0][box_ct]*growth_factor_zp)*xc_inverse*( (1.0-x_e)*No*kappa_10(T,0) + x_e*N_b0*kappa_10_elec(T,0) + x_e*No*kappa_10_pH(T,0) );
                             
-                            xi_power = TS_prefactor * cbrt((1.0+delNL0[0][box_ct]*growth_factor_zp)*(1.0-x_e)*T_inv_sq);
-                            xa_tilde_fast_arg = xa_tilde_prefactor*J_alpha_tot*pow( 1.0 + 2.98394*xi_power + 1.53583*xi_power*xi_power + 3.85289*xi_power*xi_power*xi_power, -1. );
+                        xi_power = TS_prefactor * cbrt((1.0+delNL0[0][box_ct]*growth_factor_zp)*(1.0-x_e)*T_inv_sq);
+                        xa_tilde_fast_arg = xa_tilde_prefactor*J_alpha_tot*pow( 1.0 + 2.98394*xi_power + 1.53583*xi_power*xi_power + 3.85289*xi_power*xi_power*xi_power, -1. );
                             
-                            //if (J_alpha_tot > 1.0e-20) { // Must use WF effect
-                            // New in v1.4
-                            if (fabs(J_alpha_tot) > 1.0e-20) { // Must use WF effect
-                                TS_fast = Trad_fast;
-                                TSold_fast = 0.0;
-                                while (fabs(TS_fast-TSold_fast)/TS_fast > 1.0e-3) {
+                        //if (J_alpha_tot > 1.0e-20) { // Must use WF effect
+                        // New in v1.4
+                        if (fabs(J_alpha_tot) > 1.0e-20) { // Must use WF effect
+                            TS_fast = Trad_fast;
+                            TSold_fast = 0.0;
+                            while (fabs(TS_fast-TSold_fast)/TS_fast > 1.0e-3) {
                                     
-                                    TSold_fast = TS_fast;
+                                TSold_fast = TS_fast;
                                     
-                                    xa_tilde_fast = ( 1.0 - 0.0631789*T_inv + 0.115995*T_inv_sq - 0.401403*T_inv*pow(TS_fast,-1.) + 0.336463*T_inv_sq*pow(TS_fast,-1.) )*xa_tilde_fast_arg;
+                                xa_tilde_fast = ( 1.0 - 0.0631789*T_inv + 0.115995*T_inv_sq - 0.401403*T_inv*pow(TS_fast,-1.) + 0.336463*T_inv_sq*pow(TS_fast,-1.) )*xa_tilde_fast_arg;
                                     
-                                    TS_fast = (1.0+xa_tilde_fast+xc_fast)*pow(Trad_fast_inv+xa_tilde_fast*( T_inv + 0.405535*T_inv*pow(TS_fast,-1.) - 0.405535*T_inv_sq ) + xc_fast*T_inv,-1.);
-                                }
-                            } else { // Collisions only
-                                TS_fast = (1.0 + xc_fast)/(Trad_fast_inv + xc_fast*T_inv);
+                                TS_fast = (1.0+xa_tilde_fast+xc_fast)*pow(Trad_fast_inv+xa_tilde_fast*( T_inv + 0.405535*T_inv*pow(TS_fast,-1.) - 0.405535*T_inv_sq ) + xc_fast*T_inv,-1.);
+                            }
+                        } else { // Collisions only
+                            TS_fast = (1.0 + xc_fast)/(Trad_fast_inv + xc_fast*T_inv);
 
-                                xa_tilde_fast = 0.0;
-                            }
-                            if(TS_fast < 0.) {
-                                // It can very rarely result in a negative spin temperature. If negative, it is a very small number. Take the absolute value, the optical depth can deal with very large numbers, so ok to be small
-                                TS_fast = fabs(TS_fast);
-                            }
+                            xa_tilde_fast = 0.0;
+                        }
+                        if(TS_fast < 0.) {
+                            // It can very rarely result in a negative spin temperature. If negative, it is a very small number. Take the absolute value, the optical depth can deal with very large numbers, so ok to be small
+                            TS_fast = fabs(TS_fast);
+                        }
                             
-                            this_spin_temp->Ts_box[box_ct] = TS_fast;
+                        this_spin_temp->Ts_box[box_ct] = TS_fast;
                             
-                            if(OUTPUT_AVE) {
-                                J_alpha_ave += J_alpha_tot;
-                                xalpha_ave += xa_tilde_fast;
-                                Xheat_ave += ( dxheat_dzp );
-                                Xion_ave += ( dt_dzp*dxion_source_dt_box[box_ct] );
-                                Ts_ave += TS_fast;
-                                Tk_ave += T;
-                            }
+                        if(OUTPUT_AVE) {
+                            J_alpha_ave += J_alpha_tot;
+                            xalpha_ave += xa_tilde_fast;
+                            Xheat_ave += ( dxheat_dzp );
+                            Xion_ave += ( dt_dzp*dxion_source_dt_box[box_ct] );
+                            Ts_ave += TS_fast;
+                            Tk_ave += T;
                         }
                         x_e_ave += x_e;
                     }
