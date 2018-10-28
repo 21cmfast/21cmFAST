@@ -529,7 +529,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 for (i=0; i<zpp_interp_points_SFR;i++) {
                     //zpp_interp_table[i] = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points_SFR-1.0);
                     zpp_interp_table[i] = determine_zpp_min + zpp_bin_width*(float)i;
-                }
+                }            
                 
                 /* initialise interpolation of the mean collapse fraction for global reionization.*/
                 initialise_FgtrM_st_SFR_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10);
@@ -762,7 +762,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         
         fcoll_interp_high_min = global_params.CRIT_DENS_TRANSITION;
         fcoll_interp_high_bin_width = 1/((float)NSFR_high-1.)*(Deltac - fcoll_interp_high_min);
-        fcoll_interp_high_bin_width_inv = 1./fcoll_interp_bin_width;
+        fcoll_interp_high_bin_width_inv = 1./fcoll_interp_high_bin_width;
 
         
         // Calculate fcoll for each smoothing radius
@@ -908,6 +908,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                             }
                         }
                         else {
+
                             if (curr_dens < 0.99*Deltac) {
                                 
                                 dens_val = (curr_dens - fcoll_interp_high_min)*fcoll_interp_high_bin_width_inv;
@@ -915,6 +916,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                                 fcoll_int = (int)floorf( dens_val );
 
                                 fcoll = Fcollz_SFR_Xray_high_table[R_ct][fcoll_int]*( 1. + (float)fcoll_int - dens_val ) + Fcollz_SFR_Xray_high_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
+
                             }
                             else {
                                 fcoll = pow(10.,10.);
@@ -926,7 +928,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                         
                     }
                 }
-                ave_fcoll /= (pow(10.,10.)*(double)HII_TOT_NUM_PIXELS);                
+                ave_fcoll /= (pow(10.,10.)*(double)HII_TOT_NUM_PIXELS);
                 
                 if(ave_fcoll!=0.) {
                     ave_fcoll_inv = 1./ave_fcoll;

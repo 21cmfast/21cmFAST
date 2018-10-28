@@ -1178,8 +1178,6 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             regenerate=regenerate, write=write, direc=direc,
         )
 
-    print(redshift, previous_spin_temp.redshift)
-
     # Run the C Code
     lib.ComputeTsBox(redshift, previous_spin_temp.redshift, box.user_params(),
                      box.cosmo_params(), box.astro_params(), box.flag_options(),
