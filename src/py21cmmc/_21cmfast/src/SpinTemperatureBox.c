@@ -147,14 +147,14 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         }
         else {
             
-            Sigma_Tmin_grid = (double *)calloc(zpp_interp_points,sizeof(double));
+            Sigma_Tmin_grid = (double *)calloc(zpp_interp_points_SFR,sizeof(double));
             
             fcoll_R_grid = (double ***)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double **));
             dfcoll_dz_grid = (double ***)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double **));
             for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
-                fcoll_R_grid[i] = (double **)calloc(zpp_interp_points,sizeof(double *));
-                dfcoll_dz_grid[i] = (double **)calloc(zpp_interp_points,sizeof(double *));
-                for(j=0;j<zpp_interp_points;j++) {
+                fcoll_R_grid[i] = (double **)calloc(zpp_interp_points_SFR,sizeof(double *));
+                dfcoll_dz_grid[i] = (double **)calloc(zpp_interp_points_SFR,sizeof(double *));
+                for(j=0;j<zpp_interp_points_SFR;j++) {
                     fcoll_R_grid[i][j] = (double *)calloc(dens_Ninterp,sizeof(double));
                     dfcoll_dz_grid[i][j] = (double *)calloc(dens_Ninterp,sizeof(double));
                 }
@@ -169,7 +169,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             for(i=0;i<dens_Ninterp;i++) {
                 density_gridpoints[i] = (double *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
             }
-            ST_over_PS_arg_grid = (double *)calloc(zpp_interp_points,sizeof(double));
+            ST_over_PS_arg_grid = (double *)calloc(zpp_interp_points_SFR,sizeof(double));
             
             dens_grid_int_vals = (short **)calloc(HII_TOT_NUM_PIXELS,sizeof(short *));
             
@@ -337,7 +337,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                     }
                 }
             }
-
+            
             ////////////////// Transform unfiltered box to k-space to prepare for filtering /////////////////
             if(user_params->USE_FFTW_WISDOM) {
                 // Check to see if the wisdom exists, create it if it doesn't
@@ -515,7 +515,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         
         determine_zpp_max = zpp*1.001;
         
-        zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points-1.0);
+        zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0);
         
         dens_width = 1./((double)dens_Ninterp - 1.);
         
@@ -558,8 +558,8 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 }
         
                 // Calculate the sigma_z and Fgtr_M values for each point in the interpolation table
-                for(i=0;i<zpp_interp_points;i++) {
-                    zpp_grid = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points-1.0);
+                for(i=0;i<zpp_interp_points_SFR;i++) {
+                    zpp_grid = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points_SFR-1.0);
             
                     Sigma_Tmin_grid[i] = sigma_z0(FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
                     ST_over_PS_arg_grid[i] = FgtrM_st(zpp_grid, FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
@@ -567,9 +567,9 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         
                 // Create the interpolation tables for the derivative of the collapsed fraction and the collapse fraction itself
                 for(ii=0;ii<global_params.NUM_FILTER_STEPS_FOR_Ts;ii++) {
-                    for(i=0;i<zpp_interp_points;i++) {
+                    for(i=0;i<zpp_interp_points_SFR;i++) {
                 
-                        zpp_grid = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points-1.0);
+                        zpp_grid = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points_SFR-1.0);
                         grid_sigmaTmin = Sigma_Tmin_grid[i];
                 
                         for(j=0;j<dens_Ninterp;j++) {
@@ -839,6 +839,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 freq_int_heat_tbl_diff[i][R_ct] = freq_int_heat_tbl[m_xHII_high][R_ct] - freq_int_heat_tbl[m_xHII_low][R_ct];
                 freq_int_ion_tbl_diff[i][R_ct] = freq_int_ion_tbl[m_xHII_high][R_ct] - freq_int_ion_tbl[m_xHII_low][R_ct];
                 freq_int_lya_tbl_diff[i][R_ct] = freq_int_lya_tbl[m_xHII_high][R_ct] - freq_int_lya_tbl[m_xHII_low][R_ct];
+                
             }
         }
         
@@ -937,7 +938,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 dfcoll_dz_val = (ave_fcoll_inv/pow(10.,10.))*ST_over_PS[R_ct]*SFR_timescale_factor[R_ct]/astro_params->t_STAR;
                 
                 dstarlya_dt_prefactor[R_ct] *= dfcoll_dz_val;
-                
+                                
                 for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
                     
                     if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) //just leave it alone and go to next value
@@ -1233,7 +1234,7 @@ void free_TsCalcBoxes()
     int i,j;
     
     for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
-        for(j=0;j<zpp_interp_points;j++) {
+        for(j=0;j<zpp_interp_points_SFR;j++) {
             free(fcoll_R_grid[i][j]);
             free(dfcoll_dz_grid[i][j]);
         }

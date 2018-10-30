@@ -14,8 +14,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
                        int do_spin_temp, struct TsBox *spin_temp, struct IonizedBox *box) {
-
-    printf("Ever getting to here?\n");
     
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
@@ -160,6 +158,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             }
         }
     }
+    printf("dens val = %e\n",perturbed_field->density[HII_R_INDEX(2,2,2)]);
     
     // keep the unfiltered density field in an array, to save it for later
     memcpy(deltax_unfiltered_original, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -213,7 +212,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     else {
         mean_f_coll_st = FgtrM_st(redshift, M_MIN);
     }
-    printf("Check if do ionisation\n");
+
     if (mean_f_coll_st * (astro_params->HII_EFF_FACTOR) < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
     //        printf( "The ST mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll_st, f_coll_crit);
         

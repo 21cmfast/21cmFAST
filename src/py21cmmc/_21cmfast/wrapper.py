@@ -885,7 +885,7 @@ def ionize_box(astro_params=None, flag_options=None,
             return box
         except IOError:
             pass
-
+    
     # EVERYTHING PAST THIS POINT ONLY HAPPENS IF THE BOX DOESN'T ALREADY EXIST
     # ------------------------------------------------------------------------
     # Get the previous redshift
@@ -958,7 +958,7 @@ def ionize_box(astro_params=None, flag_options=None,
             init_boxes=init_boxes,
             direc=direc, write=write, regenerate=regenerate
         )
-
+    
     # Run the C Code
     lib.ComputeIonizedBox(redshift, previous_ionize_box.redshift, box.user_params(),
                           box.cosmo_params(),
@@ -1105,7 +1105,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     if z_heat_max is not None:
         global_params.Z_HEAT_MAX = z_heat_max
 
-    redshift = _get_redshift(redshift, perturbed_field)
+#    redshift = _get_redshift(redshift, perturbed_field)
 
     # Set the default astro params, using the INHOMO_RECO flag.
     if astro_params is None:
@@ -1126,7 +1126,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             return box
         except IOError:
             pass
-
+    
     # EVERYTHING PAST THIS POINT ONLY HAPPENS IF THE BOX DOESN'T ALREADY EXIST
     # ------------------------------------------------------------------------
 
@@ -1177,6 +1177,9 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             init_boxes=init_boxes,
             regenerate=regenerate, write=write, direc=direc,
         )
+    
+    if previous_spin_temp is None:
+        previous_spin_temp = TsBox(redshift=0)        
 
     # Run the C Code
     lib.ComputeTsBox(redshift, previous_spin_temp.redshift, box.user_params(),
