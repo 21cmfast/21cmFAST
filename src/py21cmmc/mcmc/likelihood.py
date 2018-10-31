@@ -2,24 +2,17 @@
 A module containing (base) classes for computing 21cmFAST likelihoods under the context of CosmoHammer.
 """
 import numpy as np
-from decimal import *
-from scipy import interpolate
 from scipy.interpolate import InterpolatedUnivariateSpline
 from .._21cmfast import wrapper as lib
 from . import core
 from io import IOBase
 
-import pickle
 from os import path
 from powerbox.tools import get_power
 
 np.seterr(invalid='ignore', divide='ignore')
 
-#
-# TWOPLACES = Decimal(10) ** -2  # same as Decimal('0.01')
-# FOURPLACES = Decimal(10) ** -4  # same as Decimal('0.0001')
-# SIXPLACES = Decimal(10) ** -6  # same as Decimal('0.000001')
-
+from cached_property import cached_property
 
 def ensure_iter(a):
     try:
@@ -79,6 +72,16 @@ class LikelihoodBase:
         return chain.core_context()
 
     @property
+    def default_simulated_ctx(self):
+        try:
+            chain = self.LikelihoodComputationChain
+        except AttributeError:
+            raise AttributeError(
+                "default_ctx is not available unless the likelihood is embedded in a LikelihoodComputationChain")
+
+        return chain.core_simulated_context()
+
+    @property
     def _core(self):
         "The *primary* core module (i.e. the first one that is a required core)."
         for rc in self.required_cores:
@@ -106,14 +109,17 @@ class LikelihoodBaseFile(LikelihoodBase):
         if not self._simulate and not self.datafile:
             raise ValueError("Either an existing datafile has to be specified, or simulate set to True.")
 
+        if self._simulate:
+            simctx = self.default_simulated_ctx
+
         # Read in or simulate the data and noise.
-        self.data = self.simulate(self.default_ctx) if self._simulate else self._read_data()
+        self.data = self.simulate(simctx) if self._simulate else self._read_data()
 
         # If we can't/won't simulate noise, and no noisefile is provided, assume no noise is necessary.
         if not (hasattr(self, "define_noise") or self._simulate) and not self.noisefile:
             self.noise = None
         else:
-            self.noise = self.define_noise(self.default_ctx) if (hasattr(self, "define_noise") and self._simulate) else self._read_noise()
+            self.noise = self.define_noise(simctx) if (hasattr(self, "define_noise") and self._simulate) else self._read_noise()
 
         # Now, if data has been simulated, and a file is provided, write to the file.
         if self.datafile and self._simulate:

@@ -11,10 +11,19 @@ class LikelihoodComputationChain(LCC):
 
     def simulate(self):
         # TODO: this might not work, and if it does, it's not obvious.
-        ctx = self.core_context()
+        ctx = self.core_simulated_context()
 
         for lk in self.getLikelihoodModules():
             lk.simulate(ctx)
+
+    def core_simulated_context(self, ctx=None):
+        if ctx is None:
+            ctx = self.createChainContext({})
+
+        for m in self.getCoreModules():
+            m.simulate_data(ctx)
+
+        return ctx
 
     def core_context(self, ctx=None):
         if ctx is None:

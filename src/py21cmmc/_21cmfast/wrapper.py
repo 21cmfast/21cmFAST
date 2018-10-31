@@ -1500,29 +1500,18 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
 
     if perturb is not None:
         redshift = perturb.redshift
-    else:
-        # The perturb field that we get here is at the *final* redshift, and can be used in TsBox.
-        perturb = perturb_field(redshift=redshift, init_boxes=init_box, regenerate=regenerate, direc=direc)
+    # else:
+    #     # The perturb field that we get here is at the *final* redshift, and can be used in TsBox.
+    #     perturb = perturb_field(redshift=redshift, init_boxes=init_box, regenerate=regenerate, direc=direc)
 
     max_redshift = global_params.Z_HEAT_MAX if (flag_options.INHOMO_RECO or do_spin_temp or max_redshift is None) else max_redshift
 
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = _logscroll_redshifts(redshift, z_step_factor, max_redshift)
 
-    # Here set up the lightcone box.
-    # Get a length of the lightcone (bigger than it needs to be at first).
-    d_at_redshift = cosmo_params.cosmo.comoving_distance(redshift).value
-    Ltotal = cosmo_params.cosmo.comoving_distance(scrollz[0] * z_step_factor).value - d_at_redshift
-    lc_distances = np.arange(0, Ltotal, user_params.BOX_LEN / user_params.HII_DIM)
+    d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(cosmo_params, max_redshift, redshift, scrollz,
+                                                                user_params, z_step_factor)
 
-    # Use max_redshift to get the actual distances we require.
-    Lmax = cosmo_params.cosmo.comoving_distance(max_redshift).value - d_at_redshift
-    first_greater = np.argwhere(lc_distances > Lmax)[0][0]
-
-    # Get *at least* as far as max_redshift
-    lc_distances = lc_distances[:(first_greater + 1)]
-    # lc_redshifts = z_at_value(cosmo_params.cosmo.comoving_distance, lc_distances*units.Mpc)
-    n_lightcone = len(lc_distances)
     lc = np.zeros((user_params.HII_DIM, user_params.HII_DIM, n_lightcone))
 
     scroll_distances = cosmo_params.cosmo.comoving_distance(scrollz).value - d_at_redshift
@@ -1533,7 +1522,6 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
     box_index = 0
     neutral_fraction = np.zeros(len(scrollz))
     global_signal = np.zeros(len(scrollz))
-
 
     for iz, z in enumerate(scrollz):
         # Best to get a perturb for this redshift, to pass to brightness_temperature
@@ -1598,6 +1586,31 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
         node_redshifts=scrollz, global_xHI = neutral_fraction, global_brightness_temp=global_signal
     )
 
+
+def _setup_lightcone(cosmo_params, max_redshift, redshift, scrollz, user_params, z_step_factor):
+    # Here set up the lightcone box.
+    # Get a length of the lightcone (bigger than it needs to be at first).
+    d_at_redshift = cosmo_params.cosmo.comoving_distance(redshift).value
+    Ltotal = cosmo_params.cosmo.comoving_distance(scrollz[0] * z_step_factor).value - d_at_redshift
+    lc_distances = np.arange(0, Ltotal, user_params.BOX_LEN / user_params.HII_DIM)
+
+    # Use max_redshift to get the actual distances we require.
+    Lmax = cosmo_params.cosmo.comoving_distance(max_redshift).value - d_at_redshift
+    first_greater = np.argwhere(lc_distances > Lmax)[0][0]
+
+    # Get *at least* as far as max_redshift
+    lc_distances = lc_distances[:(first_greater + 1)]
+
+    n_lightcone = len(lc_distances)
+    return d_at_redshift, lc_distances, n_lightcone
+
+
+def _get_lightcone_redshifts(cosmo_params, max_redshift, redshift, user_params, z_step_factor):
+    scrollz = _logscroll_redshifts(redshift, z_step_factor, max_redshift)
+    lc_distances = _setup_lightcone(cosmo_params, max_redshift, redshift, scrollz, user_params, z_step_factor)[1]
+    lc_distances += cosmo_params.cosmo.comoving_distance(redshift).value
+
+    return np.array([z_at_value(cosmo_params.cosmo.comoving_distance, d*units.Mpc) for d in lc_distances])
 
 def readbox(direc=None, fname=None, hash=None, kind=None, seed=None, load_data=True):
     """

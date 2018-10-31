@@ -28,6 +28,31 @@ class CoreBase:
         except AttributeError:
             raise AttributeError("default_ctx is not available unless the likelihood is embedded in a LikelihoodComputationChain")
 
+    def simulate_data(self, ctx):
+        """
+        Passed a standard context object, should simulate data and place it in the context.
+
+        This is to be used as a way to simulate mocks, rather than constructing forward models, though sometimes the
+        two can be interchanged.
+
+        Parameters
+        ----------
+        ctx : dict-like
+            The context, from which parameters are
+
+        Returns
+        -------
+        dct : dict
+            A dictionary of data which was simulated.
+        """
+        pass
+
+    def __call__(self, ctx):
+        """
+        Call the class. By default, it will just simulate data.
+        """
+        self.simulate_data(ctx)
+
 
 class CoreCoevalModule(CoreBase):
     """
@@ -207,7 +232,7 @@ class CoreCoevalModule(CoreBase):
                 self.initial_conditions = initial_conditions
                 self.perturb_field = perturb_field
 
-    def __call__(self, ctx):
+    def simulate_data(self, ctx):
         # Update parameters
         self._update_params(ctx.getParams())
 
@@ -282,7 +307,17 @@ class CoreLightConeModule(CoreCoevalModule):
         if self.perturb_field is not None:
             self.perturb_field = self.perturb_field[0]
 
-    def __call__(self, ctx):
+    @property
+    def lightcone_slice_redshifts(self):
+        """
+        The redshift at each slice of the lightcone.
+        """
+        return p21.wrapper._get_lightcone_redshifts(
+            self.cosmo_params, self.max_redshift, self.redshift,
+            self.user_params, self.z_step_factor
+        )
+
+    def simulate_data(self, ctx):
         # Update parameters
         self._update_params(ctx.getParams())
 
@@ -290,6 +325,7 @@ class CoreLightConeModule(CoreCoevalModule):
         lightcone = self.run(self.astro_params, self.cosmo_params)
 
         ctx.add('lightcone', lightcone)
+
 
     def run(self, astro_params, cosmo_params):
         """
