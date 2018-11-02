@@ -18,7 +18,7 @@ class CoreBase:
             try:
                 storage[name] = storage_function(ctx)
             except Exception:
-                print("Exception while trying to evaluate storage function %s"%name)
+                logger.error("Exception while trying to evaluate storage function %s"%name)
                 raise
 
     @property

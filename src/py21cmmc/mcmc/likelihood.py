@@ -7,12 +7,13 @@ from .._21cmfast import wrapper as lib
 from . import core
 from io import IOBase
 
-from os import path
+from os import path, rename
 from powerbox.tools import get_power
 
 np.seterr(invalid='ignore', divide='ignore')
 
-from cached_property import cached_property
+import logging
+logger = logging.getLogger("21CMMC")
 
 def ensure_iter(a):
     try:
@@ -55,6 +56,8 @@ class LikelihoodBase:
                 raise ValueError("%s needs the %s to be loaded." % (self.__class__.__name__, rc.__class__.__name__))
 
     def setup(self):
+        logger.info("Running setup")
+
         # Expose user, flag, cosmo, astro params to this likelihood if available.
         self._expose_core_parameters()
 
@@ -128,6 +131,8 @@ class LikelihoodBaseFile(LikelihoodBase):
         if self.noisefile and self._simulate and hasattr(self, "define_noise"):
             self._write_noise()
 
+        logger.info("Finished base setup")
+
     def _read_data(self):
         data = []
         for fl in self.datafile:
@@ -155,13 +160,21 @@ class LikelihoodBaseFile(LikelihoodBase):
 
     def _write_data(self):
         for fl, d in zip(self.datafile, self.data):
-            if not path.exists(fl):
-                np.savez(fl, **d)
+            if path.exists(fl):
+                logger.warn(f"File {fl} already exists. Moving previous version to {fl}.bk")
+                rename(fl, fl+".bk")
+
+            np.savez(fl, **d)
+            logger.info(f"Saving data file: {fl}")
 
     def _write_noise(self):
         for fl, d in zip(self.noisefile, self.noise):
-            if not path.exists(fl):
-                np.savez(fl, **d)
+            if path.exists(fl):
+                logger.warn(f"File {fl} already exists. Moving previous version to {fl}.bk")
+                rename(fl, fl + ".bk")
+
+            np.savez(fl, **d)
+            logger.info(f"Saved noise file: {fl}")
 
     def _check_data_format(self):
         pass
@@ -656,7 +669,6 @@ class LikelihoodNeutralFraction(LikelihoodBase):
                 lnprob += self.lnprob(model['xHI'][self.redshifts.index(z)], data, sigma)
             else:
                 lnprob += self.lnprob(model_spline(z), data, sigma)
-                print(z, model_spline(z), lnprob)
 
         return lnprob
 
