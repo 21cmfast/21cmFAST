@@ -119,7 +119,7 @@ class LikelihoodBaseFile(LikelihoodBase):
         if not (hasattr(self, "define_noise") or self._simulate) and not self.noisefile:
             self.noise = None
         else:
-            self.noise = self.define_noise(simctx) if (hasattr(self, "define_noise") and self._simulate) else self._read_noise()
+            self.noise = self.define_noise(simctx, self.data) if (hasattr(self, "define_noise") and self._simulate) else self._read_noise()
 
         # Now, if data has been simulated, and a file is provided, write to the file.
         if self.datafile and self._simulate:
@@ -229,15 +229,19 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         .. warning:: Please ensure that the data/noise is in the correct units for 21CMMC, as this class
                      does not automatically convert units!
 
-        To make this more flexible, simply subclass this class, and overwrite the :meth:`_define_data` or
-        :meth:`_define_noise` methods, then use that likelihood instead of this in your likelihood chain. Both of these
+        To make this more flexible, simply subclass this class, and overwrite the :meth:`_read_data` or
+        :meth:`_read_noise` methods, then use that likelihood instead of this in your likelihood chain. Both of these
         functions should return dictionaries in which the above entries exist. For example::
 
         >>> class MyCoevalLikelihood(Likelihood1DPowerCoeval):
-        >>>    def _define_data(self):
+        >>>    def _read_data(self):
         >>>        data = np.genfromtxt(self.datafile)
         >>>        return {"k": data[:, 0], "p": data[:, 1]}
 
+        Also note that an extra method, `define_noise` may be used to define the noise properties dynamically (i.e.
+        without reading it). This method will be called if available and simulate=True. It should have the
+        signature ``define_noise(self, ctx, model)``, where ``ctx`` is the context with all cores having added their
+        data, and ``model`` is the output of the :method:`simulate` method.
         """
         super().__init__(*args, **kwargs)
 
