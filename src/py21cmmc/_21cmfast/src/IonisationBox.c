@@ -158,7 +158,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             }
         }
     }
-    printf("dens val = %e\n",perturbed_field->density[HII_R_INDEX(2,2,2)]);
     
     // keep the unfiltered density field in an array, to save it for later
     memcpy(deltax_unfiltered_original, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -212,8 +211,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     else {
         mean_f_coll_st = FgtrM_st(redshift, M_MIN);
     }
-
-    printf("z = %e ION_EFF_FACTOR = %e mean_f_coll_st = %e\n",redshift,ION_EFF_FACTOR,mean_f_coll_st);
     
     if (mean_f_coll_st * ION_EFF_FACTOR < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
     //        printf( "The ST mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll_st, f_coll_crit);
@@ -479,7 +476,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                     }
                 }
                 
-//                printf("min density = %e max density = %e\n",min_density,max_density);
                 overdense_small_min = log10(1. + min_density);
                 if(max_density > global_params.CRIT_DENS_TRANSITION*1.001) {
                     overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+global_params.CRIT_DENS_TRANSITION*1.001)-overdense_small_min);
@@ -488,7 +484,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                     overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+max_density)-overdense_small_min);
                 }
                 overdense_small_bin_width_inv = 1./overdense_small_bin_width;
-//                printf("overdense_small_bin_width = %e overdense_small_bin_width_inv = %e\n",overdense_small_bin_width,overdense_small_bin_width_inv);
                 
                 initialiseGL_FcollSFR(NGL_SFR, astro_params->M_TURN,massofscaleR);
                 initialiseFcollSFR_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
@@ -541,16 +536,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                                     
                                     overdense_int = (int)floorf( dens_val );
                                     
-//                                    if(overdense_int < 1 || overdense_int > 248) {
-//                                        printf("at boundaries: overdense_int = %d\n",overdense_int);
-//                                        if(overdense_int < 1) {
-//                                            printf("curr_dens = %e curr_dens = %e overdense_small_min = %e overdense_small_min = %e\n",curr_dens,log10f(curr_dens+1.),pow(10.,overdense_small_min)-1.,overdense_small_min);
-//                                        }
-//                                        if(overdense_int > 248) {
-//                                            printf("curr_dens = %e curr_dens = %e overdense_small_max = %e overdense_small_max = %e\n",curr_dens,log10f(curr_dens+1.),global_params.CRIT_DENS_TRANSITION*1.001,log10f(global_params.CRIT_DENS_TRANSITION*1.001 + 1.));
-//                                        }
-//                                    }
-                                    
                                     Splined_Fcoll = log10_Fcoll_spline_SFR[overdense_int]*( 1 + (float)overdense_int - dens_val ) + log10_Fcoll_spline_SFR[overdense_int+1]*( dens_val - (float)overdense_int );
                                     
                                     Splined_Fcoll = expf(Splined_Fcoll);
@@ -560,13 +545,9 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                             else {
                                 if (curr_dens < 0.99*Deltac) {
                                     
-//                                    printf("exceeding criteria\n");
-                                    
                                     dens_val = (curr_dens - overdense_large_min)*overdense_large_bin_width_inv;
                                     
                                     overdense_int = (int)floorf( dens_val );
-
-//                                    printf("overdense_int = %d\n",overdense_int);
                                     
                                     Splined_Fcoll = Fcoll_spline_SFR[overdense_int]*( 1 + (float)overdense_int - dens_val ) + Fcoll_spline_SFR[overdense_int+1]*( dens_val - (float)overdense_int );
                                 }
@@ -606,8 +587,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             }
             
             ST_over_PS = mean_f_coll_st/f_coll;
-        
-//            printf("R = %e ave_f_coll = %e mean_f_coll_st = %e ST_over_PS = %e\n",R,f_coll,mean_f_coll_st,ST_over_PS);
             
             //////////////////////////////  MAIN LOOP THROUGH THE BOX ///////////////////////////////////
             // now lets scroll through the filtered box
@@ -633,8 +612,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                         }
                     
                         if (flag_options->INHOMO_RECO){
-//                            dfcolldt = f_coll / t_ast;
-//                            Gamma_R = Gamma_R_prefactor * dfcolldt;
                             rec = (*((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z))); // number of recombinations per mean baryon
                             rec /= (1. + curr_dens); // number of recombinations per baryon inside <R>
                         }
@@ -702,13 +679,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             }
             global_step_xH /= (float)HII_TOT_NUM_PIXELS;
             
-//            if(global_step_xH==0.0) {
-//                short_completely_ionised = 1;
-//                break;
-//            }
-        
-//            printf("R = %e xH = %e\n",R,global_step_xH);
-            
             if(first_step_R) {
                 R = stored_R;
                 first_step_R = 0;
@@ -743,8 +713,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             }
         }
     }
-
-    printf("global_xH = %e\n",global_xH);
     
     // deallocate
     gsl_rng_free (r);
