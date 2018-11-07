@@ -8,6 +8,12 @@ import logging
 logger = logging.getLogger("21CMMC")
 
 
+class NotSetupError(Exception):
+    def __init__(self):
+        default_message = 'setup() must have been called on the chain to use this method/attribute!'
+        super().__init__(default_message)
+
+
 class CoreBase:
     def __init__(self, store=None):
         self.store = store or {}
@@ -325,7 +331,6 @@ class CoreLightConeModule(CoreCoevalModule):
         lightcone = self.run(self.astro_params, self.cosmo_params)
 
         ctx.add('lightcone', lightcone)
-
 
     def run(self, astro_params, cosmo_params):
         """

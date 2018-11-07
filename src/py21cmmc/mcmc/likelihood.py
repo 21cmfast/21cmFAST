@@ -69,8 +69,7 @@ class LikelihoodBase:
         try:
             chain = self.LikelihoodComputationChain
         except AttributeError:
-            raise AttributeError(
-                "default_ctx is not available unless the likelihood is embedded in a LikelihoodComputationChain")
+            raise core.NotSetupError
 
         return chain.core_context()
 
@@ -79,8 +78,7 @@ class LikelihoodBase:
         try:
             chain = self.LikelihoodComputationChain
         except AttributeError:
-            raise AttributeError(
-                "default_ctx is not available unless the likelihood is embedded in a LikelihoodComputationChain")
+            raise core.NotSetupError
 
         return chain.core_simulated_context()
 
@@ -94,9 +92,10 @@ class LikelihoodBase:
 
 
 class LikelihoodBaseFile(LikelihoodBase):
-    def __init__(self, datafile=None, noisefile=None, simulate=False):
+    def __init__(self, datafile=None, noisefile=None, simulate=False, use_data=True):
         self.datafile = datafile
         self.noisefile = noisefile
+        self._use_data = use_data
 
         # We *always* make the datafile and noisefile a list
         if isinstance(self.datafile, str) or isinstance(self.datafile, IOBase):
@@ -106,30 +105,31 @@ class LikelihoodBaseFile(LikelihoodBase):
 
         self._simulate = simulate
 
+        self.data = None
+        self.noise=None
     def setup(self):
         super().setup()
 
-        if not self._simulate and not self.datafile:
-            raise ValueError("Either an existing datafile has to be specified, or simulate set to True.")
+        if self._use_data:
+            if not self._simulate and not self.datafile:
+                raise ValueError("Either an existing datafile has to be specified, or simulate set to True.")
 
-        if self._simulate:
-            simctx = self.default_simulated_ctx
+            if self._simulate:
+                simctx = self.default_simulated_ctx
 
-        # Read in or simulate the data and noise.
-        self.data = self.simulate(simctx) if self._simulate else self._read_data()
+            # Read in or simulate the data and noise.
+            self.data = self.simulate(simctx) if self._simulate else self._read_data()
 
-        # If we can't/won't simulate noise, and no noisefile is provided, assume no noise is necessary.
-        if not (hasattr(self, "define_noise") or self._simulate) and not self.noisefile:
-            self.noise = None
-        else:
-            self.noise = self.define_noise(simctx, self.data) if (hasattr(self, "define_noise") and self._simulate) else self._read_noise()
+            # If we can't/won't simulate noise, and no noisefile is provided, assume no noise is necessary.
+            if (hasattr(self, "define_noise") or self._simulate) or self.noisefile:
+                self.noise = self.define_noise(simctx, self.data) if (hasattr(self, "define_noise") and self._simulate) else self._read_noise()
 
-        # Now, if data has been simulated, and a file is provided, write to the file.
-        if self.datafile and self._simulate:
-            self._write_data()
+            # Now, if data has been simulated, and a file is provided, write to the file.
+            if self.datafile and self._simulate:
+                self._write_data()
 
-        if self.noisefile and self._simulate and hasattr(self, "define_noise"):
-            self._write_noise()
+            if self.noisefile and self._simulate and hasattr(self, "define_noise"):
+                self._write_noise()
 
         logger.info("Finished base setup")
 
