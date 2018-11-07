@@ -10,7 +10,7 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
-        
+    
     char wisdom_filename[500];
     
     double ave;
@@ -463,6 +463,8 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
             ave /= (HII_TOT_NUM_PIXELS+0.0);
         }
     }
+    
+    printf("ave Tb = %e\n",ave);
     
     free(v);
     free(vel_gradient);
