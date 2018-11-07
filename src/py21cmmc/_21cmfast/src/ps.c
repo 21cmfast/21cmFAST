@@ -1383,11 +1383,15 @@ void initialiseFcollSFR_spline(float z, float min_density, float max_density, fl
     
     sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
     
+//    printf("Mmin = %e Mmax = %e MinMass = %e MassBin = %d MassBinLow = %e Sigma_InterpTable(low) = %e Sigma_InterpTable(high) = %e sigma2 = %e\n",exp(Mmin),exp(Mmax),MinMass,MassBin,MassBinLow,Sigma_InterpTable[MassBin],Sigma_InterpTable[MassBin+1],sigma2);
+    
     for (i=0; i<NSFR_low; i++){
         overdense_val = log10(1. + overdense_small_low) + (double)i/((double)NSFR_low-1.)*(log10(1.+overdense_small_high)-log10(1.+overdense_small_low));
         
         log10_overdense_spline_SFR[i] = overdense_val;
         log10_Fcoll_spline_SFR[i] = log10(GaussLegendreQuad_FcollSFR(NGL_SFR,growthf,Mmax,sigma2,Deltac,pow(10.,overdense_val)-1.,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc));
+        
+//        printf("(low:) overdens = %e Fcoll = %e log10(Fcoll) = %e\n",pow(10.,overdense_val),GaussLegendreQuad_FcollSFR(NGL_SFR,growthf,Mmax,sigma2,Deltac,pow(10.,overdense_val)-1.,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc),log10_Fcoll_spline_SFR[i]);
         
         if(log10_Fcoll_spline_SFR[i] < -40.){
             log10_Fcoll_spline_SFR[i] = -40.;
@@ -1399,6 +1403,8 @@ void initialiseFcollSFR_spline(float z, float min_density, float max_density, fl
     for(i=0;i<NSFR_high;i++) {
         Overdense_spline_SFR[i] = overdense_large_low + (float)i/((float)NSFR_high-1.)*(overdense_large_high - overdense_large_low);
         Fcoll_spline_SFR[i] = FgtrConditionalM_SFR(growthf,Mmin,Mmax,sigma2,Deltac,Overdense_spline_SFR[i],MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+        
+//        printf("(high:) overdens = %e Fcoll = %e\n",Overdense_spline_SFR[i],FgtrConditionalM_SFR(growthf,Mmin,Mmax,sigma2,Deltac,Overdense_spline_SFR[i],MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc));
         
         if(Fcoll_spline_SFR[i]<0.) {
             Fcoll_spline_SFR[i]=pow(10.,-40.0);

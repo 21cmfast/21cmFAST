@@ -938,7 +938,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 dfcoll_dz_val = (ave_fcoll_inv/pow(10.,10.))*ST_over_PS[R_ct]*SFR_timescale_factor[R_ct]/astro_params->t_STAR;
                 
                 dstarlya_dt_prefactor[R_ct] *= dfcoll_dz_val;
-                                
+                
                 for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
                     
                     if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) //just leave it alone and go to next value
