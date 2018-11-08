@@ -524,14 +524,16 @@ double dNdM_st(double z, double M){
 }
 
 /*
- FUNCTION dNdM(z, M)
- Computes the Press_schechter mass function at
+ FUNCTION dNdM_st_interp(z, M)
+ Computes the Press_schechter mass function with Sheth-Torman correction for ellipsoidal collapse at
  redshift z, and dark matter halo mass M (in solar masses).
+ 
+ Uses interpolated sigma and dsigmadm to be computed faster. Necessary for mass-dependent ionising efficiencies.
  
  The return value is the number density per unit mass of halos in the mass range M to M+dM in units of:
  comoving Mpc^-3 Msun^-1
  
- Reference: Padmanabhan, pg. 214
+ Reference: Sheth, Mo, Torman 2001
  */
 double dNdM_st_interp(double growthf, double M){
     
@@ -544,17 +546,88 @@ double dNdM_st_interp(double growthf, double M){
     MassBinLow = MinMass + mass_bin_width*(float)MassBin;
     
     sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
-    
     sigma = sigma * growthf;
     
     dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
-    
     dsigmadm = -pow(10.,dsigmadm);
-    
-    dsigmadm = dsigmadm * (growthf*growthf/(2*sigma));
+    dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
+
     nuhat = sqrt(SHETH_a) * Deltac / sigma;
     
     return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * sqrt(2./PI)*SHETH_A * (1+ pow(nuhat, -2*SHETH_p)) * nuhat * pow(E, -nuhat*nuhat/2.0);
+}
+
+/*
+ FUNCTION dNdM_WatsonFOF(z, M)
+ Computes the Press_schechter mass function with Warren et al. 2011 correction for ellipsoidal collapse at
+ redshift z, and dark matter halo mass M (in solar masses).
+ 
+ The Universial FOF function (Eq. 12) of Watson et al. 2013
+ 
+ The return value is the number density per unit mass of halos in the mass range M to M+dM in units of:
+ comoving Mpc^-3 Msun^-1
+ 
+ Reference: Watson et al. 2013
+ */
+double dNdM_WatsonFOF(double growthf, double M){
+
+    double sigma, dsigmadm, f_sigma;
+    
+    float MassBinLow;
+    int MassBin;
+    
+    MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
+    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    
+    sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    sigma = sigma * growthf;
+    
+    dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+    dsigmadm = -pow(10.,dsigmadm);
+    dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
+    
+    f_sigma = Watson_A * ( pow( Watson_beta/sigma, Watson_alpha) + 1. ) * exp( - Watson_gamma/(sigma*sigma) );
+    
+    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * f_sigma;
+}
+
+/*
+ FUNCTION dNdM_WatsonFOF_z(z, M)
+ Computes the Press_schechter mass function with Warren et al. 2011 correction for ellipsoidal collapse at
+ redshift z, and dark matter halo mass M (in solar masses).
+ 
+ The Universial FOF function, with redshift evolution (Eq. 12 - 15) of Watson et al. 2013.
+ 
+ The return value is the number density per unit mass of halos in the mass range M to M+dM in units of:
+ comoving Mpc^-3 Msun^-1
+ 
+ Reference: Watson et al. 2013
+ */
+double dNdM_WatsonFOF_z(double z, double growthf, double M){
+    
+    double sigma, dsigmadm, A_z, alpha_z, beta_z, Omega_m_z, f_sigma;
+    float MassBinLow;
+    int MassBin;
+    
+    MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
+    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+
+    sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    sigma = sigma * growthf;
+    
+    dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+    dsigmadm = -pow(10.,dsigmadm);
+    dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
+    
+    Omega_m_z = (cosmo_params_ps->OMm)*pow(1.+z,3.) / ( (cosmo_params_ps->OMl) + (cosmo_params_ps->OMm)*pow(1.+z,3.) + (global_params.OMr)*pow(1.+z,4.) );
+    
+    A_z = Omega_m_z * ( Watson_A_z_1 * pow(1. + z, Watson_A_z_2 ) + Watson_A_z_3 );
+    alpha_z = Omega_m_z * ( Watson_alpha_z_1 * pow(1.+z, Watson_alpha_z_2 ) + Watson_alpha_z_3 );
+    beta_z = Omega_m_z * ( Watson_beta_z_1 * pow(1.+z, Watson_beta_z_3 ) + Watson_beta_z_3 );
+    
+    f_sigma = A_z * ( pow(beta_z/sigma, alpha_z) + 1. ) * exp( - Watson_gamma_z/(sigma*sigma) );
+    
+    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * f_sigma;
 }
 
 
@@ -573,11 +646,40 @@ double dNdM(double z, double M){
     
     dicke_growth = dicke(z);
     sigma = sigma_z0(M) * dicke_growth;
-    dsigmadm = dsigmasqdm_z0(M) * (dicke_growth*dicke_growth/(2*sigma));
+    dsigmadm = dsigmasqdm_z0(M) * (dicke_growth*dicke_growth/(2.*sigma));
     
     return (-(cosmo_params_ps->OMm)*RHOcrit/M) * sqrt(2/PI) * (Deltac/(sigma*sigma)) * dsigmadm * pow(E, -(Deltac*Deltac)/(2*sigma*sigma));
 }
 
+/*
+ FUNCTION dNdM_interp(z, M)
+ Computes the Press_schechter mass function at
+ redshift z, and dark matter halo mass M (in solar masses).
+ 
+ Uses interpolated sigma and dsigmadm to be computed faster. Necessary for mass-dependent ionising efficiencies.
+ 
+ The return value is the number density per unit mass of halos in the mass range M to M+dM in units of:
+ comoving Mpc^-3 Msun^-1
+ 
+ Reference: Padmanabhan, pg. 214
+ */
+double dNdM_interp(double growthf, double M){
+    double sigma, dsigmadm;
+    float MassBinLow;
+    int MassBin;
+    
+    MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
+    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    
+    sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    sigma = sigma * growthf;
+    
+    dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+    dsigmadm = -pow(10.,dsigmadm);
+    dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
+    
+    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * sqrt(2/PI) * (Deltac/(sigma*sigma)) * dsigmadm * pow(E, -(Deltac*Deltac)/(2*sigma*sigma));
+}
 
 
 
