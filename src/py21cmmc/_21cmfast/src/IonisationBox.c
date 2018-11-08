@@ -207,10 +207,12 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     // Determine the normalisation for the excursion set algorithm
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         mean_f_coll_st = FgtrM_st_SFR(growth_factor,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+        printf("mean_f_coll_st = %e mean_f_coll_st = %e\n",mean_f_coll_st,FgtrM_SFR_General(redshift,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc));
     }
     else {
         mean_f_coll_st = FgtrM_st(redshift, M_MIN);
     }
+//    printf("mean_f_coll = %e\n",FgtrM_General(redshift,M_MIN));
     
     if (mean_f_coll_st * ION_EFF_FACTOR < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
     //        printf( "The ST mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll_st, f_coll_crit);

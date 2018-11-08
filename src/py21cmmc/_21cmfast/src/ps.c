@@ -36,6 +36,7 @@ static gsl_spline *erfc_spline;
 #define EPS2 3.0e-11
 
 struct CosmoParams *cosmo_params_ps;
+struct UserParams *user_params_ps;
 
 double sigma_norm, R, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_nu, f_baryon, beta_c, d2fact, R_CUTOFF, DEL_CURR, SIG_CURR;
 
@@ -81,7 +82,25 @@ double FgtrConditionalM_SFR_Xray(double growthf, double M1, double M2, double si
 void initialise_Xray_Fcollz_SFR_Conditional_table(int Nfilter, float min_density[], float max_density[], float growthf[], float R[], float MassTurnover, float Alpha_star, float Fstar10);
 
 
+struct parameters_gsl_FgtrM_int_{
+    double z_obs;
+    double gf_obs;
+};
+
+
 struct parameters_gsl_SFR_int_{
+    double gf_obs;
+    double Mdrop;
+    double pl_star;
+    double pl_esc;
+    double frac_star;
+    double frac_esc;
+    double LimitMass_Fstar;
+    double LimitMass_Fesc;
+};
+
+struct parameters_gsl_SFR_General_int_{
+    double z_obs;
     double gf_obs;
     double Mdrop;
     double pl_star;
@@ -130,6 +149,9 @@ void TFset_parameters();
 
 double FgtrM(double z, double M);
 double FgtrM_st(double z, double M);
+double FgtrM_Watson(double growthf, double M);
+double FgtrM_Watson_z(double z, double growthf, double M);
+double FgtrM_General(double z, double M);
 
 float erfcc(float x);
 double splined_erfc(double x);
@@ -142,6 +164,7 @@ double M_J_WDM();
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params){
  
     cosmo_params_ps = cosmo_params;
+    user_params_ps = user_params;
 }
 
 // FUNCTION sigma_z0(M)
@@ -623,9 +646,11 @@ double dNdM_WatsonFOF_z(double z, double growthf, double M){
     
     A_z = Omega_m_z * ( Watson_A_z_1 * pow(1. + z, Watson_A_z_2 ) + Watson_A_z_3 );
     alpha_z = Omega_m_z * ( Watson_alpha_z_1 * pow(1.+z, Watson_alpha_z_2 ) + Watson_alpha_z_3 );
-    beta_z = Omega_m_z * ( Watson_beta_z_1 * pow(1.+z, Watson_beta_z_3 ) + Watson_beta_z_3 );
+    beta_z = Omega_m_z * ( Watson_beta_z_1 * pow(1.+z, Watson_beta_z_2 ) + Watson_beta_z_3 );
     
     f_sigma = A_z * ( pow(beta_z/sigma, alpha_z) + 1. ) * exp( - Watson_gamma_z/(sigma*sigma) );
+    
+//    printf("%e %e %e %e %e %e %e %e %e\n",z,M,A_z,alpha_z,beta_z,growthf,sigma,dsigmadm,f_sigma);
     
     return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * f_sigma;
 }
@@ -726,6 +751,236 @@ double FgtrM(double z, double M){
     
     return splined_erfc(del / (sqrt(2)*sig));
 }
+
+
+/*
+ FUNCTION FgtrM_Watson(z, M)
+ Computes the fraction of mass contained in haloes with mass > M at redshift z
+ Uses Watson et al (2013) correction
+ */
+double dFdlnM_Watson_z (double lnM, void *params){
+    struct parameters_gsl_FgtrM_int_ vals = *(struct parameters_gsl_FgtrM_int_ *)params;
+    
+    double M = exp(lnM);
+    double z = vals.z_obs;
+    double growthf = vals.gf_obs;
+
+    return dNdM_WatsonFOF_z(z, growthf, M) * M * M;
+}
+double FgtrM_Watson_z(double z, double growthf, double M){
+    double result, error, lower_limit, upper_limit;
+    gsl_function F;
+    double rel_tol  = 0.001; //<- relative tolerance
+    gsl_integration_workspace * w
+    = gsl_integration_workspace_alloc (1000);
+    
+    F.function = &dFdlnM_Watson_z;
+//    F.params = &z;
+    struct parameters_gsl_FgtrM_int_ parameters_gsl_FgtrM = {
+        .z_obs = z,
+        .gf_obs = growthf,
+    };
+
+    F.params = &parameters_gsl_FgtrM;
+    lower_limit = log(M);
+    upper_limit = log(FMAX(1e16, M*100));
+    
+    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
+    gsl_integration_workspace_free (w);
+    
+    return result / (cosmo_params_ps->OMm*RHOcrit);
+}
+
+
+/*
+ FUNCTION FgtrM_Watson(z, M)
+ Computes the fraction of mass contained in haloes with mass > M at redshift z
+ Uses Watson et al (2013) correction
+ */
+double dFdlnM_Watson (double lnM, void *params){
+    double growthf = *(double *)params;
+    double M = exp(lnM);
+    return dNdM_WatsonFOF(growthf, M) * M * M;
+}
+double FgtrM_Watson(double growthf, double M){
+    double result, error, lower_limit, upper_limit;
+    gsl_function F;
+    double rel_tol  = 0.001; //<- relative tolerance
+    gsl_integration_workspace * w
+    = gsl_integration_workspace_alloc (1000);
+    
+    F.function = &dFdlnM_Watson;
+    F.params = &growthf;
+    lower_limit = log(M);
+    upper_limit = log(FMAX(1e16, M*100));
+    
+    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
+    gsl_integration_workspace_free (w);
+    
+    return result / (cosmo_params_ps->OMm*RHOcrit);
+}
+
+double dFdlnM_General(double lnM, void *params){
+    struct parameters_gsl_FgtrM_int_ vals = *(struct parameters_gsl_FgtrM_int_ *)params;
+    
+    double M = exp(lnM);
+    double z = vals.z_obs;
+    double growthf = vals.gf_obs;
+    
+    double MassFunction;
+ 
+    if(user_params_ps->HMF==0) {
+        MassFunction = dNdM(z, M);
+    }
+    if(user_params_ps->HMF==1) {
+        MassFunction = dNdM_st_interp(growthf, M);
+    }
+    if(user_params_ps->HMF==2) {
+        MassFunction = dNdM_WatsonFOF(growthf, M);
+    }
+    if(user_params_ps->HMF==3) {
+        MassFunction = dNdM_WatsonFOF_z(z, growthf, M);
+    }
+    return MassFunction * M * M;
+}
+
+/*
+ FUNCTION FgtrM_General(z, M)
+ Computes the fraction of mass contained in haloes with mass > M at redshift z
+ */
+double FgtrM_General(double z, double M){
+
+    double del, sig, growthf;
+    
+    growthf = dicke(z);
+
+    struct parameters_gsl_FgtrM_int_ parameters_gsl_FgtrM = {
+        .z_obs = z,
+        .gf_obs = growthf,
+    };
+    
+    if(user_params_ps->HMF<4 && user_params_ps->HMF>-1) {
+    
+        double result, error, lower_limit, upper_limit;
+        gsl_function F;
+        double rel_tol  = 0.001; //<- relative tolerance
+        gsl_integration_workspace * w
+        = gsl_integration_workspace_alloc (1000);
+    
+        F.function = &dFdlnM_General;
+        F.params = &parameters_gsl_FgtrM;
+    
+        lower_limit = log(M);
+        upper_limit = log(FMAX(1e16, M*100));
+    
+        gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
+    
+        gsl_integration_workspace_free (w);
+    
+        return result / (cosmo_params_ps->OMm*RHOcrit);
+    }
+    else {
+        printf("ERROR: Incorrect HMF selected\n");
+        exit(-1);
+    }
+}
+
+
+double dFdlnM_SFR_General(double lnM, void *params){
+    struct parameters_gsl_SFR_General_int_ vals = *(struct parameters_gsl_SFR_General_int_ *)params;
+    
+    double M = exp(lnM);
+    double z = vals.z_obs;
+    double growthf = vals.gf_obs;
+    double MassTurnover = vals.Mdrop;
+    double Alpha_star = vals.pl_star;
+    double Alpha_esc = vals.pl_esc;
+    double Fstar10 = vals.frac_star;
+    double Fesc10 = vals.frac_esc;
+    double Mlim_Fstar = vals.LimitMass_Fstar;
+    double Mlim_Fesc = vals.LimitMass_Fesc;
+    
+    double Fstar, Fesc, MassFunction;
+    
+    if (Alpha_star > 0. && M > Mlim_Fstar)
+        Fstar = 1./Fstar10;
+    else if (Alpha_star < 0. && M < Mlim_Fstar)
+        Fstar = 1/Fstar10;
+    else
+        Fstar = pow(M/1e10,Alpha_star);
+    
+    if (Alpha_esc > 0. && M > Mlim_Fesc)
+        Fesc = 1./Fesc10;
+    else if (Alpha_esc < 0. && M < Mlim_Fesc)
+        Fesc = 1./Fesc10;
+    else
+        Fesc = pow(M/1e10,Alpha_esc);
+
+    if(user_params_ps->HMF==0) {
+        MassFunction = dNdM(z, M);
+    }
+    if(user_params_ps->HMF==1) {
+        MassFunction = dNdM_st_interp(growthf,M);
+    }
+    if(user_params_ps->HMF==2) {
+        MassFunction = dNdM_WatsonFOF(growthf, M);
+    }
+    if(user_params_ps->HMF==3) {
+        MassFunction = dNdM_WatsonFOF_z(z, growthf, M);
+    }
+    
+    return MassFunction * M * M * exp(-MassTurnover/M) * Fstar * Fesc;
+}
+
+double FgtrM_SFR_General(double z, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar, double Mlim_Fesc){
+    
+    double growthf;
+    
+    growthf = dicke(z);
+    
+    double M_Min = MassTurnover/50.;
+    double result, error, lower_limit, upper_limit;
+    gsl_function F;
+    double rel_tol = 0.001; //<- relative tolerance
+    
+    gsl_integration_workspace * w
+    = gsl_integration_workspace_alloc (1000);
+    
+    struct parameters_gsl_SFR_General_int_ parameters_gsl_SFR = {
+        .z_obs = z,
+        .gf_obs = growthf,
+        .Mdrop = MassTurnover,
+        .pl_star = Alpha_star,
+        .pl_esc = Alpha_esc,
+        .frac_star = Fstar10,
+        .frac_esc = Fesc10,
+        .LimitMass_Fstar = Mlim_Fstar,
+        .LimitMass_Fesc = Mlim_Fesc,
+    };
+    
+    if(user_params_ps->HMF<4 && user_params_ps->HMF>-1) {
+    
+        F.function = &dFdlnM_SFR_General;
+        F.params = &parameters_gsl_SFR;
+    
+        lower_limit = log(M_Min);
+        upper_limit = log(FMAX(1e16, M_Min*100));
+    
+        gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
+        gsl_integration_workspace_free (w);
+    
+        return result / ((cosmo_params_ps->OMm)*RHOcrit);
+    }
+    else {
+        printf("ERROR: Incorrect HMF selected\n");
+        exit(-1);
+    }
+}
+
+
+
 
 /* returns the "effective Jeans mass" in Msun
  corresponding to the gas analog of WDM ; eq. 10 in Barkana+ 2001 */
@@ -1419,15 +1674,11 @@ void initialiseFcollSFR_spline(float z, float min_density, float max_density, fl
     
     sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
     
-//    printf("Mmin = %e Mmax = %e MinMass = %e MassBin = %d MassBinLow = %e Sigma_InterpTable(low) = %e Sigma_InterpTable(high) = %e sigma2 = %e\n",exp(Mmin),exp(Mmax),MinMass,MassBin,MassBinLow,Sigma_InterpTable[MassBin],Sigma_InterpTable[MassBin+1],sigma2);
-    
     for (i=0; i<NSFR_low; i++){
         overdense_val = log10(1. + overdense_small_low) + (double)i/((double)NSFR_low-1.)*(log10(1.+overdense_small_high)-log10(1.+overdense_small_low));
         
         log10_overdense_spline_SFR[i] = overdense_val;
         log10_Fcoll_spline_SFR[i] = log10(GaussLegendreQuad_FcollSFR(NGL_SFR,growthf,Mmax,sigma2,Deltac,pow(10.,overdense_val)-1.,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc));
-        
-//        printf("(low:) overdens = %e Fcoll = %e log10(Fcoll) = %e\n",pow(10.,overdense_val),GaussLegendreQuad_FcollSFR(NGL_SFR,growthf,Mmax,sigma2,Deltac,pow(10.,overdense_val)-1.,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc),log10_Fcoll_spline_SFR[i]);
         
         if(log10_Fcoll_spline_SFR[i] < -40.){
             log10_Fcoll_spline_SFR[i] = -40.;
@@ -1439,8 +1690,6 @@ void initialiseFcollSFR_spline(float z, float min_density, float max_density, fl
     for(i=0;i<NSFR_high;i++) {
         Overdense_spline_SFR[i] = overdense_large_low + (float)i/((float)NSFR_high-1.)*(overdense_large_high - overdense_large_low);
         Fcoll_spline_SFR[i] = FgtrConditionalM_SFR(growthf,Mmin,Mmax,sigma2,Deltac,Overdense_spline_SFR[i],MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
-        
-//        printf("(high:) overdens = %e Fcoll = %e\n",Overdense_spline_SFR[i],FgtrConditionalM_SFR(growthf,Mmin,Mmax,sigma2,Deltac,Overdense_spline_SFR[i],MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc));
         
         if(Fcoll_spline_SFR[i]<0.) {
             Fcoll_spline_SFR[i]=pow(10.,-40.0);

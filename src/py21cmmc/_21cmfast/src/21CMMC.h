@@ -30,7 +30,7 @@ struct UserParams{
     int DIM;
     float BOX_LEN;
     bool USE_FFTW_WISDOM;
-    
+    int HMF;    
 };
 
 struct AstroParams{

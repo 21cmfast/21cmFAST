@@ -152,6 +152,7 @@ class CosmoParams(StructWithDefaults):
 
     POWER_INDEX : float, optional
         Spectral index of the power spectrum.
+
     """
     _ffi = ffi
 
@@ -161,7 +162,7 @@ class CosmoParams(StructWithDefaults):
         hlittle=Planck15.h,
         OMm=Planck15.Om0,
         OMb=Planck15.Ob0,
-        POWER_INDEX=0.97
+        POWER_INDEX=0.97,
     )
 
     @property
@@ -209,6 +210,14 @@ class UserParams(StructWithDefaults):
 
     BOX_LEN : float, optional
         Length of the box, in Mpc.
+
+    HMF: int, optional
+        Determines which halo mass function to be used for the normalisation of the collapsed fraction:
+        0: Press-Schechter
+        1: Sheth-Tormen
+        2: Watson FOF
+        3: Watson FOF-z
+
     """
     _ffi = ffi
 
@@ -217,6 +226,7 @@ class UserParams(StructWithDefaults):
         DIM=None,
         HII_DIM=50,
         USE_FFTW_WISDOM=False,
+        HMF=1,
     )
 
     @property
