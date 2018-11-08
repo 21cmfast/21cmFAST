@@ -41,7 +41,7 @@ class LikelihoodBase:
 
     def _expose_core_parameters(self):
         # Try to get the params out of the core module
-        for m in self.LikelihoodComputationChain.getCoreModules():
+        for m in self._cores:
             for k in ['user_params', 'flag_options', 'cosmo_params', 'astro_params']:
                 if hasattr(m, k):
                     if hasattr(self, k) and getattr(self, k) != getattr(m, k):
@@ -52,7 +52,7 @@ class LikelihoodBase:
 
     def _check_required_cores(self):
         for rc in self.required_cores:
-            if not any([isinstance(m, rc) for m in self.LikelihoodComputationChain.getCoreModules()]):
+            if not any([isinstance(m, rc) for m in self._cores]):
                 raise ValueError("%s needs the %s to be loaded." % (self.__class__.__name__, rc.__class__.__name__))
 
     def setup(self):
@@ -83,10 +83,18 @@ class LikelihoodBase:
         return chain.core_simulated_context()
 
     @property
+    def _cores(self):
+        """List of all loaded cores"""
+        try:
+            return self.LikelihoodComputationChain.getCoreModules()
+        except AttributeError:
+            raise core.NotSetupError
+
+    @property
     def _core(self):
         "The *primary* core module (i.e. the first one that is a required core)."
         for rc in self.required_cores:
-            for m in self.LikelihoodComputationChain.getCoreModules():
+            for m in self._cores:
                 if isinstance(m, rc):
                     return m
 
@@ -335,7 +343,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
     @property
     def core_module(self):
-        for m in self.LikelihoodComputationChain.getCoreModules():
+        for m in self._cores:
             if isinstance(m, self.required_cores[0]):
                 return m
 
