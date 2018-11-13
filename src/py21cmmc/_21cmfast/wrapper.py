@@ -993,8 +993,8 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     perturbed_field : :class:`~PerturbField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated, either `init_boxes` and
         `redshift` must be given, or `user_params`, `cosmo_params` and `redshift`. By default, this will be generated
-        at the same redshift as the spin temperature box. The redshift from `perturbed_field` will silently override
-        the given redshift.
+        at the same redshift as the spin temperature box. Here, the redshift from `perturbed_field` will *not* silently
+        override the given redshift, as it will be interpolated to the proper redshift if its redshift disagrees.
 
     previous_spin_temp : :class:`TsBox` or float, optional
         The previous spin temperature box, or its redshift. This redshift must be greater than `redshift`. If a
@@ -1098,7 +1098,16 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     if z_heat_max is not None:
         global_params.Z_HEAT_MAX = z_heat_max
 
-    redshift = _get_redshift(redshift, perturbed_field)
+    # Try to determine redshift from other inputs, if required.
+    if redshift is None:
+        if perturbed_field is not None:
+            redshift = perturbed_field.redshift
+        elif previous_spin_temp is not None:
+            redshift = (previous_spin_temp.redshift  +1)/z_step_factor - 1
+
+    # If there is still no redshift, raise error.
+    if redshift is None:
+        raise ValueError("Either the redshift, perturbed_field or previous_spin_temp must be given.")
 
     # Set the default astro params, using the INHOMO_RECO flag.
     if astro_params is None:
@@ -1247,7 +1256,7 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
 
 def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(), astro_params=None,
                flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
-               z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None):
+               z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None, use_interp_perturb_field=False):
     """
     Evaluates a coeval ionized box at a given redshift, or multiple redshift.
 
@@ -1280,6 +1289,10 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
         Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift up to which heating sources
         are required to specify the ionization field. Beyond this, the ionization field is specified directly from
         the perturbed density field.
+     use_interp_perturb_field : bool, optional
+        Whether to use a single perturb field, at the lowest redshift of the lightcone, to determine all spin
+        temperature fields. If so, this field is interpolated in the underlying C-code to the correct redshift.
+        This is less accurate (and no more efficient), but provides compatibility with older versions of 21cmMC.
 
     Returns
     -------
@@ -1332,24 +1345,26 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
     else:
         redshifts = [min(redshift)]
 
-    # Add in the redshift defined by the user, and sort in order, omitting the minimum,
-    # because it won't be exactly reproduced. Turn into a set so that exact matching user-set redshift
+    # Add in the redshift defined by the user, and sort in order
+    # Turn into a set so that exact matching user-set redshift
     # don't double-up with scrolling ones.
     redshifts += redshift
     redshifts = sorted(list(set(redshifts)), reverse=True)
 
-    ib_tracker = []
-    bt = []
+    ib_tracker = [0] * len(redshift)
+    bt = [0] * len(redshift)
     st, ib = None, None  # At first we don't have any "previous" st or ib.
-    # Iterate through redshift from top to bottom
     logger.debug("redshifts: %s", redshifts)
 
+    minarg = np.argmin(redshift)
+
+    # Iterate through redshift from top to bottom
     for z in redshifts:
         if do_spin_temp:
             st2 = spin_temperature(
                 redshift=z,
                 previous_spin_temp=st,
-                perturbed_field=perturb[redshift.index(z)] if z in redshift else None,
+                perturbed_field=perturb[minarg] if use_interp_perturb_field else (perturb[redshift.index(z)] if z in redshift else None), # remember that perturb field is interpolated, so no need to provide exact one.
                 astro_params=astro_params, flag_options=flag_options,
                 regenerate=regenerate,
                 init_boxes=init_box,
@@ -1362,7 +1377,7 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
         ib2 = ionize_box(
             redshift=z, previous_ionize_box=ib,
             init_boxes=init_box,
-            perturbed_field=perturb[redshift.index(z)] if z in redshift else None,
+            perturbed_field=perturb[redshift.index(z)] if z in redshift else None, # perturb field *not* interpolated here.
             astro_params=astro_params, flag_options=flag_options,
             spin_temp=st2 if do_spin_temp else None,
             regenerate=regenerate,z_heat_max=global_params.Z_HEAT_MAX, z_step_factor=z_step_factor,
@@ -1372,12 +1387,8 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
         if z not in redshift:
             ib = ib2
         else:
-            ib_tracker.append(ib2)
-            bt += [brightness_temperature(ib2, perturb[redshift.index(z)], st2 if do_spin_temp else None)]
-    #
-    # # The last one won't get in because of the dodgy redshift thing
-    # ib_tracker += [ib]
-    # bt += [brightness_temperature(ib, perturb[minarg], st if do_spin_temp else None)]
+            ib_tracker[redshift.index(z)] = ib2
+            bt[redshift.index(z)] = brightness_temperature(ib2, perturb[redshift.index(z)], st2 if do_spin_temp else None)
 
     # If a single redshift was passed, then pass back singletons.
     if singleton:
@@ -1434,7 +1445,7 @@ class LightCone:
 
 def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(), astro_params=None,
                   flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
-                  z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None,
+                  z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None, use_interp_perturb_field=False,
                   ):
     """
     Evaluates a full lightcone ending at a given redshift.
@@ -1465,6 +1476,10 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
         Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift up to which heating sources
         are required to specify the ionization field. Beyond this, the ionization field is specified directly from
         the perturbed density field.
+    use_interp_perturb_field : bool, optional
+        Whether to use a single perturb field, at the lowest redshift of the lightcone, to determine all spin
+        temperature fields. If so, this field is interpolated in the underlying C-code to the correct redshift.
+        This is less accurate (and no more efficient), but provides compatibility with older versions of 21cmMC.
 
     Returns
     -------
@@ -1523,6 +1538,8 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
     neutral_fraction = np.zeros(len(scrollz))
     global_signal = np.zeros(len(scrollz))
 
+    minarg = np.argmin(redshift)
+
     for iz, z in enumerate(scrollz):
         # Best to get a perturb for this redshift, to pass to brightness_temperature
         this_perturb = perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
@@ -1533,7 +1550,8 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
                 redshift=z,
                 previous_spin_temp=st,
                 astro_params=astro_params, flag_options=flag_options,
-                perturbed_field=this_perturb, regenerate=regenerate,
+                perturbed_field= perturb[minarg] if use_interp_perturb_field else this_perturb,
+                regenerate=regenerate,
                 init_boxes=init_box,
                 z_heat_max=global_params.Z_HEAT_MAX, z_step_factor=z_step_factor,
                 write=write, direc=direc

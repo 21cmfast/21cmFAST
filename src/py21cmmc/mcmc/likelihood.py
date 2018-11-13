@@ -115,6 +115,7 @@ class LikelihoodBaseFile(LikelihoodBase):
 
         self.data = None
         self.noise=None
+
     def setup(self):
         super().setup()
 
