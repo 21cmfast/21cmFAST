@@ -1515,9 +1515,9 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
 
     if perturb is not None:
         redshift = perturb.redshift
-    # else:
-    #     # The perturb field that we get here is at the *final* redshift, and can be used in TsBox.
-    #     perturb = perturb_field(redshift=redshift, init_boxes=init_box, regenerate=regenerate, direc=direc)
+    else:
+        # The perturb field that we get here is at the *final* redshift, and can be used in TsBox.
+        perturb = perturb_field(redshift=redshift, init_boxes=init_box, regenerate=regenerate, direc=direc)
 
     max_redshift = global_params.Z_HEAT_MAX if (flag_options.INHOMO_RECO or do_spin_temp or max_redshift is None) else max_redshift
 
@@ -1538,8 +1538,6 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
     neutral_fraction = np.zeros(len(scrollz))
     global_signal = np.zeros(len(scrollz))
 
-    minarg = np.argmin(redshift)
-
     for iz, z in enumerate(scrollz):
         # Best to get a perturb for this redshift, to pass to brightness_temperature
         this_perturb = perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
@@ -1550,7 +1548,7 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
                 redshift=z,
                 previous_spin_temp=st,
                 astro_params=astro_params, flag_options=flag_options,
-                perturbed_field= perturb[minarg] if use_interp_perturb_field else this_perturb,
+                perturbed_field= perturb if use_interp_perturb_field else this_perturb,
                 regenerate=regenerate,
                 init_boxes=init_box,
                 z_heat_max=global_params.Z_HEAT_MAX, z_step_factor=z_step_factor,
