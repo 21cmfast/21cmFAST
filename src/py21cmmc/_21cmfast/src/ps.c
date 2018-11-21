@@ -1705,7 +1705,7 @@ void initialiseFcollSFR_spline(float z, float min_density, float max_density, fl
 
 
 
-void initialise_FgtrM_st_SFR_spline(int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10){
+void initialise_FgtrM_SFR_spline(int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10){
     int i;
     float Mmin = MassTurn/50., Mmax = 1e16;
     float Mlim_Fstar, Mlim_Fesc;
@@ -1718,7 +1718,7 @@ void initialise_FgtrM_st_SFR_spline(int Nbin, float zmin, float zmax, float Mass
     
     for (i=0; i<Nbin; i++){
         z_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
-        Fcollz_val[i] = FgtrM_st_SFR(dicke(z_val[i]), MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
+        Fcollz_val[i] = FgtrM_SFR_General(z_val[i], MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
     }
 }
 
@@ -1801,7 +1801,7 @@ double FgtrConditionalM_SFR_Xray(double growthf, double M1, double M2, double si
 
 
 
-void initialise_Xray_FgtrM_st_SFR_spline(int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Fstar10){
+void initialise_Xray_FgtrM_SFR_spline(int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Fstar10){
     int i;
     float Mmin = MassTurn/50., Mmax = 1e16;
     float Mlim_Fstar;
@@ -1813,7 +1813,7 @@ void initialise_Xray_FgtrM_st_SFR_spline(int Nbin, float zmin, float zmax, float
     
     for (i=0; i<Nbin; i++){
         z_X_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
-        FcollzX_val[i] = FgtrM_st_SFR(dicke(z_X_val[i]), MassTurn, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
+        FcollzX_val[i] = FgtrM_SFR_General(z_X_val[i], MassTurn, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
     }
 }
 

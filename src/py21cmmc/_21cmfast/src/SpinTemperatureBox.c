@@ -457,23 +457,29 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                         }
                     }
                 }
-                if(!flag_options->USE_MASS_DEPENDENT_ZETA) {
-                    if(min_density < 0.0) {
-                        delNL0_LL[R_ct] = min_density*1.001;
-                        delNL0_Offset[R_ct] = 1.e-6 - (delNL0_LL[R_ct]);
-                    }
-                    else {
-                        delNL0_LL[R_ct] = min_density*0.999;
-                        delNL0_Offset[R_ct] = 1.e-6 + (delNL0_LL[R_ct]);
-                    }
-                    if(max_density < 0.0) {
-                        delNL0_UL[R_ct] = max_density*0.999;
-                    }
-                    else {
-                        delNL0_UL[R_ct] = max_density*1.001;
-                    }
+                
+                if(min_density < 0.0) {
+                    min_density = min_density*1.001;
+                }
+                else {
+                    min_density = min_density*0.999;
+                }
+                if(max_density < 0.0) {
+                    max_density = max_density*0.999;
+                }
+                else {
+                    min_density = max_density*1.001;
                 }
                 
+                if(!flag_options->USE_MASS_DEPENDENT_ZETA) {
+                    delNL0_LL[R_ct] = min_density;
+                    delNL0_Offset[R_ct] = 1.e-6 - (delNL0_LL[R_ct]);
+                    delNL0_UL[R_ct] = max_density;
+                }
+                
+                if(min_density < 0.0) {
+                    min_density
+                }
                 min_densities[R_ct] = min_density;
                 max_densities[R_ct] = max_density;
             
@@ -532,9 +538,9 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 }            
                 
                 /* initialise interpolation of the mean collapse fraction for global reionization.*/
-                initialise_FgtrM_st_SFR_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10);
+                initialise_FgtrM_SFR_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10);
                 
-                initialise_Xray_FgtrM_st_SFR_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+                initialise_Xray_FgtrM_SFR_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
                 
             }
             else {
@@ -562,7 +568,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                     zpp_grid = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points_SFR-1.0);
             
                     Sigma_Tmin_grid[i] = sigma_z0(FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
-                    ST_over_PS_arg_grid[i] = FgtrM_st(zpp_grid, FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                    ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
                 }
         
                 // Create the interpolation tables for the derivative of the collapsed fraction and the collapse fraction itself
@@ -655,7 +661,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 NO_LIGHT = 0;
         
             M_MIN_at_zp = get_M_min_ion(zp);
-            filling_factor_of_HI_zp = 1 - ION_EFF_FACTOR * FgtrM_st(zp, M_MIN_at_zp) / (1.0 - x_e_ave);
+            filling_factor_of_HI_zp = 1 - ION_EFF_FACTOR * FgtrM_General(zp, M_MIN_at_zp) / (1.0 - x_e_ave);
             
         }
         
