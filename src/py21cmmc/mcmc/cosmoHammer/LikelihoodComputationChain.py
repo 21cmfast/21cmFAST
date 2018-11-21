@@ -1,20 +1,33 @@
 from cosmoHammer.LikelihoodComputationChain import LikelihoodComputationChain as LCC
 from .util import Params
 from cosmoHammer.ChainContext import ChainContext
+import warnings
+
 
 class LikelihoodComputationChain(LCC):
 
     def __init__(self, params, *args, **kwargs):
         self.params = params
+        self._setup = False # flag to say if this chain has been setup yet.
+
         super().__init__(min=params[:, 1] if params is not None else None,
                          max=params[:, 2] if params is not None else None)
 
     def simulate(self):
         # TODO: this might not work, and if it does, it's not obvious.
-        ctx = self.core_context()
+        ctx = self.core_simulated_context()
 
         for lk in self.getLikelihoodModules():
             lk.simulate(ctx)
+
+    def core_simulated_context(self, ctx=None):
+        if ctx is None:
+            ctx = self.createChainContext({})
+
+        for m in self.getCoreModules():
+            m.simulate_data(ctx)
+
+        return ctx
 
     def core_context(self, ctx=None):
         if ctx is None:
@@ -64,10 +77,15 @@ class LikelihoodComputationChain(LCC):
         return ChainContext(self, p)
 
     def setup(self):
-        for cModule in self.getCoreModules():
-            if hasattr(cModule, "setup"):
-                cModule.setup()
+        if not self._setup:
+            for cModule in self.getCoreModules():
+                if hasattr(cModule, "setup"):
+                    cModule.setup()
 
-        for cModule in self.getLikelihoodModules():
-            if hasattr(cModule, "setup"):
-                cModule.setup()
+            for cModule in self.getLikelihoodModules():
+                if hasattr(cModule, "setup"):
+                    cModule.setup()
+
+            self._setup = True
+        else:
+            warnings.warn("Attempting to setup LikelihoodComputationChain when it is already setup! Ignoring...")

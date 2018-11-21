@@ -114,7 +114,7 @@ setup(
         'scipy',
         'astropy>=2.0',
         'emcee<3',
-        'powerbox>=0.5.6',
+        'powerbox>=0.5.7',
         'h5py>=2.8.0',
     ],
     entry_points={

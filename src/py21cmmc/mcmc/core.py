@@ -4,6 +4,15 @@ A module providing Core Modules for cosmoHammer. This is the basis of the plugin
 import warnings
 import py21cmmc as p21
 
+import logging
+logger = logging.getLogger("21CMMC")
+
+
+class NotSetupError(Exception):
+    def __init__(self):
+        default_message = 'setup() must have been called on the chain to use this method/attribute!'
+        super().__init__(default_message)
+
 
 class CoreBase:
     def __init__(self, store=None):
@@ -15,7 +24,7 @@ class CoreBase:
             try:
                 storage[name] = storage_function(ctx)
             except Exception:
-                print("Exception while trying to evaluate storage function %s"%name)
+                logger.error("Exception while trying to evaluate storage function %s"%name)
                 raise
 
     @property
@@ -24,6 +33,31 @@ class CoreBase:
             return self.LikelihoodComputationChain.core_context()
         except AttributeError:
             raise AttributeError("default_ctx is not available unless the likelihood is embedded in a LikelihoodComputationChain")
+
+    def simulate_data(self, ctx):
+        """
+        Passed a standard context object, should simulate data and place it in the context.
+
+        This is to be used as a way to simulate mocks, rather than constructing forward models, though sometimes the
+        two can be interchanged.
+
+        Parameters
+        ----------
+        ctx : dict-like
+            The context, from which parameters are
+
+        Returns
+        -------
+        dct : dict
+            A dictionary of data which was simulated.
+        """
+        pass
+
+    def __call__(self, ctx):
+        """
+        Call the class. By default, it will just simulate data.
+        """
+        self.simulate_data(ctx)
 
 
 class CoreCoevalModule(CoreBase):
@@ -41,6 +75,7 @@ class CoreCoevalModule(CoreBase):
                  user_params=None, flag_options=None, astro_params=None,
                  cosmo_params=None, regenerate=True, do_spin_temp=False, z_step_factor=1.02,
                  z_heat_max=None, change_seed_every_iter=False, ctx_variables=["brightness_temp", "xHI"],
+                 keep_data_in_memory=True,
                  **io_options):
         """
         Initialize the class.
@@ -81,6 +116,14 @@ class CoreCoevalModule(CoreBase):
             possible is useful in that it reduces the memory that needs to be transmitted to each process. Furthermore,
             in-built pickling has a restriction that arrays cannot be larger than 4GiB, which can be easily over-run
             when passing the hires array in the "init" structure.
+        keep_data_in_memory : bool, optional
+            This flag controls whether the underlying datasets ``initial_conditions`` and ``perturb_field`` are stored
+            in memory as part of this object, or whether they are merely read-in from disk cache on each iteration.
+            The former is only possible if these underlying datasets are unchanging with the selected MCMC parameters
+            (i.e. if there are no cosmological parameters being constrained), and it should be faster. However, if the
+            simulations are large, an error may arise if attempting to keep the data in memory, as this memory must
+            be pickled and sent to different processes, which fails for datasets larger than 4GiB. This Core will
+            attmept to automatically switch this parameter to False if the dataset is this large.
 
         Other Parameters
         ----------------
@@ -140,7 +183,12 @@ class CoreCoevalModule(CoreBase):
 
         self.initial_conditions = None
         self.perturb_field = None
-        # self._modifying_cosmo = False
+
+        # Attempt to auto-set the keep_memory parameter
+        if keep_data_in_memory and self.user_params.DIM >= 1000: # This gives about 4GiB for 32-bit floats.
+            self.keep_data_in_memory = False
+        else:
+            self.keep_data_in_memory = keep_data_in_memory
 
     def setup(self):
         """
@@ -163,8 +211,8 @@ class CoreCoevalModule(CoreBase):
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration.
         if not any([p in self.cosmo_params.self.keys() for p in self.parameter_names]) and not self.change_seed_every_iter:
-            print("Initializing init and perturb boxes for the entire chain...", end='', flush=True)
-            self.initial_conditions = p21.initial_conditions(
+            logger.info("Initializing init and perturb boxes for the entire chain.")
+            initial_conditions = p21.initial_conditions(
                 user_params=self.user_params,
                 cosmo_params=self.cosmo_params,
                 write=self.io['cache_init'],
@@ -172,21 +220,25 @@ class CoreCoevalModule(CoreBase):
                 regenerate=self.regenerate,
             )
 
-            self.perturb_field = []
+            perturb_field = []
             for z in self.redshift:
-                self.perturb_field += [p21.perturb_field(
+                perturb_field += [p21.perturb_field(
                     redshift=z,
-                    init_boxes=self.initial_conditions,
+                    init_boxes=initial_conditions,
                     write=self.io['cache_init'],
                     direc=self.io['cache_dir'],
                     regenerate=self.regenerate,
                 )]
-            print(" done.")
+            logger.info("Initialization done.")
 
             # Update the cosmo params to the fully realized ones
-            self.cosmo_params.update(RANDOM_SEED=self.initial_conditions.cosmo_params.RANDOM_SEED)
+            self.cosmo_params.update(RANDOM_SEED=initial_conditions.cosmo_params.RANDOM_SEED)
 
-    def __call__(self, ctx):
+            if self.keep_data_in_memory:
+                self.initial_conditions = initial_conditions
+                self.perturb_field = perturb_field
+
+    def simulate_data(self, ctx):
         # Update parameters
         self._update_params(ctx.getParams())
 
@@ -232,7 +284,6 @@ class CoreCoevalModule(CoreBase):
             regenerate=self.regenerate or self.change_seed_every_iter,
             write=self.io['cache_ionize'],
             direc=self.io['cache_dir'],
-            match_seed=True
         )
 
 
@@ -247,12 +298,12 @@ class CoreLightConeModule(CoreCoevalModule):
 
     1. ``lightcone``: a :class:`~py21cmmc._21cmfast.wrapper.LightCone` instance.
     """
-    def __init__(self, max_redshift, *args, **kwargs):
+    def __init__(self, *, max_redshift, **kwargs):
         if "ctx_variables" in kwargs:
             warnings.warn("ctx_variables does not apply to the lightcone module (at least not yet). It will be ignored.")
 
-        super().__init__(*args, **kwargs)
-        self.max_redshift= max_redshift
+        super().__init__(**kwargs)
+        self.max_redshift = max_redshift
 
     def setup(self):
         super().setup()
@@ -262,7 +313,17 @@ class CoreLightConeModule(CoreCoevalModule):
         if self.perturb_field is not None:
             self.perturb_field = self.perturb_field[0]
 
-    def __call__(self, ctx):
+    @property
+    def lightcone_slice_redshifts(self):
+        """
+        The redshift at each slice of the lightcone.
+        """
+        return p21.wrapper._get_lightcone_redshifts(
+            self.cosmo_params, self.max_redshift, self.redshift,
+            self.user_params, self.z_step_factor
+        )
+
+    def simulate_data(self, ctx):
         # Update parameters
         self._update_params(ctx.getParams())
 

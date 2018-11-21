@@ -291,8 +291,11 @@ class HDFStorage:
             self.random_state,
         ]
         blob = self.get_blobs(discard=it - 1)
-        if blob:
+
+        if blob is not None:
             last.append(blob[0])
+        else:
+            last.append(None)
 
         return tuple(last)
 
