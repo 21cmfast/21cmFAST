@@ -1115,7 +1115,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
     if z_heat_max is not None:
         global_params.Z_HEAT_MAX = z_heat_max
 
-#    redshift = _get_redshift(redshift, perturbed_field)
+    redshift = _get_redshift(redshift, perturbed_field)
 
     # Set the default astro params, using the INHOMO_RECO flag.
     if astro_params is None:
