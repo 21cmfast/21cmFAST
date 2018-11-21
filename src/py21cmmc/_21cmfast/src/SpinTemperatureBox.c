@@ -468,7 +468,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                     max_density = max_density*0.999;
                 }
                 else {
-                    min_density = max_density*1.001;
+                    max_density = max_density*1.001;
                 }
                 
                 if(!flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -477,9 +477,6 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                     delNL0_UL[R_ct] = max_density;
                 }
                 
-                if(min_density < 0.0) {
-                    min_density
-                }
                 min_densities[R_ct] = min_density;
                 max_densities[R_ct] = max_density;
             
@@ -767,7 +764,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         } // end loop over R_ct filter steps
         
         fcoll_interp_high_min = global_params.CRIT_DENS_TRANSITION;
-        fcoll_interp_high_bin_width = 1/((float)NSFR_high-1.)*(Deltac - fcoll_interp_high_min);
+        fcoll_interp_high_bin_width = 1./((float)NSFR_high-1.)*(Deltac - fcoll_interp_high_min);
         fcoll_interp_high_bin_width_inv = 1./fcoll_interp_high_bin_width;
 
         
@@ -935,7 +932,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                         
                     }
                 }
-                ave_fcoll /= (pow(10.,10.)*(double)HII_TOT_NUM_PIXELS);
+                ave_fcoll /= (pow(10.,10.)*(double)HII_TOT_NUM_PIXELS);            
                 
                 if(ave_fcoll!=0.) {
                     ave_fcoll_inv = 1./ave_fcoll;

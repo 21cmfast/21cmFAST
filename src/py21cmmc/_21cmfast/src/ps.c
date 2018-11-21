@@ -1875,7 +1875,7 @@ void initialise_Xray_Fcollz_SFR_Conditional_table(int Nfilter, float min_density
         for (i=0; i<NSFR_low; i++){
             
             log10_Fcollz_SFR_Xray_low_table[j][i] = log10(GaussLegendreQuad_FcollSFR_Xray(NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_Xray_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.));
-
+            
             log10_Fcollz_SFR_Xray_low_table[j][i] += 10.0;
             log10_Fcollz_SFR_Xray_low_table[j][i] *= ln_10;
                 
