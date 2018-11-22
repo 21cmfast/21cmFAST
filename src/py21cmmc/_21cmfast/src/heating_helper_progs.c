@@ -857,9 +857,8 @@ double tauX_integrand_approx(double zhat, void *params){
     if (flag_options_hf->USE_MASS_DEPENDENT_ZETA) {
         redshift_int_fcollz = (int)floor( ( zhat - determine_zpp_min )/zpp_bin_width );
         redshift_table_fcollz = determine_zpp_min + zpp_bin_width*(float)redshift_int_fcollz;
-//        fcoll = Fcollz_val[redshift_int_fcollz] + ( zhat - redshift_table_fcollz )*( Fcollz_val[redshift_int_fcollz+1] - Fcollz_val[redshift_int_fcollz] )/(zpp_bin_width);
-        fcoll = Nion_z_val[redshift_int_fcollz] + ( zhat - redshift_table_fcollz )*( Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zpp_bin_width);
-        
+
+        fcoll = Nion_z_val[redshift_int_fcollz] + ( zhat - redshift_table_fcollz )*( Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zpp_bin_width);        
     }
     else {
 
@@ -910,38 +909,31 @@ double tauX_approx(double nu, double x_e, double x_e_ave, double zp, double zpp,
     p.x_e = x_e;
     p.x_e_ave = x_e_ave;
     
-    // effective efficiency for the PS (not ST) mass function; quicker to compute...
-    if (HI_filling_factor_zp > FRACT_FLOAT_ERR){
-        
-        if(flag_options_hf->USE_MASS_DEPENDENT_ZETA) {
-            
-            redshift_int_fcollz = (int)floor( ( zp - determine_zpp_min )/zpp_bin_width );
-            redshift_table_fcollz = determine_zpp_min + zpp_bin_width*(float)redshift_int_fcollz;
-//            fcoll = Fcollz_val[redshift_int_fcollz] + ( zp - redshift_table_fcollz )*( Fcollz_val[redshift_int_fcollz+1] - Fcollz_val[redshift_int_fcollz] )/(zpp_bin_width);
-            fcoll = Nion_z_val[redshift_int_fcollz] + ( zp - redshift_table_fcollz )*( Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zpp_bin_width);
-            
-            if (isnan(fcoll)) printf("In tauX_approx: zp=%.4f, fcoll=%.4e\n",zp,fcoll);
-        }
-        else {
-            //        fcoll = FgtrM(zp, M_MIN_at_zp);
-        
+    if(flag_options_hf->USE_MASS_DEPENDENT_ZETA) {
+        p.ion_eff = global_params.Pop2_ion*astro_params_hf->F_STAR10*astro_params_hf->F_ESC10;
+    }
+    else {
+        if (HI_filling_factor_zp > FRACT_FLOAT_ERR){
+
             z_fcoll_int1 = (int)floor(( zp - zmin_1DTable )/zbin_width_1DTable);
             z_fcoll_int2 = z_fcoll_int1 + 1;
-        
+            
             z_fcoll_val1 = zmin_1DTable + zbin_width_1DTable*(float)z_fcoll_int1;
             z_fcoll_val2 = zmin_1DTable + zbin_width_1DTable*(float)z_fcoll_int2;
-        
+            
             fcoll = FgtrM_1DTable_linear[z_fcoll_int1] + ( zp - z_fcoll_val1 )*( FgtrM_1DTable_linear[z_fcoll_int2] - FgtrM_1DTable_linear[z_fcoll_int1] )/( z_fcoll_val2 - z_fcoll_val1 );
-        
+            
             fcoll = pow(10.,fcoll);
-        }
-        
-        p.ion_eff = (1.0 - HI_filling_factor_zp) / fcoll * (1.0 - x_e_ave);
-        PS_ION_EFF = p.ion_eff;
 
+            p.ion_eff = (1.0 - HI_filling_factor_zp) / fcoll * (1.0 - x_e_ave);
+            PS_ION_EFF = p.ion_eff;
+            
+        }
+        else {
+            p.ion_eff = PS_ION_EFF; // uses the previous one in post reionization regime
+        }
     }
-    else
-        p.ion_eff = PS_ION_EFF; // uses the previous one in post reionization regime
+    
     
     F.params = &p;
     gsl_integration_qag (&F, zpp, zp, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);

@@ -1220,12 +1220,12 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC){
     logMupper = log10(Mmax);
     
     if (PL < 0.) {
-        if (Mass_limit(logMlow,PL,FRAC) < 1.) {
+        if (Mass_limit(logMlow,PL,FRAC) <= 1.) {
             return Mmin;
         }
     }
     else if (PL > 0.) {
-        if (Mass_limit(logMupper,PL,FRAC) < 1.) {
+        if (Mass_limit(logMupper,PL,FRAC) <= 1.) {
             return Mmax;
         }
     }
