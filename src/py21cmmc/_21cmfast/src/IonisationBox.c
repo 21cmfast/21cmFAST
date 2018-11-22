@@ -27,12 +27,13 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
 
     // Other parameters used in the code
     int i,j,k,ii, x,y,z, N_min_cell, LAST_FILTER_STEP, short_completely_ionised,skip_deallocate,first_step_R;
-    int n_x, n_y, n_z,counter;
+    int n_x, n_y, n_z,counter, N_halos_in_cell;
     unsigned long long ct;
 
-    float growth_factor, pixel_mass, cell_length_factor, ave_N_min_cell, M_MIN, nf;
+    float growth_factor, pixel_mass, cell_length_factor, M_MIN, nf;
     float f_coll_crit, erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, sqrtarg, xHI_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR;
-
+    float ave_M_coll_cell, ave_N_min_cell;
+    
     double global_xH, global_step_xH, ST_over_PS, mean_f_coll, f_coll, R, stored_R, f_coll_min;
 
     double t_ast, dfcolldt, Gamma_R_prefactor, rec, dNrec;
@@ -608,6 +609,13 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                         Splined_Fcoll = Fcoll[HII_R_INDEX(x,y,z)];
      
                         f_coll = ST_over_PS * Splined_Fcoll;
+                        
+                        if (LAST_FILTER_STEP){
+                            ave_M_coll_cell = f_coll * pixel_mass * (1. + curr_dens);
+                            ave_N_min_cell = ave_M_coll_cell / M_MIN; // ave # of M_MIN halos in cell
+                            N_halos_in_cell = (int) gsl_ran_poisson(r, global_params.N_POISSON);
+                        }
+                        
                         if(flag_options->USE_MASS_DEPENDENT_ZETA) {
                             if (f_coll <= f_coll_min) f_coll = f_coll_min;
                         }
@@ -651,11 +659,12 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                         
                             if (f_coll>1) f_coll=1;
                         
-                            ave_N_min_cell = f_coll * pixel_mass*(1. + curr_dens) / M_MIN; // ave # of M_MIN halos in cell
-
-                            if (ave_N_min_cell < global_params.N_POISSON){
-                                N_min_cell = (int) gsl_ran_poisson(r, ave_N_min_cell);
-                                f_coll = N_min_cell * M_MIN / (pixel_mass*(1. + curr_dens));
+                            if(ave_N_min_cell < global_params.N_POISSON) {
+                                f_coll = N_halos_in_cell * ( ave_M_coll_cell / (float)global_params.N_POISSON ) / (pixel_mass*(1. + curr_dens));
+                            }
+                            
+                            if(ave_M_coll_cell < (M_MIN/5.)) {
+                                f_coll = 0.;
                             }
                             
                             if (f_coll>1) f_coll=1;
