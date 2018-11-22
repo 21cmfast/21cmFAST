@@ -33,7 +33,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     float growth_factor, pixel_mass, cell_length_factor, ave_N_min_cell, M_MIN, nf;
     float f_coll_crit, erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, sqrtarg, xHI_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR;
 
-    double global_xH, global_step_xH, ST_over_PS, mean_f_coll_st, f_coll, R, stored_R, f_coll_min;
+    double global_xH, global_step_xH, ST_over_PS, mean_f_coll, f_coll, R, stored_R, f_coll_min;
 
     double t_ast, dfcolldt, Gamma_R_prefactor, rec, dNrec;
     float growth_factor_dz, fabs_dtdz, ZSTEP, Gamma_R, z_eff;
@@ -143,10 +143,10 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     }
     
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-        xi_SFR = calloc((NGL_SFR+1),sizeof(float));
-        wi_SFR = calloc((NGL_SFR+1),sizeof(float));
+        xi_SFR = calloc(NGL_SFR+1,sizeof(float));
+        wi_SFR = calloc(NGL_SFR+1,sizeof(float));
     }
-    
+
     float *Fcoll = (float *) calloc(HII_TOT_NUM_PIXELS,sizeof(float));
      
     // Calculate the density field for this redshift if the initial conditions/cosmology are changing
@@ -206,14 +206,14 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     
     // Determine the normalisation for the excursion set algorithm
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-        mean_f_coll_st = FgtrM_SFR_General(redshift,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+        mean_f_coll = Nion_General(redshift,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
     }
     else {
-        mean_f_coll_st = FgtrM_General(redshift, M_MIN);
+        mean_f_coll = FgtrM_General(redshift, M_MIN);
     }
     
-    if (mean_f_coll_st * ION_EFF_FACTOR < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
-    //        printf( "The ST mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll_st, f_coll_crit);
+    if (mean_f_coll * ION_EFF_FACTOR < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
+    //        printf( "The mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll, f_coll_crit);
         
         // find the neutral fraction
         if(flag_options->USE_TS_FLUCT) {
@@ -485,8 +485,9 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                 }
                 overdense_small_bin_width_inv = 1./overdense_small_bin_width;
                 
-                initialiseGL_FcollSFR(NGL_SFR, astro_params->M_TURN,massofscaleR);
-                initialiseFcollSFR_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                initialiseGL_Nion(NGL_SFR, astro_params->M_TURN,massofscaleR);
+
+                initialise_Nion_General_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
             }
             else {
             
@@ -536,7 +537,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                                     
                                     overdense_int = (int)floorf( dens_val );
                                     
-                                    Splined_Fcoll = log10_Fcoll_spline_SFR[overdense_int]*( 1 + (float)overdense_int - dens_val ) + log10_Fcoll_spline_SFR[overdense_int+1]*( dens_val - (float)overdense_int );
+                                    Splined_Fcoll = log10_Nion_spline[overdense_int]*( 1 + (float)overdense_int - dens_val ) + log10_Nion_spline[overdense_int+1]*( dens_val - (float)overdense_int );
                                     
                                     Splined_Fcoll = expf(Splined_Fcoll);
                                     
@@ -549,7 +550,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                                     
                                     overdense_int = (int)floorf( dens_val );
                                     
-                                    Splined_Fcoll = Fcoll_spline_SFR[overdense_int]*( 1 + (float)overdense_int - dens_val ) + Fcoll_spline_SFR[overdense_int+1]*( dens_val - (float)overdense_int );
+                                    Splined_Fcoll = Nion_spline[overdense_int]*( 1 + (float)overdense_int - dens_val ) + Nion_spline[overdense_int+1]*( dens_val - (float)overdense_int );
                                 }
                                 else {
                                     Splined_Fcoll = 1.;
@@ -586,7 +587,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                 if (f_coll <= FRACT_FLOAT_ERR) f_coll = FRACT_FLOAT_ERR;
             }
             
-            ST_over_PS = mean_f_coll_st/f_coll;
+            ST_over_PS = mean_f_coll/f_coll;
             
             //////////////////////////////  MAIN LOOP THROUGH THE BOX ///////////////////////////////////
             // now lets scroll through the filtered box

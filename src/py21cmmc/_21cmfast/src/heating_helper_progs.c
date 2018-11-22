@@ -857,7 +857,8 @@ double tauX_integrand_approx(double zhat, void *params){
     if (flag_options_hf->USE_MASS_DEPENDENT_ZETA) {
         redshift_int_fcollz = (int)floor( ( zhat - determine_zpp_min )/zpp_bin_width );
         redshift_table_fcollz = determine_zpp_min + zpp_bin_width*(float)redshift_int_fcollz;
-        fcoll = Fcollz_val[redshift_int_fcollz] + ( zhat - redshift_table_fcollz )*( Fcollz_val[redshift_int_fcollz+1] - Fcollz_val[redshift_int_fcollz] )/(zpp_bin_width);
+//        fcoll = Fcollz_val[redshift_int_fcollz] + ( zhat - redshift_table_fcollz )*( Fcollz_val[redshift_int_fcollz+1] - Fcollz_val[redshift_int_fcollz] )/(zpp_bin_width);
+        fcoll = Nion_z_val[redshift_int_fcollz] + ( zhat - redshift_table_fcollz )*( Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zpp_bin_width);
         
     }
     else {
@@ -916,7 +917,8 @@ double tauX_approx(double nu, double x_e, double x_e_ave, double zp, double zpp,
             
             redshift_int_fcollz = (int)floor( ( zp - determine_zpp_min )/zpp_bin_width );
             redshift_table_fcollz = determine_zpp_min + zpp_bin_width*(float)redshift_int_fcollz;
-            fcoll = Fcollz_val[redshift_int_fcollz] + ( zp - redshift_table_fcollz )*( Fcollz_val[redshift_int_fcollz+1] - Fcollz_val[redshift_int_fcollz] )/(zpp_bin_width);
+//            fcoll = Fcollz_val[redshift_int_fcollz] + ( zp - redshift_table_fcollz )*( Fcollz_val[redshift_int_fcollz+1] - Fcollz_val[redshift_int_fcollz] )/(zpp_bin_width);
+            fcoll = Nion_z_val[redshift_int_fcollz] + ( zp - redshift_table_fcollz )*( Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zpp_bin_width);
             
             if (isnan(fcoll)) printf("In tauX_approx: zp=%.4f, fcoll=%.4e\n",zp,fcoll);
         }

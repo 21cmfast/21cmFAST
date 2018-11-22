@@ -82,13 +82,13 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     
     fcoll_int_min = fcoll_int_max = 0;
     
-    float Splined_Fcoll,Splined_Fcollzp_mean,Splined_Fcollzpp_X_mean, fcoll;
-    float redshift_table_fcollz,redshift_table_fcollz_Xray;
+    float Splined_Fcoll,Splined_Fcollzp_mean,Splined_SFRD_zpp, fcoll;
+    float redshift_table_Nion_z,redshift_table_SFRD;
     float fcoll_interp_min, fcoll_interp_bin_width, fcoll_interp_bin_width_inv, fcoll_interp_val1, fcoll_interp_val2, dens_val;
     float fcoll_interp_high_min, fcoll_interp_high_bin_width, fcoll_interp_high_bin_width_inv;
     
     int fcoll_int;
-    int redshift_int_fcollz,redshift_int_fcollz_Xray;
+    int redshift_int_Nion_z,redshift_int_SFRD;
     
     double total_time, total_time2, total_time3, total_time4;
     float M_MIN_at_zp;
@@ -121,18 +121,18 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 delNL0[i] = (float *)calloc((float)HII_TOT_NUM_PIXELS,sizeof(float));
             }
             
-            xi_SFR_Xray = calloc(NGL_SFR,sizeof(double));
-            wi_SFR_Xray = calloc(NGL_SFR,sizeof(double));
+            xi_SFR_Xray = calloc(NGL_SFR+1,sizeof(double));
+            wi_SFR_Xray = calloc(NGL_SFR+1,sizeof(double));
             
-            log10_Fcollz_SFR_Xray_low_table = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
+            log10_SFRD_z_low_table = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
             for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
-                log10_Fcollz_SFR_Xray_low_table[j] = (float *)calloc(NSFR_low,sizeof(float));
+                log10_SFRD_z_low_table[j] = (float *)calloc(NSFR_low,sizeof(float));
             }
             
-            Fcollz_SFR_Xray_high_table = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
             for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
-                Fcollz_SFR_Xray_high_table[j] = (float *)calloc(NSFR_high,sizeof(float));
+                SFRD_z_high_table[j] = (float *)calloc(NSFR_high,sizeof(float));
             }
+
             
             del_fcoll_Rct = (float *) calloc(HII_TOT_NUM_PIXELS,sizeof(float));
             
@@ -530,14 +530,13 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             
                 // generates an interpolation table for redshift
                 for (i=0; i<zpp_interp_points_SFR;i++) {
-                    //zpp_interp_table[i] = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points_SFR-1.0);
                     zpp_interp_table[i] = determine_zpp_min + zpp_bin_width*(float)i;
                 }            
                 
                 /* initialise interpolation of the mean collapse fraction for global reionization.*/
-                initialise_FgtrM_SFR_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10);
-                
-                initialise_Xray_FgtrM_SFR_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+                initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10);
+
+                initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
                 
             }
             else {
@@ -627,7 +626,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 zpp_growth[R_ct] = dicke(zpp);
             }
             
-            initialise_Xray_Fcollz_SFR_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,max_densities,zpp_growth,R_values, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+            initialise_SFRD_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,max_densities,zpp_growth,R_values, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
         }
         
         zp = redshift;
@@ -635,11 +634,11 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         
         if(flag_options->USE_MASS_DEPENDENT_ZETA) {
          
-            redshift_int_fcollz = (int)floor( ( zp - determine_zpp_min )/zpp_bin_width );
+            redshift_int_Nion_z = (int)floor( ( zp - determine_zpp_min )/zpp_bin_width );
             
-            redshift_table_fcollz = determine_zpp_min + zpp_bin_width*(float)redshift_int_fcollz;
+            redshift_table_Nion_z = determine_zpp_min + zpp_bin_width*(float)redshift_int_Nion_z;
             
-            Splined_Fcollzp_mean = Fcollz_val[redshift_int_fcollz] + ( zp - redshift_table_fcollz )*( Fcollz_val[redshift_int_fcollz+1] - Fcollz_val[redshift_int_fcollz] )/(zpp_bin_width);
+            Splined_Fcollzp_mean = Nion_z_val[redshift_int_Nion_z] + ( zp - redshift_table_Nion_z )*( Nion_z_val[redshift_int_Nion_z+1] - Nion_z_val[redshift_int_Nion_z] )/(zpp_bin_width);
             
             if ( Splined_Fcollzp_mean < 1e-15 )
                 NO_LIGHT = 1;
@@ -697,14 +696,14 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
                 // Using the interpolated values to update arrays of relevant quanties for the IGM spin temperature calculation
                 
-                redshift_int_fcollz_Xray = (int)floor( ( zpp - determine_zpp_min )/zpp_bin_width );
+                redshift_int_SFRD = (int)floor( ( zpp - determine_zpp_min )/zpp_bin_width );
                 
-                redshift_table_fcollz_Xray = determine_zpp_min + zpp_bin_width*(float)redshift_int_fcollz_Xray;
+                redshift_table_SFRD = determine_zpp_min + zpp_bin_width*(float)redshift_int_SFRD;
                 
-                Splined_Fcollzpp_X_mean = FcollzX_val[redshift_int_fcollz_Xray] + ( zpp - redshift_table_fcollz_Xray )*( FcollzX_val[redshift_int_fcollz_Xray+1] - FcollzX_val[redshift_int_fcollz_Xray] )/(zpp_bin_width);
+                Splined_SFRD_zpp = SFRD_val[redshift_int_SFRD] + ( zpp - redshift_table_SFRD )*( SFRD_val[redshift_int_SFRD+1] - SFRD_val[redshift_int_SFRD] )/(zpp_bin_width);
                 
                 ST_over_PS[R_ct] = pow(1+zpp, -astro_params->X_RAY_SPEC_INDEX)*fabs(dzpp_for_evolve);
-                ST_over_PS[R_ct] *= Splined_Fcollzpp_X_mean;
+                ST_over_PS[R_ct] *= Splined_SFRD_zpp;
                 
                 
                 SFR_timescale_factor[R_ct] = hubble(zpp)*fabs(dtdz(zpp));
@@ -906,7 +905,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                                 
                                 fcoll_int = (int)floorf( dens_val );
                                 
-                                fcoll = log10_Fcollz_SFR_Xray_low_table[R_ct][fcoll_int]*( 1 + (float)fcoll_int - dens_val ) + log10_Fcollz_SFR_Xray_low_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
+                                fcoll = log10_SFRD_z_low_table[R_ct][fcoll_int]*( 1 + (float)fcoll_int - dens_val ) + log10_SFRD_z_low_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
                                 
                                 fcoll = expf(fcoll);
                             }
@@ -919,8 +918,8 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                                 
                                 fcoll_int = (int)floorf( dens_val );
 
-                                fcoll = Fcollz_SFR_Xray_high_table[R_ct][fcoll_int]*( 1. + (float)fcoll_int - dens_val ) + Fcollz_SFR_Xray_high_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
-
+                                fcoll = SFRD_z_high_table[R_ct][fcoll_int]*( 1. + (float)fcoll_int - dens_val ) + SFRD_z_high_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
+                                
                             }
                             else {
                                 fcoll = pow(10.,10.);
@@ -932,7 +931,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                         
                     }
                 }
-                ave_fcoll /= (pow(10.,10.)*(double)HII_TOT_NUM_PIXELS);            
+                ave_fcoll /= (pow(10.,10.)*(double)HII_TOT_NUM_PIXELS);
                 
                 if(ave_fcoll!=0.) {
                     ave_fcoll_inv = 1./ave_fcoll;
