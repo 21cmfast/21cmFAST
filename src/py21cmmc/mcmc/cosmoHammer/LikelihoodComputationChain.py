@@ -65,7 +65,7 @@ class LikelihoodComputationChain(LCC):
             module.store(model, ctx.getData())
         return module.computeLikelihood(model)
 
-    def createChainContext(self, p):
+    def createChainContext(self, p={}):
         """
         Returns a new instance of a chain context
         """
