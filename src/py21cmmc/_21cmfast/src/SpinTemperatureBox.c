@@ -129,6 +129,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 log10_SFRD_z_low_table[j] = (float *)calloc(NSFR_low,sizeof(float));
             }
             
+            SFRD_z_high_table = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
             for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
                 SFRD_z_high_table[j] = (float *)calloc(NSFR_high,sizeof(float));
             }
