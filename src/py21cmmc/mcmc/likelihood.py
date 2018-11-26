@@ -1,19 +1,23 @@
 """
 A module containing (base) classes for computing 21cmFAST likelihoods under the context of CosmoHammer.
 """
-import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline
-from .._21cmfast import wrapper as lib
-from . import core
 from io import IOBase
-
 from os import path, rename
+
+import numpy as np
+from cached_property import cached_property
 from powerbox.tools import get_power
+from scipy.interpolate import InterpolatedUnivariateSpline
+
+from . import core
+from .._21cmfast import wrapper as lib
 
 np.seterr(invalid='ignore', divide='ignore')
 
 import logging
+
 logger = logging.getLogger("21CMMC")
+
 
 def ensure_iter(a):
     try:
@@ -65,38 +69,19 @@ class LikelihoodBase:
         self._check_required_cores()
 
     @property
-    def default_ctx(self):
+    def chain(self):
+        """
+        A reference to the LikelihoodComputationChain of which this Core is a part.
+        """
         try:
-            chain = self.LikelihoodComputationChain
+            return self._LikelihoodComputationChain
         except AttributeError:
-            raise core.NotSetupError
-
-        return chain.core_context()
-
-    @property
-    def default_simulated_ctx(self):
-        try:
-            chain = self.LikelihoodComputationChain
-        except AttributeError:
-            raise core.NotSetupError
-
-        return chain.core_simulated_context()
+            raise core.NotAChain
 
     @property
     def _cores(self):
         """List of all loaded cores"""
-        try:
-            return self.LikelihoodComputationChain.getCoreModules()
-        except AttributeError:
-            raise core.NotSetupError
-
-    @property
-    def _core(self):
-        "The *primary* core module (i.e. the first one that is a required core)."
-        for rc in self.required_cores:
-            for m in self._cores:
-                if isinstance(m, rc):
-                    return m
+        return self.chain.getCoreModules()
 
 
 class LikelihoodBaseFile(LikelihoodBase):
@@ -114,7 +99,7 @@ class LikelihoodBaseFile(LikelihoodBase):
         self._simulate = simulate
 
         self.data = None
-        self.noise=None
+        self.noise = None
 
     def setup(self):
         super().setup()
@@ -124,14 +109,15 @@ class LikelihoodBaseFile(LikelihoodBase):
                 raise ValueError("Either an existing datafile has to be specified, or simulate set to True.")
 
             if self._simulate:
-                simctx = self.default_simulated_ctx
+                simctx = self.chain.core_simulated_context()
 
             # Read in or simulate the data and noise.
             self.data = self.simulate(simctx) if self._simulate else self._read_data()
 
             # If we can't/won't simulate noise, and no noisefile is provided, assume no noise is necessary.
             if (hasattr(self, "define_noise") or self._simulate) or self.noisefile:
-                self.noise = self.define_noise(simctx, self.data) if (hasattr(self, "define_noise") and self._simulate) else self._read_noise()
+                self.noise = self.define_noise(simctx, self.data) if (
+                        hasattr(self, "define_noise") and self._simulate) else self._read_noise()
 
             # Now, if data has been simulated, and a file is provided, write to the file.
             if self.datafile and self._simulate:
@@ -142,11 +128,18 @@ class LikelihoodBaseFile(LikelihoodBase):
 
         logger.info("Finished base setup")
 
+    def define_noise(self):
+        """
+        Define the noise properties of the data.
+        """
+        raise AttributeError("define_noise is not implemented in this class")
+
     def _read_data(self):
         data = []
         for fl in self.datafile:
             if not path.exists(fl):
-                raise FileNotFoundError(f"Could not find datafile: {fl}. If you meant to simulate data, set simulate=True.")
+                raise FileNotFoundError(
+                    f"Could not find datafile: {fl}. If you meant to simulate data, set simulate=True.")
             else:
                 data.append(dict(**np.load(fl)))
 
@@ -170,8 +163,8 @@ class LikelihoodBaseFile(LikelihoodBase):
     def _write_data(self):
         for fl, d in zip(self.datafile, self.data):
             if path.exists(fl):
-                logger.warn(f"File {fl} already exists. Moving previous version to {fl}.bk")
-                rename(fl, fl+".bk")
+                logger.warning(f"File {fl} already exists. Moving previous version to {fl}.bk")
+                rename(fl, fl + ".bk")
 
             np.savez(fl, **d)
             logger.info(f"Saving data file: {fl}")
@@ -179,7 +172,7 @@ class LikelihoodBaseFile(LikelihoodBase):
     def _write_noise(self):
         for fl, d in zip(self.noisefile, self.noise):
             if path.exists(fl):
-                logger.warn(f"File {fl} already exists. Moving previous version to {fl}.bk")
+                logger.warning(f"File {fl} already exists. Moving previous version to {fl}.bk")
                 rename(fl, fl + ".bk")
 
             np.savez(fl, **d)
@@ -205,7 +198,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     """
     required_cores = [core.CoreCoevalModule]
 
-    def __init__(self,n_psbins=None, min_k=0.1, max_k = 1.0, logk=True, model_uncertainty=0.15,
+    def __init__(self, n_psbins=None, min_k=0.1, max_k=1.0, logk=True, model_uncertainty=0.15,
                  error_on_model=True, ignore_kperp_zero=True, ignore_kpar_zero=False, ignore_k_zero=False,
                  *args, **kwargs):
         """
@@ -268,7 +261,8 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         super().__init__(*args, **kwargs)
 
         if self.noisefile and self.datafile and len(self.datafile) != len(self.noisefile):
-            raise ValueError("If noisefile or datafile are provided, they should have the same number of files (one for each coeval box)")
+            raise ValueError(
+                "If noisefile or datafile are provided, they should have the same number of files (one for each coeval box)")
 
         self.n_psbins = n_psbins
         self.min_k = min_k
@@ -304,13 +298,18 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         self._check_data_format()
         if self.noise: self._check_noise_format()
 
-        # This needs to be first-order (linear) so that symmetry between data and model can be preserved.
-        self.data_spline = [InterpolatedUnivariateSpline(d['k'], d['delta'], k=1) for d in self.data]
+    @cached_property
+    def data_spline(self):
+        """Splines of data power spectra"""
+        return [InterpolatedUnivariateSpline(d['k'], d['delta'], k=1) for d in self.data]
 
+    @cached_property
+    def noise_spline(self):
+        """Splines of noise power spectra"""
         if self.noise:
-            self.noise_spline = [InterpolatedUnivariateSpline(n['k'], n['errs'], k=1) for n in self.noise]
+            return [InterpolatedUnivariateSpline(n['k'], n['errs'], k=1) for n in self.noise]
         else:
-            self.noise_spline = None
+            return None
 
     @staticmethod
     def compute_power(brightness_temp, L, n_psbins, log_bins=True, ignore_kperp_zero=True, ignore_kpar_zero=False,
@@ -320,16 +319,16 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         n = k_weights.shape[0]
 
         if ignore_kperp_zero:
-            k_weights[n//2, n//2, :] = 0
+            k_weights[n // 2, n // 2, :] = 0
         if ignore_kpar_zero:
-            k_weights[:,:, n//2] = 0
+            k_weights[:, :, n // 2] = 0
         if ignore_k_zero:
-            k_weights[n//2, n//2, n//2] = 0
+            k_weights[n // 2, n // 2, n // 2] = 0
 
         res = get_power(
             brightness_temp.brightness_temp,
-            boxlength = L,
-            bins=n_psbins, bin_ave=False, get_variance=False, log_bins=log_bins, k_weights = k_weights
+            boxlength=L,
+            bins=n_psbins, bin_ave=False, get_variance=False, log_bins=log_bins, k_weights=k_weights
         )
 
         res = list(res)
@@ -372,13 +371,14 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         for i, (m, pd) in enumerate(zip(model, self.data_spline)):
             mask = np.logical_and(m['k'] <= self.max_k, m['k'] >= self.min_k)
 
-            moduncert = self.model_uncertainty*pd(m['k'][mask]) if not self.error_on_model else self.model_uncertainty*m['delta'][mask]
+            moduncert = self.model_uncertainty * pd(
+                m['k'][mask]) if not self.error_on_model else self.model_uncertainty * m['delta'][mask]
 
             if self.noise_spline:
                 noise = self.noise_spline[i](m['k'][mask])
 
             # TODO: if moduncert depends on model, not data, then it should appear as -0.5 log(sigma^2) term below.
-            lnl += -0.5 * np.sum((m['delta'][mask] - pd(m['k'][mask])) ** 2 / (moduncert**2 + noise**2))
+            lnl += -0.5 * np.sum((m['delta'][mask] - pd(m['k'][mask])) ** 2 / (moduncert ** 2 + noise ** 2))
         return lnl
 
     def simulate(self, ctx):
@@ -391,14 +391,14 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 ignore_k_zero=self.ignore_k_zero, ignore_kpar_zero=self.ignore_kpar_zero,
                 ignore_kperp_zero=self.ignore_kperp_zero
             )
-            data.append({"k":k, "delta":power * k**3 / (2*np.pi**2)})
+            data.append({"k": k, "delta": power * k ** 3 / (2 * np.pi ** 2)})
 
         return data
 
     def store(self, model, storage):
         # add the power to the written data
         for i, m in enumerate(model):
-            storage.update({k+"_z%s"%self.redshift[i]:v for k,v in m.items()})
+            storage.update({k + "_z%s" % self.redshift[i]: v for k, v in m.items()})
 
 
 class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
@@ -425,15 +425,8 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
         # Check if all data is formatted correctly.
         self._check_data_format()
-        if self.noise: self._check_noise_format()
-
-        # This needs to be first-order (linear) so that symmetry between data and model can be preserved.
-        self.data_spline = [InterpolatedUnivariateSpline(d['k'], d['delta'], k=1) for d in self.data]
-
         if self.noise:
-            self.noise_spline = [InterpolatedUnivariateSpline(n['ks'], n['errs'], k=1) for n in self.noise]
-        else:
-            self.noise_spline = None
+            self._check_noise_format()
 
     @staticmethod
     def compute_power(box, length, n_psbins, log_bins=True, ignore_kperp_zero=True, ignore_kpar_zero=False,
@@ -444,15 +437,15 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         n1 = k_weights.shape[-1]
 
         if ignore_kperp_zero:
-            k_weights[n0//2, n0//2, :] = 0
+            k_weights[n0 // 2, n0 // 2, :] = 0
         if ignore_kpar_zero:
-            k_weights[:,:, n1//2] = 0
+            k_weights[:, :, n1 // 2] = 0
         if ignore_k_zero:
-            k_weights[n0//2, n0//2, n1//2] = 0
+            k_weights[n0 // 2, n0 // 2, n1 // 2] = 0
 
         res = get_power(
             box,
-            boxlength = length,
+            boxlength=length,
             bins=n_psbins, bin_ave=False, get_variance=False, log_bins=log_bins, k_weights=k_weights
         )
 
@@ -469,7 +462,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
     def simulate(self, ctx):
         brightness_temp = ctx.get("lightcone")
         data = []
-        chunk_indices = list(range(0, brightness_temp.n_slices, round(brightness_temp.n_slices/self.nchunks)))
+        chunk_indices = list(range(0, brightness_temp.n_slices, round(brightness_temp.n_slices / self.nchunks)))
 
         if len(chunk_indices) > self.nchunks:
             chunk_indices = chunk_indices[:-1]
@@ -478,24 +471,24 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
 
         for i in range(self.nchunks):
             start = chunk_indices[i]
-            end = chunk_indices[i+1]
-            chunklen = (end-start) * brightness_temp.cell_size
+            end = chunk_indices[i + 1]
+            chunklen = (end - start) * brightness_temp.cell_size
 
             power, k = self.compute_power(
-                brightness_temp.brightness_temp[:,:,start:end],
+                brightness_temp.brightness_temp[:, :, start:end],
                 (self.user_params.BOX_LEN, self.user_params.BOX_LEN, chunklen),
                 self.n_psbins, log_bins=self.logk,
                 ignore_kperp_zero=self.ignore_kperp_zero, ignore_kpar_zero=self.ignore_kpar_zero,
                 ignore_k_zero=self.ignore_k_zero
             )
-            data.append({"k":k, "delta":power * k**3 / (2*np.pi**2)})
+            data.append({"k": k, "delta": power * k ** 3 / (2 * np.pi ** 2)})
 
         return data
 
     def store(self, model, storage):
         # add the power to the written data
         for i, m in enumerate(model):
-            storage.update({k + "_%s" %i : v for k, v in m.items()})
+            storage.update({k + "_%s" % i: v for k, v in m.items()})
 
 
 class LikelihoodPlanck(LikelihoodBase):
@@ -534,22 +527,18 @@ class LikelihoodPlanck(LikelihoodBase):
         lnl : float
             The log-likelihood for the given model.
         """
-        return ((self.tau_mean - model['tau']) / self.tau_sigma)**2
+        return ((self.tau_mean - model['tau']) / self.tau_sigma) ** 2
 
     @property
     def _core(self):
-        "The core module used for the xHI global value"
-
-        if not hasattr(self, "LikelihoodComputationChain"):
-            raise AttributeError("redshifts are not available until chain has been setup")
-
+        """The core module used for the xHI global value"""
         # Try using a lightcone
-        for m in self.LikelihoodComputationChain.getCoreModules():
+        for m in self._cores():
             if isinstance(m, core.CoreLightConeModule):
                 return m
 
         # Otherwise try using a Coeval
-        for m in self.LikelihoodComputationChain.getCoreModules():
+        for m in self._cores:
             if isinstance(m, core.CoreCoevalModule):
                 return m
 
@@ -631,14 +620,25 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         self.xHI = ensure_iter(xHI)
         self.xHI_sigma = ensure_iter(xHI_sigma)
 
+        # By default, setup as if using coeval boxes.
+        self.redshifts = []  # these will become the redshifts of all coeval boxes, if that exists.
+        self._use_coeval = True
         self._require_spline = False
 
-    def setup(self):
-        self.lightcone_modules = [m for m in self.LikelihoodComputationChain.getCoreModules() if isinstance(m, core.CoreLightConeModule)]
-        self.coeval_modules = [m for m in self.LikelihoodComputationChain.getCoreModules() if isinstance(m, core.CoreCoevalModule)]
+    @property
+    def lightcone_modules(self):
+        """All lightcone core modules that are loaded."""
+        return [m for m in self._cores if isinstance(m, core.CoreLightConeModule)]
 
+    @property
+    def coeval_modules(self):
+        """All coeval core modules that are loaded."""
+        return [m for m in self._cores if isinstance(m, core.CoreCoevalModule)]
+
+    def setup(self):
         if not self.lightcone_modules + self.coeval_modules:
-            raise ValueError("LikelihoodNeutralFraction needs the CoreLightConeModule *or* CoreCoevalModule to be loaded.")
+            raise ValueError(
+                "LikelihoodNeutralFraction needs the CoreLightConeModule *or* CoreCoevalModule to be loaded.")
 
         if not self.lightcone_modules:
             # Get all unique redshifts from all coeval boxes in cores.
@@ -646,7 +646,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
 
             for z in self.redshift:
                 if z not in self.redshifts and len(self.redshifts) < 3:
-                    raise ValueError("To use LikelihoodNeutralFraction, the core must be a lightcone, or coeval with >=3 redshifts, or containing the desired redshift")
+                    raise ValueError(
+                        "To use LikelihoodNeutralFraction, the core must be a lightcone, or coeval with >=3 redshifts, or containing the desired redshift")
                 elif z not in self.redshifts:
                     self._require_spline = True
 
@@ -685,7 +686,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
         model = np.clip(model, 0, 1)
 
         if model > self.threshold:
-            return ((data - model) / sigma)**2
+            return ((data - model) / sigma) ** 2
         else:
             return 0
 
@@ -734,7 +735,7 @@ class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
             else:
                 # The QSO redshift is within the range set by the user. Can interpolate the reionisation history to
                 # obtain the neutral fraction at the QSO redshift
-                global_nf_spl = InterpolatedUnivariateSpline(redshifts, ave_nf, k=2 if len(redshifts)==3 else 3)
+                global_nf_spl = InterpolatedUnivariateSpline(redshifts, ave_nf, k=2 if len(redshifts) == 3 else 3)
 
             nf_qso = global_nf_spl(self.qso_redshift)
         else:
@@ -767,7 +768,7 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
 
     def simulate(self, ctx):
         return dict(
-            frequencies=1420./(ctx.get("lightcone").node_redshifts+1),
+            frequencies=1420. / (ctx.get("lightcone").node_redshifts + 1),
             global_signal=ctx.get("lightcone").global_brightness_temp
         )
 
@@ -777,6 +778,7 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
         """
         model_spline = InterpolatedUnivariateSpline(model['frequencies'], model['global_signal'])
 
-        lnl = -0.5 * np.sum((self.data['global_signal'] - model_spline(self.data['frequencies']))**2 / self.noise['sigma']**2)
+        lnl = -0.5 * np.sum(
+            (self.data['global_signal'] - model_spline(self.data['frequencies'])) ** 2 / self.noise['sigma'] ** 2)
 
         return lnl

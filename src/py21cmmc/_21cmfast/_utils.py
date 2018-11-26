@@ -1,13 +1,14 @@
 """
 Utilities that help with wrapping various C structures.
 """
+import glob
+import warnings
 from hashlib import md5
 from os import path
-import yaml
-import re, glob
-import numpy as np
+
 import h5py
-import warnings
+import numpy as np
+import yaml
 
 # Global Options
 with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:
@@ -16,10 +17,13 @@ with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:
 # The following is just an *empty* ffi object, which can perform certain operations which are not specific
 # to a certain library.
 from cffi import FFI
+
 _ffi = FFI()
 
 import logging
+
 logger = logging.getLogger("21CMMC")
+
 
 class StructWithDefaults:
     """
@@ -48,8 +52,9 @@ class StructWithDefaults:
     def __init__(self, *args, **kwargs):
 
         if args:
-            if len(args)>1:
-                raise TypeError("%s takes up to one position argument, %s were given"%(self.__class__.__name__, len(args)))
+            if len(args) > 1:
+                raise TypeError(
+                    "%s takes up to one position argument, %s were given" % (self.__class__.__name__, len(args)))
             elif args[0] is None:
                 pass
             elif isinstance(args[0], self.__class__):
@@ -57,10 +62,10 @@ class StructWithDefaults:
             elif isinstance(args[0], dict):
                 kwargs.update(args[0])
             else:
-                raise TypeError("optional positional argument for %s must be None, dict, or an instance of itself"%self.__class__.__name__)
+                raise TypeError(
+                    "optional positional argument for %s must be None, dict, or an instance of itself" % self.__class__.__name__)
 
         for k, v in self._defaults_.items():
-
 
             # Prefer arguments given to the constructor.
             if k in kwargs:
@@ -80,9 +85,6 @@ class StructWithDefaults:
         # A little list to hold references to strings so they don't de-reference
         self._strings = []
         self._cstruct_inited = False
-
-    def convert(self, key, val):
-        return val
 
     @property
     def _cstruct(self):
@@ -136,7 +138,7 @@ class StructWithDefaults:
                     setattr(self, "_" + k, v)
 
         if kwargs:
-            warnings.warn("The following arguments to be updated are not compatible with this class: %s"%kwargs)
+            warnings.warn("The following arguments to be updated are not compatible with this class: %s" % kwargs)
 
     def __call__(self):
         """
@@ -145,7 +147,7 @@ class StructWithDefaults:
 
         for fld in self._ffi.typeof(self._cstruct[0]).fields:
             key = fld[0]
-            val = self.convert(key, getattr(self, key))
+            val = getattr(self, key)
 
             # Find the value of this key in the current class
             if isinstance(val, str):
@@ -162,8 +164,8 @@ class StructWithDefaults:
 
     @property
     def pystruct(self):
-        "A Python dictionary containing every field which needs to be initialized in the C struct."
-        return {fld[0]:getattr(self, fld[0]) for fld in self._ffi.typeof(self._cstruct[0]).fields}
+        """A Python dictionary containing every field which needs to be initialized in the C struct."""
+        return {fld[0]: getattr(self, fld[0]) for fld in self._ffi.typeof(self._cstruct[0]).fields}
 
     @property
     def defining_dict(self):
@@ -171,39 +173,38 @@ class StructWithDefaults:
         Everything that defines the structure, but without anything that constitutes a random seed, which should be
         defined as RANDOM_SEED*
         """
-        return {k:getattr(self, k) for k in self._defaults_ if not k.startswith("RANDOM_SEED")}
+        return {k: getattr(self, k) for k in self._defaults_ if not k.startswith("RANDOM_SEED")}
 
     @property
     def self(self):
-        "Dictionary which if passed to its own constructor will yield an identical copy"
+        """Dictionary which if passed to its own constructor will yield an identical copy"""
         # Try to first use the hidden variable (eg. _RANDOM_SEED) before using the non-hidden variety.
         dct = {}
         for k in self._defaults_:
-            if hasattr(self, "_"+k):
-                dct[k] = getattr(self, "_"+k)
+            if hasattr(self, "_" + k):
+                dct[k] = getattr(self, "_" + k)
             else:
                 dct[k] = getattr(self, k)
 
         return dct
 
     def __repr__(self):
-        return self.__class__.__name__ +"(" + ", ".join(sorted([k +":" + str(v) for k,v in self.defining_dict.items()])) + ")"
+        return self.__class__.__name__ + "(" + ", ".join(
+            sorted([k + ":" + str(v) for k, v in self.defining_dict.items()])) + ")"
 
     def __eq__(self, other):
         return self.__repr__() == repr(other)
 
     def __hash__(self):
-        return hash(self.__repr__)
+        return hash(self.__repr__())
 
     def __getstate__(self):
-        return {k:v for k,v in self.__dict__.items() if k not in ["_strings", "_StructWithDefaults__cstruct"]}
+        return {k: v for k, v in self.__dict__.items() if k not in ["_strings", "_StructWithDefaults__cstruct"]}
 
 
 class OutputStruct:
-
-
     _fields_ = []
-    _name = None   # This must match the name of the C struct
+    _name = None  # This must match the name of the C struct
     _id = None
     _ffi = None
     _global_params = None
@@ -221,11 +222,11 @@ class OutputStruct:
             try:
                 setattr(self, k, kwargs.pop(k))
             except KeyError:
-                raise("%s requires the keyword argument %s"%(self.__class__.__name__, k))
+                raise ("%s requires the keyword argument %s" % (self.__class__.__name__, k))
 
         if kwargs:
-            warnings.warn("%s received the following unexpected arguments: %s"%(self.__class__.__name__, list(kwargs.keys())))
-
+            warnings.warn(
+                "%s received the following unexpected arguments: %s" % (self.__class__.__name__, list(kwargs.keys())))
 
         if init:
             self._init_cstruct()
@@ -239,6 +240,10 @@ class OutputStruct:
             self._id = self.__class__.__name__
 
         self.filled = False
+
+    def _init_arrays(self):
+        """Abstract base method for initializing any arrays that the structure has."""
+        pass
 
     @property
     def _cstruct(self):
@@ -272,17 +277,17 @@ class OutputStruct:
 
     @property
     def _pointer_fields(self):
-        "List of names of fields which have pointer type in the C struct"
+        """List of names of fields which have pointer type in the C struct"""
         return [f for f, t in self.fields if t.type.kind == "pointer"]
 
     @property
     def _primitive_fields(self):
-        "List of names of fields which have primitive type in the C struct"
+        """List of names of fields which have primitive type in the C struct"""
         return [f for f, t in self.fields if t.type.kind == "primitive"]
 
     @property
     def arrays_initialized(self):
-        "Whether all necessary arrays are initialized (this must be true before passing to a C function)."
+        """Whether all necessary arrays are initialized (this must be true before passing to a C function)."""
         # This assumes that all pointer fields will be arrays...
         for k in self._pointer_fields:
             if not hasattr(self, k):
@@ -320,7 +325,7 @@ class OutputStruct:
         return self._cstruct
 
     def _expose(self):
-        "This method exposes the non-array primitives of the ctype to the top-level object."
+        """This method exposes the non-array primitives of the ctype to the top-level object."""
         if not self.filled:
             raise Exception("You need to have actually called the C code before the primitives can be exposed.")
         for k in self._primitive_fields:
@@ -364,9 +369,6 @@ class OutputStruct:
             by the ``config.yml`` in ``.21CMMC``. This central directory will be searched in addition to whatever is
             passed to `direc`.
 
-        match_seed : bool, optional
-            Whether to force the random seed to also match in order to be considered a match.
-
         Returns
         -------
         str
@@ -390,7 +392,7 @@ class OutputStruct:
 
     def _check_parameters(self, fname):
         with h5py.File(fname, 'r') as f:
-            for k in self._inputs +["_global_params"]:
+            for k in self._inputs + ["_global_params"]:
                 q = getattr(self, k)
 
                 if isinstance(q, StructWithDefaults) or isinstance(q, _StructWrapper):
@@ -408,8 +410,10 @@ class OutputStruct:
                             # it's been matched in the filename). If not, then we don't check it anyway.
 
                             if grp.attrs[kk] != v:
-                                logger.debug("For file %s:"%fname)
-                                logger.debug("\tThough md5 and seed matched, the parameter %s did not match, with values %s and %s in file and user respectively"%(kk, grp.attrs[kk], v))
+                                logger.debug("For file %s:" % fname)
+                                logger.debug(
+                                    "\tThough md5 and seed matched, the parameter %s did not match, with values %s and %s in file and user respectively" % (
+                                        kk, grp.attrs[kk], v))
                                 return False
                 else:
                     if f.attrs[k] != q:
@@ -426,9 +430,6 @@ class OutputStruct:
             The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
             by the ``config.yml`` in ``.21CMMC``. This central directory will be searched in addition to whatever is
             passed to `direc`.
-
-        match_seed : bool, optional
-            Whether to force the random seed to also match in order to be considered a match.
         """
         return self.find_existing(direc) is not None
 
@@ -447,7 +448,7 @@ class OutputStruct:
 
         with h5py.File(self._get_fname(direc), 'w') as f:
             # Save input parameters to the file
-            for k in self._inputs +["_global_params"]:
+            for k in self._inputs + ["_global_params"]:
                 q = getattr(self, k)
 
                 if isinstance(q, StructWithDefaults) or isinstance(q, _StructWrapper):
@@ -468,7 +469,7 @@ class OutputStruct:
 
             # Go through all fields in this struct, and save
             for k in self._pointer_fields:
-                boxes.create_dataset(k, data = getattr(self, k))
+                boxes.create_dataset(k, data=getattr(self, k))
 
             for k in self._primitive_fields:
                 boxes.attrs[k] = getattr(self, k)
@@ -500,7 +501,7 @@ class OutputStruct:
             try:
                 boxes = f[self._name]
             except:
-                raise IOError("There is no group %s in the file"%self._name)
+                raise IOError("There is no group %s in the file" % self._name)
 
             # Fill our arrays.
             for k in boxes.keys():
@@ -518,14 +519,16 @@ class OutputStruct:
     def __repr__(self):
         # This is the class name and all parameters which belong to C-based input structs,
         # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
-        return self._name + "("+ "; ".join([repr(v) if isinstance(v,StructWithDefaults) else k+":"+str(v) for k,v in [(k,getattr(self, k)) for k in self._inputs]]) +")"
+        return self._name + "(" + "; ".join(
+            [repr(v) if isinstance(v, StructWithDefaults) else k + ":" + str(v) for k, v in
+             [(k, getattr(self, k)) for k in self._inputs]]) + ")"
 
     def __str__(self):
-        return self.__repr__().replace(";",";\n\t")
+        return self.__repr__().replace(";", ";\n\t")
 
     def __hash__(self):
         # the global params are here tacked on the end to ensure the hash is reconciled to them.
-        return hash(repr(self) + [k+":"+str(v) for k,v in sorted(self._global_params.items())])
+        return hash(repr(self) + ";".join([k + ":" + str(v) for k, v in sorted(self._global_params.items())]))
 
     @property
     def _md5(self):
@@ -537,11 +540,11 @@ class OutputStruct:
 
     @property
     def _fname_skeleton(self):
-        "The filename without specifying the random seed"
+        """The filename without specifying the random seed"""
         return self._name + "_" + self._md5 + "_r{seed}.h5"
 
     def __getstate__(self):
-        return {k:v for k,v in self.__dict__.items() if not isinstance(v, self._ffi.CData)}
+        return {k: v for k, v in self.__dict__.items() if not isinstance(v, self._ffi.CData)}
 
 
 class _StructWrapper:
@@ -550,7 +553,7 @@ class _StructWrapper:
         self._cobj = wrapped
         self._ffi = ffi
 
-        for nm,tp in self._ffi.typeof(self._cobj).fields:
+        for nm, tp in self._ffi.typeof(self._cobj).fields:
             setattr(self, nm, getattr(self._cobj, nm))
 
     def __setattr__(self, name, value):

@@ -5,10 +5,11 @@ The samplers in this module provide the ability to continue sampling if the samp
 Two samplers are provided -- one which works for emcee versions 3+, and one which works for the default v2. Note that
 the output file structure looks quite different for these versions.
 """
-from cosmoHammer import CosmoHammerSampler as CHS, getLogger
-import time
-import numpy as np
 import logging
+import time
+
+import numpy as np
+from cosmoHammer import CosmoHammerSampler as CHS, getLogger
 
 
 class CosmoHammerSampler(CHS):
@@ -117,17 +118,17 @@ class CosmoHammerSampler(CHS):
         """
         loads the burn in from the file system
         """
-        self.log("reusing previous burnin: %s iterations"%self.storageUtil.burnin_storage.iteration)
+        self.log("reusing previous burnin: %s iterations" % self.storageUtil.burnin_storage.iteration)
         return self.storageUtil.burnin_storage.get_last_sample()
 
     def loadSamples(self):
         """
         loads the samples from the file system
         """
-        self.log("reusing previous samples: %s iterations"%self.storageUtil.sample_storage.iteration)
+        self.log("reusing previous samples: %s iterations" % self.storageUtil.sample_storage.iteration)
         pos, prob, rstate, data = self.storageUtil.sample_storage.get_last_sample()
         if data is not None:
-            data = [{k:d[k] for k in d.dtype.names} for d in data]
+            data = [{k: d[k] for k in d.dtype.names} for d in data]
         return pos, prob, rstate, data
 
     def startSampleBurnin(self, pos=None, prob=None, rstate=None, data=None):
@@ -159,10 +160,13 @@ class CosmoHammerSampler(CHS):
 
         _lastprob = prob if prob is None else [0] * len(p0)
 
+        # Set to None in case iterations is zero.
+        pos = None
+
         for pos, prob, rstate, datas in self._sampler.sample(
-            p0,
-            iterations=niter - stg.iteration,
-            lnprob0=prob, rstate0=rstate, blobs0=datas
+                p0,
+                iterations=niter - stg.iteration,
+                lnprob0=prob, rstate0=rstate, blobs0=datas
         ):
             if self.isMaster():
                 # Need to grow the storage first
@@ -173,12 +177,12 @@ class CosmoHammerSampler(CHS):
                 if stg.size < niter:
                     stg.grow(niter - stg.size, datas[0])
 
-                self.storageUtil.persistValues(pos, prob, datas, accepted= prob != _lastprob, random_state=rstate,
+                self.storageUtil.persistValues(pos, prob, datas, accepted=prob != _lastprob, random_state=rstate,
                                                burnin=burnin)
                 if stg.iteration % 10 == 0:
                     self.log("Iteration finished:" + str(stg.iteration))
 
-                _lastprob = 1*prob
+                _lastprob = 1 * prob
 
                 if self.stopCriteriaStrategy.hasFinished():
                     break

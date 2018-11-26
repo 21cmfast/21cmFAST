@@ -32,5 +32,5 @@ def test_modified_cosmo():
     ic = wrapper.initial_conditions(cosmo_params=cosmo, regenerate=True, write=False)
 
     assert ic.cosmo_params == cosmo
-    assert ic.cosmo_params.sigma_8 == cosmo.sigma_8
+    assert ic.cosmo_params.SIGMA_8 == cosmo.SIGMA_8
 

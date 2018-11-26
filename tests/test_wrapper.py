@@ -1,10 +1,12 @@
 from py21cmmc import wrapper
 import numpy as np
 
+
 def test_initial_conditions():
+
     ic = wrapper.initial_conditions(regenerate=True, user_params=wrapper.UserParams(HII_DIM=35))
     assert len(ic.lowres_density)==ic.user_params.HII_DIM**3
-    assert np.sum(ic.lowres_density) !=0
+    assert np.sum(ic.lowres_density) != 0
 
 def test_initial_conditions2():
     ic = wrapper.initial_conditions(cosmo_params=wrapper.CosmoParams(SIGMA_8=0.8),

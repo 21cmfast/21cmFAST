@@ -116,6 +116,7 @@ setup(
         'emcee<3',
         'powerbox>=0.5.7',
         'h5py>=2.8.0',
+        'cached_property'
     ],
     entry_points={
         'console_scripts': [
