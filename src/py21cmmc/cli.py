@@ -102,10 +102,8 @@ main = click.Group()
               help="Whether to force regeneration of init/perturb files if they already exist.")
 @click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
               help="directory to write data and plots to -- must exist.")
-@click.option("--match-seed/--no-match-seed", default=False,
-              help="whether to force the random seed to also match in order to be considered a match")
 @click.pass_context
-def init(ctx, config, regen, direc, match_seed):
+def init(ctx, config, regen, direc):
     """
     Run a single iteration of 21cmFAST init, saving results to file.
     """
@@ -119,7 +117,7 @@ def init(ctx, config, regen, direc, match_seed):
 
     lib.initial_conditions(
         user_params, cosmo_params,
-        regenerate=regen, write=True, direc=direc,match_seed=match_seed
+        regenerate=regen, write=True, direc=direc,
     )
 
 
@@ -136,10 +134,8 @@ def init(ctx, config, regen, direc, match_seed):
               help="Whether to force regeneration of init/perturb files if they already exist.")
 @click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
               help="directory to write data and plots to -- must exist.")
-@click.option("--match-seed/--no-match-seed", default=False,
-              help="whether to force the random seed to also match in order to be considered a match")
 @click.pass_context
-def perturb(ctx, redshift, config, regen, direc, match_seed):
+def perturb(ctx, redshift, config, regen, direc):
     """
     Run 21cmFAST perturb_field at the specified redshift, saving results to file.
     """
@@ -153,7 +149,7 @@ def perturb(ctx, redshift, config, regen, direc, match_seed):
 
     lib.perturb_field(
         redshift, user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc, match_seed=match_seed
+        regenerate=regen, write=True, direc=direc,
     )
 
 
@@ -172,14 +168,12 @@ def perturb(ctx, redshift, config, regen, direc, match_seed):
               help="Whether to force regeneration of init/perturb files if they already exist.")
 @click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
               help="directory to write data and plots to -- must exist.")
-@click.option("--match-seed/--no-match-seed", default=False,
-              help="whether to force the random seed to also match in order to be considered a match")
 @click.option("-z", "--z-step-factor", type=float, default=inspect.signature(lib.spin_temperature).parameters['z_step_factor'].default,
               help="logarithmic steps in redshift for evolution")
 @click.option("-Z", "--z-heat-max", type=float, default=None,
               help="maximum redshift at which to search for heating sources")
 @click.pass_context
-def spin(ctx, redshift, prev_z, config, regen, direc, match_seed, z_step_factor, z_heat_max):
+def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max):
     """
     Run 21cmFAST spin_temperature at the specified redshift, saving results to file.
     """
