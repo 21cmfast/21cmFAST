@@ -9,7 +9,7 @@ import pytest
 from py21cmmc import CosmoParams  # An example of a struct with defaults
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def c():
     return CosmoParams(SIGMA_8=0.8)
 
