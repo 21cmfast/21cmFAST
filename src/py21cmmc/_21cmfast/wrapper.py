@@ -567,6 +567,14 @@ def _get_redshift(redshift, *structs):
 # ======================================================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================================================
+def electron_opticaldepth(user_params=None, cosmo_params=None, redshifts=None, global_xHI=None):
+
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+
+    # Run the C code
+    value = lib.ComputeTau(user_params(), cosmo_params(), len(redshifts), redshifts, global_xHI)
+
 def initial_conditions(user_params=None, cosmo_params=None, regenerate=False, write=True, direc=None):
     """
     Compute initial conditions.
