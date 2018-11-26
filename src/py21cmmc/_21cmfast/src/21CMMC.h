@@ -113,6 +113,8 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
                            struct TsBox *spin_temp, struct IonizedBox *ionized_box,
                            struct PerturbedField *perturb_field, struct BrightnessTemp *box);
 
+void ComputeLF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF);
+
 float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_params, int Npoints, float *redshifts, float *global_xHI);
 
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params);

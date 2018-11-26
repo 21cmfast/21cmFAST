@@ -371,7 +371,6 @@ class _OutputStructZ(_OutputStruct):
     _inputs = ['redshift', 'user_params', 'cosmo_params']
 
 
-
 class InitialConditions(_OutputStruct):
     """
     A class containing all initial conditions boxes.
@@ -574,6 +573,17 @@ def electron_opticaldepth(user_params=None, cosmo_params=None, redshifts=None, g
 
     # Run the C code
     value = lib.ComputeTau(user_params(), cosmo_params(), len(redshifts), redshifts, global_xHI)
+
+def Construct_LF(user_params=None, cosmo_params=None, astro_params=None, flag_options=None, redshifts=None):
+
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+    astro_params = AstroParams(astro_params)
+    flag_options = FlagOptions(flag_options)
+
+    # Run the C code
+    lib.ComputeLF(user_params(), cosmo_params(), astro_params(), flag_options(), len(redshifts), redshifts)
+
 
 def initial_conditions(user_params=None, cosmo_params=None, regenerate=False, write=True, direc=None):
     """

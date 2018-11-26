@@ -48,6 +48,8 @@ struct GlobalParams{
     float NU_X_BAND_MAX;
     float NU_X_MAX;
     
+    int NBINS_LF;
+    
     int P_CUTOFF;
     float M_WDM;
     float g_x;
@@ -105,6 +107,8 @@ struct GlobalParams global_params = {
     
     .NU_X_BAND_MAX = 2000.0,
     .NU_X_MAX = 10000.0,
+    
+    .NBINS_LF = 100,
     
     .P_CUTOFF = 0,
     .M_WDM = 2,

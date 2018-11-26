@@ -530,7 +530,6 @@ float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_param
     return tau;
 }
 
-
 void writeUserParams(struct UserParams *p, int print_pid){
     if(print_pid){
         printf("UserParams (pid=%d):\n", getpid());

@@ -34,6 +34,11 @@ static gsl_spline *erfc_spline;
 
 #define EPS2 3.0e-11
 
+bool initialised_ComputeLF = false;
+
+gsl_interp_accel *LF_spline_acc;
+gsl_spline *LF_spline;
+
 struct CosmoParams *cosmo_params_ps;
 struct UserParams *user_params_ps;
 struct FlagOptions *flag_options_ps;
@@ -52,6 +57,9 @@ float *xi_SFR,*wi_SFR, *xi_SFR_Xray, *wi_SFR_Xray;
 
 float *Overdense_high_table, *overdense_low_table, *log10_overdense_low_table;
 float **log10_SFRD_z_low_table, **SFRD_z_high_table;
+
+double *lnMhalo_param, *Muv_param, *log10phi, *Mhalo_param;
+
 
 double *z_val, *z_X_val, *Nion_z_val, *SFRD_val;
 
@@ -673,7 +681,6 @@ double dNdM_interp(double growthf, double M){
 }
 
 
-
 /*
  FUNCTION FgtrM_st(z, M)
  Computes the fraction of mass contained in haloes with mass > M at redshift z
@@ -1247,6 +1254,109 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC){
     printf("\n Failed to find a mass limit to regulate stellar fraction/escape fraction is between 0 and 1.\n");
     printf(" The solution does not converge or iterations are not sufficient\n");
     return -1;
+}
+
+void initialise_ComputeLF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options) {
+
+    Broadcast_struct_global_PS(user_params,cosmo_params);
+    Broadcast_struct_global_UF(user_params,cosmo_params);
+    
+    lnMhalo_param = calloc((global_params.NBINS_LF),sizeof(double));
+    Muv_param = calloc((global_params.NBINS_LF),sizeof(double));
+    log10phi = calloc((global_params.NBINS_LF),sizeof(double));
+    Mhalo_param = calloc((global_params.NBINS_LF),sizeof(double));
+    
+    LF_spline_acc = gsl_interp_accel_alloc();
+    LF_spline = gsl_spline_alloc(gsl_interp_cspline, global_params.NBINS_LF);
+    
+    init_ps();
+    
+    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+        initialiseSigmaMInterpTable(astro_params->M_TURN/50.,1e20);
+    }
+    else {
+        initialiseSigmaMInterpTable(astro_params->M_TURN,1e20);
+    }
+    
+    initialised_ComputeLF = true;
+    
+}
+
+void ComputeLF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF) {
+    
+    if(!initialised_ComputeLF) {
+        initialise_ComputeLF(user_params,cosmo_params,astro_params,flag_options);
+    }
+    
+    int i,i_z;
+    double  dlnMhalo, lnMhalo_i, SFRparam, Muv_1, Muv_2, dMuvdMhalo;
+    double Luv_over_SFR = 1./1.15/1e-28, delta_lnMhalo = 5e-6;
+
+//     Luv/SFR = 1 / 1.15 x 10^-28 [M_solar yr^-1/erg s^-1 Hz^-1]
+//     G. Sun and S. R. Furlanetto (2016) MNRAS, 417, 33
+
+    double Mhalo_min = 1e6, Mhalo_max = 1e16;
+    double Mhalo_i, lnMhalo_min, lnMhalo_max, lnMhalo_lo, lnMhalo_hi, dlnM, growthf;
+    float Mlim_Fstar,Fstar;
+    
+    Mlim_Fstar = Mass_limit_bisection((float)Mhalo_min*0.999, (float)Mhalo_max*1.001, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+    
+    lnMhalo_min = log(Mhalo_min*0.999);
+    lnMhalo_max = log(Mhalo_max*1.001);
+    dlnMhalo = (lnMhalo_max - lnMhalo_min)/(double)(global_params.NBINS_LF - 1);
+    
+    for (i_z=0; i_z<NUM_OF_REDSHIFT_FOR_LF; i_z++) {        
+        
+        growthf = dicke(z_LF[i_z]);
+        
+        for (i=0; i<global_params.NBINS_LF; i++) {
+            // generate interpolation arrays
+            lnMhalo_param[i] = lnMhalo_min + dlnMhalo*(double)i;
+            Mhalo_i = exp(lnMhalo_param[i]);
+            
+            Fstar = astro_params->F_STAR10*pow(Mhalo_i/1e10,astro_params->ALPHA_STAR);
+            if (Fstar > 1.) Fstar = 1;
+            
+            // parametrization of SFR
+            SFRparam = Mhalo_i * cosmo_params->OMb/cosmo_params->OMm * (double)Fstar * (double)(hubble(z_LF[i_z])*SperYR/astro_params->t_STAR); // units of M_solar/year
+            
+            Muv_param[i] = 51.63 - 2.5*log10(SFRparam*Luv_over_SFR); // UV magnitude
+            // except if Muv value is nan or inf, but avoid error put the value as 10.
+            if ( isinf(Muv_param[i]) || isnan(Muv_param[i]) ) Muv_param[i] = 10.;
+        }
+        
+        gsl_spline_init(LF_spline, lnMhalo_param, Muv_param, global_params.NBINS_LF);
+        
+        lnMhalo_lo = log(Mhalo_min);
+        lnMhalo_hi = log(Mhalo_max);
+        dlnM = (lnMhalo_hi - lnMhalo_lo)/(double)(global_params.NBINS_LF - 1);
+        
+        for (i=0; i<global_params.NBINS_LF; i++) {
+            // calculate luminosity function
+            lnMhalo_i = lnMhalo_lo + dlnM*(double)i;
+            Mhalo_param[i] = exp(lnMhalo_i);
+            
+            Muv_1 = gsl_spline_eval(LF_spline, lnMhalo_i - delta_lnMhalo, LF_spline_acc);
+            Muv_2 = gsl_spline_eval(LF_spline, lnMhalo_i + delta_lnMhalo, LF_spline_acc);
+            
+            dMuvdMhalo = (Muv_2 - Muv_1) / (2.*delta_lnMhalo * exp(lnMhalo_i));
+            
+            if(user_params_ps->HMF==0) {
+                log10phi[i] = log10( dNdM(z_LF[i_z], exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            }
+            if(user_params_ps->HMF==1) {
+                log10phi[i] = log10( dNdM_st_interp(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            }
+            if(user_params_ps->HMF==2) {
+                log10phi[i] = log10( dNdM_WatsonFOF(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            }
+            if(user_params_ps->HMF==3) {
+                log10phi[i] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            }
+            if (isinf(log10phi[i]) || isnan(log10phi[i]) || log10phi[i] < -30.) log10phi[i] = -30.;
+        }
+    }
+    
 }
 
 void initialiseGL_Nion_Xray(int n, float M_TURN, float M_Max){
