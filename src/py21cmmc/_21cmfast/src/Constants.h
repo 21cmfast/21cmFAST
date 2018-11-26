@@ -72,6 +72,25 @@
 #define SHETH_p (0.175) // Sheth and Tormen p parameter (from Jenkins et al. 2001)
 #define SHETH_A (0.353) // Sheth and Tormen A parameter (from Jenkins et al. 2001)
 
+// Universal FOF HMF (Watson et al. 2013)
+#define Watson_A (0.282) // Watson FOF HMF, A parameter (Watson et al. 2013)
+#define Watson_alpha (2.163) // Watson FOF HMF, alpha parameter (Watson et al. 2013)
+#define Watson_beta (1.406) // Watson FOF HMF, beta parameter (Watson et al. 2013)
+#define Watson_gamma (1.210) // Watson FOF HMF, gamma parameter (Watson et al. 2013)
+
+// Universal FOF HMF with redshift evolution (Watson et al. 2013)
+#define Watson_A_z_1 (0.990) // Watson FOF HMF, normalisation of A_z parameter (Watson et al. 2013)
+#define Watson_A_z_2 (-3.216) // Watson FOF HMF, power law of A_z parameter (Watson et al. 2013)
+#define Watson_A_z_3 (0.074) // Watson FOF HMF, offset of A_z parameter (Watson et al. 2013)
+#define Watson_alpha_z_1 (5.907) // Watson FOF HMF, normalisation of alpha_z parameter (Watson et al. 2013)
+#define Watson_alpha_z_2 (-3.058) // Watson FOF HMF, power law of alpha_z parameter (Watson et al. 2013)
+#define Watson_alpha_z_3 (2.349) // Watson FOF HMF, offset of beta_z parameter (Watson et al. 2013)
+#define Watson_beta_z_1 (3.136) // Watson FOF HMF, normalisation of beta_z parameter (Watson et al. 2013)
+#define Watson_beta_z_2 (-3.599) // Watson FOF HMF, power law of beta_z parameter (Watson et al. 2013)
+#define Watson_beta_z_3 (2.344) // Watson FOF HMF, offset of beta_z parameter (Watson et al. 2013)
+#define Watson_gamma_z (1.318) // Watson FOF HMF, gamma parameter (Watson et al. 2013)
+
+
 // CONSTANTS //
 #define LN10 (double) (2.30258509299)
 #define SIGMAT (double) (6.6524e-25)  // Thomson scattering cross section in cm^-2
@@ -134,7 +153,6 @@
 
 #define zpp_interp_points (int) (400)                  /* Number of interpolation points for the interpolation table for z'' */
 #define dens_Ninterp (int) (400)                       /* Number of interpolation points for the interpolation table for the value of the density field */
-
 
 // ----------------------------------------------------------------------------------------- //
 

@@ -28,6 +28,9 @@ struct GlobalParams{
     int HII_FILTER;
     float INITIAL_REDSHIFT;
     
+    float CRIT_DENS_TRANSITION;
+    float MIN_DENSITY_LOW_LIMIT;
+    
     int HEAT_FILTER;
     double CLUMPING_FACTOR;
     float Z_HEAT_MAX;
@@ -44,6 +47,8 @@ struct GlobalParams{
 
     float NU_X_BAND_MAX;
     float NU_X_MAX;
+    
+    int NBINS_LF;
     
     int P_CUTOFF;
     float M_WDM;
@@ -72,7 +77,7 @@ struct GlobalParams global_params = {
     .SECOND_ORDER_LPT_CORRECTIONS = 1,
     .HII_ROUND_ERR = 1e-3,
     .FIND_BUBBLE_ALGORITHM = 2,
-    .N_POISSON = -1,
+    .N_POISSON = 5,
     .T_USE_VELOCITIES = 1,
     .MAX_DVDR = 0.2,
 //    .DIMENSIONAL_T_POWER_SPEC = 1,
@@ -82,6 +87,9 @@ struct GlobalParams global_params = {
 //    .DELTA_CRIT_MODE = 1,
     .HII_FILTER = 1,
     .INITIAL_REDSHIFT = 300.,
+    
+    .CRIT_DENS_TRANSITION = 1.5,
+    .MIN_DENSITY_LOW_LIMIT = 9e-8,
     
     .HEAT_FILTER = 0,
     .CLUMPING_FACTOR = 2.,
@@ -93,12 +101,14 @@ struct GlobalParams global_params = {
     .XION_at_Z_HEAT_MAX = -1,
 //    .Ts_verbose = 1,
     .Pop = 2,
-    .Pop2_ion = 4361,
+    .Pop2_ion = 5000,
     .Pop3_ion = 44021,
 //    .DEBUG_ON = 0,
     
     .NU_X_BAND_MAX = 2000.0,
     .NU_X_MAX = 10000.0,
+    
+    .NBINS_LF = 100,
     
     .P_CUTOFF = 0,
     .M_WDM = 2,

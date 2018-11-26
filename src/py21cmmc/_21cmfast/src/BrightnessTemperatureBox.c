@@ -11,15 +11,7 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
     
-//    printf("EFF_FACTOR_PL_INDEX = %e HII_EFF_FACTOR = %e R_BUBBLE_MAX = %e ION_Tvir_MIN = %e L_X = %e\n",astro_params->EFF_FACTOR_PL_INDEX,astro_params->HII_EFF_FACTOR,
-//           astro_params->R_BUBBLE_MAX,astro_params->ION_Tvir_MIN,astro_params->L_X);
-//    printf("NU_X_THRESH = %e X_RAY_SPEC_INDEX = %e X_RAY_Tvir_MIN = %e\n",astro_params->NU_X_THRESH,astro_params->X_RAY_SPEC_INDEX,astro_params->X_RAY_Tvir_MIN);
-//    printf("F_STAR = %e t_STAR = %e N_RSD_STEPS = %d\n",astro_params->F_STAR,astro_params->t_STAR,astro_params->N_RSD_STEPS);
-//   
-//    printf("NU_X_BAND_MAX = %e NU_X_MAX = %e\n",global_params.NU_X_BAND_MAX,global_params.NU_X_MAX);
-//    printf("Z_HEAT_MAX = %e ZPRIME_STEP_FACTOR = %e\n",global_params.Z_HEAT_MAX,global_params.ZPRIME_STEP_FACTOR);
-//    
-//    printf("INCLUDE_ZETA_PL = %s SUBCELL_RSD = %s INHOMO_RECO = %s\n",flag_options->INCLUDE_ZETA_PL ?"true" : "false",flag_options->SUBCELL_RSD ?"true" : "false",flag_options->INHOMO_RECO ?"true" : "false");
+    char wisdom_filename[500];
     
     double ave;
     
@@ -88,7 +80,7 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
         }
     }
     ave /= (float)HII_TOT_NUM_PIXELS;
-    
+   
     x_val1 = 0.;
     x_val2 = 1.;
     
@@ -104,9 +96,32 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
         
         memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         
-        plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_ESTIMATE);
-        fftwf_execute(plan);
-        fftwf_destroy_plan(plan);
+        if(user_params->USE_FFTW_WISDOM) {
+            // Check to see if the wisdom exists, create it if it doesn't
+            sprintf(wisdom_filename,"real_to_complex_%d.fftwf_wisdom",user_params->HII_DIM);
+            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+            }
+            else {
+                
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_PATIENT);
+                fftwf_execute(plan);
+                
+                // Store the wisdom for later use
+                fftwf_export_wisdom_to_filename(wisdom_filename);
+                
+                // copy over unfiltered box
+                memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+                
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+            }
+        }
+        else {
+            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
         
         for (n_x=0; n_x<user_params->HII_DIM; n_x++){
             if (n_x>HII_MIDDLE)
@@ -125,13 +140,63 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
                     
                     // take partial deriavative along the line of sight
                     *((fftwf_complex *) vel_gradient + HII_C_INDEX(n_x,n_y,n_z)) *= k_z*I/(float)HII_TOT_NUM_PIXELS;
+
                 }
             }
         }
         
-        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_ESTIMATE);
-        fftwf_execute(plan);
-        fftwf_destroy_plan(plan);
+        if(user_params->USE_FFTW_WISDOM) {
+            // Check to see if the wisdom exists, create it if it doesn't
+            sprintf(wisdom_filename,"complex_to_real_%d.fftwf_wisdom",user_params->HII_DIM);
+            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+            }
+            else {
+                
+                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_PATIENT);
+                fftwf_execute(plan);
+                
+                // Store the wisdom for later use
+                fftwf_export_wisdom_to_filename(wisdom_filename);
+                
+                // copy over unfiltered box
+                memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+                
+                // re-perform calculation
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+                
+                for (n_x=0; n_x<user_params->HII_DIM; n_x++){
+                    if (n_x>HII_MIDDLE)
+                        k_x =(n_x-user_params->HII_DIM) * DELTA_K;  // wrap around for FFT convention
+                    else
+                        k_x = n_x * DELTA_K;
+                    
+                    for (n_y=0; n_y<user_params->HII_DIM; n_y++){
+                        if (n_y>HII_MIDDLE)
+                            k_y =(n_y-user_params->HII_DIM) * DELTA_K;
+                        else
+                            k_y = n_y * DELTA_K;
+                        
+                        for (n_z=0; n_z<=HII_MIDDLE; n_z++){
+                            k_z = n_z * DELTA_K;
+                            
+                            // take partial deriavative along the line of sight
+                            *((fftwf_complex *) vel_gradient + HII_C_INDEX(n_x,n_y,n_z)) *= k_z*I/(float)HII_TOT_NUM_PIXELS;
+                        }
+                    }
+                }
+                
+                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+            }
+        }
+        else {
+            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
+        
         
         // now add the velocity correction to the delta_T maps (only used for T_S >> T_CMB case).
         max_v_deriv = fabs(global_params.MAX_DVDR*H);
@@ -398,8 +463,8 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
             ave /= (HII_TOT_NUM_PIXELS+0.0);
         }
     }
-
-    printf("Ave Tb = %e\n",ave);
+    
+    printf("ave Tb = %e\n",ave);
     
     free(v);
     free(vel_gradient);

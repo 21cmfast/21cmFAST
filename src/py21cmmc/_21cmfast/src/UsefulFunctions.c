@@ -432,6 +432,104 @@ double HI_ion_crosssec(double nu){
 
 
 
+/* Return the thomspon scattering optical depth from zstart to zend through fully ionized IGM.
+ The hydrogen reionization history is given by the zarry and xHarry parameters, in increasing
+ redshift order of length len.*/
+typedef struct{
+    float *z, *xH;
+    int len;
+} tau_e_params;
+double dtau_e_dz(double z, void *params){
+    float xH, xi;
+    int i=1;
+    tau_e_params p = *(tau_e_params *)params;
+    
+    if ((p.len == 0) || !(p.z)) {
+        return (1+z)*(1+z)*drdz(z);
+    }
+    else{
+        // find where we are in the redshift array
+        if (p.z[0]>z) // ionization fraction is 1 prior to start of array
+            return (1+z)*(1+z)*drdz(z);
+        while ( (i < p.len) && (p.z[i] < z) ) {i++;}
+        if (i == p.len)
+            return 0;
+        
+        // linearly interpolate in redshift
+        xH = p.xH[i-1] + (p.xH[i] - p.xH[i-1])/(p.z[i] - p.z[i-1]) * (z - p.z[i-1]);
+        /*
+         fprintf(stderr, "in taue: Interpolating between xH(%f)=%f and xH(%f)=%f to obtain xH(%f)=%f\n",
+         p.z[i-1], p.xH[i-1], p.z[i], p.xH[i], z, xH);
+         */
+        xi = 1.0-xH;
+        if (xi<0){
+            fprintf(stderr, "in taue: funny buisness xi=%e, changing to 0\n", xi);
+            xi=0;
+        }
+        if (xi>1){
+            fprintf(stderr, "in taue: funny buisness xi=%e, changing to 1\n", xi);
+            xi=1;
+        }
+        
+        return xi*(1+z)*(1+z)*drdz(z);
+    }
+}
+double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
+    double prehelium, posthelium, error;
+    gsl_function F;
+    double rel_tol  = 1e-3; //<- relative tolerance
+    gsl_integration_workspace * w
+    = gsl_integration_workspace_alloc (1000);
+    tau_e_params p;
+    
+    if (zstart >= zend){
+        fprintf(stderr, "Error in function taue! First parameter must be smaller than the second.\n");
+        return 0;
+    }
+    
+    F.function = &dtau_e_dz;
+    p.z = zarry;
+    p.xH = xHarry;
+    p.len = len;
+    F.params = &p;
+    if ((len > 0) && zarry)
+        zend = zarry[len-1] - FRACT_FLOAT_ERR;
+    
+    if (zend > global_params.Zreion_HeII){// && (zstart < Zreion_HeII)){
+        if (zstart < global_params.Zreion_HeII){
+            gsl_integration_qag (&F, global_params.Zreion_HeII, zstart, 0, rel_tol,
+                                 1000, GSL_INTEG_GAUSS61, w, &prehelium, &error);
+            gsl_integration_qag (&F, zend, global_params.Zreion_HeII, 0, rel_tol,
+                                 1000, GSL_INTEG_GAUSS61, w, &posthelium, &error);
+        }
+        else{
+            prehelium = 0;
+            gsl_integration_qag (&F, zend, zstart, 0, rel_tol,
+                                 1000, GSL_INTEG_GAUSS61, w, &posthelium, &error);
+        }
+    }
+    else{
+        posthelium = 0;
+        gsl_integration_qag (&F, zend, zstart, 0, rel_tol,
+                             1000, GSL_INTEG_GAUSS61, w, &prehelium, &error); 
+    }
+    gsl_integration_workspace_free (w);
+    
+    return SIGMAT * ( (N_b0+He_No)*prehelium + N_b0*posthelium );
+}
+
+float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_params, int NPoints, float *redshifts, float *global_xHI) {
+    
+    int i;
+    float tau;
+    
+    Broadcast_struct_global_UF(user_params,cosmo_params);
+    
+    tau = tau_e(0, redshifts[NPoints-1], redshifts, global_xHI, NPoints);
+    
+    return tau;
+}
+
 void writeUserParams(struct UserParams *p, int print_pid){
     if(print_pid){
         printf("UserParams (pid=%d):\n", getpid());
@@ -461,24 +559,34 @@ void writeCosmoParams(struct CosmoParams *p, int print_pid){
     printf("\tPOWER_INDEX: %f\n",p->POWER_INDEX);
 }
 
-void writeAstroParams(struct AstroParams *p, int print_pid){
+void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p, int print_pid){
     if(print_pid){
         printf("AstroParams (pid=%d):\n", getpid());
     }else{
         printf("AstroParams:\n", getpid());
     }
-
-    printf("\tEFF_FACTOR_PL_INDEX: %f\n",p->EFF_FACTOR_PL_INDEX);
-    printf("\tHII_EFF_FACTOR     : %f\n",p->HII_EFF_FACTOR);
+    
+    if(fo->USE_MASS_DEPENDENT_ZETA) {
+        printf("\tHII_EFF_FACTOR     : %f\n",p->HII_EFF_FACTOR);
+        printf("\tALPHA_STAR         : %f\n",p->ALPHA_STAR);
+        printf("\tF_ESC10            : %f\n",p->F_ESC10);
+        printf("\tALPHA_ESC          : %f\n",p->ALPHA_ESC);
+        printf("\tM_TURN             : %f\n",p->M_TURN);
+        
+    }
+    else {
+        printf("\tHII_EFF_FACTOR     : %f\n",p->HII_EFF_FACTOR);
+        printf("\tION_Tvir_MIN       : %f\n",p->ION_Tvir_MIN);
+        printf("\tX_RAY_Tvir_MIN     : %f\n",p->X_RAY_Tvir_MIN);
+    }
     printf("\tR_BUBBLE_MAX       : %f\n",p->R_BUBBLE_MAX);
-    printf("\tION_Tvir_MIN       : %f\n",p->ION_Tvir_MIN);
     printf("\tL_X                : %f\n",p->L_X);
     printf("\tNU_X_THRESH        : %f\n",p->NU_X_THRESH);
     printf("\tX_RAY_SPEC_INDEX   : %f\n",p->X_RAY_SPEC_INDEX);
-    printf("\tX_RAY_Tvir_MIN     : %f\n",p->X_RAY_Tvir_MIN);
-    printf("\tF_STAR             : %f\n",p->F_STAR);
+    printf("\tF_STAR10           : %f\n",p->F_STAR10);
     printf("\tt_STAR             : %f\n",p->t_STAR);
     printf("\tN_RSD_STEPS        : %d\n",p->N_RSD_STEPS);
+    
 }
 
 void writeFlagOptions(struct FlagOptions *p, int print_pid){

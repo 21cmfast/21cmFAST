@@ -152,6 +152,7 @@ class CosmoParams(StructWithDefaults):
 
     POWER_INDEX : float, optional
         Spectral index of the power spectrum.
+
     """
     _ffi = ffi
 
@@ -161,7 +162,7 @@ class CosmoParams(StructWithDefaults):
         hlittle=Planck15.h,
         OMm=Planck15.Om0,
         OMb=Planck15.Ob0,
-        POWER_INDEX=0.97
+        POWER_INDEX=0.97,
     )
 
     @property
@@ -209,6 +210,14 @@ class UserParams(StructWithDefaults):
 
     BOX_LEN : float, optional
         Length of the box, in Mpc.
+
+    HMF: int, optional
+        Determines which halo mass function to be used for the normalisation of the collapsed fraction:
+        0: Press-Schechter
+        1: Sheth-Tormen
+        2: Watson FOF
+        3: Watson FOF-z
+
     """
     _ffi = ffi
 
@@ -217,6 +226,7 @@ class UserParams(StructWithDefaults):
         DIM=None,
         HII_DIM=50,
         USE_FFTW_WISDOM=False,
+        HMF=1,
     )
 
     @property
@@ -249,9 +259,13 @@ class AstroParams(StructWithDefaults):
     ----------
     INHOMO_RECO : bool, optional
         Whether inhomogeneous recombinations are being calculated. This is not a part of the astro parameters structure,
-        but is required by this class to set some default behaviour.
-    EFF_FACTOR_PL_INDEX : float, optional
+        but is required by this class to set some default behaviour.    
     HII_EFF_FACTOR : float, optional
+    F_STAR10 : float, optional
+    ALPHA_STAR : float, optional
+    F_ESC10 : float, optional
+    ALPHA_ESC : float, optional
+    M_TURN : float, optional
     R_BUBBLE_MAX : float, optional
         Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
     ION_Tvir_MIN : float, optional
@@ -260,23 +274,25 @@ class AstroParams(StructWithDefaults):
     X_RAY_SPEC_INDEX : float, optional
     X_RAY_Tvir_MIN : float, optional
         Default is `ION_Tvir_MIN`.
-    F_STAR : float, optional
     t_STAR : float, optional
     N_RSD_STEPS : float, optional
     """
 
     _ffi = ffi
 
-    _defaults_ = dict(
-        EFF_FACTOR_PL_INDEX=0.0,
+    _defaults_ = dict(        
         HII_EFF_FACTOR=30.0,
+        F_STAR10=-1.3,
+        ALPHA_STAR=0.5,
+        F_ESC10=-1.,
+        ALPHA_ESC=-0.5,
+        M_TURN=8.7,
         R_BUBBLE_MAX=None,
         ION_Tvir_MIN=4.69897,
         L_X=40.0,
         NU_X_THRESH=500.0,
         X_RAY_SPEC_INDEX=1.0,
-        X_RAY_Tvir_MIN=None,
-        F_STAR=0.05,
+        X_RAY_Tvir_MIN=None,        
         t_STAR=0.5,
         N_RSD_STEPS=20,
     )
@@ -287,7 +303,7 @@ class AstroParams(StructWithDefaults):
         super().__init__(*args, **kwargs)
 
     def convert(self, key, val):
-        if key in ['ION_Tvir_MIN', "L_X", "X_RAY_Tvir_MIN"]:
+        if key in ['F_STAR10','F_ESC10','M_TURN','ION_Tvir_MIN', "L_X", "X_RAY_Tvir_MIN"]:
             return 10 ** val
         else:
             return val
@@ -353,7 +369,6 @@ class _OutputStruct(_OS):
 
 class _OutputStructZ(_OutputStruct):
     _inputs = ['redshift', 'user_params', 'cosmo_params']
-
 
 
 class InitialConditions(_OutputStruct):
@@ -517,6 +532,7 @@ def _check_compatible_inputs(*datasets, ignore_redshift=False):
                         continue
 
                     if inp in d2._inputs and getattr(d, inp) != getattr(d2, inp):
+                        print("%s and %s are incompatible"%(d.__class__.__name__, d2.__class__.__name__))
                         raise ValueError("%s and %s are incompatible" % (d.__class__.__name__, d2.__class__.__name__))
                 done += [inp]
 
@@ -550,6 +566,25 @@ def _get_redshift(redshift, *structs):
 # ======================================================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================================================
+def electron_opticaldepth(user_params=None, cosmo_params=None, redshifts=None, global_xHI=None):
+
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+
+    # Run the C code
+    value = lib.ComputeTau(user_params(), cosmo_params(), len(redshifts), redshifts, global_xHI)
+
+def Construct_LF(user_params=None, cosmo_params=None, astro_params=None, flag_options=None, redshifts=None):
+
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+    astro_params = AstroParams(astro_params)
+    flag_options = FlagOptions(flag_options)
+
+    # Run the C code
+    lib.ComputeLF(user_params(), cosmo_params(), astro_params(), flag_options(), len(redshifts), redshifts)
+
+
 def initial_conditions(user_params=None, cosmo_params=None, regenerate=False, write=True, direc=None):
     """
     Compute initial conditions.
@@ -878,7 +913,7 @@ def ionize_box(astro_params=None, flag_options=None,
             return box
         except IOError:
             pass
-
+    
     # EVERYTHING PAST THIS POINT ONLY HAPPENS IF THE BOX DOESN'T ALREADY EXIST
     # ------------------------------------------------------------------------
     # Get the previous redshift
@@ -951,7 +986,7 @@ def ionize_box(astro_params=None, flag_options=None,
             init_boxes=init_boxes,
             direc=direc, write=write, regenerate=regenerate
         )
-
+    
     # Run the C Code
     lib.ComputeIonizedBox(redshift, previous_ionize_box.redshift, box.user_params(),
                           box.cosmo_params(),
@@ -1128,9 +1163,10 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             return box
         except IOError:
             pass
-
+    
     # EVERYTHING PAST THIS POINT ONLY HAPPENS IF THE BOX DOESN'T ALREADY EXIST
     # ------------------------------------------------------------------------
+
     # Get the previous redshift
     if previous_spin_temp is not None:
         if hasattr(previous_spin_temp, "redshift"):
@@ -1158,7 +1194,7 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
 
         # Need to update random seed
         box.cosmo_params.update(RANDOM_SEED = init_boxes.cosmo_params.RANDOM_SEED)
-
+    
     # Create appropriate previous_spin_temp
     if not isinstance(previous_spin_temp, TsBox):
         if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
@@ -1178,10 +1214,14 @@ def spin_temperature(astro_params=None, flag_options=FlagOptions(), redshift=Non
             init_boxes=init_boxes,
             regenerate=regenerate, write=write, direc=direc,
         )
+    
+    if previous_spin_temp is None:
+        previous_spin_temp = TsBox(redshift=0)        
 
     # Run the C Code
     lib.ComputeTsBox(redshift, previous_spin_temp.redshift, box.user_params(),
-                     box.cosmo_params(), box.astro_params(), perturbed_field.redshift, perturbed_field(),
+                     box.cosmo_params(), box.astro_params(), box.flag_options(),
+                     perturbed_field.redshift, perturbed_field(),
                      previous_spin_temp(), box())
     box.filled = True
     box._expose()
@@ -1313,6 +1353,7 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
     regenerate, write, direc:
         See docs of :func:`initial_conditions` for more information.
     """
+
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
 
@@ -1368,7 +1409,7 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
                 astro_params=astro_params, flag_options=flag_options,
                 regenerate=regenerate,
                 init_boxes=init_box,
-                write=write, direc=direc, z_heat_max=global_params.Z_HEAT_MAX, z_step_factor=z_step_factor
+                write=write, direc=direc, z_heat_max=global_params.Z_HEAT_MAX, z_step_factor=z_step_factor                
             )
 
             if z not in redshift:
@@ -1380,10 +1421,10 @@ def run_coeval(redshift=None, user_params=UserParams(), cosmo_params=CosmoParams
             perturbed_field=perturb[redshift.index(z)] if z in redshift else None, # perturb field *not* interpolated here.
             astro_params=astro_params, flag_options=flag_options,
             spin_temp=st2 if do_spin_temp else None,
-            regenerate=regenerate,z_heat_max=global_params.Z_HEAT_MAX, z_step_factor=z_step_factor,
+            regenerate=regenerate,z_heat_max=global_params.Z_HEAT_MAX,
             write=write, direc=direc,
         )
-
+        
         if z not in redshift:
             ib = ib2
         else:

@@ -1,4 +1,3 @@
-//#include "21CMMC.h"
 
 /*** Some usefull math macros ***/
 #define SIGN(a,b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
@@ -19,13 +18,13 @@ static gsl_spline *erfc_spline;
 
 #define NGaussLegendre 40  //defines the number of points in the Gauss-Legendre quadrature integration
 
-#define SPLINE_NPTS (int) 250
-#define NGLhigh 100
-#define NGLlow 100
-
-#define Nhigh 200
-#define Nlow 100
 #define NMass 200
+
+#define NSFR_high 200
+#define NSFR_low 250
+#define NGL_SFR 100
+
+#define zpp_interp_points_SFR (int) (300)
 
 #define NR_END 1
 #define FREE_ARG char*
@@ -35,55 +34,80 @@ static gsl_spline *erfc_spline;
 
 #define EPS2 3.0e-11
 
-static double Fcoll_spline_params[SPLINE_NPTS], log_Fcoll_spline_table[SPLINE_NPTS];
-static gsl_interp_accel *Fcoll_spline_acc;
-static gsl_spline *Fcoll_spline;
+bool initialised_ComputeLF = false;
 
-struct parameters_gsl_int_{
-    double z_obs;
-    double Mval;
-    double M_Feed;
-    double alpha_pl;
-    double del_traj_1;
-    double del_traj_2;
-};
-
-struct parameters_gsl_ST_int_{
-    double z_obs;
-    double M_Feed;
-    double alpha_pl;
-};
+gsl_interp_accel *LF_spline_acc;
+gsl_spline *LF_spline;
 
 struct CosmoParams *cosmo_params_ps;
+struct UserParams *user_params_ps;
+struct FlagOptions *flag_options_ps;
 
 double sigma_norm, R, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_nu, f_baryon, beta_c, d2fact, R_CUTOFF, DEL_CURR, SIG_CURR;
 
-
-
-double FgtrlnM_general(double lnM, void *params);
-double FgtrM_general(float z, float M1, float M_Max, float M2, float MFeedback, float alpha, float delta1, float delta2);
-
-float FgtrConditionalM_second(float z, float M1, float M2, float MFeedback, float alpha, float delta1, float delta2);
-float dNdM_conditional_second(float z, float M1, float M2, float delta1, float delta2);
-
-float FgtrConditionallnM(float M1, struct parameters_gsl_int_ parameters_gsl_int);
-float GaussLegengreQuad_Fcoll(int n, float z, float M2, float MFeedback, float alpha, float delta1, float delta2);
-
-float *Overdense_spline_gsl,*Overdense_spline_GL_high,*Fcoll_spline_gsl,*Fcoll_spline_GL_high,*xi_low,*xi_high,*wi_high,*wi_low;
-float *second_derivs_low_GL,*second_derivs_high_GL,*Overdense_spline_GL_low,*Fcoll_spline_GL_low;
-
-float *Mass_Spline, *Sigma_Spline, *dSigmadm_Spline, *second_derivs_sigma, *second_derivs_dsigma;
-
-void initialiseSplinedSigmaM(float M_Min, float M_Max);
-void initialiseGL_Fcoll(int n_low, int n_high, float M_Min, float M_Max);
-void initialiseGL_FcollDblPl(int n_low, int n_high, float M_Min, float M_feedback, float M_Max);
-void initialiseFcoll_spline(float z, float Mmin, float Mmax, float Mval, float MFeedback, float alphapl);
-
-double dFdlnM_st_PL (double lnM, void *params);
-double FgtrM_st_PL(double z, double Mmin, double MFeedback, double alpha_pl);
+float MinMass, mass_bin_width, inv_mass_bin_width;
 
 double sigmaparam_FgtrM_bias(float z, float sigsmallR, float del_bias, float sig_bias);
 
+float *Mass_InterpTable, *Sigma_InterpTable, *dSigmadm_InterpTable;
+
+float *log10_overdense_spline_SFR, *log10_Nion_spline, *Overdense_spline_SFR, *Nion_spline;
+
+float *xi_SFR,*wi_SFR, *xi_SFR_Xray, *wi_SFR_Xray;
+
+float *Overdense_high_table, *overdense_low_table, *log10_overdense_low_table;
+float **log10_SFRD_z_low_table, **SFRD_z_high_table;
+
+double *lnMhalo_param, *Muv_param, *log10phi, *Mhalo_param;
+
+
+double *z_val, *z_X_val, *Nion_z_val, *SFRD_val;
+
+void initialiseSigmaMInterpTable(float M_Min, float M_Max);
+void initialiseGL_Nion(int n, float M_TURN, float M_Max);
+void initialiseGL_Nion_Xray(int n, float M_TURN, float M_Max);
+
+float Mass_limit (float logM, float PL, float FRAC);
+void bisection(float *x, float xlow, float xup, int *iter);
+float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC);
+
+float dNdM_conditional(float growthf, float M1, float M2, float delta1, float delta2, float sigma2);
+double dNion_ConditionallnM(double lnM, void *params);
+double Nion_ConditionalM(double growthf, double M1, double M2, double sigma2, double delta1, double delta2, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar, double Mlim_Fesc);
+
+float GaussLegendreQuad_Nion(int Type, int n, float growthf, float M2, float sigma2, float delta1, float delta2, float MassTurnover, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc);
+
+struct parameters_gsl_FgtrM_int_{
+    double z_obs;
+    double gf_obs;
+};
+
+struct parameters_gsl_SFR_General_int_{
+    double z_obs;
+    double gf_obs;
+    double Mdrop;
+    double pl_star;
+    double pl_esc;
+    double frac_star;
+    double frac_esc;
+    double LimitMass_Fstar;
+    double LimitMass_Fesc;
+};
+
+struct parameters_gsl_SFR_con_int_{
+    double gf_obs;
+    double Mval;
+    double sigma2;
+    double delta1;
+    double delta2;
+    double Mdrop;
+    double pl_star;
+    double pl_esc;
+    double frac_star;
+    double frac_esc;
+    double LimitMass_Fstar;
+    double LimitMass_Fesc;
+};
 
 unsigned long *lvector(long nl, long nh);
 void free_lvector(unsigned long *v, long nl, long nh);
@@ -105,18 +129,19 @@ void TFset_parameters();
 
 double FgtrM(double z, double M);
 double FgtrM_st(double z, double M);
+double FgtrM_Watson(double growthf, double M);
+double FgtrM_Watson_z(double z, double growthf, double M);
+double FgtrM_General(double z, double M);
 
 float erfcc(float x);
 double splined_erfc(double x);
 
 double M_J_WDM();
 
-
-
-
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params){
  
     cosmo_params_ps = cosmo_params;
+    user_params_ps = user_params;
 }
 
 // FUNCTION sigma_z0(M)
@@ -138,11 +163,9 @@ double dsigma_dk(double k, void *params){
     // get the power spectrum.. choice of 5:
     if (global_params.POWER_SPECTRUM == 0){ // Eisenstein & Hu
         T = TFmdm(k);
-//        printf("T = %e\n",T);
         // check if we should cuttoff power spectrum according to Bode et al. 2000 transfer function
         if (global_params.P_CUTOFF) T *= pow(1 + pow(BODE_e*k*R_CUTOFF, 2*BODE_v), -BODE_n/BODE_v);
         p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
-//        printf("p = %e k = %e INDEX = %e T = %e\n",p,k,cosmo_params_ps->POWER_INDEX,T);
     }
     else if (global_params.POWER_SPECTRUM == 1){ // BBKS
         gamma = cosmo_params_ps->OMm * cosmo_params_ps->hlittle * pow(E, -(cosmo_params_ps->OMb) - (cosmo_params_ps->OMb/cosmo_params_ps->OMm));
@@ -191,7 +214,6 @@ double dsigma_dk(double k, void *params){
         fprintf(stderr, "No such filter: %i\nOutput is bogus.\n", global_params.FILTER);
         w=0;
     }
-//    printf("k = %e p = %e w = %e\n",k,p,w);
     return k*k*p*w*w;
 }
 double sigma_z0(double M){
@@ -215,7 +237,6 @@ double sigma_z0(double M){
     //    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS41, w, &result, &error);
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
     gsl_integration_workspace_free (w);
-//    printf("sigma_norm = %e\n",sigma_norm);
     return sigma_norm * sqrt(result);
 }
 
@@ -232,11 +253,6 @@ double TFmdm(double k){
     q_nu = 3.92*q/sqrt(f_nu/N_nu);
     TF_m *= 1.0 + (1.2*pow(f_nu,0.64)*pow(N_nu,0.3+0.6*f_nu)) /
     (pow(q_nu,-1.6)+pow(q_nu,0.8));
-    
-    //   printf("%f  %e  %f  %f  %f  %f\n",omhh,f_nu,f_baryon,N_nu,y_d,alpha_nu);
-    // printf("%f  %f  %f  %f\n", beta_c,sound_horizon,theta_cmb,z_equality);
-    //printf("%f  %e  %f  %f  %f\n\n",q, k, gamma_eff, q_nu, TF_m);
-    
     
     return TF_m;
 }
@@ -456,7 +472,6 @@ double dsigmasq_dm(double k, void *params){
         w=0;
     }
     
-    //  printf("%e\t%e\t%e\t%e\t%e\t%e\t%e\n", k, R, p, w, dwdr, drdm, dsigmadk[1]);
     return k*k*p*2*w*dwdr*drdm * d2fact;
 }
 double dsigmasqdm_z0(double M){
@@ -503,11 +518,116 @@ double dNdM_st(double z, double M){
     sigma = sigma_z0(M) * dicke_growth;
     dsigmadm = dsigmasqdm_z0(M) * dicke_growth*dicke_growth/(2.0*sigma);
     nuhat = sqrt(SHETH_a) * Deltac / sigma;
-//    printf("z = %e M = %e gf = %e sigma = %e sigma_z0 = %e dsigmasqdm_z0 = %e dsigmadm = %e nuhat = %e\n",z,M,dicke_growth,sigma_z0(M),sigma,dsigmasqdm_z0(M),dsigmadm,nuhat);
-//    printf("1 = %e 2 = %e 3 = %e 4 = %e 5 = %e\n",(-(cosmo_params_ps->OMm)*RHOcrit/M),(dsigmadm/sigma),sqrt(2/PI)*SHETH_A,(1+ pow(nuhat, -2*SHETH_p)),pow(E, -nuhat*nuhat/2.0));
-    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * sqrt(2/PI)*SHETH_A * (1+ pow(nuhat, -2*SHETH_p)) * nuhat * pow(E, -nuhat*nuhat/2.0);
+
+    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * sqrt(2./PI)*SHETH_A * (1+ pow(nuhat, -2*SHETH_p)) * nuhat * pow(E, -nuhat*nuhat/2.0);
 }
 
+/*
+ FUNCTION dNdM_st_interp(z, M)
+ Computes the Press_schechter mass function with Sheth-Torman correction for ellipsoidal collapse at
+ redshift z, and dark matter halo mass M (in solar masses).
+ 
+ Uses interpolated sigma and dsigmadm to be computed faster. Necessary for mass-dependent ionising efficiencies.
+ 
+ The return value is the number density per unit mass of halos in the mass range M to M+dM in units of:
+ comoving Mpc^-3 Msun^-1
+ 
+ Reference: Sheth, Mo, Torman 2001
+ */
+double dNdM_st_interp(double growthf, double M){
+    
+    double sigma, dsigmadm, nuhat;
+    
+    float MassBinLow;
+    int MassBin;
+    
+    MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
+    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    
+    sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    sigma = sigma * growthf;
+    
+    dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+    dsigmadm = -pow(10.,dsigmadm);
+    dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
+
+    nuhat = sqrt(SHETH_a) * Deltac / sigma;
+    
+    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * sqrt(2./PI)*SHETH_A * (1+ pow(nuhat, -2*SHETH_p)) * nuhat * pow(E, -nuhat*nuhat/2.0);
+}
+
+/*
+ FUNCTION dNdM_WatsonFOF(z, M)
+ Computes the Press_schechter mass function with Warren et al. 2011 correction for ellipsoidal collapse at
+ redshift z, and dark matter halo mass M (in solar masses).
+ 
+ The Universial FOF function (Eq. 12) of Watson et al. 2013
+ 
+ The return value is the number density per unit mass of halos in the mass range M to M+dM in units of:
+ comoving Mpc^-3 Msun^-1
+ 
+ Reference: Watson et al. 2013
+ */
+double dNdM_WatsonFOF(double growthf, double M){
+
+    double sigma, dsigmadm, f_sigma;
+    
+    float MassBinLow;
+    int MassBin;
+    
+    MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
+    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    
+    sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    sigma = sigma * growthf;
+    
+    dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+    dsigmadm = -pow(10.,dsigmadm);
+    dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
+    
+    f_sigma = Watson_A * ( pow( Watson_beta/sigma, Watson_alpha) + 1. ) * exp( - Watson_gamma/(sigma*sigma) );
+    
+    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * f_sigma;
+}
+
+/*
+ FUNCTION dNdM_WatsonFOF_z(z, M)
+ Computes the Press_schechter mass function with Warren et al. 2011 correction for ellipsoidal collapse at
+ redshift z, and dark matter halo mass M (in solar masses).
+ 
+ The Universial FOF function, with redshift evolution (Eq. 12 - 15) of Watson et al. 2013.
+ 
+ The return value is the number density per unit mass of halos in the mass range M to M+dM in units of:
+ comoving Mpc^-3 Msun^-1
+ 
+ Reference: Watson et al. 2013
+ */
+double dNdM_WatsonFOF_z(double z, double growthf, double M){
+    
+    double sigma, dsigmadm, A_z, alpha_z, beta_z, Omega_m_z, f_sigma;
+    float MassBinLow;
+    int MassBin;
+    
+    MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
+    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+
+    sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    sigma = sigma * growthf;
+    
+    dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+    dsigmadm = -pow(10.,dsigmadm);
+    dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
+    
+    Omega_m_z = (cosmo_params_ps->OMm)*pow(1.+z,3.) / ( (cosmo_params_ps->OMl) + (cosmo_params_ps->OMm)*pow(1.+z,3.) + (global_params.OMr)*pow(1.+z,4.) );
+    
+    A_z = Omega_m_z * ( Watson_A_z_1 * pow(1. + z, Watson_A_z_2 ) + Watson_A_z_3 );
+    alpha_z = Omega_m_z * ( Watson_alpha_z_1 * pow(1.+z, Watson_alpha_z_2 ) + Watson_alpha_z_3 );
+    beta_z = Omega_m_z * ( Watson_beta_z_1 * pow(1.+z, Watson_beta_z_2 ) + Watson_beta_z_3 );
+    
+    f_sigma = A_z * ( pow(beta_z/sigma, alpha_z) + 1. ) * exp( - Watson_gamma_z/(sigma*sigma) );
+    
+    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * f_sigma;
+}
 
 
 /*
@@ -525,12 +645,40 @@ double dNdM(double z, double M){
     
     dicke_growth = dicke(z);
     sigma = sigma_z0(M) * dicke_growth;
-    dsigmadm = dsigmasqdm_z0(M) * (dicke_growth*dicke_growth/(2*sigma));
+    dsigmadm = dsigmasqdm_z0(M) * (dicke_growth*dicke_growth/(2.*sigma));
     
     return (-(cosmo_params_ps->OMm)*RHOcrit/M) * sqrt(2/PI) * (Deltac/(sigma*sigma)) * dsigmadm * pow(E, -(Deltac*Deltac)/(2*sigma*sigma));
 }
 
-
+/*
+ FUNCTION dNdM_interp(z, M)
+ Computes the Press_schechter mass function at
+ redshift z, and dark matter halo mass M (in solar masses).
+ 
+ Uses interpolated sigma and dsigmadm to be computed faster. Necessary for mass-dependent ionising efficiencies.
+ 
+ The return value is the number density per unit mass of halos in the mass range M to M+dM in units of:
+ comoving Mpc^-3 Msun^-1
+ 
+ Reference: Padmanabhan, pg. 214
+ */
+double dNdM_interp(double growthf, double M){
+    double sigma, dsigmadm;
+    float MassBinLow;
+    int MassBin;
+    
+    MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
+    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    
+    sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    sigma = sigma * growthf;
+    
+    dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+    dsigmadm = -pow(10.,dsigmadm);
+    dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
+    
+    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * sqrt(2/PI) * (Deltac/(sigma*sigma)) * dsigmadm * pow(E, -(Deltac*Deltac)/(2*sigma*sigma));
+}
 
 
 /*
@@ -538,34 +686,30 @@ double dNdM(double z, double M){
  Computes the fraction of mass contained in haloes with mass > M at redshift z
  Uses Sheth-Torman correction
  */
-double dFdlnM_st (double lnM, void *params){
-    double z = *(double *)params;
-    double M = exp(lnM);
-//        printf("z = %e M = %e dNdM_st(z, M) = %e\n",z,M,dNdM_st(z, M));
-    return dNdM_st(z, M) * M * M;
-}
-double FgtrM_st(double z, double M){
-    double result, error, lower_limit, upper_limit;
-    gsl_function F;
-    double rel_tol  = 0.001; //<- relative tolerance
-    gsl_integration_workspace * w
-    = gsl_integration_workspace_alloc (1000);
-    
-    F.function = &dFdlnM_st;
-    F.params = &z;
-    lower_limit = log(M);
-    upper_limit = log(FMAX(1e16, M*100));
-    
-    //  gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
-    //  gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS51, w, &result, &error);
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS41, w, &result, &error);
-    //  gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS31, w, &result, &error);
-    //  gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS21, w, &result, &error);
-    //  gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
-    gsl_integration_workspace_free (w);
-    
-    return result / (cosmo_params_ps->OMm*RHOcrit);
-}
+//double dFdlnM_st (double lnM, void *params){
+//    double z = *(double *)params;
+//    double M = exp(lnM);
+//
+//    return dNdM_st(z, M) * M * M;
+//}
+//double FgtrM_st(double z, double M){
+//    double result, error, lower_limit, upper_limit;
+//    gsl_function F;
+//    double rel_tol  = 0.001; //<- relative tolerance
+//    gsl_integration_workspace * w
+//    = gsl_integration_workspace_alloc (1000);
+//    
+//    F.function = &dFdlnM_st;
+//    F.params = &z;
+//    lower_limit = log(M);
+//    upper_limit = log(FMAX(1e16, M*100));
+//    
+//    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
+//
+//    gsl_integration_workspace_free (w);
+//    
+//    return result / (cosmo_params_ps->OMm*RHOcrit);
+//}
 
 
 /*
@@ -582,50 +726,232 @@ double FgtrM(double z, double M){
 }
 
 
-
 /*
- FUNCTION FgtrM_st_PL(z, M)
+ FUNCTION FgtrM_Watson(z, M)
  Computes the fraction of mass contained in haloes with mass > M at redshift z
- Uses Sheth-Torman correction
+ Uses Watson et al (2013) correction
  */
-double dFdlnM_st_PL (double lnM, void *params){
-    
-    struct parameters_gsl_ST_int_ vals = *(struct parameters_gsl_ST_int_ *)params;
+double dFdlnM_Watson_z (double lnM, void *params){
+    struct parameters_gsl_FgtrM_int_ vals = *(struct parameters_gsl_FgtrM_int_ *)params;
     
     double M = exp(lnM);
-    float z = vals.z_obs;
-    float MFeedback = vals.M_Feed;
-    float alpha = vals.alpha_pl;
-    
-    return dNdM_st(z, M) * M * M * pow((M/MFeedback),alpha);
+    double z = vals.z_obs;
+    double growthf = vals.gf_obs;
+
+    return dNdM_WatsonFOF_z(z, growthf, M) * M * M;
 }
-double FgtrM_st_PL(double z, double Mmin, double MFeedback, double alpha_pl){
-    
-    double result_lower, result_upper, error, lower_limit, upper_limit;
+double FgtrM_Watson_z(double z, double growthf, double M){
+    double result, error, lower_limit, upper_limit;
     gsl_function F;
     double rel_tol  = 0.001; //<- relative tolerance
-    gsl_integration_workspace * w_lower
-    = gsl_integration_workspace_alloc (1000);
-    gsl_integration_workspace * w_upper
+    gsl_integration_workspace * w
     = gsl_integration_workspace_alloc (1000);
     
-    struct parameters_gsl_ST_int_  parameters_gsl_ST_lower = {
+    F.function = &dFdlnM_Watson_z;
+    struct parameters_gsl_FgtrM_int_ parameters_gsl_FgtrM = {
         .z_obs = z,
-        .M_Feed = MFeedback,
-        .alpha_pl = alpha_pl,
+        .gf_obs = growthf,
     };
-    
-    F.function = &dFdlnM_st_PL;
-    F.params = &parameters_gsl_ST_lower;
-    lower_limit = log(Mmin);
-    upper_limit = log(1e16);
+
+    F.params = &parameters_gsl_FgtrM;
+    lower_limit = log(M);
+    upper_limit = log(FMAX(1e16, M*100));
     
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
-                         1000, GSL_INTEG_GAUSS61, w_lower, &result_lower, &error);
-    gsl_integration_workspace_free (w_lower);
+                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
+    gsl_integration_workspace_free (w);
     
-    return (result_lower) / (cosmo_params_ps->OMm*RHOcrit);
+    return result / (cosmo_params_ps->OMm*RHOcrit);
 }
+
+
+/*
+ FUNCTION FgtrM_Watson(z, M)
+ Computes the fraction of mass contained in haloes with mass > M at redshift z
+ Uses Watson et al (2013) correction
+ */
+double dFdlnM_Watson (double lnM, void *params){
+    double growthf = *(double *)params;
+    double M = exp(lnM);
+    return dNdM_WatsonFOF(growthf, M) * M * M;
+}
+double FgtrM_Watson(double growthf, double M){
+    double result, error, lower_limit, upper_limit;
+    gsl_function F;
+    double rel_tol  = 0.001; //<- relative tolerance
+    gsl_integration_workspace * w
+    = gsl_integration_workspace_alloc (1000);
+    
+    F.function = &dFdlnM_Watson;
+    F.params = &growthf;
+    lower_limit = log(M);
+    upper_limit = log(FMAX(1e16, M*100));
+    
+    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
+    gsl_integration_workspace_free (w);
+    
+    return result / (cosmo_params_ps->OMm*RHOcrit);
+}
+
+double dFdlnM_General(double lnM, void *params){
+    struct parameters_gsl_FgtrM_int_ vals = *(struct parameters_gsl_FgtrM_int_ *)params;
+    
+    double M = exp(lnM);
+    double z = vals.z_obs;
+    double growthf = vals.gf_obs;
+    
+    double MassFunction;
+ 
+    if(user_params_ps->HMF==0) {
+        MassFunction = dNdM(z, M);
+    }
+    if(user_params_ps->HMF==1) {
+        MassFunction = dNdM_st_interp(growthf, M);
+    }
+    if(user_params_ps->HMF==2) {
+        MassFunction = dNdM_WatsonFOF(growthf, M);
+    }
+    if(user_params_ps->HMF==3) {
+        MassFunction = dNdM_WatsonFOF_z(z, growthf, M);
+    }
+    return MassFunction * M * M;
+}
+
+/*
+ FUNCTION FgtrM_General(z, M)
+ Computes the fraction of mass contained in haloes with mass > M at redshift z
+ */
+double FgtrM_General(double z, double M){
+
+    double del, sig, growthf;
+    
+    growthf = dicke(z);
+
+    struct parameters_gsl_FgtrM_int_ parameters_gsl_FgtrM = {
+        .z_obs = z,
+        .gf_obs = growthf,
+    };
+    
+    if(user_params_ps->HMF<4 && user_params_ps->HMF>-1) {
+    
+        double result, error, lower_limit, upper_limit;
+        gsl_function F;
+        double rel_tol  = 0.001; //<- relative tolerance
+        gsl_integration_workspace * w
+        = gsl_integration_workspace_alloc (1000);
+    
+        F.function = &dFdlnM_General;
+        F.params = &parameters_gsl_FgtrM;
+    
+        lower_limit = log(M);
+        upper_limit = log(FMAX(1e16, M*100));
+    
+        gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
+    
+        gsl_integration_workspace_free (w);
+    
+        return result / (cosmo_params_ps->OMm*RHOcrit);
+    }
+    else {
+        printf("ERROR: Incorrect HMF selected\n");
+        exit(-1);
+    }
+}
+
+double dNion_General(double lnM, void *params){
+    struct parameters_gsl_SFR_General_int_ vals = *(struct parameters_gsl_SFR_General_int_ *)params;
+    
+    double M = exp(lnM);
+    double z = vals.z_obs;
+    double growthf = vals.gf_obs;
+    double MassTurnover = vals.Mdrop;
+    double Alpha_star = vals.pl_star;
+    double Alpha_esc = vals.pl_esc;
+    double Fstar10 = vals.frac_star;
+    double Fesc10 = vals.frac_esc;
+    double Mlim_Fstar = vals.LimitMass_Fstar;
+    double Mlim_Fesc = vals.LimitMass_Fesc;
+    
+    double Fstar, Fesc, MassFunction;
+    
+    if (Alpha_star > 0. && M > Mlim_Fstar)
+        Fstar = 1./Fstar10;
+    else if (Alpha_star < 0. && M < Mlim_Fstar)
+        Fstar = 1/Fstar10;
+    else
+        Fstar = pow(M/1e10,Alpha_star);
+    
+    if (Alpha_esc > 0. && M > Mlim_Fesc)
+        Fesc = 1./Fesc10;
+    else if (Alpha_esc < 0. && M < Mlim_Fesc)
+        Fesc = 1./Fesc10;
+    else
+        Fesc = pow(M/1e10,Alpha_esc);
+
+    if(user_params_ps->HMF==0) {
+        MassFunction = dNdM(z, M);
+    }
+    if(user_params_ps->HMF==1) {
+        MassFunction = dNdM_st_interp(growthf,M);
+    }
+    if(user_params_ps->HMF==2) {
+        MassFunction = dNdM_WatsonFOF(growthf, M);
+    }
+    if(user_params_ps->HMF==3) {
+        MassFunction = dNdM_WatsonFOF_z(z, growthf, M);
+    }
+    
+    return MassFunction * M * M * exp(-MassTurnover/M) * Fstar * Fesc;
+}
+
+double Nion_General(double z, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar, double Mlim_Fesc){
+    
+    double growthf;
+    
+    growthf = dicke(z);
+    
+    double M_Min = MassTurnover/50.;
+    double result, error, lower_limit, upper_limit;
+    gsl_function F;
+    double rel_tol = 0.001; //<- relative tolerance
+    
+    gsl_integration_workspace * w
+    = gsl_integration_workspace_alloc (1000);
+    
+    struct parameters_gsl_SFR_General_int_ parameters_gsl_SFR = {
+        .z_obs = z,
+        .gf_obs = growthf,
+        .Mdrop = MassTurnover,
+        .pl_star = Alpha_star,
+        .pl_esc = Alpha_esc,
+        .frac_star = Fstar10,
+        .frac_esc = Fesc10,
+        .LimitMass_Fstar = Mlim_Fstar,
+        .LimitMass_Fesc = Mlim_Fesc,
+    };
+    
+    if(user_params_ps->HMF<4 && user_params_ps->HMF>-1) {
+    
+        F.function = &dNion_General;
+        F.params = &parameters_gsl_SFR;
+    
+        lower_limit = log(M_Min);
+        upper_limit = log(FMAX(1e16, M_Min*100));
+    
+        gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
+        gsl_integration_workspace_free (w);
+    
+        return result / ((cosmo_params_ps->OMm)*RHOcrit);
+    }
+    else {
+        printf("ERROR: Incorrect HMF selected\n");
+        exit(-1);
+    }
+}
+
+
+
 
 /* returns the "effective Jeans mass" in Msun
  corresponding to the gas analog of WDM ; eq. 10 in Barkana+ 2001 */
@@ -659,45 +985,6 @@ double splined_erfc(double x){
         return erfcc(x);
     else
         return exp(gsl_spline_eval(erfc_spline, x, erfc_acc));
-}
-
-
-float FgtrConditionalM_second(float z, float M1, float M2, float MFeedback, float alpha, float delta1, float delta2) {
-    
-    return exp(M1)*pow(exp(M1)/MFeedback,alpha)*dNdM_conditional_second(z,M1,M2,delta1,delta2)/sqrt(2.*PI);
-}
-
-float dNdM_conditional_second(float z, float M1, float M2, float delta1, float delta2){
-    
-    float sigma1, sigma2, dsigmadm, dicke_growth,dsigma_val;
-    
-    M1 = exp(M1);
-    M2 = exp(M2);
-    
-    dicke_growth = dicke(z);
-    
-    splint(Mass_Spline-1,Sigma_Spline-1,second_derivs_sigma-1,(int)NMass,M1,&(sigma1));
-    splint(Mass_Spline-1,Sigma_Spline-1,second_derivs_sigma-1,(int)NMass,M2,&(sigma2));
-    
-    sigma1 = sigma1*sigma1;
-    sigma2 = sigma2*sigma2;
-    
-    splint(Mass_Spline-1,dSigmadm_Spline-1,second_derivs_dsigma-1,(int)NMass,M1,&(dsigma_val));
-    
-    dsigmadm = -pow(10.,dsigma_val)/(2.0*sigma1); // This is actually sigma1^{2} as calculated above, however, it should just be sigma1. It cancels with the same factor below. Why I have decided to write it like that I don't know!
-    
-    if((sigma1 > sigma2)) {
-        
-        return -(( delta1 - delta2 )/dicke_growth)*( 2.*sigma1*dsigmadm )*( exp( - ( delta1 - delta2 )*( delta1 - delta2 )/( 2.*dicke_growth*dicke_growth*( sigma1 - sigma2 ) ) ) )/(pow( sigma1 - sigma2, 1.5));
-    }
-    else if(sigma1==sigma2) {
-        
-        return -(( delta1 - delta2 )/dicke_growth)*( 2.*sigma1*dsigmadm )*( exp( - ( delta1 - delta2 )*( delta1 - delta2 )/( 2.*dicke_growth*dicke_growth*( 1.e-6 ) ) ) )/(pow( 1.e-6, 1.5));
-        
-    }
-    else {
-        return 0.;
-    }
 }
 
 void gauleg(float x1, float x2, float x[], float w[], int n)
@@ -741,196 +1028,26 @@ void gauleg(float x1, float x2, float x[], float w[], int n)
     }
 }
 
-double FgtrlnM_general(double lnM, void *params) {
-    
-    struct parameters_gsl_int_ vals = *(struct parameters_gsl_int_ *)params;
-    
-    float z = vals.z_obs;
-    float M2 = vals.Mval;
-    float MFeedback = vals.M_Feed;
-    float alpha = vals.alpha_pl;
-    float delta1 = vals.del_traj_1;
-    float delta2 = vals.del_traj_2;
-    
-    return FgtrConditionalM_second(z,lnM,M2,MFeedback,alpha,delta1,delta2);
-}
-double FgtrM_general(float z, float M1, float M_Max, float M2, float MFeedback, float alpha, float delta1, float delta2) {
-    
-    double result, error, lower_limit, upper_limit;
-    
-    double rel_tol = 0.01;
-    
-    int size;
-    size = 1000;
-    
-    //    printf("delta1 = %e Deltac = %e\n",delta1,Deltac);
-    
-    if((float)delta1==(float)Deltac) {
-        
-        gsl_function Fx;
-        
-        gsl_integration_workspace * w = gsl_integration_workspace_alloc (size);
-        
-        Fx.function = &FgtrlnM_general;
-        
-        struct parameters_gsl_int_  parameters_gsl_int = {
-            .z_obs = z,
-            .Mval = M2,
-            .M_Feed = MFeedback,
-            .alpha_pl = alpha,
-            .del_traj_1 = delta1,
-            .del_traj_2 = delta2
-        };
-        
-        Fx.params = &parameters_gsl_int;
-        
-        lower_limit = M1;
-        upper_limit = M_Max;
-        
-        //        gsl_integration_qag (&Fx, lower_limit, upper_limit, 0, rel_tol, size, GSL_INTEG_GAUSS15, w, &result, &error);
-        gsl_integration_qag (&Fx, lower_limit, upper_limit, 0, rel_tol, size, GSL_INTEG_GAUSS61, w, &result, &error);
-        gsl_integration_workspace_free (w);
-        
-        if(delta2 > delta1) {
-            return 1.;
-        }
-        else {
-            return result;
-        }
-    }
-}
-
-float FgtrConditionallnM(float M1, struct parameters_gsl_int_ parameters_gsl_int) {
-    
-    float z = parameters_gsl_int.z_obs;
-    float M2 = parameters_gsl_int.Mval;
-    float MFeedback = parameters_gsl_int.M_Feed;
-    float alpha = parameters_gsl_int.alpha_pl;
-    float delta1 = parameters_gsl_int.del_traj_1;
-    float delta2 = parameters_gsl_int.del_traj_2;
-    
-    return exp(M1)*pow(exp(M1)/MFeedback,alpha)*dNdM_conditional_second(z,M1,M2,delta1,delta2)/sqrt(2.*PI);
-}
-
-float GaussLegengreQuad_Fcoll(int n, float z, float M2, float MFeedback, float alpha, float delta1, float delta2)
-{
-    //Performs the Gauss-Legendre quadrature.
-    int i;
-    
-    float integrand,x;
-    integrand = 0.0;
-    
-    struct parameters_gsl_int_  parameters_gsl_int = {
-        .z_obs = z,
-        .Mval = M2,
-        .M_Feed = MFeedback,
-        .alpha_pl = alpha,
-        .del_traj_1 = delta1,
-        .del_traj_2 = delta2
-    };
-    
-    if(delta2>delta1) {
-        return 1.;
-    }
-    else {
-        for(i=1;i<(n+1);i++) {
-            x = xi_low[i];
-            integrand += wi_low[i]*FgtrConditionallnM(x,parameters_gsl_int);
-        }
-        return integrand;
-    }
-}
-
-void initialiseSplinedSigmaM(float M_Min, float M_Max)
+void initialiseSigmaMInterpTable(float M_Min, float M_Max)
 {
     int i;
     float Mass;
     
-    Mass_Spline = calloc(NMass,sizeof(float));
-    Sigma_Spline = calloc(NMass,sizeof(float));
-    dSigmadm_Spline = calloc(NMass,sizeof(float));
-    second_derivs_sigma = calloc(NMass,sizeof(float));
-    second_derivs_dsigma = calloc(NMass,sizeof(float));
+    Mass_InterpTable = calloc(NMass,sizeof(float));
+    Sigma_InterpTable = calloc(NMass,sizeof(float));
+    dSigmadm_InterpTable = calloc(NMass,sizeof(float));
     
     for(i=0;i<NMass;i++) {
-        Mass_Spline[i] = pow(10., log10(M_Min) + (float)i/(NMass-1)*( log10(M_Max) - log10(M_Min) ) );
-        Sigma_Spline[i] = sigma_z0(Mass_Spline[i]);
-        dSigmadm_Spline[i] = log10(-dsigmasqdm_z0(Mass_Spline[i]));
+        Mass_InterpTable[i] = log(M_Min) + (float)i/(NMass-1)*( log(M_Max) - log(M_Min) );
+        Sigma_InterpTable[i] = sigma_z0(exp(Mass_InterpTable[i]));
+        dSigmadm_InterpTable[i] = log10(-dsigmasqdm_z0(exp(Mass_InterpTable[i])));
     }
-    spline(Mass_Spline-1,Sigma_Spline-1,NMass,0,0,second_derivs_sigma-1);
-    spline(Mass_Spline-1,dSigmadm_Spline-1,NMass,0,0,second_derivs_dsigma-1);
+    
+    MinMass = log(M_Min);
+    mass_bin_width = 1./(NMass-1)*( log(M_Max) - log(M_Min) );
+    inv_mass_bin_width = 1./mass_bin_width;
 }
 
-void initialiseGL_Fcoll(int n_low, int n_high, float M_Min, float M_Max)
-{
-    //calculates the weightings and the positions for Gauss-Legendre quadrature.
-    
-    gauleg(log(M_Min),log(M_Max),xi_low,wi_low,n_low);
-    
-    gauleg(log(M_Min),log(M_Max),xi_high,wi_high,n_high);
-    
-}
-
-void initialiseFcoll_spline(float z, float Mmin, float Mmax, float Mval, float MFeedback, float alphapl)
-{
-    double overdense_val,overdense_small_low,overdense_small_high,overdense_large_low,overdense_large_high;
-    int i;
-    
-    overdense_large_high = Deltac;
-    overdense_large_low = 1.5;
-    overdense_small_high = 1.5;
-    overdense_small_low = -1. + 9.e-8;
-    
-    Fcoll_spline_acc   = gsl_interp_accel_alloc ();
-    Fcoll_spline  = gsl_spline_alloc (gsl_interp_cspline, SPLINE_NPTS);
-    
-    for (i=0;i<SPLINE_NPTS;i++){
-        overdense_val = log10(1.+overdense_small_low) + (float)i/(SPLINE_NPTS-1.)*(log10(1.+overdense_small_high) - log10(1.+overdense_small_low));
-        
-        log_Fcoll_spline_table[i] = log10(GaussLegengreQuad_Fcoll(NGLlow,z,log(Mval),MFeedback,alphapl,Deltac,pow(10.,overdense_val)-1.));
-        Fcoll_spline_params[i] = overdense_val;
-        
-        if(log_Fcoll_spline_table[i]<-40.) {
-            log_Fcoll_spline_table[i] = -40.;
-        }
-    }
-    gsl_spline_init(Fcoll_spline, Fcoll_spline_params, log_Fcoll_spline_table, SPLINE_NPTS);
-    
-    for(i=0;i<Nhigh;i++) {
-        Overdense_spline_GL_high[i] = overdense_large_low + (float)i/((float)Nhigh-1.)*(overdense_large_high - overdense_large_low);
-        Fcoll_spline_GL_high[i] = FgtrM_general(z,log(Mmin),log(Mmax),log(Mval),MFeedback,alphapl,Deltac,Overdense_spline_GL_high[i]);
-        
-        if(Fcoll_spline_GL_high[i]<0.) {
-            Fcoll_spline_GL_high[i]=pow(10.,-40.0);
-        }
-    }
-    spline(Overdense_spline_GL_high-1,Fcoll_spline_GL_high-1,Nhigh,0,0,second_derivs_high_GL-1);
-}
-
-void FcollSpline(float Overdensity, float *splined_value)
-{
-    int i;
-    float returned_value;
-    
-    if(Overdensity<1.5) {
-        if(Overdensity<-1.) {
-            returned_value = 0;
-        }
-        else {
-            returned_value = gsl_spline_eval(Fcoll_spline, log10(Overdensity+1.), Fcoll_spline_acc);
-            returned_value = pow(10.,returned_value);
-        }
-    }
-    else {
-        if(Overdensity<Deltac) {
-            splint(Overdense_spline_GL_high-1,Fcoll_spline_GL_high-1,second_derivs_high_GL-1,(int)Nhigh,Overdensity,&(returned_value));
-        }
-        else {
-            returned_value = 1.;
-        }
-    }
-    *splined_value = returned_value;
-}
 
 void nrerror(char error_text[])
 {
@@ -1086,4 +1203,531 @@ double ddicke_dz(double z){
     double omegaM_z, ddickdz, dick_0, x, x_0, domegaMdz;
     
     return (dicke(z+dz)-dicke(z))/dz;
+}
+
+
+
+
+
+/* compute a mass limit where the stellar baryon fraction and the escape fraction exceed unity */
+float Mass_limit (float logM, float PL, float FRAC) {
+    return FRAC*pow(pow(10.,logM)/1e10,PL);
+}
+void bisection(float *x, float xlow, float xup, int *iter){
+    *x=(xlow + xup)/2.;
+    ++(*iter);
+}
+
+float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC){
+    int i, iter, max_iter=200;
+    float rel_tol=0.001;
+    float logMlow, logMupper, x, x1;
+    iter = 0;
+    logMlow = log10(Mmin);
+    logMupper = log10(Mmax);
+    
+    if (PL < 0.) {
+        if (Mass_limit(logMlow,PL,FRAC) <= 1.) {
+            return Mmin;
+        }
+    }
+    else if (PL > 0.) {
+        if (Mass_limit(logMupper,PL,FRAC) <= 1.) {
+            return Mmax;
+        }
+    }
+    else
+        return 0;
+    bisection(&x, logMlow, logMupper, &iter);
+    do {
+        if((Mass_limit(logMlow,PL,FRAC)-1.)*(Mass_limit(x,PL,FRAC)-1.) < 0.)
+            logMupper = x;
+        else
+            logMlow = x;
+        bisection(&x1, logMlow, logMupper, &iter);
+        if(fabs(x1-x) < rel_tol) {
+            return pow(10.,x1);
+        }
+        x = x1;
+    }
+    while(iter < max_iter);
+    printf("\n Failed to find a mass limit to regulate stellar fraction/escape fraction is between 0 and 1.\n");
+    printf(" The solution does not converge or iterations are not sufficient\n");
+    return -1;
+}
+
+void initialise_ComputeLF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options) {
+
+    Broadcast_struct_global_PS(user_params,cosmo_params);
+    Broadcast_struct_global_UF(user_params,cosmo_params);
+    
+    lnMhalo_param = calloc((global_params.NBINS_LF),sizeof(double));
+    Muv_param = calloc((global_params.NBINS_LF),sizeof(double));
+    log10phi = calloc((global_params.NBINS_LF),sizeof(double));
+    Mhalo_param = calloc((global_params.NBINS_LF),sizeof(double));
+    
+    LF_spline_acc = gsl_interp_accel_alloc();
+    LF_spline = gsl_spline_alloc(gsl_interp_cspline, global_params.NBINS_LF);
+    
+    init_ps();
+    
+    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+        initialiseSigmaMInterpTable(astro_params->M_TURN/50.,1e20);
+    }
+    else {
+        initialiseSigmaMInterpTable(astro_params->M_TURN,1e20);
+    }
+    
+    initialised_ComputeLF = true;
+    
+}
+
+void ComputeLF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF) {
+    
+    if(!initialised_ComputeLF) {
+        initialise_ComputeLF(user_params,cosmo_params,astro_params,flag_options);
+    }
+    
+    int i,i_z;
+    double  dlnMhalo, lnMhalo_i, SFRparam, Muv_1, Muv_2, dMuvdMhalo;
+    double Luv_over_SFR = 1./1.15/1e-28, delta_lnMhalo = 5e-6;
+
+//     Luv/SFR = 1 / 1.15 x 10^-28 [M_solar yr^-1/erg s^-1 Hz^-1]
+//     G. Sun and S. R. Furlanetto (2016) MNRAS, 417, 33
+
+    double Mhalo_min = 1e6, Mhalo_max = 1e16;
+    double Mhalo_i, lnMhalo_min, lnMhalo_max, lnMhalo_lo, lnMhalo_hi, dlnM, growthf;
+    float Mlim_Fstar,Fstar;
+    
+    Mlim_Fstar = Mass_limit_bisection((float)Mhalo_min*0.999, (float)Mhalo_max*1.001, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+    
+    lnMhalo_min = log(Mhalo_min*0.999);
+    lnMhalo_max = log(Mhalo_max*1.001);
+    dlnMhalo = (lnMhalo_max - lnMhalo_min)/(double)(global_params.NBINS_LF - 1);
+    
+    for (i_z=0; i_z<NUM_OF_REDSHIFT_FOR_LF; i_z++) {        
+        
+        growthf = dicke(z_LF[i_z]);
+        
+        for (i=0; i<global_params.NBINS_LF; i++) {
+            // generate interpolation arrays
+            lnMhalo_param[i] = lnMhalo_min + dlnMhalo*(double)i;
+            Mhalo_i = exp(lnMhalo_param[i]);
+            
+            Fstar = astro_params->F_STAR10*pow(Mhalo_i/1e10,astro_params->ALPHA_STAR);
+            if (Fstar > 1.) Fstar = 1;
+            
+            // parametrization of SFR
+            SFRparam = Mhalo_i * cosmo_params->OMb/cosmo_params->OMm * (double)Fstar * (double)(hubble(z_LF[i_z])*SperYR/astro_params->t_STAR); // units of M_solar/year
+            
+            Muv_param[i] = 51.63 - 2.5*log10(SFRparam*Luv_over_SFR); // UV magnitude
+            // except if Muv value is nan or inf, but avoid error put the value as 10.
+            if ( isinf(Muv_param[i]) || isnan(Muv_param[i]) ) Muv_param[i] = 10.;
+        }
+        
+        gsl_spline_init(LF_spline, lnMhalo_param, Muv_param, global_params.NBINS_LF);
+        
+        lnMhalo_lo = log(Mhalo_min);
+        lnMhalo_hi = log(Mhalo_max);
+        dlnM = (lnMhalo_hi - lnMhalo_lo)/(double)(global_params.NBINS_LF - 1);
+        
+        for (i=0; i<global_params.NBINS_LF; i++) {
+            // calculate luminosity function
+            lnMhalo_i = lnMhalo_lo + dlnM*(double)i;
+            Mhalo_param[i] = exp(lnMhalo_i);
+            
+            Muv_1 = gsl_spline_eval(LF_spline, lnMhalo_i - delta_lnMhalo, LF_spline_acc);
+            Muv_2 = gsl_spline_eval(LF_spline, lnMhalo_i + delta_lnMhalo, LF_spline_acc);
+            
+            dMuvdMhalo = (Muv_2 - Muv_1) / (2.*delta_lnMhalo * exp(lnMhalo_i));
+            
+            if(user_params_ps->HMF==0) {
+                log10phi[i] = log10( dNdM(z_LF[i_z], exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            }
+            if(user_params_ps->HMF==1) {
+                log10phi[i] = log10( dNdM_st_interp(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            }
+            if(user_params_ps->HMF==2) {
+                log10phi[i] = log10( dNdM_WatsonFOF(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            }
+            if(user_params_ps->HMF==3) {
+                log10phi[i] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            }
+            if (isinf(log10phi[i]) || isnan(log10phi[i]) || log10phi[i] < -30.) log10phi[i] = -30.;
+        }
+    }
+    
+}
+
+void initialiseGL_Nion_Xray(int n, float M_TURN, float M_Max){
+    float M_Min = M_TURN/50.;
+    //calculates the weightings and the positions for Gauss-Legendre quadrature.
+    gauleg(log(M_Min),log(M_Max),xi_SFR_Xray,wi_SFR_Xray,n);
+}
+
+float dNdM_conditional(float growthf, float M1, float M2, float delta1, float delta2, float sigma2){
+    
+    float sigma1, dsigmadm,dsigma_val;
+    float MassBinLow;
+    int MassBin;
+    
+    MassBin = (int)floor( (M1 - MinMass )*inv_mass_bin_width );
+    
+    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    
+    sigma1 = Sigma_InterpTable[MassBin] + ( M1 - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    
+    dsigma_val = dSigmadm_InterpTable[MassBin] + ( M1 - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+    
+    M1 = exp(M1);
+    M2 = exp(M2);
+    
+    sigma1 = sigma1*sigma1;
+    sigma2 = sigma2*sigma2;
+    
+    dsigmadm = -pow(10.,dsigma_val)/(2.0*sigma1); // This is actually sigma1^{2} as calculated above, however, it should just be sigma1. It cancels with the same factor below. Why I have decided to write it like that I don't know!
+    
+    if((sigma1 > sigma2)) {
+        
+        return -(( delta1 - delta2 )/growthf)*( 2.*sigma1*dsigmadm )*( exp( - ( delta1 - delta2 )*( delta1 - delta2 )/( 2.*growthf*growthf*( sigma1 - sigma2 ) ) ) )/(pow( sigma1 - sigma2, 1.5));
+    }
+    else if(sigma1==sigma2) {
+        
+        return -(( delta1 - delta2 )/growthf)*( 2.*sigma1*dsigmadm )*( exp( - ( delta1 - delta2 )*( delta1 - delta2 )/( 2.*growthf*growthf*( 1.e-6 ) ) ) )/(pow( 1.e-6, 1.5));
+        
+    }
+    else {
+        return 0.;
+    }
+}
+
+void initialiseGL_Nion(int n, float M_TURN, float M_Max){
+    float M_Min = M_TURN/50.;
+    //calculates the weightings and the positions for Gauss-Legendre quadrature.
+    gauleg(log(M_Min),log(M_Max),xi_SFR,wi_SFR,n);
+    
+}
+
+
+double dNion_ConditionallnM(double lnM, void *params) {
+    struct parameters_gsl_SFR_con_int_ vals = *(struct parameters_gsl_SFR_con_int_ *)params;
+    double M = exp(lnM); // linear scale
+    double growthf = vals.gf_obs;
+    double M2 = vals.Mval; // natural log scale
+    double sigma2 = vals.sigma2;
+    double del1 = vals.delta1;
+    double del2 = vals.delta2;
+    double MassTurnover = vals.Mdrop;
+    double Alpha_star = vals.pl_star;
+    double Alpha_esc = vals.pl_esc;
+    double Fstar10 = vals.frac_star;
+    double Fesc10 = vals.frac_esc;
+    double Mlim_Fstar = vals.LimitMass_Fstar;
+    double Mlim_Fesc = vals.LimitMass_Fesc;
+    
+    double Fstar,Fesc;
+    
+    if (Alpha_star > 0. && M > Mlim_Fstar)
+        Fstar = 1./Fstar10;
+    else if (Alpha_star < 0. && M < Mlim_Fstar)
+        Fstar = 1./Fstar10;
+    else
+        Fstar = pow(M/1e10,Alpha_star);
+    
+    if (Alpha_esc > 0. && M > Mlim_Fesc)
+        Fesc = 1./Fesc10;
+    else if (Alpha_esc < 0. && M < Mlim_Fesc)
+        Fesc = 1./Fesc10;
+    else
+        Fesc = pow(M/1e10,Alpha_esc);
+    
+    return M*exp(-MassTurnover/M)*Fstar*Fesc*dNdM_conditional(growthf,log(M),M2,del1,del2,sigma2)/sqrt(2.*PI);
+}
+
+double Nion_ConditionalM(double growthf, double M1, double M2, double sigma2, double delta1, double delta2, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar, double Mlim_Fesc) {
+    double result, error, lower_limit, upper_limit;
+    gsl_function F;
+    double rel_tol = 0.01; //<- relative tolerance
+    gsl_integration_workspace * w
+    = gsl_integration_workspace_alloc (1000);
+    
+    struct parameters_gsl_SFR_con_int_ parameters_gsl_SFR_con = {
+        .gf_obs = growthf,
+        .Mval = M2,
+        .sigma2 = sigma2,
+        .delta1 = delta1,
+        .delta2 = delta2,
+        .Mdrop = MassTurnover,
+        .pl_star = Alpha_star,
+        .pl_esc = Alpha_esc,
+        .frac_star = Fstar10,
+        .frac_esc = Fesc10,
+        .LimitMass_Fstar = Mlim_Fstar,
+        .LimitMass_Fesc = Mlim_Fesc
+    };
+    
+    F.function = &dNion_ConditionallnM;
+    F.params = &parameters_gsl_SFR_con;
+    lower_limit = M1;
+    upper_limit = M2;
+    
+    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
+    gsl_integration_workspace_free (w);
+    
+    if(delta2 > delta1) {
+        result = 1.;
+        return result;
+    }
+    else {
+        return result;
+    }
+    
+}
+
+float Nion_ConditionallnM_GL(float lnM, struct parameters_gsl_SFR_con_int_ parameters_gsl_SFR_con){
+    float M = exp(lnM);
+    float growthf = parameters_gsl_SFR_con.gf_obs;
+    float M2 = parameters_gsl_SFR_con.Mval;
+    float sigma2 = parameters_gsl_SFR_con.sigma2;
+    float del1 = parameters_gsl_SFR_con.delta1;
+    float del2 = parameters_gsl_SFR_con.delta2;
+    float MassTurnover = parameters_gsl_SFR_con.Mdrop;
+    float Alpha_star = parameters_gsl_SFR_con.pl_star;
+    float Alpha_esc = parameters_gsl_SFR_con.pl_esc;
+    float Fstar10 = parameters_gsl_SFR_con.frac_star;
+    float Fesc10 = parameters_gsl_SFR_con.frac_esc;
+    float Mlim_Fstar = parameters_gsl_SFR_con.LimitMass_Fstar;
+    float Mlim_Fesc = parameters_gsl_SFR_con.LimitMass_Fesc;
+    
+    float Fstar,Fesc;
+    
+    if (Alpha_star > 0. && M > Mlim_Fstar)
+        Fstar = 1./Fstar10;
+    else if (Alpha_star < 0. && M < Mlim_Fstar)
+        Fstar = 1./Fstar10;
+    else
+        Fstar = pow(M/1e10,Alpha_star);
+    
+    if (Alpha_esc > 0. && M > Mlim_Fesc)
+        Fesc = 1./Fesc10;
+    else if (Alpha_esc < 0. && M < Mlim_Fesc)
+        Fesc = 1./Fesc10;
+    else
+        Fesc = pow(M/1e10,Alpha_esc);
+    
+    return M*exp(-MassTurnover/M)*Fstar*Fesc*dNdM_conditional(growthf,log(M),M2,del1,del2,sigma2)/sqrt(2.*PI);
+}
+
+float GaussLegendreQuad_Nion(int Type, int n, float growthf, float M2, float sigma2, float delta1, float delta2, float MassTurnover, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc) {
+    //Performs the Gauss-Legendre quadrature.
+    int i;
+    
+    float integrand, x;
+    integrand = 0.;
+    
+    struct parameters_gsl_SFR_con_int_ parameters_gsl_SFR_con = {
+        .gf_obs = growthf,
+        .Mval = M2,
+        .sigma2 = sigma2,
+        .delta1 = delta1,
+        .delta2 = delta2,
+        .Mdrop = MassTurnover,
+        .pl_star = Alpha_star,
+        .pl_esc = Alpha_esc,
+        .frac_star = Fstar10,
+        .frac_esc = Fesc10,
+        .LimitMass_Fstar = Mlim_Fstar,
+        .LimitMass_Fesc = Mlim_Fesc
+    };
+    
+    if(delta2 > delta1){
+        return 1.;
+    }
+    else{
+        for(i=1; i<(n+1); i++){
+            if(Type==1) {
+                x = xi_SFR_Xray[i];
+                integrand += wi_SFR_Xray[i]*Nion_ConditionallnM_GL(x,parameters_gsl_SFR_con);
+            }
+            if(Type==0) {
+                x = xi_SFR[i];
+                integrand += wi_SFR[i]*Nion_ConditionallnM_GL(x,parameters_gsl_SFR_con);
+            }
+        }
+        return integrand;
+    }
+}
+
+void initialise_Nion_General_spline(float z, float min_density, float max_density, float Mmax, float MassTurnover, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc){
+    
+    log10_overdense_spline_SFR = calloc(NSFR_low,sizeof(double));
+    log10_Nion_spline = calloc(NSFR_low,sizeof(float));
+    
+    Overdense_spline_SFR = calloc(NSFR_high,sizeof(float));
+    Nion_spline = calloc(NSFR_high,sizeof(float));
+    
+    float Mmin = MassTurnover/50.;
+    double overdense_val, growthf, sigma2;
+    double overdense_large_high = Deltac, overdense_large_low = global_params.CRIT_DENS_TRANSITION*0.999;
+    double overdense_small_high, overdense_small_low;
+    int i;
+    
+    float ln_10;
+    
+    if(max_density > global_params.CRIT_DENS_TRANSITION*1.001) {
+        overdense_small_high = global_params.CRIT_DENS_TRANSITION*1.001;
+    }
+    else {
+        overdense_small_high = max_density;
+    }
+    overdense_small_low = min_density;
+    
+    ln_10 = log(10);
+    
+    float MassBinLow;
+    int MassBin;
+    
+    growthf = dicke(z);
+    
+    Mmin = log(Mmin);
+    Mmax = log(Mmax);
+    
+    MassBin = (int)floor( ( Mmax - MinMass )*inv_mass_bin_width );
+    
+    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    
+    sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    
+    for (i=0; i<NSFR_low; i++){
+        overdense_val = log10(1. + overdense_small_low) + (double)i/((double)NSFR_low-1.)*(log10(1.+overdense_small_high)-log10(1.+overdense_small_low));
+        
+        log10_overdense_spline_SFR[i] = overdense_val;
+        log10_Nion_spline[i] = log10(GaussLegendreQuad_Nion(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,pow(10.,overdense_val)-1.,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc));
+
+        if(log10_Nion_spline[i] < -40.){
+            log10_Nion_spline[i] = -40.;
+        }
+        
+        log10_Nion_spline[i] *= ln_10;
+
+    }
+    
+    for(i=0;i<NSFR_high;i++) {
+        Overdense_spline_SFR[i] = overdense_large_low + (float)i/((float)NSFR_high-1.)*(overdense_large_high - overdense_large_low);
+        Nion_spline[i] = Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,Deltac,Overdense_spline_SFR[i],MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+        
+        if(Nion_spline[i]<0.) {
+            Nion_spline[i]=pow(10.,-40.0);
+        }
+
+    }
+}
+
+void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10){
+    int i;
+    float Mmin = MassTurn/50., Mmax = 1e16;
+    float Mlim_Fstar, Mlim_Fesc;
+    
+    z_val = calloc(Nbin,sizeof(double));
+    Nion_z_val = calloc(Nbin,sizeof(double));
+    
+    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
+    Mlim_Fesc = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc10);
+    
+    for (i=0; i<Nbin; i++){
+        z_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
+        Nion_z_val[i] = Nion_General(z_val[i], MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
+    }
+}
+
+
+void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Fstar10){
+    int i;
+    float Mmin = MassTurn/50., Mmax = 1e16;
+    float Mlim_Fstar;
+    
+    z_X_val = calloc(Nbin,sizeof(double));
+    SFRD_val = calloc(Nbin,sizeof(double));
+    
+    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
+    
+    for (i=0; i<Nbin; i++){
+        z_X_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
+        SFRD_val[i] = Nion_General(z_X_val[i], MassTurn, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
+    }
+}
+
+void initialise_SFRD_Conditional_table(int Nfilter, float min_density[], float max_density[], float growthf[], float R[], float MassTurnover, float Alpha_star, float Fstar10){
+
+    double overdense_val;
+    double overdense_large_high = Deltac, overdense_large_low = global_params.CRIT_DENS_TRANSITION;
+    double overdense_small_high, overdense_small_low;
+    
+    overdense_low_table = calloc(NSFR_low,sizeof(double));
+    Overdense_high_table = calloc(NSFR_high,sizeof(double));
+
+    
+    float Mmin,Mmax,Mlim_Fstar,sigma2;
+    int i,j,k,i_tot;
+    
+    float ln_10;
+    
+    ln_10 = log(10);
+    
+    Mmin = MassTurnover/50;
+    Mmax = RtoM(R[Nfilter-1]);
+    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
+    
+    Mmin = log(Mmin);
+    
+    for (i=0; i<NSFR_high;i++) {
+        Overdense_high_table[i] = overdense_large_low + (float)i/((float)NSFR_high-1.)*(overdense_large_high - overdense_large_low);
+    }
+    
+    float MassBinLow;
+    int MassBin;
+    
+    for (j=0; j < Nfilter; j++) {
+        
+        Mmax = RtoM(R[j]);
+        
+        initialiseGL_Nion_Xray(NGL_SFR, MassTurnover, Mmax);
+        
+        Mmax = log(Mmax);
+        MassBin = (int)floor( ( Mmax - MinMass )*inv_mass_bin_width );
+        
+        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+        
+        sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+        
+        overdense_small_low = min_density[j]*growthf[j];
+        overdense_small_high = max_density[j]*growthf[j];
+        if(overdense_small_high > global_params.CRIT_DENS_TRANSITION) {
+            overdense_small_high = global_params.CRIT_DENS_TRANSITION;
+        }
+            
+        for (i=0; i<NSFR_low; i++) {
+            overdense_val = log10(1. + overdense_small_low) + (float)i/((float)NSFR_low-1.)*(log10(1.+overdense_small_high)-log10(1.+overdense_small_low));
+            overdense_low_table[i] = pow(10.,overdense_val);
+        }
+        
+        for (i=0; i<NSFR_low; i++){
+            
+            log10_SFRD_z_low_table[j][i] = log10(GaussLegendreQuad_Nion(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.));
+            
+            log10_SFRD_z_low_table[j][i] += 10.0;
+            log10_SFRD_z_low_table[j][i] *= ln_10;
+
+            
+        }
+            
+        for(i=0;i<NSFR_high;i++) {
+            
+            SFRD_z_high_table[j][i] = Nion_ConditionalM(growthf[j],Mmin,Mmax,sigma2,Deltac,Overdense_high_table[i],MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.);
+            
+            SFRD_z_high_table[j][i] *= pow(10., 10.0);
+                
+        }
+    }
 }

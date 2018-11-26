@@ -30,22 +30,31 @@ struct UserParams{
     int DIM;
     float BOX_LEN;
     bool USE_FFTW_WISDOM;
-    
+    int HMF;    
 };
 
 struct AstroParams{
     
     // Parameters taken from INIT_PARAMS.H
-    float EFF_FACTOR_PL_INDEX;
     float HII_EFF_FACTOR;
+    
+    float F_STAR10;
+    float ALPHA_STAR;
+    float F_ESC10;
+    float ALPHA_ESC;
+    float M_TURN;
+    
     float R_BUBBLE_MAX;
+    
     float ION_Tvir_MIN;
+    
     double L_X;
     float NU_X_THRESH;
     float X_RAY_SPEC_INDEX;
     float X_RAY_Tvir_MIN;
-    float F_STAR;
+    
     float t_STAR;
+    
     int N_RSD_STEPS;
 };
 
@@ -91,7 +100,7 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
 void ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field);
 
 void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                  struct AstroParams *astro_params, float perturbed_field_redshift,
+                  struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp);
 
 void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
@@ -104,8 +113,12 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
                            struct TsBox *spin_temp, struct IonizedBox *ionized_box,
                            struct PerturbedField *perturb_field, struct BrightnessTemp *box);
 
+void ComputeLF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF);
+
+float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_params, int Npoints, float *redshifts, float *global_xHI);
+
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params);
-void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params);
+void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options);
 
 void free_TsCalcBoxes();
