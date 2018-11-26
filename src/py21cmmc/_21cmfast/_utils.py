@@ -218,6 +218,9 @@ class OutputStruct:
     }
 
     def __init__(self, init=False, **kwargs):
+
+        self.filled = False
+
         for k in self._inputs:
             try:
                 setattr(self, k, kwargs.pop(k))
@@ -228,9 +231,6 @@ class OutputStruct:
             warnings.warn(
                 "%s received the following unexpected arguments: %s" % (self.__class__.__name__, list(kwargs.keys())))
 
-        if init:
-            self._init_cstruct()
-
         # Set the name of this struct in the C code
         if self._name is None:
             self._name = self.__class__.__name__
@@ -239,7 +239,8 @@ class OutputStruct:
         if self._id is None:
             self._id = self.__class__.__name__
 
-        self.filled = False
+        if init:
+            self._init_cstruct()
 
     def _init_arrays(self):
         """Abstract base method for initializing any arrays that the structure has."""
@@ -397,12 +398,16 @@ class OutputStruct:
 
                 if isinstance(q, StructWithDefaults) or isinstance(q, _StructWrapper):
                     grp = f[k]
+
+                    cur_seed = self._current_seed
                     if isinstance(q, StructWithDefaults):
                         # The following *assigns* a random seed if one does not exist.
-                        # If the file has been read in, this will be fixed.
                         dct = q.pystruct
+                        if not cur_seed:
+                            q.update(RANDOM_SEED=None) # set random seed back to None to make this method have no side-effect.
                     else:
                         dct = q
+
 
                     for kk, v in dct.items():
                         if kk not in self._filter_params + ['RANDOM_SEED']:

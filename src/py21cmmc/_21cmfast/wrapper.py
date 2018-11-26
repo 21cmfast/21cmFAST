@@ -361,7 +361,12 @@ class FlagOptions(StructWithDefaults):
 class _OutputStruct(_OS):
     _global_params = global_params
 
-    def __init__(self, user_params=UserParams(), cosmo_params=CosmoParams(), **kwargs):
+    def __init__(self, user_params=None, cosmo_params=None, **kwargs):
+        if cosmo_params is None:
+            cosmo_params = CosmoParams()
+        if user_params is None:
+            user_params = UserParams()
+
         super().__init__(user_params=user_params, cosmo_params=cosmo_params, **kwargs)
 
     _ffi = ffi
@@ -471,9 +476,13 @@ class IonizedBox(_OutputStructZ):
         'MAX_DVDR',  # bt
     ]
 
-    def __init__(self, astro_params=None, flag_options=FlagOptions(), first_box=False, **kwargs):
+    def __init__(self, astro_params=None, flag_options=None, first_box=False, **kwargs):
+        if flag_options is None:
+            flag_options = FlagOptions()
+
         if astro_params is None:
             astro_params = AstroParams(INHOMO_RECO=flag_options.INHOMO_RECO)
+
         self.first_box = first_box
 
         super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
