@@ -39,7 +39,7 @@ def test_pointer_fields(ic):  # TODO: this is probably good to implement for eve
 
 
 def test_non_existence(ic, tmpdirec):
-    assert not ic.exists(direc=tmpdirec)
+    assert not ic.exists(direc=tmpdirec.strpath)
 
 
 def test_writeability(ic):
@@ -54,11 +54,11 @@ def test_readability(tmpdirec):
     # fake it being filled
     ic_.filled = True
 
-    ic_.write(direc=tmpdirec)
+    ic_.write(direc=tmpdirec.strpath)
 
     ic2 = InitialConditions()
 
-    assert ic2.exists(direc=tmpdirec)
+    assert ic2.exists(direc=tmpdirec.strpath)
 
     print("SEED: ", ic2._current_seed)
     ic2.read(direc=tmpdirec)
@@ -88,8 +88,8 @@ def test_match_seed(tmpdirec):
     # fake it being filled
     ic_.filled = True
 
-    ic_.write(direc=tmpdirec)
+    ic_.write(direc=tmpdirec.strpath)
 
     ic2 = InitialConditions(cosmo_params={"RANDOM_SEED": 1})
     with pytest.raises(IOError) as e_info:  # should not read in just anything if its random seed is set.
-        ic2.read(direc=tmpdirec)
+        ic2.read(direc=tmpdirec.strpath)
