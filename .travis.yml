@@ -7,8 +7,6 @@ python:
 
 addons:
   apt:
-    sources:
-    - ubuntu-toolchain-r-test
     packages:
     - libfftw3-dev
     - libgsl0-dev
