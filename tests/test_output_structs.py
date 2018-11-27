@@ -66,7 +66,7 @@ def test_readability(tmpdirec):
     assert repr(ic_) == repr(ic2)
 
 
-def test_pickleability(ic):
+def test_pickleability():
     ic_ = InitialConditions(init=True)
     ic_.filled = True
     s = pickle.dumps(ic_)
