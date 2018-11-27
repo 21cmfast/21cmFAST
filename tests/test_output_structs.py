@@ -7,7 +7,7 @@ import pickle
 
 import pytest
 
-from py21cmmc import InitialConditions  # An example of an output struct
+from py21cmmc import InitialConditions, PerturbedField, IonizedBox, TsBox  # An example of an output struct
 
 
 @pytest.fixture(scope="module")
@@ -19,13 +19,10 @@ def test_arrays_inited(ic):
     assert not ic.arrays_initialized
 
 
-def test_pointer_fields(ic):  # TODO: this is probably good to implement for every output struct defined in code
+def test_pointer_fields_ic(ic):  # TODO: this is probably good to implement for every output struct defined in code
     # Get list of fields before and after array initialisation
     d = copy.copy(list(ic.__dict__.keys()))
-    print(d)
     ic._init_arrays()
-    print(ic.__dict__.keys())
-    print(d)
     new_names = [name for name in ic.__dict__ if name not in d]
 
     assert new_names
@@ -37,6 +34,38 @@ def test_pointer_fields(ic):  # TODO: this is probably good to implement for eve
     ic._init_cstruct()
     assert ic.arrays_initialized
 
+
+def test_pointer_fields_pf():
+    # Get list of fields before and after array initialisation
+    pf = PerturbedField()
+    d = copy.copy(list(pf.__dict__.keys()))
+    pf._init_arrays()
+    new_names = [name for name in pf.__dict__ if name not in d]
+
+    assert new_names
+    assert all([n in pf._pointer_fields for n in new_names])
+
+
+def test_pointer_fields_ib():
+    # Get list of fields before and after array initialisation
+    pf = IonizedBox()
+    d = copy.copy(list(pf.__dict__.keys()))
+    pf._init_arrays()
+    new_names = [name for name in pf.__dict__ if name not in d]
+
+    assert new_names
+    assert all([n in pf._pointer_fields for n in new_names])
+
+
+def test_pointer_fields_st():
+    # Get list of fields before and after array initialisation
+    pf = TsBox()
+    d = copy.copy(list(pf.__dict__.keys()))
+    pf._init_arrays()
+    new_names = [name for name in pf.__dict__ if name not in d]
+
+    assert new_names
+    assert all([n in pf._pointer_fields for n in new_names])
 
 def test_non_existence(ic, tmpdirec):
     assert not ic.exists(direc=tmpdirec.strpath)
