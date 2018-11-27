@@ -22,9 +22,9 @@ Features
 * The most up-to-date parameterization of ``21cmFAST``, with consistent spin temperature and inhomogeneous recombinations
   available.
 * Convenient data objects which simplify access to and processing of the various density and ionization fields.
-* De-coupled functions mean that arbitrary functionality can be injected into the process. [TODO: docs on how to do this]
+* De-coupled functions mean that arbitrary functionality can be injected into the process.
 * Seamless integration with ``emcee``-based MCMC.
-* MCMC is easily extensible via the addition of different likelihoods using the same underlying data. [TODO]
+* MCMC is easily extensible via the addition of different likelihoods using the same underlying data.
 
 Quick Usage
 ===========
