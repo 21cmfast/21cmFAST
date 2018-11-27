@@ -61,7 +61,7 @@ def test_readability(tmpdirec):
     assert ic2.exists(direc=tmpdirec.strpath)
 
     print("SEED: ", ic2._current_seed)
-    ic2.read(direc=tmpdirec)
+    ic2.read(direc=tmpdirec.strpath)
 
     assert repr(ic_) == repr(ic2)
 
