@@ -125,5 +125,5 @@ setup(
             '21CMMC = py21cmmc.cli:main',
         ]
     },
-    cffi_modules=["build_cffi.py:ffi"],
+    cffi_modules=[f"{pkgdir}/build_cffi.py:ffi"],
 )
