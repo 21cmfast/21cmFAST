@@ -37,7 +37,12 @@ def test_pointer_fields_ic(ic):  # TODO: this is probably good to implement for 
 
 def test_pointer_fields_pf():
     # Get list of fields before and after array initialisation
-    pf = PerturbedField()
+
+    with pytest.raises(KeyError):
+        pf = PerturbedField()
+
+    pf = PerturbedField(redshift=7.0)
+
     d = copy.copy(list(pf.__dict__.keys()))
     pf._init_arrays()
     new_names = [name for name in pf.__dict__ if name not in d]
@@ -48,7 +53,11 @@ def test_pointer_fields_pf():
 
 def test_pointer_fields_ib():
     # Get list of fields before and after array initialisation
-    pf = IonizedBox()
+    with pytest.raises(KeyError):
+        pf = IonizedBox()
+
+    pf = IonizedBox(redshift=7.0)
+
     d = copy.copy(list(pf.__dict__.keys()))
     pf._init_arrays()
     new_names = [name for name in pf.__dict__ if name not in d]
@@ -59,7 +68,11 @@ def test_pointer_fields_ib():
 
 def test_pointer_fields_st():
     # Get list of fields before and after array initialisation
-    pf = TsBox()
+    with pytest.raises(KeyError):
+        pf = TsBox()
+
+    pf = TsBox(redshift=7.0)
+
     d = copy.copy(list(pf.__dict__.keys()))
     pf._init_arrays()
     new_names = [name for name in pf.__dict__ if name not in d]

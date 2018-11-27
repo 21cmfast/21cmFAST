@@ -1,24 +1,30 @@
+"""
+These are designed to be unit-tests of the wrapper functionality. They do not test for correctness of simulations,
+but whether different parameter options work/don't work as intended.
+"""
 from py21cmmc import wrapper
 import numpy as np
+import pytest
 
 
-# def test_initial_conditions():
-#
-#     ic = wrapper.initial_conditions(regenerate=True, user_params=wrapper.UserParams(HII_DIM=35))
-#     assert len(ic.lowres_density)==ic.user_params.HII_DIM**3
-#     assert np.sum(ic.lowres_density) != 0
-#
-# def test_initial_conditions2():
-#     ic = wrapper.initial_conditions(cosmo_params=wrapper.CosmoParams(SIGMA_8=0.8),
-#                                     user_params = wrapper.UserParams(HII_DIM=35), regenerate=True)
-#     assert len(ic.lowres_density)==ic.user_params.HII_DIM**3
-#     assert np.sum(ic.lowres_density) !=0
-#
-#
-# def test_perturb_field_no_ic():
-#     pf = wrapper.perturb_field(7.0, regenerate=True, user_params=wrapper.UserParams(HII_DIM=35))
-#     assert len(pf.density)==pf.user_params.HII_DIM**3
-#     assert np.sum(pf.density) !=0
+@pytest.fixture(scope="module")
+def user_params():
+    # Do a small box, for testing
+    return wrapper.UserParams(HII_DIM=35, DIM=70)
+
+
+def test_perturb_field_no_ic(user_params):
+    "Run a perturb field without passing an init box"
+    pf = wrapper.perturb_field(
+        redshift = 7.0,
+        regenerate=True,  # i.e. make sure we don't read it in.
+        user_params=user_params
+    )
+
+    assert len(pf.density) == pf.user_params.HII_DIM
+    assert np.sum(pf.density) != 0
+
+
 #
 # def test_perturb_field_ic():
 #     ic = wrapper.initial_conditions(user_params=wrapper.UserParams(HII_DIM=25))
