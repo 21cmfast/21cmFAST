@@ -5,6 +5,9 @@
 .. start-badges
 .. image:: https://travis-ci.org/BradGreig/Hybrid21CM.svg?branch=develop-steven
     :target: https://travis-ci.org/BradGreig/Hybrid21CM
+.. image:: https://coveralls.io/repos/github/BradGreig/Hybrid21CM/badge.svg?branch=develop-steven
+    :target: https://coveralls.io/github/BradGreig/Hybrid21CM?branch=develop-steven
+
 .. end-badges
 
 An extensible MCMC framework for 21cmFAST.
