@@ -3,7 +3,8 @@
 ======
 
 .. start-badges
-
+.. image:: https://travis-ci.org/BradGreig/Hybrid21CM.svg?branch=develop-steven
+    :target: https://travis-ci.org/BradGreig/Hybrid21CM
 .. end-badges
 
 An extensible MCMC framework for 21cmFAST.
