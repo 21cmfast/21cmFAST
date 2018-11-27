@@ -583,18 +583,23 @@ def electron_opticaldepth(*, user_params=None, cosmo_params=None, redshifts=None
     cosmo_params = CosmoParams(cosmo_params)
 
     # Run the C code
-    value = lib.ComputeTau(user_params(), cosmo_params(), len(redshifts), redshifts, global_xHI)
+    return lib.ComputeTau(user_params(), cosmo_params(), len(redshifts), redshifts, global_xHI)
 
 
-def Construct_LF(*, user_params=None, cosmo_params=None, astro_params=None, flag_options=None, redshifts=None):
+def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_params=None, flag_options=None, redshifts=None,
+                                nbins=100):
+
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     astro_params = AstroParams(astro_params)
     flag_options = FlagOptions(flag_options)
 
-    # Run the C code
-    lib.ComputeLF(user_params(), cosmo_params(), astro_params(), flag_options(), len(redshifts), redshifts)
+    lfunc = np.zeros(nbins)
+    c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
 
+    # Run the C code
+    lib.ComputeLF(nbins, user_params(), cosmo_params(), astro_params(), flag_options(), len(redshifts), redshifts, c_lfunc)
+    return lfunc
 
 def initial_conditions(*, user_params=None, cosmo_params=None, regenerate=False, write=True, direc=None):
     """
@@ -1510,10 +1515,9 @@ class LightCone:
 
 
 def run_lightcone(*, redshift=None, max_redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(),
-                  astro_params=None,
-                  flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
-                  z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None, use_interp_perturb_field=False,
-                  ):
+                  astro_params=None, flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True,
+                  direc=None, z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None,
+                  use_interp_perturb_field=False):
     """
     Evaluates a full lightcone ending at a given redshift.
 

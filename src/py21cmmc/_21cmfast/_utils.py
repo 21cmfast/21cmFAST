@@ -86,6 +86,9 @@ class StructWithDefaults:
         self._strings = []
         self._cstruct_inited = False
 
+    def convert(self, key, val):
+        return val
+
     @property
     def _cstruct(self):
         """
@@ -147,7 +150,7 @@ class StructWithDefaults:
 
         for fld in self._ffi.typeof(self._cstruct[0]).fields:
             key = fld[0]
-            val = getattr(self, key)
+            val = self.convert(key, getattr(self, key))
 
             # Find the value of this key in the current class
             if isinstance(val, str):
