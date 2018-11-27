@@ -228,7 +228,7 @@ class OutputStruct:
             try:
                 setattr(self, k, kwargs.pop(k))
             except KeyError:
-                raise ("%s requires the keyword argument %s" % (self.__class__.__name__, k))
+                raise KeyError("%s requires the keyword argument %s" % (self.__class__.__name__, k))
 
         if kwargs:
             warnings.warn(
