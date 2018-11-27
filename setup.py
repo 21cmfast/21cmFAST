@@ -41,25 +41,27 @@ def find_version(*file_paths):
 
 # ======================================================================================================================
 # Create a user-level config directory for 21CMMC, for configuration.
-pkgdir = expanduser(join("~", ".21CMMC")) #os.environ.get("CFGDIR", expanduser(join("~", ".21CMMC")))
+cfgdir = expanduser(join("~", ".21CMMC")) #os.environ.get("CFGDIR", expanduser(join("~", ".21CMMC")))
 
-if not os.path.exists(pkgdir):
-    os.makedirs(pkgdir)
+pkgdir = os.path.dirname(os.path.abspath(__file__))
 
-copyfile("config.yml", join(pkgdir, "config.yml"))
-copyfile("runconfig_example.yml", join(pkgdir, "runconfig_example.yml"))
-copy_tree("External_tables", join(pkgdir, "External_tables"))
+if not os.path.exists(cfgdir):
+    os.makedirs(cfgdir)
+
+copyfile(join(pkgdir, "config.yml"), join(cfgdir, "config.yml"))
+copyfile(join(pkgdir, "runconfig_example.yml"), join(cfgdir, "runconfig_example.yml"))
+copy_tree(join(pkgdir, "External_tables"), join(cfgdir, "External_tables"))
 
 boxdir=os.environ.get("BOXDIR", None)
 
 if boxdir:
-    with open(join(pkgdir,"config.yml"), 'r') as f:
+    with open(join(cfgdir, "config.yml"), 'r') as f:
         lines = f.readlines()
         for i,line in enumerate(lines):
             if line.strip().startswith("boxdir"):
                 lines[i] = line.replace(line.split(": ")[-1], boxdir)
 
-    with open(join(pkgdir, "config.yml"), 'w') as f:
+    with open(join(cfgdir, "config.yml"), 'w') as f:
         f.write("\n".join(lines))
 
 # ======================================================================================================================
