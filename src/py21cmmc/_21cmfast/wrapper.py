@@ -570,6 +570,8 @@ def _get_redshift(redshift, *structs):
 
     for s in structs:
         if hasattr(s, "redshift"):
+            if redshift is not None and s.redshift != redshift:
+                logger.warning("%s with redshift %s over-riding given redshift %s" % (s._name, s.redshift, redshift))
             return s.redshift
 
     return redshift
@@ -586,9 +588,9 @@ def electron_opticaldepth(*, user_params=None, cosmo_params=None, redshifts=None
     return lib.ComputeTau(user_params(), cosmo_params(), len(redshifts), redshifts, global_xHI)
 
 
-def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_params=None, flag_options=None, redshifts=None,
+def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_params=None, flag_options=None,
+                                redshifts=None,
                                 nbins=100):
-
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     astro_params = AstroParams(astro_params)
@@ -598,8 +600,10 @@ def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_pa
     c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
 
     # Run the C code
-    lib.ComputeLF(nbins, user_params(), cosmo_params(), astro_params(), flag_options(), len(redshifts), redshifts, c_lfunc)
+    lib.ComputeLF(nbins, user_params(), cosmo_params(), astro_params(), flag_options(), len(redshifts), redshifts,
+                  c_lfunc)
     return lfunc
+
 
 def initial_conditions(*, user_params=None, cosmo_params=None, regenerate=False, write=True, direc=None):
     """
@@ -623,9 +627,8 @@ def initial_conditions(*, user_params=None, cosmo_params=None, regenerate=False,
 
     direc : str, optional
         The directory in which to search for the boxes and write them. By default, this is the directory given by
-        ``boxdir`` in the configuration file, ``~/.21CMMC/config.yml``. Note that for *reading* data, while the
-        specified `direc` is searched first, the default directory will *also* be searched if no appropriate data is
-        found in `direc`. This is recursively applied to any potential sub-calculations.
+        ``boxdir`` in the configuration file, ``~/.21CMMC/config.yml``. This is recursively applied to any potential
+        sub-calculations.
 
     Returns
     -------
@@ -1596,7 +1599,7 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=UserParams(),
         perturb = perturb_field(redshift=redshift, init_boxes=init_box, regenerate=regenerate, direc=direc)
 
     max_redshift = global_params.Z_HEAT_MAX if (
-                flag_options.INHOMO_RECO or do_spin_temp or max_redshift is None) else max_redshift
+            flag_options.INHOMO_RECO or do_spin_temp or max_redshift is None) else max_redshift
 
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = _logscroll_redshifts(redshift, z_step_factor, max_redshift)

@@ -370,8 +370,7 @@ class OutputStruct:
         ----------
         direc : str, optional
             The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-            by the ``config.yml`` in ``.21CMMC``. This central directory will be searched in addition to whatever is
-            passed to `direc`.
+            by the ``config.yml`` in ``.21CMMC``.
 
         Returns
         -------
@@ -436,8 +435,7 @@ class OutputStruct:
         ----------
         direc : str, optional
             The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-            by the ``config.yml`` in ``.21CMMC``. This central directory will be searched in addition to whatever is
-            passed to `direc`.
+            by the ``config.yml`` in ``.21CMMC``.
         """
         return self.find_existing(direc) is not None
 
@@ -490,8 +488,7 @@ class OutputStruct:
         ----------
         direc : str, optional
             The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-            by the ``config.yml`` in ``.21CMMC``. This central directory will be searched in addition to whatever is
-            passed to `direc`.
+            by the ``config.yml`` in ``.21CMMC``.
         """
         if self.filled:
             raise IOError("This data is already filled, no need to read in.")
