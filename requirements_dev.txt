@@ -10,3 +10,4 @@ astropy
 corner
 pytest
 pytest-cov
+coveralls
