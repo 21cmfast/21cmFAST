@@ -343,6 +343,9 @@ class FlagOptions(StructWithDefaults):
 
     USE_TS_FLUCT : bool, optional
         Whether to perform IGM spin temperature fluctuations (i.e. X-ray heating)
+
+    M_MIN_in_Mass : bool, optional
+        Whether the minimum mass is defined by Mass or Virial Temperature
     """
 
     _ffi = ffi
@@ -352,6 +355,7 @@ class FlagOptions(StructWithDefaults):
         SUBCELL_RSD=False,
         INHOMO_RECO=False,
         USE_TS_FLUCT=False,
+        M_MIN_in_Mass=False,
     )
 
 

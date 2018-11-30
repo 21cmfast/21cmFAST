@@ -235,11 +235,6 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     growth_factor_z = dicke(perturbed_field_redshift);
     inverse_growth_factor_z = 1./growth_factor_z;
     
-    if (astro_params->X_RAY_Tvir_MIN < 9.99999e3) // neutral IGM
-        mu_for_Ts = 1.22;
-    else // ionized IGM
-        mu_for_Ts = 0.6;
-    
     //set the minimum ionizing source mass
     // In v1.4 the miinimum ionizing source mass does not depend on redshift.
     // For the constant ionizing efficiency parameter, M_MIN is set to be M_TURN which is a sharp cut-off.
@@ -250,7 +245,22 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         M_MIN = (astro_params->M_TURN)/50.;
     }
     else {
-        M_MIN = astro_params->M_TURN;
+        
+        if(flag_options->M_MIN_in_Mass) {
+            M_MIN = (astro_params->M_TURN)/50.;
+        }
+        else {
+            //set the minimum source mass
+            if (astro_params->X_RAY_Tvir_MIN < 9.99999e3) { // neutral IGM
+                mu_for_Ts = 1.22;
+            }
+            else {  // ionized IGM
+                mu_for_Ts = 0.6;
+            }
+            M_MIN = TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
+            
+            initialiseSigmaMInterpTable(M_MIN,1e20);
+        }
     }
     
     init_ps();
@@ -266,8 +276,10 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     if(this_spin_temp->first_box || (fabs(initialised_redshift - perturbed_field_redshift) > 0.0001) ) {
         init_heat();
         
-        initialiseSigmaMInterpTable(M_MIN,1e20);
-    }
+        if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
+            initialiseSigmaMInterpTable(M_MIN,1e20);
+        }
+    }    
     
     if (redshift > global_params.Z_HEAT_MAX){
         
@@ -564,8 +576,14 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 for(i=0;i<zpp_interp_points_SFR;i++) {
                     zpp_grid = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points_SFR-1.0);
             
-                    Sigma_Tmin_grid[i] = sigma_z0(FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
-                    ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                    if(flag_options->M_MIN_in_Mass) {
+                        Sigma_Tmin_grid[i] = sigma_z0(FMAX(M_MIN,  M_MIN_WDM));
+                        ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, FMAX(M_MIN,  M_MIN_WDM));
+                    }
+                    else {
+                        Sigma_Tmin_grid[i] = sigma_z0(FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                        ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                    }
                 }
         
                 // Create the interpolation tables for the derivative of the collapsed fraction and the collapse fraction itself
@@ -652,14 +670,25 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         }
         else {
             
-            if (FgtrM(zp, FMAX(TtoM(zp, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM)) < 1e-15 )
-                NO_LIGHT = 1;
-            else
-                NO_LIGHT = 0;
-        
-            M_MIN_at_zp = get_M_min_ion(zp);
-            filling_factor_of_HI_zp = 1 - ION_EFF_FACTOR * FgtrM_General(zp, M_MIN_at_zp) / (1.0 - x_e_ave);
+            if(flag_options->M_MIN_in_Mass) {
+             
+                if (FgtrM(zp, FMAX(M_MIN,  M_MIN_WDM)) < 1e-15 )
+                    NO_LIGHT = 1;
+                else
+                    NO_LIGHT = 0;
+                
+                M_MIN_at_zp = M_MIN;
+            }
+            else {
             
+                if (FgtrM(zp, FMAX(TtoM(zp, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM)) < 1e-15 )
+                    NO_LIGHT = 1;
+                else
+                    NO_LIGHT = 0;
+        
+                M_MIN_at_zp = get_M_min_ion(zp);
+            }
+            filling_factor_of_HI_zp = 1 - ION_EFF_FACTOR * FgtrM_General(zp, M_MIN_at_zp) / (1.0 - x_e_ave);
         }
         
         if (filling_factor_of_HI_zp > 1) filling_factor_of_HI_zp=1;
