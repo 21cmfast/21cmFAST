@@ -279,7 +279,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
             initialiseSigmaMInterpTable(M_MIN,1e20);
         }
-    }    
+    }
     
     if (redshift > global_params.Z_HEAT_MAX){
         
@@ -548,7 +548,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 
                 /* initialise interpolation of the mean collapse fraction for global reionization.*/
                 initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10);
-
+                
                 initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
                 
             }
@@ -646,6 +646,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             }
             
             initialise_SFRD_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,max_densities,zpp_growth,R_values, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+            
         }
         
         zp = redshift;
@@ -1257,7 +1258,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         }
         
     } // end main integral loop over z'
-    
+        
 }
 
 

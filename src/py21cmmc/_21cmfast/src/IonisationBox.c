@@ -234,7 +234,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
         }
     }
     else {
-
+        
         // Take the ionisation fraction from the X-ray ionisations from Ts.c (only if the calculate spin temperature flag is set)
         if(flag_options->USE_TS_FLUCT) {
             for (i=0; i<user_params->HII_DIM; i++){
@@ -302,7 +302,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             }
             fftwf_execute(plan);
         }
-    
+        
         // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from
         //  real space to k-space
         // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
@@ -487,7 +487,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                 overdense_small_bin_width_inv = 1./overdense_small_bin_width;
                 
                 initialiseGL_Nion(NGL_SFR, astro_params->M_TURN,massofscaleR);
-
+                
                 initialise_Nion_General_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
             }
             else {
@@ -500,7 +500,6 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
                 erfc_denom = 1./( growth_factor * erfc_denom );
             
             }
-            
             
             // Determine the global averaged f_coll for the overall normalisation
                 
@@ -695,7 +694,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
             }
             else {
                 R /= (global_params.DELTA_R_HII_FACTOR);
-            }
+            }            
         }
      
         // find the neutral fraction
@@ -742,6 +741,5 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     }
     
     free(Fcoll);
-    
 }
 
