@@ -80,7 +80,7 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
         }
     }
     ave /= (float)HII_TOT_NUM_PIXELS;
-   
+    
     x_val1 = 0.;
     x_val2 = 1.;
     
@@ -463,7 +463,7 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
             ave /= (HII_TOT_NUM_PIXELS+0.0);
         }
     }
-    
+        
     printf("ave Tb = %e\n",ave);
     
     free(v);

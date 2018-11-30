@@ -1581,6 +1581,7 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
 
     for iz, z in enumerate(scrollz):
         # Best to get a perturb for this redshift, to pass to brightness_temperature
+        
         this_perturb = perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
                                      direc=direc)
 
@@ -1614,6 +1615,7 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
         # Save mean/global quantities
         neutral_fraction[iz] = np.mean(ib2.xH_box)
         global_signal[iz] = np.mean(bt2.brightness_temp)
+        
 
         # HERE IS WHERE WE NEED TO DO THE INTERPOLATION ONTO THE LIGHTCONE!
         if z < max_redshift: # i.e. now redshift is in the bit where the user wants to save the lightcone:
@@ -1626,8 +1628,9 @@ def run_lightcone(redshift, max_redshift=None, user_params=UserParams(), cosmo_p
 
             n = len(these_distances)
             ind = np.arange(-(box_index+n), -box_index)
-            lc[:, :, -(lc_index+n):n_lightcone-lc_index] = (np.abs(prev_d - these_distances)*bt.brightness_temp.take(ind, axis=2, mode='wrap') +
-                                               np.abs(this_d - these_distances)*bt2.brightness_temp.take(ind, axis=2, mode='wrap'))/\
+
+            lc[:, :, -(lc_index+n):n_lightcone-lc_index] = (np.abs(this_d - these_distances)*bt.brightness_temp.take(ind + n_lightcone, axis=2, mode='wrap') +
+                                               np.abs(prev_d - these_distances)*bt2.brightness_temp.take(ind + n_lightcone, axis=2, mode='wrap'))/\
                                               (np.abs(prev_d - this_d))
 
             lc_index += n
