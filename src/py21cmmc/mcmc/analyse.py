@@ -1,11 +1,11 @@
 """
 Module containing functions to analyse the results of MCMC chains,a nd enable more transparent input/output of chains.
 """
+import matplotlib.pyplot as plt
+import numpy as np
+
 from .cosmoHammer import CosmoHammerSampler
 from .cosmoHammer.storage import HDFStorage
-
-import numpy as np
-import matplotlib.pyplot as plt
 
 
 def get_samples(chain, indx=0):

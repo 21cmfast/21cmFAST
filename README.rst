@@ -3,6 +3,10 @@
 ======
 
 .. start-badges
+.. image:: https://travis-ci.org/BradGreig/Hybrid21CM.svg?branch=develop-steven
+    :target: https://travis-ci.org/BradGreig/Hybrid21CM
+.. image:: https://coveralls.io/repos/github/BradGreig/Hybrid21CM/badge.svg?branch=develop-steven
+    :target: https://coveralls.io/github/BradGreig/Hybrid21CM?branch=develop-steven
 
 .. end-badges
 
@@ -18,9 +22,9 @@ Features
 * The most up-to-date parameterization of ``21cmFAST``, with consistent spin temperature and inhomogeneous recombinations
   available.
 * Convenient data objects which simplify access to and processing of the various density and ionization fields.
-* De-coupled functions mean that arbitrary functionality can be injected into the process. [TODO: docs on how to do this]
+* De-coupled functions mean that arbitrary functionality can be injected into the process.
 * Seamless integration with ``emcee``-based MCMC.
-* MCMC is easily extensible via the addition of different likelihoods using the same underlying data. [TODO]
+* MCMC is easily extensible via the addition of different likelihoods using the same underlying data.
 
 Quick Usage
 ===========

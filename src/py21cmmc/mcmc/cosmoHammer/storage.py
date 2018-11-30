@@ -2,9 +2,10 @@
 A module containing classes which ease the storage of data during chain computation.
 """
 
-import numpy as np
 import os
+
 import h5py
+import numpy as np
 
 
 class HDFStorage:
@@ -34,7 +35,7 @@ class HDFStorage:
     def reset(self, nwalkers, params):
         """Clear the state of the chain and empty the backend
         Args:
-            nwakers (int): The size of the ensemble
+            nwalkers (int): The size of the ensemble
             params (Params): The parameter input
         """
         if os.path.exists(self.filename):
@@ -49,7 +50,7 @@ class HDFStorage:
                 del f[self.name]
 
             g = f.create_group(self.name)
-            #g.attrs["version"] = __version__
+            # g.attrs["version"] = __version__
             g.attrs["nwalkers"] = nwalkers
             g.attrs["ndim"] = ndim
             g.attrs["has_blobs"] = False
@@ -205,9 +206,9 @@ class HDFStorage:
 
             g["chain"][iteration, :, :] = coords
             g["log_prob"][iteration, :] = log_prob
-            if blobs[0]: # i.e. blobs is a list of dicts, and if the first dict is non-empty...
+            if blobs[0]:  # i.e. blobs is a list of dicts, and if the first dict is non-empty...
                 blobs = np.array([tuple([b[name] for name in g['blobs'].dtype.names]) for b in blobs],
-                                  dtype=g['blobs'].dtype)
+                                 dtype=g['blobs'].dtype)
                 # Blobs must be a dict
                 g['blobs'][iteration, ...] = blobs
 
@@ -225,60 +226,87 @@ class HDFStorage:
             raise ValueError("inconsistent use of blobs")
 
     def get_chain(self, **kwargs):
-        """Get the stored chain of MCMC samples
-        Args:
+        """
+        Get the stored chain of MCMC samples
+
+        Parameters
+        ----------
+        kwargs:
             flat (Optional[bool]): Flatten the chain across the ensemble.
                 (default: ``False``)
             thin (Optional[int]): Take only every ``thin`` steps from the
                 chain. (default: ``1``)
             discard (Optional[int]): Discard the first ``discard`` steps in
                 the chain as burn-in. (default: ``0``)
-        Returns:
-            array[..., nwalkers, ndim]: The MCMC samples.
+
+        Returns
+        -------
+        array[..., nwalkers, ndim]:
+            The MCMC samples.
         """
         return self.get_value("chain", **kwargs)
 
     def get_blobs(self, **kwargs):
-        """Get the chain of blobs for each sample in the chain
-        Args:
+        """
+        Get the chain of blobs for each sample in the chain
+
+        Parameters
+        ----------
+        kwargs:
             flat (Optional[bool]): Flatten the chain across the ensemble.
                 (default: ``False``)
             thin (Optional[int]): Take only every ``thin`` steps from the
                 chain. (default: ``1``)
             discard (Optional[int]): Discard the first ``discard`` steps in
                 the chain as burn-in. (default: ``0``)
-        Returns:
-            array[..., nwalkers]: The chain of blobs.
+
+
+        Returns
+        -------
+        array[..., nwalkers]:
+            The chain of blobs.
         """
         return self.get_value("blobs", **kwargs)
 
     def get_log_prob(self, **kwargs):
-        """Get the chain of log probabilities evaluated at the MCMC samples
-        Args:
+        """
+        Get the chain of log probabilities evaluated at the MCMC samples
+
+        Parameters
+        ----------
+        kwargs:
             flat (Optional[bool]): Flatten the chain across the ensemble.
                 (default: ``False``)
             thin (Optional[int]): Take only every ``thin`` steps from the
                 chain. (default: ``1``)
             discard (Optional[int]): Discard the first ``discard`` steps in
                 the chain as burn-in. (default: ``0``)
-        Returns:
-            array[..., nwalkers]: The chain of log probabilities.
+
+        Returns
+        -------
+        array[..., nwalkers]:
+            The chain of log probabilities.
         """
         return self.get_value("log_prob", **kwargs)
 
     def get_last_sample(self):
-        """Access the most recent sample in the chain
-        This method returns a tuple with
-        * ``coords`` - A list of the current positions of the walkers in the
-          parameter space. The shape of this object will be
-          ``(nwalkers, dim)``.
-        * ``log_prob`` - The list of log posterior probabilities for the
-          walkers at positions given by ``coords`` . The shape of this object
-          is ``(nwalkers,)``.
-        * ``rstate`` - The current state of the random number generator.
-        * ``blobs`` - (optional) The metadata "blobs" associated with the
-          current position. The value is only returned if blobs have been
-          saved during sampling.
+        """
+        Access the most recent sample in the chain
+
+        Returns
+        -------
+        sample : tuple
+            Contains:
+            * ``coords`` - A list of the current positions of the walkers in the
+              parameter space. The shape of this object will be
+              ``(nwalkers, dim)``.
+            * ``log_prob`` - The list of log posterior probabilities for the
+              walkers at positions given by ``coords`` . The shape of this object
+              is ``(nwalkers,)``.
+            * ``rstate`` - The current state of the random number generator.
+            * ``blobs`` - (optional) The metadata "blobs" associated with the
+              current position. The value is only returned if blobs have been
+              saved during sampling.
         """
         if (not self.initialized) or self.iteration <= 0:
             raise AttributeError("you must run the sampler with "
@@ -321,7 +349,7 @@ class HDFStorageUtil:
     def __init__(self, file_prefix, chain_number=0):
         self.file_prefix = file_prefix
         self.burnin_storage = HDFStorage(file_prefix + '.h5', name='burnin')
-        self.sample_storage = HDFStorage(file_prefix + '.h5', name='sample_%s'%chain_number)
+        self.sample_storage = HDFStorage(file_prefix + '.h5', name='sample_%s' % chain_number)
 
     def reset(self, nwalkers, params, burnin=True, samples=True):
         if burnin:

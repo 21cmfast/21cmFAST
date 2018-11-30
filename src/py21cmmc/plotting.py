@@ -4,10 +4,9 @@ Simple plotting functions for 21cmFAST objects.
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import LogNorm, SymLogNorm
 
 
-def _imshow_slice(cube, slice_axis=-1, slice_index=0, fig=None, ax=None, fig_kw={}, cbar=True, lognorm=False,
+def _imshow_slice(cube, slice_axis=-1, slice_index=0, fig=None, ax=None, fig_kw=None, cbar=True,
                   **imshow_kw):
     """
     Helper function to plot a slice of some kind of cube.
@@ -34,6 +33,8 @@ def _imshow_slice(cube, slice_axis=-1, slice_index=0, fig=None, ax=None, fig_kw=
     """
     # If no axis is passed, create a new one
     # This allows the user to add this plot into an existing grid, or alter it afterwards.
+    if fig_kw is None:
+        fig_kw = {}
     if ax is None and fig is None:
         fig, ax = plt.subplots(1, 1, **fig_kw)
     elif ax is None:
@@ -43,8 +44,8 @@ def _imshow_slice(cube, slice_axis=-1, slice_index=0, fig=None, ax=None, fig_kw=
 
     plt.sca(ax)
 
-    slice = np.take(cube, slice_index, axis=slice_axis)
-    plt.imshow(slice.T, origin='lower', **imshow_kw)
+    slc = np.take(cube, slice_index, axis=slice_axis)
+    plt.imshow(slc.T, origin='lower', **imshow_kw)
 
     if cbar: plt.colorbar()
 
@@ -103,11 +104,10 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
 
 
 def lightcone_sliceplot(lightcone, **kwargs):
-
     slice_axis = kwargs.pop("slice_axis", 0)
 
     fig, ax = _imshow_slice(lightcone.brightness_temp,
-                            extent=( 0, lightcone.user_params.BOX_LEN,0, lightcone.lightcone_coords[-1]),
+                            extent=(0, lightcone.user_params.BOX_LEN, 0, lightcone.lightcone_coords[-1]),
                             slice_axis=slice_axis)
 
     ax.set_ylabel("Redshift Axis [Mpc]")

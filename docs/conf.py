@@ -15,6 +15,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
     'sphinx.ext.mathjax',
+    'sphinx.ext.autosectionlabel',
     'numpydoc',
     'nbsphinx',
     'IPython.sphinxext.ipython_console_highlighting',
@@ -23,6 +24,8 @@ if os.getenv('SPELLCHECK'):
     extensions += 'sphinxcontrib.spelling',
     spelling_show_suggestions = True
     spelling_lang = 'en_US'
+
+autosectionlabel_prefix_document = True
 
 autosummary_generate=True
 numpydoc_show_class_members = False

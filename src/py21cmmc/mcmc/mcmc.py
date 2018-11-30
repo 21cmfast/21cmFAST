@@ -1,4 +1,5 @@
 from os import path, mkdir
+
 from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, Params
 
 
@@ -83,7 +84,7 @@ def run_mcmc(core_modules, likelihood_modules, params,
 
     try:
         mkdir(datadir)
-    except:
+    except FileExistsError:
         pass
 
     # Setup parameters.
@@ -95,7 +96,7 @@ def run_mcmc(core_modules, likelihood_modules, params,
     sampler = CosmoHammerSampler(
         continue_sampling=continue_sampling,
         likelihoodComputationChain=chain,
-        storageUtil= HDFStorageUtil(file_prefix),
+        storageUtil=HDFStorageUtil(file_prefix),
         filePrefix=file_prefix,
         reuseBurnin=reuse_burnin,
         **mcmc_options

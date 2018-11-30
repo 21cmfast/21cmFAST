@@ -1,16 +1,23 @@
 """
 A module providing Core Modules for cosmoHammer. This is the basis of the plugin system for py21cmmc.
 """
+import logging
 import warnings
+
 import py21cmmc as p21
 
-import logging
 logger = logging.getLogger("21CMMC")
 
 
-class NotSetupError(Exception):
+class NotSetupError(AttributeError):
     def __init__(self):
         default_message = 'setup() must have been called on the chain to use this method/attribute!'
+        super().__init__(default_message)
+
+
+class NotAChain(AttributeError):
+    def __init__(self):
+        default_message = 'this Core or Likelihood must be part of a LikelihoodComputationChain to enable this method/attribute!'
         super().__init__(default_message)
 
 
@@ -19,20 +26,27 @@ class CoreBase:
         self.store = store or {}
 
     def prepare_storage(self, ctx, storage):
-        "Add variables to special dict which cosmoHammer will automatically store with the chain."
+        """Add variables to special dict which cosmoHammer will automatically store with the chain."""
         for name, storage_function in self.store.items():
             try:
                 storage[name] = storage_function(ctx)
             except Exception:
-                logger.error("Exception while trying to evaluate storage function %s"%name)
+                logger.error("Exception while trying to evaluate storage function %s" % name)
                 raise
 
     @property
-    def default_ctx(self):
+    def chain(self):
+        """
+        A reference to the LikelihoodComputationChain of which this Core is a part.
+        """
         try:
-            return self.LikelihoodComputationChain.core_context()
+            return self._LikelihoodComputationChain
         except AttributeError:
-            raise AttributeError("default_ctx is not available unless the likelihood is embedded in a LikelihoodComputationChain")
+            raise NotAChain
+
+    @property
+    def parameter_names(self):
+        return getattr(self.chain.params, "keys", [])
 
     def simulate_data(self, ctx):
         """
@@ -71,10 +85,11 @@ class CoreCoevalModule(CoreBase):
     3. ``xHI``: an :class:`~py21cmmc._21cmfast.wrapper.IonizedBox` instance
     4. ``brightness_temp``: a :class:`~py21cmmc._21cmfast.wrapper.BrightnessTemp` instance
     """
+
     def __init__(self, redshift,
                  user_params=None, flag_options=None, astro_params=None,
                  cosmo_params=None, regenerate=True, do_spin_temp=False, z_step_factor=1.02,
-                 z_heat_max=None, change_seed_every_iter=False, ctx_variables=["brightness_temp", "xHI"],
+                 z_heat_max=None, change_seed_every_iter=False, ctx_variables=None,
                  keep_data_in_memory=True,
                  **io_options):
         """
@@ -156,6 +171,8 @@ class CoreCoevalModule(CoreBase):
         """
         super().__init__(io_options.get("store", None))
 
+        if ctx_variables is None:
+            ctx_variables = ["brightness_temp", "xHI"]
         self.redshift = redshift
         if not hasattr(self.redshift, "__len__"):
             self.redshift = [self.redshift]
@@ -173,9 +190,9 @@ class CoreCoevalModule(CoreBase):
         self.do_spin_temp = do_spin_temp
 
         self.io = dict(
-            store={},            # (derived) quantities to store in the MCMC chain.
-            cache_dir=None,      # where full data sets will be written/read from.
-            cache_init=True,     # whether to cache init and perturb data sets (done before parameter retention step).
+            store={},  # (derived) quantities to store in the MCMC chain.
+            cache_dir=None,  # where full data sets will be written/read from.
+            cache_init=True,  # whether to cache init and perturb data sets (done before parameter retention step).
             cache_ionize=False,  # whether to cache ionization data sets (done before parameter retention step)
         )
 
@@ -185,7 +202,7 @@ class CoreCoevalModule(CoreBase):
         self.perturb_field = None
 
         # Attempt to auto-set the keep_memory parameter
-        if keep_data_in_memory and self.user_params.DIM >= 1000: # This gives about 4GiB for 32-bit floats.
+        if keep_data_in_memory and self.user_params.DIM >= 1000:  # This gives about 4GiB for 32-bit floats.
             self.keep_data_in_memory = False
         else:
             self.keep_data_in_memory = keep_data_in_memory
@@ -199,10 +216,8 @@ class CoreCoevalModule(CoreBase):
         This method is called automatically by its parent :class:`~LikelihoodComputationChain`, and should not be
         invoked directly.
         """
-        self.parameter_names = getattr(self.LikelihoodComputationChain.params, "keys", [])
-
         # If the chain has different parameter truths, we want to use those for our defaults.
-        self._update_params(self.LikelihoodComputationChain.createChainContext({}).getParams())
+        self._update_params(self.chain.createChainContext().getParams())
 
         if self.z_heat_max is not None:
             p21.global_params.Z_HEAT_MAX = self.z_heat_max
@@ -210,7 +225,8 @@ class CoreCoevalModule(CoreBase):
         # Here we initialize the init and perturb boxes.
         # If modifying cosmo, we don't want to do this, because we'll create them
         # on the fly on every iteration.
-        if not any([p in self.cosmo_params.self.keys() for p in self.parameter_names]) and not self.change_seed_every_iter:
+        if not any(
+                [p in self.cosmo_params.self.keys() for p in self.parameter_names]) and not self.change_seed_every_iter:
             logger.info("Initializing init and perturb boxes for the entire chain.")
             initial_conditions = p21.initial_conditions(
                 user_params=self.user_params,
@@ -249,7 +265,8 @@ class CoreCoevalModule(CoreBase):
             try:
                 ctx.add(key, locals()[key])
             except KeyError:
-                raise KeyError("ctx_variables must be drawn from the list ['init', 'perturb', 'xHI', 'brightness_temp']")
+                raise KeyError(
+                    "ctx_variables must be drawn from the list ['init', 'perturb', 'xHI', 'brightness_temp']")
 
     def _update_params(self, params):
         """
@@ -261,9 +278,10 @@ class CoreCoevalModule(CoreBase):
 
         """
         # Note that RANDOM_SEED is never updated. It should only change when we are modifying cosmo.
-        self.astro_params.update(**{k: getattr(params, k) for k,v in params.items() if k in self.astro_params.defining_dict})
+        self.astro_params.update(
+            **{k: getattr(params, k) for k, v in params.items() if k in self.astro_params.defining_dict})
         self.cosmo_params.update(
-            **{k: getattr(params, k) for k,v in params.items() if k in self.cosmo_params.defining_dict})
+            **{k: getattr(params, k) for k, v in params.items() if k in self.cosmo_params.defining_dict})
 
         # We need to reset the seed to None on every iteration if the initial conditions are changing.
         if self.change_seed_every_iter:
@@ -298,9 +316,11 @@ class CoreLightConeModule(CoreCoevalModule):
 
     1. ``lightcone``: a :class:`~py21cmmc._21cmfast.wrapper.LightCone` instance.
     """
+
     def __init__(self, *, max_redshift, **kwargs):
         if "ctx_variables" in kwargs:
-            warnings.warn("ctx_variables does not apply to the lightcone module (at least not yet). It will be ignored.")
+            warnings.warn(
+                "ctx_variables does not apply to the lightcone module (at least not yet). It will be ignored.")
 
         super().__init__(**kwargs)
         self.max_redshift = max_redshift
@@ -318,6 +338,7 @@ class CoreLightConeModule(CoreCoevalModule):
         """
         The redshift at each slice of the lightcone.
         """
+        # noinspection PyProtectedMember
         return p21.wrapper._get_lightcone_redshifts(
             self.cosmo_params, self.max_redshift, self.redshift,
             self.user_params, self.z_step_factor

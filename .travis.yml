@@ -1,0 +1,28 @@
+# Config file for automatic testing at travis-ci.org
+
+language: python
+python:
+  - 3.6
+  - 3.5
+
+addons:
+  apt:
+    packages:
+    - libfftw3-dev
+    - libgsl0-dev
+    update: true
+
+
+# command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
+install: pip install -U tox-travis coverage coveralls
+
+# command to run tests, e.g. python setup.py test
+script:
+  - tox
+  - coverage report
+
+
+# Calculate coverage
+after_success:
+  - ls -a
+  - coveralls
