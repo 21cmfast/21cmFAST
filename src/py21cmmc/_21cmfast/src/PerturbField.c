@@ -307,7 +307,7 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
                 }
             }
         }
-        
+                
         memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     }
     

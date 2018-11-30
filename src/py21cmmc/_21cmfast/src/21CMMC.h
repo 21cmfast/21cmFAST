@@ -65,6 +65,7 @@ struct FlagOptions{
     bool SUBCELL_RSD;
     bool INHOMO_RECO;
     bool USE_TS_FLUCT;
+    bool M_MIN_in_Mass;
 };
 
 

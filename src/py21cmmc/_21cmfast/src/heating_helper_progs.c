@@ -166,7 +166,12 @@ int init_FcollTable(float zmin, float zmax)
     for(i=0;i<n_redshifts_1DTable;i++) {
         z_table = zmin_1DTable + zbin_width_1DTable*(double)i;
         
-        FgtrM_1DTable_linear[i] = log10(FgtrM(z_table, get_M_min_ion(z_table)));
+        if(flag_options_hf->M_MIN_in_Mass) {
+            FgtrM_1DTable_linear[i] = log10(FgtrM(z_table, (astro_params_hf->M_TURN)/50.));
+        }
+        else {
+            FgtrM_1DTable_linear[i] = log10(FgtrM(z_table, get_M_min_ion(z_table)));
+        }
     }
     
     return 0;
