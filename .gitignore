@@ -27,3 +27,7 @@ docs/tutorials/\.ipynb_checkpoints/
 docs/tutorials/data/
 
 \.tox/
+
+\.coverage
+
+htmlcov/
