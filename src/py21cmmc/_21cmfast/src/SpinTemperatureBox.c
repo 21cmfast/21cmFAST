@@ -257,9 +257,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             else {  // ionized IGM
                 mu_for_Ts = 0.6;
             }
-            M_MIN = TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
-            
-            initialiseSigmaMInterpTable(M_MIN,1e20);
+            M_MIN = TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);            
         }
     }
     
@@ -300,6 +298,13 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 }
             }
         }
+        
+        if(!flag_options->M_MIN_in_Mass) {
+            M_MIN = TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
+            
+            initialiseSigmaMInterpTable(M_MIN,1e20);
+        }
+        
     }
     else {
         
@@ -530,6 +535,15 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         }
         
         determine_zpp_max = zpp*1.001;
+        
+        if(!flag_options->M_MIN_in_Mass) {
+            M_MIN = TtoM(determine_zpp_max, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
+            
+            initialiseSigmaMInterpTable(M_MIN,1e20);
+        }
+        
+        
+        
         
         zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0);
         
