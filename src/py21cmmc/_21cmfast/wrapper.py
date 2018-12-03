@@ -1595,7 +1595,7 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=UserParams(),
         global_params.Z_HEAT_MAX = z_heat_max
 
     if init_box is None:  # no need to get cosmo, user params out of it.
-        init_box = initial_conditions(user_params, cosmo_params, write=write, regenerate=regenerate, direc=direc)
+        init_box = initial_conditions(user_params=user_params, cosmo_params=cosmo_params, write=write, regenerate=regenerate, direc=direc)
 
     if perturb is not None:
         _check_compatible_inputs(init_box, perturb, ignore_redshift=True)
