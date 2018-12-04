@@ -9,6 +9,7 @@ from py21cmmc import wrapper
 
 REDSHIFT = 12
 
+
 @pytest.fixture(scope="module")
 def user_params():
     # Do a small box, for testing
@@ -16,13 +17,45 @@ def user_params():
 
 
 @pytest.fixture(scope="module")
-def perturb_field(user_params,tmpdirec):
+def init_box(user_params, tmpdirec):
+    return wrapper.initial_conditions(
+        user_params=user_params,
+        regenerate=True,
+        direc=tmpdirec.strpath,
+        random_seed=12
+    )
+
+
+@pytest.fixture(scope="module")
+def perturb_field(init_box, tmpdirec):
     "A default perturb_field"
     return wrapper.perturb_field(
         redshift=REDSHIFT,
         regenerate=True,  # i.e. make sure we don't read it in.
-        user_params=user_params,
-        direc=tmpdirec.strpath
+        init_boxes=init_box,
+        direc=tmpdirec.strpath,
+    )
+
+
+@pytest.fixture(scope="module")
+def ionize_box(perturb_field, tmpdirec):
+    "A default perturb_field"
+    return wrapper.ionize_box(
+        perturbed_field=perturb_field,
+        regenerate=True,  # i.e. make sure we don't read it in.
+        direc=tmpdirec.strpath,
+        z_step_factor=1.2
+    )
+
+
+@pytest.fixture(scope="module")
+def spin_temp(perturb_field, tmpdirec):
+    "A default perturb_field"
+    return wrapper.spin_temperature(
+        perturbed_field=perturb_field,
+        regenerate=True,  # i.e. make sure we don't read it in.
+        direc=tmpdirec.strpath,
+        z_step_factor=1.2
     )
 
 
@@ -31,7 +64,12 @@ def test_perturb_field_no_ic(user_params, perturb_field):
 
     assert len(perturb_field.density) == perturb_field.user_params.HII_DIM == user_params.HII_DIM
     assert perturb_field.redshift == REDSHIFT
-    assert np.sum(perturb_field.density) != 0
+    assert not np.all(perturb_field.density == 0)
+
+
+def test_ib_no_z(init_box):
+    with pytest.raises(ValueError):
+        wrapper.ionize_box(init_boxes=init_box)
 
 
 def test_pf_unnamed_param():
@@ -41,18 +79,23 @@ def test_pf_unnamed_param():
 
 
 def test_perturb_field_ic(user_params, perturb_field, tmpdirec):
-    ic = wrapper.initial_conditions(user_params=user_params, regenerate=True, direc=tmpdirec.strpath)
-    pf = wrapper.perturb_field(redshift=REDSHIFT, init_boxes=ic, regenerate=True, direc=tmpdirec.strpath)
+    ic = wrapper.initial_conditions(user_params=user_params, regenerate=True, direc=tmpdirec.strpath, write=False)
+    pf = wrapper.perturb_field(redshift=REDSHIFT, init_boxes=ic, regenerate=True, direc=tmpdirec.strpath, write=False)
+
     assert len(pf.density) == len(ic.lowres_density)
     assert pf.cosmo_params == ic.cosmo_params
     assert pf.user_params == ic.user_params
-    assert np.sum(pf.density) != 0
-    assert pf.cosmo_params is ic.cosmo_params
-    assert pf.user_params is ic.user_params
+    assert not np.all(pf.density == 0)
 
     assert pf.user_params == perturb_field.user_params
-    assert pf.cosmo_params.RANDOM_SEED != perturb_field.cosmo_params.RANDOM_SEED
-    assert pf.cosmo_params == perturb_field.cosmo_params # FIXME: this passes, because "equality" here does not include random seed. this is unintuitive and should be fixed!!!!
+    assert pf.random_seed != perturb_field.random_seed
+    assert pf.cosmo_params == perturb_field.cosmo_params
+
+    # they shouldn't be the same, as they have different seeds
+    assert pf != perturb_field
+
+    # but they are the same in every other way
+    assert pf._seedless_repr() == perturb_field._seedless_repr()
 
 
 def test_cache_exists(user_params, perturb_field, tmpdirec):
@@ -63,7 +106,7 @@ def test_cache_exists(user_params, perturb_field, tmpdirec):
 
     pf.read(tmpdirec.strpath)
     assert np.all(pf.density == perturb_field.density)
-    assert pf.cosmo_params == perturb_field.cosmo_params
+    assert pf == perturb_field
 
 
 def test_pf_new_seed(perturb_field, tmpdirec):
@@ -71,11 +114,65 @@ def test_pf_new_seed(perturb_field, tmpdirec):
         redshift=perturb_field.redshift,
         user_params=perturb_field.user_params,
         direc=tmpdirec.strpath,
-        cosmo_params={"RANDOM_SEED":1}
-    ) #note not passing cosmo params, because of seed.
+        random_seed=1,
+        write=False
+    )
+
+    assert not pf.exists(direc=tmpdirec.strpath)  # we didn't write it, and this has a different seed (presumably)
+    assert pf.random_seed != perturb_field.random_seed
 
     assert not np.all(pf.density == perturb_field.density)
-    assert pf.cosmo_params.RANDOM_SEED != perturb_field.cosmo_params.RANDOM_SEED
+
+
+def test_ib_new_seed(ionize_box, perturb_field, tmpdirec):
+    # this should fail because perturb_field has a seed set already, which isn't 1.
+    with pytest.raises(ValueError):
+        ib = wrapper.ionize_box(
+            perturbed_field=perturb_field,
+            direc=tmpdirec.strpath,
+            random_seed=1,
+            write=False
+        )
+
+    ib = wrapper.ionize_box(
+        cosmo_params=perturb_field.cosmo_params,
+        redshift=perturb_field.redshift,
+        user_params=perturb_field.user_params,
+        direc=tmpdirec.strpath,
+        random_seed=1,
+        write=False
+    )
+
+    assert not ib.exists(direc=tmpdirec.strpath)  # we didn't write it, and this has a different seed (presumably)
+    assert ib.random_seed != ionize_box.random_seed
+    assert not np.all(ib.xH_box == ionize_box.xH_box)
+
+
+def test_st_new_seed(spin_temp, perturb_field, tmpdirec):
+    # this should fail because perturb_field has a seed set already, which isn't 1.
+    with pytest.raises(ValueError):
+        st = wrapper.spin_temperature(
+            perturbed_field=perturb_field,
+            direc=tmpdirec.strpath,
+            random_seed=1,
+            write=False
+        )
+
+    st = wrapper.spin_temperature(
+        cosmo_params=spin_temp.cosmo_params,
+        user_params=spin_temp.user_params,
+        astro_params=spin_temp.astro_params,
+        flag_options=spin_temp.flag_options,
+        redshift=spin_temp.redshift,
+        direc=tmpdirec.strpath,
+        random_seed=1,
+        write=False
+    )
+
+    assert not st.exists(direc=tmpdirec.strpath)  # we didn't write it, and this has a different seed (presumably)
+    assert st.random_seed != spin_temp.random_seed
+    assert not np.all(st.Ts_box == spin_temp.Ts_box)
+
 
 def test_pf_regenerate(perturb_field, tmpdirec):
     pf = wrapper.perturb_field(
@@ -83,23 +180,22 @@ def test_pf_regenerate(perturb_field, tmpdirec):
         user_params=perturb_field.user_params,
         direc=tmpdirec.strpath,
         regenerate=True
-    ) #note not passing cosmo params, because of seed.
+    )
 
     assert not np.all(pf.density == perturb_field.density)
-    assert pf.cosmo_params.RANDOM_SEED != perturb_field.cosmo_params.RANDOM_SEED
+    assert pf.random_seed != perturb_field.random_seed
 
 
 def test_ib_from_pf(perturb_field, tmpdirec):
-    ib = wrapper.ionize_box(perturbed_field=perturb_field, direc=tmpdirec.strpath)
+    ib = wrapper.ionize_box(perturbed_field=perturb_field, direc=tmpdirec.strpath, write=False)
     assert ib.redshift == perturb_field.redshift
     assert ib.user_params == perturb_field.user_params
     assert ib.cosmo_params == perturb_field.cosmo_params
-    assert ib.user_params is perturb_field.user_params
-    assert ib.cosmo_params is perturb_field.cosmo_params
 
 
 def test_ib_from_z(user_params, perturb_field, tmpdirec):
-    ib = wrapper.ionize_box(redshift=perturb_field.redshift, user_params=user_params, direc=tmpdirec.strpath)
+    ib = wrapper.ionize_box(redshift=perturb_field.redshift, user_params=user_params, direc=tmpdirec.strpath,
+                            write=False)
     assert ib.redshift == perturb_field.redshift
     assert ib.user_params == perturb_field.user_params
     assert ib.cosmo_params == perturb_field.cosmo_params
@@ -107,9 +203,25 @@ def test_ib_from_z(user_params, perturb_field, tmpdirec):
 
 
 def test_ib_override_z(perturb_field, tmpdirec):
-    ib = wrapper.ionize_box(redshift=perturb_field.redshift+1, perturbed_field=perturb_field, direc=tmpdirec.strpath)
-    assert ib.redshift == perturb_field.redshift
-    assert ib.user_params == perturb_field.user_params
-    assert ib.cosmo_params == perturb_field.cosmo_params
+    with pytest.raises(ValueError):
+        wrapper.ionize_box(redshift=perturb_field.redshift + 1,
+                           perturbed_field=perturb_field, direc=tmpdirec.strpath,
+                           write=False)
 
-    assert ib.cosmo_params is perturb_field.cosmo_params # because the ib gets its cosmo_params directly from the passed perturb_field.
+
+def test_ib_override_z_heat_max(perturb_field, tmpdirec):
+    # save previous z_heat_max
+    zheatmax = wrapper.global_params.Z_HEAT_MAX
+
+    wrapper.ionize_box(redshift=perturb_field.redshift, perturbed_field=perturb_field, direc=tmpdirec.strpath,
+                       write=False, z_heat_max=12.0)
+
+    assert wrapper.global_params.Z_HEAT_MAX == 12.0
+
+    # set it back so that "nothing changes"
+    wrapper.global_params.Z_HEAT_MAX = zheatmax
+
+
+def test_ib_bad_st(init_box):
+    with pytest.raises(ValueError):
+        wrapper.ionize_box(redshift=REDSHIFT, spin_temp=init_box)

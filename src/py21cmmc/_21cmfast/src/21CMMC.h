@@ -12,8 +12,7 @@
 */
 
 struct CosmoParams{
-    
-    unsigned long long RANDOM_SEED;
+
     float SIGMA_8;
     float hlittle;
     float OMm;
@@ -96,7 +95,7 @@ struct BrightnessTemp{
     float *brightness_temp;
 };
 
-void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes);
+void ComputeInitialConditions(unsigned long long random_seed, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes);
 
 void ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field);
 
@@ -114,7 +113,8 @@ void ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParam
                            struct TsBox *spin_temp, struct IonizedBox *ionized_box,
                            struct PerturbedField *perturb_field, struct BrightnessTemp *box);
 
-void ComputeLF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF);
+void ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
+               struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, double *log10phi);
 
 float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_params, int Npoints, float *redshifts, float *global_xHI);
 

@@ -105,7 +105,7 @@ from astropy import units
 from astropy.cosmology import Planck15, z_at_value
 
 from ._21cmfast import ffi, lib
-from ._utils import StructWithDefaults, OutputStruct as _OS, _StructWrapper
+from ._utils import StructWithDefaults, OutputStruct as _OS, StructInstanceWrapper
 
 logging.basicConfig()
 logger = logging.getLogger("21CMMC")
@@ -114,7 +114,7 @@ logger = logging.getLogger("21CMMC")
 with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:
     config = yaml.load(f)
 
-global_params = _StructWrapper(lib.global_params, ffi)
+global_params = StructInstanceWrapper(lib.global_params, ffi)
 EXTERNALTABLES = ffi.new("char[]", path.join(path.expanduser("~"), ".21CMMC").encode())
 global_params.external_table_path = EXTERNALTABLES
 
@@ -132,11 +132,6 @@ class CosmoParams(StructWithDefaults):
 
     Parameters
     ----------
-    RANDOM_SEED : float, optional
-        A seed to set the IC generator. If None, chosen from uniform distribution. Note that if no `RANDOM_SEED` is set,
-        any box that matches all other attributes on cache will be used, and the `RANDOM_SEED` will be set from this
-        data.
-
     SIGMA_8 : float, optional
         RMS mass variance (power spectrum normalisation).
 
@@ -156,24 +151,12 @@ class CosmoParams(StructWithDefaults):
     _ffi = ffi
 
     _defaults_ = dict(
-        RANDOM_SEED=None,
         SIGMA_8=0.82,
         hlittle=Planck15.h,
         OMm=Planck15.Om0,
         OMb=Planck15.Ob0,
         POWER_INDEX=0.97,
     )
-
-    @property
-    def RANDOM_SEED(self):
-        """
-        The current random seed for the cosmology, which determines the initial conditions.
-        """
-        if not self._RANDOM_SEED:
-            # noinspection PyAttributeOutsideInit
-            self._RANDOM_SEED = int(np.random.randint(1, int(1e12)))
-
-        return self._RANDOM_SEED
 
     @property
     def OMl(self):
@@ -365,14 +348,13 @@ class FlagOptions(StructWithDefaults):
         else:
             return self._M_MIN_in_Mass
 
-
 # ======================================================================================================================
 # OUTPUT STRUCTURES
 # ======================================================================================================================
 class _OutputStruct(_OS):
     _global_params = global_params
 
-    def __init__(self, user_params=None, cosmo_params=None, **kwargs):
+    def __init__(self, *, user_params=None, cosmo_params=None, **kwargs):
         if cosmo_params is None:
             cosmo_params = CosmoParams()
         if user_params is None:
@@ -384,7 +366,7 @@ class _OutputStruct(_OS):
 
 
 class _OutputStructZ(_OutputStruct):
-    _inputs = ['redshift', 'user_params', 'cosmo_params']
+    _inputs = _OutputStruct._inputs + ['redshift']
 
 
 class InitialConditions(_OutputStruct):
@@ -480,7 +462,7 @@ class PerturbedField(_OutputStructZ):
 
 class IonizedBox(_OutputStructZ):
     """A class containing all ionized boxes"""
-    _inputs = ['redshift', 'user_params', 'cosmo_params', 'flag_options', 'astro_params']
+    _inputs = _OutputStructZ._inputs + ['flag_options', 'astro_params']
 
     _filter_params = _OutputStruct._filter_params + [
         'T_USE_VELOCITIES',  # bt
@@ -537,15 +519,22 @@ class BrightnessTemp(IonizedBox):
 # ======================================================================================================================
 # HELPER FUNCTIONS
 # ======================================================================================================================
-def _check_compatible_inputs(*datasets, ignore_redshift=False):
-    done = []
+def _check_compatible_inputs(*datasets, ignore=['redshift']):
+    """
+    Ensure that all defined input parameters for the provided datasets are equal, save for those listed in ignore.
+    """
+
+    done = [] # keeps track of inputs we've checked so we don't double check.
+
     for i, d in enumerate(datasets):
+        # If a dataset is None, just ignore and move on.
         if d is None:
             continue
 
         # noinspection PyProtectedMember
         for inp in d._inputs:
-            if ignore_redshift and inp == "redshift":
+            # Skip inputs that we want to ignore
+            if inp in ignore:
                 continue
 
             if inp not in done:
@@ -555,38 +544,98 @@ def _check_compatible_inputs(*datasets, ignore_redshift=False):
 
                     # noinspection PyProtectedMember
                     if inp in d2._inputs and getattr(d, inp) != getattr(d2, inp):
-                        print("%s and %s are incompatible" % (d.__class__.__name__, d2.__class__.__name__))
                         raise ValueError("%s and %s are incompatible" % (d.__class__.__name__, d2.__class__.__name__))
                 done += [inp]
 
 
-def _get_inputs(defaults, *structs):
-    for i in range(len(defaults)):
-        k = ''.join('_' + c.lower() if c.isupper() else c for c in defaults[i].__class__.__name__).strip('_')
+def configure_inputs(defaults, *datasets, ignore=['redshift'], flag_none=None):
+    # First ensure all inputs are compaible in their parameters
+    _check_compatible_inputs(*datasets, ignore=ignore)
 
-        for s in structs:
-            if s is None:
-                continue
+    if flag_none is None:
+        flag_none = []
 
-            if hasattr(s, k):
-                defaults[i] = getattr(s, k)
+    output = [0] * len(defaults)
+    for i, (key,val) in enumerate(defaults):
+
+        # Get the value of this input from the datasets
+        data_val = None
+        for dataset in datasets:
+            if dataset is not None and hasattr(dataset, key):
+                data_val = getattr(dataset, key)
                 break
 
-    return defaults
+        # If both data and default have values
+        if val is not None and data_val is not None and data_val != val:
+            raise ValueError("%s has an inconsistent value with %s"%(key, dataset.__class__.__name__))
+        else:
+            if val is not None:
+                output[i] = val
+            elif data_val is not None:
+                output[i] = data_val
+            elif key in flag_none:
+                raise ValueError("For %s, a value must be provided in some manner")
+            else:
+                output[i] = None
+
+    return output
 
 
-def _get_redshift(redshift, *structs):
-    if redshift is None and all([s is None for s in structs]):
-        raise ValueError("Either redshift must be provided, or a data set containing it.")
+# def _get_inputs(defaults, *structs):
+#     for i in range(len(defaults)):
+#         k = ''.join('_' + c.lower() if c.isupper() else c for c in defaults[i].__class__.__name__).strip('_')
+#
+#         for s in structs:
+#             if s is None:
+#                 continue
+#
+#             if hasattr(s, k):
+#                 defaults[i] = getattr(s, k)
+#                 break
+#
+#     return defaults
 
+
+def configure_redshift(redshift, *structs):
+    """
+    This is a special case to check and obtain redshift from given default and structs.
+
+    It will raise a ValueError if both redshift and all structs (and/or their redshift) have value of None, *or* if
+    any of them are different from each other.
+    """
+
+    zs = set()
     for s in structs:
-        if hasattr(s, "redshift"):
-            if redshift is not None and s.redshift != redshift:
-                logger.warning("%s with redshift %s over-riding given redshift %s" % (s._name, s.redshift, redshift))
-            return s.redshift
+        if s is not None and hasattr(s,"redshift"):
+            zs.add(s.redshift)
 
-    return redshift
+    zs = list(zs)
 
+    if len(zs) > 1 or (len(zs)==1 and redshift is not None  and zs[0] != redshift):
+        raise ValueError("Incompatible redshifts in inputs")
+    elif len(zs) == 1:
+        return zs[0]
+    elif redshift is None:
+        raise ValueError("Either redshift must be provided, or a data set containing it.")
+    else:
+        return redshift
+
+
+# def _configure_random_seed(random_seed, *structs):
+#     rs = set()
+#
+#     for s in structs:
+#         if s is not None:
+#             rs.add(s.random_seed)
+#
+#     rs = list(rs)
+#
+#     if len(rs) > 1 or (len(rs)==1 and rs[0] != random_seed and random_seed is not None):
+#         raise ValueError("random seeds of inputs not compatible")
+#     elif len(rs) == 1:
+#         return rs[0]
+#     else:
+#         return random_seed # which could still be None.
 
 # ======================================================================================================================
 # WRAPPING FUNCTIONS
@@ -616,7 +665,7 @@ def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_pa
     return lfunc
 
 
-def initial_conditions(*, user_params=None, cosmo_params=None, regenerate=False, write=True, direc=None):
+def initial_conditions(*, user_params=None, cosmo_params=None, random_seed=None, regenerate=False, write=True, direc=None):
     """
     Compute initial conditions.
 
@@ -649,19 +698,23 @@ def initial_conditions(*, user_params=None, cosmo_params=None, regenerate=False,
     cosmo_params = CosmoParams(cosmo_params)
 
     # Initialize memory for the boxes that will be returned.
-    boxes = InitialConditions(user_params, cosmo_params)
+    boxes = InitialConditions(
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        random_seed=random_seed
+    )
 
     # First check whether the boxes already exist.
     if not regenerate:
         try:
             boxes.read(direc)
-            logger.info("Existing init_boxes found and read in (seed=%s)." % boxes._current_seed)
+            logger.info("Existing init_boxes found and read in (seed=%s)." % boxes.random_seed)
             return boxes
         except IOError:
             pass
 
     # Run the C code
-    lib.ComputeInitialConditions(boxes.user_params(), boxes.cosmo_params(), boxes())
+    lib.ComputeInitialConditions(boxes.random_seed, boxes.user_params(), boxes.cosmo_params(), boxes())
     boxes.filled = True
     boxes._expose()
 
@@ -672,7 +725,7 @@ def initial_conditions(*, user_params=None, cosmo_params=None, regenerate=False,
     return boxes
 
 
-def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=None,
+def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=None, random_seed=None,
                   regenerate=False, write=True, direc=None):
     """
     Compute a perturbed field at a given redshift.
@@ -698,7 +751,7 @@ def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=N
 
     Other Parameters
     ----------------
-    regenerate, write, direc:
+    regenerate, write, direc, random_seed:
         See docs of :func:`initial_conditions` for more information.
 
     Examples
@@ -726,22 +779,31 @@ def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=N
     >>> field7 = perturb_field(7.0, user_params=UserParams(HII_DIM=1000))
 
     """
+    # Verify output parameter struct types
+    if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
+        raise ValueError("init_boxes must be an instance of InitialConditions")
+
+    print("pre_random: ", random_seed)
+    # Configure and check input/output parameters/structs
+    random_seed, user_params, cosmo_params = configure_inputs(
+        [("random_seed", random_seed), ("user_params", user_params), ("cosmo_params", cosmo_params)],
+        init_boxes
+    )
+
+    # Verify input parameter structs (need to do this after configure_inputs).
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
 
-    # Try setting the user/cosmo params via the init_boxes
-    if init_boxes is not None:
-        user_params, cosmo_params = _get_inputs([user_params, cosmo_params], init_boxes)
-
+    print("random_seed: ", random_seed)
     # Initialize perturbed boxes.
-    fields = PerturbedField(redshift=redshift, user_params=user_params, cosmo_params=cosmo_params)
+    fields = PerturbedField(redshift=redshift, user_params=user_params, cosmo_params=cosmo_params, random_seed=random_seed)
 
     # Check whether the boxes already exist
     if not regenerate:
         try:
             fields.read(direc)
             logger.info(
-                "Existing z=%s perturb_field boxes found and read in (seed=%s)." % (redshift, fields._current_seed))
+                "Existing z=%s perturb_field boxes found and read in (seed=%s)." % (redshift, fields.random_seed))
             return fields
         except IOError:
             pass
@@ -750,11 +812,11 @@ def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=N
     if init_boxes is None or not init_boxes.filled:
         init_boxes = initial_conditions(
             user_params=user_params, cosmo_params=cosmo_params,
-            regenerate=regenerate, write=write, direc=direc
+            regenerate=regenerate, write=write, direc=direc, random_seed=random_seed
         )
 
         # Need to update fields to have the same seed as init_boxes
-        fields.cosmo_params.update(RANDOM_SEED=init_boxes.cosmo_params.RANDOM_SEED)
+        fields._random_seed = init_boxes.random_seed
 
     # Run the C Code
     lib.ComputePerturbField(redshift, fields.user_params(), fields.cosmo_params(), init_boxes(), fields())
@@ -773,7 +835,7 @@ def ionize_box(*, astro_params=None, flag_options=None,
                previous_ionize_box=None, z_step_factor=1.02, z_heat_max=None,
                do_spin_temp=False, spin_temp=None,
                init_boxes=None, cosmo_params=None, user_params=None,
-               regenerate=False, write=True, direc=None):
+               regenerate=False, write=True, direc=None, random_seed=None):
     """
     Compute an ionized box at a given redshift.
 
@@ -801,7 +863,7 @@ def ionize_box(*, astro_params=None, flag_options=None,
         perturbed field, otherwise initial conditions will be generated on the fly. If given,
         the user and cosmo params will be set from this object.
 
-    previous_ionize_box: :class:`IonizedBox` or float, optional
+    previous_ionize_box: :class:`IonizedBox` or None
         An ionized box at higher redshift. This is only used if `INHOMO_RECO` and/or `do_spin_temp` are true. If either
         of these are true, and this is not given, then it will be assumed that this is the "first box", i.e. that it
         can be populated accurately without knowing source statistics.
@@ -836,7 +898,7 @@ def ionize_box(*, astro_params=None, flag_options=None,
 
     Other Parameters
     ----------------
-    regenerate, write, direc:
+    regenerate, write, direc, random_seed:
         See docs of :func:`initial_conditions` for more information.
 
     Notes
@@ -900,19 +962,30 @@ def ionize_box(*, astro_params=None, flag_options=None,
     If automatic recursion is used, then it is done in such a way that no large boxes are kept around in memory for
     longer than they need to be (only two at a time are required).
     """
+
+    # Verify output struct types
+    if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
+        raise ValueError("init_boxes must be an instance of InitialConditions")
+    if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
+        raise ValueError("perturbed_field must be an instance of PerturbedField")
+    if previous_ionize_box is not None and not isinstance(previous_ionize_box, IonizedBox):
+        raise ValueError("previous_ionize_box must be an instance of IonizedBox")
+    if spin_temp is not None and not isinstance(spin_temp, TsBox):
+        raise ValueError("spin_temp must be an instance of TsBox")
+
+    # Configure and check input/output parameters/structs
+    random_seed, user_params, cosmo_params, astro_params, flag_options = configure_inputs(
+        [("random_seed", random_seed), ("user_params", user_params), ("cosmo_params", cosmo_params),
+         ('astro_params', astro_params), ("flag_options", flag_options)],
+        init_boxes, spin_temp, init_boxes, perturbed_field, previous_ionize_box
+    )
+    redshift = configure_redshift(redshift, spin_temp, perturbed_field)
+
+    # Verify input structs
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     flag_options = FlagOptions(flag_options)
     astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
-
-    if spin_temp is not None or perturbed_field is not None or init_boxes is not None:
-        _check_compatible_inputs(spin_temp, perturbed_field, init_boxes)
-        _check_compatible_inputs(spin_temp, previous_ionize_box, ignore_redshift=True)
-
-    cosmo_params, user_params, astro_params, flag_options = _get_inputs(
-        [cosmo_params, user_params, astro_params, flag_options],
-        spin_temp, previous_ionize_box, perturbed_field, init_boxes
-    )
 
     if spin_temp is not None:
         do_spin_temp = True
@@ -921,27 +994,18 @@ def ionize_box(*, astro_params=None, flag_options=None,
     if z_heat_max is not None:
         global_params.Z_HEAT_MAX = z_heat_max
 
-    if spin_temp is not None and not isinstance(spin_temp, TsBox):
-        raise ValueError("spin_temp must be a TsBox instance")
-
-    redshift = _get_redshift(redshift, perturbed_field, spin_temp)
-
-    # Set the default astro params, using the INHOMO_RECO flag.
-    if astro_params is None:
-        astro_params = AstroParams(flag_options.INHOMO_RECO)
-
     box = IonizedBox(
         first_box=((1 + redshift) * z_step_factor - 1) > global_params.Z_HEAT_MAX and (
                 not isinstance(previous_ionize_box, IonizedBox) or not previous_ionize_box.filled),
         user_params=user_params, cosmo_params=cosmo_params,
-        redshift=redshift, astro_params=astro_params, flag_options=flag_options
+        redshift=redshift, astro_params=astro_params, flag_options=flag_options, random_seed=random_seed
     )
 
     # Check whether the boxes already exist
     if not regenerate:
         try:
             box.read(direc)
-            logger.info("Existing z=%s ionized boxes found and read in (seed=%s)." % (redshift, box._current_seed))
+            logger.info("Existing z=%s ionized boxes found and read in (seed=%s)." % (redshift, box.random_seed))
             return box
         except IOError:
             pass
@@ -978,10 +1042,11 @@ def ionize_box(*, astro_params=None, flag_options=None,
         init_boxes = initial_conditions(
             user_params=user_params, cosmo_params=cosmo_params,
             regenerate=regenerate, write=write, direc=direc,
+            random_seed=random_seed
         )
 
         # Need to update random seed
-        box.cosmo_params.update(RANDOM_SEED=init_boxes.cosmo_params.RANDOM_SEED)
+        box._random_seed = init_boxes.random_seed
 
     # Get appropriate previous ionization box
     if not isinstance(previous_ionize_box, IonizedBox):
@@ -997,7 +1062,7 @@ def ionize_box(*, astro_params=None, flag_options=None,
                 astro_params=astro_params, flag_options=flag_options, redshift=prev_z,
                 z_step_factor=z_step_factor, z_heat_max=z_heat_max,
                 do_spin_temp=do_spin_temp,
-                init_boxes=init_boxes, regenerate=regenerate, write=write, direc=direc
+                init_boxes=init_boxes, regenerate=regenerate, write=write, direc=direc,
             )
 
     # Dynamically produce the perturbed field.
@@ -1037,10 +1102,10 @@ def ionize_box(*, astro_params=None, flag_options=None,
     return box
 
 
-def spin_temperature(*, astro_params=None, flag_options=FlagOptions(), redshift=None, perturbed_field=None,
+def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, perturbed_field=None,
                      previous_spin_temp=None, z_step_factor=1.02, z_heat_max=None,
-                     init_boxes=None, cosmo_params=CosmoParams(), user_params=UserParams(), regenerate=False,
-                     write=True, direc=None):
+                     init_boxes=None, cosmo_params=None, user_params=None, regenerate=False,
+                     write=True, direc=None, random_seed=None, use_interp_perturb_field=False):
     """
     Compute spin temperature boxes at a given redshift.
 
@@ -1064,9 +1129,8 @@ def spin_temperature(*, astro_params=None, flag_options=FlagOptions(), redshift=
         at the same redshift as the spin temperature box. Here, the redshift from `perturbed_field` will *not* silently
         override the given redshift, as it will be interpolated to the proper redshift if its redshift disagrees.
 
-    previous_spin_temp : :class:`TsBox` or float, optional
-        The previous spin temperature box, or its redshift. This redshift must be greater than `redshift`. If a
-        redshift, then this will try to read in the previous spin temp box at this redshift or generate it.
+    previous_spin_temp : :class:`TsBox` or None
+        The previous spin temperature box.
 
     z_step_factor: float, optional
         A factor greater than unity, which specifies the logarithmic steps in redshift with which the spin temperature
@@ -1089,6 +1153,11 @@ def spin_temperature(*, astro_params=None, flag_options=FlagOptions(), redshift=
     cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
 
+    use_interp_perturb_field : bool, optional
+        Whether to use a single perturb field, at the lowest redshift of the lightcone, to determine all spin
+        temperature fields. If so, this field is interpolated in the underlying C-code to the correct redshift.
+        This is less accurate, but provides compatibility with older versions of 21cmMC.
+
     Returns
     -------
     :class:`~TsBox`
@@ -1096,7 +1165,7 @@ def spin_temperature(*, astro_params=None, flag_options=FlagOptions(), redshift=
 
     Other Parameters
     ----------------
-    regenerate, write, direc:
+    regenerate, write, direc, random_seed:
         See docs of :func:`initial_conditions` for more information.
 
     Notes
@@ -1145,28 +1214,34 @@ def spin_temperature(*, astro_params=None, flag_options=FlagOptions(), redshift=
 
     This is usually a bad idea, and will give a warning, but it is possible.
     """
+    # Verify output struct types
+    if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
+        raise ValueError("init_boxes must be an instance of InitialConditions")
+    if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
+        raise ValueError("perturbed_field must be an instance of PerturbedField")
+    if previous_spin_temp is not None and not isinstance(previous_spin_temp, TsBox):
+        raise ValueError("previous_spin_temp must be an instance of TsBox")
+
+    # Configure and check input/output parameters/structs
+    random_seed, user_params, cosmo_params, astro_params, flag_options = configure_inputs(
+        [("random_seed", random_seed), ("user_params", user_params), ("cosmo_params", cosmo_params),
+         ('astro_params', astro_params), ("flag_options", flag_options)],
+        init_boxes, previous_spin_temp, init_boxes, perturbed_field,
+    )
+    # TODO: this is probably wrong
+    redshift = configure_redshift(redshift, perturbed_field)
+
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     flag_options = FlagOptions(flag_options)
     astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
-
-    if perturbed_field is not None or previous_spin_temp is not None or init_boxes is not None:
-        if previous_spin_temp is None or isinstance(previous_spin_temp, _OutputStruct):
-            # This switch accounts for the case where previous_spin_temp is a float.
-            _check_compatible_inputs(perturbed_field, init_boxes, previous_spin_temp, ignore_redshift=True)
-        else:
-            _check_compatible_inputs(perturbed_field, init_boxes, ignore_redshift=True)
-
-    cosmo_params, user_params, astro_params, flag_options = _get_inputs(
-        [cosmo_params, user_params, astro_params, flag_options],
-        previous_spin_temp, perturbed_field, init_boxes
-    )
 
     # Set the upper limit on redshift at which we require a previous spin temp box.
     if z_heat_max is not None:
         global_params.Z_HEAT_MAX = z_heat_max
 
     # Try to determine redshift from other inputs, if required.
+    # TODO: take this into account
     if redshift is None:
         if perturbed_field is not None:
             redshift = perturbed_field.redshift
@@ -1177,22 +1252,18 @@ def spin_temperature(*, astro_params=None, flag_options=FlagOptions(), redshift=
     if redshift is None:
         raise ValueError("Either the redshift, perturbed_field or previous_spin_temp must be given.")
 
-    # Set the default astro params, using the INHOMO_RECO flag.
-    if astro_params is None:
-        astro_params = AstroParams(flag_options.INHOMO_RECO)
-
     box = TsBox(
         first_box=((1 + redshift) * z_step_factor - 1) > global_params.Z_HEAT_MAX and (
                 not isinstance(previous_spin_temp, IonizedBox) or not previous_spin_temp.filled),
         user_params=user_params, cosmo_params=cosmo_params,
-        redshift=redshift, astro_params=astro_params, flag_options=flag_options
+        redshift=redshift, astro_params=astro_params, flag_options=flag_options, random_seed=random_seed
     )
 
     # Check whether the boxes already exist on disk.
     if not regenerate:
         try:
             box.read(direc)
-            logger.info("Existing z=%s spin_temp boxes found and read in (seed=%s)." % (redshift, box._current_seed))
+            logger.info("Existing z=%s spin_temp boxes found and read in (seed=%s)." % (redshift, box.random_seed))
             return box
         except IOError:
             pass
@@ -1222,17 +1293,18 @@ def spin_temperature(*, astro_params=None, flag_options=FlagOptions(), redshift=
     if init_boxes is None or not init_boxes.filled:
         init_boxes = initial_conditions(
             user_params=user_params, cosmo_params=cosmo_params,
-            regenerate=regenerate, write=write, direc=direc
+            regenerate=regenerate, write=write, direc=direc, random_seed=random_seed
         )
 
         # Need to update random seed
-        box.cosmo_params.update(RANDOM_SEED=init_boxes.cosmo_params.RANDOM_SEED)
+        box._random_seed = init_boxes.random_seed
 
     # Create appropriate previous_spin_temp
     if not isinstance(previous_spin_temp, TsBox):
         if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
             previous_spin_temp = TsBox(redshift=0)
         else:
+            print("going back to z=%s"%prev_z)
             previous_spin_temp = spin_temperature(
                 init_boxes=init_boxes,
                 astro_params=astro_params, flag_options=flag_options, redshift=prev_z,
@@ -1240,6 +1312,7 @@ def spin_temperature(*, astro_params=None, flag_options=FlagOptions(), redshift=
                 regenerate=regenerate, write=write, direc=direc
             )
 
+    print("actually doing z=%s, Z_HEAT_MAX = %s"%(redshift, global_params.Z_HEAT_MAX))
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
         perturbed_field = perturb_field(
@@ -1285,26 +1358,22 @@ def brightness_temperature(*, ionized_box, perturbed_field, spin_temp=None):
     -------
     :class:`BrightnessTemp` instance.
     """
-    _check_compatible_inputs(ionized_box, perturbed_field, spin_temp)
+
+    # Verify output struct types
+    if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
+        raise ValueError("perturbed_field must be an instance of PerturbedField")
+    if spin_temp is not None and not isinstance(spin_temp, TsBox):
+        raise ValueError("spin_temp must be an instance of TsBox")
+    if ionized_box is not None and not isinstance(ionized_box, IonizedBox):
+        raise ValueError("previous_ionize_box must be an instance of IonizedBox")
+
+    _check_compatible_inputs(ionized_box, perturbed_field, spin_temp, ignore=[]) # don't ignore redshift here
 
     if spin_temp is None:
         saturated_limit = True
         spin_temp = TsBox(redshift=0)
-
     else:
         saturated_limit = False
-
-    #    if spin_temp.redshift != ionized_box.redshift != perturb_field.redshift:
-    #        raise ValueError("all box redshift must be the same.")
-
-    #    if spin_temp.user_params != ionized_box.user_params != perturb_field.user_params:
-    #        raise ValueError("all box user_params must be the same")
-
-    #    if spin_temp.cosmo_params != ionized_box.cosmo_params != perturb_field.cosmo_params:
-    #        raise ValueError("all box cosmo_params must be the same")
-
-    #    if spin_temp.astro_params != ionized_box.astro_params:
-    #        raise ValueError("all box astro_params must be the same")
 
     box = BrightnessTemp(user_params=ionized_box.user_params, cosmo_params=ionized_box.cosmo_params,
                          astro_params=ionized_box.astro_params, flag_options=ionized_box.flag_options,
@@ -1327,9 +1396,10 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
     return redshifts[::-1]
 
 
-def run_coeval(*, redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(), astro_params=None,
+def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_params=None,
                flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
-               z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None, use_interp_perturb_field=False):
+               z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None, use_interp_perturb_field=False,
+               random_seed=None):
     """
     Evaluates a coeval ionized box at a given redshift, or multiple redshift.
 
@@ -1388,26 +1458,39 @@ def run_coeval(*, redshift=None, user_params=UserParams(), cosmo_params=CosmoPar
 
     Other Parameters
     ----------------
-    regenerate, write, direc:
+    regenerate, write, direc, random_seed:
         See docs of :func:`initial_conditions` for more information.
     """
+
+    random_seed, user_params, cosmo_params = configure_inputs(
+        [("random_seed", random_seed), ("user_params", user_params), ("cosmo_params", cosmo_params)],
+        init_box, *perturb
+    )
+
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+
+    if redshift is None and perturb is None:
+        raise ValueError("Either redshift or perturb must be given")
 
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
 
     if init_box is None:  # no need to get cosmo, user params out of it.
         init_box = initial_conditions(
-            user_params=user_params, cosmo_params=cosmo_params,
+            user_params=user_params, cosmo_params=cosmo_params, random_seed=random_seed,
             write=write, regenerate=regenerate, direc=direc)
 
     if perturb is not None:
         if not hasattr(perturb, "__len__"):
             perturb = [perturb]
-        redshift = [p.redshift for p in perturb]
-        _check_compatible_inputs(init_box, *perturb, ignore_redshift=True)
 
-    if redshift is None and perturb is None:
-        raise ValueError("Either redshift or perturb must be given")
+        if redshift is not None:
+            if not all([p.redshift == z for p,z in zip(perturb, redshift)]):
+                raise ValueError("Input redshifts do not match perturb field redshifts")
+
+        else:
+            redshift = [p.redshift for p in perturb]
 
     singleton = False
     if not hasattr(redshift, "__len__"):
@@ -1530,7 +1613,7 @@ class LightCone:
 
 def run_lightcone(*, redshift=None, max_redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(),
                   astro_params=None, flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True,
-                  direc=None, z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None,
+                  direc=None, z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None, random_seed=None,
                   use_interp_perturb_field=False):
     """
     Evaluates a full lightcone ending at a given redshift.
@@ -1578,34 +1661,30 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=UserParams(),
 
     Other Parameters
     ----------------
-    regenerate, write, direc
+    regenerate, write, direc, random_seed
         See docs of :func:`initial_conditions` for more information.
     """
+
+    random_seed, user_params, cosmo_params = configure_inputs(
+        [("random_seed", random_seed), ("user_params", user_params), ("cosmo_params", cosmo_params)],
+        init_box, perturb
+    )
+
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     flag_options = FlagOptions(flag_options)
     astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
-    cosmo_params, user_params, astro_params, flag_options = _get_inputs(
-        [cosmo_params, user_params, astro_params, flag_options],
-        init_box, perturb
-    )
-
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
 
     if init_box is None:  # no need to get cosmo, user params out of it.
-        init_box = initial_conditions(user_params=user_params, cosmo_params=cosmo_params, write=write, regenerate=regenerate, direc=direc)
+        init_box = initial_conditions(user_params=user_params, cosmo_params=cosmo_params, write=write,
+                                      regenerate=regenerate, direc=direc, random_seed=random_seed)
 
-    if perturb is not None:
-        _check_compatible_inputs(init_box, perturb, ignore_redshift=True)
+    redshift = configure_redshift(redshift, perturb)
 
-    if redshift is None and perturb is None:
-        raise ValueError("Either redshift or perturb must be given")
-
-    if perturb is not None:
-        redshift = perturb.redshift
-    else:
+    if perturb is None:
         # The perturb field that we get here is at the *final* redshift, and can be used in TsBox.
         perturb = perturb_field(redshift=redshift, init_boxes=init_box, regenerate=regenerate, direc=direc)
 
@@ -1722,174 +1801,3 @@ def _get_lightcone_redshifts(cosmo_params, max_redshift, redshift, user_params, 
 
     return np.array([z_at_value(cosmo_params.cosmo.comoving_distance, d * units.Mpc) for d in lc_distances])
 
-
-def readbox(*, direc=None, fname=None, hash=None, kind=None, seed=None, load_data=True):
-    """
-    A function to read in a data set and return an appropriate object for it.
-
-    Parameters
-    ----------
-    direc : str, optional
-        The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-        by the ``config.yml`` in ``.21CMMC``.
-    fname: str, optional
-        The filename (without directory) of the data set. If given, this will be preferentially used, and must exist.
-    hash: str, optional
-        The md5 hash of the object desired to be read. Required if `fname` not given.
-    kind: str, optional
-        The kind of dataset, eg. "InitialConditions". Will be the name of a class defined in :mod:`~wrapper`. Required
-        if `fname` not given.
-    seed: str or int, optional
-        The random seed of the data set to be read. If not given, and filename not given, then a box will be read if
-        it matches the kind and hash, with an arbitrary seed.
-    load_data: bool, optional
-        Whether to read in the data in the data set. Otherwise, only its defining parameters are read.
-
-    Returns
-    -------
-    dataset:
-        An output object, whose type depends on the kind of data set being read.
-    """
-    direc = direc or path.expanduser(config['boxdir'])
-
-    # We either need fname, or hash and kind.
-    if not fname and not (hash and kind):
-        raise ValueError("Either fname must be supplied, or kind and hash")
-
-    if fname:
-        kind, hash, seed = _parse_fname(fname)
-
-    if not seed:
-        fname = kind + "_" + hash + "_r*.h5"
-        files = glob.glob(path.join(direc, fname))
-        if files:
-            fname = files[0]
-        else:
-            raise IOError("No files exist with that kind and hash.")
-    else:
-        fname = kind + "_" + hash + "_r" + str(seed) + ".h5"
-
-    # Now, open the file and read in the parameters
-    with h5py.File(path.join(direc, fname), 'r') as fl:
-        # First get items out of attrs.
-        top_level = {}
-        for k, v in fl.attrs.items():
-            top_level[k] = v
-
-        # Now descend into each group of parameters
-        params = {}
-        for grp_nm, grp in fl.items():
-            if grp_nm != kind:  # is a parameter
-                params[grp_nm] = {}
-                for k, v in grp.attrs.items():
-                    params[grp_nm][k] = v
-
-    # Need to map the parameters to input parameters.
-    passed_parameters = {}
-    for k, v in params.items():
-        if "global_params" in k:
-            for kk, vv in v.items():
-                setattr(global_params, kk, vv)
-
-        else:
-            # The following line takes something like "cosmo_params", turns it into "CosmoParams", and instantiates
-            # that particular class with the dictionary parameters.
-            passed_parameters[k] = globals()[k.title().replace("_", "")](**v)
-
-    for k, v in top_level.items():
-        passed_parameters[k] = v
-
-    # Make an instance of the object.
-    inst = globals()[kind](**passed_parameters)
-
-    # Read in the actual data (this avoids duplication of reading data).
-    if load_data:
-        inst.read(direc=direc)
-
-    return inst
-
-
-def _parse_fname(fname):
-    try:
-        kind = fname.split("_")[0]
-        hash = fname.split("_")[1]
-        seed = fname.split("_")[-1].split(".")[0][1:]
-    except IndexError:
-        raise ValueError("fname does not have correct format")
-
-    if kind + "_" + hash + "_r" + seed + ".h5" != fname:
-        raise ValueError("fname does not have correct format")
-
-    return kind, hash, seed
-
-
-def list_datasets(*, direc=None, kind=None, hash=None, seed=None):
-    """
-    Yield all datasets which match a given set of filters.
-
-    Can be used to determine parameters of all cached datasets, in conjunction with readbox.
-
-    Parameters
-    ----------
-    direc : str, optional
-        The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-        by the ``config.yml`` in ``.21CMMC``.
-    kind: str, optional
-        Filter by this kind. Must be one of "InitialConditions", "PerturbedField", "IonizedBox", "TsBox" or "BrightnessTemp".
-    hash: str, optional
-        Filter by this hash.
-    seed: str, optional
-        Filter by this seed.
-
-    Yields
-    ------
-    fname: str
-        The filename of the dataset (without directory).
-    parts: tuple of strings
-        The (kind, hash, seed) of the data set.
-    """
-    direc = direc or path.expanduser(config['boxdir'])
-
-    kind = kind or "*"
-    hash = hash or "*"
-    seed = seed or "*"
-
-    fname = path.join(direc, kind + "_" + hash + "_r" + seed + ".h5")
-
-    files = [path.basename(file) for file in glob.glob(fname)]
-
-    for file in files:
-        yield file, _parse_fname(file)
-
-
-def query_cache(*, direc=None, kind=None, hash=None, seed=None, show=True):
-    """
-    Walk through the cache, with given filters, and return all un-initialised dataset objects, optionally printing
-    their representation to screen.
-
-    Usefor for querying which kinds of datasets are available within the cache, and choosing one to read and use.
-
-    Parameters
-    ----------
-    direc : str, optional
-        The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-        by the ``config.yml`` in ``.21CMMC``.
-    kind: str, optional
-        Filter by this kind. Must be one of "InitialConditions", "PerturbedField", "IonizedBox", "TsBox" or "BrightnessTemp".
-    hash: str, optional
-        Filter by this hash.
-    seed: str, optional
-        Filter by this seed.
-    show: bool, optional
-        Whether to print out a repr of each object that exists.
-
-    Yields
-    ------
-    obj:
-       Output objects, un-initialized.
-    """
-    for file, parts in list_datasets(direc=direc, kind=kind, hash=hash, seed=seed):
-        cls = readbox(direc, fname=file, load_data=False)
-        if show:
-            print(file + ": " + str(cls))
-        yield file, cls

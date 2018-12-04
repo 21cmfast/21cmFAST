@@ -36,7 +36,7 @@
 
 // Re-write of init.c for being accessible within the MCMC
 
-void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes) {
+void ComputeInitialConditions(unsigned long long random_seed, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes) {
     
     /*
      Generates the initial conditions: gaussian random density field (DIM^3) as well as the equal or lower resolution velocity fields, and smoothed density field (HII_DIM^3).
@@ -71,7 +71,7 @@ void ComputeInitialConditions(struct UserParams *user_params, struct CosmoParams
 
     // seed the random number generators
     r = gsl_rng_alloc(gsl_rng_mt19937);
-    gsl_rng_set(r, cosmo_params->RANDOM_SEED);
+    gsl_rng_set(r, random_seed);
 
     // allocate array for the k-space and real-space boxes
     fftwf_complex *HIRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
