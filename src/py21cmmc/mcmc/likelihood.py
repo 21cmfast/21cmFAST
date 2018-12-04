@@ -50,7 +50,7 @@ class LikelihoodBase:
                 if hasattr(m, k):
                     if hasattr(self, k) and getattr(self, k) != getattr(m, k):
                         raise ValueError(
-                            f"Setup has detected incompatible input parameter dicts in specified cores: {k}")
+                            "Setup has detected incompatible input parameter dicts in specified cores: {k}".format(k=k))
                     else:
                         setattr(self, k, getattr(m, k))
 
