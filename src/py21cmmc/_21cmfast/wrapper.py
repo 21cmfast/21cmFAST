@@ -1471,8 +1471,8 @@ def run_coeval(*, redshift=None, user_params=UserParams(), cosmo_params=CosmoPar
             ib = ib2
         else:
             ib_tracker[redshift.index(z)] = ib2
-            bt[redshift.index(z)] = brightness_temperature(ib2, perturb[redshift.index(z)],
-                                                           st2 if do_spin_temp else None)
+            bt[redshift.index(z)] = brightness_temperature(ionized_box=ib2, perturbed_field=perturb[redshift.index(z)],
+                                                           spin_temp=st2 if do_spin_temp else None)
 
     # If a single redshift was passed, then pass back singletons.
     if singleton:

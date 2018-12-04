@@ -257,7 +257,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             else {  // ionized IGM
                 mu_for_Ts = 0.6;
             }
-            M_MIN = TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);            
+            M_MIN = TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
         }
     }
     
@@ -932,8 +932,11 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 ave_fcoll = ave_fcoll_inv = 0.0;
                 
                 for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
-                    if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) //just leave it alone and go to next value
+                    if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) { //just leave it alone and go to next value
+                        this_spin_temp->Tk_box[box_ct] = previous_spin_temp->Tk_box[box_ct];
+                        this_spin_temp->Ts_box[box_ct] = previous_spin_temp->Ts_box[box_ct];
                         continue;
+                    }
                     
                     curr_dens = delNL0[R_ct][box_ct]*zpp_growth[R_ct];
             
@@ -988,8 +991,9 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 
                 for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
                     
-                    if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) //just leave it alone and go to next value
+                    if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) { //just leave it alone and go to next value
                         continue;
+                    }
                     
                     // I've added the addition of zero just in case. It should be zero anyway, but just in case there is some weird
                     // numerical thing
@@ -1120,8 +1124,11 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         else {
         
             for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
-                if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) //just leave it alone and go to next value
+                if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) { //just leave it alone and go to next value
+                    this_spin_temp->Tk_box[box_ct] = previous_spin_temp->Tk_box[box_ct];
+                    this_spin_temp->Ts_box[box_ct] = previous_spin_temp->Ts_box[box_ct];
                     continue;
+                }
                 
                 x_e = previous_spin_temp->x_e_box[box_ct];
                 T = previous_spin_temp->Tk_box[box_ct];
@@ -1239,7 +1246,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                     // It can very rarely result in a negative spin temperature. If negative, it is a very small number. Take the absolute value, the optical depth can deal with very large numbers, so ok to be small
                     TS_fast = fabs(TS_fast);
                 }
-                    
+                                
                 this_spin_temp->Ts_box[box_ct] = TS_fast;
 
                 if(OUTPUT_AVE) {
