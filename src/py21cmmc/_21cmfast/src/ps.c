@@ -543,7 +543,9 @@ double dNdM_st_interp(double growthf, double M){
     
     MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
     MassBinLow = MinMass + mass_bin_width*(float)MassBin;
-    
+
+    // printf("MASSBIN ETC.: %d %d %lf %lf %lf\n", MassBin, NMass, log(M), MinMass, inv_mass_bin_width);
+
     sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
     sigma = sigma * growthf;
     
@@ -1256,18 +1258,17 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC){
     return -1;
 }
 
-void initialise_ComputeLF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options) {
+void initialise_ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options) {
 
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
     
-    lnMhalo_param = calloc((global_params.NBINS_LF),sizeof(double));
-    Muv_param = calloc((global_params.NBINS_LF),sizeof(double));
-    log10phi = calloc((global_params.NBINS_LF),sizeof(double));
-    Mhalo_param = calloc((global_params.NBINS_LF),sizeof(double));
+    lnMhalo_param = calloc(nbins,sizeof(double));
+    Muv_param = calloc(nbins,sizeof(double));
+    Mhalo_param = calloc(nbins,sizeof(double));
     
     LF_spline_acc = gsl_interp_accel_alloc();
-    LF_spline = gsl_spline_alloc(gsl_interp_cspline, global_params.NBINS_LF);
+    LF_spline = gsl_spline_alloc(gsl_interp_cspline, nbins);
     
     init_ps();
     
@@ -1282,10 +1283,11 @@ void initialise_ComputeLF(struct UserParams *user_params, struct CosmoParams *co
     
 }
 
-void ComputeLF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF) {
+void ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
+               struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, double *log10phi) {
     
     if(!initialised_ComputeLF) {
-        initialise_ComputeLF(user_params,cosmo_params,astro_params,flag_options);
+        initialise_ComputeLF(nbins, user_params,cosmo_params,astro_params,flag_options);
     }
     
     int i,i_z;
@@ -1303,13 +1305,13 @@ void ComputeLF(struct UserParams *user_params, struct CosmoParams *cosmo_params,
     
     lnMhalo_min = log(Mhalo_min*0.999);
     lnMhalo_max = log(Mhalo_max*1.001);
-    dlnMhalo = (lnMhalo_max - lnMhalo_min)/(double)(global_params.NBINS_LF - 1);
+    dlnMhalo = (lnMhalo_max - lnMhalo_min)/(double)(nbins - 1);
     
     for (i_z=0; i_z<NUM_OF_REDSHIFT_FOR_LF; i_z++) {        
         
         growthf = dicke(z_LF[i_z]);
         
-        for (i=0; i<global_params.NBINS_LF; i++) {
+        for (i=0; i<nbins; i++) {
             // generate interpolation arrays
             lnMhalo_param[i] = lnMhalo_min + dlnMhalo*(double)i;
             Mhalo_i = exp(lnMhalo_param[i]);
@@ -1325,13 +1327,13 @@ void ComputeLF(struct UserParams *user_params, struct CosmoParams *cosmo_params,
             if ( isinf(Muv_param[i]) || isnan(Muv_param[i]) ) Muv_param[i] = 10.;
         }
         
-        gsl_spline_init(LF_spline, lnMhalo_param, Muv_param, global_params.NBINS_LF);
+        gsl_spline_init(LF_spline, lnMhalo_param, Muv_param, nbins);
         
         lnMhalo_lo = log(Mhalo_min);
         lnMhalo_hi = log(Mhalo_max);
-        dlnM = (lnMhalo_hi - lnMhalo_lo)/(double)(global_params.NBINS_LF - 1);
+        dlnM = (lnMhalo_hi - lnMhalo_lo)/(double)(nbins - 1);
         
-        for (i=0; i<global_params.NBINS_LF; i++) {
+        for (i=0; i<nbins; i++) {
             // calculate luminosity function
             lnMhalo_i = lnMhalo_lo + dlnM*(double)i;
             Mhalo_param[i] = exp(lnMhalo_i);
