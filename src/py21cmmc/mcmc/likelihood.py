@@ -126,8 +126,6 @@ class LikelihoodBaseFile(LikelihoodBase):
             if self.noisefile and self._simulate and hasattr(self, "define_noise"):
                 self._write_noise()
 
-        logger.info("Finished base setup")
-
     def _read_data(self):
         data = []
         for fl in self.datafile:
