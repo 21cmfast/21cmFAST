@@ -832,7 +832,7 @@ def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=N
 
 def ionize_box(*, astro_params=None, flag_options=None,
                redshift=None, perturbed_field=None,
-               previous_ionize_box=None, z_step_factor=1.02, z_heat_max=None,
+               previous_ionize_box=None, z_step_factor=global_params.ZPRIME_STEP_FACTOR, z_heat_max=None,
                do_spin_temp=False, spin_temp=None,
                init_boxes=None, cosmo_params=None, user_params=None,
                regenerate=False, write=True, direc=None, random_seed=None):
@@ -993,9 +993,11 @@ def ionize_box(*, astro_params=None, flag_options=None,
     # Set the upper limit on redshift at which we require a previous spin temp box.
     if z_heat_max is not None:
         global_params.Z_HEAT_MAX = z_heat_max
+    if z_step_factor is not None:
+        global_params.ZPRIME_STEP_FACTOR = z_step_factor
 
     box = IonizedBox(
-        first_box=((1 + redshift) * z_step_factor - 1) > global_params.Z_HEAT_MAX and (
+        first_box=((1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1) > global_params.Z_HEAT_MAX and (
                 not isinstance(previous_ionize_box, IonizedBox) or not previous_ionize_box.filled),
         user_params=user_params, cosmo_params=cosmo_params,
         redshift=redshift, astro_params=astro_params, flag_options=flag_options, random_seed=random_seed
@@ -1023,7 +1025,7 @@ def ionize_box(*, astro_params=None, flag_options=None,
             else:
                 raise ValueError("previous_ionize_box must be an IonizedBox or a float")
         elif z_step_factor is not None:
-            prev_z = (1 + redshift) * z_step_factor - 1
+            prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
         else:
             prev_z = None
             if redshift < global_params.Z_HEAT_MAX:
@@ -1239,6 +1241,8 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
     # Set the upper limit on redshift at which we require a previous spin temp box.
     if z_heat_max is not None:
         global_params.Z_HEAT_MAX = z_heat_max
+    if z_step_factor is not None:
+        global_params.ZPRIME_STEP_FACTOR = z_step_factor
 
     # Try to determine redshift from other inputs, if required.
     # TODO: take this into account
@@ -1246,14 +1250,14 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
         if perturbed_field is not None:
             redshift = perturbed_field.redshift
         elif previous_spin_temp is not None:
-            redshift = (previous_spin_temp.redshift + 1) / z_step_factor - 1
+            redshift = (previous_spin_temp.redshift + 1) / global_params.ZPRIME_STEP_FACTOR - 1
 
     # If there is still no redshift, raise error.
     if redshift is None:
         raise ValueError("Either the redshift, perturbed_field or previous_spin_temp must be given.")
 
     box = TsBox(
-        first_box=((1 + redshift) * z_step_factor - 1) > global_params.Z_HEAT_MAX and (
+        first_box=((1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1) > global_params.Z_HEAT_MAX and (
                 not isinstance(previous_spin_temp, IonizedBox) or not previous_spin_temp.filled),
         user_params=user_params, cosmo_params=cosmo_params,
         redshift=redshift, astro_params=astro_params, flag_options=flag_options, random_seed=random_seed
@@ -1278,7 +1282,7 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
         elif isinstance(previous_spin_temp, numbers.Number):
             prev_z = previous_spin_temp
     elif z_step_factor is not None:
-        prev_z = (1 + redshift) * z_step_factor - 1
+        prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
     else:
         prev_z = None
         if redshift < global_params.Z_HEAT_MAX:
@@ -1398,7 +1402,8 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
 
 def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_params=None,
                flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
-               z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None, use_interp_perturb_field=False,
+               z_step_factor=global_params.ZPRIME_STEP_FACTOR, z_heat_max=None, init_box=None, perturb=None,
+               use_interp_perturb_field=False,
                random_seed=None):
     """
     Evaluates a coeval ionized box at a given redshift, or multiple redshift.
@@ -1475,6 +1480,8 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
 
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
+    if z_step_factor is not None:
+        global_params.ZPRIME_STEP_FACTOR = z_step_factor
 
     if init_box is None:  # no need to get cosmo, user params out of it.
         init_box = initial_conditions(
@@ -1504,7 +1511,7 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
 
     # Get the list of redshift we need to scroll through.
     if flag_options.INHOMO_RECO or do_spin_temp:
-        redshifts = _logscroll_redshifts(min(redshift), z_step_factor, global_params.Z_HEAT_MAX)
+        redshifts = _logscroll_redshifts(min(redshift), global_params.ZPRIME_STEP_FACTOR, global_params.Z_HEAT_MAX)
     else:
         redshifts = [min(redshift)]
 
@@ -1613,7 +1620,8 @@ class LightCone:
 
 def run_lightcone(*, redshift=None, max_redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(),
                   astro_params=None, flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True,
-                  direc=None, z_step_factor=1.02, z_heat_max=None, init_box=None, perturb=None, random_seed=None,
+                  direc=None, z_step_factor=global_params.ZPRIME_STEP_FACTOR, z_heat_max=None, init_box=None,
+                  perturb=None, random_seed=None,
                   use_interp_perturb_field=False):
     """
     Evaluates a full lightcone ending at a given redshift.
@@ -1677,6 +1685,8 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=UserParams(),
 
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
+    if z_step_factor is not None:
+        global_params.ZPRIME_STEP_FACTOR = z_step_factor
 
     if init_box is None:  # no need to get cosmo, user params out of it.
         init_box = initial_conditions(user_params=user_params, cosmo_params=cosmo_params, write=write,
@@ -1692,10 +1702,10 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=UserParams(),
             flag_options.INHOMO_RECO or do_spin_temp or max_redshift is None) else max_redshift
 
     # Get the redshift through which we scroll and evaluate the ionization field.
-    scrollz = _logscroll_redshifts(redshift, z_step_factor, max_redshift)
+    scrollz = _logscroll_redshifts(redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift)
 
     d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(cosmo_params, max_redshift, redshift, scrollz,
-                                                                user_params, z_step_factor)
+                                                                user_params, global_params.ZPRIME_STEP_FACTOR)
 
     lc = np.zeros((user_params.HII_DIM, user_params.HII_DIM, n_lightcone))
 
