@@ -115,7 +115,7 @@ class LikelihoodBaseFile(LikelihoodBase):
             self.data = self.simulate(simctx) if self._simulate else self._read_data()
 
             # If we can't/won't simulate noise, and no noisefile is provided, assume no noise is necessary.
-            if (hasattr(self, "define_noise") or self._simulate) or self.noisefile:
+            if (hasattr(self, "define_noise") and self._simulate) or self.noisefile:
                 self.noise = self.define_noise(simctx, self.data) if (
                         hasattr(self, "define_noise") and self._simulate) else self._read_noise()
 
@@ -127,12 +127,6 @@ class LikelihoodBaseFile(LikelihoodBase):
                 self._write_noise()
 
         logger.info("Finished base setup")
-
-    def define_noise(self):
-        """
-        Define the noise properties of the data.
-        """
-        raise AttributeError("define_noise is not implemented in this class")
 
     def _read_data(self):
         data = []
