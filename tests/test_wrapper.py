@@ -225,3 +225,39 @@ def test_ib_override_z_heat_max(perturb_field, tmpdirec):
 def test_ib_bad_st(init_box):
     with pytest.raises(ValueError):
         wrapper.ionize_box(redshift=REDSHIFT, spin_temp=init_box)
+
+
+def test_bt(ionize_box, spin_temp, perturb_field):
+    with pytest.raises(TypeError): # have to specify param names
+        wrapper.brightness_temperature(ionize_box, spin_temp, perturb_field)
+
+    bt = wrapper.brightness_temperature(ionized_box=ionize_box, perturbed_field=perturb_field, spin_temp=spin_temp)
+
+    assert bt.cosmo_params == perturb_field.cosmo_params
+    assert bt.user_params == perturb_field.user_params
+    assert bt.flag_options == ionize_box.flag_options
+    assert bt.astro_params == ionize_box.astro_params
+
+
+def test_coeval_against_direct(init_box, perturb_field, ionize_box):
+    init, pf, ib, bt = wrapper.run_coeval(
+        perturb=perturb_field,
+        init_box=init_box,
+        write=False
+    )
+
+    assert init == init_box
+    assert pf[0] == perturb_field
+    assert ib[0] == ionize_box
+
+
+def test_lightcone(init_box, perturb_field):
+    lc = wrapper.run_lightcone(
+        init_box=init_box,
+        perturb=perturb_field,
+        max_redshift=10.0
+    )
+
+    assert lc.lightcone_redshifts[-1] >= 10.0
+    assert np.isclose(lc.lightcone_redshifts[0], perturb_field.redshift, atol=1e-4)
+    assert lc.cell_size == init_box.user_params.BOX_LEN / init_box.user_params.HII_DIM
