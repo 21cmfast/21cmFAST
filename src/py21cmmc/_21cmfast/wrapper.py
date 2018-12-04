@@ -1466,6 +1466,9 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
     regenerate, write, direc, random_seed:
         See docs of :func:`initial_conditions` for more information.
     """
+    if perturb is not None:
+        if not hasattr(perturb, "__len__"):
+            perturb = [perturb]
 
     random_seed, user_params, cosmo_params = configure_inputs(
         [("random_seed", random_seed), ("user_params", user_params), ("cosmo_params", cosmo_params)],
@@ -1489,9 +1492,6 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
             write=write, regenerate=regenerate, direc=direc)
 
     if perturb is not None:
-        if not hasattr(perturb, "__len__"):
-            perturb = [perturb]
-
         if redshift is not None:
             if not all([p.redshift == z for p,z in zip(perturb, redshift)]):
                 raise ValueError("Input redshifts do not match perturb field redshifts")
@@ -1618,7 +1618,7 @@ class LightCone:
             [z_at_value(self.cosmo_params.cosmo.comoving_distance, d * units.Mpc) for d in self.lightcone_distances])
 
 
-def run_lightcone(*, redshift=None, max_redshift=None, user_params=UserParams(), cosmo_params=CosmoParams(),
+def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_params=None,
                   astro_params=None, flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True,
                   direc=None, z_step_factor=global_params.ZPRIME_STEP_FACTOR, z_heat_max=None, init_box=None,
                   perturb=None, random_seed=None,
