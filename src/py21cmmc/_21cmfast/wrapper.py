@@ -1469,6 +1469,8 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
     if perturb is not None:
         if not hasattr(perturb, "__len__"):
             perturb = [perturb]
+    else:
+        perturb = []
 
     random_seed, user_params, cosmo_params = configure_inputs(
         [("random_seed", random_seed), ("user_params", user_params), ("cosmo_params", cosmo_params)],
@@ -1491,7 +1493,7 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
             user_params=user_params, cosmo_params=cosmo_params, random_seed=random_seed,
             write=write, regenerate=regenerate, direc=direc)
 
-    if perturb is not None:
+    if perturb:
         if redshift is not None:
             if not all([p.redshift == z for p,z in zip(perturb, redshift)]):
                 raise ValueError("Input redshifts do not match perturb field redshifts")
@@ -1504,8 +1506,7 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
         singleton = True
         redshift = [redshift]
 
-    if perturb is None:
-        perturb = []
+    if not perturb:
         for z in redshift:
             perturb += [perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate, direc=direc)]
 

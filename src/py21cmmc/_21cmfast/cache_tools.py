@@ -135,7 +135,7 @@ def list_datasets(*, direc=None, kind=None, hash=None, seed=None):
     hash = hash or "*"
     seed = seed or "*"
 
-    fname = path.join(direc, kind + "_" + hash + "_r" + seed + ".h5")
+    fname = path.join(direc, str(kind) + "_" + str(hash) + "_r" + str(seed) + ".h5")
 
     files = [path.basename(file) for file in glob.glob(fname)]
 
