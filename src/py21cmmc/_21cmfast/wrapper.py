@@ -787,7 +787,6 @@ def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=N
     if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
         raise ValueError("init_boxes must be an instance of InitialConditions")
 
-    print("pre_random: ", random_seed)
     # Configure and check input/output parameters/structs
     random_seed, user_params, cosmo_params = configure_inputs(
         [("random_seed", random_seed), ("user_params", user_params), ("cosmo_params", cosmo_params)],
@@ -798,7 +797,6 @@ def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=N
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
 
-    print("random_seed: ", random_seed)
     # Initialize perturbed boxes.
     fields = PerturbedField(redshift=redshift, user_params=user_params, cosmo_params=cosmo_params, random_seed=random_seed)
 
@@ -1302,7 +1300,6 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
         if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
             previous_spin_temp = TsBox(redshift=0)
         else:
-            print("going back to z=%s"%prev_z)
             previous_spin_temp = spin_temperature(
                 init_boxes=init_boxes,
                 astro_params=astro_params, flag_options=flag_options, redshift=prev_z,

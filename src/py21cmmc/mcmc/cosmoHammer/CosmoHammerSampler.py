@@ -30,40 +30,31 @@ class CosmoHammerSampler(CHS):
 
         if not self.storageUtil.burnin_initialized:
             self.storageUtil.reset(self.nwalkers, self.params, burnin=True, samples=False)
-            with self.storageUtil.burnin_storage.open() as f:
-                print(list(f.keys()))
+
         if not self.storageUtil.samples_initialized:
             self.storageUtil.reset(self.nwalkers, self.params, burnin=False, samples=True)
             ''
         if self.storageUtil.burnin_storage.iteration >= self.burninIterations:
             self.log("all burnin iterations already completed")
-        if self.storageUtil.sample_storage.iteration >= self.sampleIterations:
-            raise Exception("All Samples have already been completed. Try with continue_sampling=False.")
 
         if self.storageUtil.sample_storage.iteration > 0 and self.storageUtil.burnin_storage.iteration < self.burninIterations:
             self.log("resetting sample iterations because more burnin iterations requested.")
-            self.storageUtil.reset(self.nwalkers, self.params, samples=True)
+            self.storageUtil.reset(self.nwalkers, self.params, burnin=False)
+
+        if self.storageUtil.sample_storage.iteration >= self.sampleIterations:
+            raise ValueError("All Samples have already been completed. Try with continue_sampling=False.")
+
 
     def _configureLogging(self, filename, logLevel):
+        super()._configureLogging(filename, logLevel)
+
         logger = getLogger()
         logger.setLevel(logLevel)
-        fh = logging.FileHandler(filename, "w")
-        fh.setLevel(logLevel)
-        # create console handler with a higher log level
         ch = logging.StreamHandler()
         ch.setLevel(self._log_level_stream)
         # create formatter and add it to the handlers
         formatter = logging.Formatter('%(asctime)s %(levelname)s:%(message)s')
-        fh.setFormatter(formatter)
         ch.setFormatter(formatter)
-        # add the handlers to the logger
-        for handler in logger.handlers[:]:
-            try:
-                handler.close()
-            except AttributeError:
-                pass
-            logger.removeHandler(handler)
-        logger.addHandler(fh)
         logger.addHandler(ch)
 
     def startSampling(self):
@@ -114,22 +105,26 @@ class CosmoHammerSampler(CHS):
                 except AttributeError:
                     pass
 
+    def _load(self, burnin=False):
+        stg = self.storageUtil.burnin_storage if burnin else self.storageUtil.sample_storage
+
+        self.log("reusing previous %s: %s iterations" % ("burnin" if burnin else "samples", stg.iteration))
+        pos, prob, rstate, data = stg.get_last_sample()
+        if data is not None:
+            data = [{k: d[k] for k in d.dtype.names} for d in data]
+        return pos, prob, rstate, data
+
     def loadBurnin(self):
         """
         loads the burn in from the file system
         """
-        self.log("reusing previous burnin: %s iterations" % self.storageUtil.burnin_storage.iteration)
-        return self.storageUtil.burnin_storage.get_last_sample()
+        return self._load(burnin=True)
 
     def loadSamples(self):
         """
         loads the samples from the file system
         """
-        self.log("reusing previous samples: %s iterations" % self.storageUtil.sample_storage.iteration)
-        pos, prob, rstate, data = self.storageUtil.sample_storage.get_last_sample()
-        if data is not None:
-            data = [{k: d[k] for k in d.dtype.names} for d in data]
-        return pos, prob, rstate, data
+        return self._load(burnin=False)
 
     def startSampleBurnin(self, pos=None, prob=None, rstate=None, data=None):
         """
