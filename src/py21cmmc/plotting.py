@@ -84,7 +84,7 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
     try:
         cube = getattr(struct, kind)
     except AttributeError:
-        raise AttributeError(f"The given OutputStruct does not have the quantity {kind}")
+        raise AttributeError("The given OutputStruct does not have the quantity {kind}".format(kind=kind))
 
     fig, ax = _imshow_slice(cube, extent=(0, struct.user_params.BOX_LEN) * 2, **kwargs)
 

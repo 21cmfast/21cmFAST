@@ -1022,12 +1022,7 @@ def ionize_box(*, astro_params=None, flag_options=None,
     if flag_options.INHOMO_RECO or do_spin_temp:
 
         if previous_ionize_box is not None:
-            if hasattr(previous_ionize_box, "redshift"):
-                prev_z = previous_ionize_box.redshift
-            elif isinstance(previous_ionize_box, numbers.Number):
-                prev_z = previous_ionize_box
-            else:
-                raise ValueError("previous_ionize_box must be an IonizedBox or a float")
+            prev_z = previous_ionize_box.redshift
         elif z_step_factor is not None:
             prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
         else:
@@ -1055,15 +1050,13 @@ def ionize_box(*, astro_params=None, flag_options=None,
         box._random_seed = init_boxes.random_seed
 
     # Get appropriate previous ionization box
-    if not isinstance(previous_ionize_box, IonizedBox):
+    if previous_ionize_box is None or not previous_ionize_box.filled:
         # If we are beyond Z_HEAT_MAX, just make an empty box
         if prev_z is None or prev_z > global_params.Z_HEAT_MAX:
             previous_ionize_box = IonizedBox(redshift=0)
 
         # Otherwise recursively create new previous box.
         else:
-            # Dynamically produce the initial conditions.
-
             previous_ionize_box = ionize_box(
                 astro_params=astro_params, flag_options=flag_options, redshift=prev_z,
                 z_step_factor=z_step_factor, z_heat_max=z_heat_max,
@@ -1111,7 +1104,7 @@ def ionize_box(*, astro_params=None, flag_options=None,
 def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, perturbed_field=None,
                      previous_spin_temp=None, z_step_factor=1.02, z_heat_max=None,
                      init_boxes=None, cosmo_params=None, user_params=None, regenerate=False,
-                     write=True, direc=None, random_seed=None, use_interp_perturb_field=False):
+                     write=True, direc=None, random_seed=None):
     """
     Compute spin temperature boxes at a given redshift.
 
@@ -1127,13 +1120,15 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
 
     redshift : float, optional
         The redshift at which to compute the ionized box. If not given, the redshift from `perturbed_field` will be used.
-        Either `redshift`, `perturbed_field` or both must be given.
+        Either `redshift`, `perturbed_field`, or `previous_spin_temp` must be given. See notes on `perturbed_field` for
+        how it affects the given redshift if both are given.
 
     perturbed_field : :class:`~PerturbField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated, either `init_boxes` and
         `redshift` must be given, or `user_params`, `cosmo_params` and `redshift`. By default, this will be generated
-        at the same redshift as the spin temperature box. Here, the redshift from `perturbed_field` will *not* silently
-        override the given redshift, as it will be interpolated to the proper redshift if its redshift disagrees.
+        at the same redshift as the spin temperature box. The redshift of perturb field is allowed to be different
+        than `redshift`. If so, it will be interpolated to the correct redshift, which can provide a speedup compared
+        to actually computing it at the desired redshift.
 
     previous_spin_temp : :class:`TsBox` or None
         The previous spin temperature box.
@@ -1234,8 +1229,14 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
          ('astro_params', astro_params), ("flag_options", flag_options)],
         init_boxes, previous_spin_temp, init_boxes, perturbed_field,
     )
-    # TODO: this is probably wrong
-    redshift = configure_redshift(redshift, perturbed_field)
+
+    # Try to determine redshift from other inputs, if required.
+    # Note that perturb_field does not need to match redshift here.
+    if redshift is None:
+        if perturbed_field is not None:
+            redshift = perturbed_field.redshift
+        elif previous_spin_temp is not None:
+            redshift = (previous_spin_temp.redshift + 1) / global_params.ZPRIME_STEP_FACTOR - 1
 
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
@@ -1247,14 +1248,6 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
         global_params.Z_HEAT_MAX = z_heat_max
     if z_step_factor is not None:
         global_params.ZPRIME_STEP_FACTOR = z_step_factor
-
-    # Try to determine redshift from other inputs, if required.
-    # TODO: take this into account
-    if redshift is None:
-        if perturbed_field is not None:
-            redshift = perturbed_field.redshift
-        elif previous_spin_temp is not None:
-            redshift = (previous_spin_temp.redshift + 1) / global_params.ZPRIME_STEP_FACTOR - 1
 
     # If there is still no redshift, raise error.
     if redshift is None:
@@ -1281,10 +1274,7 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
 
     # Get the previous redshift
     if previous_spin_temp is not None:
-        if hasattr(previous_spin_temp, "redshift"):
-            prev_z = previous_spin_temp.redshift
-        elif isinstance(previous_spin_temp, numbers.Number):
-            prev_z = previous_spin_temp
+        prev_z = previous_spin_temp.redshift
     elif z_step_factor is not None:
         prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
     else:
@@ -1320,7 +1310,6 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
                 regenerate=regenerate, write=write, direc=direc
             )
 
-    print("actually doing z=%s, Z_HEAT_MAX = %s"%(redshift, global_params.Z_HEAT_MAX))
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
         perturbed_field = perturb_field(
