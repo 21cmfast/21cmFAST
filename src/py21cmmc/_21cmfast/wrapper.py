@@ -585,21 +585,6 @@ def configure_inputs(defaults, *datasets, ignore=['redshift'], flag_none=None):
     return output
 
 
-# def _get_inputs(defaults, *structs):
-#     for i in range(len(defaults)):
-#         k = ''.join('_' + c.lower() if c.isupper() else c for c in defaults[i].__class__.__name__).strip('_')
-#
-#         for s in structs:
-#             if s is None:
-#                 continue
-#
-#             if hasattr(s, k):
-#                 defaults[i] = getattr(s, k)
-#                 break
-#
-#     return defaults
-
-
 def configure_redshift(redshift, *structs):
     """
     This is a special case to check and obtain redshift from given default and structs.
@@ -625,21 +610,16 @@ def configure_redshift(redshift, *structs):
         return redshift
 
 
-# def _configure_random_seed(random_seed, *structs):
-#     rs = set()
-#
-#     for s in structs:
-#         if s is not None:
-#             rs.add(s.random_seed)
-#
-#     rs = list(rs)
-#
-#     if len(rs) > 1 or (len(rs)==1 and rs[0] != random_seed and random_seed is not None):
-#         raise ValueError("random seeds of inputs not compatible")
-#     elif len(rs) == 1:
-#         return rs[0]
-#     else:
-#         return random_seed # which could still be None.
+def verify_types(**kwargs):
+    "Ensure each argument has a type of None or that matching its name"
+    for k,v in kwargs.items():
+        for j, kk in enumerate(['init', 'perturb', 'ionize', 'spin_temp']):
+            if kk in k:
+                break
+        cls = [InitialConditions, PerturbedField, IonizedBox, TsBox][j]
+
+        if v is not None and not isinstance(v, cls):
+            raise ValueError("%s must be an instance of %s"%(k, cls.__name__))
 
 # ======================================================================================================================
 # WRAPPING FUNCTIONS
@@ -783,9 +763,7 @@ def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=N
     >>> field7 = perturb_field(7.0, user_params=UserParams(HII_DIM=1000))
 
     """
-    # Verify output parameter struct types
-    if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
-        raise ValueError("init_boxes must be an instance of InitialConditions")
+    verify_types(init_boxes=init_boxes)
 
     # Configure and check input/output parameters/structs
     random_seed, user_params, cosmo_params = configure_inputs(
@@ -964,16 +942,8 @@ def ionize_box(*, astro_params=None, flag_options=None,
     If automatic recursion is used, then it is done in such a way that no large boxes are kept around in memory for
     longer than they need to be (only two at a time are required).
     """
-
-    # Verify output struct types
-    if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
-        raise ValueError("init_boxes must be an instance of InitialConditions")
-    if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
-        raise ValueError("perturbed_field must be an instance of PerturbedField")
-    if previous_ionize_box is not None and not isinstance(previous_ionize_box, IonizedBox):
-        raise ValueError("previous_ionize_box must be an instance of IonizedBox")
-    if spin_temp is not None and not isinstance(spin_temp, TsBox):
-        raise ValueError("spin_temp must be an instance of TsBox")
+    verify_types(init_boxes=init_boxes, perturbed_field=perturbed_field, previous_ionize_box=previous_ionize_box,
+                 spin_temp=spin_temp)
 
     # Configure and check input/output parameters/structs
     random_seed, user_params, cosmo_params, astro_params, flag_options = configure_inputs(
@@ -1213,13 +1183,14 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
 
     This is usually a bad idea, and will give a warning, but it is possible.
     """
-    # Verify output struct types
-    if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
-        raise ValueError("init_boxes must be an instance of InitialConditions")
-    if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
-        raise ValueError("perturbed_field must be an instance of PerturbedField")
-    if previous_spin_temp is not None and not isinstance(previous_spin_temp, TsBox):
-        raise ValueError("previous_spin_temp must be an instance of TsBox")
+    verify_types(init_boxes=init_boxes, perturbed_field=perturbed_field, previous_spin_temp=previous_spin_temp)
+    # # Verify output struct types
+    # if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
+    #     raise ValueError("init_boxes must be an instance of InitialConditions")
+    # if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
+    #     raise ValueError("perturbed_field must be an instance of PerturbedField")
+    # if previous_spin_temp is not None and not isinstance(previous_spin_temp, TsBox):
+    #     raise ValueError("previous_spin_temp must be an instance of TsBox")
 
     # Configure and check input/output parameters/structs
     random_seed, user_params, cosmo_params, astro_params, flag_options = configure_inputs(
@@ -1352,14 +1323,15 @@ def brightness_temperature(*, ionized_box, perturbed_field, spin_temp=None):
     -------
     :class:`BrightnessTemp` instance.
     """
+    verify_types(perturbed_field=perturbed_field, spin_temp=spin_temp, ionized_box=ionized_box)
 
-    # Verify output struct types
-    if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
-        raise ValueError("perturbed_field must be an instance of PerturbedField")
-    if spin_temp is not None and not isinstance(spin_temp, TsBox):
-        raise ValueError("spin_temp must be an instance of TsBox")
-    if ionized_box is not None and not isinstance(ionized_box, IonizedBox):
-        raise ValueError("previous_ionize_box must be an instance of IonizedBox")
+    # # Verify output struct types
+    # if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
+    #     raise ValueError("perturbed_field must be an instance of PerturbedField")
+    # if spin_temp is not None and not isinstance(spin_temp, TsBox):
+    #     raise ValueError("spin_temp must be an instance of TsBox")
+    # if ionized_box is not None and not isinstance(ionized_box, IonizedBox):
+    #     raise ValueError("previous_ionize_box must be an instance of IonizedBox")
 
     _check_compatible_inputs(ionized_box, perturbed_field, spin_temp, ignore=[]) # don't ignore redshift here
 
