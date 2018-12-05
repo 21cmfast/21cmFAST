@@ -42,6 +42,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_HF(user_params,cosmo_params,astro_params, flag_options);
     
+    
     // This is an entire re-write of Ts.c from 21cmFAST. You can refer back to Ts.c in 21cmFAST if this become a little obtuse. The computation has remained the same //
     
     /////////////////// Defining variables for the computation of Ts.c //////////////
@@ -339,7 +340,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             x_e_ave /= (float)HII_TOT_NUM_PIXELS;
             Tk_ave /= (float)HII_TOT_NUM_PIXELS;
         }
-
+        
         /////////////// Create the z=0 non-linear density fields smoothed on scale R to be used in computing fcoll //////////////
         R = L_FACTOR*user_params->BOX_LEN/(float)user_params->HII_DIM;
         R_factor = pow(global_params.R_XLy_MAX/R, 1/((float)global_params.NUM_FILTER_STEPS_FOR_Ts));
@@ -504,10 +505,15 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         }
         
         zp = perturbed_field_redshift*1.0001; //higher for rounding
-        while (zp < global_params.Z_HEAT_MAX)
-            zp = ((1+zp)*global_params.ZPRIME_STEP_FACTOR - 1);
-        prev_zp = global_params.Z_HEAT_MAX;
-        zp = ((1+zp)/ global_params.ZPRIME_STEP_FACTOR - 1);
+        if(zp > global_params.Z_HEAT_MAX) {
+            prev_zp = ((1+zp)/ global_params.ZPRIME_STEP_FACTOR - 1);
+        }
+        else {
+            while (zp < global_params.Z_HEAT_MAX)
+                zp = ((1+zp)*global_params.ZPRIME_STEP_FACTOR - 1);
+            prev_zp = global_params.Z_HEAT_MAX;
+            zp = ((1+zp)/ global_params.ZPRIME_STEP_FACTOR - 1);
+        }
         
         // This sets the delta_z step for determining the heating/ionisation integrals. If first box is true,
         // it is only the difference between Z_HEAT_MAX and the redshift. Otherwise it is the difference between
@@ -541,9 +547,6 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             
             initialiseSigmaMInterpTable(M_MIN,1e20);
         }
-        
-        
-        
         
         zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0);
         
@@ -742,14 +745,13 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 // Using the interpolated values to update arrays of relevant quanties for the IGM spin temperature calculation
                 
                 redshift_int_SFRD = (int)floor( ( zpp - determine_zpp_min )/zpp_bin_width );
-                
+
                 redshift_table_SFRD = determine_zpp_min + zpp_bin_width*(float)redshift_int_SFRD;
-                
+
                 Splined_SFRD_zpp = SFRD_val[redshift_int_SFRD] + ( zpp - redshift_table_SFRD )*( SFRD_val[redshift_int_SFRD+1] - SFRD_val[redshift_int_SFRD] )/(zpp_bin_width);
-                
+
                 ST_over_PS[R_ct] = pow(1+zpp, -astro_params->X_RAY_SPEC_INDEX)*fabs(dzpp_for_evolve);
                 ST_over_PS[R_ct] *= Splined_SFRD_zpp;
-                
                 
                 SFR_timescale_factor[R_ct] = hubble(zpp)*fabs(dtdz(zpp));
                 
@@ -777,6 +779,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                     
                     dfcoll_interp1[i][R_ct] = ( ( dfcoll_dz_grid[R_ct][zpp_gridpoint1_int][i] )*grad1 + ( dfcoll_dz_grid[R_ct][zpp_gridpoint2_int][i] )*grad2 )*dens_grad;
                     dfcoll_interp2[i][R_ct] = ( ( dfcoll_dz_grid[R_ct][zpp_gridpoint1_int][i+1] )*grad1 + ( dfcoll_dz_grid[R_ct][zpp_gridpoint2_int][i+1] )*grad2 )*dens_grad;
+                    
                 }
                 
                 // Using the interpolated values to update arrays of relevant quanties for the IGM spin temperature calculation
@@ -784,9 +787,9 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 ST_over_PS[R_ct] *= ( ST_over_PS_arg_grid[zpp_gridpoint1_int] + grad2*( ST_over_PS_arg_grid[zpp_gridpoint2_int] - ST_over_PS_arg_grid[zpp_gridpoint1_int] ) );
                 
             }
-            
+
             lower_int_limit = FMAX(nu_tau_one_approx(zp, zpp, x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
-            
+
             if (filling_factor_of_HI_zp < 0) filling_factor_of_HI_zp = 0; // for global evol; nu_tau_one above treats negative (post_reionization) inferred filling factors properly
 
             // set up frequency integral table for later interpolation for the cell's x_e value
@@ -795,7 +798,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 freq_int_ion_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 1);
                 freq_int_lya_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 2);
             }
-
+            
             // and create the sum over Lya transitions from direct Lyn flux
             sum_lyn[R_ct] = 0;
             for (n_ct=NSPEC_MAX; n_ct>=2; n_ct--){
@@ -805,12 +808,12 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 nuprime = nu_n(n_ct)*(1+zpp)/(1.0+zp);
                 sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0);
             }
+            
         } // end loop over R_ct filter steps
-        
+
         fcoll_interp_high_min = global_params.CRIT_DENS_TRANSITION;
         fcoll_interp_high_bin_width = 1./((float)NSFR_high-1.)*(Deltac - fcoll_interp_high_min);
         fcoll_interp_high_bin_width_inv = 1./fcoll_interp_high_bin_width;
-
         
         // Calculate fcoll for each smoothing radius
         if(!flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -823,7 +826,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 ST_over_PS[R_ct] = ST_over_PS[R_ct]/(fcoll_R_array[R_ct]/(double)HII_TOT_NUM_PIXELS);
             }
         }
-        
+
         // scroll through each cell and update the temperature and residual ionization fraction
         growth_factor_zp = dicke(zp);
         dgrowth_factor_dzp = ddicke_dz(zp);
@@ -847,11 +850,11 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         const_zp_prefactor = ( (astro_params->L_X) * Luminosity_converstion_factor ) / ((astro_params->NU_X_THRESH)*NU_over_EV) * C * astro_params->F_STAR10 * cosmo_params->OMb * RHOcrit * pow(CMperMPC, -3) * pow(1+zp, astro_params->X_RAY_SPEC_INDEX+3);
         //          This line below is kept purely for reference w.r.t to the original 21cmFAST
         //            const_zp_prefactor = ZETA_X * X_RAY_SPEC_INDEX / NU_X_THRESH * C * F_STAR * OMb * RHOcrit * pow(CMperMPC, -3) * pow(1+zp, X_RAY_SPEC_INDEX+3);
-            
+        
         //////////////////////////////  LOOP THROUGH BOX //////////////////////////////
         
         J_alpha_ave = xalpha_ave = Xheat_ave = Xion_ave = 0.;
-            
+
         // Extra pre-factors etc. are defined here, as they are independent of the density field, and only have to be computed once per z' or R_ct, rather than each box_ct
         for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
             dstarlya_dt_prefactor[R_ct]  = ( pow(1+zp,2)*(1+zpp_for_evolve_list[R_ct]) * sum_lyn[R_ct] )/( pow(1+zpp_for_evolve_list[R_ct], -(astro_params->X_RAY_SPEC_INDEX)) );
@@ -875,7 +878,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
             
         // Note: I have removed the call to evolveInt, as is default in the original Ts.c. Removal of evolveInt and moving that computation below, removes unneccesary repeated computations
         // and allows for the interpolation tables that are now used to be more easily computed
-            
+
         // Can precompute these quantities, independent of the density field (i.e. box_ct)
         for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
             for (i=0; i<(x_int_NXHII-1); i++) {
@@ -889,7 +892,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 
             }
         }
-        
+                
         // Main loop over the entire box for the IGM spin temperature and relevant quantities.
         if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         
@@ -932,11 +935,6 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 ave_fcoll = ave_fcoll_inv = 0.0;
                 
                 for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
-                    if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) { //just leave it alone and go to next value
-                        this_spin_temp->Tk_box[box_ct] = previous_spin_temp->Tk_box[box_ct];
-                        this_spin_temp->Ts_box[box_ct] = previous_spin_temp->Ts_box[box_ct];
-                        continue;
-                    }
                     
                     curr_dens = delNL0[R_ct][box_ct]*zpp_growth[R_ct];
             
@@ -990,10 +988,6 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 dstarlya_dt_prefactor[R_ct] *= dfcoll_dz_val;
                 
                 for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
-                    
-                    if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) { //just leave it alone and go to next value
-                        continue;
-                    }
                     
                     // I've added the addition of zero just in case. It should be zero anyway, but just in case there is some weird
                     // numerical thing
@@ -1124,11 +1118,6 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         else {
         
             for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
-                if (previous_spin_temp->Tk_box[box_ct] > MAX_TK) { //just leave it alone and go to next value
-                    this_spin_temp->Tk_box[box_ct] = previous_spin_temp->Tk_box[box_ct];
-                    this_spin_temp->Ts_box[box_ct] = previous_spin_temp->Ts_box[box_ct];
-                    continue;
-                }
                 
                 x_e = previous_spin_temp->x_e_box[box_ct];
                 T = previous_spin_temp->Tk_box[box_ct];
@@ -1160,7 +1149,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                     for (R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
                         
                         dfcoll_dz_val = ST_over_PS[R_ct]*(1.+delNL0_rev[box_ct][R_ct]*zpp_growth[R_ct])*( dfcoll_interp1[dens_grid_int_vals[box_ct][R_ct]][R_ct]*(density_gridpoints[dens_grid_int_vals[box_ct][R_ct] + 1][R_ct] - delNL0_rev[box_ct][R_ct]) + dfcoll_interp2[dens_grid_int_vals[box_ct][R_ct]][R_ct]*(delNL0_rev[box_ct][R_ct] - density_gridpoints[dens_grid_int_vals[box_ct][R_ct]][R_ct]) );
-                    
+                                            
                         dxheat_dt += dfcoll_dz_val * ( (freq_int_heat_tbl_diff[m_xHII_low][R_ct])*inverse_val + freq_int_heat_tbl[m_xHII_low][R_ct] );
                         dxion_source_dt += dfcoll_dz_val * ( (freq_int_ion_tbl_diff[m_xHII_low][R_ct])*inverse_val + freq_int_ion_tbl[m_xHII_low][R_ct] );
                     
@@ -1246,7 +1235,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                     // It can very rarely result in a negative spin temperature. If negative, it is a very small number. Take the absolute value, the optical depth can deal with very large numbers, so ok to be small
                     TS_fast = fabs(TS_fast);
                 }
-                                
+                
                 this_spin_temp->Ts_box[box_ct] = TS_fast;
 
                 if(OUTPUT_AVE) {

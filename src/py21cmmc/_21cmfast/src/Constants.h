@@ -151,7 +151,7 @@
 #define KAPPA_10_elec_NPTS_Spline (int) 30
 #define KAPPA_10_pH_NPTS_Spline (int) 30
 
-#define zpp_interp_points (int) (400)                  /* Number of interpolation points for the interpolation table for z'' */
+#define zpp_interp_points_SFR (int) (400)                  /* Number of interpolation points for the interpolation table for z'' */
 #define dens_Ninterp (int) (400)                       /* Number of interpolation points for the interpolation table for the value of the density field */
 
 // ----------------------------------------------------------------------------------------- //
