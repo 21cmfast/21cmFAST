@@ -10,6 +10,7 @@ import click
 import yaml
 
 from . import wrapper as lib  # initial_conditions, perturb_field, CosmoParams, UserParams#run_21cmfast
+from ._21cmfast import cache_tools
 
 
 def _get_config(config=None):
@@ -43,12 +44,12 @@ def _update(obj, ctx):
     kk = list(ctx.keys())
     for k in kk:
         # noinspection PyProtectedMember
-        if k in obj._defaults_:
+        if hasattr(obj, k):
             try:
                 val = getattr(obj, "_" + k)
                 setattr(obj, "_" + k, type(val)(ctx[k]))
                 ctx.pop(k)
-            except AttributeError:
+            except (AttributeError, TypeError):
                 try:
                     val = getattr(obj, k)
                     setattr(obj, k, type(val)(ctx[k]))
@@ -73,26 +74,6 @@ def _override(ctx, *param_dicts):
 
 main = click.Group()
 
-
-# @main.command()
-# @click.option("--config", type=click.Path(exists=True, dir_okay=False), default=None,
-#               help="Path to the configuration file (default ~/.py21cmmc/example_config.yml)")
-# @click.option('--write/--no-write', default=True,
-#               help="Whether to write out intermediate files (from init and perturb_field) for later use")
-# @click.option("--regen/--no-regen", default=False,
-#               help="Whether to force regeneration of init/perturb files if they already exist.")
-# @click.option("--outdir", type=click.Path(exists=True, dir_okay=True), default=None,
-#               help="directory to write data and plots to -- must exist.")
-# @click.option("--datafile", type=str, default=None, help="name of outputted datafile (default empty -- no writing)")
-# @click.option("--plot", multiple=True, help="types of pdf plots to save. Valid values are [global, power, slice]")
-# @click.option("--perturb/--no-perturb", default=True,
-#               help="Whether to run the perturbed field calculation")
-# @click.option("--ionize/--no-ionize", default=True,
-#               help="Whether to run the ionization calculation")
-# def single(config, write, regen, outdir, datafile, plot, perturb, ionize):
-#     return run_21cmfast()
-
-
 @main.command(
     context_settings=dict(  # Doing this allows arbitrary options to override config
         ignore_unknown_options=True,
@@ -105,22 +86,23 @@ main = click.Group()
               help="Whether to force regeneration of init/perturb files if they already exist.")
 @click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
               help="directory to write data and plots to -- must exist.")
+@click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
 @click.pass_context
-def init(ctx, config, regen, direc):
+def init(ctx, config, regen, direc, seed):
     """
     Run a single iteration of 21cmFAST init, saving results to file.
     """
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg['user_params'])
-    cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
+    user_params = lib.UserParams(**cfg.get('user_params', {}))
+    cosmo_params = lib.CosmoParams(**cfg.get('cosmo_params', {}))
 
     _override(ctx, user_params, cosmo_params)
 
     lib.initial_conditions(
         user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc,
+        regenerate=regen, write=True, direc=direc, random_seed=seed
     )
 
 
@@ -137,22 +119,23 @@ def init(ctx, config, regen, direc):
               help="Whether to force regeneration of init/perturb files if they already exist.")
 @click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
               help="directory to write data and plots to -- must exist.")
+@click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
 @click.pass_context
-def perturb(ctx, redshift, config, regen, direc):
+def perturb(ctx, redshift, config, regen, direc, seed):
     """
     Run 21cmFAST perturb_field at the specified redshift, saving results to file.
     """
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg['user_params'])
-    cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
+    user_params = lib.UserParams(**cfg.get('user_params',{}))
+    cosmo_params = lib.CosmoParams(**cfg.get('cosmo_params', {}))
 
     _override(ctx, user_params, cosmo_params)
 
     lib.perturb_field(
         redshift=redshift, user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc,
+        regenerate=regen, write=True, direc=direc, random_seed=seed
     )
 
 
@@ -176,18 +159,19 @@ def perturb(ctx, redshift, config, regen, direc):
               help="logarithmic steps in redshift for evolution")
 @click.option("-Z", "--z-heat-max", type=float, default=None,
               help="maximum redshift at which to search for heating sources")
+@click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
 @click.pass_context
-def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max):
+def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max, seed):
     """
     Run 21cmFAST spin_temperature at the specified redshift, saving results to file.
     """
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg['user_params'])
-    cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
-    flag_options = lib.FlagOptions(**cfg['flag_options'])
-    astro_params = lib.AstroParams(flag_options.INHOMO_RECO, **cfg['astro_params'])
+    user_params = lib.UserParams(**cfg.get('user_params', {}))
+    cosmo_params = lib.CosmoParams(**cfg.get('cosmo_params', {}))
+    flag_options = lib.FlagOptions(**cfg.get('flag_options', {}))
+    astro_params = lib.AstroParams(**cfg.get('astro_params',{}), INHOMO_RECO=flag_options.INHOMO_RECO)
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
@@ -202,7 +186,7 @@ def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max)
         previous_spin_temp=prev_z,
         z_step_factor=z_step_factor, z_heat_max=z_heat_max,
         user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc,
+        regenerate=regen, write=True, direc=direc, random_seed=seed
     )
 
 
@@ -228,18 +212,19 @@ def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max)
               help="logarithmic steps in redshift for evolution")
 @click.option("-Z", "--z-heat-max", type=float, default=None,
               help="maximum redshift at which to search for heating sources")
+@click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
 @click.pass_context
-def ionize(ctx, redshift, prev_z, config, regen, direc, do_spin, z_step_factor, z_heat_max):
+def ionize(ctx, redshift, prev_z, config, regen, direc, do_spin, z_step_factor, z_heat_max,seed):
     """
     Run 21cmFAST ionize_box at the specified redshift, saving results to file.
     """
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg['user_params'])
-    cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
-    flag_options = lib.FlagOptions(**cfg['flag_options'])
-    astro_params = lib.AstroParams(flag_options.INHOMO_RECO, **cfg['astro_params'])
+    user_params = lib.UserParams(**cfg.get('user_params', {}))
+    cosmo_params = lib.CosmoParams(**cfg.get('cosmo_params', {}))
+    flag_options = lib.FlagOptions(**cfg.get('flag_options', {}))
+    astro_params = lib.AstroParams(**cfg.get('astro_params', {}), INHOMO_RECO=flag_options.INHOMO_RECO)
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
@@ -255,7 +240,7 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, do_spin, z_step_factor, 
         z_step_factor=z_step_factor, z_heat_max=z_heat_max,
         do_spin_temp=do_spin,
         user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc,
+        regenerate=regen, write=True, direc=direc, random_seed=seed
     )
 
 
@@ -279,8 +264,9 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, do_spin, z_step_factor, 
               help="logarithmic steps in redshift for evolution")
 @click.option("-Z", "--z-heat-max", type=float, default=None,
               help="maximum redshift at which to search for heating sources")
+@click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
 @click.pass_context
-def coeval(ctx, redshift, config, regen, direc, do_spin, z_step_factor, z_heat_max):
+def coeval(ctx, redshift, config, regen, direc, do_spin, z_step_factor, z_heat_max, seed):
     """
     Efficiently generate coeval cubes at a given redshift.
     """
@@ -293,10 +279,10 @@ def coeval(ctx, redshift, config, regen, direc, do_spin, z_step_factor, z_heat_m
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg['user_params'])
-    cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
-    flag_options = lib.FlagOptions(**cfg['flag_options'])
-    astro_params = lib.AstroParams(flag_options.INHOMO_RECO, **cfg['astro_params'])
+    user_params = lib.UserParams(**cfg.get('user_params', {}))
+    cosmo_params = lib.CosmoParams(**cfg.get('cosmo_params', {}))
+    flag_options = lib.FlagOptions(**cfg.get('flag_options', {}))
+    astro_params = lib.AstroParams(**cfg.get('astro_params', {}), INHOMO_RECO=flag_options.INHOMO_RECO)
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
@@ -311,7 +297,7 @@ def coeval(ctx, redshift, config, regen, direc, do_spin, z_step_factor, z_heat_m
         z_step_factor=z_step_factor, z_heat_max=z_heat_max,
         do_spin_temp=do_spin,
         user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc,
+        regenerate=regen, write=True, direc=direc, random_seed=seed
     )
 
 
@@ -337,18 +323,19 @@ def coeval(ctx, redshift, config, regen, direc, do_spin, z_step_factor, z_heat_m
               help="logarithmic steps in redshift for evolution")
 @click.option("-Z", "--z-heat-max", type=float, default=None,
               help="maximum redshift at which to search for heating sources")
+@click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
 @click.pass_context
-def lightcone(ctx, redshift, config, regen, direc, do_spin, max_z, z_step_factor, z_heat_max):
+def lightcone(ctx, redshift, config, regen, direc, do_spin, max_z, z_step_factor, z_heat_max, seed):
     """
     Efficiently generate coeval cubes at a given redshift.
     """
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg['user_params'])
-    cosmo_params = lib.CosmoParams(**cfg['cosmo_params'])
-    flag_options = lib.FlagOptions(**cfg['flag_options'])
-    astro_params = lib.AstroParams(INHOMO_RECO=flag_options.INHOMO_RECO, **cfg['astro_params'])
+    user_params = lib.UserParams(**cfg.get('user_params', {}))
+    cosmo_params = lib.CosmoParams(**cfg.get('cosmo_params', {}))
+    flag_options = lib.FlagOptions(**cfg.get('flag_options', {}))
+    astro_params = lib.AstroParams(**cfg.get('astro_params', {}), INHOMO_RECO=flag_options.INHOMO_RECO)
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
@@ -363,12 +350,12 @@ def lightcone(ctx, redshift, config, regen, direc, do_spin, max_z, z_step_factor
         z_step_factor=z_step_factor, z_heat_max=z_heat_max,
         do_spin_temp=do_spin,
         user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc,
+        regenerate=regen, write=True, direc=direc, random_seed=seed
     )
 
 
 def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
-    cls = list(lib.query_cache(direc=direc, kind=kind, hash=md5, seed=seed, show=False))
+    cls = list(cache_tools.query_cache(direc=direc, kind=kind, hash=md5, seed=seed, show=False))
 
     if not clear:
         print("%s Data Sets Found:" % len(cls))

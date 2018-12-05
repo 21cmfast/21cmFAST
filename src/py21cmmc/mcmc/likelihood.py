@@ -50,7 +50,7 @@ class LikelihoodBase:
                 if hasattr(m, k):
                     if hasattr(self, k) and getattr(self, k) != getattr(m, k):
                         raise ValueError(
-                            f"Setup has detected incompatible input parameter dicts in specified cores: {k}")
+                            "Setup has detected incompatible input parameter dicts in specified cores: {k}".format(k=k))
                     else:
                         setattr(self, k, getattr(m, k))
 
@@ -115,7 +115,7 @@ class LikelihoodBaseFile(LikelihoodBase):
             self.data = self.simulate(simctx) if self._simulate else self._read_data()
 
             # If we can't/won't simulate noise, and no noisefile is provided, assume no noise is necessary.
-            if (hasattr(self, "define_noise") or self._simulate) or self.noisefile:
+            if (hasattr(self, "define_noise") and self._simulate) or self.noisefile:
                 self.noise = self.define_noise(simctx, self.data) if (
                         hasattr(self, "define_noise") and self._simulate) else self._read_noise()
 
@@ -126,20 +126,12 @@ class LikelihoodBaseFile(LikelihoodBase):
             if self.noisefile and self._simulate and hasattr(self, "define_noise"):
                 self._write_noise()
 
-        logger.info("Finished base setup")
-
-    def define_noise(self):
-        """
-        Define the noise properties of the data.
-        """
-        raise AttributeError("define_noise is not implemented in this class")
-
     def _read_data(self):
         data = []
         for fl in self.datafile:
             if not path.exists(fl):
                 raise FileNotFoundError(
-                    f"Could not find datafile: {fl}. If you meant to simulate data, set simulate=True.")
+                    "Could not find datafile: {fl}. If you meant to simulate data, set simulate=True.".format(fl=fl))
             else:
                 data.append(dict(**np.load(fl)))
 
@@ -155,7 +147,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                         msg = "If you meant to simulate noise, set simulate=True."
 
                     raise FileNotFoundError(
-                        f"Could not find noisefile: {fl}. {msg}")
+                        "Could not find noisefile: {fl}. {msg}".format(fl=fl,msg=msg))
 
                 else:
                     noise.append(dict(**np.load(fl)))
@@ -163,20 +155,20 @@ class LikelihoodBaseFile(LikelihoodBase):
     def _write_data(self):
         for fl, d in zip(self.datafile, self.data):
             if path.exists(fl):
-                logger.warning(f"File {fl} already exists. Moving previous version to {fl}.bk")
+                logger.warning("File {fl} already exists. Moving previous version to {fl}.bk".format(fl=fl))
                 rename(fl, fl + ".bk")
 
             np.savez(fl, **d)
-            logger.info(f"Saving data file: {fl}")
+            logger.info("Saving data file: {fl}".format(fl=fl))
 
     def _write_noise(self):
         for fl, d in zip(self.noisefile, self.noise):
             if path.exists(fl):
-                logger.warning(f"File {fl} already exists. Moving previous version to {fl}.bk")
+                logger.warning("File {fl} already exists. Moving previous version to {fl}.bk".format(fl=fl))
                 rename(fl, fl + ".bk")
 
             np.savez(fl, **d)
-            logger.info(f"Saved noise file: {fl}")
+            logger.info("Saved noise file: {fl}".format(fl=fl))
 
     def _check_data_format(self):
         pass
@@ -277,12 +269,12 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     def _check_data_format(self):
         for i, d in enumerate(self.data):
             if "k" not in d or "delta" not in d:
-                raise ValueError(f"datafile #{i+1} of {len(self.datafile)} has the wrong format")
+                raise ValueError("datafile #{i+1} of {len(self.datafile)} has the wrong format".format(fl=fl))
 
     def _check_noise_format(self):
         for i, n in enumerate(self.noise):
             if "ks" not in n or "errs" not in n:
-                raise ValueError(f"noisefile #{i+1} of {len(self.noise)} has the wrong format")
+                raise ValueError("noisefile #{j} of {n} has the wrong format".format(j=i+1, n=len(self.noise)))
 
     def setup(self):
         super().setup()

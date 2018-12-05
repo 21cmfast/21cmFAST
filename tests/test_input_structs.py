@@ -6,7 +6,7 @@ import pickle
 
 import pytest
 
-from py21cmmc import CosmoParams  # An example of a struct with defaults
+from py21cmmc import CosmoParams, UserParams  # An example of a struct with defaults
 
 
 @pytest.fixture(scope="module")
@@ -31,12 +31,36 @@ def test_constructed_the_same(c):
     assert hash(c) == hash(c2)
 
 
+def test_bad_construction(c):
+    with pytest.raises(TypeError):
+        c2 = CosmoParams(c, c)
+
+    with pytest.raises(TypeError):
+        c2 = CosmoParams(UserParams())
+
+    with pytest.raises(TypeError):
+        c2 = CosmoParams(1)
+
+
+def test_warning_bad_params(caplog):
+    c2 = CosmoParams(bad_param=1)
+    assert "The following parameters to CosmoParams are not supported: ['bad_param']" in caplog.text
+
+
 def test_constructed_from_itself(c):
     c3 = CosmoParams(c)
 
     assert c == c3
     assert c is not c3
 
+
+def test_dynamic_variables():
+    u = UserParams()
+    assert u.DIM == 4 * u.HII_DIM
+
+    u.update(DIM=200)
+
+    assert u.DIM == 200
 
 def test_repr(c):
     assert "SIGMA_8:0.8" in repr(c)
@@ -45,35 +69,40 @@ def test_repr(c):
 def test_pickle(c):
     # Make sure we can pickle/unpickle it.
     c4 = pickle.dumps(c)
-    assert c == pickle.loads(c4)
+    c4 = pickle.loads(c4)
+    assert c == c4
+
+    # Make sure the c data gets loaded fine.
+    assert c4._cstruct.SIGMA_8 == c._cstruct.SIGMA_8
 
 
 def test_self(c):
     c5 = CosmoParams(c.self)
     assert c5 == c
-
-    assert c5.pystruct != c.pystruct  # These shouldn't be the same since the RANDOM_SEED is chosen randomly
-    assert c5.defining_dict == c.defining_dict  # these should be the same as they omit the random seed.
+    assert c5.pystruct == c.pystruct
+    assert c5.defining_dict == c.defining_dict
+    assert c5.defining_dict != c5.pystruct # not the same because the former doesn't include dynamic parameters.
+    assert c5.self == c.self
 
 
 def test_update():
     c = CosmoParams()
     c_pystruct = c.pystruct
 
-    c.update(RANDOM_SEED=None)  # update random seed
+    c.update(SIGMA_8=0.9)  # update c parameters. since pystruct as dynamically created, it is a new object each call.
     assert c_pystruct != c.pystruct
 
 
 def test_c_structures(c):
     # See if the C structures are behaving correctly
-    c2 = CosmoParams(SIGMA_8=0.8, RANDOM_SEED=c.RANDOM_SEED)
+    c2 = CosmoParams(SIGMA_8=0.8)
 
-    assert c() != c2()  # Even with same random seed, these shouldn't be the same
+    assert c() != c2()
     assert c() is c()  # Re-calling should not re-make the object (object should have persistence)
 
 
 def test_c_struct_update():
     c = CosmoParams()
     _c = c()
-    c.update(RANDOM_SEED=None)
+    c.update(SIGMA_8=0.8)
     assert _c != c()

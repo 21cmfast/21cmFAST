@@ -90,7 +90,7 @@ class CoreCoevalModule(CoreBase):
                  user_params=None, flag_options=None, astro_params=None,
                  cosmo_params=None, regenerate=True, do_spin_temp=False, z_step_factor=1.02,
                  z_heat_max=None, change_seed_every_iter=False, ctx_variables=None,
-                 keep_data_in_memory=True,
+                 keep_data_in_memory=True, initial_conditions_seed=None,
                  **io_options):
         """
         Initialize the class.
@@ -173,6 +173,7 @@ class CoreCoevalModule(CoreBase):
 
         if ctx_variables is None:
             ctx_variables = ["brightness_temp", "xHI"]
+
         self.redshift = redshift
         if not hasattr(self.redshift, "__len__"):
             self.redshift = [self.redshift]
@@ -182,6 +183,8 @@ class CoreCoevalModule(CoreBase):
         self.astro_params = p21.AstroParams(astro_params)
         self.cosmo_params = p21.CosmoParams(cosmo_params)
         self.change_seed_every_iter = change_seed_every_iter
+        self.initial_conditions_seed = initial_conditions_seed
+
         self.regenerate = regenerate
         self.ctx_variables = ctx_variables
 
@@ -206,6 +209,11 @@ class CoreCoevalModule(CoreBase):
             self.keep_data_in_memory = False
         else:
             self.keep_data_in_memory = keep_data_in_memory
+
+        if self.initial_conditions_seed and self.change_seed_every_iter:
+            logger.warning(
+                "Attempting to set initial conditions seed while desiring to change seeds every iteration. Unsetting initial conditions seed.")
+            self.initial_conditions_seed = None
 
     def setup(self):
         """
@@ -234,7 +242,11 @@ class CoreCoevalModule(CoreBase):
                 write=self.io['cache_init'],
                 direc=self.io['cache_dir'],
                 regenerate=self.regenerate,
+                random_seed=self.initial_conditions_seed
             )
+
+            # update the seed
+            self.initial_conditions_seed = initial_conditions.random_seed
 
             perturb_field = []
             for z in self.redshift:
@@ -246,9 +258,6 @@ class CoreCoevalModule(CoreBase):
                     regenerate=self.regenerate,
                 )]
             logger.info("Initialization done.")
-
-            # Update the cosmo params to the fully realized ones
-            self.cosmo_params.update(RANDOM_SEED=initial_conditions.cosmo_params.RANDOM_SEED)
 
             if self.keep_data_in_memory:
                 self.initial_conditions = initial_conditions
@@ -283,10 +292,6 @@ class CoreCoevalModule(CoreBase):
         self.cosmo_params.update(
             **{k: getattr(params, k) for k, v in params.items() if k in self.cosmo_params.defining_dict})
 
-        # We need to reset the seed to None on every iteration if the initial conditions are changing.
-        if self.change_seed_every_iter:
-            self.cosmo_params.update(RANDOM_SEED=None)
-
     def run(self, astro_params, cosmo_params):
         """
         Actually run the 21cmFAST code.
@@ -300,6 +305,7 @@ class CoreCoevalModule(CoreBase):
             do_spin_temp=self.do_spin_temp,
             z_step_factor=self.z_step_factor,
             regenerate=self.regenerate or self.change_seed_every_iter,
+            random_seed=self.initial_conditions_seed,
             write=self.io['cache_ionize'],
             direc=self.io['cache_dir'],
         )

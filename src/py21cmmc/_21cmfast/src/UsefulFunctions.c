@@ -550,7 +550,6 @@ void writeCosmoParams(struct CosmoParams *p, int print_pid){
         printf("CosmoParams\n", getpid());
     }
 
-    printf("\tRANDOM_SEED: %d\n",p->RANDOM_SEED);
     printf("\tSIGMA_8    : %f\n",p->SIGMA_8);
     printf("\thlittle    : %f\n",p->hlittle);
     printf("\tOMm        : %f\n",p->OMm);
