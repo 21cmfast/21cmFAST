@@ -230,81 +230,6 @@ class UserParams(StructWithDefaults):
         return self.HII_DIM ** 3
 
 
-class AstroParams(StructWithDefaults):
-    """
-    Astrophysical parameters.
-
-    To see default values for each parameter, use ``AstroParams._defaults_``.
-    All parameters passed in the constructor are also saved as instance attributes which should
-    be considered read-only. This is true of all input-parameter classes.
-
-    Parameters
-    ----------
-    INHOMO_RECO : bool, optional
-        Whether inhomogeneous recombinations are being calculated. This is not a part of the astro parameters structure,
-        but is required by this class to set some default behaviour.    
-    HII_EFF_FACTOR : float, optional
-    F_STAR10 : float, optional
-    ALPHA_STAR : float, optional
-    F_ESC10 : float, optional
-    ALPHA_ESC : float, optional
-    M_TURN : float, optional
-    R_BUBBLE_MAX : float, optional
-        Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
-    ION_Tvir_MIN : float, optional
-    L_X : float, optional
-    NU_X_THRESH : float, optional
-    X_RAY_SPEC_INDEX : float, optional
-    X_RAY_Tvir_MIN : float, optional
-        Default is `ION_Tvir_MIN`.
-    t_STAR : float, optional
-    N_RSD_STEPS : float, optional
-    """
-
-    _ffi = ffi
-
-    _defaults_ = dict(
-        HII_EFF_FACTOR=30.0,
-        F_STAR10=-1.3,
-        ALPHA_STAR=0.5,
-        F_ESC10=-1.,
-        ALPHA_ESC=-0.5,
-        M_TURN=8.7,
-        R_BUBBLE_MAX=None,
-        ION_Tvir_MIN=4.69897,
-        L_X=40.0,
-        NU_X_THRESH=500.0,
-        X_RAY_SPEC_INDEX=1.0,
-        X_RAY_Tvir_MIN=None,
-        t_STAR=0.5,
-        N_RSD_STEPS=20,
-    )
-
-    def __init__(self, *args, INHOMO_RECO=False, **kwargs):
-        # TODO: should try to get inhomo_reco out of here... just needed for default of R_BUBBLE_MAX.
-        self.INHOMO_RECO = INHOMO_RECO
-        super().__init__(*args, **kwargs)
-
-    def convert(self, key, val):
-        if key in ['F_STAR10', 'F_ESC10', 'M_TURN', 'ION_Tvir_MIN', "L_X", "X_RAY_Tvir_MIN"]:
-            return 10 ** val
-        else:
-            return val
-
-    @property
-    def R_BUBBLE_MAX(self):
-        """Maximum radius of bubbles to be searched. Set dynamically."""
-        if not self._R_BUBBLE_MAX:
-            return 50.0 if self.INHOMO_RECO else 15.0
-        else:
-            return self._R_BUBBLE_MAX
-
-    @property
-    def X_RAY_Tvir_MIN(self):
-        """Minimum virial temperature of X-ray emitting sources (unlogged and set dynamically)."""
-        return self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
-
-
 class FlagOptions(StructWithDefaults):
     """
     Flag-style options for the ionization routines.
@@ -347,6 +272,85 @@ class FlagOptions(StructWithDefaults):
 
         else:
             return self._M_MIN_in_Mass
+
+
+class AstroParams(StructWithDefaults):
+    """
+    Astrophysical parameters.
+
+    To see default values for each parameter, use ``AstroParams._defaults_``.
+    All parameters passed in the constructor are also saved as instance attributes which should
+    be considered read-only. This is true of all input-parameter classes.
+
+    Parameters
+    ----------
+    INHOMO_RECO : bool, optional
+        Whether inhomogeneous recombinations are being calculated. This is not a part of the astro parameters structure,
+        but is required by this class to set some default behaviour.
+    HII_EFF_FACTOR : float, optional
+    F_STAR10 : float, optional
+    ALPHA_STAR : float, optional
+    F_ESC10 : float, optional
+    ALPHA_ESC : float, optional
+    M_TURN : float, optional
+    R_BUBBLE_MAX : float, optional
+        Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
+    ION_Tvir_MIN : float, optional
+    L_X : float, optional
+    NU_X_THRESH : float, optional
+    X_RAY_SPEC_INDEX : float, optional
+    X_RAY_Tvir_MIN : float, optional
+        Default is `ION_Tvir_MIN`.
+    t_STAR : float, optional
+    N_RSD_STEPS : float, optional
+    """
+
+    _ffi = ffi
+
+    _defaults_ = dict(
+        HII_EFF_FACTOR=30.0,
+        F_STAR10=-1.3,
+        ALPHA_STAR=0.5,
+        F_ESC10=-1.,
+        ALPHA_ESC=-0.5,
+        M_TURN=8.7,
+        R_BUBBLE_MAX=None,
+        ION_Tvir_MIN=4.69897,
+        L_X=40.0,
+        NU_X_THRESH=500.0,
+        X_RAY_SPEC_INDEX=1.0,
+        X_RAY_Tvir_MIN=None,
+        t_STAR=0.5,
+        N_RSD_STEPS=20,
+    )
+
+    def __init__(self, *args, INHOMO_RECO=FlagOptions._defaults_['INHOMO_RECO'], **kwargs):
+        # TODO: should try to get inhomo_reco out of here... just needed for default of R_BUBBLE_MAX.
+        self.INHOMO_RECO = INHOMO_RECO
+        super().__init__(*args, **kwargs)
+
+    def convert(self, key, val):
+        if key in ['F_STAR10', 'F_ESC10', 'M_TURN', 'ION_Tvir_MIN', "L_X", "X_RAY_Tvir_MIN"]:
+            return 10 ** val
+        else:
+            return val
+
+    @property
+    def R_BUBBLE_MAX(self):
+        """Maximum radius of bubbles to be searched. Set dynamically."""
+        if not self._R_BUBBLE_MAX:
+            return 50.0 if self.INHOMO_RECO else 15.0
+        else:
+            if self.INHOMO_RECO and self._R_BUBBLE_MAX != 50:
+                logger.warning("You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "+\
+                            "This is non-standard (but allowed), and usually occurs upon manual update of INHOMO_RECO")
+            return self._R_BUBBLE_MAX
+
+    @property
+    def X_RAY_Tvir_MIN(self):
+        """Minimum virial temperature of X-ray emitting sources (unlogged and set dynamically)."""
+        return self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
+
 
 # ======================================================================================================================
 # OUTPUT STRUCTURES
