@@ -44,6 +44,9 @@ def _imshow_slice(cube, slice_axis=-1, slice_index=0, fig=None, ax=None, fig_kw=
 
     plt.sca(ax)
 
+    if slice_index >= cube.shape[slice_axis]:
+        raise IndexError("slice_index is too large for that axis (slice_index=%s >= %s"%(slice_index, cube.shape[slice_axis]))
+
     slc = np.take(cube, slice_index, axis=slice_axis)
     plt.imshow(slc.T, origin='lower', **imshow_kw)
 
@@ -85,16 +88,20 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
 
     fig, ax = _imshow_slice(cube, extent=(0, struct.user_params.BOX_LEN) * 2, **kwargs)
 
+    slice_axis = kwargs.get("slice_axis", -1)
+
     # Determine which axes are being plotted.
-    if kwargs.get("slice_axis", -1) in (2, -1):
+    if slice_axis in (2, -1):
         xax = "x"
         yax = 'y'
-    elif kwargs.get("slice_axis", -1) == 1:
+    elif slice_axis == 1:
         xax = 'x'
         yax = 'z'
-    else:
+    elif slice_axis == 0:
         xax = 'y'
         yax = 'z'
+    else:
+        raise ValueError("slice_axis should be between -1 and 2")
 
     # Now put on the decorations.
     ax.set_xlabel(f"{xax}-axis [Mpc]")
@@ -106,12 +113,30 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
 def lightcone_sliceplot(lightcone, **kwargs):
     slice_axis = kwargs.pop("slice_axis", 0)
 
+    if slice_axis == 0:
+        extent = (0, lightcone.user_params.BOX_LEN, 0, lightcone.lightcone_coords[-1])
+        ylabel = "Redshift Axis [Mpc]"
+        xlabel = "y-axis [Mpc]"
+
+    else:
+        extent = (0, lightcone.user_params.BOX_LEN)*2
+
+        if slice_axis == 1:
+            xlabel = "x-axis [Mpc]"
+            ylabel = "Redshift Axis [Mpc]"
+
+        elif slice_axis in (2,-1):
+            xlabel = "x-axis [Mpc]"
+            ylabel = 'y-axis [Mpc]'
+        else:
+            raise ValueError("slice_axis must be between -1 and 2")
+
     fig, ax = _imshow_slice(lightcone.brightness_temp,
-                            extent=(0, lightcone.user_params.BOX_LEN, 0, lightcone.lightcone_coords[-1]),
+                            extent=extent,
                             slice_axis=slice_axis)
 
-    ax.set_ylabel("Redshift Axis [Mpc]")
-    ax.set_xlabel("Y-Axis [Mpc]")
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel(xlabel)
 
     # TODO: use twinx to put a redshift axis on it.
     return fig, ax
