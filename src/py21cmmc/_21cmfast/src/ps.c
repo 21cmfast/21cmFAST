@@ -24,7 +24,7 @@ static gsl_spline *erfc_spline;
 #define NSFR_low 250
 #define NGL_SFR 100
 
-#define zpp_interp_points_SFR (int) (300)
+//#define zpp_interp_points_SFR (int) (300)
 
 #define NR_END 1
 #define FREE_ARG char*
