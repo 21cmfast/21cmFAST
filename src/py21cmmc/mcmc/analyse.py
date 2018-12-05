@@ -8,7 +8,7 @@ from .cosmoHammer import CosmoHammerSampler
 from .cosmoHammer.storage import HDFStorage
 
 
-def get_samples(chain, indx=0):
+def get_samples(chain, indx=0, burnin=False):
     """
     Extract sample storage object from a chain.
 
@@ -22,12 +22,15 @@ def get_samples(chain, indx=0):
         This is used only if `chain` is a string. It gives the index of the samples in the HDF file. Usually this is
         zero.
 
+    burnin : bool
+        Whether to return the burnin samples, rather than the actual run samples.
+
     Returns
     -------
     store : a `HDFStore` object.
     """
     if isinstance(chain, CosmoHammerSampler):
-        return chain.storageUtil.sample_storage
+        return chain.storageUtil.sample_storage if not burnin else chain.storageUtil.burnin_storage
     else:
         try:
             if not chain.endswith('.h5'):
@@ -35,7 +38,7 @@ def get_samples(chain, indx=0):
         except AttributeError:
             raise AttributeError("chain must either be a CosmoHammerSampler instance, or str")
 
-        return HDFStorage(chain, name="sample_%s" % indx)
+        return HDFStorage(chain, name="burnin" if burnin else "sample_%s"%indx)
 
 
 def corner_plot(samples, include_lnl=True, show_guess=True, start_iter=0, thin=1, **kwargs):
