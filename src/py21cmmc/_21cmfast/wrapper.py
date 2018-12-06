@@ -230,81 +230,6 @@ class UserParams(StructWithDefaults):
         return self.HII_DIM ** 3
 
 
-class AstroParams(StructWithDefaults):
-    """
-    Astrophysical parameters.
-
-    To see default values for each parameter, use ``AstroParams._defaults_``.
-    All parameters passed in the constructor are also saved as instance attributes which should
-    be considered read-only. This is true of all input-parameter classes.
-
-    Parameters
-    ----------
-    INHOMO_RECO : bool, optional
-        Whether inhomogeneous recombinations are being calculated. This is not a part of the astro parameters structure,
-        but is required by this class to set some default behaviour.    
-    HII_EFF_FACTOR : float, optional
-    F_STAR10 : float, optional
-    ALPHA_STAR : float, optional
-    F_ESC10 : float, optional
-    ALPHA_ESC : float, optional
-    M_TURN : float, optional
-    R_BUBBLE_MAX : float, optional
-        Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
-    ION_Tvir_MIN : float, optional
-    L_X : float, optional
-    NU_X_THRESH : float, optional
-    X_RAY_SPEC_INDEX : float, optional
-    X_RAY_Tvir_MIN : float, optional
-        Default is `ION_Tvir_MIN`.
-    t_STAR : float, optional
-    N_RSD_STEPS : float, optional
-    """
-
-    _ffi = ffi
-
-    _defaults_ = dict(
-        HII_EFF_FACTOR=30.0,
-        F_STAR10=-1.3,
-        ALPHA_STAR=0.5,
-        F_ESC10=-1.,
-        ALPHA_ESC=-0.5,
-        M_TURN=8.7,
-        R_BUBBLE_MAX=None,
-        ION_Tvir_MIN=4.69897,
-        L_X=40.0,
-        NU_X_THRESH=500.0,
-        X_RAY_SPEC_INDEX=1.0,
-        X_RAY_Tvir_MIN=None,
-        t_STAR=0.5,
-        N_RSD_STEPS=20,
-    )
-
-    def __init__(self, *args, INHOMO_RECO=False, **kwargs):
-        # TODO: should try to get inhomo_reco out of here... just needed for default of R_BUBBLE_MAX.
-        self.INHOMO_RECO = INHOMO_RECO
-        super().__init__(*args, **kwargs)
-
-    def convert(self, key, val):
-        if key in ['F_STAR10', 'F_ESC10', 'M_TURN', 'ION_Tvir_MIN', "L_X", "X_RAY_Tvir_MIN"]:
-            return 10 ** val
-        else:
-            return val
-
-    @property
-    def R_BUBBLE_MAX(self):
-        """Maximum radius of bubbles to be searched. Set dynamically."""
-        if not self._R_BUBBLE_MAX:
-            return 50.0 if self.INHOMO_RECO else 15.0
-        else:
-            return self._R_BUBBLE_MAX
-
-    @property
-    def X_RAY_Tvir_MIN(self):
-        """Minimum virial temperature of X-ray emitting sources (unlogged and set dynamically)."""
-        return self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
-
-
 class FlagOptions(StructWithDefaults):
     """
     Flag-style options for the ionization routines.
@@ -347,6 +272,85 @@ class FlagOptions(StructWithDefaults):
 
         else:
             return self._M_MIN_in_Mass
+
+
+class AstroParams(StructWithDefaults):
+    """
+    Astrophysical parameters.
+
+    To see default values for each parameter, use ``AstroParams._defaults_``.
+    All parameters passed in the constructor are also saved as instance attributes which should
+    be considered read-only. This is true of all input-parameter classes.
+
+    Parameters
+    ----------
+    INHOMO_RECO : bool, optional
+        Whether inhomogeneous recombinations are being calculated. This is not a part of the astro parameters structure,
+        but is required by this class to set some default behaviour.
+    HII_EFF_FACTOR : float, optional
+    F_STAR10 : float, optional
+    ALPHA_STAR : float, optional
+    F_ESC10 : float, optional
+    ALPHA_ESC : float, optional
+    M_TURN : float, optional
+    R_BUBBLE_MAX : float, optional
+        Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
+    ION_Tvir_MIN : float, optional
+    L_X : float, optional
+    NU_X_THRESH : float, optional
+    X_RAY_SPEC_INDEX : float, optional
+    X_RAY_Tvir_MIN : float, optional
+        Default is `ION_Tvir_MIN`.
+    t_STAR : float, optional
+    N_RSD_STEPS : float, optional
+    """
+
+    _ffi = ffi
+
+    _defaults_ = dict(
+        HII_EFF_FACTOR=30.0,
+        F_STAR10=-1.3,
+        ALPHA_STAR=0.5,
+        F_ESC10=-1.,
+        ALPHA_ESC=-0.5,
+        M_TURN=8.7,
+        R_BUBBLE_MAX=None,
+        ION_Tvir_MIN=4.69897,
+        L_X=40.0,
+        NU_X_THRESH=500.0,
+        X_RAY_SPEC_INDEX=1.0,
+        X_RAY_Tvir_MIN=None,
+        t_STAR=0.5,
+        N_RSD_STEPS=20,
+    )
+
+    def __init__(self, *args, INHOMO_RECO=FlagOptions._defaults_['INHOMO_RECO'], **kwargs):
+        # TODO: should try to get inhomo_reco out of here... just needed for default of R_BUBBLE_MAX.
+        self.INHOMO_RECO = INHOMO_RECO
+        super().__init__(*args, **kwargs)
+
+    def convert(self, key, val):
+        if key in ['F_STAR10', 'F_ESC10', 'M_TURN', 'ION_Tvir_MIN', "L_X", "X_RAY_Tvir_MIN"]:
+            return 10 ** val
+        else:
+            return val
+
+    @property
+    def R_BUBBLE_MAX(self):
+        """Maximum radius of bubbles to be searched. Set dynamically."""
+        if not self._R_BUBBLE_MAX:
+            return 50.0 if self.INHOMO_RECO else 15.0
+        else:
+            if self.INHOMO_RECO and self._R_BUBBLE_MAX != 50:
+                logger.warning("You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "+\
+                            "This is non-standard (but allowed), and usually occurs upon manual update of INHOMO_RECO")
+            return self._R_BUBBLE_MAX
+
+    @property
+    def X_RAY_Tvir_MIN(self):
+        """Minimum virial temperature of X-ray emitting sources (unlogged and set dynamically)."""
+        return self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
+
 
 # ======================================================================================================================
 # OUTPUT STRUCTURES
@@ -581,21 +585,6 @@ def configure_inputs(defaults, *datasets, ignore=['redshift'], flag_none=None):
     return output
 
 
-# def _get_inputs(defaults, *structs):
-#     for i in range(len(defaults)):
-#         k = ''.join('_' + c.lower() if c.isupper() else c for c in defaults[i].__class__.__name__).strip('_')
-#
-#         for s in structs:
-#             if s is None:
-#                 continue
-#
-#             if hasattr(s, k):
-#                 defaults[i] = getattr(s, k)
-#                 break
-#
-#     return defaults
-
-
 def configure_redshift(redshift, *structs):
     """
     This is a special case to check and obtain redshift from given default and structs.
@@ -621,21 +610,16 @@ def configure_redshift(redshift, *structs):
         return redshift
 
 
-# def _configure_random_seed(random_seed, *structs):
-#     rs = set()
-#
-#     for s in structs:
-#         if s is not None:
-#             rs.add(s.random_seed)
-#
-#     rs = list(rs)
-#
-#     if len(rs) > 1 or (len(rs)==1 and rs[0] != random_seed and random_seed is not None):
-#         raise ValueError("random seeds of inputs not compatible")
-#     elif len(rs) == 1:
-#         return rs[0]
-#     else:
-#         return random_seed # which could still be None.
+def verify_types(**kwargs):
+    "Ensure each argument has a type of None or that matching its name"
+    for k,v in kwargs.items():
+        for j, kk in enumerate(['init', 'perturb', 'ionize', 'spin_temp']):
+            if kk in k:
+                break
+        cls = [InitialConditions, PerturbedField, IonizedBox, TsBox][j]
+
+        if v is not None and not isinstance(v, cls):
+            raise ValueError("%s must be an instance of %s"%(k, cls.__name__))
 
 # ======================================================================================================================
 # WRAPPING FUNCTIONS
@@ -779,11 +763,8 @@ def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=N
     >>> field7 = perturb_field(7.0, user_params=UserParams(HII_DIM=1000))
 
     """
-    # Verify output parameter struct types
-    if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
-        raise ValueError("init_boxes must be an instance of InitialConditions")
+    verify_types(init_boxes=init_boxes)
 
-    print("pre_random: ", random_seed)
     # Configure and check input/output parameters/structs
     random_seed, user_params, cosmo_params = configure_inputs(
         [("random_seed", random_seed), ("user_params", user_params), ("cosmo_params", cosmo_params)],
@@ -794,7 +775,6 @@ def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=N
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
 
-    print("random_seed: ", random_seed)
     # Initialize perturbed boxes.
     fields = PerturbedField(redshift=redshift, user_params=user_params, cosmo_params=cosmo_params, random_seed=random_seed)
 
@@ -962,16 +942,8 @@ def ionize_box(*, astro_params=None, flag_options=None,
     If automatic recursion is used, then it is done in such a way that no large boxes are kept around in memory for
     longer than they need to be (only two at a time are required).
     """
-
-    # Verify output struct types
-    if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
-        raise ValueError("init_boxes must be an instance of InitialConditions")
-    if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
-        raise ValueError("perturbed_field must be an instance of PerturbedField")
-    if previous_ionize_box is not None and not isinstance(previous_ionize_box, IonizedBox):
-        raise ValueError("previous_ionize_box must be an instance of IonizedBox")
-    if spin_temp is not None and not isinstance(spin_temp, TsBox):
-        raise ValueError("spin_temp must be an instance of TsBox")
+    verify_types(init_boxes=init_boxes, perturbed_field=perturbed_field, previous_ionize_box=previous_ionize_box,
+                 spin_temp=spin_temp)
 
     # Configure and check input/output parameters/structs
     random_seed, user_params, cosmo_params, astro_params, flag_options = configure_inputs(
@@ -1018,12 +990,7 @@ def ionize_box(*, astro_params=None, flag_options=None,
     if flag_options.INHOMO_RECO or do_spin_temp:
 
         if previous_ionize_box is not None:
-            if hasattr(previous_ionize_box, "redshift"):
-                prev_z = previous_ionize_box.redshift
-            elif isinstance(previous_ionize_box, numbers.Number):
-                prev_z = previous_ionize_box
-            else:
-                raise ValueError("previous_ionize_box must be an IonizedBox or a float")
+            prev_z = previous_ionize_box.redshift
         elif z_step_factor is not None:
             prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
         else:
@@ -1051,15 +1018,13 @@ def ionize_box(*, astro_params=None, flag_options=None,
         box._random_seed = init_boxes.random_seed
 
     # Get appropriate previous ionization box
-    if not isinstance(previous_ionize_box, IonizedBox):
+    if previous_ionize_box is None or not previous_ionize_box.filled:
         # If we are beyond Z_HEAT_MAX, just make an empty box
         if prev_z is None or prev_z > global_params.Z_HEAT_MAX:
             previous_ionize_box = IonizedBox(redshift=0)
 
         # Otherwise recursively create new previous box.
         else:
-            # Dynamically produce the initial conditions.
-
             previous_ionize_box = ionize_box(
                 astro_params=astro_params, flag_options=flag_options, redshift=prev_z,
                 z_step_factor=z_step_factor, z_heat_max=z_heat_max,
@@ -1107,7 +1072,7 @@ def ionize_box(*, astro_params=None, flag_options=None,
 def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, perturbed_field=None,
                      previous_spin_temp=None, z_step_factor=1.02, z_heat_max=None,
                      init_boxes=None, cosmo_params=None, user_params=None, regenerate=False,
-                     write=True, direc=None, random_seed=None, use_interp_perturb_field=False):
+                     write=True, direc=None, random_seed=None):
     """
     Compute spin temperature boxes at a given redshift.
 
@@ -1123,13 +1088,15 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
 
     redshift : float, optional
         The redshift at which to compute the ionized box. If not given, the redshift from `perturbed_field` will be used.
-        Either `redshift`, `perturbed_field` or both must be given.
+        Either `redshift`, `perturbed_field`, or `previous_spin_temp` must be given. See notes on `perturbed_field` for
+        how it affects the given redshift if both are given.
 
     perturbed_field : :class:`~PerturbField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated, either `init_boxes` and
         `redshift` must be given, or `user_params`, `cosmo_params` and `redshift`. By default, this will be generated
-        at the same redshift as the spin temperature box. Here, the redshift from `perturbed_field` will *not* silently
-        override the given redshift, as it will be interpolated to the proper redshift if its redshift disagrees.
+        at the same redshift as the spin temperature box. The redshift of perturb field is allowed to be different
+        than `redshift`. If so, it will be interpolated to the correct redshift, which can provide a speedup compared
+        to actually computing it at the desired redshift.
 
     previous_spin_temp : :class:`TsBox` or None
         The previous spin temperature box.
@@ -1216,13 +1183,14 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
 
     This is usually a bad idea, and will give a warning, but it is possible.
     """
-    # Verify output struct types
-    if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
-        raise ValueError("init_boxes must be an instance of InitialConditions")
-    if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
-        raise ValueError("perturbed_field must be an instance of PerturbedField")
-    if previous_spin_temp is not None and not isinstance(previous_spin_temp, TsBox):
-        raise ValueError("previous_spin_temp must be an instance of TsBox")
+    verify_types(init_boxes=init_boxes, perturbed_field=perturbed_field, previous_spin_temp=previous_spin_temp)
+    # # Verify output struct types
+    # if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
+    #     raise ValueError("init_boxes must be an instance of InitialConditions")
+    # if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
+    #     raise ValueError("perturbed_field must be an instance of PerturbedField")
+    # if previous_spin_temp is not None and not isinstance(previous_spin_temp, TsBox):
+    #     raise ValueError("previous_spin_temp must be an instance of TsBox")
 
     # Configure and check input/output parameters/structs
     random_seed, user_params, cosmo_params, astro_params, flag_options = configure_inputs(
@@ -1230,8 +1198,14 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
          ('astro_params', astro_params), ("flag_options", flag_options)],
         init_boxes, previous_spin_temp, init_boxes, perturbed_field,
     )
-    # TODO: this is probably wrong
-    redshift = configure_redshift(redshift, perturbed_field)
+
+    # Try to determine redshift from other inputs, if required.
+    # Note that perturb_field does not need to match redshift here.
+    if redshift is None:
+        if perturbed_field is not None:
+            redshift = perturbed_field.redshift
+        elif previous_spin_temp is not None:
+            redshift = (previous_spin_temp.redshift + 1) / global_params.ZPRIME_STEP_FACTOR - 1
 
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
@@ -1243,14 +1217,6 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
         global_params.Z_HEAT_MAX = z_heat_max
     if z_step_factor is not None:
         global_params.ZPRIME_STEP_FACTOR = z_step_factor
-
-    # Try to determine redshift from other inputs, if required.
-    # TODO: take this into account
-    if redshift is None:
-        if perturbed_field is not None:
-            redshift = perturbed_field.redshift
-        elif previous_spin_temp is not None:
-            redshift = (previous_spin_temp.redshift + 1) / global_params.ZPRIME_STEP_FACTOR - 1
 
     # If there is still no redshift, raise error.
     if redshift is None:
@@ -1277,10 +1243,7 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
 
     # Get the previous redshift
     if previous_spin_temp is not None:
-        if hasattr(previous_spin_temp, "redshift"):
-            prev_z = previous_spin_temp.redshift
-        elif isinstance(previous_spin_temp, numbers.Number):
-            prev_z = previous_spin_temp
+        prev_z = previous_spin_temp.redshift
     elif z_step_factor is not None:
         prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
     else:
@@ -1308,7 +1271,6 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
         if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
             previous_spin_temp = TsBox(redshift=0)
         else:
-            print("going back to z=%s"%prev_z)
             previous_spin_temp = spin_temperature(
                 init_boxes=init_boxes,
                 astro_params=astro_params, flag_options=flag_options, redshift=prev_z,
@@ -1316,7 +1278,6 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
                 regenerate=regenerate, write=write, direc=direc
             )
 
-    print("actually doing z=%s, Z_HEAT_MAX = %s"%(redshift, global_params.Z_HEAT_MAX))
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
         perturbed_field = perturb_field(
@@ -1362,14 +1323,15 @@ def brightness_temperature(*, ionized_box, perturbed_field, spin_temp=None):
     -------
     :class:`BrightnessTemp` instance.
     """
+    verify_types(perturbed_field=perturbed_field, spin_temp=spin_temp, ionized_box=ionized_box)
 
-    # Verify output struct types
-    if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
-        raise ValueError("perturbed_field must be an instance of PerturbedField")
-    if spin_temp is not None and not isinstance(spin_temp, TsBox):
-        raise ValueError("spin_temp must be an instance of TsBox")
-    if ionized_box is not None and not isinstance(ionized_box, IonizedBox):
-        raise ValueError("previous_ionize_box must be an instance of IonizedBox")
+    # # Verify output struct types
+    # if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
+    #     raise ValueError("perturbed_field must be an instance of PerturbedField")
+    # if spin_temp is not None and not isinstance(spin_temp, TsBox):
+    #     raise ValueError("spin_temp must be an instance of TsBox")
+    # if ionized_box is not None and not isinstance(ionized_box, IonizedBox):
+    #     raise ValueError("previous_ionize_box must be an instance of IonizedBox")
 
     _check_compatible_inputs(ionized_box, perturbed_field, spin_temp, ignore=[]) # don't ignore redshift here
 

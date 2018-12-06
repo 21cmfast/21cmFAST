@@ -188,6 +188,13 @@ class StructWithDefaults(StructWrapper):
                     # The attribute has been defined as a property, save it as a hidden variable
                     setattr(self, "_" + k, v)
 
+        # Also ensure that parameters that are part of the class, but not the defaults, are set
+        # this will fail if these parameters cannot be set for some reason, hence doing it
+        # last.
+        for k in list(kwargs.keys()):
+            if hasattr(self, k):
+                setattr(self, k, kwargs.pop(k))
+
         if kwargs:
             warnings.warn("The following arguments to be updated are not compatible with this class: %s" % kwargs)
 

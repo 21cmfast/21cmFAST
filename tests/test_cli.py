@@ -73,7 +73,6 @@ def test_spin(tmpdirec,  runner,  cfg):
                                 ['spin', '34.9', '--direc', tmpdirec.strpath, '--seed', '101010', '--config', cfg])
         assert result.exit_code == 0
 
-@pytest.mark.skip
 def test_spin_heatmax(tmpdirec, runner, cfg):
     # Run the CLI
     result = runner.invoke(cli.main,

@@ -6,7 +6,7 @@ import pickle
 
 import pytest
 
-from py21cmmc import CosmoParams, UserParams  # An example of a struct with defaults
+from py21cmmc import CosmoParams, UserParams, AstroParams  # An example of a struct with defaults
 
 
 @pytest.fixture(scope="module")
@@ -106,3 +106,16 @@ def test_c_struct_update():
     _c = c()
     c.update(SIGMA_8=0.8)
     assert _c != c()
+
+
+def test_update_inhomo_reco(caplog):
+    ap = AstroParams(R_BUBBLE_MAX=25)
+
+    ap.update(INHOMO_RECO=True)
+
+    msg = "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "+\
+          "This is non-standard (but allowed), and usually occurs upon manual update of INHOMO_RECO"
+
+    ap.R_BUBBLE_MAX
+
+    assert msg in caplog.text

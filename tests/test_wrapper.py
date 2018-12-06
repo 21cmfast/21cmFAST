@@ -7,7 +7,7 @@ import pytest
 
 from py21cmmc import wrapper
 
-REDSHIFT = 12
+REDSHIFT = 15
 
 
 @pytest.fixture(scope="module")
@@ -55,7 +55,7 @@ def spin_temp(perturb_field, tmpdirec):
         perturbed_field=perturb_field,
         regenerate=True,  # i.e. make sure we don't read it in.
         direc=tmpdirec.strpath,
-        z_step_factor=1.2
+        z_step_factor=1.2,
     )
 
 
@@ -155,7 +155,7 @@ def test_st_new_seed(spin_temp, perturb_field, tmpdirec):
             perturbed_field=perturb_field,
             direc=tmpdirec.strpath,
             random_seed=1,
-            write=False
+            write=False,
         )
 
     st = wrapper.spin_temperature(
@@ -171,6 +171,31 @@ def test_st_new_seed(spin_temp, perturb_field, tmpdirec):
 
     assert not st.exists(direc=tmpdirec.strpath)  # we didn't write it, and this has a different seed (presumably)
     assert st.random_seed != spin_temp.random_seed
+    assert not np.all(st.Ts_box == spin_temp.Ts_box)
+
+
+def test_st_from_z(init_box, tmpdirec, spin_temp):
+
+    pf = wrapper.perturb_field(
+        redshift=12,
+        init_boxes=init_box,
+        write=False,
+        regenerate=True
+    )
+
+    # This one has all the same parameters as the nominal spin_temp, but is evaluated with
+    # perturb field exactly matching it, rather than interpolated
+    st = wrapper.spin_temperature(
+        perturbed_field=pf,
+        astro_params=spin_temp.astro_params,
+        flag_options=spin_temp.flag_options,
+        direc=tmpdirec.strpath,
+        redshift=spin_temp.redshift,
+        write=False
+    )
+
+    # TODO: This REALLY SHOULD NOT BE TRUE!!!!!
+    assert st == spin_temp
     assert not np.all(st.Ts_box == spin_temp.Ts_box)
 
 
