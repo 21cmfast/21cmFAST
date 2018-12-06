@@ -1674,6 +1674,8 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
         See docs of :func:`initial_conditions` for more information.
     """
 
+    print('I have entered here')
+
     random_seed, user_params, cosmo_params = configure_inputs(
         [("random_seed", random_seed), ("user_params", user_params), ("cosmo_params", cosmo_params)],
         init_box, perturb
@@ -1683,6 +1685,11 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
     cosmo_params = CosmoParams(cosmo_params)
     flag_options = FlagOptions(flag_options)
     astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+
+    print(user_params)
+    print(cosmo_params)
+    print(flag_options)
+    print(astro_params)
 
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
