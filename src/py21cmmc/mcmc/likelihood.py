@@ -34,8 +34,7 @@ def listify(l):
         return [l]
 
 
-class LikelihoodBase:
-    required_cores = []
+class LikelihoodBase(core.ModuleBase):
 
     def computeLikelihood(self, model):
         raise NotImplementedError("The Base likelihood should never be used directly!")
@@ -60,23 +59,12 @@ class LikelihoodBase:
                 raise ValueError("%s needs the %s to be loaded." % (self.__class__.__name__, rc.__class__.__name__))
 
     def setup(self):
-        logger.info("Running setup")
-
         # Expose user, flag, cosmo, astro params to this likelihood if available.
         self._expose_core_parameters()
 
         # Ensure that any required cores are actually loaded.
         self._check_required_cores()
 
-    @property
-    def chain(self):
-        """
-        A reference to the LikelihoodComputationChain of which this Core is a part.
-        """
-        try:
-            return self._LikelihoodComputationChain
-        except AttributeError:
-            raise core.NotAChain
 
     @property
     def _cores(self):

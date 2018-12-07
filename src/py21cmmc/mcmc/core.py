@@ -3,8 +3,9 @@ A module providing Core Modules for cosmoHammer. This is the basis of the plugin
 """
 import logging
 import warnings
-
+import inspect
 import py21cmmc as p21
+import copy
 
 logger = logging.getLogger("21CMMC")
 
@@ -21,18 +22,9 @@ class NotAChain(AttributeError):
         super().__init__(default_message)
 
 
-class CoreBase:
-    def __init__(self, store=None):
-        self.store = store or {}
-
-    def prepare_storage(self, ctx, storage):
-        """Add variables to special dict which cosmoHammer will automatically store with the chain."""
-        for name, storage_function in self.store.items():
-            try:
-                storage[name] = storage_function(ctx)
-            except Exception:
-                logger.error("Exception while trying to evaluate storage function %s" % name)
-                raise
+class ModuleBase:
+    extra_defining_attributes = []  # extra attributes (in addition to those passed to init) that define equality
+    ignore_attributes = []  # attributes to ignore (from those passed to init) for determining equality
 
     @property
     def chain(self):
@@ -47,6 +39,51 @@ class CoreBase:
     @property
     def parameter_names(self):
         return getattr(self.chain.params, "keys", [])
+
+    def __eq__(self, other):
+        if self.__class__.__name__ != other.__class__.__name__:
+            return False
+
+        args = []
+        for cls in self.__class__.mro():
+            args += inspect.getfullargspec(cls.__init__).args
+
+        args = list(set(args))
+
+        for arg in args + self.extra_defining_attributes:
+
+            if arg == "self" or arg in self.ignore_attributes:
+                continue
+
+            try:
+                if hasattr(self, "_"+arg):
+                    if getattr(self, "_"+arg) != getattr(other, "_"+arg):
+                        return False
+                elif hasattr(self, arg):
+                    if getattr(self, arg) != getattr(other, arg):
+                        return False
+                else:
+                    logger.warning("parameter {arg} not found in instance".format(arg=arg))
+
+            except ValueError:
+                logger.warning("parameter {arg} has type which does not allow for comparison".format(arg=arg))
+
+        return True
+
+
+class CoreBase(ModuleBase):
+
+    def __init__(self, store=None):
+        self.store = store or {}
+
+    def prepare_storage(self, ctx, storage):
+        """Add variables to special dict which cosmoHammer will automatically store with the chain."""
+        for name, storage_function in self.store.items():
+            try:
+                storage[name] = storage_function(ctx)
+            except Exception:
+                logger.error("Exception while trying to evaluate storage function %s" % name)
+                raise
 
     def simulate_data(self, ctx):
         """
@@ -74,6 +111,7 @@ class CoreBase:
         self.simulate_data(ctx)
 
 
+
 class CoreCoevalModule(CoreBase):
     """
     A Core Module which evaluates coeval cubes at given redshift.
@@ -85,12 +123,13 @@ class CoreCoevalModule(CoreBase):
     3. ``xHI``: an :class:`~py21cmmc._21cmfast.wrapper.IonizedBox` instance
     4. ``brightness_temp``: a :class:`~py21cmmc._21cmfast.wrapper.BrightnessTemp` instance
     """
+    ignore_attributes = ['keep_data_in_memory']
 
     def __init__(self, redshift,
                  user_params=None, flag_options=None, astro_params=None,
                  cosmo_params=None, regenerate=True, do_spin_temp=False, z_step_factor=1.02,
                  z_heat_max=None, change_seed_every_iter=False, ctx_variables=None,
-                 keep_data_in_memory=True, initial_conditions_seed=None,
+                 initial_conditions_seed=None,
                  **io_options):
         """
         Initialize the class.
@@ -192,23 +231,14 @@ class CoreCoevalModule(CoreBase):
         self.z_heat_max = z_heat_max
         self.do_spin_temp = do_spin_temp
 
-        self.io = dict(
+        self.io_options = dict(
             store={},  # (derived) quantities to store in the MCMC chain.
             cache_dir=None,  # where full data sets will be written/read from.
             cache_init=True,  # whether to cache init and perturb data sets (done before parameter retention step).
             cache_ionize=False,  # whether to cache ionization data sets (done before parameter retention step)
         )
 
-        self.io.update(io_options)
-
-        self.initial_conditions = None
-        self.perturb_field = None
-
-        # Attempt to auto-set the keep_memory parameter
-        if keep_data_in_memory and self.user_params.DIM >= 1000:  # This gives about 4GiB for 32-bit floats.
-            self.keep_data_in_memory = False
-        else:
-            self.keep_data_in_memory = keep_data_in_memory
+        self.io_options.update(io_options)
 
         if self.initial_conditions_seed and self.change_seed_every_iter:
             logger.warning(
@@ -225,7 +255,7 @@ class CoreCoevalModule(CoreBase):
         invoked directly.
         """
         # If the chain has different parameter truths, we want to use those for our defaults.
-        self._update_params(self.chain.createChainContext().getParams())
+        self.astro_params, self.cosmo_params = self._update_params(self.chain.createChainContext().getParams())
 
         if self.z_heat_max is not None:
             p21.global_params.Z_HEAT_MAX = self.z_heat_max
@@ -239,8 +269,8 @@ class CoreCoevalModule(CoreBase):
             initial_conditions = p21.initial_conditions(
                 user_params=self.user_params,
                 cosmo_params=self.cosmo_params,
-                write=self.io['cache_init'],
-                direc=self.io['cache_dir'],
+                write=self.io_options['cache_init'],
+                direc=self.io_options['cache_dir'],
                 regenerate=self.regenerate,
                 random_seed=self.initial_conditions_seed
             )
@@ -253,22 +283,18 @@ class CoreCoevalModule(CoreBase):
                 perturb_field += [p21.perturb_field(
                     redshift=z,
                     init_boxes=initial_conditions,
-                    write=self.io['cache_init'],
-                    direc=self.io['cache_dir'],
+                    write=self.io_options['cache_init'],
+                    direc=self.io_options['cache_dir'],
                     regenerate=self.regenerate,
                 )]
             logger.info("Initialization done.")
 
-            if self.keep_data_in_memory:
-                self.initial_conditions = initial_conditions
-                self.perturb_field = perturb_field
-
     def simulate_data(self, ctx):
         # Update parameters
-        self._update_params(ctx.getParams())
+        astro_params, cosmo_params = self._update_params(ctx.getParams())
 
         # Call C-code
-        init, perturb, xHI, brightness_temp = self.run(self.astro_params, self.cosmo_params)
+        init, perturb, xHI, brightness_temp = self.run(astro_params, cosmo_params)
 
         for key in self.ctx_variables:
             try:
@@ -287,10 +313,13 @@ class CoreCoevalModule(CoreBase):
 
         """
         # Note that RANDOM_SEED is never updated. It should only change when we are modifying cosmo.
-        self.astro_params.update(
-            **{k: getattr(params, k) for k, v in params.items() if k in self.astro_params.defining_dict})
-        self.cosmo_params.update(
-            **{k: getattr(params, k) for k, v in params.items() if k in self.cosmo_params.defining_dict})
+        ap_dict = copy.copy(self.astro_params.self)
+        cp_dict = copy.copy(self.cosmo_params.self)
+
+        ap_dict.update(**{k: getattr(params, k) for k, v in params.items() if k in self.astro_params.defining_dict})
+        cp_dict.update(**{k: getattr(params, k) for k, v in params.items() if k in self.cosmo_params.defining_dict})
+
+        return p21.AstroParams(**ap_dict), p21.CosmoParams(**cp_dict)
 
     def run(self, astro_params, cosmo_params):
         """
@@ -300,14 +329,12 @@ class CoreCoevalModule(CoreBase):
             redshift=self.redshift,
             astro_params=astro_params, flag_options=self.flag_options,
             cosmo_params=cosmo_params, user_params=self.user_params,
-            perturb=self.perturb_field,
-            init_box=self.initial_conditions,
             do_spin_temp=self.do_spin_temp,
             z_step_factor=self.z_step_factor,
             regenerate=self.regenerate or self.change_seed_every_iter,
             random_seed=self.initial_conditions_seed,
-            write=self.io['cache_ionize'],
-            direc=self.io['cache_dir'],
+            write=self.io_options['cache_ionize'],
+            direc=self.io_options['cache_dir'],
         )
 
 
@@ -336,8 +363,6 @@ class CoreLightConeModule(CoreCoevalModule):
 
         # Un-list redshift and perturb
         self.redshift = self.redshift[0]
-        if self.perturb_field is not None:
-            self.perturb_field = self.perturb_field[0]
 
     @property
     def lightcone_slice_redshifts(self):
@@ -352,10 +377,10 @@ class CoreLightConeModule(CoreCoevalModule):
 
     def simulate_data(self, ctx):
         # Update parameters
-        self._update_params(ctx.getParams())
+        astro_params, cosmo_params = self._update_params(ctx.getParams())
 
         # Call C-code
-        lightcone = self.run(self.astro_params, self.cosmo_params)
+        lightcone = self.run(astro_params, cosmo_params)
 
         ctx.add('lightcone', lightcone)
 
@@ -368,11 +393,9 @@ class CoreLightConeModule(CoreCoevalModule):
             max_redshift=self.max_redshift,
             astro_params=astro_params, flag_options=self.flag_options,
             cosmo_params=cosmo_params, user_params=self.user_params,
-            perturb=self.perturb_field,
-            init_box=self.initial_conditions,
             do_spin_temp=self.do_spin_temp,
             z_step_factor=self.z_step_factor,
             regenerate=self.regenerate,
-            write=self.io['cache_ionize'],
-            direc=self.io['cache_dir'],
+            write=self.io_options['cache_ionize'],
+            direc=self.io_options['cache_dir'],
         )

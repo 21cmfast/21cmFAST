@@ -44,7 +44,6 @@ class CosmoHammerSampler(CHS):
         if self.storageUtil.sample_storage.iteration >= self.sampleIterations:
             raise ValueError("All Samples have already been completed. Try with continue_sampling=False.")
 
-
     def _configureLogging(self, filename, logLevel):
         super()._configureLogging(filename, logLevel)
 

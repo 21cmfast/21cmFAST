@@ -131,3 +131,30 @@ class LikelihoodComputationChain(LCC):
             self._setup = True
         else:
             warnings.warn("Attempting to setup LikelihoodComputationChain when it is already setup! Ignoring...")
+
+    def __eq__(self, other):
+        if self.__class__.__name__ != other.__class__.__name__:
+            return False
+
+        if self.params != other.params:
+            print("its the params")
+            return False
+
+        for thisc, thatc in zip(self.getCoreModules(), other.getCoreModules()):
+            if thisc != thatc:
+                print("its the core module: ", thisc, thatc)
+                return False
+
+        for thisc, thatc in zip(self.getLikelihoodModules(), other.getLikelihoodModules()):
+            if thisc != thatc:
+                print('its the lk module: ', this, thatc)
+                return False
+
+        return True
+
+    #
+    # def write_chain(self, fname):
+    #     """
+    #     A method to write out the exact format of this chain
+    #     """
+    #     with open(self.model)

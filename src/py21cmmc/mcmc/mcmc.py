@@ -1,9 +1,9 @@
 from os import path, mkdir
-
+import yaml
 from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, Params
 
 
-def build_computation_chain(core_modules, likelihood_modules, params=None):
+def build_computation_chain(core_modules, likelihood_modules, params=None, setup=True):
     """
     Build a likelihood computation chain from core and likelihood modules.
 
@@ -35,7 +35,7 @@ def build_computation_chain(core_modules, likelihood_modules, params=None):
     for lk in likelihood_modules:
         chain.addLikelihoodModule(lk)
 
-    chain.setup()
+    if setup: chain.setup()
     return chain
 
 
@@ -92,6 +92,21 @@ def run_mcmc(core_modules, likelihood_modules, params,
         params = Params(*[(k, v) for k, v in params.items()])
 
     chain = build_computation_chain(core_modules, likelihood_modules, params)
+
+    if continue_sampling:
+        try:
+            with open(file_prefix+".LCC.yml", 'r') as f:
+                old_chain = yaml.load(f)
+
+            if old_chain != chain:
+                raise RuntimeError("Attempting to continue chain, but chain parameters are different. Check your parameters against {file_prefix}.LCC.yml".format(file_prefix=file_prefix))
+
+        except FileNotFoundError:
+            pass
+
+    # Before setup, write out the parameters.
+    with open(file_prefix+".LCC.yml", 'w') as f:
+        yaml.dump(chain, f)
 
     sampler = CosmoHammerSampler(
         continue_sampling=continue_sampling,
