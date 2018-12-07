@@ -892,7 +892,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 
             }
         }
-                
+        
         // Main loop over the entire box for the IGM spin temperature and relevant quantities.
         if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         
