@@ -104,8 +104,8 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
         raise ValueError("slice_axis should be between -1 and 2")
 
     # Now put on the decorations.
-    ax.set_xlabel(f"{xax}-axis [Mpc]")
-    ax.set_ylabel(f"{yax}-axis [Mpc]")
+    ax.set_xlabel("{xax}-axis [Mpc]".format(xax=xax))
+    ax.set_ylabel("{yax}-axis [Mpc]".format(yax=yax))
 
     return fig, ax
 
