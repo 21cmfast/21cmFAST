@@ -14,6 +14,7 @@ from cosmoHammer import CosmoHammerSampler as CHS, getLogger
 
 class CosmoHammerSampler(CHS):
     def __init__(self, likelihoodComputationChain, continue_sampling=False, log_level_stream=logging.ERROR,
+                 max_init_attempts=100,
                  *args, **kwargs):
         self.continue_sampling = continue_sampling
         self._log_level_stream = log_level_stream
@@ -22,6 +23,7 @@ class CosmoHammerSampler(CHS):
                          likelihoodComputationChain=likelihoodComputationChain,
                          *args, **kwargs)
 
+        self.max_init_attempts = max_init_attempts
         if not self.reuseBurnin:
             self.storageUtil.reset(self.nwalkers, self.params)
 
@@ -195,3 +197,26 @@ class CosmoHammerSampler(CHS):
             raise ValueError("Cannot access samples before sampling.")
         else:
             return self.storageUtil.sample_storage
+
+    def createInitPos(self):
+        """
+        Factory method to create initial positions
+        """
+        i = 0
+        pos = []
+
+        while len(pos) < self.nwalkers and i < self.max_init_attempts:
+            tmp_pos = self.initPositionGenerator.generate()
+
+            for tmp_p in tmp_pos:
+                if self.likelihoodComputationChain.isValid(tmp_p):
+                    pos.append(tmp_p)
+
+            i += 1
+
+        if i == self.max_init_attempts:
+            raise ValueError(
+                "No suitable initial positions for the walkers could be obtained in {max_attempts} attemps".format(
+                    max_attempts=self.max_init_attempts))
+
+        return pos[:self.nwalkers]

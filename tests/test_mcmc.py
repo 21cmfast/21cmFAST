@@ -4,6 +4,8 @@ import pytest
 import numpy as np
 import os
 
+from py21cmmc.mcmc.cosmoHammer import CosmoHammerSampler, HDFStorageUtil, Params
+
 @pytest.fixture(scope="module")
 def core():
     return mcmc.CoreCoevalModule(redshift=9, user_params={"HII_DIM": 35, "DIM": 70},
@@ -139,3 +141,54 @@ def test_bad_continuation(core, likelihood_coeval, tmpdirec):
             params=dict(HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]),
             walkersRatio=2, burninIterations=0, sampleIterations=2, threadCount=1
         )
+
+
+def test_init_pos_generator_good(core, likelihood_coeval, tmpdirec):
+
+    params = Params(
+        ("HII_EFF_FACTOR", [30.0, 10.0, 50.0, 10.0]),
+        ("ION_Tvir_MIN", [4.7, 2, 8, 2])
+    )
+
+    chain = mcmc.build_computation_chain(core, likelihood_coeval, params=params)
+
+    sampler = CosmoHammerSampler(
+        continue_sampling=False,
+        likelihoodComputationChain=chain,
+        storageUtil=HDFStorageUtil(os.path.join(tmpdirec, "POSGENERATORTEST")),
+        filePrefix=os.path.join(tmpdirec, "POSGENERATORTEST"),
+        reuseBurnin=False,
+        burninIterations=0,
+        sampleIterations=1,
+        walkersRatio=50
+    )
+
+    pos = sampler.createInitPos()
+
+    assert all([chain.isValid(p) for p in pos])
+
+
+def test_init_pos_generator_bad(core, likelihood_coeval, tmpdirec):
+
+    params = Params(
+        ("HII_EFF_FACTOR", [30.0, 29.0, 31.0, 100.0]),
+        ("ION_Tvir_MIN", [4.7, 4.6, 4.8, 20])
+    )
+
+    chain = mcmc.build_computation_chain(core, likelihood_coeval, params=params)
+
+    sampler = CosmoHammerSampler(
+        continue_sampling=False,
+        likelihoodComputationChain=chain,
+        storageUtil=HDFStorageUtil(os.path.join(tmpdirec, "POSGENERATORTEST")),
+        filePrefix=os.path.join(tmpdirec, "POSGENERATORTEST"),
+        reuseBurnin=False,
+        burninIterations=0,
+        sampleIterations=1,
+        walkersRatio=50
+    )
+
+    with pytest.raises(ValueError):
+        pos = sampler.createInitPos()
+
+
