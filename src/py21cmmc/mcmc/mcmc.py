@@ -2,6 +2,7 @@ from os import path, mkdir
 import yaml
 from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, Params
 
+from concurrent.futures import ProcessPoolExecutor
 
 def build_computation_chain(core_modules, likelihood_modules, params=None, setup=True):
     """
@@ -73,7 +74,7 @@ def run_mcmc(core_modules, likelihood_modules, params,
     ----------------
     All other parameters are passed directly to :class:`~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler.CosmoHammerSampler`.
     These include important options such as `walkersRatio` (the number of walkers is ``walkersRatio*nparams``),
-    `sampleIterations`, `burninIterations` and `threadCount`.
+    `sampleIterations`, `burninIterations`, `pool` and `threadCount`.
 
     Returns
     -------
@@ -114,6 +115,7 @@ def run_mcmc(core_modules, likelihood_modules, params,
         storageUtil=HDFStorageUtil(file_prefix),
         filePrefix=file_prefix,
         reuseBurnin=reuse_burnin,
+        pool = mcmc_options.get("pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1))),
         **mcmc_options
     )
 
