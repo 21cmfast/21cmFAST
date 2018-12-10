@@ -155,8 +155,8 @@ def test_init_pos_generator_good(core, likelihood_coeval, tmpdirec):
     sampler = CosmoHammerSampler(
         continue_sampling=False,
         likelihoodComputationChain=chain,
-        storageUtil=HDFStorageUtil(os.path.join(tmpdirec, "POSGENERATORTEST")),
-        filePrefix=os.path.join(tmpdirec, "POSGENERATORTEST"),
+        storageUtil=HDFStorageUtil(os.path.join(tmpdirec.strpath, "POSGENERATORTEST")),
+        filePrefix=os.path.join(tmpdirec.strpath, "POSGENERATORTEST"),
         reuseBurnin=False,
         burninIterations=0,
         sampleIterations=1,
@@ -180,8 +180,8 @@ def test_init_pos_generator_bad(core, likelihood_coeval, tmpdirec):
     sampler = CosmoHammerSampler(
         continue_sampling=False,
         likelihoodComputationChain=chain,
-        storageUtil=HDFStorageUtil(os.path.join(tmpdirec, "POSGENERATORTEST")),
-        filePrefix=os.path.join(tmpdirec, "POSGENERATORTEST"),
+        storageUtil=HDFStorageUtil(os.path.join(tmpdirec.strpath, "POSGENERATORTEST")),
+        filePrefix=os.path.join(tmpdirec.strpath, "POSGENERATORTEST"),
         reuseBurnin=False,
         burninIterations=0,
         sampleIterations=1,
