@@ -669,8 +669,7 @@ def electron_opticaldepth(*, user_params=None, cosmo_params=None, redshifts=None
 
 
 def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_params=None, flag_options=None,
-                                redshifts=None,
-                                nbins=100):
+                                redshifts=None, nbins=100):
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     astro_params = AstroParams(astro_params)
@@ -733,17 +732,6 @@ def initial_conditions(*, user_params=None, cosmo_params=None, random_seed=None,
             return boxes
         except IOError:
             pass
-
-    # Run the C code
-    exitcode = lib.ComputeInitialConditions(boxes.random_seed, boxes.user_params(), boxes.cosmo_params(), boxes())
-
-    _process_exitcode(exitcode)
-    boxes.filled = True
-    boxes._expose()
-
-    # Optionally do stuff with the result (like writing it)
-    if write:
-        boxes.write(direc)
 
     return _call_c_func(
         lib.ComputeInitialConditions, boxes, direc,
