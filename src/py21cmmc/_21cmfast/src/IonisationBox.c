@@ -10,11 +10,11 @@ int ERFC_NUM_POINTS = 10000;
 
 double *ERFC_VALS, *ERFC_VALS_DIFF;
 
-void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
                        int do_spin_temp, struct TsBox *spin_temp, struct IonizedBox *box) {
-    
+
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
@@ -741,5 +741,7 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     }
     
     free(Fcoll);
+
+    return(0);
 }
 

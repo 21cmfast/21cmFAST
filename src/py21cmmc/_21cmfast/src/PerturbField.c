@@ -1,7 +1,7 @@
 
 // Re-write of perturb_field.c for being accessible within the MCMC
 
-void ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field) {
+int ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field) {
     
     /*
      USAGE: perturb_field <REDSHIFT>
@@ -383,5 +383,7 @@ void ComputePerturbField(float redshift, struct UserParams *user_params, struct 
     // deallocate
     fftwf_free(LOWRES_density_perturb);
     fftwf_free(LOWRES_density_perturb_saved);
+
+    return(0);
 
 }

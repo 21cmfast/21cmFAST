@@ -11,7 +11,6 @@ import time
 import numpy as np
 from cosmoHammer import CosmoHammerSampler as CHS, getLogger
 
-
 class CosmoHammerSampler(CHS):
     def __init__(self, likelihoodComputationChain, continue_sampling=False, log_level_stream=logging.ERROR,
                  max_init_attempts=100,
