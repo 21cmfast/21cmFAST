@@ -7,6 +7,7 @@ class EnsembleSampler(emcee.EnsembleSampler):
     An over-write of the standard emcee EnsembleSampler which ensures that sampled parameters are never outside their
     range.
     """
+    max_attempts = 100
 
     def __init__(self, pmin=None, pmax=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -37,22 +38,36 @@ class EnsembleSampler(emcee.EnsembleSampler):
         c = np.atleast_2d(p1)
         Nc = len(c)
 
-        # Generate the vectors of random numbers that will produce the
-        # proposal.
-        parameters_are_good = False
         qgood = np.zeros((Ns, self.dim), dtype=bool)
         q = np.zeros((Ns, self.dim))
-        while not np.all(qgood):
+        i = 0
+        while not np.all(qgood) and i < self.max_attempts:
+            # Generate the vectors of random numbers that will produce the proposal.
             zz = ((self.a - 1.) * self._random.rand(Ns) + 1) ** 2. / self.a
             rint = self._random.randint(Nc, size=(Ns,))
 
-            # Calculate the proposed positions and the log-probability there.
+            # Calculate the proposed positions
             tmpq = c[rint] - zz[:, np.newaxis] * (c[rint] - s)
-
             q[np.logical_not(qgood)] = tmpq[np.logical_not(qgood)]
-
             qgood = np.logical_and(q >= self.pmin, q <= self.pmax)
+            i += 1
 
+        if i == self.max_attempts and not np.all(qgood):
+            msg = "Faulty Parameters:\n"
+            for j, qq in enumerate(qgood):
+                for k, qqq in enumerate(qq):
+                    if not qqq:
+                        msg += "Walker {j}, parameter {k}, previous value = {prev}, range = ({min}, {max})\n".format(
+                            j=j,k=k, prev=s[j,k], min=self.pmin[k], max = self.pmax[k]
+                        )
+            raise RuntimeError(
+                """
+                EnsembleSampler could not find a suitable selection of parameters in {max_attempts} attempts.
+                {msg}
+                """.format(max_attempts=self.max_attempts)
+            )
+
+        # calculate the log-prob at q
         newlnprob, blob = self._get_lnprob(q)
 
         # Decide whether or not the proposals should be accepted.
