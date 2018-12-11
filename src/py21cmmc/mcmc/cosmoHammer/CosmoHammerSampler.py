@@ -10,6 +10,8 @@ import time
 
 import numpy as np
 from cosmoHammer import CosmoHammerSampler as CHS, getLogger
+from py21cmmc.mcmc.ensemble import EnsembleSampler
+import emcee
 
 class CosmoHammerSampler(CHS):
     def __init__(self, likelihoodComputationChain, continue_sampling=False, log_level_stream=logging.ERROR,
@@ -104,6 +106,16 @@ class CosmoHammerSampler(CHS):
                     self.storageUtil.close()
                 except AttributeError:
                     pass
+
+    def createEmceeSampler(self, callable, **kwargs):
+        """
+        Factory method to create the emcee sampler
+        """
+        if self.isMaster(): self.log("Using emcee " + str(emcee.__version__))
+        return EnsembleSampler(
+            pmin = self.likelihoodComputationChain.min, pmax = self.likelihoodComputationChain.max,
+            nwalkers=self.nwalkers, dim=self.paramCount, lnpostfn=callable, threads=self.threadCount, **kwargs
+        )
 
     def _load(self, burnin=False):
         stg = self.storageUtil.burnin_storage if burnin else self.storageUtil.sample_storage
