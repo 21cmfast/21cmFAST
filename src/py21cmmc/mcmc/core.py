@@ -234,7 +234,6 @@ class CoreCoevalModule(CoreBase):
         self.io_options = dict(
             store={},  # (derived) quantities to store in the MCMC chain.
             cache_dir=None,  # where full data sets will be written/read from.
-            cache_init=True,  # whether to cache init and perturb data sets (done before parameter retention step).
             cache_ionize=False,  # whether to cache ionization data sets (done before parameter retention step)
         )
 
@@ -269,7 +268,6 @@ class CoreCoevalModule(CoreBase):
             initial_conditions = p21.initial_conditions(
                 user_params=self.user_params,
                 cosmo_params=self.cosmo_params,
-                write=self.io_options['cache_init'],
                 direc=self.io_options['cache_dir'],
                 regenerate=self.regenerate,
                 random_seed=self.initial_conditions_seed
@@ -283,7 +281,6 @@ class CoreCoevalModule(CoreBase):
                 perturb_field += [p21.perturb_field(
                     redshift=z,
                     init_boxes=initial_conditions,
-                    write=self.io_options['cache_init'],
                     direc=self.io_options['cache_dir'],
                     regenerate=self.regenerate,
                 )]
@@ -388,6 +385,7 @@ class CoreLightConeModule(CoreCoevalModule):
         """
         Actually run the 21cmFAST code.
         """
+
         return p21.run_lightcone(
             redshift=self.redshift,
             max_redshift=self.max_redshift,
@@ -399,3 +397,37 @@ class CoreLightConeModule(CoreCoevalModule):
             write=self.io_options['cache_ionize'],
             direc=self.io_options['cache_dir'],
         )
+
+
+class CoreLuminosityFunction(CoreCoevalModule):
+    def __init__(self, *, redshifts, user_params=None, cosmo_params=None, astro_params=None, flag_options=None, **io_options):
+        super().__init__(io_options.get("store", None))
+
+        self.user_params = p21.UserParams(user_params)
+        self.flag_options = p21.FlagOptions(flag_options)
+        self.astro_params = p21.AstroParams(astro_params)
+        self.cosmo_params = p21.CosmoParams(cosmo_params)
+        self.redshifts = redshifts
+
+    def setup(self):
+        # If the chain has different parameter truths, we want to use those for our defaults.
+        self.astro_params, self.cosmo_params = self._update_params(self.chain.createChainContext().getParams())
+
+    def run(self, astro_params, cosmo_params):
+        """
+        Actually run the 21cmFAST code.
+        """
+        return p21.compute_luminosity_function(
+            redshifts=self.redshifts,
+            astro_params=astro_params, flag_options=self.flag_options,
+            cosmo_params=cosmo_params, user_params=self.user_params,
+        )
+
+    def simulate_data(self, ctx):
+        # Update parameters
+        astro_params, cosmo_params = self._update_params(ctx.getParams())
+
+        # Call C-code
+        lf = self.run(astro_params, cosmo_params)
+
+        ctx.add('luminosity_function', lf)

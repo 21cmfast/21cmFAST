@@ -5,6 +5,8 @@ from cosmoHammer.LikelihoodComputationChain import LikelihoodComputationChain as
 
 from .util import Params
 
+from py21cmmc import ParameterError
+
 
 class LikelihoodComputationChain(LCC):
 
@@ -103,6 +105,12 @@ class LikelihoodComputationChain(LCC):
             module.store(model, ctx.getData())
 
         return module.computeLikelihood(model)
+
+    def __call__(self, p):
+        try:
+            return super().__call__(p)
+        except ParameterError:
+            return -np.inf, []
 
     def createChainContext(self, p=None):
         """

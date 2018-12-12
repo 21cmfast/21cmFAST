@@ -65,7 +65,6 @@ class LikelihoodBase(core.ModuleBase):
         # Ensure that any required cores are actually loaded.
         self._check_required_cores()
 
-
     @property
     def _cores(self):
         """List of all loaded cores"""
@@ -135,7 +134,7 @@ class LikelihoodBaseFile(LikelihoodBase):
                         msg = "If you meant to simulate noise, set simulate=True."
 
                     raise FileNotFoundError(
-                        "Could not find noisefile: {fl}. {msg}".format(fl=fl,msg=msg))
+                        "Could not find noisefile: {fl}. {msg}".format(fl=fl, msg=msg))
 
                 else:
                     noise.append(dict(**np.load(fl)))
@@ -262,7 +261,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     def _check_noise_format(self):
         for i, n in enumerate(self.noise):
             if "ks" not in n or "errs" not in n:
-                raise ValueError("noisefile #{j} of {n} has the wrong format".format(j=i+1, n=len(self.noise)))
+                raise ValueError("noisefile #{j} of {n} has the wrong format".format(j=i + 1, n=len(self.noise)))
 
     def setup(self):
         super().setup()
@@ -359,6 +358,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
             # TODO: if moduncert depends on model, not data, then it should appear as -0.5 log(sigma^2) term below.
             lnl += -0.5 * np.sum((m['delta'][mask] - pd(m['k'][mask])) ** 2 / (moduncert ** 2 + noise ** 2))
+
         return lnl
 
     def simulate(self, ctx):
@@ -761,4 +761,20 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
         lnl = -0.5 * np.sum(
             (self.data['global_signal'] - model_spline(self.data['frequencies'])) ** 2 / self.noise['sigma'] ** 2)
 
+        return lnl
+
+
+class LikelihoodLuminosityFunction(LikelihoodBaseFile):
+    required_cores = [core.CoreLuminosityFunction]
+
+    def simulate(self, ctx):
+        return dict(
+            L=ctx.get("luminosity_function").luminosity,
+            luminosity_funciton=ctx.get("luminosity_function").density
+        )
+
+    def computeLikelihood(self, model):
+        model_spline = InterpolatedUnivariateSpline(model['L'], model['luminosity_function'])
+        lnl = -0.5 * np.sum(
+            (self.data['luminosity_function'] - model_spline(self.data['L'])) ** 2 / self.noise['sigma'] ** 2)
         return lnl
