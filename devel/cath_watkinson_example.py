@@ -1,9 +1,5 @@
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import numpy as np
-
-from py21cmmc.mcmc import analyse
 from py21cmmc import mcmc
 
 print('initialising core')

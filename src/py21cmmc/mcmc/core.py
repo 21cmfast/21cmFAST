@@ -265,6 +265,7 @@ class CoreCoevalModule(CoreBase):
         if not any(
                 [p in self.cosmo_params.self.keys() for p in self.parameter_names]) and not self.change_seed_every_iter:
             logger.info("Initializing init and perturb boxes for the entire chain.")
+
             initial_conditions = p21.initial_conditions(
                 user_params=self.user_params,
                 cosmo_params=self.cosmo_params,
@@ -394,6 +395,7 @@ class CoreLightConeModule(CoreCoevalModule):
             do_spin_temp=self.do_spin_temp,
             z_step_factor=self.z_step_factor,
             regenerate=self.regenerate,
+            random_seed=self.initial_conditions_seed,
             write=self.io_options['cache_ionize'],
             direc=self.io_options['cache_dir'],
         )
