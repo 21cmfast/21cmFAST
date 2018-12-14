@@ -28,13 +28,12 @@ def test_core_coeval_setup(core, likelihood_coeval):
         lk = mcmc.Likelihood1DPowerCoeval()
         mcmc.build_computation_chain(core, lk)
 
-    mcmc.build_computation_chain(core, likelihood_coeval)
+    chain = mcmc.build_computation_chain(core, likelihood_coeval)
 
     assert isinstance(core.chain, mcmc.cosmoHammer.LikelihoodComputationChain)
     assert core.initial_conditions_seed is not None
 
-    ctx = core.chain.createChainContext()
-    core.simulate_data(ctx)
+    ctx = chain.build_model_data()
 
     assert ctx.get("xHI") is not None
     assert ctx.get("brightness_temp") is not None

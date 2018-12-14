@@ -1,6 +1,7 @@
 """
 A module containing (base) classes for computing 21cmFAST likelihoods under the context of CosmoHammer.
 """
+import logging
 from io import IOBase
 from os import path, rename
 
@@ -12,11 +13,9 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 from . import core
 from .._21cmfast import wrapper as lib
 
-np.seterr(invalid='ignore', divide='ignore')
-
-import logging
-
 logger = logging.getLogger("21CMMC")
+
+np.seterr(invalid='ignore', divide='ignore')
 
 
 def ensure_iter(a):
@@ -37,9 +36,45 @@ def listify(l):
 class LikelihoodBase(core.ModuleBase):
 
     def computeLikelihood(self, model):
+        """
+        Calculate the likelihood of the instance data given the model.
+
+        Parameters
+        ----------
+        model : dict
+            A dictionary containing all model-dependent quantities required to calculate the likelihood. Explicitly,
+            matches the output of :meth:`~reduce_data`.
+
+        Returns
+        -------
+        lnL : float
+            The log-posterior of the given model.
+        """
         raise NotImplementedError("The Base likelihood should never be used directly!")
 
-    def simulate(self, ctx):
+    def reduce_data(self, ctx):
+        """
+        Perform reduction on raw data (from all cores in the chain).
+
+        This should perform whatever reduction operations are required on the real/mock data to obtain the form used
+        directly in the likelihood. That is, keep in mind that this method will be called on mock data produced
+        by the core modules in this chain to obtain the static data which is used in the likelihood. In this regard
+        it is called, if applicable, once at :meth:`setup()`. For efficiency then, this method should reduce the data
+        as far as possible so that no un-necessary calculations are required per-iteration.
+
+        Furthermore, it should be a deterministic calculation.
+
+        Parameters
+        ----------
+        ctx ; dict-like
+            A context filled with model data from all cores in the chain. Specifically, this is the context obtained
+            by using the __call__ method of each core in sequence.
+
+        Returns
+        -------
+        model : dict
+            A dictionary containing all reduced quantities required for obtaining the likelihood.
+        """
         raise NotImplementedError("The Base likelihood should never be used directly!")
 
     def _expose_core_parameters(self):
@@ -53,10 +88,6 @@ class LikelihoodBase(core.ModuleBase):
                     else:
                         setattr(self, k, getattr(m, k))
 
-    def _check_required_cores(self):
-        for rc in self.required_cores:
-            if not any([isinstance(m, rc) for m in self._cores]):
-                raise ValueError("%s needs the %s to be loaded." % (self.__class__.__name__, rc.__class__.__name__))
 
     def setup(self):
         # Expose user, flag, cosmo, astro params to this likelihood if available.
@@ -64,11 +95,6 @@ class LikelihoodBase(core.ModuleBase):
 
         # Ensure that any required cores are actually loaded.
         self._check_required_cores()
-
-    @property
-    def _cores(self):
-        """List of all loaded cores"""
-        return self.chain.getCoreModules()
 
 
 class LikelihoodBaseFile(LikelihoodBase):
@@ -96,10 +122,10 @@ class LikelihoodBaseFile(LikelihoodBase):
                 raise ValueError("Either an existing datafile has to be specified, or simulate set to True.")
 
             if self._simulate:
-                simctx = self.chain.core_simulated_context()
+                simctx = self.chain.simulate_mock()
 
             # Read in or simulate the data and noise.
-            self.data = self.simulate(simctx) if self._simulate else self._read_data()
+            self.data = self.reduce_data(simctx) if self._simulate else self._read_data()
 
             # If we can't/won't simulate noise, and no noisefile is provided, assume no noise is necessary.
             if (hasattr(self, "define_noise") and self._simulate) or self.noisefile:
@@ -321,30 +347,17 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         return res
 
     @property
-    def core_module(self):
-        for m in self._cores:
-            if isinstance(m, self.required_cores[0]):
-                return m
-
-    @property
     def redshift(self):
-        return self.core_module.redshift
+        """
+        The redshifts of coeval simulations.
+        """
+        for c in self._cores:
+            try:
+                return c.redshift
+            except AttributeError:
+                pass
 
     def computeLikelihood(self, model):
-        """
-        Compute the likelihood
-
-        Parameters
-        ----------
-        model : list of dicts
-            Exactly the output of :meth:`simulate`.
-
-        Returns
-        -------
-        lnl : float
-            The log-likelihood for the given model.
-        """
-
         lnl = 0
         noise = 0
         for i, (m, pd) in enumerate(zip(model, self.data_spline)):
@@ -361,7 +374,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
         return lnl
 
-    def simulate(self, ctx):
+    def reduce_data(self, ctx):
         brightness_temp = ctx.get("brightness_temp")
         data = []
 
