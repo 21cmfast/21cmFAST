@@ -22,11 +22,16 @@ class NotAChain(AttributeError):
         default_message = 'this Core or Likelihood must be part of a LikelihoodComputationChain to enable this method/attribute!'
         super().__init__(default_message)
 
+class AlreadySetupError(Exception):
+    pass
 
 class ModuleBase:
     extra_defining_attributes = []  # extra attributes (in addition to those passed to init) that define equality
     ignore_attributes = []  # attributes to ignore (from those passed to init) for determining equality
     required_cores = []
+
+    def __init__(self):
+        self._is_setup = False
 
     def _check_required_cores(self):
         for rc in self.required_cores:
@@ -81,6 +86,9 @@ class ModuleBase:
     def _cores(self):
         """List of all loaded cores"""
         return self.chain.getCoreModules()
+
+    def setup(self):
+        self._check_required_cores()
 
 
 class CoreBase(ModuleBase):
@@ -286,6 +294,8 @@ class CoreCoevalModule(CoreBase):
         This method is called automatically by its parent :class:`~LikelihoodComputationChain`, and should not be
         invoked directly.
         """
+        super().setup()
+
         # If the chain has different parameter truths, we want to use those for our defaults.
         self.astro_params, self.cosmo_params = self._update_params(self.chain.createChainContext().getParams())
 
@@ -375,7 +385,7 @@ class CoreLightConeModule(CoreCoevalModule):
     1. ``lightcone``: a :class:`~py21cmmc._21cmfast.wrapper.LightCone` instance.
     """
 
-    def __init__(self, *, max_redshift, **kwargs):
+    def __init__(self, *, max_redshift=None, **kwargs):
         if "ctx_variables" in kwargs:
             warnings.warn(
                 "ctx_variables does not apply to the lightcone module (at least not yet). It will be ignored.")
@@ -437,6 +447,8 @@ class CoreLuminosityFunction(CoreCoevalModule):
         self.redshifts = redshifts
 
     def setup(self):
+        CoreBase.setup(self)
+
         # If the chain has different parameter truths, we want to use those for our defaults.
         self.astro_params, self.cosmo_params = self._update_params(self.chain.createChainContext().getParams())
 

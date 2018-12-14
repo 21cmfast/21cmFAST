@@ -88,13 +88,11 @@ class LikelihoodBase(core.ModuleBase):
                     else:
                         setattr(self, k, getattr(m, k))
 
-
     def setup(self):
+        super().setup()
+
         # Expose user, flag, cosmo, astro params to this likelihood if available.
         self._expose_core_parameters()
-
-        # Ensure that any required cores are actually loaded.
-        self._check_required_cores()
 
 
 class LikelihoodBaseFile(LikelihoodBase):
@@ -452,7 +450,7 @@ class Likelihood1DPowerLightcone(Likelihood1DPowerCoeval):
         res[1] = k
         return res
 
-    def simulate(self, ctx):
+    def reduce_data(self, ctx):
         brightness_temp = ctx.get("lightcone")
         data = []
         chunk_indices = list(range(0, brightness_temp.n_slices, round(brightness_temp.n_slices / self.nchunks)))
@@ -526,7 +524,7 @@ class LikelihoodPlanck(LikelihoodBase):
     def _core(self):
         """The core module used for the xHI global value"""
         # Try using a lightcone
-        for m in self._cores():
+        for m in self._cores:
             if isinstance(m, core.CoreLightConeModule):
                 return m
 
@@ -542,7 +540,7 @@ class LikelihoodPlanck(LikelihoodBase):
     def _is_lightcone(self):
         return isinstance(self._core, core.CoreLightConeModule)
 
-    def simulate(self, ctx):
+    def reduce_data(self, ctx):
         # Extract relevant info from the context.
 
         if self._is_lightcone:
@@ -576,7 +574,12 @@ class LikelihoodPlanck(LikelihoodBase):
         # Set up the arguments for calculating the estimate of the optical depth. Once again, performed using command
         # line code.
         # TODO: not sure if this works.
-        tau_value = lib.compute_tau(z_extrap, xHI, ctx.get('cosmo_params'))
+        tau_value = lib.compute_tau(
+            user_params=self._core.user_params,
+            cosmo_params=self._core.cosmo_params,
+            redshifts=z_extrap,
+            global_xHI=xHI
+        )
 
         return dict(tau=tau_value)
 
@@ -626,7 +629,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     @property
     def coeval_modules(self):
         """All coeval core modules that are loaded."""
-        return [m for m in self._cores if isinstance(m, core.CoreCoevalModule)]
+        return [m for m in self._cores if isinstance(m, core.CoreCoevalModule) and not isinstance(m, core.CoreLightConeModule)]
 
     def setup(self):
         if not self.lightcone_modules + self.coeval_modules:
@@ -650,7 +653,7 @@ class LikelihoodNeutralFraction(LikelihoodBase):
             self._use_coeval = False
             self._require_spline = True
 
-    def simulate(self, ctx):
+    def reduce_data(self, ctx):
         if self._use_coeval:
             xHI = np.array([np.mean(x) for x in ctx.get('xHI')])
             redshifts = self.redshifts
@@ -759,9 +762,9 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
     """
     required_cores = [core.CoreLightConeModule]
 
-    def simulate(self, ctx):
+    def reduce_data(self, ctx):
         return dict(
-            frequencies=1420. / (ctx.get("lightcone").node_redshifts + 1),
+            frequencies=1420. / (np.array(ctx.get("lightcone").node_redshifts) + 1),
             global_signal=ctx.get("lightcone").global_brightness_temp
         )
 
@@ -780,7 +783,7 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
 class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     required_cores = [core.CoreLuminosityFunction]
 
-    def simulate(self, ctx):
+    def reduce_data(self, ctx):
         return dict(
             L=ctx.get("luminosity_function").luminosity,
             luminosity_funciton=ctx.get("luminosity_function").density

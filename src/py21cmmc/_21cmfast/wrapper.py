@@ -660,12 +660,18 @@ def _call_c_func(fnc, obj, direc, *args, write=True):
 # ======================================================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================================================
-def electron_opticaldepth(*, user_params=None, cosmo_params=None, redshifts=None, global_xHI=None):
+def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None, ):
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
 
+    if len(redshifts) != len(global_xHI):
+        raise ValueError("redshifts and global_xHI must have same length")
+
+    z = ffi.cast("float *", ffi.from_buffer(redshifts))
+    xHI = ffi.cast("float *", ffi.from_buffer(global_xHI))
+
     # Run the C code
-    return lib.ComputeTau(user_params(), cosmo_params(), len(redshifts), redshifts, global_xHI)
+    return lib.ComputeTau(user_params(), cosmo_params(), len(redshifts), z, xHI)
 
 
 def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_params=None, flag_options=None,
