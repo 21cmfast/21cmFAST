@@ -26,8 +26,6 @@ float *inverse_diff, *zpp_growth, *zpp_for_evolve_list;
 // interpolation tables for the heating/ionisation integrals
 double **freq_int_heat_tbl, **freq_int_ion_tbl, **freq_int_lya_tbl, **freq_int_heat_tbl_diff, **freq_int_ion_tbl_diff, **freq_int_lya_tbl_diff;
 
-int OUTPUT_AVE = 1;
-
 bool TsInterpArraysInitialised = false;
 float initialised_redshift = 0.0;
 
@@ -1102,7 +1100,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                             
                         this_spin_temp->Ts_box[box_ct] = TS_fast;
                             
-                        if(OUTPUT_AVE) {
+                        if(flag_options->OUTPUT_AVE) {
                             J_alpha_ave += J_alpha_tot;
                             xalpha_ave += xa_tilde_fast;
                             Xheat_ave += ( dxheat_dzp );
@@ -1238,7 +1236,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
                 
                 this_spin_temp->Ts_box[box_ct] = TS_fast;
 
-                if(OUTPUT_AVE) {
+                if(flag_options->OUTPUT_AVE) {
                     J_alpha_ave += J_alpha_tot;
                     xalpha_ave += xa_tilde_fast;
                     Xheat_ave += ( dxheat_dzp );
@@ -1256,7 +1254,7 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         // compute new average values
         x_e_ave /= (double)HII_TOT_NUM_PIXELS;
             
-        if(OUTPUT_AVE) {
+        if(flag_options->OUTPUT_AVE) {
             Ts_ave /= (double)HII_TOT_NUM_PIXELS;
             Tk_ave /= (double)HII_TOT_NUM_PIXELS;
             J_alpha_ave /= (double)HII_TOT_NUM_PIXELS;

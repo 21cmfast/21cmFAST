@@ -357,7 +357,6 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         lnl : float
             The log-likelihood for the given model.
         """
-
         lnl = 0
         noise = 0
         for i, (m, pd) in enumerate(zip(model, self.data_spline)):
@@ -371,6 +370,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
 
             # TODO: if moduncert depends on model, not data, then it should appear as -0.5 log(sigma^2) term below.
             lnl += -0.5 * np.sum((m['delta'][mask] - pd(m['k'][mask])) ** 2 / (moduncert ** 2 + noise ** 2))
+
         return lnl
 
     def simulate(self, ctx):

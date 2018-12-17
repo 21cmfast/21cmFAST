@@ -726,8 +726,10 @@ void ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *u
     // deallocate
     gsl_rng_free (r);
 
-    printf("global_xH = %e\n",global_xH);
-    
+    if(flag_options->OUTPUT_AVE) {
+        printf("global_xH = %e\n",global_xH);
+    }
+        
     fftwf_free(deltax_unfiltered);
     fftwf_free(deltax_unfiltered_original);
     fftwf_free(deltax_filtered);

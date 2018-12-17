@@ -169,6 +169,7 @@ class CoreCoevalModule(CoreBase):
 
         .. note:: only scalars and arrays are supported for storage in the chain itself.
         """
+
         super().__init__(io_options.get("store", None))
 
         if ctx_variables is None:
@@ -296,6 +297,7 @@ class CoreCoevalModule(CoreBase):
         """
         Actually run the 21cmFAST code.
         """
+
         return p21.run_coeval(
             redshift=self.redshift,
             astro_params=astro_params, flag_options=self.flag_options,
