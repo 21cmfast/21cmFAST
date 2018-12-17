@@ -18,3 +18,4 @@ If you've covered the tutorials and still have questions about "how to do stuff"
    :maxdepth: 2
 
    faqs/MCMC_advanced_faq
+   faqs/construct_cores_and_likelihoods

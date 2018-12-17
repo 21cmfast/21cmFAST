@@ -552,16 +552,14 @@ class OutputStruct(StructWrapper):
     def __repr__(self):
         # This is the class name and all parameters which belong to C-based input structs,
         # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
-        return self._name + "(" + "; ".join(
-            [repr(v) if (isinstance(v, StructWithDefaults) or isinstance(v, StructInstanceWrapper))
-             else k.lstrip("_") + ":" + repr(v) for k, v in
-             [(k, getattr(self, k)) for k in self._inputs + ['_global_params']]]) + ")"
+        return self._seedless_repr() + "_random_seed={}".format(self._random_seed)
 
     def _seedless_repr(self):
         # The same as __repr__ except without the seed.
         return self._name + "(" + "; ".join(
-            [repr(v) if (isinstance(v, StructWithDefaults) or isinstance(v, StructInstanceWrapper))
-             else k.lstrip("_") + ":" + repr(v) for k, v in
+            [repr(v) if isinstance(v, StructWithDefaults) else (
+                v.filtered_repr(self._filter_params) if isinstance(v, StructInstanceWrapper)
+                else k.lstrip("_") + ":" + repr(v)) for k, v in
              [(k, getattr(self, k)) for k in self._inputs + ['_global_params'] if k != "_random_seed"]]) + ")"
 
     def __str__(self):
@@ -614,3 +612,6 @@ class StructInstanceWrapper:
 
     def __repr__(self):
         return self._ctype + "(" + ";".join([k + "=" + str(v) for k, v in sorted(self.items())]) + ")"
+
+    def filtered_repr(self, filter_params):
+        return self._ctype + "(" + ";".join([k + "=" + str(v) for k, v in sorted(self.items()) if k not in filter_params]) + ")"

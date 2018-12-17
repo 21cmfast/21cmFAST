@@ -29,7 +29,7 @@ double **freq_int_heat_tbl, **freq_int_ion_tbl, **freq_int_lya_tbl, **freq_int_h
 bool TsInterpArraysInitialised = false;
 float initialised_redshift = 0.0;
 
-void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options,
                   float perturbed_field_redshift,
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp) {
@@ -1266,7 +1266,8 @@ void ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_p
         }
         
     } // end main integral loop over z'
-        
+
+    return(0);
 }
 
 

@@ -10,10 +10,12 @@ import time
 
 import numpy as np
 from cosmoHammer import CosmoHammerSampler as CHS, getLogger
-
+from py21cmmc.mcmc.ensemble import EnsembleSampler
+import emcee
 
 class CosmoHammerSampler(CHS):
     def __init__(self, likelihoodComputationChain, continue_sampling=False, log_level_stream=logging.ERROR,
+                 max_init_attempts=100,
                  *args, **kwargs):
         self.continue_sampling = continue_sampling
         self._log_level_stream = log_level_stream
@@ -22,6 +24,7 @@ class CosmoHammerSampler(CHS):
                          likelihoodComputationChain=likelihoodComputationChain,
                          *args, **kwargs)
 
+        self.max_init_attempts = max_init_attempts
         if not self.reuseBurnin:
             self.storageUtil.reset(self.nwalkers, self.params)
 
@@ -43,7 +46,6 @@ class CosmoHammerSampler(CHS):
 
         if self.storageUtil.sample_storage.iteration >= self.sampleIterations:
             raise ValueError("All Samples have already been completed. Try with continue_sampling=False.")
-
 
     def _configureLogging(self, filename, logLevel):
         super()._configureLogging(filename, logLevel)
@@ -104,6 +106,16 @@ class CosmoHammerSampler(CHS):
                     self.storageUtil.close()
                 except AttributeError:
                     pass
+
+    def createEmceeSampler(self, callable, **kwargs):
+        """
+        Factory method to create the emcee sampler
+        """
+        if self.isMaster(): self.log("Using emcee " + str(emcee.__version__))
+        return EnsembleSampler(
+            pmin = self.likelihoodComputationChain.min, pmax = self.likelihoodComputationChain.max,
+            nwalkers=self.nwalkers, dim=self.paramCount, lnpostfn=callable, threads=self.threadCount, **kwargs
+        )
 
     def _load(self, burnin=False):
         stg = self.storageUtil.burnin_storage if burnin else self.storageUtil.sample_storage
@@ -196,3 +208,26 @@ class CosmoHammerSampler(CHS):
             raise ValueError("Cannot access samples before sampling.")
         else:
             return self.storageUtil.sample_storage
+
+    def createInitPos(self):
+        """
+        Factory method to create initial positions
+        """
+        i = 0
+        pos = []
+
+        while len(pos) < self.nwalkers and i < self.max_init_attempts:
+            tmp_pos = self.initPositionGenerator.generate()
+
+            for tmp_p in tmp_pos:
+                if self.likelihoodComputationChain.isValid(tmp_p):
+                    pos.append(tmp_p)
+
+            i += 1
+
+        if i == self.max_init_attempts:
+            raise ValueError(
+                "No suitable initial positions for the walkers could be obtained in {max_attempts} attemps".format(
+                    max_attempts=self.max_init_attempts))
+
+        return pos[:self.nwalkers]

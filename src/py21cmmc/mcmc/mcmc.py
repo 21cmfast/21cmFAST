@@ -1,9 +1,10 @@
 from os import path, mkdir
-
+import yaml
 from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, Params
 
+from concurrent.futures import ProcessPoolExecutor
 
-def build_computation_chain(core_modules, likelihood_modules, params=None):
+def build_computation_chain(core_modules, likelihood_modules, params=None, setup=True):
     """
     Build a likelihood computation chain from core and likelihood modules.
 
@@ -35,7 +36,7 @@ def build_computation_chain(core_modules, likelihood_modules, params=None):
     for lk in likelihood_modules:
         chain.addLikelihoodModule(lk)
 
-    chain.setup()
+    if setup: chain.setup()
     return chain
 
 
@@ -73,7 +74,7 @@ def run_mcmc(core_modules, likelihood_modules, params,
     ----------------
     All other parameters are passed directly to :class:`~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler.CosmoHammerSampler`.
     These include important options such as `walkersRatio` (the number of walkers is ``walkersRatio*nparams``),
-    `sampleIterations`, `burninIterations` and `threadCount`.
+    `sampleIterations`, `burninIterations`, `pool` and `threadCount`.
 
     Returns
     -------
@@ -93,12 +94,28 @@ def run_mcmc(core_modules, likelihood_modules, params,
 
     chain = build_computation_chain(core_modules, likelihood_modules, params)
 
+    if continue_sampling:
+        try:
+            with open(file_prefix+".LCC.yml", 'r') as f:
+                old_chain = yaml.load(f)
+
+            if old_chain != chain:
+                raise RuntimeError("Attempting to continue chain, but chain parameters are different. Check your parameters against {file_prefix}.LCC.yml".format(file_prefix=file_prefix))
+
+        except FileNotFoundError:
+            pass
+
+    # Before setup, write out the parameters.
+    with open(file_prefix+".LCC.yml", 'w') as f:
+        yaml.dump(chain, f)
+
     sampler = CosmoHammerSampler(
         continue_sampling=continue_sampling,
         likelihoodComputationChain=chain,
         storageUtil=HDFStorageUtil(file_prefix),
         filePrefix=file_prefix,
         reuseBurnin=reuse_burnin,
+        pool = mcmc_options.get("pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1))),
         **mcmc_options
     )
 

@@ -36,7 +36,7 @@
 
 // Re-write of init.c for being accessible within the MCMC
 
-void ComputeInitialConditions(unsigned long long random_seed, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes) {
+int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes) {
     
     /*
      Generates the initial conditions: gaussian random density field (DIM^3) as well as the equal or lower resolution velocity fields, and smoothed density field (HII_DIM^3).
@@ -521,6 +521,8 @@ void ComputeInitialConditions(unsigned long long random_seed, struct UserParams 
     // deallocate
     fftwf_free(HIRES_box);
     fftwf_free(HIRES_box_saved);
+
+    return(0);
 
 }
 

@@ -93,19 +93,16 @@ redshift that are actually evaluated, which are then interpolated onto the light
 
 >>> lightcone = p21.run_lightcone(redshift=z2, max_redshift=z2, z_step_factor=1.03)
 """
-import glob
 import logging
-import numbers
 from os import path
 
-import h5py
 import numpy as np
 import yaml
 from astropy import units
 from astropy.cosmology import Planck15, z_at_value
 
 from ._21cmfast import ffi, lib
-from ._utils import StructWithDefaults, OutputStruct as _OS, StructInstanceWrapper
+from ._utils import StructWithDefaults, OutputStruct as _OS, StructInstanceWrapper, StructWrapper
 
 logging.basicConfig()
 logger = logging.getLogger("21CMMC")
@@ -343,8 +340,8 @@ class AstroParams(StructWithDefaults):
             return 50.0 if self.INHOMO_RECO else 15.0
         else:
             if self.INHOMO_RECO and self._R_BUBBLE_MAX != 50:
-                logger.warning("You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "+\
-                            "This is non-standard (but allowed), and usually occurs upon manual update of INHOMO_RECO")
+                logger.warning("You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. " + \
+                               "This is non-standard (but allowed), and usually occurs upon manual update of INHOMO_RECO")
             return self._R_BUBBLE_MAX
 
     @property
@@ -529,7 +526,7 @@ def _check_compatible_inputs(*datasets, ignore=['redshift']):
     Ensure that all defined input parameters for the provided datasets are equal, save for those listed in ignore.
     """
 
-    done = [] # keeps track of inputs we've checked so we don't double check.
+    done = []  # keeps track of inputs we've checked so we don't double check.
 
     for i, d in enumerate(datasets):
         # If a dataset is None, just ignore and move on.
@@ -561,7 +558,7 @@ def configure_inputs(defaults, *datasets, ignore=['redshift'], flag_none=None):
         flag_none = []
 
     output = [0] * len(defaults)
-    for i, (key,val) in enumerate(defaults):
+    for i, (key, val) in enumerate(defaults):
 
         # Get the value of this input from the datasets
         data_val = None
@@ -572,7 +569,7 @@ def configure_inputs(defaults, *datasets, ignore=['redshift'], flag_none=None):
 
         # If both data and default have values
         if val is not None and data_val is not None and data_val != val:
-            raise ValueError("%s has an inconsistent value with %s"%(key, dataset.__class__.__name__))
+            raise ValueError("%s has an inconsistent value with %s" % (key, dataset.__class__.__name__))
         else:
             if val is not None:
                 output[i] = val
@@ -596,12 +593,12 @@ def configure_redshift(redshift, *structs):
 
     zs = set()
     for s in structs:
-        if s is not None and hasattr(s,"redshift"):
+        if s is not None and hasattr(s, "redshift"):
             zs.add(s.redshift)
 
     zs = list(zs)
 
-    if len(zs) > 1 or (len(zs)==1 and redshift is not None  and zs[0] != redshift):
+    if len(zs) > 1 or (len(zs) == 1 and redshift is not None and zs[0] != redshift):
         raise ValueError("Incompatible redshifts in inputs")
     elif len(zs) == 1:
         return zs[0]
@@ -613,29 +610,73 @@ def configure_redshift(redshift, *structs):
 
 def verify_types(**kwargs):
     "Ensure each argument has a type of None or that matching its name"
-    for k,v in kwargs.items():
+    for k, v in kwargs.items():
         for j, kk in enumerate(['init', 'perturb', 'ionize', 'spin_temp']):
             if kk in k:
                 break
         cls = [InitialConditions, PerturbedField, IonizedBox, TsBox][j]
 
         if v is not None and not isinstance(v, cls):
-            raise ValueError("%s must be an instance of %s"%(k, cls.__name__))
+            raise ValueError("%s must be an instance of %s" % (k, cls.__name__))
+
+
+class ParameterError(RuntimeError):
+    def __init__(self):
+        default_message = "21CMMC does not support this combination of parameters."
+        super().__init__(default_message)
+
+
+class FatalCError(Exception):
+    def __init__(self):
+        default_message = "21CMMC is exiting."
+        super().__init__(default_message)
+
+
+def _process_exitcode(exitcode):
+    """
+    Determine what happens for different values of the (integer) exit code from a C function
+    """
+    if exitcode == 0:
+        pass
+    elif exitcode == 1:
+        raise ParameterError
+    elif exitcode == 2:
+        raise FatalCError
+
+
+def _call_c_func(fnc, obj, direc, *args, write=True):
+    exitcode = fnc(*[arg() if isinstance(arg, StructWrapper) else arg for arg in args], obj())
+
+    _process_exitcode(exitcode)
+    obj.filled = True
+    obj._expose()
+
+    # Optionally do stuff with the result (like writing it)
+    if write:
+        obj.write(direc)
+
+    return obj
+
 
 # ======================================================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================================================
-def electron_opticaldepth(*, user_params=None, cosmo_params=None, redshifts=None, global_xHI=None):
+def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None, ):
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
 
+    if len(redshifts) != len(global_xHI):
+        raise ValueError("redshifts and global_xHI must have same length")
+
+    z = ffi.cast("float *", ffi.from_buffer(redshifts))
+    xHI = ffi.cast("float *", ffi.from_buffer(global_xHI))
+
     # Run the C code
-    return lib.ComputeTau(user_params(), cosmo_params(), len(redshifts), redshifts, global_xHI)
+    return lib.ComputeTau(user_params(), cosmo_params(), len(redshifts), z, xHI)
 
 
 def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_params=None, flag_options=None,
-                                redshifts=None,
-                                nbins=100):
+                                redshifts=None, nbins=100):
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     astro_params = AstroParams(astro_params)
@@ -650,7 +691,8 @@ def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_pa
     return lfunc
 
 
-def initial_conditions(*, user_params=None, cosmo_params=None, random_seed=None, regenerate=False, write=True, direc=None):
+def initial_conditions(*, user_params=None, cosmo_params=None, random_seed=None, regenerate=False, write=True,
+                       direc=None):
     """
     Compute initial conditions.
 
@@ -698,16 +740,11 @@ def initial_conditions(*, user_params=None, cosmo_params=None, random_seed=None,
         except IOError:
             pass
 
-    # Run the C code
-    lib.ComputeInitialConditions(boxes.random_seed, boxes.user_params(), boxes.cosmo_params(), boxes())
-    boxes.filled = True
-    boxes._expose()
-
-    # Optionally do stuff with the result (like writing it)
-    if write:
-        boxes.write(direc)
-
-    return boxes
+    return _call_c_func(
+        lib.ComputeInitialConditions, boxes, direc,
+        boxes.random_seed, boxes.user_params, boxes.cosmo_params,
+        write=write
+    )
 
 
 def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=None, random_seed=None,
@@ -777,7 +814,8 @@ def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=N
     cosmo_params = CosmoParams(cosmo_params)
 
     # Initialize perturbed boxes.
-    fields = PerturbedField(redshift=redshift, user_params=user_params, cosmo_params=cosmo_params, random_seed=random_seed)
+    fields = PerturbedField(redshift=redshift, user_params=user_params, cosmo_params=cosmo_params,
+                            random_seed=random_seed)
 
     # Check whether the boxes already exist
     if not regenerate:
@@ -800,15 +838,11 @@ def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=N
         fields._random_seed = init_boxes.random_seed
 
     # Run the C Code
-    lib.ComputePerturbField(redshift, fields.user_params(), fields.cosmo_params(), init_boxes(), fields())
-    fields.filled = True
-    fields._expose()
-
-    # Optionally do stuff with the result (like writing it)
-    if write:
-        fields.write(direc)
-
-    return fields
+    return _call_c_func(
+        lib.ComputePerturbField, fields, direc,
+        redshift, fields.user_params, fields.cosmo_params, init_boxes,
+        write=write
+    )
 
 
 def ionize_box(*, astro_params=None, flag_options=None,
@@ -1054,20 +1088,12 @@ def ionize_box(*, astro_params=None, flag_options=None,
         )
 
     # Run the C Code
-    lib.ComputeIonizedBox(redshift, previous_ionize_box.redshift, box.user_params(),
-                          box.cosmo_params(),
-                          box.astro_params(), box.flag_options(),
-                          perturbed_field(),
-                          previous_ionize_box(), do_spin_temp, spin_temp(), box())
-
-    box.filled = True
-    box._expose()
-
-    # Optionally do stuff with the result (like writing it)
-    if write:
-        box.write(direc)
-
-    return box
+    return _call_c_func(
+        lib.ComputeIonizedBox, box, direc,
+        redshift, previous_ionize_box.redshift, box.user_params, box.cosmo_params, box.astro_params, box.flag_options,
+        perturbed_field, previous_ionize_box, do_spin_temp, spin_temp,
+        write=write
+    )
 
 
 def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, perturbed_field=None,
@@ -1291,21 +1317,15 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
         previous_spin_temp = TsBox(redshift=0)
 
         # Run the C Code
-    lib.ComputeTsBox(redshift, previous_spin_temp.redshift, box.user_params(),
-                     box.cosmo_params(), box.astro_params(), box.flag_options(),
-                     perturbed_field.redshift, perturbed_field(),
-                     previous_spin_temp(), box())
-    box.filled = True
-    box._expose()
-
-    # Optionally do stuff with the result (like writing it)
-    if write:
-        box.write(direc)
-
-    return box
+    return _call_c_func(
+        lib.ComputeTsBox, box, direc,
+        redshift, previous_spin_temp.redshift, box.user_params, box.cosmo_params, box.astro_params, box.flag_options,
+        perturbed_field.redshift, perturbed_field, previous_spin_temp,
+        write=write
+    )
 
 
-def brightness_temperature(*, ionized_box, perturbed_field, spin_temp=None):
+def brightness_temperature(*, ionized_box, perturbed_field, spin_temp=None, write=False, direc=None):
     """
     Compute a coeval brightness temperature box.
 
@@ -1334,7 +1354,7 @@ def brightness_temperature(*, ionized_box, perturbed_field, spin_temp=None):
     # if ionized_box is not None and not isinstance(ionized_box, IonizedBox):
     #     raise ValueError("previous_ionize_box must be an instance of IonizedBox")
 
-    _check_compatible_inputs(ionized_box, perturbed_field, spin_temp, ignore=[]) # don't ignore redshift here
+    _check_compatible_inputs(ionized_box, perturbed_field, spin_temp, ignore=[])  # don't ignore redshift here
 
     if spin_temp is None:
         saturated_limit = True
@@ -1346,14 +1366,13 @@ def brightness_temperature(*, ionized_box, perturbed_field, spin_temp=None):
                          astro_params=ionized_box.astro_params, flag_options=ionized_box.flag_options,
                          redshift=ionized_box.redshift)
 
-    lib.ComputeBrightnessTemp(ionized_box.redshift, saturated_limit,
-                              ionized_box.user_params(), ionized_box.cosmo_params(), ionized_box.astro_params(),
-                              ionized_box.flag_options(),
-                              spin_temp(), ionized_box(), perturbed_field(), box())
-    box.filled = True
-    box._expose()
-
-    return box
+    return _call_c_func(
+        lib.ComputeBrightnessTemp, box, direc,
+        ionized_box.redshift, saturated_limit, ionized_box.user_params, ionized_box.cosmo_params,
+        ionized_box.astro_params,
+        ionized_box.flag_options, spin_temp, ionized_box, perturbed_field,
+        write=write
+    )
 
 
 def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
@@ -1458,7 +1477,7 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
 
     if perturb:
         if redshift is not None:
-            if not all([p.redshift == z for p,z in zip(perturb, redshift)]):
+            if not all([p.redshift == z for p, z in zip(perturb, redshift)]):
                 raise ValueError("Input redshifts do not match perturb field redshifts")
 
         else:
@@ -1684,7 +1703,7 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
 
     for iz, z in enumerate(scrollz):
         # Best to get a perturb for this redshift, to pass to brightness_temperature
-        
+
         this_perturb = perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
                                      direc=direc)
 
@@ -1711,14 +1730,12 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
             write=write, direc=direc
         )
 
-        # FIXME: Need perturb for this redshift, OR get it dynamically in brightness_temperature
         bt2 = brightness_temperature(ionized_box=ib2, perturbed_field=this_perturb,
                                      spin_temp=st2 if do_spin_temp else None)
 
         # Save mean/global quantities
         neutral_fraction[iz] = np.mean(ib2.xH_box)
         global_signal[iz] = np.mean(bt2.brightness_temp)
-        
 
         # HERE IS WHERE WE NEED TO DO THE INTERPOLATION ONTO THE LIGHTCONE!
         if z < max_redshift:  # i.e. now redshift is in the bit where the user wants to save the lightcone:
@@ -1730,11 +1747,14 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
             these_distances = lc_distances[np.logical_and(lc_distances < prev_d, lc_distances >= this_d)]
 
             n = len(these_distances)
-            ind = np.arange(-(box_index+n), -box_index)
+            ind = np.arange(-(box_index + n), -box_index)
 
-            lc[:, :, -(lc_index+n):n_lightcone-lc_index] = (np.abs(this_d - these_distances)*bt.brightness_temp.take(ind + n_lightcone, axis=2, mode='wrap') +
-                                               np.abs(prev_d - these_distances)*bt2.brightness_temp.take(ind + n_lightcone, axis=2, mode='wrap'))/\
-                                              (np.abs(prev_d - this_d))
+            lc[:, :, -(lc_index + n):n_lightcone - lc_index] = (np.abs(
+                this_d - these_distances) * bt.brightness_temp.take(ind + n_lightcone, axis=2, mode='wrap') +
+                                                                np.abs(
+                                                                    prev_d - these_distances) * bt2.brightness_temp.take(
+                        ind + n_lightcone, axis=2, mode='wrap')) / \
+                                                               (np.abs(prev_d - this_d))
 
             lc_index += n
             box_index += n
@@ -1774,4 +1794,3 @@ def _get_lightcone_redshifts(cosmo_params, max_redshift, redshift, user_params, 
     lc_distances += cosmo_params.cosmo.comoving_distance(redshift).value
 
     return np.array([z_at_value(cosmo_params.cosmo.comoving_distance, d * units.Mpc) for d in lc_distances])
-

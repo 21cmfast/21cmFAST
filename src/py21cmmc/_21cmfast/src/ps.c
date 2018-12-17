@@ -1283,7 +1283,7 @@ void initialise_ComputeLF(int nbins, struct UserParams *user_params, struct Cosm
     
 }
 
-void ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
+int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
                struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, double *log10phi) {
     
     if(!initialised_ComputeLF) {
@@ -1358,6 +1358,8 @@ void ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *co
             if (isinf(log10phi[i]) || isnan(log10phi[i]) || log10phi[i] < -30.) log10phi[i] = -30.;
         }
     }
+
+    return(0);
     
 }
 
