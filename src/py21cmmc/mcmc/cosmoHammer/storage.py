@@ -328,9 +328,10 @@ class HDFStorage:
         return tuple(last)
 
     def _check(self, coords, log_prob, blobs, accepted):
+        
         self._check_blobs(blobs[0])
         nwalkers, ndim = self.shape
-
+        
         if coords.shape != (nwalkers, ndim):
             raise ValueError("invalid coordinate dimensions; expected {0}"
                              .format((nwalkers, ndim)))

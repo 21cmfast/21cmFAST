@@ -261,6 +261,7 @@ class FlagOptions(StructWithDefaults):
         INHOMO_RECO=False,
         USE_TS_FLUCT=False,
         M_MIN_in_Mass=False,
+        OUTPUT_AVE=False,
     )
 
     def M_MIN_in_Mass(self):
@@ -660,12 +661,16 @@ def _call_c_func(fnc, obj, direc, *args, write=True):
 # ======================================================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================================================
-def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None, ):
+def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
 
     if len(redshifts) != len(global_xHI):
         raise ValueError("redshifts and global_xHI must have same length")
+
+    # Convert the data to the right type
+    redshifts = np.array(redshifts,dtype='float32')
+    global_xHI = np.array(global_xHI,dtype='float32')
 
     z = ffi.cast("float *", ffi.from_buffer(redshifts))
     xHI = ffi.cast("float *", ffi.from_buffer(global_xHI))
@@ -681,13 +686,17 @@ def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_pa
     astro_params = AstroParams(astro_params)
     flag_options = FlagOptions(flag_options)
 
-    lfunc = np.zeros(nbins)
+    lfunc = np.zeros(len(redshifts)*nbins)
+    Muvfunc = np.zeros(len(redshifts)*nbins)
+    Mhfunc = np.zeros(len(redshifts)*nbins)
+    c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
+    c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
     c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
 
     # Run the C code
     lib.ComputeLF(nbins, user_params(), cosmo_params(), astro_params(), flag_options(), len(redshifts), redshifts,
-                  c_lfunc)
-    return lfunc
+                  c_Muvfunc, c_Mhfunc, c_lfunc)
+    return Muvfunc, Mhfunc, lfunc
 
 
 def initial_conditions(*, user_params=None, cosmo_params=None, random_seed=None, regenerate=False, write=True,

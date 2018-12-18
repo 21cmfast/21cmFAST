@@ -249,6 +249,7 @@ class CoreCoevalModule(CoreBase):
 
         .. warning:: only scalars and arrays are supported for storage in the chain itself.
         """
+
         super().__init__(io_options.get("store", None))
 
         if ctx_variables is None:

@@ -463,8 +463,10 @@ int ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams
             ave /= (HII_TOT_NUM_PIXELS+0.0);
         }
     }
-        
-    printf("ave Tb = %e\n",ave);
+
+    if(flag_options->OUTPUT_AVE) {
+        printf("ave Tb = %e\n",ave);
+    }
     
     free(v);
     free(vel_gradient);

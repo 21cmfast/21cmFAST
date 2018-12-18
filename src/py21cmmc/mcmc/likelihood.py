@@ -349,6 +349,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
         """
         The redshifts of coeval simulations.
         """
+
         for c in self._cores:
             try:
                 return c.redshift
