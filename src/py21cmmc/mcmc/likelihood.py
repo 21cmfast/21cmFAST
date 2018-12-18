@@ -630,7 +630,8 @@ class LikelihoodNeutralFraction(LikelihoodBase):
     @property
     def coeval_modules(self):
         """All coeval core modules that are loaded."""
-        return [m for m in self._cores if isinstance(m, core.CoreCoevalModule) and not isinstance(m, core.CoreLightConeModule)]
+        return [m for m in self._cores if
+                isinstance(m, core.CoreCoevalModule) and not isinstance(m, core.CoreLightConeModule)]
 
     def setup(self):
         if not self.lightcone_modules + self.coeval_modules:
@@ -703,7 +704,8 @@ class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
         pdf /= np.amax(pdf)
 
         # Interpolate the QSO damping wing PDF
-        self.spline_qso_damping_pdf = InterpolatedUnivariateSpline(nf, pdf)
+        # Interpolate in log space because the pdf must be greater than zero.
+        self.spline_qso_damping_pdf = InterpolatedUnivariateSpline(nf[pdf > 0], np.log(pdf[pdf > 0]))
 
     def computeLikelihood(self, model):
         """
@@ -744,14 +746,8 @@ class LikelihoodGreig(LikelihoodNeutralFraction, LikelihoodBaseFile):
         # Ensure that the neutral fraction does not exceed unity, or go negative
         nf_qso = np.clip(nf_qso, 0, 1)
 
-        qso_prob = self.spline_qso_damping_pdf(nf_qso)
-
-        # Interpolating the PDF from the QSO damping wing might cause small negative values at the edges (i.e. x_HI ~ 0
-        # or ~1) In case it is zero, or negative, set it to a very small non zero number (we take the log of this value,
-        # it cannot be zero)
-        # TODO: wouldn't it be better if we just returned -inf?
-        if qso_prob <= 0.0:
-            qso_prob = 0.000006
+        # un-log the spline.
+        qso_prob = np.exp(self.spline_qso_damping_pdf(nf_qso))
 
         # We work with the log-likelihood, therefore convert the IGM Damping wing PDF to log space
         return -2. * np.log(qso_prob)
