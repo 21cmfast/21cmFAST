@@ -511,7 +511,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
     else{
         posthelium = 0;
         gsl_integration_qag (&F, zend, zstart, 0, rel_tol,
-                             1000, GSL_INTEG_GAUSS61, w, &prehelium, &error); 
+                             1000, GSL_INTEG_GAUSS61, w, &prehelium, &error);
     }
     gsl_integration_workspace_free (w);
     

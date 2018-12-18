@@ -1344,7 +1344,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
             Muv_2 = gsl_spline_eval(LF_spline, lnMhalo_i + delta_lnMhalo, LF_spline_acc);
             
             dMuvdMhalo = (Muv_2 - Muv_1) / (2.*delta_lnMhalo * exp(lnMhalo_i));
-                        
+            
             if(user_params_ps->HMF==0) {
                 log10phi[i + i_z*nbins] = log10( dNdM(z_LF[i_z], exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
             }

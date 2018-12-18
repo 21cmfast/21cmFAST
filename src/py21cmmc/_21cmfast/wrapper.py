@@ -661,12 +661,16 @@ def _call_c_func(fnc, obj, direc, *args, write=True):
 # ======================================================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================================================
-def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None, ):
+def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
 
     if len(redshifts) != len(global_xHI):
         raise ValueError("redshifts and global_xHI must have same length")
+
+    # Convert the data to the right type
+    redshifts = np.array(redshifts,dtype='float32')
+    global_xHI = np.array(global_xHI,dtype='float32')
 
     z = ffi.cast("float *", ffi.from_buffer(redshifts))
     xHI = ffi.cast("float *", ffi.from_buffer(global_xHI))

@@ -204,7 +204,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     // lets check if we are going to bother with computing the inhmogeneous field at all...
     global_xH = 0.0;
     
-    
     // Determine the normalisation for the excursion set algorithm
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         mean_f_coll = Nion_General(redshift,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
@@ -500,7 +499,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 erfc_denom = 1./( growth_factor * erfc_denom );
             
             }
-            
+
             // Determine the global averaged f_coll for the overall normalisation
                 
             // renormalize the collapse fraction so that the mean matches ST,
@@ -534,11 +533,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                                 }
                                 else {
                                     dens_val = (log10f(curr_dens+1.) - overdense_small_min)*overdense_small_bin_width_inv;
-                                    
                                     overdense_int = (int)floorf( dens_val );
-                                    
                                     Splined_Fcoll = log10_Nion_spline[overdense_int]*( 1 + (float)overdense_int - dens_val ) + log10_Nion_spline[overdense_int+1]*( dens_val - (float)overdense_int );
-                                    
                                     Splined_Fcoll = expf(Splined_Fcoll);
                                     
                                 }
