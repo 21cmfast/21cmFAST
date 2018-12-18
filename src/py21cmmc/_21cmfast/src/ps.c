@@ -34,6 +34,15 @@ static gsl_spline *erfc_spline;
 
 #define EPS2 3.0e-11
 
+#define Luv_over_SFR (double)(1./1.15/1e-28)
+
+//     Luv/SFR = 1 / 1.15 x 10^-28 [M_solar yr^-1/erg s^-1 Hz^-1]
+//     G. Sun and S. R. Furlanetto (2016) MNRAS, 417, 33
+
+#define delta_lnMhalo (double)(5e-6)
+#define Mhalo_min (double)(1e6)
+#define Mhalo_max (double)(1e16)
+
 bool initialised_ComputeLF = false;
 
 gsl_interp_accel *LF_spline_acc;
@@ -58,8 +67,8 @@ float *xi_SFR,*wi_SFR, *xi_SFR_Xray, *wi_SFR_Xray;
 float *Overdense_high_table, *overdense_low_table, *log10_overdense_low_table;
 float **log10_SFRD_z_low_table, **SFRD_z_high_table;
 
-double *lnMhalo_param, *Muv_param, *log10phi, *Mhalo_param;
-
+double *lnMhalo_param, *Muv_param, *Mhalo_param;
+double *log10phi, *M_uv_z, *M_h_z;
 
 double *z_val, *z_X_val, *Nion_z_val, *SFRD_val;
 
@@ -1272,19 +1281,14 @@ void initialise_ComputeLF(int nbins, struct UserParams *user_params, struct Cosm
     
     init_ps();
     
-    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-        initialiseSigmaMInterpTable(astro_params->M_TURN/50.,1e20);
-    }
-    else {
-        initialiseSigmaMInterpTable(astro_params->M_TURN,1e20);
-    }
+    initialiseSigmaMInterpTable(0.999*Mhalo_min,1.001*Mhalo_max);
     
     initialised_ComputeLF = true;
     
 }
 
 int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
-               struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, double *log10phi) {
+               struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, double *M_uv_z, double *M_h_z, double *log10phi) {
     
     if(!initialised_ComputeLF) {
         initialise_ComputeLF(nbins, user_params,cosmo_params,astro_params,flag_options);
@@ -1292,12 +1296,6 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
     
     int i,i_z;
     double  dlnMhalo, lnMhalo_i, SFRparam, Muv_1, Muv_2, dMuvdMhalo;
-    double Luv_over_SFR = 1./1.15/1e-28, delta_lnMhalo = 5e-6;
-
-//     Luv/SFR = 1 / 1.15 x 10^-28 [M_solar yr^-1/erg s^-1 Hz^-1]
-//     G. Sun and S. R. Furlanetto (2016) MNRAS, 417, 33
-
-    double Mhalo_min = 1e6, Mhalo_max = 1e16;
     double Mhalo_i, lnMhalo_min, lnMhalo_max, lnMhalo_lo, lnMhalo_hi, dlnM, growthf;
     float Mlim_Fstar,Fstar;
     
@@ -1325,6 +1323,8 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
             Muv_param[i] = 51.63 - 2.5*log10(SFRparam*Luv_over_SFR); // UV magnitude
             // except if Muv value is nan or inf, but avoid error put the value as 10.
             if ( isinf(Muv_param[i]) || isnan(Muv_param[i]) ) Muv_param[i] = 10.;
+            
+            M_uv_z[i + i_z*nbins] = Muv_param[i];
         }
         
         gsl_spline_init(LF_spline, lnMhalo_param, Muv_param, nbins);
@@ -1338,24 +1338,26 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
             lnMhalo_i = lnMhalo_lo + dlnM*(double)i;
             Mhalo_param[i] = exp(lnMhalo_i);
             
+            M_h_z[i + i_z*nbins] = Mhalo_param[i];
+            
             Muv_1 = gsl_spline_eval(LF_spline, lnMhalo_i - delta_lnMhalo, LF_spline_acc);
             Muv_2 = gsl_spline_eval(LF_spline, lnMhalo_i + delta_lnMhalo, LF_spline_acc);
             
             dMuvdMhalo = (Muv_2 - Muv_1) / (2.*delta_lnMhalo * exp(lnMhalo_i));
-            
+                        
             if(user_params_ps->HMF==0) {
-                log10phi[i] = log10( dNdM(z_LF[i_z], exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+                log10phi[i + i_z*nbins] = log10( dNdM(z_LF[i_z], exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
             }
             if(user_params_ps->HMF==1) {
-                log10phi[i] = log10( dNdM_st_interp(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+                log10phi[i + i_z*nbins] = log10( dNdM_st_interp(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
             }
             if(user_params_ps->HMF==2) {
-                log10phi[i] = log10( dNdM_WatsonFOF(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+                log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
             }
             if(user_params_ps->HMF==3) {
-                log10phi[i] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+                log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
             }
-            if (isinf(log10phi[i]) || isnan(log10phi[i]) || log10phi[i] < -30.) log10phi[i] = -30.;
+            if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.) log10phi[i + i_z*nbins] = -30.;
         }
     }
 

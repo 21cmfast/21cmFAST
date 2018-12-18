@@ -682,13 +682,17 @@ def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_pa
     astro_params = AstroParams(astro_params)
     flag_options = FlagOptions(flag_options)
 
-    lfunc = np.zeros(nbins)
+    lfunc = np.zeros(len(redshifts)*nbins)
+    Muvfunc = np.zeros(len(redshifts)*nbins)
+    Mhfunc = np.zeros(len(redshifts)*nbins)
+    c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
+    c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
     c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
 
     # Run the C code
     lib.ComputeLF(nbins, user_params(), cosmo_params(), astro_params(), flag_options(), len(redshifts), redshifts,
-                  c_lfunc)
-    return lfunc
+                  c_Muvfunc, c_Mhfunc, c_lfunc)
+    return Muvfunc, Mhfunc, lfunc
 
 
 def initial_conditions(*, user_params=None, cosmo_params=None, random_seed=None, regenerate=False, write=True,
