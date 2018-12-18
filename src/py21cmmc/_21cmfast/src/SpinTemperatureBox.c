@@ -477,6 +477,10 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 
                 if(min_density < 0.0) {
                     min_density = min_density*1.001;
+                    if(min_density < -1.) {
+                        // Use MIN_DENSITY_LOW_LIMIT as is it smaller than FRACT_FLOAT_ERR
+                        min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
+                    }
                 }
                 else {
                     min_density = min_density*0.999;
