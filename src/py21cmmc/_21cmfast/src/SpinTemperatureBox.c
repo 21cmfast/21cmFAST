@@ -450,14 +450,14 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     for (j=user_params->HII_DIM; j--;){
                         for (k=user_params->HII_DIM; k--;){
                             curr_delNL0 = *((float *)box + HII_R_FFT_INDEX(i,j,k));
-                        
+                            
                             if (curr_delNL0 < -1){ // correct for alliasing in the filtering step
                                 curr_delNL0 = -1+FRACT_FLOAT_ERR;
                             }
-                        
+                            
                             // and linearly extrapolate to z=0
                             curr_delNL0 *= inverse_growth_factor_z;
-                        
+                            
                             if(flag_options->USE_MASS_DEPENDENT_ZETA) {
                                 delNL0[R_ct][HII_R_INDEX(i,j,k)] = curr_delNL0;
                             }
@@ -477,10 +477,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 
                 if(min_density < 0.0) {
                     min_density = min_density*1.001;
-                    if(min_density < -1.) {
-                        // Use MIN_DENSITY_LOW_LIMIT as is it smaller than FRACT_FLOAT_ERR
-                        min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
-                    }
+                    // min_density here can exceed -1. as it is always extrapolated back to the appropriate redshift
                 }
                 else {
                     min_density = min_density*0.999;
@@ -812,7 +809,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             }
             
         } // end loop over R_ct filter steps
-
+        
         fcoll_interp_high_min = global_params.CRIT_DENS_TRANSITION;
         fcoll_interp_high_bin_width = 1./((float)NSFR_high-1.)*(Deltac - fcoll_interp_high_min);
         fcoll_interp_high_bin_width_inv = 1./fcoll_interp_high_bin_width;
@@ -821,6 +818,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         if(!flag_options->USE_MASS_DEPENDENT_ZETA) {
             for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
                 for (R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
+                    
                     fcoll_R_array[R_ct] += ( fcoll_interp1[dens_grid_int_vals[box_ct][R_ct]][R_ct]*( density_gridpoints[dens_grid_int_vals[box_ct][R_ct] + 1][R_ct] - delNL0_rev[box_ct][R_ct] ) + fcoll_interp2[dens_grid_int_vals[box_ct][R_ct]][R_ct]*( delNL0_rev[box_ct][R_ct] - density_gridpoints[dens_grid_int_vals[box_ct][R_ct]][R_ct] ) );
                 }
             }
@@ -828,7 +826,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 ST_over_PS[R_ct] = ST_over_PS[R_ct]/(fcoll_R_array[R_ct]/(double)HII_TOT_NUM_PIXELS);
             }
         }
-
+        
         // scroll through each cell and update the temperature and residual ionization fraction
         growth_factor_zp = dicke(zp);
         dgrowth_factor_dzp = ddicke_dz(zp);
@@ -1118,7 +1116,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             }
         }
         else {
-        
+            
             for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
                 
                 x_e = previous_spin_temp->x_e_box[box_ct];
