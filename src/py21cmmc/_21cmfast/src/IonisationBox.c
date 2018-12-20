@@ -84,6 +84,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     t_ast = astro_params->t_STAR * t_hubble(redshift);
     growth_factor_dz = dicke(redshift-dz);
     
+    Splined_Fcoll = 0.;
+    
     double ArgBinWidth, InvArgBinWidth, erfc_arg_val, erfc_arg_min, erfc_arg_max;
     int erfc_arg_val_index, ERFC_NUM_POINTS;
     
