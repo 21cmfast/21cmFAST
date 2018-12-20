@@ -14,6 +14,8 @@ if "DEBUG" in os.environ:
 else:
     extra_compile_args = ['-fopenmp', '-Ofast', '-w']
 
+log_level = os.environ.get("LOG_LEVEL", 1)
+
 library_dirs = []
 for k,v in os.environ.items():
     if "inc" in k.lower():
@@ -26,7 +28,9 @@ for k,v in os.environ.items():
 # This is the overall C code.
 ffi.set_source(
     "py21cmmc._21cmfast._21cmfast",  # Name/Location of shared library module
-    '''
+    f'''
+    #define LOG_LEVEL {log_level}
+    
     #include "GenerateICs.c"
     ''',
     include_dirs = include_dirs,
