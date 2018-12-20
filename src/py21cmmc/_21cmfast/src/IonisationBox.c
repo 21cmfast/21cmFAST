@@ -4,10 +4,6 @@
 int INIT_ERFC_INTERPOLATION = 1;
 int INIT_RECOMBINATIONS = 1;
 
-double erfc_arg_min = -15.0;
-double erfc_arg_max = 15.0;
-int ERFC_NUM_POINTS = 10000;
-
 double *ERFC_VALS, *ERFC_VALS_DIFF;
 
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
@@ -88,22 +84,27 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     t_ast = astro_params->t_STAR * t_hubble(redshift);
     growth_factor_dz = dicke(redshift-dz);
     
-    double ArgBinWidth, InvArgBinWidth, erfc_arg_val;
-    int erfc_arg_val_index;
+    Splined_Fcoll = 0.;
     
+    double ArgBinWidth, InvArgBinWidth, erfc_arg_val, erfc_arg_min, erfc_arg_max;
+    int erfc_arg_val_index, ERFC_NUM_POINTS;
+    
+    erfc_arg_val = 0.;
+    erfc_arg_val_index = 0;
+
+    // Setup an interpolation table for the error function, helpful for calcluating the collapsed fraction (only for the default model, i.e. mass-independent ionising efficiency)
+    erfc_arg_min = -15.0;
+    erfc_arg_max = 15.0;
+    
+    ERFC_NUM_POINTS = 10000;
+    
+    ArgBinWidth = (erfc_arg_max - erfc_arg_min)/((double)ERFC_NUM_POINTS - 1.);
+    InvArgBinWidth = 1./ArgBinWidth;
+
     if(INIT_ERFC_INTERPOLATION) {
-        
-        // Setup an interpolation table for the error function, helpful for calcluating the collapsed fraction (only for the default model, i.e. mass-independent ionising efficiency)
-        erfc_arg_min = -15.0;
-        erfc_arg_max = 15.0;
-        
-        ERFC_NUM_POINTS = 10000;
         
         ERFC_VALS = calloc(ERFC_NUM_POINTS,sizeof(double));
         ERFC_VALS_DIFF = calloc(ERFC_NUM_POINTS,sizeof(double));
-        
-        ArgBinWidth = (erfc_arg_max - erfc_arg_min)/((double)ERFC_NUM_POINTS - 1.);
-        InvArgBinWidth = 1./ArgBinWidth;
         
         for(i=0;i<ERFC_NUM_POINTS;i++) {
             
@@ -743,7 +744,17 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     }
     
     free(Fcoll);
+    
+    free(xi_SFR);
+    free(wi_SFR);
 
+    if(!flag_options->USE_TS_FLUCT) {
+        freeSigmaMInterpTable();
+    }
+    
+    fftwf_destroy_plan(plan);
+    fftwf_cleanup();
+    
     return(0);
 }
 

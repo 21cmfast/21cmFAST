@@ -73,6 +73,7 @@ double *log10phi, *M_uv_z, *M_h_z;
 double *z_val, *z_X_val, *Nion_z_val, *SFRD_val;
 
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
+void freeSigmaMInterpTable();
 void initialiseGL_Nion(int n, float M_TURN, float M_Max);
 void initialiseGL_Nion_Xray(int n, float M_TURN, float M_Max);
 
@@ -1057,6 +1058,13 @@ void initialiseSigmaMInterpTable(float M_Min, float M_Max)
     MinMass = log(M_Min);
     mass_bin_width = 1./(NMass-1)*( log(M_Max) - log(M_Min) );
     inv_mass_bin_width = 1./mass_bin_width;
+}
+
+void freeSigmaMInterpTable()
+{
+    free(Mass_InterpTable);
+    free(Sigma_InterpTable);
+    free(dSigmadm_InterpTable);
 }
 
 
