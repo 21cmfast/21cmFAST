@@ -333,6 +333,7 @@ class CoreCoevalModule(CoreBase):
 
     def build_model_data(self, ctx):
         # Update parameters
+        logger.debug(f"PID={os.getpid()} Updating parameters: {ctx.getParams()}")
         astro_params, cosmo_params = self._update_params(ctx.getParams())
 
         # Call C-code
@@ -348,6 +349,7 @@ class CoreCoevalModule(CoreBase):
             direc=self.io_options['cache_dir'],
         )
 
+        logger.debug(f"PID={os.getpid()} Adding {self.ctx_variables} to context data")
         for key in self.ctx_variables:
             try:
                 ctx.add(key, locals()[key])
@@ -364,7 +366,6 @@ class CoreCoevalModule(CoreBase):
         params : Parameter object from cosmoHammer
 
         """
-        # Note that RANDOM_SEED is never updated. It should only change when we are modifying cosmo.
         ap_dict = copy.copy(self.astro_params.self)
         cp_dict = copy.copy(self.cosmo_params.self)
 

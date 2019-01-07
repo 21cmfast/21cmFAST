@@ -357,6 +357,8 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 pass
 
     def computeLikelihood(self, model):
+        logger.debug(f"PID={os.getpid()} Computing Likelihood")
+
         lnl = 0
         noise = 0
         for i, (m, pd) in enumerate(zip(model, self.data_spline)):
@@ -365,15 +367,21 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             moduncert = self.model_uncertainty * pd(
                 m['k'][mask]) if not self.error_on_model else self.model_uncertainty * m['delta'][mask]
 
+            logger.debug(f"PID={os.getpid()} Generating noise spline vals, z={self.redshift[i]}")
+
             if self.noise_spline:
                 noise = self.noise_spline[i](m['k'][mask])
 
             # TODO: if moduncert depends on model, not data, then it should appear as -0.5 log(sigma^2) term below.
             lnl += -0.5 * np.sum((m['delta'][mask] - pd(m['k'][mask])) ** 2 / (moduncert ** 2 + noise ** 2))
 
+        logger.debug(f"PID={os.getpid()} Likelihood computed: {lnL}")
+
         return lnl
 
     def reduce_data(self, ctx):
+        logger.debug(f"PID={os.getpid()} Reducing Data")
+
         brightness_temp = ctx.get("brightness_temp")
         data = []
 
@@ -384,6 +392,8 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 ignore_kperp_zero=self.ignore_kperp_zero
             )
             data.append({"k": k, "delta": power * k ** 3 / (2 * np.pi ** 2)})
+
+        logger.debug(f"PID={os.getpid()} Data reduced")
 
         return data
 
