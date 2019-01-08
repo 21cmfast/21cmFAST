@@ -4,7 +4,7 @@ A module containing (base) classes for computing 21cmFAST likelihoods under the 
 import logging
 from io import IOBase
 from os import path, rename
-
+import os
 import numpy as np
 from cached_property import cached_property
 from powerbox.tools import get_power

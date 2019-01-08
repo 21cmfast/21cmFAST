@@ -5,7 +5,7 @@ import copy
 import inspect
 import logging
 import warnings
-
+import os
 import py21cmmc as p21
 
 logger = logging.getLogger("21CMMC")
