@@ -16,6 +16,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
     
+    omp_set_num_threads(1);
+    
     char wisdom_filename[500];
     char filename[500];
     FILE *F;
@@ -751,9 +753,11 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     if(!flag_options->USE_TS_FLUCT) {
         freeSigmaMInterpTable();
     }
+
     
-    fftwf_destroy_plan(plan);
+//    fftwf_destroy_plan(plan);
     fftwf_cleanup();
+
     
     return(0);
 }
