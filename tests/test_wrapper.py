@@ -175,7 +175,6 @@ def test_st_new_seed(spin_temp, perturb_field, tmpdirec):
 
 
 def test_st_from_z(init_box, tmpdirec, spin_temp):
-
     pf = wrapper.perturb_field(
         redshift=12,
         init_boxes=init_box,
@@ -253,7 +252,7 @@ def test_ib_bad_st(init_box):
 
 
 def test_bt(ionize_box, spin_temp, perturb_field):
-    with pytest.raises(TypeError): # have to specify param names
+    with pytest.raises(TypeError):  # have to specify param names
         wrapper.brightness_temperature(ionize_box, spin_temp, perturb_field)
 
     # this will fail because ionized_box was not created with spin temperature.
@@ -265,14 +264,23 @@ def test_bt(ionize_box, spin_temp, perturb_field):
         )
 
     bt = wrapper.brightness_temperature(
-            ionized_box=ionize_box,
-            perturbed_field=perturb_field
+        ionized_box=ionize_box,
+        perturbed_field=perturb_field
     )
 
     assert bt.cosmo_params == perturb_field.cosmo_params
     assert bt.user_params == perturb_field.user_params
     assert bt.flag_options == ionize_box.flag_options
     assert bt.astro_params == ionize_box.astro_params
+
+
+def test_USE_TS_FLUCT(perturb_field):
+    ib = wrapper.ionize_box(
+        perturbed_field=perturb_field, do_spin_temp=True,
+        z_step_factor=1.2, write=False
+    )
+
+    assert ib.flag_options.USE_TS_FLUCT
 
 
 def test_coeval_against_direct(init_box, perturb_field, ionize_box):
