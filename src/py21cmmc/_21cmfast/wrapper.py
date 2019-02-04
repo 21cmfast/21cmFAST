@@ -576,7 +576,7 @@ def configure_inputs(defaults, *datasets, ignore=['redshift'], flag_none=None):
             elif data_val is not None:
                 output[i] = data_val
             elif key in flag_none:
-                raise ValueError("For %s, a value must be provided in some manner")
+                raise ValueError("For %s, a value must be provided in some manner"%key)
             else:
                 output[i] = None
 
