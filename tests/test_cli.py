@@ -83,7 +83,8 @@ def test_spin_heatmax(tmpdirec, runner, cfg):
 def test_ionize(tmpdirec,  runner,  cfg):
     # Run the CLI
     result = runner.invoke(cli.main,
-                            ['ionize', '35', '--direc', tmpdirec.strpath, '--seed', '101010', '--config', cfg])
+                            ['ionize', '35', '--direc', tmpdirec.strpath,
+                             '--seed', '101010', '--config', cfg])
     assert result.exit_code == 0
 
 

@@ -1002,8 +1002,11 @@ def ionize_box(*, astro_params=None, flag_options=None,
     flag_options = FlagOptions(flag_options)
     astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
-    if spin_temp is not None:
+    if spin_temp is not None or flag_options.USE_TS_FLUCT:
         do_spin_temp = True
+
+    if do_spin_temp:
+        flag_options.USE_TS_FLUCT = True
 
     # Set the upper limit on redshift at which we require a previous spin temp box.
     if z_heat_max is not None:
@@ -1219,13 +1222,6 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
     This is usually a bad idea, and will give a warning, but it is possible.
     """
     verify_types(init_boxes=init_boxes, perturbed_field=perturbed_field, previous_spin_temp=previous_spin_temp)
-    # # Verify output struct types
-    # if init_boxes is not None and not isinstance(init_boxes, InitialConditions):
-    #     raise ValueError("init_boxes must be an instance of InitialConditions")
-    # if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
-    #     raise ValueError("perturbed_field must be an instance of PerturbedField")
-    # if previous_spin_temp is not None and not isinstance(previous_spin_temp, TsBox):
-    #     raise ValueError("previous_spin_temp must be an instance of TsBox")
 
     # Configure and check input/output parameters/structs
     random_seed, user_params, cosmo_params, astro_params, flag_options = configure_inputs(
@@ -1246,6 +1242,9 @@ def spin_temperature(*, astro_params=None, flag_options=None, redshift=None, per
     cosmo_params = CosmoParams(cosmo_params)
     flag_options = FlagOptions(flag_options)
     astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+
+    # Explicitly set this flag to True, though it shouldn't be required!
+    flag_options.USE_TS_FLUCT = True
 
     # Set the upper limit on redshift at which we require a previous spin temp box.
     if z_heat_max is not None:
@@ -1354,15 +1353,13 @@ def brightness_temperature(*, ionized_box, perturbed_field, spin_temp=None, writ
     """
     verify_types(perturbed_field=perturbed_field, spin_temp=spin_temp, ionized_box=ionized_box)
 
-    # # Verify output struct types
-    # if perturbed_field is not None and not isinstance(perturbed_field, PerturbedField):
-    #     raise ValueError("perturbed_field must be an instance of PerturbedField")
-    # if spin_temp is not None and not isinstance(spin_temp, TsBox):
-    #     raise ValueError("spin_temp must be an instance of TsBox")
-    # if ionized_box is not None and not isinstance(ionized_box, IonizedBox):
-    #     raise ValueError("previous_ionize_box must be an instance of IonizedBox")
+    # don't ignore redshift here
+    _check_compatible_inputs(ionized_box, perturbed_field, spin_temp, ignore=[])
 
-    _check_compatible_inputs(ionized_box, perturbed_field, spin_temp, ignore=[])  # don't ignore redshift here
+    # ensure ionized_box and perturbed_field aren't None, as we don't do
+    # any dynamic calculations here.
+    if ionized_box is None or perturbed_field is None:
+        raise ValueError("both ionized_box and perturbed_field must be specified.")
 
     if spin_temp is None:
         saturated_limit = True
@@ -1391,7 +1388,7 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
 
 
 def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_params=None,
-               flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True, direc=None,
+               flag_options=None, do_spin_temp=False, regenerate=False, write=True, direc=None,
                z_step_factor=global_params.ZPRIME_STEP_FACTOR, z_heat_max=None, init_box=None, perturb=None,
                use_interp_perturb_field=False,
                random_seed=None):
@@ -1456,6 +1453,7 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
     regenerate, write, direc, random_seed:
         See docs of :func:`initial_conditions` for more information.
     """
+    # Ensure perturb is a list of boxes, not just one.
     if perturb is not None:
         if not hasattr(perturb, "__len__"):
             perturb = [perturb]
@@ -1469,6 +1467,13 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
 
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
+    flag_options = FlagOptions(flag_options)
+    astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+
+    if do_spin_temp:
+        flag_options.USE_TS_FLUCT = True
+    if flag_options.USE_TS_FLUCT:
+        do_spin_temp = True
 
     if redshift is None and perturb is None:
         raise ValueError("Either redshift or perturb must be given")
@@ -1610,7 +1615,7 @@ class LightCone:
 
 
 def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_params=None,
-                  astro_params=None, flag_options=FlagOptions(), do_spin_temp=False, regenerate=False, write=True,
+                  astro_params=None, flag_options=None, do_spin_temp=False, regenerate=False, write=True,
                   direc=None, z_step_factor=global_params.ZPRIME_STEP_FACTOR, z_heat_max=None, init_box=None,
                   perturb=None, random_seed=None,
                   use_interp_perturb_field=False):

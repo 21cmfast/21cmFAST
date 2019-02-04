@@ -256,7 +256,18 @@ def test_bt(ionize_box, spin_temp, perturb_field):
     with pytest.raises(TypeError): # have to specify param names
         wrapper.brightness_temperature(ionize_box, spin_temp, perturb_field)
 
-    bt = wrapper.brightness_temperature(ionized_box=ionize_box, perturbed_field=perturb_field, spin_temp=spin_temp)
+    # this will fail because ionized_box was not created with spin temperature.
+    with pytest.raises(ValueError):
+        wrapper.brightness_temperature(
+            ionized_box=ionize_box,
+            perturbed_field=perturb_field,
+            spin_temp=spin_temp
+        )
+
+    bt = wrapper.brightness_temperature(
+            ionized_box=ionize_box,
+            perturbed_field=perturb_field
+    )
 
     assert bt.cosmo_params == perturb_field.cosmo_params
     assert bt.user_params == perturb_field.user_params
