@@ -205,7 +205,7 @@ double dsigma_dk(double k, void *params){
         p = pow(k, cosmo_params_ps->POWER_INDEX) * 19400.0 / pow(1 + aa*k + bb*pow(k, 1.5) + cc*k*k, 2);
     }
     else{
-        fprintf(stderr, "No such power spectrum defined: %i\nOutput is bogus.\n", global_params.POWER_SPECTRUM);
+        LOG_ERROR("No such power spectrum defined: %i. Output is bogus.", global_params.POWER_SPECTRUM);
         p = 0;
     }
     
@@ -221,7 +221,7 @@ double dsigma_dk(double k, void *params){
         w = pow(E, -kR*kR/2.0);
     }
     else {
-        fprintf(stderr, "No such filter: %i\nOutput is bogus.\n", global_params.FILTER);
+        LOG_ERROR("No such filter: %i. Output is bogus.", global_params.FILTER);
         w=0;
     }
     return k*k*p*w*w;
@@ -342,7 +342,7 @@ double power_in_k(double k){
         p = pow(k, cosmo_params_ps->POWER_INDEX) * 19400.0 / pow(1 + aa*k + bb*pow(k, 1.5) + cc*k*k, 2);
     }
     else{
-        fprintf(stderr, "No such power spectrum defined: %i\nOutput is bogus.\n", global_params.POWER_SPECTRUM);
+        LOG_ERROR("No such power spectrum defined: %i. Output is bogus.", global_params.POWER_SPECTRUM);
         p = 0;
     }
     
@@ -454,7 +454,7 @@ double dsigmasq_dm(double k, void *params){
         p = pow(k, cosmo_params_ps->POWER_INDEX) * 19400.0 / pow(1 + aa*k + pow(bb*k, 1.5) + cc*k*k, 2);
     }
     else{
-        fprintf(stderr, "No such power spectrum defined: %i\nOutput is bogus.\n", global_params.POWER_SPECTRUM);
+        LOG_ERROR("No such power spectrum defined: %i. Output is bogus.", global_params.POWER_SPECTRUM);
         p = 0;
     }
     
@@ -478,7 +478,7 @@ double dsigmasq_dm(double k, void *params){
         drdm = 1.0 / (pow(2*PI, 1.5) * cosmo_params_ps->OMm*RHOcrit * 3*R*R);
     }
     else {
-        fprintf(stderr, "No such filter: %i\nOutput is bogus.\n", global_params.FILTER);
+        LOG_ERROR("No such filter: %i. Output is bogus.", global_params.FILTER);
         w=0;
     }
     
@@ -866,7 +866,7 @@ double FgtrM_General(double z, double M){
         return result / (cosmo_params_ps->OMm*RHOcrit);
     }
     else {
-        printf("ERROR: Incorrect HMF selected\n");
+        LOG_ERROR("Incorrect HMF selected: %i (should be between 0 and 3).", user_params_ps->HMF);
         exit(-1);
     }
 }
@@ -957,7 +957,7 @@ double Nion_General(double z, double MassTurnover, double Alpha_star, double Alp
         return result / ((cosmo_params_ps->OMm)*RHOcrit);
     }
     else {
-        printf("ERROR: Incorrect HMF selected\n");
+        LOG_ERROR("Incorrect HMF selected: %i (should be between 0 and 3).", user_params_ps->HMF);
         exit(-1);
     }
 }
@@ -1070,9 +1070,9 @@ void freeSigmaMInterpTable()
 
 void nrerror(char error_text[])
 {
-    fprintf(stderr,"Numerical Recipes run-time error...\n");
-    fprintf(stderr,"%s\n",error_text);
-    fprintf(stderr,"...now exiting to system...\n");
+    LOG_ERROR("Numerical Recipes run-time error...");
+    LOG_ERROR("%s",error_text);
+    LOG_ERROR("...now exiting to system...");
     exit(1);
 }
 
@@ -1270,8 +1270,8 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC){
         x = x1;
     }
     while(iter < max_iter);
-    printf("\n Failed to find a mass limit to regulate stellar fraction/escape fraction is between 0 and 1.\n");
-    printf(" The solution does not converge or iterations are not sufficient\n");
+    LOG_ERROR("Failed to find a mass limit to regulate stellar fraction/escape fraction is between 0 and 1.");
+    LOG_ERROR(" The solution does not converge or iterations are not sufficient.");
     return -1;
 }
 

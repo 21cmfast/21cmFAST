@@ -1,11 +1,13 @@
+import os
+
 import pytest
 import yaml
 from click.testing import CliRunner
-import os
+
 from py21cmmc import UserParams, InitialConditions
 from py21cmmc import cli
 from py21cmmc._21cmfast.cache_tools import query_cache
-import traceback
+
 
 @pytest.fixture(scope="module")
 def runner():
@@ -20,12 +22,11 @@ def user_params():
 @pytest.fixture(scope="module")
 def cfg(user_params, tmpdirec):
     with open(os.path.join(tmpdirec.strpath, "cfg.yml"), 'w') as f:
-        yaml.dump({"user_params":user_params.self}, f)
+        yaml.dump({"user_params": user_params.self}, f)
     return os.path.join(tmpdirec.strpath, "cfg.yml")
 
 
 def test_init(tmpdirec, user_params, runner, cfg):
-
     # Run the CLI
     result = runner.invoke(cli.main,
                            ['init', '--direc', tmpdirec.strpath, '--seed', '101010', '--config', cfg])
@@ -40,7 +41,6 @@ def test_init(tmpdirec, user_params, runner, cfg):
 
 
 def test_init_param_override(tmpdirec, runner, cfg):
-
     # Run the CLI
     result = runner.invoke(cli.main,
                            ['init', '--direc', tmpdirec.strpath, '--seed', '102030', '--config', cfg, '--',
@@ -59,19 +59,19 @@ def test_init_param_override(tmpdirec, runner, cfg):
     assert box.cosmo_params.cosmo.Om0 == 0.33
 
 
-def test_perturb(tmpdirec,  runner,  cfg):
-
+def test_perturb(tmpdirec, runner, cfg):
     # Run the CLI
     result = runner.invoke(cli.main,
-                            ['perturb', '35', '--direc', tmpdirec.strpath, '--seed', '101010', '--config', cfg])
+                           ['perturb', '35', '--direc', tmpdirec.strpath, '--seed', '101010', '--config', cfg])
     assert result.exit_code == 0
 
 
-def test_spin(tmpdirec,  runner,  cfg):
-        # Run the CLI
-        result = runner.invoke(cli.main,
-                                ['spin', '34.9', '--direc', tmpdirec.strpath, '--seed', '101010', '--config', cfg])
-        assert result.exit_code == 0
+def test_spin(tmpdirec, runner, cfg):
+    # Run the CLI
+    result = runner.invoke(cli.main,
+                           ['spin', '34.9', '--direc', tmpdirec.strpath, '--seed', '101010', '--config', cfg])
+    assert result.exit_code == 0
+
 
 def test_spin_heatmax(tmpdirec, runner, cfg):
     # Run the CLI
@@ -80,7 +80,7 @@ def test_spin_heatmax(tmpdirec, runner, cfg):
     assert result.exit_code == 0
 
 
-def test_ionize(tmpdirec,  runner,  cfg):
+def test_ionize(tmpdirec, runner, cfg):
     # Run the CLI
     result = runner.invoke(cli.main,
                             ['ionize', '35', '--direc', tmpdirec.strpath,
@@ -88,24 +88,24 @@ def test_ionize(tmpdirec,  runner,  cfg):
     assert result.exit_code == 0
 
 
-def test_coeval(tmpdirec,  runner,  cfg):
+def test_coeval(tmpdirec, runner, cfg):
     # Run the CLI
     result = runner.invoke(cli.main,
-                            ['coeval', '35', '--direc', tmpdirec.strpath, '--seed', '101010', '--config', cfg])
+                           ['coeval', '35', '--direc', tmpdirec.strpath, '--seed', '101010', '--config', cfg])
     assert result.exit_code == 0
 
 
-def test_lightcone(tmpdirec,  runner,  cfg):
-        # Run the CLI
-        result = runner.invoke(cli.main,
-                                ['lightcone', '30', '--direc', tmpdirec.strpath, '--seed', '101010', '--config', cfg,
-                                 '-X', '35'])
-        assert result.exit_code == 0
-
-
-def test_query(tmpdirec,  runner,  cfg):
+def test_lightcone(tmpdirec, runner, cfg):
     # Run the CLI
-    result = runner.invoke(cli.main, ['query', '--direc', tmpdirec.strpath, '--clear']) # Clear everything in tmpdirec
+    result = runner.invoke(cli.main,
+                           ['lightcone', '30', '--direc', tmpdirec.strpath, '--seed', '101010', '--config', cfg,
+                            '-X', '35'])
+    assert result.exit_code == 0
+
+
+def test_query(tmpdirec, runner, cfg):
+    # Run the CLI
+    result = runner.invoke(cli.main, ['query', '--direc', tmpdirec.strpath, '--clear'])  # Clear everything in tmpdirec
     assert result.exit_code == 0
 
     # Quickly run the default example once again.
@@ -120,6 +120,3 @@ def test_query(tmpdirec,  runner,  cfg):
     assert result.output.startswith("1 Data Sets Found:")
     assert 'random_seed:101010' in result.output
     assert "InitialConditions(" in result.output
-
-
-

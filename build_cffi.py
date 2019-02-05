@@ -14,6 +14,20 @@ if "DEBUG" in os.environ:
 else:
     extra_compile_args = ['-fopenmp', '-Ofast', '-w']
 
+# Set the C-code logging level.
+# If DEBUG is set, we default to the highest level, but if not,
+# we set it to the level just above no logging at all.
+log_level = os.environ.get("LOG_LEVEL", 3 if "DEBUG" in os.environ else 1)
+available_levels = ["NONE","ERROR", "WARNING", "INFO", "DEBUG", "SUPER_DEBUG", "ULTRA_DEBUG"]
+
+if log_level.upper() in available_levels:
+    log_level = available_levels.index(log_level.upper())
+
+try:
+    log_level = int(log_level)
+except ValueError:
+    raise ValueError(f"LOG_LEVEL must be specified as a positive integer, or one of {available_levels}")
+
 library_dirs = []
 for k,v in os.environ.items():
     if "inc" in k.lower():
@@ -26,7 +40,9 @@ for k,v in os.environ.items():
 # This is the overall C code.
 ffi.set_source(
     "py21cmmc._21cmfast._21cmfast",  # Name/Location of shared library module
-    '''
+    f'''
+    #define LOG_LEVEL {log_level}
+    
     #include "GenerateICs.c"
     ''',
     include_dirs = include_dirs,

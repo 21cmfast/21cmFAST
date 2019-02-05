@@ -95,7 +95,7 @@ redshift that are actually evaluated, which are then interpolated onto the light
 """
 import logging
 from os import path
-
+import os
 import numpy as np
 import yaml
 from astropy import units
@@ -261,7 +261,6 @@ class FlagOptions(StructWithDefaults):
         INHOMO_RECO=False,
         USE_TS_FLUCT=False,
         M_MIN_in_Mass=False,
-        OUTPUT_AVE=False,
     )
 
     def M_MIN_in_Mass(self):
@@ -1526,7 +1525,9 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
 
     # Iterate through redshift from top to bottom
     for z in redshifts:
+
         if do_spin_temp:
+            logger.debug("PID={} doing spin temp for z={}".format(os.getpid(), z))
             st2 = spin_temperature(
                 redshift=z,
                 previous_spin_temp=st,
@@ -1542,6 +1543,7 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
             if z not in redshift:
                 st = st2
 
+        logger.debug("PID={} doing ionize box for z={}".format(os.getpid(), z))
         ib2 = ionize_box(
             redshift=z, previous_ionize_box=ib,
             init_boxes=init_box,
@@ -1556,16 +1558,19 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
         if z not in redshift:
             ib = ib2
         else:
+            logger.debug("PID={} doing brightness temp for z={}".format(os.getpid(), z))
             ib_tracker[redshift.index(z)] = ib2
             bt[redshift.index(z)] = brightness_temperature(ionized_box=ib2, perturbed_field=perturb[redshift.index(z)],
                                                            spin_temp=st2 if do_spin_temp else None)
 
     # If a single redshift was passed, then pass back singletons.
     if singleton:
+        logger.debug("PID={} making into singleton".format(os.getpid()))
         ib_tracker = ib_tracker[0]
         bt = bt[0]
         perturb = perturb[0]
 
+    logger.debug("PID={} RETURNING FROM COEVAL".format(os.getpid()))
     return init_box, perturb, ib_tracker, bt
 
 

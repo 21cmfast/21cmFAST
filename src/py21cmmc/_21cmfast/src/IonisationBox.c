@@ -1,4 +1,3 @@
-
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
 
 int INIT_ERFC_INTERPOLATION = 1;
@@ -10,6 +9,15 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
                        int do_spin_temp, struct TsBox *spin_temp, struct IonizedBox *box) {
+
+LOG_DEBUG("input values:");
+LOG_DEBUG("redshift=%f, prev_redshift=%f, do_spin_temp=%d", redshift, prev_redshift, do_spin_temp);
+#if LOG_LEVEL >= DEBUG_LEVEL
+    writeUserParams(user_params);
+    writeCosmoParams(cosmo_params);
+    writeAstroParams(flag_options, astro_params);
+    writeFlagOptions(flag_options);
+#endif
 
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
@@ -57,7 +65,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     gsl_rng * r;
     
     init_ps();
-    
+
+LOG_SUPER_DEBUG("defined parameters");
+
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
     }
@@ -82,6 +92,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     else {
         ZSTEP = 0.2;
     }
+
     fabs_dtdz = fabs(dtdz(redshift));
     t_ast = astro_params->t_STAR * t_hubble(redshift);
     growth_factor_dz = dicke(redshift-dz);
@@ -121,12 +132,14 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
         
         INIT_ERFC_INTERPOLATION = 0;
     }
-    
+
+LOG_SUPER_DEBUG("erfc interpolation done");
+
     /////////////////////////////////   BEGIN INITIALIZATION   //////////////////////////////////
 
     // perform a very rudimentary check to see if we are underresolved and not using the linear approx
     if ((user_params->BOX_LEN > user_params->DIM) && !(global_params.EVOLVE_DENSITY_LINEARLY)){
-        printf("perturb_field.c: WARNING: Resolution is likely too low for accurate evolved density fields\n It Is recommended that you either increase the resolution (DIM/Box_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
+        LOG_WARNING("Resolution is likely too low for accurate evolved density fields\n It Is recommended that you either increase the resolution (DIM/Box_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
     }
 
     // initialize power spectrum
@@ -162,7 +175,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             }
         }
     }
-    
+
+LOG_SUPER_DEBUG("density field calculated");
+
     // keep the unfiltered density field in an array, to save it for later
     memcpy(deltax_unfiltered_original, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
@@ -191,7 +206,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
         
     }
-    
+
+LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
+
     if(!flag_options->USE_TS_FLUCT) {
         initialiseSigmaMInterpTable(M_MIN,1e20);
     }
@@ -214,7 +231,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     else {
         mean_f_coll = FgtrM_General(redshift, M_MIN);
     }
-    
+
+LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %f", mean_f_coll);
+
     if (mean_f_coll * ION_EFF_FACTOR < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
     //        printf( "The mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll, f_coll_crit);
         
@@ -247,7 +266,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 }
             }
         }
-        
+
+LOG_SUPER_DEBUG("calculated ionization fraction");
+
         if(flag_options->INHOMO_RECO) {
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
@@ -257,7 +278,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 }
             }
         }
-    
+
         if(user_params->USE_FFTW_WISDOM) {
             // Check to see if the wisdom exists, create it if it doesn't
             sprintf(wisdom_filename,"real_to_complex_%d.fftwf_wisdom",user_params->HII_DIM);
@@ -284,7 +305,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
-        
+
+LOG_SUPER_DEBUG("FFTs performed");
+
         if(flag_options->USE_TS_FLUCT) {
             if(user_params->USE_FFTW_WISDOM) {
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)xe_unfiltered, (fftwf_complex *)xe_unfiltered, FFTW_WISDOM_ONLY);
@@ -293,8 +316,10 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)xe_unfiltered, (fftwf_complex *)xe_unfiltered, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
+LOG_SUPER_DEBUG("more ffts performed");
         }
-    
+
+
         if (flag_options->INHOMO_RECO){
             if(user_params->USE_FFTW_WISDOM) {
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)N_rec_unfiltered, (fftwf_complex *)N_rec_unfiltered, FFTW_WISDOM_ONLY);
@@ -303,8 +328,10 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)N_rec_unfiltered, (fftwf_complex *)N_rec_unfiltered, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
+LOG_SUPER_DEBUG("more ffts performed");
         }
-        
+
+
         // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from
         //  real space to k-space
         // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
@@ -324,7 +351,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 N_rec_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS;
             }
         }
-        
+
+LOG_SUPER_DEBUG("deltax unfiltered calculated");
+
         // ************************************************************************************* //
         // ***************** LOOP THROUGH THE FILTER RADII (in Mpc)  *************************** //
         // ************************************************************************************* //
@@ -343,6 +372,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 stored_R = R/(global_params.DELTA_R_HII_FACTOR);
             }
         }
+
+LOG_DEBUG("set max radius: %f", R);
         
         R=fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN);
         LAST_FILTER_STEP = 0;
@@ -352,7 +383,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
         double R_temp = (double)(astro_params->R_BUBBLE_MAX);
         
         while (!LAST_FILTER_STEP && (M_MIN < RtoM(R)) ){
-            
+LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_MIN);
+
             // Check if we are the last filter step
             if ( ((R/(global_params.DELTA_R_HII_FACTOR) - cell_length_factor*(user_params->BOX_LEN)/(float)(user_params->HII_DIM)) <= FRACT_FLOAT_ERR) || ((R/(global_params.DELTA_R_HII_FACTOR) - R_BUBBLE_MIN) <= FRACT_FLOAT_ERR) ) {
                 LAST_FILTER_STEP = 1;
@@ -377,7 +409,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 }
                 filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
             }
-            
+
             // Perform FFTs
             if(user_params->USE_FFTW_WISDOM) {
                 // Check to see if the wisdom exists, create it if it doesn't
@@ -410,7 +442,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_ESTIMATE);
                 fftwf_execute(plan);
             }
-            
+
             if (flag_options->USE_TS_FLUCT) {
                 if(user_params->USE_FFTW_WISDOM) {
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)xe_filtered, (float *)xe_filtered, FFTW_WISDOM_ONLY);
@@ -430,7 +462,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 }
                 fftwf_execute(plan);
             }
-            
+
             // Check if this is the last filtering scale.  If so, we don't need deltax_unfiltered anymore.
             // We will re-read it to get the real-space field, which we will use to set the residual neutral fraction
             ST_over_PS = 0;
@@ -579,7 +611,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                     }
                 }
             } //  end loop through Fcoll box
-            
+
             f_coll /= (double) HII_TOT_NUM_PIXELS;
             
             // To avoid ST_over_PS becoms nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
@@ -652,7 +684,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                             else if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
                                 update_in_sphere(box->xH_box, user_params->HII_DIM, R/(user_params->BOX_LEN), x/(user_params->HII_DIM+0.0), y/(user_params->HII_DIM+0.0), z/(user_params->HII_DIM+0.0));
                             else{
-                                printf( "Incorrect choice of find bubble algorithm: %i\nAborting...", global_params.FIND_BUBBLE_ALGORITHM);
+                                LOG_ERROR("Incorrect choice of find bubble algorithm: %i\nAborting...", global_params.FIND_BUBBLE_ALGORITHM);
                                 box->xH_box[HII_R_INDEX(x,y,z)] = 0;
                             }
                         } // end ionized
@@ -684,7 +716,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                     } // k
                 } // j
             } // i
-            
+
             global_step_xH = 0.;
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                 global_step_xH += box->xH_box[ct];
@@ -725,14 +757,14 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
             }
         }
     }
-    
+
+LOG_SUPER_DEBUG("finished while loop");
+
     // deallocate
     gsl_rng_free (r);
 
-    if(flag_options->OUTPUT_AVE) {
-        printf("global_xH = %e\n",global_xH);
-    }
-        
+LOG_INFO("global_xH = %e\n",global_xH);
+
     fftwf_free(deltax_unfiltered);
     fftwf_free(deltax_unfiltered_original);
     fftwf_free(deltax_filtered);
@@ -744,7 +776,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
         fftwf_free(N_rec_unfiltered);
         fftwf_free(N_rec_filtered);
     }
-    
+
+LOG_SUPER_DEBUG("freed fftw boxes");
+
     free(Fcoll);
     
     free(xi_SFR);
@@ -759,6 +793,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     fftwf_cleanup();
 
     
+
+LOG_DEBUG("finished!");
+
     return(0);
 }
 

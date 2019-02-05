@@ -464,10 +464,8 @@ int ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams
         }
     }
 
-    if(flag_options->OUTPUT_AVE) {
-        printf("ave Tb = %e\n",ave);
-    }
-    
+LOG_INFO("ave Tb = %e", ave);
+
     free(v);
     free(vel_gradient);
     
