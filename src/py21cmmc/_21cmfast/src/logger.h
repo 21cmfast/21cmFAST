@@ -32,21 +32,26 @@
 #include <string.h>
 #include <unistd.h>
 
-// === auxiliar functions
+// === auxiliary functions
 static inline char *timenow();
 
 #define _FILE strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__
 
 #define NO_LOG          0x00
 #define ERROR_LEVEL     0x01
-#define INFO_LEVEL      0x02
-#define DEBUG_LEVEL     0x03
+#define WARNING_LEVEL   0x02
+#define INFO_LEVEL      0x03
+#define DEBUG_LEVEL     0x04
+#define SUPER_DEBUG_LEVEL  0x05
+#define ULTRA_DEBUG_LEVEL  0x06
+
 
 #ifndef LOG_LEVEL
-#define LOG_LEVEL   DEBUG_LEVEL
+#define LOG_LEVEL   WARNING_LEVEL
 #endif
 
 #define PRINTFUNCTION(format, ...)      fprintf(stderr, format, __VA_ARGS__)
+#define PRINTOUTFUNCTION(format, ...)   fprintf(stdout, format, __VA_ARGS__)
 
 
 #define LOG_FMT             "%s | %-7s | %-15s | %s:%d [pid=%d] | "
@@ -55,8 +60,23 @@ static inline char *timenow();
 #define NEWLINE     "\n"
 
 #define ERROR_TAG   "ERROR"
+#define WARNING_TAG "WARNING"
 #define INFO_TAG    "INFO"
 #define DEBUG_TAG   "DEBUG"
+#define SUPER_DEBUG_TAG   "SUPER-DEBUG"
+#define ULTRA_DEBUG_TAG   "ULTRA-DEBUG"
+
+#if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
+#define LOG_ULTRA_DEBUG(message, args...)     PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(ULTRA_DEBUG_TAG), ## args)
+#else
+#define LOG_ULTRA_DEBUG(message, args...)
+#endif
+
+#if LOG_LEVEL >= SUPER_DEBUG_LEVEL
+#define LOG_SUPER_DEBUG(message, args...)     PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(SUPER_DEBUG_TAG), ## args)
+#else
+#define LOG_SUPER_DEBUG(message, args...)
+#endif
 
 #if LOG_LEVEL >= DEBUG_LEVEL
 #define LOG_DEBUG(message, args...)     PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(DEBUG_TAG), ## args)
@@ -68,6 +88,12 @@ static inline char *timenow();
 #define LOG_INFO(message, args...)      PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(INFO_TAG), ## args)
 #else
 #define LOG_INFO(message, args...)
+#endif
+
+#if LOG_LEVEL >= WARNING_LEVEL
+#define LOG_WARNING(message, args...)     PRINTFUNCTION(LOG_FMT message NEWLINE, LOG_ARGS(WARNING_TAG), ## args)
+#else
+#define LOG_WARNING(message, args...)
 #endif
 
 #if LOG_LEVEL >= ERROR_LEVEL

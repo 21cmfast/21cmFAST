@@ -65,7 +65,6 @@ struct FlagOptions{
     bool INHOMO_RECO;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
-    bool OUTPUT_AVE;
 };
 
 

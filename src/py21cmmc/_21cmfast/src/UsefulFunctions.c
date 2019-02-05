@@ -141,7 +141,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
                 }
                 else{
                     if ( (n_x==0) && (n_y==0) && (n_z==0) )
-                        fprintf(stderr, "HII_filter.c: Warning, filter type %i is undefined\nBox is unfiltered\n", filter_type);
+                        LOG_WARNING("Filter type %i is undefined. Box is unfiltered.", filter_type);
                 }
             }
         }
@@ -180,7 +180,7 @@ double MtoR(double M){
     else if (global_params.FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
         return pow( M/(pow(2*PI, 1.5) * cosmo_params_ufunc->OMm * RHOcrit), 1.0/3.0 );
     else // filter not defined
-        fprintf(stderr, "No such filter = %i.\nResults are bogus.\n", global_params.FILTER);
+        LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
     return -1;
 }
 
@@ -192,7 +192,7 @@ double RtoM(double R){
     else if (global_params.FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
         return pow(2*PI, 1.5) * cosmo_params_ufunc->OMm*RHOcrit * pow(R, 3);
     else // filter not defined
-        fprintf(stderr, "No such filter = %i.\nResults are bogus.\n", global_params.FILTER);
+        LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
     return -1;
 }
 
@@ -270,11 +270,11 @@ double dicke(double z){
         return dick_z/dick_0;
     }
     else if ( (cosmo_params_ufunc->OMl > (-tiny)) && (fabs(global_params.OMtot-1.0) < tiny) && (fabs(global_params.wl+1) > tiny) ){
-        fprintf(stderr, "IN WANG\n");
+        LOG_WARNING("IN WANG.");
         return -1;
     }
     
-    fprintf(stderr, "No growth function!!! Output will be fucked up.");
+    LOG_ERROR("No growth function!!! Output will be fucked up.");
     return -1;
 }
 
@@ -314,7 +314,7 @@ double ddickedt(double z){
         return ddickdz / dick_0 / dtdz(z);
     }
     
-    fprintf(stderr, "No growth function!!! Output will be fucked up.");
+    LOG_ERROR("No growth function!!! Output will be fucked up.");
     return -1;
 }
 
@@ -463,11 +463,11 @@ double dtau_e_dz(double z, void *params){
          */
         xi = 1.0-xH;
         if (xi<0){
-            fprintf(stderr, "in taue: funny buisness xi=%e, changing to 0\n", xi);
+            LOG_WARNING("in taue: funny business xi=%e, changing to 0.", xi);
             xi=0;
         }
         if (xi>1){
-            fprintf(stderr, "in taue: funny buisness xi=%e, changing to 1\n", xi);
+            LOG_WARNING("in taue: funny business xi=%e, changing to 1", xi);
             xi=1;
         }
         
@@ -483,7 +483,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
     tau_e_params p;
     
     if (zstart >= zend){
-        fprintf(stderr, "Error in function taue! First parameter must be smaller than the second.\n");
+        LOG_ERROR("in tau_e: First parameter must be smaller than the second.\n");
         return 0;
     }
     
@@ -530,77 +530,34 @@ float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_param
     return tau;
 }
 
-void writeUserParams(struct UserParams *p, int print_pid){
-    if(print_pid){
-        printf("UserParams (pid=%d):\n", getpid());
-    }else{
-        printf("UserParams:\n", getpid());
-    }
-
-    printf("\tHII_DIM        : %d\n",p->HII_DIM);
-    printf("\tDIM            : %d\n",p->DIM);
-    printf("\tBOX_LEN        : %f\n",p->BOX_LEN);
-    printf("\tUSE_FFTW_WISDOM: %d\n",p->USE_FFTW_WISDOM);
+void writeUserParams(struct UserParams *p){
+    LOG_INFO("UserParams: [HII_DIM=%d, DIM=%d, BOX_LEN=%f, USE_FFTW_WISDOM=%d]",
+             p->HII_DIM, p->DIM, p->BOX_LEN, p->USE_FFTW_WISDOM);
 }
 
-void writeCosmoParams(struct CosmoParams *p, int print_pid){
-    if(print_pid){
-        printf("CosmoParams (pid=%d):\n", getpid());
-    }else{
-        printf("CosmoParams\n", getpid());
-    }
-
-    printf("\tSIGMA_8    : %f\n",p->SIGMA_8);
-    printf("\thlittle    : %f\n",p->hlittle);
-    printf("\tOMm        : %f\n",p->OMm);
-    printf("\tOMl        : %f\n",p->OMl);
-    printf("\tOMb        : %f\n",p->OMb);
-    printf("\tPOWER_INDEX: %f\n",p->POWER_INDEX);
+void writeCosmoParams(struct CosmoParams *p){
+    LOG_INFO("CosmoParams: [SIGMA_8=%f, hlittle=%f, OMm=%f, OMl=%f, OMb=%f, POWER_INDEX=%f]",
+             p->SIGMA_8, p->hlittle, p->OMm, p->OMl, p->OMb, p->POWER_INDEX);
 }
 
-void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p, int print_pid){
-    if(print_pid){
-        printf("AstroParams (pid=%d):\n", getpid());
-    }else{
-        printf("AstroParams:\n", getpid());
-    }
-    
+void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p){
+
     if(fo->USE_MASS_DEPENDENT_ZETA) {
-        printf("\tHII_EFF_FACTOR     : %f\n",p->HII_EFF_FACTOR);
-        printf("\tALPHA_STAR         : %f\n",p->ALPHA_STAR);
-        printf("\tF_ESC10            : %f\n",p->F_ESC10);
-        printf("\tALPHA_ESC          : %f\n",p->ALPHA_ESC);
-        printf("\tM_TURN             : %f\n",p->M_TURN);
-        
+        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, F_ESC10=%f, ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%f, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, F_STAR=%f, N_RSD_STEPS=%f]",
+             p->HII_EFF_FACTOR, p->ALPHA_STAR, p->F_ESC10, p->ALPHA_ESC, p->M_TURN,
+             p->R_BUBBLE_MAX, p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->t_STAR, p->N_RSD_STEPS);
     }
     else {
-        printf("\tHII_EFF_FACTOR     : %f\n",p->HII_EFF_FACTOR);
-        printf("\tION_Tvir_MIN       : %f\n",p->ION_Tvir_MIN);
-        printf("\tX_RAY_Tvir_MIN     : %f\n",p->X_RAY_Tvir_MIN);
+        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ION_Tvir_MIN=%f, X_RAY_Tvir_MIN=%f, R_BUBBLE_MAX=%f, L_X=%f, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, F_STAR=%f, N_RSD_STEPS=%f]",
+             p->HII_EFF_FACTOR, p->ION_Tvir_MIN, p->X_RAY_Tvir_MIN,
+             p->R_BUBBLE_MAX, p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->t_STAR, p->N_RSD_STEPS);
     }
-    printf("\tR_BUBBLE_MAX       : %f\n",p->R_BUBBLE_MAX);
-    printf("\tL_X                : %f\n",p->L_X);
-    printf("\tNU_X_THRESH        : %f\n",p->NU_X_THRESH);
-    printf("\tX_RAY_SPEC_INDEX   : %f\n",p->X_RAY_SPEC_INDEX);
-    printf("\tF_STAR10           : %f\n",p->F_STAR10);
-    printf("\tt_STAR             : %f\n",p->t_STAR);
-    printf("\tN_RSD_STEPS        : %d\n",p->N_RSD_STEPS);
-    
 }
 
-void writeFlagOptions(struct FlagOptions *p, int print_pid){
-    if(print_pid){
-        printf("FlagOptions (pid=%d):\n", getpid());
-    }else{
-        printf("FlagOptions:\n", getpid());
-    }
-
-    printf("\tUSE_MASS_DEPENDENT_ZETA: %d\n",p->USE_MASS_DEPENDENT_ZETA);
-    printf("\tSUBCELL_RSD            : %d\n",p->SUBCELL_RSD);
-    printf("\tINHOMO_RECO            : %d\n",p->INHOMO_RECO);
-    printf("\tUSE_TS_FLUCT           : %d\n",p->USE_TS_FLUCT);
+void writeFlagOptions(struct FlagOptions *p){
+    LOG_INFO("AstroParams: [USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d]",
+             p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO, p->USE_TS_FLUCT);
 }
-
 
 
 char *print_output_header(int print_pid, const char *name){

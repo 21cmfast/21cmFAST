@@ -19,6 +19,7 @@
 #include <gsl/gsl_spline.h>
 
 #include "21CMMC.h"
+#include "logger.h"
 #include "Constants.h"
 #include "Globals.h"
 #include "UsefulFunctions.c"

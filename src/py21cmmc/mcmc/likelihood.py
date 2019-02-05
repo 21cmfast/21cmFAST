@@ -280,7 +280,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     def _check_data_format(self):
         for i, d in enumerate(self.data):
             if "k" not in d or "delta" not in d:
-                raise ValueError("datafile #{i+1} of {len(self.datafile)} has the wrong format".format(fl=fl))
+                raise ValueError(f"datafile #{i+1} of {len(self.datafile)} has the wrong format")
 
     def _check_noise_format(self):
         for i, n in enumerate(self.noise):
@@ -375,7 +375,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             # TODO: if moduncert depends on model, not data, then it should appear as -0.5 log(sigma^2) term below.
             lnl += -0.5 * np.sum((m['delta'][mask] - pd(m['k'][mask])) ** 2 / (moduncert ** 2 + noise ** 2))
 
-        logger.debug(f"PID={os.getpid()} Likelihood computed: {lnL}")
+        logger.debug(f"PID={os.getpid()} Likelihood computed: {lnl}")
 
         return lnl
 

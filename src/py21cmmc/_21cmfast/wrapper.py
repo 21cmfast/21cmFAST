@@ -261,7 +261,6 @@ class FlagOptions(StructWithDefaults):
         INHOMO_RECO=False,
         USE_TS_FLUCT=False,
         M_MIN_in_Mass=False,
-        OUTPUT_AVE=False,
     )
 
     def M_MIN_in_Mass(self):

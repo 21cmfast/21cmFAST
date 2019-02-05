@@ -1,5 +1,3 @@
-#include "logger.h""
-
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
 
 int INIT_ERFC_INTERPOLATION = 1;
@@ -12,13 +10,13 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
                        int do_spin_temp, struct TsBox *spin_temp, struct IonizedBox *box) {
 
-    LOG_DEBUG("input values:");
-    LOG_DEBUG("redshift=%f, prev_redshift=%f, do_spin_temp=%d", redshift, prev_redshift, do_spin_temp);
+LOG_DEBUG("input values:");
+LOG_DEBUG("redshift=%f, prev_redshift=%f, do_spin_temp=%d", redshift, prev_redshift, do_spin_temp);
 #if LOG_LEVEL >= DEBUG_LEVEL
-    writeUserParams(user_params, 1);
-    writeCosmoParams(cosmo_params, 1);
-    writeAstroParams(flag_options, astro_params, 1);
-    writeFlagOptions(flag_options, 1);
+    writeUserParams(user_params);
+    writeCosmoParams(cosmo_params);
+    writeAstroParams(flag_options, astro_params);
+    writeFlagOptions(flag_options);
 #endif
 
     // Makes the parameter structs visible to a variety of functions/macros
@@ -67,7 +65,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     
     init_ps();
 
-LOG_DEBUG("checking in");
+LOG_SUPER_DEBUG("defined parameters");
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
@@ -93,8 +91,6 @@ LOG_DEBUG("checking in");
     else {
         ZSTEP = 0.2;
     }
-
-LOG_DEBUG("checking in");
 
     fabs_dtdz = fabs(dtdz(redshift));
     t_ast = astro_params->t_STAR * t_hubble(redshift);
@@ -136,13 +132,13 @@ LOG_DEBUG("checking in");
         INIT_ERFC_INTERPOLATION = 0;
     }
 
-LOG_DEBUG("checking in");
+LOG_SUPER_DEBUG("erfc interpolation done");
 
     /////////////////////////////////   BEGIN INITIALIZATION   //////////////////////////////////
 
     // perform a very rudimentary check to see if we are underresolved and not using the linear approx
     if ((user_params->BOX_LEN > user_params->DIM) && !(global_params.EVOLVE_DENSITY_LINEARLY)){
-        printf("perturb_field.c: WARNING: Resolution is likely too low for accurate evolved density fields\n It Is recommended that you either increase the resolution (DIM/Box_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
+        LOG_WARNING("Resolution is likely too low for accurate evolved density fields\n It Is recommended that you either increase the resolution (DIM/Box_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
     }
 
     // initialize power spectrum
@@ -179,7 +175,7 @@ LOG_DEBUG("checking in");
         }
     }
 
-LOG_DEBUG("checking in");
+LOG_SUPER_DEBUG("density field calculated");
 
     // keep the unfiltered density field in an array, to save it for later
     memcpy(deltax_unfiltered_original, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -210,7 +206,7 @@ LOG_DEBUG("checking in");
         
     }
 
-LOG_DEBUG("checking in");
+LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
 
     if(!flag_options->USE_TS_FLUCT) {
         initialiseSigmaMInterpTable(M_MIN,1e20);
@@ -235,7 +231,7 @@ LOG_DEBUG("checking in");
         mean_f_coll = FgtrM_General(redshift, M_MIN);
     }
 
-LOG_DEBUG("checking in");
+LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %f", mean_f_coll);
 
     if (mean_f_coll * ION_EFF_FACTOR < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
     //        printf( "The mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll, f_coll_crit);
@@ -270,7 +266,7 @@ LOG_DEBUG("checking in");
             }
         }
 
-LOG_DEBUG("checking in");
+LOG_SUPER_DEBUG("calculated ionization fraction");
 
         if(flag_options->INHOMO_RECO) {
             for (i=0; i<user_params->HII_DIM; i++){
@@ -281,8 +277,6 @@ LOG_DEBUG("checking in");
                 }
             }
         }
-
-LOG_DEBUG("checking in");
 
         if(user_params->USE_FFTW_WISDOM) {
             // Check to see if the wisdom exists, create it if it doesn't
@@ -311,7 +305,7 @@ LOG_DEBUG("checking in");
             fftwf_execute(plan);
         }
 
-LOG_DEBUG("checking in");
+LOG_SUPER_DEBUG("FFTs performed");
 
         if(flag_options->USE_TS_FLUCT) {
             if(user_params->USE_FFTW_WISDOM) {
@@ -321,9 +315,9 @@ LOG_DEBUG("checking in");
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)xe_unfiltered, (fftwf_complex *)xe_unfiltered, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
+LOG_SUPER_DEBUG("more ffts performed");
         }
 
-LOG_DEBUG("checking in");
 
         if (flag_options->INHOMO_RECO){
             if(user_params->USE_FFTW_WISDOM) {
@@ -333,9 +327,9 @@ LOG_DEBUG("checking in");
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)N_rec_unfiltered, (fftwf_complex *)N_rec_unfiltered, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
+LOG_SUPER_DEBUG("more ffts performed");
         }
 
-LOG_DEBUG("checking in");
 
         // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from
         //  real space to k-space
@@ -357,7 +351,7 @@ LOG_DEBUG("checking in");
             }
         }
 
-LOG_DEBUG("checking in");
+LOG_SUPER_DEBUG("deltax unfiltered calculated");
 
         // ************************************************************************************* //
         // ***************** LOOP THROUGH THE FILTER RADII (in Mpc)  *************************** //
@@ -378,7 +372,7 @@ LOG_DEBUG("checking in");
             }
         }
 
-LOG_DEBUG("checking in");
+LOG_DEBUG("set max radius: %f", R);
         
         R=fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN);
         LAST_FILTER_STEP = 0;
@@ -388,7 +382,7 @@ LOG_DEBUG("checking in");
         double R_temp = (double)(astro_params->R_BUBBLE_MAX);
         
         while (!LAST_FILTER_STEP && (M_MIN < RtoM(R)) ){
-LOG_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_MIN);
+LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_MIN);
 
             // Check if we are the last filter step
             if ( ((R/(global_params.DELTA_R_HII_FACTOR) - cell_length_factor*(user_params->BOX_LEN)/(float)(user_params->HII_DIM)) <= FRACT_FLOAT_ERR) || ((R/(global_params.DELTA_R_HII_FACTOR) - R_BUBBLE_MIN) <= FRACT_FLOAT_ERR) ) {
@@ -414,8 +408,6 @@ LOG_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_MIN);
                 }
                 filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
             }
-
-LOG_DEBUG("checking in");
 
             // Perform FFTs
             if(user_params->USE_FFTW_WISDOM) {
@@ -449,7 +441,6 @@ LOG_DEBUG("checking in");
                 plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_ESTIMATE);
                 fftwf_execute(plan);
             }
-LOG_DEBUG("checking in");
 
             if (flag_options->USE_TS_FLUCT) {
                 if(user_params->USE_FFTW_WISDOM) {
@@ -470,8 +461,6 @@ LOG_DEBUG("checking in");
                 }
                 fftwf_execute(plan);
             }
-
-LOG_DEBUG("checking in");
 
             // Check if this is the last filtering scale.  If so, we don't need deltax_unfiltered anymore.
             // We will re-read it to get the real-space field, which we will use to set the residual neutral fraction
@@ -549,8 +538,6 @@ LOG_DEBUG("checking in");
             
             }
 
-LOG_DEBUG("checking in");
-
             // Determine the global averaged f_coll for the overall normalisation
                 
             // renormalize the collapse fraction so that the mean matches ST,
@@ -624,8 +611,6 @@ LOG_DEBUG("checking in");
                 }
             } //  end loop through Fcoll box
 
-LOG_DEBUG("checking in");
-
             f_coll /= (double) HII_TOT_NUM_PIXELS;
             
             // To avoid ST_over_PS becoms nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
@@ -698,7 +683,7 @@ LOG_DEBUG("checking in");
                             else if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
                                 update_in_sphere(box->xH_box, user_params->HII_DIM, R/(user_params->BOX_LEN), x/(user_params->HII_DIM+0.0), y/(user_params->HII_DIM+0.0), z/(user_params->HII_DIM+0.0));
                             else{
-                                printf( "Incorrect choice of find bubble algorithm: %i\nAborting...", global_params.FIND_BUBBLE_ALGORITHM);
+                                LOG_ERROR("Incorrect choice of find bubble algorithm: %i\nAborting...", global_params.FIND_BUBBLE_ALGORITHM);
                                 box->xH_box[HII_R_INDEX(x,y,z)] = 0;
                             }
                         } // end ionized
@@ -730,8 +715,6 @@ LOG_DEBUG("checking in");
                     } // k
                 } // j
             } // i
-
-LOG_DEBUG("checking in");
 
             global_step_xH = 0.;
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
@@ -772,20 +755,15 @@ LOG_DEBUG("checking in");
                 }
             }
         }
-
-LOG_DEBUG("checking in");
-
     }
 
-LOG_DEBUG("checking in");
+LOG_SUPER_DEBUG("finished while loop");
 
     // deallocate
     gsl_rng_free (r);
 
-    if(flag_options->OUTPUT_AVE) {
-        printf("global_xH = %e\n",global_xH);
-    }
-        
+LOG_INFO("global_xH = %e\n",global_xH);
+
     fftwf_free(deltax_unfiltered);
     fftwf_free(deltax_unfiltered_original);
     fftwf_free(deltax_filtered);
@@ -798,7 +776,7 @@ LOG_DEBUG("checking in");
         fftwf_free(N_rec_filtered);
     }
 
-LOG_DEBUG("checking in");
+LOG_SUPER_DEBUG("freed fftw boxes");
 
     free(Fcoll);
     
