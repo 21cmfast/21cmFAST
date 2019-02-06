@@ -19,7 +19,8 @@ core = mcmc.CoreCoevalModule(
     user_params=dict(HII_DIM=50, BOX_LEN=125.0),
     flag_options=dict(USE_MASS_DEPENDENT_ZETA=not OLD_PARAMETERISATION),
     do_spin_temp=True,
-    regenerate=False
+    regenerate=True,   # ensure each run is started fresh
+    initial_conditions_seed=1234  # ensure each run is exactly the same.
 )
 
 # Now the likelihood...

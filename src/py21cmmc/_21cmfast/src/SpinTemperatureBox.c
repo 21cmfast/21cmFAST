@@ -35,7 +35,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp) {
 
 LOG_DEBUG("input values:");
-LOG_DEBUG("redshift=%f, prev_redshift=%f");
+LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift, prev_redshift, perturbed_field_redshift);
 if (LOG_LEVEL >= DEBUG_LEVEL){
     writeAstroParams(flag_options, astro_params);
 }
@@ -295,7 +295,7 @@ LOG_SUPER_DEBUG("Initialised PS");
     }
     
     if (redshift > global_params.Z_HEAT_MAX){
-        
+LOG_SUPER_DEBUG("redshift greater than Z_HEAT_MAX");
         xe = xion_RECFAST(redshift,0);
         TK = T_RECFAST(redshift,0);
         

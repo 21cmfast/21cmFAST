@@ -1502,7 +1502,7 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
 
     if not perturb:
         for z in redshift:
-            perturb += [perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate, direc=direc)]
+            perturb += [perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate, write=write, direc=direc)]
 
     # Get the list of redshift we need to scroll through.
     if flag_options.INHOMO_RECO or do_spin_temp:

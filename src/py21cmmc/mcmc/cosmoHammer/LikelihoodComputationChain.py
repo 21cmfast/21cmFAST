@@ -1,12 +1,14 @@
 import warnings
 
 from cosmoHammer.ChainContext import ChainContext
+from cosmoHammer import getLogger
 from cosmoHammer.LikelihoodComputationChain import LikelihoodComputationChain as LCC
 import numpy as np
 from .util import Params
 
 from py21cmmc import ParameterError
 
+logger = getLogger()
 
 class LikelihoodComputationChain(LCC):
 
@@ -65,11 +67,13 @@ class LikelihoodComputationChain(LCC):
         that is being constrained by the MCMC process. It is mock data in the sense that it should be a
         representation of the forward-model of the MCMC.
         """
+        logger.debug("Simulating Mock Data... ")
         ctx = self.createChainContext(p)
 
         for core in self.getCoreModules():
             core.simulate_mock(ctx)
 
+        logger.debug("   finished simulating mock data.")
         return ctx
 
     def addLikelihoodModule(self, module):

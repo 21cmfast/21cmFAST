@@ -331,21 +331,46 @@ class CoreCoevalModule(CoreBase):
                 )]
             logger.info("Initialization done.")
 
+    def get_current_init_and_perturb(self, cosmo_params):
+        initial_conditions = p21.initial_conditions(
+            user_params=self.user_params,
+            cosmo_params=cosmo_params,
+            direc=self.io_options['cache_dir'],
+            regenerate=False,
+            random_seed=self.initial_conditions_seed,
+        )
+
+        perturb_field = []
+        for z in self.redshift:
+            perturb_field += [p21.perturb_field(
+                redshift=z,
+                init_boxes=initial_conditions,
+                direc=self.io_options['cache_dir'],
+                regenerate=False,
+            )]
+
+        return initial_conditions, perturb_field
+
     def build_model_data(self, ctx):
         # Update parameters
         logger.debug(f"PID={os.getpid()} Updating parameters: {ctx.getParams()}")
         astro_params, cosmo_params = self._update_params(ctx.getParams())
-
         logger.debug(f"PID={os.getpid()} AstroParams: {astro_params}")
+
+        # Explicitly get the init and perturb boxes, because we don't want to
+        # regenerate them (they will be read in *unless* we are changing
+        # cosmo or seed)
+        initial_conditions, perturb_field = self.get_current_init_and_perturb(cosmo_params)
 
         # Call C-code
         init, perturb, xHI, brightness_temp = p21.run_coeval(
             redshift=self.redshift,
             astro_params=astro_params, flag_options=self.flag_options,
-            cosmo_params=cosmo_params, user_params=self.user_params,
+            init_box=initial_conditions,
+            perturb=perturb_field,
             do_spin_temp=self.do_spin_temp,
             z_step_factor=self.z_step_factor,
-            regenerate=self.regenerate or self.change_seed_every_iter,
+            regenerate=self.regenerate,
             random_seed=self.initial_conditions_seed,
             write=self.io_options['cache_ionize'],
             direc=self.io_options['cache_dir'],
