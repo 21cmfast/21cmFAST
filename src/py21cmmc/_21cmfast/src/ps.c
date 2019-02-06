@@ -858,7 +858,9 @@ double FgtrM_General(double z, double M){
     
         lower_limit = log(M);
         upper_limit = log(FMAX(1e16, M*100));
-    
+
+LOG_DEBUG("integration range: %f to %f", lower_limit, upper_limit);
+
         gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
     
         gsl_integration_workspace_free (w);

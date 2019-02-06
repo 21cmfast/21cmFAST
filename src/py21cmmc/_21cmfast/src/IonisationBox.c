@@ -212,13 +212,15 @@ LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
     if(!flag_options->USE_TS_FLUCT) {
         initialiseSigmaMInterpTable(M_MIN,1e20);
     }
-    
+
+LOG_SUPER_DEBUG("sigma table has been initialised");
+
     // check for WDM
 
     if (global_params.P_CUTOFF && ( M_MIN < M_J_WDM())){
-        printf( "The default Jeans mass of %e Msun is smaller than the scale supressed by the effective pressure of WDM.\n", M_MIN);
+        LOG_WARNING("The default Jeans mass of %e Msun is smaller than the scale supressed by the effective pressure of WDM.", M_MIN);
         M_MIN = M_J_WDM();
-        printf( "Setting a new effective Jeans mass from WDM pressure supression of %e Msun\n", M_MIN);
+        LOG_WARNING("Setting a new effective Jeans mass from WDM pressure supression of %e Msun", M_MIN);
     }
 
     // lets check if we are going to bother with computing the inhmogeneous field at all...

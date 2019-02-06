@@ -34,6 +34,12 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                   float perturbed_field_redshift,
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp) {
 
+LOG_DEBUG("input values:");
+LOG_DEBUG("redshift=%f, prev_redshift=%f");
+if (LOG_LEVEL >= DEBUG_LEVEL){
+    writeAstroParams(flag_options, astro_params);
+}
+
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
@@ -97,9 +103,12 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
     // Initialise arrays to be used for the Ts.c computation //
     fftwf_complex *box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    
+
+LOG_SUPER_DEBUG("initialized");
+
     if(!TsInterpArraysInitialised) {
-        
+LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
+
         // Grids/arrays that only need to be initialised once (i.e. the lowest redshift density cube to be sampled)
         
         zpp_edge = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
@@ -228,6 +237,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         zpp_for_evolve_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
         
         TsInterpArraysInitialised = true;
+LOG_SUPER_DEBUG("initalised Ts Interp Arrays");
     }
     
     ///////////////////////////////  BEGIN INITIALIZATION   //////////////////////////////
@@ -261,7 +271,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
     }
     
     init_ps();
-    
+
+LOG_SUPER_DEBUG("Initialised PS");
+
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
     }
@@ -271,11 +283,15 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
     
     // Initialize some interpolation tables
     if(this_spin_temp->first_box || (fabs(initialised_redshift - perturbed_field_redshift) > 0.0001) ) {
+        LOG_SUPER_DEBUG("About to initialise heat");
         init_heat();
-        
+        LOG_SUPER_DEBUG("Initialised heat");
+
         if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
             initialiseSigmaMInterpTable(M_MIN,1e20);
         }
+        LOG_SUPER_DEBUG("Initialised sigmaM interp table");
+
     }
     
     if (redshift > global_params.Z_HEAT_MAX){
@@ -303,13 +319,15 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             
             initialiseSigmaMInterpTable(M_MIN,1e20);
         }
-        
+LOG_SUPER_DEBUG("Initialised Sigma interp table");
+
     }
     else {
-        
+LOG_SUPER_DEBUG("redshift less than Z_HEAT_MAX");
         // Flag is set for previous spin temperature box as a previous spin temperature box must be passed, which makes it the initial condition
         if(this_spin_temp->first_box) {
-           
+LOG_SUPER_DEBUG("Treating as the first box");
+
             // set boundary conditions for the evolution equations->  values of Tk and x_e at Z_HEAT_MAX
             if (global_params.XION_at_Z_HEAT_MAX > 0) // user has opted to use his/her own value
                 xe_BC = global_params.XION_at_Z_HEAT_MAX;
@@ -343,7 +361,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         R = L_FACTOR*user_params->BOX_LEN/(float)user_params->HII_DIM;
         R_factor = pow(global_params.R_XLy_MAX/R, 1/((float)global_params.NUM_FILTER_STEPS_FOR_Ts));
         //      R_factor = pow(E, log(HII_DIM)/(float)NUM_FILTER_STEPS_FOR_Ts);
-        
+LOG_SUPER_DEBUG("Looping through R");
+
         if(this_spin_temp->first_box || (fabs(initialised_redshift - perturbed_field_redshift) > 0.0001) ) {
         
             // allocate memory for the nonlinear density field
@@ -502,7 +521,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             
             } //end for loop through the filter scales R
         }
-        
+
+LOG_SUPER_DEBUG("Finished loop through filter scales R");
+
         zp = perturbed_field_redshift*1.0001; //higher for rounding
         if(zp > global_params.Z_HEAT_MAX) {
             prev_zp = ((1+zp)/ global_params.ZPRIME_STEP_FACTOR - 1);
@@ -546,7 +567,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             
             initialiseSigmaMInterpTable(M_MIN,1e20);
         }
-        
+
+LOG_SUPER_DEBUG("Initialised sigma interp table");
+
         zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0);
         
         dens_width = 1./((double)dens_Ninterp - 1.);
@@ -640,7 +663,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             
             initialised_redshift = perturbed_field_redshift;
         }
-        
+
+LOG_SUPER_DEBUG("got density gridpoints");
+
         if(flag_options->USE_MASS_DEPENDENT_ZETA) {
             /* generate a table for interpolation of the collapse fraction with respect to the X-ray heating, as functions of
              filtering scale, redshift and overdensity.
@@ -664,7 +689,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             initialise_SFRD_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,max_densities,zpp_growth,R_values, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
             
         }
-        
+
+LOG_SUPER_DEBUG("Initialised SFRD table");
+
         zp = redshift;
         prev_zp = prev_redshift;
         
@@ -714,6 +741,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // far edge of the dz'' filtering shells
         // and the corresponding minimum halo scale, sigma_Tmin,
         // as well as an array of the frequency integrals
+LOG_SUPER_DEBUG("beginning loop over R_ct");
+
         for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
             if (R_ct==0){
                 prev_zpp = zp;
@@ -809,7 +838,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             }
             
         } // end loop over R_ct filter steps
-        
+
+LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
+
         fcoll_interp_high_min = global_params.CRIT_DENS_TRANSITION;
         fcoll_interp_high_bin_width = 1./((float)NSFR_high-1.)*(Deltac - fcoll_interp_high_min);
         fcoll_interp_high_bin_width_inv = 1./fcoll_interp_high_bin_width;
@@ -892,7 +923,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 
             }
         }
-        
+
+LOG_SUPER_DEBUG("looping over box...");
+
         // Main loop over the entire box for the IGM spin temperature and relevant quantities.
         if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         
@@ -1248,7 +1281,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 x_e_ave += x_e;
             }
         }
-        
+
+LOG_SUPER_DEBUG("finished loop");
+
         /////////////////////////////  END LOOP ////////////////////////////////////////////
         // compute new average values
         x_e_ave /= (double)HII_TOT_NUM_PIXELS;

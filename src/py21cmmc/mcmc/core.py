@@ -336,6 +336,8 @@ class CoreCoevalModule(CoreBase):
         logger.debug(f"PID={os.getpid()} Updating parameters: {ctx.getParams()}")
         astro_params, cosmo_params = self._update_params(ctx.getParams())
 
+        logger.debug(f"PID={os.getpid()} AstroParams: {astro_params}")
+
         # Call C-code
         init, perturb, xHI, brightness_temp = p21.run_coeval(
             redshift=self.redshift,
