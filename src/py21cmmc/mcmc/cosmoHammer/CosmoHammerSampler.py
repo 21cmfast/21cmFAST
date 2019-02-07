@@ -8,10 +8,12 @@ the output file structure looks quite different for these versions.
 import logging
 import time
 
+import emcee
 import numpy as np
 from cosmoHammer import CosmoHammerSampler as CHS, getLogger
+
 from py21cmmc.mcmc.ensemble import EnsembleSampler
-import emcee
+
 
 class CosmoHammerSampler(CHS):
     def __init__(self, likelihoodComputationChain, continue_sampling=False, log_level_stream=logging.ERROR,
@@ -113,7 +115,7 @@ class CosmoHammerSampler(CHS):
         """
         if self.isMaster(): self.log("Using emcee " + str(emcee.__version__))
         return EnsembleSampler(
-            pmin = self.likelihoodComputationChain.min, pmax = self.likelihoodComputationChain.max,
+            pmin=self.likelihoodComputationChain.min, pmax=self.likelihoodComputationChain.max,
             nwalkers=self.nwalkers, dim=self.paramCount, lnpostfn=callable, threads=self.threadCount, **kwargs
         )
 

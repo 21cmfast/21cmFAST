@@ -11,14 +11,15 @@ THREADS = 8
 WALK_RATIO = 2
 ITER = 1
 BURN = 0
-OLD_PARAMETERISATION = False
+OLD_PARAMETERISATION = True
 # ===================================
 
 core = mcmc.CoreCoevalModule(
     redshift=[9],
     user_params=dict(HII_DIM=50, BOX_LEN=125.0),
     flag_options=dict(USE_MASS_DEPENDENT_ZETA=not OLD_PARAMETERISATION),
-    do_spin_temp=True,
+    do_spin_temp=False,
+    z_step_factor=1.2,
     regenerate=True,   # ensure each run is started fresh
     initial_conditions_seed=1234  # ensure each run is exactly the same.
 )
@@ -29,7 +30,7 @@ power_spec = mcmc.Likelihood1DPowerCoeval(
     datafile=datafiles,
     noisefile=None,
     logk=False, min_k=0.1, max_k=1.0,
-    simulate=True
+    simulate=False
 )
 
 # OLD PARAMATRISATION - for code development and proof of concepts

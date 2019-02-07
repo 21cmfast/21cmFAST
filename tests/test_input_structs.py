@@ -6,7 +6,7 @@ import pickle
 
 import pytest
 
-from py21cmmc import CosmoParams, UserParams, AstroParams  # An example of a struct with defaults
+from py21cmmc import CosmoParams, UserParams, AstroParams, FlagOptions  # An example of a struct with defaults
 
 
 @pytest.fixture(scope="module")
@@ -119,3 +119,8 @@ def test_update_inhomo_reco(caplog):
     ap.R_BUBBLE_MAX
 
     assert msg in caplog.text
+
+
+def test_mmin():
+    fo = FlagOptions(USE_MASS_DEPENDENT_ZETA=True)
+    assert fo.M_MIN_in_Mass
