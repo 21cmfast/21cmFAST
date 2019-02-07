@@ -263,6 +263,7 @@ class FlagOptions(StructWithDefaults):
         M_MIN_in_Mass=False,
     )
 
+    @property
     def M_MIN_in_Mass(self):
         if self.USE_MASS_DEPENDENT_ZETA:
             return True

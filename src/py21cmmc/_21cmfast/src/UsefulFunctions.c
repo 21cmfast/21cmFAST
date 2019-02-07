@@ -204,7 +204,7 @@ double RtoM(double R){
  SUPRESS = 1 for supression (step function at z=z_ss, at v=v_zz)
  */
 float TtoM(float z, float T, float mu){
-    return 7030.97 / (cosmo_params_ufunc->hlittle) * sqrt( omega_mz(z) / (cosmo_params_ufunc->OMm*Deltac_nonlinear(z)) ) *
+    return 7030.97 / (cosmo_params_ufunc->hlittle) * sqrt( omega_mz(z) / (cosmo_params_ufunc->OMm*Deltac_nonlinear(z))) *
     pow( T/(mu * (1+z)), 1.5 );
     /*  if (!SUPRESS || (z >= z_re) ) // pre-reionization or don't worry about supression
      return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
@@ -543,12 +543,12 @@ void writeCosmoParams(struct CosmoParams *p){
 void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p){
 
     if(fo->USE_MASS_DEPENDENT_ZETA) {
-        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, F_ESC10=%f, ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%f, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, F_STAR=%f, N_RSD_STEPS=%f]",
+        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, F_ESC10=%f, ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%e, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, F_STAR=%f, N_RSD_STEPS=%f]",
              p->HII_EFF_FACTOR, p->ALPHA_STAR, p->F_ESC10, p->ALPHA_ESC, p->M_TURN,
              p->R_BUBBLE_MAX, p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->t_STAR, p->N_RSD_STEPS);
     }
     else {
-        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ION_Tvir_MIN=%f, X_RAY_Tvir_MIN=%f, R_BUBBLE_MAX=%f, L_X=%f, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, F_STAR=%f, N_RSD_STEPS=%f]",
+        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ION_Tvir_MIN=%f, X_RAY_Tvir_MIN=%f, R_BUBBLE_MAX=%f, L_X=%e, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, F_STAR=%f, N_RSD_STEPS=%f]",
              p->HII_EFF_FACTOR, p->ION_Tvir_MIN, p->X_RAY_Tvir_MIN,
              p->R_BUBBLE_MAX, p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->t_STAR, p->N_RSD_STEPS);
     }

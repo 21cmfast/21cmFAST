@@ -4,8 +4,9 @@ A module providing Core Modules for cosmoHammer. This is the basis of the plugin
 import copy
 import inspect
 import logging
-import warnings
 import os
+import warnings
+
 import py21cmmc as p21
 
 logger = logging.getLogger("21CMMC")
@@ -22,8 +23,10 @@ class NotAChain(AttributeError):
         default_message = 'this Core or Likelihood must be part of a LikelihoodComputationChain to enable this method/attribute!'
         super().__init__(default_message)
 
+
 class AlreadySetupError(Exception):
     pass
+
 
 class ModuleBase:
     extra_defining_attributes = []  # extra attributes (in addition to those passed to init) that define equality
@@ -103,7 +106,8 @@ class CoreBase(ModuleBase):
                     break
                 if core.__class__.__name__ == self.__class__.__name__:
                     raise ValueError(
-                        "{this} requires {that} to be loaded.".format(this=self.__class__.__name__, that=rc.__class__.__name__))
+                        "{this} requires {that} to be loaded.".format(this=self.__class__.__name__,
+                                                                      that=rc.__class__.__name__))
 
     def prepare_storage(self, ctx, storage):
         """Add variables to special dict which cosmoHammer will automatically store with the chain."""

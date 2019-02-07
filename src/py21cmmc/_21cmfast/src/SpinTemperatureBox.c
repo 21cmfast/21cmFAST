@@ -300,7 +300,9 @@ LOG_SUPER_DEBUG("redshift greater than Z_HEAT_MAX");
         TK = T_RECFAST(redshift,0);
         
         growth_factor_zp = dicke(redshift);
-        
+
+LOG_SUPER_DEBUG("growth factor zp = %f", growth_factor_zp);
+
         // read file
         for (i=0; i<user_params->HII_DIM; i++){
             for (j=0; j<user_params->HII_DIM; j++){
@@ -313,10 +315,12 @@ LOG_SUPER_DEBUG("redshift greater than Z_HEAT_MAX");
                 }
             }
         }
-        
+
+LOG_SUPER_DEBUG("read in file");
+
         if(!flag_options->M_MIN_in_Mass) {
             M_MIN = TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
-            
+LOG_DEBUG("Attempting to initialise sigmaM table with M_MIN=%e, Tvir_MIN=%e, mu=%e", M_MIN, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
             initialiseSigmaMInterpTable(M_MIN,1e20);
         }
 LOG_SUPER_DEBUG("Initialised Sigma interp table");
