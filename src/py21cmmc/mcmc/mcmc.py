@@ -1,7 +1,7 @@
 from os import path, mkdir
 import yaml
 from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, Params
-
+import logging
 from concurrent.futures import ProcessPoolExecutor
 
 def build_computation_chain(core_modules, likelihood_modules, params=None, setup=True):
@@ -43,6 +43,7 @@ def build_computation_chain(core_modules, likelihood_modules, params=None, setup
 def run_mcmc(core_modules, likelihood_modules, params,
              datadir='.', model_name='21CMMC',
              continue_sampling=True, reuse_burnin=True,
+             log_level_21CMMC = None,
              **mcmc_options):
     """
 
@@ -69,12 +70,23 @@ def run_mcmc(core_modules, likelihood_modules, params,
     reuse_burnin : bool, optional
         If a pre-computed chain file is found, and `continue_sampling=False`, setting `reuse_burnin` will salvage
         the burnin part of the chain for re-use, but re-compute the samples themselves.
+    log_level_mcmc : (int or str, optional)
+        The logging level of the cosmoHammer log file.
+        for details. This setting affects only the file output by the MCMC run.
+    log_level_mcmc_stream : (int or str, optional)
+        The logging level of the stdout/stderr stream from cosmoHammer. This has the same output as the cosmoHammer
+        log file, but is printed to screen. See `log_level_mcmc` for input specifications.
+    log_level_21CMMC : (int or str, optional)
+        The logging level of the 21cmFAST Python code (specifically the "21CMMC" logging object). By default, this
+        logger has only a stdout handler. See https://docs.python.org/3/library/logging.html#logging-levels
+
 
     Other Parameters
     ----------------
     All other parameters are passed directly to :class:`~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler.CosmoHammerSampler`.
     These include important options such as `walkersRatio` (the number of walkers is ``walkersRatio*nparams``),
-    `sampleIterations`, `burninIterations`, `pool` and `threadCount`.
+    `sampleIterations`, `burninIterations`, `pool` and `threadCount`. It also contains `logLevel` and `log_level_stream`,
+    which set the logging levels for the file and stream handlers of cosmoHammer respectively.
 
     Returns
     -------
@@ -108,6 +120,10 @@ def run_mcmc(core_modules, likelihood_modules, params,
     # Before setup, write out the parameters.
     with open(file_prefix+".LCC.yml", 'w') as f:
         yaml.dump(chain, f)
+
+    # Set logging levels
+    if log_level_21CMMC is not None:
+        logging.getLogger("21CMMC").setLevel(log_level_21CMMC)
 
     sampler = CosmoHammerSampler(
         continue_sampling=continue_sampling,

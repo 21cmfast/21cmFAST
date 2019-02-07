@@ -1,7 +1,6 @@
 
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
 
-
 // Grids/arrays that only need to be initialised once (i.e. the lowest redshift density cube to be sampled)
 double ***fcoll_R_grid, ***dfcoll_dz_grid;
 double **grid_dens, **density_gridpoints;
@@ -99,7 +98,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     float M_MIN_at_zp;
     
     int NO_LIGHT = 0;
-    
+
     // Initialise arrays to be used for the Ts.c computation //
     fftwf_complex *box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);

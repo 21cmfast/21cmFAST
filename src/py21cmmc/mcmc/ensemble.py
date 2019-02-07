@@ -75,7 +75,7 @@ class EnsembleSampler(emcee.EnsembleSampler):
                 """.format(max_attempts=self.max_attempts)
             )
 
-        logger.info(f"New Positions: {q}")
+        logger.info(f"New Positions: {q.tolist()}")
 
         newlnprob, blob = self._get_lnprob(q)
 
