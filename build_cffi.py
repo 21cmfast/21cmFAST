@@ -20,7 +20,8 @@ else:
 log_level = os.environ.get("LOG_LEVEL", 3 if "DEBUG" in os.environ else 1)
 available_levels = ["NONE","ERROR", "WARNING", "INFO", "DEBUG", "SUPER_DEBUG", "ULTRA_DEBUG"]
 
-if log_level.upper() in available_levels:
+
+if isinstance(log_level, str) and log_level.upper() in available_levels:
     log_level = available_levels.index(log_level.upper())
 
 try:
