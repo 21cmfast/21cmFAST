@@ -106,7 +106,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
-                       int do_spin_temp, struct TsBox *spin_temp, struct IonizedBox *box);
+                       struct TsBox *spin_temp, struct IonizedBox *box);
 
 int ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                            struct AstroParams *astro_params, struct FlagOptions *flag_options,

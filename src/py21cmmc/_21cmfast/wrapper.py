@@ -893,7 +893,7 @@ def perturb_field(*, redshift, init_boxes=None, user_params=None, cosmo_params=N
 def ionize_box(*, astro_params=None, flag_options=None,
                redshift=None, perturbed_field=None,
                previous_ionize_box=None, z_step_factor=global_params.ZPRIME_STEP_FACTOR, z_heat_max=None,
-               do_spin_temp=False, spin_temp=None,
+               spin_temp=None,
                init_boxes=None, cosmo_params=None, user_params=None,
                regenerate=False, write=True, direc=None, random_seed=None):
     """
@@ -936,9 +936,6 @@ def ionize_box(*, astro_params=None, flag_options=None,
         The maximum redshift at which to search for heating sources. Practically, this defines the limit in redshift
         at which the spin temperature can be defined purely from the background perturbed field rather than by evolving
         from a previous spin temperature field. Default is the global parameter `Z_HEAT_MAX`.
-
-    do_spin_temp: bool, optional
-        Whether to use the spin temperature.
 
     spin_temp: :class:`TsBox` or None, optional
         A spin-temperature box, only required if `do_spin_temp` is True.
@@ -986,35 +983,36 @@ def ionize_box(*, astro_params=None, flag_options=None,
 
     However, if either of those options are true, then a full evolution will be required:
 
-    >>> xHI = ionize_box(redshift=7.0, do_spin_temp=True, flag_options=FlagOptions(INHOMO_RECO=True))
+    >>> xHI = ionize_box(redshift=7.0, flag_options=FlagOptions(INHOMO_RECO=True, USE_TS_FLUCT=True))
 
     This will by default evolve the field from a redshift of *at least* `Z_HEAT_MAX` (a global parameter), in logarithmic
     steps of `z_step_factor`. Thus to change these:
 
-    >>> xHI = ionize_box(redshift=7.0, z_step_factor=1.2, z_heat_max=15.0, do_spin_temp=True)
+    >>> xHI = ionize_box(redshift=7.0, z_step_factor=1.2, z_heat_max=15.0, flag_options={"USE_TS_FLUCT":True})
 
     Alternatively, one can pass an exact previous redshift, which will be sought in the disk cache, or evaluated:
 
-    >>> ts_box = ionize_box(redshift=7.0, previous_ionize_box=8.0, do_spin_temp=True)
+    >>> ts_box = ionize_box(redshift=7.0, previous_ionize_box=8.0, flag_options={"USE_TS_FLUCT":True})
 
     Beware that doing this, if the previous box is not found on disk, will continue to evaluate prior boxes based on the
     `z_step_factor`. Alternatively, one can pass a previous :class:`~IonizedBox`:
 
-    >>> xHI_0 = ionize_box(redshift=8.0, do_spin_temp=True)
-    >>> xHI = ionize_box(redshift=7.0, previous_ionize_box=xHI_0, do_spin_temp=True)
+    >>> xHI_0 = ionize_box(redshift=8.0, flag_options={"USE_TS_FLUCT":True})
+    >>> xHI = ionize_box(redshift=7.0, previous_ionize_box=xHI_0)
 
     Again, the first line here will implicitly use `z_step_factor` to evolve the field from ~`Z_HEAT_MAX`. Note that
-    in the second line, all of the input parameters are taken directly from `xHI_0` so that they are consistent.
+    in the second line, all of the input parameters are taken directly from `xHI_0` so that they are consistent, and
+    we need not specify the ``flag_options``.
     Finally, one can force the function to evaluate the current redshift as if it was beyond Z_HEAT_MAX so that it
     depends only on itself:
 
-    >>> xHI = ionize_box(redshift=7.0, z_step_factor=None, do_spin_temp=True)
+    >>> xHI = ionize_box(redshift=7.0, z_step_factor=None, flag_options={"USE_TS_FLUCT":True})
 
     This is usually a bad idea, and will give a warning, but it is possible.
 
     As the function recursively evaluates previous redshift, the previous spin temperature fields will also be
     consistently recursively evaluated. Only the final ionized box will actually be returned and kept in memory, however
-    intervening results will by default be cached on disk. One can also pass an explicit spin temperature obj:
+    intervening results will by default be cached on disk. One can also pass an explicit spin temperature object:
 
     >>> ts = spin_temperature(redshift=7.0)
     >>> xHI = ionize_box(redshift=7.0, spin_temp=ts)
@@ -1039,10 +1037,8 @@ def ionize_box(*, astro_params=None, flag_options=None,
     flag_options = FlagOptions(flag_options)
     astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
-    if spin_temp is not None or flag_options.USE_TS_FLUCT:
-        do_spin_temp = True
-
-    if do_spin_temp:
+    if spin_temp is not None and not flag_options.USE_TS_FLUCT:
+        logger.warning("Changing flag_options.USE_TS_FLUCT to True since spin_temp was passed.")
         flag_options.USE_TS_FLUCT = True
 
     # Set the upper limit on redshift at which we require a previous spin temp box.
@@ -1070,7 +1066,7 @@ def ionize_box(*, astro_params=None, flag_options=None,
     # EVERYTHING PAST THIS POINT ONLY HAPPENS IF THE BOX DOESN'T ALREADY EXIST
     # ------------------------------------------------------------------------
     # Get the previous redshift
-    if flag_options.INHOMO_RECO or do_spin_temp:
+    if flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
 
         if previous_ionize_box is not None:
             prev_z = previous_ionize_box.redshift
@@ -1111,7 +1107,6 @@ def ionize_box(*, astro_params=None, flag_options=None,
             previous_ionize_box = ionize_box(
                 astro_params=astro_params, flag_options=flag_options, redshift=prev_z,
                 z_step_factor=z_step_factor, z_heat_max=z_heat_max,
-                do_spin_temp=do_spin_temp,
                 init_boxes=init_boxes, regenerate=regenerate, write=write, direc=direc,
             )
 
@@ -1125,11 +1120,13 @@ def ionize_box(*, astro_params=None, flag_options=None,
         )
 
     # Set empty spin temp box if necessary.
-    if not do_spin_temp:
+    if not flag_options.USE_TS_FLUCT:
         spin_temp = TsBox(redshift=0)
     elif spin_temp is None:
         spin_temp = spin_temperature(
-            perturbed_field=perturbed_field, previous_spin_temp=prev_z,
+            perturbed_field=perturbed_field,
+            z_step_factor = z_step_factor,
+            z_heat_max = z_heat_max,
             flag_options=flag_options,
             init_boxes=init_boxes,
             direc=direc, write=write, regenerate=regenerate
@@ -1139,7 +1136,7 @@ def ionize_box(*, astro_params=None, flag_options=None,
     return _call_c_func(
         lib.ComputeIonizedBox, box, direc,
         redshift, previous_ionize_box.redshift, box.user_params, box.cosmo_params, box.astro_params, box.flag_options,
-        perturbed_field, previous_ionize_box, do_spin_temp, spin_temp,
+        perturbed_field, previous_ionize_box, spin_temp,
         write=write
     )
 
@@ -1425,7 +1422,7 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
 
 
 def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_params=None,
-               flag_options=None, do_spin_temp=False, regenerate=False, write=True, direc=None,
+               flag_options=None, regenerate=False, write=True, direc=None,
                z_step_factor=global_params.ZPRIME_STEP_FACTOR, z_heat_max=None, init_box=None, perturb=None,
                use_interp_perturb_field=False,
                random_seed=None):
@@ -1453,8 +1450,6 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
         The astrophysical parameters defining the course of reionization.
     flag_options: :class:`~FlagOptions`, optional
         Some options passed to the reionization routine.
-    do_spin_temp: bool, optional
-        Whether to use spin temperature in the calculation, or assume the saturated limit.
     z_step_factor: float, optional
         How large the logarithmic steps between redshift are (if required).
     z_heat_max: float, optional
@@ -1507,11 +1502,6 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
     flag_options = FlagOptions(flag_options)
     astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
-    if do_spin_temp:
-        flag_options.USE_TS_FLUCT = True
-    if flag_options.USE_TS_FLUCT:
-        do_spin_temp = True
-
     if redshift is None and perturb is None:
         raise ValueError("Either redshift or perturb must be given")
 
@@ -1543,7 +1533,7 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
             perturb += [perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate, write=write, direc=direc)]
 
     # Get the list of redshift we need to scroll through.
-    if flag_options.INHOMO_RECO or do_spin_temp:
+    if flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
         redshifts = _logscroll_redshifts(min(redshift), global_params.ZPRIME_STEP_FACTOR, global_params.Z_HEAT_MAX)
     else:
         redshifts = [min(redshift)]
@@ -1564,7 +1554,7 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
     # Iterate through redshift from top to bottom
     for z in redshifts:
 
-        if do_spin_temp:
+        if flag_options.USE_TS_FLUCT:
             logger.debug("PID={} doing spin temp for z={}".format(os.getpid(), z))
             st2 = spin_temperature(
                 redshift=z,
@@ -1588,7 +1578,7 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
             perturbed_field=perturb[redshift.index(z)] if z in redshift else None,
             # perturb field *not* interpolated here.
             astro_params=astro_params, flag_options=flag_options,
-            spin_temp=st2 if do_spin_temp else None,
+            spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
             regenerate=regenerate, z_heat_max=global_params.Z_HEAT_MAX,
             write=write, direc=direc,
         )
@@ -1599,7 +1589,7 @@ def run_coeval(*, redshift=None, user_params=None, cosmo_params=None, astro_para
             logger.debug("PID={} doing brightness temp for z={}".format(os.getpid(), z))
             ib_tracker[redshift.index(z)] = ib2
             bt[redshift.index(z)] = brightness_temperature(ionized_box=ib2, perturbed_field=perturb[redshift.index(z)],
-                                                           spin_temp=st2 if do_spin_temp else None)
+                                                           spin_temp=st2 if flag_options.USE_TS_FLUCT else None)
 
     # If a single redshift was passed, then pass back singletons.
     if singleton:
@@ -1658,7 +1648,7 @@ class LightCone:
 
 
 def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_params=None,
-                  astro_params=None, flag_options=None, do_spin_temp=False, regenerate=False, write=True,
+                  astro_params=None, flag_options=None, regenerate=False, write=True,
                   direc=None, z_step_factor=global_params.ZPRIME_STEP_FACTOR, z_heat_max=None, init_box=None,
                   perturb=None, random_seed=None,
                   use_interp_perturb_field=False):
@@ -1682,9 +1672,7 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
     cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
     flag_options: :class:`~FlagOptions`, optional
-        Some options passed to the reionization routine.
-    do_spin_temp: bool, optional
-        Whether to use spin temperature in the calculation, or assume the saturated limit.
+        Options concerning how the reionization process is run, eg. if spin temperature fluctuations are required.
     z_step_factor: float, optional
         How large the logarithmic steps between redshift are (if required).
     z_heat_max: float, optional
@@ -1738,7 +1726,7 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
         perturb = perturb_field(redshift=redshift, init_boxes=init_box, regenerate=regenerate, direc=direc)
 
     max_redshift = global_params.Z_HEAT_MAX if (
-            flag_options.INHOMO_RECO or do_spin_temp or max_redshift is None) else max_redshift
+            flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT or max_redshift is None) else max_redshift
 
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = _logscroll_redshifts(redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift)
@@ -1763,7 +1751,7 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
         this_perturb = perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
                                      direc=direc)
 
-        if do_spin_temp:
+        if flag_options.USE_TS_FLUCT:
             st2 = spin_temperature(
                 redshift=z,
                 previous_spin_temp=st,
@@ -1780,14 +1768,14 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
             init_boxes=init_box,
             perturbed_field=this_perturb,
             astro_params=astro_params, flag_options=flag_options,
-            spin_temp=st2 if do_spin_temp else None,
+            spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
             regenerate=regenerate,
             z_heat_max=global_params.Z_HEAT_MAX, z_step_factor=z_step_factor,
             write=write, direc=direc
         )
 
         bt2 = brightness_temperature(ionized_box=ib2, perturbed_field=this_perturb,
-                                     spin_temp=st2 if do_spin_temp else None)
+                                     spin_temp=st2 if flag_options.USE_TS_FLUCT else None)
 
         # Save mean/global quantities
         neutral_fraction[iz] = np.mean(ib2.xH_box)
@@ -1816,7 +1804,7 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
             box_index += n
 
         # Save current ones as old ones.
-        if do_spin_temp: st = st2
+        if flag_options.USE_TS_FLUCT: st = st2
         ib = ib2
         bt = bt2
 

@@ -8,10 +8,10 @@ double *ERFC_VALS, *ERFC_VALS_DIFF;
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
-                       int do_spin_temp, struct TsBox *spin_temp, struct IonizedBox *box) {
+                       struct TsBox *spin_temp, struct IonizedBox *box) {
 
 LOG_DEBUG("input values:");
-LOG_DEBUG("redshift=%f, prev_redshift=%f, do_spin_temp=%d", redshift, prev_redshift, do_spin_temp);
+LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 #if LOG_LEVEL >= DEBUG_LEVEL
     writeUserParams(user_params);
     writeCosmoParams(cosmo_params);
