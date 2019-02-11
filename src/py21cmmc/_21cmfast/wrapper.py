@@ -94,12 +94,14 @@ redshift that are actually evaluated, which are then interpolated onto the light
 >>> lightcone = p21.run_lightcone(redshift=z2, max_redshift=z2, z_step_factor=1.03)
 """
 import logging
-from os import path
 import os
+from os import path
+
 import numpy as np
 import yaml
 from astropy import units
 from astropy.cosmology import Planck15, z_at_value
+from cached_property import cached_property
 
 from ._21cmfast import ffi, lib
 from ._utils import StructWithDefaults, OutputStruct as _OS, StructInstanceWrapper, StructWrapper
@@ -495,6 +497,13 @@ class IonizedBox(_OutputStructZ):
         self.z_re_box.shape = shape
         self.dNrec_box.shape = shape
 
+    @cached_property
+    def global_xH(self):
+        if not self.filled:
+            raise AttributeError("global_xH is not defined until the ionization calculation has been performed")
+        else:
+            return np.mean(self.xH_box)
+
 
 class TsBox(IonizedBox):
     """A class containing all spin temperature boxes"""
@@ -508,6 +517,27 @@ class TsBox(IonizedBox):
         self.x_e_box.shape = (self.user_params.HII_DIM, self.user_params.HII_DIM, self.user_params.HII_DIM)
         self.Tk_box.shape = (self.user_params.HII_DIM, self.user_params.HII_DIM, self.user_params.HII_DIM)
 
+    @cached_property
+    def global_Ts(self):
+        if not self.filled:
+            raise AttributeError("global_Ts is not defined until the ionization calculation has been performed")
+        else:
+            return np.mean(self.Ts_box)
+
+    @cached_property
+    def global_Tk(self):
+        if not self.filled:
+            raise AttributeError("global_Tk is not defined until the ionization calculation has been performed")
+        else:
+            return np.mean(self.Tk_box)
+
+    @cached_property
+    def global_x_e(self):
+        if not self.filled:
+            raise AttributeError("global_x_e is not defined until the ionization calculation has been performed")
+        else:
+            return np.mean(self.x_e_box)
+
 
 class BrightnessTemp(IonizedBox):
     """A class containing the brightness temperature box."""
@@ -516,6 +546,13 @@ class BrightnessTemp(IonizedBox):
         self.brightness_temp = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
         self.brightness_temp.shape = (self.user_params.HII_DIM, self.user_params.HII_DIM, self.user_params.HII_DIM)
+
+    @cached_property
+    def global_Tb(self):
+        if not self.filled:
+            raise AttributeError("global_Tb is not defined until the ionization calculation has been performed")
+        else:
+            return np.mean(self.brightness_temp)
 
 
 # ======================================================================================================================
@@ -576,7 +613,7 @@ def configure_inputs(defaults, *datasets, ignore=['redshift'], flag_none=None):
             elif data_val is not None:
                 output[i] = data_val
             elif key in flag_none:
-                raise ValueError("For %s, a value must be provided in some manner"%key)
+                raise ValueError("For %s, a value must be provided in some manner" % key)
             else:
                 output[i] = None
 
@@ -669,8 +706,8 @@ def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
         raise ValueError("redshifts and global_xHI must have same length")
 
     # Convert the data to the right type
-    redshifts = np.array(redshifts,dtype='float32')
-    global_xHI = np.array(global_xHI,dtype='float32')
+    redshifts = np.array(redshifts, dtype='float32')
+    global_xHI = np.array(global_xHI, dtype='float32')
 
     z = ffi.cast("float *", ffi.from_buffer(redshifts))
     xHI = ffi.cast("float *", ffi.from_buffer(global_xHI))
@@ -686,9 +723,9 @@ def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_pa
     astro_params = AstroParams(astro_params)
     flag_options = FlagOptions(flag_options)
 
-    lfunc = np.zeros(len(redshifts)*nbins)
-    Muvfunc = np.zeros(len(redshifts)*nbins)
-    Mhfunc = np.zeros(len(redshifts)*nbins)
+    lfunc = np.zeros(len(redshifts) * nbins)
+    Muvfunc = np.zeros(len(redshifts) * nbins)
+    Mhfunc = np.zeros(len(redshifts) * nbins)
     c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
     c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
     c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))

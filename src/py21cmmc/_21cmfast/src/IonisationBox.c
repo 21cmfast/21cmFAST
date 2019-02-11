@@ -735,13 +735,16 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
         }
      
         // find the neutral fraction
-        global_xH = 0;
-        
-        for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
-            global_xH += box->xH_box[ct];
+        if(LOG_LEVEL >= DEBUG_LEVEL){
+            global_xH = 0;
+
+            for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
+                global_xH += box->xH_box[ct];
+            }
+            global_xH /= (float)HII_TOT_NUM_PIXELS;
+
         }
-        global_xH /= (float)HII_TOT_NUM_PIXELS;
-        
+
         // update the N_rec field
         if (flag_options->INHOMO_RECO){
             
@@ -760,12 +763,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
         }
     }
 
-LOG_SUPER_DEBUG("finished while loop");
-
     // deallocate
     gsl_rng_free (r);
 
-LOG_INFO("global_xH = %e\n",global_xH);
+LOG_DEBUG("global_xH = %e",global_xH);
 
     fftwf_free(deltax_unfiltered);
     fftwf_free(deltax_unfiltered_original);

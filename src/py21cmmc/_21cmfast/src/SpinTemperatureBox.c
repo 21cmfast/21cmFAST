@@ -1138,12 +1138,14 @@ LOG_SUPER_DEBUG("looping over box...");
                             
                         this_spin_temp->Ts_box[box_ct] = TS_fast;
 
-                        J_alpha_ave += J_alpha_tot;
-                        xalpha_ave += xa_tilde_fast;
-                        Xheat_ave += ( dxheat_dzp );
-                        Xion_ave += ( dt_dzp*dxion_source_dt_box[box_ct] );
-                        Ts_ave += TS_fast;
-                        Tk_ave += T;
+                        if(LOG_LEVEL >= DEBUG_LEVEL){
+                            J_alpha_ave += J_alpha_tot;
+                            xalpha_ave += xa_tilde_fast;
+                            Xheat_ave += ( dxheat_dzp );
+                            Xion_ave += ( dt_dzp*dxion_source_dt_box[box_ct] );
+                            Ts_ave += TS_fast;
+                            Tk_ave += T;
+                        }
 
                         x_e_ave += x_e;
                     }
@@ -1273,13 +1275,16 @@ LOG_SUPER_DEBUG("looping over box...");
                 
                 this_spin_temp->Ts_box[box_ct] = TS_fast;
 
-                J_alpha_ave += J_alpha_tot;
-                xalpha_ave += xa_tilde_fast;
-                Xheat_ave += ( dxheat_dzp );
-                Xion_ave += ( dt_dzp*dxion_source_dt );
+                if(LOG_LEVEL >= DEBUG_LEVEL){
+                    J_alpha_ave += J_alpha_tot;
+                    xalpha_ave += xa_tilde_fast;
+                    Xheat_ave += ( dxheat_dzp );
+                    Xion_ave += ( dt_dzp*dxion_source_dt );
 
-                Ts_ave += TS_fast;
-                Tk_ave += T;
+                    Ts_ave += TS_fast;
+                    Tk_ave += T;
+                }
+
 
                 x_e_ave += x_e;
             }
@@ -1289,16 +1294,19 @@ LOG_SUPER_DEBUG("finished loop");
 
         /////////////////////////////  END LOOP ////////////////////////////////////////////
         // compute new average values
-        x_e_ave /= (double)HII_TOT_NUM_PIXELS;
+        if(LOG_LEVEL >= DEBUG_LEVEL){
+            x_e_ave /= (double)HII_TOT_NUM_PIXELS;
 
-        Ts_ave /= (double)HII_TOT_NUM_PIXELS;
-        Tk_ave /= (double)HII_TOT_NUM_PIXELS;
-        J_alpha_ave /= (double)HII_TOT_NUM_PIXELS;
-        xalpha_ave /= (double)HII_TOT_NUM_PIXELS;
-        Xheat_ave /= (double)HII_TOT_NUM_PIXELS;
-        Xion_ave /= (double)HII_TOT_NUM_PIXELS;
+            Ts_ave /= (double)HII_TOT_NUM_PIXELS;
+            Tk_ave /= (double)HII_TOT_NUM_PIXELS;
+            J_alpha_ave /= (double)HII_TOT_NUM_PIXELS;
+            xalpha_ave /= (double)HII_TOT_NUM_PIXELS;
+            Xheat_ave /= (double)HII_TOT_NUM_PIXELS;
+            Xion_ave /= (double)HII_TOT_NUM_PIXELS;
 
-LOG_INFO("zp = %e Ts_ave = %e x_e_ave = %e Tk_ave = %e J_alpha_ave = %e xalpha_ave = %e Xheat_ave = %e Xion_ave = %e",zp,Ts_ave,x_e_ave,Tk_ave,J_alpha_ave,xalpha_ave,Xheat_ave,Xion_ave);
+            LOG_DEBUG("zp = %e Ts_ave = %e x_e_ave = %e Tk_ave = %e J_alpha_ave = %e xalpha_ave = %e Xheat_ave = %e Xion_ave = %e",zp,Ts_ave,x_e_ave,Tk_ave,J_alpha_ave,xalpha_ave,Xheat_ave,Xion_ave);
+        }
+
 
     } // end main integral loop over z'
 
