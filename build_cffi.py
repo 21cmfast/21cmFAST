@@ -27,7 +27,8 @@ if isinstance(log_level, str) and log_level.upper() in available_levels:
 try:
     log_level = int(log_level)
 except ValueError:
-    raise ValueError(f"LOG_LEVEL must be specified as a positive integer, or one of {available_levels}")
+    # note: for py35 support, can't use f strings.
+    raise ValueError("LOG_LEVEL must be specified as a positive integer, or one of {}".format(available_levels))
 
 library_dirs = []
 for k,v in os.environ.items():
