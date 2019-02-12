@@ -274,15 +274,6 @@ def test_bt(ionize_box, spin_temp, perturb_field):
     assert bt.astro_params == ionize_box.astro_params
 
 
-def test_USE_TS_FLUCT(perturb_field):
-    ib = wrapper.ionize_box(
-        perturbed_field=perturb_field, do_spin_temp=True,
-        z_step_factor=1.2, write=False
-    )
-
-    assert ib.flag_options.USE_TS_FLUCT
-
-
 def test_coeval_against_direct(init_box, perturb_field, ionize_box):
     init, pf, ib, bt = wrapper.run_coeval(
         perturb=perturb_field,

@@ -179,7 +179,7 @@ class CoreCoevalModule(CoreBase):
 
     def __init__(self, redshift,
                  user_params=None, flag_options=None, astro_params=None,
-                 cosmo_params=None, regenerate=True, do_spin_temp=False, z_step_factor=1.02,
+                 cosmo_params=None, regenerate=True, z_step_factor=1.02,
                  z_heat_max=None, change_seed_every_iter=False, ctx_variables=None,
                  initial_conditions_seed=None,
                  **io_options):
@@ -275,7 +275,6 @@ class CoreCoevalModule(CoreBase):
 
         self.z_step_factor = z_step_factor
         self.z_heat_max = z_heat_max
-        self.do_spin_temp = do_spin_temp
 
         self.io_options = dict(
             store={},  # (derived) quantities to store in the MCMC chain.
@@ -372,7 +371,6 @@ class CoreCoevalModule(CoreBase):
             astro_params=astro_params, flag_options=self.flag_options,
             init_box=initial_conditions,
             perturb=perturb_field,
-            do_spin_temp=self.do_spin_temp,
             z_step_factor=self.z_step_factor,
             regenerate=self.regenerate,
             random_seed=self.initial_conditions_seed,
@@ -453,7 +451,6 @@ class CoreLightConeModule(CoreCoevalModule):
             max_redshift=self.max_redshift,
             astro_params=astro_params, flag_options=self.flag_options,
             cosmo_params=cosmo_params, user_params=self.user_params,
-            do_spin_temp=self.do_spin_temp,
             z_step_factor=self.z_step_factor,
             regenerate=self.regenerate,
             random_seed=self.initial_conditions_seed,

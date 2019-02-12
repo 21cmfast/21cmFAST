@@ -205,8 +205,6 @@ def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max,
               help="Whether to force regeneration of init/perturb files if they already exist.")
 @click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
               help="directory to write data and plots to -- must exist.")
-@click.option("--do-spin/--no-spin", default=False,
-              help="whether to do spin temperature calculations")
 @click.option("-z", "--z-step-factor", type=float,
               default=inspect.signature(lib.ionize_box).parameters['z_step_factor'].default,
               help="logarithmic steps in redshift for evolution")
@@ -214,7 +212,7 @@ def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max,
               help="maximum redshift at which to search for heating sources")
 @click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
 @click.pass_context
-def ionize(ctx, redshift, prev_z, config, regen, direc, do_spin, z_step_factor, z_heat_max,seed):
+def ionize(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max,seed):
     """
     Run 21cmFAST ionize_box at the specified redshift, saving results to file.
     """
@@ -238,7 +236,6 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, do_spin, z_step_factor, 
         astro_params=astro_params, flag_options=flag_options,
         previous_ionize_box=prev_z,
         z_step_factor=z_step_factor, z_heat_max=z_heat_max,
-        do_spin_temp=do_spin,
         user_params=user_params, cosmo_params=cosmo_params,
         regenerate=regen, write=True, direc=direc, random_seed=seed
     )
@@ -257,8 +254,6 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, do_spin, z_step_factor, 
               help="Whether to force regeneration of init/perturb files if they already exist.")
 @click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
               help="directory to write data and plots to -- must exist.")
-@click.option("--do-spin/--no-spin", default=False,
-              help="whether to do spin temperature calculations")
 @click.option("-z", "--z-step-factor", type=float,
               default=inspect.signature(lib.run_coeval).parameters['z_step_factor'].default,
               help="logarithmic steps in redshift for evolution")
@@ -266,7 +261,7 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, do_spin, z_step_factor, 
               help="maximum redshift at which to search for heating sources")
 @click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
 @click.pass_context
-def coeval(ctx, redshift, config, regen, direc, do_spin, z_step_factor, z_heat_max, seed):
+def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed):
     """
     Efficiently generate coeval cubes at a given redshift.
     """
@@ -295,7 +290,6 @@ def coeval(ctx, redshift, config, regen, direc, do_spin, z_step_factor, z_heat_m
         redshift=redshift,
         astro_params=astro_params, flag_options=flag_options,
         z_step_factor=z_step_factor, z_heat_max=z_heat_max,
-        do_spin_temp=do_spin,
         user_params=user_params, cosmo_params=cosmo_params,
         regenerate=regen, write=True, direc=direc, random_seed=seed
     )
@@ -314,8 +308,6 @@ def coeval(ctx, redshift, config, regen, direc, do_spin, z_step_factor, z_heat_m
               help="Whether to force regeneration of init/perturb files if they already exist.")
 @click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
               help="directory to write data and plots to -- must exist.")
-@click.option("--do-spin/--no-spin", default=False,
-              help="whether to do spin temperature calculations")
 @click.option("-X", "--max-z", type=float, default=None,
               help="maximum redshift of the stored lightcone data")
 @click.option("-z", "--z-step-factor", type=float,
@@ -325,7 +317,7 @@ def coeval(ctx, redshift, config, regen, direc, do_spin, z_step_factor, z_heat_m
               help="maximum redshift at which to search for heating sources")
 @click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
 @click.pass_context
-def lightcone(ctx, redshift, config, regen, direc, do_spin, max_z, z_step_factor, z_heat_max, seed):
+def lightcone(ctx, redshift, config, regen, direc, max_z, z_step_factor, z_heat_max, seed):
     """
     Efficiently generate coeval cubes at a given redshift.
     """
@@ -348,7 +340,6 @@ def lightcone(ctx, redshift, config, regen, direc, do_spin, max_z, z_step_factor
         redshift=redshift, max_redshift=max_z,
         astro_params=astro_params, flag_options=flag_options,
         z_step_factor=z_step_factor, z_heat_max=z_heat_max,
-        do_spin_temp=do_spin,
         user_params=user_params, cosmo_params=cosmo_params,
         regenerate=regen, write=True, direc=direc, random_seed=seed
     )
