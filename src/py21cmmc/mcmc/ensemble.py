@@ -39,7 +39,7 @@ class EnsembleSampler(emcee.EnsembleSampler):
         * ``blob`` - The new meta data blobs or ``None`` if nothing was
           returned by ``lnprobfn``.
         """
-        logger.debug(f"PID={os.getpid()} Proposing new walker positions")
+        logger.debug("Proposing new walker positions")
 
         s = np.atleast_2d(p0)
         Ns = len(s)

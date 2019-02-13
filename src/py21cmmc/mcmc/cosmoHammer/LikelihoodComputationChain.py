@@ -1,4 +1,5 @@
 import warnings
+import os
 
 from cosmoHammer.ChainContext import ChainContext
 from cosmoHammer import getLogger
@@ -101,7 +102,10 @@ class LikelihoodComputationChain(LCC):
         if not self._setup:
             self.setup()
 
+        logger.debug("Invoking {}...".format(os.getpid(), coremodule.__class__.__name__))
         coremodule(ctx)
+        logger.debug("... finished.".format(os.getpid()))
+
         coremodule.prepare_storage(ctx, ctx.getData())  # This adds the ability to store stuff.
 
     def invokeLikelihoodModule(self, module, ctx):
@@ -109,9 +113,14 @@ class LikelihoodComputationChain(LCC):
         if not self._setup:
             self.setup()
 
+        logger.debug("Reducing data for {}...".format(module.__class__.__name__))
         model = module.reduce_data(ctx)
+        logger.debug("... done reducing data")
+
         if hasattr(module, "store"):
+            logger.debug("Storing blobs for {}...".format(module.__class__.__name__))
             module.store(model, ctx.getData())
+            logger.debug("... done storing blobs.")
 
         return module.computeLikelihood(model)
 

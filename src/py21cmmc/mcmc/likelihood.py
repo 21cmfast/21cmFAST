@@ -357,7 +357,6 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 pass
 
     def computeLikelihood(self, model):
-        logger.debug(f"PID={os.getpid()} Computing Likelihood")
 
         lnl = 0
         noise = 0
@@ -375,13 +374,11 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             # TODO: if moduncert depends on model, not data, then it should appear as -0.5 log(sigma^2) term below.
             lnl += -0.5 * np.sum((m['delta'][mask] - pd(m['k'][mask])) ** 2 / (moduncert ** 2 + noise ** 2))
 
-        logger.debug(f"PID={os.getpid()} Likelihood computed: {lnl}")
+        logger.debug("Likelihood computed: {lnl}".format(lnl=lnl))
 
         return lnl
 
     def reduce_data(self, ctx):
-        logger.debug(f"PID={os.getpid()} Reducing Data")
-
         brightness_temp = ctx.get("brightness_temp")
         data = []
 
@@ -392,8 +389,6 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
                 ignore_kperp_zero=self.ignore_kperp_zero
             )
             data.append({"k": k, "delta": power * k ** 3 / (2 * np.pi ** 2)})
-
-        logger.debug(f"PID={os.getpid()} Data reduced")
 
         return data
 

@@ -1,8 +1,13 @@
-from os import path, mkdir
-import yaml
-from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, Params
 import logging
 from concurrent.futures import ProcessPoolExecutor
+from os import path, mkdir
+
+import yaml
+
+from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, Params
+
+logger = logging.getLogger("21CMMC")
+
 
 def build_computation_chain(core_modules, likelihood_modules, params=None, setup=True):
     """
@@ -43,7 +48,7 @@ def build_computation_chain(core_modules, likelihood_modules, params=None, setup
 def run_mcmc(core_modules, likelihood_modules, params,
              datadir='.', model_name='21CMMC',
              continue_sampling=True, reuse_burnin=True,
-             log_level_21CMMC = None,
+             log_level_21CMMC=None,
              **mcmc_options):
     """
 
@@ -108,18 +113,24 @@ def run_mcmc(core_modules, likelihood_modules, params,
 
     if continue_sampling:
         try:
-            with open(file_prefix+".LCC.yml", 'r') as f:
+            with open(file_prefix + ".LCC.yml", 'r') as f:
                 old_chain = yaml.load(f)
 
             if old_chain != chain:
-                raise RuntimeError("Attempting to continue chain, but chain parameters are different. Check your parameters against {file_prefix}.LCC.yml".format(file_prefix=file_prefix))
+                raise RuntimeError(
+                    "Attempting to continue chain, but chain parameters are different. Check your parameters against {file_prefix}.LCC.yml".format(
+                        file_prefix=file_prefix))
 
         except FileNotFoundError:
             pass
 
     # Before setup, write out the parameters.
-    with open(file_prefix+".LCC.yml", 'w') as f:
-        yaml.dump(chain, f)
+    try:
+        with open(file_prefix + ".LCC.yml", 'w') as f:
+            yaml.dump(chain, f)
+    except Exception as e:
+        logger.warning("Attempt to write out YAML file containing LikelihoodComputationChain failed. Boldly continuing...")
+        print(e)
 
     # Set logging levels
     if log_level_21CMMC is not None:
@@ -131,7 +142,7 @@ def run_mcmc(core_modules, likelihood_modules, params,
         storageUtil=HDFStorageUtil(file_prefix),
         filePrefix=file_prefix,
         reuseBurnin=reuse_burnin,
-        pool = mcmc_options.get("pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1))),
+        pool=mcmc_options.get("pool", ProcessPoolExecutor(max_workers=mcmc_options.get("threadCount", 1))),
         **mcmc_options
     )
 

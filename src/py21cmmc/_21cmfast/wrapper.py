@@ -106,7 +106,7 @@ from cached_property import cached_property
 from ._21cmfast import ffi, lib
 from ._utils import StructWithDefaults, OutputStruct as _OS, StructInstanceWrapper, StructWrapper
 
-logging.basicConfig()
+import logging
 logger = logging.getLogger("21CMMC")
 
 # Global Options
