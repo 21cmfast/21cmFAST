@@ -4,7 +4,6 @@ A module providing Core Modules for cosmoHammer. This is the basis of the plugin
 import copy
 import inspect
 import logging
-import os
 import warnings
 
 import py21cmmc as p21
@@ -356,9 +355,9 @@ class CoreCoevalModule(CoreBase):
 
     def build_model_data(self, ctx):
         # Update parameters
-        logger.debug(f"PID={os.getpid()} Updating parameters: {ctx.getParams()}")
+        logger.debug("Updating parameters: {}".format(ctx.getParams()))
         astro_params, cosmo_params = self._update_params(ctx.getParams())
-        logger.debug(f"PID={os.getpid()} AstroParams: {astro_params}")
+        logger.debug("AstroParams: {}".format(astro_params))
 
         # Explicitly get the init and perturb boxes, because we don't want to
         # regenerate them (they will be read in *unless* we are changing
@@ -378,7 +377,7 @@ class CoreCoevalModule(CoreBase):
             direc=self.io_options['cache_dir'],
         )
 
-        logger.debug(f"PID={os.getpid()} Adding {self.ctx_variables} to context data")
+        logger.debug("Adding {} to context data".format(self.ctx_variables))
         for key in self.ctx_variables:
             try:
                 ctx.add(key, locals()[key])

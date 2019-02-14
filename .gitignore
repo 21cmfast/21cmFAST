@@ -31,3 +31,5 @@ docs/tutorials/data/
 \.coverage
 
 htmlcov/
+
+data/

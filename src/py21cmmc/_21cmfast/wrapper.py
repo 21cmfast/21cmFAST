@@ -98,7 +98,7 @@ import os
 from os import path
 
 import numpy as np
-import yaml
+from ..mcmc import yaml
 from astropy import units
 from astropy.cosmology import Planck15, z_at_value
 from cached_property import cached_property

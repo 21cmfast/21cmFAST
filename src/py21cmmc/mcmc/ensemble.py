@@ -1,5 +1,4 @@
 import logging
-import os
 
 import emcee
 import numpy as np

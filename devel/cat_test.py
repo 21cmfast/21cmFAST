@@ -1,8 +1,6 @@
 from py21cmmc import mcmc
 import logging
 
-logging.getLogger("21CMMC").setLevel(logging.DEBUG)
-
 
 # ======== USER ADJUSTABLE VARIABLES
 MODEL_NAME = "power_only"
@@ -30,7 +28,7 @@ power_spec = mcmc.Likelihood1DPowerCoeval(
     datafile=datafiles,
     noisefile=None,
     logk=False, min_k=0.1, max_k=1.0,
-    simulate=False
+    simulate=True
 )
 
 # OLD PARAMATRISATION - for code development and proof of concepts
@@ -53,6 +51,7 @@ else:
 chain = mcmc.run_mcmc(
     core, power_spec, datadir='data', model_name=MODEL_NAME,
     params=params,
+    log_level_21CMMC='DEBUG',
     walkersRatio=WALK_RATIO, burninIterations=BURN,
     sampleIterations=ITER, threadCount=THREADS, continue_sampling=CONT
 )

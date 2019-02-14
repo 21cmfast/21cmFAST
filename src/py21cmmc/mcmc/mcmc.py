@@ -2,8 +2,7 @@ import logging
 from concurrent.futures import ProcessPoolExecutor
 from os import path, mkdir
 
-import yaml
-
+from . import yaml
 from .cosmoHammer import CosmoHammerSampler, LikelihoodComputationChain, HDFStorageUtil, Params
 
 logger = logging.getLogger("21CMMC")
@@ -129,7 +128,8 @@ def run_mcmc(core_modules, likelihood_modules, params,
         with open(file_prefix + ".LCC.yml", 'w') as f:
             yaml.dump(chain, f)
     except Exception as e:
-        logger.warning("Attempt to write out YAML file containing LikelihoodComputationChain failed. Boldly continuing...")
+        logger.warning(
+            "Attempt to write out YAML file containing LikelihoodComputationChain failed. Boldly continuing...")
         print(e)
 
     # Set logging levels

@@ -7,7 +7,7 @@ from cosmoHammer.LikelihoodComputationChain import LikelihoodComputationChain as
 import numpy as np
 from .util import Params
 
-from py21cmmc import ParameterError
+from py21cmmc._21cmfast import ParameterError
 
 logger = getLogger()
 
