@@ -74,17 +74,17 @@ class EnsembleSampler(emcee.EnsembleSampler):
                 """.format(max_attempts=self.max_attempts)
             )
 
-        logger.info(f"New Positions: {q.tolist()}")
+        logger.info("New Positions: {}".format(q.tolist()))
 
         newlnprob, blob = self._get_lnprob(q)
 
-        logger.info(f"Evaluated likelihoods at q: {newlnprob}")
+        logger.info("Evaluated likelihoods at q: {}".format(newlnprob))
 
         # Decide whether or not the proposals should be accepted.
         lnpdiff = (self.dim - 1.) * np.log(zz) + newlnprob - lnprob0
         accept = (lnpdiff > np.log(self._random.rand(len(lnpdiff))))
 
-        logger.debug(f"Walkers accepted?: {accept}")
+        logger.debug("Walkers accepted?: {}".format(accept))
 
         return q, newlnprob, accept, blob
 
