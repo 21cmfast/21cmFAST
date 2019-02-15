@@ -476,35 +476,39 @@ class OutputStruct(StructWrapper):
             raise ValueError(
                 "Attempting to write when no random seed has been set. Struct has been 'filled' inconsistently.")
 
-        with h5py.File(self._get_fname(direc), 'w') as f:
-            # Save input parameters to the file
-            for k in self._inputs + ["_global_params"]:
-                q = getattr(self, k)
+        try:
+            with h5py.File(self._get_fname(direc), 'w') as f:
+                # Save input parameters to the file
+                for k in self._inputs + ["_global_params"]:
+                    q = getattr(self, k)
 
-                kfile = k.lstrip("_")
+                    kfile = k.lstrip("_")
 
-                if isinstance(q, StructWithDefaults) or isinstance(q, StructInstanceWrapper):
-                    grp = f.create_group(kfile)
-                    if isinstance(q, StructWithDefaults):
-                        dct = q.self  # using self allows to rebuild the object from HDF5 file.
+                    if isinstance(q, StructWithDefaults) or isinstance(q, StructInstanceWrapper):
+                        grp = f.create_group(kfile)
+                        if isinstance(q, StructWithDefaults):
+                            dct = q.self  # using self allows to rebuild the object from HDF5 file.
+                        else:
+                            dct = q
+
+                        for kk, v in dct.items():
+                            if kk not in self._filter_params:
+                                grp.attrs[kk] = u"none" if v is None else v
                     else:
-                        dct = q
+                        f.attrs[kfile] = q
 
-                    for kk, v in dct.items():
-                        if kk not in self._filter_params:
-                            grp.attrs[kk] = u"none" if v is None else v
-                else:
-                    f.attrs[kfile] = q
+                # Save the boxes to the file
+                boxes = f.create_group(self._name)
 
-            # Save the boxes to the file
-            boxes = f.create_group(self._name)
+                # Go through all fields in this struct, and save
+                for k in self.pointer_fields:
+                    boxes.create_dataset(k, data=getattr(self, k))
 
-            # Go through all fields in this struct, and save
-            for k in self.pointer_fields:
-                boxes.create_dataset(k, data=getattr(self, k))
-
-            for k in self.primitive_fields:
-                boxes.attrs[k] = getattr(self, k)
+                for k in self.primitive_fields:
+                    boxes.attrs[k] = getattr(self, k)
+        except OSError as e:
+            logger.warning("When attempting to write {} to file, write failed with the following error. Continuing without caching.")
+            logger.warning(e)
 
     def read(self, direc=None):
         """
