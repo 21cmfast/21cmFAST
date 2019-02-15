@@ -2,9 +2,10 @@
 A module containing (base) classes for computing 21cmFAST likelihoods under the context of CosmoHammer.
 """
 import logging
+import os
 from io import IOBase
 from os import path, rename
-import os
+
 import numpy as np
 from cached_property import cached_property
 from powerbox.tools import get_power
@@ -93,6 +94,10 @@ class LikelihoodBase(core.ModuleBase):
 
         # Expose user, flag, cosmo, astro params to this likelihood if available.
         self._expose_core_parameters()
+
+    def get_fiducial_model(self):
+        ctx = self.chain.build_model_data()
+        return self.reduce_data(ctx)
 
 
 class LikelihoodBaseFile(LikelihoodBase):
