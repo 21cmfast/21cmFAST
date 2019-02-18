@@ -108,6 +108,18 @@ def run_mcmc(core_modules, likelihood_modules, params,
     if not isinstance(params, Params):
         params = Params(*[(k, v) for k, v in params.items()])
 
+
+    # We need to ensure that simulate=False if trying to continue sampling.
+    # Need to do this *before* creating the chain, which uses setup()
+    if continue_sampling:
+        for lk in likelihood_modules:
+            if hasattr(lk, "_simulate") and lk._simulate:
+                logger.warning(
+                    """
+Likelihood {} was defined to re-simulate data/noise, but this is incompatible with `continue_sampling`. 
+Setting simulate=False and continuing...
+""")
+
     chain = build_computation_chain(core_modules, likelihood_modules, params)
 
     if continue_sampling:

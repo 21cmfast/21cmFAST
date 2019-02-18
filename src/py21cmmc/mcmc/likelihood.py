@@ -285,7 +285,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     def _check_data_format(self):
         for i, d in enumerate(self.data):
             if "k" not in d or "delta" not in d:
-                raise ValueError(f"datafile #{i+1} of {len(self.datafile)} has the wrong format")
+                raise ValueError("datafile #{} of {} has the wrong format".format(i+1, len(self.datafile)))
 
     def _check_noise_format(self):
         for i, n in enumerate(self.noise):
@@ -371,7 +371,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             moduncert = self.model_uncertainty * pd(
                 m['k'][mask]) if not self.error_on_model else self.model_uncertainty * m['delta'][mask]
 
-            logger.debug(f"PID={os.getpid()} Generating noise spline vals, z={self.redshift[i]}")
+            logger.debug("Generating noise spline vals, z={}".format(self.redshift[i]))
 
             if self.noise_spline:
                 noise = self.noise_spline[i](m['k'][mask])
