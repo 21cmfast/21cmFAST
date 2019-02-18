@@ -108,11 +108,11 @@ def run_mcmc(core_modules, likelihood_modules, params,
     if not isinstance(params, Params):
         params = Params(*[(k, v) for k, v in params.items()])
 
+    chain = build_computation_chain(core_modules, likelihood_modules, params, setup=False)
 
-    # We need to ensure that simulate=False if trying to continue sampling.
-    # Need to do this *before* creating the chain, which uses setup()
     if continue_sampling:
-        for lk in likelihood_modules:
+        # We need to ensure that simulate=False if trying to continue sampling.
+        for lk in chain.getLikelihoodModules():
             if hasattr(lk, "_simulate") and lk._simulate:
                 logger.warning(
                     """
@@ -120,9 +120,6 @@ Likelihood {} was defined to re-simulate data/noise, but this is incompatible wi
 Setting simulate=False and continuing...
 """)
 
-    chain = build_computation_chain(core_modules, likelihood_modules, params)
-
-    if continue_sampling:
         try:
             with open(file_prefix + ".LCC.yml", 'r') as f:
                 old_chain = yaml.load(f)
@@ -135,7 +132,8 @@ Setting simulate=False and continuing...
         except FileNotFoundError:
             pass
 
-    # Before setup, write out the parameters.
+    # Write out the parameters *before* setup.
+    # TODO: not sure if this is the best idea -- should it be after setup()?
     try:
         with open(file_prefix + ".LCC.yml", 'w') as f:
             yaml.dump(chain, f)
@@ -143,6 +141,8 @@ Setting simulate=False and continuing...
         logger.warning(
             "Attempt to write out YAML file containing LikelihoodComputationChain failed. Boldly continuing...")
         print(e)
+
+    chain.setup()
 
     # Set logging levels
     if log_level_21CMMC is not None:
