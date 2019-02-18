@@ -5,7 +5,6 @@ import pytest
 
 from py21cmmc import LightCone
 from py21cmmc import mcmc
-from py21cmmc import analyse
 from py21cmmc.mcmc.cosmoHammer import CosmoHammerSampler, HDFStorageUtil, Params
 
 
@@ -290,7 +289,7 @@ def test_load_chain(core, likelihood_coeval, tmpdirec):
         walkersRatio=2, burninIterations=0, sampleIterations=1, threadCount=1
     )
 
-    lcc = analyse.load_primitive_chain("TESTLOADCHAIN", direc=tmpdirec.strpath)
+    lcc = mcmc.load_primitive_chain("TESTLOADCHAIN", direc=tmpdirec.strpath)
 
     assert lcc.getCoreModules()[0].redshift == core.redshift
 
