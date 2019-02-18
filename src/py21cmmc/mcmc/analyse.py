@@ -3,10 +3,11 @@ Module containing functions to analyse the results of MCMC chains,a nd enable mo
 """
 import matplotlib.pyplot as plt
 import numpy as np
+from os.path import join
 
 from .cosmoHammer import CosmoHammerSampler
 from .cosmoHammer.storage import HDFStorage
-
+from . import yaml
 
 def get_samples(chain, indx=0, burnin=False):
     """
@@ -14,7 +15,7 @@ def get_samples(chain, indx=0, burnin=False):
 
     Parameters
     ----------
-    chain : `~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler` or str
+    chain : :class:`~py21cmmc.mcmc.cosmoHammer.CosmoHammerSampler` or str
         Either a `LikelihoodComputationChain`, which is the output of the :func:`~mcmc.run_mcmc` function,
         or a path to an output HDF file containing the chain.
 
@@ -40,6 +41,26 @@ def get_samples(chain, indx=0, burnin=False):
 
         return HDFStorage(chain, name="burnin" if burnin else "sample_%s"%indx)
 
+
+def load_primitive_chain(modelname, direc='.'):
+    """
+    Load a chain produced by ``run_mcmc`` to be interactively useable.
+
+    Parameters
+    ----------
+    modelname : model name of the MCMC run.
+    direc : directory in which data was stored.
+
+    Returns
+    -------
+    chain : :class:`~py21cmmc.mcmc.cosmoHammer.LikelihoodComputationChain.LikelihoodComputationChain`
+        The fully set-up chain, with no computed samples.
+    """
+    with open(join(direc, modelname + '.h5')) as f:
+        chain = yaml.load(f)
+
+    chain.setup()
+    return chain
 
 def corner_plot(samples, include_lnl=True, show_guess=True, start_iter=0, thin=1, **kwargs):
     """

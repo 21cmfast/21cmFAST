@@ -2,7 +2,7 @@ __version__ = "0.1.0"
 
 from os import path, mkdir
 
-from .mcmc import yaml
+from .mcmc import *
 
 from ._21cmfast import *
 
