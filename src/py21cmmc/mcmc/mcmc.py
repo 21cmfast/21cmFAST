@@ -111,15 +111,6 @@ def run_mcmc(core_modules, likelihood_modules, params,
     chain = build_computation_chain(core_modules, likelihood_modules, params, setup=False)
 
     if continue_sampling:
-        # We need to ensure that simulate=False if trying to continue sampling.
-        for lk in chain.getLikelihoodModules():
-            if hasattr(lk, "_simulate") and lk._simulate:
-                logger.warning(
-                    """
-Likelihood {} was defined to re-simulate data/noise, but this is incompatible with `continue_sampling`. 
-Setting simulate=False and continuing...
-""")
-
         try:
             with open(file_prefix + ".LCC.yml", 'r') as f:
                 old_chain = yaml.load(f)
@@ -131,6 +122,16 @@ Setting simulate=False and continuing...
 
         except FileNotFoundError:
             pass
+
+        # We need to ensure that simulate=False if trying to continue sampling.
+        for lk in chain.getLikelihoodModules():
+            if hasattr(lk, "_simulate") and lk._simulate:
+                logger.warning(
+                    """
+Likelihood {} was defined to re-simulate data/noise, but this is incompatible with `continue_sampling`. 
+Setting simulate=False and continuing...
+""")
+                lk._simulate = False
 
     # Write out the parameters *before* setup.
     # TODO: not sure if this is the best idea -- should it be after setup()?
