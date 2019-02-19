@@ -122,7 +122,10 @@ class LikelihoodComputationChain(LCC):
             module.store(model, ctx.getData())
             logger.debug("... done storing blobs.")
 
-        return module.computeLikelihood(model)
+        logger.debug("Computing Likelihood for {}...".format(module.__class__.__name__))
+        lnl = module.computeLikelihood(model)
+        logger.debug("... done computing likelihood (lnl = {lnl:.3e}".format(lnl=lnl))
+        return lnl
 
     def __call__(self, p):
         try:
