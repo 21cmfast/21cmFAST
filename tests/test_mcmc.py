@@ -70,8 +70,8 @@ def test_mcmc(core, likelihood_coeval, tmpdirec):
         walkersRatio=2, burninIterations=0, sampleIterations=2, threadCount=1
     )
 
-    samples_from_chain = analyse.get_samples(chain)
-    samples_from_file = analyse.get_samples(os.path.join(tmpdirec.strpath, "TEST"))
+    samples_from_chain = mcmc.get_samples(chain)
+    samples_from_file = mcmc.get_samples(os.path.join(tmpdirec.strpath, "TEST"))
 
     # make sure reading from file is the same as the chain.
     assert samples_from_chain.iteration == samples_from_file.iteration
@@ -100,8 +100,8 @@ def test_continue_burnin(core, likelihood_coeval, tmpdirec):
 
     # HAVE TO SAVE THE CHAIN TO MEMORY HERE, BECAUSE THE OBJECT ACCESS THE FILE ON EVERY CALL,
     # WHICH MEANS IT CONSTANTLY UPDATES
-    chain_b_chain = analyse.get_samples(chain, burnin=True).get_chain()
-    chain_s_chain = analyse.get_samples(chain).get_chain()
+    chain_b_chain = mcmc.get_samples(chain, burnin=True).get_chain()
+    chain_s_chain = mcmc.get_samples(chain).get_chain()
 
     chain2 = mcmc.run_mcmc(
         core, likelihood_coeval, model_name="TESTBURNIN", continue_sampling=True, datadir=tmpdirec.strpath,
@@ -109,9 +109,9 @@ def test_continue_burnin(core, likelihood_coeval, tmpdirec):
         walkersRatio=2, burninIterations=2, sampleIterations=1, threadCount=1
     )
 
-    burnin2 = analyse.get_samples(chain2, burnin=True)
+    burnin2 = mcmc.get_samples(chain2, burnin=True)
     chain2_b_chain = burnin2.get_chain()
-    chain2_s_chain = analyse.get_samples(chain).get_chain()
+    chain2_s_chain = mcmc.get_samples(chain).get_chain()
 
     assert burnin2.iteration == 2
     assert np.all(chain2_b_chain[:1] == chain_b_chain)  # first 5 iteration should be unchanged
@@ -128,10 +128,10 @@ def test_continue_burnin(core, likelihood_coeval, tmpdirec):
     samples3 = chain3.samples
     assert samples3.iteration == 2
 
-    chain3_b_chain = analyse.get_samples(chain3, burnin=True).get_chain()
+    chain3_b_chain = mcmc.get_samples(chain3, burnin=True).get_chain()
     assert np.all(chain3_b_chain == chain2_b_chain)
 
-    chain3_s_chain = analyse.get_samples(chain3).get_chain()
+    chain3_s_chain = mcmc.get_samples(chain3).get_chain()
     assert np.all(chain2_s_chain == chain3_s_chain[:1])
 
     with pytest.raises(ValueError):  # don't run if we already have all samples, and let the user know!
