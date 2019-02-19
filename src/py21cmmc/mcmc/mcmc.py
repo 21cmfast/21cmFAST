@@ -117,7 +117,8 @@ def run_mcmc(core_modules, likelihood_modules, params,
 
             if old_chain != chain:
                 raise RuntimeError(
-                    "Attempting to continue chain, but chain parameters are different. Check your parameters against {file_prefix}.LCC.yml".format(
+                    "Attempting to continue chain, but chain parameters are different. " +
+                    "Check your parameters against {file_prefix}.LCC.yml".format(
                         file_prefix=file_prefix))
 
         except FileNotFoundError:

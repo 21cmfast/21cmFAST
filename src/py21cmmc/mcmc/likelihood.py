@@ -2,7 +2,6 @@
 A module containing (base) classes for computing 21cmFAST likelihoods under the context of CosmoHammer.
 """
 import logging
-import os
 from io import IOBase
 from os import path, rename
 
@@ -101,6 +100,8 @@ class LikelihoodBase(core.ModuleBase):
 
 
 class LikelihoodBaseFile(LikelihoodBase):
+    ignore_attributes = LikelihoodBase.ignore_attributes + ["simulate"]
+
     def __init__(self, datafile=None, noisefile=None, simulate=False, use_data=True):
         self.datafile = datafile
         self.noisefile = noisefile
@@ -167,6 +168,8 @@ class LikelihoodBaseFile(LikelihoodBase):
 
                 else:
                     noise.append(dict(**np.load(fl)))
+
+            return noise
 
     def _write_data(self):
         for fl, d in zip(self.datafile, self.data):
@@ -285,7 +288,7 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
     def _check_data_format(self):
         for i, d in enumerate(self.data):
             if "k" not in d or "delta" not in d:
-                raise ValueError("datafile #{} of {} has the wrong format".format(i+1, len(self.datafile)))
+                raise ValueError("datafile #{} of {} has the wrong format".format(i + 1, len(self.datafile)))
 
     def _check_noise_format(self):
         for i, n in enumerate(self.noise):
