@@ -1,13 +1,15 @@
 """
 Module containing functions to analyse the results of MCMC chains,a nd enable more transparent input/output of chains.
 """
-import matplotlib.pyplot as plt
-import numpy as np
 from os.path import join
 
+import matplotlib.pyplot as plt
+import numpy as np
+
+from . import yaml
 from .cosmoHammer import CosmoHammerSampler
 from .cosmoHammer.storage import HDFStorage
-from . import yaml
+
 
 def get_samples(chain, indx=0, burnin=False):
     """
@@ -39,7 +41,7 @@ def get_samples(chain, indx=0, burnin=False):
         except AttributeError:
             raise AttributeError("chain must either be a CosmoHammerSampler instance, or str")
 
-        return HDFStorage(chain, name="burnin" if burnin else "sample_%s"%indx)
+        return HDFStorage(chain, name="burnin" if burnin else "sample_%s" % indx)
 
 
 def load_primitive_chain(modelname, direc='.'):
@@ -56,11 +58,12 @@ def load_primitive_chain(modelname, direc='.'):
     chain : :class:`~py21cmmc.mcmc.cosmoHammer.LikelihoodComputationChain.LikelihoodComputationChain`
         The fully set-up chain, with no computed samples.
     """
-    with open(join(direc, modelname + '.h5')) as f:
+    with open(join(direc, modelname + '.LCC.yml')) as f:
         chain = yaml.load(f)
 
     chain.setup()
     return chain
+
 
 def corner_plot(samples, include_lnl=True, show_guess=True, start_iter=0, thin=1, **kwargs):
     """

@@ -16,7 +16,7 @@ def core():
 
 @pytest.fixture(scope="module")
 def likelihood_coeval(tmpdirec):
-    return mcmc.Likelihood1DPowerCoeval(simulate=True, datafile=os.path.join(tmpdirec.strpath, "likelihood_coeval"))
+    return mcmc.Likelihood1DPowerCoeval(simulate=True, datafile=os.path.join(tmpdirec.strpath, "likelihood_coeval.npz"))
 
 
 def test_core_coeval_not_setup():
@@ -86,7 +86,7 @@ def test_mcmc(core, likelihood_coeval, tmpdirec):
 
 def test_continue_burnin(core, likelihood_coeval, tmpdirec):
     with pytest.raises(AssertionError):  # needs to be sampled for at least 1 iteration!
-        chain = mcmc.run_mcmc(
+        mcmc.run_mcmc(
             core, likelihood_coeval, model_name="TESTBURNIN", continue_sampling=False, datadir=tmpdirec.strpath,
             params=dict(HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]),
             walkersRatio=2, burninIterations=1, sampleIterations=0, threadCount=1
@@ -113,6 +113,7 @@ def test_continue_burnin(core, likelihood_coeval, tmpdirec):
     chain2_b_chain = burnin2.get_chain()
     chain2_s_chain = mcmc.get_samples(chain).get_chain()
 
+    assert likelihood_coeval._simulate == False  # because we're continuing sampling
     assert burnin2.iteration == 2
     assert np.all(chain2_b_chain[:1] == chain_b_chain)  # first 5 iteration should be unchanged
 
@@ -140,6 +141,9 @@ def test_continue_burnin(core, likelihood_coeval, tmpdirec):
             params=dict(HII_EFF_FACTOR=[30.0, 10.0, 50.0, 3.0], ION_Tvir_MIN=[4.7, 2, 8, 0.1]),
             walkersRatio=2, burninIterations=2, sampleIterations=2, threadCount=1
         )
+
+    # We set the _simulate back to True to have no side-effects.
+    likelihood_coeval._simulate = True
 
 
 def test_bad_continuation(core, likelihood_coeval, tmpdirec):
@@ -224,7 +228,7 @@ def test_lightcone_core(lc_core, lc_core_ctx):
     model = lk.reduce_data(lc_core_ctx)
     lk.store(model, lc_core_ctx.getData())
 
-    assert all([k+"_0" in lc_core_ctx.getData() for k in model[0]])
+    assert all([k + "_0" in lc_core_ctx.getData() for k in model[0]])
 
 
 def test_planck(lc_core, lc_core_ctx):
@@ -292,4 +296,3 @@ def test_load_chain(core, likelihood_coeval, tmpdirec):
     lcc = mcmc.load_primitive_chain("TESTLOADCHAIN", direc=tmpdirec.strpath)
 
     assert lcc.getCoreModules()[0].redshift == core.redshift
-
