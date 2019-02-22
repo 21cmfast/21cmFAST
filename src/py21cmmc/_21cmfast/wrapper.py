@@ -1749,7 +1749,7 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
         # Best to get a perturb for this redshift, to pass to brightness_temperature
 
         this_perturb = perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
-                                     direc=direc)
+                                     direc=direc,write=write)
 
         if flag_options.USE_TS_FLUCT:
             st2 = spin_temperature(
