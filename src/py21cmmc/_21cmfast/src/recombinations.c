@@ -16,7 +16,7 @@ static gsl_spline *beta_spline;
 
 #define RR_Z_NPTS (int) (300) // number of points in redshift axis;  we will only interpolate over gamma, and just index sample in redshift
 #define RR_DEL_Z (float) (0.2)
-#define RR_lnGamma_NPTS (int) (150) // number of samples of gamma for the interpolation tables
+#define RR_lnGamma_NPTS (int) (200) // number of samples of gamma for the interpolation tables
 #define RR_lnGamma_min (double) (-10) // min ln gamma12 used
 #define RR_DEL_lnGamma (float) (0.1)
 static double RR_table[RR_Z_NPTS][RR_lnGamma_NPTS], lnGamma_values[RR_lnGamma_NPTS];

@@ -235,7 +235,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
     }
 
 LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %f", mean_f_coll);
-
+    
     if (mean_f_coll * ION_EFF_FACTOR < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
     //        printf( "The mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll, f_coll_crit);
         
@@ -718,7 +718,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     } // k
                 } // j
             } // i
-
+            
             global_step_xH = 0.;
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                 global_step_xH += box->xH_box[ct];
@@ -744,7 +744,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             global_xH /= (float)HII_TOT_NUM_PIXELS;
 
         }
-
+        
         // update the N_rec field
         if (flag_options->INHOMO_RECO){
             
