@@ -45,7 +45,6 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_HF(user_params,cosmo_params,astro_params, flag_options);
     
-    
     // This is an entire re-write of Ts.c from 21cmFAST. You can refer back to Ts.c in 21cmFAST if this become a little obtuse. The computation has remained the same //
     
     /////////////////// Defining variables for the computation of Ts.c //////////////
@@ -309,7 +308,7 @@ LOG_SUPER_DEBUG("growth factor zp = %f", growth_factor_zp);
                     this_spin_temp->Tk_box[HII_R_INDEX(i,j,k)] = TK;
                     this_spin_temp->x_e_box[HII_R_INDEX(i,j,k)] = xe;
                     // compute the spin temperature
-                    this_spin_temp->Ts_box[HII_R_INDEX(i,j,k)] = get_Ts(perturbed_field_redshift, perturbed_field->density[HII_R_INDEX(i,j,k)]*inverse_growth_factor_z*growth_factor_zp,
+                    this_spin_temp->Ts_box[HII_R_INDEX(i,j,k)] = get_Ts(redshift, perturbed_field->density[HII_R_INDEX(i,j,k)]*inverse_growth_factor_z*growth_factor_zp,
                                                                         TK, xe, 0, &curr_xalpha);
                 }
             }
@@ -519,7 +518,7 @@ LOG_SUPER_DEBUG("Looping through R");
                 
                 min_densities[R_ct] = min_density;
                 max_densities[R_ct] = max_density;
-            
+                
                 R *= R_factor;
             
             } //end for loop through the filter scales R
@@ -959,7 +958,12 @@ LOG_SUPER_DEBUG("looping over box...");
             
             for (R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
                 
-                fcoll_interp_min = log10(1. + min_densities[R_ct]*zpp_growth[R_ct]);
+                if( min_densities[R_ct]*zpp_growth[R_ct] < -1.) {
+                    fcoll_interp_min = log10(global_params.MIN_DENSITY_LOW_LIMIT);
+                }
+                else {
+                    fcoll_interp_min = log10(1. + min_densities[R_ct]*zpp_growth[R_ct]);
+                }
                 if( max_densities[R_ct]*zpp_growth[R_ct] > global_params.CRIT_DENS_TRANSITION ) {
                     fcoll_interp_bin_width = 1./((float)NSFR_low-1.)*(log10(1.+global_params.CRIT_DENS_TRANSITION)-fcoll_interp_min);
                 }
@@ -986,7 +990,7 @@ LOG_SUPER_DEBUG("looping over box...");
                                 dens_val = (log10f(curr_dens+1.) - fcoll_interp_min)*fcoll_interp_bin_width_inv;
                                 
                                 fcoll_int = (int)floorf( dens_val );
-                                
+
                                 fcoll = log10_SFRD_z_low_table[R_ct][fcoll_int]*( 1 + (float)fcoll_int - dens_val ) + log10_SFRD_z_low_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
                                 
                                 fcoll = expf(fcoll);
