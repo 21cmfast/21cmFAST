@@ -118,4 +118,4 @@ Since 21cmFAST is still written in C, there is the off-chance that something cat
 segfault. Typically, if this happens, Python will not print a traceback where the error occurred, and finding the
 source of such errors can be difficult. However, one has the option of using the standard library
 `faulthandler <https://docs.python.org/3/library/faulthandler.html>`_. Specifying ``-X faulthandler`` when invoking
-Python will cause a minimal traceback to be printed to ``stderr`` if a segfault occurs. 
+Python will cause a minimal traceback to be printed to ``stderr`` if a segfault occurs.
