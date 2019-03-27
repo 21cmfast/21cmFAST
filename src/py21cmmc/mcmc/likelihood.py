@@ -374,8 +374,6 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             moduncert = self.model_uncertainty * pd(
                 m['k'][mask]) if not self.error_on_model else self.model_uncertainty * m['delta'][mask]
 
-            logger.debug("Generating noise spline vals, z={}".format(self.redshift[i]))
-
             if self.noise_spline:
                 noise = self.noise_spline[i](m['k'][mask])
 
@@ -793,6 +791,20 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
 class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     required_cores = [core.CoreLuminosityFunction]
 
+    def __init__(self, sigma=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._sigma = sigma
+
+    @property
+    def lfcore(self):
+        for m in self._cores:
+            if isinstance(m, core.CoreLuminosityFunction):
+                return m
+
+    @property
+    def redshifts(self):
+        return self.lfcore.redshifts
+
     def reduce_data(self, ctx):
         return dict(
             L=ctx.get("luminosity_function").luminosity,
@@ -804,3 +816,6 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
         lnl = -0.5 * np.sum(
             (self.data['luminosity_function'] - model_spline(self.data['L'])) ** 2 / self.noise['sigma'] ** 2)
         return lnl
+
+    def define_noise(self):
+
