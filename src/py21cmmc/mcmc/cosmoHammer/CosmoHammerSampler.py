@@ -172,7 +172,7 @@ class CosmoHammerSampler(CHS):
         # Set to None in case iterations is zero.
         pos = None
 
-        for pos, prob, rstate, datas in self._sampler.sample(
+        for pos, prob, rstate, realpos, realprob, datas in self._sampler.sample(
                 p0,
                 iterations=niter - stg.iteration,
                 lnprob0=prob, rstate0=rstate, blobs0=datas
@@ -186,7 +186,11 @@ class CosmoHammerSampler(CHS):
                 if stg.size < niter:
                     stg.grow(niter - stg.size, datas[0])
 
-                self.storageUtil.persistValues(pos, prob, datas, accepted=prob != _lastprob, random_state=rstate,
+                self.storageUtil.persistValues(pos, prob, datas,
+                                               truepos=realpos,
+                                               trueprob=realprob,
+                                               accepted=prob != _lastprob,
+                                               random_state=rstate,
                                                burnin=burnin)
                 if stg.iteration % 10 == 0:
                     self.log("Iteration finished:" + str(stg.iteration))

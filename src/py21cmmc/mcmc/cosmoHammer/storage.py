@@ -63,12 +63,24 @@ class HDFStorage:
                     dtype=[(k, np.float64) for k in params.keys]
                 )
             )
-            g.create_dataset("accepted", data=np.zeros(nwalkers, dtype=int))
+            g.create_dataset("accepted",
+                             (0, nwalkers),
+                             maxshape=(None, nwalkers),
+                             dtype=np.int)
             g.create_dataset("chain",
                              (0, nwalkers, ndim),
                              maxshape=(None, nwalkers, ndim),
                              dtype=np.float64)
             g.create_dataset("log_prob",
+                             (0, nwalkers),
+                             maxshape=(None, nwalkers),
+                             dtype=np.float64)
+
+            g.create_dataset("trials",
+                             (0, nwalkers, ndim),
+                             maxshape=(None, nwalkers, ndim),
+                             dtype=np.float64)
+            g.create_dataset("trial_log_prob",
                              (0, nwalkers),
                              maxshape=(None, nwalkers),
                              dtype=np.float64)
@@ -141,9 +153,13 @@ class HDFStorage:
             return f[self.name].attrs["iteration"]
 
     @property
-    def accepted(self):
+    def accepted_array(self):
         with self.open() as f:
             return f[self.name]["accepted"][...]
+
+    @property
+    def accepted(self):
+        return np.sum(self.accepted_array, axis=0)
 
     @property
     def random_state(self):
@@ -168,7 +184,11 @@ class HDFStorage:
             g = f[self.name]
             ntot = g.attrs["iteration"] + ngrow
             g["chain"].resize(ntot, axis=0)
+            g["trials"].resize(ntot, axis=0)
+            g["accepted"].resize(ntot, axis=0)
             g["log_prob"].resize(ntot, axis=0)
+            g["trial_log_prob"].resize(ntot, axis=0)
+
             if blobs:
                 has_blobs = g.attrs["has_blobs"]
                 if not has_blobs:
@@ -187,7 +207,7 @@ class HDFStorage:
 
                 g.attrs["has_blobs"] = True
 
-    def save_step(self, coords, log_prob, blobs, accepted, random_state):
+    def save_step(self, coords, log_prob, blobs, truepos, trueprob, accepted, random_state):
         """Save a step to the file
         Args:
             coords (ndarray): The coordinates of the walkers in the ensemble.
@@ -206,13 +226,16 @@ class HDFStorage:
 
             g["chain"][iteration, :, :] = coords
             g["log_prob"][iteration, :] = log_prob
+            g['trials'][iteration, :, :] = truepos
+            g['trial_log_prob'][iteration, :] = trueprob
+
             if blobs[0]:  # i.e. blobs is a list of dicts, and if the first dict is non-empty...
                 blobs = np.array([tuple([b[name] for name in g['blobs'].dtype.names]) for b in blobs],
                                  dtype=g['blobs'].dtype)
                 # Blobs must be a dict
                 g['blobs'][iteration, ...] = blobs
 
-            g["accepted"][:] += accepted
+            g["accepted"][iteration, :] = accepted
 
             for i, v in enumerate(random_state):
                 g.attrs["random_state_{0}".format(i)] = v
@@ -288,6 +311,56 @@ class HDFStorage:
             The chain of log probabilities.
         """
         return self.get_value("log_prob", **kwargs)
+
+    def get_trialled_log_prob(self, **kwargs):
+        """
+        Get the chain of log probabilities evaluated as *trials* of the MCMC.
+
+        Note these do not corresond to the chain, but instead correspond to the
+        trialled parameters. Check the :attr:`accepted` property to check if
+        each trial was accepted.
+
+        Parameters
+        ----------
+        kwargs:
+            flat (Optional[bool]): Flatten the chain across the ensemble.
+                (default: ``False``)
+            thin (Optional[int]): Take only every ``thin`` steps from the
+                chain. (default: ``1``)
+            discard (Optional[int]): Discard the first ``discard`` steps in
+                the chain as burn-in. (default: ``0``)
+
+        Returns
+        -------
+        array[..., nwalkers]:
+            The chain of log probabilities.
+        """
+        return self.get_value("trial_log_prob", **kwargs)
+
+    def get_trials(self, **kwargs):
+        """
+        Get the stored chain of trials.
+
+        Note these do not corresond to the chain, but instead correspond to the
+        trialled parameters. Check the :attr:`accepted` property to check if
+        each trial was accepted.
+
+        Parameters
+        ----------
+        kwargs:
+            flat (Optional[bool]): Flatten the chain across the ensemble.
+                (default: ``False``)
+            thin (Optional[int]): Take only every ``thin`` steps from the
+                chain. (default: ``1``)
+            discard (Optional[int]): Discard the first ``discard`` steps in
+                the chain as burn-in. (default: ``0``)
+
+        Returns
+        -------
+        array[..., nwalkers, ndim]:
+            The MCMC samples.
+        """
+        return self.get_value("trials", **kwargs)
 
     def get_last_sample(self):
         """
@@ -366,9 +439,9 @@ class HDFStorageUtil:
     def samples_initialized(self):
         return self.sample_storage.initialized
 
-    def persistValues(self, pos, prob, data, accepted, random_state, burnin=False):
+    def persistValues(self, pos, prob, data, truepos, trueprob, accepted, random_state, burnin=False):
         st = self.burnin_storage if burnin else self.sample_storage
-        st.save_step(pos, prob, data, accepted, random_state)
+        st.save_step(pos, prob, data, truepos, trueprob, accepted, random_state)
 
     def close(self):
         pass
