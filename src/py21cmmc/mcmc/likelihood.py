@@ -803,19 +803,28 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
 
     @property
     def redshifts(self):
-        return self.lfcore.redshifts
+        return self.lfcore.redshift
 
     def reduce_data(self, ctx):
-        return dict(
-            L=ctx.get("luminosity_function").luminosity,
-            luminosity_funciton=ctx.get("luminosity_function").density
-        )
+        return ctx.get("luminosity_function")
 
     def computeLikelihood(self, model):
-        model_spline = InterpolatedUnivariateSpline(model['L'], model['luminosity_function'])
-        lnl = -0.5 * np.sum(
-            (self.data['luminosity_function'] - model_spline(self.data['L'])) ** 2 / self.noise['sigma'] ** 2)
-        return lnl
+        lnl = 0
+        for i, z in enumerate(self.redshifts):
+            model_spline = InterpolatedUnivariateSpline(model['Muv'][i][::-1], model['lfunc'][i][::-1])
 
-    def define_noise(self):
+            lnl += -0.5 * np.sum(
+                (self.data['lfunc'][i] - model_spline(self.data['Muv'][i])) ** 2 / self.noise[i]['sigma'] ** 2)
+            return lnl
 
+    def define_noise(self, ctx, model):
+        if np.isscalar(self._sigma):
+            return [{"sigma": self._sigma}]*len(self.redshifts)
+        else:
+            try:
+                return [{"sigma": self._sigma(m['Muv'])} for m in model]
+            except TypeError:
+                if len(self._sigma) == len(self.redshifts):
+                    return [{"sigma": s} for s in self._sigma]
+                else:
+                    return [{"sigma": self._sigma}] * len(self.redshifts)
