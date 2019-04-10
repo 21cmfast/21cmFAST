@@ -791,10 +791,6 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
 class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     required_cores = [core.CoreLuminosityFunction]
 
-    def __init__(self, sigma=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._sigma = sigma
-
     @property
     def lfcore(self):
         for m in self._cores:
@@ -818,13 +814,9 @@ class LikelihoodLuminosityFunction(LikelihoodBaseFile):
             return lnl
 
     def define_noise(self, ctx, model):
-        if np.isscalar(self._sigma):
-            return [{"sigma": self._sigma}]*len(self.redshifts)
+        sig = self.lfcore.sigma
+
+        if callable(sig[0]):
+            return [{"sigma": s(m["Muv"])} for s, m in zip(sig, model)]
         else:
-            try:
-                return [{"sigma": self._sigma(m['Muv'])} for m in model]
-            except TypeError:
-                if len(self._sigma) == len(self.redshifts):
-                    return [{"sigma": s} for s in self._sigma]
-                else:
-                    return [{"sigma": self._sigma}] * len(self.redshifts)
+            return [{"sigma": s} for s in sig]

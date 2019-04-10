@@ -296,3 +296,14 @@ def test_lightcone(init_box, perturb_field):
     assert lc.lightcone_redshifts[-1] >= 10.0
     assert np.isclose(lc.lightcone_redshifts[0], perturb_field.redshift, atol=1e-4)
     assert lc.cell_size == init_box.user_params.BOX_LEN / init_box.user_params.HII_DIM
+
+
+def test_run_lf():
+    muv, mhalo, lf = wrapper.compute_luminosity_function(redshifts=[7,8,9], nbins=100)
+    assert np.all(lf[~np.isnan(lf)] > -30)
+    assert lf.shape == (3, 100)
+
+    # Check that memory is in-tact and a second run also works:
+    muv, mhalo, lf2 = wrapper.compute_luminosity_function(redshifts=[7, 8, 9], nbins=100)
+    assert lf2.shape == (3, 100)
+    assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])

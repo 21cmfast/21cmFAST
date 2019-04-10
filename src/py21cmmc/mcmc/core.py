@@ -5,6 +5,7 @@ import copy
 import inspect
 import logging
 import warnings
+import numpy as np
 
 import py21cmmc as p21
 
@@ -423,12 +424,6 @@ class CoreLightConeModule(CoreCoevalModule):
         super().__init__(**kwargs)
         self.max_redshift = max_redshift
 
-    def setup(self):
-        super().setup()
-
-        # Un-list redshift and perturb
-        self.redshift = self.redshift[0]
-
     @property
     def lightcone_slice_redshifts(self):
         """
@@ -436,7 +431,7 @@ class CoreLightConeModule(CoreCoevalModule):
         """
         # noinspection PyProtectedMember
         return p21.wrapper._get_lightcone_redshifts(
-            self.cosmo_params, self.max_redshift, self.redshift,
+            self.cosmo_params, self.max_redshift, self.redshift[0],
             self.user_params, self.z_step_factor
         )
 
@@ -446,7 +441,7 @@ class CoreLightConeModule(CoreCoevalModule):
 
         # Call C-code
         lightcone = p21.run_lightcone(
-            redshift=self.redshift,
+            redshift=self.redshift[0],
             max_redshift=self.max_redshift,
             astro_params=astro_params, flag_options=self.flag_options,
             cosmo_params=cosmo_params, user_params=self.user_params,
@@ -464,16 +459,9 @@ class CoreLuminosityFunction(CoreCoevalModule):
     """
     A Core Module that produces model luminosity functions at a range of redshifts.
     """
-
-    def __init__(self, *, redshifts, user_params=None, cosmo_params=None, astro_params=None, flag_options=None,
-                 **io_options):
-        super().__init__(io_options.get("store", None))
-
-        self.user_params = p21.UserParams(user_params)
-        self.flag_options = p21.FlagOptions(flag_options)
-        self.astro_params = p21.AstroParams(astro_params)
-        self.cosmo_params = p21.CosmoParams(cosmo_params)
-        self.redshifts = redshifts
+    def __init__(self, sigma, **kwargs):
+        self._sigma = sigma
+        super().__init__(**kwargs)
 
     def setup(self):
         CoreBase.setup(self)
@@ -483,7 +471,7 @@ class CoreLuminosityFunction(CoreCoevalModule):
 
     def run(self, astro_params, cosmo_params):
         return p21.compute_luminosity_function(
-            redshifts=self.redshifts,
+            redshifts=self.redshift,
             astro_params=astro_params, flag_options=self.flag_options,
             cosmo_params=cosmo_params, user_params=self.user_params,
         )
@@ -493,6 +481,27 @@ class CoreLuminosityFunction(CoreCoevalModule):
         astro_params, cosmo_params = self._update_params(ctx.getParams())
 
         # Call C-code
-        lf = self.run(astro_params, cosmo_params)
+        Muv, mhalo, lfunc = self.run(astro_params, cosmo_params)
 
-        ctx.add('luminosity_function', lf)
+        Muv = [m[~np.isnan(l)] for l, m in zip(lfunc, Muv)]
+        mhalo = [m[~np.isnan(l)] for l, m in zip(lfunc, mhalo)]
+        lfunc = [m[~np.isnan(l)] for l, m in zip(lfunc, lfunc)]
+
+        ctx.add('luminosity_function', {"Muv":Muv, "mhalo":mhalo, "lfunc":lfunc})
+
+    @property
+    def sigma(self):
+        if not hasattr(self._sigma, "__len__") or len(self._sigma) != len(self.redshift):
+            return [self._sigma]*len(self.redshift)
+        else:
+            return self._sigma
+
+    def convert_model_to_mock(self, ctx):
+        lfunc = ctx.get("luminosity_function")['lfunc']
+        muv = ctx.get("luminosity_function")['Muv']
+
+        for i, s in enumerate(self.sigma): # each redshift
+            try:
+                lfunc[i] += np.random.normal(loc=0, scale=s(muv), size=len(lfunc[i]))
+            except TypeError:
+                lfunc[i] += np.random.normal(loc=0, scale=s, size=len(lfunc[i]))

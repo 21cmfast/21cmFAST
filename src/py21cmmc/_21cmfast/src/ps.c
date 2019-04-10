@@ -1299,11 +1299,11 @@ void initialise_ComputeLF(int nbins, struct UserParams *user_params, struct Cosm
 
 int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
                struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, double *M_uv_z, double *M_h_z, double *log10phi) {
-    
-    if(!initialised_ComputeLF) {
-        initialise_ComputeLF(nbins, user_params,cosmo_params,astro_params,flag_options);
-    }
-    
+
+    // This NEEDS to be done every time, because the actual object passed in as
+    // user_params, cosmo_params etc. can change on each call, freeing up the memory.
+    initialise_ComputeLF(nbins, user_params,cosmo_params,astro_params,flag_options);
+
     int i,i_z;
     double  dlnMhalo, lnMhalo_i, SFRparam, Muv_1, Muv_2, dMuvdMhalo;
     double Mhalo_i, lnMhalo_min, lnMhalo_max, lnMhalo_lo, lnMhalo_hi, dlnM, growthf;
@@ -1358,18 +1358,22 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
             if(user_params_ps->HMF==0) {
                 log10phi[i + i_z*nbins] = log10( dNdM(z_LF[i_z], exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
             }
-            if(user_params_ps->HMF==1) {
+            else if(user_params_ps->HMF==1) {
                 log10phi[i + i_z*nbins] = log10( dNdM_st_interp(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
             }
-            if(user_params_ps->HMF==2) {
+            else if(user_params_ps->HMF==2) {
                 log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
             }
-            if(user_params_ps->HMF==3) {
+            else if(user_params_ps->HMF==3) {
                 log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            }else{
+                LOG_ERROR("HMF should be between 0-3... returning error.");
+                return(2);
             }
             if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.) log10phi[i + i_z*nbins] = -30.;
         }
     }
+
 
     return(0);
     

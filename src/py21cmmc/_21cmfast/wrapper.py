@@ -98,15 +98,14 @@ import os
 from os import path
 
 import numpy as np
-from ..mcmc import yaml
 from astropy import units
 from astropy.cosmology import Planck15, z_at_value
 from cached_property import cached_property
 
 from ._21cmfast import ffi, lib
 from ._utils import StructWithDefaults, OutputStruct as _OS, StructInstanceWrapper, StructWrapper
+from ..mcmc import yaml
 
-import logging
 logger = logging.getLogger("21CMMC")
 
 # Global Options
@@ -716,23 +715,38 @@ def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
     return lib.ComputeTau(user_params(), cosmo_params(), len(redshifts), z, xHI)
 
 
-def compute_luminosity_function(*, user_params=None, cosmo_params=None, astro_params=None, flag_options=None,
-                                redshifts=None, nbins=100):
+def compute_luminosity_function(*, redshifts, user_params=None, cosmo_params=None, astro_params=None, flag_options=None,
+                                nbins=100):
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     astro_params = AstroParams(astro_params)
     flag_options = FlagOptions(flag_options)
 
+    redshifts = np.array(redshifts)
+
     lfunc = np.zeros(len(redshifts) * nbins)
     Muvfunc = np.zeros(len(redshifts) * nbins)
     Mhfunc = np.zeros(len(redshifts) * nbins)
+
+    lfunc.shape = (len(redshifts), nbins)
+    Muvfunc.shape = (len(redshifts), nbins)
+    Mhfunc.shape = (len(redshifts), nbins)
+
     c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
     c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
     c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
 
     # Run the C code
-    lib.ComputeLF(nbins, user_params(), cosmo_params(), astro_params(), flag_options(), len(redshifts), redshifts,
-                  c_Muvfunc, c_Mhfunc, c_lfunc)
+    errcode = lib.ComputeLF(
+        nbins, user_params(), cosmo_params(), astro_params(),
+        flag_options(), len(redshifts), ffi.cast("float *", ffi.from_buffer(redshifts)),
+        c_Muvfunc, c_Mhfunc, c_lfunc
+    )
+
+    _process_exitcode(errcode)
+
+    lfunc[lfunc <= -30] = np.nan
+
     return Muvfunc, Mhfunc, lfunc
 
 
@@ -1125,8 +1139,8 @@ def ionize_box(*, astro_params=None, flag_options=None,
     elif spin_temp is None:
         spin_temp = spin_temperature(
             perturbed_field=perturbed_field,
-            z_step_factor = z_step_factor,
-            z_heat_max = z_heat_max,
+            z_step_factor=z_step_factor,
+            z_heat_max=z_heat_max,
             flag_options=flag_options,
             init_boxes=init_boxes,
             direc=direc, write=write, regenerate=regenerate
@@ -1749,7 +1763,7 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
         # Best to get a perturb for this redshift, to pass to brightness_temperature
 
         this_perturb = perturb_field(redshift=z, init_boxes=init_box, regenerate=regenerate,
-                                     direc=direc,write=write)
+                                     direc=direc, write=write)
 
         if flag_options.USE_TS_FLUCT:
             st2 = spin_temperature(
