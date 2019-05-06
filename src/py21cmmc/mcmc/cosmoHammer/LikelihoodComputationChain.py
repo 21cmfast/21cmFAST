@@ -1,5 +1,6 @@
 import warnings
 import os
+import gc
 
 from cosmoHammer.ChainContext import ChainContext
 from cosmoHammer import getLogger
@@ -128,6 +129,10 @@ class LikelihoodComputationChain(LCC):
         return lnl
 
     def __call__(self, p):
+        # Need to do Garbage Collection explicitly to kill the circular
+        # refs that are in the this chain.
+        gc.collect(2)
+
         try:
             return super().__call__(p)
         except ParameterError:

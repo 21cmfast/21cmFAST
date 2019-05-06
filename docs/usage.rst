@@ -12,7 +12,7 @@ Overall Design
 secondly to provide a robust MCMC framework for constraining the parameters of 21cmFAST on data (whether real or mock).
 With regards to the first of these goals, ``21CMMC`` is intended to be an almost *total* drop-in replacement of the
 underlying library, providing for all its functionality with the ease-of-use of a Python frontend. Thus, familiar
-CLI programs are reproduced (eg. ``./init`` has been replaced with ``21CMMC init``, and the various parameters and options
+CLI programs are reproduced (eg. ``./init`` has been replaced with ``21CMMC init``), and the various parameters and options
 contained in the original source headers are available (with defaults) within Python classes.
 
 Before moving to specific usage, it is useful to consider some broader design choices of ``21CMMC``. Firstly,
@@ -24,7 +24,7 @@ hand-modifying them and re-installing. All of these constants can be found in th
 
 Secondly, when ``21CMMC`` is installed, it automatically creates a configuration directory in the user's home:
 ``~/.21CMMC``. This houses a number of important configuration options; usually default values of parameters.
-At this stage, the location of this directory is not configurable. The config directory contains example configuration
+At this stage, the location of this directory is not itself configurable. The config directory contains example configuration
 files for the CLI interface (see below), which can also be copied anywhere on disk and modified. Importantly, the
 ``config.yml`` file in this directory specifies some of the more important options for how ``21CMMC`` behaves by default.
 One such option is ``boxdir``, which specifies the directory in which ``21CMMC`` will cache results (see below for details).
@@ -111,3 +111,11 @@ data which make it simpler to deal with (eg. reshaping an underlying flattened 1
 
 .. warning:: This page needs a huge amount of updating.
 
+
+Catching Segfaults
+==================
+Since 21cmFAST is still written in C, there is the off-chance that something catastrophic will happen, causing a
+segfault. Typically, if this happens, Python will not print a traceback where the error occurred, and finding the
+source of such errors can be difficult. However, one has the option of using the standard library
+`faulthandler <https://docs.python.org/3/library/faulthandler.html>`_. Specifying ``-X faulthandler`` when invoking
+Python will cause a minimal traceback to be printed to ``stderr`` if a segfault occurs.

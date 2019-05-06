@@ -374,8 +374,6 @@ class Likelihood1DPowerCoeval(LikelihoodBaseFile):
             moduncert = self.model_uncertainty * pd(
                 m['k'][mask]) if not self.error_on_model else self.model_uncertainty * m['delta'][mask]
 
-            logger.debug("Generating noise spline vals, z={}".format(self.redshift[i]))
-
             if self.noise_spline:
                 noise = self.noise_spline[i](m['k'][mask])
 
@@ -793,14 +791,32 @@ class LikelihoodGlobalSignal(LikelihoodBaseFile):
 class LikelihoodLuminosityFunction(LikelihoodBaseFile):
     required_cores = [core.CoreLuminosityFunction]
 
+    @property
+    def lfcore(self):
+        for m in self._cores:
+            if isinstance(m, core.CoreLuminosityFunction):
+                return m
+
+    @property
+    def redshifts(self):
+        return self.lfcore.redshift
+
     def reduce_data(self, ctx):
-        return dict(
-            L=ctx.get("luminosity_function").luminosity,
-            luminosity_funciton=ctx.get("luminosity_function").density
-        )
+        return ctx.get("luminosity_function")
 
     def computeLikelihood(self, model):
-        model_spline = InterpolatedUnivariateSpline(model['L'], model['luminosity_function'])
-        lnl = -0.5 * np.sum(
-            (self.data['luminosity_function'] - model_spline(self.data['L'])) ** 2 / self.noise['sigma'] ** 2)
-        return lnl
+        lnl = 0
+        for i, z in enumerate(self.redshifts):
+            model_spline = InterpolatedUnivariateSpline(model['Muv'][i][::-1], model['lfunc'][i][::-1])
+
+            lnl += -0.5 * np.sum(
+                (self.data['lfunc'][i] - model_spline(self.data['Muv'][i])) ** 2 / self.noise[i]['sigma'] ** 2)
+            return lnl
+
+    def define_noise(self, ctx, model):
+        sig = self.lfcore.sigma
+
+        if callable(sig[0]):
+            return [{"sigma": s(m["Muv"])} for s, m in zip(sig, model)]
+        else:
+            return [{"sigma": s} for s in sig]
