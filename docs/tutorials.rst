@@ -19,4 +19,5 @@ If you've covered the tutorials and still have questions about "how to do stuff"
 
    faqs/installation_faq
    faqs/MCMC_advanced_faq
+   faqs/ParameterRanges
    faqs/construct_cores_and_likelihoods

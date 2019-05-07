@@ -1319,7 +1319,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
     for (i_z=0; i_z<NUM_OF_REDSHIFT_FOR_LF; i_z++) {        
         
         growthf = dicke(z_LF[i_z]);
-            
+        
         for (i=0; i<nbins; i++) {
             // generate interpolation arrays
             lnMhalo_param[i] = lnMhalo_min + dlnMhalo*(double)i;
