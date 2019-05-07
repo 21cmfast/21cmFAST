@@ -1055,6 +1055,7 @@ void initialiseSigmaMInterpTable(float M_Min, float M_Max)
         Mass_InterpTable[i] = log(M_Min) + (float)i/(NMass-1)*( log(M_Max) - log(M_Min) );
         Sigma_InterpTable[i] = sigma_z0(exp(Mass_InterpTable[i]));
         dSigmadm_InterpTable[i] = log10(-dsigmasqdm_z0(exp(Mass_InterpTable[i])));
+        printf("i = %d Mass_InterpTable = %e Sigma_InterpTable = %e dSigmadm_InterpTable = %e\n",i,Mass_InterpTable[i],Sigma_InterpTable[i],dSigmadm_InterpTable[i]);
     }
     
     MinMass = log(M_Min);
@@ -1721,7 +1722,12 @@ void initialise_SFRD_Conditional_table(int Nfilter, float min_density[], float m
         
         sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
         
-        overdense_small_low = min_density[j]*growthf[j];
+        if(min_density[j]*growthf[j] < -1.) {
+            overdense_small_low = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
+        }
+        else {
+            overdense_small_low = min_density[j]*growthf[j];
+        }
         overdense_small_high = max_density[j]*growthf[j];
         if(overdense_small_high > global_params.CRIT_DENS_TRANSITION) {
             overdense_small_high = global_params.CRIT_DENS_TRANSITION;

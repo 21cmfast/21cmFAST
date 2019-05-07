@@ -722,7 +722,7 @@ def compute_luminosity_function(*, redshifts, user_params=None, cosmo_params=Non
     astro_params = AstroParams(astro_params)
     flag_options = FlagOptions(flag_options)
 
-    redshifts = np.array(redshifts)
+    redshifts = np.array(redshifts, dtype='float32')
 
     lfunc = np.zeros(len(redshifts) * nbins)
     Muvfunc = np.zeros(len(redshifts) * nbins)
@@ -1748,7 +1748,7 @@ def run_lightcone(*, redshift=None, max_redshift=None, user_params=None, cosmo_p
     d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(cosmo_params, max_redshift, redshift, scrollz,
                                                                 user_params, global_params.ZPRIME_STEP_FACTOR)
 
-    lc = np.zeros((user_params.HII_DIM, user_params.HII_DIM, n_lightcone))
+    lc = np.zeros((user_params.HII_DIM, user_params.HII_DIM, n_lightcone), dtype=np.float32)
 
     scroll_distances = cosmo_params.cosmo.comoving_distance(scrollz).value - d_at_redshift
 
