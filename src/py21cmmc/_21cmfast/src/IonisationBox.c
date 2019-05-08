@@ -40,7 +40,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     float f_coll_crit, erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, sqrtarg, xHI_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR;
     float ave_M_coll_cell, ave_N_min_cell;
     
-    double global_xH, global_step_xH, ST_over_PS, mean_f_coll, f_coll, R, stored_R, f_coll_min;
+    double global_xH, ST_over_PS, mean_f_coll, f_coll, R, stored_R, f_coll_min;
 
     double t_ast, dfcolldt, Gamma_R_prefactor, rec, dNrec;
     float growth_factor_dz, fabs_dtdz, ZSTEP, Gamma_R, z_eff;
@@ -52,6 +52,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     float dens_val, overdense_small_min, overdense_small_bin_width, overdense_small_bin_width_inv, overdense_large_min, overdense_large_bin_width, overdense_large_bin_width_inv;
     
     int overdense_int, overdense_int_boundexceeded;
+    int something_finite_or_infinite = 0;
     
     overdense_large_min = global_params.CRIT_DENS_TRANSITION*0.999;
     overdense_large_bin_width = 1./((double)NSFR_high-1.)*(Deltac-overdense_large_min);
@@ -232,6 +233,11 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
     }
     else {
         mean_f_coll = FgtrM_General(redshift, M_MIN);
+    }
+    
+    if(isfinite(mean_f_coll)==0) {
+        LOG_ERROR("Mean collapse fraction is either finite or NaN!");
+        return(2);
     }
 
 LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %f", mean_f_coll);
@@ -626,7 +632,13 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             } //  end loop through Fcoll box
             
             if(overdense_int_boundexceeded==1) {
-                LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines in IonisationBox.c");
+                LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines");
+                return(2);
+            }
+            
+            
+            if(isfinite(f_coll)==0) {
+                LOG_ERROR("f_coll is either finite or NaN!");
                 return(2);
             }
 
@@ -704,6 +716,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             else{
                                 LOG_ERROR("Incorrect choice of find bubble algorithm: %i\nAborting...", global_params.FIND_BUBBLE_ALGORITHM);
                                 box->xH_box[HII_R_INDEX(x,y,z)] = 0;
+                                return(2);
                             }
                         } // end ionized
                         // If not fully ionized, then assign partial ionizations
@@ -735,12 +748,6 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 } // j
             } // i
             
-            global_step_xH = 0.;
-            for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
-                global_step_xH += box->xH_box[ct];
-            }
-            global_step_xH /= (float)HII_TOT_NUM_PIXELS;
-            
             if(first_step_R) {
                 R = stored_R;
                 first_step_R = 0;
@@ -761,6 +768,11 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
         }
         
+        if(isfinite(global_xH)==0) {
+            LOG_ERROR("Neutral fraction is either infinite or a Nan. Something has gone wrong in the ionisation calculation!");
+            return(2);
+        }
+        
         // update the N_rec field
         if (flag_options->INHOMO_RECO){
             
@@ -772,13 +784,23 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                         z_eff = (1+redshift) * pow(curr_dens, 1.0/3.0) - 1;
                         dNrec = splined_recombination_rate(z_eff, box->Gamma12_box[HII_R_INDEX(x,y,z)]) * fabs_dtdz * ZSTEP * (1 - box->xH_box[HII_R_INDEX(x,y,z)]);
                         
+                        if(isfinite(dNrec)==0) {
+                            something_finite_or_infinite = 1;
+                        }
+                        
                         box->dNrec_box[HII_R_INDEX(x,y,z)] = previous_ionize_box->dNrec_box[HII_R_INDEX(x,y,z)] + dNrec;
                     }
                 }
             }
+            
+            if(something_finite_or_infinite) {
+                LOG_ERROR("Recombinations have returned either an infinite or NaN value.");
+                return(2);
+            }
+            
         }
     }
-
+    
     // deallocate
     gsl_rng_free (r);
 

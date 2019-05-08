@@ -705,7 +705,7 @@ LOG_SUPER_DEBUG("Initialised SFRD table");
             redshift_int_Nion_z = (int)floor( ( zp - determine_zpp_min )/zpp_bin_width );
             
             if(redshift_int_Nion_z < 0 || (redshift_int_Nion_z + 1) > (zpp_interp_points_SFR - 1)) {
-                LOG_ERROR("I have overstepped my allocated memory for the interpolation table Nion_z_val in SpinTemperatureBox.c");
+                LOG_ERROR("I have overstepped my allocated memory for the interpolation table Nion_z_val");
                 return(2);
             }
             
@@ -785,7 +785,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 redshift_int_SFRD = (int)floor( ( zpp - determine_zpp_min )/zpp_bin_width );
 
                 if(redshift_int_SFRD < 0 || (redshift_int_SFRD + 1) > (zpp_interp_points_SFR - 1)) {
-                    LOG_ERROR("I have overstepped my allocated memory for the interpolation table SFRD_val in SpinTemperatureBox.c");
+                    LOG_ERROR("I have overstepped my allocated memory for the interpolation table SFRD_val");
                     return(2);
                 }
                 
@@ -806,7 +806,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 zpp_gridpoint2_int = zpp_gridpoint1_int + 1;
                 
                 if(zpp_gridpoint1_int < 0 || (zpp_gridpoint1_int + 1) > (zpp_interp_points_SFR - 1)) {
-                    LOG_ERROR("I have overstepped my allocated memory for the interpolation table fcoll_R_grid in SpinTemperatureBox.c");
+                    LOG_ERROR("I have overstepped my allocated memory for the interpolation table fcoll_R_grid");
                     return(2);
                 }
                 
@@ -882,7 +882,7 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
             }
          
             if(table_int_boundexceeded==1) {
-                LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of fcoll in SpinTemperatureBox.c");
+                LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of fcoll");
                 return(2);
             }
 
@@ -1056,7 +1056,7 @@ LOG_SUPER_DEBUG("looping over box...");
                 }
                 
                 if(fcoll_int_boundexceeded==1) {
-                    LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the fcoll/nion_splines in SpinTemperatureBox.c");
+                    LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the fcoll/nion_splines");
                     return(2);
                 }
                 
@@ -1247,7 +1247,7 @@ LOG_SUPER_DEBUG("looping over box...");
                     }
                     
                     if(table_int_boundexceeded==1) {
-                        LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of dfcoll_dz_val in SpinTemperatureBox.c");
+                        LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of dfcoll_dz_val");
                         return(2);
                     }
                 }
