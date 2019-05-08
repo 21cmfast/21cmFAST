@@ -93,6 +93,9 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     int fcoll_int;
     int redshift_int_Nion_z,redshift_int_SFRD;
     
+    int table_int_boundexceeded = 0;
+    int fcoll_int_boundexceeded = 0;
+    
     double total_time, total_time2, total_time3, total_time4;
     float M_MIN_at_zp;
     
@@ -701,6 +704,11 @@ LOG_SUPER_DEBUG("Initialised SFRD table");
          
             redshift_int_Nion_z = (int)floor( ( zp - determine_zpp_min )/zpp_bin_width );
             
+            if(redshift_int_Nion_z < 0 || (redshift_int_Nion_z + 1) > (zpp_interp_points_SFR - 1)) {
+                LOG_ERROR("I have overstepped my allocated memory for the interpolation table Nion_z_val in SpinTemperatureBox.c");
+                return(2);
+            }
+            
             redshift_table_Nion_z = determine_zpp_min + zpp_bin_width*(float)redshift_int_Nion_z;
             
             Splined_Fcollzp_mean = Nion_z_val[redshift_int_Nion_z] + ( zp - redshift_table_Nion_z )*( Nion_z_val[redshift_int_Nion_z+1] - Nion_z_val[redshift_int_Nion_z] )/(zpp_bin_width);
@@ -776,6 +784,11 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 
                 redshift_int_SFRD = (int)floor( ( zpp - determine_zpp_min )/zpp_bin_width );
 
+                if(redshift_int_SFRD < 0 || (redshift_int_SFRD + 1) > (zpp_interp_points_SFR - 1)) {
+                    LOG_ERROR("I have overstepped my allocated memory for the interpolation table SFRD_val in SpinTemperatureBox.c");
+                    return(2);
+                }
+                
                 redshift_table_SFRD = determine_zpp_min + zpp_bin_width*(float)redshift_int_SFRD;
 
                 Splined_SFRD_zpp = SFRD_val[redshift_int_SFRD] + ( zpp - redshift_table_SFRD )*( SFRD_val[redshift_int_SFRD+1] - SFRD_val[redshift_int_SFRD] )/(zpp_bin_width);
@@ -791,6 +804,11 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 // Determining values for the evaluating the interpolation table
                 zpp_gridpoint1_int = (int)floor((zpp - determine_zpp_min)/zpp_bin_width);
                 zpp_gridpoint2_int = zpp_gridpoint1_int + 1;
+                
+                if(zpp_gridpoint1_int < 0 || (zpp_gridpoint1_int + 1) > (zpp_interp_points_SFR - 1)) {
+                    LOG_ERROR("I have overstepped my allocated memory for the interpolation table fcoll_R_grid in SpinTemperatureBox.c");
+                    return(2);
+                }
                 
                 zpp_gridpoint1 = determine_zpp_min + zpp_bin_width*(float)zpp_gridpoint1_int;
                 zpp_gridpoint2 = determine_zpp_min + zpp_bin_width*(float)zpp_gridpoint2_int;
@@ -852,12 +870,23 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
             for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
                 for (R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
                     
+                    if( dens_grid_int_vals[box_ct][R_ct] < 0 || (dens_grid_int_vals[box_ct][R_ct] + 1) > (dens_Ninterp  - 1) ) {
+                        table_int_boundexceeded = 1;
+                    }
+                    
                     fcoll_R_array[R_ct] += ( fcoll_interp1[dens_grid_int_vals[box_ct][R_ct]][R_ct]*( density_gridpoints[dens_grid_int_vals[box_ct][R_ct] + 1][R_ct] - delNL0_rev[box_ct][R_ct] ) + fcoll_interp2[dens_grid_int_vals[box_ct][R_ct]][R_ct]*( delNL0_rev[box_ct][R_ct] - density_gridpoints[dens_grid_int_vals[box_ct][R_ct]][R_ct] ) );
                 }
             }
             for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
                 ST_over_PS[R_ct] = ST_over_PS[R_ct]/(fcoll_R_array[R_ct]/(double)HII_TOT_NUM_PIXELS);
             }
+         
+            if(table_int_boundexceeded==1) {
+                LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of fcoll in SpinTemperatureBox.c");
+                return(2);
+            }
+
+            
         }
         
         // scroll through each cell and update the temperature and residual ionization fraction
@@ -917,7 +946,7 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
             for (i=0; i<(x_int_NXHII-1); i++) {
                 m_xHII_low = i;
                 m_xHII_high = m_xHII_low + 1;
-                    
+                
                 inverse_diff[i] = 1./(x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
                 freq_int_heat_tbl_diff[i][R_ct] = freq_int_heat_tbl[m_xHII_high][R_ct] - freq_int_heat_tbl[m_xHII_low][R_ct];
                 freq_int_ion_tbl_diff[i][R_ct] = freq_int_ion_tbl[m_xHII_high][R_ct] - freq_int_ion_tbl[m_xHII_low][R_ct];
@@ -990,6 +1019,10 @@ LOG_SUPER_DEBUG("looping over box...");
                                 dens_val = (log10f(curr_dens+1.) - fcoll_interp_min)*fcoll_interp_bin_width_inv;
                                 
                                 fcoll_int = (int)floorf( dens_val );
+                                
+                                if(fcoll_int < 0 || (fcoll_int + 1) > (NSFR_low - 1)) {
+                                    fcoll_int_boundexceeded = 1;
+                                }
 
                                 fcoll = log10_SFRD_z_low_table[R_ct][fcoll_int]*( 1 + (float)fcoll_int - dens_val ) + log10_SFRD_z_low_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
                                 
@@ -1003,7 +1036,11 @@ LOG_SUPER_DEBUG("looping over box...");
                                 dens_val = (curr_dens - fcoll_interp_high_min)*fcoll_interp_high_bin_width_inv;
                                 
                                 fcoll_int = (int)floorf( dens_val );
-
+                                
+                                if(fcoll_int < 0 || (fcoll_int + 1) > (NSFR_high - 1)) {
+                                    fcoll_int_boundexceeded = 1;
+                                }
+                                
                                 fcoll = SFRD_z_high_table[R_ct][fcoll_int]*( 1. + (float)fcoll_int - dens_val ) + SFRD_z_high_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
                                 
                             }
@@ -1017,6 +1054,13 @@ LOG_SUPER_DEBUG("looping over box...");
                         
                     }
                 }
+                
+                if(fcoll_int_boundexceeded==1) {
+                    LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the fcoll/nion_splines in SpinTemperatureBox.c");
+                    return(2);
+                }
+                
+                
                 ave_fcoll /= (pow(10.,10.)*(double)HII_TOT_NUM_PIXELS);
                 
                 if(ave_fcoll!=0.) {
@@ -1189,6 +1233,10 @@ LOG_SUPER_DEBUG("looping over box...");
                     // Now determine all the differentials for the heating/ionisation rate equations
                     for (R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
                         
+                        if( dens_grid_int_vals[box_ct][R_ct] < 0 || (dens_grid_int_vals[box_ct][R_ct] + 1) > (dens_Ninterp  - 1) ) {
+                            table_int_boundexceeded = 1;
+                        }
+                        
                         dfcoll_dz_val = ST_over_PS[R_ct]*(1.+delNL0_rev[box_ct][R_ct]*zpp_growth[R_ct])*( dfcoll_interp1[dens_grid_int_vals[box_ct][R_ct]][R_ct]*(density_gridpoints[dens_grid_int_vals[box_ct][R_ct] + 1][R_ct] - delNL0_rev[box_ct][R_ct]) + dfcoll_interp2[dens_grid_int_vals[box_ct][R_ct]][R_ct]*(delNL0_rev[box_ct][R_ct] - density_gridpoints[dens_grid_int_vals[box_ct][R_ct]][R_ct]) );
                                             
                         dxheat_dt += dfcoll_dz_val * ( (freq_int_heat_tbl_diff[m_xHII_low][R_ct])*inverse_val + freq_int_heat_tbl[m_xHII_low][R_ct] );
@@ -1196,6 +1244,11 @@ LOG_SUPER_DEBUG("looping over box...");
                     
                         dxlya_dt += dfcoll_dz_val * ( (freq_int_lya_tbl_diff[m_xHII_low][R_ct])*inverse_val + freq_int_lya_tbl[m_xHII_low][R_ct] );
                         dstarlya_dt += dfcoll_dz_val*dstarlya_dt_prefactor[R_ct];
+                    }
+                    
+                    if(table_int_boundexceeded==1) {
+                        LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of dfcoll_dz_val in SpinTemperatureBox.c");
+                        return(2);
                     }
                 }
                 

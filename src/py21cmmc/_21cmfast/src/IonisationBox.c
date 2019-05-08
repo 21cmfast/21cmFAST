@@ -51,7 +51,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     
     float dens_val, overdense_small_min, overdense_small_bin_width, overdense_small_bin_width_inv, overdense_large_min, overdense_large_bin_width, overdense_large_bin_width_inv;
     
-    int overdense_int;
+    int overdense_int, overdense_int_boundexceeded;
     
     overdense_large_min = global_params.CRIT_DENS_TRANSITION*0.999;
     overdense_large_bin_width = 1./((double)NSFR_high-1.)*(Deltac-overdense_large_min);
@@ -542,7 +542,9 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
             // Determine the global averaged f_coll for the overall normalisation
-                
+            
+            overdense_int_boundexceeded = 0; // Reset value of int check to see if we are over-stepping our interpolation table
+            
             // renormalize the collapse fraction so that the mean matches ST,
             // since we are using the evolved (non-linear) density field
             for (x=0; x<user_params->HII_DIM; x++){
@@ -575,6 +577,11 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 else {
                                     dens_val = (log10f(curr_dens+1.) - overdense_small_min)*overdense_small_bin_width_inv;
                                     overdense_int = (int)floorf( dens_val );
+                                    
+                                    if(overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
+                                        overdense_int_boundexceeded = 1;
+                                    }
+                                    
                                     Splined_Fcoll = log10_Nion_spline[overdense_int]*( 1 + (float)overdense_int - dens_val ) + log10_Nion_spline[overdense_int+1]*( dens_val - (float)overdense_int );
                                     Splined_Fcoll = expf(Splined_Fcoll);
                                     
@@ -586,6 +593,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     dens_val = (curr_dens - overdense_large_min)*overdense_large_bin_width_inv;
                                     
                                     overdense_int = (int)floorf( dens_val );
+
+                                    if(overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
+                                        overdense_int_boundexceeded = 1;
+                                    }
                                     
                                     Splined_Fcoll = Nion_spline[overdense_int]*( 1 + (float)overdense_int - dens_val ) + Nion_spline[overdense_int+1]*( dens_val - (float)overdense_int );
                                 }
@@ -613,6 +624,11 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     }
                 }
             } //  end loop through Fcoll box
+            
+            if(overdense_int_boundexceeded==1) {
+                LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines in IonisationBox.c");
+                return(2);
+            }
 
             f_coll /= (double) HII_TOT_NUM_PIXELS;
             
