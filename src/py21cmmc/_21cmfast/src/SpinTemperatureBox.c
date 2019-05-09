@@ -856,6 +856,11 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
             lower_int_limit = FMAX(nu_tau_one_approx(zp, zpp, x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
 
+            if(isfinite(lower_int_limit)==0) {
+                LOG_ERROR("lower_int_limit has returned either an infinity or a NaN");
+                return(2);
+            }
+            
             if (filling_factor_of_HI_zp < 0) filling_factor_of_HI_zp = 0; // for global evol; nu_tau_one above treats negative (post_reionization) inferred filling factors properly
 
             // set up frequency integral table for later interpolation for the cell's x_e value
@@ -863,6 +868,11 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 freq_int_heat_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 0);
                 freq_int_ion_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 1);
                 freq_int_lya_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 2);
+            
+                if(isfinite(freq_int_heat_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_ion_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_lya_tbl[x_e_ct][R_ct])==0) {
+                    LOG_ERROR("One of the frequency interpolation tables has an infinity or a NaN");
+                    return(2);
+                }
             }
             
             // and create the sum over Lya transitions from direct Lyn flux
