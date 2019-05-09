@@ -289,7 +289,10 @@ LOG_SUPER_DEBUG("Initialised PS");
         LOG_SUPER_DEBUG("Initialised heat");
 
         if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
-            initialiseSigmaMInterpTable(M_MIN,1e20);
+            if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
+                LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
+                return(2);
+            }
         }
         LOG_SUPER_DEBUG("Initialised sigmaM interp table");
 
@@ -322,7 +325,10 @@ LOG_SUPER_DEBUG("read in file");
         if(!flag_options->M_MIN_in_Mass) {
             M_MIN = TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
 LOG_DEBUG("Attempting to initialise sigmaM table with M_MIN=%e, Tvir_MIN=%e, mu=%e", M_MIN, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
-            initialiseSigmaMInterpTable(M_MIN,1e20);
+            if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
+                LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
+                return(2);
+            }
         }
 LOG_SUPER_DEBUG("Initialised Sigma interp table");
 
@@ -570,7 +576,10 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
         if(!flag_options->M_MIN_in_Mass) {
             M_MIN = TtoM(determine_zpp_max, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
             
-            initialiseSigmaMInterpTable(M_MIN,1e20);
+            if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
+                LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
+                return(2);
+            }
         }
 
 LOG_SUPER_DEBUG("Initialised sigma interp table");
@@ -591,9 +600,15 @@ LOG_SUPER_DEBUG("Initialised sigma interp table");
                 }            
                 
                 /* initialise interpolation of the mean collapse fraction for global reionization.*/
-                initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10);
+                if(initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10)!=0) {
+                    LOG_ERROR("Detected either an infinite or NaN value in initialise_Nion_Ts_spline");
+                    return(2);
+                }
                 
-                initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+                if(initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10)!=0) {
+                    LOG_ERROR("Detected either an infinite or NaN value in initialise_SFRD_spline");
+                    return(2);
+                }
                 
             }
             else {
@@ -691,7 +706,10 @@ LOG_SUPER_DEBUG("got density gridpoints");
                 zpp_growth[R_ct] = dicke(zpp);
             }
             
-            initialise_SFRD_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,max_densities,zpp_growth,R_values, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+            if(initialise_SFRD_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,max_densities,zpp_growth,R_values, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10)!=0) {
+                LOG_ERROR("Detected either an infinite or NaN value in initialise_SFRD_Conditional_table");
+                return(2);
+            };
             
         }
 
@@ -1179,6 +1197,12 @@ LOG_SUPER_DEBUG("looping over box...");
 
                             xa_tilde_fast = 0.0;
                         }
+                        
+                        if(isfinite(TS_fast)==0) {
+                            LOG_ERROR("Estimated spin temperature is either infinite of NaN!");
+                            return(2);
+                        }
+                        
                         if(TS_fast < 0.) {
                             // It can very rarely result in a negative spin temperature. If negative, it is a very small number. Take the absolute value, the optical depth can deal with very large numbers, so ok to be small
                             TS_fast = fabs(TS_fast);
@@ -1325,6 +1349,12 @@ LOG_SUPER_DEBUG("looping over box...");
                     TS_fast = (1.0 + xc_fast)/(Trad_fast_inv + xc_fast*T_inv);
                     xa_tilde_fast = 0.0;
                 }
+                
+                if(isfinite(TS_fast)==0) {
+                    LOG_ERROR("Estimated spin temperature is either infinite of NaN!");
+                    return(2);
+                }
+                
                 if(TS_fast < 0.) {
                     // It can very rarely result in a negative spin temperature. If negative, it is a very small number. Take the absolute value, the optical depth can deal with very large numbers, so ok to be small
                     TS_fast = fabs(TS_fast);

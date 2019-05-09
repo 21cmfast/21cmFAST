@@ -211,7 +211,10 @@ LOG_SUPER_DEBUG("density field calculated");
 LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
 
     if(!flag_options->USE_TS_FLUCT) {
-        initialiseSigmaMInterpTable(M_MIN,1e20);
+        if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
+            LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
+            return(2);
+        }
     }
 
 LOG_SUPER_DEBUG("sigma table has been initialised");
@@ -534,7 +537,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 
                 initialiseGL_Nion(NGL_SFR, astro_params->M_TURN,massofscaleR);
                 
-                initialise_Nion_General_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                if(initialise_Nion_General_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc)!=0) {
+                    LOG_ERROR("I have encountered an infinite or a NaN value in initialise_Nion_General_spline");
+                    return(2);
+                }
             }
             else {
             
