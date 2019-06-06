@@ -85,8 +85,6 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
     int n_x, n_z, n_y, dimension,midpoint;
     float k_x, k_y, k_z, k_mag, kR;
     
-//    printf("before = %e\n",box[C_INDEX(50, 50, 50)]);
-    
     switch(RES) {
         case 0:
             dimension = user_params_ufunc->DIM;
@@ -114,17 +112,10 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
                 
                 kR = k_mag*R; // real space top-hat
                 
-//                if(n_x == 50 && n_y == 50 && n_z == 50) {
-//                    printf("n_x = %d n_y = %d n_z = %d k_x = %e k_y = %e k_z = %e k_mag = %e kR = %e\n",n_x,n_y,n_z,k_x,k_y,k_z,k_mag,kR);
-//                }
-                
                 if (filter_type == 0){ // real space top-hat
                     if (kR > 1e-4){
-//                        box[HII_C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR);
-//                        printf("n_x = %d n_y = %d n_z = %d HIRES_box = %e\n",n_x,n_y,n_z,box[C_INDEX(n_x, n_y, n_z)]);
                         if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
                         if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
-//                        printf("k_x = %e k_y = %e k_z = %e k_mag = %e kR = %e arg = %e HIRES_box = %e\n",k_x,k_y,k_z,k_mag,kR,3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR),box[C_INDEX(n_x, n_y, n_z)]);
                     }
                 }
                 else if (filter_type == 1){ // k-space top hat
@@ -146,9 +137,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
             }
         }
     } // end looping through k box
-    
-//    printf("after = %e\n",box[C_INDEX(50, 50, 50)]);
-    
+        
     return;
 }
 

@@ -79,6 +79,11 @@ int ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams
             }
         }
     }
+    if(isfinite(ave)==0) {
+        LOG_ERROR("Average brightness temperature is infinite or NaN!");
+        return(2);
+    }
+    
     ave /= (float)HII_TOT_NUM_PIXELS;
     
     x_val1 = 0.;
@@ -463,6 +468,12 @@ int ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams
             ave /= (HII_TOT_NUM_PIXELS+0.0);
         }
     }
+    
+    if(isfinite(ave)==0) {
+        LOG_ERROR("Average brightness temperature (after including velocities) is infinite or NaN!");
+        return(2);
+    }
+
 
 LOG_DEBUG("ave Tb = %e", ave);
 
