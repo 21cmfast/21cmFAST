@@ -279,7 +279,7 @@ class CoreCoevalModule(CoreBase):
         self.io_options = dict(
             store={},  # (derived) quantities to store in the MCMC chain.
             cache_dir=None,  # where full data sets will be written/read from.
-            cache_ionize=False,  # whether to cache ionization data sets (done before parameter retention step)
+            cache_mcmc=False,  # whether to cache ionization data sets (done before parameter retention step)
         )
 
         self.io_options.update(io_options)
@@ -341,6 +341,7 @@ class CoreCoevalModule(CoreBase):
             direc=self.io_options['cache_dir'],
             regenerate=False,
             random_seed=self.initial_conditions_seed,
+            write=self.io_options['cache_mcmc'],
         )
 
         perturb_field = []
@@ -350,6 +351,7 @@ class CoreCoevalModule(CoreBase):
                 init_boxes=initial_conditions,
                 direc=self.io_options['cache_dir'],
                 regenerate=False,
+                write=self.io_options['cache_mcmc'],
             )]
 
         return initial_conditions, perturb_field
@@ -374,7 +376,7 @@ class CoreCoevalModule(CoreBase):
             z_step_factor=self.z_step_factor,
             regenerate=self.regenerate,
             random_seed=self.initial_conditions_seed,
-            write=self.io_options['cache_ionize'],
+            write=self.io_options['cache_mcmc'],
             direc=self.io_options['cache_dir'],
         )
 
