@@ -1,0 +1,13 @@
+# Specify parameters that 21cmFAST uses. These are broken into user, flags, astro and cosmo parameters.
+# Not all options are specified here.
+user_params: {
+    BOX_LEN: 150.0,
+    HII_DIM: 50
+}
+
+astro_params: {
+}
+
+flag_options: {
+  INHOMO_RECO: false,
+}

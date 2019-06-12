@@ -6,7 +6,30 @@
 src/py21cmmc\.egg-info/
 
 *.so
+build/
+*.*~
+.pytest_cache/
+_build/
+_autosummary
+vgcore.*
+devel/\.ipynb_checkpoints/
 
-build/temp\.linux-x86_64-3\.6/build/temp\.linux-x86_64-3\.6/
+devel/data/
 
-build/temp\.linux-x86_64-3\.6/
+docs/faqs/\.ipynb_checkpoints/
+
+*.h5
+
+*.log
+
+docs/tutorials/\.ipynb_checkpoints/
+
+docs/tutorials/data/
+
+\.tox/
+
+\.coverage
+
+htmlcov/
+
+data/

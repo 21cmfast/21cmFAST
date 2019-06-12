@@ -13,6 +13,7 @@ from os.path import join
 from os.path import relpath
 from os.path import splitext
 from os.path import expanduser
+from os import path
 
 from setuptools import Extension
 from setuptools import find_packages
@@ -36,6 +37,34 @@ def find_version(*file_paths):
     if version_match:
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
+
+
+# ======================================================================================================================
+# Create a user-level config directory for 21CMMC, for configuration.
+cfgdir = expanduser(join("~", ".21CMMC")) #os.environ.get("CFGDIR", expanduser(join("~", ".21CMMC")))
+
+pkgdir = os.path.dirname(os.path.abspath(__file__))
+
+if not os.path.exists(cfgdir):
+    os.makedirs(cfgdir)
+
+copyfile(join(pkgdir, "config.yml"), join(cfgdir, "config.yml"))
+copyfile(join(pkgdir, "runconfig_example.yml"), join(cfgdir, "runconfig_example.yml"))
+copy_tree(join(pkgdir, "External_tables"), join(cfgdir, "External_tables"))
+
+boxdir=os.environ.get("BOXDIR", None)
+
+if boxdir:
+    with open(join(cfgdir, "config.yml"), 'r') as f:
+        lines = f.readlines()
+        for i,line in enumerate(lines):
+            if line.strip().startswith("boxdir"):
+                lines[i] = line.replace(line.split(": ")[-1], boxdir)
+
+    with open(join(cfgdir, "config.yml"), 'w') as f:
+        f.write("\n".join(lines))
+
+# ======================================================================================================================
 
 # Enable code coverage for C code: we can't use CFLAGS=-coverage in tox.ini, since that may mess with compiling
 # dependencies (e.g. numpy). Therefore we set SETUPPY_CFLAGS=-coverage in tox.ini and copy it to CFLAGS here (after
@@ -82,17 +111,19 @@ setup(
         #'tqdm',
         'numpy',
         'pyyaml',
-        #'cosmoHammer',
+        'cosmoHammer',
         'cffi>=1.0',
         'scipy',
         'astropy>=2.0',
-        #'powerbox>=0.5.4',
-        #'h5py'
+        'emcee<3',
+        'powerbox>=0.5.7',
+        'h5py>=2.8.0',
+        'cached_property'
     ],
     entry_points={
         'console_scripts': [
             '21CMMC = py21cmmc.cli:main',
         ]
     },
-    cffi_modules=["build_cffi.py:ffi"],
+    cffi_modules=["{pkgdir}/build_cffi.py:ffi".format(pkgdir=pkgdir)],
 )
