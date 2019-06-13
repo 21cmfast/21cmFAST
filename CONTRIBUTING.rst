@@ -47,6 +47,12 @@ or admins). You may develop as a member or as a non-member.
 The difference between members and non-members only applies to the first two steps
 of the development process.
 
+Note that it is highly recommended to work in an isolated python environment with
+all requirements installed from ``requirements_dev.txt``. This will also ensure that
+pre-commit hooks will run that enforce the ``black`` coding style. If you do not
+install these requirements, you must manually run black before committing your changes,
+otherwise your changes will likely fail continuous integration.
+
 As a member:
 
 1. Clone the repo::
