@@ -6,9 +6,11 @@ import pytest
 from py21cmfast import wrapper
 
 
-@pytest.fixture(scope="module") # call this fixture once for all tests in this module
+@pytest.fixture(scope="module")  # call this fixture once for all tests in this module
 def basic_init_box():
-    return wrapper.initial_conditions(regenerate=True, write=False, user_params=wrapper.UserParams(HII_DIM=35))
+    return wrapper.initial_conditions(
+        regenerate=True, write=False, user_params=wrapper.UserParams(HII_DIM=35)
+    )
 
 
 def test_box_shape(basic_init_box):
@@ -21,7 +23,7 @@ def test_box_shape(basic_init_box):
     assert basic_init_box.lowres_vx_2LPT.shape == shape
     assert basic_init_box.lowres_vy_2LPT.shape == shape
     assert basic_init_box.lowres_vz_2LPT.shape == shape
-    assert basic_init_box.hires_density.shape == tuple([4*s for s in shape])
+    assert basic_init_box.hires_density.shape == tuple([4 * s for s in shape])
 
     assert basic_init_box.cosmo_params == wrapper.CosmoParams()
 
@@ -33,4 +35,3 @@ def test_modified_cosmo():
 
     assert ic.cosmo_params == cosmo
     assert ic.cosmo_params.SIGMA_8 == cosmo.SIGMA_8
-

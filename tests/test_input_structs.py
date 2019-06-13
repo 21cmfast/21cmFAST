@@ -6,7 +6,12 @@ import pickle
 
 import pytest
 
-from py21cmfast import CosmoParams, UserParams, AstroParams, FlagOptions  # An example of a struct with defaults
+from py21cmfast import (
+    CosmoParams,
+    UserParams,
+    AstroParams,
+    FlagOptions,
+)  # An example of a struct with defaults
 
 
 @pytest.fixture(scope="module")
@@ -33,18 +38,21 @@ def test_constructed_the_same(c):
 
 def test_bad_construction(c):
     with pytest.raises(TypeError):
-        c2 = CosmoParams(c, c)
+        CosmoParams(c, c)
 
     with pytest.raises(TypeError):
-        c2 = CosmoParams(UserParams())
+        CosmoParams(UserParams())
 
     with pytest.raises(TypeError):
-        c2 = CosmoParams(1)
+        CosmoParams(1)
 
 
 def test_warning_bad_params(caplog):
-    c2 = CosmoParams(bad_param=1)
-    assert "The following parameters to CosmoParams are not supported: ['bad_param']" in caplog.text
+    CosmoParams(bad_param=1)
+    assert (
+        "The following parameters to CosmoParams are not supported: ['bad_param']"
+        in caplog.text
+    )
 
 
 def test_constructed_from_itself(c):
@@ -61,6 +69,7 @@ def test_dynamic_variables():
     u.update(DIM=200)
 
     assert u.DIM == 200
+
 
 def test_repr(c):
     assert "SIGMA_8:0.8" in repr(c)
@@ -81,7 +90,9 @@ def test_self(c):
     assert c5 == c
     assert c5.pystruct == c.pystruct
     assert c5.defining_dict == c.defining_dict
-    assert c5.defining_dict != c5.pystruct # not the same because the former doesn't include dynamic parameters.
+    assert (
+        c5.defining_dict != c5.pystruct
+    )  # not the same because the former doesn't include dynamic parameters.
     assert c5.self == c.self
 
 
@@ -89,7 +100,9 @@ def test_update():
     c = CosmoParams()
     c_pystruct = c.pystruct
 
-    c.update(SIGMA_8=0.9)  # update c parameters. since pystruct as dynamically created, it is a new object each call.
+    c.update(
+        SIGMA_8=0.9
+    )  # update c parameters. since pystruct as dynamically created, it is a new object each call.
     assert c_pystruct != c.pystruct
 
 
@@ -98,7 +111,9 @@ def test_c_structures(c):
     c2 = CosmoParams(SIGMA_8=0.8)
 
     assert c() != c2()
-    assert c() is c()  # Re-calling should not re-make the object (object should have persistence)
+    assert (
+        c() is c()
+    )  # Re-calling should not re-make the object (object should have persistence)
 
 
 def test_c_struct_update():
@@ -113,8 +128,10 @@ def test_update_inhomo_reco(caplog):
 
     ap.update(INHOMO_RECO=True)
 
-    msg = "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "+\
-          "This is non-standard (but allowed), and usually occurs upon manual update of INHOMO_RECO"
+    msg = (
+        "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
+        + "This is non-standard (but allowed), and usually occurs upon manual update of INHOMO_RECO"
+    )
 
     ap.R_BUBBLE_MAX
 

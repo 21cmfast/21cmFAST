@@ -2,25 +2,21 @@
 Utilities that help with wrapping various C structures.
 """
 import glob
+import logging
 import warnings
 from hashlib import md5
 from os import path
 
 import h5py
 import numpy as np
-from . import yaml
 
-# Global Options
-with open(path.expanduser(path.join("~", '.21cmfast', "config.yml"))) as f:
-    config = yaml.load(f)
-
-# The following is just an *empty* ffi object, which can perform certain operations which are not specific
-# to a certain library.
+# The following is just an *empty* ffi object, which can perform certain operations
+# which are not specific to a certain library.
 from cffi import FFI
 
-_ffi = FFI()
+from ._cfg import config
 
-import logging
+_ffi = FFI()
 
 logger = logging.getLogger("21cmFAST")
 
@@ -34,6 +30,7 @@ class StructWrapper:
     must be defined in the C code that has been compiled to the ffi object), *or* use an arbitrary name, but set the
     _name attribute to the C struct name.
     """
+
     _name = None
     _ffi = None
 
@@ -91,7 +88,11 @@ class StructWrapper:
         return [f for f, t in self.fields if t.type.kind == "primitive"]
 
     def __getstate__(self):
-        return {k: v for k, v in self.__dict__.items() if k not in ["_strings", "_StructWrapper__cstruct"]}
+        return {
+            k: v
+            for k, v in self.__dict__.items()
+            if k not in ["_strings", "_StructWrapper__cstruct"]
+        }
 
     def refresh_cstruct(self):
         """Delete the underlying C object, forcing it to be rebuilt."""
@@ -121,6 +122,7 @@ class StructWithDefaults(StructWrapper):
     ffi : cffi object
         The ffi object from any cffi-wrapped library.
     """
+
     _defaults_ = {}
 
     def __init__(self, *args, **kwargs):
@@ -130,7 +132,9 @@ class StructWithDefaults(StructWrapper):
         if args:
             if len(args) > 1:
                 raise TypeError(
-                    "%s takes up to one position argument, %s were given" % (self.__class__.__name__, len(args)))
+                    "%s takes up to one position argument, %s were given"
+                    % (self.__class__.__name__, len(args))
+                )
             elif args[0] is None:
                 pass
             elif isinstance(args[0], self.__class__):
@@ -139,7 +143,9 @@ class StructWithDefaults(StructWrapper):
                 kwargs.update(args[0])
             else:
                 raise TypeError(
-                    "optional positional argument for %s must be None, dict, or an instance of itself" % self.__class__.__name__)
+                    "optional positional argument for %s must be None, dict, or an instance of itself"
+                    % self.__class__.__name__
+                )
 
         for k, v in self._defaults_.items():
 
@@ -154,9 +160,11 @@ class StructWithDefaults(StructWrapper):
                 setattr(self, "_" + k, v)
 
         if kwargs:
-            logger.warning("The following parameters to {thisclass} are not supported: {lst}".format(
-                thisclass=self.__class__.__name__, lst=list(kwargs.keys())
-            ))
+            logger.warning(
+                "The following parameters to {thisclass} are not supported: {lst}".format(
+                    thisclass=self.__class__.__name__, lst=list(kwargs.keys())
+                )
+            )
 
     def convert(self, key, val):
         return val
@@ -196,7 +204,10 @@ class StructWithDefaults(StructWrapper):
                 setattr(self, k, kwargs.pop(k))
 
         if kwargs:
-            warnings.warn("The following arguments to be updated are not compatible with this class: %s" % kwargs)
+            warnings.warn(
+                "The following arguments to be updated are not compatible with this class: %s"
+                % kwargs
+            )
 
     def __call__(self):
         """
@@ -208,7 +219,7 @@ class StructWithDefaults(StructWrapper):
             # Find the value of this key in the current class
             if isinstance(val, str):
                 # If it is a string, need to convert it to C string ourselves.
-                val = self.ffi.new('char[]', getattr(self, key).encode())
+                val = self.ffi.new("char[]", getattr(self, key).encode())
 
             try:
                 setattr(self._cstruct, key, val)
@@ -256,8 +267,14 @@ class StructWithDefaults(StructWrapper):
         return dct
 
     def __repr__(self):
-        return self.__class__.__name__ + "(" + ", ".join(
-            sorted([k + ":" + str(v) for k, v in self.defining_dict.items()])) + ")"
+        return (
+            self.__class__.__name__
+            + "("
+            + ", ".join(
+                sorted([k + ":" + str(v) for k, v in self.defining_dict.items()])
+            )
+            + ")"
+        )
 
     def __eq__(self, other):
         return self.__repr__() == repr(other)
@@ -270,13 +287,9 @@ class OutputStruct(StructWrapper):
     _fields_ = []
     _global_params = None
     _inputs = ["user_params", "cosmo_params", "_random_seed"]
-    _filter_params = ['external_table_path']
+    _filter_params = ["external_table_path"]
 
-    _TYPEMAP = {
-        'float32': 'float *',
-        'float64': 'double *',
-        'int32': 'int *'
-    }
+    _TYPEMAP = {"float32": "float *", "float64": "double *", "int32": "int *"}
 
     def __init__(self, *, random_seed=None, init=False, **kwargs):
         super().__init__()
@@ -290,11 +303,16 @@ class OutputStruct(StructWrapper):
                 try:
                     setattr(self, k, kwargs.pop(k))
                 except KeyError:
-                    raise KeyError("%s requires the keyword argument %s" % (self.__class__.__name__, k))
+                    raise KeyError(
+                        "%s requires the keyword argument %s"
+                        % (self.__class__.__name__, k)
+                    )
 
         if kwargs:
             warnings.warn(
-                "%s received the following unexpected arguments: %s" % (self.__class__.__name__, list(kwargs.keys())))
+                "%s received the following unexpected arguments: %s"
+                % (self.__class__.__name__, list(kwargs.keys()))
+            )
 
         if init:
             self._init_cstruct()
@@ -336,12 +354,16 @@ class OutputStruct(StructWrapper):
 
         if not self.arrays_initialized:
             raise AttributeError(
-                "%s is ill-defined. It has not initialized all necessary arrays." % self.__class__.__name__)
+                "%s is ill-defined. It has not initialized all necessary arrays."
+                % self.__class__.__name__
+            )
 
     def _ary2buf(self, ary):
         if not isinstance(ary, np.ndarray):
             raise ValueError("ary must be a numpy array")
-        return self._ffi.cast(OutputStruct._TYPEMAP[ary.dtype.name], self._ffi.from_buffer(ary))
+        return self._ffi.cast(
+            OutputStruct._TYPEMAP[ary.dtype.name], self._ffi.from_buffer(ary)
+        )
 
     def __call__(self):
         if not self.arrays_initialized:
@@ -352,7 +374,9 @@ class OutputStruct(StructWrapper):
     def _expose(self):
         """This method exposes the non-array primitives of the ctype to the top-level object."""
         if not self.filled:
-            raise Exception("You need to have actually called the C code before the primitives can be exposed.")
+            raise Exception(
+                "You need to have actually called the C code before the primitives can be exposed."
+            )
         for k in self.primitive_fields:
             setattr(self, k, getattr(self._cstruct, k))
 
@@ -370,7 +394,7 @@ class OutputStruct(StructWrapper):
         return self._fname_skeleton.format(seed=self.random_seed)
 
     def _get_fname(self, direc=None):
-        direc = direc or path.expanduser(config['boxdir'])
+        direc = direc or path.expanduser(config["boxdir"])
         return path.join(direc, self.filename)
 
     def _find_file_without_seed(self, direc):
@@ -397,7 +421,7 @@ class OutputStruct(StructWrapper):
         """
         # First, if appropriate, find a file without specifying seed.
         # Need to do this first, otherwise the seed will be chosen randomly upon choosing a filename!
-        direc = direc or path.expanduser(config['boxdir'])
+        direc = direc or path.expanduser(config["boxdir"])
 
         if not self._random_seed:
             f = self._find_file_without_seed(direc)
@@ -412,7 +436,7 @@ class OutputStruct(StructWrapper):
         return None
 
     def _check_parameters(self, fname):
-        with h5py.File(fname, 'r') as f:
+        with h5py.File(fname, "r") as f:
             for k in self._inputs + ["_global_params"]:
                 q = getattr(self, k)
 
@@ -424,7 +448,9 @@ class OutputStruct(StructWrapper):
                 if q is None:
                     continue
 
-                if isinstance(q, StructWithDefaults) or isinstance(q, StructInstanceWrapper):
+                if isinstance(q, StructWithDefaults) or isinstance(
+                    q, StructInstanceWrapper
+                ):
                     grp = f[kfile]
 
                     if isinstance(q, StructWithDefaults):
@@ -435,12 +461,14 @@ class OutputStruct(StructWrapper):
                     for kk, v in dct.items():
                         if kk not in self._filter_params:
                             file_v = grp.attrs[kk]
-                            if file_v == u'none': file_v = None
+                            if file_v == "none":
+                                file_v = None
                             if file_v != v:
                                 logger.debug("For file %s:" % fname)
                                 logger.debug(
-                                    "\tThough md5 and seed matched, the parameter %s did not match, with values %s and %s in file and user respectively" % (
-                                        kk, file_v, v))
+                                    "\tThough md5 and seed matched, the parameter %s did not match, with values %s and %s in file and user respectively"
+                                    % (kk, file_v, v)
+                                )
                                 return False
                 else:
                     if f.attrs[kfile] != q:
@@ -474,26 +502,31 @@ class OutputStruct(StructWrapper):
 
         if not self._random_seed:
             raise ValueError(
-                "Attempting to write when no random seed has been set. Struct has been 'filled' inconsistently.")
+                "Attempting to write when no random seed has been set. Struct has been 'filled' inconsistently."
+            )
 
         try:
-            with h5py.File(self._get_fname(direc), 'w') as f:
+            with h5py.File(self._get_fname(direc), "w") as f:
                 # Save input parameters to the file
                 for k in self._inputs + ["_global_params"]:
                     q = getattr(self, k)
 
                     kfile = k.lstrip("_")
 
-                    if isinstance(q, StructWithDefaults) or isinstance(q, StructInstanceWrapper):
+                    if isinstance(q, StructWithDefaults) or isinstance(
+                        q, StructInstanceWrapper
+                    ):
                         grp = f.create_group(kfile)
                         if isinstance(q, StructWithDefaults):
-                            dct = q.self  # using self allows to rebuild the object from HDF5 file.
+                            dct = (
+                                q.self
+                            )  # using self allows to rebuild the object from HDF5 file.
                         else:
                             dct = q
 
                         for kk, v in dct.items():
                             if kk not in self._filter_params:
-                                grp.attrs[kk] = u"none" if v is None else v
+                                grp.attrs[kk] = "none" if v is None else v
                     else:
                         f.attrs[kfile] = q
 
@@ -507,7 +540,9 @@ class OutputStruct(StructWrapper):
                 for k in self.primitive_fields:
                     boxes.attrs[k] = getattr(self, k)
         except OSError as e:
-            logger.warning("When attempting to write {} to file, write failed with the following error. Continuing without caching.")
+            logger.warning(
+                "When attempting to write {} to file, write failed with the following error. Continuing without caching."
+            )
             logger.warning(e)
 
     def read(self, direc=None):
@@ -532,12 +567,14 @@ class OutputStruct(StructWrapper):
         if not self.arrays_initialized:
             self._init_cstruct()
 
-        with h5py.File(pth, 'r') as f:
+        with h5py.File(pth, "r") as f:
             try:
                 boxes = f[self._name]
             except KeyError:
                 raise IOError(
-                    "While trying to read in %s, the file exists, but does not have the correct structure." % self._name)
+                    "While trying to read in %s, the file exists, but does not have the correct structure."
+                    % self._name
+                )
 
             # Fill our arrays.
             for k in boxes.keys():
@@ -547,7 +584,7 @@ class OutputStruct(StructWrapper):
                 setattr(self, k, boxes.attrs[k])
 
             # Need to make sure that the seed is set to the one that's read in.
-            seed = f.attrs['random_seed']
+            seed = f.attrs["random_seed"]
             self._random_seed = seed
 
         self.filled = True
@@ -560,17 +597,43 @@ class OutputStruct(StructWrapper):
 
     def _seedless_repr(self):
         # The same as __repr__ except without the seed.
-        return self._name + "(" + "; ".join(
-            [repr(v) if isinstance(v, StructWithDefaults) else (
-                v.filtered_repr(self._filter_params) if isinstance(v, StructInstanceWrapper)
-                else k.lstrip("_") + ":" + repr(v)) for k, v in
-             [(k, getattr(self, k)) for k in self._inputs + ['_global_params'] if k != "_random_seed"]]) + ")"
+        return (
+            self._name
+            + "("
+            + "; ".join(
+                [
+                    repr(v)
+                    if isinstance(v, StructWithDefaults)
+                    else (
+                        v.filtered_repr(self._filter_params)
+                        if isinstance(v, StructInstanceWrapper)
+                        else k.lstrip("_") + ":" + repr(v)
+                    )
+                    for k, v in [
+                        (k, getattr(self, k))
+                        for k in self._inputs + ["_global_params"]
+                        if k != "_random_seed"
+                    ]
+                ]
+            )
+            + ")"
+        )
 
     def __str__(self):
         # this is *not* a unique representation, and doesn't include global params.
-        return self._name + "(" + ";\n\t".join(
-            [repr(v) if isinstance(v, StructWithDefaults) else k.lstrip("_") + ":" + repr(v) for k, v in
-             [(k, getattr(self, k)) for k in self._inputs]]) + ")"
+        return (
+            self._name
+            + "("
+            + ";\n\t".join(
+                [
+                    repr(v)
+                    if isinstance(v, StructWithDefaults)
+                    else k.lstrip("_") + ":" + repr(v)
+                    for k, v in [(k, getattr(self, k)) for k in self._inputs]
+                ]
+            )
+            + ")"
+        )
 
     def __hash__(self):
         """this should be unique for this combination of parameters, even global params and random seed."""
@@ -615,7 +678,23 @@ class StructInstanceWrapper:
         return [nm for nm, tp in self.items()]
 
     def __repr__(self):
-        return self._ctype + "(" + ";".join([k + "=" + str(v) for k, v in sorted(self.items())]) + ")"
+        return (
+            self._ctype
+            + "("
+            + ";".join([k + "=" + str(v) for k, v in sorted(self.items())])
+            + ")"
+        )
 
     def filtered_repr(self, filter_params):
-        return self._ctype + "(" + ";".join([k + "=" + str(v) for k, v in sorted(self.items()) if k not in filter_params]) + ")"
+        return (
+            self._ctype
+            + "("
+            + ";".join(
+                [
+                    k + "=" + str(v)
+                    for k, v in sorted(self.items())
+                    if k not in filter_params
+                ]
+            )
+            + ")"
+        )

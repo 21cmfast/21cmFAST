@@ -6,8 +6,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def _imshow_slice(cube, slice_axis=-1, slice_index=0, fig=None, ax=None, fig_kw=None, cbar=True,
-                  **imshow_kw):
+def _imshow_slice(
+    cube,
+    slice_axis=-1,
+    slice_index=0,
+    fig=None,
+    ax=None,
+    fig_kw=None,
+    cbar=True,
+    **imshow_kw,
+):
     """
     Helper function to plot a slice of some kind of cube.
 
@@ -45,12 +53,16 @@ def _imshow_slice(cube, slice_axis=-1, slice_index=0, fig=None, ax=None, fig_kw=
     plt.sca(ax)
 
     if slice_index >= cube.shape[slice_axis]:
-        raise IndexError("slice_index is too large for that axis (slice_index=%s >= %s"%(slice_index, cube.shape[slice_axis]))
+        raise IndexError(
+            "slice_index is too large for that axis (slice_index=%s >= %s"
+            % (slice_index, cube.shape[slice_axis])
+        )
 
     slc = np.take(cube, slice_index, axis=slice_axis)
-    plt.imshow(slc.T, origin='lower', **imshow_kw)
+    plt.imshow(slc.T, origin="lower", **imshow_kw)
 
-    if cbar: plt.colorbar()
+    if cbar:
+        plt.colorbar()
 
     return fig, ax
 
@@ -84,7 +96,9 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
     try:
         cube = getattr(struct, kind)
     except AttributeError:
-        raise AttributeError("The given OutputStruct does not have the quantity {kind}".format(kind=kind))
+        raise AttributeError(
+            "The given OutputStruct does not have the quantity {kind}".format(kind=kind)
+        )
 
     fig, ax = _imshow_slice(cube, extent=(0, struct.user_params.BOX_LEN) * 2, **kwargs)
 
@@ -93,13 +107,13 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
     # Determine which axes are being plotted.
     if slice_axis in (2, -1):
         xax = "x"
-        yax = 'y'
+        yax = "y"
     elif slice_axis == 1:
-        xax = 'x'
-        yax = 'z'
+        xax = "x"
+        yax = "z"
     elif slice_axis == 0:
-        xax = 'y'
-        yax = 'z'
+        xax = "y"
+        yax = "z"
     else:
         raise ValueError("slice_axis should be between -1 and 2")
 
@@ -119,21 +133,21 @@ def lightcone_sliceplot(lightcone, **kwargs):
         xlabel = "y-axis [Mpc]"
 
     else:
-        extent = (0, lightcone.user_params.BOX_LEN)*2
+        extent = (0, lightcone.user_params.BOX_LEN) * 2
 
         if slice_axis == 1:
             xlabel = "x-axis [Mpc]"
             ylabel = "Redshift Axis [Mpc]"
 
-        elif slice_axis in (2,-1):
+        elif slice_axis in (2, -1):
             xlabel = "x-axis [Mpc]"
-            ylabel = 'y-axis [Mpc]'
+            ylabel = "y-axis [Mpc]"
         else:
             raise ValueError("slice_axis must be between -1 and 2")
 
-    fig, ax = _imshow_slice(lightcone.brightness_temp,
-                            extent=extent,
-                            slice_axis=slice_axis)
+    fig, ax = _imshow_slice(
+        lightcone.brightness_temp, extent=extent, slice_axis=slice_axis
+    )
 
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)

@@ -5,8 +5,10 @@ objects with astropy quantities in them.
 import yaml
 from astropy.io.misc import yaml as ayaml
 
+
 class NewDumper(yaml.Dumper, ayaml.AstropyDumper):
     pass
+
 
 class NewLoader(yaml.Loader, ayaml.AstropyLoader):
     pass
@@ -42,5 +44,5 @@ def load(stream):
 
 
 def dump(data, stream=None, **kwargs):
-    kwargs['Dumper'] = NewDumper
+    kwargs["Dumper"] = NewDumper
     return yaml.dump(data, stream=stream, **kwargs)

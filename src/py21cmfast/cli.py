@@ -26,7 +26,7 @@ def _ctx_to_dct(args):
     j = 0
     while j < len(args):
         arg = args[j]
-        if '=' in arg:
+        if "=" in arg:
             a = arg.split("=")
             dct[a[0].replace("--", "")] = a[-1]
             j += 1
@@ -72,19 +72,35 @@ def _override(ctx, *param_dicts):
 
 main = click.Group()
 
+
 @main.command(
     context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True,
-        allow_extra_args=True
+        ignore_unknown_options=True, allow_extra_args=True
     )
 )
-@click.option("--config", type=click.Path(exists=True, dir_okay=False), default=None,
-              help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)")
-@click.option("--regen/--no-regen", default=False,
-              help="Whether to force regeneration of init/perturb files if they already exist.")
-@click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
-              help="directory to write data and plots to -- must exist.")
-@click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
+@click.option(
+    "--config",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)",
+)
+@click.option(
+    "--regen/--no-regen",
+    default=False,
+    help="Whether to force regeneration of init/perturb files if they already exist.",
+)
+@click.option(
+    "--direc",
+    type=click.Path(exists=True, dir_okay=True),
+    default=None,
+    help="directory to write data and plots to -- must exist.",
+)
+@click.option(
+    "--seed",
+    type=int,
+    default=None,
+    help="specify a random seed for the initial conditions",
+)
 @click.pass_context
 def init(ctx, config, regen, direc, seed):
     """
@@ -93,31 +109,50 @@ def init(ctx, config, regen, direc, seed):
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg.get('user_params', {}))
-    cosmo_params = lib.CosmoParams(**cfg.get('cosmo_params', {}))
+    user_params = lib.UserParams(**cfg.get("user_params", {}))
+    cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
 
     _override(ctx, user_params, cosmo_params)
 
     lib.initial_conditions(
-        user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc, random_seed=seed
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        regenerate=regen,
+        write=True,
+        direc=direc,
+        random_seed=seed,
     )
 
 
 @main.command(
     context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True,
-        allow_extra_args=True
+        ignore_unknown_options=True, allow_extra_args=True
     )
 )
 @click.argument("redshift", type=float)
-@click.option("--config", type=click.Path(exists=True, dir_okay=False), default=None,
-              help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)")
-@click.option("--regen/--no-regen", default=False,
-              help="Whether to force regeneration of init/perturb files if they already exist.")
-@click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
-              help="directory to write data and plots to -- must exist.")
-@click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
+@click.option(
+    "--config",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)",
+)
+@click.option(
+    "--regen/--no-regen",
+    default=False,
+    help="Whether to force regeneration of init/perturb files if they already exist.",
+)
+@click.option(
+    "--direc",
+    type=click.Path(exists=True, dir_okay=True),
+    default=None,
+    help="directory to write data and plots to -- must exist.",
+)
+@click.option(
+    "--seed",
+    type=int,
+    default=None,
+    help="specify a random seed for the initial conditions",
+)
 @click.pass_context
 def perturb(ctx, redshift, config, regen, direc, seed):
     """
@@ -126,38 +161,72 @@ def perturb(ctx, redshift, config, regen, direc, seed):
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg.get('user_params',{}))
-    cosmo_params = lib.CosmoParams(**cfg.get('cosmo_params', {}))
+    user_params = lib.UserParams(**cfg.get("user_params", {}))
+    cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
 
     _override(ctx, user_params, cosmo_params)
 
     lib.perturb_field(
-        redshift=redshift, user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc, random_seed=seed
+        redshift=redshift,
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        regenerate=regen,
+        write=True,
+        direc=direc,
+        random_seed=seed,
     )
 
 
 @main.command(
     context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True,
-        allow_extra_args=True
+        ignore_unknown_options=True, allow_extra_args=True
     )
 )
 @click.argument("redshift", type=float)
-@click.option("-p", "--prev_z", type=float, default=None,
-              help="Previous redshift (the spin temperature data must already exist for this redshift)")
-@click.option("--config", type=click.Path(exists=True, dir_okay=False), default=None,
-              help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)")
-@click.option("--regen/--no-regen", default=False,
-              help="Whether to force regeneration of init/perturb files if they already exist.")
-@click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
-              help="directory to write data and plots to -- must exist.")
-@click.option("-z", "--z-step-factor", type=float,
-              default=inspect.signature(lib.spin_temperature).parameters['z_step_factor'].default,
-              help="logarithmic steps in redshift for evolution")
-@click.option("-Z", "--z-heat-max", type=float, default=None,
-              help="maximum redshift at which to search for heating sources")
-@click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
+@click.option(
+    "-p",
+    "--prev_z",
+    type=float,
+    default=None,
+    help="Previous redshift (the spin temperature data must already exist for this redshift)",
+)
+@click.option(
+    "--config",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)",
+)
+@click.option(
+    "--regen/--no-regen",
+    default=False,
+    help="Whether to force regeneration of init/perturb files if they already exist.",
+)
+@click.option(
+    "--direc",
+    type=click.Path(exists=True, dir_okay=True),
+    default=None,
+    help="directory to write data and plots to -- must exist.",
+)
+@click.option(
+    "-z",
+    "--z-step-factor",
+    type=float,
+    default=inspect.signature(lib.spin_temperature).parameters["z_step_factor"].default,
+    help="logarithmic steps in redshift for evolution",
+)
+@click.option(
+    "-Z",
+    "--z-heat-max",
+    type=float,
+    default=None,
+    help="maximum redshift at which to search for heating sources",
+)
+@click.option(
+    "--seed",
+    type=int,
+    default=None,
+    help="specify a random seed for the initial conditions",
+)
 @click.pass_context
 def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max, seed):
     """
@@ -166,98 +235,169 @@ def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max,
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg.get('user_params', {}))
-    cosmo_params = lib.CosmoParams(**cfg.get('cosmo_params', {}))
-    flag_options = lib.FlagOptions(**cfg.get('flag_options', {}))
-    astro_params = lib.AstroParams(**cfg.get('astro_params',{}), INHOMO_RECO=flag_options.INHOMO_RECO)
+    user_params = lib.UserParams(**cfg.get("user_params", {}))
+    cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
+    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
+    astro_params = lib.AstroParams(
+        **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
+    )
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
     if z_step_factor is None and "z_step_factor" in cfg:
-        z_step_factor = cfg['z_step_factor']
+        z_step_factor = cfg["z_step_factor"]
     if z_heat_max is None and "z_heat_max" in cfg:
-        z_heat_max = cfg['z_heat_max']
+        z_heat_max = cfg["z_heat_max"]
 
     lib.spin_temperature(
         redshift=redshift,
-        astro_params=astro_params, flag_options=flag_options,
+        astro_params=astro_params,
+        flag_options=flag_options,
         previous_spin_temp=prev_z,
-        z_step_factor=z_step_factor, z_heat_max=z_heat_max,
-        user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc, random_seed=seed
+        z_step_factor=z_step_factor,
+        z_heat_max=z_heat_max,
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        regenerate=regen,
+        write=True,
+        direc=direc,
+        random_seed=seed,
     )
 
 
 @main.command(
     context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True,
-        allow_extra_args=True
+        ignore_unknown_options=True, allow_extra_args=True
     )
 )
 @click.argument("redshift", type=float)
-@click.option("-p", "--prev_z", type=float, default=None,
-              help="Previous redshift (the ionized box data must already exist for this redshift)")
-@click.option("--config", type=click.Path(exists=True, dir_okay=False), default=None,
-              help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)")
-@click.option("--regen/--no-regen", default=False,
-              help="Whether to force regeneration of init/perturb files if they already exist.")
-@click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
-              help="directory to write data and plots to -- must exist.")
-@click.option("-z", "--z-step-factor", type=float,
-              default=inspect.signature(lib.ionize_box).parameters['z_step_factor'].default,
-              help="logarithmic steps in redshift for evolution")
-@click.option("-Z", "--z-heat-max", type=float, default=None,
-              help="maximum redshift at which to search for heating sources")
-@click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
+@click.option(
+    "-p",
+    "--prev_z",
+    type=float,
+    default=None,
+    help="Previous redshift (the ionized box data must already exist for this redshift)",
+)
+@click.option(
+    "--config",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)",
+)
+@click.option(
+    "--regen/--no-regen",
+    default=False,
+    help="Whether to force regeneration of init/perturb files if they already exist.",
+)
+@click.option(
+    "--direc",
+    type=click.Path(exists=True, dir_okay=True),
+    default=None,
+    help="directory to write data and plots to -- must exist.",
+)
+@click.option(
+    "-z",
+    "--z-step-factor",
+    type=float,
+    default=inspect.signature(lib.ionize_box).parameters["z_step_factor"].default,
+    help="logarithmic steps in redshift for evolution",
+)
+@click.option(
+    "-Z",
+    "--z-heat-max",
+    type=float,
+    default=None,
+    help="maximum redshift at which to search for heating sources",
+)
+@click.option(
+    "--seed",
+    type=int,
+    default=None,
+    help="specify a random seed for the initial conditions",
+)
 @click.pass_context
-def ionize(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max,seed):
+def ionize(
+    ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max, seed
+):
     """
     Run 21cmFAST ionize_box at the specified redshift, saving results to file.
     """
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg.get('user_params', {}))
-    cosmo_params = lib.CosmoParams(**cfg.get('cosmo_params', {}))
-    flag_options = lib.FlagOptions(**cfg.get('flag_options', {}))
-    astro_params = lib.AstroParams(**cfg.get('astro_params', {}), INHOMO_RECO=flag_options.INHOMO_RECO)
+    user_params = lib.UserParams(**cfg.get("user_params", {}))
+    cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
+    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
+    astro_params = lib.AstroParams(
+        **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
+    )
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
     if z_step_factor is None and "z_step_factor" in cfg:
-        z_step_factor = cfg['z_step_factor']
+        z_step_factor = cfg["z_step_factor"]
     if z_heat_max is None and "z_heat_max" in cfg:
-        z_heat_max = cfg['z_heat_max']
+        z_heat_max = cfg["z_heat_max"]
 
     lib.ionize_box(
         redshift=redshift,
-        astro_params=astro_params, flag_options=flag_options,
+        astro_params=astro_params,
+        flag_options=flag_options,
         previous_ionize_box=prev_z,
-        z_step_factor=z_step_factor, z_heat_max=z_heat_max,
-        user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc, random_seed=seed
+        z_step_factor=z_step_factor,
+        z_heat_max=z_heat_max,
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        regenerate=regen,
+        write=True,
+        direc=direc,
+        random_seed=seed,
     )
 
 
 @main.command(
     context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True,
-        allow_extra_args=True
+        ignore_unknown_options=True, allow_extra_args=True
     )
 )
 @click.argument("redshift", type=str)
-@click.option("--config", type=click.Path(exists=True, dir_okay=False), default=None,
-              help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)")
-@click.option("--regen/--no-regen", default=False,
-              help="Whether to force regeneration of init/perturb files if they already exist.")
-@click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
-              help="directory to write data and plots to -- must exist.")
-@click.option("-z", "--z-step-factor", type=float,
-              default=inspect.signature(lib.run_coeval).parameters['z_step_factor'].default,
-              help="logarithmic steps in redshift for evolution")
-@click.option("-Z", "--z-heat-max", type=float, default=None,
-              help="maximum redshift at which to search for heating sources")
-@click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
+@click.option(
+    "--config",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)",
+)
+@click.option(
+    "--regen/--no-regen",
+    default=False,
+    help="Whether to force regeneration of init/perturb files if they already exist.",
+)
+@click.option(
+    "--direc",
+    type=click.Path(exists=True, dir_okay=True),
+    default=None,
+    help="directory to write data and plots to -- must exist.",
+)
+@click.option(
+    "-z",
+    "--z-step-factor",
+    type=float,
+    default=inspect.signature(lib.run_coeval).parameters["z_step_factor"].default,
+    help="logarithmic steps in redshift for evolution",
+)
+@click.option(
+    "-Z",
+    "--z-heat-max",
+    type=float,
+    default=None,
+    help="maximum redshift at which to search for heating sources",
+)
+@click.option(
+    "--seed",
+    type=int,
+    default=None,
+    help="specify a random seed for the initial conditions",
+)
 @click.pass_context
 def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed):
     """
@@ -272,79 +412,129 @@ def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed)
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg.get('user_params', {}))
-    cosmo_params = lib.CosmoParams(**cfg.get('cosmo_params', {}))
-    flag_options = lib.FlagOptions(**cfg.get('flag_options', {}))
-    astro_params = lib.AstroParams(**cfg.get('astro_params', {}), INHOMO_RECO=flag_options.INHOMO_RECO)
+    user_params = lib.UserParams(**cfg.get("user_params", {}))
+    cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
+    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
+    astro_params = lib.AstroParams(
+        **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
+    )
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
     if z_step_factor is None and "z_step_factor" in cfg:
-        z_step_factor = cfg['z_step_factor']
+        z_step_factor = cfg["z_step_factor"]
     if z_heat_max is None and "z_heat_max" in cfg:
-        z_heat_max = cfg['z_heat_max']
+        z_heat_max = cfg["z_heat_max"]
 
     lib.run_coeval(
         redshift=redshift,
-        astro_params=astro_params, flag_options=flag_options,
-        z_step_factor=z_step_factor, z_heat_max=z_heat_max,
-        user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc, random_seed=seed
+        astro_params=astro_params,
+        flag_options=flag_options,
+        z_step_factor=z_step_factor,
+        z_heat_max=z_heat_max,
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        regenerate=regen,
+        write=True,
+        direc=direc,
+        random_seed=seed,
     )
 
 
 @main.command(
     context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True,
-        allow_extra_args=True
+        ignore_unknown_options=True, allow_extra_args=True
     )
 )
 @click.argument("redshift", type=float)
-@click.option("--config", type=click.Path(exists=True, dir_okay=False), default=None,
-              help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)")
-@click.option("--regen/--no-regen", default=False,
-              help="Whether to force regeneration of init/perturb files if they already exist.")
-@click.option("--direc", type=click.Path(exists=True, dir_okay=True), default=None,
-              help="directory to write data and plots to -- must exist.")
-@click.option("-X", "--max-z", type=float, default=None,
-              help="maximum redshift of the stored lightcone data")
-@click.option("-z", "--z-step-factor", type=float,
-              default=inspect.signature(lib.run_lightcone).parameters['z_step_factor'].default,
-              help="logarithmic steps in redshift for evolution")
-@click.option("-Z", "--z-heat-max", type=float, default=None,
-              help="maximum redshift at which to search for heating sources")
-@click.option("--seed", type=int, default=None, help="specify a random seed for the initial conditions")
+@click.option(
+    "--config",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)",
+)
+@click.option(
+    "--regen/--no-regen",
+    default=False,
+    help="Whether to force regeneration of init/perturb files if they already exist.",
+)
+@click.option(
+    "--direc",
+    type=click.Path(exists=True, dir_okay=True),
+    default=None,
+    help="directory to write data and plots to -- must exist.",
+)
+@click.option(
+    "-X",
+    "--max-z",
+    type=float,
+    default=None,
+    help="maximum redshift of the stored lightcone data",
+)
+@click.option(
+    "-z",
+    "--z-step-factor",
+    type=float,
+    default=inspect.signature(lib.run_lightcone).parameters["z_step_factor"].default,
+    help="logarithmic steps in redshift for evolution",
+)
+@click.option(
+    "-Z",
+    "--z-heat-max",
+    type=float,
+    default=None,
+    help="maximum redshift at which to search for heating sources",
+)
+@click.option(
+    "--seed",
+    type=int,
+    default=None,
+    help="specify a random seed for the initial conditions",
+)
 @click.pass_context
-def lightcone(ctx, redshift, config, regen, direc, max_z, z_step_factor, z_heat_max, seed):
+def lightcone(
+    ctx, redshift, config, regen, direc, max_z, z_step_factor, z_heat_max, seed
+):
     """
     Efficiently generate coeval cubes at a given redshift.
     """
     cfg = _get_config(config)
 
     # Set user/cosmo params from config.
-    user_params = lib.UserParams(**cfg.get('user_params', {}))
-    cosmo_params = lib.CosmoParams(**cfg.get('cosmo_params', {}))
-    flag_options = lib.FlagOptions(**cfg.get('flag_options', {}))
-    astro_params = lib.AstroParams(**cfg.get('astro_params', {}), INHOMO_RECO=flag_options.INHOMO_RECO)
+    user_params = lib.UserParams(**cfg.get("user_params", {}))
+    cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
+    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
+    astro_params = lib.AstroParams(
+        **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
+    )
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
     if z_step_factor is None and "z_step_factor" in cfg:
-        z_step_factor = cfg['z_step_factor']
+        z_step_factor = cfg["z_step_factor"]
     if z_heat_max is None and "z_heat_max" in cfg:
-        z_heat_max = cfg['z_heat_max']
+        z_heat_max = cfg["z_heat_max"]
 
     lib.run_lightcone(
-        redshift=redshift, max_redshift=max_z,
-        astro_params=astro_params, flag_options=flag_options,
-        z_step_factor=z_step_factor, z_heat_max=z_heat_max,
-        user_params=user_params, cosmo_params=cosmo_params,
-        regenerate=regen, write=True, direc=direc, random_seed=seed
+        redshift=redshift,
+        max_redshift=max_z,
+        astro_params=astro_params,
+        flag_options=flag_options,
+        z_step_factor=z_step_factor,
+        z_heat_max=z_heat_max,
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        regenerate=regen,
+        write=True,
+        direc=direc,
+        random_seed=seed,
     )
 
 
 def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
-    cls = list(cache_tools.query_cache(direc=direc, kind=kind, hash=md5, seed=seed, show=False))
+    cls = list(
+        cache_tools.query_cache(direc=direc, kind=kind, hash=md5, seed=seed, show=False)
+    )
 
     if not clear:
         print("%s Data Sets Found:" % len(cls))
@@ -360,20 +550,25 @@ def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
             print()
 
         else:
-            direc = direc or path.expanduser(lib.config['boxdir'])
+            direc = direc or path.expanduser(lib.config["boxdir"])
             remove(path.join(direc, file))
 
 
 @main.command()
-@click.option("-d", "--direc", type=click.Path(exists=True, dir_okay=True), default=None,
-              help="directory to write data and plots to -- must exist.")
-@click.option("-k", "--kind", type=str, default=None,
-              help="filter by kind of data.")
-@click.option("-m", "--md5", type=str, default=None,
-              help="filter by md5 hash")
-@click.option("-s", "--seed", type=str, default=None,
-              help="filter by random seed")
-@click.option("--clear/--no-clear", default=False,
-              help="remove all data sets returned by this query.")
+@click.option(
+    "-d",
+    "--direc",
+    type=click.Path(exists=True, dir_okay=True),
+    default=None,
+    help="directory to write data and plots to -- must exist.",
+)
+@click.option("-k", "--kind", type=str, default=None, help="filter by kind of data.")
+@click.option("-m", "--md5", type=str, default=None, help="filter by md5 hash")
+@click.option("-s", "--seed", type=str, default=None, help="filter by random seed")
+@click.option(
+    "--clear/--no-clear",
+    default=False,
+    help="remove all data sets returned by this query.",
+)
 def query(direc, kind, md5, seed, clear):
     _query(direc, kind, md5, seed, clear)

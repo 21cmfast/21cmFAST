@@ -7,7 +7,13 @@ import pickle
 
 import pytest
 
-from py21cmfast import InitialConditions, PerturbedField, IonizedBox, TsBox, global_params  # An example of an output struct
+from py21cmfast import (
+    InitialConditions,
+    PerturbedField,
+    IonizedBox,
+    TsBox,
+    global_params,
+)  # An example of an output struct
 
 
 @pytest.fixture(scope="module")
@@ -19,7 +25,9 @@ def test_arrays_inited(ic):
     assert not ic.arrays_initialized
 
 
-def test_pointer_fields_ic(ic):  # TODO: this is probably good to implement for every output struct defined in code
+def test_pointer_fields_ic(
+    ic
+):  # TODO: this is probably good to implement for every output struct defined in code
     # Get list of fields before and after array initialisation
     d = copy.copy(list(ic.__dict__.keys()))
     ic._init_arrays()
@@ -103,7 +111,9 @@ def test_readability(tmpdirec):
 
     ic2 = InitialConditions()
 
-    assert ic_._seedless_repr() == ic2._seedless_repr()  # without seeds, they are obviously exactly the same.
+    assert (
+        ic_._seedless_repr() == ic2._seedless_repr()
+    )  # without seeds, they are obviously exactly the same.
 
     assert ic2.exists(direc=tmpdirec.strpath)
 
@@ -118,6 +128,7 @@ def test_readability(tmpdirec):
     # make sure we can't read it twice
     with pytest.raises(IOError):
         ic2.read(direc=tmpdirec.strpath)
+
 
 def test_different_seeds(ic):
     ic2 = InitialConditions(random_seed=1)
@@ -173,7 +184,9 @@ def test_match_seed(tmpdirec):
     ic_.write(direc=tmpdirec.strpath)
 
     ic2 = InitialConditions(random_seed=1)
-    with pytest.raises(IOError):  # should not read in just anything if its random seed is set.
+    with pytest.raises(
+        IOError
+    ):  # should not read in just anything if its random seed is set.
         ic2.read(direc=tmpdirec.strpath)
 
 
@@ -192,7 +205,7 @@ def test_bad_class_definition():
             del self.hires_density
 
     with pytest.raises(AttributeError):
-        c = CustomInitialConditions(init=True)
+        CustomInitialConditions(init=True)
 
 
 def test_pre_expose(ic):
@@ -203,7 +216,7 @@ def test_pre_expose(ic):
 
 def test_bad_write():
     ic = InitialConditions()
-    ic.filled=True
+    ic.filled = True
 
     # no random seed yet so shouldn't be able to write.
     with pytest.raises(ValueError):

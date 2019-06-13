@@ -1,5 +1,5 @@
 from os import path
-from .wrapper import config, global_params, CosmoParams, UserParams, AstroParams, FlagOptions, InitialConditions, PerturbedField, IonizedBox, TsBox, BrightnessTemp # require these for the global call below
+from .wrapper import config, global_params
 import glob
 import h5py
 
@@ -31,7 +31,7 @@ def readbox(*, direc=None, fname=None, hash=None, kind=None, seed=None, load_dat
     dataset:
         An output object, whose type depends on the kind of data set being read.
     """
-    direc = direc or path.expanduser(config['boxdir'])
+    direc = direc or path.expanduser(config["boxdir"])
 
     # We either need fname, or hash and kind.
     if not fname and not (hash and kind):
@@ -51,7 +51,7 @@ def readbox(*, direc=None, fname=None, hash=None, kind=None, seed=None, load_dat
         fname = kind + "_" + hash + "_r" + str(seed) + ".h5"
 
     # Now, open the file and read in the parameters
-    with h5py.File(path.join(direc, fname), 'r') as fl:
+    with h5py.File(path.join(direc, fname), "r") as fl:
         # First get items out of attrs.
         top_level = {}
         for k, v in fl.attrs.items():
@@ -63,7 +63,7 @@ def readbox(*, direc=None, fname=None, hash=None, kind=None, seed=None, load_dat
             if grp_nm != kind:  # is a parameter
                 params[grp_nm] = {}
                 for k, v in grp.attrs.items():
-                    params[grp_nm][k] = None if v == u"none" else v
+                    params[grp_nm][k] = None if v == "none" else v
 
     # Need to map the parameters to input parameters.
     passed_parameters = {}
@@ -129,7 +129,7 @@ def list_datasets(*, direc=None, kind=None, hash=None, seed=None):
     parts: tuple of strings
         The (kind, hash, seed) of the data set.
     """
-    direc = direc or path.expanduser(config['boxdir'])
+    direc = direc or path.expanduser(config["boxdir"])
 
     kind = kind or "*"
     hash = hash or "*"

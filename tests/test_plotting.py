@@ -15,11 +15,11 @@ def test_coeval_sliceplot():
     assert ax.xaxis.get_label().get_text() == "x-axis [Mpc]"
     assert ax.yaxis.get_label().get_text() == "y-axis [Mpc]"
 
-    with pytest.raises(ValueError): # bad slice axis
+    with pytest.raises(ValueError):  # bad slice axis
         plotting.coeval_sliceplot(ic, slice_axis=-2)
 
-    with pytest.raises(IndexError): # tring to plot slice that doesn't exist
-        plotting.coeval_sliceplot(ic, slice_index = 50)
+    with pytest.raises(IndexError):  # tring to plot slice that doesn't exist
+        plotting.coeval_sliceplot(ic, slice_index=50)
 
     fig2, ax2 = plotting.coeval_sliceplot(ic, fig=fig, ax=ax)
 
@@ -36,17 +36,19 @@ def test_coeval_sliceplot():
     assert fig2 is fig
     assert ax2 is ax
 
-    fig, ax = plotting.coeval_sliceplot(ic, kind="hires_density", slice_index=50, slice_axis=1)
+    fig, ax = plotting.coeval_sliceplot(
+        ic, kind="hires_density", slice_index=50, slice_axis=1
+    )
     assert ax.xaxis.get_label().get_text() == "x-axis [Mpc]"
     assert ax.yaxis.get_label().get_text() == "z-axis [Mpc]"
 
 
 def test_lightcone_sliceplot():
-    lc = run_lightcone(redshift=25, max_redshift=30, user_params={"HII_DIM":35, "DIM":70})
+    lc = run_lightcone(
+        redshift=25, max_redshift=30, user_params={"HII_DIM": 35, "DIM": 70}
+    )
 
     fig, ax = plotting.lightcone_sliceplot(lc)
 
     assert ax.xaxis.get_label().get_text() == "y-axis [Mpc]"
     assert ax.yaxis.get_label().get_text() == "Redshift Axis [Mpc]"
-
-    
