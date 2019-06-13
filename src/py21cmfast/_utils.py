@@ -8,10 +8,10 @@ from os import path
 
 import h5py
 import numpy as np
-import yaml
+from . import yaml
 
 # Global Options
-with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:
+with open(path.expanduser(path.join("~", '.21cmfast', "config.yml"))) as f:
     config = yaml.load(f)
 
 # The following is just an *empty* ffi object, which can perform certain operations which are not specific
@@ -22,7 +22,7 @@ _ffi = FFI()
 
 import logging
 
-logger = logging.getLogger("21CMMC")
+logger = logging.getLogger("21cmFAST")
 
 
 class StructWrapper:

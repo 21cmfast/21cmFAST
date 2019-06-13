@@ -3,7 +3,7 @@
 
 *.pyc
 
-src/py21cmmc\.egg-info/
+src/py21cmfast\.egg-info/
 
 *.so
 build/

@@ -18,7 +18,7 @@
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_spline.h>
 
-#include "21CMMC.h"
+#include "21cmFAST.h"
 #include "logger.h"
 #include "Constants.h"
 #include "Globals.h"

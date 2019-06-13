@@ -6,22 +6,17 @@ from __future__ import print_function
 import io
 import os
 import re
+from distutils.dir_util import copy_tree
 from glob import glob
 from os.path import basename
 from os.path import dirname
-from os.path import join
-from os.path import relpath
-from os.path import splitext
 from os.path import expanduser
-from os import path
+from os.path import join
+from os.path import splitext
+from shutil import copyfile
 
-from setuptools import Extension
 from setuptools import find_packages
 from setuptools import setup
-from distutils.core import Extension as DExtension
-
-from shutil import copyfile, move
-from distutils.dir_util import copy_tree
 
 
 def read(*names, **kwargs):
@@ -29,6 +24,7 @@ def read(*names, **kwargs):
         join(dirname(__file__), *names),
         encoding=kwargs.get('encoding', 'utf8')
     ).read()
+
 
 def find_version(*file_paths):
     version_file = read(*file_paths)
@@ -39,9 +35,9 @@ def find_version(*file_paths):
     raise RuntimeError("Unable to find version string.")
 
 
-# ======================================================================================================================
+# ======================================================================================
 # Create a user-level config directory for 21CMMC, for configuration.
-cfgdir = expanduser(join("~", ".21CMMC")) #os.environ.get("CFGDIR", expanduser(join("~", ".21CMMC")))
+cfgdir = expanduser(join("~", ".21cmfast"))
 
 pkgdir = os.path.dirname(os.path.abspath(__file__))
 
@@ -52,12 +48,12 @@ copyfile(join(pkgdir, "config.yml"), join(cfgdir, "config.yml"))
 copyfile(join(pkgdir, "runconfig_example.yml"), join(cfgdir, "runconfig_example.yml"))
 copy_tree(join(pkgdir, "External_tables"), join(cfgdir, "External_tables"))
 
-boxdir=os.environ.get("BOXDIR", None)
+boxdir = os.environ.get("BOXDIR", None)
 
 if boxdir:
     with open(join(cfgdir, "config.yml"), 'r') as f:
         lines = f.readlines()
-        for i,line in enumerate(lines):
+        for i, line in enumerate(lines):
             if line.strip().startswith("boxdir"):
                 lines[i] = line.replace(line.split(": ")[-1], boxdir)
 
@@ -73,17 +69,17 @@ if 'TOXENV' in os.environ and 'SETUPPY_CFLAGS' in os.environ:
     os.environ['CFLAGS'] = os.environ['SETUPPY_CFLAGS']
 
 setup(
-    name='py21cmmc',
-    version=find_version("src", "py21cmmc", "__init__.py"),
+    name='py21cmfast',
+    version=find_version("src", "py21cmfast", "__init__.py"),
     license='MIT license',
-    description='An extensible MCMC framework for 21cmFAST',
+    description='A semi-numerical cosmological simulation code for the 21cm signal',
     long_description='%s\n%s' % (
         re.compile('^.. start-badges.*^.. end-badges', re.M | re.S).sub('', read('README.rst')),
         re.sub(':[a-z]+:`~?(.*?)`', r'``\1``', read('CHANGELOG.rst'))
     ),
-    author='Brad Greig',
-    author_email='greigb@unimelb.edu.au',
-    url='https://github.com/BradGreig/21CMMC',
+    author='The 21cmFAST coredev team',
+    author_email='21cmfast.coredev@gmail.com',
+    url='https://github.com/21cmFAST/21cmFAST',
     packages=find_packages('src'),
     package_dir={'': 'src'},
     py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
@@ -97,10 +93,10 @@ setup(
         'Operating System :: Unix',
         'Operating System :: POSIX',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: Implementation :: CPython',
     ],
     keywords=[
@@ -108,21 +104,19 @@ setup(
     ],
     install_requires=[
         'click',
-        #'tqdm',
+        # 'tqdm',
         'numpy',
         'pyyaml',
-        'cosmoHammer',
         'cffi>=1.0',
         'scipy',
         'astropy>=2.0',
-        'emcee<3',
         'powerbox>=0.5.7',
         'h5py>=2.8.0',
         'cached_property'
     ],
     entry_points={
         'console_scripts': [
-            '21CMMC = py21cmmc.cli:main',
+            '21cmfast = py21cmfast.cli:main',
         ]
     },
     cffi_modules=["{pkgdir}/build_cffi.py:ffi".format(pkgdir=pkgdir)],

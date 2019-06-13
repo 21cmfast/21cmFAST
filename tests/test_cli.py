@@ -4,9 +4,9 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
-from py21cmmc import UserParams, InitialConditions
-from py21cmmc import cli
-from py21cmmc._21cmfast.cache_tools import query_cache
+from py21cmfast import UserParams, InitialConditions
+from py21cmfast import cli
+from py21cmfast import query_cache
 
 
 @pytest.fixture(scope="module")

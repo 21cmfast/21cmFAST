@@ -3,7 +3,7 @@ Authors
 =======
 
 * Brad Greig - github.com/BradGreig
-* Andrei Mesinger
+* Andrei Mesinger - github.com/andreimesinger
 * Steven Murray - github.com/steven-murray
 
 

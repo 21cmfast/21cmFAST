@@ -1,7 +1,6 @@
 """
 Module that contains the command line app.
 """
-# from .mcmc import run_mcmc
 import inspect
 import warnings
 from os import path, remove
@@ -9,8 +8,7 @@ from os import path, remove
 import click
 import yaml
 
-from . import wrapper as lib  # initial_conditions, perturb_field, CosmoParams, UserParams#run_21cmfast
-from ._21cmfast import cache_tools
+from py21cmfast import wrapper as lib, cache_tools
 
 
 def _get_config(config=None):

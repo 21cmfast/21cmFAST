@@ -3,7 +3,7 @@ import os
 
 ffi = FFI()
 LOCATION = os.path.dirname(os.path.abspath(__file__))
-CLOC = os.path.join(LOCATION, 'src', 'py21cmmc', '_21cmfast', 'src')
+CLOC = os.path.join(LOCATION, 'src', 'py21cmfast', 'src')
 include_dirs = [CLOC]
 
 # =================================================================
@@ -28,7 +28,8 @@ try:
     log_level = int(log_level)
 except ValueError:
     # note: for py35 support, can't use f strings.
-    raise ValueError("LOG_LEVEL must be specified as a positive integer, or one of {}".format(available_levels))
+    raise ValueError("LOG_LEVEL must be specified as a positive integer, or one "
+                     "of {}".format(available_levels))
 
 library_dirs = []
 for k,v in os.environ.items():
@@ -41,7 +42,7 @@ for k,v in os.environ.items():
 
 # This is the overall C code.
 ffi.set_source(
-    "py21cmmc._21cmfast._21cmfast",  # Name/Location of shared library module
+    "py21cmfast.c21cmfast",  # Name/Location of shared library module
     '''
     #define LOG_LEVEL {log_level}
     
@@ -55,7 +56,7 @@ ffi.set_source(
 )
 
 # This is the Header file
-with open(os.path.join(CLOC, "21CMMC.h")) as f:
+with open(os.path.join(CLOC, "21cmFAST.h")) as f:
     ffi.cdef(f.read())
 
 with open(os.path.join(CLOC, "Globals.h")) as f:

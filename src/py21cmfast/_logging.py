@@ -1,11 +1,10 @@
 import logging
-import os
 import sys
 from multiprocessing import current_process
 
 
 class PIDFormatter(logging.Formatter):
-    _mylogger = logging.getLogger("21CMMC") # really bad hack
+    _mylogger = logging.getLogger("21cmFAST")  # really bad hack
 
     def format(self, record):
         fmt = "{asctime} | {levelname} |"
@@ -20,9 +19,10 @@ class PIDFormatter(logging.Formatter):
 
         return logging.Formatter.format(self, record)
 
+
 def configure_logging():
     # logging.basicConfig()
     hdlr = logging.StreamHandler(sys.stderr)
     hdlr.setFormatter(PIDFormatter())
-    logger = logging.getLogger("21CMMC")
+    logger = logging.getLogger("21cmFAST")
     logger.addHandler(hdlr)

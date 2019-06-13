@@ -7,7 +7,7 @@ import pickle
 
 import pytest
 
-from py21cmmc import InitialConditions, PerturbedField, IonizedBox, TsBox, global_params  # An example of an output struct
+from py21cmfast import InitialConditions, PerturbedField, IonizedBox, TsBox, global_params  # An example of an output struct
 
 
 @pytest.fixture(scope="module")

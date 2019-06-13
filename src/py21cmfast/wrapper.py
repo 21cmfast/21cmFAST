@@ -104,9 +104,10 @@ from cached_property import cached_property
 
 from ._21cmfast import ffi, lib
 from ._utils import StructWithDefaults, OutputStruct as _OS, StructInstanceWrapper, StructWrapper
-from ..mcmc import yaml
 
-logger = logging.getLogger("21CMMC")
+from . import yaml
+
+logger = logging.getLogger("21cmFAST")
 
 # Global Options
 with open(path.expanduser(path.join("~", '.21CMMC', "config.yml"))) as f:

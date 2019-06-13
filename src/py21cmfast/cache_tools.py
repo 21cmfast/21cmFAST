@@ -114,7 +114,7 @@ def list_datasets(*, direc=None, kind=None, hash=None, seed=None):
     ----------
     direc : str, optional
         The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-        by the ``config.yml`` in ``.21CMMC``.
+        by the ``config.yml`` in ``.21cmfast``.
     kind: str, optional
         Filter by this kind. Must be one of "InitialConditions", "PerturbedField", "IonizedBox", "TsBox" or "BrightnessTemp".
     hash: str, optional
@@ -145,18 +145,20 @@ def list_datasets(*, direc=None, kind=None, hash=None, seed=None):
 
 def query_cache(*, direc=None, kind=None, hash=None, seed=None, show=True):
     """
-    Walk through the cache, with given filters, and return all un-initialised dataset objects, optionally printing
-    their representation to screen.
+    Walk through the cache, with given filters, and return all un-initialised dataset
+    objects, optionally printing their representation to screen.
 
-    Usefor for querying which kinds of datasets are available within the cache, and choosing one to read and use.
+    Usefor for querying which kinds of datasets are available within the cache, and
+    choosing one to read and use.
 
     Parameters
     ----------
     direc : str, optional
-        The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-        by the ``config.yml`` in ``.21CMMC``.
+        The directory in which to search for the boxes. By default, this is the
+        centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast``.
     kind: str, optional
-        Filter by this kind. Must be one of "InitialConditions", "PerturbedField", "IonizedBox", "TsBox" or "BrightnessTemp".
+        Filter by this kind. Must be one of "InitialConditions", "PerturbedField",
+        "IonizedBox", "TsBox" or "BrightnessTemp".
     hash: str, optional
         Filter by this hash.
     seed: str, optional

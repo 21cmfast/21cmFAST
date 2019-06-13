@@ -3,7 +3,7 @@ Various tests of the initial_conditions() function and InitialConditions class.
 """
 
 import pytest
-from py21cmmc import wrapper
+from py21cmfast import wrapper
 
 
 @pytest.fixture(scope="module") # call this fixture once for all tests in this module

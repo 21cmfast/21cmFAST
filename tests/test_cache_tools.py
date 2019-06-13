@@ -2,7 +2,7 @@
 Tests for the tools in the wrapper.
 """
 
-from py21cmmc import wrapper, cache_tools
+from py21cmfast import wrapper, cache_tools
 import pytest
 import numpy as np
 

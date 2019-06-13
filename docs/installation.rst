@@ -8,7 +8,7 @@ you install the floating-point version!)
 
 Then, at the command line::
 
-    pip install 21CMMC
+    pip install 21cmFAST
 
 If developing, from the top-level directory do::
 
@@ -24,7 +24,7 @@ install with DEBUG=True. So for example::
     CC=/usr/bin/gcc DEBUG=True GSL_LIB=/opt/local/lib FFTW_INC=/usr/local/include pip install -e .
 
 In addition, the ``BOXDIR`` variable specifies the *default* directory that any
-data produced by 21CMMC will be cached. This value can be updated at any time by
+data produced by 21cmFAST will be cached. This value can be updated at any time by
 changing it in the ``$CFGDIR/config.yml`` file, and can be overwritten on a
 per-call basis.
 

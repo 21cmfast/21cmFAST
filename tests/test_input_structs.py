@@ -6,7 +6,7 @@ import pickle
 
 import pytest
 
-from py21cmmc import CosmoParams, UserParams, AstroParams, FlagOptions  # An example of a struct with defaults
+from py21cmfast import CosmoParams, UserParams, AstroParams, FlagOptions  # An example of a struct with defaults
 
 
 @pytest.fixture(scope="module")

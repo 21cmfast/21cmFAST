@@ -5,7 +5,7 @@ but whether different parameter options work/don't work as intended.
 import numpy as np
 import pytest
 
-from py21cmmc import wrapper
+from py21cmfast import wrapper
 
 REDSHIFT = 15
 
@@ -299,7 +299,7 @@ def test_lightcone(init_box, perturb_field):
 
 
 def test_run_lf():
-    muv, mhalo, lf = wrapper.compute_luminosity_function(redshifts=[7,8,9], nbins=100)
+    muv, mhalo, lf = wrapper.compute_luminosity_function(redshifts=[7, 8, 9], nbins=100)
     assert np.all(lf[~np.isnan(lf)] > -30)
     assert lf.shape == (3, 100)
 

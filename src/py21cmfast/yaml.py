@@ -36,6 +36,7 @@ for k, v in yaml.Loader.yaml_multi_constructors.items():
 for k, v in ayaml.AstropyLoader.yaml_multi_constructors.items():
     NewLoader.add_multi_constructor(k, v)
 
+
 def load(stream):
     return yaml.load(stream, Loader=NewLoader)
 
