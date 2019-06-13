@@ -1,7 +1,11 @@
-from os import path
-from .wrapper import config, global_params
 import glob
+from os import path
+
 import h5py
+
+from ._cfg import config
+from .wrapper import global_params
+from . import wrapper
 
 
 def readbox(*, direc=None, fname=None, hash=None, kind=None, seed=None, load_data=True):
@@ -11,20 +15,23 @@ def readbox(*, direc=None, fname=None, hash=None, kind=None, seed=None, load_dat
     Parameters
     ----------
     direc : str, optional
-        The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-        by the ``config.yml`` in ``.21CMMC``.
+        The directory in which to search for the boxes. By default, this is the
+        centrally-managed directory, given by the ``config.yml`` in ``.21CMMC``.
     fname: str, optional
-        The filename (without directory) of the data set. If given, this will be preferentially used, and must exist.
+        The filename (without directory) of the data set. If given, this will be
+        preferentially used, and must exist.
     hash: str, optional
         The md5 hash of the object desired to be read. Required if `fname` not given.
     kind: str, optional
-        The kind of dataset, eg. "InitialConditions". Will be the name of a class defined in :mod:`~wrapper`. Required
-        if `fname` not given.
+        The kind of dataset, eg. "InitialConditions". Will be the name of a class
+        defined in :mod:`~wrapper`. Required if `fname` not given.
     seed: str or int, optional
-        The random seed of the data set to be read. If not given, and filename not given, then a box will be read if
-        it matches the kind and hash, with an arbitrary seed.
+        The random seed of the data set to be read. If not given, and filename not
+        given, then a box will be read if it matches the kind and hash, with an
+        arbitrary seed.
     load_data: bool, optional
-        Whether to read in the data in the data set. Otherwise, only its defining parameters are read.
+        Whether to read in the data in the data set. Otherwise, only its defining
+        parameters are read.
 
     Returns
     -------
@@ -75,13 +82,13 @@ def readbox(*, direc=None, fname=None, hash=None, kind=None, seed=None, load_dat
         else:
             # The following line takes something like "cosmo_params", turns it into "CosmoParams", and instantiates
             # that particular class with the dictionary parameters.
-            passed_parameters[k] = globals()[k.title().replace("_", "")](**v)
+            passed_parameters[k] = getattr(wrapper, k.title().replace("_", ""))(**v)
 
     for k, v in top_level.items():
         passed_parameters[k] = v
 
     # Make an instance of the object.
-    inst = globals()[kind](**passed_parameters)
+    inst = getattr(wrapper, kind)(**passed_parameters)
 
     # Read in the actual data (this avoids duplication of reading data).
     if load_data:

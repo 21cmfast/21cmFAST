@@ -28,6 +28,7 @@ from .wrapper import (
     run_coeval,
     run_lightcone,
     LightCone,
+    global_params,
 )
 
 

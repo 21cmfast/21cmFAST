@@ -34,7 +34,7 @@ def find_version(*file_paths):
 
 
 # ======================================================================================
-# Create a user-level config directory for 21CMMC, for configuration.
+# Create a user-level config directory for 21cmFAST, for configuration.
 cfgdir = expanduser(join("~", ".21cmfast"))
 
 pkgdir = os.path.dirname(os.path.abspath(__file__))
@@ -83,7 +83,7 @@ setup(
     url="https://github.com/21cmFAST/21cmFAST",
     packages=find_packages("src"),
     package_dir={"": "src"},
-    py_modules=[splitext(basename(path))[0] for path in glob("src/*.py")],
+    # py_modules=[splitext(basename(path))[0] for path in glob("src/*.py")],
     include_package_data=True,
     zip_safe=False,
     classifiers=[
@@ -113,6 +113,7 @@ setup(
         "h5py>=2.8.0",
         "cached_property",
     ],
+    setup_requires=["cffi>=1.0"],
     entry_points={"console_scripts": ["21cmfast = py21cmfast.cli:main"]},
     cffi_modules=["{pkgdir}/build_cffi.py:ffi".format(pkgdir=pkgdir)],
 )
