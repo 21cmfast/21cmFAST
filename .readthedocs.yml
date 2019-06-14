@@ -19,4 +19,5 @@ python:
   version: 3.6
   system_packages: true
   install:
-  - requirements: docs/requirements.txt
+    - requirements: requirements_dev.txt
+    - requirements: docs/requirements.txt

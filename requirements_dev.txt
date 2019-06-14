@@ -1,15 +1,10 @@
-sphinx==1.7.5
-numpydoc
-sphinx_rtd_theme
 click
 numpy
 pyyaml
 cffi
 scipy
 astropy
-corner
 pytest
 pytest-cov
-coveralls
 pre-commit
 tox
