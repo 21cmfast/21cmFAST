@@ -67,7 +67,7 @@ if "TOXENV" in os.environ and "SETUPPY_CFLAGS" in os.environ:
     os.environ["CFLAGS"] = os.environ["SETUPPY_CFLAGS"]
 
 setup(
-    name="py21cmfast",
+    name="21cmFAST",
     version=find_version("src", "py21cmfast", "__init__.py"),
     license="MIT license",
     description="A semi-numerical cosmological simulation code for the 21cm signal",
