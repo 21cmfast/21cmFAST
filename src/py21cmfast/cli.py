@@ -13,7 +13,7 @@ from py21cmfast import wrapper as lib, cache_tools
 
 def _get_config(config=None):
     if config is None:
-        config = path.expanduser(path.join("~", ".21CMMC", "runconfig_example.yml"))
+        config = path.expanduser(path.join("~", ".21cmfast", "runconfig_example.yml"))
 
     with open(config, "r") as f:
         cfg = yaml.load(f)
@@ -82,7 +82,7 @@ main = click.Group()
     "--config",
     type=click.Path(exists=True, dir_okay=False),
     default=None,
-    help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)",
+    help="Path to the configuration file (default ~/.21cmfast/runconfig_single.yml)",
 )
 @click.option(
     "--regen/--no-regen",
@@ -134,7 +134,7 @@ def init(ctx, config, regen, direc, seed):
     "--config",
     type=click.Path(exists=True, dir_okay=False),
     default=None,
-    help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)",
+    help="Path to the configuration file (default ~/.21cmfast/runconfig_single.yml)",
 )
 @click.option(
     "--regen/--no-regen",
@@ -194,7 +194,7 @@ def perturb(ctx, redshift, config, regen, direc, seed):
     "--config",
     type=click.Path(exists=True, dir_okay=False),
     default=None,
-    help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)",
+    help="Path to the configuration file (default ~/.21cmfast/runconfig_single.yml)",
 )
 @click.option(
     "--regen/--no-regen",
@@ -282,7 +282,7 @@ def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max,
     "--config",
     type=click.Path(exists=True, dir_okay=False),
     default=None,
-    help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)",
+    help="Path to the configuration file (default ~/.21cmfast/runconfig_single.yml)",
 )
 @click.option(
     "--regen/--no-regen",
@@ -365,7 +365,7 @@ def ionize(
     "--config",
     type=click.Path(exists=True, dir_okay=False),
     default=None,
-    help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)",
+    help="Path to the configuration file (default ~/.21cmfast/runconfig_single.yml)",
 )
 @click.option(
     "--regen/--no-regen",
@@ -451,7 +451,7 @@ def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed)
     "--config",
     type=click.Path(exists=True, dir_okay=False),
     default=None,
-    help="Path to the configuration file (default ~/.21CMMC/runconfig_single.yml)",
+    help="Path to the configuration file (default ~/.21cmfast/runconfig_single.yml)",
 )
 @click.option(
     "--regen/--no-regen",
