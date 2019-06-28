@@ -15,8 +15,8 @@ def readbox(*, direc=None, fname=None, hash=None, kind=None, seed=None, load_dat
     Parameters
     ----------
     direc : str, optional
-        The directory in which to search for the boxes. By default, this is the
-        centrally-managed directory, given by the ``config.yml`` in ``.21CMMC``.
+            The directory in which to search for the boxes. By default, this is the
+            centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
     fname: str, optional
         The filename (without directory) of the data set. If given, this will be
         preferentially used, and must exist.

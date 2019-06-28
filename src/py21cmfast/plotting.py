@@ -73,7 +73,7 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
 
     Parameters
     ----------
-    struct : :class:`py21cmmc._OutputStruct` instance
+    struct : :class:~`py21cmfast._OutputStruct` instance
         The output of a function such as `ionize_box` (a class containing several quantities).
     kind : str
         The quantity within the structure to be shown.

@@ -1,66 +1,82 @@
 """
-This is the main wrapper for the underlying 21cmFAST C-code, and the module provides a number of:
+This is the main wrapper for the underlying 21cmFAST C-code, and the module provides a
+number of:
 
-* Input-parameter classes which wrap various C structs (these are the classes ending with ``*Params`` or ``*Options``)
-* Output objects which simplify access to underlying data structures, such as density, velocity and ionization fields
-* Low-level functions which simplify calling the background C functions which populate these output objects given the
-  input classes.
-* High-level functions which provide the most efficient and simplest way to generate the most commonly desired outputs.
+* Input-parameter classes which wrap various C structs (these are the classes ending
+  with ``*Params`` or ``*Options``)
+* Output objects which simplify access to underlying data structures, such as density,
+  velocity and ionization fields
+* Low-level functions which simplify calling the background C functions which populate
+  these output objects given the input classes.
+* High-level functions which provide the most efficient and simplest way to generate the
+  most commonly desired outputs.
 
-Along with these, the module exposes ``global_params``, which is a simple class providing read/write access to a number
-of parameters used throughout the computation which are very rarely varied. These parameters can be accessed as
-standard instance attributes of ``global_params``, and listed using ``dir(global_params)``. When set, they are used
-globally for all proceeding calculations.
+Along with these, the module exposes ``global_params``, which is a simple class
+providing read/write access to a number of parameters used throughout the computation
+which are very rarely varied. These parameters can be accessed as standard instance
+attributes of ``global_params``, and listed using ``dir(global_params)``. When set, they
+are used globally for all proceeding calculations.
 
 **Input Parameter Classes**
 
-There are four input parameter/option classes, not all of which are required for any given function. They are
-:class:`UserParams`, :class:`CosmoParams`, :class:`AstroParams` and :class:`FlagOptions`. Each of them defines a number
-of variables, and all of these have default values, to minimize the burden on the user. These defaults are accessed via
-the ``_defaults_`` class attribute of each class. The available parameters for each are listed in the documentation
-for each class below.
+There are four input parameter/option classes, not all of which are required for any
+given function. They are :class:`UserParams`, :class:`CosmoParams`, :class:`AstroParams`
+and :class:`FlagOptions`. Each of them defines a number of variables, and all of these
+have default values, to minimize the burden on the user. These defaults are accessed via
+the ``_defaults_`` class attribute of each class. The available parameters for each are
+listed in the documentation for each class below.
 
 **Output Objects**
 
-The remainder of the classes defined in this module are output classes. These exist to simplify access to large datasets
-created within C. Fundamentally, ownership of the data belongs to these classes, and the C functions merely accesses
-this and fills it. The various boxes and quantities associated with each output are available as instance attributes.
-Along with the output data, each output object contains the various input parameter objects necessary to define it.
+The remainder of the classes defined in this module are output classes. These exist to
+simplify access to large datasets created within C. Fundamentally, ownership of the data
+belongs to these classes, and the C functions merely accesses this and fills it. The
+various boxes and quantities associated with each output are available as instance
+attributes. Along with the output data, each output object contains the various input
+parameter objects necessary to define it.
 
-.. warning:: These should not be instantiated or filled by the user, but always handled as output objects from the
-             various functions contained here. Only the data within the objects should be accessed.
+.. warning:: These should not be instantiated or filled by the user, but always handled
+             as output objects from the various functions contained here. Only the data
+             within the objects should be accessed.
 
 **Low-level functions**
 
-The low-level functions provided here ease the production of the aforementioned output objects. Functions exist for
-each low-level C routine, which have been decoupled as far as possible. So, functions exist to create
-:func:`initial_conditions`, :func:`perturb_field`, :class:`ionize_box` and so on. Creating a brightness temperature
-box (often the desired final output) would generally require calling each of these in turn, as each depends on the
-result of a previous function. Nevertheless, each function has the capability of generating the required previous
-outputs on-the-fly, so one can instantly call :func:`ionize_box` and get a self-consistent result. Doing so, while
-convenient, is sometimes not *efficient*, especially when using inhomogeneous recombinations or the spin temperature
-field, which intrinsically require consistent evolution of the ionization field through redshift. In these cases, for
-best efficiency it is recommended to either use a customised manual approach to calling these low-level functions, or
-to call a higher-level function which optimizes this process.
+The low-level functions provided here ease the production of the aforementioned output
+objects. Functions exist for each low-level C routine, which have been decoupled as far
+as possible. So, functions exist to create :func:`initial_conditions`,
+:func:`perturb_field`, :class:`ionize_box` and so on. Creating a brightness temperature
+box (often the desired final output) would generally require calling each of these in
+turn, as each depends on the result of a previous function. Nevertheless, each function
+has the capability of generating the required previous outputs on-the-fly, so one can
+instantly call :func:`ionize_box` and get a self-consistent result. Doing so, while
+convenient, is sometimes not *efficient*, especially when using inhomogeneous
+recombinations or the spin temperature field, which intrinsically require consistent
+evolution of the ionization field through redshift. In these cases, for best efficiency
+it is recommended to either use a customised manual approach to calling these low-level
+functions, or to call a higher-level function which optimizes this process.
 
-Finally, note that ``21CMMC`` attempts to optimize the production of the large amount of data via on-disk caching.
-By default, if a previous set of data has been computed using the current input parameters, it will be read-in from
-a caching repository and returned directly. This behaviour can be tuned in any of the low-level (or high-level)
-functions by setting the `write`, `direc`, `regenerate` and `match_seed` parameters (see docs for
-:func:`initial_conditions` for details). The function :func:`~query_cache` can be used to search the cache, and return
-empty datasets corresponding to each (these can the be filled with the data merely by calling ``.read()`` on any
-data set). Conversely, a specific data set can be read and returned as a proper output object by calling the
+Finally, note that `21cmFAST` attempts to optimize the production of the large amount of
+data via on-disk caching. By default, if a previous set of data has been computed using
+the current input parameters, it will be read-in from a caching repository and returned
+directly. This behaviour can be tuned in any of the low-level (or high-level) functions
+by setting the `write`, `direc`, `regenerate` and `match_seed` parameters (see docs for
+:func:`initial_conditions` for details). The function :func:`~query_cache` can be used
+to search the cache, and return empty datasets corresponding to each (these can the be
+filled with the data merely by calling ``.read()`` on any data set). Conversely, a
+specific data set can be read and returned as a proper output object by calling the
 :func:`readbox` function.
 
 
 **High-level functions**
 
-As previously mentioned, calling the low-level functions in some cases is non-optimal, especially when full evolution
-of the field is required, and thus iteration through a series of redshift. In addition, while
-:class:`InitialConditions` and :class:`PerturbedField` are necessary intermediate data, it is *usually* the resulting
-brightness temperature which is of most interest, and it is easier to not have to worry about the intermediate steps
-explicitly. For these typical use-cases, two high-level functions are available: :func:`run_coeval` and
-:func:`run_lightcone`, whose purpose should be self-explanatory. These will optimally run all necessary intermediate
+As previously mentioned, calling the low-level functions in some cases is non-optimal,
+especially when full evolution of the field is required, and thus iteration through a
+series of redshift. In addition, while :class:`InitialConditions` and
+:class:`PerturbedField` are necessary intermediate data, it is *usually* the resulting
+brightness temperature which is of most interest, and it is easier to not have to worry
+about the intermediate steps explicitly. For these typical use-cases, two high-level
+functions are available: :func:`run_coeval` and :func:`run_lightcone`, whose purpose
+should be self-explanatory. These will optimally run all necessary intermediate
 steps (using cached results by default if possible) and return all datasets of interest.
 
 
@@ -68,9 +84,10 @@ Examples
 --------
 A typical example of using this module would be the following.
 
->>> import py21cmmc as p21
+>>> import py21cmfast as p21
 
-Get coeval cubes at redshift 7,8 and 9, without spin temperature or inhomogeneous recombinations:
+Get coeval cubes at redshift 7,8 and 9, without spin temperature or inhomogeneous
+recombinations:
 
 >>> init, perturb, xHI, Tb = p21.run_coeval(
 >>>                              redshift=[7,8,9],
@@ -78,8 +95,8 @@ Get coeval cubes at redshift 7,8 and 9, without spin temperature or inhomogeneou
 >>>                              user_params=p21.UserParams(HII_DIM=100)
 >>>                          )
 
-Get coeval cubes at the same redshift, with both spin temperature and inhomogeneous recombinations, pulled from the
-natural evolution of the fields:
+Get coeval cubes at the same redshift, with both spin temperature and inhomogeneous
+recombinations, pulled from the natural evolution of the fields:
 
 >>> all_boxes = p21.run_coeval(
 >>>                 redshift=[7,8,9],
@@ -88,8 +105,9 @@ natural evolution of the fields:
 >>>                 do_spin_temp=True
 >>>             )
 
-Get a self-consistent lightcone defined between z1 and z2 (`z_step_factor` changes the logarithmic steps between
-redshift that are actually evaluated, which are then interpolated onto the lightcone cells):
+Get a self-consistent lightcone defined between z1 and z2 (`z_step_factor` changes the
+logarithmic steps between redshift that are actually evaluated, which are then
+interpolated onto the lightcone cells):
 
 >>> lightcone = p21.run_lightcone(redshift=z2, max_redshift=z2, z_step_factor=1.03)
 """
@@ -113,7 +131,9 @@ from .c_21cmfast import ffi, lib
 logger = logging.getLogger("21cmFAST")
 
 global_params = StructInstanceWrapper(lib.global_params, ffi)
-EXTERNALTABLES = ffi.new("char[]", path.join(path.expanduser("~"), ".21CMMC").encode())
+EXTERNALTABLES = ffi.new(
+    "char[]", path.join(path.expanduser("~"), ".21cmfast").encode()
+)
 global_params.external_table_path = EXTERNALTABLES
 
 
@@ -738,13 +758,13 @@ def verify_types(**kwargs):
 
 class ParameterError(RuntimeError):
     def __init__(self):
-        default_message = "21CMMC does not support this combination of parameters."
+        default_message = "21cmFAST does not support this combination of parameters."
         super().__init__(default_message)
 
 
 class FatalCError(Exception):
     def __init__(self):
-        default_message = "21CMMC is exiting."
+        default_message = "21cmFAST is exiting."
         super().__init__(default_message)
 
 
@@ -867,16 +887,18 @@ def initial_conditions(
         Defines the cosmological parameters used to compute initial conditions.
 
     regenerate : bool, optional
-        Whether to force regeneration of data, even if matching cached data is found. This is applied recursively to
-        any potential sub-calculations. It is ignored in the case of dependent data only if that data is explicitly
-        passed to the function.
+        Whether to force regeneration of data, even if matching cached data is found.
+        This is applied recursively to any potential sub-calculations. It is ignored in
+        the case of dependent data only if that data is explicitly passed to the function.
 
     write : bool, optional
-        Whether to write results to file (i.e. cache). This is recursively applied to any potential sub-calculations.
+        Whether to write results to file (i.e. cache). This is recursively applied to
+        any potential sub-calculations.
 
     direc : str, optional
-        The directory in which to search for the boxes and write them. By default, this is the directory given by
-        ``boxdir`` in the configuration file, ``~/.21CMMC/config.yml``. This is recursively applied to any potential
+        The directory in which to search for the boxes and write them. By default, this
+        is the directory given by ``boxdir`` in the configuration file,
+        ``~/.21cmfast/config.yml``. This is recursively applied to any potential
         sub-calculations.
 
     Returns

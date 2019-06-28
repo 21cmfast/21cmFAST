@@ -11,7 +11,7 @@ dependencies:
   - backcall=0.1.0=py37_0
   - blas=1.0=mkl
   - ca-certificates=2019.5.15=0
-  - certifi=2019.3.9=py37_0
+  - certifi=2019.6.16=py37_0
   - cffi=1.12.3=py37h2e261b9_0
   - chardet=3.0.4=py37_1
   - click=7.0=py37_0
@@ -137,4 +137,5 @@ dependencies:
     - tox==3.12.1
     - virtualenv==16.6.0
     - webencodings==0.5.1
+prefix: /home/steven/miniconda3/envs/21cmfast
 

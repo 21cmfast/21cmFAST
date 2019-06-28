@@ -411,8 +411,8 @@ class OutputStruct(StructWrapper):
         Parameters
         ----------
         direc : str, optional
-            The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-            by the ``config.yml`` in ``.21CMMC``.
+            The directory in which to search for the boxes. By default, this is the
+            centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
 
         Returns
         -------
@@ -482,8 +482,8 @@ class OutputStruct(StructWrapper):
         Parameters
         ----------
         direc : str, optional
-            The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-            by the ``config.yml`` in ``.21CMMC``.
+            The directory in which to search for the boxes. By default, this is the
+            centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
         """
         return self.find_existing(direc) is not None
 
@@ -494,8 +494,8 @@ class OutputStruct(StructWrapper):
         Parameters
         ----------
         direc : str, optional
-            The directory in which to write the boxes. By default, this is the centrally-managed directory, given
-            by the ``config.yml`` in ``.21CMMC``.
+            The directory in which to search for the boxes. By default, this is the
+            centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
         """
         if not self.filled:
             raise IOError("The boxes have not yet been computed.")
@@ -552,8 +552,8 @@ class OutputStruct(StructWrapper):
         Parameters
         ----------
         direc : str, optional
-            The directory in which to search for the boxes. By default, this is the centrally-managed directory, given
-            by the ``config.yml`` in ``.21CMMC``.
+            The directory in which to search for the boxes. By default, this is the
+            centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
         """
         if self.filled:
             raise IOError("This data is already filled, no need to read in.")

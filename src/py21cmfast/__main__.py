@@ -1,5 +1,5 @@
 """
-Entrypoint module, in case you use `python -mpy21cmmc`.
+Entrypoint module, in case you use `python -mpy21cmfast`.
 
 
 Why does this file exist, and why __main__? For more info, read:

@@ -16,8 +16,11 @@
 
 **A semi-numerical cosmological simulation code for the radio 21cm signal.**
 
-This is the official repository for 21cmFAST. As of version 3.0.0, it is conveniently
+This is the official repository for 21cmFAST. As of `v3.0.0`, it is conveniently
 wrapped in Python to enable more dynamic code.
+
+This code uses `semantic versioning <https://semver.org>`_, though this will strictly
+begin when `v3.0.0` is officially shipped.
 
 
 

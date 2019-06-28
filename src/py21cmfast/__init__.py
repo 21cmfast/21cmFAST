@@ -1,4 +1,4 @@
-__version__ = "0.1.0"
+__version__ = "3.0.0dev"
 
 # This just ensures that the default directory for boxes is created.
 from os import mkdir as _mkdir
