@@ -1049,7 +1049,18 @@ LOG_SUPER_DEBUG("looping over box...");
                                 fcoll_int = (int)floorf( dens_val );
                                 
                                 if(fcoll_int < 0 || (fcoll_int + 1) > (NSFR_low - 1)) {
-                                    fcoll_int_boundexceeded = 1;
+                                    if(fcoll_int==(NSFR_low - 1) && fabs(curr_dens - global_params.CRIT_DENS_TRANSITION) < 1e-4) {
+                                        // There can be instances where the numerical rounding causes it to go in here, rather than the curr_dens > global_params.CRIT_DENS_TRANSITION case
+                                        // This checks for this, and calculates f_coll in this instance, rather than causing it to error
+                                        dens_val = (curr_dens - fcoll_interp_high_min)*fcoll_interp_high_bin_width_inv;
+                                        
+                                        fcoll_int = (int)floorf( dens_val );
+                                        
+                                        fcoll = SFRD_z_high_table[R_ct][fcoll_int]*( 1. + (float)fcoll_int - dens_val ) + SFRD_z_high_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
+                                    }
+                                    else {
+                                        fcoll_int_boundexceeded = 1;
+                                    }
                                 }
 
                                 fcoll = log10_SFRD_z_low_table[R_ct][fcoll_int]*( 1 + (float)fcoll_int - dens_val ) + log10_SFRD_z_low_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
