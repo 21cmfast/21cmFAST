@@ -31,6 +31,10 @@ struct GlobalParams{
     float CRIT_DENS_TRANSITION;
     float MIN_DENSITY_LOW_LIMIT;
     
+    int RecombPhotonCons;
+    float PhotonConsStart;
+    float PhotonConsEnd;
+    
     int HEAT_FILTER;
     double CLUMPING_FACTOR;
     float Z_HEAT_MAX;

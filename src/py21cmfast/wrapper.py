@@ -268,6 +268,9 @@ class FlagOptions(StructWithDefaults):
 
     M_MIN_in_Mass : bool, optional
         Whether the minimum mass is defined by Mass or Virial Temperature
+
+    PHOTON_CONS : bool, optional
+        Whether to perform a small correction to account for photon non-conservation
     """
 
     _ffi = ffi
@@ -278,6 +281,7 @@ class FlagOptions(StructWithDefaults):
         INHOMO_RECO=False,
         USE_TS_FLUCT=False,
         M_MIN_in_Mass=False,
+        PHOTON_CONS=False,
     )
 
     @property
@@ -864,6 +868,35 @@ def compute_luminosity_function(
     lfunc[lfunc <= -30] = np.nan
 
     return Muvfunc, Mhfunc, lfunc
+
+
+def Initialise_PhotonConservationCorrection(*, user_params=None, cosmo_params=None, astro_params=None, flag_options=None):
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+    astro_params = AstroParams(astro_params)
+    flag_options = FlagOptions(flag_options)
+
+    return lib.InitialisePhotonCons(
+        user_params(), cosmo_params(), astro_params(), flag_options()
+    )
+
+def Calibrate_PhotonConservationCorrection(*,redshifts_estimate, nf_estimate, NSpline):
+
+    # Convert the data to the right type
+    redshifts_estimate = np.array(redshifts_estimate, dtype='float64')
+    nf_estimate = np.array(nf_estimate, dtype='float64')
+
+    z = ffi.cast("double *", ffi.from_buffer(redshifts_estimate))
+    xHI = ffi.cast("double *", ffi.from_buffer(nf_estimate))
+
+    return lib.PhotonCons_Calibration(
+        z, xHI, NSpline
+    )
+
+def Calculate_zstart_PhotonCons():
+
+    # Run the C code
+    return lib.ComputeZstart_PhotonCons()
 
 
 def initial_conditions(
