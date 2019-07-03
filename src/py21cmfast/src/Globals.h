@@ -95,6 +95,10 @@ struct GlobalParams global_params = {
     .CRIT_DENS_TRANSITION = 1.5,
     .MIN_DENSITY_LOW_LIMIT = 9e-8,
     
+    .RecombPhotonCons = 0,
+    .PhotonConsStart = 0.995,
+    .PhotonConsEnd = 0.25,
+    
     .HEAT_FILTER = 0,
     .CLUMPING_FACTOR = 2.,
     .Z_HEAT_MAX = 35.0,
