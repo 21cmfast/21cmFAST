@@ -150,8 +150,10 @@ class StructWithDefaults(StructWrapper):
         for k, v in self._defaults_.items():
 
             # Prefer arguments given to the constructor.
-            if k in kwargs:
-                v = kwargs.pop(k)
+            _v = kwargs.pop(k, None)
+
+            if _v is not None:
+                v = _v
 
             try:
                 setattr(self, k, v)
