@@ -137,5 +137,6 @@ dependencies:
     - tox==3.12.1
     - virtualenv==16.6.0
     - webencodings==0.5.1
+    - powerbox==0.6.0
 prefix: /home/steven/miniconda3/envs/21cmfast
 
