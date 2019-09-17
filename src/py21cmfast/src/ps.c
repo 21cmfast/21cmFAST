@@ -1849,13 +1849,13 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     //     the difference for the redshift where the reionization end (Q = 1) is ~0.2 % compared with accurate calculation.
     float ION_EFF_FACTOR,M_MIN,M_MIN_z0,M_MIN_z1,Mlim_Fstar, Mlim_Fesc;
     double a_start = 0.03, a_end = 0.15; // Scale factors of 0.03 and 0.15 correspond to redshifts of ~32 and ~5.7, respectively.
-    double delta_a = 1e-7;
     double C_HII = 3., T_0 = 2e4;
     double reduce_ratio = 1.003;
-    double Q0,Q1,Nion0,Nion1,Trec,da,a,z0,z1,zi,dadt,ans;
+    double Q0,Q1,Nion0,Nion1,Trec,da,a,z0,z1,zi,dadt,ans,delta_a,zi_prev,Q1_prev;
     double *z_arr,*Q_arr;
     int Nmax = 2000; // This is the number of step, enough with 'da = 2e-3'. If 'da' is reduced, this number should be checked.
     int cnt, nbin, i, istart;
+    int fail_condition, not_mono_increasing, num_fails;
     
     z_arr = calloc(Nmax,sizeof(double));
     Q_arr = calloc(Nmax,sizeof(double));
@@ -1874,69 +1874,118 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
         ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;
     }
     
-    a = a_start;
-    da = 2e-3;
+    fail_condition = 1;
+    num_fails = 0;
     
-    cnt = 0;
-    Q0 = 0.;
-    while (a < a_end) {
-        
-        zi = 1./a - 1.;
-        z0 = 1./(a+delta_a) - 1.;
-        z1 = 1./(a-delta_a) - 1.;
-        
-        // Ionizing emissivity (num of photons per baryon)
-        if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-            Nion0 = ION_EFF_FACTOR*Nion_General(z0, astro_params->M_TURN, astro_params->ALPHA_STAR,
-                                                astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
-                                                Mlim_Fstar, Mlim_Fesc);
-            Nion1 = ION_EFF_FACTOR*Nion_General(z1, astro_params->M_TURN, astro_params->ALPHA_STAR,
-                                                astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
-                                                Mlim_Fstar, Mlim_Fesc);
-        }
+    // We are going to come up with the analytic curve for the photon non conservation correction
+    // This can be somewhat numerically unstable and as such we increase the sampling until it works
+    // If it fails to produce a monotonically increasing curve (for Q as a function of z) after 10 attempts we crash out
+    while(fail_condition!=0) {
+    
+        a = a_start;
+        if(num_fails < 3) {
+            da = 3e-3 - ((double)num_fails)*(1e-3);
+       	}
         else {
-            
-            //set the minimum source mass
-            if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
-                M_MIN_z0 = TtoM(z0, astro_params->ION_Tvir_MIN, 1.22);
-                M_MIN_z1 = TtoM(z1, astro_params->ION_Tvir_MIN, 1.22);
+            da = 1e-3 - ((double)num_fails - 2.)*(1e-4);
+       	}
+        delta_a = 1e-7;
+
+        zi_prev = Q1_prev = 0.;
+        not_mono_increasing = 0;
+        
+        if(num_fails>0) {
+            for(i=0;i<Nmax;i++) {
+                z_arr[i] = 0.;
+                Q_arr[i] = 0.;
             }
-            else { // ionized IGM
-                M_MIN_z0 = TtoM(z0, astro_params->ION_Tvir_MIN, 0.6);
-                M_MIN_z1 = TtoM(z1, astro_params->ION_Tvir_MIN, 0.6);
-            }
-            
-            if(M_MIN_z0 < M_MIN_z1) {
-                initialiseSigmaMInterpTable(M_MIN_z0,1e20);
+        }
+        
+        cnt = 0;
+        Q0 = 0.;
+        
+        while (a < a_end) {
+        
+            zi = 1./a - 1.;
+            z0 = 1./(a+delta_a) - 1.;
+            z1 = 1./(a-delta_a) - 1.;
+        
+            // Ionizing emissivity (num of photons per baryon)
+            if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+                Nion0 = ION_EFF_FACTOR*Nion_General(z0, astro_params->M_TURN, astro_params->ALPHA_STAR,
+                                                astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
+                                                Mlim_Fstar, Mlim_Fesc);
+                Nion1 = ION_EFF_FACTOR*Nion_General(z1, astro_params->M_TURN, astro_params->ALPHA_STAR,
+                                                astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
+                                                Mlim_Fstar, Mlim_Fesc);
             }
             else {
-                initialiseSigmaMInterpTable(M_MIN_z1,1e20);
+            
+                //set the minimum source mass
+                if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
+                    M_MIN_z0 = TtoM(z0, astro_params->ION_Tvir_MIN, 1.22);
+                    M_MIN_z1 = TtoM(z1, astro_params->ION_Tvir_MIN, 1.22);
+                }
+                else { // ionized IGM
+                    M_MIN_z0 = TtoM(z0, astro_params->ION_Tvir_MIN, 0.6);
+                    M_MIN_z1 = TtoM(z1, astro_params->ION_Tvir_MIN, 0.6);
+                }
+            
+                if(M_MIN_z0 < M_MIN_z1) {
+                    initialiseSigmaMInterpTable(M_MIN_z0,1e20);
+                }
+                else {
+                    initialiseSigmaMInterpTable(M_MIN_z1,1e20);
+                }
+                
+                Nion0 = ION_EFF_FACTOR*FgtrM_General(z0,M_MIN_z0);
+                Nion1 = ION_EFF_FACTOR*FgtrM_General(z1,M_MIN_z1);
+            }
+        
+            // With scale factor a, the above equation is written as dQ/da = n_{ion}/da - Q/t_{rec}*(dt/da)
+            if (!global_params.RecombPhotonCons) {
+                Q1 = Q0 + ((Nion0-Nion1)/2/delta_a)*da; // No Recombination
+            }
+            else {
+                dadt = Ho*sqrt(cosmo_params_ps->OMm/a + global_params.OMr/a/a + cosmo_params_ps->OMl*a*a); // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
+                Trec = 0.93 * 1e9 * SperYR * pow(C_HII/3.,-1) * pow(T_0/2e4,0.7) * pow((1.+zi)/7.,-3);
+                Q1 = Q0 + ((Nion0-Nion1)/2./delta_a - Q0/Trec/dadt)*da;
+            }
+        
+            // Curve is no longer monotonically increasing, we are going to have to exit and start again
+            if(Q1 < Q1_prev) {
+                not_mono_increasing = 1;
+                break;
             }
             
-            Nion0 = ION_EFF_FACTOR*FgtrM_General(z0,M_MIN_z0);
-            Nion1 = ION_EFF_FACTOR*FgtrM_General(z1,M_MIN_z1);
+            zi_prev = zi;
+            Q1_prev = Q1;
+            
+            z_arr[cnt] = zi;
+            Q_arr[cnt] = Q1;
+        
+            cnt = cnt + 1;
+            if (Q1 >= 1.0) break; // if fully ionized, stop here.
+            // As the Q value increases, the bin size decreases gradually because more accurate calculation is required.
+            if (da < 7e-5) da = 7e-5; // set minimum bin size.
+            else da = pow(da,reduce_ratio);
+            Q0 = Q1;
+            a = a + da;
         }
         
-        // With scale factor a, the above equation is written as dQ/da = n_{ion}/da - Q/t_{rec}*(dt/da)
-        if (!global_params.RecombPhotonCons) {
-            Q1 = Q0 + ((Nion0-Nion1)/2/delta_a)*da; // No Recombination
+        
+        // A check to see if we ended up with a monotonically increasing function
+        if(not_mono_increasing==0) {
+            fail_condition = 0;
         }
         else {
-            dadt = Ho*sqrt(cosmo_params_ps->OMm/a + global_params.OMr/a/a + cosmo_params_ps->OMl*a*a); // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
-            Trec = 0.93 * 1e9 * SperYR * pow(C_HII/3.,-1) * pow(T_0/2e4,0.7) * pow((1.+zi)/7.,-3);
-            Q1 = Q0 + ((Nion0-Nion1)/2./delta_a - Q0/Trec/dadt)*da;
+            num_fails += 1;
+            if(num_fails>10) {
+                printf("Failed too many times. Exit out!\n");
+                exit(-1);
+            }
         }
         
-        z_arr[cnt] = zi;
-        Q_arr[cnt] = Q1;
-        
-        cnt = cnt + 1;
-        if (Q1 >= 1.0) break; // if fully ionized, stop here.
-        // As the Q value increases, the bin size decreases gradually because more accurate calculation is required.
-        if (da < 7e-5) da = 7e-5; // set minimum bin size.
-        else da = pow(da,reduce_ratio);
-        Q0 = Q1;
-        a = a + da;
     }
     cnt = cnt - 1;
     istart = 0;
@@ -1950,7 +1999,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     double *Q_value = calloc(nbin,sizeof(double));
     
     Q_at_z_spline_acc = gsl_interp_accel_alloc ();
-    Q_at_z_spline = gsl_spline_alloc (gsl_interp_cspline, nbin);
+//    Q_at_z_spline = gsl_spline_alloc (gsl_interp_cspline, nbin);
+    Q_at_z_spline = gsl_spline_alloc (gsl_interp_linear, nbin);
     
     for (i=0; i<nbin; i++){
         z_Q[i] = z_arr[cnt-i];
@@ -1968,7 +2018,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     double *z_value = calloc(nbin,sizeof(double));
     
     z_at_Q_spline_acc = gsl_interp_accel_alloc ();
-    z_at_Q_spline = gsl_spline_alloc (gsl_interp_cspline, nbin);
+//    z_at_Q_spline = gsl_spline_alloc (gsl_interp_cspline, nbin);
+    z_at_Q_spline = gsl_spline_alloc (gsl_interp_linear, nbin);
     for (i=0; i<nbin; i++){
         Q_z[i] = Q_value[nbin-1-i];
         z_value[i] = z_Q[nbin-1-i];
@@ -2068,12 +2119,14 @@ void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSp
     }
     
     NFHistory_spline_acc = gsl_interp_accel_alloc ();
-    NFHistory_spline = gsl_spline_alloc (gsl_interp_cspline, (counter+1));
+//    NFHistory_spline = gsl_spline_alloc (gsl_interp_cspline, (counter+1));
+    NFHistory_spline = gsl_spline_alloc (gsl_interp_linear, (counter+1));
     
     gsl_spline_init(NFHistory_spline, nf_vals, z_vals, (counter+1));
     
     z_NFHistory_spline_acc = gsl_interp_accel_alloc ();
-    z_NFHistory_spline = gsl_spline_alloc (gsl_interp_cspline, (counter+1));
+//    z_NFHistory_spline = gsl_spline_alloc (gsl_interp_cspline, (counter+1));
+    z_NFHistory_spline = gsl_spline_alloc (gsl_interp_linear, (counter+1));
     
     gsl_spline_init(z_NFHistory_spline, z_vals, nf_vals, (counter+1));
     
