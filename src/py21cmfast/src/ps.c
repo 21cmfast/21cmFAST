@@ -2116,6 +2116,12 @@ void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSp
     for(i=0;i<(counter+1);i++) {
         nf_vals[i] = NF_estimate[start_index+i];
         z_vals[i] = redshifts[start_index+i];
+        // At the extreme high redshift end, there can be numerical issues with the solution of the analytic expression
+        if(i>0) {
+            while(nf_vals[i] <= nf_vals[i-1]) {
+                nf_vals[i] += 0.000001;
+            }
+        }
     }
     
     NFHistory_spline_acc = gsl_interp_accel_alloc ();
