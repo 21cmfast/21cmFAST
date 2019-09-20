@@ -594,7 +594,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 
                 if(min_density < 0.) {
                     min_density = min_density*1.001;
-                    if(min_density < -1.) {
+                    if(min_density <= -1.) {
                         // Use MIN_DENSITY_LOW_LIMIT as is it smaller than FRACT_FLOAT_ERR
                         min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
                     }
@@ -675,7 +675,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             
                             if (curr_dens < global_params.CRIT_DENS_TRANSITION){
                                 
-                                if (curr_dens < -1.) {
+                                if (curr_dens <= -1.) {
                                     Splined_Fcoll = 0;
                                 }
                                 else {

@@ -481,7 +481,7 @@ LOG_SUPER_DEBUG("Looping through R");
                         for (k=user_params->HII_DIM; k--;){
                             curr_delNL0 = *((float *)box + HII_R_FFT_INDEX(i,j,k));
                             
-                            if (curr_delNL0 < -1){ // correct for alliasing in the filtering step
+                            if (curr_delNL0 <= -1){ // correct for alliasing in the filtering step
                                 curr_delNL0 = -1+FRACT_FLOAT_ERR;
                             }
                             
@@ -1015,7 +1015,7 @@ LOG_SUPER_DEBUG("looping over box...");
             
             for (R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
                 
-                if( min_densities[R_ct]*zpp_growth[R_ct] < -1.) {
+                if( min_densities[R_ct]*zpp_growth[R_ct] <= -1.) {
                     fcoll_interp_min = log10(global_params.MIN_DENSITY_LOW_LIMIT);
                 }
                 else {
@@ -1040,7 +1040,7 @@ LOG_SUPER_DEBUG("looping over box...");
                         
                         if (curr_dens < global_params.CRIT_DENS_TRANSITION){
                             
-                            if (curr_dens < -1.) {
+                            if (curr_dens <= -1.) {
                                 fcoll = 0;
                             }
                             else {
