@@ -246,23 +246,15 @@ LOG_SUPER_DEBUG("erfc interpolation done");
     // Calculate the density field for this redshift if the initial conditions/cosmology are changing
     
     if(flag_options->PHOTON_CONS) {
-        
         adjustment_factor = dicke(redshift)/dicke(stored_redshift);
-        
-        for (i=0; i<user_params->HII_DIM; i++){
-            for (j=0; j<user_params->HII_DIM; j++){
-                for (k=0; k<user_params->HII_DIM; k++){
-                    *((float *)deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = (perturbed_field->density[HII_R_INDEX(i,j,k)])*adjustment_factor;
-                }
-            }
-        }
     }
     else {
-        for (i=0; i<user_params->HII_DIM; i++){
-            for (j=0; j<user_params->HII_DIM; j++){
-                for (k=0; k<user_params->HII_DIM; k++){
-                    *((float *)deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = perturbed_field->density[HII_R_INDEX(i,j,k)];
-                }
+        adjustment_factor = 1.;
+    }
+    for (i=0; i<user_params->HII_DIM; i++){
+        for (j=0; j<user_params->HII_DIM; j++){
+            for (k=0; k<user_params->HII_DIM; k++){
+                *((float *)deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = (perturbed_field->density[HII_R_INDEX(i,j,k)])*adjustment_factor;
             }
         }
     }
@@ -758,12 +750,13 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             rec = 0.;
         
             xHI_from_xrays = 1;
+            Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
             if(flag_options->PHOTON_CONS) {
                 // Used for recombinations, which means we want to use the original redshift not the adjusted redshift
-                Gamma_R_prefactor = pow(1+stored_redshift, 2) * (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
+                Gamma_R_prefactor *= pow(1+stored_redshift, 2);
             }
             else {
-                Gamma_R_prefactor = pow(1+redshift, 2) * (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
+                Gamma_R_prefactor *= pow(1+redshift, 2);
             }
             
             Gamma_R_prefactor /= t_ast;
@@ -884,18 +877,19 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 for (y=0; y<user_params->HII_DIM; y++){
                     for (z=0; z<user_params->HII_DIM; z++){
                     
+                        // use the original density and redshift for the snapshot (not the adjusted redshift)
+                        // Only want to use the adjusted redshift for the ionisation field
+                        curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x,y,z)])/adjustment_factor;
+                        z_eff = pow(curr_dens, 1.0/3.0);
+                        
                         if(flag_options->PHOTON_CONS) {
-                            // use the original density and redshift for the snapshot (not the adjusted redshift)
-                            // Only want to use the adjusted redshift for the ionisation field
-                            curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x,y,z)])/adjustment_factor;
-                            z_eff = (1+stored_redshift) * pow(curr_dens, 1.0/3.0) - 1;
+                            z_eff *= (1+stored_redshift);
                         }
                         else {
-                            curr_dens = 1.0 + perturbed_field->density[HII_R_INDEX(x,y,z)];
-                            z_eff = (1+redshift) * pow(curr_dens, 1.0/3.0) - 1;
+                            z_eff *= (1+redshift);
                         }
                         
-                        dNrec = splined_recombination_rate(z_eff, box->Gamma12_box[HII_R_INDEX(x,y,z)]) * fabs_dtdz * ZSTEP * (1 - box->xH_box[HII_R_INDEX(x,y,z)]);
+                        dNrec = splined_recombination_rate(z_eff-1., box->Gamma12_box[HII_R_INDEX(x,y,z)]) * fabs_dtdz * ZSTEP * (1 - box->xH_box[HII_R_INDEX(x,y,z)]);
                         
                         if(isfinite(dNrec)==0) {
                             something_finite_or_infinite = 1;
