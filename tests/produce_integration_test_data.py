@@ -17,7 +17,7 @@ DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
 
 
 def _get_defaults(kwargs, cls):
-    return {k: kwargs.get(k.lower(), v) for k, v in cls._defaults_.items()}
+    return {k: kwargs.get(k, v) for k, v in cls._defaults_.items()}
 
 
 def _get_all_defaults(kwargs):
@@ -41,6 +41,7 @@ def produce_power_spectra(**kwargs):
         cosmo_params=cosmo_params,
         astro_params=astro_params,
         flag_options=flag_options,
+        regenerate=True,
         z_step_factor=kwargs.get("z_step_factor", None),
         z_heat_max=kwargs.get("z_heat_max", None),
         use_interp_perturb_field=kwargs.get("use_interp_perturb_field", False),
@@ -56,9 +57,9 @@ def produce_power_spectra(**kwargs):
         flag_options=flag_options,
         regenerate=True,
         write=False,
-        z_step_factor=kwargs.pop("z_step_factor", 1.02),
-        z_heat_max=kwargs.pop("z_heat_max", None),
-        use_interp_perturb_field=kwargs.pop("use_interp_perturb_field", False),
+        z_step_factor=kwargs.get("z_step_factor", 1.02),
+        z_heat_max=kwargs.get("z_heat_max", None),
+        use_interp_perturb_field=kwargs.get("use_interp_perturb_field", False),
         random_seed=12345,
     )
 
@@ -66,9 +67,16 @@ def produce_power_spectra(**kwargs):
     p_l, k_l = get_power(
         lightcone.brightness_temp, boxlength=lightcone.lightcone_dimensions
     )
+
     # TODO: might be better to ensure that only kwargs that specify non-defaults are
     #      kept in the filename
-    fname = "power_spectra_{}.h5".format(hashlib.md5(str(kwargs).encode()).hexdigest())
+    fname = (
+        f"power_spectra_z{redshift:.2f}_Z{kwargs['z_heat_max']}_"
+        f"{hashlib.md5(str(kwargs).encode()).hexdigest()}.h5"
+    )
+
+    if os.path.exists(os.path.join(DATA_PATH, fname)):
+        os.remove(os.path.join(DATA_PATH, fname))
 
     with h5py.File(os.path.join(DATA_PATH, fname)) as fl:
         for k, v in kwargs.items():
@@ -83,6 +91,11 @@ def produce_power_spectra(**kwargs):
 
         fl["power_lc"] = p_l
         fl["k_lc"] = k_l
+
+        fl["xHI"] = lightcone.global_xHI
+        fl["Tb"] = lightcone.global_brightness_temp
+
+    print(f"Produced {fname} with {kwargs}")
 
 
 if __name__ == "__main__":

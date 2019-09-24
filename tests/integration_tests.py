@@ -51,7 +51,7 @@ _interp_pf, _mdz, _rsd, _inh_reco, _ts, _mmin_mass, _wisdom = [[None, True]] * 7
 
 
 def _get_defaults(kwargs, cls):
-    return {k: kwargs.pop(k.lower(), v) for k, v in cls._defaults_.items()}
+    return {k: kwargs.get(k, v) for k, v in cls._defaults_.items()}
 
 
 def _get_all_defaults(kwargs):
@@ -63,7 +63,7 @@ def _get_all_defaults(kwargs):
 
 
 @pytest.mark.parametrize(
-    "fname", glob.glob(os.path.join(DATA_PATH, "power_spectra_coeval_*.h5"))
+    "fname", sorted(glob.glob(os.path.join(DATA_PATH, "power_spectra_*.h5")))
 )
 def test_power_spectra_coeval(fname):
     with h5py.File(fname) as f:
@@ -71,6 +71,8 @@ def test_power_spectra_coeval(fname):
         power = f["power_coeval"][...]
 
     user_params, cosmo_params, astro_params, flag_options = _get_all_defaults(kwargs)
+
+    print("Parameters: ", kwargs)
 
     init, perturb, ionize, brightness_temp = run_coeval(
         redshift=kwargs.pop("redshift", 7),
@@ -91,14 +93,17 @@ def test_power_spectra_coeval(fname):
 
 
 @pytest.mark.parametrize(
-    "fname", glob.glob(os.path.join(DATA_PATH, "power_spectra_lightcone_*.h5"))
+    "fname", sorted(glob.glob(os.path.join(DATA_PATH, "power_spectra_*.h5")))
 )
 def test_power_spectra_lightcone(fname):
     with h5py.File(fname) as f:
         kwargs = dict(f.attrs)
-        power = f["power_lc"]
+        power = f["power_lc"][...]
+        xHI = f["xHI"][...]
+        Tb = f["Tb"][...]
 
     user_params, cosmo_params, astro_params, flag_options = _get_all_defaults(kwargs)
+    print("Parameters: ", kwargs)
 
     redshift = kwargs.pop("redshift")
     lightcone = run_lightcone(
@@ -119,8 +124,6 @@ def test_power_spectra_lightcone(fname):
     p, k = get_power(
         lightcone.brightness_temp, boxlength=lightcone.lightcone_dimensions
     )
-    assert np.allclose(power, p, atol=1e-5, rtol=1e-4)
-
-
-def test_global_xHI():
-    ...
+    assert np.allclose(power, p, atol=1e-5, rtol=1e-3)
+    assert np.allclose(xHI, lightcone.global_xHI, atol=1e-5, rtol=1e-4)
+    assert np.allclose(Tb, lightcone.global_brightness_temp, atol=1e-5, rtol=1e-4)

@@ -827,9 +827,11 @@ LOG_DEBUG("global_xH = %e",global_xH);
 LOG_SUPER_DEBUG("freed fftw boxes");
 
     free(Fcoll);
-    
-    free(xi_SFR);
-    free(wi_SFR);
+
+    if(flag_options->USE_MASS_DEPENDENT_ZETA){
+        free(xi_SFR);
+        free(wi_SFR);
+    }
 
     if(!flag_options->USE_TS_FLUCT) {
         freeSigmaMInterpTable();
