@@ -1,0 +1,166 @@
+Metadata-Version: 1.1
+Name: 21cmFAST
+Version: 3.0.0.dev0
+Summary: A semi-numerical cosmological simulation code for the 21cm signal
+Home-page: https://github.com/21cmFAST/21cmFAST
+Author: The 21cmFAST coredev team
+Author-email: 21cmfast.coredev@gmail.com
+License: MIT license
+Description: ========
+        21cmFAST
+        ========
+        
+        
+        
+        **A semi-numerical cosmological simulation code for the radio 21cm signal.**
+        
+        This is the official repository for 21cmFAST. As of `v3.0.0`, it is conveniently
+        wrapped in Python to enable more dynamic code.
+        
+        This code uses `semantic versioning <https://semver.org>`_, though this will strictly
+        begin when `v3.0.0` is officially shipped.
+        
+        
+        
+        New Features in 3.0.0+
+        ======================
+        
+        * Robust on-disk caching/writing both for efficiency and simplified reading of
+          previously processed data (using HDF5).
+        * Convenient data objects which simplify access to and processing of the various density
+          and ionization fields.
+        * De-coupled functions mean that arbitrary functionality can be injected into the process.
+        * Improved exception handling and debugging
+        
+        
+        Documentation
+        =============
+        
+        Full documentation (with examples, installation instructions and full API reference)
+        found at https://21cmfast.readthedocs.org.
+        
+        Acknowledging
+        =============
+        If you find `21cmFAST` useful in your research please cite at least one of the following
+        (whichever is most suitable to you):
+        
+            Andrei Mesinger and Steven Furlanetto, "Efficient Simulations of Early Structure
+            Formation and Reionization", The Astrophysical Journal, Volume 669, Issue 2,
+            pp. 663-675 (2007),
+            https://ui.adsabs.harvard.edu/link_gateway/2007ApJ...669..663M/doi:10.1086/521806
+        
+            Andrei Mesinger, Steven Furlanetto and Renyue Cen, "21CMFAST: a fast, seminumerical
+            simulation of the high-redshift 21-cm signal", Monthly Notices of the Royal
+            Astronomical Society, Volume 411, Issue 2, pp. 955-972 (2011),
+            https://ui.adsabs.harvard.edu/link_gateway/2011MNRAS.411..955M/doi:10.1111/j.1365-2966.2010.17731.x
+        
+        
+        
+        Changelog
+        =========
+        
+        v3.0.0rc1
+        ---------
+        
+        
+        v2.0.0
+        ------
+        All changes and equations for this version are found in https://arxiv.org/abs/1809.08995.
+        
+        Changed
+        ~~~~~~~
+        
+        * Updated the ionizing source model: (i) the star formation rates and ionizing escape
+          fraction are scaled with the masses of dark matter halos and (ii) the abundance of
+          active star forming galaxies is exponentially suppressed below the turn-over halo
+          mass, M_{turn}, according to a duty cycle of exp(−M_{turn}/M_{h}), where M_{h} is a
+          halo mass.
+        * Removed the mean free path parameter, R_{mfp}. Instead, directly computes
+          inhomogeneous, sub-grid recombinations in the intergalactic medium following the
+          approach of Sobacchi & Mesinger (2014)
+        
+        
+        
+        
+        v1.2.0
+        ------
+        Added
+        ~~~~~
+        * Support for a halo mass dependent ionizing efficiency: zeta = zeta_0 (M/Mmin)^alpha,
+          where zeta_0 corresponds to  HII_EFF_FACTOR, Mmin --> ION_M_MIN,
+          alpha --> EFF_FACTOR_PL_INDEX in ANAL_PARAMS.H
+        
+        
+        v1.12.0
+        -------
+        Added
+        ~~~~~
+        - Code 'redshift_interpolate_boxes.c' to interpolate between comoving cubes,
+          creating comoving light cone boxes.
+        - Enabled openMP threading  for SMP machines.  You can specify the number of threads
+          (for best performace, do not exceed the number of processors) in INIT_PARAMS.H. You do
+          not need to have an SMP machine to run the code. NOTE: YOU SHOULD RE-INSTALL FFTW to
+          use openMP (see INSTALL file)
+        - Included a threaded driver file 'drive_zscroll_reion_param.c' set-up to perform
+          astrophysical parameter studies of reionization
+        - Included explicit support for WDM cosmologies; see COSMOLOGY.H.  The prescription is
+          similar to that discussed in Barkana+2001; Mesinger+2005, madifying the (i) transfer
+          function (according to the Bode+2001 formula; and (ii) including the effective
+          pressure term of WDM using a Jeans mass analogy.  (ii) is approximated with a sharp
+          cuttoff in the EPS barrier, using 60* M_J found in Barkana+2001 (the 60 is an
+          adjustment factor found by fitting to the WDM collapsed fraction).
+        - A Gaussian filtering step of the PT fields to perturb_field.c, in addition to the
+          implicit boxcar smoothing.  This avoids having"empty" density cells, i.e. \delta=-1,
+          with some small loss in resolution.  Although for most uses \delta=-1 is ok, some Lya
+          forest statistics do not like it.
+        - Added treatment of the risidual electron fraction from X-ray heating when computing
+          the ionization field.  Relatedly, modified Ts.c to output all intermediate evolution
+          boxes, Tk and x_e.
+        - Added a missing factor of Omega_b in Ts.c corresponding to eq. 18 in MFC11.  Users who
+          used a previous version should note that their results just effecively correspond to a
+          higher effective X-ray efficiency, scaled by 1/Omega_baryon.
+        - Normalization optimization to Ts.c, increasing performace on arge resolution boxes
+        
+        
+        Fixed
+        ~~~~~
+        - GSL interpolation error in kappa_elec_pH for GSL versions > 1.15
+        - Typo in macro definition, which impacted the Lya background calculation in v1.11 (not applicable to earlier releases)
+        - Outdated filename sytax when calling gen_size_distr in drive_xHIscroll
+        - Redshift scrolling so that drive_logZscroll_Ts.c and Ts.c are in sync.
+        
+        Changed
+        ~~~~~~~
+        - Output format to avoid FFT padding for all boxes
+        - Filename conventions to be more explicit.
+        - Small changes to organization and structure
+        
+        
+        v1.1.0
+        ------
+        Added
+        ~~~~~
+        - Wrapper functions mod_fwrite() and mod_fread() in Cosmo_c_progs/misc.c, which
+          should fix problems with the library fwrite() and fread() for large files (>4GB) on
+          certain operating systems.
+        - Included print_power_spectrum_ICs.c program which reads in high resolution initial
+          conditions and prints out an ASCII file with the associated power spectrum.
+        - Parameter in Ts.c for the maximum allowed kinetic temperature, which increases
+          stability of the code when the redshift step size and the X-ray efficiencies are large.
+        
+        Fixed
+        ~~~~~
+        - Oversight adding support for a Gaussian filter for the lower resolution field.
+Keywords: Epoch of Reionization,Cosmology
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Unix
+Classifier: Operating System :: POSIX
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: Implementation :: CPython

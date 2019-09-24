@@ -68,14 +68,9 @@ def _get_all_defaults(kwargs):
 def test_power_spectra_coeval(fname):
     with h5py.File(fname) as f:
         kwargs = dict(f.attrs)
-        power = f["power"][...]
+        power = f["power_coeval"][...]
 
     user_params, cosmo_params, astro_params, flag_options = _get_all_defaults(kwargs)
-
-    # Now ensure some properties that make the box small
-    user_params["HII_DIM"] = 50
-    user_params["DIM"] = 150
-    user_params["BOX_LEN"] = 100
 
     init, perturb, ionize, brightness_temp = run_coeval(
         redshift=kwargs.pop("redshift", 7),
@@ -101,14 +96,9 @@ def test_power_spectra_coeval(fname):
 def test_power_spectra_lightcone(fname):
     with h5py.File(fname) as f:
         kwargs = dict(f.attrs)
-        power = f["power"]
+        power = f["power_lc"]
 
     user_params, cosmo_params, astro_params, flag_options = _get_all_defaults(kwargs)
-
-    # Now ensure some properties that make the box small
-    user_params["HII_DIM"] = 50
-    user_params["DIM"] = 150
-    user_params["BOX_LEN"] = 100
 
     redshift = kwargs.pop("redshift")
     lightcone = run_lightcone(
