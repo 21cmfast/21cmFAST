@@ -9,3 +9,4 @@ pytest-cov
 pre-commit
 tox
 matplotlib
+powerbox

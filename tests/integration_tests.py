@@ -62,6 +62,7 @@ def _get_all_defaults(kwargs):
     return user_params, cosmo_params, astro_params, flag_options
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize(
     "fname", glob.glob(os.path.join(DATA_PATH, "power_spectra_coeval_*.h5"))
 )
@@ -95,6 +96,7 @@ def test_power_spectra_coeval(fname):
     assert np.allclose(power, p, atol=1e-5, rtol=1e-4)
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize(
     "fname", glob.glob(os.path.join(DATA_PATH, "power_spectra_lightcone_*.h5"))
 )
