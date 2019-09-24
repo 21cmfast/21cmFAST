@@ -2143,6 +2143,7 @@ def run_lightcone(
     flag_options = FlagOptions(flag_options)
     astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
+    """
     if flag_options.PHOTON_CONS:
         # Create a new astro_params and flag_options just for the photon_cons correction
         astro_params_photoncons = deepcopy(astro_params)
@@ -2152,6 +2153,7 @@ def run_lightcone(
             USE_MASS_DEPENDENT_ZETA=flag_options.USE_MASS_DEPENDENT_ZETA,
             M_MIN_in_Mass=flag_options.M_MIN_in_Mass,
         )
+    """
 
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
@@ -2186,8 +2188,22 @@ def run_lightcone(
         else max_redshift
     )
 
+    if flag_options.PHOTON_CONS:
+        _CalibratePhotonCons(
+            user_params, 
+            cosmo_params, 
+            astro_params, 
+            flag_options, 
+            init_box, 
+            regenerate, 
+            write, 
+            z_step_factor
+            )
+
+
+    """
     # Perform the calibration and initialisation for the photon non-conservation correction
-    if flag_options.PHOTON_CONS is True:
+    if flag_options.PHOTON_CONS:
 
         ib = None
 
@@ -2252,6 +2268,7 @@ def run_lightcone(
             nf_estimate=neutral_fraction_photon_cons,
             NSpline=len(z_for_photon_cons),
         )
+    """
 
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = _logscroll_redshifts(
@@ -2414,4 +2431,81 @@ def _get_lightcone_redshifts(
             z_at_value(cosmo_params.cosmo.comoving_distance, d * units.Mpc)
             for d in lc_distances
         ]
+    )
+
+def _CalibratePhotonCons(
+    user_params, cosmo_params, astro_params, flag_options, init_box, regenerate, write, z_step_factor
+):
+
+    # Create a new astro_params and flag_options just for the photon_cons correction
+    astro_params_photoncons = deepcopy(astro_params)
+    astro_params_photoncons._R_BUBBLE_MAX = astro_params.R_BUBBLE_MAX
+
+    flag_options_photoncons = FlagOptions(
+        USE_MASS_DEPENDENT_ZETA=flag_options.USE_MASS_DEPENDENT_ZETA,
+        M_MIN_in_Mass=flag_options.M_MIN_in_Mass,
+    )
+
+    ib = None
+
+    # Arrays for redshift and neutral fraction for the calibration curve
+    z_for_photon_cons = []
+    neutral_fraction_photon_cons = []
+
+    # Initialise the analytic expression for the reionisation history
+    init_photon_conservation_correction(
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+    )
+
+    # Determine the starting redshift to start scrolling through to create the
+    # calibration reionisation history
+    z = calc_zstart_photon_cons()
+
+    while z > 5.0:
+
+        # Determine the ionisation box with recombinations, spin temperature etc.
+        # turned off.
+        this_perturb = perturb_field(
+            redshift=z, init_boxes=init_box, regenerate=regenerate, write=write
+        )
+
+        ib2 = ionize_box(
+            redshift=z,
+            previous_ionize_box=ib,
+            init_boxes=init_box,
+            perturbed_field=this_perturb,
+            astro_params=astro_params_photoncons,
+            flag_options=flag_options_photoncons,
+            spin_temp=None,
+            regenerate=regenerate,
+            z_heat_max=global_params.Z_HEAT_MAX,
+            z_step_factor=z_step_factor,
+            write=write,
+        )
+
+        mean_nf = np.mean(ib2.xH_box)
+
+        # Save mean/global quantities
+        neutral_fraction_photon_cons.append(mean_nf)
+        z_for_photon_cons.append(z)
+
+        # Can speed up sampling in regions where the evolution is slower
+        if 0.01 < mean_nf <= 0.9:
+            z -= 0.2
+        else:
+            z -= 0.5
+
+        ib = ib2
+
+    z_for_photon_cons = np.array(z_for_photon_cons[::-1])
+    neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
+
+    # Construct the spline for the calibration curve
+    calibrate_photon_conservation_correction(
+        redshifts_estimate=z_for_photon_cons,
+        nf_estimate=neutral_fraction_photon_cons,
+        NSpline=len(z_for_photon_cons),
     )
