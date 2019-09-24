@@ -102,77 +102,12 @@ LOG_SUPER_DEBUG("defined parameters");
     fabs_dtdz = fabs(dtdz(redshift));
     t_ast = astro_params->t_STAR * t_hubble(redshift);
     growth_factor_dz = dicke(redshift-dz);
-    
-    
+
     // Modify the current sampled redshift to a redshift which matches the expected filling factor given our astrophysical parameterisation.
     // This is the photon non-conservation correction
     if(flag_options->PHOTON_CONS) {
-        
-        // Determine the neutral fraction (filling factor) of the analytic calibration expression given the current sampled redshift
-        Q_at_z(redshift, &(temp));
-        required_NF = 1.0 - (float)temp;
-        
-        // Find which redshift we need to sample in order for the calibration reionisation history to match the analytic expression
-        if(required_NF > global_params.PhotonConsStart) {
-            // We haven't started ionising yet, so keep redshifts the same
-            adjusted_redshift = redshift;
-            
-            absolute_delta_z = 0.;
-        }
-        else if(required_NF<=global_params.PhotonConsEnd) {
-            // We have gone beyond the threshold for the end of the photon non-conservation correction
-            // Deemed to be roughly where the calibration curve starts to approach the analytic expression
-            
-            if(FirstNF_Estimate <= 0. && required_NF <= 0.0) {
-                // Reionisation has already happened well before the calibration
-                adjusted_redshift = redshift;
-            }
-            else {
-                // Use the last delta_z change in the correction from now on since we are past the end point for the correction
-                adjusted_redshift = redshift - absolute_delta_z;
-            }
-        }
-        else {
-            
-            if(required_NF < FinalNF_Estimate) {
-                // This model is completely unreasonble (reionisation will never happen!)
-                // So I don't really think it matters what I select for this
-                adjusted_redshift = redshift;
-            }
-            else {
-                // Find the corresponding redshift for the calibration curve given the required neutral fraction (filling factor) from the analytic expression
-                z_at_NFHist(required_NF,&(temp));
-                adjusted_redshift = (float)temp;
-                
-                // Determine the neutral fraction/redshift for the next time step to determine if we will cross the threshold for ending the photon non-conservation correction
-                future_z = (redshift + 1.)/global_params.ZPRIME_STEP_FACTOR - 1.;
-                Q_at_z(future_z, &(temp));
-                required_NF = 1.0 - (float)temp;
-                
-                // The next time crosses the threshold
-                if(required_NF<=(1.1*global_params.PhotonConsEnd)) {
-                    // The next step is going to have a small kink, lets try and smooth it out a little by modifying this adjusted redshift
-                    // The 10 per cent is to avoid just being short of this cut-off. In those instances the kink returns
-                    
-                    absolute_delta_z = 0.95*absolute_delta_z;
-                    adjusted_redshift = redshift - absolute_delta_z;
-                }
-                else {
-                    // Not near the end point, store the redshift change
-                    
-                    absolute_delta_z = fabs( adjusted_redshift - redshift );
-                }
-                
-            }
-        }
-        
-        // keep the original sampled redshift
-        stored_redshift = redshift;
-        
-        // This redshift snapshot now uses the modified redshift following the photon non-conservation correction
-        redshift = adjusted_redshift;
+        adjust_redshifts_for_photoncons(&redshift,&stored_redshift,&absolute_delta_z);
     }
-    
     
     Splined_Fcoll = 0.;
     
