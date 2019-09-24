@@ -1,28 +1,28 @@
-# Config file for automatic testing at travis-ci.org
 dist: xenial
 language: python
 python:
-  - 3.7
-  - 3.6
-
+- 3.7
+- 3.6
 addons:
   apt:
     packages:
     - libfftw3-dev
     - libgsl0-dev
     update: true
-
-
-# command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
 install: pip install -U tox-travis coverage coveralls
-
-# command to run tests, e.g. python setup.py test
 script:
-  - tox
-  - coverage report
-
-
-# Calculate coverage
+- tox
+- coverage report
 after_success:
-  - ls -a
-  - coveralls
+- ls -a
+- coveralls
+deploy:
+  provider: pypi
+  user: "21cmfast-collaboration"
+  password:
+    secure: lxZolhpIc30diccmrkPlQoryUG2ykdkH7ALmeHEuG7ShzoedLRiNuRL+QLOLXXKZWgnivpXM5SsqSRhVihda57Rd9P/0M+fEWhlBcAyCvcETTw23AGjV3i4Mlxuub/RuSdzZ3BNE+RirsOzwjOP7HiAmoguGHgXxK/s/PNh/qeR4GZXrNs0C1KZj6ZedJAHyPIegoGSeYcTCFUzWNmuBa2J3i8KXbOxidfeYLf+SjW14PSCG9jPZgw9+ApgzjccuqLFOYBN4u8fnG5ocQHx/xyKD82qtdladeTy68sC/Q+pGIHKJ3uA3fA5MZneZxgCWi31W2QlaF722E6GX4e3bmIFFrRZ1F5yVwppbPKvwAcT7BPErcmQkHz10Eeui6mXy4qJlWnEC0qfqSiid3vj48AFy7nr5d8WaMz7ObvDTgVrcOqoGguAVXmZQhmLuzvzXxgBpvNSVztMAKX/Z9CqXNSTMycl4ln/NmdhBVEy4hPsR63hpHByEiZyaJwE59H6gf7wZ6HYiFeiPGdnmR8bdSPYqRkW6yiUhI4PrRA3ZGaIpUpDle+WKoL2Gka53eQ/jDoWy4WFb7CN+Tbmze6QDfwmRQKSd2amDoLcYa3h1yxUKIwNvsISKbRyYJz8HMj57A63EK3N1UPoe48iZeEB2PggcME8COe2m2acwcuCDw+Y=
+  on:
+    tags: true
+    branch: master
+    skip_existing: true
+    skip_cleanup: true
