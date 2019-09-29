@@ -1,2 +1,2 @@
-include README.rst config.yml runconfig_example.yml External_tables/* CHANGELOG.rst build_cffi.py
+include README.rst user_data/* CHANGELOG.rst build_cffi.py
 recursive-include src *
