@@ -8,7 +8,8 @@ from os import path, remove
 import click
 import yaml
 
-from py21cmfast import wrapper as lib, cache_tools
+from . import wrapper as lib, cache_tools
+from . import _cfg
 
 
 def _get_config(config=None):
@@ -550,7 +551,7 @@ def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
             print()
 
         else:
-            direc = direc or path.expanduser(lib.config["boxdir"])
+            direc = direc or path.expanduser(_cfg.config["boxdir"])
             remove(path.join(direc, file))
 
 
