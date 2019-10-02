@@ -369,7 +369,7 @@ LOG_SUPER_DEBUG("Treating as the first box");
         }
         
         /////////////// Create the z=0 non-linear density fields smoothed on scale R to be used in computing fcoll //////////////
-        R = L_FACTOR*user_params->BOX_LEN/(float)user_params->HII_DIM;
+        R = user_params->L_FACTOR*user_params->BOX_LEN/(float)user_params->HII_DIM;
         R_factor = pow(global_params.R_XLy_MAX/R, 1/((float)global_params.NUM_FILTER_STEPS_FOR_Ts));
         //      R_factor = pow(E, log(HII_DIM)/(float)NUM_FILTER_STEPS_FOR_Ts);
 LOG_SUPER_DEBUG("Looping through R");

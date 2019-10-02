@@ -310,6 +310,12 @@ class AstroParams(StructWithDefaults):
     M_TURN : float, optional
     R_BUBBLE_MAX : float, optional
         Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
+    R_BUBBLE_MIN : float, optional
+        Minimum radius of an HII region in cMpc.  One can set this to 0, but should be careful with
+        shot noise if the find_HII_bubble algorithm is run on a fine, non-linear density grid.
+        Default is L_FACTOR + 1
+    L_FACTOR : float, optional
+        Factor relating cube length to filter radius = (4PI/3)^(-1/3), default is 0.620350491
     ION_Tvir_MIN : float, optional
     L_X : float, optional
     NU_X_THRESH : float, optional
@@ -330,6 +336,7 @@ class AstroParams(StructWithDefaults):
         ALPHA_ESC=-0.5,
         M_TURN=8.7,
         R_BUBBLE_MAX=None,
+        L_FACTOR=0.620350491,
         ION_Tvir_MIN=4.69897,
         L_X=40.0,
         NU_X_THRESH=500.0,
@@ -536,10 +543,16 @@ class IonizedBox(_OutputStructZ):
             astro_params = AstroParams(INHOMO_RECO=flag_options.INHOMO_RECO)
 
         self.first_box = first_box
+        if first_box:
+            self.mean_f_coll = 0.
+            self.mean_f_coll_MINI = 0.
 
         super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
 
     def _init_arrays(self):
+        Nfiltering = int(log(max(self.user_params.R_BUBBLE_MIN, self.user_params.L_FACTOR*self.user_params.BOX_LEN/self.user_params.HII_DIM) /\
+                             min(self.user_params.R_BUBBLE_MAX, self.user_params.L_FACTOR*self.user_params.BOX_LEN)) / log(global_params.DELTA_R_HII_FACTOR) ) + 1
+
         # ionized_box is always initialised to be neutral for excursion set algorithm. Hence np.ones instead of np.zeros
         self.xH_box = np.ones(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.Gamma12_box = np.zeros(
@@ -547,8 +560,15 @@ class IonizedBox(_OutputStructZ):
         )
         self.z_re_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.dNrec_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.Fcoll = np.zeros(Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
         shape = (
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+        )
+        filter_shape = (
+            Nfiltering,
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
@@ -557,7 +577,13 @@ class IonizedBox(_OutputStructZ):
         self.Gamma12_box.shape = shape
         self.z_re_box.shape = shape
         self.dNrec_box.shape = shape
+        self.Fcoll.shape = filter_shape
 
+        if (self.astro_params.F_STAR7_MINI * self.astro_params.F_ESC7_MINI*global_params.Pop3_ion > 1e-19):
+            self.Fcoll_MINI = np.zeros(self.Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32)
+            self.J_21_LW_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+            self.Fcoll_MINI.shape = filter_shape
+            self.J_21_LW_box.shape = shape
     @cached_property
     def global_xH(self):
         if not self.filled:
@@ -1067,6 +1093,7 @@ def ionize_box(
     flag_options=None,
     redshift=None,
     perturbed_field=None,
+    previous_perturbed_field=None,
     previous_ionize_box=None,
     z_step_factor=global_params.ZPRIME_STEP_FACTOR,
     z_heat_max=None,
@@ -1100,6 +1127,9 @@ def ionize_box(
     perturbed_field : :class:`~PerturbField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated, either `init_boxes` and
         `redshift` must be given, or `user_params`, `cosmo_params` and `redshift`.
+
+    previous_perturbed_field : :class:`~PerturbField`, optional
+        An perturbed field at higher redshift. This is only used if mini_halo is included. 
 
     init_boxes : :class:`~InitialConditions` , optional
         If given, and `perturbed_field` *not* given, these initial conditions boxes will be used to generate the
@@ -1206,6 +1236,7 @@ def ionize_box(
     verify_types(
         init_boxes=init_boxes,
         perturbed_field=perturbed_field,
+        previous_perturbed_field=previous_perturbed_field,
         previous_ionize_box=previous_ionize_box,
         spin_temp=spin_temp,
     )
@@ -1223,6 +1254,7 @@ def ionize_box(
         spin_temp,
         init_boxes,
         perturbed_field,
+        previous_perturbed_field,
         previous_ionize_box,
     )
     redshift = configure_redshift(redshift, spin_temp, perturbed_field)
@@ -1342,6 +1374,19 @@ def ionize_box(
             direc=direc,
         )
 
+    if previous_perturbed_field is None or not previous_perturbed_field.filled:
+        # If we are beyond Z_HEAT_MAX, just make an empty box
+        if prev_z is None or prev_z > global_params.Z_HEAT_MAX:
+            previous_perturbed_field = PerturbedField(redshift=0) 
+        else:
+            previous_perturbed_field = perturb_field(
+                    init_boxes=init_boxes,
+                    redshift = prev_z,
+                    regenerate=regenerate,
+                    write=write,
+                    direc=direc,
+            )
+
     # Set empty spin temp box if necessary.
     if not flag_options.USE_TS_FLUCT:
         spin_temp = TsBox(redshift=0)
@@ -1370,6 +1415,7 @@ def ionize_box(
         box.flag_options,
         perturbed_field,
         previous_ionize_box,
+        previou_perturbed_field,
         spin_temp,
         write=write,
     )

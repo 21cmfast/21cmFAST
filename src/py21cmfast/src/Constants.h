@@ -16,15 +16,6 @@
 // ----------------------------------------------------------------------------------------- //
 
 
-
-#define R_BUBBLE_MIN (float) (L_FACTOR*1)
-// Minimum radius of an HII region in cMpc.  One can set this to 0, but should be careful with
-// shot noise if the find_HII_bubble algorithm is run on a fine, non-linear density grid.
-
-#define L_FACTOR (float) (0.620350491) // factor relating cube length to filter radius = (4PI/3)^(-1/3)
-
-
-
 // ----------------------------------------------------------------------------------------- //
 
 // Taken from elec_interp.c
