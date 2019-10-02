@@ -1,0 +1,8 @@
+click
+numpy
+pyyaml
+cffi>=1.0
+scipy
+astropy>=2.0
+h5py>=2.8.0
+cached_property

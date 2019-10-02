@@ -219,12 +219,24 @@ class UserParams(StructWithDefaults):
         1: Sheth-Tormen
         2: Watson FOF
         3: Watson FOF-z
+        
+    USE_RELATIVE_VELOCITIES: int, optional
+    	Flag to decide whether to use relative velocities, default YES. If YES, POWER_SPECTRUM has to be set to 5 (CLASS).
+    	
+    POWER_SPECTRUM: int, optional
+    	Determines which decide which power spectrum to use:
+    	0: EH
+    	1: BBKS  
+    	2: EFSTATHIOU
+    	3: PEEBLES 
+    	4: WHITE
+    	5: CLASS output
 
     """
 
     _ffi = ffi
 
-    _defaults_ = dict(BOX_LEN=150.0, DIM=None, HII_DIM=50, USE_FFTW_WISDOM=False, HMF=1)
+    _defaults_ = dict(BOX_LEN=150.0, DIM=None, HII_DIM=50, USE_FFTW_WISDOM=False, HMF=1, USE_RELATIVE_VELOCITIES=True, POWER_SPECTRUM=5)
 
     @property
     def DIM(self):
@@ -243,7 +255,18 @@ class UserParams(StructWithDefaults):
         """Number of pixels in the low-res box."""
         return self.HII_DIM ** 3
 
+    @property
+    def POWER_SPECTRUM(self):
+        """
+        We make sure that it's CLASS (5) if USE_RELATIVE_VELOCITIES is True
+        """        
+        if(self.USE_RELATIVE_VELOCITIES==True):
+        	return 5
+        else:
+        	return self._POWER_SPECTRUM
 
+        
+        
 class FlagOptions(StructWithDefaults):
     """
     Flag-style options for the ionization routines.
