@@ -138,8 +138,7 @@ double power_in_k(double k); /* Returns the value of the linear power spectrum d
 double TFmdm(double k); //Eisenstein & Hu power spectrum transfer function
 void TFset_parameters();
 
-double TFm_CLASS(double k, int flag); //transfer function of matter fluctuations from CLASS
-double TFvcb_CLASS(double k, int flag); //transfer function of relative velocities  from CLASS
+double TF_CLASS(double k, int flag_int, int flag_dv); //transfer function of matter (flag_dv=0) and relative velocities (flag_dv=1) fluctuations from CLASS
 double power_in_vcb(double k); /* Returns the value of the DM-b relative velocity power spectrum density (i.e. <|delta_k|^2>/V) at a given k mode at z=0 */
 
 
@@ -162,19 +161,19 @@ void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoPara
 
 
 
-
 /*
-  this function reads the z=0 matter (CDM+baryons) transfer function from CLASS (from a file)
-	flag = 0 to initialize interpolator, flag = -1 to free memory, flag = else to interpolate.
-	similar to built-in function "double T_RECFAST(float z, int flag)"
+  this function reads the z=0 matter (CDM+baryons)  and relative velocity transfer functions from CLASS (from a file)
+  flag_int = 0 to initialize interpolator, flag_int = -1 to free memory, flag_int = else to interpolate.
+  flag_dv = 0 to output density, flag_dv = 1 to output velocity.
+  similar to built-in function "double T_RECFAST(float z, int flag)"
 */
 
-double TFm_CLASS(double k, int flag)
+double TF_CLASS(double k, int flag_int, int flag_dv)
 {
-  static double kclass[CLASS_LENGTH], Tmclass[CLASS_LENGTH];
-  static gsl_interp_accel *acc_class;
-  static gsl_spline *spline_class;
-  float trash, currk, currTm;
+  static double kclass[CLASS_LENGTH], Tmclass[CLASS_LENGTH], Tvclass_vcb[CLASS_LENGTH];
+  static gsl_interp_accel *acc_density, *acc_vcb;
+  static gsl_spline *spline_density, *spline_vcb;
+  float trash, currk, currTm, currTv;
   double ans;
   int i;
   FILE *F;
@@ -185,17 +184,18 @@ double TFm_CLASS(double k, int flag)
   sprintf(filename,"%s/%s",global_params.external_table_path,CLASS_FILENAME);
 
 
-  if (flag == 0) {// Initialize vectors and read file
+  if (flag_int == 0) {// Initialize vectors and read file
     if ( !(F=fopen(filename, "r")) ){
-      LOG_ERROR("TFm_CLASS: Unable to open file: %s for reading\nAborting\n", filename);
+      LOG_ERROR("TF_CLASS: Unable to open file: %s for reading\nAborting\n", filename);
       return -1;
     }
 
 //    for (i=(CLASS_LENGTH-1);i>=0;i--) {
     for (i=0;i<CLASS_LENGTH;i++) {
-      fscanf(F, "%e %e %e ", &currk, &currTm, &trash);
+      fscanf(F, "%e %e %e ", &currk, &currTm, &currTv);
       kclass[i] = currk;
       Tmclass[i] = currTm;//     printf("k=%.1le Tm=%.1le \n", currk,currTm);
+      Tvclass_vcb[i] = currTv;//     printf("k=%.1le Tm=%.1le \n", currk,currTv);
       if(kclass[i]<=kclass[i-1] && i>0){
       	printf("WARNING, Tk table not ordered \n");
       	printf("k=%.1le kprev=%.1le \n\n",kclass[i],kclass[i-1]);
@@ -203,102 +203,50 @@ double TFm_CLASS(double k, int flag)
     }
     fclose(F);
 
-    // Set up spline table
-    acc_class   = gsl_interp_accel_alloc ();
-    spline_class  = gsl_spline_alloc (gsl_interp_cspline, CLASS_LENGTH);
-    gsl_spline_init(spline_class, kclass, Tmclass, CLASS_LENGTH);
+    // Set up spline table for densities
+    acc_density   = gsl_interp_accel_alloc ();
+    spline_density  = gsl_spline_alloc (gsl_interp_cspline, CLASS_LENGTH);
+    gsl_spline_init(spline_density, kclass, Tmclass, CLASS_LENGTH);
+
+    // Set up spline table for velocities
+    acc_vcb   = gsl_interp_accel_alloc ();
+    spline_vcb  = gsl_spline_alloc (gsl_interp_cspline, CLASS_LENGTH);
+    gsl_spline_init(spline_vcb, kclass, Tvclass_vcb, CLASS_LENGTH);
 
     return 0;
   }
 
-  if (flag == -1) {
-    gsl_spline_free (spline_class);
-    gsl_interp_accel_free(acc_class);
+  if (flag_int == -1) {
+    gsl_spline_free (spline_density);
+    gsl_interp_accel_free(acc_density);
+    gsl_spline_free (acc_vcb);
+    gsl_interp_accel_free(spline_vcb);
     return 0;
   }
 
 
 
   if (k > kclass[CLASS_LENGTH-1]) { // k>kmax
-    LOG_ERROR("Called TFm_CLASS with k=%f, larger than kmax!\n", k);
-    return (Tmclass[CLASS_LENGTH]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
-    //we just set it to the last value, since sometimes it wants large k for R<<cell_size, which does not matter much.
+    LOG_ERROR("Called TF_CLASS with k=%f, larger than kmax!\n", k);
+    if(flag_dv == 0){ // output is density
+      return (Tmclass[CLASS_LENGTH]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
+    }
+    if(flag_dv == 1){ // output is rel velocity
+      return (Tvclass_vcb[CLASS_LENGTH]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
+    }    //we just set it to the last value, since sometimes it wants large k for R<<cell_size, which does not matter much.
   }
   else { // Do spline
-    ans = gsl_spline_eval (spline_class, k, acc_class);
+    if(flag_dv == 0){ // output is density
+      ans = gsl_spline_eval (spline_density, k, acc_density);
+    }
+    if(flag_dv == 1){ // output is rel velocity
+      ans = gsl_spline_eval (spline_vcb, k, acc_vcb);
+    }
   }
 
 
   return ans/k/k;
   //we have to divide by k^2 to agree with the old-fashioned convention.
-
-}
-
-
-
-/*
-  this function reads the z=zkin relative velocity transfer function from CLASS
-  same caveats as for Tfm_CLASS
-*/
-double TFvcb_CLASS(double k, int flag)
-{
-  static double kclass_vcb[CLASS_LENGTH], Tvclass_vcb[CLASS_LENGTH];
-  static gsl_interp_accel *acc_vcb;
-  static gsl_spline *spline_vcb;
-  double trash, currk, currTv;
-  double ans;
-  int i;
-  FILE *F;
-
-
-
-  char filename[500];
-  sprintf(filename,"%s/%s",global_params.external_table_path,CLASS_FILENAME);
-
-
-  if (flag == 0) {
-    // Initialize vectors
-    if ( !(F=fopen(filename, "r")) ){
-      LOG_ERROR("TFvcb_CLASS: Unable to open file: %s for reading\nAborting\n", filename);
-      return -1;
-    }
-
-//    for (i=(CLASS_LENGTH-1);i>=0;i--) {
-    for (i=0;i<CLASS_LENGTH;i++) {
-      fscanf(F, "%le %le %le ", &currk, &trash, &currTv);
-      kclass_vcb[i] = currk;
-      Tvclass_vcb[i] = currTv;
-      if(kclass_vcb[i]<=kclass_vcb[i-1] && i>0){
-      	printf("WARNING, T_vcb table not ordered \n");
-      }
-    }
-    fclose(F);
-
-    // Set up spline table
-    acc_vcb   = gsl_interp_accel_alloc ();
-    spline_vcb  = gsl_spline_alloc (gsl_interp_cspline, CLASS_LENGTH);
-    gsl_spline_init(spline_vcb, kclass_vcb, Tvclass_vcb, CLASS_LENGTH);
-
-    return 0;
-  }
-
-  if (flag == -1) {
-    gsl_spline_free (spline_vcb);
-    gsl_interp_accel_free(acc_vcb);
-    return 0;
-  }
-
-  if (k > kclass_vcb[CLASS_LENGTH-1]) { // k>kmax
-    LOG_ERROR("Called TFvcb_CLASS with k=%f, bailing out!\n", k);
-    return 0;
-  }
-  else { // Do spline
-    ans = gsl_spline_eval (spline_vcb, k, acc_vcb);
-//    printf("k=%.3le, T=%.1le \n", k, ans);
-  }
-
-  return ans/k/k;
-//we have to divide by k^2 to agree with the old-fashioned convention.
 
 }
 
@@ -357,7 +305,7 @@ double dsigma_dk(double k, void *params){
         p = pow(k, cosmo_params_ps->POWER_INDEX) * 19400.0 / pow(1 + aa*k + bb*pow(k, 1.5) + cc*k*k, 2);
     }
     else if (user_params_ps->POWER_SPECTRUM == 5){ // output of CLASS
-        T = TFm_CLASS(k, 1); //read from z=0 output of CLASS. Note, flag = 1 here always, since now we have to have initialized the interpolator for CLASS
+        T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS. Note, flag = 1 here always, since now we have to have initialized the interpolator for CLASS
   	    p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
     }
     else{
@@ -393,9 +341,17 @@ double sigma_z0(double M){
     R = MtoR(M);
 
     // now lets do the integral for sigma and scale it with sigma_norm
-    kstart = FMAX(1.0e-99/R, KBOT_CLASS);
-    kend = FMIN(350.0/R, KTOP_CLASS);
-    //we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
+
+    if(user_params_ps->POWER_SPECTRUM == 5){
+      kstart = FMAX(1.0e-99/R, KBOT_CLASS);
+      kend = FMIN(350.0/R, KTOP_CLASS);
+    }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
+    else{
+      kstart = 1.0e-99/R;
+      kend = 350.0/R;
+    }
+
+
 
 
     lower_limit = kstart;//log(kstart);
@@ -501,7 +457,7 @@ double power_in_k(double k){
         p = pow(k, cosmo_params_ps->POWER_INDEX) * 19400.0 / pow(1 + aa*k + bb*pow(k, 1.5) + cc*k*k, 2);
     }
     else if (user_params_ps->POWER_SPECTRUM == 5){ // output of CLASS
-        T = TFm_CLASS(k, 1); //read from z=0 output of CLASS. Note, flag = 1 here always, since now we have to have initialized the interpolator for CLASS
+        T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS. Note, flag = 1 here always, since now we have to have initialized the interpolator for CLASS
   	    p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
     }
     else{
@@ -523,7 +479,7 @@ double power_in_vcb(double k){
 
   //only works if using CLASS
   if (user_params_ps->POWER_SPECTRUM == 5){ // CLASS
-    T = TFvcb_CLASS(k, 1.0); //read from CLASS file. flag=1 since we have initialized before
+    T = TF_CLASS(k, 1.0, 1); //read from CLASS file. flag=1 since we have initialized before
 	  p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
   }
   else{
@@ -547,10 +503,8 @@ double init_ps(){
     double x;
 
     //we start the interpolator if using CLASS:
-  	double temp_var;
   	if (user_params_ps->POWER_SPECTRUM == 5){
-  		temp_var = TFm_CLASS(1.0, 0);
-  		temp_var = TFvcb_CLASS(1.0, 0);
+  		TF_CLASS(1.0, 0, 0);
   	}
 
 
@@ -575,8 +529,16 @@ double init_ps(){
     sigma_norm = -1;
 
     R = 8.0/cosmo_params_ps->hlittle;
-    kstart = FMAX(1.0e-99/R, KBOT_CLASS);
-    kend = FMIN(350.0/R, KTOP_CLASS);
+
+    if(user_params_ps->POWER_SPECTRUM == 5){
+      kstart = FMAX(1.0e-99/R, KBOT_CLASS);
+      kend = FMIN(350.0/R, KTOP_CLASS);
+    }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
+    else{
+      kstart = 1.0e-99/R;
+      kend = 350.0/R;
+    }
+
     lower_limit = kstart;//log(kstart);
     upper_limit = kend;//log(kend);
 
@@ -609,11 +571,9 @@ double init_ps(){
 //function to free arrays related to the power spectrum
 void free_ps(){
 
-	double temp_var;
 	//we free the PS interpolator if using CLASS:
 		if (user_params_ps->POWER_SPECTRUM == 5){
-			temp_var = TFm_CLASS(1.0, -1);
-			temp_var = TFvcb_CLASS(1.0, -1);
+			TF_CLASS(1.0, -1, 0);
 		}
 
   return;
@@ -664,7 +624,7 @@ double dsigmasq_dm(double k, void *params){
         p = pow(k, cosmo_params_ps->POWER_INDEX) * 19400.0 / pow(1 + aa*k + pow(bb*k, 1.5) + cc*k*k, 2);
     }
     else if (user_params_ps->POWER_SPECTRUM == 5){ // JBM: CLASS
-      T = TFm_CLASS(k, 1); //read from z=0 output of CLASS
+      T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS
 	    p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
 	  }
     else{
@@ -709,8 +669,15 @@ double dsigmasqdm_z0(double M){
     R = MtoR(M);
 
     // now lets do the integral for sigma and scale it with sigma_norm
-    kstart = FMAX(1.0e-99/R, KBOT_CLASS);
-    kend = FMIN(350.0/R, KTOP_CLASS);
+    if(user_params_ps->POWER_SPECTRUM == 5){
+      kstart = FMAX(1.0e-99/R, KBOT_CLASS);
+      kend = FMIN(350.0/R, KTOP_CLASS);
+    }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
+    else{
+      kstart = 1.0e-99/R;
+      kend = 350.0/R;
+    }
+
     lower_limit = kstart;//log(kstart);
     upper_limit = kend;//log(kend);
 
