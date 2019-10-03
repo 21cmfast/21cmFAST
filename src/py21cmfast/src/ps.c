@@ -1715,9 +1715,9 @@ double dNion_ConditionallnM_MINI(double lnM, void *params) {
     double Fstar,Fesc;
 
     if (Alpha_star > 0. && M > Mlim_Fstar)
-        Fstar = 1./Fstar7;
+        Fstar = 1./Fstar7_MINI;
     else if (Alpha_star < 0. && M < Mlim_Fstar)
-        Fstar = 1./Fstar7;
+        Fstar = 1./Fstar7_MINI;
     else
         Fstar = pow(M/1e7,Alpha_star);
 
