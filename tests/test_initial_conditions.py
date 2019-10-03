@@ -44,7 +44,7 @@ def test_transfer_function(basic_init_box):
         regenerate=True,
         write=False,
         random_seed=basic_init_box.random_seed,
-        user_params=wrapper.UserParams(HII_DIM=35),
+        user_params=wrapper.UserParams(HII_DIM=35, POWER_SPECTRUM=5),
     )
 
     rmsnew = np.sqrt(np.mean(ic.hires_density ** 2))

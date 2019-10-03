@@ -241,8 +241,8 @@ class UserParams(StructWithDefaults):
         HII_DIM=50,
         USE_FFTW_WISDOM=False,
         HMF=1,
-        USE_RELATIVE_VELOCITIES=True,
-        POWER_SPECTRUM=5,
+        USE_RELATIVE_VELOCITIES=False,
+        POWER_SPECTRUM=0,
     )
 
     @property
