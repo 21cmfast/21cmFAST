@@ -8,7 +8,6 @@ double *ERFC_VALS, *ERFC_VALS_DIFF;
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
-                       struct PerturbedField *previous_perturbed_field,
                        struct TsBox *spin_temp, struct IonizedBox *box) {
 
 LOG_DEBUG("input values:");
@@ -46,7 +45,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     double ST_over_PS_MINI, f_coll_MINI, f_coll_min_MINI;
 
     double t_ast, dfcolldt, Gamma_R_prefactor, rec, dNrec;
-    doube dfcolldt_MINI, Gamma_R_prefactor_MINI;
+    double dfcolldt_MINI, Gamma_R_prefactor_MINI;
     float growth_factor_dz, fabs_dtdz, ZSTEP, Gamma_R, z_eff;
     const float dz = 0.01;
 
@@ -69,12 +68,12 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     float Mlim_Fstar, Mlim_Fesc;
     float Mlim_Fstar_MINI, Mlim_Fesc_MINI;
 
-    float , Mcrit_atom, log10_Mcrit_atom, log10_Mcrit_mol; 
+    float Mcrit_atom, log10_Mcrit_atom, log10_Mcrit_mol; 
     fftwf_complex *Mcrit_LW_grid, *Mcrit_RE_grid;
     fftwf_complex *log10_M_MINa_unfiltered=NULL, *log10_M_MINa_filtered=NULL;
     fftwf_complex *log10_M_MINm_unfiltered=NULL, *log10_M_MINm_filtered=NULL;
     float log10_M_MINa_ave=0., log10_M_MINm_ave=0.;
-    float log10_M_MINa, log10_M_MINm, Mcrit_LW, Mcrit_RE;
+    float log10_M_MINa, log10_M_MINm, Mcrit_LW, Mcrit_RE, M_MINa, M_MINm;
     
     float min_density, max_density;
     float prev_min_density, prev_max_density;
@@ -238,7 +237,7 @@ LOG_SUPER_DEBUG("density field calculated");
         // fields added for minihalos
         Mcrit_atom              = atomic_cooling_threshold(redshift);
         log10_Mcrit_atom        = log10(Mcrit_atom);
-        log10_Mcrit_mol         = log10(lyman_werner_threshold(REDSHIFT, 0.));
+        log10_Mcrit_mol         = log10(lyman_werner_threshold(redshift, 0.));
         Mcrit_RE_grid           = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         Mcrit_LW_grid           = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         log10_M_MINa_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -323,7 +322,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
                 box->mean_f_coll = Nion_General(redshift,M_MIN,M_MINa,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
             }
             else{
-                box->mean_f_coll = previous_ionize_box->mean_f_coll + Nion_General(redshift,M_MIN,M_MINa,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc) - Nion_General(prev_redshift,M_MIN,M_MINa,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc)
+                box->mean_f_coll = previous_ionize_box->mean_f_coll + Nion_General(redshift,M_MIN,M_MINa,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc) - Nion_General(prev_redshift,M_MIN,M_MINa,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
             }
             if (previous_ionize_box->mean_f_coll_MINI < 1e-15){
                 box->mean_f_coll_MINI = Nion_General_MINI(redshift,M_MIN,M_MINm,Mcrit_atom,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
@@ -519,7 +518,7 @@ LOG_SUPER_DEBUG("deltax unfiltered calculated");
         // loop through the filter radii (in Mpc)
         erfc_denom_cell=1; //dummy value
     
-        R=fmax(user_params->R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
+        R=fmax(astro_params->R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
         
         while ((R - fmin(astro_params->R_BUBBLE_MAX, user_params->L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ) {
             R*= global_params.DELTA_R_HII_FACTOR;
@@ -542,9 +541,9 @@ LOG_DEBUG("set max radius: %f", R);
 LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_MIN);
 
             // Check if we are the last filter step
-            if ( ((R/(global_params.DELTA_R_HII_FACTOR) - cell_length_factor*(user_params->BOX_LEN)/(float)(user_params->HII_DIM)) <= FRACT_FLOAT_ERR) || ((R/(global_params.DELTA_R_HII_FACTOR) - user_params->R_BUBBLE_MIN) <= FRACT_FLOAT_ERR) ) {
+            if ( ((R/(global_params.DELTA_R_HII_FACTOR) - cell_length_factor*(user_params->BOX_LEN)/(float)(user_params->HII_DIM)) <= FRACT_FLOAT_ERR) || ((R/(global_params.DELTA_R_HII_FACTOR) - astro_params->R_BUBBLE_MIN) <= FRACT_FLOAT_ERR) ) {
                 LAST_FILTER_STEP = 1;
-                R = fmax(cell_length_factor*user_params->BOX_LEN/(double)(user_params->HII_DIM), user_params->R_BUBBLE_MIN);
+                R = fmax(cell_length_factor*user_params->BOX_LEN/(double)(user_params->HII_DIM), astro_params->R_BUBBLE_MIN);
             }
             
             // Copy all relevant quantities from memory into new arrays to be smoothed and FFT'd.
@@ -1052,10 +1051,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                         	f_coll += Splined_Fcoll;
 						}
 						else{
-							box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll - prev_Splined_Fcoll;
-                        	f_coll += previous_ionize_box[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll - prev_Splined_Fcoll;
-							box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll - prev_Splined_Fcoll;
-                        	f_coll_MINI += previous_ionize_box[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll - prev_Splined_Fcoll;
+							box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll - prev_Splined_Fcoll;
+                        	f_coll += box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
+							box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll - prev_Splined_Fcoll;
+                        	f_coll_MINI += box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
 						}
                     }
                 }
@@ -1092,8 +1091,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 if (f_coll <= FRACT_FLOAT_ERR) f_coll = FRACT_FLOAT_ERR;
             }
             
-            ST_over_PS = mean_f_coll/f_coll;
-            ST_over_PS_MINI = mean_f_coll_MINI/f_coll_MINI;
+            ST_over_PS = box->mean_f_coll/f_coll;
+            ST_over_PS_MINI = box->mean_f_coll_MINI/f_coll_MINI;
             
             //////////////////////////////  MAIN LOOP THROUGH THE BOX ///////////////////////////////////
             // now lets scroll through the filtered box

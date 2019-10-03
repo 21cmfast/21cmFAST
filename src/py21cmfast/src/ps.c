@@ -63,6 +63,8 @@ float *Mass_InterpTable, *Sigma_InterpTable, *dSigmadm_InterpTable;
 
 float *log10_overdense_spline_SFR, *log10_Nion_spline, *Overdense_spline_SFR, *Nion_spline;
 float *prev_log10_Nion_spline, *prev_Nion_spline, *Mturns, *Mturns_MINI;
+float *log10_Nion_spline_MINI, *Nion_spline_MINI;
+float *prev_log10_Nion_spline_MINI, *prev_Nion_spline_MINI;
 
 float *xi_SFR,*wi_SFR, *xi_SFR_Xray, *wi_SFR_Xray;
 
@@ -1724,7 +1726,7 @@ int initialise_Nion_General_spline(float z, float min_density, float max_density
     return(0);
 }
 
-int initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float float min_density, float max_density, float Mmax, float Mmin, float log10Mturn_min, float log10Mturn_max, float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI, float Mlim_Fstar_MINI, float Mlim_Fesc_MINI){
+int initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_density, float max_density, float Mmax, float Mmin, float log10Mturn_min, float log10Mturn_max, float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI, float Mlim_Fstar_MINI, float Mlim_Fesc_MINI){
     
     double growthf, sigma2;
     double overdense_large_high = Deltac, overdense_large_low = global_params.CRIT_DENS_TRANSITION*0.999;
@@ -1792,7 +1794,7 @@ int initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float float m
         
         	log10_Nion_spline[i+j*NSFR_low] *= ln_10;
 
-        	log10_Nion_spline_MINI[i+j*NSFR_low] = log10(GaussLegendreQuad_Nion_MINI(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,pow(10.,overdense_val)-1.,Mturns_MINI[j],Mcrit_atom,Alpha_star,Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI));
+        	log10_Nion_spline_MINI[i+j*NSFR_low] = log10(GaussLegendreQuad_Nion_MINI(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,pow(10.,log10_overdense_spline_SFR[i])-1.,Mturns_MINI[j],Mcrit_atom,Alpha_star,Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI));
 
         	if(isfinite(log10_Nion_spline_MINI[i+j*NSFR_low])==0) {
             	LOG_ERROR("Detected either an infinite or NaN value in log10_Nion_spline");
@@ -1832,122 +1834,6 @@ int initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float float m
         
         	if(Nion_spline_MINI[i+j*NSFR_high]<0.) {
             	Nion_spline_MINI[i+j*NSFR_high]=pow(10.,-40.0);
-        	}
-		}
-
-    }
-    
-    return(0);
-}
-
-int initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float float min_density, float max_density, float Mmax, float Mmin, float log10Mturn_min, float log10Mturn_max, float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI, float Mlim_Fstar_MINI, float Mlim_Fesc_MINI){
-    
-    double growthf, sigma2;
-    double overdense_large_high = Deltac, overdense_large_low = global_params.CRIT_DENS_TRANSITION*0.999;
-    double overdense_small_high, overdense_small_low;
-    int i,j;
-    
-    float ln_10;
-    
-    if(max_density > global_params.CRIT_DENS_TRANSITION*1.001) {
-        overdense_small_high = global_params.CRIT_DENS_TRANSITION*1.001;
-    }
-    else {
-        overdense_small_high = max_density;
-    }
-    overdense_small_low = min_density;
-    
-    ln_10 = log(10);
-    
-    float MassBinLow;
-    int MassBin;
-    
-    growthf = dicke(z);
-    
-    Mmin = log(Mmin);
-    Mmax = log(Mmax);
-    
-    MassBin = (int)floor( ( Mmax - MinMass )*inv_mass_bin_width );
-    
-    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
-    
-    sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
-    
-	if (log10_overdense_spline_SFR == NULL){
-    	log10_overdense_spline_SFR = calloc(NSFR_low,sizeof(double));
-   		Overdense_spline_SFR = calloc(NSFR_high,sizeof(float));
-		Mturns = calloc(NMTURN,sizeof(float));
-		Mturns_MINI = calloc(NMTURN,sizeof(float));
-		for (i=0; i<NSFR_low; i++){
-			log10_overdense_spline_SFR[i] = log10(1. + overdense_small_low) + (double)i/((double)NSFR_low-1.)*(log10(1.+overdense_small_high)-log10(1.+overdense_small_low));
-		}
-		for (i=0;i<NSFR_high;i++) {
-			Overdense_spline_SFR[i] = overdense_large_low + (float)i/((float)NSFR_high-1.)*(overdense_large_high - overdense_large_low);
-		}
-		for (i=0;i<NMTURN;i++){
-			Mturns[i] = pow(10., log10Mturn_min + (float)i/((float)NMTURN-1.)*(log10Mturn_max-log10Mturn_min));
-			Mturns_MINI[i] = pow(10., log10Mturn_min_MINI + (float)i/((float)NMTURN-1.)*(log10Mturn_max_MINI-log10Mturn_min_MINI));
-		}
-	}
-
-    prev_log10_Nion_spline = calloc(NSFR_low,sizeof(float));
-    prev_Nion_spline = calloc(NSFR_high,sizeof(float));
-    
-    for (i=0; i<NSFR_low; i++){
-
-		for (j=0; j<NMTURN; j++){
-        	prev_log10_Nion_spline[i+j*NSFR_low] = log10(GaussLegendreQuad_Nion(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,pow(10.,log10_overdense_spline_SFR[i])-1.,Mturns[j],Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc));
-        	if(isfinite(prev_log10_Nion_spline[i+j*NSFR_low])==0) {
-            	LOG_ERROR("Detected either an infinite or NaN value in prev_log10_Nion_spline");
-            	return(-1);
-        	}
-        
-        	if(prev_log10_Nion_spline[i+j*NSFR_low] < -40.){
-            	prev_log10_Nion_spline[i+j*NSFR_low] = -40.;
-        	}
-        
-        	prev_log10_Nion_spline[i+j*NSFR_low] *= ln_10;
-
-        	prev_log10_Nion_spline_MINI[i+j*NSFR_low] = log10(GaussLegendreQuad_Nion_MINI(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,pow(10.,overdense_val)-1.,Mturns_MINI[j],Mcrit_atom,Alpha_star,Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI));
-
-        	if(isfinite(log10_Nion_spline_MINI[i+j*NSFR_low])==0) {
-            	LOG_ERROR("Detected either an infinite or NaN value in prev_log10_Nion_spline_MINI");
-            	return(-1);
-        	}
-        
-        	if(prev_log10_Nion_spline_MINI[i+j*NSFR_low] < -40.){
-            	prev_log10_Nion_spline_MINI[i+j*NSFR_low] = -40.;
-        	}
-        
-        	prev_log10_Nion_spline_MINI[i+j*NSFR_low] *= ln_10;
-		}
-    }
-    
-    for(i=0;i<NSFR_high;i++) {
-
-		for (j=0; j<NMTURN; j++){
-			
-        	prev_Nion_spline[i+j*NSFR_high] = Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,Deltac,Overdense_spline_SFR[i],Mturns[j],Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
-        
-        	if(isfinite(prev_Nion_spline[i+j*NSFR_high])==0) {
-            	LOG_ERROR("Detected either an infinite or NaN value in prev_Nion_spline");
-            	return(-1);
-        	}
-
-        	if(prev_Nion_spline[i+j*NSFR_high]<0.) {
-            	prev_Nion_spline[i+j*NSFR_high]=pow(10.,-40.0);
-        	}
-
-        	prev_Nion_spline_MINI[i+j*NSFR_high] = Nion_ConditionalM_MINI(growthf,Mmin,Mmax,sigma2,Deltac,Overdense_spline_SFR[i],Mturns_MINI[j],Mcrit_atom,Alpha_star,Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
-
-        	if(isfinite(prev_Nion_spline_MINI[i+j*NSFR_high])==0) {
-            	LOG_ERROR("Detected either an infinite or NaN value in prev_Nion_spline_MINI");
-            	return(-1);
-        	}
-
-        
-        	if(prev_Nion_spline_MINI[i+j*NSFR_high]<0.) {
-            	prev_Nion_spline_MINI[i+j*NSFR_high]=pow(10.,-40.0);
         	}
 		}
 

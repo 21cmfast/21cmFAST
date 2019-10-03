@@ -764,3 +764,25 @@ void print_corners_real(float *x, int size){
     }
     printf("\n");
 }
+
+double molecular_cooling_threshold(float z){
+    return 3.314e7 * pow( 1.+z, -1.5);
+}
+
+double lyman_werner_threshold(float z, float J_21_LW){
+    return  molecular_cooling_threshold(z) * (1. + 22.8685 * pow(J_21_LW, 0.47));
+}
+
+#define HALO_BIAS     (double) 2.0
+#define REION_SM13_M0 (double) 3e9
+#define REION_SM13_A  (double) 0.17
+#define REION_SM13_B  (double) -2.1
+#define REION_SM13_C  (double) 2.0
+#define REION_SM13_D  (double) 2.5
+
+double reionization_feedback(float z, float Gamma_halo_HII, float z_IN){
+    if (z_IN<0)
+        return 1e-40;
+    return REION_SM13_M0 * pow(HALO_BIAS * Gamma_halo_HII, REION_SM13_A) * pow((1.+z)/10, REION_SM13_B) *
+        pow(1 - pow((1.+z)/(1.+z_IN), REION_SM13_C), REION_SM13_D);
+}

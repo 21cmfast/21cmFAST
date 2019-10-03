@@ -30,6 +30,7 @@ struct UserParams{
     float BOX_LEN;
     bool USE_FFTW_WISDOM;
     int HMF;    
+	float L_FACTOR;
 };
 
 struct AstroParams{
@@ -96,6 +97,9 @@ struct IonizedBox{
     float *Gamma12_box;
     float *z_re_box;
     float *dNrec_box;
+	float *J_21_LW_box;
+	float *Fcoll;
+	float *Fcoll_MINI;
 };
 
 struct BrightnessTemp{
