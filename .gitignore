@@ -1,4 +1,6 @@
 
+pip-wheel-metadata/
+
 \.idea/
 
 *.pyc
