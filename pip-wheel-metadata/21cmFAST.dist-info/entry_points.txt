@@ -1,3 +1,0 @@
-[console_scripts]
-21cmfast = py21cmfast.cli:main
-
