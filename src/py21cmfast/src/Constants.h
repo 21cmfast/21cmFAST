@@ -1,12 +1,12 @@
 /*
-    This is a header file contains fundamental constants that should not need to 
+    This is a header file contains fundamental constants that should not need to
     be changed by the user.
 
-    Do a text search to find parameters from a specific .H file from 21cmFAST 
+    Do a text search to find parameters from a specific .H file from 21cmFAST
     (i.e. INIT_PARAMS.H, COSMOLOGY.H, ANAL_PARAMS.H and HEAT_PARAMS)
- 
+
     NOTE: Not all 21cmFAST variables will be found below. Only those useful for 21CMMC
- 
+
  */
 
 // ----------------------------------------------------------------------------------------- //
@@ -32,6 +32,7 @@
 #define STELLAR_SPECTRA_FILENAME (const char *) "External_tables/stellar_spectra.dat"
 #define KAPPA_EH_FILENAME (const char *) "External_tables/kappa_eH_table.dat"
 #define KAPPA_PH_FILENAME (const char *) "External_tables/kappa_pH_table.dat"
+
 
 
 // ----------------------------------------------------------------------------------------- //
@@ -97,6 +98,7 @@
 #define f_alpha (float) 0.4162 / oscillator strength of Lya
 #define Ly_alpha_HZ  (double ) 2.46606727e15  // frequency of Lyalpha
 #define C  (double) 29979245800.0  //  speed of light  (cm/s)
+#define C_KMS (double) C/1e5  /* speed of light in km/s  */
 #define alphaA_10k (double) 4.18e-13 // taken from osterbrock for T=10000
 #define alphaB_10k (double) 2.59e-13 // taken from osterbrock for T=10000
 #define alphaB_20k (double) 2.52e-13 // taken from osterbrock for T=20000
@@ -156,3 +158,17 @@
 
 #define x_int_NXHII  14
 #define x_int_NENERGY  258
+
+
+
+// ----------------------------------------------------------------------------------------- //
+
+// From ps.c (temporary way to including transfer function from CLASS
+
+// ----------------------------------------------------------------------------------------- //
+
+
+#define CLASS_FILENAME (const char *) "External_tables/Transfers_z0.dat"
+#define CLASS_LENGTH  150 //length of the CLASS transfer function
+#define KBOT_CLASS (float) (1e-5) //max and min k in  CLASS transfer function, temporary until interfaced properly
+#define KTOP_CLASS (float) (1e3)
