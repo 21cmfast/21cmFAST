@@ -765,6 +765,10 @@ void print_corners_real(float *x, int size){
     printf("\n");
 }
 
+double atomic_cooling_threshold(float z){
+    return TtoM(z, 1e4, 0.59);
+}
+
 double molecular_cooling_threshold(float z){
     return 3.314e7 * pow( 1.+z, -1.5);
 }

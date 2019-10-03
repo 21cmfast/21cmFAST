@@ -29,10 +29,10 @@ struct UserParams{
     int DIM;
     float BOX_LEN;
     bool USE_FFTW_WISDOM;
-	float L_FACTOR;
     int HMF;
     int USE_RELATIVE_VELOCITIES;
     int POWER_SPECTRUM;
+	float L_FACTOR; 
 
 };
 
@@ -51,7 +51,6 @@ struct AstroParams{
     
     float R_BUBBLE_MAX;
 	float R_BUBBLE_MIN;
-	float L_FACTOR; 
     
     float ION_Tvir_MIN;
     

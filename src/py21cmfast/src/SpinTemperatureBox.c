@@ -951,7 +951,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 				if(ION_EFF_FACTOR_MINI>1e-19){
 					memcpy(log10_Mcrit_LW_filtered, log10_Mcrit_LW_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);                                                                                   
 					if (R_ct > 0){// don't filter on cell size
-						HII_filter(log10_Mcrit_LW_filtered, global_params.HEAT_FILTER, R_values[R_ct]);
+						filter_box(log10_Mcrit_LW_filtered, 1, global_params.HEAT_FILTER, R_values[R_ct]);
 					}
 					if(user_params->USE_FFTW_WISDOM) {
 					    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)log10_Mcrit_LW_filtered, (float *)log10_Mcrit_LW_filtered, FFTW_WISDOM_ONLY);                                 

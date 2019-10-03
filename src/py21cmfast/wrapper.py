@@ -231,6 +231,9 @@ class UserParams(StructWithDefaults):
         3: PEEBLES
         4: WHITE
         5: CLASS output
+
+    L_FACTOR : float, optional
+        Factor relating cube length to filter radius = (4PI/3)^(-1/3), default is 0.620350491
     """
 
     _ffi = ffi
@@ -243,6 +246,7 @@ class UserParams(StructWithDefaults):
         HMF=1,
         USE_RELATIVE_VELOCITIES=False,
         POWER_SPECTRUM=0,
+        L_FACTOR=0.620350491,
     )
 
     @property
@@ -345,8 +349,6 @@ class AstroParams(StructWithDefaults):
         Minimum radius of an HII region in cMpc.  One can set this to 0, but should be careful with
         shot noise if the find_HII_bubble algorithm is run on a fine, non-linear density grid.
         Default is L_FACTOR + 1
-    L_FACTOR : float, optional
-        Factor relating cube length to filter radius = (4PI/3)^(-1/3), default is 0.620350491
     ION_Tvir_MIN : float, optional
     L_X : float, optional
     L_X_MINI : float, optional
@@ -371,7 +373,6 @@ class AstroParams(StructWithDefaults):
         ALPHA_ESC=-0.5,
         M_TURN=8.7,
         R_BUBBLE_MAX=None,
-        L_FACTOR=0.620350491,
         ION_Tvir_MIN=4.69897,
         L_X=40.0,
         L_X_MINI=40.0,
@@ -384,10 +385,11 @@ class AstroParams(StructWithDefaults):
     )
 
     def __init__(
-        self, *args, INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"], **kwargs
+        self, *args, INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"], R_BUBBLE_MIN=UserParams._defaults_["L_FACTOR"] + 1, **kwargs
     ):
         # TODO: should try to get inhomo_reco out of here... just needed for default of R_BUBBLE_MAX.
         self.INHOMO_RECO = INHOMO_RECO
+        self.R_BUBBLE_MIN = R_BUBBLE_MIN
         super().__init__(*args, **kwargs)
 
     def convert(self, key, val):
@@ -590,8 +592,9 @@ class IonizedBox(_OutputStructZ):
         super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
 
     def _init_arrays(self):
-        Nfiltering = int(log(max(self.user_params.R_BUBBLE_MIN, self.user_params.L_FACTOR*self.user_params.BOX_LEN/self.user_params.HII_DIM) /\
-                             min(self.user_params.R_BUBBLE_MAX, self.user_params.L_FACTOR*self.user_params.BOX_LEN)) / log(global_params.DELTA_R_HII_FACTOR) ) + 1
+        Nfiltering = int(np.log( min(self.astro_params.R_BUBBLE_MAX, self.user_params.L_FACTOR*self.user_params.BOX_LEN) /\
+                                 max(self.astro_params.R_BUBBLE_MIN, self.user_params.L_FACTOR*self.user_params.BOX_LEN/self.user_params.HII_DIM)) /\
+                         np.log(global_params.DELTA_R_HII_FACTOR) ) + 1
 
         # ionized_box is always initialised to be neutral for excursion set algorithm. Hence np.ones instead of np.zeros
         self.xH_box = np.ones(self.user_params.HII_tot_num_pixels, dtype=np.float32)
@@ -620,8 +623,9 @@ class IonizedBox(_OutputStructZ):
         self.Fcoll.shape = filter_shape
 
         if (self.astro_params.F_STAR7_MINI * self.astro_params.F_ESC7_MINI*global_params.Pop3_ion > 1e-19):
-            self.Fcoll_MINI = np.zeros(self.Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32)
+            self.Fcoll_MINI = np.zeros(Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32)
             self.Fcoll_MINI.shape = filter_shape
+
     @cached_property
     def global_xH(self):
         if not self.filled:
@@ -1448,7 +1452,6 @@ def ionize_box(
         box.flag_options,
         perturbed_field,
         previous_ionize_box,
-        previou_perturbed_field,
         spin_temp,
         write=write,
     )
