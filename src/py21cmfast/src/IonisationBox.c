@@ -190,6 +190,27 @@ LOG_SUPER_DEBUG("erfc interpolation done");
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         xi_SFR = calloc(NGL_SFR+1,sizeof(float));
         wi_SFR = calloc(NGL_SFR+1,sizeof(float));
+	    log10_overdense_spline_SFR = calloc(NSFR_low,sizeof(double));
+	    Overdense_spline_SFR = calloc(NSFR_high,sizeof(float));
+
+		if (ION_EFF_FACTOR_MINI > 1e-19){
+			prev_log10_overdense_spline_SFR = calloc(NSFR_low,sizeof(double));
+			prev_Overdense_spline_SFR = calloc(NSFR_high,sizeof(float));
+	    	log10_Nion_spline = calloc(NSFR_low*NMTURN,sizeof(float));
+	    	Nion_spline = calloc(NSFR_high*NMTURN,sizeof(float));
+	    	log10_Nion_spline_MINI = calloc(NSFR_low*NMTURN,sizeof(float));
+	    	Nion_spline_MINI = calloc(NSFR_high*NMTURN,sizeof(float));
+	    	prev_log10_Nion_spline = calloc(NSFR_low*NMTURN,sizeof(float));
+	    	prev_Nion_spline = calloc(NSFR_high*NMTURN,sizeof(float));
+	    	prev_log10_Nion_spline_MINI = calloc(NSFR_low*NMTURN,sizeof(float));
+	    	prev_Nion_spline_MINI = calloc(NSFR_high*NMTURN,sizeof(float));
+			Mturns = calloc(NMTURN,sizeof(float));
+			Mturns_MINI = calloc(NMTURN,sizeof(float));
+		}
+		else{
+	    	log10_Nion_spline = calloc(NSFR_low,sizeof(float));
+	    	Nion_spline = calloc(NSFR_high,sizeof(float));
+		}
     }
 
     // Calculate the density field for this redshift if the initial conditions/cosmology are changing
@@ -254,7 +275,7 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
             for (z=0; z<user_params->HII_DIM; z++){
 
                 Mcrit_RE = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[HII_R_INDEX(x, y, z)], previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)]);
-                Mcrit_LW = lyman_werner_threshold(redshift, previous_ionize_box->J_21_LW_box[HII_R_INDEX(x, y, z)]);
+                Mcrit_LW = lyman_werner_threshold(redshift, spin_temp->J_21_LW_box[HII_R_INDEX(x, y, z)]);
 
                 *((float *)Mcrit_RE_grid + HII_R_FFT_INDEX(x,y,z)) = Mcrit_RE;
                 *((float *)Mcrit_LW_grid + HII_R_FFT_INDEX(x,y,z)) = Mcrit_LW;
@@ -1283,8 +1304,25 @@ LOG_DEBUG("global_xH = %e",global_xH);
 
 LOG_SUPER_DEBUG("freed fftw boxes");
 
-    free(xi_SFR);
-    free(wi_SFR);
+	if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+    	free(xi_SFR);
+    	free(wi_SFR);
+
+	free(log10_overdense_spline_SFR);
+	free(log10_Nion_spline);
+	free(Overdense_spline_SFR);
+	free(Nion_spline);
+	free(prev_log10_overdense_spline_SFR);
+	free(prev_log10_Nion_spline);
+	free(prev_Overdense_spline_SFR);
+	free(prev_Nion_spline);
+	free(Mturns);
+	free(Mturns_MINI);
+	free(log10_Nion_spline_MINI);
+	free(Nion_spline_MINI);
+	free(prev_log10_Nion_spline_MINI);
+	free(prev_Nion_spline_MINI);
+	}
 
     if(!flag_options->USE_TS_FLUCT) {
         freeSigmaMInterpTable();

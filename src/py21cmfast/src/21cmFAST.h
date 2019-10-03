@@ -52,6 +52,7 @@ struct AstroParams{
     
     float ION_Tvir_MIN;
     
+	double F_H2_SHIELD;
     double L_X;
     double L_X_MINI;
     float NU_X_THRESH;
@@ -87,6 +88,7 @@ struct TsBox{
     float *Ts_box;
     float *x_e_box;
     float *Tk_box;
+	float *J_21_LW_box;
 };
 
 struct IonizedBox{
@@ -97,7 +99,6 @@ struct IonizedBox{
     float *Gamma12_box;
     float *z_re_box;
     float *dNrec_box;
-	float *J_21_LW_box;
 	float *Fcoll;
 	float *Fcoll_MINI;
 };

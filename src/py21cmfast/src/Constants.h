@@ -117,6 +117,7 @@
 #define SQDEG_ALLSKY (double) ((360.0*360.0)/PI) // Square degrees in all sky
 #define G_AB_Jy (double) 3631.0 // AB mag constant in Jy
 #define NU_over_EV (double) (1.60217646e-12 / hplank)
+#define NU_LW_THRESH (double) (11.18*NU_over_EV)
 #define NUIONIZATION (double) (13.60*NU_over_EV)  // ionization frequency of H
 #define HeII_NUIONIZATION (double) (NUIONIZATION*4) // ionization frequency of HeII
 #define HeI_NUIONIZATION (double) (24.59*NU_over_EV) // ionization frequency of HeI

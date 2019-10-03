@@ -304,8 +304,10 @@ class AstroParams(StructWithDefaults):
         but is required by this class to set some default behaviour.
     HII_EFF_FACTOR : float, optional
     F_STAR10 : float, optional
+    F_STAR7_MINI : float, optional
     ALPHA_STAR : float, optional
     F_ESC10 : float, optional
+    F_ESC7_MINI : float, optional
     ALPHA_ESC : float, optional
     M_TURN : float, optional
     R_BUBBLE_MAX : float, optional
@@ -318,10 +320,12 @@ class AstroParams(StructWithDefaults):
         Factor relating cube length to filter radius = (4PI/3)^(-1/3), default is 0.620350491
     ION_Tvir_MIN : float, optional
     L_X : float, optional
+    L_X_MINI : float, optional
     NU_X_THRESH : float, optional
     X_RAY_SPEC_INDEX : float, optional
     X_RAY_Tvir_MIN : float, optional
         Default is `ION_Tvir_MIN`.
+    F_H2_SHIELD: self-shielding factor for molecular hydrogen
     t_STAR : float, optional
     N_RSD_STEPS : float, optional
     """
@@ -331,17 +335,21 @@ class AstroParams(StructWithDefaults):
     _defaults_ = dict(
         HII_EFF_FACTOR=30.0,
         F_STAR10=-1.3,
+        F_STAR7_MINI=-1.3,
         ALPHA_STAR=0.5,
         F_ESC10=-1.0,
+        F_ESC7_MINI=-1.0,
         ALPHA_ESC=-0.5,
         M_TURN=8.7,
         R_BUBBLE_MAX=None,
         L_FACTOR=0.620350491,
         ION_Tvir_MIN=4.69897,
         L_X=40.0,
+        L_X_MINI=40.0,
         NU_X_THRESH=500.0,
         X_RAY_SPEC_INDEX=1.0,
         X_RAY_Tvir_MIN=None,
+        F_H2_SHIELD=0.0,
         t_STAR=0.5,
         N_RSD_STEPS=20,
     )
@@ -357,9 +365,12 @@ class AstroParams(StructWithDefaults):
         if key in [
             "F_STAR10",
             "F_ESC10",
+            "F_STAR7_MINI",
+            "F_ESC7_MINI",
             "M_TURN",
             "ION_Tvir_MIN",
             "L_X",
+            "L_X_MINI",
             "X_RAY_Tvir_MIN",
         ]:
             return 10 ** val
@@ -581,9 +592,7 @@ class IonizedBox(_OutputStructZ):
 
         if (self.astro_params.F_STAR7_MINI * self.astro_params.F_ESC7_MINI*global_params.Pop3_ion > 1e-19):
             self.Fcoll_MINI = np.zeros(self.Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32)
-            self.J_21_LW_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
             self.Fcoll_MINI.shape = filter_shape
-            self.J_21_LW_box.shape = shape
     @cached_property
     def global_xH(self):
         if not self.filled:
@@ -601,22 +610,17 @@ class TsBox(IonizedBox):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.x_e_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.Tk_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.J_21_LW_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
-        self.Ts_box.shape = (
+        shape = (
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
         )
-        self.x_e_box.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-        self.Tk_box.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
+        self.Ts_box.shape = shape
+        self.x_e_box.shape = shape
+        self.Tk_box.shape = shape
+        self.J_21_LW_box.shape = shape
 
     @cached_property
     def global_Ts(self):

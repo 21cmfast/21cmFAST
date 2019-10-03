@@ -42,7 +42,7 @@ double get_M_min_ion(float z){
 int init_heat();
 
 // * returns the spectral emissity * //
-double spectral_emissivity(double nu_norm, int flag);
+double spectral_emissivity(double nu_norm, int flag, int Population);
 
 // * Ionization fraction from RECFAST. * //
 double xion_RECFAST(float z, int flag);
@@ -92,7 +92,7 @@ int init_heat()
         return -4;
     if (xion_RECFAST(100, 1) < 0)
         return -5;
-    if (spectral_emissivity(0,1) < 0)
+    if (spectral_emissivity(0,1,2) < 0)
         return -6;
     if( kappa_10_elec(1.0,1) < 0)
         return -2;
@@ -365,67 +365,85 @@ double frecycle(int n)
 
 
 // * Reads in and constructs table of the piecewise power-law fits to Pop 2 and Pop 3 stellar spectra, from Barkana * //
-double spectral_emissivity(double nu_norm, int flag)
+double spectral_emissivity(double nu_norm, int flag, int Population)
 {
     static int n[NSPEC_MAX];
     static float nu_n[NSPEC_MAX], alpha_S_2[NSPEC_MAX];
     static float alpha_S_3[NSPEC_MAX], N0_2[NSPEC_MAX], N0_3[NSPEC_MAX];
     double n0_fac;
     //  double ans, tot, lya;
-    double ans;
+    double result;
     int i;
     FILE *F;
     
     char filename[500];
     
-    if (flag == 1) {
-        // * Read in the data * //
-        sprintf(filename,"%s/%s",global_params.external_table_path,STELLAR_SPECTRA_FILENAME);
-        if (!(F = fopen(filename, "r"))){
-            printf("spectral_emissivity: Unable to open file: stellar_spectra.dat for reading\nAborting\n");
-            return -1;
-        }
-        
-        for (i=1;i<NSPEC_MAX;i++) {
-            fscanf(F, "%i %e %e %e %e", &n[i], &N0_2[i], &alpha_S_2[i], &N0_3[i], &alpha_S_3[i]);
-            //      printf("%i\t%e\t%e\t%e\t%e\n", n[i], N0_2[i], alpha_S_2[i], N0_3[i], alpha_S_3[i]);
-        }
-        fclose(F);
-        
-        for (i=1;i<NSPEC_MAX;i++) {
-            nu_n[i] = 4.0/3.0*(1.0-1.0/pow(n[i],2.0));
-        }
-        
-        for (i=1;i<(NSPEC_MAX-1);i++) {
-            n0_fac = (pow(nu_n[i+1],alpha_S_2[i]+1) - pow(nu_n[i],alpha_S_2[i]+1));
-            N0_2[i] *= (alpha_S_2[i]+1)/n0_fac*global_params.Pop2_ion;
-            n0_fac = (pow(nu_n[i+1],alpha_S_3[i]+1) - pow(nu_n[i],alpha_S_3[i]+1));
-            N0_3[i] *= (alpha_S_3[i]+1)/n0_fac*global_params.Pop3_ion;
-        }
-        
-        return 0.0;
-    }
+	switch(flag){
+		case 3:
+		    // For LW calculateion. New in v1.5, see...
+    		for (i=1;i<(NSPEC_MAX-1);i++) {
+      			if ((nu_norm >= nu_n[i]) && (nu_norm < nu_n[i+1])) {
+        			// We are in the correct spectral region
+        			if (Population == 2){
+						// moved (1. - F_H2_SHIELD) outside
+          				result = N0_2[i]  / (alpha_S_2[i] + 1) * ( pow(nu_n[i+1], alpha_S_2[i]+1) - pow(nu_norm, alpha_S_2[i]+1) );
+          				return result > 0 ? result:1e-40;
+        			}
+        			else{
+          				result = N0_3[i] / (alpha_S_3[i] + 1) * ( pow(nu_n[i+1], alpha_S_3[i]+1) - pow(nu_norm, alpha_S_3[i]+1) );
+          				return result > 0 ? result:1e-40;
+        			}
+      			}
+    		}
+
+		case 2:
+			return 0.0;
     
-    ans = 0.0;
-    for (i=1;i<(NSPEC_MAX-1);i++) {
-        //    printf("checking between %e and %e\n", nu_n[i], nu_n[i+1]);
-        if ((nu_norm >= nu_n[i]) && (nu_norm < nu_n[i+1])) {
-            // We are in the correct spectral region
-            if (global_params.Pop == 2)
-                ans = N0_2[i]*pow(nu_norm,alpha_S_2[i]);
-            else
-                ans = N0_3[i]*pow(nu_norm,alpha_S_3[i]);
-            //           printf("nu_norm=%e i=%i ans=%e\n", nu_norm, i, ans);
-            return ans/Ly_alpha_HZ;
-        }
-    }
+		case 1:
+        	// * Read in the data * //
+        	sprintf(filename,"%s/%s",global_params.external_table_path,STELLAR_SPECTRA_FILENAME);
+        	if (!(F = fopen(filename, "r"))){
+        	    printf("spectral_emissivity: Unable to open file: stellar_spectra.dat for reading\nAborting\n");
+        	    return -1;
+        	}
+        
+        	for (i=1;i<NSPEC_MAX;i++) {
+        	    fscanf(F, "%i %e %e %e %e", &n[i], &N0_2[i], &alpha_S_2[i], &N0_3[i], &alpha_S_3[i]);
+        	    //      printf("%i\t%e\t%e\t%e\t%e\n", n[i], N0_2[i], alpha_S_2[i], N0_3[i], alpha_S_3[i]);
+        	}
+        	fclose(F);
+        
+        	for (i=1;i<NSPEC_MAX;i++) {
+        	    nu_n[i] = 4.0/3.0*(1.0-1.0/pow(n[i],2.0));
+        	}
+        
+        	for (i=1;i<(NSPEC_MAX-1);i++) {
+        	    n0_fac = (pow(nu_n[i+1],alpha_S_2[i]+1) - pow(nu_n[i],alpha_S_2[i]+1));
+        	    N0_2[i] *= (alpha_S_2[i]+1)/n0_fac*global_params.Pop2_ion;
+        	    n0_fac = (pow(nu_n[i+1],alpha_S_3[i]+1) - pow(nu_n[i],alpha_S_3[i]+1));
+        	    N0_3[i] *= (alpha_S_3[i]+1)/n0_fac*global_params.Pop3_ion;
+        	}
+        
+        	return 0.0;
     
-    i= NSPEC_MAX-1;
-    if (global_params.Pop == 2)
-        return  N0_2[i]*pow(nu_norm,alpha_S_2[i])/Ly_alpha_HZ;
-    else
-        return N0_3[i]*pow(nu_norm,alpha_S_3[i])/Ly_alpha_HZ;
-    //  return 0;
+		default:
+    		for (i=1;i<(NSPEC_MAX-1);i++) {
+        		//    printf("checking between %e and %e\n", nu_n[i], nu_n[i+1]);
+        		if ((nu_norm >= nu_n[i]) && (nu_norm < nu_n[i+1])) {
+            		// We are in the correct spectral region
+            		if (Population == 2)
+                		return N0_2[i]*pow(nu_norm,alpha_S_2[i])/Ly_alpha_HZ;
+            		else
+                		return N0_3[i]*pow(nu_norm,alpha_S_3[i])/Ly_alpha_HZ;
+        		}
+    		}
+    
+    		i= NSPEC_MAX-1;
+    		if (Population == 2)
+        		return  N0_2[i]*pow(nu_norm,alpha_S_2[i])/Ly_alpha_HZ;
+    		else
+        		return N0_3[i]*pow(nu_norm,alpha_S_3[i])/Ly_alpha_HZ;
+	}
 }
 
 
@@ -838,8 +856,57 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
 // table in the new version of 21CMMC (including spin-temperature fluctuations).
 
 typedef struct{
-    double nu_0, x_e, x_e_ave, ion_eff;
+    double nu_0, x_e, x_e_ave, ion_eff, ion_eff_MINI, log10_Mturn_MINI, LOG10_MTURN_INT;
 } tauX_params_approx;
+double tauX_integrand_approx_MINI(double zhat, void *params){
+    
+    double n, drpropdz, nuhat, sigma_tilde, fcoll, HI_filling_factor_zhat;
+    
+    int z_fcoll_int1,z_fcoll_int2;
+    float z_fcoll_val1,z_fcoll_val2;
+    // New in v1.4
+	double log10_Mturn_MINI, LOG10_MTURN_INT;
+	double fcoll_MINI_left, fcoll_MINI_right, fcoll_MINI;
+    
+    int redshift_int_fcollz, log10_Mturn_MINI_int_fcollz;
+    float redshift_table_fcollz, log10_Mturn_MINI_table_fcollz;
+    
+    tauX_params_approx *p = (tauX_params_approx *) params;
+    
+    drpropdz = C * dtdz(zhat);
+    n = N_b0 * pow(1+zhat, 3);
+    nuhat = p->nu_0 * (1+zhat);
+	log10_Mturn_MINI = p->log10_Mturn_MINI;
+	LOG10_MTURN_INT = p->LOG10_MTURN_INT;
+    
+    redshift_int_fcollz = (int)floor( ( zhat - determine_zpp_min )/zpp_bin_width );
+    redshift_table_fcollz = determine_zpp_min + zpp_bin_width*(float)redshift_int_fcollz;
+
+    fcoll = Nion_z_val[redshift_int_fcollz] + ( zhat - redshift_table_fcollz )*( Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zpp_bin_width);        
+
+    log10_Mturn_MINI_int_fcollz = (int)floor( ( log10_Mturn_MINI - LOG10_MTURN_MIN) / LOG10_MTURN_INT);
+    log10_Mturn_MINI_table_fcollz = LOG10_MTURN_MIN + LOG10_MTURN_INT * (float)log10_Mturn_MINI_int_fcollz;
+
+    fcoll_MINI_left =    Nion_z_val_MINI[redshift_int_fcollz  + zpp_interp_points_SFR *  log10_Mturn_MINI_int_fcollz   ] + ( zhat - redshift_table_fcollz ) / (zpp_bin_width)*\
+                                      ( Nion_z_val_MINI[redshift_int_fcollz+1+ zpp_interp_points_SFR *  log10_Mturn_MINI_int_fcollz   ] -\
+                                        Nion_z_val_MINI[redshift_int_fcollz  + zpp_interp_points_SFR *  log10_Mturn_MINI_int_fcollz   ] );
+    fcoll_MINI_right =   Nion_z_val_MINI[redshift_int_fcollz  + zpp_interp_points_SFR * (log10_Mturn_MINI_int_fcollz+1)] + ( zhat - redshift_table_fcollz ) / (zpp_bin_width)*\
+                                      ( Nion_z_val_MINI[redshift_int_fcollz+1+ zpp_interp_points_SFR * (log10_Mturn_MINI_int_fcollz+1)] -\
+                                        Nion_z_val_MINI[redshift_int_fcollz  + zpp_interp_points_SFR * (log10_Mturn_MINI_int_fcollz+1)] );
+    fcoll_MINI = fcoll_MINI_left + (log10_Mturn_MINI - log10_Mturn_MINI_table_fcollz) / LOG10_MTURN_INT * (fcoll_MINI_right - fcoll_MINI_left);
+
+    if ((fcoll < 1e-20) && (fcoll_MINI < 1e-20)){
+        HI_filling_factor_zhat = 1;
+	}
+    else{
+        HI_filling_factor_zhat = 1 - (p->ion_eff * fcoll + p->ion_eff_MINI * fcoll_MINI)/(1.0 - p->x_e_ave); //simplification to use the <x_e> value at zp and not zhat.  should'nt matter much since the evolution in x_e_ave is slower than fcoll.  in principle should make an array to store past values of x_e_ave..
+	}
+    if (HI_filling_factor_zhat < 1e-4) HI_filling_factor_zhat = 1e-4; //set a floor for post-reionization stability
+    
+    sigma_tilde = species_weighted_x_ray_cross_section(nuhat, p->x_e);
+
+    return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
+}
 double tauX_integrand_approx(double zhat, void *params){
     
     double n, drpropdz, nuhat, sigma_tilde, fcoll, HI_filling_factor_zhat;
@@ -887,6 +954,49 @@ double tauX_integrand_approx(double zhat, void *params){
 
     return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
 }
+double tauX_approx_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, double HI_filling_factor_zp, double log10_Mturn_MINI, double LOG10_MTURN_INT){
+    
+    double result, error, fcoll;
+    
+    gsl_function F;
+    
+    double rel_tol  = 0.005; //<- relative tolerance
+    //    double rel_tol  = 0.01; //<- relative tolerance
+    gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
+    tauX_params_approx p;
+    
+    int z_fcoll_int1,z_fcoll_int2;
+    float z_fcoll_val1,z_fcoll_val2;
+    
+    float Splined_Fcollz_mean;
+    
+    int redshift_int_fcollz;
+    float redshift_table_fcollz;
+    
+    //     if (DEBUG_ON)
+    //     printf("in taux, parameters are: %e, %e, %f, %f, %e\n", nu, x_e, zp, zpp, HI_filling_factor_zp);
+    
+    F.function = &tauX_integrand_approx_MINI;
+    p.nu_0 = nu/(1+zp);
+    p.x_e = x_e;
+    p.x_e_ave = x_e_ave;
+    p.ion_eff = global_params.Pop2_ion*astro_params_hf->F_STAR10*astro_params_hf->F_ESC10;
+    p.ion_eff_MINI = global_params.Pop3_ion*astro_params_hf->F_STAR7_MINI*astro_params_hf->F_ESC7_MINI;
+	p.log10_Mturn_MINI = log10_Mturn_MINI;
+	p.LOG10_MTURN_INT = LOG10_MTURN_INT;
+    
+    F.params = &p;
+    gsl_integration_qag (&F, zpp, zp, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
+    //    gsl_integration_qag (&F, zpp, zp, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
+    gsl_integration_workspace_free (w);
+    
+    
+    //     if (DEBUG_ON)
+    //     printf("returning from tauX, return value=%e\n", result);
+    
+    return result;
+}
+
 double tauX_approx(double nu, double x_e, double x_e_ave, double zp, double zpp, double HI_filling_factor_zp){
     
     double result, error, fcoll;
@@ -966,12 +1076,88 @@ double tauX_approx(double nu, double x_e, double x_e_ave, double zp, double zpp,
 // table in the new version of 21CMMC (including spin-temperature fluctuations).
 
 typedef struct{
-    double x_e, zp, zpp, HI_filling_factor_zp;
+    double x_e, zp, zpp, HI_filling_factor_zp,log10_Mturn_MINI,LOG10_MTURN_INT;
 } nu_tau_one_params_approx;
+double nu_tau_one_helper_approx_MINI(double nu, void * params){
+    nu_tau_one_params_approx *p = (nu_tau_one_params_approx *) params;
+    return tauX_approx_MINI(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp,p->log10_Mturn_MINI,p->LOG10_MTURN_INT) - 1;
+}
 double nu_tau_one_helper_approx(double nu, void * params){
     nu_tau_one_params_approx *p = (nu_tau_one_params_approx *) params;
     return tauX_approx(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp) - 1;
 }
+double nu_tau_one_approx_MINI(double zp, double zpp, double x_e, double HI_filling_factor_zp, double log10_Mturn_MINI, double LOG10_MTURN_INT){
+    
+    int status, iter, max_iter;
+    const gsl_root_fsolver_type * T;
+    gsl_root_fsolver * s;
+    gsl_function F;
+    double x_lo, x_hi, r=0;
+    double relative_error = 0.02;
+    nu_tau_one_params_approx p;
+    
+//    if (DEBUG_ON){
+//        printf("in nu tau one, called with parameters: zp=%f, zpp=%f, x_e=%e, HI_filling_at_zp=%e\n", zp, zpp, x_e, HI_filling_factor_zp);
+//    }
+    
+    // check if too ionized
+    if (x_e > 0.9999){
+        //        fprintf(stderr,"Ts.c: WARNING: x_e value is too close to 1 for convergence in nu_tau_one\n");
+        return -1;
+    }
+    
+    // select solver and allocate memory
+    T = gsl_root_fsolver_brent;
+    s = gsl_root_fsolver_alloc(T); // non-derivative based Brent method
+    if (!s){
+        printf("Ts.c: Unable to allocate memory in function nu_tau_one!\n");
+        return -1;
+    }
+    
+    //check if lower bound has null
+    if (tauX_approx_MINI(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp, log10_Mturn_MINI, LOG10_MTURN_INT) < 1)
+        return HeI_NUIONIZATION;
+    
+    // set frequency boundary values
+    x_lo= HeI_NUIONIZATION;
+    x_hi = 1e6 * NU_over_EV;
+    
+    // select function we wish to solve
+    p.x_e = x_e;
+    p.zp = zp;
+    p.zpp = zpp;
+    p.HI_filling_factor_zp = HI_filling_factor_zp;
+	p.log10_Mturn_MINI = log10_Mturn_MINI;
+	p.LOG10_MTURN_INT = LOG10_MTURN_INT;
+    F.function = &nu_tau_one_helper_approx_MINI;
+    F.params = &p;
+    gsl_root_fsolver_set (s, &F, x_lo, x_hi);
+    
+    // iterate until we guess close enough
+//    if (DEBUG_ON) printf ("%5s [%9s, %9s] %9s %9s\n", "iter", "lower", "upper", "root", "err(est)");
+    iter = 0;
+    max_iter = 100;
+    do{
+        iter++;
+        status = gsl_root_fsolver_iterate (s);
+        r = gsl_root_fsolver_root (s);
+        //      printf("iter%i, r=%e\n", iter, r);
+        x_lo = gsl_root_fsolver_x_lower (s);
+        x_hi = gsl_root_fsolver_x_upper (s);
+        status = gsl_root_test_interval (x_lo, x_hi, 0, relative_error);
+//        if (DEBUG_ON){
+//            printf ("%5d [%.7e, %.7e] %.7e %.7e\n", iter, x_lo, x_hi, r, (x_hi - x_lo)/r);
+//            fflush(NULL);
+//        }
+    }
+    while (status == GSL_CONTINUE && iter < max_iter);
+    
+    // deallocate and return
+    gsl_root_fsolver_free (s);
+//    if (DEBUG_ON) printf("Root found at %e eV", r/NU_over_EV);
+    return r;
+}
+
 double nu_tau_one_approx(double zp, double zpp, double x_e, double HI_filling_factor_zp){
     
     int status, iter, max_iter;
