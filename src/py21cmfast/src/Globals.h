@@ -69,11 +69,6 @@ struct GlobalParams{
 
 
 
-    // int USE_RELATIVE_VELOCITIES;
-    // int POWER_SPECTRUM;
-    //moved to 21cmFAST.h
-
-
 
 };
 
