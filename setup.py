@@ -42,9 +42,10 @@ pkgdir = os.path.dirname(os.path.abspath(__file__))
 if not os.path.exists(cfgdir):
     os.makedirs(cfgdir)
 
-copyfile(join(pkgdir, "config.yml"), join(cfgdir, "config.yml"))
-copyfile(join(pkgdir, "runconfig_example.yml"), join(cfgdir, "runconfig_example.yml"))
-copy_tree(join(pkgdir, "External_tables"), join(cfgdir, "External_tables"))
+# copyfile(join(pkgdir, "user_data", "config.yml"), join(cfgdir, "config.yml"))
+# copyfile(join(pkgdir, "runconfig_example.yml"), join(cfgdir, "runconfig_example.yml"))
+# copy_tree(join(pkgdir, "External_tables"), join(cfgdir, "External_tables"))
+copy_tree(join(pkgdir, "user_data"), cfgdir)
 
 boxdir = os.environ.get("BOXDIR", None)
 
