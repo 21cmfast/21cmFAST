@@ -1,4 +1,8 @@
 
+src/21cmFAST.egg-info/
+
+pip-wheel-metadata/
+
 \.idea/
 
 *.pyc
