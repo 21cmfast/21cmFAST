@@ -3,6 +3,8 @@
 
 *.pyc
 
+src/21cmFAST.egg-info/
+pip-wheel-metadata/
 src/py21cmfast\.egg-info/
 
 *.so

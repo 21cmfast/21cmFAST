@@ -4,7 +4,14 @@ Changelog
 
 v3.0.0rc1
 ---------
-
+Added
+~~~~~
+* Tests: many unit tests, and also some regression tests.
+* CLI: run 21cmFAST boxes from the command line, query the cache database, and produce
+  plots for standard comparison runs.
+* Documentation: Jupyter notebook demos and tutorials, FAQs, installation instructions.
+* Plotting routines: a number of general plotting routines designed to plot coeval
+  and lightcone slices.
 
 v2.0.0
 ------
