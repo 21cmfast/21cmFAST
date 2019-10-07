@@ -195,7 +195,7 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
       fscanf(F, "%e %e %e ", &currk, &currTm, &currTv);
       kclass[i] = currk;
       Tmclass[i] = currTm;//     printf("k=%.1le Tm=%.1le \n", currk,currTm);
-      Tvclass_vcb[i] = currTv;//     printf("k=%.1le Tm=%.1le \n", currk,currTv);
+      Tvclass_vcb[i] = currTv;//     printf("k=%.1le Tv=%.1le \n", currk,currTv);
       if(kclass[i]<=kclass[i-1] && i>0){
       	printf("WARNING, Tk table not ordered \n");
       	printf("k=%.1le kprev=%.1le \n\n",kclass[i],kclass[i-1]);
@@ -208,10 +208,13 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
     spline_density  = gsl_spline_alloc (gsl_interp_cspline, CLASS_LENGTH);
     gsl_spline_init(spline_density, kclass, Tmclass, CLASS_LENGTH);
 
-    // Set up spline table for velocities
+
+    //Set up spline table for velocities
     acc_vcb   = gsl_interp_accel_alloc ();
     spline_vcb  = gsl_spline_alloc (gsl_interp_cspline, CLASS_LENGTH);
     gsl_spline_init(spline_vcb, kclass, Tvclass_vcb, CLASS_LENGTH);
+
+
 
     return 0;
   }
@@ -219,8 +222,8 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
   if (flag_int == -1) {
     gsl_spline_free (spline_density);
     gsl_interp_accel_free(acc_density);
-    gsl_spline_free (acc_vcb);
-    gsl_interp_accel_free(spline_vcb);
+    gsl_spline_free (spline_vcb);
+    gsl_interp_accel_free(acc_vcb);
     return 0;
   }
 
@@ -231,7 +234,7 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
     if(flag_dv == 0){ // output is density
       return (Tmclass[CLASS_LENGTH]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
     }
-    if(flag_dv == 1){ // output is rel velocity
+    else if(flag_dv == 1){ // output is rel velocity
       return (Tvclass_vcb[CLASS_LENGTH]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
     }    //we just set it to the last value, since sometimes it wants large k for R<<cell_size, which does not matter much.
   }
@@ -239,8 +242,11 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
     if(flag_dv == 0){ // output is density
       ans = gsl_spline_eval (spline_density, k, acc_density);
     }
-    if(flag_dv == 1){ // output is rel velocity
+    else if(flag_dv == 1){ // output is relative velocity
       ans = gsl_spline_eval (spline_vcb, k, acc_vcb);
+    }
+    else{
+      ans=0.0; //neither densities not velocities?
     }
   }
 
@@ -305,7 +311,7 @@ double dsigma_dk(double k, void *params){
         p = pow(k, cosmo_params_ps->POWER_INDEX) * 19400.0 / pow(1 + aa*k + bb*pow(k, 1.5) + cc*k*k, 2);
     }
     else if (user_params_ps->POWER_SPECTRUM == 5){ // output of CLASS
-        T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS. Note, flag = 1 here always, since now we have to have initialized the interpolator for CLASS
+        T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS. Note, flag_int = 1 here always, since now we have to have initialized the interpolator for CLASS
   	    p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
     }
     else{
@@ -457,7 +463,7 @@ double power_in_k(double k){
         p = pow(k, cosmo_params_ps->POWER_INDEX) * 19400.0 / pow(1 + aa*k + bb*pow(k, 1.5) + cc*k*k, 2);
     }
     else if (user_params_ps->POWER_SPECTRUM == 5){ // output of CLASS
-        T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS. Note, flag = 1 here always, since now we have to have initialized the interpolator for CLASS
+        T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS. Note, flag_int = 1 here always, since now we have to have initialized the interpolator for CLASS
   	    p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
     }
     else{
@@ -475,11 +481,13 @@ double power_in_k(double k){
   at kinematic decoupling (which we set at zkin=1010)
 */
 double power_in_vcb(double k){
+
+
   double p, T, gamma, q, aa, bb, cc;
 
   //only works if using CLASS
   if (user_params_ps->POWER_SPECTRUM == 5){ // CLASS
-    T = TF_CLASS(k, 1.0, 1); //read from CLASS file. flag=1 since we have initialized before
+    T = TF_CLASS(k, 1, 1); //read from CLASS file. flag_int=1 since we have initialized before, flag_vcb=1 for velocity
 	  p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
   }
   else{
@@ -572,9 +580,9 @@ double init_ps(){
 void free_ps(){
 
 	//we free the PS interpolator if using CLASS:
-		if (user_params_ps->POWER_SPECTRUM == 5){
-			TF_CLASS(1.0, -1, 0);
-		}
+	if (user_params_ps->POWER_SPECTRUM == 5){
+		TF_CLASS(1.0, -1, 0);
+	}
 
   return;
 }

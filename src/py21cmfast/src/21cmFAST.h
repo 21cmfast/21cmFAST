@@ -73,6 +73,7 @@ struct FlagOptions{
 
 struct InitialConditions{
     float *lowres_density, *lowres_vx, *lowres_vy, *lowres_vz, *lowres_vx_2LPT, *lowres_vy_2LPT, *lowres_vz_2LPT, *hires_density;
+    float *lowres_vcb, *hires_vcb;
 };
 
 struct PerturbedField{

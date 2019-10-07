@@ -52,3 +52,21 @@ def test_transfer_function(basic_init_box):
     assert rmsdelta < rmsnew
     assert rmsnew > 0.0
     assert not np.allclose(ic.hires_density, basic_init_box.hires_density)
+
+
+def test_relvels(basic_init_box):
+    """Test for relative velocity initial conditions"""
+    ic = wrapper.initial_conditions(
+        regenerate=True,
+        write=False,
+        user_params=wrapper.UserParams(
+            HII_DIM=100, BOX_LEN=300, POWER_SPECTRUM=5, USE_RELATIVE_VELOCITIES=True
+        ),
+    )
+
+    vcbrms = np.sqrt(np.mean(ic.hires_vcb ** 2))
+    vcbavg = np.mean(ic.hires_vcb)
+    assert vcbrms > 20.0
+    assert vcbrms < 40.0
+    assert vcbavg < vcbrms
+    assert vcbavg > 0.0
