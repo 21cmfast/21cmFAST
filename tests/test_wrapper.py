@@ -7,7 +7,7 @@ import pytest
 
 from py21cmfast import wrapper
 
-REDSHIFT = 17
+REDSHIFT = 15
 
 
 @pytest.fixture(scope="module")
