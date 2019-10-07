@@ -1,28 +1,24 @@
-
 Changelog
 =========
 
-v3.0.0rc1
----------
+v3.0.0.dev
+----------
+Complete overhaul of 21cmFAST, including a robust python-wrapper and interface,
+caching mechanisms, and public repository with continuous integration.
 
-relvel - Changed when adding relative velocity boxes:
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Added
+~~~~~
+* New power spectrum option (``POWER_SPECTRUM=5``) that uses a CLASS-based transfer
+  function. WARNING: If POWER_SPECTRUM==5 the cosmo parameters cannot be altered, they
+  are set to the Planck2018 best-fit values for now (until CLASS is added):
+  (omegab=0.02237, omegac= 0.120, hubble=0.6736 (the rest are irrelevant for the
+  transfer functions, but in case:  A_s=2.100e-9, n_s=0.9649, z_reio = 11.357)
+* New ``user_params`` option ``USE_RELATIVE_VELOCITIES``, which produces initial relative
+  velocity cubes (option implemented, but not the actual computation yet).
 
-
--boxes of initial relative velocities added.
-Variable USE_RELATIVE_VELOCITIES as a flag that sets whether to do relative velocities.
-
-
-
--new POWER_SPECTRUM option (5), to read an input transfer file from CLASS for both density and velocities.
-This is temporary, and will be updated eventually to interface with CLASS.
-The POWER_SPECTRUM option has been moved to 21cmFAST.h so the user can change it (as it has to be 5 if relative velocities are used).
-(WARNING: If POWER_SPECTRUM==5 the cosmo parameters cannot be altered, they are set to the Planck2018 best-fit values for now (until CLASS is added):
-(omegab=0.02237, omegac= 0.120, hubble=0.6736 [[the rest are irrelevant for the transfer functions, but in case:  A_s=2.100e-9, n_s=0.9649, z_reio = 11.357]])
-
-
-
-
+Changed
+~~~~~~~
+* ``POWER_SPECTRUM`` option moved from ``global_params`` to ``user_params``.
 
 
 v2.0.0
