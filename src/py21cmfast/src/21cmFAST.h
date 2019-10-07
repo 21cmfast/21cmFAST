@@ -32,7 +32,7 @@ struct UserParams{
     int HMF;
     int USE_RELATIVE_VELOCITIES;
     int POWER_SPECTRUM;
-	float L_FACTOR; 
+    float L_FACTOR; 
 
 };
 
@@ -46,15 +46,15 @@ struct AstroParams{
     float F_ESC10;
     float ALPHA_ESC;
     float M_TURN;
-	float F_STAR7_MINI;
+    float F_STAR7_MINI;
     float F_ESC7_MINI;
     
     float R_BUBBLE_MAX;
-	float R_BUBBLE_MIN;
+    float R_BUBBLE_MIN;
     
     float ION_Tvir_MIN;
     
-	double F_H2_SHIELD;
+    double F_H2_SHIELD;
 
     double L_X;
     double L_X_MINI;
@@ -91,19 +91,19 @@ struct TsBox{
     float *Ts_box;
     float *x_e_box;
     float *Tk_box;
-	float *J_21_LW_box;
+    float *J_21_LW_box;
 };
 
 struct IonizedBox{
     int first_box;
-	double mean_f_coll;
-	double mean_f_coll_MINI;
+    double mean_f_coll;
+    double mean_f_coll_MINI;
     float *xH_box;
     float *Gamma12_box;
     float *z_re_box;
     float *dNrec_box;
-	float *Fcoll;
-	float *Fcoll_MINI;
+    float *Fcoll;
+    float *Fcoll_MINI;
 };
 
 struct BrightnessTemp{

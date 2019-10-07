@@ -172,3 +172,17 @@
 #define CLASS_LENGTH  150 //length of the CLASS transfer function
 #define KBOT_CLASS (float) (1e-5) //max and min k in  CLASS transfer function, temporary until interfaced properly
 #define KTOP_CLASS (float) (1e3)
+
+
+// ----------------------------------------------------------------------------------------- //
+
+// For reionization_feedback, reference Sobacchi & Mesinger 2013
+
+// ----------------------------------------------------------------------------------------- //
+
+#define HALO_BIAS     (double) 2.0
+#define REION_SM13_M0 (double) 3e9
+#define REION_SM13_A  (double) 0.17
+#define REION_SM13_B  (double) -2.1
+#define REION_SM13_C  (double) 2.0
+#define REION_SM13_D  (double) 2.5
