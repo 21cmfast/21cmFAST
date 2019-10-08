@@ -1,4 +1,3 @@
-
 /*** Some usefull math macros ***/
 #define SIGN(a,b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
 
@@ -42,6 +41,15 @@ static gsl_spline *erfc_spline;
 #define delta_lnMhalo (double)(5e-6)
 #define Mhalo_min (double)(1e6)
 #define Mhalo_max (double)(1e16)
+
+float calibrated_NF_min;
+int initialise_photoncons = 1;
+float times_exceeded = 0.;
+float times_exceeded2 = 0.;
+
+double *deltaz, *deltaz_smoothed, *NeutralFractions;
+int N_NFsamples,N_extrapolated;
+
 
 bool initialised_ComputeLF = false;
 
@@ -95,6 +103,9 @@ static gsl_spline *z_at_Q_spline;
 static double Zmin, Zmax, Qmin, Qmax;
 void Q_at_z(double z, double *splined_value);
 void z_at_Q(double Q, double *splined_value);
+
+static gsl_interp_accel *deltaz_spline_for_photoncons_acc;
+static gsl_spline *deltaz_spline_for_photoncons;
 
 static gsl_interp_accel *NFHistory_spline_acc;
 static gsl_spline *NFHistory_spline;
@@ -933,6 +944,8 @@ double Nion_General(double z, double MassTurnover, double Alpha_star, double Alp
         .LimitMass_Fesc = Mlim_Fesc,
     };
     
+    int status;
+    
     if(user_params_ps->HMF<4 && user_params_ps->HMF>-1) {
     
         F.function = &dNion_General;
@@ -940,8 +953,15 @@ double Nion_General(double z, double MassTurnover, double Alpha_star, double Alp
     
         lower_limit = log(M_Min);
         upper_limit = log(FMAX(1e16, M_Min*100));
+        
+        gsl_set_error_handler_off();
     
-        gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
+        status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
+        if(status!=0) {
+            printf("(function argument): %e %e %e %e %e\n",lower_limit,upper_limit,rel_tol,result,error);
+            printf("data: %e %e %e %e %e %e %e %e %e\n",z,growthf,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+            exit(-1);
+        }
         gsl_integration_workspace_free (w);
     
         return result / ((cosmo_params_ps->OMm)*RHOcrit);
@@ -1489,8 +1509,19 @@ double Nion_ConditionalM(double growthf, double M1, double M2, double sigma2, do
     lower_limit = M1;
     upper_limit = M2;
     
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+    int status;
+    
+    gsl_set_error_handler_off();
+    
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
+    
+    if(status!=0) {
+        printf("(function argument): %e %e %e %e %e\n",lower_limit,upper_limit,rel_tol,result,error);
+        printf("data: %e %e %e %e %e %e %e %e %e %e %e %e %e\n",growthf,M1,M2,sigma2,delta1,delta2,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+        exit(-1);
+    }
+    
     gsl_integration_workspace_free (w);
     
     if(delta2 > delta1) {
@@ -1848,7 +1879,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     //     (2) With the fiducial parameter set,
     //     the difference for the redshift where the reionization end (Q = 1) is ~0.2 % compared with accurate calculation.
     float ION_EFF_FACTOR,M_MIN,M_MIN_z0,M_MIN_z1,Mlim_Fstar, Mlim_Fesc;
-    double a_start = 0.03, a_end = 0.15; // Scale factors of 0.03 and 0.15 correspond to redshifts of ~32 and ~5.7, respectively.
+    double a_start = 0.03, a_end = 1./(1. + 5.0); // Scale factors of 0.03 and 0.17 correspond to redshifts of ~32 and ~5.0, respectively.
     double C_HII = 3., T_0 = 2e4;
     double reduce_ratio = 1.003;
     double Q0,Q1,Nion0,Nion1,Trec,da,a,z0,z1,zi,dadt,ans,delta_a,zi_prev,Q1_prev;
@@ -1999,8 +2030,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     double *Q_value = calloc(nbin,sizeof(double));
     
     Q_at_z_spline_acc = gsl_interp_accel_alloc ();
-//    Q_at_z_spline = gsl_spline_alloc (gsl_interp_cspline, nbin);
-    Q_at_z_spline = gsl_spline_alloc (gsl_interp_linear, nbin);
+    Q_at_z_spline = gsl_spline_alloc (gsl_interp_cspline, nbin);
+//    Q_at_z_spline = gsl_spline_alloc (gsl_interp_linear, nbin);
     
     for (i=0; i<nbin; i++){
         z_Q[i] = z_arr[cnt-i];
@@ -2048,21 +2079,309 @@ double ComputeZstart_PhotonCons() {
     
     double temp;
     
-    z_at_Q(1. - global_params.PhotonConsStart,&(temp));
+    if((1.-global_params.PhotonConsStart) > Qmax) {
+        // It is possible that reionisation never even starts
+        // Just need to arbitrarily set a high redshift to perform the algorithm
+        temp = 20.;
+    }
+    else {
+        z_at_Q(1. - global_params.PhotonConsStart,&(temp));
+    }
     
     return(temp);
 }
 
 
+void determine_deltaz_for_photoncons() {
+    
+    int i, j, increasing_val, counter, smoothing_int;
+    double temp;
+    float z_cal, z_analytic, NF_sample, returned_value, NF_sample_min, gradient_analytic, z_analytic_at_endpoint, const_offset, z_analytic_2, smoothing_width;
+    float bin_width, delta_NF, val1, val2, extrapolated_value;
+    
+    // Number of points for determine the delta z correction of the photon non-conservation
+    N_NFsamples = 100;
+    // Determine the change in neutral fraction to calculate the gradient for the linear extrapolation of the photon non-conservation correction
+    delta_NF = 0.025;
+    // A width (in neutral fraction data points) in which point we average over to try and avoid sharp features in the correction (removes some kinks)
+    // Effectively acts as filtering step
+    smoothing_width = 35.;
+    
+    
+    // The photon non-conservation correction has a threshold (in terms of neutral fraction; global_params.PhotonConsEnd) for which we switch
+    // from using the exact correction between the calibrated (21cmFAST all flag options off) to analytic expression to some extrapolation.
+    // This threshold is required due to the behaviour of 21cmFAST at very low neutral fractions, which cause extreme behaviour with recombinations on
+    
+    // A lot of the steps and choices are not completely rubust, just chosed to smooth/average the data to have smoother resultant reionisation histories
+    
+    // Determine the number of extrapolated points required, if required at all.
+    if(calibrated_NF_min < global_params.PhotonConsEnd) {
+        // We require extrapolation, set minimum point to the threshold, and extrapolate beyond.
+        NF_sample_min = global_params.PhotonConsEnd;
+
+        // Determine the number of extrapolation points (to better smooth the correction) between the threshod (global_params.PhotonConsEnd) and a
+        // point close to zero neutral fraction (set by global_params.PhotonConsAsymptoteTo)
+        // Choice is to get the delta neutral fraction between extrapolated points to be similar to the cadence in the exact correction
+        if(calibrated_NF_min > global_params.PhotonConsAsymptoteTo) {
+            N_extrapolated = ((float)N_NFsamples - 1.)*(NF_sample_min - calibrated_NF_min)/( global_params.PhotonConsStart - NF_sample_min );
+        }
+        else {
+            N_extrapolated = ((float)N_NFsamples - 1.)*(NF_sample_min - global_params.PhotonConsAsymptoteTo)/( global_params.PhotonConsStart - NF_sample_min );
+        }
+        N_extrapolated = (int)floor( N_extrapolated ) - 1; // Minus one as the zero point is added below
+    }
+    else {
+        // No extrapolation required, neutral fraction never reaches zero
+        NF_sample_min = calibrated_NF_min;
+        
+        N_extrapolated = 0;
+    }
+    
+    // Determine the bin width for the sampling of the neutral fraction for the correction
+    bin_width = ( global_params.PhotonConsStart - NF_sample_min )/((float)N_NFsamples - 1.);
+    
+    // allocate memory for arrays required to determine the photon non-conservation correction
+    deltaz = calloc(N_NFsamples + N_extrapolated + 1,sizeof(double));
+    deltaz_smoothed = calloc(N_NFsamples + N_extrapolated + 1,sizeof(double));
+    NeutralFractions = calloc(N_NFsamples + N_extrapolated + 1,sizeof(double));
+    
+    // Go through and fill the data points (neutral fraction and corresponding delta z between the calibrated and analytic curves).
+    for(i=0;i<N_NFsamples;i++) {
+        
+        NF_sample = NF_sample_min + bin_width*(float)i;
+        
+        // Determine redshift given a neutral fraction for the calibration curve
+        z_at_NFHist(NF_sample,&(temp));
+        
+        z_cal = temp;
+        
+        // Determine redshift given a neutral fraction for the analytic curve
+        z_at_Q(1. - NF_sample,&(temp));
+        
+        z_analytic = temp;
+        
+        deltaz[i+1+N_extrapolated] = fabs( z_cal - z_analytic );
+        NeutralFractions[i+1+N_extrapolated] = NF_sample;
+    }
+    
+    // Determining the end-point (lowest neutral fraction) for the photon non-conservation correction
+    if(calibrated_NF_min >= global_params.PhotonConsEnd) {
+        
+        increasing_val = 0;
+        counter = 0;
+
+        // Check if all the values of delta z are increasing
+        for(i=0;i<(N_NFsamples-1);i++) {
+            if(deltaz[i+1+N_extrapolated] >= deltaz[i+N_extrapolated]) {
+                counter += 1;
+            }
+        }
+        // If all the values of delta z are increasing, then some of the smoothing of the correction done below cannot be performed
+        if(counter==(N_NFsamples-1)) {
+            increasing_val = 1;
+        }
+        
+        // Since we never have reionisation, need to set an appropriate end-point for the correction
+        // Take some fraction of the previous point to determine the end-point
+        NeutralFractions[0] = 0.999*NF_sample_min;
+        if(increasing_val) {
+            // Values of delta z are always increasing with decreasing neutral fraction thus make the last point slightly larger
+            deltaz[0] = 1.001*deltaz[1];
+        }
+        else {
+            // Values of delta z are always decreasing with decreasing neutral fraction thus make the last point slightly smaller
+            deltaz[0] = 0.999*deltaz[1];
+        }
+    }
+    else {
+        
+        // Ok, we are going to be extrapolating the photon non-conservation (delta z) beyond the threshold
+        // Construct a linear curve for the analytic function to extrapolate to the new endpoint
+        // The choice for doing so is to ensure the corrected reionisation history is mostly smooth, and doesn't
+        // artificially result in kinks due to switching between how the delta z should be calculated
+
+        z_at_Q(1. - (NeutralFractions[1+N_extrapolated] + delta_NF),&(temp));
+        z_analytic = temp;
+    
+        z_at_Q(1. - NeutralFractions[1+N_extrapolated],&(temp));
+        z_analytic_2 = temp;
+    
+        // determine the linear curve
+        gradient_analytic = ( delta_NF )/( z_analytic - z_analytic_2 );
+        const_offset = ( NeutralFractions[1+N_extrapolated] + delta_NF ) - gradient_analytic * z_analytic;
+        
+        // determine the extrapolation end point
+        if(calibrated_NF_min > global_params.PhotonConsAsymptoteTo) {
+            extrapolated_value = calibrated_NF_min;
+        }
+        else {
+            extrapolated_value = global_params.PhotonConsAsymptoteTo;
+        }
+        
+        // calculate the delta z for the extrapolated end point
+        z_at_NFHist(extrapolated_value,&(temp));
+        z_cal = temp;
+        
+        z_analytic_at_endpoint = ( extrapolated_value - const_offset )/gradient_analytic ;
+        
+        deltaz[0] = fabs( z_cal - z_analytic_at_endpoint );
+        NeutralFractions[0] = extrapolated_value;
+        
+        // If performing extrapolation, add in all the extrapolated points between the end-point and the threshold to end the correction (global_params.PhotonConsEnd)
+        for(i=0;i<N_extrapolated;i++) {
+            if(calibrated_NF_min > global_params.PhotonConsAsymptoteTo) {
+                NeutralFractions[i+1] = calibrated_NF_min + (NF_sample_min - calibrated_NF_min)*(float)(i+1)/((float)N_extrapolated + 1.);
+            }
+            else {
+                NeutralFractions[i+1] = global_params.PhotonConsAsymptoteTo + (NF_sample_min - global_params.PhotonConsAsymptoteTo)*(float)(i+1)/((float)N_extrapolated + 1.);
+            }
+            
+            deltaz[i+1] = deltaz[0] + ( deltaz[1+N_extrapolated] - deltaz[0] )*(float)(i+1)/((float)N_extrapolated + 1.);
+        }
+    }
+    
+    // We have added the extrapolated values, now check if they are all increasing or not (again, to determine whether or not to try and smooth the corrected curve
+    increasing_val = 0;
+    counter = 0;
+
+    for(i=0;i<(N_NFsamples-1);i++) {
+        if(deltaz[i+1+N_extrapolated] >= deltaz[i+N_extrapolated]) {
+            counter += 1;
+        }
+    }
+    if(counter==(N_NFsamples-1)) {
+        increasing_val = 1;
+    }
+    
+    
+    
+    // For some models, the resultant delta z for extremely high neutral fractions ( > 0.95) seem to oscillate or sometimes drop in value.
+    // This goes through and checks if this occurs, and tries to smooth this out
+    // This doesn't occur very often, but can cause an artificial drop in the reionisation history (neutral fraction value) connecting the
+    // values before/after the photon non-conservation correction starts.
+    for(i=0;i<(N_NFsamples+N_extrapolated);i++) {
+        
+        val1 = deltaz[i];
+        val2 = deltaz[i+1];
+        
+        counter = 0;
+        
+        // Check if we have a neutral fraction above 0.95, that the values are decreasing (val2 < val1), that we haven't sampled too many points (counter)
+        // and that the NF_sample_min is less than around 0.8. That is, if a reasonable fraction of the reionisation history is sampled.
+        while( NeutralFractions[i+1] > 0.95 && val2 < val1 && NF_sample_min < 0.8 && counter < 100) {
+            
+            NF_sample = global_params.PhotonConsStart - 0.001*(counter+1);
+            
+            // Determine redshift given a neutral fraction for the calibration curve
+            z_at_NFHist(NF_sample,&(temp));
+            z_cal = temp;
+            
+            // Determine redshift given a neutral fraction for the analytic curve
+            z_at_Q(1. - NF_sample,&(temp));
+            z_analytic = temp;
+
+            // Determine the delta z
+            val2 = fabs( z_cal - z_analytic );
+            deltaz[i+1] = val2;
+            counter += 1;
+            
+            // If after 100 samplings we couldn't get the value to increase (like it should), just modify it from the previous point.
+            if(counter==100) {
+                deltaz[i+1] = deltaz[i] * 1.01;
+            }
+            
+        }
+    }
+    
+    // Store the data in its intermediate state before averaging
+    for(i=0;i<(N_NFsamples+N_extrapolated+1);i++) {
+        deltaz_smoothed[i] = deltaz[i];
+    }
+    
+
+    // If we are not increasing for all values, we can smooth out some features in delta z when connecting the extrapolated delta z values
+    // compared to those from the exact correction (i.e. when we cross the threshold).
+    if(!increasing_val) {
+    
+        for(i=0;i<(N_NFsamples+N_extrapolated);i++) {
+     
+            val1 = deltaz[0];
+            val2 = deltaz[i+1];
+        
+            counter = 0;
+            // Try and find a point which can be used to smooth out any dip in delta z as a function of neutral fraction.
+            // It can be flat, then drop, then increase. This smooths over this drop (removes a kink in the resultant reionisation history).
+            // Choice of 75 is somewhat arbitrary
+            while(val2 < val1 && (counter < 75 || (1+(i+1)+counter) > (N_NFsamples+N_extrapolated))) {
+                counter += 1;
+                val2 = deltaz[i+1+counter];
+            
+                deltaz_smoothed[i+1] = ( val1 + deltaz[1+(i+1)+counter] )/2.;
+            }
+            if(counter==75 || (1+(i+1)+counter) > (N_NFsamples+N_extrapolated)) {
+                deltaz_smoothed[i+1] = deltaz[i+1];
+            }
+        }
+    }
+    
+
+    // Here we effectively filter over the delta z as a function of neutral fraction to try and minimise any possible kinks etc. in the functional curve.
+    for(i=0;i<(N_NFsamples+N_extrapolated+1);i++) {
+
+        // We are at the end-points, cannot smooth
+        if(i==0 || i==(N_NFsamples+N_extrapolated)) {
+            deltaz[i] = deltaz_smoothed[i];
+        }
+        else {
+            
+            deltaz[i] = 0.;
+            
+            // We are symmetrically smoothing, making sure we have the same number of data points either side of the point we are filtering over
+            // This determins the filter width when close to the edge of the data ranges
+            if( (i - (int)floor(smoothing_width/2.) ) < 0) {
+                smoothing_int = 2*( i ) + (int)((int)smoothing_width%2);
+            }
+            else if( (i - (int)floor(smoothing_width/2.) + ((int)smoothing_width - 1) ) > (N_NFsamples + N_extrapolated) ) {
+                smoothing_int = ((int)smoothing_width - 1) - 2*((i - (int)floor(smoothing_width/2.) + ((int)smoothing_width - 1) ) - (N_NFsamples + N_extrapolated)  ) + (int)((int)smoothing_width%2);
+            }
+            else {
+                smoothing_int = (int)smoothing_width;
+            }
+            
+            // Average (filter) over the delta z values to smooth the result
+            counter = 0;
+            for(j=0;j<(int)smoothing_width;j++) {
+                if(((i - (int)floor((float)smoothing_int/2.) + j)>=0) && ((i - (int)floor((float)smoothing_int/2.) + j) <= (N_NFsamples + N_extrapolated + 1)) && counter < smoothing_int ) {
+                    
+                    deltaz[i] += deltaz_smoothed[i - (int)floor((float)smoothing_int/2.) + j];
+                    counter += 1;
+                    
+                }
+            }
+            deltaz[i] /= (float)counter;
+        }
+        
+    }
+    
+    // Now, we can construct the spline of the photon non-conservation correction (delta z as a function of neutral fraction)
+    deltaz_spline_for_photoncons_acc = gsl_interp_accel_alloc ();
+    deltaz_spline_for_photoncons = gsl_spline_alloc (gsl_interp_linear, N_NFsamples + N_extrapolated + 1);
+
+    gsl_spline_init(deltaz_spline_for_photoncons, NeutralFractions, deltaz, N_NFsamples + N_extrapolated + 1);
+
+}
+
+
 float adjust_redshifts_for_photoncons(float *redshift, float *stored_redshift, float *absolute_delta_z) {
     
+    int i;
     double temp;
-    float required_NF, adjusted_redshift, future_z;
+    float required_NF, adjusted_redshift, future_z, gradient_extrapolation, const_extrapolation;
     
     // Determine the neutral fraction (filling factor) of the analytic calibration expression given the current sampled redshift
     Q_at_z(*redshift, &(temp));
     required_NF = 1.0 - (float)temp;
-    
+
     // Find which redshift we need to sample in order for the calibration reionisation history to match the analytic expression
     if(required_NF > global_params.PhotonConsStart) {
         // We haven't started ionising yet, so keep redshifts the same
@@ -2079,41 +2398,58 @@ float adjust_redshifts_for_photoncons(float *redshift, float *stored_redshift, f
             adjusted_redshift = *redshift;
         }
         else {
-            // Use the last delta_z change in the correction from now on since we are past the end point for the correction
-            adjusted_redshift = *redshift - *absolute_delta_z;
+            // We have crossed the NF threshold for the photon conservation correction so now set to the delta z at the threshold
+            if(required_NF < global_params.PhotonConsAsymptoteTo) {
+                
+                // This counts the number of times we have exceeded the extrapolated point and attempts to modify the delta z
+                // to try and make the function a little smoother
+                // Note that this is deliberately tailored to light-cone quantites, but will still work with co-eval cubes
+                // Though might produce some very minor discrepancies when comparing outputs.
+                *absolute_delta_z = gsl_spline_eval(deltaz_spline_for_photoncons, global_params.PhotonConsAsymptoteTo, deltaz_spline_for_photoncons_acc);
+                if(deltaz[1] > deltaz[0]) {
+                    *absolute_delta_z = pow( 0.98 , times_exceeded2 + 1. ) * ( *absolute_delta_z );
+                }
+                else {
+                    *absolute_delta_z = pow( 1.02 , times_exceeded2 + 1. ) * ( *absolute_delta_z );
+                }
+                adjusted_redshift = (*redshift) - (*absolute_delta_z);
+                if(adjusted_redshift < 0.0) {
+                    adjusted_redshift = 0.0;
+                }
+                times_exceeded2 += 1.;
+            }
+            else {
+                *absolute_delta_z = gsl_spline_eval(deltaz_spline_for_photoncons, required_NF, deltaz_spline_for_photoncons_acc);
+                adjusted_redshift = (*redshift) - (*absolute_delta_z);
+            }
         }
     }
     else {
         
-        if(required_NF < FinalNF_Estimate) {
-            // This model is completely unreasonble (reionisation will never happen!)
-            // So I don't really think it matters what I select for this
-            adjusted_redshift = *redshift;
+        // Initialise the photon non-conservation correction curve
+        if(initialise_photoncons) {
+            determine_deltaz_for_photoncons();
+            initialise_photoncons = 0;
+        }
+        
+        // We have exceeded even the end-point of the extrapolation
+        // Just smooth ever subsequent point
+        // Note that this is deliberately tailored to light-cone quantites, but will still work with co-eval cubes
+        // Though might produce some very minor discrepancies when comparing outputs.
+        if(required_NF < NeutralFractions[0]) {
+
+            *absolute_delta_z = deltaz[1] * pow( 1.002 , (times_exceeded + 1.));
+            times_exceeded += 1.;
+            
+            adjusted_redshift = (*redshift) - (*absolute_delta_z);
+            if(adjusted_redshift < 0.0) {
+                adjusted_redshift = 0.0;
+            }
         }
         else {
             // Find the corresponding redshift for the calibration curve given the required neutral fraction (filling factor) from the analytic expression
-            z_at_NFHist(required_NF,&(temp));
-            adjusted_redshift = (float)temp;
-            
-            // Determine the neutral fraction/redshift for the next time step to determine if we will cross the threshold for ending the photon non-conservation correction
-            future_z = (*redshift + 1.)/global_params.ZPRIME_STEP_FACTOR - 1.;
-            Q_at_z(future_z, &(temp));
-            required_NF = 1.0 - (float)temp;
-            
-            // The next time crosses the threshold
-            if(required_NF<=(1.1*global_params.PhotonConsEnd)) {
-                // The next step is going to have a small kink, lets try and smooth it out a little by modifying this adjusted redshift
-                // The 10 per cent is to avoid just being short of this cut-off. In those instances the kink returns
-                
-                *absolute_delta_z = 0.95*(*absolute_delta_z);
-                adjusted_redshift = (*redshift) - (*absolute_delta_z);
-            }
-            else {
-                // Not near the end point, store the redshift change
-                
-                *absolute_delta_z = fabs( adjusted_redshift - (*redshift) );
-            }
-            
+            *absolute_delta_z = gsl_spline_eval(deltaz_spline_for_photoncons, (double)required_NF, deltaz_spline_for_photoncons_acc);
+            adjusted_redshift = (*redshift) - (*absolute_delta_z);
         }
     }
     
@@ -2123,7 +2459,6 @@ float adjust_redshifts_for_photoncons(float *redshift, float *stored_redshift, f
     // This redshift snapshot now uses the modified redshift following the photon non-conservation correction
     *redshift = adjusted_redshift;
 }
-
 
 void Q_at_z(double z, double *splined_value){
     float returned_value;
@@ -2164,26 +2499,36 @@ void free_Q_value() {
 
 void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSpline){
     
-    int i, counter, start_index;
+    int i, counter, start_index, found_start_index;
+    
+    // This takes in the data for the calibration curve for the photon non-conservation correction
     
     counter = 0;
     start_index = 0;
+    found_start_index = 0;
     
     FinalNF_Estimate = NF_estimate[0];
     FirstNF_Estimate = NF_estimate[NSpline-1];
     
+    // Determine the point in the data where its no longer zero (basically to avoid too many zeros in the spline)
     for(i=0;i<NSpline-1;i++) {
         if(NF_estimate[i+1] > NF_estimate[i]) {
-            counter += 1;
-            if(start_index == 0) {
+            if(found_start_index == 0) {
                 start_index = i;
+                found_start_index = 1;
             }
         }
+        counter += 1;
     }
+    counter = counter - start_index;
     
+    // Store the data points for determining the photon non-conservation correction
     double *nf_vals = calloc((counter+1),sizeof(double));
     double *z_vals = calloc((counter+1),sizeof(double));
     
+    calibrated_NF_min = 1.;
+    
+    // Store the data, and determine the end point of the input data for estimating the extrapolated results
     for(i=0;i<(counter+1);i++) {
         nf_vals[i] = NF_estimate[start_index+i];
         z_vals[i] = redshifts[start_index+i];
@@ -2192,6 +2537,10 @@ void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSp
             while(nf_vals[i] <= nf_vals[i-1]) {
                 nf_vals[i] += 0.000001;
             }
+        }
+        
+        if(nf_vals[i] < calibrated_NF_min) {
+            calibrated_NF_min = nf_vals[i];
         }
     }
     
@@ -2204,9 +2553,8 @@ void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSp
     z_NFHistory_spline_acc = gsl_interp_accel_alloc ();
 //    z_NFHistory_spline = gsl_spline_alloc (gsl_interp_cspline, (counter+1));
     z_NFHistory_spline = gsl_spline_alloc (gsl_interp_linear, (counter+1));
-    
+
     gsl_spline_init(z_NFHistory_spline, z_vals, nf_vals, (counter+1));
-    
 }
 
 

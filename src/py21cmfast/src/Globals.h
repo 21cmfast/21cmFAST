@@ -34,6 +34,9 @@ struct GlobalParams{
     int RecombPhotonCons;
     float PhotonConsStart;
     float PhotonConsEnd;
+    float PhotonConsAsymptoteTo;
+    float PhotonConsAsymptoteVal;
+
     
     int HEAT_FILTER;
     double CLUMPING_FACTOR;
@@ -97,7 +100,11 @@ struct GlobalParams global_params = {
     
     .RecombPhotonCons = 0,
     .PhotonConsStart = 0.995,
-    .PhotonConsEnd = 0.25,
+    .PhotonConsEnd = 0.3,
+//    .PhotonConsAsymptoteTo = 0.005,
+    .PhotonConsAsymptoteTo = 0.01,
+//    .PhotonConsAsymptoteTo = 0.25,
+    .PhotonConsAsymptoteVal = 0.299,
     
     .HEAT_FILTER = 0,
     .CLUMPING_FACTOR = 2.,

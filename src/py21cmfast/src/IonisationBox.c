@@ -107,6 +107,9 @@ LOG_SUPER_DEBUG("defined parameters");
     // This is the photon non-conservation correction
     if(flag_options->PHOTON_CONS) {
         adjust_redshifts_for_photoncons(&redshift,&stored_redshift,&absolute_delta_z);
+        if(redshift < 0.) {
+            printf("redshift = %e stored_redshift = %e absolute_delta_z = %e\n",redshift,stored_redshift,absolute_delta_z);
+        }
     }
     
     Splined_Fcoll = 0.;
@@ -845,7 +848,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
     
     // deallocate
     gsl_rng_free (r);
-
+    
 LOG_DEBUG("global_xH = %e",global_xH);
 
     fftwf_free(deltax_unfiltered);
