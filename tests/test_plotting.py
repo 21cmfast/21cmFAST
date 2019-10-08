@@ -50,5 +50,5 @@ def test_lightcone_sliceplot():
 
     fig, ax = plotting.lightcone_sliceplot(lc)
 
-    assert ax.xaxis.get_label().get_text() == "y-axis [Mpc]"
-    assert ax.yaxis.get_label().get_text() == "Redshift Axis [Mpc]"
+    assert ax.yaxis.get_label().get_text() == "y-axis [Mpc]"
+    assert ax.xaxis.get_label().get_text() == "Redshift Axis [Mpc]"
