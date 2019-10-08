@@ -107,9 +107,6 @@ LOG_SUPER_DEBUG("defined parameters");
     // This is the photon non-conservation correction
     if(flag_options->PHOTON_CONS) {
         adjust_redshifts_for_photoncons(&redshift,&stored_redshift,&absolute_delta_z);
-        if(redshift < 0.) {
-            printf("redshift = %e stored_redshift = %e absolute_delta_z = %e\n",redshift,stored_redshift,absolute_delta_z);
-        }
     }
     
     Splined_Fcoll = 0.;
