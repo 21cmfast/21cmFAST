@@ -33,7 +33,7 @@ struct UserParams{
     int USE_RELATIVE_VELOCITIES;
     int POWER_SPECTRUM;
     int N_THREADS;
-
+    bool MOVE_DENSITY_HIGH_RES;
 };
 
 struct AstroParams{
@@ -48,13 +48,9 @@ struct AstroParams{
     float M_TURN;
     float F_STAR7_MINI;
     float F_ESC7_MINI;
-
     float R_BUBBLE_MAX;
-
     float ION_Tvir_MIN;
-
     double F_H2_SHIELD;
-
     double L_X;
     double L_X_MINI;
     float NU_X_THRESH;
@@ -80,7 +76,8 @@ struct FlagOptions{
 
 
 struct InitialConditions{
-    float *lowres_density, *lowres_vx, *lowres_vy, *lowres_vz, *lowres_vx_2LPT, *lowres_vy_2LPT, *lowres_vz_2LPT, *hires_density;
+    float *lowres_density, *lowres_vx, *lowres_vy, *lowres_vz, *lowres_vx_2LPT, *lowres_vy_2LPT, *lowres_vz_2LPT;
+    float *hires_density, *hires_vx, *hires_vy, *hires_vz, *hires_vx_2LPT, *hires_vy_2LPT, *hires_vz_2LPT; //cw addition
     float *lowres_vcb, *hires_vcb;
 };
 

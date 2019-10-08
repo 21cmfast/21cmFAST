@@ -75,7 +75,6 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     fftwf_cleanup_threads();
 
     // ************  INITIALIZATION ********************** //
-
     unsigned int seeds[user_params->N_THREADS];
 
     // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
@@ -145,9 +144,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     f_pixel_factor = user_params->DIM/(float)user_params->HII_DIM;
 
     // ************  END INITIALIZATION ****************** //
-
     LOG_DEBUG("Finished initialization.");
-
     // ************ CREATE K-SPACE GAUSSIAN RANDOM FIELD *********** //
 
 
@@ -159,7 +156,6 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     {
 #pragma omp for
         for (n_x=0; n_x<user_params->DIM; n_x++){
-
             // convert index to numerical value for this component of the k-mode: k = (2*pi/L) * n
             if (n_x>MIDDLE)
                 k_x =(n_x-user_params->DIM) * DELTA_K;  // wrap around for FFT convention
@@ -215,8 +211,14 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
     memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
-    if (user_params->DIM != user_params->HII_DIM)
+    if (user_params->DIM != user_params->HII_DIM) //cw removed as we no longer wish to perform smoothing here
         filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+    
+    
+//    if (user_params->MOVE_DENSITY_HIGH_RES) { //cw updated density field generation from here on.
+//        /*/ //cw I don't think we need any of the following section here
+//        if (user_params->DIM != user_params->HII_DIM) //cw removed as we no longer wish to perform smoothing here
+//            filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
 
     // FFT back to real space
     if(user_params->USE_FFTW_WISDOM) {
@@ -275,7 +277,6 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     // ******* Relative Velocity part ******* //
 
     if(user_params->USE_RELATIVE_VELOCITIES){
-        //for now I'm going to assume NO FFTW WISDOM, until that part is fixed.
         //note we do NOT filter our boxes first, in order to keep the total number of boxes small.
 
         for(ii=0;ii<3;ii++) {
@@ -439,10 +440,66 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     // add the 1/VOLUME factor when converting from k space to real space
     memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
+//        // FFT back to real space
+//        if(user_params->USE_FFTW_WISDOM) {
+//            // Check to see if the wisdom exists, create it if it doesn't
+//            sprintf(wisdom_filename,"complex_to_real_%d.fftwf_wisdom",user_params->DIM);
+//            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+//                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+//                fftwf_execute(plan);
+//                }
+//            else {
+//                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_PATIENT);
+//                fftwf_execute(plan);
+//
+//                // Store the wisdom for later use
+//                fftwf_export_wisdom_to_filename(wisdom_filename);
+//
+//                // copy over unfiltered box
+//                memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//
+//                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+//                fftwf_execute(plan);
+//              }
+//            }
+//        else {
+//            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+//            fftwf_execute(plan);
+//        }
+//
+//        // now sample the filtered box
+//        for (i=0; i<user_params->HII_DIM; i++){
+//            for (j=0; j<user_params->HII_DIM; j++){
+//                for (k=0; k<user_params->HII_DIM; k++){
+//                    boxes->lowres_density[HII_R_INDEX(i,j,k)] =
+//                    *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+//                                                      (unsigned long long)(j*f_pixel_factor+0.5),
+//                                                      (unsigned long long)(k*f_pixel_factor+0.5)))/VOLUME;
+//                    }
+//              }
+//        }
+//        *///cw I don't think we need this section anymore as it is entirely concerned with filtering to lower res
+//
+//        // ******* PERFORM INVERSE FOURIER TRANSFORM ***************** //
+//        // add the 1/VOLUME factor when converting from k space to real space - cw This copies over the raw unsmoothed density box to HIRES_box
+//        memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//
+//        for (ct=0; ct<KSPACE_NUM_PIXELS; ct++){
+//            HIRES_box[ct] /= VOLUME;
+//        }
+//
+//        if(user_params->USE_FFTW_WISDOM) {
+//            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+//        }
+//        else {
+//            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+//        }
+//        fftwf_execute(plan);
+
     for (ct=0; ct<KSPACE_NUM_PIXELS; ct++){
         HIRES_box[ct] /= VOLUME;
     }
-
+    
     if(user_params->USE_FFTW_WISDOM) {
         plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                      (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
@@ -457,7 +514,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 #pragma omp parallel shared(boxes,HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
     {
 #pragma omp for
-        for (i=0; i<user_params->DIM; i++){
+        for (i=0; i<user_params->DIM; i++){ //cw IS THIS STEP ESSENTIAL? CAN WE JUST USE THE SAVED BOX WITHOUT BREAKING ANYTHING?
             for (j=0; j<user_params->DIM; j++){
                 for (k=0; k<user_params->DIM; k++){
                     *((float *)boxes->hires_density + R_INDEX(i,j,k)) = *((float *)HIRES_box + R_FFT_INDEX(i,j,k));
@@ -509,6 +566,45 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                     }
                 }
             }
+
+//            /*if (user_params->DIM != user_params->HII_DIM)
+//                filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));*/ //cw no filtering until perturb
+//            // Fourier transform back to real space
+//            if(user_params->USE_FFTW_WISDOM) {
+//                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+//            }
+//            else {
+//                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+//            }
+//            fftwf_execute(plan);
+//
+//            // now sample to lower res
+//            // now sample the filtered box
+//            for (i=0; i<user_params->DIM; i++){
+//                for (j=0; j<user_params->DIM; j++){
+//                    for (k=0; k<user_params->DIM; k++){
+//                        if(ii==0) { //cw ((unsigned long long)(i*f_pixel_factor+0.5) -> i etc and changed lowres -> hires
+//                            boxes->hires_vx[R_INDEX(i,j,k)] =
+//                            *((float *)HIRES_box + R_FFT_INDEX( (unsigned long long)(i),
+//                                                              (unsigned long long)(j),
+//                                                              (unsigned long long)(k)));
+//                        }
+//                        if(ii==1) {
+//                            boxes->hires_vy[R_INDEX(i,j,k)] =
+//                            *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+//                                                              (unsigned long long)(j),
+//                                                              (unsigned long long)(k)));
+//                        }
+//                        if(ii==2) {
+//                            boxes->hires_vz[R_INDEX(i,j,k)] =
+//                            *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+//                                                              (unsigned long long)(j),
+//                                                              (unsigned long long)(k)));
+//            
+//                        }
+//                    }
+//                }
+//            }
         }
 
         if (user_params->DIM != user_params->HII_DIM)
@@ -550,6 +646,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                             *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
                                                                (unsigned long long)(j*f_pixel_factor+0.5),
                                                                (unsigned long long)(k*f_pixel_factor+0.5)));
+
                         }
                     }
                 }
@@ -628,6 +725,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                         }
                     }
                 }
+
                 // Now we can generate the real phi_1[i,j]
                 plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                              (fftwf_complex *)phi_1[PHI_INDEX(i, j)], (float *)phi_1[PHI_INDEX(i, j)], FFTW_ESTIMATE);
@@ -669,6 +767,40 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                                             ( *((float *)(phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),
                                                                                                 (unsigned long long)(j),
                                                                                                 (unsigned long long)(k))) );
+//                /* //cw removed this part
+//                if (user_params->DIM != user_params->HII_DIM)
+//                    filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));*/
+//
+//                if(user_params->USE_FFTW_WISDOM) {
+//                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+//                }
+//                else {
+//                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+//                }
+//                fftwf_execute(plan);
+//                // now sample to lower res
+//                // now sample the filtered box
+//                for (i=0; i<user_params->DIM; i++){ //cw adjusted this to be DIM not HII_DIM [REPLACE WITH MEMCOPYS]
+//                    for (j=0; j<user_params->DIM; j++){
+//                        for (k=0; k<user_params->DIM; k++){
+//                            if(ii==0) {
+//                                boxes->hires_vx_2LPT[R_INDEX(i,j,k)] =
+//                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+//                                                                  (unsigned long long)(j),
+//                                                                  (unsigned long long)(k)));
+//                            }
+//                            if(ii==1) {
+//                                boxes->hires_vy_2LPT[R_INDEX(i,j,k)] =
+//                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+//                                                                  (unsigned long long)(j),
+//                                                                  (unsigned long long)(k)));
+//                            }
+//                            if(ii==2) {
+//                                boxes->hires_vz_2LPT[R_INDEX(i,j,k)] =
+//                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+//                                                                  (unsigned long long)(j),
+//                                                                  (unsigned long long)(k)));
+
                             }
                         }
                         *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k)) ) /= TOT_NUM_PIXELS;
@@ -765,7 +897,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
         // Now we can store the content of box in a back-up file
         // Then we can generate the gradients of phi_2 (eq. D13b and D9)
-
+        
         // ***** Write out back-up k-box RHS eq. D13b ***** //
 
         // For each component, we generate the velocity field (same as the ZA part)
@@ -874,6 +1006,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
         for(i = 0; i < 3; ++i){
             for(j = 0; j <= i; ++j){
                 fftwf_free(phi_1[PHI_INDEX(i,j)]);
+
             }
         }
     }

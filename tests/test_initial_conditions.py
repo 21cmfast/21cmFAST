@@ -94,3 +94,11 @@ def test_relvels():
     assert vcbrms_lowres < 40.0
     assert vcbavg_lowres < 0.97 * vcbrms_lowres
     assert vcbavg_lowres > 0.88 * vcbrms_lowres
+
+
+def test_high_res_density(basic_init_box):
+    """Test the high resolution density field mode (added by C.Watkinson) """
+
+    ic = wrapper.initial_conditions(user_params=wrapper.UserParams(MOVE_DENSITY_HIGH_RES=True), regenerate=True, write=False)
+    assert ic.user_params.MOVE_DENSITY_HIGH_RES == True
+

@@ -23,6 +23,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 
     char wisdom_filename[500];
 
+//    fftwf_complex *HIRES_density_perturb, *HIRES_density_perturb_saved; //cw
     fftwf_complex *LOWRES_density_perturb, *LOWRES_density_perturb_saved;
     fftwf_plan plan;
 
@@ -31,6 +32,9 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
     unsigned long long ct, HII_i, HII_j, HII_k;
     int i,j,k, xi, yi, zi;
     double ave_delta, new_ave_delta;
+    float k_x, k_y, k_z, k_sq, dDdt_over_D;
+    int n_x, n_y, n_z;
+
     // ***************   BEGIN INITIALIZATION   ************************** //
 
     // perform a very rudimentary check to see if we are underresolved and not using the linear approx
@@ -61,6 +65,18 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                 for (j=0; j<user_params->HII_DIM; j++){
                     for (k=0; k<user_params->HII_DIM; k++){
                         *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) = growth_factor*boxes->lowres_density[HII_R_INDEX(i,j,k)];
+//    if (user_params->MOVE_DENSITY_HIGH_RES) { //cw updated high resolution density field generation
+//        // allocate memory for the updated density, and initialize
+//        HIRES_density_perturb = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//        HIRES_density_perturb_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//
+//        // check if the linear evolution flag was set
+//        if (global_params.EVOLVE_DENSITY_LINEARLY){
+//            for (i=0; i<user_params->DIM; i++){ //cw converted everything to be high res
+//                for (j=0; j<user_params->DIM; j++){
+//                    for (k=0; k<user_params->DIM; k++){
+//
+//                        *((float *)HIRES_density_perturb + R_FFT_INDEX(i,j,k)) = growth_factor*boxes->hires_density[R_INDEX(i,j,k)];
                     }
                 }
             }
@@ -69,7 +85,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
     // first order Zel'Dovich perturbation
 
     else {
-#pragma omp parallel shared(LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)        
         {
 #pragma omp for
             for (i=0; i<user_params->HII_DIM; i++){
@@ -134,6 +150,51 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                     private(i,j,k,xi,xf,yi,yf,zi,zf,HII_i,HII_j,HII_k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
+//
+//        // first order Zel'Dovich perturbation
+//        else{
+//
+//            for (i=0; i<user_params->DIM; i++){ //cw converted everything to be high res
+//                for (j=0; j<user_params->DIM; j++){
+//                    for (k=0; k<user_params->DIM; k++){
+//                        *((float *)HIRES_density_perturb + R_FFT_INDEX(i,j,k)) = 0.;
+//                    }
+//                }
+//            }
+//
+//            velocity_displacement_factor = (growth_factor-init_growth_factor) / user_params->BOX_LEN;
+//
+//            // now add the missing factor of D
+//            for (ct=0; ct<TOT_NUM_PIXELS; ct++){ //cw converted everything to be high res
+//                boxes->hires_vx[ct] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
+//                boxes->hires_vy[ct] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
+//                boxes->hires_vz[ct] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
+//            }
+//
+//            // * ************************************************************************* * //
+//            // *                           BEGIN 2LPT PART                                 * //
+//            // * ************************************************************************* * //
+//            // reference: reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
+//            if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+//
+//                // allocate memory for the velocity boxes and read them in
+//                velocity_displacement_factor_2LPT = (displacement_factor_2LPT - init_displacement_factor_2LPT) / user_params->BOX_LEN;
+//
+//                // now add the missing factor in eq. D9
+//                for (ct=0; ct<TOT_NUM_PIXELS; ct++){ //cw converted everything to be high res
+//                    boxes->hires_vx_2LPT[ct] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
+//                    boxes->hires_vy_2LPT[ct] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
+//                    boxes->hires_vz_2LPT[ct] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
+//                }
+//            }
+//
+//            // * ************************************************************************* * //
+//            // *                            END 2LPT PART                                  * //
+//            // * ************************************************************************* * //
+//
+//            // ************  END INITIALIZATION **************************** //
+//
+//            // go through the high-res box, mapping the mass onto the low-res (updated) box
             for (i=0; i<user_params->DIM;i++){
                 for (j=0; j<user_params->DIM;j++){
                     for (k=0; k<user_params->DIM;k++){
@@ -150,6 +211,13 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                         xf += (boxes->lowres_vx)[HII_R_INDEX(HII_i, HII_j, HII_k)];
                         yf += (boxes->lowres_vy)[HII_R_INDEX(HII_i, HII_j, HII_k)];
                         zf += (boxes->lowres_vz)[HII_R_INDEX(HII_i, HII_j, HII_k)];
+
+//                        //cw kill HII_i = (unsigned long long)(i/f_pixel_factor);
+//                        //cw kill HII_j = (unsigned long long)(j/f_pixel_factor);
+//                        //cw kill HII_k = (unsigned long long)(k/f_pixel_factor);
+//                        xf += (boxes->hires_vx)[R_INDEX(i, j, k)];
+//                        yf += (boxes->hires_vy)[R_INDEX(i, j, k)];
+//                        zf += (boxes->hires_vz)[R_INDEX(i, j, k)];
 
                         // 2LPT PART
                         // add second order corrections
@@ -209,6 +277,59 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                         *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k) ) /= mass_factor;
                         *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k) ) -= 1;
                     }
+//
+//                            xf -= (boxes->hires_vx_2LPT)[R_INDEX(i,j,k)];
+//                            yf -= (boxes->hires_vy_2LPT)[R_INDEX(i,j,k)];
+//                            zf -= (boxes->hires_vz_2LPT)[R_INDEX(i,j,k)];
+//                        }
+//
+//                        xf *= (float)(user_params->DIM);
+//                        yf *= (float)(user_params->DIM);
+//                        zf *= (float)(user_params->DIM);
+//                        while (xf >= (float)(user_params->DIM)){ xf -= (user_params->DIM);}
+//                        while (xf < 0){ xf += (user_params->DIM);}
+//                        while (yf >= (float)(user_params->DIM)){ yf -= (user_params->DIM);}
+//                        while (yf < 0){ yf += (user_params->DIM);}
+//                        while (zf >= (float)(user_params->DIM)){ zf -= (user_params->DIM);}
+//                        while (zf < 0){ zf += (user_params->DIM);}
+//                        xi = xf;
+//                        yi = yf;
+//                        zi = zf;
+//                        if (xi >= (user_params->DIM)){ xi -= (user_params->DIM);}
+//                        if (xi < 0) {xi += (user_params->DIM);}
+//                        if (yi >= (user_params->DIM)){ yi -= (user_params->DIM);}
+//                        if (yi < 0) {yi += (user_params->DIM);}
+//                        if (zi >= (user_params->DIM)){ zi -= (user_params->DIM);}
+//                        if (zi < 0) {zi += (user_params->DIM);}
+//
+//                        *( (float *)HIRES_density_perturb + R_FFT_INDEX(xi, yi, zi) ) +=
+//                        (1 + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)]);
+//                    }
+//                }
+//            }
+//
+//            // renormalize to the new pixel size, and make into delta
+//            for (i=0; i<user_params->DIM; i++){
+//                for (j=0; j<user_params->DIM; j++){
+//                    for (k=0; k<user_params->DIM; k++){
+//                        *((float *)HIRES_density_perturb + R_FFT_INDEX(i,j,k) ) /= mass_factor;
+//                        *((float *)HIRES_density_perturb + R_FFT_INDEX(i,j,k) ) -= 1;
+//                    }
+//                }
+//            }
+//
+//            // deallocate
+//            for (ct=0; ct<TOT_NUM_PIXELS; ct++){
+//                boxes->hires_vx[ct] /= velocity_displacement_factor; // convert back to z = 0 quantity
+//                boxes->hires_vy[ct] /= velocity_displacement_factor; // convert back to z = 0 quantity
+//                boxes->hires_vz[ct] /= velocity_displacement_factor; // convert back to z = 0 quantity
+//            }
+//
+//            if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+//                for (ct=0; ct<TOT_NUM_PIXELS; ct++){
+//                    boxes->hires_vx_2LPT[ct] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
+//                    boxes->hires_vy_2LPT[ct] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
+//                    boxes->hires_vz_2LPT[ct] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
                 }
             }
         }
@@ -237,6 +358,219 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
         }
     }
 
+//        // Now smooth and sub sample from the high to the low resolution grids (everything that follows is just normalisations)
+//
+//        // ****  Print and convert to velocities ***** //
+//        if (global_params.EVOLVE_DENSITY_LINEARLY){
+//            // save the unfiltered density field
+//            if(user_params->USE_FFTW_WISDOM) {
+//                // Check to see if wisdom exists, if not create it
+//                sprintf(wisdom_filename,"real_to_complex_%d.fftwf_wisdom",user_params->DIM);
+//                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
+//                else {
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_PATIENT);
+//                    fftwf_execute(plan);
+//
+//                    // Store the wisdom for later use
+//                    fftwf_export_wisdom_to_filename(wisdom_filename);
+//
+//                    memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                  }
+//            }
+//            else {
+//                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_ESTIMATE);
+//                fftwf_execute(plan);
+//            }
+//            memcpy(HIRES_density_perturb_saved, HIRES_density_perturb, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//            // filter the box before resampling it and loading into
+//            if (user_params->DIM != user_params->HII_DIM)
+//                filter_box( HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0) );
+//
+//            // FFT back to real space
+//            if(user_params->USE_FFTW_WISDOM) {
+//                // Check to see if the wisdom exists, create it if it doesn't
+//                sprintf(wisdom_filename,"complex_to_real_%d.fftwf_wisdom",user_params->DIM);
+//                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+//                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                    }
+//                else {
+//                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_PATIENT);
+//                    fftwf_execute(plan);
+//
+//                    // Store the wisdom for later use
+//                    fftwf_export_wisdom_to_filename(wisdom_filename);
+//
+//                    // copy over unfiltered box //cw QUESTION: Why are we copying over and FFTing the unfiltered box in the next two steps? Surely we want the smooted version of HIRES at this point?
+//                    memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//                    // filter the box before resampling it and loading into
+//                    if (user_params->DIM != user_params->HII_DIM) // filtering again since we've reloaded the unsmoothed version after Wisdom overwrote HIRES
+//                        filter_box( HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0) );
+//
+//                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
+//            }
+//            else {
+//                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_ESTIMATE);
+//                fftwf_execute(plan);
+//            }
+//            // resample the smoothed field onto the main density pointer
+//            for (i=0; i<user_params->HII_DIM; i++){
+//                for (j=0; j<user_params->HII_DIM; j++){
+//                    for (k=0; k<user_params->HII_DIM; k++){
+//                        *((float *)perturbed_field->density + R_INDEX(i,j,k)) = *( (float *)HIRES_density_perturb + R_FFT_INDEX( (unsigned long long)(i*f_pixel_factor+0.5),
+//                                                          (unsigned long long)(j*f_pixel_factor+0.5),
+//                                                          (unsigned long long)(k*f_pixel_factor+0.5) ) )/( (float)TOT_NUM_PIXELS ); //cw with normaliastion following c2r FFT
+//
+//                        if (*((float *)perturbed_field->density + R_FFT_INDEX(i,j,k)) < -1) // shouldn't happen, but in case it does:
+//                            *((float *)perturbed_field->density + R_FFT_INDEX(i,j,k)) = -1+FRACT_FLOAT_ERR;
+//                    }
+//                }
+//            }
+//            //cw copy back the k-space unfiltered density field
+//            memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//
+//            /* //cw removed this r2c section since we transformed earlier for filtering step and have reloaded the unsmoothed above
+//            // transform to k-space
+//            if(user_params->USE_FFTW_WISDOM) {
+//                // Check to see if the wisdom exists, create it if it doesn't
+//                sprintf(wisdom_filename,"real_to_complex_%d.fftwf_wisdom",user_params->DIM);
+//                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
+//                else {
+//
+//                    // save a copy of the k-space density field
+//                    memcpy(HIRES_density_perturb_saved, HIRES_density_perturb, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_PATIENT);
+//                    fftwf_execute(plan);
+//
+//                    // Store the wisdom for later use
+//                    fftwf_export_wisdom_to_filename(wisdom_filename);
+//
+//                    // copy over unfiltered box
+//                    memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
+//
+//            }
+//            else {
+//                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_ESTIMATE);
+//                fftwf_execute(plan);
+//            }
+//
+//            // save a copy of the k-space density field */
+//        }
+//        else {
+//
+//            // transform to k-space
+//            if(user_params->USE_FFTW_WISDOM) {
+//                // Check to see if the wisdom exists, create it if it doesn't
+//                sprintf(wisdom_filename,"real_to_complex_%d.fftwf_wisdom",user_params->DIM);
+//                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
+//                else {
+//
+//                    // save a copy of the k-space density field
+//                    memcpy(HIRES_density_perturb_saved, HIRES_density_perturb, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_PATIENT);
+//                    fftwf_execute(plan);
+//
+//                    // Store the wisdom for later use
+//                    fftwf_export_wisdom_to_filename(wisdom_filename);
+//
+//                    // copy over unfiltered box
+//                    memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//>>>>>>> updated and compiling successfully - not yet tested
+//                }
+//            }
+//            else {
+//                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_ESTIMATE);
+//                fftwf_execute(plan);
+//            }
+//
+//            /*/smooth the field //cw this is no longer necessary since we're now instead filtering from hi to low resolution
+//            if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
+//                filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM);
+//            }*/
+//
+//
+//            // save a copy of the k-space unsmoothed version of the perturbed density field
+//            memcpy(HIRES_density_perturb_saved, HIRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+//            //cw filtering to lower resolution (resample below after ift)
+//
+//            if (user_params->DIM != user_params->HII_DIM)
+//                filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+//
+//            if(user_params->USE_FFTW_WISDOM) {
+//                // Check to see if the wisdom exists, create it if it doesn't
+//                sprintf(wisdom_filename,"complex_to_real_%d.fftwf_wisdom",user_params->DIM);
+//                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+//                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
+//                else {
+//                    //cw QUESTION - Is this the right thing to do here, this is presumably saving to wisdom the real smoothed density field.
+//                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_PATIENT);
+//                    fftwf_execute(plan);
+//
+//                    // Store the wisdom for later use
+//                    fftwf_export_wisdom_to_filename(wisdom_filename);
+//
+//                    // copy over unfiltered box
+//                    memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//                    if (user_params->DIM != user_params->HII_DIM) //cw added another smoothing step here since we've returned HIRES to the saved unsmoothed field which ain't what we want for resampling later
+//                        filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+//
+//                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
+//            }
+//            else {
+//                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_ESTIMATE);
+//                fftwf_execute(plan);
+//            }
+//
+//            // normalize after FFT
+//            for(i=0; i<user_params->DIM; i++){
+//                for(j=0; j<user_params->DIM; j++){
+//                    for(k=0; k<user_params->DIM; k++){
+//                        *((float *)HIRES_density_perturb + R_FFT_INDEX(i,j,k)) /= (float)TOT_NUM_PIXELS;
+//                        if (*((float *)HIRES_density_perturb + R_FFT_INDEX(i,j,k)) < -1) // shouldn't happen
+//                            *((float *)HIRES_density_perturb + R_FFT_INDEX(i,j,k)) = -1+FRACT_FLOAT_ERR;
+//                    }
+//                }
+//            }
+//
+//            for (i=0; i<user_params->HII_DIM; i++){
+//                for (j=0; j<user_params->HII_DIM; j++){
+//                    for (k=0; k<user_params->HII_DIM; k++){
+//                        *((float *)perturbed_field->density + HII_R_INDEX(i,j,k)) = *(  (float *)HIRES_density_perturb
+//                                                            + R_FFT_INDEX( (unsigned long long)(i*f_pixel_factor+0.5), (unsigned long long)(j*f_pixel_factor+0.5), (unsigned long long)(k*f_pixel_factor+0.5) )  );
+//                    }
+//                }
+//            }
+//            // copying back the unsmoothed version of the perturbed density field ready for generating velocity fields
+//            memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//        }
+
     // ****  Print and convert to velocities ***** //
     if (global_params.EVOLVE_DENSITY_LINEARLY){
 #pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -246,6 +580,31 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                 for (j=0; j<user_params->HII_DIM; j++){
                     for (k=0; k<user_params->HII_DIM; k++){
                         *((float *)perturbed_field->density + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
+
+//        dDdt_over_D = dDdt/growth_factor;
+//
+//        for (n_x=0; n_x<user_params->DIM; n_x++){
+//            if (n_x>MIDDLE)
+//                k_x =(n_x-user_params->DIM) * DELTA_K;  // wrap around for FFT convention
+//            else
+//                k_x = n_x * DELTA_K;
+//
+//            for (n_y=0; n_y<user_params->DIM; n_y++){
+//                if (n_y>MIDDLE)
+//                    k_y =(n_y-user_params->DIM) * DELTA_K;
+//                else
+//                    k_y = n_y * DELTA_K;
+//
+//                for (n_z=0; n_z<=MIDDLE; n_z++){
+//                    k_z = n_z * DELTA_K;
+//
+//                    k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
+//
+//                    // now set the velocities
+//                    if ((n_x==0) && (n_y==0) && (n_z==0)) // DC mode
+//                        HIRES_density_perturb[0] = 0;
+//                    else{
+//                        HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_z*I/k_sq/(TOT_NUM_PIXELS+0.0);
                     }
                 }
             }
@@ -258,6 +617,17 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                              (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+
+//        memcpy(HIRES_density_perturb_saved, HIRES_density_perturb, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//        //cw smooth the high resolution field ready for resampling
+//        if (user_params->DIM != user_params->HII_DIM)
+//            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+//
+//        if(user_params->USE_FFTW_WISDOM) {
+//            // Check to see if the wisdom exists, create it if it doesn't
+//            sprintf(wisdom_filename,"complex_to_real_%d.fftwf_wisdom",user_params->DIM);
+//            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+//                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
 
             }
@@ -267,6 +637,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                              (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_PATIENT);
+//                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_ESTIMATE);
                 fftwf_execute(plan);
 
                 // Store the wisdom for later use
@@ -279,6 +650,11 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                              (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+
+//                // copy over unfiltered box //cw QUESTION: Why are we copying over and FFTing the unfiltered box in the next two steps? Surely we want the smooted version of HIRES at this point?
+//                //memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+//
+//                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
         }
@@ -302,7 +678,233 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                                              (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
+
+//            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_ESTIMATE);
+//            fftwf_execute(plan);
+//        }
+//
+//        for (i=0; i<user_params->HII_DIM; i++){
+//            for (j=0; j<user_params->HII_DIM; j++){
+//                for (k=0; k<user_params->HII_DIM; k++){
+//                    *((float *)perturbed_field->velocity + HII_R_INDEX(i,j,k)) = *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5), (unsigned long long)(j*f_pixel_factor+0.5), (unsigned long long)(k*f_pixel_factor+0.5)) );
+//                }
+//            }
+//        }
+//
+//        // deallocate
+//        fftwf_free(HIRES_density_perturb);
+//        fftwf_free(HIRES_density_perturb_saved);
+//
+//    } //cw end update density field generation
+//    else { //cw original density field perturbation from here
+//
+//        // allocate memory for the updated density, and initialize
+//        LOWRES_density_perturb = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+//        LOWRES_density_perturb_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+//        //cw QUESTION - do we have to filter in this, or can we prefilter the density field for the same effect? probbers not, but depends on where discretisation effect kicks in and where it can be resolved.
+//
+//        // check if the linear evolution flag was set
+//        if (global_params.EVOLVE_DENSITY_LINEARLY){
+//            for (i=0; i<user_params->DIM; i++){
+//                for (j=0; j<user_params->DIM; j++){
+//                    for (k=0; k<user_params->HII_DIM; k++){
+//                        *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) = growth_factor*boxes->lowres_density[HII_R_INDEX(i,j,k)];
+//                    }
+//                }
+//            }
+//        }
+//        // first order Zel'Dovich perturbation
+//        else{
+//
+//            for (i=0; i<user_params->HII_DIM; i++){
+//                for (j=0; j<user_params->HII_DIM; j++){
+//                    for (k=0; k<user_params->HII_DIM; k++){
+//                        *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) = 0.;
+//                    }
+//                }
+//            }
+//
+//            velocity_displacement_factor = (growth_factor-init_growth_factor) / user_params->BOX_LEN;
+//
+//            // now add the missing factor of D
+//            for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
+//                boxes->lowres_vx[ct] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
+//                boxes->lowres_vy[ct] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
+//                boxes->lowres_vz[ct] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
+//            }
+//
+//            // * ************************************************************************* * //
+//            // *                           BEGIN 2LPT PART                                 * //
+//            // * ************************************************************************* * //
+//            // reference: reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
+//            if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+//
+//                // allocate memory for the velocity boxes and read them in
+//                velocity_displacement_factor_2LPT = (displacement_factor_2LPT - init_displacement_factor_2LPT) / user_params->BOX_LEN;
+//
+//                // now add the missing factor in eq. D9
+//                for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
+//                    boxes->lowres_vx_2LPT[ct] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
+//                    boxes->lowres_vy_2LPT[ct] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
+//                    boxes->lowres_vz_2LPT[ct] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
+//                }
+//            }
+//
+//            // * ************************************************************************* * //
+//            // *                            END 2LPT PART                                  * //
+//            // * ************************************************************************* * //
+//
+//            // ************  END INITIALIZATION **************************** //
+//
+//            // go through the high-res box, mapping the mass onto the low-res (updated) box
+//            for (i=0; i<user_params->DIM;i++){
+//                for (j=0; j<user_params->DIM;j++){
+//                    for (k=0; k<user_params->DIM;k++){
+//
+//                        // map indeces to locations in units of box size
+//                        xf = (i+0.5)/((user_params->DIM)+0.0);
+//                        yf = (j+0.5)/((user_params->DIM)+0.0);
+//                        zf = (k+0.5)/((user_params->DIM)+0.0);
+//
+//                        // update locations
+//                        HII_i = (unsigned long long)(i/f_pixel_factor);
+//                        HII_j = (unsigned long long)(j/f_pixel_factor);
+//                        HII_k = (unsigned long long)(k/f_pixel_factor);
+//                        xf += (boxes->lowres_vx)[HII_R_INDEX(HII_i, HII_j, HII_k)];
+//                        yf += (boxes->lowres_vy)[HII_R_INDEX(HII_i, HII_j, HII_k)];
+//                        zf += (boxes->lowres_vz)[HII_R_INDEX(HII_i, HII_j, HII_k)];
+//
+//                        // 2LPT PART
+//                        // add second order corrections
+//                        if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+//                            xf -= (boxes->lowres_vx_2LPT)[HII_R_INDEX(HII_i,HII_j,HII_k)];
+//                            yf -= (boxes->lowres_vy_2LPT)[HII_R_INDEX(HII_i,HII_j,HII_k)];
+//                            zf -= (boxes->lowres_vz_2LPT)[HII_R_INDEX(HII_i,HII_j,HII_k)];
+//                        }
+//
+//                        xf *= (float)(user_params->HII_DIM);
+//                        yf *= (float)(user_params->HII_DIM);
+//                        zf *= (float)(user_params->HII_DIM);
+//                        while (xf >= (float)(user_params->HII_DIM)){ xf -= (user_params->HII_DIM);}
+//                        while (xf < 0){ xf += (user_params->HII_DIM);}
+//                        while (yf >= (float)(user_params->HII_DIM)){ yf -= (user_params->HII_DIM);}
+//                        while (yf < 0){ yf += (user_params->HII_DIM);}
+//                        while (zf >= (float)(user_params->HII_DIM)){ zf -= (user_params->HII_DIM);}
+//                        while (zf < 0){ zf += (user_params->HII_DIM);}
+//                        xi = xf;
+//                        yi = yf;
+//                        zi = zf;
+//                        if (xi >= (user_params->HII_DIM)){ xi -= (user_params->HII_DIM);}
+//                        if (xi < 0) {xi += (user_params->HII_DIM);}
+//                        if (yi >= (user_params->HII_DIM)){ yi -= (user_params->HII_DIM);}
+//                        if (yi < 0) {yi += (user_params->HII_DIM);}
+//                        if (zi >= (user_params->HII_DIM)){ zi -= (user_params->HII_DIM);}
+//                        if (zi < 0) {zi += (user_params->HII_DIM);}
+//
+//                        *( (float *)LOWRES_density_perturb + HII_R_FFT_INDEX(xi, yi, zi) ) +=
+//                        (1 + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)]);
+//                    }
+//                }
+//            }
+//
+//            // renormalize to the new pixel size, and make into delta
+//            for (i=0; i<user_params->HII_DIM; i++){
+//                for (j=0; j<user_params->HII_DIM; j++){
+//                    for (k=0; k<user_params->HII_DIM; k++){
+//                        *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k) ) /= mass_factor;
+//                        *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k) ) -= 1;
+//                    }
+//                }
+//            }
+//
+//            // deallocate
+//            for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
+//                boxes->lowres_vx[ct] /= velocity_displacement_factor; // convert back to z = 0 quantity
+//                boxes->lowres_vy[ct] /= velocity_displacement_factor; // convert back to z = 0 quantity
+//                boxes->lowres_vz[ct] /= velocity_displacement_factor; // convert back to z = 0 quantity
+//            }
+//
+//            if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+//                for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
+//                    boxes->lowres_vx_2LPT[ct] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
+//                    boxes->lowres_vy_2LPT[ct] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
+//                    boxes->lowres_vz_2LPT[ct] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
+//                }
+//            }
+//        }
+//
+//        // ****  Print and convert to velocities ***** //
+//        if (global_params.EVOLVE_DENSITY_LINEARLY){
+//            for (i=0; i<user_params->HII_DIM; i++){
+//                for (j=0; j<user_params->HII_DIM; j++){
+//                    for (k=0; k<user_params->HII_DIM; k++){
+//                        *((float *)perturbed_field->density + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
+//                    }
+//                }
+//            }
+//
+//            // transform to k-space
+//            if(user_params->USE_FFTW_WISDOM) {
+//                // Check to see if the wisdom exists, create it if it doesn't
+//                sprintf(wisdom_filename,"real_to_complex_%d.fftwf_wisdom",user_params->HII_DIM);
+//                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
+//                else {
+//
+//                    // save a copy of the k-space density field
+//                    memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+//
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_PATIENT);
+//                    fftwf_execute(plan);
+//
+//                    // Store the wisdom for later use
+//                    fftwf_export_wisdom_to_filename(wisdom_filename);
+//
+//                    // copy over unfiltered box
+//                    memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+//
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
+//            }
+//            else {
+//                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_ESTIMATE);
+//                fftwf_execute(plan);
+//            }
+//
+//            // save a copy of the k-space density field
+//        }
+//        else{
+//
+//            // transform to k-space
+//            if(user_params->USE_FFTW_WISDOM) {
+//                // Check to see if the wisdom exists, create it if it doesn't
+//                sprintf(wisdom_filename,"real_to_complex_%d.fftwf_wisdom",user_params->HII_DIM);
+//                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
+//                else {
+//
+//                    // save a copy of the k-space density field
+//                    memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+//
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_PATIENT);
+//                    fftwf_execute(plan);
+//
+//                    // Store the wisdom for later use
+//                    fftwf_export_wisdom_to_filename(wisdom_filename);
+//
+//                    // copy over unfiltered box
+//                    memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+//
+//                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
             else {
+
                 // save a copy of the k-space density field
                 memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
@@ -318,9 +920,70 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                 fftwf_destroy_plan(plan);
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                              (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+
                 fftwf_execute(plan);
             }
         }
+//                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_ESTIMATE);
+//                fftwf_execute(plan);
+//            }
+//
+//            //smooth the field
+//            if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
+//                filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM);
+//            }
+//
+//            // save a copy of the k-space density field
+//            memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+//
+//            if(user_params->USE_FFTW_WISDOM) {
+//                // Check to see if the wisdom exists, create it if it doesn't
+//                sprintf(wisdom_filename,"complex_to_real_%d.fftwf_wisdom",user_params->HII_DIM);
+//                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+//                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
+//                else {
+//
+//                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_PATIENT);
+//                    fftwf_execute(plan);
+//
+//                    // Store the wisdom for later use
+//                    fftwf_export_wisdom_to_filename(wisdom_filename);
+//
+//                    // copy over unfiltered box
+//                    memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+//
+//                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+//                    fftwf_execute(plan);
+//                }
+//            }
+//            else {
+//                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_ESTIMATE);
+//                fftwf_execute(plan);
+//            }
+//
+//            // normalize after FFT
+//            for(i=0; i<user_params->HII_DIM; i++){
+//                for(j=0; j<user_params->HII_DIM; j++){
+//                    for(k=0; k<user_params->HII_DIM; k++){
+//                        *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) /= (float)HII_TOT_NUM_PIXELS;
+//                        if (*((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) < -1) // shouldn't happen
+//                            *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) = -1+FRACT_FLOAT_ERR;
+//                    }
+//                }
+//            }
+//
+//            for (i=0; i<user_params->HII_DIM; i++){
+//                for (j=0; j<user_params->HII_DIM; j++){
+//                    for (k=0; k<user_params->HII_DIM; k++){
+//                        *((float *)perturbed_field->density + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
+//                    }
+//                }
+//            }
+//
+//            memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+//        }
         else {
             plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                          (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_ESTIMATE);
@@ -334,6 +997,35 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
         }
 
         // save a copy of the k-space density field
+
+//        dDdt_over_D = dDdt/growth_factor;
+//
+//        for (n_x=0; n_x<user_params->HII_DIM; n_x++){
+//            if (n_x>HII_MIDDLE)
+//                k_x =(n_x-user_params->HII_DIM) * DELTA_K;  // wrap around for FFT convention
+//            else
+//                k_x = n_x * DELTA_K;
+//
+//            for (n_y=0; n_y<user_params->HII_DIM; n_y++){
+//                if (n_y>HII_MIDDLE)
+//                    k_y =(n_y-user_params->HII_DIM) * DELTA_K;
+//                else
+//                    k_y = n_y * DELTA_K;
+//
+//                for (n_z=0; n_z<=HII_MIDDLE; n_z++){
+//                    k_z = n_z * DELTA_K;
+//
+//                    k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
+//
+//                    // now set the velocities
+//                    if ((n_x==0) && (n_y==0) && (n_z==0)) // DC mode
+//                        LOWRES_density_perturb[0] = 0;
+//                    else{
+//                        LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_z*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
+//                    }
+//                }
+//            }
+//        }
         memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
         if(user_params->USE_FFTW_WISDOM) {
