@@ -54,19 +54,34 @@ def test_transfer_function(basic_init_box):
     assert not np.allclose(ic.hires_density, basic_init_box.hires_density)
 
 
-def test_relvels(basic_init_box):
+def test_relvels():
     """Test for relative velocity initial conditions"""
     ic = wrapper.initial_conditions(
         regenerate=True,
         write=False,
+        random_seed=1,
         user_params=wrapper.UserParams(
-            HII_DIM=100, BOX_LEN=300, POWER_SPECTRUM=5, USE_RELATIVE_VELOCITIES=True
+            HII_DIM=100,
+            DIM=300,
+            BOX_LEN=300,
+            POWER_SPECTRUM=5,
+            USE_RELATIVE_VELOCITIES=True,
         ),
     )
 
     vcbrms = np.sqrt(np.mean(ic.hires_vcb ** 2))
     vcbavg = np.mean(ic.hires_vcb)
-    assert vcbrms > 20.0
-    assert vcbrms < 40.0
-    assert vcbavg < vcbrms
-    assert vcbavg > 0.0
+
+    vcbrms_lowres = np.sqrt(np.mean(ic.lowres_vcb ** 2))
+    vcbavg_lowres = np.mean(ic.lowres_vcb)
+
+    assert vcbrms > 25.0
+    assert vcbrms < 35.0  # it should be about 30 km/s, so we check it is around it
+    assert (
+        vcbavg < 0.95 * vcbrms
+    )  # the average should be 0.92*vrms, since it follows a maxwell boltzmann
+    assert vcbavg > 0.90 * vcbrms
+    assert vcbrms_lowres > 25.0  # we also test the lowres box
+    assert vcbrms_lowres < 35.0
+    assert vcbavg_lowres < 0.95 * vcbrms_lowres
+    assert vcbavg_lowres > 0.90 * vcbrms_lowres

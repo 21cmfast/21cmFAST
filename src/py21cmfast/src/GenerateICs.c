@@ -219,7 +219,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             }
         }
     }
-  //now FFT back to complex space to filter
+  //now FFT back to Fourier space to filter
     plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_ESTIMATE);
     fftwf_execute(plan);
     plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_ESTIMATE);
@@ -234,7 +234,16 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
       filter_box(HIRES_box_vcb_z, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
     }
 
-  //to save into a lowres python box
+//and transform back to real space
+    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_ESTIMATE);
+    fftwf_execute(plan);
+    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_ESTIMATE);
+    fftwf_execute(plan);
+    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE);
+    fftwf_execute(plan);
+
+
+  //to save into a lowres box
     for (i=0; i<user_params->HII_DIM; i++){
         for (j=0; j<user_params->HII_DIM; j++){
             for (k=0; k<user_params->HII_DIM; k++){
@@ -247,7 +256,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
               vcb_z = *((float *)HIRES_box_vcb_z + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
                                                  (unsigned long long)(j*f_pixel_factor+0.5),
                                                  (unsigned long long)(k*f_pixel_factor+0.5)));
-              boxes->lowres_vcb[HII_R_INDEX(i,j,k)] =(vcb_x*vcb_x+vcb_y*vcb_y+vcb_z*vcb_z)/VOLUME/VOLUME;
+              boxes->lowres_vcb[HII_R_INDEX(i,j,k)] =sqrt(vcb_x*vcb_x+vcb_y*vcb_y+vcb_z*vcb_z)/VOLUME/TOT_NUM_PIXELS;
             }
         }
     }
