@@ -482,12 +482,18 @@ class InitialConditions(_OutputStruct):
         self.hires_density = np.zeros(
             self.user_params.tot_fft_num_pixels, dtype=np.float32
         )
+        self.hires_vcb = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
+        self.lowres_vcb = np.zeros(
+            self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
 
         shape = (
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
         )
+        hires_shape = (self.user_params.DIM, self.user_params.DIM, self.user_params.DIM)
+
         self.lowres_density.shape = shape
         self.lowres_vx.shape = shape
         self.lowres_vy.shape = shape
@@ -495,11 +501,10 @@ class InitialConditions(_OutputStruct):
         self.lowres_vx_2LPT.shape = shape
         self.lowres_vy_2LPT.shape = shape
         self.lowres_vz_2LPT.shape = shape
-        self.hires_density.shape = (
-            self.user_params.DIM,
-            self.user_params.DIM,
-            self.user_params.DIM,
-        )
+        self.hires_density.shape = hires_shape
+
+        self.lowres_vcb.shape = shape
+        self.hires_vcb.shape = hires_shape
 
 
 class PerturbedField(_OutputStructZ):
