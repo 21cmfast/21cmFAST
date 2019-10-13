@@ -121,6 +121,9 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
 int PhotonCons_Calibration(double *z_estimate, double *xH_estimate, int NSpline);
 double ComputeZstart_PhotonCons();
 
+int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analytic, double *z_cal_data, double *nf_cal_data, int *Ndata_calibration,
+                         double *PhotonCons_NFdata, double *PhotonCons_deltaz, int *Ndata_PhotonCons);
+
 int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
                struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, double *M_uv_z, double *M_h_z, double *log10phi);
 

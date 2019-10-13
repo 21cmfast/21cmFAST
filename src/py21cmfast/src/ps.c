@@ -44,11 +44,9 @@ static gsl_spline *erfc_spline;
 
 float calibrated_NF_min;
 int initialise_photoncons = 1;
-float times_exceeded = 0.;
-float times_exceeded2 = 0.;
 
-double *deltaz, *deltaz_smoothed, *NeutralFractions;
-int N_NFsamples,N_extrapolated;
+double *deltaz, *deltaz_smoothed, *NeutralFractions, *z_Q, *Q_value, *nf_vals, *z_vals;
+int N_NFsamples,N_extrapolated, N_analytic, N_calibrated, N_deltaz;
 
 
 bool initialised_ComputeLF = false;
@@ -2025,9 +2023,11 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     }
     nbin = cnt - istart;
     
+    N_analytic = nbin;
+    
     // initialise interploation Q as a function of z
-    double *z_Q = calloc(nbin,sizeof(double));
-    double *Q_value = calloc(nbin,sizeof(double));
+    z_Q = calloc(nbin,sizeof(double));
+    Q_value = calloc(nbin,sizeof(double));
     
     Q_at_z_spline_acc = gsl_interp_accel_alloc ();
     Q_at_z_spline = gsl_spline_alloc (gsl_interp_cspline, nbin);
@@ -2207,7 +2207,8 @@ void determine_deltaz_for_photoncons() {
         z_analytic_2 = temp;
     
         // determine the linear curve
-        gradient_analytic = ( delta_NF )/( z_analytic - z_analytic_2 );
+        // Multiplitcation by 1.1 is arbitrary but effectively smooths out most kinks observed in the resultant corrected reionisation histories
+        gradient_analytic = 1.1*( delta_NF )/( z_analytic - z_analytic_2 );
         const_offset = ( NeutralFractions[1+N_extrapolated] + delta_NF ) - gradient_analytic * z_analytic;
         
         // determine the extrapolation end point
@@ -2253,8 +2254,6 @@ void determine_deltaz_for_photoncons() {
         increasing_val = 1;
     }
     
-    
-    
     // For some models, the resultant delta z for extremely high neutral fractions ( > 0.95) seem to oscillate or sometimes drop in value.
     // This goes through and checks if this occurs, and tries to smooth this out
     // This doesn't occur very often, but can cause an artificial drop in the reionisation history (neutral fraction value) connecting the
@@ -2298,7 +2297,6 @@ void determine_deltaz_for_photoncons() {
         deltaz_smoothed[i] = deltaz[i];
     }
     
-
     // If we are not increasing for all values, we can smooth out some features in delta z when connecting the extrapolated delta z values
     // compared to those from the exact correction (i.e. when we cross the threshold).
     if(!increasing_val) {
@@ -2324,7 +2322,6 @@ void determine_deltaz_for_photoncons() {
         }
     }
     
-
     // Here we effectively filter over the delta z as a function of neutral fraction to try and minimise any possible kinks etc. in the functional curve.
     for(i=0;i<(N_NFsamples+N_extrapolated+1);i++) {
 
@@ -2362,6 +2359,8 @@ void determine_deltaz_for_photoncons() {
         }
         
     }
+
+    N_deltaz = N_NFsamples + N_extrapolated + 1;
     
     // Now, we can construct the spline of the photon non-conservation correction (delta z as a function of neutral fraction)
     deltaz_spline_for_photoncons_acc = gsl_interp_accel_alloc ();
@@ -2374,9 +2373,9 @@ void determine_deltaz_for_photoncons() {
 
 float adjust_redshifts_for_photoncons(float *redshift, float *stored_redshift, float *absolute_delta_z) {
     
-    int i;
+    int i, new_counter;
     double temp;
-    float required_NF, adjusted_redshift, future_z, gradient_extrapolation, const_extrapolation;
+    float required_NF, adjusted_redshift, future_z, gradient_extrapolation, const_extrapolation, temp_redshift, check_required_NF;
     
     // Determine the neutral fraction (filling factor) of the analytic calibration expression given the current sampled redshift
     Q_at_z(*redshift, &(temp));
@@ -2403,20 +2402,38 @@ float adjust_redshifts_for_photoncons(float *redshift, float *stored_redshift, f
                 
                 // This counts the number of times we have exceeded the extrapolated point and attempts to modify the delta z
                 // to try and make the function a little smoother
-                // Note that this is deliberately tailored to light-cone quantites, but will still work with co-eval cubes
-                // Though might produce some very minor discrepancies when comparing outputs.
                 *absolute_delta_z = gsl_spline_eval(deltaz_spline_for_photoncons, global_params.PhotonConsAsymptoteTo, deltaz_spline_for_photoncons_acc);
+                
+                new_counter = 0;
+                temp_redshift = *redshift;
+                check_required_NF = required_NF;
+                
+                // Ok, find when in the past we exceeded the asymptote threshold value using the global_params.ZPRIME_STEP_FACTOR
+                // In doing it this way, co-eval boxes will be the same as lightcone boxes with regard to redshift sampling
+                while( check_required_NF < global_params.PhotonConsAsymptoteTo ) {
+                    
+                    temp_redshift = ((1. + temp_redshift)*global_params.ZPRIME_STEP_FACTOR - 1.);
+                    
+                    Q_at_z(temp_redshift, &(temp));
+                    check_required_NF = 1.0 - (float)temp;
+                    
+                    new_counter += 1;
+                }
+                
+                // Now adjust the final delta_z by some amount to smooth if over successive steps
                 if(deltaz[1] > deltaz[0]) {
-                    *absolute_delta_z = pow( 0.98 , times_exceeded2 + 1. ) * ( *absolute_delta_z );
+                    *absolute_delta_z = pow( 0.96 , (new_counter - 1) + 1. ) * ( *absolute_delta_z );
                 }
                 else {
-                    *absolute_delta_z = pow( 1.02 , times_exceeded2 + 1. ) * ( *absolute_delta_z );
+                    *absolute_delta_z = pow( 1.04 , (new_counter - 1) + 1. ) * ( *absolute_delta_z );
                 }
+                
+                // Check if we go into the future (z < 0) and avoid it
                 adjusted_redshift = (*redshift) - (*absolute_delta_z);
                 if(adjusted_redshift < 0.0) {
                     adjusted_redshift = 0.0;
                 }
-                times_exceeded2 += 1.;
+                
             }
             else {
                 *absolute_delta_z = gsl_spline_eval(deltaz_spline_for_photoncons, required_NF, deltaz_spline_for_photoncons_acc);
@@ -2438,9 +2455,31 @@ float adjust_redshifts_for_photoncons(float *redshift, float *stored_redshift, f
         // Though might produce some very minor discrepancies when comparing outputs.
         if(required_NF < NeutralFractions[0]) {
 
-            *absolute_delta_z = deltaz[1] * pow( 1.002 , (times_exceeded + 1.));
-            times_exceeded += 1.;
+            new_counter = 0;
+            temp_redshift = *redshift;
+            check_required_NF = required_NF;
             
+            // Ok, find when in the past we exceeded the asymptote threshold value using the global_params.ZPRIME_STEP_FACTOR
+            // In doing it this way, co-eval boxes will be the same as lightcone boxes with regard to redshift sampling
+            while( check_required_NF < NeutralFractions[0] ) {
+                
+                temp_redshift = ((1. + temp_redshift)*global_params.ZPRIME_STEP_FACTOR - 1.);
+                
+                Q_at_z(temp_redshift, &(temp));
+                check_required_NF = 1.0 - (float)temp;
+                
+                new_counter += 1;
+            }
+            
+            // Now adjust the final delta_z by some amount to smooth if over successive steps
+            if(deltaz[1] > deltaz[0]) {
+                *absolute_delta_z = pow( 0.998 , (new_counter - 1) + 1. ) * ( *absolute_delta_z );
+            }
+            else {
+                *absolute_delta_z = pow( 1.002 , (new_counter - 1) + 1. ) * ( *absolute_delta_z );
+            }
+            
+            // Check if we go into the future (z < 0) and avoid it
             adjusted_redshift = (*redshift) - (*absolute_delta_z);
             if(adjusted_redshift < 0.0) {
                 adjusted_redshift = 0.0;
@@ -2522,9 +2561,11 @@ void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSp
     }
     counter = counter - start_index;
     
+    N_calibrated = (counter+1);
+    
     // Store the data points for determining the photon non-conservation correction
-    double *nf_vals = calloc((counter+1),sizeof(double));
-    double *z_vals = calloc((counter+1),sizeof(double));
+    nf_vals = calloc((counter+1),sizeof(double));
+    z_vals = calloc((counter+1),sizeof(double));
     
     calibrated_NF_min = 1.;
     
@@ -2570,4 +2611,31 @@ void NFHist_at_z(double z, double *splined_value){
     
     returned_value = gsl_spline_eval(z_NFHistory_spline, z, NFHistory_spline_acc);
     *splined_value = returned_value;
+}
+
+int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analytic, double *z_cal_data, double *nf_cal_data, int *Ndata_calibration,
+                         double *PhotonCons_NFdata, double *PhotonCons_deltaz, int *Ndata_PhotonCons) {
+    
+    int i;
+
+    *Ndata_analytic = N_analytic;
+    *Ndata_calibration = N_calibrated;
+    *Ndata_PhotonCons = N_deltaz;
+    
+    for(i=0;i<N_analytic;i++) {
+        z_at_Q_data[i] = z_Q[i];
+        Q_data[i] = Q_value[i];
+    }
+    
+    for(i=0;i<N_calibrated;i++) {
+        z_cal_data[i] = z_vals[i];
+        nf_cal_data[i] = nf_vals[i];
+    }
+
+    for(i=0;i<N_deltaz;i++) {
+        PhotonCons_NFdata[i] = NeutralFractions[i];
+        PhotonCons_deltaz[i] = deltaz[i];
+    }
+    
+    return(0);
 }

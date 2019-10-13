@@ -649,7 +649,6 @@ class BrightnessTemp(IonizedBox):
         else:
             return np.mean(self.brightness_temp)
 
-
 # ======================================================================================================================
 # HELPER FUNCTIONS
 # ======================================================================================================================
@@ -893,13 +892,78 @@ def calibrate_photon_conservation_correction(
 
     z = ffi.cast("double *", ffi.from_buffer(redshifts_estimate))
     xHI = ffi.cast("double *", ffi.from_buffer(nf_estimate))
-
+    
     return lib.PhotonCons_Calibration(z, xHI, NSpline)
 
 
 def calc_zstart_photon_cons():
     # Run the C code
     return lib.ComputeZstart_PhotonCons()
+
+
+
+def access_photon_nonconservation_data():
+
+    ArbitraryLargeSize = 2000
+
+    data1 = np.zeros(ArbitraryLargeSize)
+    data2 = np.zeros(ArbitraryLargeSize)
+    data3 = np.zeros(ArbitraryLargeSize)
+    data4 = np.zeros(ArbitraryLargeSize)
+    data5 = np.zeros(ArbitraryLargeSize)
+    data6 = np.zeros(ArbitraryLargeSize)
+    
+    IntVal1 = np.array(np.zeros(1), dtype="int32")
+    IntVal2 = np.array(np.zeros(1), dtype="int32")
+    IntVal3 = np.array(np.zeros(1), dtype="int32")
+
+    c_z_at_Q = ffi.cast("double *", ffi.from_buffer(data1))
+    c_Qval = ffi.cast("double *", ffi.from_buffer(data2))
+    c_z_cal = ffi.cast("double *", ffi.from_buffer(data3))
+    c_nf_cal = ffi.cast("double *", ffi.from_buffer(data4))
+    c_PC_nf = ffi.cast("double *", ffi.from_buffer(data5))
+    c_PC_deltaz = ffi.cast("double *", ffi.from_buffer(data6))
+
+    c_int_NQ = ffi.cast("int *", ffi.from_buffer(IntVal1))
+    c_int_NC = ffi.cast("int *", ffi.from_buffer(IntVal2))
+    c_int_NP = ffi.cast("int *", ffi.from_buffer(IntVal3))
+
+    # Run the C code
+    errcode = lib.ObtainPhotonConsData(
+        c_z_at_Q,
+        c_Qval,
+        c_int_NQ,
+        c_z_cal,
+        c_nf_cal,
+        c_int_NC,
+        c_PC_nf,
+        c_PC_deltaz,
+        c_int_NP,
+    )
+
+    _process_exitcode(errcode)
+
+    z_at_Q = np.zeros(IntVal1[0])
+    Qval = np.zeros(IntVal1[0])
+    z_cal = np.zeros(IntVal2[0])
+    nf_cal = np.zeros(IntVal2[0])
+    PC_nf = np.zeros(IntVal3[0])
+    PC_deltaz = np.zeros(IntVal3[0])
+    
+    for i in range(IntVal1[0]):
+        z_at_Q[i] = data1[i]
+        Qval[i] = data2[i]
+
+    for i in range(IntVal2[0]):
+        z_cal[i] = data3[i]
+        nf_cal[i] = data4[i]
+
+    for i in range(IntVal3[0]):
+        PC_nf[i] = data5[i]
+        PC_deltaz[i] = data6[i]
+
+    return z_at_Q, Qval, z_cal, nf_cal, PC_deltaz, PC_nf
+
 
 
 def initial_conditions(
@@ -2021,6 +2085,12 @@ class LightCone:
         node_redshifts=None,
         global_xHI=None,
         global_brightness_temp=None,
+        analytic_z = None,
+        analytic_Q = None,
+        calibrated_z = None,
+        calibrated_nf = None,        
+        PhotonCons_deltaz = None,
+        PhotonCons_nf = None,
     ):
         self.redshift = redshift
         self.user_params = user_params
@@ -2032,6 +2102,13 @@ class LightCone:
         self.node_redshifts = node_redshifts
         self.global_xHI = global_xHI
         self.global_brightness_temp = global_brightness_temp
+
+        self.analytic_z = analytic_z
+        self.analytic_Q = analytic_Q
+        self.calibrated_z = calibrated_z
+        self.calibrated_nf = calibrated_nf        
+        self.PhotonCons_deltaz = PhotonCons_deltaz
+        self.PhotonCons_nf = PhotonCons_nf
 
     @property
     def cell_size(self):
@@ -2311,6 +2388,9 @@ def run_lightcone(
         ib = ib2
         bt = bt2
 
+    if flag_options.PHOTON_CONS:
+        z_analytic, Q_analytic, z_cal, nf_cal, deltaz_photoncons, nf_photoncons = access_photon_nonconservation_data()
+
     return LightCone(
         redshift,
         user_params,
@@ -2321,6 +2401,12 @@ def run_lightcone(
         node_redshifts=scrollz,
         global_xHI=neutral_fraction,
         global_brightness_temp=global_signal,
+        analytic_z = z_analytic if flag_options.PHOTON_CONS else None,
+        analytic_Q = Q_analytic if flag_options.PHOTON_CONS else None,
+        calibrated_z = z_cal if flag_options.PHOTON_CONS else None,
+        calibrated_nf = nf_cal if flag_options.PHOTON_CONS else None,        
+        PhotonCons_deltaz = deltaz_photoncons if flag_options.PHOTON_CONS else None,
+        PhotonCons_nf = nf_photoncons if flag_options.PHOTON_CONS else None,
     )
 
 
@@ -2424,7 +2510,7 @@ def _CalibratePhotonCons(
 
         # Can speed up sampling in regions where the evolution is slower
         if 0.01 < mean_nf <= 0.9:
-            z -= 0.1
+            z -= 0.15
         else:
             z -= 0.5
 
@@ -2438,4 +2524,4 @@ def _CalibratePhotonCons(
         redshifts_estimate=z_for_photon_cons,
         nf_estimate=neutral_fraction_photon_cons,
         NSpline=len(z_for_photon_cons),
-    )
+    )    
