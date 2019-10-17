@@ -220,11 +220,30 @@ class UserParams(StructWithDefaults):
         2: Watson FOF
         3: Watson FOF-z
 
+    USE_RELATIVE_VELOCITIES: int, optional
+        Flag to decide whether to use relative velocities, default YES. If YES, POWER_SPECTRUM has to be set to 5 (CLASS).
+
+    POWER_SPECTRUM: int, optional
+        Determines which decide which power spectrum to use:
+        0: EH
+        1: BBKS
+        2: EFSTATHIOU
+        3: PEEBLES
+        4: WHITE
+        5: CLASS output
     """
 
     _ffi = ffi
 
-    _defaults_ = dict(BOX_LEN=150.0, DIM=None, HII_DIM=50, USE_FFTW_WISDOM=False, HMF=1)
+    _defaults_ = dict(
+        BOX_LEN=150.0,
+        DIM=None,
+        HII_DIM=50,
+        USE_FFTW_WISDOM=False,
+        HMF=1,
+        USE_RELATIVE_VELOCITIES=False,
+        POWER_SPECTRUM=0,
+    )
 
     @property
     def DIM(self):
@@ -242,6 +261,16 @@ class UserParams(StructWithDefaults):
     def HII_tot_num_pixels(self):
         """Number of pixels in the low-res box."""
         return self.HII_DIM ** 3
+
+    @property
+    def POWER_SPECTRUM(self):
+        """
+        We make sure that it's CLASS (5) if USE_RELATIVE_VELOCITIES is True
+        """
+        if self.USE_RELATIVE_VELOCITIES:
+            return 5
+        else:
+            return self._POWER_SPECTRUM
 
 
 class FlagOptions(StructWithDefaults):
@@ -453,12 +482,18 @@ class InitialConditions(_OutputStruct):
         self.hires_density = np.zeros(
             self.user_params.tot_fft_num_pixels, dtype=np.float32
         )
+        self.hires_vcb = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
+        self.lowres_vcb = np.zeros(
+            self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
 
         shape = (
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
         )
+        hires_shape = (self.user_params.DIM, self.user_params.DIM, self.user_params.DIM)
+
         self.lowres_density.shape = shape
         self.lowres_vx.shape = shape
         self.lowres_vy.shape = shape
@@ -466,11 +501,10 @@ class InitialConditions(_OutputStruct):
         self.lowres_vx_2LPT.shape = shape
         self.lowres_vy_2LPT.shape = shape
         self.lowres_vz_2LPT.shape = shape
-        self.hires_density.shape = (
-            self.user_params.DIM,
-            self.user_params.DIM,
-            self.user_params.DIM,
-        )
+        self.hires_density.shape = hires_shape
+
+        self.lowres_vcb.shape = shape
+        self.hires_vcb.shape = hires_shape
 
 
 class PerturbedField(_OutputStructZ):

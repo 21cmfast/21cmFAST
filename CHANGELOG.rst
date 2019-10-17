@@ -1,9 +1,11 @@
-
 Changelog
 =========
 
-v3.0.0rc1
----------
+v3.0.0.dev
+----------
+Complete overhaul of 21cmFAST, including a robust python-wrapper and interface,
+caching mechanisms, and public repository with continuous integration.
+
 Added
 ~~~~~
 * Tests: many unit tests, and also some regression tests.
@@ -12,6 +14,18 @@ Added
 * Documentation: Jupyter notebook demos and tutorials, FAQs, installation instructions.
 * Plotting routines: a number of general plotting routines designed to plot coeval
   and lightcone slices.
+* New power spectrum option (``POWER_SPECTRUM=5``) that uses a CLASS-based transfer
+  function. WARNING: If POWER_SPECTRUM==5 the cosmo parameters cannot be altered, they
+  are set to the Planck2018 best-fit values for now (until CLASS is added):
+  (omegab=0.02237, omegac= 0.120, hubble=0.6736 (the rest are irrelevant for the
+  transfer functions, but in case:  A_s=2.100e-9, n_s=0.9649, z_reio = 11.357)
+* New ``user_params`` option ``USE_RELATIVE_VELOCITIES``, which produces initial relative
+  velocity cubes (option implemented, but not the actual computation yet).
+
+Changed
+~~~~~~~
+* ``POWER_SPECTRUM`` option moved from ``global_params`` to ``user_params``.
+
 
 v2.0.0
 ------
