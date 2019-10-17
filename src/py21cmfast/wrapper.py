@@ -433,8 +433,10 @@ class InitialConditions(_OutputStruct):
     A class containing all initial conditions boxes.
     """
 
-    # The filter params indicates parameters to overlook when deciding if a cached box matches current parameters.
-    # It is useful for ignoring certain global parameters which may not apply to this step or its dependents.
+    # The filter params indicates parameters to overlook when deciding if a cached box
+    # matches current parameters.
+    # It is useful for ignoring certain global parameters which may not apply to this
+    # step or its dependents.
     _filter_params = _OutputStruct._filter_params + [
         "ALPHA_UVB",  # ionization
         "EVOLVE_DENSITY_LINEARLY",  # perturb
