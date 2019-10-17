@@ -22,8 +22,6 @@ install: pip install -U tox-travis coverage coveralls
 # command to run tests, e.g. python setup.py test
 script:
   - tox
-  - coverage report
-
 
 # Calculate coverage
 after_success:
