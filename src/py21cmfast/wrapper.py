@@ -902,7 +902,7 @@ def calc_zstart_photon_cons():
 
 
 
-def access_photon_nonconservation_data():
+def get_photon_nonconservation_data():
 
     ArbitraryLargeSize = 2000
 
@@ -1961,7 +1961,7 @@ def run_coeval(
 
 
     if flag_options.PHOTON_CONS:
-        _CalibratePhotonCons(
+        calibrate_photon_cons(
             user_params, 
             cosmo_params, 
             astro_params, 
@@ -2266,7 +2266,7 @@ def run_lightcone(
     )
 
     if flag_options.PHOTON_CONS:
-        _CalibratePhotonCons(
+        calibrate_photon_cons(
             user_params, 
             cosmo_params, 
             astro_params, 
@@ -2389,7 +2389,7 @@ def run_lightcone(
         bt = bt2
 
     if flag_options.PHOTON_CONS:
-        z_analytic, Q_analytic, z_cal, nf_cal, deltaz_photoncons, nf_photoncons = access_photon_nonconservation_data()
+        z_analytic, Q_analytic, z_cal, nf_cal, deltaz_photoncons, nf_photoncons = get_photon_nonconservation_data()
 
     return LightCone(
         redshift,
@@ -2405,8 +2405,8 @@ def run_lightcone(
         analytic_Q = Q_analytic if flag_options.PHOTON_CONS else None,
         calibrated_z = z_cal if flag_options.PHOTON_CONS else None,
         calibrated_nf = nf_cal if flag_options.PHOTON_CONS else None,        
-        PhotonCons_deltaz = deltaz_photoncons if flag_options.PHOTON_CONS else None,
-        PhotonCons_nf = nf_photoncons if flag_options.PHOTON_CONS else None,
+        photon_cons_deltaz = deltaz_photoncons if flag_options.PHOTON_CONS else None,
+        photon_cons_nf = nf_photoncons if flag_options.PHOTON_CONS else None,
     )
 
 
@@ -2449,9 +2449,40 @@ def _get_lightcone_redshifts(
         ]
     )
 
-def _CalibratePhotonCons(
+def calibrate_photon_cons(
     user_params, cosmo_params, astro_params, flag_options, init_box, regenerate, write, z_step_factor
 ):
+    """
+    Sets up the photon non-conservation correction.
+
+    Scrolls through in redshift, turning off all flag_options to construct a 21cmFAST calibration reionisation history
+    to be matched to the analytic expression from solving the filling factor ODE.
+
+
+    Parameters
+    ----------
+    user_params : `~UserParams`, optional
+        Defines the overall options and parameters of the run.
+    astro_params : :class:`~AstroParams`, optional
+        Defines the astrophysical parameters of the run.
+    cosmo_params : :class:`~CosmoParams`, optional
+        Defines the cosmological parameters used to compute initial conditions.
+    flag_options: :class:`~FlagOptions`, optional
+        Options concerning how the reionization process is run, eg. if spin temperature fluctuations are required.
+    z_step_factor: float, optional
+        How large the logarithmic steps between redshift are (if required).
+    init_box : :class:`~InitialConditions`, optional
+        If given, the user and cosmo params will be set from this object, and it will not be re-calculated.
+
+    Returns
+    -------
+    Nothing
+
+    Other Parameters
+    ----------------
+    regenerate, write
+        See docs of :func:`initial_conditions` for more information.
+    """
 
     # Create a new astro_params and flag_options just for the photon_cons correction
     astro_params_photoncons = deepcopy(astro_params)
