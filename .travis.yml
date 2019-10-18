@@ -19,11 +19,11 @@ env:
 # command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
 install:
   - pip install -U tox-travis coverage coveralls
-  - ls ~/.21cmfast/
-  - ls ~/.21cmfast/External_tables
 
 # command to run tests, e.g. python setup.py test
 script:
+  - ls ~/.21cmfast/
+  - ls ~/.21cmfast/External_tables
   - tox
 
 # Calculate coverage
