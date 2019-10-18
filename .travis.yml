@@ -22,8 +22,6 @@ install:
 
 # command to run tests, e.g. python setup.py test
 script:
-  - ls ~/.21cmfast/
-  - ls ~/.21cmfast/External_tables
   - tox
 
 # Calculate coverage
