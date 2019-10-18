@@ -1890,6 +1890,9 @@ def run_coeval(
     bt: :class:`~BrightnessTemp` or list thereof
         The brightness temperature box(es)
 
+    photon_nonconservation_data: :dict: containing data used
+        in the photon non-conservation correction
+
     Other Parameters
     ----------------
     regenerate, write, direc, random_seed:
