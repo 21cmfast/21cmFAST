@@ -1407,6 +1407,9 @@ LOG_SUPER_DEBUG("finished loop");
 
     } // end main integral loop over z'
 
+    fftwf_free(box);
+    fftwf_free(unfiltered_box);
+
     return(0);
 }
 

@@ -484,6 +484,9 @@ LOG_DEBUG("ave Tb = %e", ave);
     free(x_pos_offset);
     free(delta_T_RSD_LOS);
 
+    fftwf_destroy_plan(plan);
+    fftwf_cleanup();
+
     return(0);
 }
 

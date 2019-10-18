@@ -838,7 +838,7 @@ LOG_SUPER_DEBUG("freed fftw boxes");
     }
 
     
-//    fftwf_destroy_plan(plan);
+    fftwf_destroy_plan(plan);
     fftwf_cleanup();
 
     

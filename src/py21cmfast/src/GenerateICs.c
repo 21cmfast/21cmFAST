@@ -623,7 +623,8 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     fftwf_free(HIRES_box_saved);
 
     free_ps();
-
+    fftwf_destroy_plan(plan);
+    fftwf_cleanup();
 
     return(0);
 }

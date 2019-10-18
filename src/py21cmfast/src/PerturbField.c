@@ -384,6 +384,9 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
     fftwf_free(LOWRES_density_perturb);
     fftwf_free(LOWRES_density_perturb_saved);
 
+    fftwf_destroy_plan(plan);
+    fftwf_cleanup();
+
     return(0);
 
 }
