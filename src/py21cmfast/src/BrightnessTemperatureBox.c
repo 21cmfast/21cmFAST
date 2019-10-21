@@ -118,7 +118,8 @@ int ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams
                 
                 // copy over unfiltered box
                 memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-                
+
+                fftwf_destroy_plan(plan);
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
@@ -127,7 +128,8 @@ int ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams
             plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
-        
+        fftwf_destroy_plan(plan);
+
         for (n_x=0; n_x<user_params->HII_DIM; n_x++){
             if (n_x>HII_MIDDLE)
                 k_x =(n_x-user_params->HII_DIM) * DELTA_K;  // wrap around for FFT convention
@@ -192,7 +194,7 @@ int ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams
                         }
                     }
                 }
-                
+                fftwf_destroy_plan(plan);
                 plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
@@ -201,7 +203,7 @@ int ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams
             plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
-        
+        fftwf_destroy_plan(plan);
         
         // now add the velocity correction to the delta_T maps (only used for T_S >> T_CMB case).
         max_v_deriv = fabs(global_params.MAX_DVDR*H);
@@ -484,7 +486,7 @@ LOG_DEBUG("ave Tb = %e", ave);
     free(x_pos_offset);
     free(delta_T_RSD_LOS);
 
-    fftwf_destroy_plan(plan);
+//    fftwf_destroy_plan(plan);
     fftwf_cleanup();
 
     return(0);

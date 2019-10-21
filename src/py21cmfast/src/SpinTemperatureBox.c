@@ -409,7 +409,8 @@ LOG_SUPER_DEBUG("Looping through R");
                             }
                         }
                     }
-                    
+
+                    fftwf_destroy_plan(plan);
                     plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_WISDOM_ONLY);
                     fftwf_execute(plan);
                 }
@@ -418,7 +419,8 @@ LOG_SUPER_DEBUG("Looping through R");
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_ESTIMATE);
                 fftwf_execute(plan);
             }
-            
+            fftwf_destroy_plan(plan);
+
             // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
             // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
             for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
@@ -462,7 +464,8 @@ LOG_SUPER_DEBUG("Looping through R");
                         if (R_ct > 0){ // don't filter on cell size
                             filter_box(box, 1, global_params.HEAT_FILTER, R);
                         }
-                        
+
+                        fftwf_destroy_plan(plan);
                         plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)box, (float *)box, FFTW_WISDOM_ONLY);
                         fftwf_execute(plan);
                     }
@@ -471,7 +474,8 @@ LOG_SUPER_DEBUG("Looping through R");
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)box, (float *)box, FFTW_ESTIMATE);
                     fftwf_execute(plan);
                 }
-                
+                fftwf_destroy_plan(plan);
+
                 min_density = 0.0;
                 max_density = 0.0;
             
@@ -1409,6 +1413,9 @@ LOG_SUPER_DEBUG("finished loop");
 
     fftwf_free(box);
     fftwf_free(unfiltered_box);
+
+//    fftwf_destroy_plan(plan);
+    fftwf_cleanup();
 
     return(0);
 }
