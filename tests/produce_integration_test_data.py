@@ -78,7 +78,7 @@ def produce_power_spectra(**kwargs):
     if os.path.exists(os.path.join(DATA_PATH, fname)):
         os.remove(os.path.join(DATA_PATH, fname))
 
-    with h5py.File(os.path.join(DATA_PATH, fname)) as fl:
+    with h5py.File(os.path.join(DATA_PATH, fname), "w") as fl:
         for k, v in kwargs.items():
             fl.attrs[k] = v
 

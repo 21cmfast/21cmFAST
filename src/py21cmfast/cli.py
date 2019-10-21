@@ -649,7 +649,6 @@ def pr_feature(
 
     structs = dict(
         user_params=dict(HII_DIM=128, BOX_LEN=250),
-        #        user_params=dict(HII_DIM=35, BOX_LEN=100),
         flag_options=dict(USE_TS_FLUCT=True),
         cosmo_params=dict(),
         astro_params=dict(),
