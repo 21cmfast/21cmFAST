@@ -19,46 +19,49 @@ struct CosmoParams{
     float OMl;
     float OMb;
     float POWER_INDEX;
-    
+
 };
 
 struct UserParams{
-    
+
     // Parameters taken from INIT_PARAMS.H
     int HII_DIM;
     int DIM;
     float BOX_LEN;
     bool USE_FFTW_WISDOM;
-    int HMF;    
+    int HMF;
+    int USE_RELATIVE_VELOCITIES;
+    int POWER_SPECTRUM;
+
 };
 
 struct AstroParams{
-    
+
     // Parameters taken from INIT_PARAMS.H
     float HII_EFF_FACTOR;
-    
+
     float F_STAR10;
     float ALPHA_STAR;
     float F_ESC10;
     float ALPHA_ESC;
     float M_TURN;
-    
+
     float R_BUBBLE_MAX;
-    
+
     float ION_Tvir_MIN;
-    
+
     double L_X;
     float NU_X_THRESH;
     float X_RAY_SPEC_INDEX;
     float X_RAY_Tvir_MIN;
-    
+
     float t_STAR;
-    
+
     int N_RSD_STEPS;
 };
 
 struct FlagOptions{
-    
+
     // Parameters taken from INIT_PARAMS.H
     bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
@@ -71,6 +74,7 @@ struct FlagOptions{
 
 struct InitialConditions{
     float *lowres_density, *lowres_vx, *lowres_vy, *lowres_vz, *lowres_vx_2LPT, *lowres_vy_2LPT, *lowres_vz_2LPT, *hires_density;
+    float *lowres_vcb, *hires_vcb;
 };
 
 struct PerturbedField{

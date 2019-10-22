@@ -2,11 +2,11 @@
     This is a header file containing some global variables that the user might want to change
     on the rare occasion.
 
-    Do a text search to find parameters from a specific .H file from 21cmFAST 
+    Do a text search to find parameters from a specific .H file from 21cmFAST
     (i.e. INIT_PARAMS.H, COSMOLOGY.H, ANAL_PARAMS.H and HEAT_PARAMS)
- 
+
     NOTE: Not all 21cmFAST variables will be found below. Only those useful for 21CMMC
- 
+
  */
 
 struct GlobalParams{
@@ -27,7 +27,7 @@ struct GlobalParams{
 //    int DELTA_CRIT_MODE;
     int HII_FILTER;
     float INITIAL_REDSHIFT;
-    
+
     float CRIT_DENS_TRANSITION;
     float MIN_DENSITY_LOW_LIMIT;
     
@@ -54,9 +54,9 @@ struct GlobalParams{
 
     float NU_X_BAND_MAX;
     float NU_X_MAX;
-    
+
     int NBINS_LF;
-    
+
     int P_CUTOFF;
     float M_WDM;
     float g_x;
@@ -70,13 +70,17 @@ struct GlobalParams{
     float SHETH_c;
     double Zreion_HeII;
     int FILTER;
-    int POWER_SPECTRUM;
 
     char *external_table_path;
+
+
+
+
+
 };
 
 struct GlobalParams global_params = {
-    
+
     .ALPHA_UVB = 5.0,
     .EVOLVE_DENSITY_LINEARLY = 0,
     .SMOOTH_EVOLVED_DENSITY_FIELD = 0,
@@ -94,10 +98,10 @@ struct GlobalParams global_params = {
 //    .DELTA_CRIT_MODE = 1,
     .HII_FILTER = 1,
     .INITIAL_REDSHIFT = 300.,
-    
+
     .CRIT_DENS_TRANSITION = 1.5,
     .MIN_DENSITY_LOW_LIMIT = 9e-8,
-    
+
     .RecombPhotonCons = 0,
     .PhotonConsStart = 0.995,
     .PhotonConsEnd = 0.3,
@@ -116,12 +120,12 @@ struct GlobalParams global_params = {
     .Pop2_ion = 5000,
     .Pop3_ion = 44021,
 //    .DEBUG_ON = 0,
-    
+
     .NU_X_BAND_MAX = 2000.0,
     .NU_X_MAX = 10000.0,
-    
+
     .NBINS_LF = 100,
-    
+
     .P_CUTOFF = 0,
     .M_WDM = 2,
     .g_x = 1.5,
@@ -135,7 +139,10 @@ struct GlobalParams global_params = {
     .SHETH_c = 0.05,
     .Zreion_HeII = 3.0,
     .FILTER = 0,
-    .POWER_SPECTRUM = 0,
+
+
+
+
 };
 
 /*
@@ -156,7 +163,7 @@ static int EVOLVE_DENSITY_LINEARLY = 0;
 // EVOLVE_DENSITY_LINEARLY = 1, evolve the density field with linear theory.
 // If choosing this option, make sure that your cell size is
 // in the linear regime at the redshift of interest
- 
+
 // EVOLVE_DENSITY_LINEARLY = 0, evolve the density field with 1st order perturbation theory.
 // If choosing this option, make sure that you resolve small
 // enough scales, roughly we find BOX_LEN/DIM should be < 1Mpc
@@ -203,7 +210,7 @@ static int N_POISSON = -1;
 // scale.  If the predicted mean collapse fraction is < N_POISSON * M_MIN,
 // then Poisson scatter is added to mimic discrete halos on the subgrid scale
 // (see Zahn+ 2010).
- 
+
 // NOTE: If you are interested in snapshots of the same realization at several redshifts,
 // it is recommended to turn off this feature, as halos can stocastically
 // "pop in and out of" existance from one redshift to the next...
@@ -348,12 +355,12 @@ static float wl = -1.0; // dark energy equation of state parameter (wl = -1 for 
 // and a DELTA_R_FACTOR (see ANAL_PARAMS.H) dependence, as (will be) shown in Mesinger+.
 // For converged mass functions at z~5-10, set DELTA_R_FACTOR=1.1 and SHETH_b~0.15
 // SHETH_c~0.05 (work in progress)
- 
+
 // For most purposes, a larger step size is quite sufficient and provides an excelent match
 // to N-body and smoother mass functions, though the b and c parameters should be changed
 // to make up for some "stepping-over" massive collapsed halos (see Mesinger, Perna, Haiman (2005)
 // and Mesinger et al., in preparation)
- 
+
 // For example, at z~7-10, one can set DELTA_R_FACTOR=1.3 and SHETH_b=0.15 SHETH_c=0.25,
 // to increase the speed of the halo finder.
 static float SHETH_b = 0.15; //  1-D realisation best fit from Barkana et al. 2001: SHETH_b 0.34
