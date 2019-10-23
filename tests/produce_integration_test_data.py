@@ -13,6 +13,7 @@ from py21cmfast import (
     UserParams,
 )
 
+SEED = 12345
 DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
 
 
@@ -45,7 +46,7 @@ def produce_power_spectra(**kwargs):
         z_step_factor=kwargs.get("z_step_factor", None),
         z_heat_max=kwargs.get("z_heat_max", None),
         use_interp_perturb_field=kwargs.get("use_interp_perturb_field", False),
-        random_seed=12345,
+        random_seed=SEED,
     )
 
     lightcone = run_lightcone(
@@ -60,7 +61,7 @@ def produce_power_spectra(**kwargs):
         z_step_factor=kwargs.get("z_step_factor", 1.02),
         z_heat_max=kwargs.get("z_heat_max", None),
         use_interp_perturb_field=kwargs.get("use_interp_perturb_field", False),
-        random_seed=12345,
+        random_seed=SEED,
     )
 
     p, k = get_power(brightness_temp.brightness_temp, boxlength=user_params["BOX_LEN"])

@@ -3,7 +3,7 @@ A set of large-scale tests which test code updates against previously-run "golde
 results.
 
 The idea here is that any new updates (except for major versions) should be non-breaking;
-firstly, they should not break the API, so that the tests should run with crashing without
+firstly, they should not break the API, so that the tests should run without crashing without
 being changed.
 Secondly, the actual results of running the basic functions should remain the same for
 the same input code, except for potential bug-fixes. In these cases, these tests should
@@ -85,7 +85,7 @@ def test_power_spectra_coeval(fname):
         z_step_factor=kwargs.pop("z_step_factor", None),
         z_heat_max=kwargs.pop("z_heat_max", None),
         use_interp_perturb_field=kwargs.pop("use_interp_pf", False),
-        random_seed=12345,
+        random_seed=_SEED,
     )
 
     p, k = get_power(brightness_temp.brightness_temp, boxlength=user_params["BOX_LEN"])
@@ -118,7 +118,7 @@ def test_power_spectra_lightcone(fname):
         z_step_factor=kwargs.pop("z_step_factor", 1.02),
         z_heat_max=kwargs.pop("z_heat_max", None),
         use_interp_perturb_field=kwargs.pop("use_interp_pf", False),
-        random_seed=12345,
+        random_seed=_SEED,
     )
 
     p, k = get_power(

@@ -644,13 +644,13 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             
             
             if(isfinite(f_coll)==0) {
-                LOG_ERROR("f_coll is either finite or NaN!");
+                LOG_ERROR("f_coll is either infinite or NaN!");
                 return(2);
             }
 
             f_coll /= (double) HII_TOT_NUM_PIXELS;
             
-            // To avoid ST_over_PS becoms nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
+            // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
             if(flag_options->USE_MASS_DEPENDENT_ZETA) {
                 if (f_coll <= f_coll_min) f_coll = f_coll_min;
             }
