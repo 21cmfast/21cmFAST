@@ -2085,7 +2085,10 @@ def run_coeval(
 
     if flag_options.PHOTON_CONS:
         photon_nonconservation_data = get_photon_nonconservation_data()
+    else:
+        photon_nonconservation_data = None
 
+        
     # If a single redshift was passed, then pass back singletons.
     if singleton:
         logger.debug("PID={} making into singleton".format(os.getpid()))
