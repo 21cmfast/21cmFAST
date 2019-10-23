@@ -5,6 +5,8 @@ int INIT_RECOMBINATIONS = 1;
 
 double *ERFC_VALS, *ERFC_VALS_DIFF;
 
+float absolute_delta_z;
+
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
@@ -62,6 +64,9 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     
     float min_density, max_density;
     
+    float adjusted_redshift, required_NF, stored_redshift, adjustment_factor, future_z;
+    double temp;
+    
     const gsl_rng_type * T;
     gsl_rng * r;
     
@@ -97,6 +102,12 @@ LOG_SUPER_DEBUG("defined parameters");
     fabs_dtdz = fabs(dtdz(redshift));
     t_ast = astro_params->t_STAR * t_hubble(redshift);
     growth_factor_dz = dicke(redshift-dz);
+
+    // Modify the current sampled redshift to a redshift which matches the expected filling factor given our astrophysical parameterisation.
+    // This is the photon non-conservation correction
+    if(flag_options->PHOTON_CONS) {
+        adjust_redshifts_for_photoncons(&redshift,&stored_redshift,&absolute_delta_z);
+    }
     
     Splined_Fcoll = 0.;
     
@@ -169,10 +180,16 @@ LOG_SUPER_DEBUG("erfc interpolation done");
      
     // Calculate the density field for this redshift if the initial conditions/cosmology are changing
     
+    if(flag_options->PHOTON_CONS) {
+        adjustment_factor = dicke(redshift)/dicke(stored_redshift);
+    }
+    else {
+        adjustment_factor = 1.;
+    }
     for (i=0; i<user_params->HII_DIM; i++){
         for (j=0; j<user_params->HII_DIM; j++){
             for (k=0; k<user_params->HII_DIM; k++){
-                *((float *)deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = perturbed_field->density[HII_R_INDEX(i,j,k)];
+                *((float *)deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = (perturbed_field->density[HII_R_INDEX(i,j,k)])*adjustment_factor;
             }
         }
     }
@@ -233,6 +250,8 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
     // Determine the normalisation for the excursion set algorithm
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         mean_f_coll = Nion_General(redshift,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+        
+        f_coll_min = Nion_General(global_params.Z_HEAT_MAX,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
     }
     else {
         mean_f_coll = FgtrM_General(redshift, M_MIN);
@@ -502,7 +521,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 
                 if(min_density < 0.) {
                     min_density = min_density*1.001;
-                    if(min_density < -1.) {
+                    if(min_density <= -1.) {
                         // Use MIN_DENSITY_LOW_LIMIT as is it smaller than FRACT_FLOAT_ERR
                         min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
                     }
@@ -583,7 +602,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             
                             if (curr_dens < global_params.CRIT_DENS_TRANSITION){
                                 
-                                if (curr_dens < -1.) {
+                                if (curr_dens <= -1.) {
                                     Splined_Fcoll = 0;
                                 }
                                 else {
@@ -666,7 +685,14 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             rec = 0.;
         
             xHI_from_xrays = 1;
-            Gamma_R_prefactor = pow(1+redshift, 2) * (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
+            Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
+            if(flag_options->PHOTON_CONS) {
+                // Used for recombinations, which means we want to use the original redshift not the adjusted redshift
+                Gamma_R_prefactor *= pow(1+stored_redshift, 2);
+            }
+            else {
+                Gamma_R_prefactor *= pow(1+redshift, 2);
+            }
             
             Gamma_R_prefactor /= t_ast;
             
@@ -786,9 +812,19 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 for (y=0; y<user_params->HII_DIM; y++){
                     for (z=0; z<user_params->HII_DIM; z++){
                     
-                        curr_dens = 1.0 + perturbed_field->density[HII_R_INDEX(x,y,z)];
-                        z_eff = (1+redshift) * pow(curr_dens, 1.0/3.0) - 1;
-                        dNrec = splined_recombination_rate(z_eff, box->Gamma12_box[HII_R_INDEX(x,y,z)]) * fabs_dtdz * ZSTEP * (1 - box->xH_box[HII_R_INDEX(x,y,z)]);
+                        // use the original density and redshift for the snapshot (not the adjusted redshift)
+                        // Only want to use the adjusted redshift for the ionisation field
+                        curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x,y,z)])/adjustment_factor;
+                        z_eff = pow(curr_dens, 1.0/3.0);
+                        
+                        if(flag_options->PHOTON_CONS) {
+                            z_eff *= (1+stored_redshift);
+                        }
+                        else {
+                            z_eff *= (1+redshift);
+                        }
+                        
+                        dNrec = splined_recombination_rate(z_eff-1., box->Gamma12_box[HII_R_INDEX(x,y,z)]) * fabs_dtdz * ZSTEP * (1 - box->xH_box[HII_R_INDEX(x,y,z)]);
                         
                         if(isfinite(dNrec)==0) {
                             something_finite_or_infinite = 1;
@@ -809,7 +845,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
     
     // deallocate
     gsl_rng_free (r);
-
+    
 LOG_DEBUG("global_xH = %e",global_xH);
 
     fftwf_free(deltax_unfiltered);
