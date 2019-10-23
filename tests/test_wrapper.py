@@ -301,7 +301,7 @@ def test_bt(ionize_box, spin_temp, perturb_field):
 
 
 def test_coeval_against_direct(init_box, perturb_field, ionize_box):
-    init, pf, ib, bt = wrapper.run_coeval(
+    init, pf, ib, bt, pcd = wrapper.run_coeval(
         perturb=perturb_field, init_box=init_box, write=False
     )
 
