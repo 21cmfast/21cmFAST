@@ -785,7 +785,7 @@ def configure_redshift(redshift, *structs):
 
 
 def verify_types(**kwargs):
-    "Ensure each argument has a type of None or that matching its name"
+    """Ensure each argument has a type of None or that matching its name"""
     for k, v in kwargs.items():
         for j, kk in enumerate(["init", "perturb", "ionize", "spin_temp"]):
             if kk in k:
@@ -2152,7 +2152,6 @@ def run_coeval(
         photon_nonconservation_data = get_photon_nonconservation_data()
     else:
         photon_nonconservation_data = None
-
     coevals = [
         Coeval(z, init_box, p, ib, _bt, photon_nonconservation_data)
         for z, p, ib, _bt in zip(redshift, perturb, ib_tracker, bt)
