@@ -2571,6 +2571,8 @@ def calibrate_photon_cons(
     regenerate, write
         See docs of :func:`initial_conditions` for more information.
     """
+    if not flag_options.PHOTON_CONS:
+        return
 
     # Create a new astro_params and flag_options just for the photon_cons correction
     astro_params_photoncons = deepcopy(astro_params)
