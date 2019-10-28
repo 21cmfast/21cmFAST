@@ -135,4 +135,17 @@ To run these::
 
     $ valgrind --tool=memcheck --track-origins=yes --leak-check=full --suppressions=devel/valgrind-suppress-all-but-c.supp pytest -v tests/<test_file>::<test_func>
 
+Producing Integration Test Data
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+There are bunch of so-called "integration tests", which rely on previously-produced
+data. Critically, these tests will fail if the random seed chosen is different than that
+used to produce the data. Furthermore, different environments will sometimes produce
+different seeds. Thus, to produce this data, we provide a dedicated `tox` environment.
+To produce the data on your machine, use `tox -e produce`. This environment is *not*
+run on Travis, but it matches exactly the environments that will be used to test against
+this data.
 
+Furthermore, this data should only be produced with good reason -- the idea is to keep
+it static while the code changes, to have something steady to compare to. If a particular
+PR fixes a bug which affects a certain tests' data, then that data should be re-run, in
+the context of the PR, so it can be explained.

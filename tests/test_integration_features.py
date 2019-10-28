@@ -39,91 +39,64 @@ from py21cmfast import (
     CosmoParams,
     UserParams,
 )
-
-_SEED = 12345
-DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
-
-_redshifts = [6, 7, 9, 11, 15, 20, 30]
-_z_step_factor = [1.02, 1.05]
-_z_heat_max = [None, 40, 25]
-_hmf = [None, 0, 2, 3]
-_interp_pf, _mdz, _rsd, _inh_reco, _ts, _mmin_mass, _wisdom = [[None, True]] * 7
+from . import produce_integration_test_data as prd
 
 
-def _get_defaults(kwargs, cls):
-    return {k: kwargs.get(k, v) for k, v in cls._defaults_.items()}
+@pytest.mark.parametrize(",".join(prd.OPTION_NAMES), prd.OPTIONS)
+def test_power_spectra_coeval(
+    redshift,
+    z_step_factor,
+    z_heat_max,
+    HMF,
+    interp_perturb_field,
+    USE_MASS_DEPENDENT_ZETA,
+    SUBCELL_RSD,
+    INHOMO_RECO,
+    USE_TS_FLUCT,
+    M_MIN_in_Mass,
+    USE_FFTW_WISDOM,
+):
+    lc = locals()
+    kwargs = {name: lc[name] for name in prd.OPTION_NAMES}
 
-
-def _get_all_defaults(kwargs):
-    flag_options = _get_defaults(kwargs, FlagOptions)
-    astro_params = _get_defaults(kwargs, AstroParams)
-    cosmo_params = _get_defaults(kwargs, CosmoParams)
-    user_params = _get_defaults(kwargs, UserParams)
-    return user_params, cosmo_params, astro_params, flag_options
-
-
-@pytest.mark.parametrize(
-    "fname", sorted(glob.glob(os.path.join(DATA_PATH, "power_spectra_*.h5")))
-)
-def test_power_spectra_coeval(fname):
-    with h5py.File(fname) as f:
-        kwargs = dict(f.attrs)
+    # First get pre-made data
+    with h5py.File(prd.get_filename(**kwargs)) as f:
         power = f["power_coeval"][...]
 
-    user_params, cosmo_params, astro_params, flag_options = _get_all_defaults(kwargs)
-
-    print("Parameters: ", kwargs)
-
-    init, perturb, ionize, brightness_temp = run_coeval(
-        redshift=kwargs.pop("redshift", 7),
-        user_params=user_params,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        flag_options=flag_options,
-        regenerate=True,
-        write=False,
-        z_step_factor=kwargs.pop("z_step_factor", None),
-        z_heat_max=kwargs.pop("z_heat_max", None),
-        use_interp_perturb_field=kwargs.pop("use_interp_pf", False),
-        random_seed=_SEED,
-    )
-
-    p, k = get_power(brightness_temp.brightness_temp, boxlength=user_params["BOX_LEN"])
+    k, p, bt = prd.produce_coeval_power_spectra(**kwargs)
     assert np.allclose(power, p, atol=1e-5, rtol=1e-4)
 
 
-@pytest.mark.parametrize(
-    "fname", sorted(glob.glob(os.path.join(DATA_PATH, "power_spectra_*.h5")))
-)
-def test_power_spectra_lightcone(fname):
-    with h5py.File(fname) as f:
-        kwargs = dict(f.attrs)
+@pytest.mark.parametrize(",".join(prd.OPTION_NAMES), prd.OPTIONS)
+def test_power_spectra_lightcone(
+    redshift,
+    z_step_factor,
+    z_heat_max,
+    HMF,
+    interp_perturb_field,
+    USE_MASS_DEPENDENT_ZETA,
+    SUBCELL_RSD,
+    INHOMO_RECO,
+    USE_TS_FLUCT,
+    M_MIN_in_Mass,
+    USE_FFTW_WISDOM,
+):
+    lc = locals()
+    kwargs = {name: lc[name] for name in prd.OPTION_NAMES}
+
+    # First get pre-made data
+    with h5py.File(prd.get_filename(**kwargs)) as f:
         power = f["power_lc"][...]
         xHI = f["xHI"][...]
         Tb = f["Tb"][...]
+    #        data_lc = f['lighctone'][...]
 
-    user_params, cosmo_params, astro_params, flag_options = _get_all_defaults(kwargs)
-    print("Parameters: ", kwargs)
+    k, p, lc = prd.produce_lc_power_spectra(**kwargs)
 
-    redshift = kwargs.pop("redshift")
-    lightcone = run_lightcone(
-        redshift=redshift,
-        max_redshift=redshift + 2,
-        user_params=user_params,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        flag_options=flag_options,
-        regenerate=True,
-        write=False,
-        z_step_factor=kwargs.pop("z_step_factor", 1.02),
-        z_heat_max=kwargs.pop("z_heat_max", None),
-        use_interp_perturb_field=kwargs.pop("use_interp_pf", False),
-        random_seed=_SEED,
-    )
+    # print(np.min(lc.brightness_temp - data_lc),
+    #       np.max(lc.brightness_temp - data_lc),
+    #       np.mean(lc.brightness_temp - data_lc))
 
-    p, k = get_power(
-        lightcone.brightness_temp, boxlength=lightcone.lightcone_dimensions
-    )
     assert np.allclose(power, p, atol=1e-5, rtol=1e-3)
-    assert np.allclose(xHI, lightcone.global_xHI, atol=1e-5, rtol=1e-4)
-    assert np.allclose(Tb, lightcone.global_brightness_temp, atol=1e-5, rtol=1e-4)
+    assert np.allclose(xHI, lc.global_xHI, atol=1e-5, rtol=1e-3)
+    assert np.allclose(Tb, lc.global_brightness_temp, atol=1e-5, rtol=1e-3)
