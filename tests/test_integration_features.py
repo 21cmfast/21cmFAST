@@ -22,23 +22,10 @@ Comparison tests here are meant to be as small as possible while attempting to f
 a reasonable test: they should be of reduced data such as power spectra or global xHI
 measurements, and they should be generated with small simulations.
 """
-
-import glob
-import os
-
 import numpy as np
 import pytest
 import h5py
 
-from powerbox import get_power
-from py21cmfast import (
-    run_coeval,
-    run_lightcone,
-    FlagOptions,
-    AstroParams,
-    CosmoParams,
-    UserParams,
-)
 from . import produce_integration_test_data as prd
 
 
@@ -62,8 +49,11 @@ def test_power_spectra_coeval(
     # First get pre-made data
     with h5py.File(prd.get_filename(**kwargs)) as f:
         power = f["power_coeval"][...]
+        lowres_density = f["lowres_density"][...]
+        lowres_vx = f["lowres_vx"][...]
 
     k, p, bt = prd.produce_coeval_power_spectra(**kwargs)
+
     assert np.allclose(power, p, atol=1e-5, rtol=1e-4)
 
 
@@ -89,13 +79,8 @@ def test_power_spectra_lightcone(
         power = f["power_lc"][...]
         xHI = f["xHI"][...]
         Tb = f["Tb"][...]
-    #        data_lc = f['lighctone'][...]
 
     k, p, lc = prd.produce_lc_power_spectra(**kwargs)
-
-    # print(np.min(lc.brightness_temp - data_lc),
-    #       np.max(lc.brightness_temp - data_lc),
-    #       np.mean(lc.brightness_temp - data_lc))
 
     assert np.allclose(power, p, atol=1e-5, rtol=1e-3)
     assert np.allclose(xHI, lc.global_xHI, atol=1e-5, rtol=1e-3)

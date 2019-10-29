@@ -638,7 +638,8 @@ class OutputStruct(StructWrapper):
         )
 
     def __hash__(self):
-        """this should be unique for this combination of parameters, even global params and random seed."""
+        """this should be unique for this combination of parameters, even global params
+        and random seed."""
         return hash(repr(self))
 
     @property

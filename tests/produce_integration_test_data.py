@@ -1,6 +1,13 @@
+"""
+Produce integration test data, which is tested by the `test_integration_features.py`
+tests. One thing to note here is that all redshifts are reasonably high.
+
+This is necessary, because low redshifts mean that neutral fractions are small,
+and then numerical noise gets relatively more important, and can make the comparison
+fail at the tens-of-percent level.
+"""
 import hashlib
 import os
-import numpy as np
 
 import h5py
 from powerbox import get_power
@@ -34,12 +41,12 @@ OPTION_NAMES = [
     "USE_FFTW_WISDOM",
 ]
 OPTIONS = (
-    [6, 1.02, 35, 1, False, False, False, False, False, False, False],
+    [12, 1.02, 35, 1, False, False, False, False, False, False, False],
     [11, 1.05, 35, 1, False, False, False, False, False, False, False],
     [30, 1.02, 40, 1, False, False, False, False, False, False, False],
-    [6, 1.05, 25, 0, False, False, False, False, False, False, False],
-    [8, 1.02, 35, 1, True, False, False, False, False, False, False],
-    [7, 1.02, 35, 1, False, True, False, False, False, False, False],
+    [13, 1.05, 25, 0, False, False, False, False, False, False, False],
+    [16, 1.02, 35, 1, True, False, False, False, False, False, False],
+    [14, 1.02, 35, 1, False, True, False, False, False, False, False],
     [9, 1.02, 35, 1, False, False, True, False, False, False, False],
     [10, 1.03, 35, 2, False, False, False, True, False, False, False],
     [15, 1.02, 35, 3, False, False, False, False, True, False, False],
@@ -85,7 +92,7 @@ def produce_coeval_power_spectra(**kwargs):
         brightness_temp.brightness_temp, boxlength=brightness_temp.user_params.BOX_LEN
     )
 
-    return k, p, brightness_temp
+    return k, p, (brightness_temp, init, perturb, ionize)
 
 
 def produce_lc_power_spectra(**kwargs):
@@ -123,9 +130,9 @@ def produce_power_spectra_for_tests(**kwargs):
         for k, v in kwargs.items():
             fl.attrs[k] = v
 
-        fl.attrs["HII_DIM"] = bt.user_params.HII_DIM
-        fl.attrs["DIM"] = bt.user_params.DIM
-        fl.attrs["BOX_LEN"] = bt.user_params.BOX_LEN
+        fl.attrs["HII_DIM"] = bt[0].user_params.HII_DIM
+        fl.attrs["DIM"] = bt[0].user_params.DIM
+        fl.attrs["BOX_LEN"] = bt[0].user_params.BOX_LEN
 
         fl["power_coeval"] = p
         fl["k_coeval"] = k
@@ -135,6 +142,10 @@ def produce_power_spectra_for_tests(**kwargs):
 
         fl["xHI"] = lc.global_xHI
         fl["Tb"] = lc.global_brightness_temp
+
+        fl["lowres_density"] = bt[1].lowres_density
+        fl["lowres_vx"] = bt[1].lowres_vx
+
         # fl['lighctone'] = lc.brightness_temp
 
     print(f"Produced {fname} with {kwargs}")
