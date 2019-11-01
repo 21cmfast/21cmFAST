@@ -32,6 +32,7 @@ struct UserParams{
     int HMF;
     int USE_RELATIVE_VELOCITIES;
     int POWER_SPECTRUM;
+    int N_THREADS;
 
 };
 
