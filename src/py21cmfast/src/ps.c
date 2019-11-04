@@ -2816,10 +2816,10 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
         
             // Ionizing emissivity (num of photons per baryon)
             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-                Nion0 = ION_EFF_FACTOR*Nion_General(z0, astro_params->M_TURN, astro_params->ALPHA_STAR,
+                Nion0 = ION_EFF_FACTOR*Nion_General(z0, astro_params->M_TURN/50., astro_params->M_TURN, astro_params->ALPHA_STAR,
                                                 astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
                                                 Mlim_Fstar, Mlim_Fesc);
-                Nion1 = ION_EFF_FACTOR*Nion_General(z1, astro_params->M_TURN, astro_params->ALPHA_STAR,
+                Nion1 = ION_EFF_FACTOR*Nion_General(z1, astro_params->M_TURN/50, astro_params->M_TURN, astro_params->ALPHA_STAR,
                                                 astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
                                                 Mlim_Fstar, Mlim_Fesc);
             }

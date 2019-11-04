@@ -379,7 +379,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
                 box->mean_f_coll_MINI = previous_ionize_box->mean_f_coll_MINI + Nion_General_MINI(redshift,M_MIN,M_MINm,Mcrit_atom,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI) - Nion_General_MINI(prev_redshift,M_MIN,M_MINm,Mcrit_atom,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
             }
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,M_MINa,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
-            f_coll_min_MINI = Nion_General(global_params.Z_HEAT_MAX,M_MIN,M_MINm,Mcrit_atom,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
+            f_coll_min_MINI = Nion_General_MINI(global_params.Z_HEAT_MAX,M_MIN,M_MINm,Mcrit_atom,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
         }
         else{
             box->mean_f_coll = Nion_General(redshift,M_MIN,M_MINa,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
@@ -1113,7 +1113,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 return(2);
                             }
                             if(isfinite(f_coll_MINI)==0) {
-                                LOG_ERROR("f_coll_MINI is either finite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g,%g",x,y,z,curr_dens, prev_dens, previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] , Splined_Fcoll_MINI, prev_Splined_Fcoll_MINI, log10_M_MINm, *((float *)log10_M_MINm_filtered + HII_R_FFT_INDEX(x,y,z)));
+                                LOG_ERROR("f_coll_MINI is either finite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g",x,y,z,curr_dens, prev_dens, previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] , Splined_Fcoll_MINI, prev_Splined_Fcoll_MINI, log10_M_MINm, *((float *)log10_M_MINm_filtered + HII_R_FFT_INDEX(x,y,z)));
                                 return(2);
                             }
                         }

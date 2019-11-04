@@ -229,9 +229,9 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
   //and filter each box:
     if (user_params->DIM != user_params->HII_DIM){
-      filter_box(HIRES_box_vcb_x, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-      filter_box(HIRES_box_vcb_y, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-      filter_box(HIRES_box_vcb_z, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+      filter_box(HIRES_box_vcb_x, 0, 0, user_params->L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+      filter_box(HIRES_box_vcb_y, 0, 0, user_params->L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+      filter_box(HIRES_box_vcb_z, 0, 0, user_params->L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
     }
 
 //and transform back to real space
