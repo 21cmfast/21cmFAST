@@ -475,7 +475,7 @@ int ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams
     }
 
 
-LOG_DEBUG("ave Tb = %e", ave);
+LOG_DEBUG("z = %.2f, ave Tb = %e", redshift, ave);
 
     free(v);
     free(vel_gradient);
