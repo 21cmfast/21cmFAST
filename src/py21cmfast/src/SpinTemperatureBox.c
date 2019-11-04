@@ -357,10 +357,18 @@ LOG_SUPER_DEBUG("Initialised PS");
         LOG_SUPER_DEBUG("Initialised heat");
 
         if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
-            if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
-                LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
-                return(2);
-            }
+			if (ION_EFF_FACTOR_MINI > 1e-19){
+		        if(initialiseSigmaMInterpTable(1e5/50,1e20)!=0) {
+    	    	    LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
+        		    return(2);
+				}
+	        }
+			else{
+		        if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
+	    	        LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
+        	    	return(2);
+				}
+			}
         }
         LOG_SUPER_DEBUG("Initialised sigmaM interp table");
 
@@ -989,9 +997,6 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 					ST_over_PS_MINI[R_ct] = pow(1+zpp, -astro_params->X_RAY_SPEC_INDEX)*fabs(dzpp_for_evolve);
 					ST_over_PS_MINI[R_ct] *= Splined_SFRD_zpp_MINI;
 				}
-				else{
-					ST_over_PS_MINI[R_ct] = 0.;
-				}
 
                 SFR_timescale_factor[R_ct] = hubble(zpp)*fabs(dtdz(zpp));
                 
@@ -1353,10 +1358,15 @@ LOG_SUPER_DEBUG("looping over box...");
                 }
                 
                 dfcoll_dz_val = (ave_fcoll_inv/pow(10.,10.))*ST_over_PS[R_ct]*SFR_timescale_factor[R_ct]/astro_params->t_STAR;
-                dfcoll_dz_val_MINI = (ave_fcoll_inv_MINI/pow(10.,10.))*ST_over_PS_MINI[R_ct]*SFR_timescale_factor[R_ct]/astro_params->t_STAR;
                 
                 dstarlya_dt_prefactor[R_ct] *= dfcoll_dz_val;
-                dstarlya_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
+
+				if(ION_EFF_FACTOR_MINI>1e-19){
+                	dfcoll_dz_val_MINI = (ave_fcoll_inv_MINI/pow(10.,10.))*ST_over_PS_MINI[R_ct]*SFR_timescale_factor[R_ct]/astro_params->t_STAR;
+                	dstarlya_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
+                	dstarlyLW_dt_prefactor[R_ct] *= dfcoll_dz_val;
+                	dstarlyLW_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
+				}
                 
                 for (box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
                     
@@ -1775,9 +1785,11 @@ void free_TsCalcBoxes()
     free(delNL0_UL);
     free(SingleVal_int);
     free(dstarlya_dt_prefactor);
-	free(dstarlya_dt_prefactor_MINI);
-    free(dstarlyLW_dt_prefactor);
-	free(dstarlyLW_dt_prefactor_MINI);
+	if (dstarlya_dt_prefactor_MINI!=NULL){
+		free(dstarlya_dt_prefactor_MINI);
+	    free(dstarlyLW_dt_prefactor);
+		free(dstarlyLW_dt_prefactor_MINI);
+	}
     free(delNL0_ibw);
     free(log10delNL0_diff);
     free(log10delNL0_diff_UL);

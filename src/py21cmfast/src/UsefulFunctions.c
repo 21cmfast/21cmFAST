@@ -532,12 +532,12 @@ void writeCosmoParams(struct CosmoParams *p){
 void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p){
 
     if(fo->USE_MASS_DEPENDENT_ZETA) {
-        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, F_ESC10=%f, ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%e, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, F_STAR=%f, N_RSD_STEPS=%f]",
-             p->HII_EFF_FACTOR, p->ALPHA_STAR, p->F_ESC10, p->ALPHA_ESC, p->M_TURN,
-             p->R_BUBBLE_MAX, p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->t_STAR, p->N_RSD_STEPS);
+        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, F_ESC10=%f (F_ESC7_MINI=%f), ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%e (L_X_MINI=%e), NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f (F_STAR7_MINI=%f), t_STAR=%f, N_RSD_STEPS=%f]",
+             p->HII_EFF_FACTOR, p->ALPHA_STAR, p->F_ESC10,p->F_ESC7_MINI, p->ALPHA_ESC, p->M_TURN,
+             p->R_BUBBLE_MAX, p->L_X, p->L_X_MINI, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->F_STAR7_MINI, p->t_STAR, p->N_RSD_STEPS);
     }
     else {
-        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ION_Tvir_MIN=%f, X_RAY_Tvir_MIN=%f, R_BUBBLE_MAX=%f, L_X=%e, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, F_STAR=%f, N_RSD_STEPS=%f]",
+        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ION_Tvir_MIN=%f, X_RAY_Tvir_MIN=%f, R_BUBBLE_MAX=%f, L_X=%e, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, t_STAR=%f, N_RSD_STEPS=%f]",
              p->HII_EFF_FACTOR, p->ION_Tvir_MIN, p->X_RAY_Tvir_MIN,
              p->R_BUBBLE_MAX, p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->t_STAR, p->N_RSD_STEPS);
     }
@@ -778,7 +778,7 @@ double lyman_werner_threshold(float z, float J_21_LW){
 }
 
 double reionization_feedback(float z, float Gamma_halo_HII, float z_IN){
-    if (z_IN<0)
+    if (z_IN<=1e-19)
         return 1e-40;
     return REION_SM13_M0 * pow(HALO_BIAS * Gamma_halo_HII, REION_SM13_A) * pow((1.+z)/10, REION_SM13_B) *
         pow(1 - pow((1.+z)/(1.+z_IN), REION_SM13_C), REION_SM13_D);
