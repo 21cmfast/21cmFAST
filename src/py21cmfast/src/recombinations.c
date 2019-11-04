@@ -63,9 +63,9 @@ double splined_recombination_rate(double z_eff, double gamma12_bg){
   if (lnGamma < RR_lnGamma_min){
     return 0;
   }
-  else if (lnGamma >= (RR_lnGamma_min + RR_DEL_lnGamma * RR_lnGamma_NPTS) ){
+  else if (lnGamma >= (RR_lnGamma_min + RR_DEL_lnGamma * ( RR_lnGamma_NPTS - 1 )) ){
 //    fprintf(stderr, "WARNING: splined_recombination_rate: Gamma12 of %g is outside of interpolation array\n", gamma12_bg);
-    lnGamma =  RR_lnGamma_min + RR_DEL_lnGamma * RR_lnGamma_NPTS - FRACT_FLOAT_ERR;
+    lnGamma =  RR_lnGamma_min + RR_DEL_lnGamma * ( RR_lnGamma_NPTS - 1 ) - FRACT_FLOAT_ERR;
   }
 
   return gsl_spline_eval(RR_spline[z_ct], lnGamma, RR_acc[z_ct]);

@@ -855,10 +855,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                         }
                     }
 
-                    log10Mturn_min = log10Mturn_min *0.999;
-                    log10Mturn_max = log10Mturn_max *1.001;
-                    log10Mturn_min_MINI = log10Mturn_min_MINI *0.999;
-                    log10Mturn_max_MINI = log10Mturn_max_MINI *1.001;
+                    log10Mturn_min = log10Mturn_min *0.99;
+                    log10Mturn_max = log10Mturn_max *1.01;
+                    log10Mturn_min_MINI = log10Mturn_min_MINI *0.99;
+                    log10Mturn_max_MINI = log10Mturn_max_MINI *1.01;
                 
                     log10Mturn_bin_width = (log10Mturn_max - log10Mturn_min) / NMTURN;
                     log10Mturn_bin_width_inv = 1./log10Mturn_bin_width;
@@ -993,13 +993,6 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                                               log10_Nion_spline_MINI[overdense_int +1+ NSFR_low* log10_M_MINm_int   ]*( dens_val - (float)overdense_int )) * (1 + (float)log10_M_MINm_int - log10_M_MINm) + \
                                                              (log10_Nion_spline_MINI[overdense_int   + NSFR_low*(log10_M_MINm_int+1)]*( 1 + (float)overdense_int - dens_val ) +\
                                                               log10_Nion_spline_MINI[overdense_int +1+ NSFR_low*(log10_M_MINm_int+1)]*( dens_val - (float)overdense_int )) * (log10_M_MINm - (float)log10_M_MINm_int);
-//                                        if (x==0 && y==4 && z==21){
-//                                            LOG_DEBUG("%g,%g,%g,%g,%g,%g,%g,%g,",log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv, log10Mturn_max_MINI, log10Mturn_min_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI);
-//                                            LOG_DEBUG("%g,%g,%g,%g,%d",curr_dens, overdense_small_min, overdense_small_bin_width_inv, dens_val, overdense_int);
-//                                            LOG_DEBUG("%d,%g,%g,%g",log10_M_MINm_int, log10_M_MINm, log10Mturn_min_MINI, log10Mturn_bin_width_inv_MINI);
-//                                            LOG_DEBUG("%g", *((float *)log10_M_MINm_filtered + HII_R_FFT_INDEX(x,y,z)));
-//                                            LOG_DEBUG("%g,%g,%g,%g",log10_Nion_spline_MINI[overdense_int   + NSFR_low* log10_M_MINm_int   ], log10_Nion_spline_MINI[overdense_int +1+ NSFR_low* log10_M_MINm_int   ], log10_Nion_spline_MINI[overdense_int   + NSFR_low*(log10_M_MINm_int+1)],  log10_Nion_spline_MINI[overdense_int +1+ NSFR_low*(log10_M_MINm_int+1)]);
-//                                        }
                                         Splined_Fcoll_MINI = expf(Splined_Fcoll_MINI);
                                         
                                     }
@@ -1114,6 +1107,11 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             }
                             if(isfinite(f_coll_MINI)==0) {
                                 LOG_ERROR("f_coll_MINI is either finite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g",x,y,z,curr_dens, prev_dens, previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] , Splined_Fcoll_MINI, prev_Splined_Fcoll_MINI, log10_M_MINm, *((float *)log10_M_MINm_filtered + HII_R_FFT_INDEX(x,y,z)));
+                                LOG_DEBUG("%g,%g,%g,%g,%g,%g,%g,%g,",log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv, log10Mturn_max_MINI, log10Mturn_min_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI);
+                                LOG_DEBUG("%g,%g,%g,%g,%d",curr_dens, overdense_small_min, overdense_small_bin_width_inv, dens_val, overdense_int);
+                                LOG_DEBUG("%d,%g,%g,%g",log10_M_MINm_int, log10_M_MINm, log10Mturn_min_MINI, log10Mturn_min_MINI, log10Mturn_bin_width_inv_MINI);
+                                LOG_DEBUG("%g", *((float *)log10_M_MINm_filtered + HII_R_FFT_INDEX(x,y,z)));
+                                LOG_DEBUG("%g,%g,%g,%g",log10_Nion_spline_MINI[overdense_int   + NSFR_low* log10_M_MINm_int   ], log10_Nion_spline_MINI[overdense_int +1+ NSFR_low* log10_M_MINm_int   ], log10_Nion_spline_MINI[overdense_int   + NSFR_low*(log10_M_MINm_int+1)],  log10_Nion_spline_MINI[overdense_int +1+ NSFR_low*(log10_M_MINm_int+1)]);
                                 return(2);
                             }
                         }
@@ -1324,6 +1322,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                         
                         if(isfinite(dNrec)==0) {
                             something_finite_or_infinite = 1;
+                			LOG_ERROR("Recombinations have returned either an infinite or NaN value. (%d,%d,%d)%g,%g,%g,%g", x,y,z,z_eff, box->Gamma12_box[HII_R_INDEX(x,y,z)], box->xH_box[HII_R_INDEX(x,y,z)], splined_recombination_rate(z_eff-1., box->Gamma12_box[HII_R_INDEX(x,y,z)]) );
                         }
                         
                         box->dNrec_box[HII_R_INDEX(x,y,z)] = previous_ionize_box->dNrec_box[HII_R_INDEX(x,y,z)] + dNrec;
