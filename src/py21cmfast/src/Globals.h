@@ -30,7 +30,14 @@ struct GlobalParams{
 
     float CRIT_DENS_TRANSITION;
     float MIN_DENSITY_LOW_LIMIT;
+    
+    int RecombPhotonCons;
+    float PhotonConsStart;
+    float PhotonConsEnd;
+    float PhotonConsAsymptoteTo;
+    float PhotonConsAsymptoteVal;
 
+    
     int HEAT_FILTER;
     double CLUMPING_FACTOR;
     float Z_HEAT_MAX;
@@ -79,7 +86,7 @@ struct GlobalParams global_params = {
     .SMOOTH_EVOLVED_DENSITY_FIELD = 0,
     .R_smooth_density = 0.2,
     .SECOND_ORDER_LPT_CORRECTIONS = 1,
-    .HII_ROUND_ERR = 1e-3,
+    .HII_ROUND_ERR = 1e-5,
     .FIND_BUBBLE_ALGORITHM = 2,
     .N_POISSON = 5,
     .T_USE_VELOCITIES = 1,
@@ -95,6 +102,11 @@ struct GlobalParams global_params = {
     .CRIT_DENS_TRANSITION = 1.5,
     .MIN_DENSITY_LOW_LIMIT = 9e-8,
 
+    .RecombPhotonCons = 0,
+    .PhotonConsStart = 0.995,
+    .PhotonConsEnd = 0.3,
+    .PhotonConsAsymptoteTo = 0.01,
+    
     .HEAT_FILTER = 0,
     .CLUMPING_FACTOR = 2.,
     .Z_HEAT_MAX = 35.0,

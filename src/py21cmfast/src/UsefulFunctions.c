@@ -519,6 +519,7 @@ float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_param
     return tau;
 }
 
+
 void writeUserParams(struct UserParams *p){
     LOG_INFO("UserParams: [HII_DIM=%d, DIM=%d, BOX_LEN=%f, USE_FFTW_WISDOM=%d]",
              p->HII_DIM, p->DIM, p->BOX_LEN, p->USE_FFTW_WISDOM);

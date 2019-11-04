@@ -89,11 +89,11 @@ A typical example of using this module would be the following.
 Get coeval cubes at redshift 7,8 and 9, without spin temperature or inhomogeneous
 recombinations:
 
->>> init, perturb, xHI, Tb = p21.run_coeval(
->>>                              redshift=[7,8,9],
->>>                              cosmo_params=p21.CosmoParams(hlittle=0.7),
->>>                              user_params=p21.UserParams(HII_DIM=100)
->>>                          )
+>>> coeval = p21.run_coeval(
+>>>     redshift=[7,8,9],
+>>>     cosmo_params=p21.CosmoParams(hlittle=0.7),
+>>>     user_params=p21.UserParams(HII_DIM=100)
+>>> )
 
 Get coeval cubes at the same redshift, with both spin temperature and inhomogeneous
 recombinations, pulled from the natural evolution of the fields:
@@ -119,6 +119,7 @@ import numpy as np
 from astropy import units
 from astropy.cosmology import Planck15, z_at_value
 from cached_property import cached_property
+from copy import deepcopy
 
 from ._utils import (
     StructWithDefaults,
@@ -301,6 +302,9 @@ class FlagOptions(StructWithDefaults):
 
     M_MIN_in_Mass : bool, optional
         Whether the minimum mass is defined by Mass or Virial Temperature
+
+    PHOTON_CONS : bool, optional
+        Whether to perform a small correction to account for photon non-conservation
     """
 
     _ffi = ffi
@@ -311,6 +315,7 @@ class FlagOptions(StructWithDefaults):
         INHOMO_RECO=False,
         USE_TS_FLUCT=False,
         M_MIN_in_Mass=False,
+        PHOTON_CONS=False,
     )
 
     @property
@@ -417,7 +422,8 @@ class AstroParams(StructWithDefaults):
             if self.INHOMO_RECO and self._R_BUBBLE_MAX != 50:
                 logger.warning(
                     "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
-                    + "This is non-standard (but allowed), and usually occurs upon manual update of INHOMO_RECO"
+                    "This is non-standard (but allowed), and usually occurs upon manual "
+                    "update of INHOMO_RECO"
                 )
             return self._R_BUBBLE_MAX
 
@@ -502,12 +508,18 @@ class InitialConditions(_OutputStruct):
         self.hires_density = np.zeros(
             self.user_params.tot_fft_num_pixels, dtype=np.float32
         )
+        self.hires_vcb = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
+        self.lowres_vcb = np.zeros(
+            self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
 
         shape = (
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
         )
+        hires_shape = (self.user_params.DIM, self.user_params.DIM, self.user_params.DIM)
+
         self.lowres_density.shape = shape
         self.lowres_vx.shape = shape
         self.lowres_vy.shape = shape
@@ -515,11 +527,10 @@ class InitialConditions(_OutputStruct):
         self.lowres_vx_2LPT.shape = shape
         self.lowres_vy_2LPT.shape = shape
         self.lowres_vz_2LPT.shape = shape
-        self.hires_density.shape = (
-            self.user_params.DIM,
-            self.user_params.DIM,
-            self.user_params.DIM,
-        )
+        self.hires_density.shape = hires_shape
+
+        self.lowres_vcb.shape = shape
+        self.hires_vcb.shape = hires_shape
 
 
 class PerturbedField(_OutputStructZ):
@@ -808,7 +819,7 @@ def configure_redshift(redshift, *structs):
 
 
 def verify_types(**kwargs):
-    "Ensure each argument has a type of None or that matching its name"
+    """Ensure each argument has a type of None or that matching its name"""
     for k, v in kwargs.items():
         for j, kk in enumerate(["init", "perturb", "ionize", "spin_temp"]):
             if kk in k:
@@ -927,6 +938,118 @@ def compute_luminosity_function(
     lfunc[lfunc <= -30] = np.nan
 
     return Muvfunc, Mhfunc, lfunc
+
+
+def init_photon_conservation_correction(
+    *, user_params=None, cosmo_params=None, astro_params=None, flag_options=None
+):
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+    astro_params = AstroParams(astro_params)
+    flag_options = FlagOptions(flag_options)
+
+    return lib.InitialisePhotonCons(
+        user_params(), cosmo_params(), astro_params(), flag_options()
+    )
+
+
+def calibrate_photon_conservation_correction(
+    *, redshifts_estimate, nf_estimate, NSpline
+):
+    # Convert the data to the right type
+    redshifts_estimate = np.array(redshifts_estimate, dtype="float64")
+    nf_estimate = np.array(nf_estimate, dtype="float64")
+
+    z = ffi.cast("double *", ffi.from_buffer(redshifts_estimate))
+    xHI = ffi.cast("double *", ffi.from_buffer(nf_estimate))
+
+    return lib.PhotonCons_Calibration(z, xHI, NSpline)
+
+
+def calc_zstart_photon_cons():
+    # Run the C code
+    return lib.ComputeZstart_PhotonCons()
+
+
+def get_photon_nonconservation_data():
+    """
+    Access C global data representing the photon-nonconservation corrections.
+
+    .. note::  if not using ``PHOTON_CONS`` (in :class:`~FlagOptions`), *or* if the
+               initialisation for photon conservation has not been performed yet, this
+               will return None.
+    Returns
+    -------
+    dict : dictionary with key/values:
+      z_analytic: array of redshifts defining the analytic ionized fraction
+      Q_analytic: array of analytic  ionized fractions corresponding to `z_analytic`
+      z_calibration: array of redshifts defining the ionized fraction from 21cmFAST without recombinations
+      nf_calibration: array of calibration ionized fractions corresponding to `z_calibration`
+      delta_z_photon_cons: the change in redshift required to calibrate 21cmFAST, as a function of z_calibration
+      nf_photoncons: the neutral fraction as a function of redshift
+    """
+    # Check if photon conservation has been initialised at all
+    if not lib.photon_cons_inited:
+        return None
+
+    arbitrary_large_size = 2000
+
+    data = np.zeros((6, arbitrary_large_size))
+
+    IntVal1 = np.array(np.zeros(1), dtype="int32")
+    IntVal2 = np.array(np.zeros(1), dtype="int32")
+    IntVal3 = np.array(np.zeros(1), dtype="int32")
+
+    c_z_at_Q = ffi.cast("double *", ffi.from_buffer(data[0]))
+    c_Qval = ffi.cast("double *", ffi.from_buffer(data[1]))
+    c_z_cal = ffi.cast("double *", ffi.from_buffer(data[2]))
+    c_nf_cal = ffi.cast("double *", ffi.from_buffer(data[3]))
+    c_PC_nf = ffi.cast("double *", ffi.from_buffer(data[4]))
+    c_PC_deltaz = ffi.cast("double *", ffi.from_buffer(data[5]))
+
+    c_int_NQ = ffi.cast("int *", ffi.from_buffer(IntVal1))
+    c_int_NC = ffi.cast("int *", ffi.from_buffer(IntVal2))
+    c_int_NP = ffi.cast("int *", ffi.from_buffer(IntVal3))
+
+    # Run the C code
+    errcode = lib.ObtainPhotonConsData(
+        c_z_at_Q,
+        c_Qval,
+        c_int_NQ,
+        c_z_cal,
+        c_nf_cal,
+        c_int_NC,
+        c_PC_nf,
+        c_PC_deltaz,
+        c_int_NP,
+    )
+
+    _process_exitcode(errcode)
+
+    ArrayIndices = [
+        IntVal1[0],
+        IntVal1[0],
+        IntVal2[0],
+        IntVal2[0],
+        IntVal3[0],
+        IntVal3[0],
+    ]
+
+    data_list = [
+        "z_analytic",
+        "Q_analytic",
+        "z_calibration",
+        "nf_calibration",
+        "delta_z_photon_cons",
+        "nf_photoncons",
+    ]
+
+    photon_nonconservation_data = {
+        name: np.ndarray(d[:index])
+        for name, d, index in zip(data_list, data, ArrayIndices)
+    }
+
+    return photon_nonconservation_data
 
 
 def initial_conditions(
@@ -1817,6 +1940,36 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
     return redshifts[::-1]
 
 
+class Coeval:
+    """A simple wrapper object defining a full coeval box with all associated data"""
+
+    def __init__(
+        self, redshift, init_box, perturb, ib, bt, photon_nonconservation_data=None
+    ):
+        self.redshift = redshift
+        self.init_box = init_box
+        self.perturb_field = perturb
+        self.ionization_box = ib
+        self.brightness_temperature = bt
+        self.photon_nonconservation_data = photon_nonconservation_data
+
+    @property
+    def user_params(self):
+        return self.init_box.user_params
+
+    @property
+    def cosmo_params(self):
+        return self.brightness_temperature.cosmo_params
+
+    @property
+    def flag_options(self):
+        return self.brightness_temperature.flag_options
+
+    @property
+    def astro_params(self):
+        return self.brightness_temperature.astro_params
+
+
 def run_coeval(
     *,
     redshift=None,
@@ -1888,6 +2041,9 @@ def run_coeval(
     bt: :class:`~BrightnessTemp` or list thereof
         The brightness temperature box(es)
 
+    photon_nonconservation_data: :dict: containing data used
+        in the photon non-conservation correction
+
     Other Parameters
     ----------------
     regenerate, write, direc, random_seed:
@@ -1941,6 +2097,18 @@ def run_coeval(
         else:
             redshift = [p.redshift for p in perturb]
 
+    if flag_options.PHOTON_CONS:
+        calibrate_photon_cons(
+            user_params,
+            cosmo_params,
+            astro_params,
+            flag_options,
+            init_box,
+            regenerate,
+            write,
+            z_step_factor,
+        )
+
     singleton = False
     if not hasattr(redshift, "__len__"):
         singleton = True
@@ -1987,9 +2155,11 @@ def run_coeval(
             st2 = spin_temperature(
                 redshift=z,
                 previous_spin_temp=st,
-                perturbed_field=perturb[minarg]
-                if use_interp_perturb_field
-                else (perturb[redshift.index(z)] if z in redshift else None),
+                perturbed_field=(
+                    perturb[minarg]
+                    if use_interp_perturb_field
+                    else (perturb[redshift.index(z)] if z in redshift else None)
+                ),
                 # remember that perturb field is interpolated, so no need to provide exact one.
                 astro_params=astro_params,
                 flag_options=flag_options,
@@ -2031,15 +2201,21 @@ def run_coeval(
                 spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
             )
 
-    # If a single redshift was passed, then pass back singletons.
+    if flag_options.PHOTON_CONS:
+        photon_nonconservation_data = get_photon_nonconservation_data()
+    else:
+        photon_nonconservation_data = None
+    coevals = [
+        Coeval(z, init_box, p, ib, _bt, photon_nonconservation_data)
+        for z, p, ib, _bt in zip(redshift, perturb, ib_tracker, bt)
+    ]
+
     if singleton:
-        logger.debug("PID={} making into singleton".format(os.getpid()))
-        ib_tracker = ib_tracker[0]
-        bt = bt[0]
-        perturb = perturb[0]
+        coevals = coevals[0]
 
     logger.debug("PID={} RETURNING FROM COEVAL".format(os.getpid()))
-    return init_box, perturb, ib_tracker, bt
+
+    return coevals
 
 
 class LightCone:
@@ -2054,6 +2230,7 @@ class LightCone:
         node_redshifts=None,
         global_xHI=None,
         global_brightness_temp=None,
+        photon_nonconservation_data=None,
     ):
         self.redshift = redshift
         self.user_params = user_params
@@ -2065,6 +2242,8 @@ class LightCone:
         self.node_redshifts = node_redshifts
         self.global_xHI = global_xHI
         self.global_brightness_temp = global_brightness_temp
+
+        self.photon_nonconservation_data = photon_nonconservation_data
 
     @property
     def cell_size(self):
@@ -2221,6 +2400,18 @@ def run_lightcone(
         else max_redshift
     )
 
+    if flag_options.PHOTON_CONS:
+        calibrate_photon_cons(
+            user_params,
+            cosmo_params,
+            astro_params,
+            flag_options,
+            init_box,
+            regenerate,
+            write,
+            z_step_factor,
+        )
+
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = _logscroll_redshifts(
         redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift
@@ -2252,7 +2443,6 @@ def run_lightcone(
 
     for iz, z in enumerate(scrollz):
         # Best to get a perturb for this redshift, to pass to brightness_temperature
-
         this_perturb = perturb_field(
             redshift=z,
             init_boxes=init_box,
@@ -2333,6 +2523,10 @@ def run_lightcone(
         ib = ib2
         bt = bt2
 
+    if flag_options.PHOTON_CONS:
+        #        z_analytic, Q_analytic, z_cal, nf_cal, deltaz_photoncons, nf_photoncons = get_photon_nonconservation_data()
+        photon_nonconservation_data = get_photon_nonconservation_data()
+
     return LightCone(
         redshift,
         user_params,
@@ -2343,6 +2537,9 @@ def run_lightcone(
         node_redshifts=scrollz,
         global_xHI=neutral_fraction,
         global_brightness_temp=global_signal,
+        photon_nonconservation_data=photon_nonconservation_data
+        if flag_options.PHOTON_CONS
+        else None,
     )
 
 
@@ -2383,4 +2580,122 @@ def _get_lightcone_redshifts(
             z_at_value(cosmo_params.cosmo.comoving_distance, d * units.Mpc)
             for d in lc_distances
         ]
+    )
+
+
+def calibrate_photon_cons(
+    user_params,
+    cosmo_params,
+    astro_params,
+    flag_options,
+    init_box,
+    regenerate,
+    write,
+    z_step_factor,
+):
+    """
+    Sets up the photon non-conservation correction.
+
+    Scrolls through in redshift, turning off all flag_options to construct a 21cmFAST calibration reionisation history
+    to be matched to the analytic expression from solving the filling factor ODE.
+
+
+    Parameters
+    ----------
+    user_params : `~UserParams`, optional
+        Defines the overall options and parameters of the run.
+    astro_params : :class:`~AstroParams`, optional
+        Defines the astrophysical parameters of the run.
+    cosmo_params : :class:`~CosmoParams`, optional
+        Defines the cosmological parameters used to compute initial conditions.
+    flag_options: :class:`~FlagOptions`, optional
+        Options concerning how the reionization process is run, eg. if spin temperature fluctuations are required.
+    z_step_factor: float, optional
+        How large the logarithmic steps between redshift are (if required).
+    init_box : :class:`~InitialConditions`, optional
+        If given, the user and cosmo params will be set from this object, and it will not be re-calculated.
+
+    Returns
+    -------
+    Nothing
+
+    Other Parameters
+    ----------------
+    regenerate, write
+        See docs of :func:`initial_conditions` for more information.
+    """
+    if not flag_options.PHOTON_CONS:
+        return
+
+    # Create a new astro_params and flag_options just for the photon_cons correction
+    astro_params_photoncons = deepcopy(astro_params)
+    astro_params_photoncons._R_BUBBLE_MAX = astro_params.R_BUBBLE_MAX
+
+    flag_options_photoncons = FlagOptions(
+        USE_MASS_DEPENDENT_ZETA=flag_options.USE_MASS_DEPENDENT_ZETA,
+        M_MIN_in_Mass=flag_options.M_MIN_in_Mass,
+    )
+
+    ib = None
+
+    # Arrays for redshift and neutral fraction for the calibration curve
+    z_for_photon_cons = []
+    neutral_fraction_photon_cons = []
+
+    # Initialise the analytic expression for the reionisation history
+    init_photon_conservation_correction(
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+    )
+
+    # Determine the starting redshift to start scrolling through to create the
+    # calibration reionisation history
+    z = calc_zstart_photon_cons()
+
+    while z > 5.0:
+
+        # Determine the ionisation box with recombinations, spin temperature etc.
+        # turned off.
+        this_perturb = perturb_field(
+            redshift=z, init_boxes=init_box, regenerate=regenerate, write=write
+        )
+
+        ib2 = ionize_box(
+            redshift=z,
+            previous_ionize_box=ib,
+            init_boxes=init_box,
+            perturbed_field=this_perturb,
+            astro_params=astro_params_photoncons,
+            flag_options=flag_options_photoncons,
+            spin_temp=None,
+            regenerate=regenerate,
+            z_heat_max=global_params.Z_HEAT_MAX,
+            z_step_factor=z_step_factor,
+            write=write,
+        )
+
+        mean_nf = np.mean(ib2.xH_box)
+
+        # Save mean/global quantities
+        neutral_fraction_photon_cons.append(mean_nf)
+        z_for_photon_cons.append(z)
+
+        # Can speed up sampling in regions where the evolution is slower
+        if 0.01 < mean_nf <= 0.9:
+            z -= 0.15
+        else:
+            z -= 0.5
+
+        ib = ib2
+
+    z_for_photon_cons = np.array(z_for_photon_cons[::-1])
+    neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
+
+    # Construct the spline for the calibration curve
+    calibrate_photon_conservation_correction(
+        redshifts_estimate=z_for_photon_cons,
+        nf_estimate=neutral_fraction_photon_cons,
+        NSpline=len(z_for_photon_cons),
     )

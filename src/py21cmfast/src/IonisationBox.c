@@ -5,6 +5,8 @@ int INIT_RECOMBINATIONS = 1;
 
 double *ERFC_VALS, *ERFC_VALS_DIFF;
 
+float absolute_delta_z;
+
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
                        struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
@@ -78,6 +80,9 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     float min_density, max_density;
     float prev_min_density, prev_max_density;
     
+    float adjusted_redshift, required_NF, stored_redshift, adjustment_factor, future_z;
+    double temp;
+    
     const gsl_rng_type * T;
     gsl_rng * r;
     
@@ -115,6 +120,12 @@ LOG_SUPER_DEBUG("defined parameters");
     fabs_dtdz = fabs(dtdz(redshift));
     t_ast = astro_params->t_STAR * t_hubble(redshift);
     growth_factor_dz = dicke(redshift-dz);
+
+    // Modify the current sampled redshift to a redshift which matches the expected filling factor given our astrophysical parameterisation.
+    // This is the photon non-conservation correction
+    if(flag_options->PHOTON_CONS) {
+        adjust_redshifts_for_photoncons(&redshift,&stored_redshift,&absolute_delta_z);
+    }
     
     Splined_Fcoll = 0.;
     Splined_Fcoll_MINI = 0.;
@@ -215,10 +226,16 @@ LOG_SUPER_DEBUG("erfc interpolation done");
 
     // Calculate the density field for this redshift if the initial conditions/cosmology are changing
     
+    if(flag_options->PHOTON_CONS) {
+        adjustment_factor = dicke(redshift)/dicke(stored_redshift);
+    }
+    else {
+        adjustment_factor = 1.;
+    }
     for (i=0; i<user_params->HII_DIM; i++){
         for (j=0; j<user_params->HII_DIM; j++){
             for (k=0; k<user_params->HII_DIM; k++){
-                *((float *)deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = perturbed_field->density[HII_R_INDEX(i,j,k)];
+                *((float *)deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = (perturbed_field->density[HII_R_INDEX(i,j,k)])*adjustment_factor;
             }
         }
     }
@@ -361,10 +378,13 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
             else{
                 box->mean_f_coll_MINI = previous_ionize_box->mean_f_coll_MINI + Nion_General_MINI(redshift,M_MIN,M_MINm,Mcrit_atom,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI) - Nion_General_MINI(prev_redshift,M_MIN,M_MINm,Mcrit_atom,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
             }
+            f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,M_MINa,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+            f_coll_min_MINI = Nion_General(global_params.Z_HEAT_MAX,M_MIN,M_MINm,Mcrit_atom,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
         }
         else{
             box->mean_f_coll = Nion_General(redshift,M_MIN,M_MINa,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
             box->mean_f_coll_MINI = 0.;
+            f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,M_MINa,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
         }
     }
     else {
@@ -716,7 +736,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 
                 if(min_density < 0.) {
                     min_density = min_density*1.001;
-                    if(min_density < -1.) {
+                    if(min_density <= -1.) {
                         // Use MIN_DENSITY_LOW_LIMIT as is it smaller than FRACT_FLOAT_ERR
                         min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
                     }
@@ -806,9 +826,9 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                     // do the same for logM
                     log10Mturn_min = 999;
-					log10Mturn_max = 0.0;
+                    log10Mturn_max = 0.0;
                     log10Mturn_min_MINI = 999;
-					log10Mturn_max_MINI = 0.0;
+                    log10Mturn_max_MINI = 0.0;
 
                     for (x=0; x<user_params->HII_DIM; x++){
                         for (y=0; y<user_params->HII_DIM; y++){
@@ -840,10 +860,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     log10Mturn_min_MINI = log10Mturn_min_MINI *0.999;
                     log10Mturn_max_MINI = log10Mturn_max_MINI *1.001;
                 
-                	log10Mturn_bin_width = (log10Mturn_max - log10Mturn_min) / NMTURN;
-                	log10Mturn_bin_width_inv = 1./log10Mturn_bin_width;
-                	log10Mturn_bin_width_MINI = (log10Mturn_max_MINI - log10Mturn_min_MINI) / NMTURN;
-                	log10Mturn_bin_width_inv_MINI = 1./log10Mturn_bin_width_MINI;
+                    log10Mturn_bin_width = (log10Mturn_max - log10Mturn_min) / NMTURN;
+                    log10Mturn_bin_width_inv = 1./log10Mturn_bin_width;
+                    log10Mturn_bin_width_MINI = (log10Mturn_max_MINI - log10Mturn_min_MINI) / NMTURN;
+                    log10Mturn_bin_width_inv_MINI = 1./log10Mturn_bin_width_MINI;
                 }
 
                 initialiseGL_Nion(NGL_SFR, M_MIN,massofscaleR);
@@ -909,7 +929,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             
                             if (ION_EFF_FACTOR_MINI < 1e-19){
                                 if (curr_dens < global_params.CRIT_DENS_TRANSITION){
-                                    if (curr_dens < -1.) {
+                                    if (curr_dens <= -1.) {
                                         Splined_Fcoll = 0;
                                     }
                                     else {
@@ -944,14 +964,14 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 }
                             }
                             else{
-								log10_M_MINa = (*((float *)log10_M_MINa_filtered + HII_R_FFT_INDEX(x,y,z)) - log10Mturn_min ) * log10Mturn_bin_width_inv;
+                                log10_M_MINa = (*((float *)log10_M_MINa_filtered + HII_R_FFT_INDEX(x,y,z)) - log10Mturn_min ) * log10Mturn_bin_width_inv;
                                 log10_M_MINa_int = (int)floorf( log10_M_MINa );
                                 log10_M_MINm = (*((float *)log10_M_MINm_filtered + HII_R_FFT_INDEX(x,y,z)) - log10Mturn_min_MINI ) * log10Mturn_bin_width_inv_MINI;
                                 log10_M_MINm_int = (int)floorf( log10_M_MINm );
 
                                 if (curr_dens < global_params.CRIT_DENS_TRANSITION){
                                     
-                                    if (curr_dens < -1.) {
+                                    if (curr_dens <= -1.) {
                                         Splined_Fcoll = 0;
                                         Splined_Fcoll_MINI = 0;
                                     }
@@ -973,13 +993,13 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                                               log10_Nion_spline_MINI[overdense_int +1+ NSFR_low* log10_M_MINm_int   ]*( dens_val - (float)overdense_int )) * (1 + (float)log10_M_MINm_int - log10_M_MINm) + \
                                                              (log10_Nion_spline_MINI[overdense_int   + NSFR_low*(log10_M_MINm_int+1)]*( 1 + (float)overdense_int - dens_val ) +\
                                                               log10_Nion_spline_MINI[overdense_int +1+ NSFR_low*(log10_M_MINm_int+1)]*( dens_val - (float)overdense_int )) * (log10_M_MINm - (float)log10_M_MINm_int);
-//										if (x==0 && y==4 && z==21){
-//											LOG_DEBUG("%g,%g,%g,%g,%g,%g,%g,%g,",log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv, log10Mturn_max_MINI, log10Mturn_min_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI);
-//											LOG_DEBUG("%g,%g,%g,%g,%d",curr_dens, overdense_small_min, overdense_small_bin_width_inv, dens_val, overdense_int);
-//											LOG_DEBUG("%d,%g,%g,%g",log10_M_MINm_int, log10_M_MINm, log10Mturn_min_MINI, log10Mturn_bin_width_inv_MINI);
-//											LOG_DEBUG("%g", *((float *)log10_M_MINm_filtered + HII_R_FFT_INDEX(x,y,z)));
-//											LOG_DEBUG("%g,%g,%g,%g",log10_Nion_spline_MINI[overdense_int   + NSFR_low* log10_M_MINm_int   ], log10_Nion_spline_MINI[overdense_int +1+ NSFR_low* log10_M_MINm_int   ], log10_Nion_spline_MINI[overdense_int   + NSFR_low*(log10_M_MINm_int+1)],  log10_Nion_spline_MINI[overdense_int +1+ NSFR_low*(log10_M_MINm_int+1)]);
-//										}
+//                                        if (x==0 && y==4 && z==21){
+//                                            LOG_DEBUG("%g,%g,%g,%g,%g,%g,%g,%g,",log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv, log10Mturn_max_MINI, log10Mturn_min_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI);
+//                                            LOG_DEBUG("%g,%g,%g,%g,%d",curr_dens, overdense_small_min, overdense_small_bin_width_inv, dens_val, overdense_int);
+//                                            LOG_DEBUG("%d,%g,%g,%g",log10_M_MINm_int, log10_M_MINm, log10Mturn_min_MINI, log10Mturn_bin_width_inv_MINI);
+//                                            LOG_DEBUG("%g", *((float *)log10_M_MINm_filtered + HII_R_FFT_INDEX(x,y,z)));
+//                                            LOG_DEBUG("%g,%g,%g,%g",log10_Nion_spline_MINI[overdense_int   + NSFR_low* log10_M_MINm_int   ], log10_Nion_spline_MINI[overdense_int +1+ NSFR_low* log10_M_MINm_int   ], log10_Nion_spline_MINI[overdense_int   + NSFR_low*(log10_M_MINm_int+1)],  log10_Nion_spline_MINI[overdense_int +1+ NSFR_low*(log10_M_MINm_int+1)]);
+//                                        }
                                         Splined_Fcoll_MINI = expf(Splined_Fcoll_MINI);
                                         
                                     }
@@ -1141,8 +1161,17 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             rec = 0.;
         
             xHI_from_xrays = 1;
-            Gamma_R_prefactor = pow(1+redshift, 2) * (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
-            Gamma_R_prefactor_MINI = pow(1+redshift, 2) * (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR_MINI / 1.0e-12;
+            Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
+            Gamma_R_prefactor_MINI = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR_MINI / 1.0e-12;
+            if(flag_options->PHOTON_CONS) {
+                // Used for recombinations, which means we want to use the original redshift not the adjusted redshift
+                Gamma_R_prefactor *= pow(1+stored_redshift, 2);
+                Gamma_R_prefactor_MINI *= pow(1+stored_redshift, 2);
+            }
+            else {
+                Gamma_R_prefactor *= pow(1+redshift, 2);
+                Gamma_R_prefactor_MINI *= pow(1+redshift, 2);
+            }
             
             Gamma_R_prefactor /= t_ast;
             Gamma_R_prefactor_MINI /= t_ast;
@@ -1279,9 +1308,19 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 for (y=0; y<user_params->HII_DIM; y++){
                     for (z=0; z<user_params->HII_DIM; z++){
                     
-                        curr_dens = 1.0 + perturbed_field->density[HII_R_INDEX(x,y,z)];
-                        z_eff = (1+redshift) * pow(curr_dens, 1.0/3.0) - 1;
-                        dNrec = splined_recombination_rate(z_eff, box->Gamma12_box[HII_R_INDEX(x,y,z)]) * fabs_dtdz * ZSTEP * (1 - box->xH_box[HII_R_INDEX(x,y,z)]);
+                        // use the original density and redshift for the snapshot (not the adjusted redshift)
+                        // Only want to use the adjusted redshift for the ionisation field
+                        curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x,y,z)])/adjustment_factor;
+                        z_eff = pow(curr_dens, 1.0/3.0);
+                        
+                        if(flag_options->PHOTON_CONS) {
+                            z_eff *= (1+stored_redshift);
+                        }
+                        else {
+                            z_eff *= (1+redshift);
+                        }
+                        
+                        dNrec = splined_recombination_rate(z_eff-1., box->Gamma12_box[HII_R_INDEX(x,y,z)]) * fabs_dtdz * ZSTEP * (1 - box->xH_box[HII_R_INDEX(x,y,z)]);
                         
                         if(isfinite(dNrec)==0) {
                             something_finite_or_infinite = 1;
@@ -1302,7 +1341,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
     
     // deallocate
     gsl_rng_free (r);
-
+    
 LOG_DEBUG("global_xH = %e",global_xH);
 
     fftwf_free(deltax_unfiltered);
