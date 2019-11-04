@@ -1313,7 +1313,7 @@ LOG_SUPER_DEBUG("looping over box...");
                         }
                         else {
 
-                            if (curr_dens < 0.99*Deltac) {
+                            if (curr_dens < 0.9*Deltac) {
                                 
                                 dens_val = (curr_dens - fcoll_interp_high_min)*fcoll_interp_high_bin_width_inv;
                                 
