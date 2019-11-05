@@ -1213,7 +1213,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                         }
      
                         if (LAST_FILTER_STEP){
-                            ave_M_coll_cell = f_coll * pixel_mass * (1. + curr_dens);
+                            ave_M_coll_cell = (f_coll + f_coll_MINI) * pixel_mass * (1. + curr_dens);
                             ave_N_min_cell = ave_M_coll_cell / M_MIN; // ave # of M_MIN halos in cell
                             N_halos_in_cell = (int) gsl_ran_poisson(r, global_params.N_POISSON);
                         }
@@ -1268,8 +1268,13 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                         
                             if(ave_N_min_cell < global_params.N_POISSON) {
                                 f_coll = N_halos_in_cell * ( ave_M_coll_cell / (float)global_params.N_POISSON ) / (pixel_mass*(1. + curr_dens));
-                                f_coll_MINI = f_coll * (f_coll_MINI * ION_EFF_FACTOR_MINI) / (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI);
-                                f_coll = f_coll - f_coll_MINI;
+                                if (ION_EFF_FACTOR_MINI > 1e-19){
+                                    f_coll_MINI = f_coll * (f_coll_MINI * ION_EFF_FACTOR_MINI) / (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI);
+                                    f_coll = f_coll - f_coll_MINI;
+                                }
+                                else{
+                                    f_coll_MINI = 0.;
+                                }
                             }
                             
                             if(ave_M_coll_cell < (M_MIN/5.)) {

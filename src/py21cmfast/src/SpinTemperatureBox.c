@@ -1513,11 +1513,16 @@ LOG_SUPER_DEBUG("looping over box...");
                         xc_fast = (1.0+delNL0[0][box_ct]*growth_factor_zp)*xc_inverse*( (1.0-x_e)*No*kappa_10(T,0) + x_e*N_b0*kappa_10_elec(T,0) + x_e*No*kappa_10_pH(T,0) );
 
                         xi_power = TS_prefactor * cbrt((1.0+delNL0[0][box_ct]*growth_factor_zp)*(1.0-x_e)*T_inv_sq);
-                        xa_tilde_fast_arg = xa_tilde_prefactor*J_alpha_tot*pow( 1.0 + 2.98394*xi_power + 1.53583*xi_power*xi_power + 3.85289*xi_power*xi_power*xi_power, -1. );
+						if (ION_EFF_FACTOR_MINI>1e-19){
+                        	xa_tilde_fast_arg = xa_tilde_prefactor*(J_alpha_tot+J_alpha_tot_MINI)*pow( 1.0 + 2.98394*xi_power + 1.53583*xi_power*xi_power + 3.85289*xi_power*xi_power*xi_power, -1. );
+						}
+						else{
+                        	xa_tilde_fast_arg = xa_tilde_prefactor*J_alpha_tot*pow( 1.0 + 2.98394*xi_power + 1.53583*xi_power*xi_power + 3.85289*xi_power*xi_power*xi_power, -1. );
+						}
 
                         //if (J_alpha_tot > 1.0e-20)  // Must use WF effect
                         // New in v1.4
-                        if (fabs(J_alpha_tot) > 1.0e-20) { // Must use WF effect
+                        if ((fabs(J_alpha_tot) > 1.0e-20) || (fabs(J_alpha_tot_MINI) > 1.0e-20) ){ // Must use WF effect
                             TS_fast = Trad_fast;
                             TSold_fast = 0.0;
                             while (fabs(TS_fast-TSold_fast)/TS_fast > 1.0e-3) {
