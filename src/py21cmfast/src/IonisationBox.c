@@ -267,9 +267,19 @@ LOG_SUPER_DEBUG("density field calculated");
 //    f_coll_crit = 1/HII_EFF_FACTOR;
     cell_length_factor = user_params->L_FACTOR;
 
+
     //set the minimum source mass
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (ION_EFF_FACTOR_MINI > 1e-19){
+            // this is the first z, and the previous_ionize_box  are empty
+            if (prev_redshift < 1){
+                previous_ionize_box->Gamma12_box = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
+                previous_ionize_box->z_re_box    = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
+                previous_ionize_box->dNrec_box   = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
+                previous_ionize_box->mean_f_coll = 0.0;
+                previous_ionize_box->mean_f_coll_MINI = 0.0;
+            }
+
             // fields added for minihalos
             Mcrit_atom              = atomic_cooling_threshold(redshift);
             log10_Mcrit_atom        = log10(Mcrit_atom);
