@@ -170,10 +170,8 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
                     // ok, now we can draw the values of the real and imaginary part
                     // of our k entry from a Gaussian distribution
-//                    a = gsl_ran_ugaussian(r[omp_get_thread_num()]);
-//                    b = gsl_ran_ugaussian(r[omp_get_thread_num()]);
-                    a = 1.0;
-                    b = -1.0;
+                    a = gsl_ran_ugaussian(r[omp_get_thread_num()]);
+                    b = gsl_ran_ugaussian(r[omp_get_thread_num()]);
 
                     HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME*p/2.0) * (a + b*I);
 
