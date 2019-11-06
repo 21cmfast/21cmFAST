@@ -170,8 +170,11 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
                     // ok, now we can draw the values of the real and imaginary part
                     // of our k entry from a Gaussian distribution
-                    a = gsl_ran_ugaussian(r[omp_get_thread_num()]);
-                    b = gsl_ran_ugaussian(r[omp_get_thread_num()]);
+//                    a = gsl_ran_ugaussian(r[omp_get_thread_num()]);
+//                    b = gsl_ran_ugaussian(r[omp_get_thread_num()]);
+                    a = 1.0;
+                    b = -1.0;
+
                     HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME*p/2.0) * (a + b*I);
 
 
@@ -248,7 +251,6 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             }
         }
     }
-
 
     // ******* Relative Velocity part ******* //
 
@@ -388,7 +390,6 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     }
     // ******* End of Relative Velocity part ******* //
 
-
     // ******* PERFORM INVERSE FOURIER TRANSFORM ***************** //
     // add the 1/VOLUME factor when converting from k space to real space
     memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
@@ -417,7 +418,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             }
         }
     }
-
+    
     for(ii=0;ii<3;ii++) {
 
         memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
@@ -506,6 +507,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             }
         }
     }
+    
     // write out file
 
     // * *************************************************** * //
