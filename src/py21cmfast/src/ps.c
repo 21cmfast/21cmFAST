@@ -2212,43 +2212,55 @@ int initialise_Nion_General_spline(float z, float min_density, float max_density
 
     sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
 
-    for (i=0; i<NSFR_low; i++){
-        overdense_val = log10(1. + overdense_small_low) + (double)i/((double)NSFR_low-1.)*(log10(1.+overdense_small_high)-log10(1.+overdense_small_low));
+#pragma omp parallel shared(log10_overdense_spline_SFR,log10_Nion_spline,overdense_small_low,overdense_small_high,growthf,Mmax,sigma2,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc) private(i,overdense_val) num_threads(user_params_ps->N_THREADS)
+    {
+#pragma omp for
+        for (i=0; i<NSFR_low; i++){
+            overdense_val = log10(1. + overdense_small_low) + (double)i/((double)NSFR_low-1.)*(log10(1.+overdense_small_high)-log10(1.+overdense_small_low));
 
-        log10_overdense_spline_SFR[i] = overdense_val;
-        log10_Nion_spline[i] = GaussLegendreQuad_Nion(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,pow(10.,overdense_val)-1.,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
-        if(fabs(log10_Nion_spline[i]) < 1e-38) {
-            log10_Nion_spline[i] = 1e-38;
+            log10_overdense_spline_SFR[i] = overdense_val;
+            log10_Nion_spline[i] = GaussLegendreQuad_Nion(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,pow(10.,overdense_val)-1.,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+            if(fabs(log10_Nion_spline[i]) < 1e-38) {
+                log10_Nion_spline[i] = 1e-38;
+            }
+            log10_Nion_spline[i] = log10(log10_Nion_spline[i]);
+        
+            if(log10_Nion_spline[i] < -40.){
+                log10_Nion_spline[i] = -40.;
+            }
+
+            log10_Nion_spline[i] *= ln_10;
+
         }
-        log10_Nion_spline[i] = log10(log10_Nion_spline[i]);
-
+    }
+    
+    for (i=0; i<NSFR_low; i++){
         if(isfinite(log10_Nion_spline[i])==0) {
             LOG_ERROR("Detected either an infinite or NaN value in log10_Nion_spline");
             return(-1);
         }
-
-		if(log10_Nion_spline[i] < -40.){
-			log10_Nion_spline[i] = -40.;
-		}
-
-        log10_Nion_spline[i] *= ln_10;
-
     }
 
-    for(i=0;i<NSFR_high;i++) {
-        Overdense_spline_SFR[i] = overdense_large_low + (float)i/((float)NSFR_high-1.)*(overdense_large_high - overdense_large_low);
-        Nion_spline[i] = Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,Deltac,Overdense_spline_SFR[i],MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+#pragma omp parallel shared(Overdense_spline_SFR,Nion_spline,overdense_large_low,overdense_large_high,growthf,Mmin,Mmax,sigma2,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc) private(i) num_threads(user_params_ps->N_THREADS)
+    {
+#pragma omp for
+        for(i=0;i<NSFR_high;i++) {
+            Overdense_spline_SFR[i] = overdense_large_low + (float)i/((float)NSFR_high-1.)*(overdense_large_high - overdense_large_low);
+            Nion_spline[i] = Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,Deltac,Overdense_spline_SFR[i],MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
 
-        if(Nion_spline[i]<0.) {
-            Nion_spline[i]=pow(10.,-40.0);
+            if(Nion_spline[i]<0.) {
+                Nion_spline[i]=pow(10.,-40.0);
+            }
         }
-
+    }
+    
+    for(i=0;i<NSFR_high;i++) {
         if(isfinite(Nion_spline[i])==0) {
             LOG_ERROR("Detected either an infinite or NaN value in log10_Nion_spline");
             return(-1);
         }
     }
-
+    
     return(0);
 }
 
@@ -2474,12 +2486,17 @@ int initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float MassTurn, 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     Mlim_Fesc = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc10);
 
-    for (i=0; i<Nbin; i++){
-        z_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
-        Nion_z_val[i] = Nion_General(z_val[i], Mmin, MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
+#pragma omp parallel shared(z_val,Nion_z_val,zmin,zmax, MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc) private(i) num_threads(user_params_ps->N_THREADS)
+    {
+#pragma omp for
+        for (i=0; i<Nbin; i++){
+            z_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
+            Nion_z_val[i] = Nion_General(z_val[i], MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
+        }
+    }
 
+    for (i=0; i<Nbin; i++){
         if(isfinite(Nion_z_val[i])==0) {
-            i = Nbin;
             LOG_ERROR("Detected either an infinite or NaN value in Nion_z_val");
             return(-1);
         }
@@ -2541,12 +2558,17 @@ int initialise_SFRD_spline(int Nbin, float zmin, float zmax, float MassTurn, flo
 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
 
+#pragma omp parallel shared(z_X_val,SFRD_val,zmin,zmax, MassTurn, Alpha_star, Fstar10, Mlim_Fstar) private(i) num_threads(user_params_ps->N_THREADS)
+    {
+#pragma omp for
+        for (i=0; i<Nbin; i++){
+            z_X_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
+            SFRD_val[i] = Nion_General(z_X_val[i], MassTurn, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
+        }
+    }
+    
     for (i=0; i<Nbin; i++){
-        z_X_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
-        SFRD_val[i] = Nion_General(z_X_val[i], Mmin, MassTurn, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
-
         if(isfinite(SFRD_val[i])==0) {
-            i = Nbin;
             LOG_ERROR("Detected either an infinite or NaN value in SFRD_val");
             return(-1);
         }
@@ -2664,39 +2686,50 @@ int initialise_SFRD_Conditional_table(int Nfilter, float min_density[], float ma
             overdense_low_table[i] = pow(10.,overdense_val);
         }
 
-        for (i=0; i<NSFR_low; i++){
-
-            log10_SFRD_z_low_table[j][i] = GaussLegendreQuad_Nion(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.);
-            if(fabs(log10_SFRD_z_low_table[j][i]) < 1e-38) {
-                log10_SFRD_z_low_table[j][i] = 1e-38;
+#pragma omp parallel shared(log10_SFRD_z_low_table,growthf,Mmax,sigma2,overdense_low_table,MassTurnover,Alpha_star,Fstar10,Mlim_Fstar) private(i) num_threads(user_params_ps->N_THREADS)
+        {
+#pragma omp for
+            for (i=0; i<NSFR_low; i++){
+            
+                log10_SFRD_z_low_table[j][i] = GaussLegendreQuad_Nion(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.);
+                if(fabs(log10_SFRD_z_low_table[j][i]) < 1e-38) {
+                    log10_SFRD_z_low_table[j][i] = 1e-38;
+                }
+                log10_SFRD_z_low_table[j][i] = log10(log10_SFRD_z_low_table[j][i]);
+            
+                log10_SFRD_z_low_table[j][i] += 10.0;
+                log10_SFRD_z_low_table[j][i] *= ln_10;
             }
-            log10_SFRD_z_low_table[j][i] = log10(log10_SFRD_z_low_table[j][i]);
-
+        }
+        
+        for (i=0; i<NSFR_low; i++){
             if(isfinite(log10_SFRD_z_low_table[j][i])==0) {
-//                j = Nfilter;
-//                i = larger;
+                //                j = Nfilter;
+                //                i = larger;
                 LOG_ERROR("Detected either an infinite or NaN value in log10_SFRD_z_low_table");
                 return(-1);
             }
-
-            log10_SFRD_z_low_table[j][i] += 10.0;
-            log10_SFRD_z_low_table[j][i] *= ln_10;
-
-
         }
 
-        for(i=0;i<NSFR_high;i++) {
+#pragma omp parallel shared(SFRD_z_high_table,growthf,Mmin,Mmax,sigma2,Overdense_high_table,MassTurnover,Alpha_star,Fstar10,Mlim_Fstar) private(i) num_threads(user_params_ps->N_THREADS)
+        {
+#pragma omp for
+            for(i=0;i<NSFR_high;i++) {
 
-            SFRD_z_high_table[j][i] = Nion_ConditionalM(growthf[j],Mmin,Mmax,sigma2,Deltac,Overdense_high_table[i],MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.);
+                SFRD_z_high_table[j][i] = Nion_ConditionalM(growthf[j],Mmin,Mmax,sigma2,Deltac,Overdense_high_table[i],MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.);
+                SFRD_z_high_table[j][i] *= pow(10., 10.0);
+            }
+        }
+        
+        for(i=0;i<NSFR_high;i++) {
             if(isfinite(SFRD_z_high_table[j][i])==0) {
-//                j = Nfilter;
-//                i = larger;
+                //                j = Nfilter;
+                //                i = larger;
                 LOG_ERROR("Detected either an infinite or NaN value in SFRD_z_high_table");
                 return(-1);
             }
-
-            SFRD_z_high_table[j][i] *= pow(10., 10.0);
         }
+
     }
 
     return(0);

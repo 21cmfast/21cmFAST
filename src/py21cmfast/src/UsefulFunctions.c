@@ -97,47 +97,67 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
     }
 
     // loop through k-box
-    for (n_x=dimension; n_x--;){
-        if (n_x>midpoint) {k_x =(n_x-dimension) * DELTA_K;}
-        else {k_x = n_x * DELTA_K;}
 
-        for (n_y=dimension; n_y--;){
-            if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
-            else {k_y = n_y * DELTA_K;}
+#pragma omp parallel shared(box) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,kR) num_threads(user_params_ufunc->N_THREADS)
+    {
+#pragma omp for
+        for (n_x=0; n_x<dimension; n_x++){
+//        for (n_x=dimension; n_x--;){
+            if (n_x>midpoint) {k_x =(n_x-dimension) * DELTA_K;}
+            else {k_x = n_x * DELTA_K;}
 
-            for (n_z=(midpoint+1); n_z--;){
-                k_z = n_z * DELTA_K;
-
-                k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
-
-                kR = k_mag*R; // real space top-hat
-
-                if (filter_type == 0){ // real space top-hat
-                    if (kR > 1e-4){
-                        if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
-                        if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
+            for (n_y=0; n_y<dimension; n_y++){
+//            for (n_y=dimension; n_y--;){
+                if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
+                else {k_y = n_y * DELTA_K;}
+            
+//                for (n_z=(midpoint+1); n_z--;){
+                for (n_z=0; n_z<=midpoint; n_z++){
+                    k_z = n_z * DELTA_K;
+                    
+                    if (filter_type == 0){ // real space top-hat
+                        
+                        k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
+                        
+                        kR = k_mag*R; // real space top-hat
+                        
+                        if (kR > 1e-4){
+                            if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
+                            if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
+                        }
                     }
-                }
-                else if (filter_type == 1){ // k-space top hat
-                    kR *= 0.413566994; // equates integrated volume to the real space top-hat (9pi/2)^(-1/3)
-                    if (kR > 1){
-                        if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] = 0; }
-                        if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] = 0; }
+                    else if (filter_type == 1){ // k-space top hat
+                        
+                        // This is actually (kR^2) but since we zero the value and find kR > 1 this is more computationally efficient
+                        // as we don't need to evaluate the slower sqrt function
+//                        kR = 0.17103765852*( k_x*k_x + k_y*k_y + k_z*k_z )*R*R;
+  
+                        k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
+                        kR = k_mag*R; // real space top-hat
+                        
+                        kR *= 0.413566994; // equates integrated volume to the real space top-hat (9pi/2)^(-1/3)
+                        if (kR > 1){
+                            if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] = 0; }
+                            if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] = 0; }
+                        }
                     }
-                }
-                else if (filter_type == 2){ // gaussian
-                    kR *= 0.643; // equates integrated volume to the real space top-hat
-                    if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= pow(E, -kR*kR/2.0); }
-                    if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= pow(E, -kR*kR/2.0); }
-                }
-                else{
-                    if ( (n_x==0) && (n_y==0) && (n_z==0) )
-                        LOG_WARNING("Filter type %i is undefined. Box is unfiltered.", filter_type);
+                    else if (filter_type == 2){ // gaussian
+                        // This is actually (kR^2) but since we zero the value and find kR > 1 this is more computationally efficient
+                        // as we don't need to evaluate the slower sqrt function
+                        kR = 0.643*0.643*( k_x*k_x + k_y*k_y + k_z*k_z )*R*R;
+//                        kR *= 0.643; // equates integrated volume to the real space top-hat
+                        if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= pow(E, -kR/2.0); }
+                        if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= pow(E, -kR/2.0); }
+                    }
+                    else{
+                        if ( (n_x==0) && (n_y==0) && (n_z==0) )
+                            LOG_WARNING("Filter type %i is undefined. Box is unfiltered.", filter_type);
+                    }
                 }
             }
-        }
-    } // end looping through k box
-
+        } // end looping through k box
+    }
+    
     return;
 }
 

@@ -172,7 +172,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                     // of our k entry from a Gaussian distribution
                     a = gsl_ran_ugaussian(r[omp_get_thread_num()]);
                     b = gsl_ran_ugaussian(r[omp_get_thread_num()]);
-
+                    
                     HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME*p/2.0) * (a + b*I);
 
 
@@ -794,6 +794,10 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
     free_ps();
     fftwf_cleanup();
+    
+    for (i=0; i<user_params->N_THREADS; i++) {
+        gsl_rng_free (r[i]);
+    }
 
     return(0);
 }
