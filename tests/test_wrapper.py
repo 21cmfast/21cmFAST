@@ -302,13 +302,11 @@ def test_bt(ionize_box, spin_temp, perturb_field):
 
 
 def test_coeval_against_direct(init_box, perturb_field, ionize_box):
-    init, pf, ib, bt, pcd = wrapper.run_coeval(
-        perturb=perturb_field, init_box=init_box, write=False
-    )
+    coeval = wrapper.run_coeval(perturb=perturb_field, init_box=init_box, write=False)
 
-    assert init == init_box
-    assert pf[0] == perturb_field
-    assert ib[0] == ionize_box
+    assert coeval[0].init_box == init_box
+    assert coeval[0].perturb_field == perturb_field
+    assert coeval[0].ionization_box == ionize_box
 
 
 def test_lightcone(init_box, perturb_field):

@@ -2255,6 +2255,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
 
     free(z_arr);
     free(Q_arr);
+
+    photon_cons_inited = true;
     return(0);
 }
 
