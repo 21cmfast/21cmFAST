@@ -17,8 +17,7 @@ static gsl_spline *erfc_spline;
 
 #define NGaussLegendre 40  //defines the number of points in the Gauss-Legendre quadrature integration
 
-//#define NMass 300
-#define NMass 2
+#define NMass 300
 
 #define NSFR_high 200
 #define NSFR_low 250
