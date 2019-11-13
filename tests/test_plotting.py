@@ -2,9 +2,11 @@
 Testing plots is kind of hard, but we just check that it runs through without crashing.
 """
 
-from py21cmfast import plotting
 import pytest
-from py21cmfast import initial_conditions, run_lightcone
+
+from py21cmfast import initial_conditions
+from py21cmfast import plotting
+from py21cmfast import run_lightcone
 
 
 def test_coeval_sliceplot():

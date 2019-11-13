@@ -7,14 +7,9 @@ import io
 import os
 import re
 from distutils.dir_util import copy_tree
-from glob import glob
-from os.path import basename
 from os.path import dirname
 from os.path import expanduser
 from os.path import join
-from os.path import splitext
-from shutil import copyfile
-
 from setuptools import find_packages
 from setuptools import setup
 
@@ -42,9 +37,6 @@ pkgdir = os.path.dirname(os.path.abspath(__file__))
 if not os.path.exists(cfgdir):
     os.makedirs(cfgdir)
 
-# copyfile(join(pkgdir, "user_data", "config.yml"), join(cfgdir, "config.yml"))
-# copyfile(join(pkgdir, "runconfig_example.yml"), join(cfgdir, "runconfig_example.yml"))
-# copy_tree(join(pkgdir, "External_tables"), join(cfgdir, "External_tables"))
 copy_tree(join(pkgdir, "user_data"), cfgdir)
 
 boxdir = os.environ.get("BOXDIR", None)
@@ -59,11 +51,11 @@ if boxdir:
     with open(join(cfgdir, "config.yml"), "w") as f:
         f.write("\n".join(lines))
 
-# ======================================================================================================================
+# ======================================================================================
 
-# Enable code coverage for C code: we can't use CFLAGS=-coverage in tox.ini, since that may mess with compiling
-# dependencies (e.g. numpy). Therefore we set SETUPPY_CFLAGS=-coverage in tox.ini and copy it to CFLAGS here (after
-# deps have been safely installed).
+# Enable code coverage for C code: we can't use CFLAGS=-coverage in tox.ini, since that
+# may mess with compiling dependencies (e.g. numpy). Therefore we set SETUPPY_
+# CFLAGS=-coverage in tox.ini and copy it to CFLAGS here (after deps have been safely installed).
 if "TOXENV" in os.environ and "SETUPPY_CFLAGS" in os.environ:
     os.environ["CFLAGS"] = os.environ["SETUPPY_CFLAGS"]
 
@@ -84,7 +76,6 @@ setup(
     url="https://github.com/21cmFAST/21cmFAST",
     packages=find_packages("src"),
     package_dir={"": "src"},
-    # py_modules=[splitext(basename(path))[0] for path in glob("src/*.py")],
     include_package_data=True,
     zip_safe=False,
     classifiers=[

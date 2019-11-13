@@ -3,9 +3,9 @@ from os import path
 
 import h5py
 
+from . import wrapper
 from ._cfg import config
 from .wrapper import global_params
-from . import wrapper
 
 
 def readbox(*, direc=None, fname=None, hash=None, kind=None, seed=None, load_data=True):

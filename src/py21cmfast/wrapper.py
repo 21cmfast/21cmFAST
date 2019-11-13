@@ -113,21 +113,21 @@ interpolated onto the lightcone cells):
 """
 import logging
 import os
+from copy import deepcopy
 from os import path
 
 import numpy as np
 from astropy import units
-from astropy.cosmology import Planck15, z_at_value
+from astropy.cosmology import Planck15
+from astropy.cosmology import z_at_value
 from cached_property import cached_property
-from copy import deepcopy
 
-from ._utils import (
-    StructWithDefaults,
-    OutputStruct as _OS,
-    StructInstanceWrapper,
-    StructWrapper,
-)
-from .c_21cmfast import ffi, lib
+from ._utils import OutputStruct as _OS
+from ._utils import StructInstanceWrapper
+from ._utils import StructWithDefaults
+from ._utils import StructWrapper
+from .c_21cmfast import ffi
+from .c_21cmfast import lib
 
 logger = logging.getLogger("21cmFAST")
 
@@ -170,13 +170,13 @@ class CosmoParams(StructWithDefaults):
 
     _ffi = ffi
 
-    _defaults_ = dict(
-        SIGMA_8=0.82,
-        hlittle=Planck15.h,
-        OMm=Planck15.Om0,
-        OMb=Planck15.Ob0,
-        POWER_INDEX=0.97,
-    )
+    _defaults_ = {
+        "SIGMA_8": 0.82,
+        "hlittle": Planck15.h,
+        "OMm": Planck15.Om0,
+        "OMb": Planck15.Ob0,
+        "POWER_INDEX": 0.97,
+    }
 
     @property
     def OMl(self):
@@ -236,15 +236,15 @@ class UserParams(StructWithDefaults):
 
     _ffi = ffi
 
-    _defaults_ = dict(
-        BOX_LEN=150.0,
-        DIM=None,
-        HII_DIM=50,
-        USE_FFTW_WISDOM=False,
-        HMF=1,
-        USE_RELATIVE_VELOCITIES=False,
-        POWER_SPECTRUM=0,
-    )
+    _defaults_ = {
+        "BOX_LEN": 150.0,
+        "DIM": None,
+        "HII_DIM": 50,
+        "USE_FFTW_WISDOM": False,
+        "HMF": 1,
+        "USE_RELATIVE_VELOCITIES": False,
+        "POWER_SPECTRUM": 0,
+    }
 
     @property
     def DIM(self):
@@ -305,14 +305,14 @@ class FlagOptions(StructWithDefaults):
 
     _ffi = ffi
 
-    _defaults_ = dict(
-        USE_MASS_DEPENDENT_ZETA=False,
-        SUBCELL_RSD=False,
-        INHOMO_RECO=False,
-        USE_TS_FLUCT=False,
-        M_MIN_in_Mass=False,
-        PHOTON_CONS=False,
-    )
+    _defaults_ = {
+        "USE_MASS_DEPENDENT_ZETA": False,
+        "SUBCELL_RSD": False,
+        "INHOMO_RECO": False,
+        "USE_TS_FLUCT": False,
+        "M_MIN_in_Mass": False,
+        "PHOTON_CONS": False,
+    }
 
     @property
     def M_MIN_in_Mass(self):
@@ -356,22 +356,22 @@ class AstroParams(StructWithDefaults):
 
     _ffi = ffi
 
-    _defaults_ = dict(
-        HII_EFF_FACTOR=30.0,
-        F_STAR10=-1.3,
-        ALPHA_STAR=0.5,
-        F_ESC10=-1.0,
-        ALPHA_ESC=-0.5,
-        M_TURN=8.7,
-        R_BUBBLE_MAX=None,
-        ION_Tvir_MIN=4.69897,
-        L_X=40.0,
-        NU_X_THRESH=500.0,
-        X_RAY_SPEC_INDEX=1.0,
-        X_RAY_Tvir_MIN=None,
-        t_STAR=0.5,
-        N_RSD_STEPS=20,
-    )
+    _defaults_ = {
+        "HII_EFF_FACTOR": 30.0,
+        "F_STAR10": -1.3,
+        "ALPHA_STAR": 0.5,
+        "F_ESC10": -1.0,
+        "ALPHA_ESC": -0.5,
+        "M_TURN": 8.7,
+        "R_BUBBLE_MAX": None,
+        "ION_Tvir_MIN": 4.69897,
+        "L_X": 40.0,
+        "NU_X_THRESH": 500.0,
+        "X_RAY_SPEC_INDEX": 1.0,
+        "X_RAY_Tvir_MIN": None,
+        "t_STAR": 0.5,
+        "N_RSD_STEPS": 20,
+    }
 
     def __init__(
         self, *args, INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"], **kwargs
@@ -1991,7 +1991,7 @@ def run_coeval(
 
     if perturb:
         if redshift is not None:
-            if not all([p.redshift == z for p, z in zip(perturb, redshift)]):
+            if not all(p.redshift == z for p, z in zip(perturb, redshift)):
                 raise ValueError("Input redshifts do not match perturb field redshifts")
 
         else:
@@ -2421,7 +2421,6 @@ def run_lightcone(
         bt = bt2
 
     if flag_options.PHOTON_CONS:
-        #        z_analytic, Q_analytic, z_cal, nf_cal, deltaz_photoncons, nf_photoncons = get_photon_nonconservation_data()
         photon_nonconservation_data = get_photon_nonconservation_data()
 
     return LightCone(

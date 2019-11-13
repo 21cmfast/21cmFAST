@@ -30,14 +30,14 @@ struct GlobalParams{
 
     float CRIT_DENS_TRANSITION;
     float MIN_DENSITY_LOW_LIMIT;
-    
+
     int RecombPhotonCons;
     float PhotonConsStart;
     float PhotonConsEnd;
     float PhotonConsAsymptoteTo;
     float PhotonConsAsymptoteVal;
 
-    
+
     int HEAT_FILTER;
     double CLUMPING_FACTOR;
     float Z_HEAT_MAX;
@@ -106,7 +106,7 @@ struct GlobalParams global_params = {
     .PhotonConsStart = 0.995,
     .PhotonConsEnd = 0.3,
     .PhotonConsAsymptoteTo = 0.01,
-    
+
     .HEAT_FILTER = 0,
     .CLUMPING_FACTOR = 2.,
     .Z_HEAT_MAX = 35.0,

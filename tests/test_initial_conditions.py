@@ -3,8 +3,10 @@ Various tests of the initial_conditions() function and InitialConditions class.
 """
 
 import pytest
-from py21cmfast import wrapper
+
 import numpy as np
+
+from py21cmfast import wrapper
 
 
 @pytest.fixture(scope="module")  # call this fixture once for all tests in this module
@@ -24,7 +26,7 @@ def test_box_shape(basic_init_box):
     assert basic_init_box.lowres_vx_2LPT.shape == shape
     assert basic_init_box.lowres_vy_2LPT.shape == shape
     assert basic_init_box.lowres_vz_2LPT.shape == shape
-    assert basic_init_box.hires_density.shape == tuple([4 * s for s in shape])
+    assert basic_init_box.hires_density.shape == tuple(4 * s for s in shape)
 
     assert basic_init_box.cosmo_params == wrapper.CosmoParams()
 

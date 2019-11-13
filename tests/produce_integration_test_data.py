@@ -6,23 +6,20 @@ This is necessary, because low redshifts mean that neutral fractions are small,
 and then numerical noise gets relatively more important, and can make the comparison
 fail at the tens-of-percent level.
 """
+import glob
 import hashlib
 import os
+import sys
 
 import h5py
 from powerbox import get_power
-import glob
 
-import sys
-
-from py21cmfast import (
-    run_coeval,
-    run_lightcone,
-    FlagOptions,
-    AstroParams,
-    CosmoParams,
-    UserParams,
-)
+from py21cmfast import AstroParams
+from py21cmfast import CosmoParams
+from py21cmfast import FlagOptions
+from py21cmfast import UserParams
+from py21cmfast import run_coeval
+from py21cmfast import run_lightcone
 
 SEED = 12345
 DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
@@ -145,8 +142,6 @@ def produce_power_spectra_for_tests(**kwargs):
 
         fl["lowres_density"] = bt[1].lowres_density
         fl["lowres_vx"] = bt[1].lowres_vx
-
-        # fl['lighctone'] = lc.brightness_temp
 
     print(f"Produced {fname} with {kwargs}")
 

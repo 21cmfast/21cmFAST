@@ -272,9 +272,7 @@ class StructWithDefaults(StructWrapper):
         return (
             self.__class__.__name__
             + "("
-            + ", ".join(
-                sorted([k + ":" + str(v) for k, v in self.defining_dict.items()])
-            )
+            + ", ".join(sorted(k + ":" + str(v) for k, v in self.defining_dict.items()))
             + ")"
         )
 

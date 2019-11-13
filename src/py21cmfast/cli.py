@@ -1,22 +1,23 @@
 """
 Module that contains the command line app.
 """
-import inspect
-import warnings
-from os import path, remove
 import builtins
+import inspect
+import logging
+import warnings
+from os import path
+from os import remove
 
 import click
-import yaml
-
-from . import wrapper as lib, cache_tools
-from . import _cfg
-from . import plotting
-
 import matplotlib.pyplot as plt
 import numpy as np
 import powerbox
-import logging
+import yaml
+
+from . import _cfg
+from . import cache_tools
+from . import plotting
+from . import wrapper as lib
 
 
 def _get_config(config=None):
@@ -82,9 +83,10 @@ main = click.Group()
 
 
 @main.command(
-    context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True, allow_extra_args=True
-    )
+    context_settings={  # Doing this allows arbitrary options to override config
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    }
 )
 @click.option(
     "--config",
@@ -133,9 +135,10 @@ def init(ctx, config, regen, direc, seed):
 
 
 @main.command(
-    context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True, allow_extra_args=True
-    )
+    context_settings={  # Doing this allows arbitrary options to override config
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    }
 )
 @click.argument("redshift", type=float)
 @click.option(
@@ -186,9 +189,10 @@ def perturb(ctx, redshift, config, regen, direc, seed):
 
 
 @main.command(
-    context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True, allow_extra_args=True
-    )
+    context_settings={  # Doing this allows arbitrary options to override config
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    }
 )
 @click.argument("redshift", type=float)
 @click.option(
@@ -274,9 +278,10 @@ def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max,
 
 
 @main.command(
-    context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True, allow_extra_args=True
-    )
+    context_settings={  # Doing this allows arbitrary options to override config
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    }
 )
 @click.argument("redshift", type=float)
 @click.option(
@@ -364,9 +369,10 @@ def ionize(
 
 
 @main.command(
-    context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True, allow_extra_args=True
-    )
+    context_settings={  # Doing this allows arbitrary options to override config
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    }
 )
 @click.argument("redshift", type=str)
 @click.option(
@@ -450,9 +456,10 @@ def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed)
 
 
 @main.command(
-    context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True, allow_extra_args=True
-    )
+    context_settings={  # Doing this allows arbitrary options to override config
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    }
 )
 @click.argument("redshift", type=float)
 @click.option(
@@ -647,12 +654,12 @@ def pr_feature(
     logger.setLevel(lvl)
     value = getattr(builtins, vtype)(value)
 
-    structs = dict(
-        user_params=dict(HII_DIM=128, BOX_LEN=250),
-        flag_options=dict(USE_TS_FLUCT=True),
-        cosmo_params=dict(),
-        astro_params=dict(),
-    )
+    structs = {
+        "user_params": {"HII_DIM": 128, "BOX_LEN": 250},
+        "flag_options": {"USE_TS_FLUCT": True},
+        "cosmo_params": {},
+        "astro_params": {},
+    }
 
     if lightcone:
         print("Running default lightcone...")

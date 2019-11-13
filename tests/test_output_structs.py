@@ -7,13 +7,11 @@ import pickle
 
 import pytest
 
-from py21cmfast import (
-    InitialConditions,
-    PerturbedField,
-    IonizedBox,
-    TsBox,
-    global_params,
-)  # An example of an output struct
+from py21cmfast import InitialConditions  # An example of an output struct
+from py21cmfast import IonizedBox
+from py21cmfast import PerturbedField
+from py21cmfast import TsBox
+from py21cmfast import global_params
 
 
 @pytest.fixture(scope="module")
@@ -34,7 +32,7 @@ def test_pointer_fields_ic(
     new_names = [name for name in ic.__dict__ if name not in d]
 
     assert new_names
-    assert all([n in ic.pointer_fields for n in new_names])
+    assert all(n in ic.pointer_fields for n in new_names)
 
     # cstruct shouldn't be initialised,
     assert not ic.arrays_initialized
@@ -56,7 +54,7 @@ def test_pointer_fields_pf():
     new_names = [name for name in pf.__dict__ if name not in d]
 
     assert new_names
-    assert all([n in pf.pointer_fields for n in new_names])
+    assert all(n in pf.pointer_fields for n in new_names)
 
 
 def test_pointer_fields_ib():
@@ -71,7 +69,7 @@ def test_pointer_fields_ib():
     new_names = [name for name in pf.__dict__ if name not in d]
 
     assert new_names
-    assert all([n in pf.pointer_fields for n in new_names])
+    assert all(n in pf.pointer_fields for n in new_names)
 
 
 def test_pointer_fields_st():
@@ -86,7 +84,7 @@ def test_pointer_fields_st():
     new_names = [name for name in pf.__dict__ if name not in d]
 
     assert new_names
-    assert all([n in pf.pointer_fields for n in new_names])
+    assert all(n in pf.pointer_fields for n in new_names)
 
 
 def test_non_existence(ic, tmpdirec):
