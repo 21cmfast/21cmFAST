@@ -2,7 +2,7 @@ exclude: '(^docs/conf.py|^user_data/External_tables/*)'
 
 repos:
     - repo: git://github.com/pre-commit/pre-commit-hooks
-      rev: v2.2.3
+      rev: v2.4.0
       hooks:
           - id: trailing-whitespace
           - id: check-added-large-files
@@ -33,6 +33,6 @@ repos:
                 - flake8-copyright
                 - flake8-ownership
     - repo: https://github.com/ambv/black
-      rev: stable
+      rev: 19.10b0
       hooks:
           - id: black

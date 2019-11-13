@@ -24,7 +24,7 @@ def test_arrays_inited(ic):
 
 
 def test_pointer_fields_ic(
-    ic
+    ic,
 ):  # TODO: this is probably good to implement for every output struct defined in code
     # Get list of fields before and after array initialisation
     d = copy.copy(list(ic.__dict__.keys()))

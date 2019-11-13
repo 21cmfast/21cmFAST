@@ -1346,7 +1346,13 @@ def ionize_box(
     )
 
     # Configure and check input/output parameters/structs
-    random_seed, user_params, cosmo_params, astro_params, flag_options = configure_inputs(
+    (
+        random_seed,
+        user_params,
+        cosmo_params,
+        astro_params,
+        flag_options,
+    ) = configure_inputs(
         [
             ("random_seed", random_seed),
             ("user_params", user_params),
@@ -1644,7 +1650,13 @@ def spin_temperature(
     )
 
     # Configure and check input/output parameters/structs
-    random_seed, user_params, cosmo_params, astro_params, flag_options = configure_inputs(
+    (
+        random_seed,
+        user_params,
+        cosmo_params,
+        astro_params,
+        flag_options,
+    ) = configure_inputs(
         [
             ("random_seed", random_seed),
             ("user_params", user_params),
