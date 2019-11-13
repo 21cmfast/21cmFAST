@@ -783,8 +783,7 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
     double result, error;
     double rel_tol  = 0.01; //<- relative tolerance
     gsl_function F;
-    gsl_integration_workspace * w
-    = gsl_integration_workspace_alloc (1000);
+    gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
     
 //    if (DEBUG_ON){
 //        printf("integrate over nu, parameters: %f, %f, %e, %i, thread# %i\n", zp, local_x_e, lower_int_limit, FLAG, omp_get_thread_num());
@@ -807,11 +806,10 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
     }
     
     //    gsl_integration_qag (&F, lower_int_limit, NU_X_MAX, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
-    
-    gsl_integration_qag (&F, lower_int_limit, (global_params.NU_X_MAX)*NU_over_EV, 0, rel_tol, 1000, GSL_INTEG_GAUSS15, w, &result, &error);
+
+    gsl_integration_qag (&F, lower_int_limit, global_params.NU_X_MAX*NU_over_EV, 0, rel_tol, 1000, GSL_INTEG_GAUSS15, w, &result, &error);
     gsl_integration_workspace_free (w);
-    
-    
+
     // if it is the Lya integral, add prefactor
     if (FLAG == 2)
         return result * C / FOURPI / Ly_alpha_HZ / hubble(zp);

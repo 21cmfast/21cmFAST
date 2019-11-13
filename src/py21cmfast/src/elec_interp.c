@@ -44,6 +44,15 @@ float x_int_nion_HI[x_int_NXHII][x_int_NENERGY];
 float x_int_nion_HeI[x_int_NXHII][x_int_NENERGY];
 float x_int_nion_HeII[x_int_NXHII][x_int_NENERGY];
 
+void skipline(FILE *fl, int n){
+    for(int i=0;i<n;i++) {
+        char c;
+        do {
+            c = fgetc(fl);
+        } while (c != '\n');
+    }
+}
+
 // Call once to read in data files and set up arrays for interpolation.
 // All data files should be in a local subdirectory "x_int_tables/"; if moved, change input_base
 // below to new location.
@@ -96,23 +105,17 @@ void initialize_interp_arrays()
       exit(1);
     }
 
-    // Read in first line
-    for (i=1;i<=5;i++) {
-      fscanf(input_file,"%s", label);
-      //      printf("%s\n",label);
-    }
-    
+    // Skip first line
+    skipline(input_file, 1);
+
     // Read in second line (ionized fractions info)
     fscanf(input_file,"%g %g %g %g %g", &xHI, &xHeI, &xHeII, &z, &T);
     
-    // Read in column headings
-    for (i=1;i<=11;i++) {
-      fscanf(input_file,"%s", label);
-      //      printf("%s\n",label);
-    }
-    
-    // Read in data table
+    // Skip third line -- first have to get past the second line ending.
+    skipline(input_file, 2);
+
     for (i=0;i<x_int_NENERGY;i++) {
+
       fscanf(input_file,"%g %g %g %g %g %g %g %g %g",
 	     &x_int_Energy[i],
 	     &trash,
@@ -123,14 +126,13 @@ void initialize_interp_arrays()
 	     &x_int_nion_HeI[n_ion][i],
 	     &x_int_nion_HeII[n_ion][i],
 	     &trash);
-      //      printf("%g\t%g\t%g\t%g\t%g\t%g\n", x_int_Energy[i], x_int_fheat[n_ion][i], 
-      //      	     x_int_n_Lya[n_ion][i], x_int_nion_HI[n_ion][i], x_int_nion_HeI[n_ion][i], 
-      //      	     x_int_nion_HeII[n_ion][i]);
+
     }
 
     fclose(input_file);
 
   }
+
   return;
 }
 
@@ -250,7 +252,7 @@ float interp_n_Lya(float En, float xHII_call)
   final_result = (ehigh_result - elow_result)/(x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
   final_result *= (xHII_call - x_int_XHII[m_xHII_low]);
   final_result += elow_result;
-  
+
   return final_result;
 }
 

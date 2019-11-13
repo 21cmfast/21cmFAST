@@ -511,7 +511,7 @@ LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
                     }
                 }
 
-LOG_SUPER_DEBUG("COPIED OVER VALUES");
+LOG_ULTRA_DEBUG("COPIED OVER VALUES");
 
                 if(min_density < 0.0) {
                     min_density = min_density*1.001;
@@ -876,7 +876,18 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 freq_int_heat_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 0);
                 freq_int_ion_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 1);
                 freq_int_lya_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 2);
-            
+
+
+//                if(R_ct<3) {
+//                    LOG_DEBUG(
+//                            "x_e_ct=%d; R_ct=%d; x_int_XHII=%e; freq_int_heat=%e; freq_int_ion=%e; freq_int_lya=%e; lower_int_limit=%e",
+//                            x_e_ct, R_ct, x_int_XHII[x_e_ct], freq_int_heat_tbl[x_e_ct][R_ct],
+//                            freq_int_ion_tbl[x_e_ct][R_ct],
+//                            freq_int_lya_tbl[x_e_ct][R_ct], lower_int_limit);
+////                    for(int energy_counter=0;energy_counter<x_int_NENERGY;energy_counter++)
+////                        LOG_DEBUG("x_int_n_lya: %e", x_int_n_Lya[x_e_ct][energy_counter]);
+//                }
+
                 if(isfinite(freq_int_heat_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_ion_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_lya_tbl[x_e_ct][R_ct])==0) {
                     LOG_ERROR("One of the frequency interpolation tables has an infinity or a NaN");
                     return(2);
