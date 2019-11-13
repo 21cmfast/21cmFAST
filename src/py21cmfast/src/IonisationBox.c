@@ -401,7 +401,7 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
     }
 
 LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
-
+    
     if(!flag_options->USE_TS_FLUCT) {
         if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
             LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
@@ -831,7 +831,6 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                         }
                     }
                 }
-
                 LOG_DEBUG("min density = %e max density = %e", min_density, max_density);
                 
                 if(min_density < 0.) {
@@ -1002,7 +1001,6 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
             // Determine the global averaged f_coll for the overall normalisation
 
-            overdense_int_boundexceeded = 0; // Reset value of int check to see if we are over-stepping our interpolation table
             // Reset value of int check to see if we are over-stepping our interpolation table
             for (i = 0; i < user_params->N_THREADS; i++) {
                 overdense_int_boundexceeded_threaded[i] = 0;
@@ -1294,7 +1292,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                     }
                 }
             } //  end loop through Fcoll box
-            
+
             for (i = 0; i < user_params->N_THREADS; i++) {
                 if (overdense_int_boundexceeded_threaded[i] == 1) {
                     LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines");
@@ -1483,7 +1481,6 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                 global_xH += box->xH_box[ct];
             }
             global_xH /= (float)HII_TOT_NUM_PIXELS;
-        }        
         
         if(isfinite(global_xH)==0) {
             LOG_ERROR("Neutral fraction is either infinite or a Nan. Something has gone wrong in the ionisation calculation!");
@@ -1594,10 +1591,6 @@ LOG_SUPER_DEBUG("freed fftw boxes");
     }
     
     free(overdense_int_boundexceeded_threaded);
-
-    fftwf_cleanup();
-
-
 
 LOG_DEBUG("finished!\n");
     return(0);

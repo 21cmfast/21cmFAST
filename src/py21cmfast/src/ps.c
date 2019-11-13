@@ -17,7 +17,8 @@ static gsl_spline *erfc_spline;
 
 #define NGaussLegendre 40  //defines the number of points in the Gauss-Legendre quadrature integration
 
-#define NMass 300
+//#define NMass 300
+#define NMass 2
 
 #define NSFR_high 200
 #define NSFR_low 250
@@ -367,11 +368,12 @@ double dsigma_dk(double k, void *params){
         LOG_ERROR("No such power spectrum defined: %i. Output is bogus.", user_params_ps->POWER_SPECTRUM);
         p = 0;
     }
+    double Radius;
+    
+    Radius = *(double *)params;
+    
+    kR = k*Radius;
 
-
-    // now get the value of the window function
-    // NOTE: only use top hat for SIGMA8 normalization
-    kR = k*R;
     if ( (global_params.FILTER == 0) || (sigma_norm < 0) ){ // top hat
         if ( (kR) < 1.0e-4 ){ w = 1.0;} // w converges to 1 as (kR) -> 0
         else { w = 3.0 * (sin(kR)/pow(kR, 3) - cos(kR)/pow(kR, 2));}
@@ -386,32 +388,38 @@ double dsigma_dk(double k, void *params){
     return k*k*p*w*w;
 }
 double sigma_z0(double M){
+
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     double rel_tol  = FRACT_FLOAT_ERR*10; //<- relative tolerance
-    gsl_integration_workspace * w
-    = gsl_integration_workspace_alloc (1000);
+    gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
     double kstart, kend;
 
+    double Radius;
     R = MtoR(M);
 
+    Radius = MtoR(M);
     // now lets do the integral for sigma and scale it with sigma_norm
 
     if(user_params_ps->POWER_SPECTRUM == 5){
-      kstart = FMAX(1.0e-99/R, KBOT_CLASS);
-      kend = FMIN(350.0/R, KTOP_CLASS);
+      kstart = FMAX(1.0e-99/Radius, KBOT_CLASS);
+      kend = FMIN(350.0/Radius, KTOP_CLASS);
     }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
     else{
-      kstart = 1.0e-99/R;
-      kend = 350.0/R;
+      kstart = 1.0e-99/Radius;
+      kend = 350.0/Radius;
     }
 
     lower_limit = kstart;//log(kstart);
     upper_limit = kend;//log(kend);
 
     F.function = &dsigma_dk;
+    F.params = &Radius;
+    //gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
+    //    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS41, w, &result, &error);
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
     gsl_integration_workspace_free (w);
+
     return sigma_norm * sqrt(result);
 }
 
@@ -580,22 +588,24 @@ double init_ps(){
 
     sigma_norm = -1;
 
+    double Radius_8;
     R = 8.0/cosmo_params_ps->hlittle;
-
+    Radius_8 = 8.0/cosmo_params_ps->hlittle;
+    
     if(user_params_ps->POWER_SPECTRUM == 5){
-      kstart = FMAX(1.0e-99/R, KBOT_CLASS);
-      kend = FMIN(350.0/R, KTOP_CLASS);
+      kstart = FMAX(1.0e-99/Radius_8, KBOT_CLASS);
+      kend = FMIN(350.0/Radius_8, KTOP_CLASS);
     }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
     else{
-      kstart = 1.0e-99/R;
-      kend = 350.0/R;
+      kstart = 1.0e-99/Radius_8;
+      kend = 350.0/Radius_8;
     }
 
     lower_limit = kstart;//log(kstart);
     upper_limit = kend;//log(kend);
 
     F.function = &dsigma_dk;
-
+    F.params = &Radius_8;
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
     gsl_integration_workspace_free (w);
@@ -684,24 +694,26 @@ double dsigmasq_dm(double k, void *params){
         p = 0;
     }
 
+    double Radius;
+    Radius = *(double *)params;
 
     // now get the value of the window function
-    kR = k * R;
+    kR = k * Radius;
     if (global_params.FILTER == 0){ // top hat
         if ( (kR) < 1.0e-4 ){ w = 1.0; }// w converges to 1 as (kR) -> 0
         else { w = 3.0 * (sin(kR)/pow(kR, 3) - cos(kR)/pow(kR, 2));}
 
         // now do d(w^2)/dm = 2 w dw/dr dr/dm
         if ( (kR) < 1.0e-10 ){  dwdr = 0;}
-        else{ dwdr = 9*cos(kR)*k/pow(kR,3) + 3*sin(kR)*(1 - 3/(kR*kR))/(kR*R);}
+        else{ dwdr = 9*cos(kR)*k/pow(kR,3) + 3*sin(kR)*(1 - 3/(kR*kR))/(kR*Radius);}
         //3*k*( 3*cos(kR)/pow(kR,3) + sin(kR)*(-3*pow(kR, -4) + 1/(kR*kR)) );}
         //     dwdr = -1e8 * k / (R*1e3);
-        drdm = 1.0 / (4.0*PI * cosmo_params_ps->OMm*RHOcrit * R*R);
+        drdm = 1.0 / (4.0*PI * cosmo_params_ps->OMm*RHOcrit * Radius*Radius);
     }
     else if (global_params.FILTER == 1){ // gaussian of width 1/R
         w = pow(E, -kR*kR/2.0);
         dwdr = - k*kR * w;
-        drdm = 1.0 / (pow(2*PI, 1.5) * cosmo_params_ps->OMm*RHOcrit * 3*R*R);
+        drdm = 1.0 / (pow(2*PI, 1.5) * cosmo_params_ps->OMm*RHOcrit * 3*Radius*Radius);
     }
     else {
         LOG_ERROR("No such filter: %i. Output is bogus.", global_params.FILTER);
@@ -718,16 +730,18 @@ double dsigmasqdm_z0(double M){
     = gsl_integration_workspace_alloc (1000);
     double kstart, kend;
 
+    double Radius;
     R = MtoR(M);
-
+    Radius = MtoR(M);
+    
     // now lets do the integral for sigma and scale it with sigma_norm
     if(user_params_ps->POWER_SPECTRUM == 5){
-      kstart = FMAX(1.0e-99/R, KBOT_CLASS);
-      kend = FMIN(350.0/R, KTOP_CLASS);
+      kstart = FMAX(1.0e-99/Radius, KBOT_CLASS);
+      kend = FMIN(350.0/Radius, KTOP_CLASS);
     }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
     else{
-      kstart = 1.0e-99/R;
-      kend = 350.0/R;
+      kstart = 1.0e-99/Radius;
+      kend = 350.0/Radius;
     }
 
     lower_limit = kstart;//log(kstart);
@@ -743,6 +757,7 @@ double dsigmasqdm_z0(double M){
 
 
     F.function = &dsigmasq_dm;
+    F.params = &Radius;
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
     //  gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
     gsl_integration_workspace_free (w);
@@ -1356,17 +1371,23 @@ int initialiseSigmaMInterpTable(float M_Min, float M_Max)
     Sigma_InterpTable = calloc(NMass,sizeof(float));
     dSigmadm_InterpTable = calloc(NMass,sizeof(float));
 
+#pragma omp parallel shared(Mass_InterpTable,Sigma_InterpTable,dSigmadm_InterpTable) private(i) num_threads(user_params_ps->N_THREADS)
+    {
+#pragma omp for
+        for(i=0;i<NMass;i++) {
+            Mass_InterpTable[i] = log(M_Min) + (float)i/(NMass-1)*( log(M_Max) - log(M_Min) );
+            Sigma_InterpTable[i] = sigma_z0(exp(Mass_InterpTable[i]));
+            dSigmadm_InterpTable[i] = log10(-dsigmasqdm_z0(exp(Mass_InterpTable[i])));
+        }
+    }
+    
     for(i=0;i<NMass;i++) {
-        Mass_InterpTable[i] = log(M_Min) + (float)i/(NMass-1)*( log(M_Max) - log(M_Min) );
-        Sigma_InterpTable[i] = sigma_z0(exp(Mass_InterpTable[i]));
-        dSigmadm_InterpTable[i] = log10(-dsigmasqdm_z0(exp(Mass_InterpTable[i])));
-
         if(isfinite(Mass_InterpTable[i]) == 0 || isfinite(Sigma_InterpTable[i]) == 0 || isfinite(dSigmadm_InterpTable[i])==0) {
             LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
             return(-1);
         }
     }
-
+    
     MinMass = log(M_Min);
     mass_bin_width = 1./(NMass-1)*( log(M_Max) - log(M_Min) );
     inv_mass_bin_width = 1./mass_bin_width;
