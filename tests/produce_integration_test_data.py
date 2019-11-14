@@ -84,12 +84,13 @@ def get_all_options(**kwargs):
 def produce_coeval_power_spectra(**kwargs):
     options = get_all_options(**kwargs)
 
-    init, perturb, ionize, brightness_temp, _ = run_coeval(**options)
+    coeval = run_coeval(**options)
     p, k = get_power(
-        brightness_temp.brightness_temp, boxlength=brightness_temp.user_params.BOX_LEN
+        coeval.brightness_temperature.brightness_temp,
+        boxlength=coeval.brightness_temperature.user_params.BOX_LEN,
     )
 
-    return k, p, (brightness_temp, init, perturb, ionize)
+    return k, p, coeval
 
 
 def produce_lc_power_spectra(**kwargs):
@@ -114,7 +115,7 @@ def get_filename(**kwargs):
 
 
 def produce_power_spectra_for_tests(**kwargs):
-    k, p, bt = produce_coeval_power_spectra(**kwargs)
+    k, p, coeval = produce_coeval_power_spectra(**kwargs)
     k_l, p_l, lc = produce_lc_power_spectra(**kwargs)
 
     fname = get_filename(**kwargs)
@@ -127,9 +128,9 @@ def produce_power_spectra_for_tests(**kwargs):
         for k, v in kwargs.items():
             fl.attrs[k] = v
 
-        fl.attrs["HII_DIM"] = bt[0].user_params.HII_DIM
-        fl.attrs["DIM"] = bt[0].user_params.DIM
-        fl.attrs["BOX_LEN"] = bt[0].user_params.BOX_LEN
+        fl.attrs["HII_DIM"] = coeval.brightness_temperature.user_params.HII_DIM
+        fl.attrs["DIM"] = coeval.brightness_temperature.user_params.DIM
+        fl.attrs["BOX_LEN"] = coeval.brightness_temperature.user_params.BOX_LEN
 
         fl["power_coeval"] = p
         fl["k_coeval"] = k
@@ -139,9 +140,6 @@ def produce_power_spectra_for_tests(**kwargs):
 
         fl["xHI"] = lc.global_xHI
         fl["Tb"] = lc.global_brightness_temp
-
-        fl["lowres_density"] = bt[1].lowres_density
-        fl["lowres_vx"] = bt[1].lowres_vx
 
     print(f"Produced {fname} with {kwargs}")
 

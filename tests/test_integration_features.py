@@ -48,10 +48,8 @@ def test_power_spectra_coeval(
     kwargs = {name: lc[name] for name in prd.OPTION_NAMES}
 
     # First get pre-made data
-    with h5py.File(prd.get_filename(**kwargs)) as f:
+    with h5py.File(prd.get_filename(**kwargs), "r") as f:
         power = f["power_coeval"][...]
-        lowres_density = f["lowres_density"][...]
-        lowres_vx = f["lowres_vx"][...]
 
     k, p, bt = prd.produce_coeval_power_spectra(**kwargs)
 
@@ -76,7 +74,7 @@ def test_power_spectra_lightcone(
     kwargs = {name: lc[name] for name in prd.OPTION_NAMES}
 
     # First get pre-made data
-    with h5py.File(prd.get_filename(**kwargs)) as f:
+    with h5py.File(prd.get_filename(**kwargs), "r") as f:
         power = f["power_lc"][...]
         xHI = f["xHI"][...]
         Tb = f["Tb"][...]
