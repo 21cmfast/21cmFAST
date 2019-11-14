@@ -1,5 +1,6 @@
-from cffi import FFI
 import os
+
+from cffi import FFI
 
 ffi = FFI()
 LOCATION = os.path.dirname(os.path.abspath(__file__))

@@ -4,6 +4,21 @@ Simple plotting functions for 21cmFAST objects.
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import colors
+
+eor_colour = colors.LinearSegmentedColormap.from_list(
+    "EoR",
+    [
+        (0, "white"),
+        (0.21, "yellow"),
+        (0.42, "orange"),
+        (0.63, "red"),
+        (0.86, "black"),
+        (0.9, "blue"),
+        (1, "cyan"),
+    ],
+)
+plt.register_cmap(cmap=eor_colour)
 
 
 def _imshow_slice(
@@ -14,6 +29,9 @@ def _imshow_slice(
     ax=None,
     fig_kw=None,
     cbar=True,
+    cbar_horizontal=False,
+    rotate=False,
+    cmap="EoR",
     **imshow_kw,
 ):
     """
@@ -59,10 +77,20 @@ def _imshow_slice(
         )
 
     slc = np.take(cube, slice_index, axis=slice_axis)
-    plt.imshow(slc.T, origin="lower", **imshow_kw)
+    if not rotate:
+        slc = slc.T
+
+    if cmap == "EoR":
+        imshow_kw["vmin"] = -150
+        imshow_kw["vmax"] = 30
+
+    plt.imshow(slc, origin="lower", cmap=cmap, **imshow_kw)
 
     if cbar:
-        plt.colorbar()
+        cb = plt.colorbar(
+            orientation="horizontal" if cbar_horizontal else "vertical", aspect=40
+        )
+        cb.outline.set_edgecolor(None)
 
     return fig, ax
 
@@ -124,13 +152,30 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
     return fig, ax
 
 
-def lightcone_sliceplot(lightcone, **kwargs):
+def lightcone_sliceplot(
+    lightcone, kind="brightness_temp", lightcone2=None, vertical=False, **kwargs
+):
     slice_axis = kwargs.pop("slice_axis", 0)
 
     if slice_axis == 0:
-        extent = (0, lightcone.user_params.BOX_LEN, 0, lightcone.lightcone_coords[-1])
-        ylabel = "Redshift Axis [Mpc]"
-        xlabel = "y-axis [Mpc]"
+        xlabel = "Redshift Axis [Mpc]"
+        ylabel = "y-axis [Mpc]"
+
+        if vertical:
+            extent = (
+                0,
+                lightcone.user_params.BOX_LEN,
+                0,
+                lightcone.lightcone_coords[-1],
+            )
+            xlabel, ylabel = ylabel, xlabel
+        else:
+            extent = (
+                0,
+                lightcone.lightcone_coords[-1],
+                0,
+                lightcone.user_params.BOX_LEN,
+            )
 
     else:
         extent = (0, lightcone.user_params.BOX_LEN) * 2
@@ -145,10 +190,28 @@ def lightcone_sliceplot(lightcone, **kwargs):
         else:
             raise ValueError("slice_axis must be between -1 and 2")
 
-    fig, ax = _imshow_slice(
-        lightcone.brightness_temp, extent=extent, slice_axis=slice_axis
-    )
-
+    if lightcone2 is None:
+        fig, ax = _imshow_slice(
+            getattr(lightcone, kind),
+            extent=extent,
+            slice_axis=slice_axis,
+            rotate=not vertical,
+            cbar_horizontal=not vertical,
+            **kwargs,
+        )
+    else:
+        d = getattr(lightcone, kind) - getattr(lightcone2, kind)
+        fig, ax = _imshow_slice(
+            d,
+            extent=extent,
+            slice_axis=slice_axis,
+            rotate=not vertical,
+            cbar_horizontal=not vertical,
+            cmap=kwargs.pop("cmap", "bwr"),
+            vmin=-np.abs(d.max()),
+            vmax=np.abs(d.max()),
+            **kwargs,
+        )
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
 

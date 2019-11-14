@@ -150,8 +150,10 @@ class StructWithDefaults(StructWrapper):
         for k, v in self._defaults_.items():
 
             # Prefer arguments given to the constructor.
-            if k in kwargs:
-                v = kwargs.pop(k)
+            _v = kwargs.pop(k, None)
+
+            if _v is not None:
+                v = _v
 
             try:
                 setattr(self, k, v)
@@ -270,9 +272,7 @@ class StructWithDefaults(StructWrapper):
         return (
             self.__class__.__name__
             + "("
-            + ", ".join(
-                sorted([k + ":" + str(v) for k, v in self.defining_dict.items()])
-            )
+            + ", ".join(sorted(k + ":" + str(v) for k, v in self.defining_dict.items()))
             + ")"
         )
 
@@ -420,7 +420,8 @@ class OutputStruct(StructWrapper):
             The filename of an existing set of boxes, or None.
         """
         # First, if appropriate, find a file without specifying seed.
-        # Need to do this first, otherwise the seed will be chosen randomly upon choosing a filename!
+        # Need to do this first, otherwise the seed will be chosen randomly upon
+        # choosing a filename!
         direc = direc or path.expanduser(config["boxdir"])
 
         if not self._random_seed:
@@ -432,7 +433,6 @@ class OutputStruct(StructWrapper):
             f = self._get_fname(direc)
             if path.exists(f) and self._check_parameters(f):
                 return f
-
         return None
 
     def _check_parameters(self, fname):
@@ -636,7 +636,8 @@ class OutputStruct(StructWrapper):
         )
 
     def __hash__(self):
-        """this should be unique for this combination of parameters, even global params and random seed."""
+        """this should be unique for this combination of parameters, even global params
+        and random seed."""
         return hash(repr(self))
 
     @property

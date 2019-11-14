@@ -1,14 +1,23 @@
 """
 Module that contains the command line app.
 """
+import builtins
 import inspect
+import logging
 import warnings
-from os import path, remove
+from os import path
+from os import remove
 
 import click
+import matplotlib.pyplot as plt
+import numpy as np
+import powerbox
 import yaml
 
-from py21cmfast import wrapper as lib, cache_tools
+from . import _cfg
+from . import cache_tools
+from . import plotting
+from . import wrapper as lib
 
 
 def _get_config(config=None):
@@ -74,9 +83,10 @@ main = click.Group()
 
 
 @main.command(
-    context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True, allow_extra_args=True
-    )
+    context_settings={  # Doing this allows arbitrary options to override config
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    }
 )
 @click.option(
     "--config",
@@ -125,9 +135,10 @@ def init(ctx, config, regen, direc, seed):
 
 
 @main.command(
-    context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True, allow_extra_args=True
-    )
+    context_settings={  # Doing this allows arbitrary options to override config
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    }
 )
 @click.argument("redshift", type=float)
 @click.option(
@@ -178,9 +189,10 @@ def perturb(ctx, redshift, config, regen, direc, seed):
 
 
 @main.command(
-    context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True, allow_extra_args=True
-    )
+    context_settings={  # Doing this allows arbitrary options to override config
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    }
 )
 @click.argument("redshift", type=float)
 @click.option(
@@ -266,9 +278,10 @@ def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max,
 
 
 @main.command(
-    context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True, allow_extra_args=True
-    )
+    context_settings={  # Doing this allows arbitrary options to override config
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    }
 )
 @click.argument("redshift", type=float)
 @click.option(
@@ -356,9 +369,10 @@ def ionize(
 
 
 @main.command(
-    context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True, allow_extra_args=True
-    )
+    context_settings={  # Doing this allows arbitrary options to override config
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    }
 )
 @click.argument("redshift", type=str)
 @click.option(
@@ -442,9 +456,10 @@ def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed)
 
 
 @main.command(
-    context_settings=dict(  # Doing this allows arbitrary options to override config
-        ignore_unknown_options=True, allow_extra_args=True
-    )
+    context_settings={  # Doing this allows arbitrary options to override config
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    }
 )
 @click.argument("redshift", type=float)
 @click.option(
@@ -550,7 +565,7 @@ def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
             print()
 
         else:
-            direc = direc or path.expanduser(lib.config["boxdir"])
+            direc = direc or path.expanduser(_cfg.config["boxdir"])
             remove(path.join(direc, file))
 
 
@@ -572,3 +587,218 @@ def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
 )
 def query(direc, kind, md5, seed, clear):
     _query(direc, kind, md5, seed, clear)
+
+
+@main.command()
+@click.argument("param", type=str)
+@click.argument("value", type=str)
+@click.option(
+    "-s",
+    "--struct",
+    type=click.Choice(["flag_options", "cosmo_params", "user_params", "astro_params"]),
+    default="flag_options",
+    help="struct in which the new feature exists",
+)
+@click.option(
+    "-t",
+    "--vtype",
+    type=click.Choice(["bool", "float", "int"]),
+    default="bool",
+    help="type of the new parameter",
+)
+@click.option(
+    "-l/-c",
+    "--lightcone/--coeval",
+    default=True,
+    help="whether to use a lightcone for comparison",
+)
+@click.option(
+    "-z", "--redshift", type=float, default=6.0, help="redshift of the comparison boxes"
+)
+@click.option(
+    "-Z",
+    "--max-redshift",
+    type=float,
+    default=30,
+    help="maximum redshift of the comparison lightcone",
+)
+@click.option("-r", "--random-seed", type=int, default=12345, help="random seed to use")
+@click.option("-v", "--verbose", count=True)
+@click.option(
+    "-g/-G",
+    "--regenerate/--cache",
+    default=True,
+    help="whether to regenerate the boxes",
+)
+def pr_feature(
+    param,
+    value,
+    struct,
+    vtype,
+    lightcone,
+    redshift,
+    max_redshift,
+    random_seed,
+    verbose,
+    regenerate,
+):
+    """
+    Create a standard set of plots comparing a default simulation against a
+    simulation with a new feature. The new feature is switched on by setting
+    PARAM to VALUE.
+
+    Plots are saved in the current directory, with the prefix "pr_feature".
+    """
+    lvl = [logging.WARNING, logging.INFO, logging.DEBUG][verbose]
+    logger = logging.getLogger("21cmFAST")
+    logger.setLevel(lvl)
+    value = getattr(builtins, vtype)(value)
+
+    structs = {
+        "user_params": {"HII_DIM": 128, "BOX_LEN": 250},
+        "flag_options": {"USE_TS_FLUCT": True},
+        "cosmo_params": {},
+        "astro_params": {},
+    }
+
+    if lightcone:
+        print("Running default lightcone...")
+        lc_default = lib.run_lightcone(
+            redshift=redshift,
+            max_redshift=max_redshift,
+            random_seed=random_seed,
+            regenerate=regenerate,
+            **structs,
+        )
+        structs[struct][param] = value
+
+        print("Running lightcone with new feature...")
+        lc_new = lib.run_lightcone(
+            redshift=redshift,
+            max_redshift=max_redshift,
+            random_seed=random_seed,
+            regenerate=regenerate,
+            **structs,
+        )
+
+        print("Plotting lightcone slices...")
+        for field in ["brightness_temp"]:
+            fig, ax = plt.subplots(3, 1, sharex=True, sharey=True)
+
+            vmin = -150
+            vmax = 30
+
+            plotting.lightcone_sliceplot(
+                lc_default, ax=ax[0], fig=fig, vmin=vmin, vmax=vmax
+            )
+            ax[0].set_title("Default")
+
+            plotting.lightcone_sliceplot(
+                lc_new, ax=ax[1], fig=fig, cbar=False, vmin=vmin, vmax=vmax
+            )
+            ax[1].set_title("New")
+
+            plotting.lightcone_sliceplot(
+                lc_default, lightcone2=lc_new, cmap="bwr", ax=ax[2], fig=fig
+            )
+            ax[2].set_title("Difference")
+
+            plt.savefig("pr_feature_lighcone_2d_{}.pdf".format(field))
+
+        def rms(x, axis=None):
+            return np.sqrt(np.mean(x ** 2, axis=axis))
+
+        print("Plotting lightcone history...")
+        fig, ax = plt.subplots(4, 1, sharex=True, gridspec_kw={"hspace": 0.05})
+        ax[0].plot(lc_default.node_redshifts, lc_default.global_xHI, label="Default")
+        ax[0].plot(lc_new.node_redshifts, lc_new.global_xHI, label="New")
+        ax[0].set_ylabel(r"$x_{\rm HI}$")
+        ax[0].legend()
+
+        ax[1].plot(
+            lc_default.node_redshifts,
+            lc_default.global_brightness_temp,
+            label="Default",
+        )
+        ax[1].plot(lc_new.node_redshifts, lc_new.global_brightness_temp, label="New")
+        ax[1].set_ylabel("$T_b$ [K]")
+        ax[3].set_xlabel("z")
+
+        rms_diff = rms(lc_default.brightness_temp, axis=(0, 1)) - rms(
+            lc_new.brightness_temp, axis=(0, 1)
+        )
+        ax[2].plot(lc_default.lightcone_redshifts, rms_diff, label="RMS")
+        ax[2].plot(
+            lc_new.node_redshifts,
+            lc_default.global_xHI - lc_new.global_xHI,
+            label="$x_{HI}$",
+        )
+        ax[2].plot(
+            lc_new.node_redshifts,
+            lc_default.global_brightness_temp - lc_new.global_brightness_temp,
+            label="$T_b$",
+        )
+        ax[2].legend()
+        ax[2].set_ylabel("Differences")
+
+        diff_rms = rms(lc_default.brightness_temp - lc_new.brightness_temp, axis=(0, 1))
+        ax[3].plot(lc_default.lightcone_redshifts, diff_rms)
+        ax[3].set_ylabel("RMS of Diff.")
+
+        plt.savefig("pr_feature_history.pdf")
+
+        print("Plotting power spectra history...")
+        p_default = []
+        p_new = []
+        z = []
+        thickness = 200  # Mpc
+        ncells = int(thickness / lc_new.cell_size)
+        chunk_size = lc_new.cell_size * ncells
+        start = 0
+        print(ncells)
+        while start + ncells <= lc_new.shape[-1]:
+            pd, k = powerbox.get_power(
+                lc_default.brightness_temp[:, :, start : start + ncells],
+                lc_default.lightcone_dimensions[:2] + (chunk_size,),
+            )
+            p_default.append(pd)
+
+            pn, k = powerbox.get_power(
+                lc_new.brightness_temp[:, :, start : start + ncells],
+                lc_new.lightcone_dimensions[:2] + (chunk_size,),
+            )
+            p_new.append(pn)
+            z.append(lc_new.lightcone_redshifts[start])
+
+            start += ncells
+
+        p_default = np.array(p_default).T
+        p_new = np.array(p_new).T
+
+        fig, ax = plt.subplots(2, 1, sharex=True)
+        ax[0].set_yscale("log")
+
+        inds = [
+            np.where(np.abs(k - 0.1) == np.abs(k - 0.1).min())[0][0],
+            np.where(np.abs(k - 0.2) == np.abs(k - 0.2).min())[0][0],
+            np.where(np.abs(k - 0.5) == np.abs(k - 0.5).min())[0][0],
+            np.where(np.abs(k - 1) == np.abs(k - 1).min())[0][0],
+        ]
+
+        for i, (pdef, pnew, kk) in enumerate(
+            zip(p_default[inds], p_new[inds], k[inds])
+        ):
+            ax[0].plot(
+                z, pdef, ls="--", label="k={:.2f}".format(kk), color="C{}".format(i)
+            )
+            ax[0].plot(z, pnew, ls="-", color="C{}".format(i))
+            ax[1].plot(z, np.log10(pdef / pnew), ls="-", color="C{}".format(i))
+        ax[1].set_xlabel("z")
+        ax[0].set_ylabel(r"$\Delta^2 [{\rm mK}^2]$")
+        ax[1].set_ylabel(r"log ratio of $\Delta^2 [{\rm mK}^2]$")
+        ax[0].legend()
+
+        plt.savefig("pr_feature_power_history.pdf")
+
+    else:
+        raise NotImplementedError()

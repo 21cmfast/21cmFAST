@@ -12,15 +12,17 @@ addons:
     - libgsl0-dev
     update: true
 
+env:
+  global:
+    - COVERALLS_PARALLEL=true
 
 # command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
-install: pip install -U tox-travis coverage coveralls
+install:
+  - pip install -U tox-travis coverage coveralls
 
 # command to run tests, e.g. python setup.py test
 script:
   - tox
-  - coverage report
-
 
 # Calculate coverage
 after_success:

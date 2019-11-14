@@ -1,9 +1,38 @@
+exclude: '(^docs/conf.py|^user_data/External_tables/*)'
+
 repos:
--   repo: https://github.com/ambv/black
-    rev: stable
-    hooks:
-    - id: black
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.2.3
-    hooks:
-    - id: flake8
+    - repo: git://github.com/pre-commit/pre-commit-hooks
+      rev: v2.4.0
+      hooks:
+          - id: trailing-whitespace
+          - id: check-added-large-files
+          - id: check-ast
+          - id: check-json
+          - id: check-merge-conflict
+          - id: check-xml
+          - id: check-yaml
+          - id: debug-statements
+          - id: end-of-file-fixer
+          - id: requirements-txt-fixer
+          - id: mixed-line-ending
+            args: ['--fix=no']
+          - id: flake8
+            additional_dependencies:
+                - flake8-quotes
+                - flake8-comprehensions
+                - flake8-black
+                - flake8-builtins
+                - flake8-eradicate
+                - pep8-naming
+                - flake8-isort
+                - flake8-pytest
+                - flake8-docstrings
+                - flake8-rst-docstrings
+                - flake8-rst
+                - darglint
+                - flake8-copyright
+                - flake8-ownership
+    - repo: https://github.com/ambv/black
+      rev: 19.10b0
+      hooks:
+          - id: black

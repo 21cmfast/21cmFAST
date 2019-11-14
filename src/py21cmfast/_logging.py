@@ -21,7 +21,6 @@ class PIDFormatter(logging.Formatter):
 
 
 def configure_logging():
-    # logging.basicConfig()
     hdlr = logging.StreamHandler(sys.stderr)
     hdlr.setFormatter(PIDFormatter())
     logger = logging.getLogger("21cmFAST")
