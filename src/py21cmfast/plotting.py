@@ -3,9 +3,8 @@ Simple plotting functions for 21cmFAST objects.
 """
 
 import matplotlib.pyplot as plt
-from matplotlib import colors
 import numpy as np
-
+from matplotlib import colors
 
 eor_colour = colors.LinearSegmentedColormap.from_list(
     "EoR",

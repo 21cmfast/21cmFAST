@@ -11,4 +11,3 @@ py21cmfast
 
     py21cmfast.wrapper
     py21cmfast.plotting
-

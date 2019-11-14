@@ -1,90 +1,136 @@
+"""
+Produce integration test data, which is tested by the `test_integration_features.py`
+tests. One thing to note here is that all redshifts are reasonably high.
+
+This is necessary, because low redshifts mean that neutral fractions are small,
+and then numerical noise gets relatively more important, and can make the comparison
+fail at the tens-of-percent level.
+"""
+import glob
 import hashlib
 import os
+import sys
 
 import h5py
 from powerbox import get_power
 
-from py21cmfast import (
-    run_coeval,
-    run_lightcone,
-    FlagOptions,
-    AstroParams,
-    CosmoParams,
-    UserParams,
+from py21cmfast import AstroParams
+from py21cmfast import CosmoParams
+from py21cmfast import FlagOptions
+from py21cmfast import UserParams
+from py21cmfast import run_coeval
+from py21cmfast import run_lightcone
+
+SEED = 12345
+DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
+DEFAULT_USER_PARAMS = {"HII_DIM": 50, "DIM": 150, "BOX_LEN": 100}
+OPTION_NAMES = [
+    "redshift",
+    "z_step_factor",
+    "z_heat_max",
+    "HMF",
+    "interp_perturb_field",
+    "USE_MASS_DEPENDENT_ZETA",
+    "SUBCELL_RSD",
+    "INHOMO_RECO",
+    "USE_TS_FLUCT",
+    "M_MIN_in_Mass",
+    "USE_FFTW_WISDOM",
+]
+OPTIONS = (
+    [12, 1.02, 35, 1, False, False, False, False, False, False, False],
+    [11, 1.05, 35, 1, False, False, False, False, False, False, False],
+    [30, 1.02, 40, 1, False, False, False, False, False, False, False],
+    [13, 1.05, 25, 0, False, False, False, False, False, False, False],
+    [16, 1.02, 35, 1, True, False, False, False, False, False, False],
+    [14, 1.02, 35, 1, False, True, False, False, False, False, False],
+    [9, 1.02, 35, 1, False, False, True, False, False, False, False],
+    [10, 1.03, 35, 2, False, False, False, True, False, False, False],
+    [15, 1.02, 35, 3, False, False, False, False, True, False, False],
+    [20, 1.02, 45, 2, False, False, False, False, False, True, False],
+    [35, 1.02, 35, 1, False, False, False, False, False, False, True],
 )
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
 
-
-def _get_defaults(kwargs, cls):
+def get_defaults(kwargs, cls):
     return {k: kwargs.get(k, v) for k, v in cls._defaults_.items()}
 
 
-def _get_all_defaults(kwargs):
-    flag_options = _get_defaults(kwargs, FlagOptions)
-    astro_params = _get_defaults(kwargs, AstroParams)
-    cosmo_params = _get_defaults(kwargs, CosmoParams)
-    user_params = _get_defaults(kwargs, UserParams)
+def get_all_defaults(kwargs):
+    flag_options = get_defaults(kwargs, FlagOptions)
+    astro_params = get_defaults(kwargs, AstroParams)
+    cosmo_params = get_defaults(kwargs, CosmoParams)
+    user_params = get_defaults(kwargs, UserParams)
     return user_params, cosmo_params, astro_params, flag_options
 
 
-def produce_power_spectra(**kwargs):
-    user_params, cosmo_params, astro_params, flag_options = _get_all_defaults(kwargs)
-    # Now ensure some properties that make the box small
-    user_params["HII_DIM"] = 50
-    user_params["DIM"] = 150
-    user_params["BOX_LEN"] = 100
+def get_all_options(**kwargs):
+    user_params, cosmo_params, astro_params, flag_options = get_all_defaults(kwargs)
+    user_params.update(DEFAULT_USER_PARAMS)
+    return {
+        "redshift": kwargs.get("redshift", 7),
+        "user_params": user_params,
+        "cosmo_params": cosmo_params,
+        "astro_params": astro_params,
+        "flag_options": flag_options,
+        "regenerate": True,
+        "z_step_factor": kwargs.get("z_step_factor", None),
+        "z_heat_max": kwargs.get("z_heat_max", None),
+        "use_interp_perturb_field": kwargs.get("use_interp_perturb_field", False),
+        "random_seed": SEED,
+    }
 
-    init, perturb, ionize, brightness_temp = run_coeval(
-        redshift=kwargs.get("redshift", 7),
-        user_params=user_params,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        flag_options=flag_options,
-        regenerate=True,
-        z_step_factor=kwargs.get("z_step_factor", None),
-        z_heat_max=kwargs.get("z_heat_max", None),
-        use_interp_perturb_field=kwargs.get("use_interp_perturb_field", False),
-        random_seed=12345,
+
+def produce_coeval_power_spectra(**kwargs):
+    options = get_all_options(**kwargs)
+
+    coeval = run_coeval(**options)
+    p, k = get_power(
+        coeval.brightness_temperature.brightness_temp,
+        boxlength=coeval.brightness_temperature.user_params.BOX_LEN,
     )
 
-    lightcone = run_lightcone(
-        redshift=redshift,
-        max_redshift=redshift + 2,
-        user_params=user_params,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        flag_options=flag_options,
-        regenerate=True,
-        write=False,
-        z_step_factor=kwargs.get("z_step_factor", 1.02),
-        z_heat_max=kwargs.get("z_heat_max", None),
-        use_interp_perturb_field=kwargs.get("use_interp_perturb_field", False),
-        random_seed=12345,
-    )
+    return k, p, coeval
 
-    p, k = get_power(brightness_temp.brightness_temp, boxlength=user_params["BOX_LEN"])
-    p_l, k_l = get_power(
+
+def produce_lc_power_spectra(**kwargs):
+    options = get_all_options(**kwargs)
+
+    lightcone = run_lightcone(max_redshift=options["redshift"] + 2, **options)
+
+    p, k = get_power(
         lightcone.brightness_temp, boxlength=lightcone.lightcone_dimensions
     )
 
-    # TODO: might be better to ensure that only kwargs that specify non-defaults are
-    #      kept in the filename
+    return k, p, lightcone
+
+
+def get_filename(**kwargs):
     fname = (
-        f"power_spectra_z{redshift:.2f}_Z{kwargs['z_heat_max']}_"
+        f"power_spectra_z{kwargs['redshift']:.2f}_Z{kwargs['z_heat_max']}_"
         f"{hashlib.md5(str(kwargs).encode()).hexdigest()}.h5"
     )
 
-    if os.path.exists(os.path.join(DATA_PATH, fname)):
-        os.remove(os.path.join(DATA_PATH, fname))
+    return os.path.join(DATA_PATH, fname)
 
-    with h5py.File(os.path.join(DATA_PATH, fname)) as fl:
+
+def produce_power_spectra_for_tests(**kwargs):
+    k, p, coeval = produce_coeval_power_spectra(**kwargs)
+    k_l, p_l, lc = produce_lc_power_spectra(**kwargs)
+
+    fname = get_filename(**kwargs)
+
+    # Need to manually remove it, otherwise h5py tries to add to it
+    if os.path.exists(fname):
+        os.remove(fname)
+
+    with h5py.File(fname, "w") as fl:
         for k, v in kwargs.items():
             fl.attrs[k] = v
 
-        fl.attrs["HII_DIM"] = user_params["HII_DIM"]
-        fl.attrs["DIM"] = user_params["DIM"]
-        fl.attrs["BOX_LEN"] = user_params["BOX_LEN"]
+        fl.attrs["HII_DIM"] = coeval.brightness_temperature.user_params.HII_DIM
+        fl.attrs["DIM"] = coeval.brightness_temperature.user_params.DIM
+        fl.attrs["BOX_LEN"] = coeval.brightness_temperature.user_params.BOX_LEN
 
         fl["power_coeval"] = p
         fl["k_coeval"] = k
@@ -92,42 +138,19 @@ def produce_power_spectra(**kwargs):
         fl["power_lc"] = p_l
         fl["k_lc"] = k_l
 
-        fl["xHI"] = lightcone.global_xHI
-        fl["Tb"] = lightcone.global_brightness_temp
+        fl["xHI"] = lc.global_xHI
+        fl["Tb"] = lc.global_brightness_temp
 
     print(f"Produced {fname} with {kwargs}")
 
 
 if __name__ == "__main__":
-    _redshifts = [6, 7, 9, 11, 15, 20, 30]
-    _z_step_factor = [1.02, 1.05]
-    _z_heat_max = [35, 40, 25]
-    _hmf = [0, 1, 2, 3]
-    _interp_pf, _mdz, _rsd, _inh_reco, _ts, _mmin_mass, _wisdom = [[False, True]] * 7
 
-    for redshift, zsp, zhm, hmf, ipf, mdz, rsd, ihr, ts, mmin, wisdom in (
-        [6, 1.02, 35, 1, False, False, False, False, False, False, False],
-        [11, 1.05, 35, 1, False, False, False, False, False, False, False],
-        [30, 1.02, 40, 1, False, False, False, False, False, False, False],
-        [6, 1.05, 25, 0, False, False, False, False, False, False, False],
-        [8, 1.02, 35, 1, True, False, False, False, False, False, False],
-        [7, 1.02, 35, 1, False, True, False, False, False, False, False],
-        [9, 1.02, 35, 1, False, False, True, False, False, False, False],
-        [10, 1.03, 35, 2, False, False, False, True, False, False, False],
-        [15, 1.02, 35, 3, False, False, False, False, True, False, False],
-        [20, 1.02, 45, 4, False, False, False, False, False, True, False],
-        [35, 1.02, 35, 1, False, False, False, False, False, False, True],
-    ):
-        produce_power_spectra(
-            redshift=redshift,
-            z_step_factor=zsp,
-            z_heat_max=zhm,
-            HMF=hmf,
-            USE_FFTW_WISDOM=wisdom,
-            USE_MASS_DEPENDENT_ZETA=mdz,
-            SUBCELL_RSD=rsd,
-            INHOMO_RECO=ihr,
-            USE_TS_FLUCT=ts,
-            M_MIN_in_Mass=mmin,
-            use_interp_perturb_field=ipf,
-        )
+    # Remove files that are there, unless -k cmd line arg specified.
+    if len(sys.argv) == 1 or sys.argv[-1] != "-k":
+        for fl in glob.glob(os.path.join(DATA_PATH, "*")):
+            os.remove(fl)
+
+    for option_set in OPTIONS:
+        options = {name: option for name, option in zip(OPTION_NAMES, option_set)}
+        produce_power_spectra_for_tests(**options)

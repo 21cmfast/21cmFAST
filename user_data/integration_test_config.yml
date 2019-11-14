@@ -1,9 +1,0 @@
-# Parameters for running the integration test script
-# A reasonably large, well-resolved box, with otherwise completely
-# default parameters. If defaults change, this will *break* the integration
-# test, but this is almost always what we want (we don't want defaults to change
-# without our express permission).
-user_params:
-  BOX_LEN: 400.0
-  HII_DIM: 400
-  DIM:     1200

@@ -68,6 +68,7 @@ struct FlagOptions{
     bool INHOMO_RECO;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
+    bool PHOTON_CONS;
 };
 
 
@@ -117,6 +118,16 @@ int ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams
                            struct TsBox *spin_temp, struct IonizedBox *ionized_box,
                            struct PerturbedField *perturb_field, struct BrightnessTemp *box);
 
+
+int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                         struct AstroParams *astro_params, struct FlagOptions *flag_options);
+
+int PhotonCons_Calibration(double *z_estimate, double *xH_estimate, int NSpline);
+double ComputeZstart_PhotonCons();
+
+int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analytic, double *z_cal_data, double *nf_cal_data, int *Ndata_calibration,
+                         double *PhotonCons_NFdata, double *PhotonCons_deltaz, int *Ndata_PhotonCons);
+
 int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
                struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, double *M_uv_z, double *M_h_z, double *log10phi);
 
@@ -127,3 +138,4 @@ void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoPara
 void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options);
 
 void free_TsCalcBoxes();
+bool photon_cons_inited = false;

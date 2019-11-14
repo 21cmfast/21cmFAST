@@ -1,10 +1,12 @@
 import os
 
 import pytest
+
 import yaml
 from click.testing import CliRunner
 
-from py21cmfast import UserParams, InitialConditions
+from py21cmfast import InitialConditions
+from py21cmfast import UserParams
 from py21cmfast import cli
 from py21cmfast import query_cache
 
