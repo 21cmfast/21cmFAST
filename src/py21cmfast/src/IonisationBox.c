@@ -315,11 +315,13 @@ LOG_SUPER_DEBUG("calculated ionization fraction");
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
             }
             else {
 
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_PATIENT);
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
 
                 // Store the wisdom for later use
                 fftwf_export_wisdom_to_filename(wisdom_filename);
@@ -329,11 +331,13 @@ LOG_SUPER_DEBUG("calculated ionization fraction");
 
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
             }
         }
         else {
             plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_ESTIMATE);
             fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
         }
 
 LOG_SUPER_DEBUG("FFTs performed");
@@ -346,6 +350,7 @@ LOG_SUPER_DEBUG("FFTs performed");
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)xe_unfiltered, (fftwf_complex *)xe_unfiltered, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
 LOG_SUPER_DEBUG("more ffts performed");
         }
 
@@ -358,6 +363,7 @@ LOG_SUPER_DEBUG("more ffts performed");
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)N_rec_unfiltered, (fftwf_complex *)N_rec_unfiltered, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
 LOG_SUPER_DEBUG("more ffts performed");
         }
 

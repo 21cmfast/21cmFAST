@@ -195,6 +195,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
+
             }
             else {
 
