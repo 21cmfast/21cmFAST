@@ -1386,13 +1386,12 @@ LOG_SUPER_DEBUG("looping over box...");
                     for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
                     
                         curr_dens = delNL0[R_ct][box_ct]*zpp_growth[R_ct];
-            
+                        
                         if (flag_options->USE_MINI_HALOS){
                             log10_Mcrit_LW_val = ( log10_Mcrit_LW[R_ct][box_ct] - LOG10_MTURN_MIN) / LOG10_MTURN_INT;
                             log10_Mcrit_LW_int = (int)floorf( log10_Mcrit_LW_val );
                             log10_Mcrit_LW_diff = log10_Mcrit_LW_val - (float)log10_Mcrit_LW_int;
                         }
-                        
                         if (!NO_LIGHT){
                             // Now determine all the differentials for the heating/ionisation rate equations
                         
@@ -1491,6 +1490,7 @@ LOG_SUPER_DEBUG("looping over box...");
                                 del_fcoll_Rct_MINI[box_ct] = (1.+curr_dens)*fcoll_MINI;
                             }
                         }
+ 
                     }
                 }
                 

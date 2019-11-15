@@ -719,7 +719,8 @@ double dsigmasq_dm(double k, void *params){
         w=0;
     }
 
-    return k*k*p*2*w*dwdr*drdm * d2fact;
+//    return k*k*p*2*w*dwdr*drdm * d2fact;
+    return k*k*p*2*w*dwdr*drdm;
 }
 double dsigmasqdm_z0(double M){
     double result, error, lower_limit, upper_limit;
@@ -761,7 +762,8 @@ double dsigmasqdm_z0(double M){
     //  gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
     gsl_integration_workspace_free (w);
 
-    return sigma_norm * sigma_norm * result /d2fact;
+//    return sigma_norm * sigma_norm * result /d2fact;
+    return sigma_norm * sigma_norm * result;
 }
 
 
