@@ -62,7 +62,8 @@ struct CosmoParams *cosmo_params_ps;
 struct UserParams *user_params_ps;
 struct FlagOptions *flag_options_ps;
 
-double sigma_norm, R, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_nu, f_baryon, beta_c, d2fact, R_CUTOFF, DEL_CURR, SIG_CURR;
+//double sigma_norm, R, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_nu, f_baryon, beta_c, d2fact, R_CUTOFF, DEL_CURR, SIG_CURR;
+double sigma_norm, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_nu, f_baryon, beta_c, d2fact, R_CUTOFF, DEL_CURR, SIG_CURR;
 
 float MinMass, mass_bin_width, inv_mass_bin_width;
 
@@ -395,7 +396,7 @@ double sigma_z0(double M){
     double kstart, kend;
 
     double Radius;
-    R = MtoR(M);
+//    R = MtoR(M);
 
     Radius = MtoR(M);
     // now lets do the integral for sigma and scale it with sigma_norm
@@ -588,7 +589,7 @@ double init_ps(){
     sigma_norm = -1;
 
     double Radius_8;
-    R = 8.0/cosmo_params_ps->hlittle;
+//    R = 8.0/cosmo_params_ps->hlittle;
     Radius_8 = 8.0/cosmo_params_ps->hlittle;
     
     if(user_params_ps->POWER_SPECTRUM == 5){
@@ -731,7 +732,7 @@ double dsigmasqdm_z0(double M){
     double kstart, kend;
 
     double Radius;
-    R = MtoR(M);
+//    R = MtoR(M);
     Radius = MtoR(M);
     
     // now lets do the integral for sigma and scale it with sigma_norm
