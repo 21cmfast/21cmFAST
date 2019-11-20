@@ -128,6 +128,3 @@ number of data cubes. The relevant quantities in each object can be queried with
 example, ``dir(init)``. Many of them contain views of the underlying data which make it
 simpler to deal with (eg. reshaping an underlying flattened 1D array into the standard
 3D cube).
-
-
-

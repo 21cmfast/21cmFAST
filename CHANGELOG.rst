@@ -8,6 +8,12 @@ caching mechanisms, and public repository with continuous integration.
 
 Added
 ~~~~~
+* Tests: many unit tests, and also some regression tests.
+* CLI: run 21cmFAST boxes from the command line, query the cache database, and produce
+  plots for standard comparison runs.
+* Documentation: Jupyter notebook demos and tutorials, FAQs, installation instructions.
+* Plotting routines: a number of general plotting routines designed to plot coeval
+  and lightcone slices.
 * New power spectrum option (``POWER_SPECTRUM=5``) that uses a CLASS-based transfer
   function. WARNING: If POWER_SPECTRUM==5 the cosmo parameters cannot be altered, they
   are set to the Planck2018 best-fit values for now (until CLASS is added):

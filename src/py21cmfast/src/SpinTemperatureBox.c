@@ -460,6 +460,7 @@ LOG_SUPER_DEBUG("Looping through R");
                     }
                 }
             }
+LOG_SUPER_DEBUG("Allocated unfiltered box");
 
             ////////////////// Transform unfiltered box to k-space to prepare for filtering /////////////////
             if(user_params->USE_FFTW_WISDOM) {
@@ -494,12 +495,15 @@ LOG_SUPER_DEBUG("Looping through R");
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_ESTIMATE);
                 fftwf_execute(plan);
             }
+LOG_SUPER_DEBUG("Done FFT on unfiltered box");
 
             // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
             // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
             for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
                 unfiltered_box[ct] /= (float)HII_TOT_NUM_PIXELS;
             }
+
+LOG_SUPER_DEBUG("normalised unfiltered box");
 
             // Smooth the density field, at the same time store the minimum and maximum densities for their usage in the interpolation tables
             for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
@@ -548,6 +552,8 @@ LOG_SUPER_DEBUG("Looping through R");
                     fftwf_execute(plan);
                 }
 
+LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
+
                 min_density = 0.0;
                 max_density = 0.0;
 
@@ -581,6 +587,8 @@ LOG_SUPER_DEBUG("Looping through R");
                     }
                 }
 
+LOG_ULTRA_DEBUG("COPIED OVER VALUES");
+
                 if(min_density < 0.0) {
                     min_density = min_density*1.01;
                     // min_density here can exceed -1. as it is always extrapolated back to the appropriate redshift
@@ -605,7 +613,7 @@ LOG_SUPER_DEBUG("Looping through R");
                 max_densities[R_ct] = max_density;
 
                 R *= R_factor;
-
+LOG_ULTRA_DEBUG("FINISHED WITH THIS R, MOVING ON");
             } //end for loop through the filter scales R
         }
 
@@ -673,7 +681,7 @@ LOG_SUPER_DEBUG("Initialised sigma interp table");
                 // generates an interpolation table for redshift
                 for (i=0; i<zpp_interp_points_SFR;i++) {
                     zpp_interp_table[i] = determine_zpp_min + zpp_bin_width*(float)i;
-                }            
+                }
 
                 /* initialise interpolation of the mean collapse fraction for global reionization.*/
                 if (ION_EFF_FACTOR_MINI<1e-19){
@@ -1057,6 +1065,17 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 freq_int_heat_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 0);
                 freq_int_ion_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 1);
                 freq_int_lya_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 2);
+
+
+//                if(R_ct<3) {
+//                    LOG_DEBUG(
+//                            "x_e_ct=%d; R_ct=%d; x_int_XHII=%e; freq_int_heat=%e; freq_int_ion=%e; freq_int_lya=%e; lower_int_limit=%e",
+//                            x_e_ct, R_ct, x_int_XHII[x_e_ct], freq_int_heat_tbl[x_e_ct][R_ct],
+//                            freq_int_ion_tbl[x_e_ct][R_ct],
+//                            freq_int_lya_tbl[x_e_ct][R_ct], lower_int_limit);
+////                    for(int energy_counter=0;energy_counter<x_int_NENERGY;energy_counter++)
+////                        LOG_DEBUG("x_int_n_lya: %e", x_int_n_Lya[x_e_ct][energy_counter]);
+//                }
 
                 if(isfinite(freq_int_heat_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_ion_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_lya_tbl[x_e_ct][R_ct])==0) {
                     LOG_ERROR("One of the frequency interpolation tables has an infinity or a NaN");
@@ -1754,6 +1773,14 @@ LOG_SUPER_DEBUG("finished loop");
 
     } // end main integral loop over z'
 
+    // Free all the boxes. Ideally, we wouldn't do this, as almost always
+    // the *next* call to ComputeTsBox will need the same memory. However,
+    // we can't be sure that a call from python will not have changed the box size
+    // without freeing, and get a segfault. The only way around this would be to
+    // check (probably in python) every time spin() is called, whether the boxes
+    // are already initialised _and_ whether they are of the right shape. This
+    // seems difficult, so we leave that as future work.
+    free_TsCalcBoxes();
     return(0);
 }
 
@@ -1848,4 +1875,5 @@ void free_TsCalcBoxes()
     free(freq_int_ion_tbl_diff);
     free(freq_int_lya_tbl_diff);
 
+    TsInterpArraysInitialised = false;
 }

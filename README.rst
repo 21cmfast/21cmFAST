@@ -55,4 +55,3 @@ If you find `21cmFAST` useful in your research please cite at least one of the f
     simulation of the high-redshift 21-cm signal", Monthly Notices of the Royal
     Astronomical Society, Volume 411, Issue 2, pp. 955-972 (2011),
     https://ui.adsabs.harvard.edu/link_gateway/2011MNRAS.411..955M/doi:10.1111/j.1365-2966.2010.17731.x
-

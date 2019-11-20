@@ -74,7 +74,7 @@ struct CosmoParams *cosmo_params_ufunc;
 struct UserParams *user_params_ufunc;
 
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params){
- 
+
     cosmo_params_ufunc = cosmo_params;
     user_params_ufunc = user_params;
 }
@@ -84,7 +84,7 @@ void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoPara
 void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
     int n_x, n_z, n_y, dimension,midpoint;
     float k_x, k_y, k_z, k_mag, kR;
-    
+
     switch(RES) {
         case 0:
             dimension = user_params_ufunc->DIM;
@@ -95,23 +95,23 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
             midpoint = HII_MIDDLE;
             break;
     }
-    
+
     // loop through k-box
     for (n_x=dimension; n_x--;){
         if (n_x>midpoint) {k_x =(n_x-dimension) * DELTA_K;}
         else {k_x = n_x * DELTA_K;}
-        
+
         for (n_y=dimension; n_y--;){
             if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
             else {k_y = n_y * DELTA_K;}
-            
+
             for (n_z=(midpoint+1); n_z--;){
                 k_z = n_z * DELTA_K;
-                
+
                 k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
-                
+
                 kR = k_mag*R; // real space top-hat
-                
+
                 if (filter_type == 0){ // real space top-hat
                     if (kR > 1e-4){
                         if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
@@ -137,7 +137,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
             }
         }
     } // end looping through k box
-        
+
     return;
 }
 
@@ -162,7 +162,7 @@ double HI_ion_crosssec(double nu);
 
 /* R in Mpc, M in Msun */
 double MtoR(double M){
-    
+
     // set R according to M<->R conversion defined by the filter type in ../Parameter_files/COSMOLOGY.H
     if (global_params.FILTER == 0) //top hat M = (4/3) PI <rho> R^3
         return pow(3*M/(4*PI*cosmo_params_ufunc->OMm*RHOcrit), 1.0/3.0);
@@ -188,7 +188,7 @@ double RtoM(double R){
 /*
  T in K, M in Msun, mu is mean molecular weight
  from Barkana & Loeb 2001
- 
+
  SUPRESS = 0 for no radiation field supression;
  SUPRESS = 1 for supression (step function at z=z_ss, at v=v_zz)
  */
@@ -198,11 +198,11 @@ float TtoM(float z, float T, float mu){
     /*  if (!SUPRESS || (z >= z_re) ) // pre-reionization or don't worry about supression
      return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
      pow( T/(mu * (1+z)), 1.5 );
-     
+
      if (z >= z_ss) // self-shielding dominates, use T = 1e4 K
      return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
      pow( 1.0e4 /(mu * (1+z)), 1.5 );
-     
+
      // optically thin
      return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
      pow( VcirtoT(v_ss, mu) /(mu * (1+z)), 1.5 );
@@ -229,11 +229,11 @@ double omega_mz(float z){
 /*
  FUNCTION dicke(z)
  Computes the dicke growth function at redshift z, i.e. the z dependance part of sigma
- 
+
  References: Peebles, "Large-Scale...", pg.53 (eq. 11.16). Includes omega<=1
  Nonzero Lambda case from Liddle et al, astro-ph/9512102, eqs. 6-8.
  and quintessence case from Wang et al, astro-ph/9804015
- 
+
  Normalized to dicke(z=0)=1
  */
 double dicke(double z){
@@ -262,7 +262,7 @@ double dicke(double z){
         LOG_WARNING("IN WANG.");
         return -1;
     }
-    
+
     LOG_ERROR("No growth function!!! Output will be fucked up.");
     return -1;
 }
@@ -273,7 +273,7 @@ double dtdz(float z){
     x = sqrt( cosmo_params_ufunc->OMl/cosmo_params_ufunc->OMm ) * pow(1+z, -3.0/2.0);
     dxdz = sqrt( cosmo_params_ufunc->OMl/cosmo_params_ufunc->OMm ) * pow(1+z, -5.0/2.0) * (-3.0/2.0);
     const1 = 2 * sqrt( 1 + cosmo_params_ufunc->OMm/cosmo_params_ufunc->OMl ) / (3.0 * Ho) ;
-    
+
     numer = dxdz * (1 + x*pow( pow(x,2) + 1, -0.5));
     denom = x + sqrt(pow(x,2) + 1);
     return (const1 * numer / denom);
@@ -284,9 +284,9 @@ double ddickedt(double z){
     float dz = 1e-10;
     double omegaM_z, ddickdz, dick_0, x, x_0, domegaMdz;
     double tiny = 1e-4;
-    
+
     return (dicke(z+dz)-dicke(z))/dz/dtdz(z); // lazy non-analytic form getting
-    
+
     if (fabs(cosmo_params_ufunc->OMm-1.0) < tiny){ //OMm = 1 (Einstein de-Sitter)
         return -pow(1+z,-2)/dtdz(z);
     }
@@ -296,13 +296,13 @@ double ddickedt(double z){
         omegaM_z = cosmo_params_ufunc->OMm*pow(1+z,3) / ( cosmo_params_ufunc->OMl + cosmo_params_ufunc->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4) );
         domegaMdz = omegaM_z*3/(1+z) - cosmo_params_ufunc->OMm*pow(1+z,3)*pow(cosmo_params_ufunc->OMl + cosmo_params_ufunc->OMm*pow(1+z,3) + global_params.OMr*pow(1+z,4), -2) * (3*cosmo_params_ufunc->OMm*(1+z)*(1+z) + 4*global_params.OMr*pow(1+z,3));
         dick_0 = cosmo_params_ufunc->OMm / ( 1.0/70.0 + cosmo_params_ufunc->OMm*(209-cosmo_params_ufunc->OMm)/140.0 + pow(cosmo_params_ufunc->OMm, 4.0/7.0) );
-        
+
         ddickdz = (domegaMdz/(1+z)) * (1.0/70.0*pow(omegaM_z,-2) + 1.0/140.0 + 3.0/7.0*pow(omegaM_z, -10.0/3.0)) * pow(1.0/70.0/omegaM_z + (209.0-omegaM_z)/140.0 + pow(omegaM_z, -3.0/7.0) , -2);
         ddickdz -= pow(1+z,-2)/(1.0/70.0/omegaM_z + (209.0-omegaM_z)/140.0 + pow(omegaM_z, -3.0/7.0));
-        
+
         return ddickdz / dick_0 / dtdz(z);
     }
-    
+
     LOG_ERROR("No growth function!!! Output will be fucked up.");
     return -1;
 }
@@ -349,20 +349,20 @@ double alpha_B(double T){
  */
 double neutral_fraction(double density, double T4, double gamma, int usecaseB){
     double chi, b, alpha, corr_He = 1.0/(4.0/global_params.Y_He - 3);
-    
+
     if (usecaseB)
         alpha = alpha_B(T4*1e4);
     else
         alpha = alpha_A(T4*1e4);
-    
+
     gamma *= 1e-12;
-    
+
     // approximation chi << 1
     chi = (1+corr_He)*density * alpha / gamma;
     if (chi < TINY){ return 0;}
     if (chi < 1e-5)
         return chi;
-    
+
     //  this code, while mathematically accurate, is numerically buggy for very small x_HI, so i will use valid approximation x_HI <<1 above when x_HI < 1e-5, and this otherwise... the two converge seemlessly
     //get solutions of quadratic of chi (neutral fraction)
     b = -2 - gamma / (density*(1+corr_He)*alpha);
@@ -374,10 +374,10 @@ double neutral_fraction(double density, double T4, double gamma, int usecaseB){
  (taken from Verner et al (1996) */
 double HeI_ion_crosssec(double nu){
     double x,y,Fy;
-    
+
     if (nu < HeI_NUIONIZATION)
         return 0;
-    
+
     x = nu/NU_over_EV/13.61 - 0.4434;
     y = sqrt(x*x + pow(2.136, 2));
     return  9.492e-16*((x-1)*(x-1) + 2.039*2.039) *
@@ -390,13 +390,13 @@ double HeI_ion_crosssec(double nu){
  (taken from Osterbrock, pg. 14) */
 double HeII_ion_crosssec(double nu){
     double epsilon, Z = 2;
-    
+
     if (nu < HeII_NUIONIZATION)
         return 0;
-    
+
     if (nu == HeII_NUIONIZATION)
         nu+=TINY;
-    
+
     epsilon = sqrt( nu/HeII_NUIONIZATION - 1);
     return (6.3e-18)/Z/Z * pow(HeII_NUIONIZATION/nu, 4)
     * pow(E, 4-(4*atan(epsilon)/epsilon)) / (1-pow(E, -2*PI/epsilon));
@@ -407,13 +407,13 @@ double HeII_ion_crosssec(double nu){
  (taken from Osterbrock, pg. 14) */
 double HI_ion_crosssec(double nu){
     double epsilon, Z = 1;
-    
+
     if (nu < NUIONIZATION)
         return 0;
-    
+
     if (nu == NUIONIZATION)
         nu+=TINY;
-    
+
     epsilon = sqrt( nu/NUIONIZATION - 1);
     return (6.3e-18)/Z/Z * pow(NUIONIZATION/nu, 4)
     * pow(E, 4-(4*atan(epsilon)/epsilon)) / (1-pow(E, -2*PI/epsilon));
@@ -432,7 +432,7 @@ double dtau_e_dz(double z, void *params){
     float xH, xi;
     int i=1;
     tau_e_params p = *(tau_e_params *)params;
-    
+
     if ((p.len == 0) || !(p.z)) {
         return (1+z)*(1+z)*drdz(z);
     }
@@ -443,7 +443,7 @@ double dtau_e_dz(double z, void *params){
         while ( (i < p.len) && (p.z[i] < z) ) {i++;}
         if (i == p.len)
             return 0;
-        
+
         // linearly interpolate in redshift
         xH = p.xH[i-1] + (p.xH[i] - p.xH[i-1])/(p.z[i] - p.z[i-1]) * (z - p.z[i-1]);
         /*
@@ -459,7 +459,7 @@ double dtau_e_dz(double z, void *params){
             LOG_WARNING("in taue: funny business xi=%e, changing to 1", xi);
             xi=1;
         }
-        
+
         return xi*(1+z)*(1+z)*drdz(z);
     }
 }
@@ -470,12 +470,12 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
     gsl_integration_workspace * w
     = gsl_integration_workspace_alloc (1000);
     tau_e_params p;
-    
+
     if (zstart >= zend){
         LOG_ERROR("in tau_e: First parameter must be smaller than the second.\n");
         return 0;
     }
-    
+
     F.function = &dtau_e_dz;
     p.z = zarry;
     p.xH = xHarry;
@@ -483,7 +483,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
     F.params = &p;
     if ((len > 0) && zarry)
         zend = zarry[len-1] - FRACT_FLOAT_ERR;
-    
+
     if (zend > global_params.Zreion_HeII){// && (zstart < Zreion_HeII)){
         if (zstart < global_params.Zreion_HeII){
             gsl_integration_qag (&F, global_params.Zreion_HeII, zstart, 0, rel_tol,
@@ -503,19 +503,19 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
                              1000, GSL_INTEG_GAUSS61, w, &prehelium, &error);
     }
     gsl_integration_workspace_free (w);
-    
+
     return SIGMAT * ( (N_b0+He_No)*prehelium + N_b0*posthelium );
 }
 
 float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_params, int NPoints, float *redshifts, float *global_xHI) {
-    
+
     int i;
     float tau;
-    
+
     Broadcast_struct_global_UF(user_params,cosmo_params);
-    
+
     tau = tau_e(0, redshifts[NPoints-1], redshifts, global_xHI, NPoints);
-    
+
     return tau;
 }
 

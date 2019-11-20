@@ -113,21 +113,21 @@ interpolated onto the lightcone cells):
 """
 import logging
 import os
+from copy import deepcopy
 from os import path
 
 import numpy as np
 from astropy import units
-from astropy.cosmology import Planck15, z_at_value
+from astropy.cosmology import Planck15
+from astropy.cosmology import z_at_value
 from cached_property import cached_property
-from copy import deepcopy
 
-from ._utils import (
-    StructWithDefaults,
-    OutputStruct as _OS,
-    StructInstanceWrapper,
-    StructWrapper,
-)
-from .c_21cmfast import ffi, lib
+from ._utils import OutputStruct as _OS
+from ._utils import StructInstanceWrapper
+from ._utils import StructWithDefaults
+from ._utils import StructWrapper
+from .c_21cmfast import ffi
+from .c_21cmfast import lib
 
 logger = logging.getLogger("21cmFAST")
 
@@ -170,13 +170,13 @@ class CosmoParams(StructWithDefaults):
 
     _ffi = ffi
 
-    _defaults_ = dict(
-        SIGMA_8=0.82,
-        hlittle=Planck15.h,
-        OMm=Planck15.Om0,
-        OMb=Planck15.Ob0,
-        POWER_INDEX=0.97,
-    )
+    _defaults_ = {
+        "SIGMA_8": 0.82,
+        "hlittle": Planck15.h,
+        "OMm": Planck15.Om0,
+        "OMb": Planck15.Ob0,
+        "POWER_INDEX": 0.97,
+    }
 
     @property
     def OMl(self):
@@ -239,16 +239,16 @@ class UserParams(StructWithDefaults):
 
     _ffi = ffi
 
-    _defaults_ = dict(
-        BOX_LEN=150.0,
-        DIM=None,
-        HII_DIM=50,
-        USE_FFTW_WISDOM=False,
-        HMF=1,
-        USE_RELATIVE_VELOCITIES=False,
-        POWER_SPECTRUM=0,
-        L_FACTOR=0.620350491,
-    )
+    _defaults_ = {
+        "BOX_LEN": 150.0,
+        "DIM": None,
+        "HII_DIM": 50,
+        "USE_FFTW_WISDOM": False,
+        "HMF": 1,
+        "USE_RELATIVE_VELOCITIES": False,
+        "POWER_SPECTRUM": 0,
+		"L_FACTOR": 0.620350491,
+    }
 
     @property
     def DIM(self):
@@ -309,14 +309,14 @@ class FlagOptions(StructWithDefaults):
 
     _ffi = ffi
 
-    _defaults_ = dict(
-        USE_MASS_DEPENDENT_ZETA=False,
-        SUBCELL_RSD=False,
-        INHOMO_RECO=False,
-        USE_TS_FLUCT=False,
-        M_MIN_in_Mass=False,
-        PHOTON_CONS=False,
-    )
+    _defaults_ = {
+        "USE_MASS_DEPENDENT_ZETA": False,
+        "SUBCELL_RSD": False,
+        "INHOMO_RECO": False,
+        "USE_TS_FLUCT": False,
+        "M_MIN_in_Mass": False,
+        "PHOTON_CONS": False,
+    }
 
     @property
     def M_MIN_in_Mass(self):
@@ -368,26 +368,25 @@ class AstroParams(StructWithDefaults):
 
     _ffi = ffi
 
-    _defaults_ = dict(
-        HII_EFF_FACTOR=30.0,
-        F_STAR10=-1.25,
-        F_STAR7_MINI=-99,
-        ALPHA_STAR=0.5,
-        F_ESC10=-1.22184874962,
-        F_ESC7_MINI=-2.22184874962,
-        ALPHA_ESC=0.0,
-        M_TURN=8.7,
-        R_BUBBLE_MAX=None,
-        ION_Tvir_MIN=4.69897,
-        L_X=40.5,
-        L_X_MINI=40.5,
-        NU_X_THRESH=500.0,
-        X_RAY_SPEC_INDEX=1.0,
-        X_RAY_Tvir_MIN=None,
-        F_H2_SHIELD=0.0,
-        t_STAR=0.5,
-        N_RSD_STEPS=20,
-    )
+    _defaults_ = {
+        "HII_EFF_FACTOR": 30.0,
+        "F_STAR10": -1.25,
+		"F_STAR7_MINI": -99,
+        "ALPHA_STAR": 0.5,
+        "F_ESC10": -1.22184874962,
+		"F_ESC7_MINI": -2.22184874962,
+        "ALPHA_ESC": 0.0,
+        "M_TURN": 8.7,
+        "R_BUBBLE_MAX": None,
+        "ION_Tvir_MIN": 4.69897,
+        "L_X": 40.5,
+        "NU_X_THRESH": 500.0,
+        "X_RAY_SPEC_INDEX": 1.0,
+        "X_RAY_Tvir_MIN": None,
+		"F_H2_SHIELD": 0.0,
+        "t_STAR": 0.5,
+        "N_RSD_STEPS": 20,
+    }
 
     def __init__(
         self, *args, INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"], R_BUBBLE_MIN=UserParams._defaults_["L_FACTOR"] + 1, **kwargs
@@ -459,8 +458,10 @@ class InitialConditions(_OutputStruct):
     A class containing all initial conditions boxes.
     """
 
-    # The filter params indicates parameters to overlook when deciding if a cached box matches current parameters.
-    # It is useful for ignoring certain global parameters which may not apply to this step or its dependents.
+    # The filter params indicates parameters to overlook when deciding if a cached box
+    # matches current parameters.
+    # It is useful for ignoring certain global parameters which may not apply to this
+    # step or its dependents.
     _filter_params = _OutputStruct._filter_params + [
         "ALPHA_UVB",  # ionization
         "EVOLVE_DENSITY_LINEARLY",  # perturb
@@ -1402,7 +1403,13 @@ def ionize_box(
     )
 
     # Configure and check input/output parameters/structs
-    random_seed, user_params, cosmo_params, astro_params, flag_options = configure_inputs(
+    (
+        random_seed,
+        user_params,
+        cosmo_params,
+        astro_params,
+        flag_options,
+    ) = configure_inputs(
         [
             ("random_seed", random_seed),
             ("user_params", user_params),
@@ -1714,7 +1721,13 @@ def spin_temperature(
     )
 
     # Configure and check input/output parameters/structs
-    random_seed, user_params, cosmo_params, astro_params, flag_options = configure_inputs(
+    (
+        random_seed,
+        user_params,
+        cosmo_params,
+        astro_params,
+        flag_options,
+    ) = configure_inputs(
         [
             ("random_seed", random_seed),
             ("user_params", user_params),
@@ -2091,7 +2104,7 @@ def run_coeval(
 
     if perturb:
         if redshift is not None:
-            if not all([p.redshift == z for p, z in zip(perturb, redshift)]):
+            if not all(p.redshift == z for p, z in zip(perturb, redshift)):
                 raise ValueError("Input redshifts do not match perturb field redshifts")
 
         else:
@@ -2210,6 +2223,7 @@ def run_coeval(
         for z, p, ib, _bt in zip(redshift, perturb, ib_tracker, bt)
     ]
 
+    # If a single redshift was passed, then pass back singletons.
     if singleton:
         coevals = coevals[0]
 
@@ -2524,7 +2538,6 @@ def run_lightcone(
         bt = bt2
 
     if flag_options.PHOTON_CONS:
-        #        z_analytic, Q_analytic, z_cal, nf_cal, deltaz_photoncons, nf_photoncons = get_photon_nonconservation_data()
         photon_nonconservation_data = get_photon_nonconservation_data()
 
     return LightCone(

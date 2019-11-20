@@ -25,9 +25,9 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
-    
+
     omp_set_num_threads(1);
-    
+
     char wisdom_filename[500];
     char filename[500];
     FILE *F;
@@ -53,7 +53,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 
     float redshift_table_fcollz,redshift_table_fcollz_Xray;
     int redshift_int_fcollz,redshift_int_fcollz_Xray;
-    
+
     float dens_val, overdense_small_min, overdense_small_bin_width, overdense_small_bin_width_inv, overdense_large_min, overdense_large_bin_width, overdense_large_bin_width_inv;
     float prev_dens_val, prev_overdense_small_min, prev_overdense_small_bin_width, prev_overdense_small_bin_width_inv, prev_overdense_large_min, prev_overdense_large_bin_width, prev_overdense_large_bin_width_inv;
     float log10Mturn_val, log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
@@ -66,7 +66,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     overdense_large_min = global_params.CRIT_DENS_TRANSITION*0.999;
     overdense_large_bin_width = 1./((double)NSFR_high-1.)*(Deltac-overdense_large_min);
     overdense_large_bin_width_inv = 1./overdense_large_bin_width;
-    
+
     float Mlim_Fstar, Mlim_Fesc;
     float Mlim_Fstar_MINI, Mlim_Fesc_MINI;
 
@@ -82,10 +82,10 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     
     float adjusted_redshift, required_NF, stored_redshift, adjustment_factor, future_z;
     double temp;
-    
+
     const gsl_rng_type * T;
     gsl_rng * r;
-    
+
     init_ps();
 
 LOG_SUPER_DEBUG("defined parameters");
@@ -98,17 +98,17 @@ LOG_SUPER_DEBUG("defined parameters");
     else {
         ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;
     }
-    
+
     // For recombinations
     if(flag_options->INHOMO_RECO) {
-        
+
         if(INIT_RECOMBINATIONS) {
             init_MHR();
             INIT_RECOMBINATIONS=0;
         }
-        
+
         ZSTEP = prev_redshift - redshift;
-    
+
         for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++) {
             box->Gamma12_box[ct] = 0.0;
         }
@@ -126,41 +126,41 @@ LOG_SUPER_DEBUG("defined parameters");
     if(flag_options->PHOTON_CONS) {
         adjust_redshifts_for_photoncons(&redshift,&stored_redshift,&absolute_delta_z);
     }
-    
+
     Splined_Fcoll = 0.;
     Splined_Fcoll_MINI = 0.;
     
     double ArgBinWidth, InvArgBinWidth, erfc_arg_val, erfc_arg_min, erfc_arg_max;
     int erfc_arg_val_index, ERFC_NUM_POINTS;
-    
+
     erfc_arg_val = 0.;
     erfc_arg_val_index = 0;
 
     // Setup an interpolation table for the error function, helpful for calcluating the collapsed fraction (only for the default model, i.e. mass-independent ionising efficiency)
     erfc_arg_min = -15.0;
     erfc_arg_max = 15.0;
-    
+
     ERFC_NUM_POINTS = 10000;
-    
+
     ArgBinWidth = (erfc_arg_max - erfc_arg_min)/((double)ERFC_NUM_POINTS - 1.);
     InvArgBinWidth = 1./ArgBinWidth;
 
     if(INIT_ERFC_INTERPOLATION) {
-        
+
         ERFC_VALS = calloc(ERFC_NUM_POINTS,sizeof(double));
         ERFC_VALS_DIFF = calloc(ERFC_NUM_POINTS,sizeof(double));
-        
+
         for(i=0;i<ERFC_NUM_POINTS;i++) {
-            
+
             erfc_arg_val = erfc_arg_min + ArgBinWidth*(double)i;
-            
+
             ERFC_VALS[i] = splined_erfc(erfc_arg_val);
         }
-        
+
         for(i=0;i<(ERFC_NUM_POINTS-1);i++) {
             ERFC_VALS_DIFF[i] = ERFC_VALS[i+1] - ERFC_VALS[i];
         }
-        
+
         INIT_ERFC_INTERPOLATION = 0;
     }
 
@@ -175,7 +175,7 @@ LOG_SUPER_DEBUG("erfc interpolation done");
 
     // initialize power spectrum
     growth_factor = dicke(redshift);
-    
+
     fftwf_complex *deltax_unfiltered, *deltax_unfiltered_original, *deltax_filtered, *xe_unfiltered, *xe_filtered, *N_rec_unfiltered, *N_rec_filtered;
     fftwf_complex *prev_deltax_unfiltered, *prev_deltax_unfiltered_original, *prev_deltax_filtered;
     
@@ -197,7 +197,7 @@ LOG_SUPER_DEBUG("erfc interpolation done");
         N_rec_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS); // cumulative number of recombinations
         N_rec_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     }
-    
+
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         xi_SFR = calloc(NGL_SFR+1,sizeof(float));
         wi_SFR = calloc(NGL_SFR+1,sizeof(float));
@@ -225,7 +225,7 @@ LOG_SUPER_DEBUG("erfc interpolation done");
     }
 
     // Calculate the density field for this redshift if the initial conditions/cosmology are changing
-    
+
     if(flag_options->PHOTON_CONS) {
         adjustment_factor = dicke(redshift)/dicke(stored_redshift);
     }
@@ -333,13 +333,13 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
         Mlim_Fesc = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10);
     }
     else {
-    
+
         //set the minimum source mass
         if (astro_params->ION_Tvir_MIN < 9.99999e3) // neutral IGM
             M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
         else // ionized IGM
             M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
-        
+
     }
 
 LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
@@ -372,7 +372,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
 
     // lets check if we are going to bother with computing the inhmogeneous field at all...
     global_xH = 0.0;
-    
+
     // Determine the normalisation for the excursion set algorithm
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (ION_EFF_FACTOR_MINI > 1e-19){
@@ -417,7 +417,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %f", box->mean_f
 
     if (box->mean_f_coll * ION_EFF_FACTOR + box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI< global_params.HII_ROUND_ERR){ // way too small to ionize anything...
     //        printf( "The mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll, f_coll_crit);
-        
+
         // find the neutral fraction
         if(flag_options->USE_TS_FLUCT) {
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
@@ -436,7 +436,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %f", box->mean_f
         }
     }
     else {
-        
+
         // Take the ionisation fraction from the X-ray ionisations from Ts.c (only if the calculate spin temperature flag is set)
         if(flag_options->USE_TS_FLUCT) {
             for (i=0; i<user_params->HII_DIM; i++){
@@ -468,16 +468,16 @@ LOG_SUPER_DEBUG("calculated ionization fraction");
                 fftwf_execute(plan);
             }
             else {
-                
+
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_PATIENT);
                 fftwf_execute(plan);
-                
+
                 // Store the wisdom for later use
                 fftwf_export_wisdom_to_filename(wisdom_filename);
-                
+
                 // copy over unfiltered box
                 memcpy(deltax_unfiltered, deltax_unfiltered_original, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-                
+
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
@@ -543,7 +543,7 @@ LOG_SUPER_DEBUG("more ffts performed");
         // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from
         //  real space to k-space
         // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
-    
+
         for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
             deltax_unfiltered[ct] /= (HII_TOT_NUM_PIXELS+0.0);
         }
@@ -561,7 +561,7 @@ LOG_SUPER_DEBUG("more ffts performed");
                 xe_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS;
             }
         }
-    
+
         if (flag_options->INHOMO_RECO){
             for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
                 N_rec_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS;
@@ -575,7 +575,7 @@ LOG_SUPER_DEBUG("deltax unfiltered calculated");
         // ************************************************************************************* //
         // set the max radius we will use, making sure we are always sampling the same values of radius
         // (this avoids aliasing differences w redshift)
-        
+
         short_completely_ionised = 0;
         // loop through the filter radii (in Mpc)
         erfc_denom_cell=1; //dummy value
@@ -592,13 +592,15 @@ LOG_SUPER_DEBUG("deltax unfiltered calculated");
 LOG_DEBUG("set max radius: %f", R);
         
         R=fmin(astro_params->R_BUBBLE_MAX, user_params->L_FACTOR*user_params->BOX_LEN);
+
         LAST_FILTER_STEP = 0;
-        
+
         first_step_R = 1;
-        
+
         double R_temp = (double)(astro_params->R_BUBBLE_MAX);
         
         counter = 0;
+
         while (!LAST_FILTER_STEP && (M_MIN < RtoM(R)) ){
 LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_MIN);
 
@@ -607,7 +609,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 LAST_FILTER_STEP = 1;
                 R = fmax(cell_length_factor*user_params->BOX_LEN/(double)(user_params->HII_DIM), astro_params->R_BUBBLE_MIN);
             }
-            
+
             // Copy all relevant quantities from memory into new arrays to be smoothed and FFT'd.
             if(flag_options->USE_TS_FLUCT) {
                 memcpy(xe_filtered, xe_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -646,21 +648,21 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     fftwf_execute(plan);
                 }
                 else {
-                    
+
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_PATIENT);
                     fftwf_execute(plan);
-                    
+
                     // Store the wisdom for later use
                     fftwf_export_wisdom_to_filename(wisdom_filename);
-                    
+
                     // copy over unfiltered box
                     memcpy(deltax_filtered, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-                    
+
                     // Repeat calculation as the FFTW WISDOM destroys the data
                     if (!LAST_FILTER_STEP || ((R - cell_length_factor*(user_params->BOX_LEN/(double)(user_params->HII_DIM))) > FRACT_FLOAT_ERR) ){
                         filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
                     }
-                    
+
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_WISDOM_ONLY);
                     fftwf_execute(plan);
                 }
@@ -705,7 +707,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 }
                 fftwf_execute(plan);
             }
-            
+
             if (flag_options->INHOMO_RECO){
                 if(user_params->USE_FFTW_WISDOM) {
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)N_rec_filtered, (float *)N_rec_filtered, FFTW_WISDOM_ONLY);
@@ -723,17 +725,17 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             f_coll = 0;
             f_coll_MINI = 0;
             massofscaleR = RtoM(R);
-            
+
             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-                
+
                 min_density = max_density = 0.0;
-                
+
                 for (x=0; x<user_params->HII_DIM; x++){
                     for (y=0; y<user_params->HII_DIM; y++){
                         for (z=0; z<user_params->HII_DIM; z++){
                             // delta cannot be less than -1
                             *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
-                            
+
                             if( *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) < min_density ) {
                                 min_density = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
                             }
@@ -743,7 +745,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                         }
                     }
                 }
-                
+
                 if(min_density < 0.) {
                     min_density = min_density*1.001;
                     if(min_density <= -1.) {
@@ -760,16 +762,16 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 else {
                     max_density = max_density*1.001;
                 }
-                
+
                 if(global_params.HII_FILTER==1) {
                     if((0.413566994*R*2.*PI/user_params->BOX_LEN) > 1.) {
                         // The sharp k-space filter will set every cell to zero, and the interpolation table using a flexible min/max density will fail.
-                        
+
                         min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
                         max_density = global_params.CRIT_DENS_TRANSITION*1.001;
                     }
                 }
-                
+
                 overdense_small_min = log10(1. + min_density);
                 if(max_density > global_params.CRIT_DENS_TRANSITION*1.001) {
                     overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+global_params.CRIT_DENS_TRANSITION*1.001)-overdense_small_min);
@@ -898,34 +900,34 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 }
             }
             else {
-            
+
                 erfc_denom = 2.*(pow(sigma_z0(M_MIN), 2) - pow(sigma_z0(massofscaleR), 2) );
                 if (erfc_denom < 0) { // our filtering scale has become too small
                     break;
                 }
                 erfc_denom = sqrt(erfc_denom);
                 erfc_denom = 1./( growth_factor * erfc_denom );
-            
+
             }
 
             // Determine the global averaged f_coll for the overall normalisation
-            
+
             overdense_int_boundexceeded = 0; // Reset value of int check to see if we are over-stepping our interpolation table
-            
+
             // renormalize the collapse fraction so that the mean matches ST,
             // since we are using the evolved (non-linear) density field
             for (x=0; x<user_params->HII_DIM; x++){
                 for (y=0; y<user_params->HII_DIM; y++){
                     for (z=0; z<user_params->HII_DIM; z++){
-                        
+
                         // delta cannot be less than -1
                         *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
-                        
+
                         // <N_rec> cannot be less than zero
                         if (flag_options->INHOMO_RECO){
                             *((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
                         }
-                        
+
                         // x_e has to be between zero and unity
                         if (flag_options->USE_TS_FLUCT){
                             *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.);
@@ -1096,9 +1098,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     prev_Splined_Fcoll_MINI = 0;
                                 }
                             }
+
                         }
                         else {
-                        
+
                             erfc_arg_val = (Deltac - curr_dens)*erfc_denom;
                             if( erfc_arg_val < erfc_arg_min || erfc_arg_val > erfc_arg_max ) {
                                 Splined_Fcoll = splined_erfc(erfc_arg_val);
@@ -1108,7 +1111,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 Splined_Fcoll = ERFC_VALS[erfc_arg_val_index] + (erfc_arg_val - (erfc_arg_min + ArgBinWidth*(double)erfc_arg_val_index))*ERFC_VALS_DIFF[erfc_arg_val_index]*InvArgBinWidth;
                             }
                         }
-     
+
                         // save the value of the collasped fraction into the Fcoll array
                         if (ION_EFF_FACTOR_MINI < 1e-19){
                             box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = Splined_Fcoll;
@@ -1149,15 +1152,15 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     }
                 }
             } //  end loop through Fcoll box
-            
+
             if(overdense_int_boundexceeded==1) {
                 LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines");
                 return(2);
             }
-            
-            
+
+
             if(isfinite(f_coll)==0) {
-                LOG_ERROR("f_coll is either finite or NaN!");
+                LOG_ERROR("f_coll is either infinite or NaN!");
                 return(2);
             }
 
@@ -1186,9 +1189,9 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             
             //////////////////////////////  MAIN LOOP THROUGH THE BOX ///////////////////////////////////
             // now lets scroll through the filtered box
-            
+
             rec = 0.;
-        
+
             xHI_from_xrays = 1;
             Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
             Gamma_R_prefactor_MINI = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR_MINI / 1.0e-12;
@@ -1201,14 +1204,14 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 Gamma_R_prefactor *= pow(1+redshift, 2);
                 Gamma_R_prefactor_MINI *= pow(1+redshift, 2);
             }
-            
+
             Gamma_R_prefactor /= t_ast;
             Gamma_R_prefactor_MINI /= t_ast;
             
             for (x=0; x<user_params->HII_DIM; x++){
                 for (y=0; y<user_params->HII_DIM; y++){
                     for (z=0; z<user_params->HII_DIM; z++){
-     
+
                         curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
      
                         Splined_Fcoll = box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
@@ -1227,24 +1230,24 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             ave_N_min_cell = ave_M_coll_cell / M_MIN; // ave # of M_MIN halos in cell
                             N_halos_in_cell = (int) gsl_ran_poisson(r, global_params.N_POISSON);
                         }
-                        
+
                         if(flag_options->USE_MASS_DEPENDENT_ZETA) {
                             if (f_coll <= f_coll_min) f_coll = f_coll_min;
                             if (ION_EFF_FACTOR_MINI > 1e-19){
                                 if (f_coll_MINI <= f_coll_min_MINI) f_coll_MINI = f_coll_min_MINI;
                             }
                         }
-                    
+
                         if (flag_options->INHOMO_RECO){
                             rec = (*((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z))); // number of recombinations per mean baryon
                             rec /= (1. + curr_dens); // number of recombinations per baryon inside <R>
                         }
-                    
+
                         // adjust the denominator of the collapse fraction for the residual electron fraction in the neutral medium
                         if (flag_options->USE_TS_FLUCT){
                             xHI_from_xrays = (1. - *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)));
                         }
-                    
+
                         // check if fully ionized!
                         if ( (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI> (xHI_from_xrays)*(1.0+rec)) ){ //IONIZED!!
                         
@@ -1253,12 +1256,12 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
                                 box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll + Gamma_R_prefactor_MINI * f_coll_MINI;
                             }
-                        
+
                             // keep track of the first time this cell is ionized (earliest time)
                             if (flag_options->INHOMO_RECO && (previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)] < 0)){
                                 box->z_re_box[HII_R_INDEX(x,y,z)] = redshift;
                             }
-                        
+
                             // FLAG CELL(S) AS IONIZED
                             if (global_params.FIND_BUBBLE_ALGORITHM == 2) // center method
                                 box->xH_box[HII_R_INDEX(x,y,z)] = 0;
@@ -1272,7 +1275,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                         } // end ionized
                         // If not fully ionized, then assign partial ionizations
                         else if (LAST_FILTER_STEP && (box->xH_box[HII_R_INDEX(x,y,z)] > TINY)){
-                        
+
                             if (f_coll>1) f_coll=1;
                             if (f_coll_MINI>1) f_coll_MINI=1;
                         
@@ -1286,12 +1289,12 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     f_coll_MINI = 0.;
                                 }
                             }
-                            
+
                             if(ave_M_coll_cell < (M_MIN/5.)) {
                                 f_coll = 0.;
                                 f_coll_MINI = 0.;
                             }
-                            
+
                             if (f_coll>1) f_coll=1;
                             if (f_coll_MINI>1) f_coll_MINI=1;
                             res_xH = xHI_from_xrays - f_coll * ION_EFF_FACTOR - f_coll_MINI * ION_EFF_FACTOR_MINI;
@@ -1301,14 +1304,14 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 res_xH = 0;
                             else if (res_xH > 1)
                                 res_xH = 1;
-                        
+
                             box->xH_box[HII_R_INDEX(x,y,z)] = res_xH;
 
                         } // end partial ionizations at last filtering step
                     } // k
                 } // j
             } // i
-            
+
             if(first_step_R) {
                 R = stored_R;
                 first_step_R = 0;
@@ -1318,7 +1321,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }            
             counter += 1;
         }
-     
+
         // find the neutral fraction
         if(LOG_LEVEL >= DEBUG_LEVEL){
             global_xH = 0;
@@ -1329,54 +1332,54 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             global_xH /= (float)HII_TOT_NUM_PIXELS;
 
         }
-        
+
         if(isfinite(global_xH)==0) {
             LOG_ERROR("Neutral fraction is either infinite or a Nan. Something has gone wrong in the ionisation calculation!");
             return(2);
         }
-        
+
         // update the N_rec field
         if (flag_options->INHOMO_RECO){
-            
+
             for (x=0; x<user_params->HII_DIM; x++){
                 for (y=0; y<user_params->HII_DIM; y++){
                     for (z=0; z<user_params->HII_DIM; z++){
-                    
+
                         // use the original density and redshift for the snapshot (not the adjusted redshift)
                         // Only want to use the adjusted redshift for the ionisation field
                         curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x,y,z)])/adjustment_factor;
                         z_eff = pow(curr_dens, 1.0/3.0);
-                        
+
                         if(flag_options->PHOTON_CONS) {
                             z_eff *= (1+stored_redshift);
                         }
                         else {
                             z_eff *= (1+redshift);
                         }
-                        
+
                         dNrec = splined_recombination_rate(z_eff-1., box->Gamma12_box[HII_R_INDEX(x,y,z)]) * fabs_dtdz * ZSTEP * (1 - box->xH_box[HII_R_INDEX(x,y,z)]);
-                        
+
                         if(isfinite(dNrec)==0) {
                             something_finite_or_infinite = 1;
                             LOG_ERROR("Recombinations have returned either an infinite or NaN value. (%d,%d,%d)%g,%g,%g,%g", x,y,z,z_eff, box->Gamma12_box[HII_R_INDEX(x,y,z)], box->xH_box[HII_R_INDEX(x,y,z)], splined_recombination_rate(z_eff-1., box->Gamma12_box[HII_R_INDEX(x,y,z)]) );
                         }
-                        
+
                         box->dNrec_box[HII_R_INDEX(x,y,z)] = previous_ionize_box->dNrec_box[HII_R_INDEX(x,y,z)] + dNrec;
                     }
                 }
             }
-            
+
             if(something_finite_or_infinite) {
                 LOG_ERROR("Recombinations have returned either an infinite or NaN value.");
                 return(2);
             }
-            
+
         }
     }
-    
+
     // deallocate
     gsl_rng_free (r);
-    
+
 LOG_DEBUG("global_xH = %e",global_xH);
 
     fftwf_free(deltax_unfiltered);
@@ -1422,14 +1425,13 @@ LOG_SUPER_DEBUG("freed fftw boxes");
         freeSigmaMInterpTable();
     }
 
-    
+
 //    fftwf_destroy_plan(plan);
     fftwf_cleanup();
 
-    
+
 
 LOG_DEBUG("finished!");
 
     return(0);
 }
-

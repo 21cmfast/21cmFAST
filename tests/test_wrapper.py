@@ -2,8 +2,9 @@
 These are designed to be unit-tests of the wrapper functionality. They do not test for correctness of simulations,
 but whether different parameter options work/don't work as intended.
 """
-import numpy as np
 import pytest
+
+import numpy as np
 
 from py21cmfast import wrapper
 

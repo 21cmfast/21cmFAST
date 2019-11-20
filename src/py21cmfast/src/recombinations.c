@@ -49,7 +49,7 @@ void init_beta_MHR(); /*initializes the lookup table for the beta paremeter in M
 double splined_recombination_rate(double z_eff, double gamma12_bg){
   int z_ct = (int) (z_eff / RR_DEL_Z + 0.5); // round to nearest int
   double lnGamma = log(gamma12_bg);
-    
+
   // check out of bounds
   if ( z_ct < 0 ){ // out of array bounds
 //    fprintf(stderr, "WARNING: splined_recombination_rate: effective redshift %g is outside of array bouds\n", z_eff);
@@ -87,7 +87,7 @@ void init_MHR(){
 
     // Intialize the Gamma values
     for (gamma_ct=0; gamma_ct < RR_lnGamma_NPTS; gamma_ct++){
-      lnGamma_values[gamma_ct] = RR_lnGamma_min  + gamma_ct*RR_DEL_lnGamma;  // ln of Gamma12    
+      lnGamma_values[gamma_ct] = RR_lnGamma_min  + gamma_ct*RR_DEL_lnGamma;  // ln of Gamma12
       gamma = exp(lnGamma_values[gamma_ct]);
       RR_table[z_ct][gamma_ct] = recombination_rate(z, gamma, 1, 1); // CHANGE THIS TO INCLUDE TEMPERATURE
     }
@@ -105,8 +105,8 @@ void init_MHR(){
 void free_MHR(){
   int z_ct;
 
-  free_A_MHR(); 
-  free_C_MHR(); 
+  free_A_MHR();
+  free_C_MHR();
   free_beta_MHR();
 
   // now the recombination rate look up tables
@@ -140,14 +140,14 @@ double MHR_rr (double lnD, void *params){
   double PDelta;
 
   PDelta = p.A * exp( - 0.5*pow((pow(del,-2.0/3.0)- p.C_0 ) / ((2.0*7.61/(3.0*(1.0+z)))), 2)) * pow(del, p.beta);
-    
+
   if (p.usecaseB)
     alpha = alpha_B(p.T4*1e4);
   else
     alpha = alpha_A(p.T4*1e4);
 
   //  fprintf(stderr, "%g\t%g\t%g\t%g\t%g\n", n_H, PDelta, alpha, x_e, D);
-  
+
   return n_H * PDelta * alpha * x_e * x_e * del * del;//note extra D since we are integrating over lnD
 }
 
@@ -167,9 +167,9 @@ double recombination_rate(double z, double gamma12_bg, double T4, int usecaseB){
   F.params=&p;
   lower_limit = log(0.01);
   upper_limit = log(200);
-			   
+
   gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
-		       1000, GSL_INTEG_GAUSS61, w, &result, &error); 
+		       1000, GSL_INTEG_GAUSS61, w, &result, &error);
   gsl_integration_workspace_free (w);
 
   return result;
@@ -178,7 +178,7 @@ double recombination_rate(double z, double gamma12_bg, double T4, int usecaseB){
 double aux_function(double del, void *params){
   double result;
   double z = *(double *) params;
-  
+
   result = exp(-(pow(del,-2.0/3.0)-C_MHR(z))*(pow(del,-2.0/3.0)-C_MHR(z))/(2.0*(2.0*7.61/(3.0*(1.0+z)))*(2.0*7.61/(3.0*(1.0+z)))))*pow(del, beta_MHR(z));
 
   return result;
@@ -194,9 +194,9 @@ double A_aux_integral(double z){
   F.params = &z;
   lower_limit = 1e-25;
   upper_limit = 1e25;
-			   
+
   gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
-		       1000, GSL_INTEG_GAUSS61, w, &result, &error); 
+		       1000, GSL_INTEG_GAUSS61, w, &result, &error);
   gsl_integration_workspace_free (w);
 
   return result;
@@ -217,12 +217,12 @@ double A_MHR(double z){
 void init_A_MHR(){
 /* initialize the lookup table for the parameter A in the MHR00 model */
    int i;
-   
+
    for (i=0; i<A_NPTS; i++){
      A_params[i] = 2.0+(float)i;
      A_table[i] = 1.0/A_aux_integral(2.0+(float)i);
    }
- 
+
   // Set up spline table
   A_acc   = gsl_interp_accel_alloc();
   A_spline  = gsl_spline_alloc (gsl_interp_cspline, A_NPTS);
@@ -231,7 +231,7 @@ void init_A_MHR(){
   return;
  }
 
- 
+
 double splined_A_MHR(double x){
   return gsl_spline_eval(A_spline, x, A_acc);
 }
@@ -240,7 +240,7 @@ void free_A_MHR(){
 
   gsl_spline_free (A_spline);
   gsl_interp_accel_free(A_acc);
-  
+
   return;
 }
 
@@ -261,7 +261,7 @@ double C_MHR(double z){
 void init_C_MHR(){
 /* initialize the lookup table for the parameter C in the MHR00 model */
    int i;
-   
+
   for (i=0; i<C_NPTS; i++)
     C_params[i] = (float)i+2.0;
 
@@ -277,7 +277,7 @@ void init_C_MHR(){
   C_table[9] = 0.998;
   C_table[10] = 0.999;
   C_table[11] = 1.00;
-   
+
   // Set up spline table
   C_acc   = gsl_interp_accel_alloc ();
   C_spline  = gsl_spline_alloc (gsl_interp_cspline, C_NPTS);
@@ -286,7 +286,7 @@ void init_C_MHR(){
   return;
  }
 
- 
+
 double splined_C_MHR(double x){
   return gsl_spline_eval(C_spline, x, C_acc);
 }
@@ -295,7 +295,7 @@ void free_C_MHR(){
 
   gsl_spline_free (C_spline);
   gsl_interp_accel_free(C_acc);
-  
+
   return;
 }
 
@@ -316,7 +316,7 @@ double beta_MHR(double z){
 void init_beta_MHR(){
 /* initialize the lookup table for the parameter C in the MHR00 model */
    int i;
-   
+
   for (i=0; i<beta_NPTS; i++)
     beta_params[i] = (float)i+2.0;
 
@@ -325,7 +325,7 @@ void init_beta_MHR(){
   beta_table[2] = -2.48;
   beta_table[3] = -2.49;
   beta_table[4] = -2.50;
-   
+
   // Set up spline table
   beta_acc   = gsl_interp_accel_alloc ();
   beta_spline  = gsl_spline_alloc (gsl_interp_cspline, beta_NPTS);
@@ -343,6 +343,6 @@ void free_beta_MHR(){
 
   gsl_spline_free(beta_spline);
   gsl_interp_accel_free(beta_acc);
-  
+
   return;
 }
