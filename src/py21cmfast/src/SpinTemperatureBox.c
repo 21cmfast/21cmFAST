@@ -30,7 +30,7 @@ float initialised_redshift = 0.0;
 
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                  float perturbed_field_redshift,
+                  float perturbed_field_redshift, short cleanup,
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp) {
 
 LOG_DEBUG("input values:");
@@ -1454,7 +1454,7 @@ LOG_SUPER_DEBUG("finished loop");
     // check (probably in python) every time spin() is called, whether the boxes
     // are already initialised _and_ whether they are of the right shape. This
     // seems difficult, so we leave that as future work.
-    free_TsCalcBoxes();
+    if(cleanup) free_TsCalcBoxes();
     return(0);
 }
 
