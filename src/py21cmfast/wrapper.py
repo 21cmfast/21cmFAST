@@ -1013,8 +1013,7 @@ def get_photon_nonconservation_data():
     ]
 
     photon_nonconservation_data = {
-        name: np.ndarray(d[:index])
-        for name, d, index in zip(data_list, data, ArrayIndices)
+        name: d[:index] for name, d, index in zip(data_list, data, ArrayIndices)
     }
 
     return photon_nonconservation_data
