@@ -467,11 +467,13 @@ LOG_SUPER_DEBUG("calculated ionization fraction");
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
             }
             else {
 
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_PATIENT);
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
 
                 // Store the wisdom for later use
                 fftwf_export_wisdom_to_filename(wisdom_filename);
@@ -481,11 +483,13 @@ LOG_SUPER_DEBUG("calculated ionization fraction");
 
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
             }
         }
         else {
             plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_ESTIMATE);
             fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
         }
 
 LOG_SUPER_DEBUG("FFTs performed");
@@ -525,6 +529,7 @@ LOG_SUPER_DEBUG("more ffts performed");
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)xe_unfiltered, (fftwf_complex *)xe_unfiltered, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
 LOG_SUPER_DEBUG("more ffts performed");
         }
 
@@ -537,6 +542,7 @@ LOG_SUPER_DEBUG("more ffts performed");
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)N_rec_unfiltered, (fftwf_complex *)N_rec_unfiltered, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
 LOG_SUPER_DEBUG("more ffts performed");
         }
 
@@ -647,6 +653,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_WISDOM_ONLY);
                     fftwf_execute(plan);
+                    fftwf_destroy_plan(plan);
                 }
                 else {
 
@@ -664,13 +671,16 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                         filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
                     }
 
+                    fftwf_destroy_plan(plan);
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_WISDOM_ONLY);
                     fftwf_execute(plan);
+                    fftwf_destroy_plan(plan);
                 }
             }
             else {
                 plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_ESTIMATE);
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
             }
 
             if(ION_EFF_FACTOR_MINI > 1e-19){
@@ -707,6 +717,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)xe_filtered, (float *)xe_filtered, FFTW_ESTIMATE);
                 }
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
             }
 
             if (flag_options->INHOMO_RECO){
@@ -717,6 +728,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)N_rec_filtered, (float *)N_rec_filtered, FFTW_ESTIMATE);
                 }
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
             }
 
             // Check if this is the last filtering scale.  If so, we don't need deltax_unfiltered anymore.

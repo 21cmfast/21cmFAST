@@ -195,6 +195,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
+
             }
             else {
 
@@ -210,6 +211,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                 // copy over unfiltered box
                 memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
+                fftwf_destroy_plan(plan);
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
@@ -218,6 +220,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
             plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
+        fftwf_destroy_plan(plan);
 
         // save a copy of the k-space density field
     }
@@ -244,7 +247,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 
                 // copy over unfiltered box
                 memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-
+                fftwf_destroy_plan(plan);
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
@@ -253,6 +256,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
             plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
+        fftwf_destroy_plan(plan);
 
         //smooth the field
         if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
@@ -280,6 +284,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                 // copy over unfiltered box
                 memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
+                fftwf_destroy_plan(plan);
                 plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
@@ -288,6 +293,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
             plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
+        fftwf_destroy_plan(plan);
 
         // normalize after FFT
         for(i=0; i<user_params->HII_DIM; i++){
@@ -363,6 +369,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
             // copy over unfiltered box
             memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
+            fftwf_destroy_plan(plan);
             plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
             fftwf_execute(plan);
         }
@@ -371,6 +378,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
         plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_ESTIMATE);
         fftwf_execute(plan);
     }
+    fftwf_destroy_plan(plan);
 
     for (i=0; i<user_params->HII_DIM; i++){
         for (j=0; j<user_params->HII_DIM; j++){
@@ -383,6 +391,9 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
     // deallocate
     fftwf_free(LOWRES_density_perturb);
     fftwf_free(LOWRES_density_perturb_saved);
+
+//    fftwf_destroy_plan(plan);
+    fftwf_cleanup();
 
     return(0);
 

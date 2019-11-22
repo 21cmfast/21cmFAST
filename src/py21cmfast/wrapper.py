@@ -609,7 +609,8 @@ class IonizedBox(_OutputStructZ):
                                  max(self.astro_params.R_BUBBLE_MIN, self.user_params.L_FACTOR*self.user_params.BOX_LEN/self.user_params.HII_DIM)) /\
                          np.log(global_params.DELTA_R_HII_FACTOR) ) + 1
 
-        # ionized_box is always initialised to be neutral for excursion set algorithm. Hence np.ones instead of np.zeros
+        # ionized_box is always initialised to be neutral for excursion set algorithm.
+        # Hence np.ones instead of np.zeros
         self.xH_box = np.ones(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.Gamma12_box = np.zeros(
             self.user_params.HII_tot_num_pixels, dtype=np.float32
@@ -1047,8 +1048,7 @@ def get_photon_nonconservation_data():
     ]
 
     photon_nonconservation_data = {
-        name: np.ndarray(d[:index])
-        for name, d, index in zip(data_list, data, ArrayIndices)
+        name: d[:index] for name, d, index in zip(data_list, data, ArrayIndices)
     }
 
     return photon_nonconservation_data
@@ -1267,6 +1267,7 @@ def ionize_box(
     write=True,
     direc=None,
     random_seed=None,
+    cleanup=True,
 ):
     """
     Compute an ionized box at a given redshift.
@@ -1322,6 +1323,13 @@ def ionize_box(
 
     cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
+
+    cleanup : bool, optional
+        A flag to specify whether the C routine cleans up its memory before returning.
+        Typically, if `spin_temperature` is called directly, you will want this to be
+        true, as if the next box to be calculate has different shape, errors will occur
+        if memory is not cleaned. However, it can be useful to set it to False if
+        scrolling through parameters for the same box shape.
 
     Returns
     -------
@@ -1485,8 +1493,8 @@ def ionize_box(
             prev_z = None
             if redshift < global_params.Z_HEAT_MAX:
                 logger.warning(
-                    "Attempting to evaluate ionization field at z=%s as if it was beyond Z_HEAT_MAX=%s"
-                    % (redshift, global_params.Z_HEAT_MAX)
+                    "Attempting to evaluate ionization field at z=%s as if it was "
+                    "beyond Z_HEAT_MAX=%s" % (redshift, global_params.Z_HEAT_MAX)
                 )
 
         # Ensure the previous spin temperature has a higher redshift than this one.
@@ -1529,13 +1537,15 @@ def ionize_box(
                 regenerate=regenerate,
                 write=write,
                 direc=direc,
+                cleanup=False,  # We *know* we're going to need the memory again.
             )
 
     # Dynamically produce the perturbed field.
     if perturbed_field is None or not perturbed_field.filled:
         perturbed_field = perturb_field(
             init_boxes=init_boxes,
-            # NOTE: this is required, rather than using cosmo_ and user_, since init may have a set seed.
+            # NOTE: this is required, rather than using cosmo_ and user_,
+            # since init may have a set seed.
             redshift=redshift,
             regenerate=regenerate,
             write=write,
@@ -1568,6 +1578,7 @@ def ionize_box(
             direc=direc,
             write=write,
             regenerate=regenerate,
+            cleanup=cleanup,
         )
 
     # Run the C Code
@@ -1604,6 +1615,7 @@ def spin_temperature(
     write=True,
     direc=None,
     random_seed=None,
+    cleanup=True,
 ):
     """
     Compute spin temperature boxes at a given redshift.
@@ -1654,10 +1666,12 @@ def spin_temperature(
     cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
 
-    use_interp_perturb_field : bool, optional
-        Whether to use a single perturb field, at the lowest redshift of the lightcone, to determine all spin
-        temperature fields. If so, this field is interpolated in the underlying C-code to the correct redshift.
-        This is less accurate, but provides compatibility with older versions of 21cmMC.
+    cleanup : bool, optional
+        A flag to specify whether the C routine cleans up its memory before returning.
+        Typically, if `spin_temperature` is called directly, you will want this to be
+        true, as if the next box to be calculate has different shape, errors will occur
+        if memory is not cleaned. However, it can be useful to set it to False if
+        scrolling through parameters for the same box shape.
 
     Returns
     -------
@@ -1850,6 +1864,7 @@ def spin_temperature(
                 regenerate=regenerate,
                 write=write,
                 direc=direc,
+                cleanup=False,  # we know we'll need the memory again
             )
 
     # Dynamically produce the perturbed field.
@@ -1877,6 +1892,7 @@ def spin_temperature(
         box.astro_params,
         box.flag_options,
         perturbed_field.redshift,
+        cleanup,
         perturbed_field,
         previous_spin_temp,
         write=write,
@@ -2000,6 +2016,7 @@ def run_coeval(
     perturb=None,
     use_interp_perturb_field=False,
     random_seed=None,
+    cleanup=True,
 ):
     """
     Evaluates a coeval ionized box at a given redshift, or multiple redshift.
@@ -2028,18 +2045,26 @@ def run_coeval(
     z_step_factor: float, optional
         How large the logarithmic steps between redshift are (if required).
     z_heat_max: float, optional
-        Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift up to which heating sources
-        are required to specify the ionization field. Beyond this, the ionization field is specified directly from
-        the perturbed density field.
+        Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift
+        up to which heating sources are required to specify the ionization field. Beyond
+        this, the ionization field is specified directly from the perturbed density field.
     init_box : :class:`~InitialConditions`, optional
-        If given, the user and cosmo params will be set from this object, and it will not be re-calculated.
+        If given, the user and cosmo params will be set from this object, and it will not
+        be re-calculated.
     perturb : list of :class:`~PerturbedField`s, optional
-        If given, must be compatible with init_box. It will merely negate the necessity of re-calculating the
-        perturb fields.
+        If given, must be compatible with init_box. It will merely negate the necessity
+        of re-calculating the perturb fields.
     use_interp_perturb_field : bool, optional
-        Whether to use a single perturb field, at the lowest redshift of the lightcone, to determine all spin
-        temperature fields. If so, this field is interpolated in the underlying C-code to the correct redshift.
-        This is less accurate (and no more efficient), but provides compatibility with older versions of 21cmMC.
+        Whether to use a single perturb field, at the lowest redshift of the lightcone,
+        to determine all spin temperature fields. If so, this field is interpolated in
+        the underlying C-code to the correct redshift. This is less accurate (and no more
+        efficient), but provides compatibility with older versions of 21cmMC.
+    cleanup : bool, optional
+        A flag to specify whether the C routine cleans up its memory before returning.
+        Typically, if `spin_temperature` is called directly, you will want this to be
+        true, as if the next box to be calculate has different shape, errors will occur
+        if memory is not cleaned. Note that internally, this is set to False until the
+        last iteration.
 
     Returns
     -------
@@ -2152,7 +2177,7 @@ def run_coeval(
     # Turn into a set so that exact matching user-set redshift
     # don't double-up with scrolling ones.
     redshifts += redshift
-    redshifts = sorted(list(set(redshifts)), reverse=True)
+    redshifts = sorted(set(redshifts), reverse=True)
 
     ib_tracker = [0] * len(redshift)
     bt = [0] * len(redshift)
@@ -2183,6 +2208,9 @@ def run_coeval(
                 direc=direc,
                 z_heat_max=global_params.Z_HEAT_MAX,
                 z_step_factor=z_step_factor,
+                cleanup=(
+                    cleanup and z == redshifts[-1]
+                ),  # cleanup if its the last time through
             )
 
             if z not in redshift:
@@ -2202,6 +2230,9 @@ def run_coeval(
             z_heat_max=global_params.Z_HEAT_MAX,
             write=write,
             direc=direc,
+            cleanup=(
+                cleanup and z == redshifts[-1]
+            ),  # cleanup if its the last time through
         )
 
         if z not in redshift:
@@ -2318,6 +2349,7 @@ def run_lightcone(
     perturb=None,
     random_seed=None,
     use_interp_perturb_field=False,
+    cleanup=True,
 ):
     """
     Evaluates a full lightcone ending at a given redshift.
@@ -2355,6 +2387,12 @@ def run_lightcone(
         Whether to use a single perturb field, at the lowest redshift of the lightcone, to determine all spin
         temperature fields. If so, this field is interpolated in the underlying C-code to the correct redshift.
         This is less accurate (and no more efficient), but provides compatibility with older versions of 21cmMC.
+    cleanup : bool, optional
+        A flag to specify whether the C routine cleans up its memory before returning.
+        Typically, if `spin_temperature` is called directly, you will want this to be
+        true, as if the next box to be calculate has different shape, errors will occur
+        if memory is not cleaned. Note that internally, this is set to False until the
+        last iteration.
 
     Returns
     -------
@@ -2479,6 +2517,7 @@ def run_lightcone(
                 z_step_factor=z_step_factor,
                 write=write,
                 direc=direc,
+                cleanup=(cleanup and iz == (len(scrollz) - 1)),
             )
 
         ib2 = ionize_box(
@@ -2494,6 +2533,7 @@ def run_lightcone(
             z_step_factor=z_step_factor,
             write=write,
             direc=direc,
+            cleanup=(cleanup and iz == (len(scrollz) - 1)),
         )
 
         bt2 = brightness_temperature(
@@ -2506,10 +2546,8 @@ def run_lightcone(
         neutral_fraction[iz] = np.mean(ib2.xH_box)
         global_signal[iz] = np.mean(bt2.brightness_temp)
 
-        # HERE IS WHERE WE NEED TO DO THE INTERPOLATION ONTO THE LIGHTCONE!
-        if (
-            z < max_redshift
-        ):  # i.e. now redshift is in the bit where the user wants to save the lightcone:
+        # Interpolate the lightcone
+        if z < max_redshift:
             # Do linear interpolation only.
             prev_d = scroll_distances[iz - 1]
             this_d = scroll_distances[iz]
@@ -2540,6 +2578,8 @@ def run_lightcone(
 
     if flag_options.PHOTON_CONS:
         photon_nonconservation_data = get_photon_nonconservation_data()
+    else:
+        photon_nonconservation_data = None
 
     return LightCone(
         redshift,
@@ -2551,9 +2591,7 @@ def run_lightcone(
         node_redshifts=scrollz,
         global_xHI=neutral_fraction,
         global_brightness_temp=global_signal,
-        photon_nonconservation_data=photon_nonconservation_data
-        if flag_options.PHOTON_CONS
-        else None,
+        photon_nonconservation_data=photon_nonconservation_data,
     )
 
 

@@ -176,6 +176,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             // copy over unfiltered box
             memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
+            fftwf_destroy_plan(plan);
             plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
             fftwf_execute(plan);
         }
@@ -184,6 +185,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
         plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
         fftwf_execute(plan);
     }
+    fftwf_destroy_plan(plan);
 
     // now sample the filtered box
     for (i=0; i<user_params->HII_DIM; i++){
@@ -204,10 +206,13 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 //note we do NOT filter our boxes first, in order to keep the total number of boxes small.
     plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_ESTIMATE);
     fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
     plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_ESTIMATE);
     fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
     plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE);
     fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
 
 // sample the UNfiltered velocity box and save it to python
     for (i=0; i<user_params->DIM; i++){
@@ -223,10 +228,13 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
   //now FFT back to Fourier space to filter
     plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_ESTIMATE);
     fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
     plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_ESTIMATE);
     fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
     plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_z, (fftwf_complex *)HIRES_box_vcb_z, FFTW_ESTIMATE);
     fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
 
   //and filter each box:
     if (user_params->DIM != user_params->HII_DIM){
@@ -238,10 +246,13 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 //and transform back to real space
     plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_ESTIMATE);
     fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
     plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_ESTIMATE);
     fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
     plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE);
     fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
 
 
   //to save into a lowres box
@@ -285,6 +296,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
         plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
     }
     fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
 
     for (i=0; i<user_params->DIM; i++){
         for (j=0; j<user_params->DIM; j++){
@@ -345,6 +357,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
         }
         fftwf_execute(plan);
+        fftwf_destroy_plan(plan);
 
         // now sample to lower res
         // now sample the filtered box
@@ -443,6 +456,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                 // Now we can generate the real phi_1[i,j]
                 plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)phi_1[PHI_INDEX(i, j)], (float *)phi_1[PHI_INDEX(i, j)], FFTW_ESTIMATE);
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
             }
         }
 
@@ -502,6 +516,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                     }
                 }
 
+                fftwf_destroy_plan(plan);
                 plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
@@ -510,6 +525,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
+        fftwf_destroy_plan(plan);
 
         memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
@@ -579,6 +595,8 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                 plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
+
             // now sample to lower res
             // now sample the filtered box
             for (i=0; i<user_params->HII_DIM; i++){
@@ -624,7 +642,8 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     fftwf_free(HIRES_box_saved);
 
     free_ps();
-
+//    fftwf_destroy_plan(plan);
+    fftwf_cleanup();
 
     return(0);
 }
