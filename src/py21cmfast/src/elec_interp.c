@@ -45,7 +45,8 @@ float x_int_nion_HeI[x_int_NXHII][x_int_NENERGY];
 float x_int_nion_HeII[x_int_NXHII][x_int_NENERGY];
 
 void skipline(FILE *fl, int n){
-    for(int i=0;i<n;i++) {
+    int i;
+    for(i=0;i<n;i++) {
         char c;
         do {
             c = fgetc(fl);

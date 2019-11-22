@@ -30,7 +30,7 @@ float initialised_redshift = 0.0;
 
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                  float perturbed_field_redshift,
+                  float perturbed_field_redshift, short cleanup,
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp) {
 
 LOG_DEBUG("input values:");
@@ -411,6 +411,7 @@ LOG_SUPER_DEBUG("Allocated unfiltered box");
                         }
                     }
 
+                    fftwf_destroy_plan(plan);
                     plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_WISDOM_ONLY);
                     fftwf_execute(plan);
                 }
@@ -419,6 +420,7 @@ LOG_SUPER_DEBUG("Allocated unfiltered box");
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_ESTIMATE);
                 fftwf_execute(plan);
             }
+            fftwf_destroy_plan(plan);
 LOG_SUPER_DEBUG("Done FFT on unfiltered box");
 
             // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
@@ -467,6 +469,7 @@ LOG_SUPER_DEBUG("normalised unfiltered box");
                             filter_box(box, 1, global_params.HEAT_FILTER, R);
                         }
 
+                        fftwf_destroy_plan(plan);
                         plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)box, (float *)box, FFTW_WISDOM_ONLY);
                         fftwf_execute(plan);
                     }
@@ -475,7 +478,7 @@ LOG_SUPER_DEBUG("normalised unfiltered box");
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)box, (float *)box, FFTW_ESTIMATE);
                     fftwf_execute(plan);
                 }
-
+                fftwf_destroy_plan(plan);
 LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
 
                 min_density = 0.0;
@@ -1437,6 +1440,13 @@ LOG_SUPER_DEBUG("finished loop");
 
     } // end main integral loop over z'
 
+
+    fftwf_free(box);
+    fftwf_free(unfiltered_box);
+
+//    fftwf_destroy_plan(plan);
+    fftwf_cleanup();
+
     // Free all the boxes. Ideally, we wouldn't do this, as almost always
     // the *next* call to ComputeTsBox will need the same memory. However,
     // we can't be sure that a call from python will not have changed the box size
@@ -1444,77 +1454,117 @@ LOG_SUPER_DEBUG("finished loop");
     // check (probably in python) every time spin() is called, whether the boxes
     // are already initialised _and_ whether they are of the right shape. This
     // seems difficult, so we leave that as future work.
-    free_TsCalcBoxes();
+    if(cleanup) free_TsCalcBoxes(flag_options);
     return(0);
 }
 
 
-void free_TsCalcBoxes()
+void free_TsCalcBoxes(struct FlagOptions *flag_options)
 {
     int i,j;
 
-    for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
-        for(j=0;j<zpp_interp_points_SFR;j++) {
-            free(fcoll_R_grid[i][j]);
-            free(dfcoll_dz_grid[i][j]);
-        }
-        free(fcoll_R_grid[i]);
-        free(dfcoll_dz_grid[i]);
-    }
-    free(fcoll_R_grid);
-    free(dfcoll_dz_grid);
+    free(zpp_edge);
+    free(sigma_atR);
+    free(R_values);
 
-    for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
-        free(grid_dens[i]);
-    }
-    free(grid_dens);
+    free(min_densities);
+    free(max_densities);
 
-    for(i=0;i<dens_Ninterp;i++) {
-        free(density_gridpoints[i]);
-    }
-    free(density_gridpoints);
+    free(zpp_interp_table);
 
-    free(ST_over_PS_arg_grid);
-    free(Sigma_Tmin_grid);
+    free(SingleVal_int);
+    free(dstarlya_dt_prefactor);
     free(fcoll_R_array);
     free(zpp_growth);
     free(inverse_diff);
 
-    for(i=0;i<dens_Ninterp;i++) {
-        free(fcoll_interp1[i]);
-        free(fcoll_interp2[i]);
-        free(dfcoll_interp1[i]);
-        free(dfcoll_interp2[i]);
-    }
-    free(fcoll_interp1);
-    free(fcoll_interp2);
-    free(dfcoll_interp1);
-    free(dfcoll_interp2);
-
-    for(i=0;i<HII_TOT_NUM_PIXELS;i++) {
-        free(dens_grid_int_vals[i]);
-        free(delNL0_rev[i]);
-    }
-    free(dens_grid_int_vals);
-    free(delNL0_rev);
-
-    free(delNL0_bw);
-    free(zpp_for_evolve_list);
-    free(R_values);
-    free(delNL0_Offset);
-    free(delNL0_LL);
-    free(delNL0_UL);
-    free(SingleVal_int);
-    free(dstarlya_dt_prefactor);
-    free(delNL0_ibw);
-    free(log10delNL0_diff);
-    free(log10delNL0_diff_UL);
-
-    free(zpp_edge);
-    free(sigma_atR);
     free(sigma_Tmin);
     free(ST_over_PS);
     free(sum_lyn);
+    free(zpp_for_evolve_list);
+
+
+    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+        free(SFR_timescale_factor);
+
+        for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
+            free(delNL0[i]);
+        }
+        free(delNL0);
+
+        free(xi_SFR_Xray);
+        free(wi_SFR_Xray);
+
+        for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
+            free(log10_SFRD_z_low_table[j]);
+        }
+        free(log10_SFRD_z_low_table);
+
+        for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
+            free(SFRD_z_high_table[j]);
+        }
+        free(SFRD_z_high_table);
+
+        free(del_fcoll_Rct);
+        free(dxheat_dt_box);
+        free(dxion_source_dt_box);
+        free(dxlya_dt_box);
+        free(dstarlya_dt_box);
+        free(m_xHII_low_box);
+        free(inverse_val_box);
+
+    }
+    else {
+
+        free(Sigma_Tmin_grid);
+        free(ST_over_PS_arg_grid);
+        free(delNL0_bw);
+        free(delNL0_Offset);
+        free(delNL0_LL);
+        free(delNL0_UL);
+        free(delNL0_ibw);
+        free(log10delNL0_diff);
+        free(log10delNL0_diff_UL);
+
+        for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
+            for(j=0;j<zpp_interp_points_SFR;j++) {
+                free(fcoll_R_grid[i][j]);
+                free(dfcoll_dz_grid[i][j]);
+            }
+            free(fcoll_R_grid[i]);
+            free(dfcoll_dz_grid[i]);
+        }
+        free(fcoll_R_grid);
+        free(dfcoll_dz_grid);
+
+        for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
+            free(grid_dens[i]);
+        }
+        free(grid_dens);
+
+        for(i=0;i<dens_Ninterp;i++) {
+            free(density_gridpoints[i]);
+        }
+        free(density_gridpoints);
+
+        for(i=0;i<HII_TOT_NUM_PIXELS;i++) {
+            free(dens_grid_int_vals[i]);
+            free(delNL0_rev[i]);
+        }
+        free(dens_grid_int_vals);
+        free(delNL0_rev);
+
+        for(i=0;i<dens_Ninterp;i++) {
+            free(fcoll_interp1[i]);
+            free(fcoll_interp2[i]);
+            free(dfcoll_interp1[i]);
+            free(dfcoll_interp2[i]);
+        }
+        free(fcoll_interp1);
+        free(fcoll_interp2);
+        free(dfcoll_interp1);
+        free(dfcoll_interp2);
+    }
 
     for(i=0;i<x_int_NXHII;i++) {
         free(freq_int_heat_tbl[i]);
