@@ -960,7 +960,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     }
                                 }
                                 else {
-                                    if (curr_dens < 0.9*Deltac) {
+                                    if (curr_dens < 0.99*Deltac) {
                                         
                                         dens_val = (curr_dens - overdense_large_min)*overdense_large_bin_width_inv;
                                         
@@ -1012,7 +1012,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     }
                                 }
                                 else {
-                                    if (curr_dens < 0.9*Deltac) {
+                                    if (curr_dens < 0.99*Deltac) {
                                         
                                         dens_val = (curr_dens - overdense_large_min)*overdense_large_bin_width_inv;
                                         
@@ -1068,7 +1068,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                         }
                                     }
                                     else {
-                                        if (prev_dens < 0.9*Deltac) {
+                                        if (prev_dens < 0.99*Deltac) {
                                             
                                             prev_dens_val = (prev_dens - prev_overdense_large_min)*prev_overdense_large_bin_width_inv;
                                             
