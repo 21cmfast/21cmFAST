@@ -582,7 +582,8 @@ class IonizedBox(_OutputStructZ):
         super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
 
     def _init_arrays(self):
-        # ionized_box is always initialised to be neutral for excursion set algorithm. Hence np.ones instead of np.zeros
+        # ionized_box is always initialised to be neutral for excursion set algorithm.
+        # Hence np.ones instead of np.zeros
         self.xH_box = np.ones(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.Gamma12_box = np.zeros(
             self.user_params.HII_tot_num_pixels, dtype=np.float32
