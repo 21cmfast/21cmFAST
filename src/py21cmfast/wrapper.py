@@ -2124,7 +2124,7 @@ def run_coeval(
     # Turn into a set so that exact matching user-set redshift
     # don't double-up with scrolling ones.
     redshifts += redshift
-    redshifts = sorted(list(set(redshifts)), reverse=True)
+    redshifts = sorted(set(redshifts), reverse=True)
 
     ib_tracker = [0] * len(redshift)
     bt = [0] * len(redshift)

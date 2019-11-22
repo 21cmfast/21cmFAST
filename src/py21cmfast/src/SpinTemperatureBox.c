@@ -1466,45 +1466,45 @@ void free_TsCalcBoxes(struct FlagOptions *flag_options)
     free(zpp_edge);
     free(sigma_atR);
     free(R_values);
-    
+
     free(min_densities);
     free(max_densities);
-    
+
     free(zpp_interp_table);
-    
+
     free(SingleVal_int);
     free(dstarlya_dt_prefactor);
     free(fcoll_R_array);
     free(zpp_growth);
     free(inverse_diff);
-    
+
     free(sigma_Tmin);
     free(ST_over_PS);
     free(sum_lyn);
     free(zpp_for_evolve_list);
 
-    
+
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         free(SFR_timescale_factor);
-        
+
         for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
             free(delNL0[i]);
         }
         free(delNL0);
-        
+
         free(xi_SFR_Xray);
         free(wi_SFR_Xray);
-        
+
         for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
             free(log10_SFRD_z_low_table[j]);
         }
         free(log10_SFRD_z_low_table);
-        
+
         for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
             free(SFRD_z_high_table[j]);
         }
         free(SFRD_z_high_table);
-        
+
         free(del_fcoll_Rct);
         free(dxheat_dt_box);
         free(dxion_source_dt_box);
@@ -1512,10 +1512,10 @@ void free_TsCalcBoxes(struct FlagOptions *flag_options)
         free(dstarlya_dt_box);
         free(m_xHII_low_box);
         free(inverse_val_box);
-        
+
     }
     else {
-        
+
         free(Sigma_Tmin_grid);
         free(ST_over_PS_arg_grid);
         free(delNL0_bw);
@@ -1525,7 +1525,7 @@ void free_TsCalcBoxes(struct FlagOptions *flag_options)
         free(delNL0_ibw);
         free(log10delNL0_diff);
         free(log10delNL0_diff_UL);
-        
+
         for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
             for(j=0;j<zpp_interp_points_SFR;j++) {
                 free(fcoll_R_grid[i][j]);
@@ -1536,24 +1536,24 @@ void free_TsCalcBoxes(struct FlagOptions *flag_options)
         }
         free(fcoll_R_grid);
         free(dfcoll_dz_grid);
-        
+
         for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
             free(grid_dens[i]);
         }
         free(grid_dens);
-        
+
         for(i=0;i<dens_Ninterp;i++) {
             free(density_gridpoints[i]);
         }
         free(density_gridpoints);
-        
+
         for(i=0;i<HII_TOT_NUM_PIXELS;i++) {
             free(dens_grid_int_vals[i]);
             free(delNL0_rev[i]);
         }
         free(dens_grid_int_vals);
         free(delNL0_rev);
-        
+
         for(i=0;i<dens_Ninterp;i++) {
             free(fcoll_interp1[i]);
             free(fcoll_interp2[i]);
@@ -1580,6 +1580,6 @@ void free_TsCalcBoxes(struct FlagOptions *flag_options)
     free(freq_int_heat_tbl_diff);
     free(freq_int_ion_tbl_diff);
     free(freq_int_lya_tbl_diff);
-    
+
     TsInterpArraysInitialised = false;
 }
