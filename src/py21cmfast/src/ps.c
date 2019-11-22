@@ -19,8 +19,10 @@ static gsl_spline *erfc_spline;
 
 #define NMass 300
 
-#define NSFR_high 50 //200
-#define NSFR_low 50 //250
+#define NSFR_high 200
+#define NSFR_low 250
+//#define NSFR_high 50 //200
+//#define NSFR_low 50 //250
 #define NGL_SFR 100 // 100
 #define NMTURN 50//100
 #define LOG10_MTURN_MAX (double) (10)
@@ -2514,7 +2516,7 @@ int initialise_SFRD_Conditional_table(int Nfilter, float min_density[], float ma
 
         Mmax = RtoM(R[j]);
         
-        initialiseGL_Nion_Xray(NGL_SFR, MassTurnover/50., Mmax);
+        initialiseGL_Nion_Xray(NGL_SFR, MassTurnover, Mmax);
         
         Mmax = log(Mmax);
         MassBin = (int)floor( ( Mmax - MinMass )*inv_mass_bin_width );

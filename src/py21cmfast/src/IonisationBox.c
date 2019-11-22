@@ -93,10 +93,11 @@ LOG_SUPER_DEBUG("defined parameters");
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
-           ION_EFF_FACTOR_MINI = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
+        ION_EFF_FACTOR_MINI = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
     }
     else {
         ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;
+		ION_EFF_FACTOR_MINI = 0.;
     }
 
     // For recombinations

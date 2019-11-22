@@ -129,6 +129,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     }
     else {
         ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;
+		ION_EFF_FACTOR_MINI = 0.;
     }
 
     // Initialise arrays to be used for the Ts.c computation //
@@ -1170,6 +1171,9 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
             // do the same for MINI
             const_zp_prefactor_MINI = ( (astro_params->L_X_MINI) * Luminosity_converstion_factor ) / ((astro_params->NU_X_THRESH)*NU_over_EV) * C * astro_params->F_STAR7_MINI * cosmo_params->OMb * RHOcrit * pow(CMperMPC, -3) * pow(1+zp, astro_params->X_RAY_SPEC_INDEX+3);
         }
+		else{
+			const_zp_prefactor_MINI = 0.;
+		}
         //////////////////////////////  LOOP THROUGH BOX //////////////////////////////
 
         J_alpha_ave = xalpha_ave = Xheat_ave = Xion_ave = 0.;
