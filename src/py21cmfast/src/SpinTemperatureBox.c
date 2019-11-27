@@ -594,17 +594,17 @@ LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
 LOG_ULTRA_DEBUG("COPIED OVER VALUES");
 
                 if(min_density < 0.0) {
-                    min_density = min_density*1.01;
+                    min_density = min_density*1.001;
                     // min_density here can exceed -1. as it is always extrapolated back to the appropriate redshift
                 }
                 else {
-                    min_density = min_density*0.99;
+                    min_density = min_density*0.999;
                 }
                 if(max_density < 0.0) {
-                    max_density = max_density*0.99;
+                    max_density = max_density*0.999;
                 }
                 else {
-                    max_density = max_density*1.01;
+                    max_density = max_density*1.001;
                 }
 
                 if(!flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -1118,7 +1118,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
 LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
 
-        fcoll_interp_high_min = global_params.CRIT_DENS_TRANSITION * 0.99;
+        fcoll_interp_high_min = global_params.CRIT_DENS_TRANSITION;
         fcoll_interp_high_bin_width = 1./((float)NSFR_high-1.)*(Deltac - fcoll_interp_high_min);
         fcoll_interp_high_bin_width_inv = 1./fcoll_interp_high_bin_width;
 
@@ -1355,7 +1355,7 @@ LOG_SUPER_DEBUG("looping over box...");
                         }
                         else {
 
-                            if (curr_dens < 0.9*Deltac) {
+                            if (curr_dens < 0.99*Deltac) {
 
                                 dens_val = (curr_dens - fcoll_interp_high_min)*fcoll_interp_high_bin_width_inv;
 

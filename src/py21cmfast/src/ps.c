@@ -2108,6 +2108,10 @@ int initialise_Nion_General_spline(float z, float min_density, float max_density
             return(-1);
         }
 
+		if(log10_Nion_spline[i] < -40.){
+			log10_Nion_spline[i] = -40.;
+		}
+
         log10_Nion_spline[i] *= ln_10;
 
     }
@@ -2516,7 +2520,7 @@ int initialise_SFRD_Conditional_table(int Nfilter, float min_density[], float ma
 
         Mmax = RtoM(R[j]);
         
-        initialiseGL_Nion_Xray(NGL_SFR, MassTurnover, Mmax);
+        initialiseGL_Nion_Xray(NGL_SFR, MassTurnover/50., Mmax);
         
         Mmax = log(Mmax);
         MassBin = (int)floor( ( Mmax - MinMass )*inv_mass_bin_width );

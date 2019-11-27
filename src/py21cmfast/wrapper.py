@@ -247,7 +247,7 @@ class UserParams(StructWithDefaults):
         "HMF": 1,
         "USE_RELATIVE_VELOCITIES": False,
         "POWER_SPECTRUM": 0,
-		"L_FACTOR": 0.620350491,
+        "L_FACTOR": 0.620350491,
     }
 
     @property
@@ -371,10 +371,10 @@ class AstroParams(StructWithDefaults):
     _defaults_ = {
         "HII_EFF_FACTOR": 30.0,
         "F_STAR10": -1.3,
-		"F_STAR7_MINI": -99,
+        "F_STAR7_MINI": -99,
         "ALPHA_STAR": 0.5,
         "F_ESC10": -1.0,
-		"F_ESC7_MINI": -2.0,
+        "F_ESC7_MINI": -2.0,
         "ALPHA_ESC": -0.5,
         "M_TURN": 8.7,
         "R_BUBBLE_MAX": None,
@@ -384,7 +384,7 @@ class AstroParams(StructWithDefaults):
         "NU_X_THRESH": 500.0,
         "X_RAY_SPEC_INDEX": 1.0,
         "X_RAY_Tvir_MIN": None,
-		"F_H2_SHIELD": 0.0,
+        "F_H2_SHIELD": 0.0,
         "t_STAR": 0.5,
         "N_RSD_STEPS": 20,
     }
