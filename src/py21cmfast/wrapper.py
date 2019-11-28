@@ -353,7 +353,7 @@ class AstroParams(StructWithDefaults):
     R_BUBBLE_MIN : float, optional
         Minimum radius of an HII region in cMpc.  One can set this to 0, but should be careful with
         shot noise if the find_HII_bubble algorithm is run on a fine, non-linear density grid.
-        Default is L_FACTOR + 1
+        Default is L_FACTOR 
     ION_Tvir_MIN : float, optional
     L_X : float, optional
     L_X_MINI : float, optional
@@ -390,7 +390,7 @@ class AstroParams(StructWithDefaults):
     }
 
     def __init__(
-        self, *args, INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"], R_BUBBLE_MIN=UserParams._defaults_["L_FACTOR"] + 1, **kwargs
+        self, *args, INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"], R_BUBBLE_MIN=UserParams._defaults_["L_FACTOR"], **kwargs
     ):
         # TODO: should try to get inhomo_reco out of here... just needed for default of R_BUBBLE_MAX.
         self.INHOMO_RECO = INHOMO_RECO
