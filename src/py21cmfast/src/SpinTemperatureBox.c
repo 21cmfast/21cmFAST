@@ -64,7 +64,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     short dens_grid_int;
 
     double Tk_ave, J_alpha_ave, xalpha_ave, J_alpha_tot, Xheat_ave, Xion_ave, nuprime, Ts_ave, lower_int_limit,Luminosity_converstion_factor,T_inv_TS_fast_inv;
-    double J_LW_ave, J_alpha_tot_MINI, J_alpha_ave_MINI, J_LW_ave_MINI,dxheat_dzp_MINI,Xheat_ave_MINI; 
+    double J_LW_ave, J_alpha_tot_MINI, J_alpha_ave_MINI, J_LW_ave_MINI,dxheat_dzp_MINI,Xheat_ave_MINI;
     double dadia_dzp, dcomp_dzp, dxheat_dt, dxion_source_dt, dxion_sink_dt, T, x_e, dxe_dzp, n_b, dspec_dzp, dxheat_dzp, dxlya_dt, dstarlya_dt, fcoll_R;
     double Trad_fast,xc_fast,xc_inverse,TS_fast,TSold_fast,xa_tilde_fast,TS_prefactor,xa_tilde_prefactor,T_inv,T_inv_sq,xi_power,xa_tilde_fast_arg,Trad_fast_inv,TS_fast_inv,dcomp_dzp_prefactor;
 
@@ -848,14 +848,14 @@ LOG_SUPER_DEBUG("Initialised SFRD table");
                 for (i=0; i<user_params->HII_DIM; i++){
                   for (j=0; j<user_params->HII_DIM; j++){
                     for (k=0; k<user_params->HII_DIM; k++){
-                      *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k)) = log10(lyman_werner_threshold(zp, previous_spin_temp->J_21_LW_box[HII_R_INDEX(i,j,k)]));  
-                      log10_Mcrit_LW_ave += *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k));                                                                                                
+                      *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k)) = log10(lyman_werner_threshold(zp, previous_spin_temp->J_21_LW_box[HII_R_INDEX(i,j,k)]));
+                      log10_Mcrit_LW_ave += *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k));
                     }
                   }
                 }
                 log10_Mcrit_LW_ave /= HII_TOT_NUM_PIXELS;
 
-                log10_Mcrit_LW_ave_int_Nion_z = (int)floor( ( log10_Mcrit_LW_ave - LOG10_MTURN_MIN) / LOG10_MTURN_INT);                                                                                      
+                log10_Mcrit_LW_ave_int_Nion_z = (int)floor( ( log10_Mcrit_LW_ave - LOG10_MTURN_MIN) / LOG10_MTURN_INT);
                 log10_Mcrit_LW_ave_table_Nion_z = LOG10_MTURN_MIN + LOG10_MTURN_INT * (float)log10_Mcrit_LW_ave_int_Nion_z;
 
                 Splined_Fcollzp_mean_MINI_left =    Nion_z_val_MINI[redshift_int_Nion_z  + zpp_interp_points_SFR *  log10_Mcrit_LW_ave_int_Nion_z   ] + ( zp - redshift_table_Nion_z ) / (zpp_bin_width)*\
@@ -869,10 +869,10 @@ LOG_SUPER_DEBUG("Initialised SFRD table");
                 // NEED TO FILTER Mcrit_LW!!!
                 /*** Transform unfiltered box to k-space to prepare for filtering ***/
                 if(user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)log10_Mcrit_LW_unfiltered, (fftwf_complex *)log10_Mcrit_LW_unfiltered, FFTW_WISDOM_ONLY);                             
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)log10_Mcrit_LW_unfiltered, (fftwf_complex *)log10_Mcrit_LW_unfiltered, FFTW_WISDOM_ONLY);
                 }
                 else {
-                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)log10_Mcrit_LW_unfiltered, (fftwf_complex *)log10_Mcrit_LW_unfiltered, FFTW_ESTIMATE);                                
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)log10_Mcrit_LW_unfiltered, (fftwf_complex *)log10_Mcrit_LW_unfiltered, FFTW_ESTIMATE);
                 }
                 fftwf_execute(plan);
                 for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++)
@@ -969,22 +969,22 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 ST_over_PS[R_ct] *= Splined_SFRD_zpp;
 
                 if(ION_EFF_FACTOR_MINI>1e-19){
-                    memcpy(log10_Mcrit_LW_filtered, log10_Mcrit_LW_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);                                                                                   
+                    memcpy(log10_Mcrit_LW_filtered, log10_Mcrit_LW_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
                     if (R_ct > 0){// don't filter on cell size
                         filter_box(log10_Mcrit_LW_filtered, 1, global_params.HEAT_FILTER, R_values[R_ct]);
                     }
                     if(user_params->USE_FFTW_WISDOM) {
-                        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)log10_Mcrit_LW_filtered, (float *)log10_Mcrit_LW_filtered, FFTW_WISDOM_ONLY);                                 
+                        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)log10_Mcrit_LW_filtered, (float *)log10_Mcrit_LW_filtered, FFTW_WISDOM_ONLY);
                     }
                     else {
-                        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)log10_Mcrit_LW_filtered, (float *)log10_Mcrit_LW_filtered, FFTW_ESTIMATE);                                    
+                        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)log10_Mcrit_LW_filtered, (float *)log10_Mcrit_LW_filtered, FFTW_ESTIMATE);
                     }
                     fftwf_execute(plan);
                     log10_Mcrit_LW_ave = 0; //recalculate it at this filtering scale
                     for (i=0; i<user_params->HII_DIM; i++){
                       for (j=0; j<user_params->HII_DIM; j++){
                           for (k=0; k<user_params->HII_DIM; k++){
-                              log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] = *((float *) log10_Mcrit_LW_filtered + HII_R_FFT_INDEX(i,j,k));                                                                            
+                              log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] = *((float *) log10_Mcrit_LW_filtered + HII_R_FFT_INDEX(i,j,k));
                               if(log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] < log10_Mcrit_mol)
                                   log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] = log10_Mcrit_mol;
                               if (log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] > LOG10_MTURN_MAX)
@@ -995,7 +995,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                     }
                     log10_Mcrit_LW_ave /= HII_TOT_NUM_PIXELS;
 
-                    log10_Mcrit_LW_ave_int_SFRD = (int)floor( ( log10_Mcrit_LW_ave - LOG10_MTURN_MIN) / LOG10_MTURN_INT);                                                                                      
+                    log10_Mcrit_LW_ave_int_SFRD = (int)floor( ( log10_Mcrit_LW_ave - LOG10_MTURN_MIN) / LOG10_MTURN_INT);
                     log10_Mcrit_LW_ave_table_SFRD = LOG10_MTURN_MIN + LOG10_MTURN_INT * (float)log10_Mcrit_LW_ave_int_SFRD;
 
                     Splined_SFRD_zpp_MINI_left  =   SFRD_val_MINI[redshift_int_SFRD  + zpp_interp_points_SFR *  log10_Mcrit_LW_ave_int_SFRD   ] + ( zpp - redshift_table_SFRD ) / (zpp_bin_width)*\
@@ -1295,7 +1295,7 @@ LOG_SUPER_DEBUG("looping over box...");
                     curr_dens = delNL0[R_ct][box_ct]*zpp_growth[R_ct];
 
                     if (ION_EFF_FACTOR_MINI>1e-19){
-                        log10_Mcrit_LW_val = ( log10_Mcrit_LW[R_ct][box_ct] - LOG10_MTURN_MIN) / LOG10_MTURN_INT;                                                                                            
+                        log10_Mcrit_LW_val = ( log10_Mcrit_LW[R_ct][box_ct] - LOG10_MTURN_MIN) / LOG10_MTURN_INT;
                         log10_Mcrit_LW_int = (int)floorf( log10_Mcrit_LW_val );
                         log10_Mcrit_LW_diff = log10_Mcrit_LW_val - (float)log10_Mcrit_LW_int;
                     }
@@ -1349,7 +1349,7 @@ LOG_SUPER_DEBUG("looping over box...");
                                                            log10_SFRD_z_low_table_MINI[R_ct][fcoll_int+1+NSFR_low*(log10_Mcrit_LW_int+1)]*( dens_val - (float)fcoll_int );
                                         fcoll_MINI       = fcoll_MINI_left * (1.-log10_Mcrit_LW_diff) + fcoll_MINI_right * log10_Mcrit_LW_diff;
                                         fcoll_MINI       = expf(fcoll_MINI);
-                                    }    
+                                    }
                                 }
                             }
                         }
@@ -1527,7 +1527,7 @@ LOG_SUPER_DEBUG("looping over box...");
                         J_alpha_tot = ( dxlya_dt_box[box_ct] + dstarlya_dt_box[box_ct] ); //not really d/dz, but the lya flux
                         if (ION_EFF_FACTOR_MINI>1e-19){
                             J_alpha_tot_MINI = ( dxlya_dt_box_MINI[box_ct] + dstarlya_dt_box_MINI[box_ct] ); //not really d/dz, but the lya flux
-                            this_spin_temp->J_21_LW_box[box_ct] = dstarlyLW_dt_box[box_ct] + dstarlyLW_dt_box_MINI[box_ct]; 
+                            this_spin_temp->J_21_LW_box[box_ct] = dstarlyLW_dt_box[box_ct] + dstarlyLW_dt_box_MINI[box_ct];
                         }
 
                         // Note: to make the code run faster, the get_Ts function call to evaluate the spin temperature was replaced with the code below.

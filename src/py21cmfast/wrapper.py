@@ -353,7 +353,7 @@ class AstroParams(StructWithDefaults):
     R_BUBBLE_MIN : float, optional
         Minimum radius of an HII region in cMpc.  One can set this to 0, but should be careful with
         shot noise if the find_HII_bubble algorithm is run on a fine, non-linear density grid.
-        Default is L_FACTOR 
+        Default is L_FACTOR
     ION_Tvir_MIN : float, optional
     L_X : float, optional
     L_X_MINI : float, optional
@@ -1322,7 +1322,7 @@ def ionize_box(
         `redshift` must be given, or `user_params`, `cosmo_params` and `redshift`.
 
     previous_perturbed_field : :class:`~PerturbField`, optional
-        An perturbed field at higher redshift. This is only used if mini_halo is included. 
+        An perturbed field at higher redshift. This is only used if mini_halo is included.
 
     init_boxes : :class:`~InitialConditions` , optional
         If given, and `perturbed_field` *not* given, these initial conditions boxes will be used to generate the

@@ -32,7 +32,7 @@ struct UserParams{
     int HMF;
     int USE_RELATIVE_VELOCITIES;
     int POWER_SPECTRUM;
-    float L_FACTOR; 
+    float L_FACTOR;
 
 };
 
@@ -48,12 +48,12 @@ struct AstroParams{
     float M_TURN;
     float F_STAR7_MINI;
     float F_ESC7_MINI;
-    
+
     float R_BUBBLE_MAX;
     float R_BUBBLE_MIN;
-    
+
     float ION_Tvir_MIN;
-    
+
     double F_H2_SHIELD;
 
     double L_X;
