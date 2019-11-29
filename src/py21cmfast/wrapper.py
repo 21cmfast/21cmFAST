@@ -390,7 +390,11 @@ class AstroParams(StructWithDefaults):
     }
 
     def __init__(
-        self, *args, INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"], R_BUBBLE_MIN=UserParams._defaults_["L_FACTOR"], **kwargs
+        self,
+        *args,
+        INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"],
+        R_BUBBLE_MIN=UserParams._defaults_["L_FACTOR"],
+        **kwargs,
     ):
         # TODO: should try to get inhomo_reco out of here... just needed for default of R_BUBBLE_MAX.
         self.INHOMO_RECO = INHOMO_RECO
@@ -599,15 +603,30 @@ class IonizedBox(_OutputStructZ):
 
         self.first_box = first_box
         if first_box:
-            self.mean_f_coll = 0.
-            self.mean_f_coll_MINI = 0.
+            self.mean_f_coll = 0.0
+            self.mean_f_coll_MINI = 0.0
 
         super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
 
     def _init_arrays(self):
-        Nfiltering = int(np.log( min(self.astro_params.R_BUBBLE_MAX, self.user_params.L_FACTOR*self.user_params.BOX_LEN) /\
-                                 max(self.astro_params.R_BUBBLE_MIN, self.user_params.L_FACTOR*self.user_params.BOX_LEN/self.user_params.HII_DIM)) /\
-                         np.log(global_params.DELTA_R_HII_FACTOR) ) + 1
+        Nfiltering = (
+            int(
+                np.log(
+                    min(
+                        self.astro_params.R_BUBBLE_MAX,
+                        self.user_params.L_FACTOR * self.user_params.BOX_LEN,
+                    )
+                    / max(
+                        self.astro_params.R_BUBBLE_MIN,
+                        self.user_params.L_FACTOR
+                        * self.user_params.BOX_LEN
+                        / self.user_params.HII_DIM,
+                    )
+                )
+                / np.log(global_params.DELTA_R_HII_FACTOR)
+            )
+            + 1
+        )
 
         # ionized_box is always initialised to be neutral for excursion set algorithm.
         # Hence np.ones instead of np.zeros
@@ -617,7 +636,9 @@ class IonizedBox(_OutputStructZ):
         )
         self.z_re_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.dNrec_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.Fcoll = np.zeros(Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.Fcoll = np.zeros(
+            Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
 
         shape = (
             self.user_params.HII_DIM,
@@ -636,8 +657,15 @@ class IonizedBox(_OutputStructZ):
         self.dNrec_box.shape = shape
         self.Fcoll.shape = filter_shape
 
-        if (self.astro_params.F_STAR7_MINI * self.astro_params.F_ESC7_MINI*global_params.Pop3_ion > 1e-19):
-            self.Fcoll_MINI = np.zeros(Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        if (
+            self.astro_params.F_STAR7_MINI
+            * self.astro_params.F_ESC7_MINI
+            * global_params.Pop3_ion
+            > 1e-19
+        ):
+            self.Fcoll_MINI = np.zeros(
+                Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32
+            )
             self.Fcoll_MINI.shape = filter_shape
 
     @cached_property
@@ -657,7 +685,9 @@ class TsBox(IonizedBox):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.x_e_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.Tk_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.J_21_LW_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.J_21_LW_box = np.zeros(
+            self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
 
         shape = (
             self.user_params.HII_DIM,
@@ -1555,14 +1585,14 @@ def ionize_box(
     if previous_perturbed_field is None or not previous_perturbed_field.filled:
         # If we are beyond Z_HEAT_MAX, just make an empty box
         if prev_z is None or prev_z > global_params.Z_HEAT_MAX:
-            previous_perturbed_field = PerturbedField(redshift=0) 
+            previous_perturbed_field = PerturbedField(redshift=0)
         else:
             previous_perturbed_field = perturb_field(
-                    init_boxes=init_boxes,
-                    redshift = prev_z,
-                    regenerate=regenerate,
-                    write=write,
-                    direc=direc,
+                init_boxes=init_boxes,
+                redshift=prev_z,
+                regenerate=regenerate,
+                write=write,
+                direc=direc,
             )
 
     # Set empty spin temp box if necessary.
