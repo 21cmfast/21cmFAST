@@ -156,7 +156,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
     if (user_params->DIM != user_params->HII_DIM)
-        filter_box(HIRES_box, 0, 0, user_params->L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+        filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
 
     // FFT back to real space
     if(user_params->USE_FFTW_WISDOM) {
@@ -238,9 +238,9 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
   //and filter each box:
     if (user_params->DIM != user_params->HII_DIM){
-      filter_box(HIRES_box_vcb_x, 0, 0, user_params->L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-      filter_box(HIRES_box_vcb_y, 0, 0, user_params->L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-      filter_box(HIRES_box_vcb_z, 0, 0, user_params->L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+      filter_box(HIRES_box_vcb_x, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+      filter_box(HIRES_box_vcb_y, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+      filter_box(HIRES_box_vcb_z, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
     }
 
 //and transform back to real space
@@ -348,7 +348,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
         }
 
         if (user_params->DIM != user_params->HII_DIM)
-            filter_box(HIRES_box, 0, 0, user_params->L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
 
         if(user_params->USE_FFTW_WISDOM) {
             plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
@@ -586,7 +586,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             }
 
             if (user_params->DIM != user_params->HII_DIM)
-                filter_box(HIRES_box, 0, 0, user_params->L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+                filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
 
             if(user_params->USE_FFTW_WISDOM) {
                 plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);

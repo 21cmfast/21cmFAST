@@ -232,9 +232,6 @@ class UserParams(StructWithDefaults):
         3: PEEBLES
         4: WHITE
         5: CLASS output
-
-    L_FACTOR : float, optional
-        Factor relating cube length to filter radius = (4PI/3)^(-1/3), default is 0.620350491
     """
 
     _ffi = ffi
@@ -247,7 +244,6 @@ class UserParams(StructWithDefaults):
         "HMF": 1,
         "USE_RELATIVE_VELOCITIES": False,
         "POWER_SPECTRUM": 0,
-        "L_FACTOR": 0.620350491,
     }
 
     @property
@@ -351,9 +347,7 @@ class AstroParams(StructWithDefaults):
     R_BUBBLE_MAX : float, optional
         Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
     R_BUBBLE_MIN : float, optional
-        Minimum radius of an HII region in cMpc.  One can set this to 0, but should be careful with
-        shot noise if the find_HII_bubble algorithm is run on a fine, non-linear density grid.
-        Default is L_FACTOR
+        Default is L_FACTOR \equiv (4PI/3)^(-1/3) = 0.620350491
     ION_Tvir_MIN : float, optional
     L_X : float, optional
     L_X_MINI : float, optional
@@ -393,12 +387,10 @@ class AstroParams(StructWithDefaults):
         self,
         *args,
         INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"],
-        R_BUBBLE_MIN=UserParams._defaults_["L_FACTOR"],
         **kwargs,
     ):
         # TODO: should try to get inhomo_reco out of here... just needed for default of R_BUBBLE_MAX.
         self.INHOMO_RECO = INHOMO_RECO
-        self.R_BUBBLE_MIN = R_BUBBLE_MIN
         super().__init__(*args, **kwargs)
 
     def convert(self, key, val):
@@ -416,6 +408,16 @@ class AstroParams(StructWithDefaults):
             return 10 ** val
         else:
             return val
+
+    @property
+    def R_BUBBLE_MIN(self):
+        """Minimum radius of bubbles to be searched in cMpc.
+           One can set this to 0, but should be careful with
+           shot noise if running on a fine, non-linear density grid."""
+        if not self._R_BUBBLE_MIN:
+            return 0.620350491
+        else:
+            return self._R_BUBBLE_MIN
 
     @property
     def R_BUBBLE_MAX(self):
@@ -614,12 +616,11 @@ class IonizedBox(_OutputStructZ):
                 np.log(
                     min(
                         self.astro_params.R_BUBBLE_MAX,
-                        self.user_params.L_FACTOR * self.user_params.BOX_LEN,
+						0.620350491 * self.user_params.BOX_LEN,
                     )
                     / max(
                         self.astro_params.R_BUBBLE_MIN,
-                        self.user_params.L_FACTOR
-                        * self.user_params.BOX_LEN
+						0.620350491 * self.user_params.BOX_LEN,
                         / self.user_params.HII_DIM,
                     )
                 )

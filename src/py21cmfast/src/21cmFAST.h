@@ -32,7 +32,6 @@ struct UserParams{
     int HMF;
     int USE_RELATIVE_VELOCITIES;
     int POWER_SPECTRUM;
-    float L_FACTOR;
 
 };
 

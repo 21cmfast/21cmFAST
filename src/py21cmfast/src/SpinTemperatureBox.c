@@ -446,7 +446,7 @@ LOG_SUPER_DEBUG("Treating as the first box");
         }
 
         /////////////// Create the z=0 non-linear density fields smoothed on scale R to be used in computing fcoll //////////////
-        R = user_params->L_FACTOR*user_params->BOX_LEN/(float)user_params->HII_DIM;
+        R = L_FACTOR*user_params->BOX_LEN/(float)user_params->HII_DIM;
         R_factor = pow(global_params.R_XLy_MAX/R, 1/((float)global_params.NUM_FILTER_STEPS_FOR_Ts));
         //      R_factor = pow(E, log(HII_DIM)/(float)NUM_FILTER_STEPS_FOR_Ts);
 LOG_SUPER_DEBUG("Looping through R");
@@ -875,6 +875,7 @@ LOG_SUPER_DEBUG("Initialised SFRD table");
                     plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)log10_Mcrit_LW_unfiltered, (fftwf_complex *)log10_Mcrit_LW_unfiltered, FFTW_ESTIMATE);
                 }
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
                 for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++)
                     log10_Mcrit_LW_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
             }
@@ -980,6 +981,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                         plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)log10_Mcrit_LW_filtered, (float *)log10_Mcrit_LW_filtered, FFTW_ESTIMATE);
                     }
                     fftwf_execute(plan);
+                    fftwf_destroy_plan(plan);
                     log10_Mcrit_LW_ave = 0; //recalculate it at this filtering scale
                     for (i=0; i<user_params->HII_DIM; i++){
                       for (j=0; j<user_params->HII_DIM; j++){

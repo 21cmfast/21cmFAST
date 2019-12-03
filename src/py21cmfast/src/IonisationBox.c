@@ -97,7 +97,7 @@ LOG_SUPER_DEBUG("defined parameters");
     }
     else {
         ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;
-		ION_EFF_FACTOR_MINI = 0.;
+        ION_EFF_FACTOR_MINI = 0.;
     }
 
     // For recombinations
@@ -264,9 +264,9 @@ LOG_SUPER_DEBUG("density field calculated");
     T = gsl_rng_default;
     r = gsl_rng_alloc(T);
 
-    pixel_mass = RtoM(user_params->L_FACTOR*user_params->BOX_LEN/(float)(user_params->HII_DIM));
+    pixel_mass = RtoM(L_FACTOR*user_params->BOX_LEN/(float)(user_params->HII_DIM));
 //    f_coll_crit = 1/HII_EFF_FACTOR;
-    cell_length_factor = user_params->L_FACTOR;
+    cell_length_factor = L_FACTOR;
 
 
     //set the minimum source mass
@@ -502,6 +502,7 @@ LOG_SUPER_DEBUG("FFTs performed");
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)prev_deltax_unfiltered, (fftwf_complex *)prev_deltax_unfiltered, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
 
             if(user_params->USE_FFTW_WISDOM) {
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)log10_M_MINm_unfiltered, (fftwf_complex *)log10_M_MINm_unfiltered, FFTW_WISDOM_ONLY);
@@ -510,6 +511,7 @@ LOG_SUPER_DEBUG("FFTs performed");
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)log10_M_MINm_unfiltered, (fftwf_complex *)log10_M_MINm_unfiltered, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
 
             if(user_params->USE_FFTW_WISDOM) {
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)log10_M_MINa_unfiltered, (fftwf_complex *)log10_M_MINa_unfiltered, FFTW_WISDOM_ONLY);
@@ -518,6 +520,7 @@ LOG_SUPER_DEBUG("FFTs performed");
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)log10_M_MINa_unfiltered, (fftwf_complex *)log10_M_MINa_unfiltered, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
 LOG_SUPER_DEBUG("more ffts performed");
         }
 
@@ -589,16 +592,16 @@ LOG_SUPER_DEBUG("deltax unfiltered calculated");
 
         R=fmax(astro_params->R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
 
-        while ((R - fmin(astro_params->R_BUBBLE_MAX, user_params->L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ) {
+        while ((R - fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ) {
             R*= global_params.DELTA_R_HII_FACTOR;
-            if(R >= fmin(astro_params->R_BUBBLE_MAX, user_params->L_FACTOR*user_params->BOX_LEN)) {
+            if(R >= fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) {
                 stored_R = R/(global_params.DELTA_R_HII_FACTOR);
             }
         }
 
 LOG_DEBUG("set max radius: %f", R);
 
-        R=fmin(astro_params->R_BUBBLE_MAX, user_params->L_FACTOR*user_params->BOX_LEN);
+        R=fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN);
 
         LAST_FILTER_STEP = 0;
 
@@ -691,6 +694,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)prev_deltax_filtered, (float *)prev_deltax_filtered, FFTW_ESTIMATE);
                 }
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
 
                 if(user_params->USE_FFTW_WISDOM) {
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)log10_M_MINm_filtered, (float *)log10_M_MINm_filtered, FFTW_WISDOM_ONLY);
@@ -699,6 +703,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)log10_M_MINm_filtered, (float *)log10_M_MINm_filtered, FFTW_ESTIMATE);
                 }
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
 
                 if(user_params->USE_FFTW_WISDOM) {
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)log10_M_MINa_filtered, (float *)log10_M_MINa_filtered, FFTW_WISDOM_ONLY);
@@ -707,6 +712,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)log10_M_MINa_filtered, (float *)log10_M_MINa_filtered, FFTW_ESTIMATE);
                 }
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
             }
 
             if (flag_options->USE_TS_FLUCT) {
