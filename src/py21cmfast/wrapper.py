@@ -347,7 +347,7 @@ class AstroParams(StructWithDefaults):
     R_BUBBLE_MAX : float, optional
         Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
     R_BUBBLE_MIN : float, optional
-        Default is L_FACTOR \equiv (4PI/3)^(-1/3) = 0.620350491
+        Default is L_FACTOR which is (4PI/3)^(-1/3) = 0.620350491
     ION_Tvir_MIN : float, optional
     L_X : float, optional
     L_X_MINI : float, optional
@@ -384,10 +384,7 @@ class AstroParams(StructWithDefaults):
     }
 
     def __init__(
-        self,
-        *args,
-        INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"],
-        **kwargs,
+        self, *args, INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"], **kwargs,
     ):
         # TODO: should try to get inhomo_reco out of here... just needed for default of R_BUBBLE_MAX.
         self.INHOMO_RECO = INHOMO_RECO
@@ -616,11 +613,12 @@ class IonizedBox(_OutputStructZ):
                 np.log(
                     min(
                         self.astro_params.R_BUBBLE_MAX,
-						0.620350491 * self.user_params.BOX_LEN,
+                        0.620350491 * self.user_params.BOX_LEN,
                     )
                     / max(
                         self.astro_params.R_BUBBLE_MIN,
-						0.620350491 * self.user_params.BOX_LEN,
+                        0.620350491
+                        * self.user_params.BOX_LEN
                         / self.user_params.HII_DIM,
                     )
                 )
