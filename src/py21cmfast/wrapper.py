@@ -658,8 +658,8 @@ class IonizedBox(_OutputStructZ):
         self.Fcoll.shape = filter_shape
 
         if (
-            self.astro_params.F_STAR7_MINI
-            * self.astro_params.F_ESC7_MINI
+            10 ** self.astro_params.F_STAR7_MINI
+            * 10 ** self.astro_params.F_ESC7_MINI
             * global_params.Pop3_ion
             > 1e-19
         ):
@@ -667,6 +667,8 @@ class IonizedBox(_OutputStructZ):
                 Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32
             )
             self.Fcoll_MINI.shape = filter_shape
+        else:
+            self.Fcoll_MINI = None
 
     @cached_property
     def global_xH(self):
