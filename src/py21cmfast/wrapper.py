@@ -658,8 +658,8 @@ class IonizedBox(_OutputStructZ):
         self.Fcoll.shape = filter_shape
 
         if (
-            10 ** self.astro_params.F_STAR7_MINI
-            * 10 ** self.astro_params.F_ESC7_MINI
+            self.astro_params.F_STAR7_MINI
+            * self.astro_params.F_ESC7_MINI
             * global_params.Pop3_ion
             > 1e-19
         ):
