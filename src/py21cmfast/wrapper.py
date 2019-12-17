@@ -690,7 +690,7 @@ class IonizedBox(_OutputStructZ):
             )
             self.Fcoll_MINI.shape = filter_shape
         else:
-            self.Fcoll_MINI = None
+            self.Fcoll_MINI = np.array([])
 
     @cached_property
     def global_xH(self):
