@@ -136,7 +136,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     fftwf_complex *box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     fftwf_complex *log10_Mcrit_LW_unfiltered, *log10_Mcrit_LW_filtered;
-    if (ION_EFF_FACTOR_MINI>1e-19){
+    if (flag_options->USE_MINI_HALOS){
         log10_Mcrit_LW_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         log10_Mcrit_LW_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         log10_Mcrit_LW = (float **) calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
@@ -199,7 +199,7 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
             dxion_source_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
             dxlya_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
             dstarlya_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
-            if (ION_EFF_FACTOR_MINI>1e-19){
+            if (flag_options->USE_MINI_HALOS){
                 del_fcoll_Rct_MINI = (float *) calloc(HII_TOT_NUM_PIXELS,sizeof(float));
 
                 dstarlyLW_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
@@ -269,7 +269,7 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
         }
 
         dstarlya_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        if (ION_EFF_FACTOR_MINI>1e-19){
+        if (flag_options->USE_MINI_HALOS){
             dstarlya_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
             dstarlyLW_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
             dstarlyLW_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
@@ -299,7 +299,7 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
         sigma_Tmin = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
         ST_over_PS = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
         sum_lyn = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        if (ION_EFF_FACTOR_MINI>1e-19){
+        if (flag_options->USE_MINI_HALOS){
             Mcrit_atom_interp_table = (float *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
             ST_over_PS_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
             sum_lyn_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
@@ -323,7 +323,7 @@ LOG_SUPER_DEBUG("initalised Ts Interp Arrays");
     // exponentially decrease below M_TURNOVER Msun, : fduty \propto e^(- M_TURNOVER / M)
     // In this case, we define M_MIN = M_TURN/50, i.e. the M_MIN is integration limit to compute follapse fraction.
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-        if (ION_EFF_FACTOR_MINI>1e-19){
+        if (flag_options->USE_MINI_HALOS){
             M_MIN = (1e5)/50.;
         }
         else{
@@ -358,7 +358,7 @@ LOG_SUPER_DEBUG("Initialised PS");
         LOG_SUPER_DEBUG("Initialised heat");
 
         if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
-            if (ION_EFF_FACTOR_MINI > 1e-19){
+            if (flag_options->USE_MINI_HALOS){
                 if(initialiseSigmaMInterpTable(1e5/50,1e20)!=0) {
                     LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
                     return(2);
@@ -688,7 +688,7 @@ LOG_SUPER_DEBUG("Initialised sigma interp table");
                 }
 
                 /* initialise interpolation of the mean collapse fraction for global reionization.*/
-                if (ION_EFF_FACTOR_MINI<1e-19){
+                if (!flag_options->USE_MINI_HALOS){
                     if(initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10)!=0) {
                         LOG_ERROR("Detected either an infinite or NaN value in initialise_Nion_Ts_spline");
                         return(2);
@@ -804,12 +804,12 @@ LOG_SUPER_DEBUG("got density gridpoints");
                 zpp_edge[R_ct] = prev_zpp - (R_values[R_ct] - prev_R)*CMperMPC / drdz(prev_zpp); // cell size
                 zpp = (zpp_edge[R_ct]+prev_zpp)*0.5; // average redshift value of shell: z'' + 0.5 * dz''
                 zpp_growth[R_ct] = dicke(zpp);
-                if (ION_EFF_FACTOR_MINI>1e-19){
+                if (flag_options->USE_MINI_HALOS){
                     Mcrit_atom_interp_table[R_ct] = atomic_cooling_threshold(zpp);
                 }
             }
 
-            if (ION_EFF_FACTOR_MINI<1e-19){
+            if (!flag_options->USE_MINI_HALOS){
                 if(initialise_SFRD_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,max_densities,zpp_growth,R_values, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10)!=0) {
                     LOG_ERROR("Detected either an infinite or NaN value in initialise_SFRD_Conditional_table");
                     return(2);
@@ -842,7 +842,7 @@ LOG_SUPER_DEBUG("Initialised SFRD table");
 
             Splined_Fcollzp_mean = Nion_z_val[redshift_int_Nion_z] + ( zp - redshift_table_Nion_z )*( Nion_z_val[redshift_int_Nion_z+1] - Nion_z_val[redshift_int_Nion_z] )/(zpp_bin_width);
 
-            if (ION_EFF_FACTOR_MINI>1e-19){
+            if (flag_options->USE_MINI_HALOS){
                 log10_Mcrit_mol = log10(lyman_werner_threshold(zp, 0.));
                 log10_Mcrit_LW_ave = 0.0;
                 for (i=0; i<user_params->HII_DIM; i++){
@@ -944,7 +944,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 dzpp_for_evolve = zpp_edge[R_ct-1] - zpp_edge[R_ct];
             }
             zpp_growth[R_ct] = dicke(zpp);
-            if (ION_EFF_FACTOR_MINI>1e-19){
+            if (flag_options->USE_MINI_HALOS){
                 Mcrit_atom_interp_table[R_ct] = atomic_cooling_threshold(zpp);
             }
 
@@ -969,7 +969,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 ST_over_PS[R_ct] = pow(1+zpp, -astro_params->X_RAY_SPEC_INDEX)*fabs(dzpp_for_evolve);
                 ST_over_PS[R_ct] *= Splined_SFRD_zpp;
 
-                if(ION_EFF_FACTOR_MINI>1e-19){
+                if(flag_options->USE_MINI_HALOS){
                     memcpy(log10_Mcrit_LW_filtered, log10_Mcrit_LW_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
                     if (R_ct > 0){// don't filter on cell size
                         filter_box(log10_Mcrit_LW_filtered, 1, global_params.HEAT_FILTER, R_values[R_ct]);
@@ -1052,7 +1052,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
             }
 
-            if(ION_EFF_FACTOR_MINI>1e-19){
+            if(flag_options->USE_MINI_HALOS){
                 lower_int_limit = FMAX(nu_tau_one_approx_MINI(zp, zpp, x_e_ave, filling_factor_of_HI_zp, log10_Mcrit_LW_ave,LOG10_MTURN_INT), (astro_params->NU_X_THRESH)*NU_over_EV);
             }
             else{
@@ -1091,7 +1091,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
             // and create the sum over Lya transitions from direct Lyn flux
             sum_lyn[R_ct] = 0;
-            if (ION_EFF_FACTOR_MINI>1e-19){
+            if (flag_options->USE_MINI_HALOS){
                 sum_lyn_MINI[R_ct] = 0;
                 sum_lyLWn[R_ct] = 0;
                 sum_lyLWn_MINI[R_ct] = 0;
@@ -1101,7 +1101,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                     continue;
 
                 nuprime = nu_n(n_ct)*(1+zpp)/(1.0+zp);
-                if (ION_EFF_FACTOR_MINI>1e-19){
+                if (flag_options->USE_MINI_HALOS){
                     sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
                     sum_lyn_MINI[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
                     if (nuprime < NU_LW_THRESH / NUIONIZATION)
@@ -1172,7 +1172,7 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
         //          This line below is kept purely for reference w.r.t to the original 21cmFAST
         //            const_zp_prefactor = ZETA_X * X_RAY_SPEC_INDEX / NU_X_THRESH * C * F_STAR * OMb * RHOcrit * pow(CMperMPC, -3) * pow(1+zp, X_RAY_SPEC_INDEX+3);
 
-        if (ION_EFF_FACTOR_MINI>1e-19){
+        if (flag_options->USE_MINI_HALOS){
             // do the same for MINI
             const_zp_prefactor_MINI = ( (astro_params->L_X_MINI) * Luminosity_converstion_factor ) / ((astro_params->NU_X_THRESH)*NU_over_EV) * C * astro_params->F_STAR7_MINI * cosmo_params->OMb * RHOcrit * pow(CMperMPC, -3) * pow(1+zp, astro_params->X_RAY_SPEC_INDEX+3);
         }
@@ -1188,7 +1188,7 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
         for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
             zpp_integrand = ( pow(1+zp,2)*(1+zpp_for_evolve_list[R_ct]) )/( pow(1+zpp_for_evolve_list[R_ct], -(astro_params->X_RAY_SPEC_INDEX)) );
             dstarlya_dt_prefactor[R_ct]  = zpp_integrand * sum_lyn[R_ct];
-            if (ION_EFF_FACTOR_MINI>1e-19){
+            if (flag_options->USE_MINI_HALOS){
                 dstarlya_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyn_MINI[R_ct];
                 dstarlyLW_dt_prefactor[R_ct]  = zpp_integrand * sum_lyLWn[R_ct];
                 dstarlyLW_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyLWn_MINI[R_ct];
@@ -1242,7 +1242,7 @@ LOG_SUPER_DEBUG("looping over box...");
                 dxion_source_dt_box[box_ct] = 0.;
                 dxlya_dt_box[box_ct] = 0.;
                 dstarlya_dt_box[box_ct] = 0.;
-                if (ION_EFF_FACTOR_MINI>1e-19){
+                if (flag_options->USE_MINI_HALOS){
                     dstarlyLW_dt_box[box_ct] = 0.;
                     dstarlyLW_dt_box_MINI[box_ct] = 0.;
                     dxheat_dt_box_MINI[box_ct] = 0.;
@@ -1296,7 +1296,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                     curr_dens = delNL0[R_ct][box_ct]*zpp_growth[R_ct];
 
-                    if (ION_EFF_FACTOR_MINI>1e-19){
+                    if (flag_options->USE_MINI_HALOS){
                         log10_Mcrit_LW_val = ( log10_Mcrit_LW[R_ct][box_ct] - LOG10_MTURN_MIN) / LOG10_MTURN_INT;
                         log10_Mcrit_LW_int = (int)floorf( log10_Mcrit_LW_val );
                         log10_Mcrit_LW_diff = log10_Mcrit_LW_val - (float)log10_Mcrit_LW_int;
@@ -1325,7 +1325,7 @@ LOG_SUPER_DEBUG("looping over box...");
                                         fcoll_int = (int)floorf( dens_val );
 
                                         fcoll = SFRD_z_high_table[R_ct][fcoll_int]*( 1. + (float)fcoll_int - dens_val ) + SFRD_z_high_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
-                                        if (ION_EFF_FACTOR_MINI>1e-19){
+                                        if (flag_options->USE_MINI_HALOS){
                                             fcoll_MINI_left  = SFRD_z_high_table_MINI[R_ct][fcoll_int  +NSFR_high* log10_Mcrit_LW_int   ]*( 1. + (float)fcoll_int - dens_val ) +\
                                                                SFRD_z_high_table_MINI[R_ct][fcoll_int+1+NSFR_high* log10_Mcrit_LW_int   ]*( dens_val - (float)fcoll_int );
                                             fcoll_MINI_right = SFRD_z_high_table_MINI[R_ct][fcoll_int  +NSFR_high*(log10_Mcrit_LW_int+1)]*( 1. + (float)fcoll_int - dens_val ) +\
@@ -1344,7 +1344,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                                     fcoll = expf(fcoll);
 
-                                    if (ION_EFF_FACTOR_MINI>1e-19){
+                                    if (flag_options->USE_MINI_HALOS){
                                         fcoll_MINI_left  = log10_SFRD_z_low_table_MINI[R_ct][fcoll_int  +NSFR_low* log10_Mcrit_LW_int   ]*( 1 + (float)fcoll_int - dens_val ) +\
                                                            log10_SFRD_z_low_table_MINI[R_ct][fcoll_int+1+NSFR_low* log10_Mcrit_LW_int   ]*( dens_val - (float)fcoll_int );
                                         fcoll_MINI_right = log10_SFRD_z_low_table_MINI[R_ct][fcoll_int  +NSFR_low*(log10_Mcrit_LW_int+1)]*( 1 + (float)fcoll_int - dens_val ) +\
@@ -1370,7 +1370,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                                 fcoll = SFRD_z_high_table[R_ct][fcoll_int]*( 1. + (float)fcoll_int - dens_val ) + SFRD_z_high_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
 
-                                if (ION_EFF_FACTOR_MINI>1e-19){
+                                if (flag_options->USE_MINI_HALOS){
                                     fcoll_MINI_left  = SFRD_z_high_table_MINI[R_ct][fcoll_int  +NSFR_high* log10_Mcrit_LW_int   ]*( 1. + (float)fcoll_int - dens_val ) +\
                                                        SFRD_z_high_table_MINI[R_ct][fcoll_int+1+NSFR_high* log10_Mcrit_LW_int   ]*( dens_val - (float)fcoll_int );
                                     fcoll_MINI_right = SFRD_z_high_table_MINI[R_ct][fcoll_int  +NSFR_high*(log10_Mcrit_LW_int+1)]*( 1. + (float)fcoll_int - dens_val ) +\
@@ -1387,7 +1387,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                         del_fcoll_Rct[box_ct] = (1.+curr_dens)*fcoll;
 
-                        if (ION_EFF_FACTOR_MINI>1e-19){
+                        if (flag_options->USE_MINI_HALOS){
                             ave_fcoll_MINI += fcoll_MINI;
 
                             del_fcoll_Rct_MINI[box_ct] = (1.+curr_dens)*fcoll_MINI;
@@ -1417,7 +1417,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                 dstarlya_dt_prefactor[R_ct] *= dfcoll_dz_val;
 
-                if(ION_EFF_FACTOR_MINI>1e-19){
+                if(flag_options->USE_MINI_HALOS){
                     dfcoll_dz_val_MINI = (ave_fcoll_inv_MINI/pow(10.,10.))*ST_over_PS_MINI[R_ct]*SFR_timescale_factor[R_ct]/astro_params->t_STAR;
                     dstarlya_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
                     dstarlyLW_dt_prefactor[R_ct] *= dfcoll_dz_val;
@@ -1433,12 +1433,12 @@ LOG_SUPER_DEBUG("looping over box...");
                         dxion_source_dt_box[box_ct] += (dfcoll_dz_val*(double)del_fcoll_Rct[box_ct]*( (freq_int_ion_tbl_diff[m_xHII_low_box[box_ct]][R_ct])*inverse_val_box[box_ct] + freq_int_ion_tbl[m_xHII_low_box[box_ct]][R_ct] ));
                         dxlya_dt_box[box_ct] += (dfcoll_dz_val*(double)del_fcoll_Rct[box_ct]*( (freq_int_lya_tbl_diff[m_xHII_low_box[box_ct]][R_ct])*inverse_val_box[box_ct] + freq_int_lya_tbl[m_xHII_low_box[box_ct]][R_ct] ));
                         dstarlya_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_dt_prefactor[R_ct];
-                        if (ION_EFF_FACTOR_MINI>1e-19){
+                        if (flag_options->USE_MINI_HALOS){
                             dstarlyLW_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlyLW_dt_prefactor[R_ct];
                         }
                     }
 
-                    if (ION_EFF_FACTOR_MINI>1e-19){
+                    if (flag_options->USE_MINI_HALOS){
                         if(ave_fcoll_MINI!=0.) {
                             dxheat_dt_box_MINI[box_ct] += (dfcoll_dz_val_MINI*(double)del_fcoll_Rct_MINI[box_ct]*( (freq_int_heat_tbl_diff[m_xHII_low_box[box_ct]][R_ct])*inverse_val_box[box_ct] + freq_int_heat_tbl[m_xHII_low_box[box_ct]][R_ct] ));
                             dxion_source_dt_box_MINI[box_ct] += (dfcoll_dz_val_MINI*(double)del_fcoll_Rct_MINI[box_ct]*( (freq_int_ion_tbl_diff[m_xHII_low_box[box_ct]][R_ct])*inverse_val_box[box_ct] + freq_int_ion_tbl[m_xHII_low_box[box_ct]][R_ct] ));
@@ -1460,7 +1460,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                         dxlya_dt_box[box_ct] *= const_zp_prefactor*prefactor_1 * (1.+delNL0[0][box_ct]*growth_factor_zp);
                         dstarlya_dt_box[box_ct] *= prefactor_2;
-                        if (ION_EFF_FACTOR_MINI>1e-19){
+                        if (flag_options->USE_MINI_HALOS){
                             dstarlyLW_dt_box[box_ct] *= prefactor_2 * (hplank * 1e21);
 
                             dxheat_dt_box_MINI[box_ct] *= const_zp_prefactor_MINI;
@@ -1476,7 +1476,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                         // First let's do dxe_dzp //
                         dxion_sink_dt = alpha_A(T) * global_params.CLUMPING_FACTOR * x_e*x_e * f_H * prefactor_1 * (1.+delNL0[0][box_ct]*growth_factor_zp);
-                        if (ION_EFF_FACTOR_MINI>1e-19){
+                        if (flag_options->USE_MINI_HALOS){
                             dxe_dzp = dt_dzp*(dxion_source_dt_box[box_ct] + dxion_source_dt_box_MINI[box_ct] - dxion_sink_dt );
                         }
                         else{
@@ -1500,7 +1500,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                         // lastly, X-ray heating
                         dxheat_dzp = dxheat_dt_box[box_ct] * dt_dzp * 2.0 / 3.0 / k_B / (1.0+x_e);
-                        if (ION_EFF_FACTOR_MINI>1e-19){
+                        if (flag_options->USE_MINI_HALOS){
                             dxheat_dzp_MINI = dxheat_dt_box_MINI[box_ct] * dt_dzp * 2.0 / 3.0 / k_B / (1.0+x_e);
                         }
 
@@ -1511,7 +1511,7 @@ LOG_SUPER_DEBUG("looping over box...");
                         else if (x_e < 0)
                             x_e = 0;
                         if (T < MAX_TK) {
-                            if (ION_EFF_FACTOR_MINI>1e-19){
+                            if (flag_options->USE_MINI_HALOS){
                                 T += ( dxheat_dzp + dxheat_dzp_MINI + dcomp_dzp + dspec_dzp + dadia_dzp ) * dzp;
                             }
                             else{
@@ -1527,7 +1527,7 @@ LOG_SUPER_DEBUG("looping over box...");
                         this_spin_temp->Tk_box[box_ct] = T;
 
                         J_alpha_tot = ( dxlya_dt_box[box_ct] + dstarlya_dt_box[box_ct] ); //not really d/dz, but the lya flux
-                        if (ION_EFF_FACTOR_MINI>1e-19){
+                        if (flag_options->USE_MINI_HALOS){
                             J_alpha_tot_MINI = ( dxlya_dt_box_MINI[box_ct] + dstarlya_dt_box_MINI[box_ct] ); //not really d/dz, but the lya flux
                             this_spin_temp->J_21_LW_box[box_ct] = dstarlyLW_dt_box[box_ct] + dstarlyLW_dt_box_MINI[box_ct];
                         }
@@ -1541,7 +1541,7 @@ LOG_SUPER_DEBUG("looping over box...");
                         xc_fast = (1.0+delNL0[0][box_ct]*growth_factor_zp)*xc_inverse*( (1.0-x_e)*No*kappa_10(T,0) + x_e*N_b0*kappa_10_elec(T,0) + x_e*No*kappa_10_pH(T,0) );
 
                         xi_power = TS_prefactor * cbrt((1.0+delNL0[0][box_ct]*growth_factor_zp)*(1.0-x_e)*T_inv_sq);
-						if (ION_EFF_FACTOR_MINI>1e-19){
+						if (flag_options->USE_MINI_HALOS){
                         	xa_tilde_fast_arg = xa_tilde_prefactor*(J_alpha_tot+J_alpha_tot_MINI)*pow( 1.0 + 2.98394*xi_power + 1.53583*xi_power*xi_power + 3.85289*xi_power*xi_power*xi_power, -1. );
 						}
 						else{
@@ -1586,7 +1586,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             Xion_ave += ( dt_dzp*dxion_source_dt_box[box_ct] );
                             Ts_ave += TS_fast;
                             Tk_ave += T;
-                            if (ION_EFF_FACTOR_MINI>1e-19){
+                            if (flag_options->USE_MINI_HALOS){
                                 J_alpha_ave_MINI += J_alpha_tot_MINI;
                                 Xheat_ave_MINI += ( dxheat_dzp_MINI );
                                 J_LW_ave += dstarlyLW_dt_box[box_ct];
@@ -1766,7 +1766,7 @@ LOG_SUPER_DEBUG("finished loop");
             Xheat_ave /= (double)HII_TOT_NUM_PIXELS;
             Xion_ave /= (double)HII_TOT_NUM_PIXELS;
 
-            if (ION_EFF_FACTOR_MINI>1e-19){
+            if (flag_options->USE_MINI_HALOS){
                 J_alpha_ave_MINI /= (double)HII_TOT_NUM_PIXELS;
                 Xheat_ave_MINI /= (double)HII_TOT_NUM_PIXELS;
                 J_LW_ave /= (double)HII_TOT_NUM_PIXELS;

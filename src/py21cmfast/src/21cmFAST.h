@@ -69,6 +69,7 @@ struct AstroParams{
 struct FlagOptions{
 
     // Parameters taken from INIT_PARAMS.H
+    bool USE_MINI_HALOS;
     bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
     bool INHOMO_RECO;

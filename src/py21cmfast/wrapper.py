@@ -284,6 +284,10 @@ class FlagOptions(StructWithDefaults):
 
     Parameters
     ----------
+    USE_MINI_HALOS : bool, optional
+        Set to True if using mini-halos parameterization.
+        If True, USE_MASS_DEPENDENT_ZETA and INHOMO_RECO must be True.
+
     USE_MASS_DEPENDENT_ZETA : bool, optional
         Set to True if using new parameterization.
 
@@ -306,6 +310,7 @@ class FlagOptions(StructWithDefaults):
     _ffi = ffi
 
     _defaults_ = {
+        "USE_MINI_HALOS": False,
         "USE_MASS_DEPENDENT_ZETA": False,
         "SUBCELL_RSD": False,
         "INHOMO_RECO": False,
@@ -321,6 +326,28 @@ class FlagOptions(StructWithDefaults):
 
         else:
             return self._M_MIN_in_Mass
+
+    @property
+    def USE_MASS_DEPENDENT_ZETA(self):
+        if self.USE_MINI_HALOS:
+            print(
+                "[WARNING]You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA to False!"
+            )
+            print("         Automatically setting USE_MASS_DEPENDENT_ZETA to True.")
+            return True
+        else:
+            return self._USE_MASS_DEPENDENT_ZETA
+
+    @property
+    def INHOMO_RECO(self):
+        if self.USE_MINI_HALOS:
+            print(
+                "[WARNING]You have set USE_MINI_HALOS to True but INHOMO_RECO to False!"
+            )
+            print("         Automatically setting INHOMO_RECO to True.")
+            return True
+        else:
+            return self._INHOMO_RECO
 
 
 class AstroParams(StructWithDefaults):
@@ -365,7 +392,7 @@ class AstroParams(StructWithDefaults):
     _defaults_ = {
         "HII_EFF_FACTOR": 30.0,
         "F_STAR10": -1.3,
-        "F_STAR7_MINI": -99,
+        "F_STAR7_MINI": -2.0,
         "ALPHA_STAR": 0.5,
         "F_ESC10": -1.0,
         "F_ESC7_MINI": -2.0,
@@ -657,12 +684,7 @@ class IonizedBox(_OutputStructZ):
         self.dNrec_box.shape = shape
         self.Fcoll.shape = filter_shape
 
-        if (
-            self.astro_params.F_STAR7_MINI
-            * self.astro_params.F_ESC7_MINI
-            * global_params.Pop3_ion
-            > 1e-19
-        ):
+        if self.flag_options.USE_MINI_HALOS:
             self.Fcoll_MINI = np.zeros(
                 Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32
             )
