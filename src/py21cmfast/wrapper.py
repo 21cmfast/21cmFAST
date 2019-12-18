@@ -330,10 +330,10 @@ class FlagOptions(StructWithDefaults):
     @property
     def USE_MASS_DEPENDENT_ZETA(self):
         if self.USE_MINI_HALOS and not self._USE_MASS_DEPENDENT_ZETA:
-            print(
-                "[WARNING]You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA to False!"
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA to False! "
+                "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
             )
-            print("         Automatically setting USE_MASS_DEPENDENT_ZETA to True.")
             return True
         else:
             return self._USE_MASS_DEPENDENT_ZETA
@@ -341,10 +341,10 @@ class FlagOptions(StructWithDefaults):
     @property
     def INHOMO_RECO(self):
         if self.USE_MINI_HALOS and not self._INHOMO_RECO:
-            print(
-                "[WARNING]You have set USE_MINI_HALOS to True but INHOMO_RECO to False!"
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
+                "Automatically setting INHOMO_RECO to True."
             )
-            print("         Automatically setting INHOMO_RECO to True.")
             return True
         else:
             return self._INHOMO_RECO
