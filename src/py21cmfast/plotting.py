@@ -1,6 +1,4 @@
-"""
-Simple plotting functions for 21cmFAST objects.
-"""
+"""Simple plotting functions for 21cmFAST objects."""
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -35,7 +33,7 @@ def _imshow_slice(
     **imshow_kw,
 ):
     """
-    Helper function to plot a slice of some kind of cube.
+    Plot a slice of some kind of cube.
 
     Parameters
     ----------
@@ -47,10 +45,18 @@ def _imshow_slice(
         The index of the slice.
     fig : Figure object
         An optional matplotlib figure object on which to plot
-    ax
-    fig_kw
-    cbar
-    imshow_kw
+    ax : Axis object
+        The matplotlib axis object on which to plot (created by default).
+    fig_kw :
+        Optional arguments passed to the figure construction.
+    cbar : bool
+        Whether to plot the colorbar
+    cbar_horizontal : bool
+        Whether the colorbar should be horizontal underneath the plot.
+    rotate : bool
+        Whether to rotate the plot vertically.
+    imshow_kw :
+        Optional keywords to pass to :func:`maplotlib.imshow`.
 
     Returns
     -------
@@ -155,6 +161,29 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
 def lightcone_sliceplot(
     lightcone, kind="brightness_temp", lightcone2=None, vertical=False, **kwargs
 ):
+    """Create a 2D plot of a slice through a lightcone.
+
+    Parameters
+    ----------
+    lightcone : :class:`~py21cmfast.wrapper.Lightcone`
+        The lightcone object to plot
+    kind : str, optional
+        The attribute of the lightcone to plot. Must be an array.
+    lightcone2 : str, optional
+        If provided, plot the _difference_ of the selected attribute between the two
+        lightcones.
+    vertical : bool, optional
+        Whether to plot the redshift in the vertical direction.
+    kwargs :
+        Passed through to ``imshow()``.
+
+    Returns
+    -------
+    fig :
+        The matplotlib Figure object
+    ax :
+        The matplotlib Axis object onto which the plot was drawn.
+    """
     slice_axis = kwargs.pop("slice_axis", 0)
 
     if slice_axis == 0:

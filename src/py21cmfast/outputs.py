@@ -1,12 +1,29 @@
-import cached_property
+"""
+Output class objects.
+
+The classes provided by this module exist to simplify access to large datasets created within C.
+Fundamentally, ownership of the data belongs to these classes, and the C functions merely accesses
+this and fills it. The various boxes and quantities associated with each output are available as
+instance attributes. Along with the output data, each output object contains the various input
+parameter objects necessary to define it.
+
+.. warning:: These should not be instantiated or filled by the user, but always handled
+             as output objects from the various functions contained here. Only the data
+             within the objects should be accessed.
+"""
 import numpy as np
+from cached_property import cached_property
 
-from ._utils import OutputStruct as _OS
+from ._utils import OutputStruct as _BaseOutputStruct
 from .c_21cmfast import ffi
-from .inputs import FlagOptions, AstroParams, CosmoParams, UserParams, global_params
+from .inputs import AstroParams
+from .inputs import CosmoParams
+from .inputs import FlagOptions
+from .inputs import UserParams
+from .inputs import global_params
 
 
-class _OutputStruct(_OS):
+class _OutputStruct(_BaseOutputStruct):
     _global_params = global_params
 
     def __init__(self, *, user_params=None, cosmo_params=None, **kwargs):
@@ -25,9 +42,7 @@ class _OutputStructZ(_OutputStruct):
 
 
 class InitialConditions(_OutputStruct):
-    """
-    A class containing all initial conditions boxes.
-    """
+    """A class containing all initial conditions boxes."""
 
     # The filter params indicates parameters to overlook when deciding if a cached box
     # matches current parameters.
@@ -106,9 +121,7 @@ class InitialConditions(_OutputStruct):
 
 
 class PerturbedField(_OutputStructZ):
-    """
-    A class containing all perturbed field boxes
-    """
+    """A class containing all perturbed field boxes."""
 
     _filter_params = _OutputStruct._filter_params + [
         "ALPHA_UVB",  # ionization
@@ -151,7 +164,7 @@ class PerturbedField(_OutputStructZ):
 
 
 class IonizedBox(_OutputStructZ):
-    """A class containing all ionized boxes"""
+    """A class containing all ionized boxes."""
 
     _inputs = _OutputStructZ._inputs + ["flag_options", "astro_params"]
 
@@ -193,6 +206,7 @@ class IonizedBox(_OutputStructZ):
 
     @cached_property
     def global_xH(self):
+        """Global (mean) neutral fraction."""
         if not self.filled:
             raise AttributeError(
                 "global_xH is not defined until the ionization calculation has been performed"
@@ -202,7 +216,7 @@ class IonizedBox(_OutputStructZ):
 
 
 class TsBox(IonizedBox):
-    """A class containing all spin temperature boxes"""
+    """A class containing all spin temperature boxes."""
 
     def _init_arrays(self):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
@@ -227,6 +241,7 @@ class TsBox(IonizedBox):
 
     @cached_property
     def global_Ts(self):
+        """Global (mean) spin temperature."""
         if not self.filled:
             raise AttributeError(
                 "global_Ts is not defined until the ionization calculation has been performed"
@@ -236,6 +251,7 @@ class TsBox(IonizedBox):
 
     @cached_property
     def global_Tk(self):
+        """Global (mean) Tk."""
         if not self.filled:
             raise AttributeError(
                 "global_Tk is not defined until the ionization calculation has been performed"
@@ -245,6 +261,7 @@ class TsBox(IonizedBox):
 
     @cached_property
     def global_x_e(self):
+        """Global (mean) x_e."""
         if not self.filled:
             raise AttributeError(
                 "global_x_e is not defined until the ionization calculation has been performed"
@@ -269,6 +286,7 @@ class BrightnessTemp(IonizedBox):
 
     @cached_property
     def global_Tb(self):
+        """Global (mean) brightness temperature."""
         if not self.filled:
             raise AttributeError(
                 "global_Tb is not defined until the ionization calculation has been performed"

@@ -1,3 +1,4 @@
+"""The py21cmfast package."""
 __version__ = "3.0.0dev"
 
 # This just ensures that the default directory for boxes is created.

@@ -1,6 +1,4 @@
-"""
-Utilities that help with wrapping various C structures.
-"""
+"""Utilities that help with wrapping various C structures."""
 import glob
 import logging
 import warnings
@@ -9,9 +7,6 @@ from os import path
 
 import h5py
 import numpy as np
-
-# The following is just an *empty* ffi object, which can perform certain operations
-# which are not specific to a certain library.
 from cffi import FFI
 
 from ._cfg import config
@@ -23,12 +18,13 @@ logger = logging.getLogger("21cmFAST")
 
 class StructWrapper:
     """
-    A base-class python wrapper for C structures (not instances of them) providing simple methods for creating new
-    instances and accessing field names and values.
+    A base-class python wrapper for C structures (not instances of them).
 
-    To implement wrappers of specific structures, make a subclass with the same name as the appropriate C struct (which
-    must be defined in the C code that has been compiled to the ffi object), *or* use an arbitrary name, but set the
-    _name attribute to the C struct name.
+    Provides simple methods for creating new instances and accessing field names and values.
+
+    To implement wrappers of specific structures, make a subclass with the same name as the
+    appropriate C struct (which must be defined in the C code that has been compiled to the ``ffi``
+    object), *or* use an arbitrary name, but set the ``_name`` attribute to the C struct name.
     """
 
     _name = None
@@ -43,14 +39,15 @@ class StructWrapper:
     @property
     def _cstruct(self):
         """
-        This is the actual structure which needs to be passed around to C functions.
-        It is best accessed by calling the instance (see __call__)
+        The actual structure which needs to be passed around to C functions.
 
-        Note that the reason it is defined as this cached property is so that it can be created dynamically, but not
-        lost. It must not be lost, or else C functions which use it will lose access to its memory. But it also must
-        be created dynamically so that it can be recreated after pickling (pickle can't handle CData).
+        .. note:: This is best accessed by calling the instance (see __call__).
+
+        The reason it is defined as this (manual) cached property is so that it can be created
+        dynamically, but not lost. It must not be lost, or else C functions which use it will lose
+        access to its memory. But it also must be created dynamically so that it can be recreated
+        after pickling (pickle can't handle CData).
         """
-
         try:
             return self.__cstruct
         except AttributeError:
@@ -58,36 +55,31 @@ class StructWrapper:
             return self.__cstruct
 
     def _new(self):
-        """
-        Return a new empty C structure corresponding to this class.
-        """
+        """Return a new empty C structure corresponding to this class."""
         return self._ffi.new("struct " + self._name + "*")
 
     @property
     def fields(self):
-        """
-        List of fields of the underlying C struct (a list of tuples of "name, type")
-        """
+        """List of fields of the underlying C struct (a list of tuples of "name, type")."""
         return self._ffi.typeof(self._cstruct[0]).fields
 
     @property
     def fieldnames(self):
-        """
-        List names of fields of the underlying C struct.
-        """
+        """List names of fields of the underlying C struct."""
         return [f for f, t in self.fields]
 
     @property
     def pointer_fields(self):
-        """List of names of fields which have pointer type in the C struct"""
+        """List of names of fields which have pointer type in the C struct."""
         return [f for f, t in self.fields if t.type.kind == "pointer"]
 
     @property
     def primitive_fields(self):
-        """List of names of fields which have primitive type in the C struct"""
+        """List of names of fields which have primitive type in the C struct."""
         return [f for f, t in self.fields if t.type.kind == "primitive"]
 
     def __getstate__(self):
+        """Return the current state of the class without pointers."""
         return {
             k: v
             for k, v in self.__dict__.items()
@@ -104,18 +96,21 @@ class StructWrapper:
 
 class StructWithDefaults(StructWrapper):
     """
-    A class which provides a convenient interface to create a C structure with defaults specified.
+    A convenient interface to create a C structure with defaults specified.
 
-    It is provided for the purpose of *creating* C structures in Python to be passed to C functions, where sensible
-    defaults are available. Structures which are created within C and passed back do not need to be wrapped.
+    It is provided for the purpose of *creating* C structures in Python to be passed to C functions,
+    where sensible defaults are available. Structures which are created within C and passed back do
+    not need to be wrapped.
 
-    This provides a *fully initialised* structure, and will fail if not all fields are specified with defaults.
+    This provides a *fully initialised* structure, and will fail if not all fields are specified
+    with defaults.
 
-    .. note:: The actual C structure is gotten by calling an instance. This is auto-generated when called, based on the
-              parameters in the class.
+    .. note:: The actual C structure is gotten by calling an instance. This is auto-generated when
+              called, based on the parameters in the class.
 
-    .. warning:: This class will *not* deal well with parameters of the struct which are pointers. All parameters
-                 should be primitive types, except for strings, which are dealt with specially.
+    .. warning:: This class will *not* deal well with parameters of the struct which are pointers.
+                 All parameters should be primitive types, except for strings, which are dealt with
+                 specially.
 
     Parameters
     ----------
@@ -169,6 +164,7 @@ class StructWithDefaults(StructWrapper):
             )
 
     def convert(self, key, val):
+        """Make any conversions of values before saving to the instance."""
         return val
 
     def update(self, **kwargs):
@@ -176,7 +172,8 @@ class StructWithDefaults(StructWrapper):
         Update the parameters of an existing class structure.
 
         This should always be used instead of attempting to *assign* values to instance attributes.
-        It consistently re-generates the underlying C memory space and sets some book-keeping variables.
+        It consistently re-generates the underlying C memory space and sets some book-keeping
+        variables.
 
         Parameters
         ----------
@@ -212,10 +209,7 @@ class StructWithDefaults(StructWrapper):
             )
 
     def __call__(self):
-        """
-        Return a filled C Structure corresponding to this instance.
-        """
-
+        """Return a filled C Structure corresponding to this instance."""
         for key, val in self.pystruct.items():
 
             # Find the value of this key in the current class
@@ -233,31 +227,31 @@ class StructWithDefaults(StructWrapper):
 
     @property
     def pystruct(self):
-        """A pure-python dictionary representation of the corresponding C structure"""
+        """A pure-python dictionary representation of the corresponding C structure."""
         return {fld: self.convert(fld, getattr(self, fld)) for fld in self.fieldnames}
 
     @property
     def defining_dict(self):
         """
-        Pure python dictionary representation of this class, as it would appear in C
+        Pure python dictionary representation of this class, as it would appear in C.
 
-        Note: This is not the same as :attr:`pystruct`, as it omits all variables that don't need to be passed to the
-              constructor, but appear in the C struct (some can be calculated dynamically based on the inputs). It is
-              also not the same as :attr:`self`, as it includes the 'converted' values for each variable, which are
-              those actually passed to the C code.
+        .. note:: This is not the same as :attr:`pystruct`, as it omits all variables that don't
+                  need to be passed to the constructor, but appear in the C struct (some can be
+                  calculated dynamically based on the inputs). It is also not the same as
+                  :attr:`self`, as it includes the 'converted' values for each variable, which are
+                  those actually passed to the C code.
         """
         return {k: self.convert(k, getattr(self, k)) for k in self._defaults_}
 
     @property
     def self(self):
         """
-        Dictionary which if passed to its own constructor will yield an identical copy
+        Dictionary which if passed to its own constructor will yield an identical copy.
 
-        Note: this differs from :attr:`pystruct` and :attr:`defining_dict` in that it uses the hidden variable
-              value, if it exists, instead of the exposed one. This prevents from, for example, passing a value which
-              is 10**10**val (and recurring!).
+        .. note:: This differs from :attr:`pystruct` and :attr:`defining_dict` in that it uses the
+                  hidden variable value, if it exists, instead of the exposed one. This prevents
+                  from, for example, passing a value which is 10**10**val (and recurring!).
         """
-
         # Try to first use the hidden variable before using the non-hidden variety.
         dct = {}
         for k in self._defaults_:
@@ -269,6 +263,7 @@ class StructWithDefaults(StructWrapper):
         return dct
 
     def __repr__(self):
+        """Full unique representation of the instance."""
         return (
             self.__class__.__name__
             + "("
@@ -277,13 +272,17 @@ class StructWithDefaults(StructWrapper):
         )
 
     def __eq__(self, other):
+        """Check whether this instance is equal to another object (by checking the __repr__)."""
         return self.__repr__() == repr(other)
 
     def __hash__(self):
+        """Generate a unique hsh for the instance."""
         return hash(self.__repr__())
 
 
 class OutputStruct(StructWrapper):
+    """Base class for any class that wraps a C struct meant to be output from a C function."""
+
     _fields_ = []
     _global_params = None
     _inputs = ["user_params", "cosmo_params", "_random_seed"]
@@ -323,6 +322,7 @@ class OutputStruct(StructWrapper):
 
     @property
     def random_seed(self):
+        """The random seed for this particular instance."""
         if self._random_seed is None:
             self._random_seed = int(np.random.randint(1, int(1e12)))
 
@@ -330,7 +330,10 @@ class OutputStruct(StructWrapper):
 
     @property
     def arrays_initialized(self):
-        """Whether all necessary arrays are initialized (this must be true before passing to a C function)."""
+        """Whether all necessary arrays are initialized.
+
+        .. note:: This must be true before passing to a C function.
+        """
         # This assumes that all pointer fields will be arrays...
         for k in self.pointer_fields:
             if not hasattr(self, k):
@@ -340,7 +343,6 @@ class OutputStruct(StructWrapper):
         return True
 
     def _init_cstruct(self):
-
         if not self.filled:
             self._init_arrays()
 
@@ -366,13 +368,14 @@ class OutputStruct(StructWrapper):
         )
 
     def __call__(self):
+        """Initialize/allocate a fresh C struct in memory and return it."""
         if not self.arrays_initialized:
             self._init_cstruct()
 
         return self._cstruct
 
     def _expose(self):
-        """This method exposes the non-array primitives of the ctype to the top-level object."""
+        """Expose the non-array primitives of the ctype to the top-level object."""
         if not self.filled:
             raise Exception(
                 "You need to have actually called the C code before the primitives can be exposed."
@@ -382,12 +385,12 @@ class OutputStruct(StructWrapper):
 
     @property
     def _fname_skeleton(self):
-        """The filename without specifying the random seed"""
+        """The filename without specifying the random seed."""
         return self._name + "_" + self._md5 + "_r{seed}.h5"
 
     @property
     def filename(self):
-        """The base filename of this object"""
+        """The base filename of this object."""
         if self._random_seed is None:
             raise AttributeError("filename not defined until random_seed has been set")
 
@@ -547,7 +550,7 @@ class OutputStruct(StructWrapper):
 
     def read(self, direc=None):
         """
-        Try to find and read in existing boxes from cache, which match the parameters of this instance.
+        Try find and read existing boxes from cache, which match the parameters of this instance.
 
         Parameters
         ----------
@@ -591,6 +594,7 @@ class OutputStruct(StructWrapper):
         self._expose()
 
     def __repr__(self):
+        """Return a fully unique representation of the instance."""
         # This is the class name and all parameters which belong to C-based input structs,
         # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
         return self._seedless_repr() + "_random_seed={}".format(self._random_seed)
@@ -620,6 +624,7 @@ class OutputStruct(StructWrapper):
         )
 
     def __str__(self):
+        """Return a human-readable representation of the instance."""
         # this is *not* a unique representation, and doesn't include global params.
         return (
             self._name
@@ -636,22 +641,30 @@ class OutputStruct(StructWrapper):
         )
 
     def __hash__(self):
-        """this should be unique for this combination of parameters, even global params
-        and random seed."""
+        """Return a unique hsh for this instance, even global params and random seed."""
         return hash(repr(self))
 
     @property
     def _md5(self):
-        """A hash of the object, which does *not* take into account the random seed."""
+        """Return a unique hsh of the object, *not* taking into account the random seed."""
         return md5(self._seedless_repr().encode()).hexdigest()
 
     def __eq__(self, other):
+        """Check equality with another object via its __repr__."""
         return repr(self) == repr(other)
 
 
 class StructInstanceWrapper:
-    """
-    A wrapper for *instances* of C structs.
+    """A wrapper for *instances* of C structs.
+
+    This is as opposed to :class:`StructWrapper`, which is for the un-instantiated structs.
+
+    Parameters
+    ----------
+    wrapped :
+        The reference to the C object to wrap (contained in the ``cffi.lib`` object).
+    ffi :
+        The ``cffi.ffi`` object.
     """
 
     def __init__(self, wrapped, ffi):
@@ -665,6 +678,7 @@ class StructInstanceWrapper:
         self._ctype = self._ffi.typeof(self._cobj).cname.split()[-1]
 
     def __setattr__(self, name, value):
+        """Set an attribute of the instance, attempting to change it in the C struct as well."""
         try:
             setattr(self._cobj, name, value)
         except AttributeError:
@@ -672,13 +686,16 @@ class StructInstanceWrapper:
         object.__setattr__(self, name, value)
 
     def items(self):
+        """Yield (name, value) pairs for each element of the struct."""
         for nm, tp in self._ffi.typeof(self._cobj).fields:
             yield nm, getattr(self, nm)
 
     def keys(self):
+        """Return a list of names of elements in the struct."""
         return [nm for nm, tp in self.items()]
 
     def __repr__(self):
+        """Return a unique representation of the instance."""
         return (
             self._ctype
             + "("
@@ -687,6 +704,13 @@ class StructInstanceWrapper:
         )
 
     def filtered_repr(self, filter_params):
+        """Get a fully unique representation of the instance that filters out some parametes.
+
+        Parameters
+        ----------
+        filter_params : list of str
+            The parameter names which should not appear in the representation.
+        """
         return (
             self._ctype
             + "("

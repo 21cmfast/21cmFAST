@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""Configuration options for the docs."""
 from __future__ import unicode_literals
 
 import os
@@ -9,8 +10,11 @@ sys.path.insert(0, os.path.abspath("../"))
 
 
 class Mock(MagicMock):
+    """Make a Mock so that a package doesn't have to actually exist."""
+
     @classmethod
     def __getattr__(cls, name):
+        """Get stuff."""
         return MagicMock()
 
 

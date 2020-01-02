@@ -1,43 +1,16 @@
 """
-This is the main wrapper for the underlying 21cmFAST C-code, and the module provides a
-number of:
+The main wrapper for the underlying 21cmFAST C-code.
 
-* Input-parameter classes which wrap various C structs (these are the classes ending
-  with ``*Params`` or ``*Options``)
-* Output objects which simplify access to underlying data structures, such as density,
-  velocity and ionization fields
+The module provides both low- and high-level wrappers, using the very low-level machinery
+in :mod:`~py21cmfast._utils`, and the convenient input and output structures from
+:mod:`~py21cmfast.inputs` and :mod:`~py21cmfast.outputs`.
+
+This module provides a number of:
+
 * Low-level functions which simplify calling the background C functions which populate
   these output objects given the input classes.
 * High-level functions which provide the most efficient and simplest way to generate the
   most commonly desired outputs.
-
-Along with these, the module exposes ``global_params``, which is a simple class
-providing read/write access to a number of parameters used throughout the computation
-which are very rarely varied. These parameters can be accessed as standard instance
-attributes of ``global_params``, and listed using ``dir(global_params)``. When set, they
-are used globally for all proceeding calculations.
-
-**Input Parameter Classes**
-
-There are four input parameter/option classes, not all of which are required for any
-given function. They are :class:`UserParams`, :class:`CosmoParams`, :class:`AstroParams`
-and :class:`FlagOptions`. Each of them defines a number of variables, and all of these
-have default values, to minimize the burden on the user. These defaults are accessed via
-the ``_defaults_`` class attribute of each class. The available parameters for each are
-listed in the documentation for each class below.
-
-**Output Objects**
-
-The remainder of the classes defined in this module are output classes. These exist to
-simplify access to large datasets created within C. Fundamentally, ownership of the data
-belongs to these classes, and the C functions merely accesses this and fills it. The
-various boxes and quantities associated with each output are available as instance
-attributes. Along with the output data, each output object contains the various input
-parameter objects necessary to define it.
-
-.. warning:: These should not be instantiated or filled by the user, but always handled
-             as output objects from the various functions contained here. Only the data
-             within the objects should be accessed.
 
 **Low-level functions**
 
@@ -55,7 +28,7 @@ evolution of the ionization field through redshift. In these cases, for best eff
 it is recommended to either use a customised manual approach to calling these low-level
 functions, or to call a higher-level function which optimizes this process.
 
-Finally, note that `21cmFAST` attempts to optimize the production of the large amount of
+Finally, note that :mod:`py21cmfast` attempts to optimize the production of the large amount of
 data via on-disk caching. By default, if a previous set of data has been computed using
 the current input parameters, it will be read-in from a caching repository and returned
 directly. This behaviour can be tuned in any of the low-level (or high-level) functions
@@ -64,7 +37,7 @@ by setting the `write`, `direc`, `regenerate` and `match_seed` parameters (see d
 to search the cache, and return empty datasets corresponding to each (these can the be
 filled with the data merely by calling ``.read()`` on any data set). Conversely, a
 specific data set can be read and returned as a proper output object by calling the
-:func:`readbox` function.
+:func:`~py21cmfast.cache_tools.readbox` function.
 
 
 **High-level functions**
@@ -114,7 +87,6 @@ interpolated onto the lightcone cells):
 import logging
 import os
 from copy import deepcopy
-from os import path
 
 import numpy as np
 from astropy import units
@@ -123,27 +95,35 @@ from astropy.cosmology import z_at_value
 from ._utils import StructWrapper
 from .c_21cmfast import ffi
 from .c_21cmfast import lib
-from .inputs import UserParams, AstroParams, FlagOptions, CosmoParams, global_params
-from .outputs import (
-    InitialConditions,
-    PerturbedField,
-    IonizedBox,
-    TsBox,
-    BrightnessTemp,
-)
+from .inputs import AstroParams
+from .inputs import CosmoParams
+from .inputs import FlagOptions
+from .inputs import UserParams
+from .inputs import global_params
+from .outputs import BrightnessTemp
+from .outputs import InitialConditions
+from .outputs import IonizedBox
+from .outputs import PerturbedField
+from .outputs import TsBox
 
 logger = logging.getLogger("21cmFAST")
 
 
-# ======================================================================================
-# HELPER FUNCTIONS
-# ======================================================================================
 def _check_compatible_inputs(*datasets, ignore=["redshift"]):
-    """
-    Ensure that all defined input parameters for the provided datasets are equal, save for those
-    listed in ignore.
-    """
+    """Ensure that all defined input parameters for the provided datasets are equal.
 
+    Parameters
+    ----------
+    datasets : list of :class:`~_utils.OutputStruct`
+        A number of output datasets to cross-check.
+    ignore : list of str
+        Attributes to ignore when ensuring that parameter inputs are the same.
+
+    Raises
+    ------
+    ValueError :
+        If datasets are not compatible.
+    """
     done = []  # keeps track of inputs we've checked so we don't double check.
 
     for i, d in enumerate(datasets):
@@ -171,7 +151,39 @@ def _check_compatible_inputs(*datasets, ignore=["redshift"]):
                 done += [inp]
 
 
-def configure_inputs(defaults, *datasets, ignore=["redshift"], flag_none=None):
+def _configure_inputs(
+    defaults: list,
+    *datasets,
+    ignore: list = ["redshift"],
+    flag_none: [list, None] = None,
+):
+    """Configure a set of input parameter structs.
+
+    This is useful for basing parameters on a previous output.
+    The logic is this: the struct _cannot_ be present and different in both defaults and
+    a dataset. If it is present in _either_ of them, that will be returned. If it is
+    present in _neither_, either an error will be raised (if that item is in `flag_none`)
+    or it will pass.
+
+    Parameters
+    ----------
+    defaults : list of 2-tuples
+        Each tuple is (key, val). Keys are input struct names, and values are a default
+        structure for that input.
+    datasets : list of :class:`~_utils.OutputStruct`
+        A number of output datasets to cross-check, and draw parameter values from.
+    ignore : list of str
+        Attributes to ignore when ensuring that parameter inputs are the same.
+    flag_none : list
+        A list of parameter names for which ``None`` is not an acceptable value.
+
+    Raises
+    ------
+    ValueError :
+        If an input parameter is present in both defaults and the dataset, and is different.
+        OR if the parameter is present in neither defaults not the datasets, and it is
+        included in `flag_none`.
+    """
     # First ensure all inputs are compaible in their parameters
     _check_compatible_inputs(*datasets, ignore=ignore)
 
@@ -180,7 +192,6 @@ def configure_inputs(defaults, *datasets, ignore=["redshift"], flag_none=None):
 
     output = [0] * len(defaults)
     for i, (key, val) in enumerate(defaults):
-
         # Get the value of this input from the datasets
         data_val = None
         for dataset in datasets:
@@ -211,13 +222,21 @@ def configure_inputs(defaults, *datasets, ignore=["redshift"], flag_none=None):
 
 def configure_redshift(redshift, *structs):
     """
-    This is a special case to check and obtain redshift from given default and structs.
+    Check and obtain a redshift from given default and structs.
 
-    It will raise a ValueError if both redshift and all structs (and/or their redshift) have
-    value of None, *or* if
-    any of them are different from each other.
+    Parameters
+    ----------
+    redshift : float
+        The default redshift to use
+    structs : list of :class:`~_utils.OutputStruct`
+        A number of output datasets from which to find the redshift.
+
+    Raises
+    ------
+    ValueError :
+        If both `redshift` and *all* structs have a value of `None`, **or** if any of them
+        are different from each other (and not `None`).
     """
-
     zs = set()
     for s in structs:
         if s is not None and hasattr(s, "redshift"):
@@ -237,8 +256,8 @@ def configure_redshift(redshift, *structs):
         return redshift
 
 
-def verify_types(**kwargs):
-    """Ensure each argument has a type of None or that matching its name"""
+def _verify_types(**kwargs):
+    """Ensure each argument has a type of None or that matching its name."""
     for k, v in kwargs.items():
         for j, kk in enumerate(["init", "perturb", "ionize", "spin_temp"]):
             if kk in k:
@@ -250,21 +269,23 @@ def verify_types(**kwargs):
 
 
 class ParameterError(RuntimeError):
+    """An exception representing a bad choice of parameters."""
+
     def __init__(self):
         default_message = "21cmFAST does not support this combination of parameters."
         super().__init__(default_message)
 
 
 class FatalCError(Exception):
+    """An exception representing something going wrong in C."""
+
     def __init__(self):
         default_message = "21cmFAST is exiting."
         super().__init__(default_message)
 
 
 def _process_exitcode(exitcode):
-    """
-    Determine what happens for different values of the (integer) exit code from a C function
-    """
+    """Determine what happens for different values of the (integer) exit code from a C function."""
     if exitcode == 0:
         pass
     elif exitcode == 1:
@@ -293,6 +314,29 @@ def _call_c_func(fnc, obj, direc, *args, write=True):
 # WRAPPING FUNCTIONS
 # ======================================================================================
 def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
+    """Compute the optical depth to reionization under the given model.
+
+    Parameters
+    ----------
+    redshifts : array-like
+        Redshifts defining an evolution of the neutral fraction.
+    global_xHI : array-like
+        The mean neutral fraction at `redshifts`.
+    user_params : :class:`~inputs.UserParams`
+        Parameters defining the simulation run.
+    cosmo_params : :class:`~inputs.CosmoParams`
+        Cosmological parameters.
+
+    Returns
+    -------
+    tau : float
+        The optional depth to reionization
+
+    Raises
+    ------
+    ValueError :
+        If `redshifts` and `global_xHI` have inconsistent length.
+    """
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
 
@@ -319,6 +363,33 @@ def compute_luminosity_function(
     flag_options=None,
     nbins=100,
 ):
+    """Compute a the luminosity function over a given number of bins and redshifts.
+
+    Parameters
+    ----------
+    redshifts : array-like
+        The redshifts at which to compute the luminosity function.
+    user_params : :class:`~UserParams`, optional
+        Defines the overall options and parameters of the run.
+    cosmo_params : :class:`~CosmoParams`, optional
+        Defines the cosmological parameters used to compute initial conditions.
+    astro_params : :class:`~AstroParams`, optional
+        The astrophysical parameters defining the course of reionization.
+    flag_options : :class:`~FlagOptions`, optional
+        Some options passed to the reionization routine.
+    nbins : int, optional
+        The number of luminosity bins to produce for the luminosity function.
+
+    Returns
+    -------
+    Muvfunc : np.ndarray
+        Magnitude array (i.e. brightness). Shape [nredshifts, nbins]
+    Mhfunc : np.ndarray
+        Halo mass array. Shape [nredshifts, nbins]
+    lfunc : np.ndarray
+        Number density of haloes corresponding to each bin defined by `Muvfunc`.
+        Shape [nredshifts, nbins].
+    """
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     astro_params = AstroParams(astro_params)
@@ -359,7 +430,7 @@ def compute_luminosity_function(
     return Muvfunc, Mhfunc, lfunc
 
 
-def init_photon_conservation_correction(
+def _init_photon_conservation_correction(
     *, user_params=None, cosmo_params=None, astro_params=None, flag_options=None
 ):
     user_params = UserParams(user_params)
@@ -372,7 +443,7 @@ def init_photon_conservation_correction(
     )
 
 
-def calibrate_photon_conservation_correction(
+def _calibrate_photon_conservation_correction(
     *, redshifts_estimate, nf_estimate, NSpline
 ):
     # Convert the data to the right type
@@ -385,21 +456,22 @@ def calibrate_photon_conservation_correction(
     return lib.PhotonCons_Calibration(z, xHI, NSpline)
 
 
-def calc_zstart_photon_cons():
+def _calc_zstart_photon_cons():
     # Run the C code
     return lib.ComputeZstart_PhotonCons()
 
 
-def get_photon_nonconservation_data():
+def _get_photon_nonconservation_data():
     """
     Access C global data representing the photon-nonconservation corrections.
 
     .. note::  if not using ``PHOTON_CONS`` (in :class:`~FlagOptions`), *or* if the
                initialisation for photon conservation has not been performed yet, this
                will return None.
+
     Returns
     -------
-    dict : dictionary with key/values:
+    dict :
       z_analytic: array of redshifts defining the analytic ionized fraction
       Q_analytic: array of analytic  ionized fractions corresponding to `z_analytic`
       z_calibration: array of redshifts defining the ionized fraction from 21cmFAST without
@@ -488,19 +560,15 @@ def initial_conditions(
     ----------
     user_params : :class:`~UserParams` instance, optional
         Defines the overall options and parameters of the run.
-
     cosmo_params : :class:`~CosmoParams` instance, optional
         Defines the cosmological parameters used to compute initial conditions.
-
     regenerate : bool, optional
         Whether to force regeneration of data, even if matching cached data is found.
         This is applied recursively to any potential sub-calculations. It is ignored in
         the case of dependent data only if that data is explicitly passed to the function.
-
     write : bool, optional
         Whether to write results to file (i.e. cache). This is recursively applied to
         any potential sub-calculations.
-
     direc : str, optional
         The directory in which to search for the boxes and write them. By default, this
         is the directory given by ``boxdir`` in the configuration file,
@@ -559,15 +627,12 @@ def perturb_field(
     ----------
     redshift : float
         The redshift at which to compute the perturbed field.
-
     init_boxes : :class:`~InitialConditions`, optional
         If given, these initial conditions boxes will be used, otherwise initial conditions will
         be generated. If given,
         the user and cosmo params will be set from this object.
-
     user_params : :class:`~UserParams`, optional
         Defines the overall options and parameters of the run.
-
     cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
 
@@ -607,10 +672,10 @@ def perturb_field(
     >>> field7 = perturb_field(7.0, user_params=UserParams(HII_DIM=1000))
 
     """
-    verify_types(init_boxes=init_boxes)
+    _verify_types(init_boxes=init_boxes)
 
     # Configure and check input/output parameters/structs
-    random_seed, user_params, cosmo_params = configure_inputs(
+    random_seed, user_params, cosmo_params = _configure_inputs(
         [
             ("random_seed", random_seed),
             ("user_params", user_params),
@@ -700,160 +765,128 @@ def ionize_box(
     ----------
     astro_params: :class:`~AstroParams` instance, optional
         The astrophysical parameters defining the course of reionization.
-
     flag_options: :class:`~FlagOptions` instance, optional
         Some options passed to the reionization routine.
-
     redshift : float, optional
         The redshift at which to compute the ionized box. If `perturbed_field` is given,
         its inherent redshift
         will take precedence over this argument. If not, this argument is mandatory.
-
     perturbed_field : :class:`~PerturbField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated,
         either `init_boxes` and
         `redshift` must be given, or `user_params`, `cosmo_params` and `redshift`.
-
     init_boxes : :class:`~InitialConditions` , optional
         If given, and `perturbed_field` *not* given, these initial conditions boxes will be used
-        to generate the
-        perturbed field, otherwise initial conditions will be generated on the fly. If given,
-        the user and cosmo params will be set from this object.
-
+        to generate the perturbed field, otherwise initial conditions will be generated on the fly.
+        If given, the user and cosmo params will be set from this object.
     previous_ionize_box: :class:`IonizedBox` or None
-        An ionized box at higher redshift. This is only used if `INHOMO_RECO` and/or
-        `do_spin_temp` are true. If either
-        of these are true, and this is not given, then it will be assumed that this is the "first
-        box", i.e. that it
-        can be populated accurately without knowing source statistics.
-
+        An ionized box at higher redshift. This is only used if `INHOMO_RECO` and/or `do_spin_temp`
+        are true. If either of these are true, and this is not given, then it will be assumed that
+        this is the "first box", i.e. that it can be populated accurately without knowing source
+        statistics.
     z_step_factor: float, optional
         A factor greater than unity, which specifies the logarithmic steps in redshift with which
-        the spin temperature
-        box is evolved.
-
+        the spin temperature box is evolved.
     z_heat_max: float, optional
         The maximum redshift at which to search for heating sources. Practically, this defines
-        the limit in redshift
-        at which the spin temperature can be defined purely from the background perturbed field
-        rather than by evolving
-        from a previous spin temperature field. Default is the global parameter `Z_HEAT_MAX`.
-
+        the limit in redshift at which the spin temperature can be defined purely from the
+        background perturbed field rather than by evolving from a previous spin temperature field.
+        Default is the global parameter `Z_HEAT_MAX`.
     spin_temp: :class:`TsBox` or None, optional
-        A spin-temperature box, only required if `do_spin_temp` is True.
-        If None, will try to read in a spin temp box at the current redshift, and failing that
-        will try to
-        automatically create one, using the previous ionized box redshift as the previous spin
-        temperature redshift.
-
+        A spin-temperature box, only required if `do_spin_temp` is True. If None, will try to read
+        in a spin temp box at the current redshift, and failing that will try to automatically
+        create one, using the previous ionized box redshift as the previous spin temperature
+        redshift.
     user_params : :class:`~UserParams`, optional
         Defines the overall options and parameters of the run.
-
     cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
-
     cleanup : bool, optional
-        A flag to specify whether the C routine cleans up its memory before returning.
-        Typically, if `spin_temperature` is called directly, you will want this to be
-        true, as if the next box to be calculate has different shape, errors will occur
-        if memory is not cleaned. However, it can be useful to set it to False if
-        scrolling through parameters for the same box shape.
+        A flag to specify whether the C routine cleans up its memory before returning. Typically,
+        if `spin_temperature` is called directly, you will want this to be true, as if the next box
+        to be calculate has different shape, errors will occur if memory is not cleaned. However,
+        it can be useful to set it to False if scrolling through parameters for the same box shape.
 
     Returns
     -------
-    :class:`~IonizedBox`
+    :class:`~IonizedBox` :
         An object containing the ionized box data.
 
     Other Parameters
     ----------------
-    regenerate, write, direc, random_seed:
+    regenerate, write, direc, random_seed :
         See docs of :func:`initial_conditions` for more information.
 
     Notes
     -----
-
     Typically, the ionization field at any redshift is dependent on the evolution of xHI up until
     that redshift, which necessitates providing a previous ionization field to define the current
-    one. This
-    function provides several options for doing so. First, if neither the spin temperature field,
-    nor inhomogeneous
-    recombinations (specified in flag options) are used, no evolution needs to be done.
-    Otherwise, either (in order of
-    precedence) (i) a specific previous :class`~IonizedBox` object is provided, which will be
-    used directly,
-    (ii) a previous redshift is provided, for which a cached field on disk will be sought,
-    (iii) a step factor is
-    provided which recursively steps through redshift, calculating previous fields up until
-    Z_HEAT_MAX, and returning
-    just the final field at the current redshift, or (iv) the function is instructed to treat the
-    current field as
-    being an initial "high-redshift" field such that specific sources need not be found and evolved.
+    one. This function provides several options for doing so. First, if neither the spin
+    temperature field, nor inhomogeneous recombinations (specified in flag options) are used, no
+    evolution needs to be done. Otherwise, either (in order of precedence)
+
+    1. a specific previous :class`~IonizedBox` object is provided, which will be used directly,
+    2. a previous redshift is provided, for which a cached field on disk will be sought,
+    3. a step factor is provided which recursively steps through redshift, calculating previous
+       fields up until Z_HEAT_MAX, and returning just the final field at the current redshift, or
+    4. the function is instructed to treat the current field as being an initial "high-redshift"
+       field such that specific sources need not be found and evolved.
 
     .. note:: If a previous specific redshift is given, but no cached field is found at that
-    redshift, the previous
-              ionization field will be evaluated based on `z_step_factor`.
+              redshift, the previous ionization field will be evaluated based on `z_step_factor`.
 
     Examples
     --------
     By default, no spin temperature is used, and neither are inhomogeneous recombinations,
-    so that no evolution is
-    required, thus the following will compute a coeval ionization box:
+    so that no evolution is required, thus the following will compute a coeval ionization box:
 
     >>> xHI = ionize_box(redshift=7.0)
 
     However, if either of those options are true, then a full evolution will be required:
 
-    >>> xHI = ionize_box(redshift=7.0, flag_options=FlagOptions(INHOMO_RECO=True,
-    USE_TS_FLUCT=True))
+    >>> xHI = ionize_box(redshift=7.0, flag_options=FlagOptions(INHOMO_RECO=True,USE_TS_FLUCT=True))
 
     This will by default evolve the field from a redshift of *at least* `Z_HEAT_MAX` (a global
-    parameter), in logarithmic
-    steps of `z_step_factor`. Thus to change these:
+    parameter), in logarithmic steps of `z_step_factor`. Thus to change these:
 
-    >>> xHI = ionize_box(redshift=7.0, z_step_factor=1.2, z_heat_max=15.0, flag_options={
-    "USE_TS_FLUCT":True})
+    >>> xHI = ionize_box(redshift=7.0, z_step_factor=1.2, z_heat_max=15.0,
+    >>>                  flag_options={"USE_TS_FLUCT":True})
 
     Alternatively, one can pass an exact previous redshift, which will be sought in the disk
     cache, or evaluated:
 
     >>> ts_box = ionize_box(redshift=7.0, previous_ionize_box=8.0, flag_options={
-    "USE_TS_FLUCT":True})
+    >>>                     "USE_TS_FLUCT":True})
 
     Beware that doing this, if the previous box is not found on disk, will continue to evaluate
-    prior boxes based on the
-    `z_step_factor`. Alternatively, one can pass a previous :class:`~IonizedBox`:
+    prior boxes based on the `z_step_factor`. Alternatively, one can pass a previous
+    :class:`~IonizedBox`:
 
     >>> xHI_0 = ionize_box(redshift=8.0, flag_options={"USE_TS_FLUCT":True})
     >>> xHI = ionize_box(redshift=7.0, previous_ionize_box=xHI_0)
 
     Again, the first line here will implicitly use `z_step_factor` to evolve the field from
-    ~`Z_HEAT_MAX`. Note that
-    in the second line, all of the input parameters are taken directly from `xHI_0` so that they
-    are consistent, and
-    we need not specify the ``flag_options``.
+    ~`Z_HEAT_MAX`. Note that in the second line, all of the input parameters are taken directly from
+    `xHI_0` so that they are consistent, and we need not specify the ``flag_options``.
     Finally, one can force the function to evaluate the current redshift as if it was beyond
-    Z_HEAT_MAX so that it
-    depends only on itself:
+    Z_HEAT_MAX so that it depends only on itself:
 
     >>> xHI = ionize_box(redshift=7.0, z_step_factor=None, flag_options={"USE_TS_FLUCT":True})
 
     This is usually a bad idea, and will give a warning, but it is possible.
 
     As the function recursively evaluates previous redshift, the previous spin temperature fields
-    will also be
-    consistently recursively evaluated. Only the final ionized box will actually be returned and
-    kept in memory, however
-    intervening results will by default be cached on disk. One can also pass an explicit spin
-    temperature object:
+    will also be consistently recursively evaluated. Only the final ionized box will actually be
+    returned and kept in memory, however intervening results will by default be cached on disk.
+    One can also pass an explicit spin temperature object:
 
     >>> ts = spin_temperature(redshift=7.0)
     >>> xHI = ionize_box(redshift=7.0, spin_temp=ts)
 
     If automatic recursion is used, then it is done in such a way that no large boxes are kept
-    around in memory for
-    longer than they need to be (only two at a time are required).
+    around in memory for longer than they need to be (only two at a time are required).
     """
-    verify_types(
+    _verify_types(
         init_boxes=init_boxes,
         perturbed_field=perturbed_field,
         previous_ionize_box=previous_ionize_box,
@@ -867,7 +900,7 @@ def ionize_box(
         cosmo_params,
         astro_params,
         flag_options,
-    ) = configure_inputs(
+    ) = _configure_inputs(
         [
             ("random_seed", random_seed),
             ("user_params", user_params),
@@ -1059,59 +1092,41 @@ def spin_temperature(
 
     Parameters
     ----------
-    astro_params: :class:`~AstroParams`, optional
+    astro_params : :class:`~AstroParams`, optional
         The astrophysical parameters defining the course of reionization.
-
-    flag_options: :class:`~FlagOptions`, optional
+    flag_options : :class:`~FlagOptions`, optional
         Some options passed to the reionization routine.
-
     redshift : float, optional
         The redshift at which to compute the ionized box. If not given, the redshift from
-        `perturbed_field` will be used.
-        Either `redshift`, `perturbed_field`, or `previous_spin_temp` must be given. See notes on
-        `perturbed_field` for
-        how it affects the given redshift if both are given.
-
+        `perturbed_field` will be used. Either `redshift`, `perturbed_field`, or
+        `previous_spin_temp` must be given. See notes on `perturbed_field` for how it affects the
+        given redshift if both are given.
     perturbed_field : :class:`~PerturbField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated,
-        either `init_boxes` and
-        `redshift` must be given, or `user_params`, `cosmo_params` and `redshift`. By default,
-        this will be generated
-        at the same redshift as the spin temperature box. The redshift of perturb field is
-        allowed to be different
-        than `redshift`. If so, it will be interpolated to the correct redshift, which can
-        provide a speedup compared
-        to actually computing it at the desired redshift.
-
+        either `init_boxes` and `redshift` must be given, or `user_params`, `cosmo_params` and
+        `redshift`. By default, this will be generated at the same redshift as the spin temperature
+        box. The redshift of perturb field is allowed to be different than `redshift`. If so, it
+        will be interpolated to the correct redshift, which can provide a speedup compared to
+        actually computing it at the desired redshift.
     previous_spin_temp : :class:`TsBox` or None
         The previous spin temperature box.
-
-    z_step_factor: float, optional
+    z_step_factor : float, optional
         A factor greater than unity, which specifies the logarithmic steps in redshift with which
-        the spin temperature
-        box is evolved. If None, the code will assume that this is the first box in the evolution
-        process, and generate
-        the spin temp directly from the perturbed field.
-
-    z_heat_max: float, optional
+        the spin temperature box is evolved. If None, the code will assume that this is the first
+        box in the evolution process, and generate the spin temp directly from the perturbed field.
+    z_heat_max : float, optional
         The maximum redshift at which to search for heating sources. Practically, this defines
-        the limit in redshift
-        at which the spin temperature can be defined purely from the background perturbed field
-        rather than by evolving
-        from a previous spin temperature field. Default is the global parameter `Z_HEAT_MAX`.
-
+        the limit in redshift at which the spin temperature can be defined purely from the
+        background perturbed field rather than by evolving from a previous spin temperature field.
+        Default is the global parameter `Z_HEAT_MAX`.
     init_boxes : :class:`~InitialConditions`, optional
         If given, and `perturbed_field` *not* given, these initial conditions boxes will be used
-        to generate the
-        perturbed field, otherwise initial conditions will be generated on the fly. If given,
-        the user and cosmo params will be set from this object.
-
+        to generate the perturbed field, otherwise initial conditions will be generated on the fly.
+        If given, the user and cosmo params will be set from this object.
     user_params : :class:`~UserParams`, optional
         Defines the overall options and parameters of the run.
-
     cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
-
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -1126,43 +1141,36 @@ def spin_temperature(
 
     Other Parameters
     ----------------
-    regenerate, write, direc, random_seed:
+    regenerate, write, direc, random_seed :
         See docs of :func:`initial_conditions` for more information.
 
     Notes
     -----
-
     Typically, the spin temperature field at any redshift is dependent on the evolution of spin
-    temperature up until
-    that redshift, which necessitates providing a previous spin temperature field to define the
-    current one. This
-    function provides several options for doing so. Either (in order of precedence) (i) a
-    specific previous spin
-    temperature object is provided, which will be used directly, (ii) a previous redshift is
-    provided, for which a
-    cached field on disk will be sought, (iii) a step factor is provided which recursively steps
-    through redshift,
-    calculating previous fields up until Z_HEAT_MAX, and returning just the final field at the
-    current redshift, or
-    (iv) the function is instructed to treat the current field as being an initial
-    "high-redshift" field such that
-    specific sources need not be found and evolved.
+    temperature up until that redshift, which necessitates providing a previous spin temperature
+    field to define the current one. This function provides several options for doing so. Either
+    (in order of precedence):
+
+    1. a specific previous spin temperature object is provided, which will be used directly,
+    2. a previous redshift is provided, for which a cached field on disk will be sought,
+    3. a step factor is provided which recursively steps through redshift, calculating previous
+       fields up until Z_HEAT_MAX, and returning just the final field at the current redshift, or
+    4. the function is instructed to treat the current field as being an initial "high-redshift"
+       field such that specific sources need not be found and evolved.
 
     .. note:: If a previous specific redshift is given, but no cached field is found at that
-    redshift, the previous
-              spin temperature field will be evaluated based on `z_step_factor`.
+              redshift, the previous spin temperature field will be evaluated based on
+              ``z_step_factor``.
 
     Examples
     --------
     To calculate and return a fully evolved spin temperature field at a given redshift (with
-    default input parameters),
-    simply use:
+    default input parameters), simply use:
 
     >>> ts_box = spin_temperature(redshift=7.0)
 
     This will by default evolve the field from a redshift of *at least* `Z_HEAT_MAX` (a global
-    parameter), in logarithmic
-    steps of `z_step_factor`. Thus to change these:
+    parameter), in logarithmic steps of `z_step_factor`. Thus to change these:
 
     >>> ts_box = spin_temperature(redshift=7.0, z_step_factor=1.2, z_heat_max=15.0)
 
@@ -1172,25 +1180,23 @@ def spin_temperature(
     >>> ts_box = spin_temperature(redshift=7.0, previous_spin_temp=8.0)
 
     Beware that doing this, if the previous box is not found on disk, will continue to evaluate
-    prior boxes based on the
-    `z_step_factor`. Alternatively, one can pass a previous spin temperature box:
+    prior boxes based on the ``z_step_factor``. Alternatively, one can pass a previous spin
+    temperature box:
 
     >>> ts_box1 = spin_temperature(redshift=8.0)
     >>> ts_box = spin_temperature(redshift=7.0, previous_spin_temp=ts_box1)
 
-    Again, the first line here will implicitly use `z_step_factor` to evolve the field from
-    ~`Z_HEAT_MAX`. Note that
-    in the second line, all of the input parameters are taken directly from `ts_box1` so that
-    they are consistent.
-    Finally, one can force the function to evaluate the current redshift as if it was beyond
-    Z_HEAT_MAX so that it
-    depends only on itself:
+    Again, the first line here will implicitly use ``z_step_factor`` to evolve the field from
+    around ``Z_HEAT_MAX``. Note that in the second line, all of the input parameters are taken
+    directly from `ts_box1` so that they are consistent. Finally, one can force the function to
+    evaluate the current redshift as if it was beyond ``Z_HEAT_MAX`` so that it depends only on
+    itself:
 
     >>> ts_box = spin_temperature(redshift=7.0, z_step_factor=None)
 
     This is usually a bad idea, and will give a warning, but it is possible.
     """
-    verify_types(
+    _verify_types(
         init_boxes=init_boxes,
         perturbed_field=perturbed_field,
         previous_spin_temp=previous_spin_temp,
@@ -1203,7 +1209,7 @@ def spin_temperature(
         cosmo_params,
         astro_params,
         flag_options,
-    ) = configure_inputs(
+    ) = _configure_inputs(
         [
             ("random_seed", random_seed),
             ("user_params", user_params),
@@ -1381,7 +1387,7 @@ def brightness_temperature(
     -------
     :class:`BrightnessTemp` instance.
     """
-    verify_types(
+    _verify_types(
         perturbed_field=perturbed_field, spin_temp=spin_temp, ionized_box=ionized_box
     )
 
@@ -1432,7 +1438,7 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
 
 
 class Coeval:
-    """A simple wrapper object defining a full coeval box with all associated data"""
+    """A full coeval box with all associated data."""
 
     def __init__(
         self, redshift, init_box, perturb, ib, bt, photon_nonconservation_data=None
@@ -1473,18 +1479,22 @@ class Coeval:
 
     @property
     def user_params(self):
+        """User params shared by all datasets."""
         return self.brightness_temp_struct.user_params
 
     @property
     def cosmo_params(self):
+        """Cosmo params shared by all datasets."""
         return self.brightness_temp_struct.cosmo_params
 
     @property
     def flag_options(self):
+        """Flag Options shared by all datasets."""
         return self.brightness_temp_struct.flag_options
 
     @property
     def astro_params(self):
+        """Astro params shared by all datasets."""
         return self.brightness_temp_struct.astro_params
 
 
@@ -1507,43 +1517,40 @@ def run_coeval(
     cleanup=True,
 ):
     """
-    Evaluates a coeval ionized box at a given redshift, or multiple redshift.
+    Evaluate a coeval ionized box at a given redshift, or multiple redshifts.
 
     This is generally the easiest and most efficient way to generate a set of coeval cubes at a
-    given set of redshift.
-    It self-consistently deals with situations in which the field needs to be evolved, and does
-    this with the highest
-    memory-efficiency, only returning the desired redshift. All other calculations are by default
-    stored in the
-    on-disk cache so they can be re-used at a later time.
+    given set of redshift. It self-consistently deals with situations in which the field needs to be
+    evolved, and does this with the highest memory-efficiency, only returning the desired redshift.
+    All other calculations are by default stored in the on-disk cache so they can be re-used at a
+    later time.
 
     .. note:: User-supplied redshift are *not* used as previous redshift in any scrolling,
-    so that pristine
-              log-sampling can be maintained.
+              so that pristine log-sampling can be maintained.
 
     Parameters
     ----------
     redshift: array_like
         A single redshift, or multiple redshift, at which to return results. The minimum of these
         will define the log-scrolling behaviour (if necessary).
-    user_params : :class:`~UserParams`, optional
+    user_params : :class:`~inputs.UserParams`, optional
         Defines the overall options and parameters of the run.
-    cosmo_params : :class:`~CosmoParams`, optional
+    cosmo_params : :class:`~inputs.CosmoParams` , optional
         Defines the cosmological parameters used to compute initial conditions.
-    astro_params: :class:`~AstroParams`, optional
+    astro_params : :class:`~inputs.AstroParams` , optional
         The astrophysical parameters defining the course of reionization.
-    flag_options: :class:`~FlagOptions`, optional
+    flag_options : :class:`~inputs.FlagOptions` , optional
         Some options passed to the reionization routine.
-    z_step_factor: float, optional
+    z_step_factor : float, optional
         How large the logarithmic steps between redshift are (if required).
-    z_heat_max: float, optional
-        Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift
-        up to which heating sources are required to specify the ionization field. Beyond
-        this, the ionization field is specified directly from the perturbed density field.
+    z_heat_max : float, optional
+        Controls the global ``Z_HEAT_MAX`` parameter, which specifies the maximum redshift up to
+        which heating sources are required to specify the ionization field. Beyond this, the
+        ionization field is specified directly from the perturbed density field.
     init_box : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not
         be re-calculated.
-    perturb : list of :class:`~PerturbedField`s, optional
+    perturb : list of :class:`~PerturbedField`, optional
         If given, must be compatible with init_box. It will merely negate the necessity
         of re-calculating the perturb fields.
     use_interp_perturb_field : bool, optional
@@ -1560,24 +1567,15 @@ def run_coeval(
 
     Returns
     -------
-    init_box: :class:`~InitialConditions`
-        The initial conditions data.
-
-    perturb: :class:`~PerturbedField` or list thereof
-        The perturbed field at the given redshift(s)
-
-    xHI: :class:`~IonizedBox` or list thereof
-        The ionization field(s).
-
-    bt: :class:`~BrightnessTemp` or list thereof
-        The brightness temperature box(es)
-
-    photon_nonconservation_data: :dict: containing data used
-        in the photon non-conservation correction
+    coevals : :class:`~Coeval`
+        The full data for the Coeval class, with init boxes, perturbed fields, ionized boxes,
+        brightness temperature, and potential data from the conservation of photons. If a
+        single redshift was specified, it will return such a class. If multiple redshifts
+        were passed, it will return a list of such classes.
 
     Other Parameters
     ----------------
-    regenerate, write, direc, random_seed:
+    regenerate, write, direc, random_seed :
         See docs of :func:`initial_conditions` for more information.
     """
     # Ensure perturb is a list of boxes, not just one.
@@ -1587,7 +1585,7 @@ def run_coeval(
     else:
         perturb = []
 
-    random_seed, user_params, cosmo_params = configure_inputs(
+    random_seed, user_params, cosmo_params = _configure_inputs(
         [
             ("random_seed", random_seed),
             ("user_params", user_params),
@@ -1739,7 +1737,7 @@ def run_coeval(
             )
 
     if flag_options.PHOTON_CONS:
-        photon_nonconservation_data = get_photon_nonconservation_data()
+        photon_nonconservation_data = _get_photon_nonconservation_data()
     else:
         photon_nonconservation_data = None
     coevals = [
@@ -1757,6 +1755,8 @@ def run_coeval(
 
 
 class LightCone:
+    """A full Lightcone with all associate evolved data."""
+
     def __init__(
         self,
         redshift,
@@ -1785,10 +1785,12 @@ class LightCone:
 
     @property
     def cell_size(self):
+        """Cell size [Mpc] of the lightcone voxels."""
         return self.user_params.BOX_LEN / self.user_params.HII_DIM
 
     @property
     def lightcone_dimensions(self):
+        """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
         return (
             self.user_params.BOX_LEN,
             self.user_params.BOX_LEN,
@@ -1797,18 +1799,22 @@ class LightCone:
 
     @property
     def shape(self):
+        """Shape of the lightcone as a 3-tuple."""
         return self.brightness_temp.shape
 
     @property
     def n_slices(self):
+        """Number of redshift slices in the lightcone."""
         return self.shape[-1]
 
     @property
     def lightcone_coords(self):
+        """Co-ordinates [Mpc] of each cell along the redshift axis."""
         return np.linspace(0, self.lightcone_dimensions[-1], self.n_slices)
 
     @property
     def lightcone_distances(self):
+        """Comoving distance to each cell along the redshift axis, from z=0."""
         return (
             self.cosmo_params.cosmo.comoving_distance(self.redshift).value
             + self.lightcone_coords
@@ -1816,6 +1822,7 @@ class LightCone:
 
     @property
     def lightcone_redshifts(self):
+        """Redshift of each cell along the redshift axis."""
         return np.array(
             [
                 z_at_value(self.cosmo_params.cosmo.comoving_distance, d * units.Mpc)
@@ -1844,51 +1851,45 @@ def run_lightcone(
     cleanup=True,
 ):
     """
-    Evaluates a full lightcone ending at a given redshift.
+    Evaluate a full lightcone ending at a given redshift.
 
     This is generally the easiest and most efficient way to generate a lightcone, though it can
-    be done manually by
-    using the lower-level functions which are called by this function.
+    be done manually by using the lower-level functions which are called by this function.
 
     Parameters
     ----------
-    redshift: float
+    redshift : float
         The minimum redshift of the lightcone.
-    max_redshift: float, optional
+    max_redshift : float, optional
         The maximum redshift at which to keep lightcone information. By default, this is equal to
-        `z_heat_max`.
-        Note that this is not *exact*, but will be typically slightly exceeded.
+        `z_heat_max`. Note that this is not *exact*, but will be typically slightly exceeded.
     user_params : `~UserParams`, optional
         Defines the overall options and parameters of the run.
     astro_params : :class:`~AstroParams`, optional
         Defines the astrophysical parameters of the run.
     cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
-    flag_options: :class:`~FlagOptions`, optional
+    flag_options : :class:`~FlagOptions`, optional
         Options concerning how the reionization process is run, eg. if spin temperature
         fluctuations are required.
-    z_step_factor: float, optional
+    z_step_factor : float, optional
         How large the logarithmic steps between redshift are (if required).
-    z_heat_max: float, optional
-        Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift up to
-        which heating sources
-        are required to specify the ionization field. Beyond this, the ionization field is
-        specified directly from
-        the perturbed density field.
+    z_heat_max : float, optional
+        Controls the global ``Z_HEAT_MAX`` parameter, which specifies the maximum redshift up to
+        which heating sources are required to specify the ionization field. Beyond this, the
+        ionization field is specified directly from the perturbed density field.
     init_box : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
-    perturb : list of :class:`~PerturbedField`s, optional
+    perturb : list of :class:`~PerturbedField`, optional
         If given, must be compatible with init_box. It will merely negate the necessity of
         re-calculating the
         perturb fields. It will also be used to set the redshift if given.
     use_interp_perturb_field : bool, optional
         Whether to use a single perturb field, at the lowest redshift of the lightcone,
-        to determine all spin
-        temperature fields. If so, this field is interpolated in the underlying C-code to the
-        correct redshift.
-        This is less accurate (and no more efficient), but provides compatibility with older
-        versions of 21cmMC.
+        to determine all spin temperature fields. If so, this field is interpolated in the
+        underlying C-code to the correct redshift. This is less accurate (and no more efficient),
+        but provides compatibility with older versions of 21cmMC.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -1898,7 +1899,7 @@ def run_lightcone(
 
     Returns
     -------
-    lightcone: :class:`~LightCone`
+    lightcone : :class:`~LightCone`
         The lightcone object.
 
     Other Parameters
@@ -1906,8 +1907,7 @@ def run_lightcone(
     regenerate, write, direc, random_seed
         See docs of :func:`initial_conditions` for more information.
     """
-
-    random_seed, user_params, cosmo_params = configure_inputs(
+    random_seed, user_params, cosmo_params = _configure_inputs(
         [
             ("random_seed", random_seed),
             ("user_params", user_params),
@@ -2079,7 +2079,7 @@ def run_lightcone(
         bt = bt2
 
     if flag_options.PHOTON_CONS:
-        photon_nonconservation_data = get_photon_nonconservation_data()
+        photon_nonconservation_data = _get_photon_nonconservation_data()
     else:
         photon_nonconservation_data = None
 
@@ -2148,11 +2148,10 @@ def calibrate_photon_cons(
     z_step_factor,
 ):
     """
-    Sets up the photon non-conservation correction.
+    Set up the photon non-conservation correction.
 
     Scrolls through in redshift, turning off all flag_options to construct a 21cmFAST calibration
-    reionisation history
-    to be matched to the analytic expression from solving the filling factor ODE.
+    reionisation history to be matched to the analytic expression from solving the filling factor ODE.
 
 
     Parameters
@@ -2171,10 +2170,6 @@ def calibrate_photon_cons(
     init_box : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
-
-    Returns
-    -------
-    Nothing
 
     Other Parameters
     ----------------
@@ -2200,7 +2195,7 @@ def calibrate_photon_cons(
     neutral_fraction_photon_cons = []
 
     # Initialise the analytic expression for the reionisation history
-    init_photon_conservation_correction(
+    _init_photon_conservation_correction(
         user_params=user_params,
         cosmo_params=cosmo_params,
         astro_params=astro_params,
@@ -2209,7 +2204,7 @@ def calibrate_photon_cons(
 
     # Determine the starting redshift to start scrolling through to create the
     # calibration reionisation history
-    z = calc_zstart_photon_cons()
+    z = _calc_zstart_photon_cons()
 
     while z > 5.0:
 
@@ -2251,7 +2246,7 @@ def calibrate_photon_cons(
     neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
 
     # Construct the spline for the calibration curve
-    calibrate_photon_conservation_correction(
+    _calibrate_photon_conservation_correction(
         redshifts_estimate=z_for_photon_cons,
         nf_estimate=neutral_fraction_photon_cons,
         NSpline=len(z_for_photon_cons),

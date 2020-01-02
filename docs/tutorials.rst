@@ -16,3 +16,4 @@ If you've covered the tutorials and still have questions about "how to do stuff"
    :maxdepth: 2
 
    faqs/installation_faq
+   faqs/misc

@@ -1,3 +1,4 @@
+"""Open and read the configuration file."""
 from os import path
 
 from . import yaml

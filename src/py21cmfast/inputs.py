@@ -1,21 +1,32 @@
+"""
+Input parameter classes.
+
+There are four input parameter/option classes, not all of which are required for any
+given function. They are :class:`UserParams`, :class:`CosmoParams`, :class:`AstroParams`
+and :class:`FlagOptions`. Each of them defines a number of variables, and all of these
+have default values, to minimize the burden on the user. These defaults are accessed via
+the ``_defaults_`` class attribute of each class. The available parameters for each are
+listed in the documentation for each class below.
+
+Along with these, the module exposes ``global_params``, a singleton object of type
+:class:`GlobalParams`, which is a simple class providing read/write access to a number of parameters
+used throughout the computation which are very rarely varied.
+"""
 import logging
+from os import path
 
 from astropy.cosmology import Planck15
-from os import path
-from ._utils import StructWithDefaults
+
 from ._utils import StructInstanceWrapper
+from ._utils import StructWithDefaults
 from .c_21cmfast import ffi
 from .c_21cmfast import lib
 
 logger = logging.getLogger("21cmFAST")
 
-global_params = StructInstanceWrapper(lib.global_params, ffi)
-EXTERNALTABLES = ffi.new(
-    "char[]", path.join(path.expanduser("~"), ".21cmfast").encode()
-)
-global_params.external_table_path = EXTERNALTABLES
 
-global_params.__doc__ = """
+class GlobalParams(StructInstanceWrapper):
+    """
     Global parameters for 21cmFAST.
 
     This is a thin wrapper over an allocated C struct, containing parameter values
@@ -51,90 +62,94 @@ global_params.__doc__ = """
         grids. In other words, the density field is quantized into ``(DIM/HII_DIM)^3`` values.
         If your usage requires smooth density fields, it is recommended to set this to True.
         This also decreases the shot noise present in all grid based codes, though it
-        overcompensates by an effective loss in resolution.
-        .. versionadded:: 1.1.0
+        overcompensates by an effective loss in resolution. **Added in 1.1.0**.
     R_smooth_density : float
         Determines the smoothing length to use if `SMOOTH_EVOLVED_DENSITY_FIELD` is True.
     SECOND_ORDER_LPT_CORRECTIONS : bool
         Use second-order Lagrangian perturbation theory (2LPT).
         Set this to True if the density field or the halo positions are extrapolated to
         low redshifts. The current implementation is very naive and adds a factor ~6 to
-        the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
+        the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
+        Appendix D.
     HII_ROUND_ERR : float
-        Rounding error on the ionization fraction. If the mean <xH> is greater than
-        1 - `HII_ROUND_ERR`, then finding HII bubbles is skipped, and a homogeneous
-        xHI field of ones is returned.
-        .. versionadded:: 1.1.0
-    FIND_BUBBLE_ALGORITHM : int
-        Choose which algorithm used to find HII bubbles. Options are:
-            1: Mesinger & Furlanetto 2007 method of overlapping spheres: paint an
-               ionized sphere with radius R, centered on pixel where R is filter radius.
-               This method, while somewhat more accurate, is slower than (2), especially
-               in mostly ionized universes, so only use for lower resolution boxes (HII_DIM<~400)
-            2: Center pixel only method (Zahn et al. 2007). This is faster.
+        Rounding error on the ionization fraction. If the mean xHI is greater than
+        ``1 - HII_ROUND_ERR``, then finding HII bubbles is skipped, and a homogeneous
+        xHI field of ones is returned. Added in  v1.1.0.
+    FIND_BUBBLE_ALGORITHM : int, {1,2}
+        Choose which algorithm used to find HII bubbles. Options are: (1) Mesinger & Furlanetto 2007
+        method of overlapping spheres: paint an ionized sphere with radius R, centered on pixel
+        where R is filter radius. This method, while somewhat more accurate, is slower than (2),
+        especially in mostly ionized universes, so only use for lower resolution boxes
+        (HII_DIM<~400). (2) Center pixel only method (Zahn et al. 2007). This is faster.
     N_POISSON : int
         If not using the halo field to generate HII regions, we provide the option of
         including Poisson scatter in the number of sources obtained through the conditional
         collapse fraction (which only gives the *mean* collapse fraction on a particular
         scale. If the predicted mean collapse fraction is less than  `N_POISSON * M_MIN`,
-        then Poisson scatter is added to mimic discrete halos on the subgrid scale (see Zahn+2010).
-        Use a negative number to turn it off.
-        .. note:: If you are interested in snapshots of the same realization at several redshifts,
-                  it is recommended to turn off this feature, as halos can stocastically "pop in
-                  and out of" existence from one redshift to the next.
+        then Poisson scatter is added to mimic discrete halos on the subgrid scale (see
+        Zahn+2010).Use a negative number to turn it off.
+
+        .. note:: If you are interested in snapshots of the same realization at several
+                  redshifts,it is recommended to turn off this feature, as halos can
+                  stochastically "pop in and out of" existence from one redshift to the next.
+
     T_USE_VELOCITIES : bool
         Whether to use velocity corrections in 21-cm fields
+
         .. note:: The approximation used to include peculiar velocity effects works
                   only in the linear regime, so be careful using this (see Mesinger+2010)
+
     MAX_DVDR : float
         Maximum velocity gradient along the line of sight in units of the hubble parameter at z.
         This is only used in computing the 21cm fields.
-        .. note:: Setting this too high can add spurious 21cm power in the early stages, due to the
-                  1-e^-tau ~ tau approximation (see Mesinger's 21cm intro paper and mao+2011).
+
+        .. note:: Setting this too high can add spurious 21cm power in the early stages,
+                  due to the 1-e^-tau ~ tau approximation (see Mesinger's 21cm intro paper and mao+2011).
                   However, this is still a good approximation at the <~10% level.
+
     VELOCITY_COMPONENT : int
         Component of the velocity to be used in 21-cm temperature maps (1=x, 2=y, 3=z)
     DELTA_R_HII_FACTOR : float
         Factor by which to scroll through filter radius for bubbles
-    HII_FILTER : int
+    HII_FILTER : int, {0, 1, 2}
         Filter for the Halo or density field used to generate ionization field:
-            0: real space top hat filter
-            1: k-space top hat filter
-            2: gaussian filter
+        0. real space top hat filter
+        1. k-space top hat filter
+        2. gaussian filter
     INITIAL_REDSHIFT : float
         Used to perturb field
     CRIT_DENS_TRANSITION : float
-        A transition value for the interpolation tables for calculating the number of ionising photons 
-        produced given the input parameters. Log sampling is desired, however the numerical accuracy
-        near the critical density for collapse (i.e. 1.69) broke down. Therefore, below the value for 
-        CRIT_DENS_TRANSITION log sampling of the density values is used, whereas above this value linear
-        sampling is used.
+        A transition value for the interpolation tables for calculating the number of ionising
+        photons produced given the input parameters. Log sampling is desired, however the numerical
+        accuracy near the critical density for collapse (i.e. 1.69) broke down. Therefore, below the
+        value for `CRIT_DENS_TRANSITION` log sampling of the density values is used, whereas above
+        this value linear sampling is used.
     MIN_DENSITY_LOW_LIMIT : float
-        Required for using the interpolation tables for the number of ionising photons. This is a lower limit 
-        for the density values that is slightly larger than -1. Defined as a density contrast. 
+        Required for using the interpolation tables for the number of ionising photons. This is a
+        lower limit for the density values that is slightly larger than -1. Defined as a density
+        contrast.
     RecombPhotonCons : int
-        Whether or not to use the recombination term when calculating the filling factor for performing the 
-        photon non-conservation correction.
+        Whether or not to use the recombination term when calculating the filling factor for
+        performing the photon non-conservation correction.
     PhotonConsStart : float
-        A starting value for the neutral fraction where the photon non-conservation correction is performed exactly.
-        Any value larger than this the photon non-conservation correction is not performed (i.e. the algorithm is
-        perfectly photon conserving).
+        A starting value for the neutral fraction where the photon non-conservation correction is
+        performed exactly. Any value larger than this the photon non-conservation correction is not
+        performed (i.e. the algorithm is perfectly photon conserving).
     PhotonConsEnd : float
-        An end-point for where the photon non-conservation correction is performed exactly. This is required to 
-        remove undesired numerical artifacts in the resultant neutral fraction histories.        
+        An end-point for where the photon non-conservation correction is performed exactly. This is
+        required to remove undesired numerical artifacts in the resultant neutral fraction histories.
     PhotonConsAsymptoteTo : float
-        Beyond `PhotonConsEnd` the photon non-conservation correction is extrapolated to yield smooth reionisation
-        histories. This sets the lowest neutral fraction value that the photon non-conservation correction will
-        be applied to.
+        Beyond `PhotonConsEnd` the photon non-conservation correction is extrapolated to yield
+        smooth reionisation histories. This sets the lowest neutral fraction value that the photon
+        non-conservation correction will be applied to.
     HEAT_FILTER : int
         Filter used for smoothing the linear density field to obtain the collapsed fraction:
             0: real space top hat filter
             1: sharp k-space filter
             2: gaussian filter
     CLUMPING_FACTOR : float
-        Sub grid scale.
-        .. note:: If you want to run-down from a very high redshift (>50), you should
-                  set this to one..
+        Sub grid scale. If you want to run-down from a very high redshift (>50), you should
+        set this to one.
     Z_HEAT_MAX : float
         Maximum redshift used in the Tk and x_e evolution equations.
         Temperature and x_e are assumed to be homogeneous at higher redshifts.
@@ -144,8 +159,8 @@ global_params.__doc__ = """
         should be larger than the mean free path of the relevant photons.
     NUM_FILTER_STEPS_FOR_Ts : int
         Number of spherical annuli used to compute df_coll/dz' in the simulation box.
-        The spherical annuli are evenly spaced in logR, ranging from the cell size to the box size.
-        :func:`~wrapper.spin_temp` will create this many boxes of size `HII_DIM`,
+        The spherical annuli are evenly spaced in logR, ranging from the cell size to the box
+        size. :func:`~wrapper.spin_temp` will create this many boxes of size `HII_DIM`,
         so be wary of memory usage if values are high.
     ZPRIME_STEP_FACTOR : float
         Logarithmic redshift step-size used in the z' integral.  Logarithmic dz.
@@ -172,8 +187,8 @@ global_params.__doc__ = """
     NU_X_MAX : float
         An upper limit (must be set beyond `NU_X_BAND_MAX`) for performing the rate integrals.
         Given the X-ray SED is modelled as a power-law, this removes the potential of divergent
-        behaviour for the heating rates. Chosen purely for numerical convenience though it is 
-        motivated by the fact that observed X-ray SEDs apprear to turn-over around 10-100 keV 
+        behaviour for the heating rates. Chosen purely for numerical convenience though it is
+        motivated by the fact that observed X-ray SEDs apprear to turn-over around 10-100 keV
         (Lehmer et al. 2013, 2015)
     NBINS_LF : int
         Number of bins for the luminosity function calculation.
@@ -206,8 +221,10 @@ global_params.__doc__ = """
 
                   For most purposes, a larger step size is quite sufficient and provides an
                   excellent match to N-body and smoother mass functions, though the b and c
-                  parameters should be changed to make up for some "stepping-over" massive collapsed
-                  halos (see Mesinger, Perna, Haiman (2005) and Mesinger et al., in preparation).
+                  parameters should be changed to make up for some "stepping-over" massive
+                  collapsed
+                  halos (see Mesinger, Perna, Haiman (2005) and Mesinger et al.,
+                  in preparation).
 
                   For example, at z~7-10, one can set `DELTA_R_FACTOR=1.3` and `SHETH_b=0.15`
                    and `SHETH_c=0.25`, to increase the speed of the halo finder.
@@ -215,13 +232,24 @@ global_params.__doc__ = """
         Sheth-Tormen parameter for ellipsoidal collapse (for HMF). See notes for `SHETH_b`.
     Zreion_HeII : float
         Redshift of helium reionization, currently only used for tau_e
-    FILTER : int
+    FILTER : int, {0, 1}
         Filter to use for smoothing.
-            0: tophat
-            1: gaussian
+        0. tophat
+        1. gaussian
     external_table_path : str
         The system path to find external tables for calculation speedups. DO NOT MODIFY.
-"""
+    """
+
+    def __init__(self, wrapped, ffi):
+        super().__init__(wrapped, ffi)
+
+        EXTERNALTABLES = ffi.new(
+            "char[]", path.join(path.expanduser("~"), ".21cmfast").encode()
+        )
+        self.external_table_path = EXTERNALTABLES
+
+
+global_params = GlobalParams(lib.global_params, ffi)
 
 
 class CosmoParams(StructWithDefaults):
@@ -258,16 +286,12 @@ class CosmoParams(StructWithDefaults):
 
     @property
     def OMl(self):
-        """
-        Omega lambda, dark energy density.
-        """
+        """Omega lambda, dark energy density."""
         return 1 - self.OMm
 
     @property
     def cosmo(self):
-        """
-        Return an astropy cosmology object for this cosmology.
-        """
+        """Return an astropy cosmology object for this cosmology."""
         return Planck15.clone(H0=self.hlittle * 100, Om0=self.OMm, Ob0=self.OMb)
 
 
@@ -328,9 +352,7 @@ class UserParams(StructWithDefaults):
 
     @property
     def DIM(self):
-        """
-        Number of cells for the high-res box (sampling ICs) along a principal axis.
-        """
+        """Number of cells for the high-res box (sampling ICs) along a principal axis."""
         return self._DIM or 4 * self.HII_DIM
 
     @property
@@ -346,8 +368,9 @@ class UserParams(StructWithDefaults):
     @property
     def POWER_SPECTRUM(self):
         """
-        The power spectrum generator to use, as an integer. See :func:`power_spectrum_model`
-        for a string representation.
+        The power spectrum generator to use, as an integer.
+
+        See :func:`power_spectrum_model` for a string representation.
         """
         if self.USE_RELATIVE_VELOCITIES:
             if self._POWER_SPECTRUM != 5 or (
@@ -377,7 +400,9 @@ class UserParams(StructWithDefaults):
     @property
     def HMF(self):
         """The HMF to use (an int, mapping to a given form).
-        See hmf_model for a string representation."""
+
+        See hmf_model for a string representation.
+        """
         if isinstance(self._HMF, str):
             val = self._hmf_models.index(self._HMF.upper())
         else:
@@ -451,6 +476,7 @@ class FlagOptions(StructWithDefaults):
 
     @property
     def M_MIN_in_Mass(self):
+        """Whether minimum halo mass is defined in mass or virial temperature."""
         if self.USE_MASS_DEPENDENT_ZETA:
             return True
 
@@ -553,6 +579,7 @@ class AstroParams(StructWithDefaults):
         super().__init__(*args, **kwargs)
 
     def convert(self, key, val):
+        """Convert a given attribute before saving it the instance."""
         if key in [
             "F_STAR10",
             "F_ESC10",
