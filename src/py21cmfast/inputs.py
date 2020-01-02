@@ -104,19 +104,28 @@ global_params.__doc__ = """
     INITIAL_REDSHIFT : float
         Used to perturb field
     CRIT_DENS_TRANSITION : float
-        ???
+        A transition value for the interpolation tables for calculating the number of ionising photons 
+        produced given the input parameters. Log sampling is desired, however the numerical accuracy
+        near the critical density for collapse (i.e. 1.69) broke down. Therefore, below the value for 
+        CRIT_DENS_TRANSITION log sampling of the density values is used, whereas above this value linear
+        sampling is used.
     MIN_DENSITY_LOW_LIMIT : float
-        ???
+        Required for using the interpolation tables for the number of ionising photons. This is a lower limit 
+        for the density values that is slightly larger than -1. Defined as a density contrast. 
     RecombPhotonCons : int
-        ???
+        Whether or not to use the recombination term when calculating the filling factor for performing the 
+        photon non-conservation correction.
     PhotonConsStart : float
-        ???
+        A starting value for the neutral fraction where the photon non-conservation correction is performed exactly.
+        Any value larger than this the photon non-conservation correction is not performed (i.e. the algorithm is
+        perfectly photon conserving).
     PhotonConsEnd : float
-        ???
+        An end-point for where the photon non-conservation correction is performed exactly. This is required to 
+        remove undesired numerical artifacts in the resultant neutral fraction histories.        
     PhotonConsAsymptoteTo : float
-        ???
-    PhotonConsAsymptoteVal : float
-        ???
+        Beyond `PhotonConsEnd` the photon non-conservation correction is extrapolated to yield smooth reionisation
+        histories. This sets the lowest neutral fraction value that the photon non-conservation correction will
+        be applied to.
     HEAT_FILTER : int
         Filter used for smoothing the linear density field to obtain the collapsed fraction:
             0: real space top hat filter
@@ -157,9 +166,15 @@ global_params.__doc__ = """
     Pop3_ion : float
         Number of ionizing photons per baryon for population 3 stellar species.
     NU_X_BAND_MAX : float
-        ???
+        This is the upper limit of the soft X-ray band (0.5 - 2 keV) used for normalising
+        the X-ray SED to observational limits set by the X-ray luminosity. Used for performing
+        the heating rate integrals.
     NU_X_MAX : float
-        ???
+        An upper limit (must be set beyond `NU_X_BAND_MAX`) for performing the rate integrals.
+        Given the X-ray SED is modelled as a power-law, this removes the potential of divergent
+        behaviour for the heating rates. Chosen purely for numerical convenience though it is 
+        motivated by the fact that observed X-ray SEDs apprear to turn-over around 10-100 keV 
+        (Lehmer et al. 2013, 2015)
     NBINS_LF : int
         Number of bins for the luminosity function calculation.
     P_CUTOFF : bool
