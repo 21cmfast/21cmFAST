@@ -31,8 +31,6 @@ struct GlobalParams{
     float PhotonConsStart;
     float PhotonConsEnd;
     float PhotonConsAsymptoteTo;
-    float PhotonConsAsymptoteVal;
-
 
     int HEAT_FILTER;
     double CLUMPING_FACTOR;
