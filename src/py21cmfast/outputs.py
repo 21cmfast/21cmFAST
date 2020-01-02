@@ -163,9 +163,7 @@ class PerturbedField(_OutputStructZ):
         )
 
 
-class IonizedBox(_OutputStructZ):
-    """A class containing all ionized boxes."""
-
+class _AllParamsBox(_OutputStructZ):
     _inputs = _OutputStructZ._inputs + ["flag_options", "astro_params"]
 
     _filter_params = _OutputStruct._filter_params + [
@@ -183,6 +181,10 @@ class IonizedBox(_OutputStructZ):
         self.first_box = first_box
 
         super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
+
+
+class IonizedBox(_AllParamsBox):
+    """A class containing all ionized boxes."""
 
     def _init_arrays(self):
         # ionized_box is always initialised to be neutral for excursion set algorithm.
@@ -215,7 +217,7 @@ class IonizedBox(_OutputStructZ):
             return np.mean(self.xH_box)
 
 
-class TsBox(IonizedBox):
+class TsBox(_AllParamsBox):
     """A class containing all spin temperature boxes."""
 
     def _init_arrays(self):
@@ -270,8 +272,10 @@ class TsBox(IonizedBox):
             return np.mean(self.x_e_box)
 
 
-class BrightnessTemp(IonizedBox):
+class BrightnessTemp(_AllParamsBox):
     """A class containing the brightness temperature box."""
+
+    _filter_params = _OutputStructZ._filter_params
 
     def _init_arrays(self):
         self.brightness_temp = np.zeros(

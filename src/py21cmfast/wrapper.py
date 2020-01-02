@@ -1411,6 +1411,7 @@ def brightness_temperature(
         astro_params=ionized_box.astro_params,
         flag_options=ionized_box.flag_options,
         redshift=ionized_box.redshift,
+        random_seed=ionized_box.random_seed,
     )
 
     return _call_c_func(
@@ -1441,29 +1442,15 @@ class Coeval:
     """A full coeval box with all associated data."""
 
     def __init__(
-        self, redshift, init_box, perturb, ib, bt, photon_nonconservation_data=None
+        self,
+        redshift: float,
+        init_box: InitialConditions,
+        perturb: PerturbedField,
+        ib: IonizedBox,
+        bt: BrightnessTemp,
+        photon_nonconservation_data=None,
     ):
-        if (
-            not init_box.user_params
-            == perturb.user_params
-            == ib.user_params
-            == bt.user_params
-        ):
-            raise ValueError("Not all input structs have the same user_params")
-
-        if (
-            not init_box.cosmo_params
-            == perturb.cosmo_params
-            == ib.cosmo_params
-            == bt.cosmo_params
-        ):
-            raise ValueError("Not all input structs have the same cosmo_params")
-
-        if not ib.astro_params == bt.astro_params:
-            raise ValueError("Not all input structs have the same astro_params")
-
-        if not ib.flag_options == bt.flag_options:
-            raise ValueError("Not all input structs have the same flag_options")
+        _check_compatible_inputs(init_box, perturb, ib, bt, ignore=[])
 
         self.redshift = redshift
         self.init_struct = init_box
@@ -1496,6 +1483,11 @@ class Coeval:
     def astro_params(self):
         """Astro params shared by all datasets."""
         return self.brightness_temp_struct.astro_params
+
+    @property
+    def random_seed(self):
+        """Random seed shared by all datasets."""
+        return self.brightness_temp_struct.random_seed
 
 
 def run_coeval(
@@ -1557,7 +1549,7 @@ def run_coeval(
         Whether to use a single perturb field, at the lowest redshift of the lightcone,
         to determine all spin temperature fields. If so, this field is interpolated in
         the underlying C-code to the correct redshift. This is less accurate (and no more
-        efficient), but provides compatibility with older versions of 21cmMC.
+        efficient), but provides compatibility with older versions of 21cmFAST.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -1889,7 +1881,7 @@ def run_lightcone(
         Whether to use a single perturb field, at the lowest redshift of the lightcone,
         to determine all spin temperature fields. If so, this field is interpolated in the
         underlying C-code to the correct redshift. This is less accurate (and no more efficient),
-        but provides compatibility with older versions of 21cmMC.
+        but provides compatibility with older versions of 21cmFAST.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -2151,7 +2143,8 @@ def calibrate_photon_cons(
     Set up the photon non-conservation correction.
 
     Scrolls through in redshift, turning off all flag_options to construct a 21cmFAST calibration
-    reionisation history to be matched to the analytic expression from solving the filling factor ODE.
+    reionisation history to be matched to the analytic expression from solving the filling factor
+    ODE.
 
 
     Parameters

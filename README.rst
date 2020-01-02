@@ -19,10 +19,6 @@
 This is the official repository for 21cmFAST. As of `v3.0.0`, it is conveniently
 wrapped in Python to enable more dynamic code.
 
-This code uses `semantic versioning <https://semver.org>`_, though this will strictly
-begin when `v3.0.0` is officially shipped.
-
-
 
 New Features in 3.0.0+
 ======================
@@ -33,6 +29,9 @@ New Features in 3.0.0+
   and ionization fields.
 * De-coupled functions mean that arbitrary functionality can be injected into the process.
 * Improved exception handling and debugging
+* Comprehensive documentation
+* Comprehensive test suite.
+* Strict `semantic versioning <https://semver.org>`_.
 
 
 Documentation

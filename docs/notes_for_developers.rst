@@ -12,6 +12,12 @@ installing all requirements as follows::
 
     $ pip install -r requirements_dev.txt
 
+If you use conda, it's even better to do
+
+    $ conda create -n 21cmfast python=3
+    $ conda activate 21cmfast
+    $ conda env update -f environment_dev.yml
+
 Compiling for debugging
 -----------------------
 When developing, it is usually a good idea to compile the underlying C code in ``DEBUG``
@@ -35,13 +41,13 @@ testing, ensure that the new C code is compiled into your environment by running
 
 There are two main purposes you may want to write some C code:
 
-1. An external plugin/extension which uses the output data from 21CMMC.
-2. Modifying the internal C code of 21CMMC.
+1. An external plugin/extension which uses the output data from 21cmFAST.
+2. Modifying the internal C code of 21cmFAST.
 
 21cmFAST currently provides no support for external plugins/extensions. It is entirely
 possible to write your own C code to do whatever you want with the output data, but we
 don't provide any wrapping structure for you to do this, you will need to write your
-own. Internally, 21CMMC uses the cffi library to aid the wrapping of the C code into
+own. Internally, 21cmFAST uses the `cffi` library to aid the wrapping of the C code into
 Python. You don't need to do the same, though we recommend it. If your desired
 "extension" is something that needs to operate in-between steps of 21cmFAST, we also
 provide no support for this, but it is possible, so long as the next step in the
@@ -138,14 +144,4 @@ To run these::
 Producing Integration Test Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 There are bunch of so-called "integration tests", which rely on previously-produced
-data. Critically, these tests will fail if the random seed chosen is different than that
-used to produce the data. Furthermore, different environments will sometimes produce
-different seeds. Thus, to produce this data, we provide a dedicated `tox` environment.
-To produce the data on your machine, use `tox -e produce`. This environment is *not*
-run on Travis, but it matches exactly the environments that will be used to test against
-this data.
-
-Furthermore, this data should only be produced with good reason -- the idea is to keep
-it static while the code changes, to have something steady to compare to. If a particular
-PR fixes a bug which affects a certain tests' data, then that data should be re-run, in
-the context of the PR, so it can be explained.
+data. To produce this data, run `python tests/produce_integration_test_data.py`.

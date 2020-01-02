@@ -1,5 +1,7 @@
 """A set of tools for reading/writing/querying the in-built cache."""
 import glob
+import logging
+import os
 from os import path
 
 import h5py
@@ -7,6 +9,8 @@ import h5py
 from . import wrapper
 from ._cfg import config
 from .wrapper import global_params
+
+logger = logging.getLogger("21cmFAST")
 
 
 def readbox(*, direc=None, fname=None, hsh=None, kind=None, seed=None, load_data=True):
@@ -88,7 +92,8 @@ def readbox(*, direc=None, fname=None, hsh=None, kind=None, seed=None, load_data
                 setattr(global_params, kk, vv)
 
         else:
-            # The following line takes something like "cosmo_params", turns it into "CosmoParams", and instantiates
+            # The following line takes something like "cosmo_params", turns it into
+            # "CosmoParams", and instantiates
             # that particular class with the dictionary parameters.
             passed_parameters[k] = getattr(wrapper, k.title().replace("_", ""))(**v)
 
@@ -129,8 +134,9 @@ def list_datasets(*, direc=None, kind=None, hsh=None, seed=None):
     direc : str, optional
         The directory in which to search for the boxes. By default, this is the centrally-managed
         directory, given by the ``config.yml`` in ``.21cmfast``.
-    kind: str, optional, {"InitialConditions", "PerturbedField", "IonizedBox", "TsBox", "BrightnessTemp"}
-        Filter by this kind.
+    kind: str, optional
+        Filter by this kind (one of {"InitialConditions", "PerturbedField", "IonizedBox",
+        "TsBox", "BrightnessTemp"}
     hsh: str, optional
         Filter by this hsh.
     seed: str, optional
@@ -185,8 +191,30 @@ def query_cache(*, direc=None, kind=None, hsh=None, seed=None, show=True):
     obj:
        Output objects, un-initialized.
     """
-    for file, parts in list_datasets(direc=direc, kind=kind, hash=hsh, seed=seed):
+    for file, parts in list_datasets(direc=direc, kind=kind, hsh=hsh, seed=seed):
         cls = readbox(direc=direc, fname=file, load_data=False)
         if show:
             print(file + ": " + str(cls))
         yield file, cls
+
+
+def clear_cache(**kwargs):
+    """Delete datasets in the cache.
+
+    Walks through the cache, with given filters, and deletes all un-initialised dataset
+    objects, optionally printing their representation to screen.
+
+    Parameters
+    ----------
+    kwargs :
+        All options passed through to :func:`query_cache`.
+    """
+    direc = kwargs.get("direc", path.expanduser(config["boxdir"]))
+    number = 0
+    for fname, cls in query_cache(show=False, **kwargs):
+        if kwargs.get("show", True):
+            logger.info("Removing {}".format(fname))
+        os.remove(path.join(direc, fname))
+        number += 1
+
+    logger.info("Removed {} files from cache.".format(number))

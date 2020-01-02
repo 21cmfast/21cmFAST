@@ -490,15 +490,17 @@ class OutputStruct(StructWrapper):
         """
         return self.find_existing(direc) is not None
 
-    def write(self, direc=None):
+    def write(self, direc=None, fname=None):
         """
-        Write the initial conditions boxes in standard HDF5 format.
+        Write the struct in standard HDF5 format.
 
         Parameters
         ----------
         direc : str, optional
             The directory in which to search for the boxes. By default, this is the
             centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
+        fname : str, optional
+            The filename to write to. By default creates a unique filename from the hash.
         """
         if not self.filled:
             raise IOError("The boxes have not yet been computed.")
@@ -509,7 +511,9 @@ class OutputStruct(StructWrapper):
             )
 
         try:
-            with h5py.File(self._get_fname(direc), "w") as f:
+            direc = direc or path.expanduser(config["boxdir"])
+            fname = path.join(direc, fname) if fname else self._get_fname(direc)
+            with h5py.File(fname, "w") as f:
                 # Save input parameters to the file
                 for k in self._inputs + ["_global_params"]:
                     q = getattr(self, k)

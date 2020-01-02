@@ -4,6 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import colors
 
+from . import outputs
+from .wrapper import Coeval
+from .wrapper import LightCone
+
 eor_colour = colors.LinearSegmentedColormap.from_list(
     "EoR",
     [
@@ -101,14 +105,17 @@ def _imshow_slice(
     return fig, ax
 
 
-def coeval_sliceplot(struct, kind=None, **kwargs):
+def coeval_sliceplot(
+    struct: [outputs._OutputStruct, Coeval], kind: [str, None] = None, **kwargs
+):
     """
     Show a slice of a given coeval box.
 
     Parameters
     ----------
-    struct : :class:~`py21cmfast._OutputStruct` instance
-        The output of a function such as `ionize_box` (a class containing several quantities).
+    struct : :class:`~outputs._OutputStruct` or :class:`~wrapper.Coeval` instance
+        The output of a function such as `ionize_box` (a class containing several quantities), or
+        `run_coeval`.
     kind : str
         The quantity within the structure to be shown.
 
@@ -120,12 +127,16 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
 
     Other Parameters
     ----------------
-    All other parameters are passed directly to :func:`_imshow_slice`. These include `slice_axis` and `slice_index`,
-    which choose the actual slice to plot, optional `fig` and `ax` keywords which enable over-plotting previous figures,
+    All other parameters are passed directly to :func:`_imshow_slice`. These include `slice_axis`
+    and `slice_index`,
+    which choose the actual slice to plot, optional `fig` and `ax` keywords which enable
+    over-plotting previous figures,
     and the `imshow_kw` argument, which allows arbitrary styling of the plot.
     """
-    if kind is None:
+    if kind is None and isinstance(struct, outputs._OutputStruct):
         kind = struct.fieldnames[0]
+    elif kind is None and isinstance(struct, Coeval):
+        kind = "brightness_temp"
 
     try:
         cube = getattr(struct, kind)
@@ -133,6 +144,9 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
         raise AttributeError(
             "The given OutputStruct does not have the quantity {kind}".format(kind=kind)
         )
+
+    if kind != "brightness_temp" and "cmap" not in kwargs:
+        kwargs["cmap"] = "viridis"
 
     fig, ax = _imshow_slice(cube, extent=(0, struct.user_params.BOX_LEN) * 2, **kwargs)
 
@@ -159,7 +173,11 @@ def coeval_sliceplot(struct, kind=None, **kwargs):
 
 
 def lightcone_sliceplot(
-    lightcone, kind="brightness_temp", lightcone2=None, vertical=False, **kwargs
+    lightcone: LightCone,
+    kind: str = "brightness_temp",
+    lightcone2: LightCone = None,
+    vertical: bool = False,
+    **kwargs,
 ):
     """Create a 2D plot of a slice through a lightcone.
 

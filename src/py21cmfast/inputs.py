@@ -408,8 +408,10 @@ class UserParams(StructWithDefaults):
         else:
             val = self._HMF
 
-        if not isinstance(val, int):
-            raise ValueError("HMF must be an int or string identifier")
+        try:
+            val = int(val)
+        except (ValueError, TypeError):
+            raise ValueError("Invalid value for HMF")
 
         if not 0 <= val < len(self._hmf_models):
             raise ValueError(
