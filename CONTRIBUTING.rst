@@ -10,9 +10,9 @@ Bug reports/Feature Requests/Feedback/Questions
 It is incredibly helpful to us when users report bugs, unexpected behaviour, or request
 features. You can do the following:
 
-    * `Report a bug <https://github.com/21cmFAST/21cmFAST/issues/new?template=bug_report.md>`_
-    * `Request a Feature <https://github.com/21cmFAST/21cmFAST/issues/new?template=feature_request.md>`_
-    * `Ask a Question <https://github.com/21cmFAST/21cmFAST/issues/new?template=question.md>`_
+* `Report a bug <https://github.com/21cmFAST/21cmFAST/issues/new?template=bug_report.md>`_
+* `Request a Feature <https://github.com/21cmFAST/21cmFAST/issues/new?template=feature_request.md>`_
+* `Ask a Question <https://github.com/21cmFAST/21cmFAST/issues/new?template=question.md>`_
 
 When doing any of these, please try to be as succinct, but detailed, as possible, and use
 a "Minimum Working Example" whenever applicable.
@@ -24,8 +24,8 @@ Documentation improvements
 official ``21cmFAST`` docs, in docstrings, or even on the web in blog posts,
 articles, and such. If you do the latter, take the time to let us know about it!
 
-Development
-===========
+High-Level Steps for Development
+================================
 
 This is an abbreviated guide to getting started with development of ``21cmFAST``,
 focusing on the discrete high-level steps to take. See our
