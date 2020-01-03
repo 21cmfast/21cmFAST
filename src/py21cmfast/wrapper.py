@@ -282,20 +282,30 @@ class ParameterError(RuntimeError):
 
 class FatalCError(Exception):
     """An exception representing something going wrong in C."""
-
-    def __init__(self):
+    def __init__(self, msg=None):
         default_message = "21cmFAST is exiting."
-        super().__init__(default_message)
+        super().__init__(msg or default_message)
 
 
-def _process_exitcode(exitcode):
-    """Determine what happens for different values of the (integer) exit code from a C function."""
-    if exitcode == 0:
-        pass
-    elif exitcode == 1:
-        raise ParameterError
-    elif exitcode == 2:
-        raise FatalCError
+SUCCESS = 0
+IOERROR = 1
+GSLERROR = 2
+VALUEERROR = 3
+PARAMETERERROR = 4
+
+def _process_exitcode(exitcode, fnc, args):
+    """
+    Determine what happens for different values of the (integer) exit code from a C function
+    """
+    if exitcode != SUCCESS:
+        logger.error("In function: {}.  Arguments: {}".format(fnc.__name__, args))
+
+        if exitcode in (GSLERROR, PARAMETERERROR):
+            raise ParameterError
+        elif exitcode in (IOERROR, VALUEERROR):
+            raise FatalCError
+        else:  # Unknown C code
+            raise FatalCError("Unknown error in C. Please report this error!")
 
 
 def _call_c_func(fnc, obj, direc, *args, write=True):
@@ -311,7 +321,7 @@ def _call_c_func(fnc, obj, direc, *args, write=True):
         )
         raise e
 
-    _process_exitcode(exitcode)
+    _process_exitcode(exitcode, fnc, args)
     obj.filled = True
     obj._expose()
 

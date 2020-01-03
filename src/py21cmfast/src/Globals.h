@@ -75,7 +75,7 @@ struct GlobalParams{
 
 };
 
-struct GlobalParams global_params = {
+extern struct GlobalParams global_params = {
 
     .ALPHA_UVB = 5.0,
     .EVOLVE_DENSITY_LINEARLY = 0,

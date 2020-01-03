@@ -97,13 +97,11 @@ void initialize_interp_arrays()
       sprintf(input_file_name,"%s/%sxi_%1.3f%s",global_params.external_table_path,input_base,x_int_XHII[n_ion],input_tail);
     }
 
-    //    printf("%s\n",input_file_name);
-
     input_file = fopen(input_file_name, mode);
 
     if (input_file == NULL) {
-      fprintf(stderr, "Can't open input file %s!\n",input_file_name);
-      exit(1);
+      LOG_ERROR("Can't open input file %s!",input_file_name);
+      Throw 1;
     }
 
     // Skip first line
@@ -170,31 +168,26 @@ float interp_fheat(float En, float xHII_call)
 
   n_low = locate_energy_index(En);
   n_high = n_low + 1;
-  //  printf("nlow=%d %f\n",n_low,En);
 
   m_xHII_low = locate_xHII_index(xHII_call);
   m_xHII_high = m_xHII_low + 1;
-  //    printf("%f %f %f\n",xHII_call,XHII[m_xHII_low],XHII[m_xHII_high]);
 
   // First linear interpolation in energy
   elow_result = ((x_int_fheat[m_xHII_low][n_high]-x_int_fheat[m_xHII_low][n_low])/
 		 (x_int_Energy[n_high]-x_int_Energy[n_low]));
   elow_result *= (En - x_int_Energy[n_low]);
   elow_result += x_int_fheat[m_xHII_low][n_low];
-  //  printf("elow= %f\n",elow_result);
 
   // Second linear interpolation in energy
   ehigh_result = ((x_int_fheat[m_xHII_high][n_high]-x_int_fheat[m_xHII_high][n_low])/
 		  (x_int_Energy[n_high]-x_int_Energy[n_low]));
   ehigh_result *= (En - x_int_Energy[n_low]);
   ehigh_result += x_int_fheat[m_xHII_high][n_low];
-  //  printf("ehigh= %f\n",ehigh_result);
 
   // Final interpolation over the ionized fraction
   final_result = (ehigh_result - elow_result)/(x_int_XHII[m_xHII_high] - x_int_XHII[m_xHII_low]);
   final_result *= (xHII_call - x_int_XHII[m_xHII_low]);
   final_result += elow_result;
-  //  printf("final= %f\n",final_result);
 
   return final_result;
 }
@@ -235,7 +228,6 @@ float interp_n_Lya(float En, float xHII_call)
 
   m_xHII_low = locate_xHII_index(xHII_call);
   m_xHII_high = m_xHII_low + 1;
-  //    printf("%f %f %f\n",xHII_call,XHII[m_xHII_low],XHII[m_xHII_high]);
 
   // First linear interpolation in energy
   elow_result = ((x_int_n_Lya[m_xHII_low][n_high]-x_int_n_Lya[m_xHII_low][n_low])/
@@ -293,7 +285,6 @@ float interp_nion_HI(float En, float xHII_call)
 
   m_xHII_low = locate_xHII_index(xHII_call);
   m_xHII_high = m_xHII_low + 1;
-  //    printf("%f %f %f\n",xHII_call,XHII[m_xHII_low],XHII[m_xHII_high]);
 
   // First linear interpolation in energy
   elow_result = ((x_int_nion_HI[m_xHII_low][n_high]-x_int_nion_HI[m_xHII_low][n_low])/
@@ -351,7 +342,6 @@ float interp_nion_HeI(float En, float xHII_call)
 
   m_xHII_low = locate_xHII_index(xHII_call);
   m_xHII_high = m_xHII_low + 1;
-  //    printf("%f %f %f\n",xHII_call,XHII[m_xHII_low],XHII[m_xHII_high]);
 
   // First linear interpolation in energy
   elow_result = ((x_int_nion_HeI[m_xHII_low][n_high]-x_int_nion_HeI[m_xHII_low][n_low])/
@@ -409,7 +399,6 @@ float interp_nion_HeII(float En, float xHII_call)
 
   m_xHII_low = locate_xHII_index(xHII_call);
   m_xHII_high = m_xHII_low + 1;
-  //    printf("%f %f %f\n",xHII_call,XHII[m_xHII_low],XHII[m_xHII_high]);
 
   // First linear interpolation in energy
   elow_result = ((x_int_nion_HeII[m_xHII_low][n_high]-x_int_nion_HeII[m_xHII_low][n_low])/

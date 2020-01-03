@@ -221,7 +221,7 @@ double MtoR(double M){
         return pow( M/(pow(2*PI, 1.5) * cosmo_params_ufunc->OMm * RHOcrit), 1.0/3.0 );
     else // filter not defined
         LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
-    return -1;
+    Throw ValueError;
 }
 
 /* R in Mpc, M in Msun */
@@ -233,7 +233,7 @@ double RtoM(double R){
         return pow(2*PI, 1.5) * cosmo_params_ufunc->OMm*RHOcrit * pow(R, 3);
     else // filter not defined
         LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
-    return -1;
+    Throw ValueError;
 }
 
 /*
@@ -311,11 +311,11 @@ double dicke(double z){
     }
     else if ( (cosmo_params_ufunc->OMl > (-tiny)) && (fabs(global_params.OMtot-1.0) < tiny) && (fabs(global_params.wl+1) > tiny) ){
         LOG_WARNING("IN WANG.");
-        return -1;
+        Throw ValueError;
     }
 
-    LOG_ERROR("No growth function!!! Output will be fucked up.");
-    return -1;
+    LOG_ERROR("No growth function!");
+    Throw ValueError;
 }
 
 /* function DTDZ returns the value of dt/dz at the redshift parameter z. */
@@ -354,8 +354,8 @@ double ddickedt(double z){
         return ddickdz / dick_0 / dtdz(z);
     }
 
-    LOG_ERROR("No growth function!!! Output will be fucked up.");
-    return -1;
+    LOG_ERROR("No growth function!");
+    Throw ValueError;
 }
 
 /* returns the hubble "constant" (in 1/sec) at z */
@@ -497,10 +497,6 @@ double dtau_e_dz(double z, void *params){
 
         // linearly interpolate in redshift
         xH = p.xH[i-1] + (p.xH[i] - p.xH[i-1])/(p.z[i] - p.z[i-1]) * (z - p.z[i-1]);
-        /*
-         fprintf(stderr, "in taue: Interpolating between xH(%f)=%f and xH(%f)=%f to obtain xH(%f)=%f\n",
-         p.z[i-1], p.xH[i-1], p.z[i], p.xH[i], z, xH);
-         */
         xi = 1.0-xH;
         if (xi<0){
             LOG_WARNING("in taue: funny business xi=%e, changing to 0.", xi);
@@ -524,7 +520,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
 
     if (zstart >= zend){
         LOG_ERROR("in tau_e: First parameter must be smaller than the second.\n");
-        return 0;
+        Throw ValueError;
     }
 
     F.function = &dtau_e_dz;

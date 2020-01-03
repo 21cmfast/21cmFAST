@@ -13,43 +13,49 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
-    Broadcast_struct_global_PS(user_params,cosmo_params);
-    Broadcast_struct_global_UF(user_params,cosmo_params);
+    int error_code;
 
+<<<<<<< HEAD
     omp_set_num_threads(user_params->N_THREADS);
     fftwf_init_threads();
     fftwf_plan_with_nthreads(user_params->N_THREADS);
     fftwf_cleanup_threads();
 
     char wisdom_filename[500];
+=======
+    Try {
+>>>>>>> fed43ec... More rigorous exceptions
 
-    fftwf_complex *LOWRES_density_perturb, *LOWRES_density_perturb_saved;
-    fftwf_plan plan;
 
-    float growth_factor, displacement_factor_2LPT, init_growth_factor, init_displacement_factor_2LPT, xf, yf, zf;
-    float mass_factor, dDdt, f_pixel_factor, velocity_displacement_factor, velocity_displacement_factor_2LPT;
-    unsigned long long ct, HII_i, HII_j, HII_k;
-    int i,j,k, xi, yi, zi;
-    double ave_delta, new_ave_delta;
-    // ***************   BEGIN INITIALIZATION   ************************** //
+        Broadcast_struct_global_PS(user_params,cosmo_params);
+        Broadcast_struct_global_UF(user_params,cosmo_params);
 
+<<<<<<< HEAD
     // perform a very rudimentary check to see if we are underresolved and not using the linear approx
     if ((user_params->BOX_LEN > user_params->DIM) && !(global_params.EVOLVE_DENSITY_LINEARLY)){
         fprintf(stderr, "perturb_field.c: WARNING: Resolution is likely too low for accurate evolved density fields\n \
                 It Is recommended that you either increase the resolution (DIM/Box_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
     }
+=======
+        char wisdom_filename[500];
+>>>>>>> fed43ec... More rigorous exceptions
 
-    growth_factor = dicke(redshift);
-    displacement_factor_2LPT = -(3.0/7.0) * growth_factor*growth_factor; // 2LPT eq. D8
+        fftwf_complex *LOWRES_density_perturb, *LOWRES_density_perturb_saved;
+        fftwf_plan plan;
 
-    dDdt = ddickedt(redshift); // time derivative of the growth factor (1/s)
-    init_growth_factor = dicke(global_params.INITIAL_REDSHIFT);
-    init_displacement_factor_2LPT = -(3.0/7.0) * init_growth_factor*init_growth_factor; // 2LPT eq. D8
+        float growth_factor, displacement_factor_2LPT, init_growth_factor, init_displacement_factor_2LPT, xf, yf, zf;
+        float mass_factor, dDdt, f_pixel_factor, velocity_displacement_factor, velocity_displacement_factor_2LPT;
+        unsigned long long ct, HII_i, HII_j, HII_k;
+        int i,j,k, xi, yi, zi;
+        double ave_delta, new_ave_delta;
+        // ***************   BEGIN INITIALIZATION   ************************** //
 
-    // allocate memory for the updated density, and initialize
-    LOWRES_density_perturb = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    LOWRES_density_perturb_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        // perform a very rudimentary check to see if we are underresolved and not using the linear approx
+        if ((user_params->BOX_LEN > user_params->DIM) && !(global_params.EVOLVE_DENSITY_LINEARLY)){
+            LOG_WARNING("Resolution is likely too low for accurate evolved density fields\n It Is recommended that you either increase the resolution (DIM/Box_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1");
+        }
 
+<<<<<<< HEAD
     double *resampled_box;
 
     // check if the linear evolution flag was set
@@ -57,6 +63,21 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 #pragma omp parallel shared(growth_factor,boxes,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
+=======
+        growth_factor = dicke(redshift);
+        displacement_factor_2LPT = -(3.0/7.0) * growth_factor*growth_factor; // 2LPT eq. D8
+
+        dDdt = ddickedt(redshift); // time derivative of the growth factor (1/s)
+        init_growth_factor = dicke(global_params.INITIAL_REDSHIFT);
+        init_displacement_factor_2LPT = -(3.0/7.0) * init_growth_factor*init_growth_factor; // 2LPT eq. D8
+
+        // allocate memory for the updated density, and initialize
+        LOWRES_density_perturb = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        LOWRES_density_perturb_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+        // check if the linear evolution flag was set
+        if (global_params.EVOLVE_DENSITY_LINEARLY){
+>>>>>>> fed43ec... More rigorous exceptions
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
                     for (k=0; k<user_params->HII_DIM; k++){
@@ -65,6 +86,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                 }
             }
         }
+<<<<<<< HEAD
     }
     // first order Zel'Dovich perturbation
 
@@ -72,6 +94,11 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 #pragma omp parallel shared(LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
+=======
+        // first order Zel'Dovich perturbation
+        else{
+
+>>>>>>> fed43ec... More rigorous exceptions
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
                     for (k=0; k<user_params->HII_DIM; k++){
@@ -79,46 +106,56 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                     }
                 }
             }
-        }
 
-        velocity_displacement_factor = (growth_factor-init_growth_factor) / user_params->BOX_LEN;
+            velocity_displacement_factor = (growth_factor-init_growth_factor) / user_params->BOX_LEN;
 
+<<<<<<< HEAD
         // now add the missing factor of D
 #pragma omp parallel shared(boxes,velocity_displacement_factor) private(ct) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
+=======
+            // now add the missing factor of D
+>>>>>>> fed43ec... More rigorous exceptions
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                 boxes->lowres_vx[ct] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
                 boxes->lowres_vy[ct] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
                 boxes->lowres_vz[ct] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
             }
+<<<<<<< HEAD
         }
+=======
+>>>>>>> fed43ec... More rigorous exceptions
 
-        // find factor of HII pixel size / deltax pixel size
-        f_pixel_factor = user_params->DIM/(float)(user_params->HII_DIM);
-        mass_factor = pow(f_pixel_factor, 3);
+            // find factor of HII pixel size / deltax pixel size
+            f_pixel_factor = user_params->DIM/(float)(user_params->HII_DIM);
+            mass_factor = pow(f_pixel_factor, 3);
 
-        // * ************************************************************************* * //
-        // *                           BEGIN 2LPT PART                                 * //
-        // * ************************************************************************* * //
-        // reference: reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
-        if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+            // * ************************************************************************* * //
+            // *                           BEGIN 2LPT PART                                 * //
+            // * ************************************************************************* * //
+            // reference: reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
+            if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
 
-            // allocate memory for the velocity boxes and read them in
-            velocity_displacement_factor_2LPT = (displacement_factor_2LPT - init_displacement_factor_2LPT) / user_params->BOX_LEN;
+                // allocate memory for the velocity boxes and read them in
+                velocity_displacement_factor_2LPT = (displacement_factor_2LPT - init_displacement_factor_2LPT) / user_params->BOX_LEN;
 
+<<<<<<< HEAD
             // now add the missing factor in eq. D9
 #pragma omp parallel shared(boxes,velocity_displacement_factor_2LPT) private(ct) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
+=======
+                // now add the missing factor in eq. D9
+>>>>>>> fed43ec... More rigorous exceptions
                 for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                     boxes->lowres_vx_2LPT[ct] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
                     boxes->lowres_vy_2LPT[ct] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
                     boxes->lowres_vz_2LPT[ct] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
                 }
             }
-        }
 
+<<<<<<< HEAD
         // * ************************************************************************* * //
         // *                            END 2LPT PART                                  * //
         // * ************************************************************************* * //
@@ -134,6 +171,15 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                     private(i,j,k,xi,xf,yi,yf,zi,zf,HII_i,HII_j,HII_k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
+=======
+            // * ************************************************************************* * //
+            // *                            END 2LPT PART                                  * //
+            // * ************************************************************************* * //
+
+            // ************  END INITIALIZATION **************************** //
+
+            // go through the high-res box, mapping the mass onto the low-res (updated) box
+>>>>>>> fed43ec... More rigorous exceptions
             for (i=0; i<user_params->DIM;i++){
                 for (j=0; j<user_params->DIM;j++){
                     for (k=0; k<user_params->DIM;k++){
@@ -178,6 +224,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                         if (zi >= (user_params->HII_DIM)){ zi -= (user_params->HII_DIM);}
                         if (zi < 0) {zi += (user_params->HII_DIM);}
 
+<<<<<<< HEAD
 #pragma omp atomic
                         resampled_box[HII_R_INDEX(xi,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)]);
                     }
@@ -203,6 +250,15 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 #pragma omp parallel shared(LOWRES_density_perturb,mass_factor) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
+=======
+                        *( (float *)LOWRES_density_perturb + HII_R_FFT_INDEX(xi, yi, zi) ) +=
+                        (1 + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)]);
+                    }
+                }
+            }
+
+            // renormalize to the new pixel size, and make into delta
+>>>>>>> fed43ec... More rigorous exceptions
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
                     for (k=0; k<user_params->HII_DIM; k++){
@@ -211,16 +267,20 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                     }
                 }
             }
-        }
 
+<<<<<<< HEAD
         // deallocate
 #pragma omp parallel shared(boxes,velocity_displacement_factor) private(ct) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
+=======
+            // deallocate
+>>>>>>> fed43ec... More rigorous exceptions
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                 boxes->lowres_vx[ct] /= velocity_displacement_factor; // convert back to z = 0 quantity
                 boxes->lowres_vy[ct] /= velocity_displacement_factor; // convert back to z = 0 quantity
                 boxes->lowres_vz[ct] /= velocity_displacement_factor; // convert back to z = 0 quantity
+<<<<<<< HEAD
             }
         }
 
@@ -233,10 +293,11 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                     boxes->lowres_vy_2LPT[ct] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
                     boxes->lowres_vz_2LPT[ct] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
                 }
+=======
+>>>>>>> fed43ec... More rigorous exceptions
             }
-        }
-    }
 
+<<<<<<< HEAD
     // ****  Print and convert to velocities ***** //
     if (global_params.EVOLVE_DENSITY_LINEARLY){
 #pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -247,10 +308,18 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                     for (k=0; k<user_params->HII_DIM; k++){
                         *((float *)perturbed_field->density + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
                     }
+=======
+            if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+                for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
+                    boxes->lowres_vx_2LPT[ct] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
+                    boxes->lowres_vy_2LPT[ct] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
+                    boxes->lowres_vz_2LPT[ct] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
+>>>>>>> fed43ec... More rigorous exceptions
                 }
             }
         }
 
+<<<<<<< HEAD
         // transform to k-space
         if(user_params->USE_FFTW_WISDOM) {
             // Check to see if the wisdom exists, create it if it doesn't
@@ -268,31 +337,86 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                              (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_PATIENT);
                 fftwf_execute(plan);
+=======
+        // ****  Print and convert to velocities ***** //
+        if (global_params.EVOLVE_DENSITY_LINEARLY){
+            for (i=0; i<user_params->HII_DIM; i++){
+                for (j=0; j<user_params->HII_DIM; j++){
+                    for (k=0; k<user_params->HII_DIM; k++){
+                        *((float *)perturbed_field->density + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
+                    }
+                }
+            }
 
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
+            // transform to k-space
+            if(user_params->USE_FFTW_WISDOM) {
+                // Check to see if the wisdom exists, create it if it doesn't
+                sprintf(wisdom_filename,"real_to_complex_%d.fftwf_wisdom",user_params->HII_DIM);
+                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
 
-                // copy over unfiltered box
-                memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+                }
+                else {
+>>>>>>> fed43ec... More rigorous exceptions
 
+                    // save a copy of the k-space density field
+                    memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_PATIENT);
+                    fftwf_execute(plan);
+
+<<<<<<< HEAD
                 fftwf_destroy_plan(plan);
 
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                              (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+=======
+                    // Store the wisdom for later use
+                    fftwf_export_wisdom_to_filename(wisdom_filename);
+
+                    // copy over unfiltered box
+                    memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+                    fftwf_destroy_plan(plan);
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
+                }
+            }
+            else {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_ESTIMATE);
+>>>>>>> fed43ec... More rigorous exceptions
                 fftwf_execute(plan);
             }
+            fftwf_destroy_plan(plan);
+
+            // save a copy of the k-space density field
         }
+<<<<<<< HEAD
         else {
             plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                          (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
         fftwf_destroy_plan(plan);
+=======
+        else{
 
-        // save a copy of the k-space density field
-    }
-    else{
+            // transform to k-space
+            if(user_params->USE_FFTW_WISDOM) {
+                // Check to see if the wisdom exists, create it if it doesn't
+                sprintf(wisdom_filename,"real_to_complex_%d.fftwf_wisdom",user_params->HII_DIM);
+                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
+                }
+                else {
+>>>>>>> fed43ec... More rigorous exceptions
 
+                    // save a copy of the k-space density field
+                    memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+<<<<<<< HEAD
         // transform to k-space
         if(user_params->USE_FFTW_WISDOM) {
             // Check to see if the wisdom exists, create it if it doesn't
@@ -309,31 +433,135 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                              (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_PATIENT);
                 fftwf_execute(plan);
+=======
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_PATIENT);
+                    fftwf_execute(plan);
 
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
+                    // Store the wisdom for later use
+                    fftwf_export_wisdom_to_filename(wisdom_filename);
 
+                    // copy over unfiltered box
+                    memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+                    fftwf_destroy_plan(plan);
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
+                }
+            }
+            else {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_ESTIMATE);
+                fftwf_execute(plan);
+            }
+            fftwf_destroy_plan(plan);
+
+            //smooth the field
+            if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
+                filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM);
+            }
+
+            // save a copy of the k-space density field
+            memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+>>>>>>> fed43ec... More rigorous exceptions
+
+            if(user_params->USE_FFTW_WISDOM) {
+                // Check to see if the wisdom exists, create it if it doesn't
+                sprintf(wisdom_filename,"complex_to_real_%d.fftwf_wisdom",user_params->HII_DIM);
+                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
+                }
+                else {
+
+<<<<<<< HEAD
                 // copy over unfiltered box
                 memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
                 fftwf_destroy_plan(plan);
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                              (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+=======
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_PATIENT);
+                    fftwf_execute(plan);
+
+                    // Store the wisdom for later use
+                    fftwf_export_wisdom_to_filename(wisdom_filename);
+
+                    // copy over unfiltered box
+                    memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+                    fftwf_destroy_plan(plan);
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
+                }
+            }
+            else {
+                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_ESTIMATE);
+>>>>>>> fed43ec... More rigorous exceptions
                 fftwf_execute(plan);
             }
+            fftwf_destroy_plan(plan);
+
+            // normalize after FFT
+            for(i=0; i<user_params->HII_DIM; i++){
+                for(j=0; j<user_params->HII_DIM; j++){
+                    for(k=0; k<user_params->HII_DIM; k++){
+                        *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) /= (float)HII_TOT_NUM_PIXELS;
+                        if (*((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) < -1) // shouldn't happen
+                            *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) = -1+FRACT_FLOAT_ERR;
+                    }
+                }
+            }
+
+            for (i=0; i<user_params->HII_DIM; i++){
+                for (j=0; j<user_params->HII_DIM; j++){
+                    for (k=0; k<user_params->HII_DIM; k++){
+                        *((float *)perturbed_field->density + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
+                    }
+                }
+            }
+
+            memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         }
+<<<<<<< HEAD
         else {
             plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                          (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
         fftwf_destroy_plan(plan);
+=======
+>>>>>>> fed43ec... More rigorous exceptions
 
-        //smooth the field
-        if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
-            filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM);
+        float k_x, k_y, k_z, k_sq, dDdt_over_D;
+        int n_x, n_y, n_z;
+
+        dDdt_over_D = dDdt/growth_factor;
+
+        for (n_x=0; n_x<user_params->HII_DIM; n_x++){
+            if (n_x>HII_MIDDLE)
+                k_x =(n_x-user_params->HII_DIM) * DELTA_K;  // wrap around for FFT convention
+            else
+                k_x = n_x * DELTA_K;
+
+            for (n_y=0; n_y<user_params->HII_DIM; n_y++){
+                if (n_y>HII_MIDDLE)
+                    k_y =(n_y-user_params->HII_DIM) * DELTA_K;
+                else
+                    k_y = n_y * DELTA_K;
+
+                for (n_z=0; n_z<=HII_MIDDLE; n_z++){
+                    k_z = n_z * DELTA_K;
+
+                    k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
+
+                    // now set the velocities
+                    if ((n_x==0) && (n_y==0) && (n_z==0)) // DC mode
+                        LOWRES_density_perturb[0] = 0;
+                    else{
+                        LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_z*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
+                    }
+                }
+            }
         }
 
-        // save a copy of the k-space density field
         memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
         if(user_params->USE_FFTW_WISDOM) {
@@ -346,8 +574,12 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
             }
             else {
 
+<<<<<<< HEAD
                 plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                              (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_PATIENT);
+=======
+                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_ESTIMATE);
+>>>>>>> fed43ec... More rigorous exceptions
                 fftwf_execute(plan);
 
                 // Store the wisdom for later use
@@ -369,6 +601,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
         }
         fftwf_destroy_plan(plan);
 
+<<<<<<< HEAD
         // normalize after FFT
 #pragma omp parallel shared(LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
         {
@@ -392,10 +625,17 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                     for (k=0; k<user_params->HII_DIM; k++){
                         *((float *)perturbed_field->density + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
                     }
+=======
+        for (i=0; i<user_params->HII_DIM; i++){
+            for (j=0; j<user_params->HII_DIM; j++){
+                for (k=0; k<user_params->HII_DIM; k++){
+                    *((float *)perturbed_field->velocity + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
+>>>>>>> fed43ec... More rigorous exceptions
                 }
             }
         }
 
+<<<<<<< HEAD
         memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     }
 
@@ -502,6 +742,15 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 //    fftwf_destroy_plan(plan);
     fftwf_cleanup();
 
-    return(0);
+=======
+        // deallocate
+        fftwf_free(LOWRES_density_perturb);
+        fftwf_free(LOWRES_density_perturb_saved);
 
+    //    fftwf_destroy_plan(plan);
+        fftwf_cleanup();
+    }
+    Catch(error_code) return(error_code);
+>>>>>>> fed43ec... More rigorous exceptions
+    return(0);
 }

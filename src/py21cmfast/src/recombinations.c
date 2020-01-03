@@ -52,11 +52,9 @@ double splined_recombination_rate(double z_eff, double gamma12_bg){
 
   // check out of bounds
   if ( z_ct < 0 ){ // out of array bounds
-//    fprintf(stderr, "WARNING: splined_recombination_rate: effective redshift %g is outside of array bouds\n", z_eff);
     z_ct = 0;
   }
   else if (z_ct  >= RR_Z_NPTS){
-//    fprintf(stderr, "WARNING: splined_recombination_rate: effective redshift %g is outside of array bouds\n", z_eff);
     z_ct = RR_Z_NPTS-1;
   }
 
@@ -145,8 +143,6 @@ double MHR_rr (double lnD, void *params){
     alpha = alpha_B(p.T4*1e4);
   else
     alpha = alpha_A(p.T4*1e4);
-
-  //  fprintf(stderr, "%g\t%g\t%g\t%g\t%g\n", n_H, PDelta, alpha, x_e, D);
 
   return n_H * PDelta * alpha * x_e * x_e * del * del;//note extra D since we are integrating over lnD
 }

@@ -237,31 +237,28 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
         }
 
 //    for (i=(CLASS_LENGTH-1);i>=0;i--) {
-        for (i=0;i<CLASS_LENGTH;i++) {
-            fscanf(F, "%e %e %e ", &currk, &currTm, &currTv);
-            kclass[i] = currk;
-            Tmclass[i] = currTm;//     printf("k=%.1le Tm=%.1le \n", currk,currTm);
-            Tvclass_vcb[i] = currTv;//     printf("k=%.1le Tv=%.1le \n", currk,currTv);
-            if(kclass[i]<=kclass[i-1] && i>0){
-                printf("WARNING, Tk table not ordered \n");
-                printf("k=%.1le kprev=%.1le \n\n",kclass[i],kclass[i-1]);
-            }
-        }
-        fclose(F);
-
-        // Set up spline table for densities
-        acc_density   = gsl_interp_accel_alloc ();
-        spline_density  = gsl_spline_alloc (gsl_interp_cspline, CLASS_LENGTH);
-        gsl_spline_init(spline_density, kclass, Tmclass, CLASS_LENGTH);
-
-
-        //Set up spline table for velocities
-        acc_vcb   = gsl_interp_accel_alloc ();
-        spline_vcb  = gsl_spline_alloc (gsl_interp_cspline, CLASS_LENGTH);
-        gsl_spline_init(spline_vcb, kclass, Tvclass_vcb, CLASS_LENGTH);
-
-        return 0;
+    for (i=0;i<CLASS_LENGTH;i++) {
+      fscanf(F, "%e %e %e ", &currk, &currTm, &currTv);
+      kclass[i] = currk;
+      Tmclass[i] = currTm;
+      Tvclass_vcb[i] = currTv;
+      if(kclass[i]<=kclass[i-1] && i>0){
+      	LOG_WARNING("Tk table not ordered");
+      	LOG_WARNING("k=%.1le kprev=%.1le",kclass[i],kclass[i-1]);
+      }
     }
+    fclose(F);
+
+    // Set up spline table for densities
+    acc_density   = gsl_interp_accel_alloc ();
+    spline_density  = gsl_spline_alloc (gsl_interp_cspline, CLASS_LENGTH);
+    gsl_spline_init(spline_density, kclass, Tmclass, CLASS_LENGTH);
+
+
+    //Set up spline table for velocities
+    acc_vcb   = gsl_interp_accel_alloc ();
+    spline_vcb  = gsl_spline_alloc (gsl_interp_cspline, CLASS_LENGTH);
+    gsl_spline_init(spline_vcb, kclass, Tvclass_vcb, CLASS_LENGTH);
 
     if (flag_int == -1) {
         gsl_spline_free (spline_density);
@@ -1052,6 +1049,7 @@ double dFdlnM_General(double lnM, void *params){
 double FgtrM_General(double z, double M){
 
     double del, sig, growthf;
+    int status;
 
     growthf = dicke(z);
 
@@ -1074,9 +1072,16 @@ double FgtrM_General(double z, double M){
         lower_limit = log(M);
         upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M*100));
 
-LOG_ULTRA_DEBUG("integration range: %f to %f", lower_limit, upper_limit);
+        gsl_set_error_handler_off();
 
-        gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
+        status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+        if(status!=0) {
+            LOG_ERROR("gsl integration error occured!");
+            LOG_ERROR("lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+            LOG_ERROR("data: z=%e growthf=%e M=%e",z,growthf,M);
+            Throw GSLError;
+        }
 
         gsl_integration_workspace_free (w);
 
@@ -1084,7 +1089,7 @@ LOG_ULTRA_DEBUG("integration range: %f to %f", lower_limit, upper_limit);
     }
     else {
         LOG_ERROR("Incorrect HMF selected: %i (should be between 0 and 3).", user_params_ps->HMF);
-        exit(-1);
+        Throw 1;
     }
 }
 
@@ -1172,9 +1177,9 @@ double Nion_General(double z, double M_Min, double MassTurnover, double Alpha_st
 
         status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
         if(status!=0) {
-            printf("(function argument): %e %e %e %e %e\n",lower_limit,upper_limit,rel_tol,result,error);
-            printf("data: %e %e %e %e %e %e %e %e %e\n",z,growthf,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
-            exit(-1);
+            LOG_ERROR("(function argument): %e %e %e %e %e\n",lower_limit,upper_limit,rel_tol,result,error);
+            LOG_ERROR("data: %e %e %e %e %e %e %e %e %e\n",z,growthf,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+            Throw GSLError;
         }
         gsl_integration_workspace_free (w);
 
@@ -1182,7 +1187,7 @@ double Nion_General(double z, double M_Min, double MassTurnover, double Alpha_st
     }
     else {
         LOG_ERROR("Incorrect HMF selected: %i (should be between 0 and 3).", user_params_ps->HMF);
-        exit(-1);
+        Throw ValueError;
     }
 }
 
@@ -1401,7 +1406,7 @@ void nrerror(char error_text[])
     LOG_ERROR("Numerical Recipes run-time error...");
     LOG_ERROR("%s",error_text);
     LOG_ERROR("...now exiting to system...");
-    exit(1);
+    Throw 1;
 }
 
 float *vector(long nl, long nh)
@@ -2026,9 +2031,9 @@ double Nion_ConditionalM(double growthf, double M1, double M2, double sigma2, do
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
 
     if(status!=0) {
-        printf("(function argument): %e %e %e %e %e\n",lower_limit,upper_limit,rel_tol,result,error);
-        printf("data: %e %e %e %e %e %e %e %e %e %e %e %e %e\n",growthf,M1,M2,sigma2,delta1,delta2,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
-        exit(-1);
+        LOG_ERROR("(function argument): %e %e %e %e %e\n",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: %e %e %e %e %e %e %e %e %e %e %e %e %e\n",growthf,M1,M2,sigma2,delta1,delta2,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+        Throw GSLError;
     }
 
     gsl_integration_workspace_free (w);
@@ -3151,8 +3156,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
         else {
             num_fails += 1;
             if(num_fails>10) {
-                printf("Failed too many times. Exit out!\n");
-                exit(-1);
+                LOG_ERROR("Failed too many times. Exit out!");
+                Throw ParameterError;
             }
         }
 
