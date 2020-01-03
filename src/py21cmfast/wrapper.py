@@ -92,6 +92,7 @@ import numpy as np
 from astropy import units
 from astropy.cosmology import z_at_value
 
+from ._cfg import config
 from ._utils import StructWrapper
 from .c_21cmfast import ffi
 from .c_21cmfast import lib
@@ -295,6 +296,7 @@ def _process_exitcode(exitcode):
 
 
 def _call_c_func(fnc, obj, direc, *args, write=True):
+    logger.debug("Calling {} with args: {}".format(fnc.__name__, args))
     exitcode = fnc(
         *[arg() if isinstance(arg, StructWrapper) else arg for arg in args], obj()
     )
@@ -308,6 +310,14 @@ def _call_c_func(fnc, obj, direc, *args, write=True):
         obj.write(direc)
 
     return obj
+
+
+def _get_config_options(direc, regenerate, write):
+    return (
+        config["direc"] if direc is None else direc,
+        config["regenerate"] if regenerate is None else regenerate,
+        config["write"] if write is None else write,
+    )
 
 
 # ======================================================================================
@@ -549,8 +559,8 @@ def initial_conditions(
     user_params=None,
     cosmo_params=None,
     random_seed=None,
-    regenerate=False,
-    write=True,
+    regenerate=None,
+    write=None,
     direc=None,
 ):
     """
@@ -579,6 +589,8 @@ def initial_conditions(
     -------
     :class:`~InitialConditions`
     """
+    direc, regenerate, write = _get_config_options(direc, regenerate, write)
+
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
 
@@ -616,8 +628,8 @@ def perturb_field(
     user_params=None,
     cosmo_params=None,
     random_seed=None,
-    regenerate=False,
-    write=True,
+    regenerate=None,
+    write=None,
     direc=None,
 ):
     """
@@ -672,6 +684,7 @@ def perturb_field(
     >>> field7 = perturb_field(7.0, user_params=UserParams(HII_DIM=1000))
 
     """
+    direc, regenerate, write = _get_config_options(direc, regenerate, write)
     _verify_types(init_boxes=init_boxes)
 
     # Configure and check input/output parameters/structs
@@ -748,8 +761,8 @@ def ionize_box(
     init_boxes=None,
     cosmo_params=None,
     user_params=None,
-    regenerate=False,
-    write=True,
+    regenerate=None,
+    write=None,
     direc=None,
     random_seed=None,
     cleanup=True,
@@ -886,6 +899,8 @@ def ionize_box(
     If automatic recursion is used, then it is done in such a way that no large boxes are kept
     around in memory for longer than they need to be (only two at a time are required).
     """
+    direc, regenerate, write = _get_config_options(direc, regenerate, write)
+
     _verify_types(
         init_boxes=init_boxes,
         perturbed_field=perturbed_field,
@@ -1079,8 +1094,8 @@ def spin_temperature(
     init_boxes=None,
     cosmo_params=None,
     user_params=None,
-    regenerate=False,
-    write=True,
+    regenerate=None,
+    write=None,
     direc=None,
     random_seed=None,
     cleanup=True,
@@ -1196,6 +1211,8 @@ def spin_temperature(
 
     This is usually a bad idea, and will give a warning, but it is possible.
     """
+    direc, regenerate, write = _get_config_options(direc, regenerate, write)
+
     _verify_types(
         init_boxes=init_boxes,
         perturbed_field=perturbed_field,
@@ -1367,7 +1384,13 @@ def spin_temperature(
 
 
 def brightness_temperature(
-    *, ionized_box, perturbed_field, spin_temp=None, write=False, direc=None
+    *,
+    ionized_box,
+    perturbed_field,
+    spin_temp=None,
+    write=None,
+    regenerate=None,
+    direc=None,
 ):
     """
     Compute a coeval brightness temperature box.
@@ -1387,6 +1410,8 @@ def brightness_temperature(
     -------
     :class:`BrightnessTemp` instance.
     """
+    direc, regenerate, write = _get_config_options(direc, regenerate, write)
+
     _verify_types(
         perturbed_field=perturbed_field, spin_temp=spin_temp, ionized_box=ionized_box
     )
@@ -1416,6 +1441,18 @@ def brightness_temperature(
         redshift=ionized_box.redshift,
         random_seed=ionized_box.random_seed,
     )
+
+    # Check whether the boxes already exist on disk.
+    if not regenerate:
+        try:
+            box.read(direc)
+            logger.info(
+                "Existing brightness_temp box found and read in (seed=%s)."
+                % (box.random_seed)
+            )
+            return box
+        except IOError:
+            pass
 
     return _call_c_func(
         lib.ComputeBrightnessTemp,
@@ -1499,8 +1536,8 @@ def run_coeval(
     cosmo_params=None,
     astro_params=None,
     flag_options=None,
-    regenerate=False,
-    write=True,
+    regenerate=None,
+    write=None,
     direc=None,
     z_step_factor=global_params.ZPRIME_STEP_FACTOR,
     z_heat_max=None,
@@ -1575,6 +1612,8 @@ def run_coeval(
     if redshift is None and perturb is None:
         raise ValueError("Either redshift or perturb must be given")
 
+    direc, regenerate, write = _get_config_options(direc, regenerate, write)
+
     # Ensure perturb is a list of boxes, not just one.
     if perturb is not None:
         if not hasattr(perturb, "__len__"):
@@ -1627,9 +1666,10 @@ def run_coeval(
             astro_params,
             flag_options,
             init_box,
-            regenerate,
-            write,
             z_step_factor,
+            regenerate=regenerate,
+            write=write,
+            direc=direc,
         )
 
     singleton = False
@@ -1833,8 +1873,8 @@ def run_lightcone(
     cosmo_params=None,
     astro_params=None,
     flag_options=None,
-    regenerate=False,
-    write=True,
+    regenerate=None,
+    write=None,
     direc=None,
     z_step_factor=global_params.ZPRIME_STEP_FACTOR,
     z_heat_max=None,
@@ -1901,6 +1941,8 @@ def run_lightcone(
     regenerate, write, direc, random_seed
         See docs of :func:`initial_conditions` for more information.
     """
+    direc, regenerate, write = _get_config_options(direc, regenerate, write)
+
     random_seed, user_params, cosmo_params = _configure_inputs(
         [
             ("random_seed", random_seed),
@@ -1956,9 +1998,10 @@ def run_lightcone(
             astro_params,
             flag_options,
             init_box,
-            regenerate,
-            write,
             z_step_factor,
+            regenerate=regenerate,
+            write=write,
+            direc=direc,
         )
 
     # Get the redshift through which we scroll and evaluate the ionization field.
@@ -2137,9 +2180,10 @@ def calibrate_photon_cons(
     astro_params,
     flag_options,
     init_box,
-    regenerate,
-    write,
     z_step_factor,
+    regenerate=None,
+    write=None,
+    direc=None,
 ):
     """
     Set up the photon non-conservation correction.
@@ -2171,6 +2215,8 @@ def calibrate_photon_cons(
     regenerate, write
         See docs of :func:`initial_conditions` for more information.
     """
+    direc, regenerate, write = _get_config_options(direc, regenerate, write)
+
     if not flag_options.PHOTON_CONS:
         return
 
@@ -2221,6 +2267,7 @@ def calibrate_photon_cons(
             z_heat_max=global_params.Z_HEAT_MAX,
             z_step_factor=z_step_factor,
             write=write,
+            direc=direc,
         )
 
         mean_nf = np.mean(ib2.xH_box)

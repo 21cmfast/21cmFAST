@@ -50,7 +50,7 @@ def readbox(*, direc=None, fname=None, hsh=None, kind=None, seed=None, load_data
     ValueError :
         If either ``fname`` is not supplied, or both ``kind`` and ``hsh`` are not supplied.
     """
-    direc = direc or path.expanduser(config["boxdir"])
+    direc = direc or path.expanduser(config["direc"])
 
     # We either need fname, or hsh and kind.
     if not fname and not (hsh and kind):
@@ -149,7 +149,7 @@ def list_datasets(*, direc=None, kind=None, hsh=None, seed=None):
     parts: tuple of strings
         The (kind, hsh, seed) of the data set.
     """
-    direc = direc or path.expanduser(config["boxdir"])
+    direc = direc or path.expanduser(config["direc"])
 
     kind = kind or "*"
     hsh = hsh or "*"
@@ -209,7 +209,7 @@ def clear_cache(**kwargs):
     kwargs :
         All options passed through to :func:`query_cache`.
     """
-    direc = kwargs.get("direc", path.expanduser(config["boxdir"]))
+    direc = kwargs.get("direc", path.expanduser(config["direc"]))
     number = 0
     for fname, cls in query_cache(show=False, **kwargs):
         if kwargs.get("show", True):

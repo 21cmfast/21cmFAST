@@ -33,6 +33,6 @@ from .wrapper import spin_temperature
 configure_logging()
 
 try:
-    _mkdir(path.expanduser(config["boxdir"]))
+    _mkdir(path.expanduser(config["direc"]))
 except FileExistsError:
     pass

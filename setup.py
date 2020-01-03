@@ -5,9 +5,11 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
+import glob
 import io
 import os
 import re
+import shutil
 from distutils.dir_util import copy_tree
 from os.path import dirname
 from os.path import expanduser
@@ -39,20 +41,24 @@ pkgdir = os.path.dirname(os.path.abspath(__file__))
 if not os.path.exists(cfgdir):
     os.makedirs(cfgdir)
 
-copy_tree(join(pkgdir, "user_data"), cfgdir)
 
-boxdir = os.environ.get("BOXDIR", None)
+def _safe_copy_tree(src, dst, safe=None):
+    safe = safe or []
+    for fl in glob.glob(join(src, "*")):
+        fname = os.path.basename(fl)
+        if fname not in safe or not os.path.exists(join(dst, fname)):
+            if os.path.isdir(join(src, fname)):
+                if os.path.exists(join(dst, fname)):
+                    shutil.rmtree(join(dst, fname))
+                shutil.copytree(join(src, fname), join(dst, fname))
+            else:
+                shutil.copy(join(src, fname), join(dst, fname))
 
-if boxdir:
-    with open(join(cfgdir, "config.yml"), "r") as f:
-        lines = f.readlines()
-        for i, line in enumerate(lines):
-            if line.strip().startswith("boxdir"):
-                lines[i] = line.replace(line.split(": ")[-1], boxdir)
 
-    with open(join(cfgdir, "config.yml"), "w") as f:
-        f.write("\n".join(lines))
-
+# Copy the user data into the config directory.
+# We *don't* want to overwrite the confi file that is already there, because maybe the user
+# has changed the configuration, and that would destroy it!
+_safe_copy_tree(join(pkgdir, "user_data"), cfgdir, safe="config.yml")
 # ======================================================================================
 
 # Enable code coverage for C code: we can't use CFLAGS=-coverage in tox.ini, since that
