@@ -49,7 +49,6 @@ struct AstroParams{
     float F_ESC7_MINI;
 
     float R_BUBBLE_MAX;
-    float R_BUBBLE_MIN;
 
     float ION_Tvir_MIN;
 

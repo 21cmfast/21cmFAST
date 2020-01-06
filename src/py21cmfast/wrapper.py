@@ -373,8 +373,6 @@ class AstroParams(StructWithDefaults):
     M_TURN : float, optional
     R_BUBBLE_MAX : float, optional
         Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
-    R_BUBBLE_MIN : float, optional
-        Default is L_FACTOR which is (4PI/3)^(-1/3) = 0.620350491
     ION_Tvir_MIN : float, optional
     L_X : float, optional
     L_X_MINI : float, optional
@@ -399,7 +397,6 @@ class AstroParams(StructWithDefaults):
         "ALPHA_ESC": -0.5,
         "M_TURN": 8.7,
         "R_BUBBLE_MAX": None,
-        "R_BUBBLE_MIN": None,
         "ION_Tvir_MIN": 4.69897,
         "L_X": 40.0,
         "L_X_MINI": 40.0,
@@ -433,16 +430,6 @@ class AstroParams(StructWithDefaults):
             return 10 ** val
         else:
             return val
-
-    @property
-    def R_BUBBLE_MIN(self):
-        """Minimum radius of bubbles to be searched in cMpc.
-           One can set this to 0, but should be careful with
-           shot noise if running on a fine, non-linear density grid."""
-        if not self._R_BUBBLE_MIN:
-            return 0.620350491
-        else:
-            return self._R_BUBBLE_MIN
 
     @property
     def R_BUBBLE_MAX(self):
@@ -644,7 +631,7 @@ class IonizedBox(_OutputStructZ):
                         0.620350491 * self.user_params.BOX_LEN,
                     )
                     / max(
-                        self.astro_params.R_BUBBLE_MIN,
+                        global_params.R_BUBBLE_MIN,
                         0.620350491
                         * self.user_params.BOX_LEN
                         / self.user_params.HII_DIM,

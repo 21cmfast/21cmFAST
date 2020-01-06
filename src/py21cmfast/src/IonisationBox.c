@@ -590,7 +590,7 @@ LOG_SUPER_DEBUG("deltax unfiltered calculated");
         // loop through the filter radii (in Mpc)
         erfc_denom_cell=1; //dummy value
 
-        R=fmax(astro_params->R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
+        R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
 
         while ((R - fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ) {
             R*= global_params.DELTA_R_HII_FACTOR;
@@ -615,9 +615,9 @@ LOG_DEBUG("set max radius: %f", R);
 LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_MIN);
 
             // Check if we are the last filter step
-            if ( ((R/(global_params.DELTA_R_HII_FACTOR) - cell_length_factor*(user_params->BOX_LEN)/(float)(user_params->HII_DIM)) <= FRACT_FLOAT_ERR) || ((R/(global_params.DELTA_R_HII_FACTOR) - astro_params->R_BUBBLE_MIN) <= FRACT_FLOAT_ERR) ) {
+            if ( ((R/(global_params.DELTA_R_HII_FACTOR) - cell_length_factor*(user_params->BOX_LEN)/(float)(user_params->HII_DIM)) <= FRACT_FLOAT_ERR) || ((R/(global_params.DELTA_R_HII_FACTOR) - global_params.R_BUBBLE_MIN) <= FRACT_FLOAT_ERR) ) {
                 LAST_FILTER_STEP = 1;
-                R = fmax(cell_length_factor*user_params->BOX_LEN/(double)(user_params->HII_DIM), astro_params->R_BUBBLE_MIN);
+                R = fmax(cell_length_factor*user_params->BOX_LEN/(double)(user_params->HII_DIM), global_params.R_BUBBLE_MIN);
             }
 
             // Copy all relevant quantities from memory into new arrays to be smoothed and FFT'd.
