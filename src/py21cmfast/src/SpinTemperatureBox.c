@@ -1108,8 +1108,8 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                         nuprime = NU_LW_THRESH / NUIONIZATION;
                     if (nuprime >= nu_n(n_ct + 1))
                         continue;
-                    sum_lyLWn[R_ct]  += (1. - astro_params->F_H2_SHIELD) * spectral_emissivity(nuprime, 3, 2);
-                    sum_lyLWn_MINI[R_ct] += (1. - astro_params->F_H2_SHIELD) * spectral_emissivity(nuprime, 3, 3);
+                    sum_lyLWn[R_ct]  += (1. - astro_params->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
+                    sum_lyLWn_MINI[R_ct] += (1. - astro_params->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 3);
                 }
                 else{
                     sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);

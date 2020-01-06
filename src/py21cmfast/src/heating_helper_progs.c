@@ -379,7 +379,7 @@ double spectral_emissivity(double nu_norm, int flag, int Population)
     char filename[500];
 
     switch(flag){
-        case 3:
+        case 2:
             // For LW calculateion. New in v1.5, see...
             for (i=1;i<(NSPEC_MAX-1);i++) {
                   if ((nu_norm >= nu_n[i]) && (nu_norm < nu_n[i+1])) {
@@ -395,9 +395,6 @@ double spectral_emissivity(double nu_norm, int flag, int Population)
                     }
                   }
             }
-
-        case 2:
-            return 0.0;
 
         case 1:
             // * Read in the data * //
