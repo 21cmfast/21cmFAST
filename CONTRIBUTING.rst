@@ -89,7 +89,7 @@ The following steps are the same for both *members* and *non-members*:
 
     git checkout -b name-of-your-bugfix-or-feature
 
-   Now you can make your changes locally. **Note: as a member, you _must_ do this step. If you
+   Now you can make your changes locally. **Note: as a member, you _must_ do step 5. If you
    make changes on master, you will _not_ be able to push them**.
 
 6. When you're done making changes, run all the checks, doc builder and spell checker
