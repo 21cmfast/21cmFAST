@@ -85,19 +85,19 @@ The following steps are the same for both *members* and *non-members*:
 
     pre-commit install
 
-3. Create a branch for local development::
+5. Create a branch for local development::
 
     git checkout -b name-of-your-bugfix-or-feature
 
    Now you can make your changes locally. **Note: as a member, you _must_ do this step. If you
    make changes on master, you will _not_ be able to push them**.
 
-3. When you're done making changes, run all the checks, doc builder and spell checker
+6. When you're done making changes, run all the checks, doc builder and spell checker
    with `tox <http://tox.readthedocs.io/en/latest/install.html>`_ one command::
 
     tox
 
-4. Commit your changes and push your branch to GitHub::
+7. Commit your changes and push your branch to GitHub::
 
     git add .
     git commit -m "Your detailed description of your changes."
@@ -108,7 +108,7 @@ The following steps are the same for both *members* and *non-members*:
    `commit` again (up, up, enter). If it's still complaining, manually fix the errors
    and do the same again.
 
-5. Submit a pull request through the GitHub website.
+8. Submit a pull request through the GitHub website.
 
 Pull Request Guidelines
 -----------------------
