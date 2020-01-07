@@ -53,7 +53,7 @@ def test_power_spectra_coeval(
 
     k, p, bt = prd.produce_coeval_power_spectra(**kwargs)
 
-    assert np.allclose(power, p, atol=1e-5, rtol=1e-4)
+    assert np.allclose(power, p, atol=1e-5, rtol=1e-3)
 
 
 @pytest.mark.parametrize(",".join(prd.OPTION_NAMES), prd.OPTIONS)
