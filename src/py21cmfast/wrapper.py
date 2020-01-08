@@ -1232,7 +1232,10 @@ def spin_temperature(
             redshift = (
                 previous_spin_temp.redshift + 1
             ) / global_params.ZPRIME_STEP_FACTOR - 1
-
+        else:
+            raise ValueError(
+                "Either the redshift, perturbed_field or previous_spin_temp must be given."
+            )
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     flag_options = FlagOptions(flag_options)
@@ -1246,12 +1249,6 @@ def spin_temperature(
         global_params.Z_HEAT_MAX = z_heat_max
     if z_step_factor is not None:
         global_params.ZPRIME_STEP_FACTOR = z_step_factor
-
-    # If there is still no redshift, raise error.
-    if redshift is None:
-        raise ValueError(
-            "Either the redshift, perturbed_field or previous_spin_temp must be given."
-        )
 
     box = TsBox(
         first_box=((1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1)
@@ -1319,7 +1316,13 @@ def spin_temperature(
     # Create appropriate previous_spin_temp
     if not isinstance(previous_spin_temp, TsBox):
         if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
-            previous_spin_temp = TsBox(redshift=0)
+            previous_spin_temp = TsBox(
+                redshift=global_params.Z_HEAT_MAX,
+                user_params=init_boxes.user_params,
+                cosmo_params=init_boxes.cosmo_params,
+                astro_params=astro_params,
+                flag_options=flag_options,
+            )
         else:
             previous_spin_temp = spin_temperature(
                 init_boxes=init_boxes,
@@ -1344,10 +1347,7 @@ def spin_temperature(
             direc=direc,
         )
 
-    if previous_spin_temp is None:
-        previous_spin_temp = TsBox(redshift=0)
-
-        # Run the C Code
+    # Run the C Code
     return _call_c_func(
         lib.ComputeTsBox,
         box,
@@ -1400,10 +1400,13 @@ def brightness_temperature(
         raise ValueError("both ionized_box and perturbed_field must be specified.")
 
     if spin_temp is None:
-        saturated_limit = True
-        spin_temp = TsBox(redshift=0)
-    else:
-        saturated_limit = False
+        if ionized_box.flag_options.USE_TS_FLUCT:
+            raise ValueError(
+                "You have USE_TS_FLUCT=True, but have not provided a spin_temp!"
+            )
+
+        # Make an unused dummy box.
+        spin_temp = TsBox(redshift=0, dummy=True)
 
     box = BrightnessTemp(
         user_params=ionized_box.user_params,
@@ -1419,7 +1422,6 @@ def brightness_temperature(
         box,
         direc,
         ionized_box.redshift,
-        saturated_limit,
         ionized_box.user_params,
         ionized_box.cosmo_params,
         ionized_box.astro_params,

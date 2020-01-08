@@ -290,7 +290,7 @@ class OutputStruct(StructWrapper):
 
     _TYPEMAP = {"float32": "float *", "float64": "double *", "int32": "int *"}
 
-    def __init__(self, *, random_seed=None, init=False, **kwargs):
+    def __init__(self, *, random_seed=None, init=False, dummy=False, **kwargs):
         super().__init__()
 
         self.filled = False
@@ -312,6 +312,8 @@ class OutputStruct(StructWrapper):
                 "%s received the following unexpected arguments: %s"
                 % (self.__class__.__name__, list(kwargs.keys()))
             )
+
+        self.dummy = dummy
 
         if init:
             self._init_cstruct()
@@ -369,7 +371,7 @@ class OutputStruct(StructWrapper):
 
     def __call__(self):
         """Initialize/allocate a fresh C struct in memory and return it."""
-        if not self.arrays_initialized:
+        if not self.arrays_initialized and not self.dummy:
             self._init_cstruct()
 
         return self._cstruct
