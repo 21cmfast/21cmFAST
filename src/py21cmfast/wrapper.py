@@ -1400,7 +1400,7 @@ def brightness_temperature(
         raise ValueError("both ionized_box and perturbed_field must be specified.")
 
     if spin_temp is None:
-        if ionized_box.flag_options["USE_TS_FLUCT"]:
+        if ionized_box.flag_options.USE_TS_FLUCT:
             raise ValueError(
                 "You have USE_TS_FLUCT=True, but have not provided a spin_temp!"
             )
