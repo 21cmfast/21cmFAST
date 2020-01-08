@@ -10,7 +10,6 @@ Contents
    tutorials
    reference/index
    contributing
-   notes_for_developers
    authors
    changelog
 
