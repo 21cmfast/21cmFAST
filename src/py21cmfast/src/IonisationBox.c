@@ -71,7 +71,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     float Mlim_Fstar_MINI, Mlim_Fesc_MINI;
 
     float Mcrit_atom, log10_Mcrit_atom, log10_Mcrit_mol;
-    fftwf_complex *Mcrit_LW_grid, *Mcrit_RE_grid;
+    //fftwf_complex *Mcrit_LW_grid, *Mcrit_RE_grid;
     fftwf_complex *log10_Mturnover_unfiltered=NULL, *log10_Mturnover_filtered=NULL;
     fftwf_complex *log10_Mturnover_MINI_unfiltered=NULL, *log10_Mturnover_MINI_filtered=NULL;
     float log10_Mturnover_ave=0., log10_Mturnover_MINI_ave=0.;
@@ -285,13 +285,13 @@ LOG_SUPER_DEBUG("density field calculated");
             Mcrit_atom              = atomic_cooling_threshold(redshift);
             log10_Mcrit_atom        = log10(Mcrit_atom);
             log10_Mcrit_mol         = log10(lyman_werner_threshold(redshift, 0.));
-            Mcrit_RE_grid           = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-            Mcrit_LW_grid           = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+            //Mcrit_RE_grid           = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+            //Mcrit_LW_grid           = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             log10_Mturnover_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             log10_Mturnover_filtered   = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             log10_Mturnover_MINI_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             log10_Mturnover_MINI_filtered   = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-            if (!log10_Mturnover_unfiltered || !log10_Mturnover_filtered || !log10_Mturnover_MINI_unfiltered || !log10_Mturnover_MINI_filtered || !Mcrit_RE_grid || !Mcrit_LW_grid){
+            if (!log10_Mturnover_unfiltered || !log10_Mturnover_filtered || !log10_Mturnover_MINI_unfiltered || !log10_Mturnover_MINI_filtered){// || !Mcrit_RE_grid || !Mcrit_LW_grid)
                 LOG_ERROR("IonisationBox.c: Error allocating memory for Mturnover or Mturnover_MINI boxes");
                 return(2);
              }
@@ -303,8 +303,8 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
                     Mcrit_RE = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[HII_R_INDEX(x, y, z)], previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)]);
                     Mcrit_LW = lyman_werner_threshold(redshift, spin_temp->J_21_LW_box[HII_R_INDEX(x, y, z)]);
 
-                    *((float *)Mcrit_RE_grid + HII_R_FFT_INDEX(x,y,z)) = Mcrit_RE;
-                    *((float *)Mcrit_LW_grid + HII_R_FFT_INDEX(x,y,z)) = Mcrit_LW;
+                    //*((float *)Mcrit_RE_grid + HII_R_FFT_INDEX(x,y,z)) = Mcrit_RE;
+                    //*((float *)Mcrit_LW_grid + HII_R_FFT_INDEX(x,y,z)) = Mcrit_LW;
                     Mturnover   = Mcrit_RE > Mcrit_atom ? Mcrit_RE : Mcrit_atom;
                     Mturnover_MINI   = Mcrit_RE > Mcrit_LW   ? Mcrit_RE : Mcrit_LW;
                     log10_Mturnover   = log10(Mturnover);
@@ -318,8 +318,8 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
                 }
               }
             }
-            log10_Mturnover_ave /= HII_TOT_NUM_PIXELS;
-            log10_Mturnover_MINI_ave /= HII_TOT_NUM_PIXELS;
+            log10_Mturnover_ave /= (double) HII_TOT_NUM_PIXELS;
+            log10_Mturnover_MINI_ave /= (double) HII_TOT_NUM_PIXELS;
             Mturnover      = pow(10., log10_Mturnover_ave);
             Mturnover_MINI      = pow(10., log10_Mturnover_MINI_ave);
             M_MIN       = 1e5;
@@ -1424,20 +1424,26 @@ LOG_SUPER_DEBUG("freed fftw boxes");
         free(xi_SFR);
         free(wi_SFR);
 
-    free(log10_overdense_spline_SFR);
-    free(log10_Nion_spline);
-    free(Overdense_spline_SFR);
-    free(Nion_spline);
-    free(prev_log10_overdense_spline_SFR);
-    free(prev_log10_Nion_spline);
-    free(prev_Overdense_spline_SFR);
-    free(prev_Nion_spline);
-    free(Mturns);
-    free(Mturns_MINI);
-    free(log10_Nion_spline_MINI);
-    free(Nion_spline_MINI);
-    free(prev_log10_Nion_spline_MINI);
-    free(prev_Nion_spline_MINI);
+        free(log10_overdense_spline_SFR);
+        free(log10_Nion_spline);
+        free(Overdense_spline_SFR);
+        free(Nion_spline);
+        free(prev_log10_overdense_spline_SFR);
+        free(prev_log10_Nion_spline);
+        free(prev_Overdense_spline_SFR);
+        free(prev_Nion_spline);
+        free(Mturns);
+        free(Mturns_MINI);
+        free(log10_Nion_spline_MINI);
+        free(Nion_spline_MINI);
+        free(prev_log10_Nion_spline_MINI);
+        free(prev_Nion_spline_MINI);
+        //fftwf_free(Mcrit_RE_grid);
+        //fftwf_free(Mcrit_LW_grid);
+        fftwf_free(log10_Mturnover_unfiltered);
+        fftwf_free(log10_Mturnover_filtered);
+        fftwf_free(log10_Mturnover_MINI_unfiltered);
+        fftwf_free(log10_Mturnover_MINI_filtered);
     }
 
     if(!flag_options->USE_TS_FLUCT) {

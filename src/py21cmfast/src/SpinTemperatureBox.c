@@ -183,14 +183,16 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
                 SFRD_z_high_table[j] = (float *)calloc(NSFR_high,sizeof(float));
             }
 
-            log10_SFRD_z_low_table_MINI = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
-            for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
-                log10_SFRD_z_low_table_MINI[j] = (float *)calloc(NSFR_low*NMTURN,sizeof(float));
-            }
+            if(flag_options->USE_MINI_HALOS){
+                log10_SFRD_z_low_table_MINI = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
+                for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
+                    log10_SFRD_z_low_table_MINI[j] = (float *)calloc(NSFR_low*NMTURN,sizeof(float));
+                }
 
-            SFRD_z_high_table_MINI = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
-            for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
-                SFRD_z_high_table_MINI[j] = (float *)calloc(NSFR_high*NMTURN,sizeof(float));
+                SFRD_z_high_table_MINI = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
+                for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
+                    SFRD_z_high_table_MINI[j] = (float *)calloc(NSFR_high*NMTURN,sizeof(float));
+                }
             }
 
             del_fcoll_Rct = (float *) calloc(HII_TOT_NUM_PIXELS,sizeof(float));
@@ -853,7 +855,7 @@ LOG_SUPER_DEBUG("Initialised SFRD table");
                     }
                   }
                 }
-                log10_Mcrit_LW_ave /= HII_TOT_NUM_PIXELS;
+                log10_Mcrit_LW_ave /= (float)HII_TOT_NUM_PIXELS;
 
                 log10_Mcrit_LW_ave_int_Nion_z = (int)floor( ( log10_Mcrit_LW_ave - LOG10_MTURN_MIN) / LOG10_MTURN_INT);
                 log10_Mcrit_LW_ave_table_Nion_z = LOG10_MTURN_MIN + LOG10_MTURN_INT * (float)log10_Mcrit_LW_ave_int_Nion_z;
@@ -995,7 +997,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                           }
                       }
                     }
-                    log10_Mcrit_LW_ave /= HII_TOT_NUM_PIXELS;
+                    log10_Mcrit_LW_ave /= (float)HII_TOT_NUM_PIXELS;
 
                     log10_Mcrit_LW_ave_int_SFRD = (int)floor( ( log10_Mcrit_LW_ave - LOG10_MTURN_MIN) / LOG10_MTURN_INT);
                     log10_Mcrit_LW_ave_table_SFRD = LOG10_MTURN_MIN + LOG10_MTURN_INT * (float)log10_Mcrit_LW_ave_int_SFRD;
@@ -1791,7 +1793,7 @@ LOG_SUPER_DEBUG("finished loop");
         for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
             free(log10_Mcrit_LW[R_ct]);
         }
-        free(log10_Mcrit_LW); 
+        free(log10_Mcrit_LW);
     }
 
 //    fftwf_destroy_plan(plan);
@@ -1839,6 +1841,12 @@ void free_TsCalcBoxes(struct FlagOptions *flag_options)
     free(ST_over_PS);
     free(sum_lyn);
     free(zpp_for_evolve_list);
+    if (flag_options->USE_MINI_HALOS){
+        free(ST_over_PS_MINI);
+        free(sum_lyn_MINI);
+        free(sum_lyLWn);
+        free(sum_lyLWn_MINI);
+    }
 
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -1869,6 +1877,26 @@ void free_TsCalcBoxes(struct FlagOptions *flag_options)
         free(dstarlya_dt_box);
         free(m_xHII_low_box);
         free(inverse_val_box);
+
+        if(flag_options->USE_MINI_HALOS){
+            for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
+                free(log10_SFRD_z_low_table_MINI[j]);
+            }
+            free(log10_SFRD_z_low_table_MINI);
+
+            for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
+                free(SFRD_z_high_table_MINI[j]);
+            }
+            free(SFRD_z_high_table_MINI);
+
+            free(del_fcoll_Rct_MINI);
+            free(dstarlyLW_dt_box);
+            free(dxheat_dt_box_MINI);
+            free(dxion_source_dt_box_MINI);
+            free(dxlya_dt_box_MINI);
+            free(dstarlya_dt_box_MINI);
+            free(dstarlyLW_dt_box_MINI);
+        }
 
     }
     else {

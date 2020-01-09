@@ -21,13 +21,10 @@ static gsl_spline *erfc_spline;
 
 #define NSFR_high 200
 #define NSFR_low 250
-//#define NSFR_high 50 //200
-//#define NSFR_low 50 //250
 #define NGL_SFR 100 // 100
 #define NMTURN 50//100
 #define LOG10_MTURN_MAX (double) (10)
 #define LOG10_MTURN_MIN (double) (5.-9e-8)
-//#define zpp_interp_points_SFR (int) (300)
 
 #define NR_END 1
 #define FREE_ARG char*
