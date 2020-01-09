@@ -9,7 +9,9 @@ float absolute_delta_z;
 
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                       struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
+                       struct PerturbedField *perturbed_field,
+                       struct PerturbedField *previous_perturbed_field,
+                       struct IonizedBox *previous_ionize_box,
                        struct TsBox *spin_temp, struct IonizedBox *box) {
 
 LOG_DEBUG("input values:");
@@ -241,22 +243,10 @@ LOG_SUPER_DEBUG("erfc interpolation done");
         }
     }
 
-    if (flag_options->USE_MINI_HALOS){
-        for (i=0; i<user_params->HII_DIM; i++){
-            for (j=0; j<user_params->HII_DIM; j++){
-                for (k=0; k<user_params->HII_DIM; k++){
-                    *((float *)prev_deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = perturbed_field->density[HII_R_INDEX(i,j,k)];
-                }
-            }
-        }
-    }
 LOG_SUPER_DEBUG("density field calculated");
 
     // keep the unfiltered density field in an array, to save it for later
     memcpy(deltax_unfiltered_original, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    if (flag_options->USE_MINI_HALOS){
-        memcpy(prev_deltax_unfiltered_original, prev_deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    }
 
     i=0;
 
@@ -279,7 +269,27 @@ LOG_SUPER_DEBUG("density field calculated");
                 previous_ionize_box->dNrec_box   = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
                 previous_ionize_box->mean_f_coll = 0.0;
                 previous_ionize_box->mean_f_coll_MINI = 0.0;
+                for (i=0; i<user_params->HII_DIM; i++){
+                    for (j=0; j<user_params->HII_DIM; j++){
+                        for (k=0; k<user_params->HII_DIM; k++){
+                            *((float *)prev_deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = -1.5;
+                        }
+                    }
+                }
             }
+            else{
+                for (i=0; i<user_params->HII_DIM; i++){
+                    for (j=0; j<user_params->HII_DIM; j++){
+                        for (k=0; k<user_params->HII_DIM; k++){
+                            *((float *)prev_deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = previous_perturbed_field->density[HII_R_INDEX(i,j,k)];
+                        }
+                    }
+                }
+            }
+
+LOG_SUPER_DEBUG("previous density field calculated");
+
+        memcpy(prev_deltax_unfiltered_original, prev_deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
             // fields added for minihalos
             Mcrit_atom              = atomic_cooling_threshold(redshift);
@@ -1338,7 +1348,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             else {
                 R /= (global_params.DELTA_R_HII_FACTOR);
             }
-            counter += 1;
+            if (flag_options->USE_MINI_HALOS)
+                counter += 1;
         }
 
         // find the neutral fraction

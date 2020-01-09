@@ -623,24 +623,27 @@ class IonizedBox(_OutputStructZ):
         super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
 
     def _init_arrays(self):
-        Nfiltering = (
-            int(
-                np.log(
-                    min(
-                        self.astro_params.R_BUBBLE_MAX,
-                        0.620350491 * self.user_params.BOX_LEN,
+        if self.flag_options.USE_MINI_HALOS:
+            Nfiltering = (
+                int(
+                    np.log(
+                        min(
+                            self.astro_params.R_BUBBLE_MAX,
+                            0.620350491 * self.user_params.BOX_LEN,
+                        )
+                        / max(
+                            global_params.R_BUBBLE_MIN,
+                            0.620350491
+                            * self.user_params.BOX_LEN
+                            / self.user_params.HII_DIM,
+                        )
                     )
-                    / max(
-                        global_params.R_BUBBLE_MIN,
-                        0.620350491
-                        * self.user_params.BOX_LEN
-                        / self.user_params.HII_DIM,
-                    )
+                    / np.log(global_params.DELTA_R_HII_FACTOR)
                 )
-                / np.log(global_params.DELTA_R_HII_FACTOR)
+                + 1
             )
-            + 1
-        )
+        else:
+            Nfiltering = 1
 
         # ionized_box is always initialised to be neutral for excursion set algorithm.
         # Hence np.ones instead of np.zeros
@@ -1634,6 +1637,7 @@ def ionize_box(
         box.astro_params,
         box.flag_options,
         perturbed_field,
+        previous_perturbed_field,
         previous_ionize_box,
         spin_temp,
         write=write,
@@ -2228,7 +2232,7 @@ def run_coeval(
     minarg = np.argmin(redshift)
 
     # Iterate through redshift from top to bottom
-    for z in redshifts:
+    for iz, z in enumerate(redshifts):
 
         if flag_options.USE_TS_FLUCT:
             logger.debug("PID={} doing spin temp for z={}".format(os.getpid(), z))
@@ -2263,6 +2267,15 @@ def run_coeval(
             previous_ionize_box=ib,
             init_boxes=init_box,
             perturbed_field=perturb[redshift.index(z)] if z in redshift else None,
+            previous_perturbed_field=(
+                None
+                if iz == 0 or not flag_options.USE_MINI_HALOS
+                else (
+                    perturb[redshift.index(redshifts[iz - 1])]
+                    if redshifts[iz - 1] in redshift
+                    else None
+                )
+            ),
             # perturb field *not* interpolated here.
             astro_params=astro_params,
             flag_options=flag_options,
@@ -2529,7 +2542,7 @@ def run_lightcone(
     )
 
     # Iterate through redshift from top to bottom
-    st, ib, bt = None, None, None
+    st, ib, bt, prev_perturb = None, None, None, None
     lc_index = 0
     box_index = 0
     neutral_fraction = np.zeros(len(scrollz))
@@ -2566,6 +2579,7 @@ def run_lightcone(
             previous_ionize_box=ib,
             init_boxes=init_box,
             perturbed_field=this_perturb,
+            previous_perturbed_field=prev_perturb,
             astro_params=astro_params,
             flag_options=flag_options,
             spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
@@ -2616,6 +2630,8 @@ def run_lightcone(
             st = st2
         ib = ib2
         bt = bt2
+        if flag_options.USE_MINI_HALOS:
+            prev_perturb = this_perturb
 
     if flag_options.PHOTON_CONS:
         photon_nonconservation_data = get_photon_nonconservation_data()
@@ -2730,6 +2746,7 @@ def calibrate_photon_cons(
     )
 
     ib = None
+    prev_perturb = None
 
     # Arrays for redshift and neutral fraction for the calibration curve
     z_for_photon_cons = []
@@ -2760,6 +2777,7 @@ def calibrate_photon_cons(
             previous_ionize_box=ib,
             init_boxes=init_box,
             perturbed_field=this_perturb,
+            previous_perturbed_field=prev_perturb,
             astro_params=astro_params_photoncons,
             flag_options=flag_options_photoncons,
             spin_temp=None,
@@ -2782,6 +2800,8 @@ def calibrate_photon_cons(
             z -= 0.5
 
         ib = ib2
+        if flag_options.USE_MINI_HALOS:
+            prev_perturb = this_perturb
 
     z_for_photon_cons = np.array(z_for_photon_cons[::-1])
     neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
