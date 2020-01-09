@@ -12,6 +12,7 @@ Along with these, the module exposes ``global_params``, a singleton object of ty
 :class:`GlobalParams`, which is a simple class providing read/write access to a number of parameters
 used throughout the computation which are very rarely varied.
 """
+import contextlib
 import logging
 from os import path
 
@@ -41,6 +42,15 @@ class GlobalParams(StructInstanceWrapper):
     Values can be set in the normal way, eg.:
 
     >>> global_params.ALPHA_UVB = 5.5
+
+    The class also provides a context manager for setting parameters for a well-defined
+    portion of the code. For example, if you would like to set ``Z_HEAT_MAX`` for a given
+    run:
+
+    >>> with global_params.use(Z_HEAT_MAX=25):
+    >>>     p21c.run_lightcone(...)  # uses Z_HEAT_MAX=25 for the entire run.
+    >>> print(global_params.Z_HEAT_MAX)
+    35.0
 
     Attributes
     ----------
@@ -246,6 +256,32 @@ class GlobalParams(StructInstanceWrapper):
             "char[]", path.join(path.expanduser("~"), ".21cmfast").encode()
         )
         self.external_table_path = EXTERNALTABLES
+
+    @contextlib.contextmanager
+    def use(self, **kwargs):
+        """Set given parameters for a certain context.
+
+        Examples
+        --------
+        >>> from py21cmfast import global_params, run_lightcone
+        >>> with global_params.use(ZPRIME_STEP_FACTOR=1.1):
+        >>>     run_lightcone(redshift=7)
+        """
+        prev = {}
+        for k in kwargs:
+            if not hasattr(self, k):
+                raise ValueError(
+                    "{} is not a valid parameter of global_params".format(k)
+                )
+            else:
+                prev[k] = getattr(self, k)
+                setattr(self, k, kwargs[k])
+
+        yield self
+
+        # Restore everything back to the way it was.
+        for k, v in prev.items():
+            setattr(self, k, v)
 
 
 global_params = GlobalParams(lib.global_params, ffi)
