@@ -129,7 +129,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     }
     else {
         ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;
-		ION_EFF_FACTOR_MINI = 0.;
+        ION_EFF_FACTOR_MINI = 0.;
     }
 
     // Initialise arrays to be used for the Ts.c computation //
@@ -1176,9 +1176,9 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
             // do the same for MINI
             const_zp_prefactor_MINI = ( (astro_params->L_X_MINI) * Luminosity_converstion_factor ) / ((astro_params->NU_X_THRESH)*NU_over_EV) * C * astro_params->F_STAR7_MINI * cosmo_params->OMb * RHOcrit * pow(CMperMPC, -3) * pow(1+zp, astro_params->X_RAY_SPEC_INDEX+3);
         }
-		else{
-			const_zp_prefactor_MINI = 0.;
-		}
+        else{
+            const_zp_prefactor_MINI = 0.;
+        }
         //////////////////////////////  LOOP THROUGH BOX //////////////////////////////
 
         J_alpha_ave = xalpha_ave = Xheat_ave = Xion_ave = 0.;
@@ -1541,12 +1541,12 @@ LOG_SUPER_DEBUG("looping over box...");
                         xc_fast = (1.0+delNL0[0][box_ct]*growth_factor_zp)*xc_inverse*( (1.0-x_e)*No*kappa_10(T,0) + x_e*N_b0*kappa_10_elec(T,0) + x_e*No*kappa_10_pH(T,0) );
 
                         xi_power = TS_prefactor * cbrt((1.0+delNL0[0][box_ct]*growth_factor_zp)*(1.0-x_e)*T_inv_sq);
-						if (flag_options->USE_MINI_HALOS){
-                        	xa_tilde_fast_arg = xa_tilde_prefactor*(J_alpha_tot+J_alpha_tot_MINI)*pow( 1.0 + 2.98394*xi_power + 1.53583*xi_power*xi_power + 3.85289*xi_power*xi_power*xi_power, -1. );
-						}
-						else{
-                        	xa_tilde_fast_arg = xa_tilde_prefactor*J_alpha_tot*pow( 1.0 + 2.98394*xi_power + 1.53583*xi_power*xi_power + 3.85289*xi_power*xi_power*xi_power, -1. );
-						}
+                        if (flag_options->USE_MINI_HALOS){
+                            xa_tilde_fast_arg = xa_tilde_prefactor*(J_alpha_tot+J_alpha_tot_MINI)*pow( 1.0 + 2.98394*xi_power + 1.53583*xi_power*xi_power + 3.85289*xi_power*xi_power*xi_power, -1. );
+                        }
+                        else{
+                            xa_tilde_fast_arg = xa_tilde_prefactor*J_alpha_tot*pow( 1.0 + 2.98394*xi_power + 1.53583*xi_power*xi_power + 3.85289*xi_power*xi_power*xi_power, -1. );
+                        }
 
                         //if (J_alpha_tot > 1.0e-20)  // Must use WF effect
                         // New in v1.4
@@ -1785,6 +1785,14 @@ LOG_SUPER_DEBUG("finished loop");
 
     fftwf_free(box);
     fftwf_free(unfiltered_box);
+    if (flag_options->USE_MINI_HALOS){
+        fftwf_free(log10_Mcrit_LW_unfiltered);
+        fftwf_free(log10_Mcrit_LW_filtered);
+        for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
+            free(log10_Mcrit_LW[R_ct]);
+        }
+        free(log10_Mcrit_LW); 
+    }
 
 //    fftwf_destroy_plan(plan);
     fftwf_cleanup();
