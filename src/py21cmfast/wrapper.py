@@ -2062,6 +2062,9 @@ def run_coeval(
     regenerate, write, direc, random_seed:
         See docs of :func:`initial_conditions` for more information.
     """
+    if redshift is None and perturb is None:
+        raise ValueError("Either redshift or perturb must be given")
+
     # Ensure perturb is a list of boxes, not just one.
     if perturb is not None:
         if not hasattr(perturb, "__len__"):
@@ -2083,9 +2086,6 @@ def run_coeval(
     cosmo_params = CosmoParams(cosmo_params)
     flag_options = FlagOptions(flag_options)
     astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
-
-    if redshift is None and perturb is None:
-        raise ValueError("Either redshift or perturb must be given")
 
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
