@@ -2,6 +2,7 @@
 dist: xenial
 language: python
 python:
+  - 3.8
   - 3.7
   - 3.6
 
@@ -11,6 +12,11 @@ addons:
     - libfftw3-dev
     - libgsl0-dev
     update: true
+
+jobs:
+  include:
+    - python: 3.7
+      env: TOXENV=lint
 
 env:
   global:
