@@ -116,3 +116,5 @@ dependencies:
   - h5py
   - jupyter
   - nb_conda
+  - pip:
+      - pre-commit

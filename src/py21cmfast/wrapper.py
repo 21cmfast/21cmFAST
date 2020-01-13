@@ -2021,28 +2021,55 @@ class Coeval:
     def __init__(
         self, redshift, init_box, perturb, ib, bt, photon_nonconservation_data=None
     ):
+        if (
+            not init_box.user_params
+            == perturb.user_params
+            == ib.user_params
+            == bt.user_params
+        ):
+            raise ValueError("Not all input structs have the same user_params")
+
+        if (
+            not init_box.cosmo_params
+            == perturb.cosmo_params
+            == ib.cosmo_params
+            == bt.cosmo_params
+        ):
+            raise ValueError("Not all input structs have the same cosmo_params")
+
+        if not ib.astro_params == bt.astro_params:
+            raise ValueError("Not all input structs have the same astro_params")
+
+        if not ib.flag_options == bt.flag_options:
+            raise ValueError("Not all input structs have the same flag_options")
+
         self.redshift = redshift
-        self.init_box = init_box
-        self.perturb_field = perturb
-        self.ionization_box = ib
-        self.brightness_temperature = bt
+        self.init_struct = init_box
+        self.perturb_struct = perturb
+        self.ionization_struct = ib
+        self.brightness_temp_struct = bt
         self.photon_nonconservation_data = photon_nonconservation_data
+
+        # Expose all the fields of the structs to the surface of the Coeval object
+        for box in [init_box, perturb, ib, bt]:
+            for field in box.fieldnames:
+                setattr(self, field, getattr(box, field))
 
     @property
     def user_params(self):
-        return self.init_box.user_params
+        return self.brightness_temp_struct.user_params
 
     @property
     def cosmo_params(self):
-        return self.brightness_temperature.cosmo_params
+        return self.brightness_temp_struct.cosmo_params
 
     @property
     def flag_options(self):
-        return self.brightness_temperature.flag_options
+        return self.brightness_temp_struct.flag_options
 
     @property
     def astro_params(self):
-        return self.brightness_temperature.astro_params
+        return self.brightness_temp_struct.astro_params
 
 
 def run_coeval(
@@ -2133,6 +2160,9 @@ def run_coeval(
     regenerate, write, direc, random_seed:
         See docs of :func:`initial_conditions` for more information.
     """
+    if redshift is None and perturb is None:
+        raise ValueError("Either redshift or perturb must be given")
+
     # Ensure perturb is a list of boxes, not just one.
     if perturb is not None:
         if not hasattr(perturb, "__len__"):
@@ -2154,9 +2184,6 @@ def run_coeval(
     cosmo_params = CosmoParams(cosmo_params)
     flag_options = FlagOptions(flag_options)
     astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
-
-    if redshift is None and perturb is None:
-        raise ValueError("Either redshift or perturb must be given")
 
     if z_heat_max:
         global_params.Z_HEAT_MAX = z_heat_max
