@@ -771,7 +771,8 @@ double atomic_cooling_threshold(float z){
 }
 
 double molecular_cooling_threshold(float z){
-    return 3.314e7 * pow( 1.+z, -1.5);
+	return TtoM(z, 6e2, 1.22);
+    //return 3.314e7 * pow( 1.+z, -1.5);
 }
 
 double lyman_werner_threshold(float z, float J_21_LW){
