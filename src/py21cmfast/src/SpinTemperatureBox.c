@@ -326,7 +326,7 @@ LOG_SUPER_DEBUG("initalised Ts Interp Arrays");
     // In this case, we define M_MIN = M_TURN/50, i.e. the M_MIN is integration limit to compute follapse fraction.
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (flag_options->USE_MINI_HALOS){
-            M_MIN = (1e5)/50.;
+            M_MIN = (global_params.M_MIN_INTEGRAL)/50.;
         }
         else{
             M_MIN = (astro_params->M_TURN)/50.;
@@ -361,7 +361,7 @@ LOG_SUPER_DEBUG("Initialised PS");
 
         if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
             if (flag_options->USE_MINI_HALOS){
-                if(initialiseSigmaMInterpTable(1e5/50,1e20)!=0) {
+                if(initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50,1e20)!=0) {
                     LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
                     return(2);
                 }

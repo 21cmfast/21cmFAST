@@ -332,7 +332,7 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
             log10_Mturnover_MINI_ave /= (double) HII_TOT_NUM_PIXELS;
             Mturnover      = pow(10., log10_Mturnover_ave);
             Mturnover_MINI      = pow(10., log10_Mturnover_MINI_ave);
-            M_MIN       = 1e5;
+            M_MIN       = global_params.M_MIN_INTEGRAL;
             Mlim_Fstar_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR7_MINI * pow(1e3,astro_params->ALPHA_STAR));
             Mlim_Fesc_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
         }
@@ -357,7 +357,7 @@ LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
 
     if(!flag_options->USE_TS_FLUCT) {
         if (flag_options->USE_MINI_HALOS){
-            if(initialiseSigmaMInterpTable(1e5/50.,1e20)!=0) {
+            if(initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e20)!=0) {
                 LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
                 return(2);
             }

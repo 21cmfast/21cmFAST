@@ -973,7 +973,7 @@ double FgtrM_Watson_z(double z, double growthf, double M){
 
     F.params = &parameters_gsl_FgtrM;
     lower_limit = log(M);
-    upper_limit = log(FMAX(1e16, M*100));
+    upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M*100));
 
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
@@ -1003,7 +1003,7 @@ double FgtrM_Watson(double growthf, double M){
     F.function = &dFdlnM_Watson;
     F.params = &growthf;
     lower_limit = log(M);
-    upper_limit = log(FMAX(1e16, M*100));
+    upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M*100));
 
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
@@ -1063,7 +1063,7 @@ double FgtrM_General(double z, double M){
         F.params = &parameters_gsl_FgtrM;
 
         lower_limit = log(M);
-        upper_limit = log(FMAX(1e16, M*100));
+        upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M*100));
 
 LOG_ULTRA_DEBUG("integration range: %f to %f", lower_limit, upper_limit);
 
@@ -1157,7 +1157,7 @@ double Nion_General(double z, double M_Min, double MassTurnover, double Alpha_st
         F.params = &parameters_gsl_SFR;
 
         lower_limit = log(M_Min);
-        upper_limit = log(FMAX(1e16, M_Min*100));
+        upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M_Min*100));
 
         gsl_set_error_handler_off();
 
@@ -1256,7 +1256,7 @@ double Nion_General_MINI(double z, double M_Min, double MassTurnover, double Mas
         F.params = &parameters_gsl_SFR;
 
         lower_limit = log(M_Min);
-        upper_limit = log(FMAX(1e16, M_Min*100));
+        upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M_Min*100));
 
         gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
         gsl_integration_workspace_free (w);
@@ -2343,7 +2343,7 @@ int initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float mi
 
 int initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10){
     int i;
-    float Mmin = MassTurn/50., Mmax = 1e16;
+    float Mmin = MassTurn/50., Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fesc;
 
     z_val = calloc(Nbin,sizeof(double));
@@ -2368,7 +2368,7 @@ int initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float MassTurn, 
 
 int initialise_Nion_Ts_spline_MINI(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Fstar7_MINI, float Fesc7_MINI){
     int i,j;
-    float Mmin = 1e5, Mmax = 1e16;
+    float Mmin = global_params.M_MIN_INTEGRAL, Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI, Mcrit_atom_val;
 
     z_val = calloc(Nbin,sizeof(double));
@@ -2411,7 +2411,7 @@ int initialise_Nion_Ts_spline_MINI(int Nbin, float zmin, float zmax, float Alpha
 
 int initialise_SFRD_spline(int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Fstar10){
     int i;
-    float Mmin = MassTurn/50., Mmax = 1e16;
+    float Mmin = MassTurn/50., Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar;
 
     z_X_val = calloc(Nbin,sizeof(double));
@@ -2435,7 +2435,7 @@ int initialise_SFRD_spline(int Nbin, float zmin, float zmax, float MassTurn, flo
 
 int initialise_SFRD_spline_MINI(int Nbin, float zmin, float zmax, float Alpha_star, float Fstar10, float Fstar7_MINI){
     int i,j;
-    float Mmin = 1e5, Mmax = 1e16;
+    float Mmin = global_params.M_MIN_INTEGRAL, Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fstar_MINI, Mcrit_atom_val;
 
     z_X_val = calloc(Nbin,sizeof(double));
@@ -2606,7 +2606,7 @@ int initialise_SFRD_Conditional_table_MINI(int Nfilter, float min_density[], flo
 
     ln_10 = log(10);
 
-    Mmin = 1e5;
+    Mmin = global_params.M_MIN_INTEGRAL;
     Mmax = RtoM(R[Nfilter-1]);
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar7_MINI * pow(1e3, Alpha_star));
@@ -2629,7 +2629,7 @@ int initialise_SFRD_Conditional_table_MINI(int Nfilter, float min_density[], flo
 
         Mmax = RtoM(R[j]);
 
-        initialiseGL_Nion_Xray(NGL_SFR, 1e5, Mmax);
+        initialiseGL_Nion_Xray(NGL_SFR, global_params.M_MIN_INTEGRAL, Mmax);
 
         Mmax = log(Mmax);
         MassBin = (int)floor( ( Mmax - MinMass )*inv_mass_bin_width );
@@ -2772,8 +2772,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
         ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
 
         M_MIN = astro_params->M_TURN/50.;
-        Mlim_Fstar = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR10);
-        Mlim_Fesc = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10);
+        Mlim_Fstar = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+        Mlim_Fesc = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
 
         initialiseSigmaMInterpTable(M_MIN,1e20);
     }

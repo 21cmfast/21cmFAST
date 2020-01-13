@@ -73,6 +73,8 @@ struct GlobalParams{
 
     char *external_table_path;
 	float R_BUBBLE_MIN;
+	float M_MIN_INTEGRAL;
+	float M_MAX_INTEGRAL;
 
 
 
@@ -147,6 +149,8 @@ struct GlobalParams global_params = {
 	//shot noise if running on a fine, non-linear density grid.
 	//Default is L_FACTOR which is (4PI/3)^(-1/3) = 0.620350491
 
+	.M_MIN_INTEGRAL = 1e5,
+	.M_MAX_INTEGRAL = 1e16,
 };
 
 /*
