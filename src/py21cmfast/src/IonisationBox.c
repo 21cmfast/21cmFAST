@@ -1126,6 +1126,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     prev_Splined_Fcoll = 0;
                                     prev_Splined_Fcoll_MINI = 0;
                                 }
+                                if (prev_Splined_Fcoll > Splined_Fcoll)
+                                    prev_Splined_Fcoll = Splined_Fcoll;
+                                if (prev_Splined_Fcoll_MINI > Splined_Fcoll_MINI)
+                                    prev_Splined_Fcoll_MINI = Splined_Fcoll_MINI;
                             }
 
                         }
