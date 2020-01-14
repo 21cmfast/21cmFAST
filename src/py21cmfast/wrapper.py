@@ -349,6 +349,17 @@ class FlagOptions(StructWithDefaults):
         else:
             return self._INHOMO_RECO
 
+    @property
+    def PHOTON_CONS(self):
+        if self.USE_MINI_HALOS and self._PHOTON_CONS:
+            logger.warning(
+                "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
+                "Automatically setting PHOTON_CONS to False."
+            )
+            return False
+        else:
+            return self._PHOTON_CONS
+
 
 class AstroParams(StructWithDefaults):
     """
