@@ -127,6 +127,7 @@ def _check_compatible_inputs(*datasets, ignore=["redshift"]):
     ------
     ValueError :
         If datasets are not compatible.
+
     """
     done = []  # keeps track of inputs we've checked so we don't double check.
 

@@ -510,8 +510,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                             box->brightness_temp[HII_R_INDEX(i,j,k)] = delta_T_RSD_LOS[omp_get_thread_num()][k];
 
                             ave += delta_T_RSD_LOS[omp_get_thread_num()][k];
-                        }
-
+                        }                        
                     }
                 }
             }

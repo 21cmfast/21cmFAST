@@ -705,7 +705,6 @@ LOG_SUPER_DEBUG("more ffts performed");
             LOG_SUPER_DEBUG("more ffts performed");
         }
 
-
         // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from
         //  real space to k-space
         // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
@@ -778,6 +777,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
             memcpy(deltax_filtered, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
             if(flag_options->USE_MINI_HALOS){
                 memcpy(prev_deltax_filtered, prev_deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
                 memcpy(log10_Mturnover_MINI_filtered, log10_Mturnover_MINI_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -1446,7 +1446,6 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                     return (2);
                 }
             }
-
             if(isfinite(f_coll)==0) {
                 LOG_ERROR("f_coll is either infinite or NaN!");
                 return (2);
