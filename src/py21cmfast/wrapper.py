@@ -315,6 +315,30 @@ def _get_config_options(direc, regenerate, write):
         config["write"] if write is None else write,
     )
 
+def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
+    """Return all possible fieldnames in output structs.
+
+    Parameters
+    ----------
+    arrays_only : bool, optional
+        Whether to only return fields that are arrays.
+    lightcone_only : bool, optional
+        Whether to only return fields from classes that evolve with redshift.
+    as_dict : bool, optional
+        Whether to return results as a dictionary of ``quantity: class_name``.
+        Otherwise returns a set of quantities.
+    """
+    classes = _OutputStructZ.__subclasses__()
+    if not lightcone_only:
+        classes.append(InitialConditions)
+
+    attr = "pointer_fields" if arrays_only else "fieldnames"
+
+    if as_dict:
+        return {getattr(cls(), attr): cls.__name__ for cls in classes}
+    else:
+        return {getattr(cls(), attr) for cls in classes}
+
 
 def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
     """Return all possible fieldnames in output structs.
@@ -2270,7 +2294,7 @@ def run_lightcone(
             if z < max_redshift:
                 for quantity in lightcone_quantities:
                     data1, data2 = outs[_fld_names[quantity]]
-                    fnc = interp_functions.get(quantity, "mean")
+<                   fnc = interp_functions.get(quantity, "mean")
 
                     n = _interpolate_in_redshift(
                         iz,
@@ -2370,6 +2394,55 @@ def _interpolate_in_redshift(
         raise ValueError("kind must be 'mean' or 'mean_max'")
 
     lc[:, :, -(lc_index + n) : n_lightcone - lc_index] = out
+    return n
+
+
+def _interpolate_in_redshift(
+    z_index,
+    box_index,
+    lc_index,
+    n_lightcone,
+    scroll_distances,
+    lc_distances,
+    output_obj,
+    output_obj2,
+    quantity,
+    lc,
+):
+    try:
+        array = getattr(output_obj, quantity)
+        array2 = getattr(output_obj2, quantity)
+    except AttributeError:
+        raise AttributeError(
+            "{} is not a valid field of {}".format(
+                quantity, output_obj.__class__.__name__
+            )
+        )
+
+    assert array.__class__ == array2.__class__
+
+    # Do linear interpolation only.
+    prev_d = scroll_distances[z_index - 1]
+    this_d = scroll_distances[z_index]
+
+    # Get the cells that need to be filled on this iteration.
+    these_distances = lc_distances[
+        np.logical_and(lc_distances < prev_d, lc_distances >= this_d)
+    ]
+
+    n = len(these_distances)
+    ind = np.arange(-(box_index + n), -box_index)
+
+    lc[:, :, -(lc_index + n) : n_lightcone - lc_index] = (
+        np.abs(this_d - these_distances)
+        * (
+            array.take(ind + n_lightcone, axis=2, mode="wrap")
+            + np.abs(prev_d - these_distances)
+            * array2.take(ind + n_lightcone, axis=2, mode="wrap")
+        )
+        / (np.abs(prev_d - this_d))
+    )
+
     return n
 
 
