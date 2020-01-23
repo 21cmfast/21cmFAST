@@ -355,6 +355,30 @@ def _get_config_options(direc, regenerate, write):
         config["write"] if write is None else write,
     )
 
+def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
+    """Return all possible fieldnames in output structs.
+
+    Parameters
+    ----------
+    arrays_only : bool, optional
+        Whether to only return fields that are arrays.
+    lightcone_only : bool, optional
+        Whether to only return fields from classes that evolve with redshift.
+    as_dict : bool, optional
+        Whether to return results as a dictionary of ``quantity: class_name``.
+        Otherwise returns a set of quantities.
+    """
+    classes = _OutputStructZ.__subclasses__()
+    if not lightcone_only:
+        classes.append(InitialConditions)
+
+    attr = "pointer_fields" if arrays_only else "fieldnames"
+
+    if as_dict:
+        return {getattr(cls(), attr): cls.__name__ for cls in classes}
+    else:
+        return {getattr(cls(), attr) for cls in classes}
+
 
 def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
     """Return all possible fieldnames in output structs.
@@ -2312,9 +2336,7 @@ def run_lightcone(
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
         # Ensure passed quantities are appropriate
-        _fld_names = get_all_fieldnames(
-            arrays_only=True, lightcone_only=True, as_dict=True
-        )
+        _fld_names = get_all_fieldnames(arrays_only=True, lightcone_only=True, as_dict=True)
         assert all(
             q in _fld_names.keys() for q in lightcone_quantities
         ), "invalid lightcone_quantity passed."
@@ -2396,7 +2418,6 @@ def run_lightcone(
         st, ib, bt, prev_perturb = None, None, None, None
         lc_index = 0
         box_index = 0
-
         lc = {
             quantity: np.zeros(
                 (user_params.HII_DIM, user_params.HII_DIM, n_lightcone),
@@ -2478,7 +2499,6 @@ def run_lightcone(
             if z < max_redshift:
                 for quantity in lightcone_quantities:
                     data1, data2 = outs[_fld_names[quantity]]
-
                     fnc = interp_functions.get(quantity, "mean")
 
                     n = _interpolate_in_redshift(
