@@ -26,7 +26,7 @@ DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
 DEFAULT_USER_PARAMS = {"HII_DIM": 50, "DIM": 150, "BOX_LEN": 100}
 OPTION_NAMES = [
     "redshift",
-    "z_step_factor",
+    "zprime_step_factor",
     "z_heat_max",
     "HMF",
     "interp_perturb_field",
@@ -74,7 +74,7 @@ def get_all_options(**kwargs):
         "astro_params": astro_params,
         "flag_options": flag_options,
         "regenerate": True,
-        "z_step_factor": kwargs.get("z_step_factor", None),
+        "zprime_step_factor": kwargs.get("zprime_step_factor", None),
         "z_heat_max": kwargs.get("z_heat_max", None),
         "use_interp_perturb_field": kwargs.get("use_interp_perturb_field", False),
         "random_seed": SEED,

@@ -261,23 +261,28 @@ class GlobalParams(StructInstanceWrapper):
     def use(self, **kwargs):
         """Set given parameters for a certain context.
 
+        .. note:: Keywords are *not* case-sensitive.
+
         Examples
         --------
         >>> from py21cmfast import global_params, run_lightcone
-        >>> with global_params.use(ZPRIME_STEP_FACTOR=1.1):
+        >>> with global_params.use(zprime_step_factor=1.1, Sheth_c=0.06):
         >>>     run_lightcone(redshift=7)
         """
         prev = {}
-        for k in kwargs:
-            if not hasattr(self, k):
+        this_attr_upper = {k.upper(): k for k in self.keys()}
+
+        for k, val in kwargs.items():
+            if not k.upper() in this_attr_upper:
                 raise ValueError(
                     "{} is not a valid parameter of global_params".format(k)
                 )
             else:
-                prev[k] = getattr(self, k)
-                setattr(self, k, kwargs[k])
+                key = this_attr_upper[k.upper()]
+                prev[key] = getattr(self, key)
+                setattr(self, key, val)
 
-        yield self
+        yield
 
         # Restore everything back to the way it was.
         for k, v in prev.items():

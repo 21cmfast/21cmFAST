@@ -42,7 +42,7 @@ def ionize_box(perturb_field, tmpdirec):
         perturbed_field=perturb_field,
         regenerate=True,  # i.e. make sure we don't read it in.
         direc=tmpdirec.strpath,
-        z_step_factor=1.2,
+        zprime_step_factor=1.2,
     )
 
 
@@ -53,7 +53,7 @@ def spin_temp(perturb_field, tmpdirec):
         perturbed_field=perturb_field,
         regenerate=True,  # i.e. make sure we don't read it in.
         direc=tmpdirec.strpath,
-        z_step_factor=1.2,
+        zprime_step_factor=1.2,
     )
 
 
@@ -270,10 +270,7 @@ def test_ib_override_z_heat_max(perturb_field, tmpdirec):
         z_heat_max=12.0,
     )
 
-    assert wrapper.global_params.Z_HEAT_MAX == 12.0
-
-    # set it back so that "nothing changes"
-    wrapper.global_params.Z_HEAT_MAX = zheatmax
+    assert wrapper.global_params.Z_HEAT_MAX == zheatmax
 
 
 def test_ib_bad_st(init_box):

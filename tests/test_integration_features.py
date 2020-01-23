@@ -33,7 +33,7 @@ from . import produce_integration_test_data as prd
 @pytest.mark.parametrize(",".join(prd.OPTION_NAMES), prd.OPTIONS)
 def test_power_spectra_coeval(
     redshift,
-    z_step_factor,
+    zprime_step_factor,
     z_heat_max,
     HMF,
     interp_perturb_field,
@@ -59,7 +59,7 @@ def test_power_spectra_coeval(
 @pytest.mark.parametrize(",".join(prd.OPTION_NAMES), prd.OPTIONS)
 def test_power_spectra_lightcone(
     redshift,
-    z_step_factor,
+    zprime_step_factor,
     z_heat_max,
     HMF,
     interp_perturb_field,
