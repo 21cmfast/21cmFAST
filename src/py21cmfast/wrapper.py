@@ -34,7 +34,7 @@ the current input parameters, it will be read-in from a caching repository and r
 directly. This behaviour can be tuned in any of the low-level (or high-level) functions
 by setting the `write`, `direc`, `regenerate` and `match_seed` parameters (see docs for
 :func:`initial_conditions` for details). The function :func:`~query_cache` can be used
-to search the cache, and return empty datasets corresponding to each (these can the be
+to search the cache, and return empty datasets corresponding to each (and fthese can the be
 filled with the data merely by calling ``.read()`` on any data set). Conversely, a
 specific data set can be read and returned as a proper output object by calling the
 :func:`~py21cmfast.cache_tools.readbox` function.
@@ -87,6 +87,7 @@ interpolated onto the lightcone cells):
 import logging
 import os
 from copy import deepcopy
+import warnings
 
 import numpy as np
 from astropy import units
@@ -1808,8 +1809,7 @@ class LightCone:
         flag_options,
         lightcones,
         node_redshifts=None,
-        global_xHI=None,
-        global_brightness_temp=None,
+        global_quantities=None,
         photon_nonconservation_data=None,
     ):
         self.redshift = redshift
@@ -1819,8 +1819,14 @@ class LightCone:
         self.flag_options = flag_options
 
         self.node_redshifts = node_redshifts
-        self.global_xHI = global_xHI
-        self.global_brightness_temp = global_brightness_temp
+
+        if global_quantities:
+            for name, data in global_quantities.items():
+                if name.endswith("_box"):
+                    # Remove the _box because it looks dumb.
+                    setattr(self, "global_" + name[:-4], data)
+                else:
+                    setattr(self, "global_" + name, data)
 
         self.photon_nonconservation_data = photon_nonconservation_data
 
@@ -1828,6 +1834,13 @@ class LightCone:
             setattr(self, name, data)
 
         self.quantities = lightcones
+
+    @property
+    def global_xHI(self):
+        warnings.warn(
+            "global_xHI is deprecated. From now on, use global_xH. Will be removed in v3.1"
+        )
+        return self.global_xH
 
     @property
     def cell_size(self):
