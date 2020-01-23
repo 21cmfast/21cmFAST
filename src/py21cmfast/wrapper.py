@@ -332,16 +332,30 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
         Whether to return results as a dictionary of ``quantity: class_name``.
         Otherwise returns a set of quantities.
     """
-    classes = _OutputStructZ.__subclasses__()
+
+    def get_all_subclasses(cls):
+        all_subclasses = []
+
+        for subclass in cls.__subclasses__():
+            all_subclasses.append(subclass)
+            all_subclasses.extend(get_all_subclasses(subclass))
+
+        return all_subclasses
+
+    classes = [cls(redshift=0) for cls in get_all_subclasses(_OutputStructZ)]
     if not lightcone_only:
-        classes.append(InitialConditions)
+        classes.append(InitialConditions())
 
     attr = "pointer_fields" if arrays_only else "fieldnames"
 
     if as_dict:
-        return {getattr(cls(), attr): cls.__name__ for cls in classes}
+        return {
+            name: cls.__class__.__name__
+            for cls in classes
+            for name in getattr(cls, attr)
+        }
     else:
-        return {getattr(cls(), attr) for cls in classes}
+        return {name for cls in classes for name in getattr(cls, attr)}
 
 
 # ======================================================================================
@@ -2216,13 +2230,10 @@ def _interpolate_in_redshift(
 
     lc[:, :, -(lc_index + n) : n_lightcone - lc_index] = (
         np.abs(this_d - these_distances)
-        * (
-            array.take(ind + n_lightcone, axis=2, mode="wrap")
-            + np.abs(prev_d - these_distances)
-            * array2.take(ind + n_lightcone, axis=2, mode="wrap")
-        )
-        / (np.abs(prev_d - this_d))
-    )
+        * array.take(ind + n_lightcone, axis=2, mode="wrap")
+        + np.abs(prev_d - these_distances)
+        * array2.take(ind + n_lightcone, axis=2, mode="wrap")
+    ) / (np.abs(prev_d - this_d))
 
     return n
 
