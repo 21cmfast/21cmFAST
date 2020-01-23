@@ -87,6 +87,7 @@ interpolated onto the lightcone cells):
 import logging
 import os
 from copy import deepcopy
+import warnings
 
 import numpy as np
 from astropy import units
