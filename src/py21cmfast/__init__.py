@@ -31,6 +31,7 @@ from .wrapper import perturb_field
 from .wrapper import run_coeval
 from .wrapper import run_lightcone
 from .wrapper import spin_temperature
+from .wrapper import get_all_fieldnames
 
 configure_logging()
 
