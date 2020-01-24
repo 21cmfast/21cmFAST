@@ -314,6 +314,38 @@ def test_lightcone(init_box, perturb_field):
     assert lc.cell_size == init_box.user_params.BOX_LEN / init_box.user_params.HII_DIM
 
 
+def test_lightcone_quantities(init_box, perturb_field):
+    lc = wrapper.run_lightcone(
+        init_box=init_box,
+        perturb=perturb_field,
+        max_redshift=10.0,
+        lightcone_quantities=("dNrec_box", "density"),
+        global_quantities=("density", "Gamma12_box"),
+    )
+
+    print(dir(lc))
+    assert hasattr(lc, "dNrec_box")
+    assert hasattr(lc, "density")
+    assert hasattr(lc, "global_density")
+    assert hasattr(lc, "global_Gamma12")
+
+    with pytest.raises(ValueError):
+        wrapper.run_lightcone(
+            init_box=init_box,
+            perturb=perturb_field,
+            max_redshift=10.0,
+            lightcone_quantities=("Ts_box", "density"),
+        )
+
+    with pytest.raises(ValueError):
+        wrapper.run_lightcone(
+            init_box=init_box,
+            perturb=perturb_field,
+            max_redshift=10.0,
+            global_quantities=("Ts_box",),
+        )
+
+
 def test_run_lf():
     muv, mhalo, lf = wrapper.compute_luminosity_function(redshifts=[7, 8, 9], nbins=100)
     assert np.all(lf[~np.isnan(lf)] > -30)
