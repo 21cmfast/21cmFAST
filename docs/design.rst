@@ -23,7 +23,7 @@ best modern programming standards, including:
 * comprehensive documentation
 * comprehensive test suite
 * more modular code
-* stadardised code formatting
+* standardised code formatting
 * truly open-source and collaborative design (via Github)
 
 Partly to enable these standards, and partly due to the many *extra* benefits it brings,
