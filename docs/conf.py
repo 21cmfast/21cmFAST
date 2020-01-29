@@ -58,8 +58,8 @@ templates_path = ["templates"]
 
 pygments_style = "trac"
 extlinks = {
-    "issue": ("https://github.com/BradGreig/21cmFAST/issues/%s", "#"),
-    "pr": ("https://github.com/BradGreig/21cmFAST/pull/%s", "PR #"),
+    "issue": ("https://github.com/21cmFAST/21cmFAST/issues/%s", "#"),
+    "pr": ("https://github.com/21cmFAST/21cmFAST/pull/%s", "PR #"),
 }
 # on_rtd is whether we are on readthedocs.org
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
