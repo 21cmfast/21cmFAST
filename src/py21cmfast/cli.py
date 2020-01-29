@@ -591,7 +591,7 @@ def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed)
 def lightcone(
     ctx, redshift, config, regen, direc, max_z, z_step_factor, z_heat_max, seed
 ):
-    """Efficiently generate coeval cubes at a given redshift.
+    """Efficiently generate a lightcone.
 
     Parameters
     ----------
