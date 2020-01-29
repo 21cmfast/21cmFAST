@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
+"""Setup the package."""
+
 from __future__ import absolute_import
 from __future__ import print_function
 
@@ -14,14 +16,14 @@ from setuptools import find_packages
 from setuptools import setup
 
 
-def read(*names, **kwargs):
+def _read(*names, **kwargs):
     return io.open(
         join(dirname(__file__), *names), encoding=kwargs.get("encoding", "utf8")
     ).read()
 
 
-def find_version(*file_paths):
-    version_file = read(*file_paths)
+def _find_version(*file_paths):
+    version_file = _read(*file_paths)
     version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
     if version_match:
         return version_match.group(1)
@@ -61,15 +63,15 @@ if "TOXENV" in os.environ and "SETUPPY_CFLAGS" in os.environ:
 
 setup(
     name="21cmFAST",
-    version=find_version("src", "py21cmfast", "__init__.py"),
+    version=_find_version("src", "py21cmfast", "__init__.py"),
     license="MIT license",
     description="A semi-numerical cosmological simulation code for the 21cm signal",
     long_description="%s\n%s"
     % (
         re.compile("^.. start-badges.*^.. end-badges", re.M | re.S).sub(
-            "", read("README.rst")
+            "", _read("README.rst")
         ),
-        re.sub(":[a-z]+:`~?(.*?)`", r"``\1``", read("CHANGELOG.rst")),
+        re.sub(":[a-z]+:`~?(.*?)`", r"``\1``", _read("CHANGELOG.rst")),
     ),
     author="The 21cmFAST coredev team",
     author_email="21cmfast.coredev@gmail.com",

@@ -1,6 +1,4 @@
-"""
-Module that contains the command line app.
-"""
+"""Module that contains the command line app."""
 import builtins
 import inspect
 import logging
@@ -113,8 +111,20 @@ main = click.Group()
 )
 @click.pass_context
 def init(ctx, config, regen, direc, seed):
-    """
-    Run a single iteration of 21cmFAST init, saving results to file.
+    """Run a single iteration of 21cmFAST init, saving results to file.
+
+    Parameters
+    ----------
+    ctx :
+        A parameter from the parent CLI function to be able to override config.
+    config : str
+        Path to the configuration file.
+    regen : bool
+        Whether to regenerate all data, even if found in cache.
+    direc : str
+        Where to search for cached items.
+    seed : int
+        Random seed used to generate data.
     """
     cfg = _get_config(config)
 
@@ -166,8 +176,22 @@ def init(ctx, config, regen, direc, seed):
 )
 @click.pass_context
 def perturb(ctx, redshift, config, regen, direc, seed):
-    """
-    Run 21cmFAST perturb_field at the specified redshift, saving results to file.
+    """Run 21cmFAST perturb_field at the specified redshift, saving results to file.
+
+    Parameters
+    ----------
+    ctx :
+        A parameter from the parent CLI function to be able to override config.
+    redshift : float
+        Redshift at which to generate perturbed field.
+    config : str
+        Path to the configuration file.
+    regen : bool
+        Whether to regenerate all data, even if found in cache.
+    direc : str
+        Where to search for cached items.
+    seed : int
+        Random seed used to generate data.
     """
     cfg = _get_config(config)
 
@@ -241,8 +265,28 @@ def perturb(ctx, redshift, config, regen, direc, seed):
 )
 @click.pass_context
 def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max, seed):
-    """
-    Run 21cmFAST spin_temperature at the specified redshift, saving results to file.
+    """Run spin_temperature at the specified redshift, saving results to file.
+
+    Parameters
+    ----------
+    ctx :
+        A parameter from the parent CLI function to be able to override config.
+    redshift : float
+        The redshift to generate the field at.
+    prev_z : float
+        The redshift of a previous box from which to evolve to the current one.
+    config : str
+        Path to the configuration file.
+    regen : bool
+        Whether to regenerate all data, even if found in cache.
+    direc : str
+        Where to search for cached items.
+    z_step_factor : float
+        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_STEP_FACTOR``.
+    z_heat_max : float
+        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_HEAT_MAX``.
+    seed : int
+        Random seed used to generate data.
     """
     cfg = _get_config(config)
 
@@ -332,8 +376,28 @@ def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max,
 def ionize(
     ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max, seed
 ):
-    """
-    Run 21cmFAST ionize_box at the specified redshift, saving results to file.
+    """Run 21cmFAST ionize_box at the specified redshift, saving results to file.
+
+    Parameters
+    ----------
+    ctx :
+        A parameter from the parent CLI function to be able to override config.
+    redshift : float
+        The redshift to generate the field at.
+    prev_z : float
+        The redshift of a previous box from which to evolve to the current one.
+    config : str
+        Path to the configuration file.
+    regen : bool
+        Whether to regenerate all data, even if found in cache.
+    direc : str
+        Where to search for cached items.
+    z_step_factor : float
+        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_STEP_FACTOR``.
+    z_heat_max : float
+        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_HEAT_MAX``.
+    seed : int
+        Random seed used to generate data.
     """
     cfg = _get_config(config)
 
@@ -414,10 +478,27 @@ def ionize(
 )
 @click.pass_context
 def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed):
-    """
-    Efficiently generate coeval cubes at a given redshift.
-    """
+    """Efficiently generate coeval cubes at a given redshift.
 
+    Parameters
+    ----------
+    ctx :
+        A parameter from the parent CLI function to be able to override config.
+    redshift : float
+        The redshift to generate the field at.
+    config : str
+        Path to the configuration file.
+    regen : bool
+        Whether to regenerate all data, even if found in cache.
+    direc : str
+        Where to search for cached items.
+    z_step_factor : float
+        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_STEP_FACTOR``.
+    z_heat_max : float
+        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_HEAT_MAX``.
+    seed : int
+        Random seed used to generate data.
+    """
     try:
         redshift = [float(z.strip()) for z in redshift.split(",")]
     except TypeError:
@@ -510,8 +591,28 @@ def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed)
 def lightcone(
     ctx, redshift, config, regen, direc, max_z, z_step_factor, z_heat_max, seed
 ):
-    """
-    Efficiently generate coeval cubes at a given redshift.
+    """Efficiently generate a lightcone.
+
+    Parameters
+    ----------
+    ctx :
+        A parameter from the parent CLI function to be able to override config.
+    redshift : float
+        The redshift to generate the field at.
+    config : str
+        Path to the configuration file.
+    regen : bool
+        Whether to regenerate all data, even if found in cache.
+    direc : str
+        Where to search for cached items.
+    max_z : float
+        Maximum redshift to include in the produced lightcone.
+    z_step_factor : float
+        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_STEP_FACTOR``.
+    z_heat_max : float
+        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_HEAT_MAX``.
+    seed : int
+        Random seed used to generate data.
     """
     cfg = _get_config(config)
 
@@ -548,7 +649,7 @@ def lightcone(
 
 def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
     cls = list(
-        cache_tools.query_cache(direc=direc, kind=kind, hash=md5, seed=seed, show=False)
+        cache_tools.query_cache(direc=direc, kind=kind, hsh=md5, seed=seed, show=False)
     )
 
     if not clear:
@@ -578,7 +679,7 @@ def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
     help="directory to write data and plots to -- must exist.",
 )
 @click.option("-k", "--kind", type=str, default=None, help="filter by kind of data.")
-@click.option("-m", "--md5", type=str, default=None, help="filter by md5 hash")
+@click.option("-m", "--md5", type=str, default=None, help="filter by md5 hsh")
 @click.option("-s", "--seed", type=str, default=None, help="filter by random seed")
 @click.option(
     "--clear/--no-clear",
@@ -586,6 +687,21 @@ def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
     help="remove all data sets returned by this query.",
 )
 def query(direc, kind, md5, seed, clear):
+    """Query the cache database.
+
+    Parameters
+    ----------
+    direc : str
+        Directory in which to search for cache items
+    kind : str
+        Filter output by kind of box (eg. InitialConditions)
+    md5 : str
+        Filter output by hsh
+    seed : float
+        Filter output by random seed.
+    clear : bool
+        Remove all data sets returned by the query.
+    """
     _query(direc, kind, md5, seed, clear)
 
 
@@ -643,11 +759,33 @@ def pr_feature(
     regenerate,
 ):
     """
-    Create a standard set of plots comparing a default simulation against a
-    simulation with a new feature. The new feature is switched on by setting
-    PARAM to VALUE.
+    Create standard plots comparing a default simulation against a simulation with a new feature.
 
+    The new feature is switched on by setting PARAM to VALUE.
     Plots are saved in the current directory, with the prefix "pr_feature".
+
+    Parameters
+    ----------
+    param : str
+        Name of the parameter to modify to "switch on" the feature.
+    value : float
+        Value to which to set it.
+    struct : str
+        The input parameter struct to which `param` belongs.
+    vtype : str
+        Type of the new parameter.
+    lightcone : bool
+        Whether the comparison should be done on a lightcone.
+    redshift : float
+        Redshift of comparison.
+    max_redshift : float
+        If using a lightcone, the maximum redshift in the lightcone to compare.
+    random_seed : int
+        Random seed at which to compare.
+    verbose : int
+        How verbose the output should be.
+    regenerate : bool
+        Whether to regenerate all data, even if it is in cache.
     """
     lvl = [logging.WARNING, logging.INFO, logging.DEBUG][verbose]
     logger = logging.getLogger("21cmFAST")

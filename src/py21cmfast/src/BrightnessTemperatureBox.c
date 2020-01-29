@@ -1,7 +1,7 @@
 
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
 
-int ComputeBrightnessTemp(float redshift, int saturated_limit, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                            struct AstroParams *astro_params, struct FlagOptions *flag_options,
                            struct TsBox *spin_temp, struct IonizedBox *ionized_box,
                            struct PerturbedField *perturb_field, struct BrightnessTemp *box) {

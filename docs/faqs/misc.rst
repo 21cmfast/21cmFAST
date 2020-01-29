@@ -2,7 +2,7 @@ Miscellaneous FAQs
 ==================
 
 My run seg-faulted, what should I do?
-=====================================
+-------------------------------------
 Since ``21cmFAST`` is written in C, there is the off-chance that something
 catastrophic will happen, causing a segfault. Typically, if this happens, Python will
 not print a traceback where the error occurred, and finding the source of such errors

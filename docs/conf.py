@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+"""Configuration options for the docs."""
 from __future__ import unicode_literals
 
 import os
@@ -9,8 +10,11 @@ sys.path.insert(0, os.path.abspath("../"))
 
 
 class Mock(MagicMock):
+    """Make a Mock so that a package doesn't have to actually exist."""
+
     @classmethod
     def __getattr__(cls, name):
+        """Get stuff."""
         return MagicMock()
 
 
@@ -45,17 +49,17 @@ numpydoc_show_class_members = False
 
 source_suffix = ".rst"
 master_doc = "index"
-project = "21CMMC"
-year = "2018"
-author = "Brad Greig and Steven Murray"
+project = "21cmFAST"
+year = "2019"
+author = "The 21cmFAST collaboration"
 copyright = "{0}, {1}".format(year, author)
 version = release = "0.1.0"
 templates_path = ["templates"]
 
 pygments_style = "trac"
 extlinks = {
-    "issue": ("https://github.com/BradGreig/21CMMC/issues/%s", "#"),
-    "pr": ("https://github.com/BradGreig/21CMMC/pull/%s", "PR #"),
+    "issue": ("https://github.com/21cmFAST/21cmFAST/issues/%s", "#"),
+    "pr": ("https://github.com/21cmFAST/21cmFAST/pull/%s", "PR #"),
 }
 # on_rtd is whether we are on readthedocs.org
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
