@@ -56,7 +56,7 @@ def _safe_copy_tree(src, dst, safe=None):
 
 
 # Copy the user data into the config directory.
-# We *don't* want to overwrite the confi file that is already there, because maybe the user
+# We *don't* want to overwrite the config file that is already there, because maybe the user
 # has changed the configuration, and that would destroy it!
 _safe_copy_tree(join(pkgdir, "user_data"), cfgdir, safe="config.yml")
 # ======================================================================================
