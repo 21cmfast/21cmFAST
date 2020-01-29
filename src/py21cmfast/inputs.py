@@ -49,7 +49,7 @@ class GlobalParams(StructInstanceWrapper):
         True (in :class:`FlagOptions`), in order to compute the local mean free path
         inside the cosmic HII regions.
     EVOLVE_DENSITY_LINEARLY : bool
-        Whether to evolve the density field with linear theory (instead of 1LPT).
+        Whether to evolve the density field with linear theory (instead of 1LPT or Zel'Dovich).
         If choosing this option, make sure that your cell size is
         in the linear regime at the redshift of interest. Otherwise, make sure you resolve
         small enough scales, roughly we find BOX_LEN/DIM should be < 1Mpc
