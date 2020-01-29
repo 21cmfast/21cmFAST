@@ -215,15 +215,14 @@ class GlobalParams(StructInstanceWrapper):
         Sheth-Tormen parameter for ellipsoidal collapse (for HMF).
 
         .. note:: The best fit b and c ST params for these 3D realisations have a redshift,
-                  and a DELTA_R_FACTOR (see ANAL_PARAMS.H) dependence, as shown
+                  and a ``DELTA_R_FACTOR`` dependence, as shown
                   in Mesinger+. For converged mass functions at z~5-10, set `DELTA_R_FACTOR=1.1`
                   and `SHETH_b=0.15` and `SHETH_c~0.05`.
 
                   For most purposes, a larger step size is quite sufficient and provides an
                   excellent match to N-body and smoother mass functions, though the b and c
                   parameters should be changed to make up for some "stepping-over" massive
-                  collapsed
-                  halos (see Mesinger, Perna, Haiman (2005) and Mesinger et al.,
+                  collapsed halos (see Mesinger, Perna, Haiman (2005) and Mesinger et al.,
                   in preparation).
 
                   For example, at z~7-10, one can set `DELTA_R_FACTOR=1.3` and `SHETH_b=0.15`
