@@ -42,7 +42,6 @@ def ionize_box(perturb_field, tmpdirec):
         perturbed_field=perturb_field,
         regenerate=True,  # i.e. make sure we don't read it in.
         direc=tmpdirec.strpath,
-        z_step_factor=1.2,
     )
 
 
@@ -53,7 +52,6 @@ def spin_temp(perturb_field, tmpdirec):
         perturbed_field=perturb_field,
         regenerate=True,  # i.e. make sure we don't read it in.
         direc=tmpdirec.strpath,
-        z_step_factor=1.2,
     )
 
 
@@ -168,7 +166,7 @@ def test_ib_new_seed(ionize_box, perturb_field, tmpdirec):
 def test_st_new_seed(spin_temp, perturb_field, tmpdirec):
     # this should fail because perturb_field has a seed set already, which isn't 1.
     with pytest.raises(ValueError):
-        st = wrapper.spin_temperature(
+        wrapper.spin_temperature(
             perturbed_field=perturb_field,
             direc=tmpdirec.strpath,
             random_seed=1,
@@ -211,7 +209,7 @@ def test_st_from_z(init_box, tmpdirec, spin_temp):
 
     # TODO: This REALLY SHOULD NOT BE TRUE!!!!!
     assert st == spin_temp
-    assert not np.all(st.Ts_box == spin_temp.Ts_box)
+    assert np.all(st.Ts_box == spin_temp.Ts_box)
 
 
 def test_pf_regenerate(perturb_field, tmpdirec):
@@ -270,10 +268,7 @@ def test_ib_override_z_heat_max(perturb_field, tmpdirec):
         z_heat_max=12.0,
     )
 
-    assert wrapper.global_params.Z_HEAT_MAX == 12.0
-
-    # set it back so that "nothing changes"
-    wrapper.global_params.Z_HEAT_MAX = zheatmax
+    assert wrapper.global_params.Z_HEAT_MAX == zheatmax
 
 
 def test_ib_bad_st(init_box):

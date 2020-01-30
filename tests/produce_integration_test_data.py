@@ -7,7 +7,6 @@ and then numerical noise gets relatively more important, and can make the compar
 fail at the tens-of-percent level.
 """
 import glob
-import hashlib
 import os
 import sys
 
@@ -18,37 +17,27 @@ from py21cmfast import AstroParams
 from py21cmfast import CosmoParams
 from py21cmfast import FlagOptions
 from py21cmfast import UserParams
+from py21cmfast import global_params
 from py21cmfast import run_coeval
 from py21cmfast import run_lightcone
 
 SEED = 12345
 DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
 DEFAULT_USER_PARAMS = {"HII_DIM": 50, "DIM": 150, "BOX_LEN": 100}
-OPTION_NAMES = [
-    "redshift",
-    "z_step_factor",
-    "z_heat_max",
-    "HMF",
-    "interp_perturb_field",
-    "USE_MASS_DEPENDENT_ZETA",
-    "SUBCELL_RSD",
-    "INHOMO_RECO",
-    "USE_TS_FLUCT",
-    "M_MIN_in_Mass",
-    "USE_FFTW_WISDOM",
-]
+DEFAULT_ZPRIME_STEP_FACTOR = 1.04
+
 OPTIONS = (
-    [12, 1.02, 35, 1, False, False, False, False, False, False, False],
-    [11, 1.05, 35, 1, False, False, False, False, False, False, False],
-    [30, 1.02, 40, 1, False, False, False, False, False, False, False],
-    [13, 1.05, 25, 0, False, False, False, False, False, False, False],
-    [16, 1.02, 35, 1, True, False, False, False, False, False, False],
-    [14, 1.02, 35, 1, False, True, False, False, False, False, False],
-    [9, 1.02, 35, 1, False, False, True, False, False, False, False],
-    [10, 1.03, 35, 2, False, False, False, True, False, False, False],
-    [15, 1.02, 35, 3, False, False, False, False, True, False, False],
-    [20, 1.02, 45, 2, False, False, False, False, False, True, False],
-    [35, 1.02, 35, 1, False, False, False, False, False, False, True],
+    [12, {}],
+    [11, {"zprime_step_factor": 1.02}],
+    [30, {"z_heat_max": 40}],
+    [13, {"zprime_step_factor": 1.05, "z_heat_max": 25, "HMF": 0}],
+    [16, {"interp_perturb_field": True}],
+    [14, {"USE_MASS_DEPENDENT_ZETA": True}],
+    [9, {"SUBCELL_RSD": True}],
+    [10, {"INHOMO_RECO": True}],
+    [16, {"HMF": 3, "USE_TS_FLUCT": True}],
+    [20, {"z_heat_max": 45, "M_MIN_in_Mass": True, "HMF": 2}],
+    [35, {"USE_FFTW_WISDOM": True}],
 )
 
 
@@ -64,25 +53,29 @@ def get_all_defaults(kwargs):
     return user_params, cosmo_params, astro_params, flag_options
 
 
-def get_all_options(**kwargs):
+def get_all_options(redshift, **kwargs):
     user_params, cosmo_params, astro_params, flag_options = get_all_defaults(kwargs)
     user_params.update(DEFAULT_USER_PARAMS)
-    return {
-        "redshift": kwargs.get("redshift", 7),
+    out = {
+        "redshift": redshift,
         "user_params": user_params,
         "cosmo_params": cosmo_params,
         "astro_params": astro_params,
         "flag_options": flag_options,
         "regenerate": True,
-        "z_step_factor": kwargs.get("z_step_factor", None),
-        "z_heat_max": kwargs.get("z_heat_max", None),
+        "write": False,
         "use_interp_perturb_field": kwargs.get("use_interp_perturb_field", False),
         "random_seed": SEED,
     }
 
+    for key in kwargs:
+        if key.upper() in (k.upper() for k in global_params.keys()):
+            out[key] = kwargs[key]
+    return out
 
-def produce_coeval_power_spectra(**kwargs):
-    options = get_all_options(**kwargs)
+
+def produce_coeval_power_spectra(redshift, **kwargs):
+    options = get_all_options(redshift, **kwargs)
 
     coeval = run_coeval(**options)
     p, k = get_power(coeval.brightness_temp, boxlength=coeval.user_params.BOX_LEN,)
@@ -90,8 +83,8 @@ def produce_coeval_power_spectra(**kwargs):
     return k, p, coeval
 
 
-def produce_lc_power_spectra(**kwargs):
-    options = get_all_options(**kwargs)
+def produce_lc_power_spectra(redshift, **kwargs):
+    options = get_all_options(redshift, **kwargs)
 
     lightcone = run_lightcone(max_redshift=options["redshift"] + 2, **options)
 
@@ -102,20 +95,20 @@ def produce_lc_power_spectra(**kwargs):
     return k, p, lightcone
 
 
-def get_filename(**kwargs):
-    fname = (
-        f"power_spectra_z{kwargs['redshift']:.2f}_Z{kwargs['z_heat_max']}_"
-        f"{hashlib.md5(str(kwargs).encode()).hexdigest()}.h5"
-    )
+def get_filename(redshift, **kwargs):
+    # get sorted keys
+    kwargs = {k: kwargs[k] for k in sorted(kwargs)}
+    string = "_".join(f"{k}={v}" for k, v in kwargs.items())
+    fname = f"power_spectra_z{redshift:.2f}_{string}.h5"
 
     return os.path.join(DATA_PATH, fname)
 
 
-def produce_power_spectra_for_tests(**kwargs):
-    k, p, coeval = produce_coeval_power_spectra(**kwargs)
-    k_l, p_l, lc = produce_lc_power_spectra(**kwargs)
+def produce_power_spectra_for_tests(redshift, **kwargs):
+    k, p, coeval = produce_coeval_power_spectra(redshift, **kwargs)
+    k_l, p_l, lc = produce_lc_power_spectra(redshift, **kwargs)
 
-    fname = get_filename(**kwargs)
+    fname = get_filename(redshift, **kwargs)
 
     # Need to manually remove it, otherwise h5py tries to add to it
     if os.path.exists(fname):
@@ -125,9 +118,9 @@ def produce_power_spectra_for_tests(**kwargs):
         for k, v in kwargs.items():
             fl.attrs[k] = v
 
-        fl.attrs["HII_DIM"] = coeval.brightness_temperature.user_params.HII_DIM
-        fl.attrs["DIM"] = coeval.brightness_temperature.user_params.DIM
-        fl.attrs["BOX_LEN"] = coeval.brightness_temperature.user_params.BOX_LEN
+        fl.attrs["HII_DIM"] = coeval.user_params.HII_DIM
+        fl.attrs["DIM"] = coeval.user_params.DIM
+        fl.attrs["BOX_LEN"] = coeval.user_params.BOX_LEN
 
         fl["power_coeval"] = p
         fl["k_coeval"] = k
@@ -142,12 +135,7 @@ def produce_power_spectra_for_tests(**kwargs):
 
 
 if __name__ == "__main__":
+    global_params.ZPRIME_STEP_FACTOR = DEFAULT_ZPRIME_STEP_FACTOR
 
-    # Remove files that are there, unless -k cmd line arg specified.
-    if len(sys.argv) == 1 or sys.argv[-1] != "-k":
-        for fl in glob.glob(os.path.join(DATA_PATH, "*")):
-            os.remove(fl)
-
-    for option_set in OPTIONS:
-        options = {name: option for name, option in zip(OPTION_NAMES, option_set)}
-        produce_power_spectra_for_tests(**options)
+    for redshift, kwargs in OPTIONS:
+        produce_power_spectra_for_tests(redshift, **kwargs)

@@ -40,3 +40,24 @@ To make the current configuration permanent, simply use the ``write`` method::
 
     >>> p21.config['direc'] = 'my_own_cache'
     >>> p21.config.write()
+
+Global Parameters
+-----------------
+There are a bunch of "global" parameters that are used throughout the C code. These are
+parameters that are deemed to be constant enough to not expose them through the
+regularly-used input structs, but nevertheless may necessitate modification from
+time-to-time. These are accessed through the ``global_params`` object::
+
+    >>> from py21cmfast import global_params
+
+Help on the attributes can be obtained via ``help(global_params)`` or
+`in the docs <../reference/_autosummary/py21cmfast.inputs.html>`_. Setting the
+attributes (which affects them everywhere throughout the code) is as simple as, eg::
+
+    >>> global_params.Z_HEAT_MAX = 30.0
+
+If you wish to use a certain parameter for a fixed portion of your code (eg. for a single
+run), it is encouraged to use the context manager, eg.::
+
+    >>> with global_params.use(Z_HEAT_MAX=10):
+    >>>    run_lightcone(...)

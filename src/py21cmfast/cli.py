@@ -9,11 +9,11 @@ from os import remove
 import click
 import matplotlib.pyplot as plt
 import numpy as np
-import powerbox
 import yaml
 
 from . import _cfg
 from . import cache_tools
+from . import global_params
 from . import plotting
 from . import wrapper as lib
 
@@ -72,7 +72,7 @@ def _override(ctx, *param_dicts):
             _update(p, ctx)
 
         # Also update globals, always.
-        _update(lib.global_params, ctx)
+        _update(global_params, ctx)
         if ctx:
             warnings.warn("The following arguments were not able to be set: %s" % ctx)
 
@@ -244,27 +244,13 @@ def perturb(ctx, redshift, config, regen, direc, seed):
     help="directory to write data and plots to -- must exist.",
 )
 @click.option(
-    "-z",
-    "--z-step-factor",
-    type=float,
-    default=inspect.signature(lib.spin_temperature).parameters["z_step_factor"].default,
-    help="logarithmic steps in redshift for evolution",
-)
-@click.option(
-    "-Z",
-    "--z-heat-max",
-    type=float,
-    default=None,
-    help="maximum redshift at which to search for heating sources",
-)
-@click.option(
     "--seed",
     type=int,
     default=None,
     help="specify a random seed for the initial conditions",
 )
 @click.pass_context
-def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max, seed):
+def spin(ctx, redshift, prev_z, config, regen, direc, seed):
     """Run spin_temperature at the specified redshift, saving results to file.
 
     Parameters
@@ -281,10 +267,6 @@ def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max,
         Whether to regenerate all data, even if found in cache.
     direc : str
         Where to search for cached items.
-    z_step_factor : float
-        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_STEP_FACTOR``.
-    z_heat_max : float
-        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_HEAT_MAX``.
     seed : int
         Random seed used to generate data.
     """
@@ -300,18 +282,11 @@ def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max,
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
-    if z_step_factor is None and "z_step_factor" in cfg:
-        z_step_factor = cfg["z_step_factor"]
-    if z_heat_max is None and "z_heat_max" in cfg:
-        z_heat_max = cfg["z_heat_max"]
-
     lib.spin_temperature(
         redshift=redshift,
         astro_params=astro_params,
         flag_options=flag_options,
         previous_spin_temp=prev_z,
-        z_step_factor=z_step_factor,
-        z_heat_max=z_heat_max,
         user_params=user_params,
         cosmo_params=cosmo_params,
         regenerate=regen,
@@ -353,29 +328,13 @@ def spin(ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max,
     help="directory to write data and plots to -- must exist.",
 )
 @click.option(
-    "-z",
-    "--z-step-factor",
-    type=float,
-    default=inspect.signature(lib.ionize_box).parameters["z_step_factor"].default,
-    help="logarithmic steps in redshift for evolution",
-)
-@click.option(
-    "-Z",
-    "--z-heat-max",
-    type=float,
-    default=None,
-    help="maximum redshift at which to search for heating sources",
-)
-@click.option(
     "--seed",
     type=int,
     default=None,
     help="specify a random seed for the initial conditions",
 )
 @click.pass_context
-def ionize(
-    ctx, redshift, prev_z, config, regen, direc, z_step_factor, z_heat_max, seed
-):
+def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     """Run 21cmFAST ionize_box at the specified redshift, saving results to file.
 
     Parameters
@@ -392,10 +351,6 @@ def ionize(
         Whether to regenerate all data, even if found in cache.
     direc : str
         Where to search for cached items.
-    z_step_factor : float
-        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_STEP_FACTOR``.
-    z_heat_max : float
-        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_HEAT_MAX``.
     seed : int
         Random seed used to generate data.
     """
@@ -411,18 +366,11 @@ def ionize(
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
-    if z_step_factor is None and "z_step_factor" in cfg:
-        z_step_factor = cfg["z_step_factor"]
-    if z_heat_max is None and "z_heat_max" in cfg:
-        z_heat_max = cfg["z_heat_max"]
-
     lib.ionize_box(
         redshift=redshift,
         astro_params=astro_params,
         flag_options=flag_options,
         previous_ionize_box=prev_z,
-        z_step_factor=z_step_factor,
-        z_heat_max=z_heat_max,
         user_params=user_params,
         cosmo_params=cosmo_params,
         regenerate=regen,
@@ -457,27 +405,13 @@ def ionize(
     help="directory to write data and plots to -- must exist.",
 )
 @click.option(
-    "-z",
-    "--z-step-factor",
-    type=float,
-    default=inspect.signature(lib.run_coeval).parameters["z_step_factor"].default,
-    help="logarithmic steps in redshift for evolution",
-)
-@click.option(
-    "-Z",
-    "--z-heat-max",
-    type=float,
-    default=None,
-    help="maximum redshift at which to search for heating sources",
-)
-@click.option(
     "--seed",
     type=int,
     default=None,
     help="specify a random seed for the initial conditions",
 )
 @click.pass_context
-def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed):
+def coeval(ctx, redshift, config, regen, direc, seed):
     """Efficiently generate coeval cubes at a given redshift.
 
     Parameters
@@ -492,10 +426,6 @@ def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed)
         Whether to regenerate all data, even if found in cache.
     direc : str
         Where to search for cached items.
-    z_step_factor : float
-        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_STEP_FACTOR``.
-    z_heat_max : float
-        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_HEAT_MAX``.
     seed : int
         Random seed used to generate data.
     """
@@ -516,17 +446,10 @@ def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed)
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
-    if z_step_factor is None and "z_step_factor" in cfg:
-        z_step_factor = cfg["z_step_factor"]
-    if z_heat_max is None and "z_heat_max" in cfg:
-        z_heat_max = cfg["z_heat_max"]
-
     lib.run_coeval(
         redshift=redshift,
         astro_params=astro_params,
         flag_options=flag_options,
-        z_step_factor=z_step_factor,
-        z_heat_max=z_heat_max,
         user_params=user_params,
         cosmo_params=cosmo_params,
         regenerate=regen,
@@ -568,30 +491,14 @@ def coeval(ctx, redshift, config, regen, direc, z_step_factor, z_heat_max, seed)
     help="maximum redshift of the stored lightcone data",
 )
 @click.option(
-    "-z",
-    "--z-step-factor",
-    type=float,
-    default=inspect.signature(lib.run_lightcone).parameters["z_step_factor"].default,
-    help="logarithmic steps in redshift for evolution",
-)
-@click.option(
-    "-Z",
-    "--z-heat-max",
-    type=float,
-    default=None,
-    help="maximum redshift at which to search for heating sources",
-)
-@click.option(
     "--seed",
     type=int,
     default=None,
     help="specify a random seed for the initial conditions",
 )
 @click.pass_context
-def lightcone(
-    ctx, redshift, config, regen, direc, max_z, z_step_factor, z_heat_max, seed
-):
-    """Efficiently generate a lightcone.
+def lightcone(ctx, redshift, config, regen, direc, max_z, seed):
+    """Efficiently generate coeval cubes at a given redshift.
 
     Parameters
     ----------
@@ -607,10 +514,6 @@ def lightcone(
         Where to search for cached items.
     max_z : float
         Maximum redshift to include in the produced lightcone.
-    z_step_factor : float
-        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_STEP_FACTOR``.
-    z_heat_max : float
-        The :class:`~py21cmfast.inputs.GlobalParams` parameter ``Z_HEAT_MAX``.
     seed : int
         Random seed used to generate data.
     """
@@ -626,18 +529,11 @@ def lightcone(
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
-    if z_step_factor is None and "z_step_factor" in cfg:
-        z_step_factor = cfg["z_step_factor"]
-    if z_heat_max is None and "z_heat_max" in cfg:
-        z_heat_max = cfg["z_heat_max"]
-
     lib.run_lightcone(
         redshift=redshift,
         max_redshift=max_z,
         astro_params=astro_params,
         flag_options=flag_options,
-        z_step_factor=z_step_factor,
-        z_heat_max=z_heat_max,
         user_params=user_params,
         cosmo_params=cosmo_params,
         regenerate=regen,
@@ -787,6 +683,8 @@ def pr_feature(
     regenerate : bool
         Whether to regenerate all data, even if it is in cache.
     """
+    import powerbox
+
     lvl = [logging.WARNING, logging.INFO, logging.DEBUG][verbose]
     logger = logging.getLogger("21cmFAST")
     logger.setLevel(lvl)
