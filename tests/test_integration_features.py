@@ -61,6 +61,6 @@ def test_power_spectra_lightcone(redshift, kwargs):
         # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
         k, p, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
-    assert np.allclose(power, p, atol=1e-5, rtol=1e-3)
+    assert np.allclose(power, p, atol=1e-5, rtol=5e-3)
     assert np.allclose(xHI, lc.global_xHI, atol=1e-5, rtol=1e-3)
     assert np.allclose(Tb, lc.global_brightness_temp, atol=1e-5, rtol=1e-3)
