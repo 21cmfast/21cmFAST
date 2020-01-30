@@ -331,7 +331,7 @@ class UserParams(StructWithDefaults):
         2: EFSTATHIOU
         3: PEEBLES
         4: WHITE
-        5: CLASS (single output)
+        5: CLASS (single cosmology)
     """
 
     _ffi = ffi
