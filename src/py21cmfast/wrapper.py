@@ -314,7 +314,7 @@ def _call_c_func(fnc, obj, direc, *args, write=True):
 
 def _get_config_options(direc, regenerate, write):
     return (
-        config["direc"] if direc is None else direc,
+        os.path.expanduser(config["direc"] if direc is None else direc),
         config["regenerate"] if regenerate is None else regenerate,
         config["write"] if write is None else write,
     )
