@@ -17,10 +17,7 @@ def test_first_box():
     )
 
     spin_temp = p21c.spin_temperature(
-        perturbed_field=perturbed_field,
-        zprime_step_factor=1.05,
-        z_heat_max=30.0,
-        write=False,
+        perturbed_field=perturbed_field, z_heat_max=30.0, write=False,
     )
 
     assert spin_temp.redshift == 29.0

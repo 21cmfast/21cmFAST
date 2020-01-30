@@ -42,7 +42,6 @@ def ionize_box(perturb_field, tmpdirec):
         perturbed_field=perturb_field,
         regenerate=True,  # i.e. make sure we don't read it in.
         direc=tmpdirec.strpath,
-        zprime_step_factor=1.2,
     )
 
 
@@ -53,7 +52,6 @@ def spin_temp(perturb_field, tmpdirec):
         perturbed_field=perturb_field,
         regenerate=True,  # i.e. make sure we don't read it in.
         direc=tmpdirec.strpath,
-        zprime_step_factor=1.2,
     )
 
 
@@ -168,7 +166,7 @@ def test_ib_new_seed(ionize_box, perturb_field, tmpdirec):
 def test_st_new_seed(spin_temp, perturb_field, tmpdirec):
     # this should fail because perturb_field has a seed set already, which isn't 1.
     with pytest.raises(ValueError):
-        st = wrapper.spin_temperature(
+        wrapper.spin_temperature(
             perturbed_field=perturb_field,
             direc=tmpdirec.strpath,
             random_seed=1,
