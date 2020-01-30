@@ -63,6 +63,7 @@ def get_all_options(redshift, **kwargs):
         "astro_params": astro_params,
         "flag_options": flag_options,
         "regenerate": True,
+        "write": False,
         "use_interp_perturb_field": kwargs.get("use_interp_perturb_field", False),
         "random_seed": SEED,
     }
