@@ -34,6 +34,8 @@ from . import produce_integration_test_data as prd
 
 @pytest.mark.parametrize("redshift,kwargs", prd.OPTIONS)
 def test_power_spectra_coeval(redshift, kwargs):
+    print("Options used for the test: ", kwargs)
+
     # First get pre-made data
     with h5py.File(prd.get_filename(redshift, **kwargs), "r") as f:
         power = f["power_coeval"][...]
@@ -47,6 +49,8 @@ def test_power_spectra_coeval(redshift, kwargs):
 
 @pytest.mark.parametrize("redshift,kwargs", prd.OPTIONS)
 def test_power_spectra_lightcone(redshift, kwargs):
+    print("Options used for the test: ", kwargs)
+
     # First get pre-made data
     with h5py.File(prd.get_filename(redshift, **kwargs), "r") as f:
         power = f["power_lc"][...]

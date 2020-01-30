@@ -209,7 +209,7 @@ def test_st_from_z(init_box, tmpdirec, spin_temp):
 
     # TODO: This REALLY SHOULD NOT BE TRUE!!!!!
     assert st == spin_temp
-    assert not np.all(st.Ts_box == spin_temp.Ts_box)
+    assert np.all(st.Ts_box == spin_temp.Ts_box)
 
 
 def test_pf_regenerate(perturb_field, tmpdirec):

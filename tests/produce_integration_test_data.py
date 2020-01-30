@@ -35,7 +35,7 @@ OPTIONS = (
     [14, {"USE_MASS_DEPENDENT_ZETA": True}],
     [9, {"SUBCELL_RSD": True}],
     [10, {"INHOMO_RECO": True}],
-    [15, {"HMF": 3, "USE_TS_FLUCT": True}],
+    [16, {"HMF": 3, "USE_TS_FLUCT": True}],
     [20, {"z_heat_max": 45, "M_MIN_in_Mass": True, "HMF": 2}],
     [35, {"USE_FFTW_WISDOM": True}],
 )
@@ -136,11 +136,6 @@ def produce_power_spectra_for_tests(redshift, **kwargs):
 
 if __name__ == "__main__":
     global_params.ZPRIME_STEP_FACTOR = DEFAULT_ZPRIME_STEP_FACTOR
-
-    # Remove files that are there, unless -k cmd line arg specified.
-    if len(sys.argv) == 1 or sys.argv[-1] != "-k":
-        for fl in glob.glob(os.path.join(DATA_PATH, "*")):
-            os.remove(fl)
 
     for redshift, kwargs in OPTIONS:
         produce_power_spectra_for_tests(redshift, **kwargs)
