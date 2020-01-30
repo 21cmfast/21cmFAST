@@ -9,7 +9,6 @@ from os import remove
 import click
 import matplotlib.pyplot as plt
 import numpy as np
-import powerbox
 import yaml
 
 from . import _cfg
@@ -684,6 +683,8 @@ def pr_feature(
     regenerate : bool
         Whether to regenerate all data, even if it is in cache.
     """
+    import powerbox
+
     lvl = [logging.WARNING, logging.INFO, logging.DEBUG][verbose]
     logger = logging.getLogger("21cmFAST")
     logger.setLevel(lvl)
