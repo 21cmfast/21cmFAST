@@ -321,7 +321,7 @@ class UserParams(StructWithDefaults):
         2: Watson (Watson FOF)
         3: Watson-z (Watson FOF-z)
     USE_RELATIVE_VELOCITIES: int, optional
-        Flag to decide whether to use relative velocities, default True.
+        Flag to decide whether to use relative velocities.
         If True, POWER_SPECTRUM is automatically set to 5. Default False.
     POWER_SPECTRUM: int or str, optional
         Determines which power spectrum to use, default EH (unless `USE_RELATIVE_VELOCITIES`
