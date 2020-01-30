@@ -22,6 +22,7 @@ Added
 * New ``user_params`` option ``USE_RELATIVE_VELOCITIES``, which produces initial relative
   velocity cubes (option implemented, but not the actual computation yet).
 * Configuration management.
+* global params now has a context manager for changing parameters temporarily.
 
 Changed
 ~~~~~~~
