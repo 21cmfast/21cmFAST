@@ -1193,7 +1193,6 @@ def spin_temperature(
     """
     direc, regenerate, write = _get_config_options(direc, regenerate, write)
 
-
     with global_params.use(**global_kwargs):
         _verify_types(
             init_boxes=init_boxes,
@@ -1427,7 +1426,6 @@ def brightness_temperature(
             except IOError:
                 pass
 
-
         return _call_c_func(
             lib.ComputeBrightnessTemp,
             box,
@@ -1589,7 +1587,6 @@ def run_coeval(
 
         direc, regenerate, write = _get_config_options(direc, regenerate, write)
 
-
         # Ensure perturb is a list of boxes, not just one.
         if perturb is not None:
             if not hasattr(perturb, "__len__"):
@@ -1641,6 +1638,7 @@ def run_coeval(
                 init_box,
                 regenerate,
                 write,
+                direc,
             )
 
         singleton = False
@@ -1669,7 +1667,6 @@ def run_coeval(
             )
         else:
             redshifts = [min(redshift)]
-
 
         # Add in the redshift defined by the user, and sort in order
         # Turn into a set so that exact matching user-set redshift
@@ -1969,6 +1966,7 @@ def run_lightcone(
                 init_box,
                 regenerate,
                 write,
+                direc,
             )
 
         # Get the redshift through which we scroll and evaluate the ionization field.
@@ -2147,6 +2145,7 @@ def calibrate_photon_cons(
     init_box,
     regenerate,
     write,
+    direc,
     **global_kwargs,
 ):
     r"""
@@ -2221,9 +2220,12 @@ def calibrate_photon_cons(
             # Determine the ionisation box with recombinations, spin temperature etc.
             # turned off.
             this_perturb = perturb_field(
-                redshift=z, init_boxes=init_box, regenerate=regenerate, write=write
+                redshift=z,
+                init_boxes=init_box,
+                regenerate=regenerate,
+                write=write,
+                direc=direc,
             )
-
 
             ib2 = ionize_box(
                 redshift=z,
@@ -2235,6 +2237,7 @@ def calibrate_photon_cons(
                 spin_temp=None,
                 regenerate=regenerate,
                 write=write,
+                direc=direc,
             )
 
             mean_nf = np.mean(ib2.xH_box)
