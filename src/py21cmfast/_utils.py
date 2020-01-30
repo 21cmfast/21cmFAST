@@ -399,7 +399,7 @@ class OutputStruct(StructWrapper):
         return self._fname_skeleton.format(seed=self.random_seed)
 
     def _get_fname(self, direc=None):
-        direc = direc or path.expanduser(config["boxdir"])
+        direc = path.expanduser(direc or config["direc"])
         return path.join(direc, self.filename)
 
     def _find_file_without_seed(self, direc):
@@ -427,7 +427,7 @@ class OutputStruct(StructWrapper):
         # First, if appropriate, find a file without specifying seed.
         # Need to do this first, otherwise the seed will be chosen randomly upon
         # choosing a filename!
-        direc = direc or path.expanduser(config["boxdir"])
+        direc = path.expanduser(direc or config["direc"])
 
         if not self._random_seed:
             f = self._find_file_without_seed(direc)
@@ -513,7 +513,7 @@ class OutputStruct(StructWrapper):
             )
 
         try:
-            direc = direc or path.expanduser(config["boxdir"])
+            direc = path.expanduser(direc or config["direc"])
             fname = path.join(direc, fname) if fname else self._get_fname(direc)
             with h5py.File(fname, "w") as f:
                 # Save input parameters to the file

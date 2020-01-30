@@ -666,7 +666,7 @@ def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
             print()
 
         else:
-            direc = direc or path.expanduser(_cfg.config["boxdir"])
+            direc = direc or path.expanduser(_cfg.config["direc"])
             remove(path.join(direc, file))
 
 
