@@ -331,7 +331,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                 fftwf_execute(plan);
             }
         }
-        fftw_destroy_plan(plan);
+        fftwf_destroy_plan(plan);
 
         //and filter each box:
         if (user_params->DIM != user_params->HII_DIM){
