@@ -27,11 +27,11 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
-    
+
     omp_set_num_threads(user_params->N_THREADS);
     fftwf_init_threads();
     fftwf_plan_with_nthreads(user_params->N_THREADS);
-    
+
     char wisdom_filename[500];
     char filename[500];
     FILE *F;
@@ -67,7 +67,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     int something_finite_or_infinite = 0;
     int log10_Mturnover_MINI_int, log10_Mturnover_int;
     int *overdense_int_boundexceeded_threaded = calloc(user_params->N_THREADS,sizeof(int));
-    
+
     overdense_large_min = global_params.CRIT_DENS_TRANSITION*0.999;
     overdense_large_bin_width = 1./((double)NSFR_high-1.)*(Deltac-overdense_large_min);
     overdense_large_bin_width_inv = 1./overdense_large_bin_width;
@@ -90,9 +90,9 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 
     float adjusted_redshift, required_NF, stored_redshift, adjustment_factor, future_z;
     double temp;
-    
+
     gsl_rng * r[user_params->N_THREADS];
-    
+
     init_ps();
 
 LOG_SUPER_DEBUG("defined parameters");
@@ -162,18 +162,18 @@ LOG_SUPER_DEBUG("defined parameters");
 
         ERFC_VALS = calloc(ERFC_NUM_POINTS,sizeof(double));
         ERFC_VALS_DIFF = calloc(ERFC_NUM_POINTS,sizeof(double));
-        
+
 #pragma omp parallel shared(ERFC_VALS,erfc_arg_min,ArgBinWidth) private(i,erfc_arg_val) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
             for(i=0;i<ERFC_NUM_POINTS;i++) {
-            
+
                 erfc_arg_val = erfc_arg_min + ArgBinWidth*(double)i;
-            
+
                 ERFC_VALS[i] = splined_erfc(erfc_arg_val);
             }
         }
-        
+
 #pragma omp parallel shared(ERFC_VALS_DIFF,ERFC_VALS) private(i) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
@@ -252,7 +252,7 @@ LOG_SUPER_DEBUG("erfc interpolation done");
     else {
         adjustment_factor = 1.;
     }
-    
+
 #pragma omp parallel shared(deltax_unfiltered,perturbed_field,adjustment_factor) private(i,j,k) num_threads(user_params->N_THREADS)
     {
 #pragma omp for
@@ -264,14 +264,14 @@ LOG_SUPER_DEBUG("erfc interpolation done");
             }
         }
     }
-    
+
 LOG_SUPER_DEBUG("density field calculated");
 
     // keep the unfiltered density field in an array, to save it for later
     memcpy(deltax_unfiltered_original, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
     i=0;
-    
+
     // Original RNG setup for poisson sampling of haloes
 //    gsl_rng_env_setup();
 //    T = gsl_rng_default;
@@ -401,7 +401,7 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
     }
 
 LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
-    
+
     if(!flag_options->USE_TS_FLUCT) {
         if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
             LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
@@ -811,7 +811,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
 
                 min_density = max_density = 0.0;
-                
+
 #pragma omp parallel shared(deltax_filtered) private(x,y,z) num_threads(user_params->N_THREADS)
                 {
 #pragma omp for reduction(max:max_density) reduction(min:min_density)
@@ -820,7 +820,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             for (z=0; z<user_params->HII_DIM; z++){
                                 // delta cannot be less than -1
                                 *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
-                            
+
                                 if( *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) < min_density ) {
                                     min_density = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
                                 }
@@ -832,7 +832,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     }
                 }
                 LOG_DEBUG("min density = %e max density = %e", min_density, max_density);
-                
+
                 if(min_density < 0.) {
                     min_density = min_density*1.001;
                     if(min_density <= -1.) {
@@ -1005,7 +1005,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
             for (i = 0; i < user_params->N_THREADS; i++) {
                 overdense_int_boundexceeded_threaded[i] = 0;
             }
-            
+
             // renormalize the collapse fraction so that the mean matches ST,
             // since we are using the evolved (non-linear) density field
 #pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded,log10_Nion_spline,Nion_spline,erfc_denom,erfc_arg_min,\
@@ -1022,21 +1022,21 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                 for (x=0; x<user_params->HII_DIM; x++){
                     for (y=0; y<user_params->HII_DIM; y++){
                         for (z=0; z<user_params->HII_DIM; z++){
-                        
+
                             // delta cannot be less than -1
                             *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
-                        
+
                             // <N_rec> cannot be less than zero
                             if (flag_options->INHOMO_RECO){
                                 *((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
                             }
-                        
+
                             // x_e has to be between zero and unity
                             if (flag_options->USE_TS_FLUCT){
                                 *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.);
                                 *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMIN(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.999);
                             }
-                        
+
                             curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
                             if(flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -1232,7 +1232,6 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                 }
                             }
                             else {
-                                    
                                 erfc_arg_val = (Deltac - curr_dens) * erfc_denom;
                                 if (erfc_arg_val < erfc_arg_min || erfc_arg_val > erfc_arg_max) {
                                     Splined_Fcoll = splined_erfc(erfc_arg_val);
@@ -1241,7 +1240,6 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                     Splined_Fcoll = ERFC_VALS[erfc_arg_val_index] + (erfc_arg_val - (erfc_arg_min + ArgBinWidth * (double) erfc_arg_val_index)) * ERFC_VALS_DIFF[erfc_arg_val_index] *InvArgBinWidth;
                                 }
                             }
-                        
 
                             // save the value of the collasped fraction into the Fcoll array
                             if (flag_options->USE_MINI_HALOS){
@@ -1344,7 +1342,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
             Gamma_R_prefactor /= t_ast;
             Gamma_R_prefactor_MINI /= t_ast;
-            
+
             if (global_params.FIND_BUBBLE_ALGORITHM != 2 && global_params.FIND_BUBBLE_ALGORITHM != 1) { // center method
                 LOG_ERROR("Incorrect choice of find bubble algorithm: %i\nAborting...", global_params.FIND_BUBBLE_ALGORITHM);
                 return(2);
@@ -1360,7 +1358,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                 for (x=0; x<user_params->HII_DIM; x++){
                     for (y=0; y<user_params->HII_DIM; y++){
                         for (z=0; z<user_params->HII_DIM; z++){
-     
+
                             curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
      
                             Splined_Fcoll = box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
@@ -1380,14 +1378,14 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                 ave_N_min_cell = ave_M_coll_cell / M_MIN; // ave # of M_MIN halos in cell
                                 N_halos_in_cell = (int) gsl_ran_poisson(r[omp_get_thread_num()], global_params.N_POISSON);
                             }
-                            
+
                             if(flag_options->USE_MASS_DEPENDENT_ZETA) {
                                 if (f_coll <= f_coll_min) f_coll = f_coll_min;
                                 if (flag_options->USE_MINI_HALOS){
                                     if (f_coll_MINI <= f_coll_min_MINI) f_coll_MINI = f_coll_min_MINI;
                                 }
                             }
-                            
+
                             if (flag_options->INHOMO_RECO){
                                 rec = (*((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z))); // number of recombinations per mean baryon
                                 rec /= (1. + curr_dens); // number of recombinations per baryon inside <R>
@@ -1404,13 +1402,12 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
          
                             // check if fully ionized!
                             if ( (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI> (xHI_from_xrays)*(1.0+rec)) ){ //IONIZED!!
-                                
                                 // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
                                 // this assumes photon-starved growth of HII regions...  breaks down post EoR
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
                                     box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll + Gamma_R_prefactor_MINI * f_coll_MINI;
                                 }
-                                
+
                                 // keep track of the first time this cell is ionized (earliest time)
                                 if (flag_options->INHOMO_RECO && (previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)] < 0)){
                                     box->z_re_box[HII_R_INDEX(x,y,z)] = redshift;
@@ -1461,7 +1458,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                     } // j
                 } // i
             }
-            
+
             if(first_step_R) {
                 R = stored_R;
                 first_step_R = 0;
@@ -1481,7 +1478,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                 global_xH += box->xH_box[ct];
             }
             global_xH /= (float)HII_TOT_NUM_PIXELS;
-        
+
         if(isfinite(global_xH)==0) {
             LOG_ERROR("Neutral fraction is either infinite or a Nan. Something has gone wrong in the ionisation calculation!");
             return(2);
@@ -1489,32 +1486,32 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
         // update the N_rec field
         if (flag_options->INHOMO_RECO){
-            
+
 #pragma omp parallel shared(perturbed_field,adjustment_factor,stored_redshift,redshift,box,previous_ionize_box,fabs_dtdz,ZSTEP,something_finite_or_infinite) private(x,y,z,curr_dens,z_eff,dNrec) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
                 for (x=0; x<user_params->HII_DIM; x++){
                     for (y=0; y<user_params->HII_DIM; y++){
                         for (z=0; z<user_params->HII_DIM; z++){
-                    
+
                             // use the original density and redshift for the snapshot (not the adjusted redshift)
                             // Only want to use the adjusted redshift for the ionisation field
                             curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x,y,z)])/adjustment_factor;
                             z_eff = pow(curr_dens, 1.0/3.0);
-                        
+
                             if(flag_options->PHOTON_CONS) {
                                 z_eff *= (1+stored_redshift);
                             }
                             else {
                                 z_eff *= (1+redshift);
                             }
-                        
+
                             dNrec = splined_recombination_rate(z_eff-1., box->Gamma12_box[HII_R_INDEX(x,y,z)]) * fabs_dtdz * ZSTEP * (1. - box->xH_box[HII_R_INDEX(x,y,z)]);
-                        
+
                             if(isfinite(dNrec)==0) {
                                 something_finite_or_infinite = 1;
                             }
-                        
+
                             box->dNrec_box[HII_R_INDEX(x,y,z)] = previous_ionize_box->dNrec_box[HII_R_INDEX(x,y,z)] + dNrec;
                         }
                     }
@@ -1537,7 +1534,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
     for (i=0; i<user_params->N_THREADS; i++) {
         gsl_rng_free (r[i]);
     }
-    
+
 LOG_DEBUG("global_xH = %e",global_xH);
 
     fftwf_free(deltax_unfiltered);
@@ -1589,7 +1586,7 @@ LOG_SUPER_DEBUG("freed fftw boxes");
     if(!flag_options->USE_TS_FLUCT) {
         freeSigmaMInterpTable();
     }
-    
+
     free(overdense_int_boundexceeded_threaded);
 
 LOG_DEBUG("finished!\n");
