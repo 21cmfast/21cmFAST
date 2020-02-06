@@ -71,9 +71,6 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     fftwf_plan_with_nthreads(user_params->N_THREADS);
 
     // ************  INITIALIZATION ********************** //
-
-    // Removed all references to threads as 21CMMC is always a single core implementation
-
     int checker;
 
     checker = 0;
@@ -130,12 +127,13 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
     // ************  END INITIALIZATION ****************** //
 
+    LOG_DEBUG("Finished initialization.");
+
     // ************ CREATE K-SPACE GAUSSIAN RANDOM FIELD *********** //
 
 
     init_ps();
-
-//    boxes->PSnormalisation = sigma_norm;
+    LOG_DEBUG("Initalialized Power Spectrum.");
 
 #pragma omp parallel shared(HIRES_box,HIRES_box_vcb_x,HIRES_box_vcb_y,HIRES_box_vcb_z,r) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,p,a,b,p_vcb) num_threads(user_params->N_THREADS)
     {
@@ -186,6 +184,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             }
         }
     }
+    LOG_DEBUG("Drawn random fields.");
 
     // *****  Adjust the complex conjugate relations for a real array  ***** //
     adj_complex_conj(HIRES_box,user_params,cosmo_params);
@@ -233,6 +232,8 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     }
     fftwf_destroy_plan(plan);
 
+    LOG_DEBUG("Filtered hires boxes.");
+
     // now sample the filtered box
 #pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
     {
@@ -267,7 +268,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                 if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
             }
             fftwf_execute(plan);
-	    fftwf_destroy_plan(plan);
+	        fftwf_destroy_plan(plan);
         }
 
         // sample the UNfiltered velocity box and save it to python
@@ -330,6 +331,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                 fftwf_execute(plan);
             }
         }
+        fftw_destroy_plan(plan);
 
         //and filter each box:
         if (user_params->DIM != user_params->HII_DIM){
@@ -346,6 +348,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                 if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY); }
                 if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY); }
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
             }
         }
         else {
@@ -354,8 +357,10 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                 if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
                 if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
             }
         }
+
 
 
         //to save into a lowres box
@@ -385,6 +390,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
         fftwf_free(HIRES_box_vcb_z);
 
     }
+    LOG_DEBUG("Completed Relative velocities.");
     // ******* End of Relative Velocity part ******* //
 
     // ******* PERFORM INVERSE FOURIER TRANSFORM ***************** //
@@ -505,7 +511,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
         }
     }
 
-    // write out file
+    LOG_DEBUG("Done Inverse FT.");
 
     // * *************************************************** * //
     // *              BEGIN 2LPT PART                        * //
@@ -801,12 +807,11 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             }
         }
     }
+    LOG_DEBUG("Done 2LPT.");
 
     // * *********************************************** * //
     // *               END 2LPT PART                     * //
     // * *********************************************** * //
-
-    fftwf_destroy_plan(plan);
     fftwf_cleanup_threads();
     fftwf_cleanup();
     fftwf_forget_wisdom();
@@ -816,12 +821,12 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     fftwf_free(HIRES_box_saved);
 
     free_ps();
-    fftwf_cleanup();
 
     for (i=0; i<user_params->N_THREADS; i++) {
         gsl_rng_free (r[i]);
     }
 
+    LOG_DEBUG("Cleaned Up.");
     return(0);
 }
 
