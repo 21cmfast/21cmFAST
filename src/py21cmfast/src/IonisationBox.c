@@ -272,10 +272,6 @@ LOG_SUPER_DEBUG("density field calculated");
 
     i=0;
 
-    // Original RNG setup for poisson sampling of haloes
-//    gsl_rng_env_setup();
-//    T = gsl_rng_default;
-//    r = gsl_rng_alloc(T);
     // Newer setup to be performed in parallel
     int thread_num;
     for(thread_num = 0; thread_num < user_params->N_THREADS; thread_num++){
@@ -285,7 +281,6 @@ LOG_SUPER_DEBUG("density field calculated");
     }
 
     pixel_mass = RtoM(L_FACTOR*user_params->BOX_LEN/(float)(user_params->HII_DIM));
-//    f_coll_crit = 1/HII_EFF_FACTOR;
     cell_length_factor = L_FACTOR;
 
 
@@ -491,7 +486,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
         else {
             init_heat();
             global_xH = 1. - xion_RECFAST(redshift, 0);
-//            destruct_heat();
+
 #pragma omp parallel shared(box,global_xH) private(ct) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
@@ -504,47 +499,53 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
     else {
 
         // Take the ionisation fraction from the X-ray ionisations from Ts.c (only if the calculate spin temperature flag is set)
-        if(flag_options->USE_TS_FLUCT) {
-#pragma omp parallel shared(xe_unfiltered,spin_temp) private(i,j,k) num_threads(user_params->N_THREADS)
+        if (flag_options->USE_TS_FLUCT) {
+#pragma omp parallel shared(xe_unfiltered, spin_temp) private(i, j, k) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
-                            *((float *)xe_unfiltered + HII_R_FFT_INDEX(i,j,k)) = spin_temp->x_e_box[HII_R_INDEX(i,j,k)];
+                for (i = 0; i < user_params->HII_DIM; i++) {
+                    for (j = 0; j < user_params->HII_DIM; j++) {
+                        for (k = 0; k < user_params->HII_DIM; k++) {
+                            *((float *) xe_unfiltered + HII_R_FFT_INDEX(i, j, k)) = spin_temp->x_e_box[HII_R_INDEX(i, j,
+                                                                                                                   k)];
                         }
                     }
                 }
             }
         }
 
-LOG_SUPER_DEBUG("calculated ionization fraction");
+        LOG_SUPER_DEBUG("calculated ionization fraction");
 
-        if(flag_options->INHOMO_RECO) {
-#pragma omp parallel shared(N_rec_unfiltered,previous_ionize_box) private(i,j,k) num_threads(user_params->N_THREADS)
+        if (flag_options->INHOMO_RECO) {
+#pragma omp parallel shared(N_rec_unfiltered, previous_ionize_box) private(i, j, k) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
-                            *((float *)N_rec_unfiltered + HII_R_FFT_INDEX(i,j,k)) = previous_ionize_box->dNrec_box[HII_R_INDEX(i,j,k)];
+                for (i = 0; i < user_params->HII_DIM; i++) {
+                    for (j = 0; j < user_params->HII_DIM; j++) {
+                        for (k = 0; k < user_params->HII_DIM; k++) {
+                            *((float *) N_rec_unfiltered +
+                              HII_R_FFT_INDEX(i, j, k)) = previous_ionize_box->dNrec_box[HII_R_INDEX(i, j, k)];
                         }
                     }
                 }
             }
         }
 
-        if(user_params->USE_FFTW_WISDOM) {
+        if (user_params->USE_FFTW_WISDOM) {
             // Check to see if the wisdom exists, create it if it doesn't
-            sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
-            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_WISDOM_ONLY);
+            sprintf(wisdom_filename, "real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom", user_params->HII_DIM,
+                    user_params->N_THREADS);
+            if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *) deltax_unfiltered, (fftwf_complex *) deltax_unfiltered,
+                                             FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
-            }
-            else {
+            } else {
 
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_PATIENT);
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *) deltax_unfiltered, (fftwf_complex *) deltax_unfiltered,
+                                             FFTW_PATIENT);
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
 
@@ -552,20 +553,23 @@ LOG_SUPER_DEBUG("calculated ionization fraction");
                 fftwf_export_wisdom_to_filename(wisdom_filename);
 
                 // copy over unfiltered box
-                memcpy(deltax_unfiltered, deltax_unfiltered_original, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+                memcpy(deltax_unfiltered, deltax_unfiltered_original, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_WISDOM_ONLY);
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *) deltax_unfiltered, (fftwf_complex *) deltax_unfiltered,
+                                             FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
             }
-        }
-        else {
-            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)deltax_unfiltered, (fftwf_complex *)deltax_unfiltered, FFTW_ESTIMATE);
+        } else {
+            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                         (float *) deltax_unfiltered, (fftwf_complex *) deltax_unfiltered,
+                                         FFTW_ESTIMATE);
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
         }
 
-LOG_SUPER_DEBUG("FFTs performed");
+        LOG_SUPER_DEBUG("FFTs performed");
 
         if(flag_options->USE_MINI_HALOS){
             if(user_params->USE_FFTW_WISDOM) {
@@ -606,20 +610,23 @@ LOG_SUPER_DEBUG("more ffts performed");
             }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
-LOG_SUPER_DEBUG("more ffts performed");
+            LOG_SUPER_DEBUG("more ffts performed");
         }
 
 
-        if (flag_options->INHOMO_RECO){
-            if(user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)N_rec_unfiltered, (fftwf_complex *)N_rec_unfiltered, FFTW_WISDOM_ONLY);
-            }
-            else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)N_rec_unfiltered, (fftwf_complex *)N_rec_unfiltered, FFTW_ESTIMATE);
+        if (flag_options->INHOMO_RECO) {
+            if (user_params->USE_FFTW_WISDOM) {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *) N_rec_unfiltered, (fftwf_complex *) N_rec_unfiltered,
+                                             FFTW_WISDOM_ONLY);
+            } else {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *) N_rec_unfiltered, (fftwf_complex *) N_rec_unfiltered,
+                                             FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
-LOG_SUPER_DEBUG("more ffts performed");
+            LOG_SUPER_DEBUG("more ffts performed");
         }
 
 
@@ -641,7 +648,7 @@ LOG_SUPER_DEBUG("more ffts performed");
             }
         }
 
-LOG_SUPER_DEBUG("deltax unfiltered calculated");
+        LOG_SUPER_DEBUG("deltax unfiltered calculated");
 
         // ************************************************************************************* //
         // ***************** LOOP THROUGH THE FILTER RADII (in Mpc)  *************************** //
@@ -651,18 +658,18 @@ LOG_SUPER_DEBUG("deltax unfiltered calculated");
 
         short_completely_ionised = 0;
         // loop through the filter radii (in Mpc)
-        erfc_denom_cell=1; //dummy value
+        erfc_denom_cell = 1; //dummy value
 
         R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
 
-        while ((R - fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ) {
-            R*= global_params.DELTA_R_HII_FACTOR;
-            if(R >= fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) {
-                stored_R = R/(global_params.DELTA_R_HII_FACTOR);
+        while ((R - fmin(astro_params->R_BUBBLE_MAX, L_FACTOR * user_params->BOX_LEN)) <= FRACT_FLOAT_ERR) {
+            R *= global_params.DELTA_R_HII_FACTOR;
+            if (R >= fmin(astro_params->R_BUBBLE_MAX, L_FACTOR * user_params->BOX_LEN)) {
+                stored_R = R / (global_params.DELTA_R_HII_FACTOR);
             }
         }
 
-LOG_DEBUG("set max radius: %f", R);
+        LOG_DEBUG("set max radius: %f", R);
 
         R=fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN);
 
@@ -670,7 +677,7 @@ LOG_DEBUG("set max radius: %f", R);
 
         first_step_R = 1;
 
-        double R_temp = (double)(astro_params->R_BUBBLE_MAX);
+        double R_temp = (double) (astro_params->R_BUBBLE_MAX);
 
         counter = 0;
 
@@ -684,24 +691,27 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
             // Copy all relevant quantities from memory into new arrays to be smoothed and FFT'd.
-            if(flag_options->USE_TS_FLUCT) {
-                memcpy(xe_filtered, xe_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+            if (flag_options->USE_TS_FLUCT) {
+                memcpy(xe_filtered, xe_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
             }
-            if (flag_options->INHOMO_RECO){
-                memcpy(N_rec_filtered, N_rec_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+            if (flag_options->INHOMO_RECO) {
+                memcpy(N_rec_filtered, N_rec_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
             }
+
             memcpy(deltax_filtered, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             if(flag_options->USE_MINI_HALOS){
                 memcpy(prev_deltax_filtered, prev_deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
                 memcpy(log10_Mturnover_MINI_filtered, log10_Mturnover_MINI_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
                 memcpy(log10_Mturnover_filtered, log10_Mturnover_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             }
-
-            if (!LAST_FILTER_STEP || ((R - cell_length_factor*(user_params->BOX_LEN/(double)(user_params->HII_DIM))) > FRACT_FLOAT_ERR) ){
-                if(flag_options->USE_TS_FLUCT) {
+            
+            if (!LAST_FILTER_STEP ||
+                ((R - cell_length_factor * (user_params->BOX_LEN / (double) (user_params->HII_DIM))) >
+                 FRACT_FLOAT_ERR)) {
+                if (flag_options->USE_TS_FLUCT) {
                     filter_box(xe_filtered, 1, global_params.HII_FILTER, R);
                 }
-                if (flag_options->INHOMO_RECO){
+                if (flag_options->INHOMO_RECO) {
                     filter_box(N_rec_filtered, 1, global_params.HII_FILTER, R);
                 }
                 filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
@@ -713,38 +723,47 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
             // Perform FFTs
-            if(user_params->USE_FFTW_WISDOM) {
+            if (user_params->USE_FFTW_WISDOM) {
                 // Check to see if the wisdom exists, create it if it doesn't
-                sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
-                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_WISDOM_ONLY);
+                sprintf(wisdom_filename, "complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom", user_params->HII_DIM,
+                        user_params->N_THREADS);
+                if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                 (fftwf_complex *) deltax_filtered, (float *) deltax_filtered,
+                                                 FFTW_WISDOM_ONLY);
                     fftwf_execute(plan);
                     fftwf_destroy_plan(plan);
-                }
-                else {
+                } else {
 
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_PATIENT);
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                 (fftwf_complex *) deltax_filtered, (float *) deltax_filtered,
+                                                 FFTW_PATIENT);
                     fftwf_execute(plan);
 
                     // Store the wisdom for later use
                     fftwf_export_wisdom_to_filename(wisdom_filename);
 
                     // copy over unfiltered box
-                    memcpy(deltax_filtered, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+                    memcpy(deltax_filtered, deltax_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
                     // Repeat calculation as the FFTW WISDOM destroys the data
-                    if (!LAST_FILTER_STEP || ((R - cell_length_factor*(user_params->BOX_LEN/(double)(user_params->HII_DIM))) > FRACT_FLOAT_ERR) ){
+                    if (!LAST_FILTER_STEP ||
+                        ((R - cell_length_factor * (user_params->BOX_LEN / (double) (user_params->HII_DIM))) >
+                         FRACT_FLOAT_ERR)) {
                         filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
                     }
 
                     fftwf_destroy_plan(plan);
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_WISDOM_ONLY);
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                 (fftwf_complex *) deltax_filtered, (float *) deltax_filtered,
+                                                 FFTW_WISDOM_ONLY);
                     fftwf_execute(plan);
                     fftwf_destroy_plan(plan);
                 }
-            }
-            else {
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)deltax_filtered, (float *)deltax_filtered, FFTW_ESTIMATE);
+            } else {
+                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (fftwf_complex *) deltax_filtered, (float *) deltax_filtered,
+                                             FFTW_ESTIMATE);
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
             }
@@ -779,22 +798,27 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
             if (flag_options->USE_TS_FLUCT) {
-                if(user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)xe_filtered, (float *)xe_filtered, FFTW_WISDOM_ONLY);
-                }
-                else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)xe_filtered, (float *)xe_filtered, FFTW_ESTIMATE);
+                if (user_params->USE_FFTW_WISDOM) {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                 (fftwf_complex *) xe_filtered, (float *) xe_filtered,
+                                                 FFTW_WISDOM_ONLY);
+                } else {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                 (fftwf_complex *) xe_filtered, (float *) xe_filtered, FFTW_ESTIMATE);
                 }
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
             }
 
-            if (flag_options->INHOMO_RECO){
-                if(user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)N_rec_filtered, (float *)N_rec_filtered, FFTW_WISDOM_ONLY);
-                }
-                else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)N_rec_filtered, (float *)N_rec_filtered, FFTW_ESTIMATE);
+            if (flag_options->INHOMO_RECO) {
+                if (user_params->USE_FFTW_WISDOM) {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                 (fftwf_complex *) N_rec_filtered, (float *) N_rec_filtered,
+                                                 FFTW_WISDOM_ONLY);
+                } else {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                 (fftwf_complex *) N_rec_filtered, (float *) N_rec_filtered,
+                                                 FFTW_ESTIMATE);
                 }
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
@@ -812,60 +836,62 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                 min_density = max_density = 0.0;
 
-#pragma omp parallel shared(deltax_filtered) private(x,y,z) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(deltax_filtered) private(x, y, z) num_threads(user_params->N_THREADS)
                 {
 #pragma omp for reduction(max:max_density) reduction(min:min_density)
-                    for (x=0; x<user_params->HII_DIM; x++){
-                        for (y=0; y<user_params->HII_DIM; y++){
-                            for (z=0; z<user_params->HII_DIM; z++){
+                    for (x = 0; x < user_params->HII_DIM; x++) {
+                        for (y = 0; y < user_params->HII_DIM; y++) {
+                            for (z = 0; z < user_params->HII_DIM; z++) {
                                 // delta cannot be less than -1
-                                *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
+                                *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
+                                        *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
 
-                                if( *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) < min_density ) {
-                                    min_density = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                                if (*((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) < min_density) {
+                                    min_density = *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z));
                                 }
-                                if( *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) > max_density ) {
-                                    max_density = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                                if (*((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) > max_density) {
+                                    max_density = *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z));
                                 }
                             }
                         }
                     }
                 }
-                LOG_DEBUG("min density = %e max density = %e", min_density, max_density);
 
-                if(min_density < 0.) {
-                    min_density = min_density*1.001;
-                    if(min_density <= -1.) {
+                if (min_density < 0.) {
+                    min_density = min_density * 1.001;
+                    if (min_density <= -1.) {
                         // Use MIN_DENSITY_LOW_LIMIT as is it smaller than FRACT_FLOAT_ERR
                         min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
                     }
-                }
-                else {
-                    min_density = min_density*0.999;
-                }
-                if(max_density < 0.) {
-                    max_density = max_density*0.999;
-                }
-                else {
-                    max_density = max_density*1.001;
+                } else {
+                    min_density = min_density * 0.999;
                 }
 
-                if(global_params.HII_FILTER==1) {
-                    if((0.413566994*R*2.*PI/user_params->BOX_LEN) > 1.) {
+                if (max_density < 0.) {
+                    max_density = max_density * 0.999;
+                } else {
+                    max_density = max_density * 1.001;
+                }
+
+                if (global_params.HII_FILTER == 1) {
+                    if ((0.413566994 * R * 2. * PI / user_params->BOX_LEN) > 1.) {
                         // The sharp k-space filter will set every cell to zero, and the interpolation table using a flexible min/max density will fail.
 
                         min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
-                        max_density = global_params.CRIT_DENS_TRANSITION*1.001;
+                        max_density = global_params.CRIT_DENS_TRANSITION * 1.001;
                     }
                 }
 
                 overdense_small_min = log10(1. + min_density);
-                if(max_density > global_params.CRIT_DENS_TRANSITION*1.001) {
-                    overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+global_params.CRIT_DENS_TRANSITION*1.001)-overdense_small_min);
+                if (max_density > global_params.CRIT_DENS_TRANSITION * 1.001) {
+                    overdense_small_bin_width = 1 / ((double) NSFR_low - 1.) *
+                                                (log10(1. + global_params.CRIT_DENS_TRANSITION * 1.001) -
+                                                 overdense_small_min);
+                } else {
+                    overdense_small_bin_width =
+                            1 / ((double) NSFR_low - 1.) * (log10(1. + max_density) - overdense_small_min);
                 }
-                else {
-                    overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+max_density)-overdense_small_min);
-                }
+
                 overdense_small_bin_width_inv = 1./overdense_small_bin_width;
 LOG_SUPER_DEBUG("R=%f, min_density=%f, max_density=%f, overdense_small_min=%f, overdense_small_bin_width=%f", R, min_density, max_density, overdense_small_min, overdense_small_bin_width);
 
@@ -987,15 +1013,14 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                         return(2);
                     }
                 }
-            }
-            else {
+            } else {
 
-                erfc_denom = 2.*(pow(sigma_z0(M_MIN), 2) - pow(sigma_z0(massofscaleR), 2) );
+                erfc_denom = 2. * (pow(sigma_z0(M_MIN), 2) - pow(sigma_z0(massofscaleR), 2));
                 if (erfc_denom < 0) { // our filtering scale has become too small
                     break;
                 }
                 erfc_denom = sqrt(erfc_denom);
-                erfc_denom = 1./( growth_factor * erfc_denom );
+                erfc_denom = 1. / (growth_factor * erfc_denom);
 
             }
 
@@ -1019,27 +1044,31 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                     num_threads(user_params->N_THREADS)
             {
 #pragma omp for reduction(+:f_coll)
-                for (x=0; x<user_params->HII_DIM; x++){
-                    for (y=0; y<user_params->HII_DIM; y++){
-                        for (z=0; z<user_params->HII_DIM; z++){
+                for (x = 0; x < user_params->HII_DIM; x++) {
+                    for (y = 0; y < user_params->HII_DIM; y++) {
+                        for (z = 0; z < user_params->HII_DIM; z++) {
 
                             // delta cannot be less than -1
-                            *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
+                            *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
+                                    *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
 
                             // <N_rec> cannot be less than zero
-                            if (flag_options->INHOMO_RECO){
-                                *((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
+                            if (flag_options->INHOMO_RECO) {
+                                *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
+                                        *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
                             }
 
                             // x_e has to be between zero and unity
-                            if (flag_options->USE_TS_FLUCT){
-                                *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.);
-                                *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMIN(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.999);
+                            if (flag_options->USE_TS_FLUCT) {
+                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
+                                        *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.);
+                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMIN(
+                                        *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.999);
                             }
 
-                            curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                            curr_dens = *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z));
 
-                            if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+                            if (flag_options->USE_MASS_DEPENDENT_ZETA) {
 
                                 if (flag_options->USE_MINI_HALOS){
 	                                log10_Mturnover = (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) - log10Mturn_min ) * log10Mturn_bin_width_inv;
@@ -1237,6 +1266,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                     Splined_Fcoll = splined_erfc(erfc_arg_val);
                                 } else {
                                     erfc_arg_val_index = (int) floor((erfc_arg_val - erfc_arg_min) * InvArgBinWidth);
+
                                     Splined_Fcoll = ERFC_VALS[erfc_arg_val_index] + (erfc_arg_val - (erfc_arg_min + ArgBinWidth * (double) erfc_arg_val_index)) * ERFC_VALS_DIFF[erfc_arg_val_index] *InvArgBinWidth;
                                 }
                             }
@@ -1300,7 +1330,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
             if(isfinite(f_coll)==0) {
                 LOG_ERROR("f_coll is either infinite or NaN!");
-                return(2);
+                return (2);
             }
 
             f_coll /= (double) HII_TOT_NUM_PIXELS;
@@ -1313,7 +1343,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
             f_coll_MINI /= (double) HII_TOT_NUM_PIXELS;
 
             // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
-            if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+            if (flag_options->USE_MASS_DEPENDENT_ZETA) {
                 if (f_coll <= f_coll_min) f_coll = f_coll_min;
                 if (flag_options->USE_MINI_HALOS){
                     if (f_coll_MINI <= f_coll_min_MINI) f_coll_MINI = f_coll_min_MINI;
@@ -1344,8 +1374,9 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
             Gamma_R_prefactor_MINI /= t_ast;
 
             if (global_params.FIND_BUBBLE_ALGORITHM != 2 && global_params.FIND_BUBBLE_ALGORITHM != 1) { // center method
-                LOG_ERROR("Incorrect choice of find bubble algorithm: %i\nAborting...", global_params.FIND_BUBBLE_ALGORITHM);
-                return(2);
+                LOG_ERROR("Incorrect choice of find bubble algorithm: %i\nAborting...",
+                          global_params.FIND_BUBBLE_ALGORITHM);
+                return (2);
             }
             
 #pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,box,ST_over_PS,pixel_mass,M_MIN,r,f_coll_min,Gamma_R_prefactor,box,\
@@ -1355,9 +1386,9 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                     num_threads(user_params->N_THREADS)
             {
 #pragma omp for
-                for (x=0; x<user_params->HII_DIM; x++){
-                    for (y=0; y<user_params->HII_DIM; y++){
-                        for (z=0; z<user_params->HII_DIM; z++){
+                for (x = 0; x < user_params->HII_DIM; x++) {
+                    for (y = 0; y < user_params->HII_DIM; y++) {
+                        for (z = 0; z < user_params->HII_DIM; z++) {
 
                             curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
      
@@ -1376,18 +1407,20 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             if (LAST_FILTER_STEP){
                                 ave_M_coll_cell = (f_coll + f_coll_MINI) * pixel_mass * (1. + curr_dens);
                                 ave_N_min_cell = ave_M_coll_cell / M_MIN; // ave # of M_MIN halos in cell
-                                N_halos_in_cell = (int) gsl_ran_poisson(r[omp_get_thread_num()], global_params.N_POISSON);
+                                N_halos_in_cell = (int) gsl_ran_poisson(r[omp_get_thread_num()],
+                                                                        global_params.N_POISSON);
                             }
 
-                            if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+                            if (flag_options->USE_MASS_DEPENDENT_ZETA) {
                                 if (f_coll <= f_coll_min) f_coll = f_coll_min;
                                 if (flag_options->USE_MINI_HALOS){
                                     if (f_coll_MINI <= f_coll_min_MINI) f_coll_MINI = f_coll_min_MINI;
                                 }
                             }
 
-                            if (flag_options->INHOMO_RECO){
-                                rec = (*((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z))); // number of recombinations per mean baryon
+                            if (flag_options->INHOMO_RECO) {
+                                rec = (*((float *) N_rec_filtered +
+                                         HII_R_FFT_INDEX(x, y, z))); // number of recombinations per mean baryon
                                 rec /= (1. + curr_dens); // number of recombinations per baryon inside <R>
                             } else {
                                 rec = 0.;
@@ -1409,8 +1442,9 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                 }
 
                                 // keep track of the first time this cell is ionized (earliest time)
-                                if (flag_options->INHOMO_RECO && (previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)] < 0)){
-                                    box->z_re_box[HII_R_INDEX(x,y,z)] = redshift;
+                                if (flag_options->INHOMO_RECO &&
+                                    (previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)] < 0)) {
+                                    box->z_re_box[HII_R_INDEX(x, y, z)] = redshift;
                                 }
 
                                 // FLAG CELL(S) AS IONIZED
@@ -1419,8 +1453,8 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                 if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
                                     update_in_sphere(box->xH_box, user_params->HII_DIM, R/(user_params->BOX_LEN), x/(user_params->HII_DIM+0.0), y/(user_params->HII_DIM+0.0), z/(user_params->HII_DIM+0.0));
                             } // end ionized
-                            // If not fully ionized, then assign partial ionizations
-                            else if (LAST_FILTER_STEP && (box->xH_box[HII_R_INDEX(x,y,z)] > TINY)){
+                                // If not fully ionized, then assign partial ionizations
+                            else if (LAST_FILTER_STEP && (box->xH_box[HII_R_INDEX(x, y, z)] > TINY)) {
 
                                 if (f_coll>1) f_coll=1;
                                 if (f_coll_MINI>1) f_coll_MINI=1;
@@ -1436,7 +1470,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                     }
                                 }
 
-                                if(ave_M_coll_cell < (M_MIN/5.)) {
+                                if (ave_M_coll_cell < (M_MIN / 5.)) {
                                     f_coll = 0.;
                                     f_coll_MINI = 0.;
                                 }
@@ -1451,7 +1485,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                 else if (res_xH > 1)
                                     res_xH = 1;
 
-                                box->xH_box[HII_R_INDEX(x,y,z)] = res_xH;
+                                box->xH_box[HII_R_INDEX(x, y, z)] = res_xH;
 
                             } // end partial ionizations at last filtering step
                         } // k
@@ -1459,11 +1493,10 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                 } // i
             }
 
-            if(first_step_R) {
+            if (first_step_R) {
                 R = stored_R;
                 first_step_R = 0;
-            }
-            else {
+            } else {
                 R /= (global_params.DELTA_R_HII_FACTOR);
             }
             if (flag_options->USE_MINI_HALOS)
@@ -1471,56 +1504,59 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
         }
 
         // find the neutral fraction
-        if(LOG_LEVEL >= DEBUG_LEVEL){
+        if (LOG_LEVEL >= DEBUG_LEVEL) {
             global_xH = 0;
 
-            for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
+            for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
                 global_xH += box->xH_box[ct];
             }
-            global_xH /= (float)HII_TOT_NUM_PIXELS;
-
-        if(isfinite(global_xH)==0) {
-            LOG_ERROR("Neutral fraction is either infinite or a Nan. Something has gone wrong in the ionisation calculation!");
-            return(2);
+            global_xH /= (float) HII_TOT_NUM_PIXELS;
+        }
+        
+        if (isfinite(global_xH) == 0) {
+            LOG_ERROR(
+                    "Neutral fraction is either infinite or a Nan. Something has gone wrong in the ionisation calculation!");
+            return (2);
         }
 
         // update the N_rec field
-        if (flag_options->INHOMO_RECO){
+        if (flag_options->INHOMO_RECO) {
 
-#pragma omp parallel shared(perturbed_field,adjustment_factor,stored_redshift,redshift,box,previous_ionize_box,fabs_dtdz,ZSTEP,something_finite_or_infinite) private(x,y,z,curr_dens,z_eff,dNrec) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(perturbed_field, adjustment_factor, stored_redshift, redshift, box, previous_ionize_box, fabs_dtdz, ZSTEP, something_finite_or_infinite) private(x, y, z, curr_dens, z_eff, dNrec) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
-                for (x=0; x<user_params->HII_DIM; x++){
-                    for (y=0; y<user_params->HII_DIM; y++){
-                        for (z=0; z<user_params->HII_DIM; z++){
+                for (x = 0; x < user_params->HII_DIM; x++) {
+                    for (y = 0; y < user_params->HII_DIM; y++) {
+                        for (z = 0; z < user_params->HII_DIM; z++) {
 
                             // use the original density and redshift for the snapshot (not the adjusted redshift)
                             // Only want to use the adjusted redshift for the ionisation field
-                            curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x,y,z)])/adjustment_factor;
-                            z_eff = pow(curr_dens, 1.0/3.0);
+                            curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x, y, z)]) / adjustment_factor;
+                            z_eff = pow(curr_dens, 1.0 / 3.0);
 
-                            if(flag_options->PHOTON_CONS) {
-                                z_eff *= (1+stored_redshift);
+                            if (flag_options->PHOTON_CONS) {
+                                z_eff *= (1 + stored_redshift);
+                            } else {
+                                z_eff *= (1 + redshift);
                             }
-                            else {
-                                z_eff *= (1+redshift);
-                            }
 
-                            dNrec = splined_recombination_rate(z_eff-1., box->Gamma12_box[HII_R_INDEX(x,y,z)]) * fabs_dtdz * ZSTEP * (1. - box->xH_box[HII_R_INDEX(x,y,z)]);
+                            dNrec = splined_recombination_rate(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]) *
+                                    fabs_dtdz * ZSTEP * (1. - box->xH_box[HII_R_INDEX(x, y, z)]);
 
-                            if(isfinite(dNrec)==0) {
+                            if (isfinite(dNrec) == 0) {
                                 something_finite_or_infinite = 1;
                             }
 
-                            box->dNrec_box[HII_R_INDEX(x,y,z)] = previous_ionize_box->dNrec_box[HII_R_INDEX(x,y,z)] + dNrec;
+                            box->dNrec_box[HII_R_INDEX(x, y, z)] =
+                                    previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)] + dNrec;
                         }
                     }
                 }
             }
 
-            if(something_finite_or_infinite) {
+            if (something_finite_or_infinite) {
                 LOG_ERROR("Recombinations have returned either an infinite or NaN value.");
-                return(2);
+                return (2);
             }
         }
 

@@ -34,7 +34,6 @@
 #include "BrightnessTemperatureBox.c"
 
 
-
 // Re-write of init.c for being accessible within the MCMC
 
 int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes) {

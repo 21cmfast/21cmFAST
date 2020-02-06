@@ -369,9 +369,9 @@ double dsigma_dk(double k, void *params){
         p = 0;
     }
     double Radius;
-    
+
     Radius = *(double *)params;
-    
+
     kR = k*Radius;
 
     if ( (global_params.FILTER == 0) || (sigma_norm < 0) ){ // top hat
@@ -591,7 +591,7 @@ double init_ps(){
     double Radius_8;
 //    R = 8.0/cosmo_params_ps->hlittle;
     Radius_8 = 8.0/cosmo_params_ps->hlittle;
-    
+
     if(user_params_ps->POWER_SPECTRUM == 5){
       kstart = FMAX(1.0e-99/Radius_8, KBOT_CLASS);
       kend = FMIN(350.0/Radius_8, KTOP_CLASS);
@@ -734,7 +734,7 @@ double dsigmasqdm_z0(double M){
     double Radius;
 //    R = MtoR(M);
     Radius = MtoR(M);
-    
+
     // now lets do the integral for sigma and scale it with sigma_norm
     if(user_params_ps->POWER_SPECTRUM == 5){
       kstart = FMAX(1.0e-99/Radius, KBOT_CLASS);
@@ -1382,14 +1382,14 @@ int initialiseSigmaMInterpTable(float M_Min, float M_Max)
             dSigmadm_InterpTable[i] = log10(-dsigmasqdm_z0(exp(Mass_InterpTable[i])));
         }
     }
-    
+
     for(i=0;i<NMass;i++) {
         if(isfinite(Mass_InterpTable[i]) == 0 || isfinite(Sigma_InterpTable[i]) == 0 || isfinite(dSigmadm_InterpTable[i])==0) {
             LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
             return(-1);
         }
     }
-    
+
     MinMass = log(M_Min);
     mass_bin_width = 1./(NMass-1)*( log(M_Max) - log(M_Min) );
     inv_mass_bin_width = 1./mass_bin_width;
@@ -1612,7 +1612,7 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC){
     return -1;
 }
 
-void initialise_ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options) {
+int initialise_ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options) {
 
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
@@ -1633,6 +1633,7 @@ void initialise_ComputeLF(int nbins, struct UserParams *user_params, struct Cosm
 
     initialised_ComputeLF = true;
 
+    return(0);
 }
 
 void cleanup_ComputeLF(){
@@ -2247,7 +2248,7 @@ int initialise_Nion_General_spline(float z, float min_density, float max_density
                 log10_Nion_spline[i] = 1e-38;
             }
             log10_Nion_spline[i] = log10(log10_Nion_spline[i]);
-        
+
             if(log10_Nion_spline[i] < -40.){
                 log10_Nion_spline[i] = -40.;
             }
@@ -2256,7 +2257,7 @@ int initialise_Nion_General_spline(float z, float min_density, float max_density
 
         }
     }
-    
+
     for (i=0; i<NSFR_low; i++){
         if(isfinite(log10_Nion_spline[i])==0) {
             LOG_ERROR("Detected either an infinite or NaN value in log10_Nion_spline");
@@ -2276,14 +2277,14 @@ int initialise_Nion_General_spline(float z, float min_density, float max_density
             }
         }
     }
-    
+
     for(i=0;i<NSFR_high;i++) {
         if(isfinite(Nion_spline[i])==0) {
             LOG_ERROR("Detected either an infinite or NaN value in log10_Nion_spline");
             return(-1);
         }
     }
-    
+
     return(0);
 }
 
@@ -2589,7 +2590,7 @@ int initialise_SFRD_spline(int Nbin, float zmin, float zmax, float MassTurn, flo
             SFRD_val[i] = Nion_General(z_X_val[i], MassTurn, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
         }
     }
-    
+
     for (i=0; i<Nbin; i++){
         if(isfinite(SFRD_val[i])==0) {
             LOG_ERROR("Detected either an infinite or NaN value in SFRD_val");
@@ -2713,18 +2714,18 @@ int initialise_SFRD_Conditional_table(int Nfilter, float min_density[], float ma
         {
 #pragma omp for
             for (i=0; i<NSFR_low; i++){
-            
+
                 log10_SFRD_z_low_table[j][i] = GaussLegendreQuad_Nion(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.);
                 if(fabs(log10_SFRD_z_low_table[j][i]) < 1e-38) {
                     log10_SFRD_z_low_table[j][i] = 1e-38;
                 }
                 log10_SFRD_z_low_table[j][i] = log10(log10_SFRD_z_low_table[j][i]);
-            
+
                 log10_SFRD_z_low_table[j][i] += 10.0;
                 log10_SFRD_z_low_table[j][i] *= ln_10;
             }
         }
-        
+
         for (i=0; i<NSFR_low; i++){
             if(isfinite(log10_SFRD_z_low_table[j][i])==0) {
                 //                j = Nfilter;
@@ -2743,7 +2744,7 @@ int initialise_SFRD_Conditional_table(int Nfilter, float min_density[], float ma
                 SFRD_z_high_table[j][i] *= pow(10., 10.0);
             }
         }
-        
+
         for(i=0;i<NSFR_high;i++) {
             if(isfinite(SFRD_z_high_table[j][i])==0) {
                 //                j = Nfilter;

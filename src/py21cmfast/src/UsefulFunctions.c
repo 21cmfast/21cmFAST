@@ -110,31 +110,31 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
 //            for (n_y=dimension; n_y--;){
                 if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
                 else {k_y = n_y * DELTA_K;}
-            
+
 //                for (n_z=(midpoint+1); n_z--;){
                 for (n_z=0; n_z<=midpoint; n_z++){
                     k_z = n_z * DELTA_K;
-                    
+
                     if (filter_type == 0){ // real space top-hat
-                        
+
                         k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
-                        
+
                         kR = k_mag*R; // real space top-hat
-                        
+
                         if (kR > 1e-4){
                             if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
                             if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
                         }
                     }
                     else if (filter_type == 1){ // k-space top hat
-                        
+
                         // This is actually (kR^2) but since we zero the value and find kR > 1 this is more computationally efficient
                         // as we don't need to evaluate the slower sqrt function
 //                        kR = 0.17103765852*( k_x*k_x + k_y*k_y + k_z*k_z )*R*R;
-  
+
                         k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
                         kR = k_mag*R; // real space top-hat
-                        
+
                         kR *= 0.413566994; // equates integrated volume to the real space top-hat (9pi/2)^(-1/3)
                         if (kR > 1){
                             if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] = 0; }
@@ -157,7 +157,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
             }
         } // end looping through k box
     }
-    
+
     return;
 }
 
@@ -583,6 +583,20 @@ char *print_output_header(int print_pid, const char *name){
     return (pid);
 }
 
+
+void print_corners_real(float *x, int size){
+    int s = size-1;
+    int i,j,k;
+    for(i=0;i<size;i=i+s){
+        for(j=0;j<size;j=j+s){
+            for(k=0;k<size;k=k+s){
+                printf("%f, ", x[k + size*(j + size*i)]);
+            }
+        }
+    }
+    printf("\n");
+}
+
 void inspectInitialConditions(struct InitialConditions *x, int print_pid, int print_corners, int print_first,
                               int HII_DIM){
     int i;
@@ -771,7 +785,6 @@ void inspectBrightnessTemp(struct BrightnessTemp *x, int print_pid, int print_co
         print_corners_real(x->brightness_temp, HII_DIM);
     }
 }
-
 
 void print_corners_real(float *x, int size){
     int s = size-1;
