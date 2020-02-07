@@ -187,6 +187,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                 memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
                 // re-perform calculation
+                fftwf_destroy_plan(plan);
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
 

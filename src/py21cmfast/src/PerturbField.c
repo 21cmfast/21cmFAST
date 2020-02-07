@@ -453,7 +453,6 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
         }
     }
 
-    fftwf_destroy_plan(plan);
     fftwf_cleanup_threads();
     fftwf_cleanup();
     fftwf_forget_wisdom();
