@@ -660,7 +660,6 @@ LOG_ULTRA_DEBUG("COPIED OVER VALUES");
 LOG_ULTRA_DEBUG("FINISHED WITH THIS R, MOVING ON");
             } //end for loop through the filter scales R
 
-            fftwf_destroy_plan(plan);
             fftwf_cleanup_threads();
             fftwf_cleanup();
             fftwf_forget_wisdom();
