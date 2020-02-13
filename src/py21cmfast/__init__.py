@@ -22,6 +22,7 @@ from .wrapper import UserParams
 from .wrapper import brightness_temperature
 from .wrapper import compute_luminosity_function
 from .wrapper import compute_tau
+from .wrapper import get_all_fieldnames
 from .wrapper import global_params
 from .wrapper import initial_conditions
 from .wrapper import ionize_box
@@ -29,7 +30,6 @@ from .wrapper import perturb_field
 from .wrapper import run_coeval
 from .wrapper import run_lightcone
 from .wrapper import spin_temperature
-from .wrapper import get_all_fieldnames
 
 configure_logging()
 

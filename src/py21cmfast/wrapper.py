@@ -86,8 +86,8 @@ interpolated onto the lightcone cells):
 """
 import logging
 import os
-from copy import deepcopy
 import warnings
+from copy import deepcopy
 
 import numpy as np
 from astropy import units
@@ -107,6 +107,7 @@ from .outputs import InitialConditions
 from .outputs import IonizedBox
 from .outputs import PerturbedField
 from .outputs import TsBox
+from .outputs import _OutputStructZ
 
 logger = logging.getLogger("21cmFAST")
 
@@ -320,6 +321,7 @@ def _get_config_options(direc, regenerate, write):
         config["write"] if write is None else write,
     )
 
+
 def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
     """Return all possible fieldnames in output structs.
 
@@ -343,7 +345,9 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
 
         return all_subclasses
 
-    classes = [cls(redshift=0) for cls in get_all_subclasses(_OutputStructZ)]
+    classes = [
+        cls(redshift=0) for cls in get_all_subclasses(_OutputStructZ) if not cls._meta
+    ]
     if not lightcone_only:
         classes.append(InitialConditions())
 
@@ -1837,6 +1841,7 @@ class LightCone:
 
     @property
     def global_xHI(self):
+        """Global neutral fraction function."""
         warnings.warn(
             "global_xHI is deprecated. From now on, use global_xH. Will be removed in v3.1"
         )
@@ -2007,7 +2012,9 @@ def run_lightcone(
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
         # Ensure passed quantities are appropriate
-        _fld_names = get_all_fieldnames(arrays_only=True, lightcone_only=True, as_dict=True)
+        _fld_names = get_all_fieldnames(
+            arrays_only=True, lightcone_only=True, as_dict=True
+        )
         assert all(
             q in _fld_names.keys() for q in lightcone_quantities
         ), "invalid lightcone_quantity passed."
@@ -2090,11 +2097,11 @@ def run_lightcone(
         st, ib, bt = None, None, None
         lc_index = 0
         box_index = 0
-        neutral_fraction = np.zeros(len(scrollz))
-        global_signal = np.zeros(len(scrollz))
+
         lc = {
             quantity: np.zeros(
-                (user_params.HII_DIM, user_params.HII_DIM, n_lightcone), dtype=np.float32
+                (user_params.HII_DIM, user_params.HII_DIM, n_lightcone),
+                dtype=np.float32,
             )
             for quantity in lightcone_quantities
         }
