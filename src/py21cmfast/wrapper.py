@@ -86,8 +86,8 @@ interpolated onto the lightcone cells):
 """
 import logging
 import os
-from copy import deepcopy
 import warnings
+from copy import deepcopy
 
 import numpy as np
 from astropy import units
@@ -316,6 +316,7 @@ def _get_config_options(direc, regenerate, write):
         config["write"] if write is None else write,
     )
 
+
 def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
     """Return all possible fieldnames in output structs.
 
@@ -339,7 +340,9 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
 
         return all_subclasses
 
-    classes = [cls(redshift=0) for cls in get_all_subclasses(_OutputStructZ)]
+    classes = [
+        cls(redshift=0) for cls in get_all_subclasses(_OutputStructZ) if not cls._meta
+    ]
     if not lightcone_only:
         classes.append(InitialConditions())
 
