@@ -54,6 +54,9 @@ bool initialised_ComputeLF = false;
 gsl_interp_accel *LF_spline_acc;
 gsl_spline *LF_spline;
 
+gsl_interp_accel *deriv_spline_acc; //JH: Added
+gsl_spline *deriv_spline; //JH: Added
+
 struct CosmoParams *cosmo_params_ps;
 struct UserParams *user_params_ps;
 struct FlagOptions *flag_options_ps;
@@ -75,6 +78,7 @@ float **log10_SFRD_z_low_table, **SFRD_z_high_table;
 
 double *lnMhalo_param, *Muv_param, *Mhalo_param;
 double *log10phi, *M_uv_z, *M_h_z;
+double *deriv, *lnM_temp, *deriv_temp; //JH: Added
 
 double *z_val, *z_X_val, *Nion_z_val, *SFRD_val;
 
@@ -1517,11 +1521,14 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
     initialise_ComputeLF(nbins, user_params,cosmo_params,astro_params,flag_options);
 
     int i,i_z;
+	int i_unity, i_smth, nbins_smth=7; // JH: Added
     double  dlnMhalo, lnMhalo_i, SFRparam, Muv_1, Muv_2, dMuvdMhalo;
     double Mhalo_i, lnMhalo_min, lnMhalo_max, lnMhalo_lo, lnMhalo_hi, dlnM, growthf;
     float Mlim_Fstar,Fstar;
+	float Fstar_temp; // JH: Added
 
-    Mlim_Fstar = Mass_limit_bisection((float)Mhalo_min*0.999, (float)Mhalo_max*1.001, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+	// Doesn't need this calculation.
+    //Mlim_Fstar = Mass_limit_bisection((float)Mhalo_min*0.999, (float)Mhalo_max*1.001, astro_params->ALPHA_STAR, astro_params->F_STAR10);
 
     lnMhalo_min = log(Mhalo_min*0.999);
     lnMhalo_max = log(Mhalo_max*1.001);
@@ -1531,6 +1538,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
 
         growthf = dicke(z_LF[i_z]);
 
+		i_unity = -1; //JH: Added. Find the array number at which Fstar crosses unity.
         for (i=0; i<nbins; i++) {
             // generate interpolation arrays
             lnMhalo_param[i] = lnMhalo_min + dlnMhalo*(double)i;
@@ -1538,6 +1546,15 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
 
             Fstar = astro_params->F_STAR10*pow(Mhalo_i/1e10,astro_params->ALPHA_STAR);
             if (Fstar > 1.) Fstar = 1;
+            if (i_unity < 0) { // JH: Added
+                if (astro_params->ALPHA_STAR > 0.) {
+                    if (Fstar == 1.) i_unity = i; 
+                }    
+                else if (astro_params->ALPHA_STAR < 0. && i < nbins-1) {
+                    Fstar_temp = astro_params->F_STAR10*pow( exp(lnMhalo_min + dlnMhalo*(double)(i+1))/1e10,astro_params->ALPHA_STAR);  
+                    if (Fstar_temp < 1. && Fstar == 1.) i_unity = i; 
+                }    
+            }    
 
             // parametrization of SFR
             SFRparam = Mhalo_i * cosmo_params->OMb/cosmo_params->OMm * (double)Fstar * (double)(hubble(z_LF[i_z])*SperYR/astro_params->t_STAR); // units of M_solar/year
@@ -1555,35 +1572,122 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
         lnMhalo_hi = log(Mhalo_max);
         dlnM = (lnMhalo_hi - lnMhalo_lo)/(double)(nbins - 1);
 
-        for (i=0; i<nbins; i++) {
-            // calculate luminosity function
-            lnMhalo_i = lnMhalo_lo + dlnM*(double)i;
-            Mhalo_param[i] = exp(lnMhalo_i);
+        // There is a kink on LFs at which Fstar crosses unity. This is a numerical artefact caused by derivate. 
+		// Most of cases the kink doesn't appear in the usual range of magnitude on LFs (e.g. -22 < Muv < -10).
+		// However, for some extreme parameters, it appears.
+        // To avoid this kink, use interpolation of derivate in the range where the kink is appeared.
+        // 'i_unity' is the array number at which the kink appears. 'i_unity-3' and 'i_unity+12' are related to 
+		// the range of interpolation, which is an arbitrary choice.
+        if (i_unity < 0) i_smth = 0;
+        else if (i_unity-3 < 0) i_smth = 0;
+        else if (i_unity+12 > nbins-1) i_smth = 0;
+		else i_smth = 1;
+		if (i_smth == 0) {
+        	for (i=0; i<nbins; i++) {
+            	// calculate luminosity function
+            	lnMhalo_i = lnMhalo_lo + dlnM*(double)i;
+            	Mhalo_param[i] = exp(lnMhalo_i);
 
-            M_h_z[i + i_z*nbins] = Mhalo_param[i];
+            	M_h_z[i + i_z*nbins] = Mhalo_param[i];
 
-            Muv_1 = gsl_spline_eval(LF_spline, lnMhalo_i - delta_lnMhalo, LF_spline_acc);
-            Muv_2 = gsl_spline_eval(LF_spline, lnMhalo_i + delta_lnMhalo, LF_spline_acc);
+            	Muv_1 = gsl_spline_eval(LF_spline, lnMhalo_i - delta_lnMhalo, LF_spline_acc);
+            	Muv_2 = gsl_spline_eval(LF_spline, lnMhalo_i + delta_lnMhalo, LF_spline_acc);
 
-            dMuvdMhalo = (Muv_2 - Muv_1) / (2.*delta_lnMhalo * exp(lnMhalo_i));
+            	dMuvdMhalo = (Muv_2 - Muv_1) / (2.*delta_lnMhalo * exp(lnMhalo_i));
 
-            if(user_params_ps->HMF==0) {
-                log10phi[i + i_z*nbins] = log10( dNdM(z_LF[i_z], exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
-            }
-            else if(user_params_ps->HMF==1) {
-                log10phi[i + i_z*nbins] = log10( dNdM_st_interp(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
-            }
-            else if(user_params_ps->HMF==2) {
-                log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
-            }
-            else if(user_params_ps->HMF==3) {
-                log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
-            }else{
-                LOG_ERROR("HMF should be between 0-3... returning error.");
-                return(2);
-            }
-            if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.) log10phi[i + i_z*nbins] = -30.;
-        }
+            	if(user_params_ps->HMF==0) {
+                	log10phi[i + i_z*nbins] = log10( dNdM(z_LF[i_z], exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            	}
+            	else if(user_params_ps->HMF==1) {
+                	log10phi[i + i_z*nbins] = log10( dNdM_st_interp(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            	}
+            	else if(user_params_ps->HMF==2) {
+                	log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            	}
+            	else if(user_params_ps->HMF==3) {
+                	log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+            	}else{
+                	LOG_ERROR("HMF should be between 0-3... returning error.");
+                	return(2);
+            	}
+            	if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.) log10phi[i + i_z*nbins] = -30.;
+        	}
+		}
+        else { //JH: Added -2
+        	lnM_temp = calloc(nbins_smth,sizeof(double));
+        	deriv_temp = calloc(nbins_smth,sizeof(double));
+        	deriv = calloc(nbins,sizeof(double));
+
+        	for (i=0; i<nbins; i++) {
+            	// calculate luminosity function
+            	lnMhalo_i = lnMhalo_lo + dlnM*(double)i;
+            	Mhalo_param[i] = exp(lnMhalo_i);
+
+            	M_h_z[i + i_z*nbins] = Mhalo_param[i];
+
+            	Muv_1 = gsl_spline_eval(LF_spline, lnMhalo_i - delta_lnMhalo, LF_spline_acc);
+            	Muv_2 = gsl_spline_eval(LF_spline, lnMhalo_i + delta_lnMhalo, LF_spline_acc);
+
+            	dMuvdMhalo = (Muv_2 - Muv_1) / (2.*delta_lnMhalo * exp(lnMhalo_i));
+            	deriv[i] = fabs(dMuvdMhalo);
+        	}
+
+        	deriv_spline_acc = gsl_interp_accel_alloc();
+        	deriv_spline = gsl_spline_alloc(gsl_interp_cspline, nbins_smth);
+        	//deriv_spline = gsl_spline_alloc(gsl_interp_steffen, nbins_smth);
+
+        	// generate interpolation arrays for smoothing discontinuity of the derivative causing a kink
+        	// Note that the number of array elements and the range of interpolation are made by arbitrary choices from a few tens of extreme parameter sets.
+        	// However, this part is aimed to remove a numerical artefact on LFs, i.e. for better display. 
+        	//if (astro_params->ALPHA_STAR > 0.) {
+        	lnM_temp[0] = lnMhalo_param[i_unity - 3];
+        	lnM_temp[1] = lnMhalo_param[i_unity - 2];
+        	lnM_temp[2] = lnMhalo_param[i_unity + 8];
+        	lnM_temp[3] = lnMhalo_param[i_unity + 9];
+        	lnM_temp[4] = lnMhalo_param[i_unity + 10];
+        	lnM_temp[5] = lnMhalo_param[i_unity + 11];
+        	lnM_temp[6] = lnMhalo_param[i_unity + 12];
+
+        	deriv_temp[0] = deriv[i_unity - 3];
+        	deriv_temp[1] = deriv[i_unity - 2];
+        	deriv_temp[2] = deriv[i_unity + 8];
+        	deriv_temp[3] = deriv[i_unity + 9];
+        	deriv_temp[4] = deriv[i_unity + 10];
+        	deriv_temp[5] = deriv[i_unity + 11];
+        	deriv_temp[6] = deriv[i_unity + 12];
+
+        	gsl_spline_init(deriv_spline, lnM_temp, deriv_temp, nbins_smth);
+
+        	deriv[i_unity - 1] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity - 1], deriv_spline_acc);
+        	deriv[i_unity] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity], deriv_spline_acc);
+        	deriv[i_unity + 1] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 1], deriv_spline_acc);
+        	deriv[i_unity + 2] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 2], deriv_spline_acc);
+        	deriv[i_unity + 3] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 3], deriv_spline_acc);
+        	deriv[i_unity + 4] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 4], deriv_spline_acc);
+        	deriv[i_unity + 5] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 5], deriv_spline_acc);
+        	deriv[i_unity + 6] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 6], deriv_spline_acc);
+        	deriv[i_unity + 7] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 7], deriv_spline_acc);
+
+        	for (i=0; i<nbins; i++) {
+            	if(user_params_ps->HMF==0) {
+                	log10phi[i + i_z*nbins] = log10( dNdM(z_LF[i_z], Mhalo_param[i]) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / deriv[i] );
+            	}
+            	else if(user_params_ps->HMF==1) {
+                	log10phi[i + i_z*nbins] = log10( dNdM_st_interp(growthf, Mhalo_param[i]) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / deriv[i] );
+            	}
+            	else if(user_params_ps->HMF==2) {
+                	log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF(growthf, Mhalo_param[i]) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / deriv[i] );
+            	}
+            	else if(user_params_ps->HMF==3) {
+                	log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, Mhalo_param[i]) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / deriv[i] );
+            	}else{
+                	LOG_ERROR("HMF should be between 0-3... returning error.");
+                	return(2);
+            	}
+            	if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.) log10phi[i + i_z*nbins] = -30.;
+        	}
+        // JH: Modified part end. At the end this will be combined with the original part using if statement
+        } // JH: Added -2
     }
 
 
