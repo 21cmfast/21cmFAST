@@ -1738,6 +1738,9 @@ def run_coeval(
                     ionized_box=ib2,
                     perturbed_field=perturb[redshift.index(z)],
                     spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
+                    write=write,
+                    direc=direc,
+                    regenerate=regenerate,
                 )
 
         if flag_options.PHOTON_CONS:
@@ -2042,6 +2045,9 @@ def run_lightcone(
                 ionized_box=ib2,
                 perturbed_field=this_perturb,
                 spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
+                write=write,
+                direc=direc,
+                regenerate=regenerate,
             )
 
             # Save mean/global quantities
