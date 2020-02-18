@@ -54,8 +54,8 @@ bool initialised_ComputeLF = false;
 gsl_interp_accel *LF_spline_acc;
 gsl_spline *LF_spline;
 
-gsl_interp_accel *deriv_spline_acc; //JH: Added
-gsl_spline *deriv_spline; //JH: Added
+gsl_interp_accel *deriv_spline_acc; 
+gsl_spline *deriv_spline; 
 
 struct CosmoParams *cosmo_params_ps;
 struct UserParams *user_params_ps;
@@ -78,7 +78,7 @@ float **log10_SFRD_z_low_table, **SFRD_z_high_table;
 
 double *lnMhalo_param, *Muv_param, *Mhalo_param;
 double *log10phi, *M_uv_z, *M_h_z;
-double *deriv, *lnM_temp, *deriv_temp; //JH: Added
+double *deriv, *lnM_temp, *deriv_temp; 
 
 double *z_val, *z_X_val, *Nion_z_val, *SFRD_val;
 
@@ -1521,14 +1521,10 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
     initialise_ComputeLF(nbins, user_params,cosmo_params,astro_params,flag_options);
 
     int i,i_z;
-	int i_unity, i_smth, nbins_smth=7; // JH: Added
+	int i_unity, i_smth, nbins_smth=7; 
     double  dlnMhalo, lnMhalo_i, SFRparam, Muv_1, Muv_2, dMuvdMhalo;
     double Mhalo_i, lnMhalo_min, lnMhalo_max, lnMhalo_lo, lnMhalo_hi, dlnM, growthf;
-    float Mlim_Fstar,Fstar;
-	float Fstar_temp; // JH: Added
-
-	// Doesn't need this calculation.
-    //Mlim_Fstar = Mass_limit_bisection((float)Mhalo_min*0.999, (float)Mhalo_max*1.001, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+    float Fstar, Fstar_temp; 
 
     lnMhalo_min = log(Mhalo_min*0.999);
     lnMhalo_max = log(Mhalo_max*1.001);
@@ -1538,7 +1534,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
 
         growthf = dicke(z_LF[i_z]);
 
-		i_unity = -1; //JH: Added. Find the array number at which Fstar crosses unity.
+		i_unity = -1; 
         for (i=0; i<nbins; i++) {
             // generate interpolation arrays
             lnMhalo_param[i] = lnMhalo_min + dlnMhalo*(double)i;
@@ -1546,13 +1542,13 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
 
             Fstar = astro_params->F_STAR10*pow(Mhalo_i/1e10,astro_params->ALPHA_STAR);
             if (Fstar > 1.) Fstar = 1;
-            if (i_unity < 0) { // JH: Added
+            if (i_unity < 0) { // Find the array number at which Fstar crosses unity.
                 if (astro_params->ALPHA_STAR > 0.) {
-                    if (Fstar == 1.) i_unity = i; 
+                    if ( (1.- Fstar) < FRACT_FLOAT_ERR ) i_unity = i; 
                 }    
                 else if (astro_params->ALPHA_STAR < 0. && i < nbins-1) {
                     Fstar_temp = astro_params->F_STAR10*pow( exp(lnMhalo_min + dlnMhalo*(double)(i+1))/1e10,astro_params->ALPHA_STAR);  
-                    if (Fstar_temp < 1. && Fstar == 1.) i_unity = i; 
+                    if (Fstar_temp < 1. && (1.- Fstar) < FRACT_FLOAT_ERR) i_unity = i; 
                 }    
             }    
 
@@ -1572,12 +1568,15 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
         lnMhalo_hi = log(Mhalo_max);
         dlnM = (lnMhalo_hi - lnMhalo_lo)/(double)(nbins - 1);
 
-        // There is a kink on LFs at which Fstar crosses unity. This is a numerical artefact caused by derivate. 
-		// Most of cases the kink doesn't appear in the usual range of magnitude on LFs (e.g. -22 < Muv < -10).
-		// However, for some extreme parameters, it appears.
-        // To avoid this kink, use interpolation of derivate in the range where the kink is appeared.
-        // 'i_unity' is the array number at which the kink appears. 'i_unity-3' and 'i_unity+12' are related to 
-		// the range of interpolation, which is an arbitrary choice.
+        // There is a kink on LFs at which Fstar crosses unity. This kink is a numerical artefact caused by the derivate of dMuvdMhalo. 
+		// Most of the cases the kink doesn't appear in magnitude ranges we are interested (e.g. -22 < Muv < -10). However, for some extreme 
+		// parameters, it appears. To avoid this kink, we use the interpolation of the derivate in the range where the kink appears. 
+		// 'i_unity' is the array number at which the kink appears. 'i_unity-3' and 'i_unity+12' are related to the range of interpolation, 
+		// which is an arbitrary choice. 
+		// NOTE: This method does NOT work in cases with ALPHA_STAR < -0.5. But, this parameter range is unphysical given that the 
+		//       observational LFs favour positive ALPHA_STAR in this model. 
+		// i_smth = 0: calculates LFs without interpolation.
+		// i_smth = 1: calculates LFs using interpolation where Fstar crosses unity. 
         if (i_unity < 0) i_smth = 0;
         else if (i_unity-3 < 0) i_smth = 0;
         else if (i_unity+12 > nbins-1) i_smth = 0;
@@ -1613,13 +1612,13 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
             	if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.) log10phi[i + i_z*nbins] = -30.;
         	}
 		}
-        else { //JH: Added -2
+        else { 
         	lnM_temp = calloc(nbins_smth,sizeof(double));
         	deriv_temp = calloc(nbins_smth,sizeof(double));
         	deriv = calloc(nbins,sizeof(double));
 
         	for (i=0; i<nbins; i++) {
-            	// calculate luminosity function
+            	// calculate luminosity function 
             	lnMhalo_i = lnMhalo_lo + dlnM*(double)i;
             	Mhalo_param[i] = exp(lnMhalo_i);
 
@@ -1636,10 +1635,8 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
         	deriv_spline = gsl_spline_alloc(gsl_interp_cspline, nbins_smth);
         	//deriv_spline = gsl_spline_alloc(gsl_interp_steffen, nbins_smth);
 
-        	// generate interpolation arrays for smoothing discontinuity of the derivative causing a kink
-        	// Note that the number of array elements and the range of interpolation are made by arbitrary choices from a few tens of extreme parameter sets.
-        	// However, this part is aimed to remove a numerical artefact on LFs, i.e. for better display. 
-        	//if (astro_params->ALPHA_STAR > 0.) {
+        	// generate interpolation arrays to smooth discontinuity of the derivative causing a kink
+        	// Note that the number of array elements and the range of interpolation are made by arbitrary choices.
         	lnM_temp[0] = lnMhalo_param[i_unity - 3];
         	lnM_temp[1] = lnMhalo_param[i_unity - 2];
         	lnM_temp[2] = lnMhalo_param[i_unity + 8];
@@ -1686,8 +1683,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
             	}
             	if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.) log10phi[i + i_z*nbins] = -30.;
         	}
-        // JH: Modified part end. At the end this will be combined with the original part using if statement
-        } // JH: Added -2
+        } 
     }
 
 
