@@ -1948,6 +1948,7 @@ def run_lightcone(
                 init_boxes=init_box,
                 regenerate=regenerate,
                 direc=direc,
+                write=write,
             )
 
         max_redshift = (
