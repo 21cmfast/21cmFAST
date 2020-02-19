@@ -1725,7 +1725,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
         dlnM = (lnMhalo_hi - lnMhalo_lo)/(double)(nbins - 1);
 
         // There is a kink on LFs at which Fstar crosses unity. This kink is a numerical artefact caused by the derivate of dMuvdMhalo.
-       // Most of the cases the kink doesn't appear in magnitude ranges we are interested (e.g. -22 < Muv < -10). However, for some extreme
+        // Most of the cases the kink doesn't appear in magnitude ranges we are interested (e.g. -22 < Muv < -10). However, for some extreme
         // parameters, it appears. To avoid this kink, we use the interpolation of the derivate in the range where the kink appears.
         // 'i_unity' is the array number at which the kink appears. 'i_unity-3' and 'i_unity+12' are related to the range of interpolation,
         // which is an arbitrary choice.
