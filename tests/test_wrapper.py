@@ -1,5 +1,6 @@
 """
-These are designed to be unit-tests of the wrapper functionality. They do not test for correctness of simulations,
+These are designed to be unit-tests of the wrapper functionality. They do not test for
+correctness of simulations,
 but whether different parameter options work/don't work as intended.
 """
 import pytest
@@ -9,6 +10,7 @@ import numpy as np
 from py21cmfast import wrapper
 
 REDSHIFT = 15
+LOW_REDSHIFT = 8
 
 
 @pytest.fixture(scope="module")
@@ -36,10 +38,31 @@ def perturb_field(init_box, tmpdirec):
 
 
 @pytest.fixture(scope="module")
-def ionize_box(perturb_field, tmpdirec):
+def perturb_field_lowz(init_box, tmpdirec):
     "A default perturb_field"
+    return wrapper.perturb_field(
+        redshift=LOW_REDSHIFT,
+        regenerate=True,  # i.e. make sure we don't read it in.
+        init_boxes=init_box,
+        direc=tmpdirec.strpath,
+    )
+
+
+@pytest.fixture(scope="module")
+def ionize_box(perturb_field, tmpdirec):
+    """A default ionize_box"""
     return wrapper.ionize_box(
         perturbed_field=perturb_field,
+        regenerate=True,  # i.e. make sure we don't read it in.
+        direc=tmpdirec.strpath,
+    )
+
+
+@pytest.fixture(scope="module")
+def ionize_box_lowz(perturb_field_lowz, tmpdirec):
+    """A default ionize_box at lower redshift."""
+    return wrapper.ionize_box(
+        perturbed_field=perturb_field_lowz,
         regenerate=True,  # i.e. make sure we don't read it in.
         direc=tmpdirec.strpath,
     )
@@ -56,8 +79,7 @@ def spin_temp(perturb_field, tmpdirec):
 
 
 def test_perturb_field_no_ic(user_params, perturb_field):
-    "Run a perturb field without passing an init box"
-
+    """Run a perturb field without passing an init box"""
     assert (
         len(perturb_field.density)
         == perturb_field.user_params.HII_DIM
@@ -137,30 +159,29 @@ def test_pf_new_seed(perturb_field, tmpdirec):
     assert not np.all(pf.density == perturb_field.density)
 
 
-def test_ib_new_seed(ionize_box, perturb_field, tmpdirec):
+def test_ib_new_seed(ionize_box_lowz, perturb_field_lowz, tmpdirec):
     # this should fail because perturb_field has a seed set already, which isn't 1.
     with pytest.raises(ValueError):
         ib = wrapper.ionize_box(
-            perturbed_field=perturb_field,
+            perturbed_field=perturb_field_lowz,
             direc=tmpdirec.strpath,
             random_seed=1,
             write=False,
         )
 
     ib = wrapper.ionize_box(
-        cosmo_params=perturb_field.cosmo_params,
-        redshift=perturb_field.redshift,
-        user_params=perturb_field.user_params,
+        cosmo_params=perturb_field_lowz.cosmo_params,
+        redshift=perturb_field_lowz.redshift,
+        user_params=perturb_field_lowz.user_params,
         direc=tmpdirec.strpath,
         random_seed=1,
         write=False,
     )
 
-    assert not ib.exists(
-        direc=tmpdirec.strpath
-    )  # we didn't write it, and this has a different seed (presumably)
-    assert ib.random_seed != ionize_box.random_seed
-    assert not np.all(ib.xH_box == ionize_box.xH_box)
+    # we didn't write it, and this has a different seed (presumably)
+    assert not ib.exists(direc=tmpdirec.strpath)
+    assert ib.random_seed != ionize_box_lowz.random_seed
+    assert not np.all(ib.xH_box == ionize_box_lowz.xH_box)
 
 
 def test_st_new_seed(spin_temp, perturb_field, tmpdirec):
