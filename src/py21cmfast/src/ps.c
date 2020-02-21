@@ -1527,7 +1527,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
     float Fstar, Fstar_temp;
 
     if (astro_params->ALPHA_STAR < -0.5)
-        LOG_WARNING("ALPHA_STAR is %f, which is unphysical value given the observational LFs.\nAlso, when ALPHA_STAR < -5, LFs may show a kink. It is recommended to set ALPHA_STAR > -0.5.\n",astro_params->ALPHA_STAR);
+        LOG_WARNING("ALPHA_STAR is %f, which is unphysical value given the observational LFs.\nAlso, when ALPHA_STAR < -.5, LFs may show a kink. It is recommended to set ALPHA_STAR > -0.5.",astro_params->ALPHA_STAR);
 
     mf = user_params_ps->HMF;
 
@@ -1638,7 +1638,6 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
 
             deriv_spline_acc = gsl_interp_accel_alloc();
             deriv_spline = gsl_spline_alloc(gsl_interp_cspline, nbins_smth);
-            //deriv_spline = gsl_spline_alloc(gsl_interp_steffen, nbins_smth);
 
             // generate interpolation arrays to smooth discontinuity of the derivative causing a kink
             // Note that the number of array elements and the range of interpolation are made by arbitrary choices.
@@ -1660,15 +1659,9 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
 
             gsl_spline_init(deriv_spline, lnM_temp, deriv_temp, nbins_smth);
 
-            deriv[i_unity - 1] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity - 1], deriv_spline_acc);
-            deriv[i_unity] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity], deriv_spline_acc);
-            deriv[i_unity + 1] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 1], deriv_spline_acc);
-            deriv[i_unity + 2] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 2], deriv_spline_acc);
-            deriv[i_unity + 3] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 3], deriv_spline_acc);
-            deriv[i_unity + 4] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 4], deriv_spline_acc);
-            deriv[i_unity + 5] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 5], deriv_spline_acc);
-            deriv[i_unity + 6] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 6], deriv_spline_acc);
-            deriv[i_unity + 7] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + 7], deriv_spline_acc);
+            for (i=0;i<9;i++){
+                deriv[i_unity + i - 1] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + i - 1], deriv_spline_acc);
+            }
 
             for (i=0; i<nbins; i++) {
                 if(mf==0) {
