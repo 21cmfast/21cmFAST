@@ -527,9 +527,8 @@ class OutputStruct(StructWrapper):
                     ):
                         grp = f.create_group(kfile)
                         if isinstance(q, StructWithDefaults):
-                            dct = (
-                                q.self
-                            )  # using self allows to rebuild the object from HDF5 file.
+                            # using self allows to rebuild the object from HDF5 file.
+                            dct = q.self
                         else:
                             dct = q
 
@@ -550,9 +549,34 @@ class OutputStruct(StructWrapper):
                     boxes.attrs[k] = getattr(self, k)
         except OSError as e:
             logger.warning(
-                "When attempting to write {} to file, write failed with the following error. Continuing without caching."
+                "When attempting to write {} to file, write failed with the "
+                "following error. Continuing without caching."
             )
             logger.warning(e)
+
+    def save(self, fname=None, direc="."):
+        """Save the box to disk.
+
+        In detail, this just calls write, but changes the default directory to the
+        local directory. This is more user-friendly, while :meth:`write` is for
+        automatic use under-the-hood.
+
+        Parameters
+        ----------
+        fname : str, optional
+            The filename to write. Can be an absolute or relative path. If relative,
+            by default it is relative to the current directory (otherwise relative
+            to ``direc``). By default, the filename is auto-generated as unique to
+            the set of parameters that go into producing the data.
+        direc : str, optional
+            The directory into which to write the data. By default the current directory.
+            Ignored if ``fname`` is an absolute path.
+        """
+        # If fname is absolute path, then get direc from it, otherwise assume current dir.
+        if path.isabs(fname):
+            direc = path.dirname(fname)
+
+        self.write(direc, fname)
 
     def read(self, direc=None):
         """
