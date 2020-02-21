@@ -28,7 +28,7 @@ logger = logging.getLogger("21cmFAST")
 # Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
 # Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
 Planck18 = Planck15.clone(
-    Om0=(0.02242 + 0.11933) / 0.6766 ** 2, Ob0=0.11933 / 0.6766 ** 2, H0=67.66,
+    Om0=(0.02242 + 0.11933) / 0.6766 ** 2, Ob0=0.02242 / 0.6766 ** 2, H0=67.66,
 )
 
 
