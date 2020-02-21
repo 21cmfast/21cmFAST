@@ -79,11 +79,13 @@ def test_relvels():
 
     assert vcbrms > 25.0
     assert vcbrms < 35.0  # it should be about 30 km/s, so we check it is around it
-    assert (
-        vcbavg < 0.95 * vcbrms
-    )  # the average should be 0.92*vrms, since it follows a maxwell boltzmann
+
+    # the average should be 0.92*vrms, since it follows a maxwell boltzmann
+    assert vcbavg < 0.95 * vcbrms
     assert vcbavg > 0.90 * vcbrms
-    assert vcbrms_lowres > 25.0  # we also test the lowres box
-    assert vcbrms_lowres < 35.0
-    assert vcbavg_lowres < 0.95 * vcbrms_lowres
-    assert vcbavg_lowres > 0.90 * vcbrms_lowres
+
+    # we also test the lowres box. Increase its error margin because its low res.
+    assert vcbrms_lowres > 20.0
+    assert vcbrms_lowres < 40.0
+    assert vcbavg_lowres < 0.97 * vcbrms_lowres
+    assert vcbavg_lowres > 0.88 * vcbrms_lowres
