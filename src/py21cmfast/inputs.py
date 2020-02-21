@@ -26,7 +26,7 @@ from .c_21cmfast import lib
 logger = logging.getLogger("21cmFAST")
 
 # Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
-# Table 2, last column.
+# Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
 Planck18 = Planck15.clone(
     Om0=(0.02242 + 0.11933) / 0.6766 ** 2, Ob0=0.11933 / 0.6766 ** 2, H0=67.66,
 )
@@ -305,6 +305,9 @@ class CosmoParams(StructWithDefaults):
     To see default values for each parameter, use ``CosmoParams._defaults_``.
     All parameters passed in the constructor are also saved as instance attributes which should
     be considered read-only. This is true of all input-parameter classes.
+
+    Default parameters are based on Plank18, https://arxiv.org/pdf/1807.06209.pdf,
+    Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
 
     Parameters
     ----------
