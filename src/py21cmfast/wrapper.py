@@ -2312,7 +2312,7 @@ def run_lightcone(
             if z < max_redshift:
                 for quantity in lightcone_quantities:
                     data1, data2 = outs[_fld_names[quantity]]
-<                   fnc = interp_functions.get(quantity, "mean")
+                    fnc = interp_functions.get(quantity, "mean")
 
                     n = _interpolate_in_redshift(
                         iz,
