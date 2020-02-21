@@ -1459,6 +1459,7 @@ class Coeval:
         perturb: PerturbedField,
         ib: IonizedBox,
         bt: BrightnessTemp,
+        st: [TsBox, None],
         photon_nonconservation_data=None,
     ):
         _check_compatible_inputs(init_box, perturb, ib, bt, ignore=[])
@@ -1468,10 +1469,14 @@ class Coeval:
         self.perturb_struct = perturb
         self.ionization_struct = ib
         self.brightness_temp_struct = bt
+        self.spin_temp_struct = st
         self.photon_nonconservation_data = photon_nonconservation_data
 
         # Expose all the fields of the structs to the surface of the Coeval object
-        for box in [init_box, perturb, ib, bt]:
+        for box in [init_box, perturb, ib, bt, st]:
+            if box is None:
+                continue
+
             for field in box.fieldnames:
                 setattr(self, field, getattr(box, field))
 
@@ -1681,6 +1686,8 @@ def run_coeval(
 
         minarg = np.argmin(redshift)
 
+        st_tracker = [None] * len(redshift)
+
         # Iterate through redshift from top to bottom
         for z in redshifts:
 
@@ -1734,6 +1741,9 @@ def run_coeval(
                     "PID={} doing brightness temp for z={}".format(os.getpid(), z)
                 )
                 ib_tracker[redshift.index(z)] = ib2
+                if flag_options.USE_TS_FLUCT:
+                    st_tracker[redshift.index(z)] = st2
+
                 bt[redshift.index(z)] = brightness_temperature(
                     ionized_box=ib2,
                     perturbed_field=perturb[redshift.index(z)],
@@ -1748,8 +1758,8 @@ def run_coeval(
         else:
             photon_nonconservation_data = None
         coevals = [
-            Coeval(z, init_box, p, ib, _bt, photon_nonconservation_data)
-            for z, p, ib, _bt in zip(redshift, perturb, ib_tracker, bt)
+            Coeval(z, init_box, p, ib, _bt, st, photon_nonconservation_data)
+            for z, p, ib, _bt, st in zip(redshift, perturb, ib_tracker, bt, st_tracker)
         ]
 
         # If a single redshift was passed, then pass back singletons.
@@ -2174,8 +2184,6 @@ def calibrate_photon_cons(
     flag_options: :class:`~FlagOptions`, optional
         Options concerning how the reionization process is run, eg. if spin temperature
         fluctuations are required.
-    z_step_factor: float, optional
-        How large the logarithmic steps between redshift are (if required).
     init_box : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.

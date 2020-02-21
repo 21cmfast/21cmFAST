@@ -325,3 +325,11 @@ def test_run_lf():
     )
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
+
+
+def test_coeval_st(init_box):
+    coeval = wrapper.run_coeval(
+        redshift=15.0, init_box=init_box, flag_options={"USE_TS_FLUCT": True}
+    )
+
+    assert isinstance(coeval.spin_temp_struct, wrapper.TsBox)
