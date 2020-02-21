@@ -1781,6 +1781,9 @@ def run_coeval(
                     ionized_box=ib2,
                     perturbed_field=perturb[redshift.index(z)],
                     spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
+                    write=write,
+                    direc=direc,
+                    regenerate=regenerate,
                 )
 
         if flag_options.PHOTON_CONS:
@@ -2051,6 +2054,7 @@ def run_lightcone(
                 init_boxes=init_box,
                 regenerate=regenerate,
                 direc=direc,
+                write=write,
             )
 
         max_redshift = (
@@ -2151,6 +2155,9 @@ def run_lightcone(
                 ionized_box=ib2,
                 perturbed_field=pf2,
                 spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
+                write=write,
+                direc=direc,
+                regenerate=regenerate,
             )
 
             outs = {
