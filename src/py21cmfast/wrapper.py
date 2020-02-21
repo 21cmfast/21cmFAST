@@ -2048,7 +2048,8 @@ def run_lightcone(
         redshift = configure_redshift(redshift, perturb)
 
         if perturb is None:
-            # The perturb field that we get here is at the *final* redshift, and can be used in TsBox.
+            # The perturb field that we get here is at the *final* redshift,
+            # and can be used in TsBox.
             perturb = perturb_field(
                 redshift=redshift,
                 init_boxes=init_box,
@@ -2179,18 +2180,18 @@ def run_lightcone(
                 for quantity in lightcone_quantities:
                     data1, data2 = outs[_fld_names[quantity]]
 
-                n = _interpolate_in_redshift(
-                    iz,
-                    box_index,
-                    lc_index,
-                    n_lightcone,
-                    scroll_distances,
-                    lc_distances,
-                    data1,
-                    data2,
-                    quantity,
-                    lc[quantity],
-                )
+                    n = _interpolate_in_redshift(
+                        iz,
+                        box_index,
+                        lc_index,
+                        n_lightcone,
+                        scroll_distances,
+                        lc_distances,
+                        data1,
+                        data2,
+                        quantity,
+                        lc[quantity],
+                    )
                 lc_index += n
                 box_index += n
 
