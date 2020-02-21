@@ -25,6 +25,12 @@ from .c_21cmfast import lib
 
 logger = logging.getLogger("21cmFAST")
 
+# Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
+# Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
+Planck18 = Planck15.clone(
+    Om0=(0.02242 + 0.11933) / 0.6766 ** 2, Ob0=0.02242 / 0.6766 ** 2, H0=67.66,
+)
+
 
 class GlobalParams(StructInstanceWrapper):
     """
@@ -300,6 +306,9 @@ class CosmoParams(StructWithDefaults):
     All parameters passed in the constructor are also saved as instance attributes which should
     be considered read-only. This is true of all input-parameter classes.
 
+    Default parameters are based on Plank18, https://arxiv.org/pdf/1807.06209.pdf,
+    Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
+
     Parameters
     ----------
     SIGMA_8 : float, optional
@@ -317,11 +326,11 @@ class CosmoParams(StructWithDefaults):
     _ffi = ffi
 
     _defaults_ = {
-        "SIGMA_8": 0.82,
-        "hlittle": Planck15.h,
-        "OMm": Planck15.Om0,
-        "OMb": Planck15.Ob0,
-        "POWER_INDEX": 0.97,
+        "SIGMA_8": 0.8102,
+        "hlittle": Planck18.h,
+        "OMm": Planck18.Om0,
+        "OMb": Planck18.Ob0,
+        "POWER_INDEX": 0.9665,
     }
 
     @property
