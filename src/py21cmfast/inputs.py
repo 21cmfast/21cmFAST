@@ -346,13 +346,13 @@ class UserParams(StructWithDefaults):
     Parameters
     ----------
     HII_DIM : int, optional
-        Number of cells for the low-res box. Default 50.
+        Number of cells for the low-res box. Default 200.
     DIM : int,optional
         Number of cells for the high-res box (sampling ICs) along a principal axis. To avoid
         sampling issues, DIM should be at least 3 or 4 times HII_DIM, and an integer multiple.
-        By default, it is set to 4*HII_DIM.
+        By default, it is set to 3*HII_DIM.
     BOX_LEN : float, optional
-        Length of the box, in Mpc. Default 150.
+        Length of the box, in Mpc. Default 300 Mpc.
     HMF: int or str, optional
         Determines which halo mass function to be used for the normalisation of the
         collapsed fraction (default Sheth-Tormen). If string should be one of the
