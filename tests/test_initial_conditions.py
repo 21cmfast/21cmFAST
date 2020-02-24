@@ -26,7 +26,7 @@ def test_box_shape(basic_init_box):
     assert basic_init_box.lowres_vx_2LPT.shape == shape
     assert basic_init_box.lowres_vy_2LPT.shape == shape
     assert basic_init_box.lowres_vz_2LPT.shape == shape
-    assert basic_init_box.hires_density.shape == tuple(4 * s for s in shape)
+    assert basic_init_box.hires_density.shape == tuple(3 * s for s in shape)
 
     assert basic_init_box.cosmo_params == wrapper.CosmoParams()
 
@@ -34,7 +34,12 @@ def test_box_shape(basic_init_box):
 def test_modified_cosmo():
     """Test using a modified cosmology"""
     cosmo = wrapper.CosmoParams(sigma_8=0.9)
-    ic = wrapper.initial_conditions(cosmo_params=cosmo, regenerate=True, write=False)
+    ic = wrapper.initial_conditions(
+        cosmo_params=cosmo,
+        regenerate=True,
+        write=False,
+        user_params={"HII_DIM": 35, "BOX_LEN": 70},
+    )
 
     assert ic.cosmo_params == cosmo
     assert ic.cosmo_params.SIGMA_8 == cosmo.SIGMA_8
@@ -46,7 +51,7 @@ def test_transfer_function(basic_init_box):
         regenerate=True,
         write=False,
         random_seed=basic_init_box.random_seed,
-        user_params=wrapper.UserParams(HII_DIM=35, POWER_SPECTRUM=5),
+        user_params=wrapper.UserParams(HII_DIM=35, BOX_LEN=70, POWER_SPECTRUM=5),
     )
 
     rmsnew = np.sqrt(np.mean(ic.hires_density ** 2))
@@ -79,11 +84,13 @@ def test_relvels():
 
     assert vcbrms > 25.0
     assert vcbrms < 35.0  # it should be about 30 km/s, so we check it is around it
-    assert (
-        vcbavg < 0.95 * vcbrms
-    )  # the average should be 0.92*vrms, since it follows a maxwell boltzmann
+
+    # the average should be 0.92*vrms, since it follows a maxwell boltzmann
+    assert vcbavg < 0.95 * vcbrms
     assert vcbavg > 0.90 * vcbrms
-    assert vcbrms_lowres > 25.0  # we also test the lowres box
-    assert vcbrms_lowres < 35.0
-    assert vcbavg_lowres < 0.95 * vcbrms_lowres
-    assert vcbavg_lowres > 0.90 * vcbrms_lowres
+
+    # we also test the lowres box. Increase its error margin because its low res.
+    assert vcbrms_lowres > 20.0
+    assert vcbrms_lowres < 40.0
+    assert vcbavg_lowres < 0.97 * vcbrms_lowres
+    assert vcbavg_lowres > 0.88 * vcbrms_lowres
