@@ -37,6 +37,12 @@ the newer native `clang` does not offer `-fopenmp` support.
 For `conda` users (which we recommend using), the easiest way to get `gsl` and `fftw`
 is by doing `conda install -c conda-forge gsl fftw` in your environment.
 
+.. note:: if you use `conda` to install `gsl` and `fftw`, then you will need to point at
+          their location when installing `21cmFAST` (see compiler options below for details).
+          In this case, the installation command should simply be *prepended* with::
+
+              LIB=/path/to/conda/env/lib INC=/path/to/conda/env/include
+
 To get `gcc`, either use `homebrew`, or again, `conda`: `conda install -c anaconda gcc`.
 If you get the `conda` version, you still need to install the headers::
 
