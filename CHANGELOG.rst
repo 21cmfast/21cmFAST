@@ -27,7 +27,7 @@ Added
 Changed
 ~~~~~~~
 * ``POWER_SPECTRUM`` option moved from ``global_params`` to ``user_params``.
-
+* Default cosmology updated to Planck18.
 
 v2.0.0
 ------
