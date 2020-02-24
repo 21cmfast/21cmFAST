@@ -63,7 +63,7 @@ def test_constructed_from_itself(c):
 
 def test_dynamic_variables():
     u = UserParams()
-    assert u.DIM == 4 * u.HII_DIM
+    assert u.DIM == 3 * u.HII_DIM
 
     u.update(DIM=200)
 
