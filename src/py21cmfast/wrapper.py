@@ -89,6 +89,7 @@ import os
 import warnings
 from copy import deepcopy
 
+import h5py
 import numpy as np
 from astropy import units
 from astropy.cosmology import z_at_value
@@ -2217,6 +2218,66 @@ class LightCone:
                 for d in self.lightcone_distances
             ]
         )
+
+    def _write(self, direc=None, fname=None):
+        """
+        Write the lightcone to file in standard HDF5 format.
+
+        This method is primarily meant for the automatic caching. Its default
+        filename is a hash generated based on the input data, and the directory is
+        the configured caching directory.
+
+        Parameters
+        ----------
+        direc : str, optional
+            The directory into which to write the file. Default is the configuration
+            directory.
+        fname : str, optional
+            The filename to write, default a unique name produced by the inputs.
+
+        Returns
+        -------
+        fname : str
+            The absolute path to which the file was written.
+        """
+        direc = os.path.expanduser(direc or config["direc"])
+
+        if fname is None:
+            fname = self.get_unique_filename()
+
+        if not os.path.isabs(fname):
+            fname = os.path.join(direc, fname)
+
+        with h5py.File(fname, "w") as f:
+            # Save input parameters as attributes
+            for k in [
+                "user_params",
+                "cosmo_params",
+                "flag_options",
+                "astro_params",
+                "global_params",
+            ]:
+                q = getattr(self, k)
+                grp = f.create_group(k)
+                dct = q.self
+                for kk, v in dct.items():
+                    grp.attrs[kk] = "none" if v is None else v
+                else:
+                    f.attrs[k] = q
+
+            # Save the boxes to the file
+            boxes = f.create_group("lightcones")
+
+            # Go through all fields in this struct, and save
+            for k, val in self.lightcone_quantities.items():
+                boxes.create_dataset(k, data=val)
+
+            global_q = f.create_group("global_quantities")
+            for k, val in self.global_quantities.items():
+                global_q.create_dataset(k, val)
+
+            f.attrs["redshift"] = self.redshift
+            f.create_dataset("node_redshifts", self.node_redshifts)
 
 
 def run_lightcone(
