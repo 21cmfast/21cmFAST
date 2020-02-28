@@ -2269,15 +2269,88 @@ class LightCone:
             boxes = f.create_group("lightcones")
 
             # Go through all fields in this struct, and save
-            for k, val in self.lightcone_quantities.items():
-                boxes.create_dataset(k, data=val)
+            for k, val in self.quantities.items():
+                boxes[k] = val
 
             global_q = f.create_group("global_quantities")
-            for k, val in self.global_quantities.items():
-                global_q.create_dataset(k, val)
+            for k, val in self.__dict__.items():
+                if k.startswith("global_"):
+                    global_q[k] = val
 
+            if self.photon_nonconservation_data is not None:
+                photon_data = f.create_group("photon_nonconservation_data")
+                for k, val in self.photon_nonconservation_data.items():
+                    photon_data[k] = val
             f.attrs["redshift"] = self.redshift
-            f.create_dataset("node_redshifts", self.node_redshifts)
+            f["node_redshifts"] = self.node_redshifts
+
+    def save(self, fname=None, direc="."):
+        """Save the lightcone to disk.
+
+        This function has defaults that make it easy to save a unique lightcone to
+        the current directory.
+
+        Parameters
+        ----------
+        fname : str, optional
+            The filename to write, default a unique name produced by the inputs.
+        direc : str, optional
+            The directory into which to write the file. Default is the current directory.
+        """
+        self._write(direc=direc, fname=fname)
+
+    @classmethod
+    def read(cls, fname, direc=None):
+        """Read a lightcone file from disk, creating a LightCone object.
+
+        Parameters
+        ----------
+        fname : str
+            The filename path. Can be absolute or relative.
+        direc : str
+            If fname, is relative, the directory in which to find the file. By default,
+            both the current directory and default cache and the  will be searched, in
+            that order.
+
+        Returns
+        -------
+        LightCone :
+            A :class:`LightCone` instance created from the file's data.
+        """
+        if not os.path.isabs(fname):
+            fname = os.path.join(direc, fname)
+
+        if not os.path.exists(fname):
+            raise FileExistsError("The file {} does not exist!".format(fname))
+
+        kwargs = {}
+        with h5py.File(fname, "r") as fl:
+            for k in [
+                "user_params",
+                "cosmo_params",
+                "flag_options",
+                "astro_params",
+                "global_params",
+            ]:
+                grp = fl[k]
+                kwargs[k] = dict(grp.attrs)
+
+            # Save the boxes to the file
+            boxes = fl["lightcones"]
+
+            kwargs["lightcones"] = {k: boxes[k][...] for k in boxes.keys()}
+
+            glb = fl["global_quantities"]
+            kwargs["global_quantities"] = {k: glb[k][...] for k in glb.keys()}
+
+            if "photon_nonconservation_data" in fl.keys():
+                d = fl["photon_nonconservation_data"]
+                kwargs["photon_nonconservation_data"] = {k: d[k][...] for k in d.keys()}
+
+            kwargs["redshift"] = fl.attrs["redshift"]
+            kwargs["node_redshifts"] = fl["node_redshifts"][...]
+
+        return cls(**kwargs)
 
 
 def run_lightcone(
