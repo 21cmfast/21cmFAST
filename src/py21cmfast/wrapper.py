@@ -2342,6 +2342,7 @@ def run_lightcone(
             cosmo_params,
             astro_params,
             flag_options,
+            random_seed,
             lc,
             node_redshifts=scrollz,
             global_quantities=global_q,

@@ -427,6 +427,7 @@ class LightCone:
         cosmo_params,
         astro_params,
         flag_options,
+        random_seed,
         lightcones,
         node_redshifts=None,
         global_quantities=None,
@@ -434,6 +435,7 @@ class LightCone:
         _globals=None,
     ):
         self.redshift = redshift
+        self.random_seed = random_seed
         self.user_params = user_params
         self.cosmo_params = cosmo_params
         self.astro_params = astro_params
@@ -517,7 +519,7 @@ class LightCone:
 
     def get_unique_filename(self):
         """Generate a unique hash filename for this instance."""
-        prefix = "LightCone_z{:.4}_".format(self.redshift)
+        prefix = "LightCone_z{:.4}_r{}".format(self.redshift, self.random_seed)
         rep = ""
         for inp in [
             "user_params",
@@ -608,6 +610,7 @@ class LightCone:
                 for k, val in self.photon_nonconservation_data.items():
                     photon_data[k] = val
             f.attrs["redshift"] = self.redshift
+            f.attrs["random_seed"] = self.random_seed
             f["node_redshifts"] = self.node_redshifts
             f.attrs["version"] = __version__
 
@@ -683,6 +686,8 @@ class LightCone:
                 kwargs["photon_nonconservation_data"] = {k: d[k][...] for k in d.keys()}
 
             kwargs["redshift"] = fl.attrs["redshift"]
+            kwargs["random_seed"] = fl.attrs["random_seed"]
+
             kwargs["node_redshifts"] = fl["node_redshifts"][...]
 
         with global_params.use(**glbls):
