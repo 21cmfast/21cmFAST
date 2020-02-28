@@ -1459,10 +1459,10 @@ class Coeval:
         perturb: PerturbedField,
         ib: IonizedBox,
         bt: BrightnessTemp,
-        st: [TsBox, None],
+        st: [TsBox, None] = None,
         photon_nonconservation_data=None,
     ):
-        _check_compatible_inputs(init_box, perturb, ib, bt, ignore=[])
+        _check_compatible_inputs(init_box, perturb, ib, bt, st, ignore=[])
 
         self.redshift = redshift
         self.init_struct = init_box
@@ -1741,8 +1741,9 @@ def run_coeval(
                     "PID={} doing brightness temp for z={}".format(os.getpid(), z)
                 )
                 ib_tracker[redshift.index(z)] = ib2
-                if flag_options.USE_TS_FLUCT:
-                    st_tracker[redshift.index(z)] = st2
+                st_tracker[redshift.index(z)] = (
+                    st2 if flag_options.USE_TS_FLUCT else None
+                )
 
                 bt[redshift.index(z)] = brightness_temperature(
                     ionized_box=ib2,
