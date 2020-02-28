@@ -734,7 +734,7 @@ class StructInstanceWrapper:
         )
 
     def filtered_repr(self, filter_params):
-        """Get a fully unique representation of the instance that filters out some parametes.
+        """Get a fully unique representation of the instance that filters out some parameters.
 
         Parameters
         ----------
@@ -753,3 +753,45 @@ class StructInstanceWrapper:
             )
             + ")"
         )
+
+
+def _check_compatible_inputs(*datasets, ignore=["redshift"]):
+    """Ensure that all defined input parameters for the provided datasets are equal.
+
+    Parameters
+    ----------
+    datasets : list of :class:`~_utils.OutputStruct`
+        A number of output datasets to cross-check.
+    ignore : list of str
+        Attributes to ignore when ensuring that parameter inputs are the same.
+
+    Raises
+    ------
+    ValueError :
+        If datasets are not compatible.
+    """
+    done = []  # keeps track of inputs we've checked so we don't double check.
+
+    for i, d in enumerate(datasets):
+        # If a dataset is None, just ignore and move on.
+        if d is None:
+            continue
+
+        # noinspection PyProtectedMember
+        for inp in d._inputs:
+            # Skip inputs that we want to ignore
+            if inp in ignore:
+                continue
+
+            if inp not in done:
+                for j, d2 in enumerate(datasets[(i + 1) :]):
+                    if d2 is None:
+                        continue
+
+                    # noinspection PyProtectedMember
+                    if inp in d2._inputs and getattr(d, inp) != getattr(d2, inp):
+                        raise ValueError(
+                            "%s and %s are incompatible"
+                            % (d.__class__.__name__, d2.__class__.__name__)
+                        )
+                done += [inp]

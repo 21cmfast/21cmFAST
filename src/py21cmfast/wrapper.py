@@ -86,10 +86,8 @@ interpolated onto the lightcone cells):
 """
 import logging
 import os
-import warnings
 from copy import deepcopy
 
-import h5py
 import numpy as np
 from astropy import units
 from astropy.cosmology import z_at_value
@@ -97,6 +95,7 @@ from scipy.interpolate import interp1d
 
 from ._cfg import config
 from ._utils import StructWrapper
+from ._utils import _check_compatible_inputs
 from .c_21cmfast import ffi
 from .c_21cmfast import lib
 from .inputs import AstroParams
@@ -105,55 +104,15 @@ from .inputs import FlagOptions
 from .inputs import UserParams
 from .inputs import global_params
 from .outputs import BrightnessTemp
+from .outputs import Coeval
 from .outputs import InitialConditions
 from .outputs import IonizedBox
+from .outputs import LightCone
 from .outputs import PerturbedField
 from .outputs import TsBox
 from .outputs import _OutputStructZ
 
 logger = logging.getLogger("21cmFAST")
-
-
-def _check_compatible_inputs(*datasets, ignore=["redshift"]):
-    """Ensure that all defined input parameters for the provided datasets are equal.
-
-    Parameters
-    ----------
-    datasets : list of :class:`~_utils.OutputStruct`
-        A number of output datasets to cross-check.
-    ignore : list of str
-        Attributes to ignore when ensuring that parameter inputs are the same.
-
-    Raises
-    ------
-    ValueError :
-        If datasets are not compatible.
-    """
-    done = []  # keeps track of inputs we've checked so we don't double check.
-
-    for i, d in enumerate(datasets):
-        # If a dataset is None, just ignore and move on.
-        if d is None:
-            continue
-
-        # noinspection PyProtectedMember
-        for inp in d._inputs:
-            # Skip inputs that we want to ignore
-            if inp in ignore:
-                continue
-
-            if inp not in done:
-                for j, d2 in enumerate(datasets[(i + 1) :]):
-                    if d2 is None:
-                        continue
-
-                    # noinspection PyProtectedMember
-                    if inp in d2._inputs and getattr(d, inp) != getattr(d2, inp):
-                        raise ValueError(
-                            "%s and %s are incompatible"
-                            % (d.__class__.__name__, d2.__class__.__name__)
-                        )
-                done += [inp]
 
 
 def _configure_inputs(
@@ -1793,63 +1752,6 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
     return redshifts[::-1]
 
 
-class Coeval:
-    """A full coeval box with all associated data."""
-
-    def __init__(
-        self,
-        redshift: float,
-        init_box: InitialConditions,
-        perturb: PerturbedField,
-        ib: IonizedBox,
-        bt: BrightnessTemp,
-        st: [TsBox, None] = None,
-        photon_nonconservation_data=None,
-    ):
-        _check_compatible_inputs(init_box, perturb, ib, bt, st, ignore=[])
-
-        self.redshift = redshift
-        self.init_struct = init_box
-        self.perturb_struct = perturb
-        self.ionization_struct = ib
-        self.brightness_temp_struct = bt
-        self.spin_temp_struct = st
-        self.photon_nonconservation_data = photon_nonconservation_data
-
-        # Expose all the fields of the structs to the surface of the Coeval object
-        for box in [init_box, perturb, ib, bt, st]:
-            if box is None:
-                continue
-
-            for field in box.fieldnames:
-                setattr(self, field, getattr(box, field))
-
-    @property
-    def user_params(self):
-        """User params shared by all datasets."""
-        return self.brightness_temp_struct.user_params
-
-    @property
-    def cosmo_params(self):
-        """Cosmo params shared by all datasets."""
-        return self.brightness_temp_struct.cosmo_params
-
-    @property
-    def flag_options(self):
-        """Flag Options shared by all datasets."""
-        return self.brightness_temp_struct.flag_options
-
-    @property
-    def astro_params(self):
-        """Astro params shared by all datasets."""
-        return self.brightness_temp_struct.astro_params
-
-    @property
-    def random_seed(self):
-        """Random seed shared by all datasets."""
-        return self.brightness_temp_struct.random_seed
-
-
 def run_coeval(
     *,
     redshift=None,
@@ -1916,7 +1818,7 @@ def run_coeval(
 
     Returns
     -------
-    coevals : :class:`~Coeval`
+    coevals : :class:`~py21cmfast.outputs.Coeval`
         The full data for the Coeval class, with init boxes, perturbed fields, ionized boxes,
         brightness temperature, and potential data from the conservation of photons. If a
         single redshift was specified, it will return such a class. If multiple redshifts
@@ -2126,233 +2028,6 @@ def run_coeval(
         return coevals
 
 
-class LightCone:
-    """A full Lightcone with all associate evolved data."""
-
-    def __init__(
-        self,
-        redshift,
-        user_params,
-        cosmo_params,
-        astro_params,
-        flag_options,
-        lightcones,
-        node_redshifts=None,
-        global_quantities=None,
-        photon_nonconservation_data=None,
-    ):
-        self.redshift = redshift
-        self.user_params = user_params
-        self.cosmo_params = cosmo_params
-        self.astro_params = astro_params
-        self.flag_options = flag_options
-
-        self.node_redshifts = node_redshifts
-
-        if global_quantities:
-            for name, data in global_quantities.items():
-                if name.endswith("_box"):
-                    # Remove the _box because it looks dumb.
-                    setattr(self, "global_" + name[:-4], data)
-                else:
-                    setattr(self, "global_" + name, data)
-
-        self.photon_nonconservation_data = photon_nonconservation_data
-
-        for name, data in lightcones.items():
-            setattr(self, name, data)
-
-        self.quantities = lightcones
-
-    @property
-    def global_xHI(self):
-        """Global neutral fraction function."""
-        warnings.warn(
-            "global_xHI is deprecated. From now on, use global_xH. Will be removed in v3.1"
-        )
-        return self.global_xH
-
-    @property
-    def cell_size(self):
-        """Cell size [Mpc] of the lightcone voxels."""
-        return self.user_params.BOX_LEN / self.user_params.HII_DIM
-
-    @property
-    def lightcone_dimensions(self):
-        """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
-        return (
-            self.user_params.BOX_LEN,
-            self.user_params.BOX_LEN,
-            self.n_slices * self.cell_size,
-        )
-
-    @property
-    def shape(self):
-        """Shape of the lightcone as a 3-tuple."""
-        return self.brightness_temp.shape
-
-    @property
-    def n_slices(self):
-        """Number of redshift slices in the lightcone."""
-        return self.shape[-1]
-
-    @property
-    def lightcone_coords(self):
-        """Co-ordinates [Mpc] of each cell along the redshift axis."""
-        return np.linspace(0, self.lightcone_dimensions[-1], self.n_slices)
-
-    @property
-    def lightcone_distances(self):
-        """Comoving distance to each cell along the redshift axis, from z=0."""
-        return (
-            self.cosmo_params.cosmo.comoving_distance(self.redshift).value
-            + self.lightcone_coords
-        )
-
-    @property
-    def lightcone_redshifts(self):
-        """Redshift of each cell along the redshift axis."""
-        return np.array(
-            [
-                z_at_value(self.cosmo_params.cosmo.comoving_distance, d * units.Mpc)
-                for d in self.lightcone_distances
-            ]
-        )
-
-    def _write(self, direc=None, fname=None):
-        """
-        Write the lightcone to file in standard HDF5 format.
-
-        This method is primarily meant for the automatic caching. Its default
-        filename is a hash generated based on the input data, and the directory is
-        the configured caching directory.
-
-        Parameters
-        ----------
-        direc : str, optional
-            The directory into which to write the file. Default is the configuration
-            directory.
-        fname : str, optional
-            The filename to write, default a unique name produced by the inputs.
-
-        Returns
-        -------
-        fname : str
-            The absolute path to which the file was written.
-        """
-        direc = os.path.expanduser(direc or config["direc"])
-
-        if fname is None:
-            fname = self.get_unique_filename()
-
-        if not os.path.isabs(fname):
-            fname = os.path.join(direc, fname)
-
-        with h5py.File(fname, "w") as f:
-            # Save input parameters as attributes
-            for k in [
-                "user_params",
-                "cosmo_params",
-                "flag_options",
-                "astro_params",
-                "global_params",
-            ]:
-                q = getattr(self, k)
-                grp = f.create_group(k)
-                dct = q.self
-                for kk, v in dct.items():
-                    grp.attrs[kk] = "none" if v is None else v
-                else:
-                    f.attrs[k] = q
-
-            # Save the boxes to the file
-            boxes = f.create_group("lightcones")
-
-            # Go through all fields in this struct, and save
-            for k, val in self.quantities.items():
-                boxes[k] = val
-
-            global_q = f.create_group("global_quantities")
-            for k, val in self.__dict__.items():
-                if k.startswith("global_"):
-                    global_q[k] = val
-
-            if self.photon_nonconservation_data is not None:
-                photon_data = f.create_group("photon_nonconservation_data")
-                for k, val in self.photon_nonconservation_data.items():
-                    photon_data[k] = val
-            f.attrs["redshift"] = self.redshift
-            f["node_redshifts"] = self.node_redshifts
-
-    def save(self, fname=None, direc="."):
-        """Save the lightcone to disk.
-
-        This function has defaults that make it easy to save a unique lightcone to
-        the current directory.
-
-        Parameters
-        ----------
-        fname : str, optional
-            The filename to write, default a unique name produced by the inputs.
-        direc : str, optional
-            The directory into which to write the file. Default is the current directory.
-        """
-        self._write(direc=direc, fname=fname)
-
-    @classmethod
-    def read(cls, fname, direc=None):
-        """Read a lightcone file from disk, creating a LightCone object.
-
-        Parameters
-        ----------
-        fname : str
-            The filename path. Can be absolute or relative.
-        direc : str
-            If fname, is relative, the directory in which to find the file. By default,
-            both the current directory and default cache and the  will be searched, in
-            that order.
-
-        Returns
-        -------
-        LightCone :
-            A :class:`LightCone` instance created from the file's data.
-        """
-        if not os.path.isabs(fname):
-            fname = os.path.join(direc, fname)
-
-        if not os.path.exists(fname):
-            raise FileExistsError("The file {} does not exist!".format(fname))
-
-        kwargs = {}
-        with h5py.File(fname, "r") as fl:
-            for k in [
-                "user_params",
-                "cosmo_params",
-                "flag_options",
-                "astro_params",
-                "global_params",
-            ]:
-                grp = fl[k]
-                kwargs[k] = dict(grp.attrs)
-
-            # Save the boxes to the file
-            boxes = fl["lightcones"]
-
-            kwargs["lightcones"] = {k: boxes[k][...] for k in boxes.keys()}
-
-            glb = fl["global_quantities"]
-            kwargs["global_quantities"] = {k: glb[k][...] for k in glb.keys()}
-
-            if "photon_nonconservation_data" in fl.keys():
-                d = fl["photon_nonconservation_data"]
-                kwargs["photon_nonconservation_data"] = {k: d[k][...] for k in d.keys()}
-
-            kwargs["redshift"] = fl.attrs["redshift"]
-            kwargs["node_redshifts"] = fl["node_redshifts"][...]
-
-        return cls(**kwargs)
-
-
 def run_lightcone(
     *,
     redshift=None,
@@ -2412,12 +2087,6 @@ def run_lightcone(
         These may be any of the quantities that can be used in ``lightcone_quantities``.
         The mean is taken over the full 3D cube at each redshift, rather than a 2D
         slice.
-    z_step_factor: float, optional
-        How large the logarithmic steps between redshift are (if required).
-    z_heat_max: float, optional
-        Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift up to which heating sources
-        are required to specify the ionization field. Beyond this, the ionization field is specified directly from
-        the perturbed density field.
     init_box : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
@@ -2443,7 +2112,7 @@ def run_lightcone(
 
     Returns
     -------
-    lightcone : :class:`~LightCone`
+    lightcone : :class:`~py21cmfast.LightCone`
         The lightcone object.
 
     Other Parameters
@@ -2677,6 +2346,7 @@ def run_lightcone(
             node_redshifts=scrollz,
             global_quantities=global_q,
             photon_nonconservation_data=photon_nonconservation_data,
+            _globals=dict(global_params.items()),
         )
 
 
