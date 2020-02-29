@@ -280,9 +280,38 @@ class StructWithDefaults(StructWrapper):
         return hash(self.__repr__())
 
 
+def snake_to_camel(word: str, publicize: bool = True):
+    """Convert snake case to camel case."""
+    if publicize:
+        word = word.lstrip("_")
+    return "".join(x.capitalize() or "_" for x in word.split("_"))
+
+
+def camel_to_snake(word: str, depublicize: bool = False):
+    """Convert came case to snake case."""
+    word = "".join(["_" + i.lower() if i.isupper() else i for i in word])
+
+    if not depublicize:
+        word = word.lstrip("_")
+
+    return word
+
+
+def get_all_subclasses(cls):
+    """Get a list of all subclasses of a given class, recursively."""
+    all_subclasses = []
+
+    for subclass in cls.__subclasses__():
+        all_subclasses.append(subclass)
+        all_subclasses.extend(get_all_subclasses(subclass))
+
+    return all_subclasses
+
+
 class OutputStruct(StructWrapper):
     """Base class for any class that wraps a C struct meant to be output from a C function."""
 
+    _meta = True
     _fields_ = []
     _global_params = None
     _inputs = ["user_params", "cosmo_params", "_random_seed"]
@@ -317,6 +346,11 @@ class OutputStruct(StructWrapper):
 
         if init:
             self._init_cstruct()
+
+    @classmethod
+    def _implementations(cls):
+        all_classes = get_all_subclasses(cls)
+        return [c for c in all_classes if not c._meta]
 
     def _init_arrays(self):  # pragma: nocover
         """Abstract base method for initializing any arrays that the structure has."""
@@ -492,7 +526,7 @@ class OutputStruct(StructWrapper):
         """
         return self.find_existing(direc) is not None
 
-    def write(self, direc=None, fname=None):
+    def write(self, direc=None, fname=None, write_inputs=True, mode="w"):
         """
         Write the struct in standard HDF5 format.
 
@@ -503,6 +537,9 @@ class OutputStruct(StructWrapper):
             centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
         fname : str, optional
             The filename to write to. By default creates a unique filename from the hash.
+        write_inputs : bool, optional
+            Whether to write the inputs to the file. Can be useful to set to False if
+            the input file already exists and has parts already written.
         """
         if not self.filled:
             raise IOError("The boxes have not yet been computed.")
@@ -512,31 +549,38 @@ class OutputStruct(StructWrapper):
                 "Attempting to write when no random seed has been set. Struct has been 'filled' inconsistently."
             )
 
+        if not write_inputs:
+            mode = "a"
+
         try:
             direc = path.expanduser(direc or config["direc"])
-            fname = path.join(direc, fname) if fname else self._get_fname(direc)
-            with h5py.File(fname, "w") as f:
+            fname = fname or self._get_fname(direc)
+            if not path.isabs(fname):
+                fname = path.join(direc, fname)
+
+            with h5py.File(fname, mode) as f:
                 # Save input parameters to the file
-                for k in self._inputs + ["_global_params"]:
-                    q = getattr(self, k)
+                if write_inputs:
+                    for k in self._inputs + ["_global_params"]:
+                        q = getattr(self, k)
 
-                    kfile = k.lstrip("_")
+                        kfile = k.lstrip("_")
 
-                    if isinstance(q, StructWithDefaults) or isinstance(
-                        q, StructInstanceWrapper
-                    ):
-                        grp = f.create_group(kfile)
-                        if isinstance(q, StructWithDefaults):
-                            # using self allows to rebuild the object from HDF5 file.
-                            dct = q.self
+                        if isinstance(q, StructWithDefaults) or isinstance(
+                            q, StructInstanceWrapper
+                        ):
+                            grp = f.create_group(kfile)
+                            if isinstance(q, StructWithDefaults):
+                                # using self allows to rebuild the object from HDF5 file.
+                                dct = q.self
+                            else:
+                                dct = q
+
+                            for kk, v in dct.items():
+                                if kk not in self._filter_params:
+                                    grp.attrs[kk] = "none" if v is None else v
                         else:
-                            dct = q
-
-                        for kk, v in dct.items():
-                            if kk not in self._filter_params:
-                                grp.attrs[kk] = "none" if v is None else v
-                    else:
-                        f.attrs[kfile] = q
+                            f.attrs[kfile] = q
 
                 # Save the boxes to the file
                 boxes = f.create_group(self._name)
@@ -578,7 +622,7 @@ class OutputStruct(StructWrapper):
 
         self.write(direc, fname)
 
-    def read(self, direc=None):
+    def read(self, direc=None, fname=None):
         """
         Try find and read existing boxes from cache, which match the parameters of this instance.
 
@@ -591,10 +635,14 @@ class OutputStruct(StructWrapper):
         if self.filled:
             raise IOError("This data is already filled, no need to read in.")
 
-        pth = self.find_existing(direc)
+        if fname is None:
+            pth = self.find_existing(direc)
 
-        if pth is None:
-            raise IOError("No boxes exist for these parameters.")
+            if pth is None:
+                raise IOError("No boxes exist for these parameters.")
+        else:
+            direc = path.expanduser(direc or config["direc"])
+            pth = fname if path.isabs(fname) else path.join(direc, fname)
 
         # Need to make sure arrays are initialized before reading in data to them.
         if not self.arrays_initialized:
@@ -622,6 +670,54 @@ class OutputStruct(StructWrapper):
 
         self.filled = True
         self._expose()
+
+    @classmethod
+    def from_file(cls, fname, direc=None, load_data=True):
+        """Create an instance from a file on disk.
+
+        Parameters
+        ----------
+        fname : str, optional
+            Path to the file on disk. May be relative or absolute.
+        direc : str, optional
+            The directory from which fname is relative to (if it is relative). By
+            default, will be the cache directory in config.
+        load_data : bool, optional
+            Whether to read in the data when creating the instance. If False, a bare
+            instance is created with input parameters -- the instance can read data
+            with the :func:`read` method.
+        """
+        direc = path.expanduser(direc or config["direc"])
+
+        if not path.isabs(fname):
+            fname = path.join(direc, fname)
+
+        self = cls(**cls._read_inputs(fname))
+
+        if load_data:
+            self.read(fname=fname)
+        return self
+
+    @classmethod
+    def _read_inputs(cls, fname):
+        input_classes = [c.__name__ for c in StructWithDefaults.__subclasses__()]
+
+        # Read the input parameter dictionaries from file.
+        kwargs = {}
+        with h5py.File(fname, "r") as fl:
+            for k in cls._inputs:
+                kfile = k.lstrip("_")
+                input_class_name = snake_to_camel(kfile)
+
+                if input_class_name in input_classes:
+                    input_class = StructWithDefaults.__subclasses__()[
+                        input_classes.index(input_class_name)
+                    ]
+                    grp = fl[kfile]
+                    kwargs[k] = input_class(dict(grp.attrs))
+                else:
+                    kwargs[kfile] = fl.attrs[kfile]
+        return kwargs
 
     def __repr__(self):
         """Return a fully unique representation of the instance."""
