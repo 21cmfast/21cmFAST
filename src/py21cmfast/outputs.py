@@ -49,7 +49,6 @@ class _OutputStruct(_BaseOutputStruct):
 
 
 class _OutputStructZ(_OutputStruct):
-    _meta = False
     _inputs = _OutputStruct._inputs + ["redshift"]
 
 

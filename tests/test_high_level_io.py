@@ -20,6 +20,16 @@ def coeval():
     return run_coeval(redshift=10.0, user_params={"HII_DIM": 35, "BOX_LEN": 50},)
 
 
+@pytest.fixture(scope="module")
+def coeval():
+    return run_coeval(
+        redshift=10.0,
+        user_params={"HII_DIM": 35, "BOX_LEN": 50},
+        regenerate=True,
+        write=False,
+    )
+
+
 def test_lightcone_roundtrip(tmpdirec, lc):
     fname = lc.save(direc=tmpdirec)
     lc2 = LightCone.read(fname)

@@ -340,9 +340,8 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
 
         return all_subclasses
 
-    classes = [
-        cls(redshift=0) for cls in get_all_subclasses(_OutputStructZ) if not cls._meta
-    ]
+    classes = [cls(redshift=0) for cls in _OutputStructZ._implementations()]
+
     if not lightcone_only:
         classes.append(InitialConditions())
 
