@@ -1,0 +1,88 @@
+
+@article{Wolz2018,
+  archivePrefix = {arXiv},
+  eprinttype = {arxiv},
+  eprint = {1803.02477},
+  primaryClass = {astro-ph},
+  title = {Intensity Mapping Cross-Correlations {{II}}: {{HI}} Halo Models Including Shot Noise},
+  shorttitle = {Intensity Mapping Cross-Correlations {{II}}},
+  abstract = {HI intensity mapping data traces the large-scale structure matter distribution using the integrated emission of neutral hydrogen gas (HI). The cross-correlation of the intensity maps with optical galaxy surveys can mitigate foreground and systematic effects, but has been shown to significantly depend on galaxy evolution parameters of the HI and the optical sample. Previously, we have shown that the shot noise of the cross-correlation scales with the HI content of the optical samples, such that the shot noise estimation infers the average HI masses of these samples. In this article, we present an adaptive framework for the cross-correlation of HI intensity maps with galaxy samples using our implementation of the halo model formalism (Murray et al 2018, in prep) which utilises the halo occupation distribution of galaxies to predict their power spectra. We compare two HI population models, tracing the spatial halo and the galaxy distribution respectively, and present their auto- and cross-power spectra with an associated galaxy sample. We find that the choice of the HI model and the distribution of the HI within the galaxy sample have minor significance for the shape of the auto- and cross-correlations, but highly impact the measured shot noise amplitude of the estimators, a finding we confirm with simulations. We demonstrate parameter estimation of the HI halo occupation models and advocate this framework for the interpretation of future experimental data, with the prospect of determining the HI masses of optical galaxy samples via the cross-correlation shot noise.},
+  journal = {ArXiv180302477 Astro-Ph},
+  author = {Wolz, L. and Murray, S. G. and Blake, C. and Wyithe, J. S.},
+  month = mar,
+  year = {2018},
+  keywords = {Astrophysics - Cosmology and Nongalactic Astrophysics},
+  annote = {Comment: 15 pages, 8 figures, 3 tables. Comments welcome}
+}
+
+@book{Monin2007,
+  address = {New York},
+  series = {Dover Books on Physics},
+  title = {Statistical {{Fluid Mechanics}}},
+  volume = {1},
+  publisher = {{Dover Publications}},
+  author = {Monin, A. S. and Yaglom, A. M.},
+  year = {2007}
+}
+
+@article{Murray2017,
+  title = {An {{Improved Statistical Point}}-Source {{Foreground Model}} for the {{Epoch}} of {{Reionization}}},
+  volume = {845},
+  issn = {0004-637X},
+  doi = {10.3847/1538-4357/aa7d0a},
+  abstract = {We present a sophisticated statistical point-source foreground model for low-frequency radio Epoch of Reionization (EoR) experiments using the 21 cm neutral hydrogen emission line. Motivated by our understanding of the low-frequency radio sky, we enhance the realism of two model components compared with existing models: the source count distributions as a function of flux density and spatial position (source clustering), extending current formalisms for the foreground covariance of 2D power-spectral modes in 21 cm EoR experiments. The former we generalize to an arbitrarily broken power law, and the latter to an arbitrary isotropically correlated field. This paper presents expressions for the modified covariance under these extensions, and shows that for a more realistic source spatial distribution, extra covariance arises in the EoR window that was previously unaccounted for. Failure to include this contribution can yield bias in the final power-spectrum and under-estimate uncertainties, potentially leading to a false detection of signal. The extent of this effect is uncertain, owing to ignorance of physical model parameters, but we show that it is dependent on the relative abundance of faint sources, to the effect that our extension will become more important for future deep surveys. Finally, we show that under some parameter choices, ignoring source clustering can lead to false detections on large scales, due to both the induced bias and an artificial reduction in the estimated measurement uncertainty.},
+  language = {en},
+  number = {1},
+  journal = {ApJ},
+  author = {Murray, S. G. and Trott, C. M. and Jordan, C. H.},
+  year = {2017},
+  keywords = {Astrophysics - Cosmology and Nongalactic Astrophysics},
+  pages = {7},
+  file = {/home/steven/Dropbox/PaperCatalogueZotero/The Astrophysical Journal/2017/Murray et al_2017_An Improved Statistical Point-Source Foreground Model for the Epoch of.pdf;/home/steven/Zotero/storage/GGMBDD6X/1706.html},
+  annote = {Comment: 18 pages, 10 figures, accepted in ApJ}
+}
+
+@article{Beutler2011,
+  title = {The {{6dF Galaxy Survey}}: Baryon Acoustic Oscillations and the Local {{Hubble}} Constant},
+  volume = {416},
+  doi = {10.1111/j.1365-2966.2011.19250.x},
+  number = {4},
+  journal = {Mon. Not. R. Astron. Soc.},
+  author = {Beutler, Florian and Blake, Chris and Colless, M. and Jones, D. H. and {Staveley-Smith}, L. and Campbell, Lachlan A. and Parker, Q. and Saunders, W. and Watson, F.},
+  month = oct,
+  year = {2011},
+  pages = {3017-3032},
+  file = {/home/steven/Dropbox/PaperCatalogueZotero/Monthly Notices of the Royal Astronomical Society/2011/Beutler et al_2011_The 6dF Galaxy Survey.pdf}
+}
+
+@article{Coles1991,
+  title = {A Lognormal Model for the Cosmological Mass Distribution},
+  volume = {248},
+  doi = {10.1093/mnras/248.1.1},
+  abstract = {SUMMARY We discuss the use of a lognormal (LN) random field as a model for the distribution of matter in the Universe. We find a number of reasons why this should be a plausible approximation to the distribution of density irregularities obtained by evolving from Gaussian initial conditions. Unlike straightforward linear theory, the model always has p$>$0 but is arbitrarily close to the Gaussian at early times. It has the added advantage that, like the Gaussian model, all its statistical properties can be formulated in terms of one covariance function. A number of interesting and important difficulties with the statistical treatment of density perturbations are revealed by an analysis of this model. In particular, the LN model is not completely specified by its moments. We explain why this could be true for the actual matter field. We also show that the usual method of representing the three-and four-point correlation functions of galaxies, in terms of the parameters Q and R, is not useful for discriminating between Gaussian and non-Gaussian fluctua-tions, and propose better parameterizations in terms of the skewness and kurtosis of the three-and four-point distributions, respectively. Other characteristics of the model, such as topology (genus curves, etc.), multi-fractal behaviour, void probabilities and biasing (behaviour of 'peaks' relative to background fluctuations) are also discussed. The model also provides a way of check-ing the consistency of treatments of large-scale streaming motions in the Universe by allowing us to determine the scale at which linear theory cannot be accurate for both the matter and velocity fields. We discuss a possible model for the number-count distribution of galaxies, based on the LN distribution but allowing for discreteness effects which can make the distribution of log n appear non-Gaussian, and show how to construct Monte-Carlo simulations of point patterns (in one-, two, or three-dimensions) which contain correlations of all orders.},
+  journal = {Mon. Not. R. Astron. Soc.},
+  author = {Coles, Peter and Jones, Bernard},
+  year = {1991},
+  pages = {1-13},
+  file = {/home/steven/Dropbox/PaperCatalogueZotero/Mon. Not. R. astr. Soc/1991/Coles_Jones_1991_A lognormal model for the cosmological mass distribution.pdf}
+}
+
+@inbook{Peacock1999,
+  place={Cambridge},
+  title={Cosmological density fields},
+  DOI={10.1017/CBO9780511804533.017},
+  booktitle={Cosmological Physics},
+  publisher={Cambridge University Press},
+  author={Peacock, J. A.},
+  year={1998},
+  pages={495–552}
+}
+
+
+@online{github,
+  author = {S. G. Murray},
+  title = {powerbox: Make arbitrarily structured, atbitrary-dimension boxes and log-normal mocks},
+  year = 2018,
+  url = {https://github.com/steven-murray/powerbox},
+  urldate = {2018-07-23}
+}
