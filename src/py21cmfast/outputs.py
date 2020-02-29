@@ -367,8 +367,8 @@ class BrightnessTemp(_AllParamsBox):
 
 class _HighLevelOutput:
     def _get_prefix(self):
-        return "{}_z{:.4}_r{}".format(
-            self.__class__.__name__, self.redshift, self.random_seed
+        return "{name}_z{redshift:.4}_{{hash}}_r{seed}.h5".format(
+            name=self.__class__.__name__, redshift=self.redshift, seed=self.random_seed
         )
 
     def _input_rep(self):
@@ -385,9 +385,8 @@ class _HighLevelOutput:
 
     def get_unique_filename(self):
         """Generate a unique hash filename for this instance."""
-        return (
-            self._get_prefix()
-            + md5((self._input_rep() + self._particular_rep()).encode()).hexdigest()
+        return self._get_prefix().format(
+            hash=md5((self._input_rep() + self._particular_rep()).encode()).hexdigest()
         )
 
     def _write(self, direc=None, fname=None, clobber=False):
@@ -419,7 +418,7 @@ class _HighLevelOutput:
             fname = self.get_unique_filename()
 
         if not os.path.isabs(fname):
-            fname = os.path.join(direc, fname)
+            fname = os.path.abspath(os.path.join(direc, fname))
 
         if not clobber and os.path.exists(fname):
             raise FileExistsError(
@@ -523,7 +522,7 @@ class _HighLevelOutput:
             A :class:`LightCone` instance created from the file's data.
         """
         if not os.path.isabs(fname):
-            fname = os.path.join(direc, fname)
+            fname = os.path.abspath(os.path.join(direc, fname))
 
         if not os.path.exists(fname):
             raise FileExistsError("The file {} does not exist!".format(fname))
@@ -552,7 +551,12 @@ class Coeval(_HighLevelOutput):
         _globals=None,
     ):
         _check_compatible_inputs(
-            initial_conditions, perturbed_field, ionized_box, brightness_temp, ts_box, ignore=[]
+            initial_conditions,
+            perturbed_field,
+            ionized_box,
+            brightness_temp,
+            ts_box,
+            ignore=[],
         )
 
         self.redshift = redshift
@@ -560,12 +564,22 @@ class Coeval(_HighLevelOutput):
         self.perturb_struct = perturbed_field
         self.ionization_struct = ionized_box
         self.brightness_temp_struct = brightness_temp
+        self.spin_temp_struct = ts_box
+
         self.photon_nonconservation_data = photon_nonconservation_data
         # A *copy* of the current global parameters.
         self.global_params = _globals or dict(global_params.items())
 
         # Expose all the fields of the structs to the surface of the Coeval object
-        for box in [initial_conditions, perturbed_field, ionized_box, brightness_temp]:
+        for box in [
+            initial_conditions,
+            perturbed_field,
+            ionized_box,
+            brightness_temp,
+            ts_box,
+        ]:
+            if box is None:
+                continue
             for field in box.fieldnames:
                 setattr(self, field, getattr(box, field))
 
@@ -598,9 +612,10 @@ class Coeval(_HighLevelOutput):
         return ""
 
     def _write_particulars(self, fname):
-        for name in ["init", "perturb", "ionization", "brightness_temp"]:
+        for name in ["init", "perturb", "ionization", "brightness_temp", "spin_temp"]:
             struct = getattr(self, name + "_struct")
-            struct.write(fname=fname, write_inputs=False)
+            if struct is not None:
+                struct.write(fname=fname, write_inputs=False)
 
     @classmethod
     def _read_particular(cls, fname):

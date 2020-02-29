@@ -1,5 +1,6 @@
 import pytest
 
+from py21cmfast import config
 from py21cmfast import global_params
 
 
@@ -16,11 +17,12 @@ def tmpdirec(tmpdir_factory):
 
 
 @pytest.fixture(autouse=True, scope="session")
-def setup_and_teardown_package():
+def setup_and_teardown_package(tmpdirec):
     # Set nice global defaults for testing purposes, to make runs faster
     # (can always be over-ridden per-test).
     original_zprime = global_params.ZPRIME_STEP_FACTOR
     global_params.ZPRIME_STEP_FACTOR = 1.2
+    config["direc"] = tmpdirec.strpath
 
     yield
 

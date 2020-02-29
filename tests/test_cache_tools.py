@@ -11,14 +11,12 @@ from py21cmfast import wrapper
 
 
 @pytest.fixture(scope="module")
-def ic(tmpdirec):
-    return wrapper.initial_conditions(
-        user_params={"HII_DIM": 25}, direc=tmpdirec.strpath
-    )
+def ic():
+    return wrapper.initial_conditions(user_params={"HII_DIM": 25})
 
 
-def test_query(tmpdirec, ic):
-    things = list(cache_tools.query_cache(direc=tmpdirec.strpath))
+def test_query(ic):
+    things = list(cache_tools.query_cache())
 
     print(things)
 

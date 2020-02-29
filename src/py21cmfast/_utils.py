@@ -3,6 +3,7 @@ import glob
 import logging
 import warnings
 from hashlib import md5
+from os import makedirs
 from os import path
 
 import h5py
@@ -433,7 +434,7 @@ class OutputStruct(StructWrapper):
         return self._fname_skeleton.format(seed=self.random_seed)
 
     def _get_fname(self, direc=None):
-        direc = path.expanduser(direc or config["direc"])
+        direc = path.abspath(path.expanduser(direc or config["direc"]))
         return path.join(direc, self.filename)
 
     def _find_file_without_seed(self, direc):
@@ -533,7 +534,7 @@ class OutputStruct(StructWrapper):
         Parameters
         ----------
         direc : str, optional
-            The directory in which to search for the boxes. By default, this is the
+            The directory in which to write the boxes. By default, this is the
             centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
         fname : str, optional
             The filename to write to. By default creates a unique filename from the hash.
@@ -546,7 +547,8 @@ class OutputStruct(StructWrapper):
 
         if not self._random_seed:
             raise ValueError(
-                "Attempting to write when no random seed has been set. Struct has been 'filled' inconsistently."
+                "Attempting to write when no random seed has been set. "
+                "Struct has been 'filled' inconsistently."
             )
 
         if not write_inputs:
@@ -554,9 +556,13 @@ class OutputStruct(StructWrapper):
 
         try:
             direc = path.expanduser(direc or config["direc"])
+
+            if not path.exists(direc):
+                makedirs(direc)
+
             fname = fname or self._get_fname(direc)
             if not path.isabs(fname):
-                fname = path.join(direc, fname)
+                fname = path.abspath(path.join(direc, fname))
 
             with h5py.File(fname, mode) as f:
                 # Save input parameters to the file
@@ -594,7 +600,9 @@ class OutputStruct(StructWrapper):
         except OSError as e:
             logger.warning(
                 "When attempting to write {} to file, write failed with the "
-                "following error. Continuing without caching."
+                "following error. Continuing without caching.".format(
+                    self.__class__.__name__
+                )
             )
             logger.warning(e)
 
@@ -714,7 +722,9 @@ class OutputStruct(StructWrapper):
                         input_classes.index(input_class_name)
                     ]
                     grp = fl[kfile]
-                    kwargs[k] = input_class(dict(grp.attrs))
+                    kwargs[k] = input_class(
+                        {k: v for k, v in dict(grp.attrs).items() if v != "none"}
+                    )
                 else:
                     kwargs[kfile] = fl.attrs[kfile]
         return kwargs
