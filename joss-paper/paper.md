@@ -24,7 +24,6 @@ bibliography: paper.bib
 
 # Summary
 
-## Intro to field
 The field of 21cm cosmology -- in which the hyperfine spectral line of neutral hydrogen
 is mapped over large swathes of the Universe's history -- has developed radically over
 the last decade.
@@ -43,7 +42,6 @@ be used to produce thousands of realisations in order to explore the very wide
 parameter space that still remains consistent with the data.
 
 
-## Intro to 21cmFAST older versions
 Amongst practioners in the field of 21cm cosmology, the `21cmFAST` program has become
 the *de facto* standard for such semi-analytic simulators. `21cmFAST` [@mesinger2010]
 is a high-performance C code that uses the excursion set formalism [@furlanetto2004] to
@@ -63,7 +61,6 @@ reformulate the `21cmFAST` code in order to provide a fast, modular, well-docume
 well-tested, stable simulator for the community.
 
 
-## Summary/motivation for new 21cmFAST
 In `21cmFAST` v3+, which this paper presents, this goal has come a significant way towards
 achievement.
 While keeping the same core functionality of previous versions of `21cmFAST`, it has
@@ -110,7 +107,6 @@ we have also incorporated several new scientific features:
 * Mitigation of non-conservation of photons inherent in the excursion set formalism.
 * Mini-halo populations.
 
-## Future plans
 `21cmFAST` is still in very active development.
 Amongst further usability and performance improvements,
 future versions will see several new physical models implemented,
