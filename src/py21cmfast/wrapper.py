@@ -34,7 +34,7 @@ the current input parameters, it will be read-in from a caching repository and r
 directly. This behaviour can be tuned in any of the low-level (or high-level) functions
 by setting the `write`, `direc`, `regenerate` and `match_seed` parameters (see docs for
 :func:`initial_conditions` for details). The function :func:`~query_cache` can be used
-to search the cache, and return empty datasets corresponding to each (and fthese can the be
+to search the cache, and return empty datasets corresponding to each (and these can then be
 filled with the data merely by calling ``.read()`` on any data set). Conversely, a
 specific data set can be read and returned as a proper output object by calling the
 :func:`~py21cmfast.cache_tools.readbox` function.

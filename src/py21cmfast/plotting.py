@@ -116,7 +116,7 @@ def coeval_sliceplot(
     Parameters
     ----------
     struct : :class:`~outputs._OutputStruct` or :class:`~wrapper.Coeval` instance
-        The output of a function such as `ionize_box` (a class containing several lightcones), or
+        The output of a function such as `ionize_box` (a class containing several quantities), or
         `run_coeval`.
     kind : str
         The quantity within the structure to be shown.
