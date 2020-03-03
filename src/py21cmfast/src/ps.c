@@ -2769,7 +2769,8 @@ float adjust_redshifts_for_photoncons(struct AstroParams *astro_params, struct F
                 new_counter += 1;		
             }
             if(new_counter > 5) {
-		LOG_WARNING("The photon non-conservation correction has employed an extrapolation for\n for more than 5 consecutive snapshots. This can be unstable, thus please check resultant history. Parameters are\n");
+		LOG_WARNING("The photon non-conservation correction has employed an extrapolation for\n for more than 5 consecutive snapshots. This can be unstable, thus please check resultant history. Parameters are:\n");
+		writeAstroParams(flag_options, astro_params);
 	    }
 
             // Now adjust the final delta_z by some amount to smooth if over successive steps
