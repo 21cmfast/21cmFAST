@@ -106,7 +106,7 @@ LOG_SUPER_DEBUG("defined parameters");
     // Modify the current sampled redshift to a redshift which matches the expected filling factor given our astrophysical parameterisation.
     // This is the photon non-conservation correction
     if(flag_options->PHOTON_CONS) {
-        adjust_redshifts_for_photoncons(&redshift,&stored_redshift,&absolute_delta_z);
+        adjust_redshifts_for_photoncons(astro_params,flag_options,&redshift,&stored_redshift,&absolute_delta_z);
     }
 
     Splined_Fcoll = 0.;
