@@ -2382,6 +2382,8 @@ double ComputeZstart_PhotonCons() {
     }
     else {
         z_at_Q(1. - global_params.PhotonConsStart,&(temp));
+	// Multiply the result by 10 per-cent to fix instances when this isn't high enough
+        temp *= 1.1;
     }
 
     return(temp);
@@ -2764,8 +2766,11 @@ float adjust_redshifts_for_photoncons(float *redshift, float *stored_redshift, f
                 Q_at_z(temp_redshift, &(temp));
                 check_required_NF = 1.0 - (float)temp;
 
-                new_counter += 1;
+                new_counter += 1;		
             }
+            if(new_counter > 5) {
+		LOG_WARNING("The photon non-conservation correction has employed an extrapolation for\n for more than 5 consecutive snapshots. This can be unstable, thus please check resultant history. Parameters are\n");
+	    }
 
             // Now adjust the final delta_z by some amount to smooth if over successive steps
             if(deltaz[1] > deltaz[0]) {
