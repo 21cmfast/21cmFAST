@@ -2669,7 +2669,7 @@ void determine_deltaz_for_photoncons() {
 }
 
 
-float adjust_redshifts_for_photoncons(float *redshift, float *stored_redshift, float *absolute_delta_z) {
+float adjust_redshifts_for_photoncons(struct AstroParams *astro_params, struct FlagOptions *flag_options, float *redshift, float *stored_redshift, float *absolute_delta_z) {
 
     int i, new_counter;
     double temp;
