@@ -2266,7 +2266,7 @@ def calibrate_photon_cons(
             if 0.3 < mean_nf <= 0.9:
                 z -= 0.15
             elif 0.01 < mean_nf <= 0.3:
-                z -= 0.05                
+                z -= 0.05
             else:
                 z -= 0.5
 
