@@ -43,7 +43,7 @@ In order to interpret the eventual observational data, a range of physical model
 been developed -- from simple analytic models of the global history of hydrogen reionization,
 through to fully hydrodynamical simulations of the 3D evolution of the brightness
 temperature of the spectral line.
-Between these extremes lies an especially versatile middle-ground: fast semi-analytic
+Between these extremes lies an especially versatile middle-ground: fast semi-numerical
 models that approximate the full 3D evolution of the relevant fields: density, velocity,
 temperature, ionization, and radiation.
 These have the advantage of being comparable to the full first-principles
@@ -54,7 +54,7 @@ parameter space that still remains consistent with the data.
 
 
 Amongst practitioners in the field of 21cm cosmology, the `21cmFAST` program has become
-the *de facto* standard for such semi-analytic simulators.
+the *de facto* standard for such semi-numerical simulators.
 `21cmFAST` [@mesinger2007,@mesinger2010] is a high-performance C code that uses the
 excursion set formalism [@furlanetto2004] to
 identify regions of ionized hydrogen atop a cosmological density field evolved using
