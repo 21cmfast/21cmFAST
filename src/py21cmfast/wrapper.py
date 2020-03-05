@@ -2263,8 +2263,10 @@ def calibrate_photon_cons(
             z_for_photon_cons.append(z)
 
             # Can speed up sampling in regions where the evolution is slower
-            if 0.01 < mean_nf <= 0.9:
+            if 0.3 < mean_nf <= 0.9:
                 z -= 0.15
+            elif 0.01 < mean_nf <= 0.3:
+                z -= 0.05                
             else:
                 z -= 0.5
 
