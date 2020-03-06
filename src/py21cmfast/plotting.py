@@ -274,7 +274,23 @@ def lightcone_sliceplot(
     if xlabel:
         ax.set_xlabel(xlabel)
 
-    # TODO: use twinx to put a redshift axis on it.
+    # Get redshift ticks.
+    lc_z = lightcone.lightcone_redshifts
+    zticks = np.arange(int(np.ceil(lc_z.min())), int(lc_z.max()) + 1)
+    n_sep = len(zticks) // 8 + 1
+    zticks = zticks[::n_sep]
+
+    d_ticks = (
+        lightcone.cosmo_params.cosmo.comoving_distance(zticks).value
+        - lightcone.lightcone_distances[0]
+    )
+    if vertical:
+        ax.set_yticks(d_ticks)
+        ax.set_yticklabels(zticks)
+    else:
+        ax.set_xticks(d_ticks)
+        ax.set_xticklabels(zticks)
+
     return fig, ax
 
 
