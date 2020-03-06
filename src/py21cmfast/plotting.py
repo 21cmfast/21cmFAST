@@ -316,7 +316,7 @@ def lightcone_sliceplot(
         if kind == "brightness_temp":
             cbar_label = r"Brightness Temperature, $T_B$ [mK]"
         elif kind == "xH":
-            cbar_label = r"Ionized fraction"
+            cbar_label = r"Neutral fraction"
 
     if vertical:
         cbar.ax.set_ylabel(cbar_label)
@@ -340,6 +340,7 @@ def lightcone_sliceplot_all(
         Whether the redshift axis should run vertically in the plot.
     kwargs :
         Passed on to :func:`_imshow_slice` (and in turn `imshow`).
+
 
     Returns
     -------
@@ -410,4 +411,55 @@ def lightcone_sliceplot_all(
         )
 
     plt.tight_layout()
+
+
+def plot_global_history(
+    lightcone: [LightCone],
+    kind: [str, None] = None,
+    ylabel: [str, None] = None,
+    ax: [plt.Axes, None] = None,
+):
+    """
+    Plot the global history of a given quantity from a lightcone.
+
+    Parameters
+    ----------
+    lightcone : :class:`~LightCone` instance
+        The lightcone containing the quantity to plot.
+    kind : str, optional
+        The quantity to plot. Must be in the `global_quantities` dict in the lightcone.
+        By default, will choose the first entry in the dict.
+    ylabel : str, optional
+        A y-label for the plot. If None, will use ``kind``.
+    ax : Axes, optional
+        The matplotlib Axes object on which to plot. Otherwise, created.
+    """
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=(4, 7))
+    else:
+        fig = ax._gci().figure
+
+    if kind is None:
+        kind = list(lightcone.global_quantities.keys())[0]
+
+    assert (
+        kind in lightcone.global_quantities
+        or hasattr(lightcone, "global_" + kind)
+        or (kind.startswith("global_") and hasattr(lightcone, kind))
+    )
+
+    if kind in lightcone.global_quantities:
+        value = lightcone.global_quantities[kind]
+    elif kind.startswith("global)"):
+        value = getattr(lightcone, kind)
+    else:
+        value = getattr(lightcone, "global_" + kind)
+
+    ax.plot(lightcone.node_redshifts, value)
+    ax.set_xlabel("Redshift")
+    if ylabel is None:
+        ylabel = kind
+    if ylabel:
+        ax.set_ylabel(ylabel)
+
     return fig, ax
