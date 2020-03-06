@@ -108,7 +108,10 @@ def _imshow_slice(
 
 
 def coeval_sliceplot(
-    struct: [outputs._OutputStruct, Coeval], kind: [str, None] = None, **kwargs
+    struct: [outputs._OutputStruct, Coeval],
+    kind: [str, None] = None,
+    cbar_label: [str, None] = None,
+    **kwargs,
 ):
     """
     Show a slice of a given coeval box.
@@ -120,7 +123,9 @@ def coeval_sliceplot(
         `run_coeval`.
     kind : str
         The quantity within the structure to be shown.
-
+    cbar_label : str, optional
+        A label for the colorbar. Some values of `kind` will have automatically chosen
+        labels, but these can be turned off by setting ``cbar_label=''``.
 
     Returns
     -------
@@ -170,6 +175,16 @@ def coeval_sliceplot(
     # Now put on the decorations.
     ax.set_xlabel("{xax}-axis [Mpc]".format(xax=xax))
     ax.set_ylabel("{yax}-axis [Mpc]".format(yax=yax))
+
+    cbar = fig._gci().colorbar
+
+    if cbar_label is None:
+        if kind == "brightness_temp":
+            cbar_label = r"Brightness Temperature, $T_B$ [mK]"
+        elif kind == "xH_box":
+            cbar_label = r"Ionized fraction"
+
+    cbar.ax.set_ylabel(cbar_label)
 
     return fig, ax
 
