@@ -181,6 +181,7 @@ def lightcone_sliceplot(
     vertical: bool = False,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
+    cbar_label=None,
     **kwargs,
 ):
     """Create a 2D plot of a slice through a lightcone.
@@ -196,6 +197,9 @@ def lightcone_sliceplot(
         lightcones.
     vertical : bool, optional
         Whether to plot the redshift in the vertical direction.
+    cbar_label : str, optional
+        A label for the colorbar. Some quantities have automatically chosen labels, but
+        these can be removed by setting `cbar_label=''`.
     kwargs :
         Passed through to ``imshow()``.
 
@@ -290,6 +294,19 @@ def lightcone_sliceplot(
     else:
         ax.set_xticks(d_ticks)
         ax.set_xticklabels(zticks)
+
+    cbar = fig._gci().colorbar
+
+    if cbar_label is None:
+        if kind == "brightness_temp":
+            cbar_label = r"Brightness Temperature, $T_B$ [mK]"
+        elif kind == "xH":
+            cbar_label = r"Ionized fraction"
+
+    if vertical:
+        cbar.ax.set_ylabel(cbar_label)
+    else:
+        cbar.ax.set_xlabel(cbar_label)
 
     return fig, ax
 
