@@ -545,7 +545,7 @@ void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p){
 }
 
 void writeFlagOptions(struct FlagOptions *p){
-    LOG_INFO("AstroParams: [IUSE_MINI_HALOS=%d, USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d]",
+    LOG_INFO("AstroParams: [USE_MINI_HALOS=%d, USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d]",
              p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO, p->USE_TS_FLUCT);
 }
 
@@ -777,7 +777,7 @@ double molecular_cooling_threshold(float z){
 double lyman_werner_threshold(float z, float J_21_LW){
 	// this follows Visbal+15, which is taken as the optimal fit from Fialkov+12 which
 	// was calibrated with the simulations of Stacy+11 and Greif+11;
-    mcrit_noLW = 3.314e7 * pow( 1.+z, -1.5);
+    double mcrit_noLW = 3.314e7 * pow( 1.+z, -1.5);
     return  mcrit_noLW * (1. + 22.8685 * pow(J_21_LW, 0.47));
 }
 

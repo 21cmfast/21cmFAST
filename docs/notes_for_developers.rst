@@ -1,16 +1,11 @@
-====================
-Notes For Developers
-====================
+Developer Documentation
+=======================
 
-If you are new to developing 21cmFAST, please read the :ref:`contributing:Contributing`
-section first, which outlines the general concepts for contributing to development.
+If you are new to developing ``21cmFAST``, please read the :ref:`contributing:Contributing`
+section *first*, which outlines the general concepts for contributing to development,
+and provides a step-by-step walkthrough for getting setup.
 This page lists some more detailed notes which may be helpful through the
 development process.
-
-Note that when developing, we recommend using an isolated python environment, and
-installing all requirements as follows::
-
-    $ pip install -r requirements_dev.txt
 
 Compiling for debugging
 -----------------------

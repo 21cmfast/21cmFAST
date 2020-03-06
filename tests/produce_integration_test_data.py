@@ -85,10 +85,7 @@ def produce_coeval_power_spectra(**kwargs):
     options = get_all_options(**kwargs)
 
     coeval = run_coeval(**options)
-    p, k = get_power(
-        coeval.brightness_temperature.brightness_temp,
-        boxlength=coeval.brightness_temperature.user_params.BOX_LEN,
-    )
+    p, k = get_power(coeval.brightness_temp, boxlength=coeval.user_params.BOX_LEN,)
 
     return k, p, coeval
 
