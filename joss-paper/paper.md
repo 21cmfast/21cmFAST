@@ -10,22 +10,26 @@ authors:
     orcid: 0000-0003-3059-3823
     affiliation: 1
   - name: Bradley Greig
-    orcid: xxxxxx
-    affiliation: 2
+    orcid: 0000-0002-4085-2094
+    affiliation: 2, 3
   - name: Andrei Mesinger
     orcid: 0000-0003-3374-1772
-    affiliation: 3
+    affiliation: 4
   - name: Julian B. Mu\~noz
     orcid: 0000-0002-8984-0465
-    affiliation: 4
+    affiliation: 5
 Department o
 affiliations:
  - name: School of Earth and Space Exploration, Arizona State University, Phoenix, USA
    index: 1
- - name: Scuola Normale Superiore, Piazza dei Cavalieri 7, 56126 Pisa, Italy
+ - name: ARC Centre of Excellence for All-Sky Astrophysics in 3 Dimensions (ASTRO 3D)
+   index: 2
+ - name: School of Physics, University of Melbourne, Parkville, VIC 3010, Australia
    index: 3
- - name: Department of Physics, Harvard University, 17 Oxford St., Cambridge, MA, 02138, USA
+ - name: Scuola Normale Superiore, Piazza dei Cavalieri 7, 56126 Pisa, Italy
    index: 4
+ - name: Department of Physics, Harvard University, 17 Oxford St., Cambridge, MA, 02138, USA
+   index: 5
 date: 29 Feb 2020
 bibliography: paper.bib
 ---
