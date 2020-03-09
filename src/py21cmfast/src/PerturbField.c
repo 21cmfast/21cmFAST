@@ -124,6 +124,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 
         // ************  END INITIALIZATION **************************** //
 
+        // Perturbing the density field required adding over multiple cells. Store intermediate result as a double to avoid rounding errors
         resampled_box = (double *)calloc(HII_TOT_NUM_PIXELS,sizeof(double));
         
         // go through the high-res box, mapping the mass onto the low-res (updated) box
@@ -182,6 +183,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
             }
         }
         
+        // Resample back to a float for remaining algorithm
 #pragma omp parallel shared(LOWRES_density_perturb,resampled_box) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
