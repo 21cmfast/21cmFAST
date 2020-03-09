@@ -25,6 +25,12 @@ from .c_21cmfast import lib
 
 logger = logging.getLogger("21cmFAST")
 
+# Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
+# Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
+Planck18 = Planck15.clone(
+    Om0=(0.02242 + 0.11933) / 0.6766 ** 2, Ob0=0.02242 / 0.6766 ** 2, H0=67.66,
+)
+
 
 class GlobalParams(StructInstanceWrapper):
     """
@@ -300,6 +306,9 @@ class CosmoParams(StructWithDefaults):
     All parameters passed in the constructor are also saved as instance attributes which should
     be considered read-only. This is true of all input-parameter classes.
 
+    Default parameters are based on Plank18, https://arxiv.org/pdf/1807.06209.pdf,
+    Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
+
     Parameters
     ----------
     SIGMA_8 : float, optional
@@ -317,11 +326,11 @@ class CosmoParams(StructWithDefaults):
     _ffi = ffi
 
     _defaults_ = {
-        "SIGMA_8": 0.82,
-        "hlittle": Planck15.h,
-        "OMm": Planck15.Om0,
-        "OMb": Planck15.Ob0,
-        "POWER_INDEX": 0.97,
+        "SIGMA_8": 0.8102,
+        "hlittle": Planck18.h,
+        "OMm": Planck18.Om0,
+        "OMb": Planck18.Ob0,
+        "POWER_INDEX": 0.9665,
     }
 
     @property
@@ -346,13 +355,13 @@ class UserParams(StructWithDefaults):
     Parameters
     ----------
     HII_DIM : int, optional
-        Number of cells for the low-res box. Default 50.
+        Number of cells for the low-res box. Default 200.
     DIM : int,optional
         Number of cells for the high-res box (sampling ICs) along a principal axis. To avoid
         sampling issues, DIM should be at least 3 or 4 times HII_DIM, and an integer multiple.
-        By default, it is set to 4*HII_DIM.
+        By default, it is set to 3*HII_DIM.
     BOX_LEN : float, optional
-        Length of the box, in Mpc. Default 150.
+        Length of the box, in Mpc. Default 300 Mpc.
     HMF: int or str, optional
         Determines which halo mass function to be used for the normalisation of the
         collapsed fraction (default Sheth-Tormen). If string should be one of the
@@ -378,9 +387,9 @@ class UserParams(StructWithDefaults):
     _ffi = ffi
 
     _defaults_ = {
-        "BOX_LEN": 150.0,
+        "BOX_LEN": 300.0,
         "DIM": None,
-        "HII_DIM": 50,
+        "HII_DIM": 200,
         "USE_FFTW_WISDOM": False,
         "HMF": 1,
         "USE_RELATIVE_VELOCITIES": False,
@@ -393,7 +402,7 @@ class UserParams(StructWithDefaults):
     @property
     def DIM(self):
         """Number of cells for the high-res box (sampling ICs) along a principal axis."""
-        return self._DIM or 4 * self.HII_DIM
+        return self._DIM or 3 * self.HII_DIM
 
     @property
     def tot_fft_num_pixels(self):
