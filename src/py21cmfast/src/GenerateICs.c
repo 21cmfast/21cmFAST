@@ -65,12 +65,28 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     float f_pixel_factor;
 
     gsl_rng * r[user_params->N_THREADS];
+    gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
+    
+    gsl_rng_set(rseed, random_seed);
 
     omp_set_num_threads(user_params->N_THREADS);
     fftwf_init_threads();
     fftwf_plan_with_nthreads(user_params->N_THREADS);
 
     // ************  INITIALIZATION ********************** //
+    
+    unsigned int seeds[user_params->N_THREADS];
+    
+    // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
+    int num_int = INT_MAX/16;
+    unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int*sizeof(unsigned int))); // Some large number of possible integers
+    for (i=0; i<num_int; i++) {
+        many_ints[i] = i;
+    }
+
+    gsl_ran_choose(rseed, seeds, user_params->N_THREADS, many_ints, num_int, sizeof(unsigned int)); // Populate the seeds array from the large list of integers
+    gsl_ran_shuffle(rseed, seeds, user_params->N_THREADS, sizeof(unsigned int)); // Shuffle the randomly selected integers
+    
     int checker;
 
     checker = 0;
@@ -79,23 +95,23 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
         switch (checker){
             case 0:
                 r[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
-                gsl_rng_set(r[thread_num], random_seed+thread_num);
+                gsl_rng_set(r[thread_num], seeds[thread_num]);
                 break;
             case 1:
                 r[thread_num] = gsl_rng_alloc(gsl_rng_gfsr4);
-                gsl_rng_set(r[thread_num], random_seed+thread_num);
+                gsl_rng_set(r[thread_num], seeds[thread_num]);
                 break;
             case 2:
                 r[thread_num] = gsl_rng_alloc(gsl_rng_cmrg);
-                gsl_rng_set(r[thread_num], random_seed+thread_num);
+                gsl_rng_set(r[thread_num], seeds[thread_num]);
                 break;
             case 3:
                 r[thread_num] = gsl_rng_alloc(gsl_rng_mrg);
-                gsl_rng_set(r[thread_num], random_seed+thread_num);
+                gsl_rng_set(r[thread_num], seeds[thread_num]);
                 break;
             case 4:
                 r[thread_num] = gsl_rng_alloc(gsl_rng_taus2);
-                gsl_rng_set(r[thread_num], random_seed+thread_num);
+                gsl_rng_set(r[thread_num], seeds[thread_num]);
                 break;
         } // end switch
 
