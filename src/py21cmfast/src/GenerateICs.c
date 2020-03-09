@@ -121,6 +121,8 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             checker = 0;
         }
     }
+    
+    free(many_ints);
 
     // allocate array for the k-space and real-space boxes
     fftwf_complex *HIRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
