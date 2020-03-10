@@ -39,7 +39,7 @@ def test_readbox_data(tmpdirec, ic):
 
 def test_readbox_filter(ic, tmpdirec):
     ic2 = cache_tools.readbox(
-        kind="InitialConditions", hash=ic._md5, direc=tmpdirec.strpath
+        kind="InitialConditions", hsh=ic._md5, direc=tmpdirec.strpath
     )
     assert np.all(ic2.hires_density == ic.hires_density)
 
@@ -47,7 +47,7 @@ def test_readbox_filter(ic, tmpdirec):
 def test_readbox_seed(ic, tmpdirec):
     ic2 = cache_tools.readbox(
         kind="InitialConditions",
-        hash=ic._md5,
+        hsh=ic._md5,
         seed=ic.random_seed,
         direc=tmpdirec.strpath,
     )

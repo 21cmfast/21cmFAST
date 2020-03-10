@@ -27,60 +27,40 @@ import pytest
 import h5py
 import numpy as np
 
+from py21cmfast import global_params
+
 from . import produce_integration_test_data as prd
 
 
-@pytest.mark.parametrize(",".join(prd.OPTION_NAMES), prd.OPTIONS)
-def test_power_spectra_coeval(
-    redshift,
-    z_step_factor,
-    z_heat_max,
-    HMF,
-    interp_perturb_field,
-    USE_MASS_DEPENDENT_ZETA,
-    SUBCELL_RSD,
-    INHOMO_RECO,
-    USE_TS_FLUCT,
-    M_MIN_in_Mass,
-    USE_FFTW_WISDOM,
-):
-    lc = locals()
-    kwargs = {name: lc[name] for name in prd.OPTION_NAMES}
+@pytest.mark.parametrize("redshift,kwargs", prd.OPTIONS)
+def test_power_spectra_coeval(redshift, kwargs):
+    print("Options used for the test: ", kwargs)
 
     # First get pre-made data
-    with h5py.File(prd.get_filename(**kwargs), "r") as f:
+    with h5py.File(prd.get_filename(redshift, **kwargs), "r") as f:
         power = f["power_coeval"][...]
 
-    k, p, bt = prd.produce_coeval_power_spectra(**kwargs)
+    with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
+        # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
+        k, p, bt = prd.produce_coeval_power_spectra(redshift, **kwargs)
 
-    assert np.allclose(power, p, atol=1e-5, rtol=1e-4)
+    assert np.allclose(power, p, atol=1e-5, rtol=1e-3)
 
 
-@pytest.mark.parametrize(",".join(prd.OPTION_NAMES), prd.OPTIONS)
-def test_power_spectra_lightcone(
-    redshift,
-    z_step_factor,
-    z_heat_max,
-    HMF,
-    interp_perturb_field,
-    USE_MASS_DEPENDENT_ZETA,
-    SUBCELL_RSD,
-    INHOMO_RECO,
-    USE_TS_FLUCT,
-    M_MIN_in_Mass,
-    USE_FFTW_WISDOM,
-):
-    lc = locals()
-    kwargs = {name: lc[name] for name in prd.OPTION_NAMES}
+@pytest.mark.parametrize("redshift,kwargs", prd.OPTIONS)
+def test_power_spectra_lightcone(redshift, kwargs):
+    print("Options used for the test: ", kwargs)
 
     # First get pre-made data
-    with h5py.File(prd.get_filename(**kwargs), "r") as f:
+    with h5py.File(prd.get_filename(redshift, **kwargs), "r") as f:
         power = f["power_lc"][...]
         xHI = f["xHI"][...]
         Tb = f["Tb"][...]
 
-    k, p, lc = prd.produce_lc_power_spectra(**kwargs)
+    with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
+        # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
+        k, p, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
-    assert np.allclose(power, p, atol=1e-5, rtol=1e-3)
+    assert np.allclose(power, p, atol=1e-5, rtol=5e-3)
     assert np.allclose(xHI, lc.global_xHI, atol=1e-5, rtol=1e-3)
     assert np.allclose(Tb, lc.global_brightness_temp, atol=1e-5, rtol=1e-3)

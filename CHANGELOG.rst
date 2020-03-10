@@ -21,11 +21,13 @@ Added
   transfer functions, but in case:  A_s=2.100e-9, n_s=0.9649, z_reio = 11.357)
 * New ``user_params`` option ``USE_RELATIVE_VELOCITIES``, which produces initial relative
   velocity cubes (option implemented, but not the actual computation yet).
+* Configuration management.
+* global params now has a context manager for changing parameters temporarily.
 
 Changed
 ~~~~~~~
 * ``POWER_SPECTRUM`` option moved from ``global_params`` to ``user_params``.
-
+* Default cosmology updated to Planck18.
 
 v2.0.0
 ------

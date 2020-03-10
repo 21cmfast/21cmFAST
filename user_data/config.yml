@@ -1,1 +1,3 @@
-boxdir: ~/21CMMC_Boxes
+direc: ~/21cmFAST-cache
+regenerate: false
+write: true

@@ -10,6 +10,7 @@ from py21cmfast import AstroParams  # An example of a struct with defaults
 from py21cmfast import CosmoParams
 from py21cmfast import FlagOptions
 from py21cmfast import UserParams
+from py21cmfast import global_params
 
 
 @pytest.fixture(scope="module")
@@ -62,7 +63,7 @@ def test_constructed_from_itself(c):
 
 def test_dynamic_variables():
     u = UserParams()
-    assert u.DIM == 4 * u.HII_DIM
+    assert u.DIM == 3 * u.HII_DIM
 
     u.update(DIM=200)
 
@@ -139,3 +140,13 @@ def test_update_inhomo_reco(caplog):
 def test_mmin():
     fo = FlagOptions(USE_MASS_DEPENDENT_ZETA=True)
     assert fo.M_MIN_in_Mass
+
+
+def test_globals():
+    orig = global_params.Z_HEAT_MAX
+
+    with global_params.use(Z_HEAT_MAX=10.0):
+        assert global_params.Z_HEAT_MAX == 10.0
+        assert global_params._cobj.Z_HEAT_MAX == 10.0
+
+    assert global_params.Z_HEAT_MAX == orig

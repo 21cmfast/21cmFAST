@@ -1,4 +1,5 @@
-__version__ = "3.0.0dev"
+"""The py21cmfast package."""
+__version__ = "3.0.0.dev2"
 
 # This just ensures that the default directory for boxes is created.
 from os import mkdir as _mkdir
@@ -32,6 +33,6 @@ from .wrapper import spin_temperature
 configure_logging()
 
 try:
-    _mkdir(path.expanduser(config["boxdir"]))
+    _mkdir(path.expanduser(config["direc"]))
 except FileExistsError:
     pass

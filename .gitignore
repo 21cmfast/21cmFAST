@@ -21,6 +21,7 @@ _build/
 _autosummary
 vgcore.*
 devel/\.ipynb_checkpoints/
+docs/tutorials/_cache/
 
 devel/data/
 

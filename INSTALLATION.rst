@@ -2,11 +2,68 @@
 Installation
 ============
 
-First, you'll need to have the required C libraries: ``gsl``, ``fftw`` (make sure
-you install the floating-point version!)
-``openmp`` and ``gslcblas``.
+Dependencies
+------------
+We try to have as many of the dependencies automatically installed as possible.
+However, since `21cmFAST` relies on some C libraries, this is not always possible.
 
-Then follow the instructions below, depending on whether you are a user or a developer.
+The C libraries required are:
+
+* `gsl`
+* `fftw` (compiled with floating-point enabled, and `--enable-shared`)
+* `openmp`
+* A C-compiler with compatibility with the `-fopenmp` flag.
+
+As it turns out, though these are fairly common libraries, getting them installed in a
+way that `21cmFAST` understands on various operating systems can be slightly non-trivial.
+
+Linux
+~~~~~
+Most linux distros come with packages for the requirements, and also `gcc` by default,
+which supports `-fopenmp`. As long as these packages install into the standard location,
+a standard installation of `21cmFAST` will be automatically possible (see below).
+If they are installed to a place not on the `LD_LIBRARY`/`INCLUDE` paths, then you
+must use the compilation options (see below) to specify where they are.
+
+.. note:: there exists the option of installing `gsl`, `fftw` and `gcc` using `conda`.
+          This is discussed below in the context of MacOSX, where it is often the
+          easiest way to get the dependencies, but it is equally applicable to linux.
+
+MacOSX
+~~~~~~
+On MacOSX, obtaining `gsl` and `fftw` is typically more difficult, and in addition,
+the newer native `clang` does not offer `-fopenmp` support.
+
+For `conda` users (which we recommend using), the easiest way to get `gsl` and `fftw`
+is by doing `conda install -c conda-forge gsl fftw` in your environment.
+
+.. note:: if you use `conda` to install `gsl` and `fftw`, then you will need to point at
+          their location when installing `21cmFAST` (see compiler options below for details).
+          In this case, the installation command should simply be *prepended* with::
+
+              LIB=/path/to/conda/env/lib INC=/path/to/conda/env/include
+
+To get `gcc`, either use `homebrew`, or again, `conda`: `conda install -c anaconda gcc`.
+If you get the `conda` version, you still need to install the headers::
+
+    xcode-select --install
+
+On older versions then you need to do::
+
+    open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_<input version>.pkg
+
+For newer versions, you may need to prepend the following command to your `pip install` command
+when installing `21cmFAST` (see later instructions)::
+
+    CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX<input version>.sdk"
+
+See `<faqs/installation_faq>`_ for more detailed questions on installation.
+If you are on MacOSX and are having trouble with installation (or would like to share
+a successful installation strategy!) please see the
+`open issue <https://github.com/21cmfast/21cmFAST/issues/84>`_.
+
+With the dependencies installed, follow the instructions below,
+depending on whether you are a user or a developer.
 
 For Users
 ---------
