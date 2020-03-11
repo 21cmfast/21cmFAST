@@ -52,8 +52,8 @@ int N_NFsamples,N_extrapolated, N_analytic, N_calibrated, N_deltaz;
 
 bool initialised_ComputeLF = false;
 
-gsl_interp_accel *LF_spline_acc *LF_spline_acc_MINI, *LF_spline_acc_MINI2, *LF_spline_acc_MINI3;
-gsl_spline *LF_spline, *LF_spline_MINI, *LF_spline_MINI2, *LF_spline_MINI3;
+gsl_interp_accel *LF_spline_acc;
+gsl_spline *LF_spline;
 
 gsl_interp_accel *deriv_spline_acc;
 gsl_spline *deriv_spline;
