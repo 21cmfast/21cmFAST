@@ -114,6 +114,7 @@ LOG_SUPER_DEBUG("defined parameters");
 
         for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++) {
             box->Gamma12_box[ct] = 0.0;
+            box->z_re_box[ct] = -1.0;
         }
     }
     else {
@@ -273,6 +274,8 @@ LOG_SUPER_DEBUG("density field calculated");
                     for (j=0; j<user_params->HII_DIM; j++){
                         for (k=0; k<user_params->HII_DIM; k++){
                             *((float *)prev_deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = -1.5;
+                            previous_ionize_box->Gamma12_box[HII_R_INDEX(x, y, z)] = 0.0;
+                            previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)] = -1.0;  
                         }
                     }
                 }
