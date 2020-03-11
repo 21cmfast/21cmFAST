@@ -103,7 +103,7 @@ def get_all_options(redshift, **kwargs):
 
 def produce_coeval_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
-    print(options)
+
     coeval = run_coeval(**options)
     p, k = get_power(coeval.brightness_temp, boxlength=coeval.user_params.BOX_LEN,)
 
