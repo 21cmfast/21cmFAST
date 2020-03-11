@@ -92,6 +92,7 @@ from copy import deepcopy
 import numpy as np
 from astropy import units
 from astropy.cosmology import z_at_value
+from scipy.interpolate import interp1d
 
 from ._cfg import config
 from ._utils import StructWrapper
@@ -415,6 +416,9 @@ def compute_luminosity_function(
     astro_params=None,
     flag_options=None,
     nbins=100,
+    mturnovers=None,
+    mturnovers_MINI=None,
+    component=0,
 ):
     """Compute a the luminosity function over a given number of bins and redshifts.
 
@@ -432,6 +436,16 @@ def compute_luminosity_function(
         Some options passed to the reionization routine.
     nbins : int, optional
         The number of luminosity bins to produce for the luminosity function.
+    mturnovers : array-like, optional
+        The turnover mass at each redshift for massive halos (ACGs).
+        Only required when USE_MINI_HALOS is True.
+    mturnovers_MINI : array-like, optional
+        The turnover mass at each redshift for minihalos (MCGs).
+        Only required when USE_MINI_HALOS is True.
+    component : int, optional
+        The component of the LF to be calculated. 0, 1 an 2 are for the total,
+        ACG and MCG LFs respectively, requiring inputs of both mturnovers and
+        mturnovers_MINI (0), only mturnovers (1) or mturnovers_MINI (2).
 
     Returns
     -------
@@ -449,38 +463,143 @@ def compute_luminosity_function(
     flag_options = FlagOptions(flag_options)
 
     redshifts = np.array(redshifts, dtype="float32")
+    if flag_options.USE_MINI_HALOS:
+        if component == 0 or component == 1:
+            if mturnovers is None:
+                logger.warning(
+                    "calculating ACG LFs with mini-halo feature requires users to specify mturnovers!"
+                )
+                return None, None, None
 
-    lfunc = np.zeros(len(redshifts) * nbins)
-    Muvfunc = np.zeros(len(redshifts) * nbins)
-    Mhfunc = np.zeros(len(redshifts) * nbins)
+            mturnovers = np.array(mturnovers, dtype="float32")
+            if len(mturnovers) != len(redshifts):
+                logger.warning(
+                    "mturnovers(%d) does not match the lenth of redshifts (%d)"
+                    % (len(mturnovers), len(redshifts))
+                )
+                return None, None, None
+        if component == 0 or component == 2:
+            if mturnovers_MINI is None:
+                logger.warning(
+                    "calculating MCG LFs with mini-halo feature requires users to specify mturnovers_MINI!"
+                )
+                return None, None, None
 
-    lfunc.shape = (len(redshifts), nbins)
-    Muvfunc.shape = (len(redshifts), nbins)
-    Mhfunc.shape = (len(redshifts), nbins)
+            mturnovers_MINI = np.array(mturnovers, dtype="float32")
+            if len(mturnovers_MINI) != len(redshifts):
+                logger.warning(
+                    "mturnovers_MINI(%d) does not match the lenth of redshifts (%d)"
+                    % (len(mturnovers), len(redshifts))
+                )
+                return None, None, None
 
-    c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
-    c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
-    c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
+    else:
+        mturnovers = np.zeros(len(redshifts)) + astro_params.M_TURN
+        component = 1
 
-    # Run the C code
-    errcode = lib.ComputeLF(
-        nbins,
-        user_params(),
-        cosmo_params(),
-        astro_params(),
-        flag_options(),
-        len(redshifts),
-        ffi.cast("float *", ffi.from_buffer(redshifts)),
-        c_Muvfunc,
-        c_Mhfunc,
-        c_lfunc,
-    )
+    if component == 0 or component == 1:
+        lfunc = np.zeros(len(redshifts) * nbins)
+        Muvfunc = np.zeros(len(redshifts) * nbins)
+        Mhfunc = np.zeros(len(redshifts) * nbins)
 
-    _process_exitcode(errcode)
+        lfunc.shape = (len(redshifts), nbins)
+        Muvfunc.shape = (len(redshifts), nbins)
+        Mhfunc.shape = (len(redshifts), nbins)
 
-    lfunc[lfunc <= -30] = np.nan
+        c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
+        c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
+        c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
 
-    return Muvfunc, Mhfunc, lfunc
+        # Run the C code
+        errcode = lib.ComputeLF(
+            nbins,
+            user_params(),
+            cosmo_params(),
+            astro_params(),
+            flag_options(),
+            1,
+            len(redshifts),
+            ffi.cast("float *", ffi.from_buffer(redshifts)),
+            ffi.cast("float *", ffi.from_buffer(mturnovers)),
+            c_Muvfunc,
+            c_Mhfunc,
+            c_lfunc,
+        )
+
+        _process_exitcode(errcode)
+
+    if component == 0 or component == 2:
+        lfunc_MINI = np.zeros(len(redshifts) * nbins)
+        Muvfunc_MINI = np.zeros(len(redshifts) * nbins)
+        Mhfunc_MINI = np.zeros(len(redshifts) * nbins)
+
+        lfunc_MINI.shape = (len(redshifts), nbins)
+        Muvfunc_MINI.shape = (len(redshifts), nbins)
+        Mhfunc_MINI.shape = (len(redshifts), nbins)
+
+        c_Muvfunc_MINI = ffi.cast("double *", ffi.from_buffer(Muvfunc_MINI))
+        c_Mhfunc_MINI = ffi.cast("double *", ffi.from_buffer(Mhfunc_MINI))
+        c_lfunc_MINI = ffi.cast("double *", ffi.from_buffer(lfunc_MINI))
+
+        # Run the C code
+        errcode = lib.ComputeLF(
+            nbins,
+            user_params(),
+            cosmo_params(),
+            astro_params(),
+            flag_options(),
+            2,
+            len(redshifts),
+            ffi.cast("float *", ffi.from_buffer(redshifts)),
+            ffi.cast("float *", ffi.from_buffer(mturnovers_MINI)),
+            c_Muvfunc_MINI,
+            c_Mhfunc_MINI,
+            c_lfunc_MINI,
+        )
+
+        _process_exitcode(errcode)
+
+    if component == 1:
+        lfunc[lfunc <= -30] = np.nan
+        return Muvfunc, Mhfunc, lfunc
+    elif component == 2:
+        lfunc_MINI[lfunc_MINI <= -30] = np.nan
+        return Muvfunc_MINI, Mhfunc_MINI, lfunc_MINI
+    elif component != 0:
+        logger.warning("What is component %d ?" % component)
+        return None, None, None
+    else:
+        # redo the Muv range using the faintest (most likely MINI) and the brightest (most likely massive)
+        lfunc_all = np.zeros(len(redshifts) * nbins)
+        Muvfunc_all = np.zeros(len(redshifts) * nbins)
+        Mhfunc_all = np.zeros(len(redshifts) * nbins * 2)
+
+        lfunc_all.shape = (len(redshifts), nbins)
+        Muvfunc_all.shape = (len(redshifts), nbins)
+        Mhfunc_all.shape = (len(redshifts), nbins, 2)
+        for iz in range(len(redshifts)):
+            Muvfunc_all[iz] = np.linspace(
+                np.min([Muvfunc.min(), Muvfunc_MINI.min()]),
+                np.max([Muvfunc.max(), Muvfunc_MINI.max()]),
+                nbins,
+            )
+            lfunc_all[iz] = np.log10(
+                10
+                ** (interp1d(Muvfunc, lfunc, fill_value="extrapolate")(Muvfunc_all[iz]))
+                + 10
+                ** (
+                    interp1d(Muvfunc_MINI, lfunc_MINI, fill_value="extrapolate")(
+                        Muvfunc_all[iz]
+                    )
+                )
+            )
+            Mhfunc_all[iz] = np.array(
+                interp1d(Muvfunc, Mhfunc, fill_value="extrapolate")(Muvfunc_all[iz]),
+                interp1d(Muvfunc_MINI, Mhfunc_MINI, fill_value="extrapolate")(
+                    Muvfunc_all[iz]
+                ),
+            ).T
+        return Muvfunc_all, Mhfunc_all, lfunc_all
 
 
 def _init_photon_conservation_correction(

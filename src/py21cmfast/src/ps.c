@@ -52,8 +52,8 @@ int N_NFsamples,N_extrapolated, N_analytic, N_calibrated, N_deltaz;
 
 bool initialised_ComputeLF = false;
 
-gsl_interp_accel *LF_spline_acc;
-gsl_spline *LF_spline;
+gsl_interp_accel *LF_spline_acc *LF_spline_acc_MINI, *LF_spline_acc_MINI2, *LF_spline_acc_MINI3;
+gsl_spline *LF_spline, *LF_spline_MINI, *LF_spline_MINI2, *LF_spline_MINI3;
 
 gsl_interp_accel *deriv_spline_acc;
 gsl_spline *deriv_spline;
@@ -84,6 +84,8 @@ float **log10_SFRD_z_low_table_MINI, **SFRD_z_high_table_MINI;
 
 double *lnMhalo_param, *Muv_param, *Mhalo_param;
 double *log10phi, *M_uv_z, *M_h_z;
+double *lnMhalo_param_MINI, *Muv_param_MINI, *Mhalo_param_MINI;
+double *log10phi_MINI; *M_uv_z_MINI, *M_h_z_MINI;
 double *deriv, *lnM_temp, *deriv_temp;
 
 double *z_val, *z_X_val, *Nion_z_val, *SFRD_val;
@@ -1615,8 +1617,17 @@ void initialise_ComputeLF(int nbins, struct UserParams *user_params, struct Cosm
 
 }
 
+void cleanup_ComputeLF(){
+    free(lnMhalo_param);
+    free(Muv_param);
+    free(Mhalo_param);
+    gsl_spline_free (LF_spline);
+    gsl_interp_accel_free(LF_spline_acc);
+	initialised_ComputeLF = 0;
+}
+
 int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
-               struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, double *M_uv_z, double *M_h_z, double *log10phi) {
+               struct FlagOptions *flag_options, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, float *M_TURNs, double *M_uv_z, double *M_h_z, double *log10phi) {
 
     // This NEEDS to be done every time, because the actual object passed in as
     // user_params, cosmo_params etc. can change on each call, freeing up the memory.
@@ -1626,6 +1637,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
     int i_unity, i_smth, mf, nbins_smth=7;
     double  dlnMhalo, lnMhalo_i, SFRparam, Muv_1, Muv_2, dMuvdMhalo;
     double Mhalo_i, lnMhalo_min, lnMhalo_max, lnMhalo_lo, lnMhalo_hi, dlnM, growthf;
+    double f_duty_upper, Mcrit_atom;
     float Fstar, Fstar_temp;
 
     if (astro_params->ALPHA_STAR < -0.5)
@@ -1640,6 +1652,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
     for (i_z=0; i_z<NUM_OF_REDSHIFT_FOR_LF; i_z++) {
 
         growthf = dicke(z_LF[i_z]);
+        Mcrit_atom = atomic_cooling_threshold(z_LF[i_z]);
 
         i_unity = -1;
         for (i=0; i<nbins; i++) {
@@ -1647,14 +1660,20 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
             lnMhalo_param[i] = lnMhalo_min + dlnMhalo*(double)i;
             Mhalo_i = exp(lnMhalo_param[i]);
 
-            Fstar = astro_params->F_STAR10*pow(Mhalo_i/1e10,astro_params->ALPHA_STAR);
+            if (component == 1)
+                Fstar = astro_params->F_STAR10*pow(Mhalo_i/1e10,astro_params->ALPHA_STAR);
+            else
+                Fstar = astro_params->F_STAR7_MINI*pow(Mhalo_i/1e7,astro_params->ALPHA_STAR);
             if (Fstar > 1.) Fstar = 1;
             if (i_unity < 0) { // Find the array number at which Fstar crosses unity.
                 if (astro_params->ALPHA_STAR > 0.) {
                     if ( (1.- Fstar) < FRACT_FLOAT_ERR ) i_unity = i;
                 }
                 else if (astro_params->ALPHA_STAR < 0. && i < nbins-1) {
-                    Fstar_temp = astro_params->F_STAR10*pow( exp(lnMhalo_min + dlnMhalo*(double)(i+1))/1e10,astro_params->ALPHA_STAR);
+                    if (component == 1)
+                        Fstar_temp = astro_params->F_STAR10*pow( exp(lnMhalo_min + dlnMhalo*(double)(i+1))/1e10,astro_params->ALPHA_STAR);
+                    else
+                        Fstar_temp = astro_params->F_STAR7_MINI*pow( exp(lnMhalo_min + dlnMhalo*(double)(i+1))/1e7,astro_params->ALPHA_STAR);
                     if (Fstar_temp < 1. && (1.- Fstar) < FRACT_FLOAT_ERR) i_unity = i;
                 }
             }
@@ -1700,17 +1719,21 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
 
                 dMuvdMhalo = (Muv_2 - Muv_1) / (2.*delta_lnMhalo * exp(lnMhalo_i));
 
+                if (component == 1)
+                    f_duty_upper = 1.;
+                else
+                    f_duty_upper = exp(-(Mhalo_param[i]/Mcrit_atom));
                 if(mf==0) {
-                    log10phi[i + i_z*nbins] = log10( dNdM(z_LF[i_z], exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+                    log10phi[i + i_z*nbins] = log10( dNdM(z_LF[i_z], exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
                 }
                 else if(mf==1) {
-                    log10phi[i + i_z*nbins] = log10( dNdM_st_interp(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+                    log10phi[i + i_z*nbins] = log10( dNdM_st_interp(growthf, exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
                 }
                 else if(mf==2) {
-                    log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF(growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+                    log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF(growthf, exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
                 }
                 else if(mf==3) {
-                    log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, exp(lnMhalo_i)) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / fabs(dMuvdMhalo) );
+                    log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
                 }
                 else{
                     LOG_ERROR("HMF should be between 0-3... returning error.");
@@ -1766,17 +1789,21 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
             }
 
             for (i=0; i<nbins; i++) {
+                if (component == 1)
+                    f_duty_upper = 1.;
+                else
+                    f_duty_upper = exp(-(Mhalo_param[i]/Mcrit_atom));
                 if(mf==0) {
-                    log10phi[i + i_z*nbins] = log10( dNdM(z_LF[i_z], Mhalo_param[i]) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / deriv[i] );
+                    log10phi[i + i_z*nbins] = log10( dNdM(z_LF[i_z], Mhalo_param[i]) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / deriv[i] );
                 }
                 else if(mf==1) {
-                    log10phi[i + i_z*nbins] = log10( dNdM_st_interp(growthf, Mhalo_param[i]) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / deriv[i] );
+                    log10phi[i + i_z*nbins] = log10( dNdM_st_interp(growthf, Mhalo_param[i]) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / deriv[i] );
                 }
                 else if(mf==2) {
-                    log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF(growthf, Mhalo_param[i]) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / deriv[i] );
+                    log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF(growthf, Mhalo_param[i]) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / deriv[i] );
                 }
                 else if(mf==3) {
-                    log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, Mhalo_param[i]) * exp(-(astro_params->M_TURN/Mhalo_param[i])) / deriv[i] );
+                    log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, Mhalo_param[i]) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / deriv[i] );
                 }
                 else{
                     LOG_ERROR("HMF should be between 0-3... returning error.");
@@ -1787,6 +1814,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
         }
     }
 
+	cleanup_ComputeLF();
 
     return(0);
 

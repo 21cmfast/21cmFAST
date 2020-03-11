@@ -252,6 +252,8 @@ class IonizedBox(_AllParamsBox):
             self.Fcoll_MINI.shape = filter_shape
         else:
             self.Fcoll_MINI = np.array([], dtype=np.float32)
+        self.log10_Mturnover_ave = 0.0
+        self.log10_Mturnover_MINI_ave = 0.0
 
     @cached_property
     def global_xH(self):

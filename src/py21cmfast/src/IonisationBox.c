@@ -80,7 +80,6 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     //fftwf_complex *Mcrit_LW_grid, *Mcrit_RE_grid;
     fftwf_complex *log10_Mturnover_unfiltered=NULL, *log10_Mturnover_filtered=NULL;
     fftwf_complex *log10_Mturnover_MINI_unfiltered=NULL, *log10_Mturnover_MINI_filtered=NULL;
-    float log10_Mturnover_ave=0., log10_Mturnover_MINI_ave=0.;
     float log10_Mturnover, log10_Mturnover_MINI, Mcrit_LW, Mcrit_RE, Mturnover, Mturnover_MINI;
 
     float min_density, max_density;
@@ -330,23 +329,25 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
                     *((float *)log10_Mturnover_unfiltered      + HII_R_FFT_INDEX(x,y,z)) = log10_Mturnover;
                     *((float *)log10_Mturnover_MINI_unfiltered + HII_R_FFT_INDEX(x,y,z)) = log10_Mturnover_MINI;
 
-                    log10_Mturnover_ave      += log10_Mturnover;
-                    log10_Mturnover_MINI_ave += log10_Mturnover_MINI;
+                    box->log10_Mturnover_ave      += log10_Mturnover;
+                    box->log10_Mturnover_MINI_ave += log10_Mturnover_MINI;
                 }
               }
             }
-            log10_Mturnover_ave      /= (double) HII_TOT_NUM_PIXELS;
-            log10_Mturnover_MINI_ave /= (double) HII_TOT_NUM_PIXELS;
-            Mturnover                 = pow(10., log10_Mturnover_ave);
-            Mturnover_MINI            = pow(10., log10_Mturnover_MINI_ave);
+            box->log10_Mturnover_ave      /= (double) HII_TOT_NUM_PIXELS;
+            box->log10_Mturnover_MINI_ave /= (double) HII_TOT_NUM_PIXELS;
+            Mturnover                 = pow(10., box->log10_Mturnover_ave);
+            Mturnover_MINI            = pow(10., box->log10_Mturnover_MINI_ave);
             M_MIN           = global_params.M_MIN_INTEGRAL;
             Mlim_Fstar_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR7_MINI * pow(1e3,astro_params->ALPHA_STAR));
             Mlim_Fesc_MINI  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
-LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", log10_Mturnover_ave, log10_Mturnover_MINI_ave);
+LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
         }
         else{
             M_MIN     = astro_params->M_TURN/50.;
             Mturnover = astro_params->M_TURN;
+            box->log10_Mturnover_ave = log10(Mturnover);
+            box->log10_Mturnover_MINI_ave = log10(Mturnover);
         }
         Mlim_Fstar = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR10);
         Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10);
@@ -779,16 +780,16 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             if( *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z)) > max_density ) {
                                 max_density = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
                             }
-		                    // <N_rec> cannot be less than zero
-        		            if (flag_options->INHOMO_RECO){
-                		        *((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
-                        	}
+                            // <N_rec> cannot be less than zero
+                            if (flag_options->INHOMO_RECO){
+                                *((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)N_rec_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
+                            }
 
-		                    // x_e has to be between zero and unity
-        		            if (flag_options->USE_TS_FLUCT){
-                		        *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.);
-                        	    *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMIN(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.999);
-		                    }
+                            // x_e has to be between zero and unity
+                            if (flag_options->USE_TS_FLUCT){
+                                *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.);
+                                *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) = FMIN(*((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.999);
+                            }
 
                         }
                     }
@@ -1033,7 +1034,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     }
                                 }
 
-                            	prev_dens = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                                prev_dens = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
                                 if (previous_ionize_box->mean_f_coll_MINI > 1e-15 || previous_ionize_box->mean_f_coll > 1e-15){
                                     if (prev_dens < global_params.CRIT_DENS_TRANSITION){
@@ -1095,7 +1096,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     prev_Splined_Fcoll_MINI = 0;
                                 }
                             }
-							else{
+                            else{
                                 if (curr_dens < global_params.CRIT_DENS_TRANSITION){
                                     if (curr_dens <= -1.) {
                                         Splined_Fcoll = 0;
@@ -1193,7 +1194,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 return(2);
                             }
                         }
-						else{
+                        else{
                             box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = Splined_Fcoll;
                             f_coll += Splined_Fcoll;
                         }
