@@ -1502,7 +1502,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
             if (flag_options->USE_MINI_HALOS)
                 counter += 1;
         }
-
+        
         // find the neutral fraction
         if (LOG_LEVEL >= DEBUG_LEVEL) {
             global_xH = 0;

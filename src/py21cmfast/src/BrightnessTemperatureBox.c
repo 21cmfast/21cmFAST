@@ -5,7 +5,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                            struct AstroParams *astro_params, struct FlagOptions *flag_options,
                            struct TsBox *spin_temp, struct IonizedBox *ionized_box,
                            struct PerturbedField *perturb_field, struct BrightnessTemp *box) {
-
+    
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
@@ -15,7 +15,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     int i, ii, j, k, n_x, n_y, n_z;
     float k_x, k_y, k_z;
     double ave;
-
+    
     ave = 0.;
 
     omp_set_num_threads(user_params->N_THREADS);

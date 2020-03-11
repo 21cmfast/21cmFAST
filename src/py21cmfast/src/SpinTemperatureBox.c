@@ -634,17 +634,17 @@ LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
 LOG_ULTRA_DEBUG("COPIED OVER VALUES");
 
                 if(min_density < 0.0) {
-                    min_density = min_density*1.001;
+                    min_density = min_density*1.01;
                     // min_density here can exceed -1. as it is always extrapolated back to the appropriate redshift
                 }
                 else {
-                    min_density = min_density*0.999;
+                    min_density = min_density*0.99;
                 }
                 if(max_density < 0.0) {
-                    max_density = max_density*0.999;
+                    max_density = max_density*0.99;
                 }
                 else {
-                    max_density = max_density*1.001;
+                    max_density = max_density*1.01;
                 }
 
                 if(!flag_options->USE_MASS_DEPENDENT_ZETA) {

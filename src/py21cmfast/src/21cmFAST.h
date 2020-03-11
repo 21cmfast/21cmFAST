@@ -133,7 +133,6 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                            struct TsBox *spin_temp, struct IonizedBox *ionized_box,
                            struct PerturbedField *perturb_field, struct BrightnessTemp *box);
 
-
 int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cosmo_params,
                          struct AstroParams *astro_params, struct FlagOptions *flag_options);
 
