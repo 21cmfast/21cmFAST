@@ -69,6 +69,10 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     overdense_large_bin_width = 1./((double)NSFR_high-1.)*(Deltac-overdense_large_min);
     overdense_large_bin_width_inv = 1./overdense_large_bin_width;
 
+    prev_overdense_large_min = global_params.CRIT_DENS_TRANSITION*0.999;
+    prev_overdense_large_bin_width = 1./((double)NSFR_high-1.)*(Deltac-prev_overdense_large_min);
+    prev_overdense_large_bin_width_inv = 1./prev_overdense_large_bin_width;
+
     float Mlim_Fstar, Mlim_Fesc;
     float Mlim_Fstar_MINI, Mlim_Fesc_MINI;
 
@@ -275,7 +279,7 @@ LOG_SUPER_DEBUG("density field calculated");
                         for (k=0; k<user_params->HII_DIM; k++){
                             *((float *)prev_deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = -1.5;
                             previous_ionize_box->Gamma12_box[HII_R_INDEX(x, y, z)] = 0.0;
-                            previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)] = -1.0;  
+                            previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)] = -1.0;
                         }
                     }
                 }
@@ -292,7 +296,7 @@ LOG_SUPER_DEBUG("density field calculated");
 
 LOG_SUPER_DEBUG("previous density field calculated");
 
-        memcpy(prev_deltax_unfiltered_original, prev_deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+            memcpy(prev_deltax_unfiltered_original, prev_deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
             // fields added for minihalos
             Mcrit_atom              = atomic_cooling_threshold(redshift);
@@ -300,8 +304,8 @@ LOG_SUPER_DEBUG("previous density field calculated");
             log10_Mcrit_mol         = log10(lyman_werner_threshold(redshift, 0.));
             //Mcrit_RE_grid           = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             //Mcrit_LW_grid           = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-            log10_Mturnover_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-            log10_Mturnover_filtered   = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+            log10_Mturnover_unfiltered      = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+            log10_Mturnover_filtered        = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             log10_Mturnover_MINI_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             log10_Mturnover_MINI_filtered   = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             if (!log10_Mturnover_unfiltered || !log10_Mturnover_filtered || !log10_Mturnover_MINI_unfiltered || !log10_Mturnover_MINI_filtered){// || !Mcrit_RE_grid || !Mcrit_LW_grid)
@@ -318,33 +322,34 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
 
                     //*((float *)Mcrit_RE_grid + HII_R_FFT_INDEX(x,y,z)) = Mcrit_RE;
                     //*((float *)Mcrit_LW_grid + HII_R_FFT_INDEX(x,y,z)) = Mcrit_LW;
-                    Mturnover   = Mcrit_RE > Mcrit_atom ? Mcrit_RE : Mcrit_atom;
-                    Mturnover_MINI   = Mcrit_RE > Mcrit_LW   ? Mcrit_RE : Mcrit_LW;
-                    log10_Mturnover   = log10(Mturnover);
-                    log10_Mturnover_MINI   = log10(Mturnover_MINI);
+                    Mturnover            = Mcrit_RE > Mcrit_atom ? Mcrit_RE : Mcrit_atom;
+                    Mturnover_MINI       = Mcrit_RE > Mcrit_LW   ? Mcrit_RE : Mcrit_LW;
+                    log10_Mturnover      = log10(Mturnover);
+                    log10_Mturnover_MINI = log10(Mturnover_MINI);
 
-                    *((float *)log10_Mturnover_unfiltered + HII_R_FFT_INDEX(x,y,z)) = log10_Mturnover;
+                    *((float *)log10_Mturnover_unfiltered      + HII_R_FFT_INDEX(x,y,z)) = log10_Mturnover;
                     *((float *)log10_Mturnover_MINI_unfiltered + HII_R_FFT_INDEX(x,y,z)) = log10_Mturnover_MINI;
 
-                    log10_Mturnover_ave += log10_Mturnover;
+                    log10_Mturnover_ave      += log10_Mturnover;
                     log10_Mturnover_MINI_ave += log10_Mturnover_MINI;
                 }
               }
             }
-            log10_Mturnover_ave /= (double) HII_TOT_NUM_PIXELS;
+            log10_Mturnover_ave      /= (double) HII_TOT_NUM_PIXELS;
             log10_Mturnover_MINI_ave /= (double) HII_TOT_NUM_PIXELS;
-            Mturnover      = pow(10., log10_Mturnover_ave);
-            Mturnover_MINI      = pow(10., log10_Mturnover_MINI_ave);
-            M_MIN       = global_params.M_MIN_INTEGRAL;
+            Mturnover                 = pow(10., log10_Mturnover_ave);
+            Mturnover_MINI            = pow(10., log10_Mturnover_MINI_ave);
+            M_MIN           = global_params.M_MIN_INTEGRAL;
             Mlim_Fstar_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR7_MINI * pow(1e3,astro_params->ALPHA_STAR));
-            Mlim_Fesc_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
+            Mlim_Fesc_MINI  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
+LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", log10_Mturnover_ave, log10_Mturnover_MINI_ave);
         }
         else{
-            M_MIN = astro_params->M_TURN/50.;
+            M_MIN     = astro_params->M_TURN/50.;
             Mturnover = astro_params->M_TURN;
         }
         Mlim_Fstar = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR10);
-        Mlim_Fesc = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10);
+        Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10);
     }
     else {
 
@@ -573,8 +578,8 @@ LOG_SUPER_DEBUG("more ffts performed");
 
         if(flag_options->USE_MINI_HALOS){
             for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
-                prev_deltax_unfiltered[ct] /= (HII_TOT_NUM_PIXELS+0.0);
-                log10_Mturnover_unfiltered[ct] /= (HII_TOT_NUM_PIXELS+0.0);
+                prev_deltax_unfiltered[ct]          /= (HII_TOT_NUM_PIXELS+0.0);
+                log10_Mturnover_unfiltered[ct]      /= (HII_TOT_NUM_PIXELS+0.0);
                 log10_Mturnover_MINI_unfiltered[ct] /= (HII_TOT_NUM_PIXELS+0.0);
             }
         }
@@ -883,7 +888,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) = LOG10_MTURN_MAX;
                                 // Mturnover cannot be less than Mcrit_mol
                                 if (*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) < log10_Mcrit_mol)
-                                    *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z))  = log10_Mcrit_mol;
+                                    *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) = log10_Mcrit_mol;
                                 if (*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) > LOG10_MTURN_MAX)
                                     *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) = LOG10_MTURN_MAX;
 
