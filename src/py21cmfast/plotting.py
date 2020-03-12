@@ -344,6 +344,7 @@ def lightcone_sliceplot_all(
             xlabel=None if i == (len(quantities) - 1) and vertical else "",
             ylabel=None if i == 0 and vertical else "",
             cmap=cmaps.get(quantity, None),
+            cbar=False,
             **kwargs,
         )
 
