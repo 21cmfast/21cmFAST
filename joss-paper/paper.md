@@ -72,8 +72,8 @@ component fields produced by `21cmFAST`.
 
 However, `21cmFAST` is a highly specialized code, and its implementation has been
 quite specific and relatively inflexible.
-This inflexibility makes it hard to modify the behaviour of the code without detailed
-knowledge of the full system, and without disrupting the workings of the full system.
+This inflexibility makes it difficult to modify the behaviour of the code without detailed
+knowledge of the full system, or disrupting its workings.
 This lack of modularity within the code has led to
 widespread code "branching" as researchers hack new physical features of interest
 into the C code; the lack of a streamlined API has led derivative codes which run
