@@ -37,7 +37,7 @@ bibliography: paper.bib
 # Summary
 
 The field of 21-cm cosmology -- in which the hyperfine spectral line of neutral hydrogen
-(appearing at rest-frame wavelengths of 21 cm) is mapped over large swathes of the
+(appearing at the rest-frame wavelength of 21 cm) is mapped over large swathes of the
 Universe's history -- has developed radically over the last decade.
 The promise of the field is to revolutionize our
 knowledge of the first stars, galaxies, and black holes through the timing and patterns
@@ -132,7 +132,7 @@ we have also incorporated several new scientific features, appearing in separate
 * Generate transfer functions using the `CLASS` Boltzmann code.
 * Simulate the effects of relative velocities between dark matter and Baryons [@munoz2019a,@munoz2019b].
 * Correction for non-conservation of ionizing photons (Park, Greig et al., *in prep*).
-* Including molecularly-cooled galaxies with distinct properties [@qin2020]
+* Including molecularly cooled galaxies with distinct properties [@qin2020]
 
 `21cmFAST` is still in very active development.
 Amongst further usability and performance improvements,
