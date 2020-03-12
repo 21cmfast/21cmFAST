@@ -2268,6 +2268,10 @@ def run_lightcone(
             for quantity in lightcone_quantities
         }
 
+        interp_functions = {
+            "z_re_box": "max",
+        }
+
         global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
         pf = perturb
 
@@ -2338,6 +2342,8 @@ def run_lightcone(
                 for quantity in lightcone_quantities:
                     data1, data2 = outs[_fld_names[quantity]]
 
+                    fnc = interp_functions.get(quantity, "mean")
+
                     n = _interpolate_in_redshift(
                         iz,
                         box_index,
@@ -2349,6 +2355,7 @@ def run_lightcone(
                         data2,
                         quantity,
                         lc[quantity],
+                        fnc,
                     )
                 lc_index += n
                 box_index += n
@@ -2391,6 +2398,7 @@ def _interpolate_in_redshift(
     output_obj2,
     quantity,
     lc,
+    kind="mean",
 ):
     try:
         array = getattr(output_obj, quantity)
@@ -2416,13 +2424,20 @@ def _interpolate_in_redshift(
     n = len(these_distances)
     ind = np.arange(-(box_index + n), -box_index)
 
-    lc[:, :, -(lc_index + n) : n_lightcone - lc_index] = (
-        np.abs(this_d - these_distances)
-        * array.take(ind + n_lightcone, axis=2, mode="wrap")
-        + np.abs(prev_d - these_distances)
-        * array2.take(ind + n_lightcone, axis=2, mode="wrap")
-    ) / (np.abs(prev_d - this_d))
+    sub_array = array.take(ind + n_lightcone, axis=2, mode="wrap")
+    sub_array2 = array2.take(ind + n_lightcone, axis=2, mode="wrap")
 
+    if kind == "mean":
+        out = (
+            np.abs(this_d - these_distances) * sub_array
+            + np.abs(prev_d - these_distances) * sub_array2
+        ) / (np.abs(prev_d - this_d))
+    elif kind == "max":
+        out = np.maximum(sub_array, sub_array2)
+    else:
+        raise ValueError("kind must be 'mean' or 'max'")
+
+    lc[:, :, -(lc_index + n) : n_lightcone - lc_index] = out
     return n
 
 
