@@ -180,7 +180,7 @@ def coeval_sliceplot(
 
     if cbar_label is None:
         if kind == "brightness_temp":
-            cbar_label = r"Brightness Temperature, $T_B$ [mK]"
+            cbar_label = r"Brightness Temperature, $\delta T_B$ [mK]"
         elif kind == "xH_box":
             cbar_label = r"Ionized fraction"
 
@@ -314,7 +314,7 @@ def lightcone_sliceplot(
 
     if cbar_label is None:
         if kind == "brightness_temp":
-            cbar_label = r"Brightness Temperature, $T_B$ [mK]"
+            cbar_label = r"Brightness Temperature, $\delta T_B$ [mK]"
         elif kind == "xH":
             cbar_label = r"Neutral fraction"
 
