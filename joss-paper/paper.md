@@ -18,7 +18,13 @@ authors:
   - name: Julian B. Mu\~noz
     orcid: 0000-0002-8984-0465
     affiliation: 5
-Department o
+  - name: Yuxiang Qin
+    orcid: 0000-0002-4314-1810
+    affiliation: 4
+  - name: Jaehong Park
+    orcid: 0000-0003-3095-6137
+    affiliation: 4
+
 affiliations:
  - name: School of Earth and Space Exploration, Arizona State University, Phoenix, USA
    index: 1
