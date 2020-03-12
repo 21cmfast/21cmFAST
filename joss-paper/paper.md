@@ -36,12 +36,12 @@ bibliography: paper.bib
 
 # Summary
 
-The field of 21cm cosmology -- in which the hyperfine spectral line of neutral hydrogen
-(appearing at rest-frame wavelengths of 21cm) is mapped over large swathes of the
+The field of 21-cm cosmology -- in which the hyperfine spectral line of neutral hydrogen
+(appearing at rest-frame wavelengths of 21 cm) is mapped over large swathes of the
 Universe's history -- has developed radically over the last decade.
 The promise of the field is to revolutionize our
 knowledge of the first stars, galaxies, and black holes through the timing and patterns
-they imprint on the cosmic 21cm signal.
+they imprint on the cosmic 21-cm signal.
 In order to interpret the eventual observational data, a range of physical models have
 been developed -- from simple analytic models of the global history of hydrogen reionization,
 through to fully hydrodynamical simulations of the 3D evolution of the brightness
@@ -56,7 +56,7 @@ by upcoming telescopes, in order to explore the very wide
 parameter space that still remains consistent with the data.
 
 
-Amongst practitioners in the field of 21cm cosmology, the `21cmFAST` program has become
+Amongst practitioners in the field of 21-cm cosmology, the `21cmFAST` program has become
 the *de facto* standard for such semi-numerical simulators.
 `21cmFAST` [@mesinger2007,@mesinger2010] is a high-performance C code that uses the
 excursion set formalism [@furlanetto2004] to
@@ -142,7 +142,7 @@ including milli-charged dark matter models and forward-modelled CMB auxiliary da
 In addition, `21cmFAST` will be incorporated into large-scale inference codes, such as
 `21CMMC`, and is being used to create large data-sets for inference via machine learning.
 We hope that with this new framework, `21cmFAST` will remain an important component
- of 21cm cosmology for years to come.
+ of 21-cm cosmology for years to come.
 
 # Examples
 
