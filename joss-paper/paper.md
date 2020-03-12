@@ -39,10 +39,9 @@ bibliography: paper.bib
 The field of 21cm cosmology -- in which the hyperfine spectral line of neutral hydrogen
 (appearing at rest-frame wavelengths of 21cm) is mapped over large swathes of the
 Universe's history -- has developed radically over the last decade.
-Notwithstanding the overwhelming technical challenges associated with the observation
-and eventual detection of this signal, the promise of the field is to revolutionize our
+The promise of the field is to revolutionize our
 knowledge of the first stars, galaxies, and black holes through the timing and patterns
-they imprint in the cosmic 21cm signal.
+they imprint on the cosmic 21cm signal.
 In order to interpret the eventual observational data, a range of physical models have
 been developed -- from simple analytic models of the global history of hydrogen reionization,
 through to fully hydrodynamical simulations of the 3D evolution of the brightness
