@@ -1151,7 +1151,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             if (Splined_Fcoll < 0.) Splined_Fcoll = 1e-40;
                             if (prev_Splined_Fcoll > 1.) prev_Splined_Fcoll = 1.;
                             if (prev_Splined_Fcoll < 0.) prev_Splined_Fcoll = 1e-40;
-                            if (previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] > 1e-15){
+							if (previous_ionize_box->mean_f_coll > 1e-15){
                                 box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll - prev_Splined_Fcoll;
                             }
                             else{
@@ -1171,7 +1171,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             if (Splined_Fcoll_MINI < 0.) Splined_Fcoll_MINI = 1e-40;
                             if (prev_Splined_Fcoll_MINI < 0.) prev_Splined_Fcoll_MINI = 1e-40;
                             if (prev_Splined_Fcoll_MINI > 1.) prev_Splined_Fcoll_MINI = 1.;
-                            if (previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] > 1e-15){
+							if (previous_ionize_box->mean_f_coll_MINI > 1e-15){
                                 box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll_MINI - prev_Splined_Fcoll_MINI;
                             }
                             else{
