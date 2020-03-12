@@ -132,7 +132,8 @@ we have also incorporated several new scientific features, appearing in separate
 * Generate transfer functions using the `CLASS` Boltzmann code.
 * Simulate the effects of relative velocities between dark matter and Baryons [@munoz2019a,@munoz2019b].
 * Correction for non-conservation of ionizing photons (Park, Greig et al., *in prep*).
-* Including molecularly cooled galaxies with distinct properties [@qin2020]
+* Include molecularly cooled galaxies with distinct properties [@qin2020]
+* Calculate rest-frame UV luminosity functions based on parametrized galaxy models.
 
 `21cmFAST` is still in very active development.
 Amongst further usability and performance improvements,
