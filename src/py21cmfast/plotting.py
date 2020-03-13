@@ -348,13 +348,20 @@ def _set_zaxis_ticks(ax, lightcone, z_axis, zticks):
                     )
 
             zlabel = " ".join(z.capitalize() for z in zticks.split("_"))
-            if hasattr(coords, "unit"):
+            units = getattr(coords, "unit", None)
+            if units:
                 zlabel += " [{}]".format(str(coords.unit))
+                coords = coords.value
+
             ticks = loc.tick_values(coords.min(), coords.max())
-            if ticks.min() < coords.min() / 1.01:
+            print("Orig: ", ticks, coords.min(), coords.max())
+
+            if ticks.min() < coords.min() / 1.00001:
                 ticks = ticks[1:]
-            if ticks.max() > coords.max() * 1.01:
+                print("Min: ", ticks, coords.min(), coords.max())
+            if ticks.max() > coords.max() * 1.00001:
                 ticks = ticks[:-1]
+                print("Max: ", ticks, coords.min(), coords.max())
 
             if coords[1] < coords[0]:
                 ticks = ticks[::-1]
@@ -365,7 +372,7 @@ def _set_zaxis_ticks(ax, lightcone, z_axis, zticks):
                 z_ticks = 1420 / ticks - 1
             else:
                 z_ticks = [
-                    z_at_value(getattr(lightcone.cosmo_params.cosmo, zticks), z)
+                    z_at_value(getattr(lightcone.cosmo_params.cosmo, zticks), z * units)
                     for z in ticks
                 ]
 
