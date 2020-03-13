@@ -463,13 +463,13 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
     // Determine the normalisation for the excursion set algorithm
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (flag_options->USE_MINI_HALOS){
-            if (previous_ionize_box->mean_f_coll < 1e-15){
+            if (previous_ionize_box->mean_f_coll * ION_EFF_FACTOR < 1e-4){
                 box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
             }
             else{
                 box->mean_f_coll = previous_ionize_box->mean_f_coll + Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc) - Nion_General(prev_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
             }
-            if (previous_ionize_box->mean_f_coll_MINI < 1e-15){
+            if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI < 1e-4){
                 box->mean_f_coll_MINI = Nion_General_MINI(redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
             }
             else{
@@ -492,14 +492,14 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
         LOG_ERROR("Mean collapse fraction is either finite or NaN!");
         return(2);
     }
-LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %f", box->mean_f_coll);
+LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %e", box->mean_f_coll);
 
     if (flag_options->USE_MINI_HALOS){
         if(isfinite(box->mean_f_coll_MINI)==0) {
             LOG_ERROR("Mean collapse fraction of MINI is either finite or NaN!");
             return(2);
         }
-LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %f", box->mean_f_coll_MINI);
+LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f_coll_MINI);
     }
 
     if (box->mean_f_coll * ION_EFF_FACTOR + box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI< global_params.HII_ROUND_ERR){ // way too small to ionize anything...
@@ -896,7 +896,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+max_density)-overdense_small_min);
                 }
                 overdense_small_bin_width_inv = 1./overdense_small_bin_width;
-LOG_DEBUG("min_density=%f, max_density=%f, overdense_small_min=%f, overdense_small_bin_width=%f", min_density, max_density, overdense_small_min, overdense_small_bin_width);
+LOG_SUPER_DEBUG("R=%f, min_density=%f, max_density=%f, overdense_small_min=%f, overdense_small_bin_width=%f", R, min_density, max_density, overdense_small_min, overdense_small_bin_width);
 
                 if (flag_options->USE_MINI_HALOS){
                     // do the same for prev
@@ -943,7 +943,6 @@ LOG_DEBUG("min_density=%f, max_density=%f, overdense_small_min=%f, overdense_sma
                             prev_max_density = global_params.CRIT_DENS_TRANSITION*1.001;
                         }
                     }
-LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f, prev_overdense_small_bin_width=%f", prev_min_density, prev_max_density, prev_overdense_small_min, prev_overdense_small_bin_width);
 
                     prev_overdense_small_min = log10(1. + prev_min_density);
                     if(prev_max_density > global_params.CRIT_DENS_TRANSITION*1.001) {
@@ -953,6 +952,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                         prev_overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+prev_max_density)-prev_overdense_small_min);
                     }
                     prev_overdense_small_bin_width_inv = 1./prev_overdense_small_bin_width;
+LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f, prev_overdense_small_bin_width=%f", prev_min_density, prev_max_density, prev_overdense_small_min, prev_overdense_small_bin_width);
 
                     // do the same for logM
                     log10Mturn_min = 999;
@@ -1003,7 +1003,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                         LOG_ERROR("I have encountered an infinite or a NaN value in initialise_Nion_General_spline_MINI");
                         return(2);
                     }
-                    if (previous_ionize_box->mean_f_coll_MINI > 1e-15 || previous_ionize_box->mean_f_coll > 1e-15){
+                    if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
                         if(initialise_Nion_General_spline_MINI_prev(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,massofscaleR,M_MIN,log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI)!=0) {
                             LOG_ERROR("I have encountered an infinite or a NaN value in initialise_Nion_General_spline_MINI for prev");
                             return(2);
@@ -1060,7 +1060,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                         if(overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
                                         	overdense_int_boundexceeded = 1;
-                							LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, overdense_int=%d", overdense_int);
+                							LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, dens=%f, overdense_min=%f, overdense_width_inv=%f,overdense_int=%d", curr_dens, overdense_small_min, overdense_small_bin_width_inv,overdense_int);
                 							return(2);
                                         }
 
@@ -1087,7 +1087,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                         if(overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
                                             overdense_int_boundexceeded = 1;
-                							LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, overdense_int=%d", overdense_int);
+                							LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, dens=%f, overdense_min=%f, overdense_width_inv=%f,overdense_int=%d", curr_dens, overdense_large_min, overdense_large_bin_width_inv,overdense_int);
                 							return(2);
                                         }
 
@@ -1109,7 +1109,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                 prev_dens = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
-                                if (previous_ionize_box->mean_f_coll_MINI > 1e-15 || previous_ionize_box->mean_f_coll > 1e-15){
+                    			if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
                                     if (prev_dens < global_params.CRIT_DENS_TRANSITION){
 
                                         if (prev_dens < -1.) {
@@ -1122,7 +1122,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                             if(overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
                                                 overdense_int_boundexceeded = 1;
-                								LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, overdense_int=%d", overdense_int);
+                								LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, dens=%f, overdense_min=%f, overdense_width_inv=%f,overdense_int=%d", prev_dens, prev_overdense_small_min, prev_overdense_small_bin_width_inv,overdense_int);
                 								return(2);
                                             }
 
@@ -1149,7 +1149,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                             if(overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
                                                 overdense_int_boundexceeded = 1;
-                								LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, overdense_int=%d", overdense_int);
+                								LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, dens=%f, overdense_min=%f, overdense_width_inv=%f,overdense_int=%d", prev_dens, prev_overdense_large_min, prev_overdense_large_bin_width_inv,overdense_int);
                 								return(2);
                                             }
 
@@ -1559,7 +1559,7 @@ LOG_SUPER_DEBUG("freed fftw boxes");
 
 
 
-LOG_DEBUG("finished!");
+LOG_DEBUG("finished!\n");
 
     return(0);
 }
