@@ -435,19 +435,19 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
 LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
 
     if(!flag_options->USE_TS_FLUCT) {
+        if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
+            LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
+            return(2);
+        }
+    }
+	else{
         if (flag_options->USE_MINI_HALOS){
             if(initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e20)!=0) {
                 LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
                 return(2);
             }
         }
-        else{
-            if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
-                LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
-                return(2);
-            }
-        }
-    }
+	}
 
 LOG_SUPER_DEBUG("sigma table has been initialised");
 
