@@ -1,5 +1,7 @@
 """Simple plotting functions for 21cmFAST objects."""
 
+from typing import Optional
+
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import colors
@@ -177,6 +179,8 @@ def lightcone_sliceplot(
     kind: str = "brightness_temp",
     lightcone2: LightCone = None,
     vertical: bool = False,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
     **kwargs,
 ):
     """Create a 2D plot of a slice through a lightcone.
@@ -205,8 +209,10 @@ def lightcone_sliceplot(
     slice_axis = kwargs.pop("slice_axis", 0)
 
     if slice_axis == 0:
-        xlabel = "Redshift Axis [Mpc]"
-        ylabel = "y-axis [Mpc]"
+        if xlabel is None:
+            xlabel = "Redshift Axis [Mpc]"
+        if ylabel is None:
+            ylabel = "y-axis [Mpc]"
 
         if vertical:
             extent = (
@@ -228,12 +234,14 @@ def lightcone_sliceplot(
         extent = (0, lightcone.user_params.BOX_LEN) * 2
 
         if slice_axis == 1:
-            xlabel = "x-axis [Mpc]"
-            ylabel = "Redshift Axis [Mpc]"
+            if xlabel is None:
+                xlabel = "x-axis [Mpc]"
+            if ylabel is None:
+                ylabel = "Redshift Axis [Mpc]"
 
         elif slice_axis in (2, -1):
-            xlabel = "x-axis [Mpc]"
-            ylabel = "y-axis [Mpc]"
+            xlabel = "x-axis [Mpc]" if xlabel is None else xlabel
+            ylabel = "y-axis [Mpc]" if ylabel is None else ylabel
         else:
             raise ValueError("slice_axis must be between -1 and 2")
 
@@ -259,8 +267,98 @@ def lightcone_sliceplot(
             vmax=np.abs(d.max()),
             **kwargs,
         )
-    ax.set_ylabel(ylabel)
-    ax.set_xlabel(xlabel)
+
+    if ylabel:
+        ax.set_ylabel(ylabel)
+    if xlabel:
+        ax.set_xlabel(xlabel)
 
     # TODO: use twinx to put a redshift axis on it.
+    return fig, ax
+
+
+def lightcone_sliceplot_all(
+    lightcone: LightCone, vertical: bool = False, **kwargs,
+):
+    """
+    Make a lightcone sliceplot for all quantities in a lightcone, side-by-side.
+
+    Parameters
+    ----------
+    lightcone : :class:`LightCone` instance.
+        The lightcone to plot.
+    vertical : bool, optional
+        Whether the redshift axis should run vertically in the plot.
+    kwargs :
+        Passed on to :func:`_imshow_slice` (and in turn `imshow`).
+
+    Returns
+    -------
+    fig, ax :
+        The matplotlib Figure and Axes on which the plot was made.
+    """
+    quantities = lightcone.quantities.keys()
+
+    cmaps = {
+        "brightness_temp": eor_colour,
+        "Ts_box": "Reds",
+        "xH_box": "magma",
+        "dNrec_box": "magma",
+        "z_re_box": "magma",
+        "Gamma12_box": "cubehelix",
+        "density": "viridis",
+    }
+
+    if vertical:
+        fig, ax = plt.subplots(
+            1,
+            len(quantities),
+            figsize=(
+                lightcone.shape[1] * 0.015 * len(quantities),
+                lightcone.shape[2] * 0.015,
+            ),
+            gridspec_kw={"wspace": 0.01},
+            sharex=True,
+            sharey=True,
+        )
+    else:
+        fig, ax = plt.subplots(
+            len(quantities),
+            1,
+            figsize=(
+                lightcone.shape[2] * 0.015,
+                lightcone.shape[1] * 0.015 * len(quantities),
+            ),
+            gridspec_kw={"hspace": 0.01},
+            sharex=True,
+            sharey=True,
+        )
+
+    for i, quantity in enumerate(quantities):
+        lightcone_sliceplot(
+            lightcone,
+            kind=quantity,
+            vertical=vertical,
+            fig=fig,
+            ax=ax[i],
+            xlabel=None if i == (len(quantities) - 1) and vertical else "",
+            ylabel=None if i == 0 and vertical else "",
+            cmap=cmaps.get(quantity, None),
+            cbar=False,
+            **kwargs,
+        )
+
+        ax[i].text(
+            1,
+            0.05,
+            quantity,
+            horizontalalignment="right",
+            verticalalignment="bottom",
+            transform=ax[i].transAxes,
+            color="red",
+            backgroundcolor="white",
+            fontsize=15,
+        )
+
+    plt.tight_layout()
     return fig, ax

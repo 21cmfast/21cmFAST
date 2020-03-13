@@ -38,6 +38,7 @@ class _OutputStruct(_BaseOutputStruct):
 
 
 class _OutputStructZ(_OutputStruct):
+    _meta = False
     _inputs = _OutputStruct._inputs + ["redshift"]
 
 
@@ -164,6 +165,7 @@ class PerturbedField(_OutputStructZ):
 
 
 class _AllParamsBox(_OutputStructZ):
+    _meta = True
     _inputs = _OutputStructZ._inputs + ["flag_options", "astro_params"]
 
     _filter_params = _OutputStruct._filter_params + [
@@ -185,6 +187,8 @@ class _AllParamsBox(_OutputStructZ):
 
 class IonizedBox(_AllParamsBox):
     """A class containing all ionized boxes."""
+
+    _meta = False
 
     def _init_arrays(self):
         # ionized_box is always initialised to be neutral for excursion set algorithm.
@@ -219,6 +223,8 @@ class IonizedBox(_AllParamsBox):
 
 class TsBox(_AllParamsBox):
     """A class containing all spin temperature boxes."""
+
+    _meta = False
 
     def _init_arrays(self):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
@@ -275,6 +281,7 @@ class TsBox(_AllParamsBox):
 class BrightnessTemp(_AllParamsBox):
     """A class containing the brightness temperature box."""
 
+    _meta = False
     _filter_params = _OutputStructZ._filter_params
 
     def _init_arrays(self):
