@@ -1,8 +1,6 @@
 """Simple plotting functions for 21cmFAST objects."""
 from typing import Optional
 
-from typing import Optional
-
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as un
@@ -40,6 +38,7 @@ def _imshow_slice(
     cbar_horizontal=False,
     rotate=False,
     cmap="EoR",
+    log: [bool] = False,
     **imshow_kw,
 ):
     """
@@ -100,7 +99,8 @@ def _imshow_slice(
         imshow_kw["vmin"] = -150
         imshow_kw["vmax"] = 30
 
-    plt.imshow(slc, origin="lower", cmap=cmap, **imshow_kw)
+    norm = imshow_kw.get("norm", colors.LogNorm() if log else colors.Normalize())
+    plt.imshow(slc, origin="lower", cmap=cmap, norm=norm, **imshow_kw)
 
     if cbar:
         cb = plt.colorbar(
@@ -268,8 +268,14 @@ def lightcone_sliceplot(
         ax = fig.get_axes()
 
     # Get x,y labels if they're not the redshift axis.
-    xlabel = None if axis_dct["x"] == 2 else "{}-axis [Mpc]".format("xy"[axis_dct["x"]])
-    ylabel = None if axis_dct["y"] == 2 else "{}-axis [Mpc]".format("xy"[axis_dct["y"]])
+    if xlabel is None:
+        xlabel = (
+            None if axis_dct["x"] == 2 else "{}-axis [Mpc]".format("xy"[axis_dct["x"]])
+        )
+    if ylabel is None:
+        ylabel = (
+            None if axis_dct["y"] == 2 else "{}-axis [Mpc]".format("xy"[axis_dct["y"]])
+        )
 
     extent = (
         0,
@@ -309,8 +315,10 @@ def lightcone_sliceplot(
 
     zlabel = _set_zaxis_ticks(ax, lightcone, z_axis, zticks)
 
-    ax.set_xlabel(xlabel or zlabel)
-    ax.set_ylabel(ylabel or zlabel)
+    if ylabel != "":
+        ax.set_ylabel(ylabel or zlabel)
+    if xlabel != "":
+        ax.set_xlabel(xlabel or xlabel)
 
     cbar = fig._gci().colorbar
 
@@ -392,6 +400,7 @@ def plot_global_history(
     lightcone: [LightCone],
     kind: [str, None] = None,
     ylabel: [str, None] = None,
+    ylog: [bool] = False,
     ax: [plt.Axes, None] = None,
 ):
     """
@@ -436,5 +445,8 @@ def plot_global_history(
         ylabel = kind
     if ylabel:
         ax.set_ylabel(ylabel)
+
+    if ylog:
+        ax.set_yscale("log")
 
     return fig, ax
