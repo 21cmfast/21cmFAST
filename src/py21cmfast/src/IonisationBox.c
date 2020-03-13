@@ -267,87 +267,19 @@ LOG_SUPER_DEBUG("density field calculated");
         if (flag_options->USE_MINI_HALOS){
             // this is the first z, and the previous_ionize_box  are empty
             if (prev_redshift < 1){
-                previous_ionize_box->Gamma12_box = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
-                previous_ionize_box->z_re_box    = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
-                previous_ionize_box->dNrec_box   = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS);
+                previous_ionize_box->Gamma12_box = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+                previous_ionize_box->z_re_box    = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+                previous_ionize_box->dNrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+				previous_ionize_box->Fcoll       = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
+				previous_ionize_box->Fcoll_MINI  = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
                 previous_ionize_box->mean_f_coll = 0.0;
                 previous_ionize_box->mean_f_coll_MINI = 0.0;
-
-				// really painful to get the length...
-	        	R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
-    	    	while ((R - fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ){
-                    if(R >= fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) {
-                        stored_R = R/(global_params.DELTA_R_HII_FACTOR);
-                    }
-        		    R*= global_params.DELTA_R_HII_FACTOR;
-				}
-        		R=fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN);
-        		counter = 0;
-        		LAST_FILTER_STEP = 0;
-        		first_step_R = 1;
-
-		        while (!LAST_FILTER_STEP && (M_MIN < RtoM(R)) ){
-            		if ( ((R/(global_params.DELTA_R_HII_FACTOR) - cell_length_factor*(user_params->BOX_LEN)/(float)(user_params->HII_DIM)) <= FRACT_FLOAT_ERR) || ((R/(global_params.DELTA_R_HII_FACTOR) - global_params.R_BUBBLE_MIN) <= FRACT_FLOAT_ERR) ) {
-                		LAST_FILTER_STEP = 1;
-		                R = fmax(cell_length_factor*user_params->BOX_LEN/(double)(user_params->HII_DIM), global_params.R_BUBBLE_MIN);
-        		    }
-		            if(first_step_R) {
-        		        R = stored_R;
-                		first_step_R = 0;
-		            }
-        		    else {
-		                R /= (global_params.DELTA_R_HII_FACTOR);
-        		    }
-                	counter += 1;
-        		}
-
-				previous_ionize_box->Fcoll       = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS*counter);
-				previous_ionize_box->Fcoll_MINI  = (float *) malloc(sizeof(float)*HII_TOT_NUM_PIXELS*counter);
-
-				// again...
-	        	R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
-    	    	while ((R - fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ){
-                    if(R >= fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) {
-                        stored_R = R/(global_params.DELTA_R_HII_FACTOR);
-                    }
-        		    R*= global_params.DELTA_R_HII_FACTOR;
-				}
-        		R=fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN);
-        		counter = 0;
-        		LAST_FILTER_STEP = 0;
-        		first_step_R = 1;
-
-		        while (!LAST_FILTER_STEP && (M_MIN < RtoM(R)) ){
-            		if ( ((R/(global_params.DELTA_R_HII_FACTOR) - cell_length_factor*(user_params->BOX_LEN)/(float)(user_params->HII_DIM)) <= FRACT_FLOAT_ERR) || ((R/(global_params.DELTA_R_HII_FACTOR) - global_params.R_BUBBLE_MIN) <= FRACT_FLOAT_ERR) ) {
-                		LAST_FILTER_STEP = 1;
-		                R = fmax(cell_length_factor*user_params->BOX_LEN/(double)(user_params->HII_DIM), global_params.R_BUBBLE_MIN);
-        		    }
-		            if(first_step_R) {
-        		        R = stored_R;
-                		first_step_R = 0;
-		            }
-        		    else {
-		                R /= (global_params.DELTA_R_HII_FACTOR);
-        		    }
-					for (i=0; i<user_params->HII_DIM; i++){
-						for (j=0; j<user_params->HII_DIM; j++){
-							for (k=0; k<user_params->HII_DIM; k++){
-								previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(i,j,k)] = 0.0;
-								previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(i,j,k)] = 0.0;
-							}
-						}
-					}
-                	counter += 1;
-        		}
-
 
                 for (i=0; i<user_params->HII_DIM; i++){
                     for (j=0; j<user_params->HII_DIM; j++){
                         for (k=0; k<user_params->HII_DIM; k++){
                             *((float *)prev_deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = -1.5;
-                            previous_ionize_box->Gamma12_box[HII_R_INDEX(i, j, k)] = 0.0;
                             previous_ionize_box->z_re_box[HII_R_INDEX(i, j, k)] = -1.0;
-                            previous_ionize_box->dNrec_box[HII_R_INDEX(i, j, k)] = 0.0;
                         }
                     }
                 }
