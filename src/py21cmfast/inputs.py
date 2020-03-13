@@ -563,6 +563,18 @@ class FlagOptions(StructWithDefaults):
             return self._INHOMO_RECO
 
     @property
+    def USE_TS_FLUCT(self):
+        """Automatically setting USE_TS_FLUCT to True if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and not self._USE_TS_FLUCT:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
+                "Automatically setting USE_TS_FLUCT to True."
+            )
+            return True
+        else:
+            return self._USE_TS_FLUCT
+
+    @property
     def PHOTON_CONS(self):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
         if self.USE_MINI_HALOS and self._PHOTON_CONS:

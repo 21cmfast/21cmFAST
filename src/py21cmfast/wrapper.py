@@ -1419,7 +1419,8 @@ def spin_temperature(
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
         # Explicitly set this flag to True, though it shouldn't be required!
-        flag_options.USE_TS_FLUCT = True
+        if not flag_options.USE_TS_FLUCT:
+            flag_options.USE_TS_FLUCT = True
 
         box = TsBox(
             first_box=((1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1)
