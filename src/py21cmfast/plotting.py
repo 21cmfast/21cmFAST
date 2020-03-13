@@ -1,10 +1,14 @@
 """Simple plotting functions for 21cmFAST objects."""
+from typing import Optional
 
 from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+from astropy import units as un
+from astropy.cosmology import z_at_value
 from matplotlib import colors
+from matplotlib.ticker import AutoLocator
 
 from . import outputs
 from .outputs import Coeval
@@ -196,7 +200,10 @@ def lightcone_sliceplot(
     vertical: bool = False,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
-    cbar_label=None,
+    cbar_label: Optional[str] = None,
+    zticks: str = "redshift",
+    fig: Optional[plt.Figure] = None,
+    ax: Optional[plt.Axes] = None,
     **kwargs,
 ):
     """Create a 2D plot of a slice through a lightcone.
@@ -215,6 +222,11 @@ def lightcone_sliceplot(
     cbar_label : str, optional
         A label for the colorbar. Some quantities have automatically chosen labels, but
         these can be removed by setting `cbar_label=''`.
+    zticks : str, optional
+        Defines the co-ordinates of the ticks along the redshift axis.
+        Can be "redshift" (default), "frequency", "distance" (which starts at zero
+        for the lowest redshift) or the name of any function in an astropy cosmology
+        that is purely a function of redshift.
     kwargs :
         Passed through to ``imshow()``.
 
@@ -226,43 +238,45 @@ def lightcone_sliceplot(
         The matplotlib Axis object onto which the plot was drawn.
     """
     slice_axis = kwargs.pop("slice_axis", 0)
+    if slice_axis <= -2 or slice_axis >= 3:
+        raise ValueError(
+            "slice_axis should be between -1 and 2 (got {})".format(slice_axis)
+        )
 
-    if slice_axis == 0:
-        if xlabel is None:
-            xlabel = "Redshift Axis [Mpc]"
-        if ylabel is None:
-            ylabel = "y-axis [Mpc]"
 
-        if vertical:
-            extent = (
-                0,
-                lightcone.user_params.BOX_LEN,
-                0,
-                lightcone.lightcone_coords[-1],
-            )
-            xlabel, ylabel = ylabel, xlabel
-        else:
-            extent = (
-                0,
-                lightcone.lightcone_coords[-1],
-                0,
-                lightcone.user_params.BOX_LEN,
-            )
+    z_axis = ("y" if vertical else "x") if slice_axis in (0, 1) else None
 
-    else:
-        extent = (0, lightcone.user_params.BOX_LEN) * 2
+    # Dictionary mapping axis to dimension in lightcone
+    axis_dct = {
+        "x": 2 if z_axis == "x" else [1, 0, 0][slice_axis],
+        "y": 2 if z_axis == "y" else [1, 0, 1][slice_axis],
+    }
 
-        if slice_axis == 1:
-            if xlabel is None:
-                xlabel = "x-axis [Mpc]"
-            if ylabel is None:
-                ylabel = "Redshift Axis [Mpc]"
+    if fig is None and ax is None:
+        fig, ax = plt.subplots(
+            1,
+            1,
+            figsize=(
+                lightcone.shape[axis_dct["x"]] * 0.015 + 0.5,
+                lightcone.shape[axis_dct["y"]] * 0.015
+                + (2.5 if kwargs.get("cbar", True) else 0.05),
+            ),
+        )
+    elif fig is None:
+        fig = ax._gci().figure
+    elif ax is None:
+        ax = fig.get_axes()
 
-        elif slice_axis in (2, -1):
-            xlabel = "x-axis [Mpc]" if xlabel is None else xlabel
-            ylabel = "y-axis [Mpc]" if ylabel is None else ylabel
-        else:
-            raise ValueError("slice_axis must be between -1 and 2")
+    # Get x,y labels if they're not the redshift axis.
+    xlabel = None if axis_dct["x"] == 2 else "{}-axis [Mpc]".format("xy"[axis_dct["x"]])
+    ylabel = None if axis_dct["y"] == 2 else "{}-axis [Mpc]".format("xy"[axis_dct["y"]])
+
+    extent = (
+        0,
+        lightcone.lightcone_dimensions[axis_dct["x"]],
+        0,
+        lightcone.lightcone_dimensions[axis_dct["y"]],
+    )
 
     if lightcone2 is None:
         fig, ax = _imshow_slice(
@@ -272,6 +286,8 @@ def lightcone_sliceplot(
             rotate=not vertical,
             cbar_horizontal=not vertical,
             cmap=kwargs.get("cmap", "EoR" if kind == "brightness_temp" else "viridis"),
+            fig=fig,
+            ax=ax,
             **kwargs,
         )
     else:
@@ -285,30 +301,16 @@ def lightcone_sliceplot(
             cmap=kwargs.pop("cmap", "bwr"),
             vmin=-np.abs(d.max()),
             vmax=np.abs(d.max()),
+            fig=fig,
+            ax=ax,
             **kwargs,
         )
 
-    if ylabel:
-        ax.set_ylabel(ylabel)
-    if xlabel:
-        ax.set_xlabel(xlabel)
 
-    # Get redshift ticks.
-    lc_z = lightcone.lightcone_redshifts
-    zticks = np.arange(int(np.ceil(lc_z.min())), int(lc_z.max()) + 1)
-    n_sep = len(zticks) // 8 + 1
-    zticks = zticks[::n_sep]
+    zlabel = _set_zaxis_ticks(ax, lightcone, z_axis, zticks)
 
-    d_ticks = (
-        lightcone.cosmo_params.cosmo.comoving_distance(zticks).value
-        - lightcone.lightcone_distances[0]
-    )
-    if vertical:
-        ax.set_yticks(d_ticks)
-        ax.set_yticklabels(zticks)
-    else:
-        ax.set_xticks(d_ticks)
-        ax.set_xticklabels(zticks)
+    ax.set_xlabel(xlabel or zlabel)
+    ax.set_ylabel(ylabel or zlabel)
 
     cbar = fig._gci().colorbar
 
@@ -326,91 +328,57 @@ def lightcone_sliceplot(
     return fig, ax
 
 
-def lightcone_sliceplot_all(
-    lightcone: LightCone, vertical: bool = False, **kwargs,
-):
-    """
-    Make a lightcone sliceplot for all quantities in a lightcone, side-by-side.
+def _set_zaxis_ticks(ax, lightcone, z_axis, zticks):
+    if z_axis:
+        if zticks != "distance":
+            loc = AutoLocator()
+            # Get redshift ticks.
+            lc_z = lightcone.lightcone_redshifts
 
-    Parameters
-    ----------
-    lightcone : :class:`LightCone` instance.
-        The lightcone to plot.
-    vertical : bool, optional
-        Whether the redshift axis should run vertically in the plot.
-    kwargs :
-        Passed on to :func:`_imshow_slice` (and in turn `imshow`).
+            if zticks == "redshift":
+                coords = lc_z
+            elif zticks == "frequency":
+                coords = 1420 / (1 + lc_z) * un.MHz
+            else:
+                try:
+                    coords = getattr(lightcone.cosmo_params.cosmo, zticks)(lc_z)
+                except AttributeError:
+                    raise AttributeError(
+                        "zticks '{}' is not a cosmology function.".format(zticks)
+                    )
 
+            zlabel = " ".join(z.capitalize() for z in zticks.split("_"))
+            if hasattr(coords, "unit"):
+                zlabel += " [{}]".format(str(coords.unit))
+            ticks = loc.tick_values(coords.min(), coords.max())
+            if ticks.min() < coords.min() / 1.01:
+                ticks = ticks[1:]
+            if ticks.max() > coords.max() * 1.01:
+                ticks = ticks[:-1]
 
-    Returns
-    -------
-    fig, ax :
-        The matplotlib Figure and Axes on which the plot was made.
-    """
-    quantities = lightcone.quantities.keys()
+            if coords[1] < coords[0]:
+                ticks = ticks[::-1]
 
-    cmaps = {
-        "brightness_temp": eor_colour,
-        "Ts_box": "Reds",
-        "xH_box": "magma",
-        "dNrec_box": "magma",
-        "z_re_box": "magma",
-        "Gamma12_box": "cubehelix",
-        "density": "viridis",
-    }
+            if zticks == "redshift":
+                z_ticks = ticks
+            elif zticks == "frequency":
+                z_ticks = 1420 / ticks - 1
+            else:
+                z_ticks = [
+                    z_at_value(getattr(lightcone.cosmo_params.cosmo, zticks), z)
+                    for z in ticks
+                ]
 
-    if vertical:
-        fig, ax = plt.subplots(
-            1,
-            len(quantities),
-            figsize=(
-                lightcone.shape[1] * 0.015 * len(quantities),
-                lightcone.shape[2] * 0.015,
-            ),
-            gridspec_kw={"wspace": 0.01},
-            sharex=True,
-            sharey=True,
-        )
-    else:
-        fig, ax = plt.subplots(
-            len(quantities),
-            1,
-            figsize=(
-                lightcone.shape[2] * 0.015,
-                lightcone.shape[1] * 0.015 * len(quantities),
-            ),
-            gridspec_kw={"hspace": 0.01},
-            sharex=True,
-            sharey=True,
-        )
+            d_ticks = (
+                lightcone.cosmo_params.cosmo.comoving_distance(z_ticks).value
+                - lightcone.lightcone_distances[0]
+            )
+            getattr(ax, "set_{}ticks".format(z_axis))(d_ticks)
+            getattr(ax, "set_{}ticklabels".format(z_axis))(ticks)
 
-    for i, quantity in enumerate(quantities):
-        lightcone_sliceplot(
-            lightcone,
-            kind=quantity,
-            vertical=vertical,
-            fig=fig,
-            ax=ax[i],
-            xlabel=None if i == (len(quantities) - 1) and vertical else "",
-            ylabel=None if i == 0 and vertical else "",
-            cmap=cmaps.get(quantity, None),
-            cbar=False,
-            **kwargs,
-        )
-
-        ax[i].text(
-            1,
-            0.05,
-            quantity,
-            horizontalalignment="right",
-            verticalalignment="bottom",
-            transform=ax[i].transAxes,
-            color="red",
-            backgroundcolor="white",
-            fontsize=15,
-        )
-
-    plt.tight_layout()
+        else:
+            zlabel = "Line-of-Sight Distance [Mpc]"
+    return zlabel
 
 
 def plot_global_history(
