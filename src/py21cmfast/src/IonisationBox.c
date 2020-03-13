@@ -267,11 +267,23 @@ LOG_SUPER_DEBUG("density field calculated");
         if (flag_options->USE_MINI_HALOS){
             // this is the first z, and the previous_ionize_box  are empty
             if (prev_redshift < 1){
+LOG_DEBUG("first redshift, do some initialization");
                 previous_ionize_box->Gamma12_box = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
                 previous_ionize_box->z_re_box    = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
                 previous_ionize_box->dNrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
-				previous_ionize_box->Fcoll       = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
-				previous_ionize_box->Fcoll_MINI  = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
+                // really painful to get the length...
+                counter = 1;
+                R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
+                while ((R - fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ){
+                    if(R >= fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) {
+                        stored_R = R/(global_params.DELTA_R_HII_FACTOR);
+                    }
+                    R*= global_params.DELTA_R_HII_FACTOR;
+                    counter += 1;
+                }
+
+                previous_ionize_box->Fcoll       = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
+                previous_ionize_box->Fcoll_MINI  = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
                 previous_ionize_box->mean_f_coll = 0.0;
                 previous_ionize_box->mean_f_coll_MINI = 0.0;
 
@@ -369,14 +381,14 @@ LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
             return(2);
         }
     }
-	else{
+    else{
         if (flag_options->USE_MINI_HALOS){
             if(initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e20)!=0) {
                 LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
                 return(2);
             }
         }
-	}
+    }
 
 LOG_SUPER_DEBUG("sigma table has been initialised");
 
@@ -991,9 +1003,9 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                         overdense_int = (int)floorf( dens_val );
 
                                         if(overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
-                                        	overdense_int_boundexceeded = 1;
-                							LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, dens=%f, overdense_min=%f, overdense_width_inv=%f,overdense_int=%d", curr_dens, overdense_small_min, overdense_small_bin_width_inv,overdense_int);
-                							return(2);
+                                            overdense_int_boundexceeded = 1;
+                                            LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, dens=%f, overdense_min=%f, overdense_width_inv=%f,overdense_int=%d", curr_dens, overdense_small_min, overdense_small_bin_width_inv,overdense_int);
+                                            return(2);
                                         }
 
                                         Splined_Fcoll = (log10_Nion_spline[overdense_int   + NSFR_low* log10_Mturnover_int   ]*( 1 + (float)overdense_int - dens_val ) +\
@@ -1019,8 +1031,8 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                         if(overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
                                             overdense_int_boundexceeded = 1;
-                							LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, dens=%f, overdense_min=%f, overdense_width_inv=%f,overdense_int=%d", curr_dens, overdense_large_min, overdense_large_bin_width_inv,overdense_int);
-                							return(2);
+                                            LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, dens=%f, overdense_min=%f, overdense_width_inv=%f,overdense_int=%d", curr_dens, overdense_large_min, overdense_large_bin_width_inv,overdense_int);
+                                            return(2);
                                         }
 
                                         Splined_Fcoll = (Nion_spline[overdense_int   + NSFR_high* log10_Mturnover_int   ]*( 1 + (float)overdense_int - dens_val ) +\
@@ -1041,7 +1053,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                 prev_dens = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
-                    			if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
+                                if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
                                     if (prev_dens < global_params.CRIT_DENS_TRANSITION){
 
                                         if (prev_dens < -1.) {
@@ -1054,8 +1066,8 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                             if(overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
                                                 overdense_int_boundexceeded = 1;
-                								LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, dens=%f, overdense_min=%f, overdense_width_inv=%f,overdense_int=%d", prev_dens, prev_overdense_small_min, prev_overdense_small_bin_width_inv,overdense_int);
-                								return(2);
+                                                LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, dens=%f, overdense_min=%f, overdense_width_inv=%f,overdense_int=%d", prev_dens, prev_overdense_small_min, prev_overdense_small_bin_width_inv,overdense_int);
+                                                return(2);
                                             }
 
                                             prev_Splined_Fcoll = (prev_log10_Nion_spline[overdense_int   + NSFR_low* log10_Mturnover_int   ]*( 1 + (float)overdense_int - prev_dens_val ) +\
@@ -1081,8 +1093,8 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                             if(overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
                                                 overdense_int_boundexceeded = 1;
-                								LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, dens=%f, overdense_min=%f, overdense_width_inv=%f,overdense_int=%d", prev_dens, prev_overdense_large_min, prev_overdense_large_bin_width_inv,overdense_int);
-                								return(2);
+                                                LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, dens=%f, overdense_min=%f, overdense_width_inv=%f,overdense_int=%d", prev_dens, prev_overdense_large_min, prev_overdense_large_bin_width_inv,overdense_int);
+                                                return(2);
                                             }
 
                                             prev_Splined_Fcoll = (prev_Nion_spline[overdense_int   + NSFR_high* log10_Mturnover_int   ]*( 1 + (float)overdense_int - prev_dens_val ) +\
@@ -1116,8 +1128,8 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                         if(overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
                                             overdense_int_boundexceeded = 1;
-                							LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, overdense_int=%d", overdense_int);
-                							return(2);
+                                            LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, overdense_int=%d", overdense_int);
+                                            return(2);
                                         }
 
                                         Splined_Fcoll = log10_Nion_spline[overdense_int]*( 1 + (float)overdense_int - dens_val ) + log10_Nion_spline[overdense_int+1]*( dens_val - (float)overdense_int );
@@ -1134,8 +1146,8 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                         if(overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
                                             overdense_int_boundexceeded = 1;
-                							LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, overdense_int=%d", overdense_int);
-                							return(2);
+                                            LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines, overdense_int=%d", overdense_int);
+                                            return(2);
                                         }
 
                                         Splined_Fcoll = Nion_spline[overdense_int]*( 1 + (float)overdense_int - dens_val ) + Nion_spline[overdense_int+1]*( dens_val - (float)overdense_int );
