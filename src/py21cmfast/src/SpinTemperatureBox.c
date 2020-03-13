@@ -1319,20 +1319,29 @@ LOG_SUPER_DEBUG("looping over box...");
                                 fcoll_int = (int)floorf( dens_val );
 
                                 if(fcoll_int < 0 || (fcoll_int + 1) > (NSFR_low - 1)) {
-                                    if(fcoll_int==(NSFR_low - 1) && fabs(curr_dens - global_params.CRIT_DENS_TRANSITION) < 1e-4) {
-                                        // There can be instances where the numerical rounding causes it to go in here, rather than the curr_dens > global_params.CRIT_DENS_TRANSITION case
-                                        // This checks for this, and calculates f_coll in this instance, rather than causing it to error
-                                        dens_val = (curr_dens - fcoll_interp_high_min)*fcoll_interp_high_bin_width_inv;
+                                    if(fcoll_int==(NSFR_low - 1)) {
+                                        if (fabs(curr_dens - global_params.CRIT_DENS_TRANSITION) < 1e-4) {
+                                            // There can be instances where the numerical rounding causes it to go in here, rather than the curr_dens > global_params.CRIT_DENS_TRANSITION case
+                                            // This checks for this, and calculates f_coll in this instance, rather than causing it to error
+                                            dens_val = (curr_dens - fcoll_interp_high_min)*fcoll_interp_high_bin_width_inv;
 
-                                        fcoll_int = (int)floorf( dens_val );
+                                            fcoll_int = (int)floorf( dens_val );
 
-                                        fcoll = SFRD_z_high_table[R_ct][fcoll_int]*( 1. + (float)fcoll_int - dens_val ) + SFRD_z_high_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
-                                        if (flag_options->USE_MINI_HALOS){
-                                            fcoll_MINI_left  = SFRD_z_high_table_MINI[R_ct][fcoll_int  +NSFR_high* log10_Mcrit_LW_int   ]*( 1. + (float)fcoll_int - dens_val ) +\
-                                                               SFRD_z_high_table_MINI[R_ct][fcoll_int+1+NSFR_high* log10_Mcrit_LW_int   ]*( dens_val - (float)fcoll_int );
-                                            fcoll_MINI_right = SFRD_z_high_table_MINI[R_ct][fcoll_int  +NSFR_high*(log10_Mcrit_LW_int+1)]*( 1. + (float)fcoll_int - dens_val ) +\
-                                                               SFRD_z_high_table_MINI[R_ct][fcoll_int+1+NSFR_high*(log10_Mcrit_LW_int+1)]*( dens_val - (float)fcoll_int );
+                                            fcoll = SFRD_z_high_table[R_ct][fcoll_int]*( 1. + (float)fcoll_int - dens_val ) + SFRD_z_high_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
+                                            if (flag_options->USE_MINI_HALOS){
+                                                fcoll_MINI_left  = SFRD_z_high_table_MINI[R_ct][fcoll_int  +NSFR_high* log10_Mcrit_LW_int   ]*( 1. + (float)fcoll_int - dens_val ) +\
+                                                                   SFRD_z_high_table_MINI[R_ct][fcoll_int+1+NSFR_high* log10_Mcrit_LW_int   ]*( dens_val - (float)fcoll_int );
+                                                fcoll_MINI_right = SFRD_z_high_table_MINI[R_ct][fcoll_int  +NSFR_high*(log10_Mcrit_LW_int+1)]*( 1. + (float)fcoll_int - dens_val ) +\
+                                                                   SFRD_z_high_table_MINI[R_ct][fcoll_int+1+NSFR_high*(log10_Mcrit_LW_int+1)]*( dens_val - (float)fcoll_int );
+                                                fcoll_MINI       = fcoll_MINI_left * (1.-log10_Mcrit_LW_diff) + fcoll_MINI_right * log10_Mcrit_LW_diff;
+                                            }
+										}
+                                        else{
+                                            fcoll = expf(log10_SFRD_z_low_table[R_ct][fcoll_int]);
+                                            fcoll_MINI_left  = log10_SFRD_z_low_table_MINI[R_ct][fcoll_int  +NSFR_low* log10_Mcrit_LW_int   ];
+                                            fcoll_MINI_right = log10_SFRD_z_low_table_MINI[R_ct][fcoll_int  +NSFR_low*(log10_Mcrit_LW_int+1)];
                                             fcoll_MINI       = fcoll_MINI_left * (1.-log10_Mcrit_LW_diff) + fcoll_MINI_right * log10_Mcrit_LW_diff;
+                                            fcoll_MINI       = expf(fcoll_MINI);
                                         }
                                     }
                                     else {
