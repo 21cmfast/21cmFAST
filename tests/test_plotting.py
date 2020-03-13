@@ -80,9 +80,9 @@ def test_lc_sliceplot_cdist(lc):
     assert ax.yaxis.get_label().get_text() == "y-axis [Mpc]"
     assert ax.xaxis.get_label().get_text() == "Comoving Distance [Mpc]"
 
-    xlim = ax.get_xlim()
-    assert xlim[0] >= lc.lightcone_distances.min()
-    assert xlim[1] <= lc.lightcone_distances.max()
+    xlim = ax.get_xticks()
+    assert xlim.min() >= 0
+    assert xlim.max() <= lc.lightcone_dimensions[-1]
 
 
 def test_lc_sliceplot_sliceax(lc):

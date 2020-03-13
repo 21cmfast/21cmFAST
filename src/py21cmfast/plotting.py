@@ -312,13 +312,13 @@ def lightcone_sliceplot(
             **kwargs,
         )
 
-
-    zlabel = _set_zaxis_ticks(ax, lightcone, z_axis, zticks)
+    if z_axis:
+        zlabel = _set_zaxis_ticks(ax, lightcone, zticks, z_axis)
 
     if ylabel != "":
         ax.set_ylabel(ylabel or zlabel)
     if xlabel != "":
-        ax.set_xlabel(xlabel or xlabel)
+        ax.set_xlabel(xlabel or zlabel)
 
     cbar = fig._gci().colorbar
 
@@ -336,63 +336,59 @@ def lightcone_sliceplot(
     return fig, ax
 
 
-def _set_zaxis_ticks(ax, lightcone, z_axis, zticks):
-    if z_axis:
-        if zticks != "distance":
-            loc = AutoLocator()
-            # Get redshift ticks.
-            lc_z = lightcone.lightcone_redshifts
+def _set_zaxis_ticks(ax, lightcone, zticks, z_axis):
+    if zticks != "distance":
+        loc = AutoLocator()
+        # Get redshift ticks.
+        lc_z = lightcone.lightcone_redshifts
 
-            if zticks == "redshift":
-                coords = lc_z
-            elif zticks == "frequency":
-                coords = 1420 / (1 + lc_z) * un.MHz
-            else:
-                try:
-                    coords = getattr(lightcone.cosmo_params.cosmo, zticks)(lc_z)
-                except AttributeError:
-                    raise AttributeError(
-                        "zticks '{}' is not a cosmology function.".format(zticks)
-                    )
-
-            zlabel = " ".join(z.capitalize() for z in zticks.split("_"))
-            units = getattr(coords, "unit", None)
-            if units:
-                zlabel += " [{}]".format(str(coords.unit))
-                coords = coords.value
-
-            ticks = loc.tick_values(coords.min(), coords.max())
-            print("Orig: ", ticks, coords.min(), coords.max())
-
-            if ticks.min() < coords.min() / 1.00001:
-                ticks = ticks[1:]
-                print("Min: ", ticks, coords.min(), coords.max())
-            if ticks.max() > coords.max() * 1.00001:
-                ticks = ticks[:-1]
-                print("Max: ", ticks, coords.min(), coords.max())
-
-            if coords[1] < coords[0]:
-                ticks = ticks[::-1]
-
-            if zticks == "redshift":
-                z_ticks = ticks
-            elif zticks == "frequency":
-                z_ticks = 1420 / ticks - 1
-            else:
-                z_ticks = [
-                    z_at_value(getattr(lightcone.cosmo_params.cosmo, zticks), z * units)
-                    for z in ticks
-                ]
-
-            d_ticks = (
-                lightcone.cosmo_params.cosmo.comoving_distance(z_ticks).value
-                - lightcone.lightcone_distances[0]
-            )
-            getattr(ax, "set_{}ticks".format(z_axis))(d_ticks)
-            getattr(ax, "set_{}ticklabels".format(z_axis))(ticks)
-
+        if zticks == "redshift":
+            coords = lc_z
+        elif zticks == "frequency":
+            coords = 1420 / (1 + lc_z) * un.MHz
         else:
-            zlabel = "Line-of-Sight Distance [Mpc]"
+            try:
+                coords = getattr(lightcone.cosmo_params.cosmo, zticks)(lc_z)
+            except AttributeError:
+                raise AttributeError(
+                    "zticks '{}' is not a cosmology function.".format(zticks)
+                )
+
+        zlabel = " ".join(z.capitalize() for z in zticks.split("_"))
+        units = getattr(coords, "unit", None)
+        if units:
+            zlabel += " [{}]".format(str(coords.unit))
+            coords = coords.value
+
+        ticks = loc.tick_values(coords.min(), coords.max())
+
+        if ticks.min() < coords.min() / 1.00001:
+            ticks = ticks[1:]
+        if ticks.max() > coords.max() * 1.00001:
+            ticks = ticks[:-1]
+
+        if coords[1] < coords[0]:
+            ticks = ticks[::-1]
+
+        if zticks == "redshift":
+            z_ticks = ticks
+        elif zticks == "frequency":
+            z_ticks = 1420 / ticks - 1
+        else:
+            z_ticks = [
+                z_at_value(getattr(lightcone.cosmo_params.cosmo, zticks), z * units)
+                for z in ticks
+            ]
+
+        d_ticks = (
+            lightcone.cosmo_params.cosmo.comoving_distance(z_ticks).value
+            - lightcone.lightcone_distances[0]
+        )
+        getattr(ax, "set_{}ticks".format(z_axis))(d_ticks)
+        getattr(ax, "set_{}ticklabels".format(z_axis))(ticks)
+
+    else:
+        zlabel = "Line-of-Sight Distance [Mpc]"
     return zlabel
 
 
