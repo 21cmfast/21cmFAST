@@ -392,15 +392,10 @@ double sigma_z0(double M){
       kend = 350.0/R;
     }
 
-
-
-
     lower_limit = kstart;//log(kstart);
     upper_limit = kend;//log(kend);
 
     F.function = &dsigma_dk;
-    //  gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
-    //    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS41, w, &result, &error);
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
     gsl_integration_workspace_free (w);
     return sigma_norm * sqrt(result);
@@ -2159,10 +2154,9 @@ int initialise_SFRD_Conditional_table(int Nfilter, float min_density[], float ma
 int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cosmo_params,
                          struct AstroParams *astro_params, struct FlagOptions *flag_options)
 {
-
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
-
+    init_ps();
     //     To solve differentail equation, uses Euler's method.
     //     NOTE:
     //     (1) With the fiducial parameter set,
@@ -2190,7 +2184,6 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
         M_MIN = astro_params->M_TURN/50.;
         Mlim_Fstar = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR10);
         Mlim_Fesc = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10);
-
         initialiseSigmaMInterpTable(M_MIN,1e20);
     }
     else {
@@ -2243,7 +2236,6 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
                                                 Mlim_Fstar, Mlim_Fesc);
             }
             else {
-
                 //set the minimum source mass
                 if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
                     M_MIN_z0 = TtoM(z0, astro_params->ION_Tvir_MIN, 1.22);
