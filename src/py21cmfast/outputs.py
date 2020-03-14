@@ -180,6 +180,9 @@ class _AllParamsBox(_OutputStructZ):
         if astro_params is None:
             astro_params = AstroParams(INHOMO_RECO=flag_options.INHOMO_RECO)
 
+        self.log10_Mturnover_ave = 0.0
+        self.log10_Mturnover_MINI_ave = 0.0
+
         self.first_box = first_box
         if first_box:
             self.mean_f_coll = 0.0
@@ -252,8 +255,6 @@ class IonizedBox(_AllParamsBox):
             self.Fcoll_MINI.shape = filter_shape
         else:
             self.Fcoll_MINI = np.array([], dtype=np.float32)
-        self.log10_Mturnover_ave = 0.0
-        self.log10_Mturnover_MINI_ave = 0.0
 
     @cached_property
     def global_xH(self):

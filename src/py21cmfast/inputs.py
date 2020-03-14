@@ -574,6 +574,14 @@ class FlagOptions(StructWithDefaults):
         else:
             return self._USE_TS_FLUCT
 
+    @USE_TS_FLUCT.setter
+    def USE_TS_FLUCT(self, value):
+        self._USE_TS_FLUCT = value
+
+    @USE_TS_FLUCT.deleter
+    def USE_TS_FLUCT(self):
+        del self._USE_TS_FLUCT
+
     @property
     def PHOTON_CONS(self):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
