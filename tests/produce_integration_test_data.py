@@ -33,7 +33,15 @@ OPTIONS = (
     [13, {"zprime_step_factor": 1.05, "z_heat_max": 25, "HMF": 0}],
     [16, {"interp_perturb_field": True}],
     [14, {"USE_MASS_DEPENDENT_ZETA": True}],
-    [15, {"USE_MINI_HALOS": True}],
+    [
+        15,
+        {
+            "USE_MINI_HALOS": True,
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "INHOMO_RECO": True,
+            "USE_TS_FLUCT": True,
+        },
+    ],
     [9, {"SUBCELL_RSD": True}],
     [10, {"INHOMO_RECO": True}],
     [16, {"HMF": 3, "USE_TS_FLUCT": True}],
