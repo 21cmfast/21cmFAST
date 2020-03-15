@@ -1832,20 +1832,16 @@ void free_TsCalcBoxes(struct FlagOptions *flag_options)
     free(dstarlya_dt_prefactor);
     free(fcoll_R_array);
     free(zpp_growth);
-    if (Mcrit_atom_interp_table!=NULL){
-        free(Mcrit_atom_interp_table);
-    }
     free(inverse_diff);
-    if (dstarlya_dt_prefactor_MINI!=NULL){
-        free(dstarlya_dt_prefactor_MINI);
-        free(dstarlyLW_dt_prefactor);
-        free(dstarlyLW_dt_prefactor_MINI);
-    }
     free(sigma_Tmin);
     free(ST_over_PS);
     free(sum_lyn);
     free(zpp_for_evolve_list);
     if (flag_options->USE_MINI_HALOS){
+        free(Mcrit_atom_interp_table);
+        free(dstarlya_dt_prefactor_MINI);
+        free(dstarlyLW_dt_prefactor);
+        free(dstarlyLW_dt_prefactor_MINI);
         free(ST_over_PS_MINI);
         free(sum_lyn_MINI);
         free(sum_lyLWn);
