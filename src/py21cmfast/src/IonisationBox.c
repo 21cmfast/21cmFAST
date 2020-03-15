@@ -1487,10 +1487,12 @@ LOG_SUPER_DEBUG("freed fftw boxes");
         free(prev_Nion_spline_MINI);
         //fftwf_free(Mcrit_RE_grid);
         //fftwf_free(Mcrit_LW_grid);
-        fftwf_free(log10_Mturnover_unfiltered);
-        fftwf_free(log10_Mturnover_filtered);
-        fftwf_free(log10_Mturnover_MINI_unfiltered);
-        fftwf_free(log10_Mturnover_MINI_filtered);
+    	if(flag_options->USE_MINI_HALOS){
+        	fftwf_free(log10_Mturnover_unfiltered);
+        	fftwf_free(log10_Mturnover_filtered);
+        	fftwf_free(log10_Mturnover_MINI_unfiltered);
+        	fftwf_free(log10_Mturnover_MINI_filtered);
+		}
     }
 
     if(!flag_options->USE_TS_FLUCT) {
