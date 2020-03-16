@@ -2181,6 +2181,14 @@ def run_lightcone(
         assert all(
             q in _fld_names.keys() for q in global_quantities
         ), "invalid global_quantity passed."
+        if any(q == "z_re_box" for q in lightcone_quantities):
+            raise ValueError(
+                "z_re_box found in lightcone_quantities, whose lightcone is unphysical!"
+            )
+        if any(q == "z_re_box" for q in global_quantities):
+            raise ValueError(
+                "z_re_box found in global_quantities, which does not have time dependence!"
+            )
 
         if not flag_options.USE_TS_FLUCT:
             if any(_fld_names[q] == "TsBox" for q in lightcone_quantities):
@@ -2268,9 +2276,7 @@ def run_lightcone(
             for quantity in lightcone_quantities
         }
 
-        interp_functions = {
-            "z_re_box": "max",
-        }
+        interp_functions = {}
 
         global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
         pf = perturb
@@ -2427,15 +2433,10 @@ def _interpolate_in_redshift(
     sub_array = array.take(ind + n_lightcone, axis=2, mode="wrap")
     sub_array2 = array2.take(ind + n_lightcone, axis=2, mode="wrap")
 
-    if kind == "mean":
-        out = (
-            np.abs(this_d - these_distances) * sub_array
-            + np.abs(prev_d - these_distances) * sub_array2
-        ) / (np.abs(prev_d - this_d))
-    elif kind == "max":
-        out = np.maximum(sub_array, sub_array2)
-    else:
-        raise ValueError("kind must be 'mean' or 'max'")
+    out = (
+        np.abs(this_d - these_distances) * sub_array
+        + np.abs(prev_d - these_distances) * sub_array2
+    ) / (np.abs(prev_d - this_d))
 
     lc[:, :, -(lc_index + n) : n_lightcone - lc_index] = out
     return n
