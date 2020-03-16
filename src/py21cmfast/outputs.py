@@ -180,7 +180,13 @@ class _AllParamsBox(_OutputStructZ):
         if astro_params is None:
             astro_params = AstroParams(INHOMO_RECO=flag_options.INHOMO_RECO)
 
+        self.log10_Mturnover_ave = 0.0
+        self.log10_Mturnover_MINI_ave = 0.0
+
         self.first_box = first_box
+        if first_box:
+            self.mean_f_coll = 0.0
+            self.mean_f_coll_MINI = 0.0
 
         super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
 
@@ -191,6 +197,28 @@ class IonizedBox(_AllParamsBox):
     _meta = False
 
     def _init_arrays(self):
+        if self.flag_options.USE_MINI_HALOS:
+            Nfiltering = (
+                int(
+                    np.log(
+                        min(
+                            self.astro_params.R_BUBBLE_MAX,
+                            0.620350491 * self.user_params.BOX_LEN,
+                        )
+                        / max(
+                            global_params.R_BUBBLE_MIN,
+                            0.620350491
+                            * self.user_params.BOX_LEN
+                            / self.user_params.HII_DIM,
+                        )
+                    )
+                    / np.log(global_params.DELTA_R_HII_FACTOR)
+                )
+                + 1
+            )
+        else:
+            Nfiltering = 1
+
         # ionized_box is always initialised to be neutral for excursion set algorithm.
         # Hence np.ones instead of np.zeros
         self.xH_box = np.ones(self.user_params.HII_tot_num_pixels, dtype=np.float32)
@@ -199,8 +227,17 @@ class IonizedBox(_AllParamsBox):
         )
         self.z_re_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.dNrec_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.Fcoll = np.zeros(
+            Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
 
         shape = (
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+        )
+        filter_shape = (
+            Nfiltering,
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
@@ -209,6 +246,15 @@ class IonizedBox(_AllParamsBox):
         self.Gamma12_box.shape = shape
         self.z_re_box.shape = shape
         self.dNrec_box.shape = shape
+        self.Fcoll.shape = filter_shape
+
+        if self.flag_options.USE_MINI_HALOS:
+            self.Fcoll_MINI = np.zeros(
+                Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32
+            )
+            self.Fcoll_MINI.shape = filter_shape
+        else:
+            self.Fcoll_MINI = np.array([], dtype=np.float32)
 
     @cached_property
     def global_xH(self):
@@ -230,22 +276,19 @@ class TsBox(_AllParamsBox):
         self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.x_e_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.Tk_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.J_21_LW_box = np.zeros(
+            self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
+        shape = (
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+        )
 
-        self.Ts_box.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-        self.x_e_box.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-        self.Tk_box.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
+        self.Ts_box.shape = shape
+        self.x_e_box.shape = shape
+        self.Tk_box.shape = shape
+        self.J_21_LW_box.shape = shape
 
     @cached_property
     def global_Ts(self):

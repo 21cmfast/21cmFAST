@@ -15,15 +15,7 @@
 
 // ----------------------------------------------------------------------------------------- //
 
-
-
-#define R_BUBBLE_MIN (float) (L_FACTOR*1)
-// Minimum radius of an HII region in cMpc.  One can set this to 0, but should be careful with
-// shot noise if the find_HII_bubble algorithm is run on a fine, non-linear density grid.
-
 #define L_FACTOR (float) (0.620350491) // factor relating cube length to filter radius = (4PI/3)^(-1/3)
-
-
 
 // ----------------------------------------------------------------------------------------- //
 
@@ -128,6 +120,7 @@
 #define SQDEG_ALLSKY (double) ((360.0*360.0)/PI) // Square degrees in all sky
 #define G_AB_Jy (double) 3631.0 // AB mag constant in Jy
 #define NU_over_EV (double) (1.60217646e-12 / hplank)
+#define NU_LW_THRESH (double) (11.18*NU_over_EV)
 #define NUIONIZATION (double) (13.60*NU_over_EV)  // ionization frequency of H
 #define HeII_NUIONIZATION (double) (NUIONIZATION*4) // ionization frequency of HeII
 #define HeI_NUIONIZATION (double) (24.59*NU_over_EV) // ionization frequency of HeI
@@ -180,3 +173,17 @@
 #define CLASS_LENGTH  150 //length of the CLASS transfer function
 #define KBOT_CLASS (float) (1e-5) //max and min k in  CLASS transfer function, temporary until interfaced properly
 #define KTOP_CLASS (float) (1e3)
+
+
+// ----------------------------------------------------------------------------------------- //
+
+// For reionization_feedback, reference Sobacchi & Mesinger 2013
+
+// ----------------------------------------------------------------------------------------- //
+
+#define HALO_BIAS     (double) 2.0
+#define REION_SM13_M0 (double) 3e9
+#define REION_SM13_A  (double) 0.17
+#define REION_SM13_B  (double) -2.1
+#define REION_SM13_C  (double) 2.0
+#define REION_SM13_D  (double) 2.5

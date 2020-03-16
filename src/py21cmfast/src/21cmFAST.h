@@ -45,12 +45,17 @@ struct AstroParams{
     float F_ESC10;
     float ALPHA_ESC;
     float M_TURN;
+    float F_STAR7_MINI;
+    float F_ESC7_MINI;
 
     float R_BUBBLE_MAX;
 
     float ION_Tvir_MIN;
 
+    double F_H2_SHIELD;
+
     double L_X;
+    double L_X_MINI;
     float NU_X_THRESH;
     float X_RAY_SPEC_INDEX;
     float X_RAY_Tvir_MIN;
@@ -63,6 +68,7 @@ struct AstroParams{
 struct FlagOptions{
 
     // Parameters taken from INIT_PARAMS.H
+    bool USE_MINI_HALOS;
     bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
     bool INHOMO_RECO;
@@ -86,14 +92,21 @@ struct TsBox{
     float *Ts_box;
     float *x_e_box;
     float *Tk_box;
+    float *J_21_LW_box;
 };
 
 struct IonizedBox{
     int first_box;
+    double mean_f_coll;
+    double mean_f_coll_MINI;
+    double log10_Mturnover_ave;
+    double log10_Mturnover_MINI_ave;
     float *xH_box;
     float *Gamma12_box;
     float *z_re_box;
     float *dNrec_box;
+    float *Fcoll;
+    float *Fcoll_MINI;
 };
 
 struct BrightnessTemp{
@@ -110,8 +123,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp);
 
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                       struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                       struct PerturbedField *perturbed_field, struct IonizedBox *previous_ionize_box,
+                       struct AstroParams *astro_params, struct FlagOptions *flag_options, struct PerturbedField *perturbed_field,
+                       struct PerturbedField *previous_perturbed_field, struct IonizedBox *previous_ionize_box,
                        struct TsBox *spin_temp, struct IonizedBox *box);
 
 int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
@@ -130,7 +143,7 @@ int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analyti
                          double *PhotonCons_NFdata, double *PhotonCons_deltaz, int *Ndata_PhotonCons);
 
 int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
-               struct FlagOptions *flag_options, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, double *M_uv_z, double *M_h_z, double *log10phi);
+               struct FlagOptions *flag_options, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, float *M_TURNs, double *M_uv_z, double *M_h_z, double *log10phi);
 
 float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_params, int Npoints, float *redshifts, float *global_xHI);
 
