@@ -3085,6 +3085,8 @@ double ComputeZstart_PhotonCons() {
     }
     else {
         z_at_Q(1. - global_params.PhotonConsStart,&(temp));
+	// Multiply the result by 10 per-cent to fix instances when this isn't high enough
+        temp *= 1.1;
     }
 
     return(temp);
@@ -3370,7 +3372,7 @@ void determine_deltaz_for_photoncons() {
 }
 
 
-float adjust_redshifts_for_photoncons(float *redshift, float *stored_redshift, float *absolute_delta_z) {
+float adjust_redshifts_for_photoncons(struct AstroParams *astro_params, struct FlagOptions *flag_options, float *redshift, float *stored_redshift, float *absolute_delta_z) {
 
     int i, new_counter;
     double temp;
@@ -3468,6 +3470,10 @@ float adjust_redshifts_for_photoncons(float *redshift, float *stored_redshift, f
                 check_required_NF = 1.0 - (float)temp;
 
                 new_counter += 1;
+            }
+            if(new_counter > 5) {
+		LOG_WARNING("The photon non-conservation correction has employed an extrapolation for\n for more than 5 consecutive snapshots. This can be unstable, thus please check resultant history. Parameters are:\n");
+		writeAstroParams(flag_options, astro_params);
             }
 
             // Now adjust the final delta_z by some amount to smooth if over successive steps
