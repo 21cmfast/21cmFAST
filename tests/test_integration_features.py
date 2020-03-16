@@ -31,8 +31,17 @@ from py21cmfast import global_params
 
 from . import produce_integration_test_data as prd
 
+options = prd.OPTIONS
 
-@pytest.mark.parametrize("redshift,kwargs", prd.OPTIONS)
+# Skip the USE_MINI_HALOS test because it takes too long.
+# This should be revisited in the future.
+options = tuple(
+    pytest.param(z, kw, marks=pytest.mark.skip) if "USE_MINI_HALOS" in kw else [z, kw]
+    for z, kw in prd.OPTIONS
+)
+
+
+@pytest.mark.parametrize("redshift,kwargs", options)
 def test_power_spectra_coeval(redshift, kwargs):
     print("Options used for the test: ", kwargs)
 
@@ -47,7 +56,7 @@ def test_power_spectra_coeval(redshift, kwargs):
     assert np.allclose(power, p, atol=1e-5, rtol=1e-3)
 
 
-@pytest.mark.parametrize("redshift,kwargs", prd.OPTIONS)
+@pytest.mark.parametrize("redshift,kwargs", options)
 def test_power_spectra_lightcone(redshift, kwargs):
     print("Options used for the test: ", kwargs)
 
