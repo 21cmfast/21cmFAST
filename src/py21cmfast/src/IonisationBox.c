@@ -88,6 +88,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     float adjusted_redshift, required_NF, stored_redshift, adjustment_factor, future_z;
     double temp;
 
+    init_heat();
     float TK;
 	TK = T_RECFAST(redshift,0);
 
@@ -462,7 +463,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             global_xH /= (double)HII_TOT_NUM_PIXELS;
         }
         else {
-            init_heat();
             global_xH = 1. - xion_RECFAST(redshift, 0);
 //            destruct_heat();
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
