@@ -41,7 +41,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     unsigned long long ct;
 
     float growth_factor, pixel_mass, cell_length_factor, M_MIN, nf;
-    float f_coll_crit, erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, sqrtarg, xHI_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR;
+    float f_coll_crit, erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, sqrtarg, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR;
     float Splined_Fcoll_MINI, prev_dens, ION_EFF_FACTOR_MINI, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI;
     float ave_M_coll_cell, ave_N_min_cell;
 
@@ -87,6 +87,9 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 
     float adjusted_redshift, required_NF, stored_redshift, adjustment_factor, future_z;
     double temp;
+
+    float TK;
+	TK = T_RECFAST(redshift,0);
 
     const gsl_rng_type * T;
     gsl_rng * r;
@@ -454,6 +457,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                 box->xH_box[ct] = 1-spin_temp->x_e_box[ct]; // convert from x_e to xH
                 global_xH += box->xH_box[ct];
+                box->TkIGM_box[ct] = spin_temp->Tk_box[ct];
             }
             global_xH /= (double)HII_TOT_NUM_PIXELS;
         }
@@ -463,6 +467,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 //            destruct_heat();
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                 box->xH_box[ct] = global_xH;
+                box->TkIGM_box[ct] = TK;
             }
         }
     }
@@ -1261,7 +1266,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
             rec = 0.;
 
-            xHI_from_xrays = 1;
+            xHII_from_xrays = 0;
             Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
             Gamma_R_prefactor_MINI = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR_MINI / 1.0e-12;
             if(flag_options->PHOTON_CONS) {
@@ -1314,11 +1319,11 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                         // adjust the denominator of the collapse fraction for the residual electron fraction in the neutral medium
                         if (flag_options->USE_TS_FLUCT){
-                            xHI_from_xrays = (1. - *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)));
+                            xHII_from_xrays = *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z));
                         }
 
                         // check if fully ionized!
-                        if ( (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI> (xHI_from_xrays)*(1.0+rec)) ){ //IONIZED!!
+                        if ( (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI> (1. - xHII_from_xrays)*(1.0+rec)) ){ //IONIZED!!
 
                             // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
                             // this assumes photon-starved growth of HII regions...  breaks down post EoR
@@ -1341,6 +1346,8 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                 box->xH_box[HII_R_INDEX(x,y,z)] = 0;
                                 return(2);
                             }
+
+                            box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
                         } // end ionized
                         // If not fully ionized, then assign partial ionizations
                         else if (LAST_FILTER_STEP && (box->xH_box[HII_R_INDEX(x,y,z)] > TINY)){
@@ -1366,7 +1373,14 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                             if (f_coll>1) f_coll=1;
                             if (f_coll_MINI>1) f_coll_MINI=1;
-                            res_xH = xHI_from_xrays - f_coll * ION_EFF_FACTOR - f_coll_MINI * ION_EFF_FACTOR_MINI;
+                            res_xH = 1. - f_coll * ION_EFF_FACTOR - f_coll_MINI * ION_EFF_FACTOR_MINI;
+                            if (flag_options->USE_TS_FLUCT){
+                                box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH);
+                            }
+                            else{
+                                box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(TK, res_xH);
+                            }
+                            res_xH -= xHII_from_xrays;
 
                             // and make sure fraction doesn't blow up for underdense pixels
                             if (res_xH < 0)
@@ -1480,22 +1494,22 @@ LOG_SUPER_DEBUG("freed fftw boxes");
         free(Nion_spline);
         //fftwf_free(Mcrit_RE_grid);
         //fftwf_free(Mcrit_LW_grid);
-    	if(flag_options->USE_MINI_HALOS){
-        	free(log10_Nion_spline_MINI);
-        	free(Nion_spline_MINI);
-        	free(prev_log10_overdense_spline_SFR);
-        	free(prev_Overdense_spline_SFR);
-        	free(prev_log10_Nion_spline);
-        	free(prev_Nion_spline);
-        	free(prev_log10_Nion_spline_MINI);
-        	free(prev_Nion_spline_MINI);
-        	free(Mturns);
-        	free(Mturns_MINI);
-        	fftwf_free(log10_Mturnover_unfiltered);
-        	fftwf_free(log10_Mturnover_filtered);
-        	fftwf_free(log10_Mturnover_MINI_unfiltered);
-        	fftwf_free(log10_Mturnover_MINI_filtered);
-		}
+        if(flag_options->USE_MINI_HALOS){
+            free(log10_Nion_spline_MINI);
+            free(Nion_spline_MINI);
+            free(prev_log10_overdense_spline_SFR);
+            free(prev_Overdense_spline_SFR);
+            free(prev_log10_Nion_spline);
+            free(prev_Nion_spline);
+            free(prev_log10_Nion_spline_MINI);
+            free(prev_Nion_spline_MINI);
+            free(Mturns);
+            free(Mturns_MINI);
+            fftwf_free(log10_Mturnover_unfiltered);
+            fftwf_free(log10_Mturnover_filtered);
+            fftwf_free(log10_Mturnover_MINI_unfiltered);
+            fftwf_free(log10_Mturnover_MINI_filtered);
+        }
     }
 
     if(!flag_options->USE_TS_FLUCT) {

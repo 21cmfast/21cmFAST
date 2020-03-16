@@ -105,6 +105,7 @@ struct IonizedBox{
     float *Gamma12_box;
     float *z_re_box;
     float *dNrec_box;
+    float *TkIGM_box;
     float *Fcoll;
     float *Fcoll_MINI;
 };
