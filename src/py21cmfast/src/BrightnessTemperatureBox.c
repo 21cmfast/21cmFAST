@@ -477,7 +477,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     }
 
 
-LOG_DEBUG("ave Tb = %e", ave);
+LOG_DEBUG("z = %.2f, ave Tb = %e", redshift, ave);
 
     free(v);
     free(vel_gradient);

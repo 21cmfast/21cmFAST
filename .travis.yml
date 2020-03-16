@@ -28,7 +28,7 @@ install:
 
 # command to run tests, e.g. python setup.py test
 script:
-  - tox
+  - travis_wait 50 tox
 
 # Calculate coverage
 after_success:

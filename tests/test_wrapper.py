@@ -335,6 +335,50 @@ def test_lightcone(init_box, perturb_field):
     assert lc.cell_size == init_box.user_params.BOX_LEN / init_box.user_params.HII_DIM
 
 
+def test_lightcone_quantities(init_box, perturb_field):
+    lc = wrapper.run_lightcone(
+        init_box=init_box,
+        perturb=perturb_field,
+        max_redshift=20.0,
+        lightcone_quantities=("dNrec_box", "density", "brightness_temp"),
+        global_quantities=("density", "Gamma12_box"),
+    )
+
+    print(dir(lc))
+    assert hasattr(lc, "dNrec_box")
+    assert hasattr(lc, "density")
+    assert hasattr(lc, "global_density")
+    assert hasattr(lc, "global_Gamma12")
+
+    print(perturb_field.density.min(), perturb_field.density.max())
+    # dNrec is not filled because we're not doing INHOMO_RECO
+    assert lc.dNrec_box.max() == lc.dNrec_box.min() == 0
+
+    # density should be filled with not zeros.
+    assert lc.density.min() != lc.density.max() != 0
+
+    # Simply ensure that different quantities are not getting crossed/referred to each other.
+    assert lc.density.min() != lc.brightness_temp.min() != lc.brightness_temp.max()
+
+    # Raise an error since we're not doing spin temp.
+    with pytest.raises(ValueError):
+        wrapper.run_lightcone(
+            init_box=init_box,
+            perturb=perturb_field,
+            max_redshift=20.0,
+            lightcone_quantities=("Ts_box", "density"),
+        )
+
+    # And also raise an error for global quantities.
+    with pytest.raises(ValueError):
+        wrapper.run_lightcone(
+            init_box=init_box,
+            perturb=perturb_field,
+            max_redshift=20.0,
+            global_quantities=("Ts_box",),
+        )
+
+
 def test_run_lf():
     muv, mhalo, lf = wrapper.compute_luminosity_function(redshifts=[7, 8, 9], nbins=100)
     assert np.all(lf[~np.isnan(lf)] > -30)
