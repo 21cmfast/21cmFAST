@@ -119,12 +119,12 @@ LOG_SUPER_DEBUG("defined parameters");
 
         ZSTEP = prev_redshift - redshift;
 
-        for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++) {
+        for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++)
             box->Gamma12_box[ct] = 0.0;
-            box->z_re_box[ct] = -1.0;
-        }
     }
     else {
+        for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++)
+            box->z_re_box[ct] = -1.0;
         ZSTEP = 0.2;
     }
 
@@ -1332,7 +1332,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             }
 
                             // keep track of the first time this cell is ionized (earliest time)
-                            if (flag_options->INHOMO_RECO && (previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)] < 0)){
+                            if (previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)] < 0){
                                 box->z_re_box[HII_R_INDEX(x,y,z)] = redshift;
                             }
 
