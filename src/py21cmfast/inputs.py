@@ -493,6 +493,9 @@ class FlagOptions(StructWithDefaults):
 
     Parameters
     ----------
+    USE_MINI_HALOS : bool, optional
+        Set to True if using mini-halos parameterization.
+        If True, USE_MASS_DEPENDENT_ZETA and INHOMO_RECO must be True.
     USE_MASS_DEPENDENT_ZETA : bool, optional
         Set to True if using new parameterization. Setting to True will automatically
         set `M_MIN_in_Mass` to True.
@@ -517,6 +520,7 @@ class FlagOptions(StructWithDefaults):
     _ffi = ffi
 
     _defaults_ = {
+        "USE_MINI_HALOS": False,
         "USE_MASS_DEPENDENT_ZETA": False,
         "SUBCELL_RSD": False,
         "INHOMO_RECO": False,
@@ -533,6 +537,54 @@ class FlagOptions(StructWithDefaults):
 
         else:
             return self._M_MIN_in_Mass
+
+    @property
+    def USE_MASS_DEPENDENT_ZETA(self):
+        """Automatically setting USE_MASS_DEPENDENT_ZETA to True if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and not self._USE_MASS_DEPENDENT_ZETA:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA to False! "
+                "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
+            )
+            return True
+        else:
+            return self._USE_MASS_DEPENDENT_ZETA
+
+    @property
+    def INHOMO_RECO(self):
+        """Automatically setting INHOMO_RECO to True if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and not self._INHOMO_RECO:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
+                "Automatically setting INHOMO_RECO to True."
+            )
+            return True
+        else:
+            return self._INHOMO_RECO
+
+    @property
+    def USE_TS_FLUCT(self):
+        """Automatically setting USE_TS_FLUCT to True if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and not self._USE_TS_FLUCT:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
+                "Automatically setting USE_TS_FLUCT to True."
+            )
+            return True
+        else:
+            return self._USE_TS_FLUCT
+
+    @property
+    def PHOTON_CONS(self):
+        """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and self._PHOTON_CONS:
+            logger.warning(
+                "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
+                "Automatically setting PHOTON_CONS to False."
+            )
+            return False
+        else:
+            return self._PHOTON_CONS
 
 
 class AstroParams(StructWithDefaults):
@@ -558,6 +610,13 @@ class AstroParams(StructWithDefaults):
         If so, this is used along with `F_ESC10` to determine `HII_EFF_FACTOR` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
         Given in log10 units.
+    F_STAR7_MINI : float, optional
+        The fraction of galactic gas in stars for 10^7 solar mass minihaloes.
+        Only used in the "minihalo" parameterization,
+        i.e. when `USE_MINI_HALOS` is set to True (in :class:`FlagOptions`).
+        If so, this is used along with `F_ESC7_MINI` to determine `HII_EFF_FACTOR_MINI` (which
+        is then unused). See Eq. 8 of Qin+2020.
+        Given in log10 units.
     ALPHA_STAR : float, optional
         Power-law index of fraction of galactic gas in stars as a function of halo mass.
         See Sec 2.1 of Park+2018.
@@ -567,6 +626,13 @@ class AstroParams(StructWithDefaults):
         i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`FlagOptions`).
         If so, this is used along with `F_STAR10` to determine `HII_EFF_FACTOR` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
+    F_ESC7_MINI: float, optional
+        The "escape fraction for minihalos", i.e. the fraction of ionizing photons escaping
+        into the IGM, for 10^7 solar mass minihaloes. Only used in the "minihalo" parameterization,
+        i.e. when `USE_MINI_HALOS` is set to True (in :class:`FlagOptions`).
+        If so, this is used along with `F_ESC7_MINI` to determine `HII_EFF_FACTOR_MINI` (which
+        is then unused). See Eq. 17 of Qin+2020.
+        Given in log10 units.
     ALPHA_ESC : float, optional
         Power-law index of escape fraction as a function of halo mass. See Sec 2.1 of
         Park+2018.
@@ -584,6 +650,9 @@ class AstroParams(StructWithDefaults):
     L_X : float, optional
         The specific X-ray luminosity per unit star formation escaping host galaxies.
         Cf. Eq. 6 of Greig+2018. Given in log10 units.
+    L_X_MINI: float, optional
+        The specific X-ray luminosity per unit star formation escaping host galaxies for
+        minihalos. Cf. Eq. 23 of Qin+2020. Given in log10 units.
     NU_X_THRESH : float, optional
         X-ray energy threshold for self-absorption by host galaxies (in eV). Also called
         E_0 (cf. Sec 4.1 of Greig+2018). Typical range is (100, 1500).
@@ -593,6 +662,9 @@ class AstroParams(StructWithDefaults):
     X_RAY_Tvir_MIN : float, optional
         Minimum halo virial temperature in which X-rays are produced. Given in log10
         units. Default is `ION_Tvir_MIN`.
+    F_H2_SHIELD: float, optional
+        Self-shielding factor of molecular hydrogen when experiencing LW suppression.
+        Cf. Eq. 12 of Qin+2020
     t_STAR : float, optional
         Fractional characteristic time-scale (fraction of hubble time) defining the
         star-formation rate of galaxies. Only used if `USE_MASS_DEPENDENT_ZETA` is set
@@ -607,16 +679,20 @@ class AstroParams(StructWithDefaults):
     _defaults_ = {
         "HII_EFF_FACTOR": 30.0,
         "F_STAR10": -1.3,
+        "F_STAR7_MINI": -2.0,
         "ALPHA_STAR": 0.5,
         "F_ESC10": -1.0,
+        "F_ESC7_MINI": -2.0,
         "ALPHA_ESC": -0.5,
         "M_TURN": 8.7,
         "R_BUBBLE_MAX": None,
         "ION_Tvir_MIN": 4.69897,
         "L_X": 40.0,
+        "L_X_MINI": 40.0,
         "NU_X_THRESH": 500.0,
         "X_RAY_SPEC_INDEX": 1.0,
         "X_RAY_Tvir_MIN": None,
+        "F_H2_SHIELD": 0.0,
         "t_STAR": 0.5,
         "N_RSD_STEPS": 20,
     }
@@ -634,9 +710,12 @@ class AstroParams(StructWithDefaults):
         if key in [
             "F_STAR10",
             "F_ESC10",
+            "F_STAR7_MINI",
+            "F_ESC7_MINI",
             "M_TURN",
             "ION_Tvir_MIN",
             "L_X",
+            "L_X_MINI",
             "X_RAY_Tvir_MIN",
         ]:
             return 10 ** val
