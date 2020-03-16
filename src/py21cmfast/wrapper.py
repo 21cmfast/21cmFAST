@@ -2269,7 +2269,7 @@ def run_lightcone(
         }
 
         interp_functions = {
-            "z_re_box": "max",
+            "z_re_box": "nanmean",
         }
 
         global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
@@ -2427,15 +2427,15 @@ def _interpolate_in_redshift(
     sub_array = array.take(ind + n_lightcone, axis=2, mode="wrap")
     sub_array2 = array2.take(ind + n_lightcone, axis=2, mode="wrap")
 
-    if kind == "mean":
-        out = (
-            np.abs(this_d - these_distances) * sub_array
-            + np.abs(prev_d - these_distances) * sub_array2
-        ) / (np.abs(prev_d - this_d))
-    elif kind == "max":
-        out = np.maximum(sub_array, sub_array2)
-    else:
-        raise ValueError("kind must be 'mean' or 'max'")
+    out = (
+        np.abs(this_d - these_distances) * sub_array
+        + np.abs(prev_d - these_distances) * sub_array2
+    ) / (np.abs(prev_d - this_d))
+    if kind == "nanmean":
+        flag = (sub_array * sub_array2) < 0
+        out[flag] = np.maximum(sub_array, sub_array2)[flag]
+    elif kind != "mean":
+        raise ValueError("kind must be 'mean' or 'nanmean'")
 
     lc[:, :, -(lc_index + n) : n_lightcone - lc_index] = out
     return n
