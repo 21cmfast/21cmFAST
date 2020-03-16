@@ -2181,6 +2181,14 @@ def run_lightcone(
         assert all(
             q in _fld_names.keys() for q in global_quantities
         ), "invalid global_quantity passed."
+        if any(q == "z_re_box" for q in lightcone_quantities):
+            raise ValueError(
+                "z_re_box found in lightcone_quantities, whose lightcone is unphysical!"
+            )
+        if any(q == "z_re_box" for q in global_quantities):
+            raise ValueError(
+                "z_re_box found in global_quantities, which does not have time dependence!"
+            )
 
         if not flag_options.USE_TS_FLUCT:
             if any(_fld_names[q] == "TsBox" for q in lightcone_quantities):
@@ -2268,9 +2276,7 @@ def run_lightcone(
             for quantity in lightcone_quantities
         }
 
-        interp_functions = {
-            "z_re_box": "nanmean",
-        }
+        interp_functions = {}
 
         global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
         pf = perturb
@@ -2431,11 +2437,6 @@ def _interpolate_in_redshift(
         np.abs(this_d - these_distances) * sub_array
         + np.abs(prev_d - these_distances) * sub_array2
     ) / (np.abs(prev_d - this_d))
-    if kind == "nanmean":
-        flag = (sub_array * sub_array2) < 0
-        out[flag] = np.maximum(sub_array, sub_array2)[flag]
-    elif kind != "mean":
-        raise ValueError("kind must be 'mean' or 'nanmean'")
 
     lc[:, :, -(lc_index + n) : n_lightcone - lc_index] = out
     return n
