@@ -90,7 +90,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 
     init_heat();
     float TK;
-	TK = T_RECFAST(redshift,0);
+    TK = T_RECFAST(redshift,0);
 
     const gsl_rng_type * T;
     gsl_rng * r;
@@ -1348,6 +1348,8 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             }
 
                             box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
+                            if ((x==1) && (y==2) && (z==3))
+                                LOG_SUPER_DEBUG("Full TkIGM=%.2f",box->TkIGM_box[HII_R_INDEX(x,y,z)]);
                         } // end ionized
                         // If not fully ionized, then assign partial ionizations
                         else if (LAST_FILTER_STEP && (box->xH_box[HII_R_INDEX(x,y,z)] > TINY)){
@@ -1380,6 +1382,8 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             else{
                                 box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(TK, res_xH);
                             }
+                            if ((x==1) && (y==2) && (z==3))
+                                LOG_SUPER_DEBUG("Partial TkIGM=%.2f",box->TkIGM_box[HII_R_INDEX(x,y,z)]);
                             res_xH -= xHII_from_xrays;
 
                             // and make sure fraction doesn't blow up for underdense pixels

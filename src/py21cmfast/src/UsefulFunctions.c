@@ -84,7 +84,7 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
     // z:    the current redshift
     // delta:the density contrast
     float delta_re, result;
-    // fully ionized
+    // just be fully ionized
     if (fabs(z - z_re) < 1e-4)
         return global_params.T_RE;
     else{
@@ -95,7 +95,7 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
         result *= pow((1. + z) / (1. + z_re), 3.4);
         result *= expf(pow((1. + z)/7.1, 2.5) - pow((1. + z_re)/7.1, 2.5));
         // 1e4 before helium reionization; double it after
-        result += 1e4 * ((1. + z)/4.);
+        result += 1e4 * ((1. + z)/4.) * ( 1 + delta);
         result  = pow(result, 0.5882);
         return result;
     }
@@ -103,7 +103,7 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
 
 float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
     if (res_xH<=0.) return global_params.T_RE;
-    if (res_xH>=1) return res_xH;
+    if (res_xH>=1) return T_HI;
 
     return T_HI * res_xH + global_params.T_RE * (1. - res_xH);
 }
