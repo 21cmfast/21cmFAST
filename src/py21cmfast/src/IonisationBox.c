@@ -847,7 +847,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+max_density)-overdense_small_min);
                 }
                 overdense_small_bin_width_inv = 1./overdense_small_bin_width;
-LOG_SUPER_DEBUG("R=%f, min_density=%f, max_density=%f, overdense_small_min=%f, overdense_small_bin_width=%f", R, min_density, max_density, overdense_small_min, overdense_small_bin_width);
+LOG_ULTRA_DEBUG("R=%f, min_density=%f, max_density=%f, overdense_small_min=%f, overdense_small_bin_width=%f", R, min_density, max_density, overdense_small_min, overdense_small_bin_width);
 
                 if (flag_options->USE_MINI_HALOS){
                     // do the same for prev
