@@ -93,9 +93,10 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
         // evolving ionized box eq. 6 of McQuinn 2015, ignored the dependency of density at ionization
         result  = pow((1. + delta) / (1. + delta_re), 1.1333);
         result *= pow((1. + z) / (1. + z_re), 3.4);
+        result *= pow(global_params.T_RE, 1.7);
         result *= expf(pow((1. + z)/7.1, 2.5) - pow((1. + z_re)/7.1, 2.5));
         // 1e4 before helium reionization; double it after
-        result += 1e4 * ((1. + z)/4.) * ( 1 + delta);
+        result += pow(1e4 * ((1. + z)/4.), 1.7) * ( 1 + delta);
         result  = pow(result, 0.5882);
         return result;
     }
