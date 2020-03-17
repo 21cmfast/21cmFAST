@@ -125,8 +125,10 @@ LOG_SUPER_DEBUG("defined parameters");
     else {
         ZSTEP = 0.2;
     }
-    for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++)
+    for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
         box->z_re_box[ct] = -1.0;
+        box->density_re[ct] = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
+    }
 
     fabs_dtdz = fabs(dtdz(redshift));
     t_ast = astro_params->t_STAR * t_hubble(redshift);
@@ -269,10 +271,12 @@ LOG_SUPER_DEBUG("density field calculated");
     if (prev_redshift < 1){
 LOG_DEBUG("first redshift, do some initialization");
         previous_ionize_box->z_re_box    = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+        previous_ionize_box->density_re    = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
         for (i=0; i<user_params->HII_DIM; i++){
             for (j=0; j<user_params->HII_DIM; j++){
                 for (k=0; k<user_params->HII_DIM; k++){
                     previous_ionize_box->z_re_box[HII_R_INDEX(i, j, k)] = -1.0;
+                    previous_ionize_box->density_re[HII_R_INDEX(i, j, k)] = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
                 }
             }
         }
@@ -1343,9 +1347,11 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             // keep track of the first time this cell is ionized (earliest time)
                             if (previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)] < 0){
                                 box->z_re_box[HII_R_INDEX(x,y,z)] = redshift;
+                                box->density_re[HII_R_INDEX(x,y,z)] = *((float *)deltax_unfiltered_original + HII_R_FFT_INDEX(x,y,z));
                             }
                             else{
                                 box->z_re_box[HII_R_INDEX(x,y,z)] = previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)];
+                                box->density_re[HII_R_INDEX(x,y,z)] = previous_ionize_box->density_re[HII_R_INDEX(x,y,z)];
                             }
 
                             // FLAG CELL(S) AS IONIZED
@@ -1422,9 +1428,9 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
             for (y=0; y<user_params->HII_DIM; y++){
                 for (z=0; z<user_params->HII_DIM; z++){
                     if ((box->z_re_box[HII_R_INDEX(x,y,z)]>0) && (box->xH_box[HII_R_INDEX(x,y,z)] < TINY)){
-                        box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], redshift, *((float *)deltax_unfiltered_original + HII_R_FFT_INDEX(x,y,z)));
+                        box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], redshift, box->density_re[HII_R_INDEX(x,y,z)], *((float *)deltax_unfiltered_original + HII_R_FFT_INDEX(x,y,z)));
                         if(isfinite(box->TkIGM_box[HII_R_INDEX(x,y,z)])==0){
-                            LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
+                            LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong in the temperature calculation: z_re=%.4f, redshift=%.4f, dens_re=%.4e, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], redshift, box->density_re[HII_R_INDEX(x,y,z)], curr_dens);
                             return(2);
                         }
                     }
