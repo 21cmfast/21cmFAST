@@ -1406,13 +1406,17 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
         }
 
 
-        for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
-            if (box->xH_box[ct] < TINY){
-                box->TkIGM_box[ct] = ComputeFullyIoinizedTemperature(box->z_re_box[ct], redshift, curr_dens);
-                if(isfinite(box->TkIGM_box[ct])==0){
-                    LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
-                    return(2);
-                }
+    	for (x=0; x<user_params->HII_DIM; x++){
+        	for (y=0; y<user_params->HII_DIM; y++){
+            	for (z=0; z<user_params->HII_DIM; z++){
+            		if (box->xH_box[HII_R_INDEX(x,y,z)] < TINY){
+                		box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], redshift, *((float *)deltax_unfiltered_original + HII_R_FFT_INDEX(x,y,z)));
+                		if(isfinite(box->TkIGM_box[HII_R_INDEX(x,y,z)])==0){
+                    		LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
+                    		return(2);
+                		}
+					}
+				}
             }
         }
         // find the neutral fraction
