@@ -79,7 +79,7 @@ void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoPara
     user_params_ufunc = user_params;
 }
 
-float ComputeFullyIoinizedTemperature(float z_re, float z, float delta_re, float delta){
+float ComputeFullyIoinizedTemperature(float z_re, float z, float delta_re, float delta, float T_HI){
     // z_re: the redshift of reionization
     // z:    the current redshift
     // delta:the density contrast
@@ -89,8 +89,8 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta_re, float
         result = 1;
     else{
         // evolving ionized box eq. 6 of McQuinn 2015, ignored the dependency of density at ionization
-		if (delta_re<=-1) delta_re=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
-		if (delta<=-1) delta=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
+        if (delta_re<=-1) delta_re=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
+        if (delta<=-1) delta=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
         result  = pow((1. + delta) / (1. + delta_re), 1.1333);
         result *= pow((1. + z) / (1. + z_re), 3.4);
         result *= expf(pow((1. + z)/7.1, 2.5) - pow((1. + z_re)/7.1, 2.5));
@@ -100,7 +100,8 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta_re, float
     result += pow(1e4 * ((1. + z)/4.), 1.7) * ( 1 + delta);
     result  = pow(result, 0.5882);
     //LOG_DEBUG("z_re=%.4f, z=%.4f, delta=%e, Tk=%.f", z_re, z, delta, result);
-    return result;
+	// Below sometimes (very rare though) can happen when the density drops too fast and to below T_HI
+    return result > T_HI ? result : T_HI;
 }
 
 float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
