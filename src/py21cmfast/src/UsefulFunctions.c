@@ -100,8 +100,7 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta_re, float
     result += pow(1e4 * ((1. + z)/4.), 1.7) * ( 1 + delta);
     result  = pow(result, 0.5882);
     //LOG_DEBUG("z_re=%.4f, z=%.4f, delta=%e, Tk=%.f", z_re, z, delta, result);
-	// Below sometimes (very rare though) can happen when the density drops too fast and to below T_HI
-    return result > T_HI ? result : T_HI;
+    return result;
 }
 
 float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
