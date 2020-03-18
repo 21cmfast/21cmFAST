@@ -1391,12 +1391,12 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             if (f_coll_MINI>1) f_coll_MINI=1;
                             res_xH = 1. - f_coll * ION_EFF_FACTOR - f_coll_MINI * ION_EFF_FACTOR_MINI;
                             // put the partial ionization here because we need to exclude xHII_from_xrays...
-                            if (flag_options->USE_TS_FLUCT){
-                                box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH);
-                            }
-                            else{
-                                box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(TK, res_xH);
-                            }
+                            //if (flag_options->USE_TS_FLUCT){
+                            //    box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH);
+                            //}
+                            //else{
+                            //    box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(TK, res_xH);
+                            //}
                             res_xH -= xHII_from_xrays;
 
                             // and make sure fraction doesn't blow up for underdense pixels
