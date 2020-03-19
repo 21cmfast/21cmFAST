@@ -88,8 +88,8 @@ float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
     if (fabs(z - z_re) < 1e-4)
         result = 1;
     else{
-		// linearly extrapolate to get density at reionization
-		delta_re = delta * (1. + z ) / (1. + z_re);
+        // linearly extrapolate to get density at reionization
+        delta_re = delta * (1. + z ) / (1. + z_re);
         if (delta_re<=-1) delta_re=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
         // evolving ionized box eq. 6 of McQuinn 2015, ignored the dependency of density at ionization
         if (delta<=-1) delta=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
