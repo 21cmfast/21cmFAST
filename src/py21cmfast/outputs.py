@@ -226,9 +226,6 @@ class IonizedBox(_AllParamsBox):
             self.user_params.HII_tot_num_pixels, dtype=np.float32
         )
         self.z_re_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.density_re = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
         self.dNrec_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.TkIGM_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.Fcoll = np.zeros(
@@ -249,7 +246,6 @@ class IonizedBox(_AllParamsBox):
         self.xH_box.shape = shape
         self.Gamma12_box.shape = shape
         self.z_re_box.shape = shape
-        self.density_re.shape = shape
         self.dNrec_box.shape = shape
         self.TkIGM_box.shape = shape
         self.Fcoll.shape = filter_shape

@@ -79,17 +79,19 @@ void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoPara
     user_params_ufunc = user_params;
 }
 
-float ComputeFullyIoinizedTemperature(float z_re, float z, float delta_re, float delta, float T_HI){
+float ComputeFullyIoinizedTemperature(float z_re, float z, float delta, float T_HI){
     // z_re: the redshift of reionization
     // z:    the current redshift
     // delta:the density contrast
-    float result;
+    float result, delta_re;
     // just be fully ionized
     if (fabs(z - z_re) < 1e-4)
         result = 1;
     else{
-        // evolving ionized box eq. 6 of McQuinn 2015, ignored the dependency of density at ionization
+		// linearly extrapolate to get density at reionization
+		delta_re = delta * (1. + z ) / (1. + z_re);
         if (delta_re<=-1) delta_re=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
+        // evolving ionized box eq. 6 of McQuinn 2015, ignored the dependency of density at ionization
         if (delta<=-1) delta=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
         result  = pow((1. + delta) / (1. + delta_re), 1.1333);
         result *= pow((1. + z) / (1. + z_re), 3.4);
