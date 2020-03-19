@@ -79,7 +79,7 @@ void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoPara
     user_params_ufunc = user_params;
 }
 
-float ComputeFullyIoinizedTemperature(float z_re, float z, float delta, float T_HI){
+float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
     // z_re: the redshift of reionization
     // z:    the current redshift
     // delta:the density contrast
