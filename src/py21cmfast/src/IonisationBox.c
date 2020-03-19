@@ -470,7 +470,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                 box->xH_box[ct] = 1-spin_temp->x_e_box[ct]; // convert from x_e to xH
                 global_xH += box->xH_box[ct];
-                box->TkIGM_box[ct] = spin_temp->Tk_box[ct];
+                box->temp_kinetic_all_gas[ct] = spin_temp->Tk_box[ct];
             }
             global_xH /= (double)HII_TOT_NUM_PIXELS;
         }
@@ -479,7 +479,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 //            destruct_heat();
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                 box->xH_box[ct] = global_xH;
-                box->TkIGM_box[ct] = TK;
+                box->temp_kinetic_all_gas[ct] = TK;
             }
         }
     }
@@ -1389,10 +1389,10 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             res_xH = 1. - f_coll * ION_EFF_FACTOR - f_coll_MINI * ION_EFF_FACTOR_MINI;
                             // put the partial ionization here because we need to exclude xHII_from_xrays...
                             if (flag_options->USE_TS_FLUCT){
-                                box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH);
+                                box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH);
                             }
                             else{
-                                box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(TK, res_xH);
+                                box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(TK, res_xH);
                             }
                             res_xH -= xHII_from_xrays;
 
@@ -1425,17 +1425,17 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
             for (y=0; y<user_params->HII_DIM; y++){
                 for (z=0; z<user_params->HII_DIM; z++){
                     if ((box->z_re_box[HII_R_INDEX(x,y,z)]>0) && (box->xH_box[HII_R_INDEX(x,y,z)] < TINY)){
-                        box->TkIGM_box[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], redshift, *((float *)deltax_unfiltered_original + HII_R_FFT_INDEX(x,y,z)));
+                        box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], redshift, *((float *)deltax_unfiltered_original + HII_R_FFT_INDEX(x,y,z)));
                         // Below sometimes (very rare though) can happen when the density drops too fast and to below T_HI
                         if (flag_options->USE_TS_FLUCT){
-                            if (box->TkIGM_box[HII_R_INDEX(x,y,z)] < spin_temp->Tk_box[HII_R_INDEX(x,y,z)])
-                                box->TkIGM_box[HII_R_INDEX(x,y,z)] = spin_temp->Tk_box[HII_R_INDEX(x,y,z)];
+                            if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < spin_temp->Tk_box[HII_R_INDEX(x,y,z)])
+                                box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = spin_temp->Tk_box[HII_R_INDEX(x,y,z)];
                             }
                         else{
-                            if (box->TkIGM_box[HII_R_INDEX(x,y,z)] < TK)
-                                box->TkIGM_box[HII_R_INDEX(x,y,z)] = TK;
+                            if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < TK)
+                                box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = TK;
                         }
-                        if(isfinite(box->TkIGM_box[HII_R_INDEX(x,y,z)])==0){
+                        if(isfinite(box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)])==0){
                             LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
                             return(2);
                         }
