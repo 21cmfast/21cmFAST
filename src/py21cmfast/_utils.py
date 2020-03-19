@@ -10,6 +10,7 @@ import h5py
 import numpy as np
 from cffi import FFI
 
+from . import __version__
 from ._cfg import config
 
 _ffi = FFI()
@@ -324,6 +325,9 @@ class OutputStruct(StructWrapper):
         super().__init__()
 
         self.filled = False
+        self.version = ".".join(__version__.split(".")[:2])
+        self.patch_version = ".".join(__version__.split(".")[2:])
+
         self._random_seed = random_seed
 
         for k in self._inputs:
@@ -439,6 +443,7 @@ class OutputStruct(StructWrapper):
 
     def _find_file_without_seed(self, direc):
         allfiles = glob.glob(path.join(direc, self._fname_skeleton.format(seed="*")))
+
         if allfiles:
             return allfiles[0]
         else:
@@ -468,7 +473,6 @@ class OutputStruct(StructWrapper):
             f = self._find_file_without_seed(direc)
             if f and self._check_parameters(f):
                 return f
-
         else:
             f = self._get_fname(direc)
             if path.exists(f) and self._check_parameters(f):
@@ -588,6 +592,9 @@ class OutputStruct(StructWrapper):
                         else:
                             f.attrs[kfile] = q
 
+                    # Write 21cmFAST version to the file
+                    f.attrs["version"] = __version__
+
                 # Save the boxes to the file
                 boxes = f.create_group(self._name)
 
@@ -670,6 +677,22 @@ class OutputStruct(StructWrapper):
                 getattr(self, k)[...] = boxes[k][...]
 
             for k in boxes.attrs.keys():
+                if k == "version":
+                    version = ".".join(boxes.attrs[k].split(".")[:2])
+                    patch = ".".join(boxes.attrs[k].split(".")[2:])
+
+                    if version != ".".join(__version__.split(".")[:2]):
+                        # Ensure that the major and minor versions are the same.
+                        # TODO: This may be a bit extreme in some circumstances?
+                        raise ValueError(
+                            "The file {} is out of date and should be removed.".format(
+                                pth
+                            )
+                        )
+
+                    self.version = version
+                    self.patch_version = patch
+
                 setattr(self, k, boxes.attrs[k])
 
             # Need to make sure that the seed is set to the one that's read in.
@@ -756,6 +779,7 @@ class OutputStruct(StructWrapper):
                     ]
                 ]
             )
+            + "; v{}".format(self.version)
             + ")"
         )
 
