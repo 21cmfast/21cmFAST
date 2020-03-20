@@ -684,9 +684,9 @@ class OutputStruct(StructWrapper):
                     if version != ".".join(__version__.split(".")[:2]):
                         # Ensure that the major and minor versions are the same.
                         # TODO: This may be a bit extreme in some circumstances?
-                        raise ValueError(
-                            "The file {} is out of date and should be removed.".format(
-                                pth
+                        warnings.warn(
+                            "The file {} is out of date (version = {}.{}). Consider using another box and removing it!".format(
+                                pth, version, patch
                             )
                         )
 
