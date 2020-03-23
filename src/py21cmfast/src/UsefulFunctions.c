@@ -785,20 +785,6 @@ void inspectBrightnessTemp(struct BrightnessTemp *x, int print_pid, int print_co
         print_corners_real(x->brightness_temp, HII_DIM);
     }
 }
-
-void print_corners_real(float *x, int size){
-    int s = size-1;
-    int i,j,k;
-    for(i=0;i<size;i=i+s){
-        for(j=0;j<size;j=j+s){
-            for(k=0;k<size;k=k+s){
-                printf("%f, ", x[k + size*(j + size*i)]);
-            }
-        }
-    }
-    printf("\n");
-}
-
 double atomic_cooling_threshold(float z){
     return TtoM(z, 1e4, 0.59);
 }

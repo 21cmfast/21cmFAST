@@ -1374,8 +1374,8 @@ LOG_SUPER_DEBUG("looping over box...");
                 ave_fcoll_MINI = ave_fcoll_inv_MINI = 0.0;
                 
 #pragma omp parallel shared(delNL0,zpp_growth,SFRD_z_high_table,fcoll_interp_high_min,fcoll_interp_high_bin_width_inv,log10_SFRD_z_low_table,\
-                            fcoll_int_boundexceeded_threaded,log10_Mcrit_LW,LOG10_MTURN_MIN,LOG10_MTURN_INT,SFRD_z_high_table_MINI,\
-                            log10_SFRD_z_low_table_MINI,SFRD_z_high_table_MINI,del_fcoll_Rct_MINI) \
+                            fcoll_int_boundexceeded_threaded,log10_Mcrit_LW,SFRD_z_high_table_MINI,\
+                            log10_SFRD_z_low_table_MINI,del_fcoll_Rct_MINI) \
                     private(box_ct,curr_dens,fcoll,dens_val,fcoll_int,del_fcoll_Rct,log10_Mcrit_LW_val,log10_Mcrit_LW_int,log10_Mcrit_LW_diff,\
                             fcoll_MINI_left,fcoll_MINI_right,fcoll_MINI) \
                     num_threads(user_params->N_THREADS)

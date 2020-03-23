@@ -1286,7 +1286,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                 f_coll += box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                                 if(isfinite(f_coll)==0) {
                                     LOG_ERROR("f_coll is either finite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g,%g,%g",x,y,z,curr_dens,prev_dens,previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)], Splined_Fcoll, prev_Splined_Fcoll, curr_dens, prev_dens, log10_Mturnover, *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)));
-                                    return(2);
+//                                    return(2);
                                 }
 
                                 if (Splined_Fcoll_MINI > 1.) Splined_Fcoll_MINI = 1.;
@@ -1309,7 +1309,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                     LOG_DEBUG("%g", *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)));
                                     LOG_DEBUG("%d", counter);
                                     LOG_DEBUG("%g,%g,%g,%g",log10_Nion_spline_MINI[overdense_int   + NSFR_low* log10_Mturnover_MINI_int   ], log10_Nion_spline_MINI[overdense_int +1+ NSFR_low* log10_Mturnover_MINI_int   ], log10_Nion_spline_MINI[overdense_int   + NSFR_low*(log10_Mturnover_MINI_int+1)],  log10_Nion_spline_MINI[overdense_int +1+ NSFR_low*(log10_Mturnover_MINI_int+1)]);
-                                    return(2);
+//                                    return(2);
                                 }
                             }
                             else{
@@ -1379,7 +1379,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                 return (2);
             }
             
-#pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,box,ST_over_PS,pixel_mass,M_MIN,r,f_coll_min,Gamma_R_prefactor,box,\
+#pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,box,ST_over_PS,pixel_mass,M_MIN,r,f_coll_min,Gamma_R_prefactor,\
                             ION_EFF_FACTOR,ION_EFF_FACTOR_MINI,LAST_FILTER_STEP,counter,ST_over_PS_MINI,f_coll_min_MINI,Gamma_R_prefactor_MINI) \
                     private(x,y,z,curr_dens,Splined_Fcoll,f_coll,ave_M_coll_cell,ave_N_min_cell,N_halos_in_cell,rec,xHI_from_xrays,res_xH,\
                             Splined_Fcoll_MINI,f_coll_MINI) \

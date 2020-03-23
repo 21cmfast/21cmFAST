@@ -23,8 +23,8 @@ static gsl_spline *erfc_spline;
 #define NSFR_low 250
 #define NGL_SFR 100 // 100
 #define NMTURN 50//100
-#define LOG10_MTURN_MAX (double) (10)
-#define LOG10_MTURN_MIN (double) (5.-9e-8)
+#define LOG10_MTURN_MAX ((double)(10))
+#define LOG10_MTURN_MIN ((double)(5.-9e-8))
 
 #define NR_END 1
 #define FREE_ARG char*
@@ -2515,7 +2515,7 @@ int initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float MassTurn, 
 #pragma omp for
         for (i=0; i<Nbin; i++){
             z_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
-            Nion_z_val[i] = Nion_General(z_val[i], MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
+            Nion_z_val[i] = Nion_General(z_val[i], Mmin, MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
         }
     }
 
@@ -2587,7 +2587,7 @@ int initialise_SFRD_spline(int Nbin, float zmin, float zmax, float MassTurn, flo
 #pragma omp for
         for (i=0; i<Nbin; i++){
             z_X_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
-            SFRD_val[i] = Nion_General(z_X_val[i], MassTurn, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
+            SFRD_val[i] = Nion_General(z_X_val[i], Mmin, MassTurn, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
         }
     }
 
