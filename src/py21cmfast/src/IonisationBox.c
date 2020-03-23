@@ -1565,8 +1565,6 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
         fftwf_forget_wisdom();
     }
 
-    fftwf_destroy_plan(plan);
-
     for (i=0; i<user_params->N_THREADS; i++) {
         gsl_rng_free (r[i]);
     }
