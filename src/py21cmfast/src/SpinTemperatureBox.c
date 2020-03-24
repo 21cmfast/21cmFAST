@@ -659,11 +659,6 @@ LOG_ULTRA_DEBUG("COPIED OVER VALUES");
                 R *= R_factor;
 LOG_ULTRA_DEBUG("FINISHED WITH THIS R, MOVING ON");
             } //end for loop through the filter scales R
-
-            fftwf_cleanup_threads();
-            fftwf_cleanup();
-            fftwf_forget_wisdom();
-
         }
 
 LOG_SUPER_DEBUG("Finished loop through filter scales R");
@@ -929,6 +924,7 @@ LOG_SUPER_DEBUG("Initialised SFRD table");
                 }
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
+
                 for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++)
                     log10_Mcrit_LW_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
             }
@@ -1372,11 +1368,11 @@ LOG_SUPER_DEBUG("looping over box...");
 
                 ave_fcoll = ave_fcoll_inv = 0.0;
                 ave_fcoll_MINI = ave_fcoll_inv_MINI = 0.0;
-                
+
 #pragma omp parallel shared(delNL0,zpp_growth,SFRD_z_high_table,fcoll_interp_high_min,fcoll_interp_high_bin_width_inv,log10_SFRD_z_low_table,\
                             fcoll_int_boundexceeded_threaded,log10_Mcrit_LW,SFRD_z_high_table_MINI,\
-                            log10_SFRD_z_low_table_MINI,del_fcoll_Rct_MINI) \
-                    private(box_ct,curr_dens,fcoll,dens_val,fcoll_int,del_fcoll_Rct,log10_Mcrit_LW_val,log10_Mcrit_LW_int,log10_Mcrit_LW_diff,\
+                            log10_SFRD_z_low_table_MINI,del_fcoll_Rct,del_fcoll_Rct_MINI) \
+                    private(box_ct,curr_dens,fcoll,dens_val,fcoll_int,log10_Mcrit_LW_val,log10_Mcrit_LW_int,log10_Mcrit_LW_diff,\
                             fcoll_MINI_left,fcoll_MINI_right,fcoll_MINI) \
                     num_threads(user_params->N_THREADS)
                 {
@@ -1384,7 +1380,7 @@ LOG_SUPER_DEBUG("looping over box...");
                     for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
 
                         curr_dens = delNL0[R_ct][box_ct]*zpp_growth[R_ct];
-                        
+
                         if (flag_options->USE_MINI_HALOS){
                             log10_Mcrit_LW_val = ( log10_Mcrit_LW[R_ct][box_ct] - LOG10_MTURN_MIN) / LOG10_MTURN_INT;
                             log10_Mcrit_LW_int = (int)floorf( log10_Mcrit_LW_val );
@@ -1426,28 +1422,32 @@ LOG_SUPER_DEBUG("looping over box...");
                                                 
                                                 fcoll = log10_SFRD_z_low_table[R_ct][fcoll_int];
                                                 fcoll = expf(fcoll);
-                                                fcoll_MINI_left = log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + NSFR_low* log10_Mcrit_LW_int];
-                                                fcoll_MINI_right = log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + NSFR_low *(log10_Mcrit_LW_int + 1)];
-                                                fcoll_MINI = fcoll_MINI_left * (1.-log10_Mcrit_LW_diff) + fcoll_MINI_right * log10_Mcrit_LW_diff;
-                                                fcoll_MINI = expf(fcoll_MINI);
+                                                if (flag_options->USE_MINI_HALOS){
+                                                    fcoll_MINI_left = log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + NSFR_low* log10_Mcrit_LW_int];
+                                                    fcoll_MINI_right = log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + NSFR_low *(log10_Mcrit_LW_int + 1)];
+                                                    fcoll_MINI = fcoll_MINI_left * (1.-log10_Mcrit_LW_diff) + fcoll_MINI_right * log10_Mcrit_LW_diff;
+                                                    fcoll_MINI = expf(fcoll_MINI);
+                                                }
                                             }
                                         }
                                         else {
                                             fcoll_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
                                         }
                                     }
+                                    else {
 
-                                    fcoll = log10_SFRD_z_low_table[R_ct][fcoll_int]*( 1 + (float)fcoll_int - dens_val ) + log10_SFRD_z_low_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
+                                        fcoll = log10_SFRD_z_low_table[R_ct][fcoll_int]*( 1 + (float)fcoll_int - dens_val ) + log10_SFRD_z_low_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
 
-                                    fcoll = expf(fcoll);
-                                    
-                                    if (flag_options->USE_MINI_HALOS){
-                                        fcoll_MINI_left = log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + NSFR_low * log10_Mcrit_LW_int]*( 1 + (float)fcoll_int - dens_val ) +\
-                                                            log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + 1 + NSFR_low * log10_Mcrit_LW_int]*( dens_val - (float)fcoll_int );
-                                        fcoll_MINI_right = log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + NSFR_low * (log10_Mcrit_LW_int + 1)]*( 1 + (float)fcoll_int - dens_val ) +\
-                                                            log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + 1 + NSFR_low*(log10_Mcrit_LW_int + 1)]*( dens_val - (float)fcoll_int );
-                                        fcoll_MINI = fcoll_MINI_left * (1.-log10_Mcrit_LW_diff) + fcoll_MINI_right * log10_Mcrit_LW_diff;
-                                        fcoll_MINI = expf(fcoll_MINI);
+                                        fcoll = expf(fcoll);
+
+                                        if (flag_options->USE_MINI_HALOS){
+                                            fcoll_MINI_left = log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + NSFR_low * log10_Mcrit_LW_int]*( 1 + (float)fcoll_int - dens_val ) +\
+                                                                log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + 1 + NSFR_low * log10_Mcrit_LW_int]*( dens_val - (float)fcoll_int );
+                                            fcoll_MINI_right = log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + NSFR_low * (log10_Mcrit_LW_int + 1)]*( 1 + (float)fcoll_int - dens_val ) +\
+                                                                log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + 1 + NSFR_low*(log10_Mcrit_LW_int + 1)]*( dens_val - (float)fcoll_int );
+                                            fcoll_MINI = fcoll_MINI_left * (1.-log10_Mcrit_LW_diff) + fcoll_MINI_right * log10_Mcrit_LW_diff;
+                                            fcoll_MINI = expf(fcoll_MINI);
+                                        }
                                     }
                                 }
                             }
@@ -1481,7 +1481,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             ave_fcoll += fcoll;
 
                             del_fcoll_Rct[box_ct] = (1.+curr_dens)*fcoll;
-                        
+
                             if (flag_options->USE_MINI_HALOS){
                                 ave_fcoll_MINI += fcoll_MINI;
                                 
@@ -1934,6 +1934,8 @@ LOG_SUPER_DEBUG("finished loop");
     }
 
 //    fftwf_destroy_plan(plan);
+    fftwf_forget_wisdom();
+    fftwf_cleanup_threads();
     fftwf_cleanup();
 
     // Free all the boxes. Ideally, we wouldn't do this, as almost always
