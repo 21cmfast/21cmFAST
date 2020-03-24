@@ -62,7 +62,8 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     ///////////////////////////////  END INITIALIZATION /////////////////////////////////////////////
 
     // ok, lets fill the delta_T box; which will be the same size as the bubble box
-#pragma omp parallel shared(const_factor,perturb_field,ionized_box,box,redshift,spin_temp,T_rad) private(i,j,k,pixel_deltax,pixel_x_HI,pixel_Ts_factor) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(const_factor,perturb_field,ionized_box,box,redshift,spin_temp,T_rad) \
+            private(i,j,k,pixel_deltax,pixel_x_HI,pixel_Ts_factor) num_threads(user_params->N_THREADS)
     {
 #pragma omp for reduction(+:ave)
         for (i=0; i<user_params->HII_DIM; i++){
@@ -118,12 +119,14 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
             // Check to see if the wisdom exists, create it if it doesn't
             sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
             else {
 
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_PATIENT);
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_PATIENT);
                 fftwf_execute(plan);
 
                 // Store the wisdom for later use
@@ -133,12 +136,14 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                 memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
                 fftwf_destroy_plan(plan);
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
         }
         else {
-            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_ESTIMATE);
+            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                         (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
         fftwf_destroy_plan(plan);
@@ -172,12 +177,14 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
             // Check to see if the wisdom exists, create it if it doesn't
             sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_WISDOM_ONLY);
+                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
             else {
 
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_PATIENT);
+                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_PATIENT);
                 fftwf_execute(plan);
 
                 // Store the wisdom for later use
@@ -188,7 +195,8 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
                 // re-perform calculation
                 fftwf_destroy_plan(plan);
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
 
 #pragma omp parallel shared(vel_gradient) private(n_x,n_y,n_z,k_x,k_y,k_z) num_threads(user_params->N_THREADS)
@@ -216,12 +224,14 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                     }
                 }
                 fftwf_destroy_plan(plan);
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_WISDOM_ONLY);
+                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
         }
         else {
-            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM, (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_ESTIMATE);
+            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                         (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
         fftwf_destroy_plan(plan);
@@ -234,7 +244,8 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
             // now add the velocity correction to the delta_T maps
             min_gradient_component = 1.0;
 
-#pragma omp parallel shared(vel_gradient,T_rad,redshift,spin_temp,box,max_v_deriv) private(i,j,k,gradient_component,dvdx) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(vel_gradient,T_rad,redshift,spin_temp,box,max_v_deriv) \
+                    private(i,j,k,gradient_component,dvdx) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
                 for (i=0; i<user_params->HII_DIM; i++){
@@ -247,12 +258,14 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
                                 // Calculate the brightness temperature, using the optical depth
                                 if(gradient_component < FRACT_FLOAT_ERR) {
-                                    // Gradient component goes to zero, optical depth diverges. But, since we take exp(-tau), this goes to zero and (1 - exp(-tau)) goes to unity.
+                                    // Gradient component goes to zero, optical depth diverges.
+                                    // But, since we take exp(-tau), this goes to zero and (1 - exp(-tau)) goes to unity.
                                     // Again, factors of 1000. are conversions from K to mK
                                     box->brightness_temp[HII_R_INDEX(i,j,k)] = 1000.*(spin_temp->Ts_box[HII_R_INDEX(i,j,k)] - T_rad)/(1. + redshift);
                                 }
                                 else {
-                                    box->brightness_temp[HII_R_INDEX(i,j,k)] = (1. - exp(- box->brightness_temp[HII_R_INDEX(i,j,k)]/gradient_component ))*1000.*(spin_temp->Ts_box[HII_R_INDEX(i,j,k)] - T_rad)/(1. + redshift);
+                                    box->brightness_temp[HII_R_INDEX(i,j,k)] = (1. - exp(- box->brightness_temp[HII_R_INDEX(i,j,k)]/gradient_component ))*\
+                                                                                1000.*(spin_temp->Ts_box[HII_R_INDEX(i,j,k)] - T_rad)/(1. + redshift);
                                 }
                             }
                             else {
@@ -286,7 +299,10 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
             // The array v as defined in 21cmFAST is (ik/k^2)*dD/dt*delta, as it is defined as a comoving quantity (scale factor is implicit).
             // However, the conversion between real and redshift space also picks up a scale factor, therefore the scale factors drop out and therefore
             // the displacement of the sub-cells is purely determined from the array, v and the Hubble factor: v/H.
-#pragma omp parallel shared(delta_T_RSD_LOS,box,ionized_box,v,x_val1,x_val2,x_pos,x_pos_offset,subcell_width) private(i,j,k,ii,d1_low,d2_low,d1_high,d2_high,subcell_displacement,RSD_pos_new,RSD_pos_new_boundary_low,RSD_pos_new_boundary_high,cell_distance,fraction_outside,fraction_within) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(delta_T_RSD_LOS,box,ionized_box,v,x_val1,x_val2,x_pos,x_pos_offset,subcell_width) \
+                    private(i,j,k,ii,d1_low,d2_low,d1_high,d2_high,subcell_displacement,RSD_pos_new,\
+                            RSD_pos_new_boundary_low,RSD_pos_new_boundary_high,cell_distance,fraction_outside,fraction_within) \
+                    num_threads(user_params->N_THREADS)
             {
 #pragma omp for reduction(+:ave)
                 for (i=0; i<user_params->HII_DIM; i++){
@@ -299,7 +315,8 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
                         for (k=0; k<user_params->HII_DIM; k++){
 
-                            if((fabs(box->brightness_temp[HII_R_INDEX(i,j,k)]) >= FRACT_FLOAT_ERR) && (ionized_box->xH_box[HII_R_INDEX(i,j,k)] >= FRACT_FLOAT_ERR)) {
+                            if((fabs(box->brightness_temp[HII_R_INDEX(i,j,k)]) >= FRACT_FLOAT_ERR) && \
+                                        (ionized_box->xH_box[HII_R_INDEX(i,j,k)] >= FRACT_FLOAT_ERR)) {
 
                                 if(k==0) {
                                     d1_low = v[HII_R_FFT_INDEX(i,j,user_params->HII_DIM-1)]/H;
@@ -323,7 +340,8 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                                 for(ii=0;ii<astro_params->N_RSD_STEPS;ii++) {
 
                                     // linearly interpolate the displacements to determine the corresponding displacements of the sub-cells
-                                    // Checking of 0.5 is for determining if we are left or right of the mid-point of the original cell (for the linear interpolation of the displacement)
+                                    // Checking of 0.5 is for determining if we are left or right of the mid-point
+                                    // of the original cell (for the linear interpolation of the displacement)
                                     // to use the appropriate cell
 
                                     if(x_pos[ii] <= 0.5) {
@@ -333,9 +351,11 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                                         subcell_displacement = d1_high + ( (x_pos[ii] - 0.5 ) - x_val1)*( d2_high - d1_high )/( x_val2 - x_val1 );
                                     }
 
-                                    // The new centre of the sub-cell post R.S.D displacement. Normalised to units of cell width for determining it's displacement
+                                    // The new centre of the sub-cell post R.S.D displacement.
+                                    // Normalised to units of cell width for determining it's displacement
                                     RSD_pos_new = (x_pos_offset[ii] + subcell_displacement)/( user_params->BOX_LEN/((float)user_params->HII_DIM) );
-                                    // The sub-cell boundaries of the sub-cell, for determining the fractional contribution of the sub-cell to neighbouring cells when
+                                    // The sub-cell boundaries of the sub-cell, for determining the fractional
+                                    // contribution of the sub-cell to neighbouring cells when
                                     // the sub-cell straddles two cell positions
                                     RSD_pos_new_boundary_low = RSD_pos_new - (subcell_width/2.)/( user_params->BOX_LEN/((float)user_params->HII_DIM) );
                                     RSD_pos_new_boundary_high = RSD_pos_new + (subcell_width/2.)/( user_params->BOX_LEN/((float)user_params->HII_DIM) );
@@ -357,32 +377,39 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
                                             // check if the new cell position is at the edge of the box. If so, periodic boundary conditions
                                             if(k<((int)cell_distance+1)) {
-                                                delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance+1) + user_params->HII_DIM] += box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                                delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance+1) + user_params->HII_DIM] += \
+                                                                box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                             }
                                             else {
-                                                delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance+1)] += box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                                delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance+1)] += \
+                                                                box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                             }
                                         }
                                         else {
                                             // sub-cell is partially contained within the cell
 
                                             // Determine the fraction of the sub-cell which is in either of the two original cells
-                                            fraction_outside = (fabs(RSD_pos_new_boundary_low) - cell_distance)/(subcell_width/( user_params->BOX_LEN/((float)user_params->HII_DIM) ));
+                                            fraction_outside = (fabs(RSD_pos_new_boundary_low) - cell_distance)\
+                                                        /(subcell_width/( user_params->BOX_LEN/((float)user_params->HII_DIM) ));
                                             fraction_within = 1. - fraction_outside;
 
                                             // Check if the first part of the sub-cell is at the box edge
                                             if(k<(((int)cell_distance))) {
-                                                delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance) + user_params->HII_DIM] += fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                                delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance) + user_params->HII_DIM] += \
+                                                        fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                             }
                                             else {
-                                                delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance)] += fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                                delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance)] += \
+                                                        fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                             }
                                             // Check if the second part of the sub-cell is at the box edge
                                             if(k<(((int)cell_distance + 1))) {
-                                                delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance+1) + user_params->HII_DIM] += fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                                delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance+1) + user_params->HII_DIM] += \
+                                                        fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                             }
                                             else {
-                                                delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance+1)] += fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                                delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance+1)] += \
+                                                        fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                             }
                                         }
                                     }
@@ -395,12 +422,16 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
                                         // Check the periodic boundaries conditions and move the fraction of each sub-cell to the appropriate new cell
                                         if(k==0) {
-                                            delta_T_RSD_LOS[omp_get_thread_num()][user_params->HII_DIM-1] += fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
-                                            delta_T_RSD_LOS[omp_get_thread_num()][k] += fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                            delta_T_RSD_LOS[omp_get_thread_num()][user_params->HII_DIM-1] += \
+                                                    fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                            delta_T_RSD_LOS[omp_get_thread_num()][k] += \
+                                                    fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                         }
                                         else {
-                                            delta_T_RSD_LOS[omp_get_thread_num()][k-1] += fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
-                                            delta_T_RSD_LOS[omp_get_thread_num()][k] += fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                            delta_T_RSD_LOS[omp_get_thread_num()][k-1] += \
+                                                    fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                            delta_T_RSD_LOS[omp_get_thread_num()][k] += \
+                                                    fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                         }
                                     }
                                     else if((RSD_pos_new_boundary_low >= 0.0 && RSD_pos_new_boundary_low < 1.0) && (RSD_pos_new_boundary_high >= 1.0)) {
@@ -412,12 +443,16 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
                                         // Check the periodic boundaries conditions and move the fraction of each sub-cell to the appropriate new cell
                                         if(k==(user_params->HII_DIM-1)) {
-                                            delta_T_RSD_LOS[omp_get_thread_num()][k] += fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
-                                            delta_T_RSD_LOS[omp_get_thread_num()][0] += fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                            delta_T_RSD_LOS[omp_get_thread_num()][k] += \
+                                                    fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                            delta_T_RSD_LOS[omp_get_thread_num()][0] += \
+                                                    fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                         }
                                         else {
-                                            delta_T_RSD_LOS[omp_get_thread_num()][k] += fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
-                                            delta_T_RSD_LOS[omp_get_thread_num()][k+1] += fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                            delta_T_RSD_LOS[omp_get_thread_num()][k] += \
+                                                    fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                            delta_T_RSD_LOS[omp_get_thread_num()][k+1] += \
+                                                    fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                         }
                                     }
                                     else {
@@ -431,10 +466,12 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
                                             // check if the new cell position is at the edge of the box. If so, periodic boundary conditions
                                             if(k>(user_params->HII_DIM - 1 - (int)cell_distance)) {
-                                                delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance - user_params->HII_DIM] += box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                                delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance - user_params->HII_DIM] += \
+                                                        box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                             }
                                             else {
-                                                delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance] += box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                                delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance] += \
+                                                        box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                             }
                                         }
                                         else {
@@ -446,17 +483,21 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
                                             // Check if the first part of the sub-cell is at the box edge
                                             if(k>(user_params->HII_DIM - 1 - ((int)cell_distance-1))) {
-                                                delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance-1 - user_params->HII_DIM] += fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                                delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance-1 - user_params->HII_DIM] += \
+                                                        fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                             }
                                             else {
-                                                delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance-1] += fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                                delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance-1] += \
+                                                        fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                             }
                                             // Check if the second part of the sub-cell is at the box edge
                                             if(k>(user_params->HII_DIM - 1 - ((int)cell_distance))) {
-                                                delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance - user_params->HII_DIM] += fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                                delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance - user_params->HII_DIM] += \
+                                                        fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                             }
                                             else {
-                                                delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance] += fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
+                                                delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance] += \
+                                                        fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                             }
                                         }
                                     }
