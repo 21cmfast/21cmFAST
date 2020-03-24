@@ -153,7 +153,8 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     init_ps();
     LOG_DEBUG("Initalialized Power Spectrum.");
 
-#pragma omp parallel shared(HIRES_box,HIRES_box_vcb_x,HIRES_box_vcb_y,HIRES_box_vcb_z,r) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,p,a,b,p_vcb) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(HIRES_box,HIRES_box_vcb_x,HIRES_box_vcb_y,HIRES_box_vcb_z,r) \
+                    private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,p,a,b,p_vcb) num_threads(user_params->N_THREADS)
     {
 #pragma omp for
         for (n_x=0; n_x<user_params->DIM; n_x++){
@@ -223,11 +224,13 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
         // Check to see if the wisdom exists, create it if it doesn't
         sprintf(wisdom_filename,"complex_to_real_DIM%d_NTRHEADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
         if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
             fftwf_execute(plan);
         }
         else {
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_PATIENT);
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_PATIENT);
             fftwf_execute(plan);
 
             // Store the wisdom for later use
@@ -240,12 +243,14 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                 filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
 
             fftwf_destroy_plan(plan);
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
             fftwf_execute(plan);
         }
     }
     else {
-        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                     (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
         fftwf_execute(plan);
     }
     fftwf_destroy_plan(plan);
@@ -276,14 +281,20 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
         for(ii=0;ii<3;ii++) {
             if(user_params->USE_FFTW_WISDOM) {
-                if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY); }
-                if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY); }
-                if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY); }
+                if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY); }
+                if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY); }
+                if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY); }
             }
             else {
-                if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
-                if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
-                if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
+                if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
+                if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
+                if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
             }
             fftwf_execute(plan);
 	        fftwf_destroy_plan(plan);
@@ -309,7 +320,8 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
             sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY);
+                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY);
             }
             else {
                 // Going to need to construct an FFTW_Wisdom for this box. Now its time to allocate the memory to save a copy of the box which gets
@@ -319,7 +331,8 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                 // Make a copy of the x-direction velocity
                 memcpy(HIRES_box_vcb_saved, HIRES_box_vcb_x, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_PATIENT);
+                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_PATIENT);
                 fftwf_execute(plan);
 
                 // Store the wisdom for later use
@@ -328,24 +341,30 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                 // return copy of the x-direction velocity that we saved
                 memcpy(HIRES_box_vcb_x, HIRES_box_vcb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY);
+                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY);
 
                 // No longer need the saved box, we only enter here once
                 fftwf_free(HIRES_box_vcb_saved);
             }
             fftwf_execute(plan);
 
-            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY);
+            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY);
             fftwf_execute(plan);
-            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_z, (fftwf_complex *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY);
+            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (float *)HIRES_box_vcb_z, (fftwf_complex *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY);
             fftwf_execute(plan);
 
         }
         else {
             for(ii=0;ii<3;ii++) {
-                if(ii==0) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
-                if(ii==1) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
-                if(ii==2) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box_vcb_z, (fftwf_complex *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
+                if(ii==0) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
+                if(ii==1) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
+                if(ii==2) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (float *)HIRES_box_vcb_z, (fftwf_complex *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
                 fftwf_execute(plan);
             }
         }
@@ -362,18 +381,24 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
         if(user_params->USE_FFTW_WISDOM) {
             // FFTW Wisdom will already be in memory
             for(ii=0;ii<3;ii++) {
-                if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY); }
-                if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY); }
-                if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY); }
+                if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY); }
+                if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY); }
+                if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY); }
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
             }
         }
         else {
             for(ii=0;ii<3;ii++) {
-                if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
-                if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
-                if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
+                if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
+                if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
+                if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                         (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
             }
@@ -420,10 +445,12 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     }
 
     if(user_params->USE_FFTW_WISDOM) {
-        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                     (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
     }
     else {
-        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                     (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
     }
     fftwf_execute(plan);
     fftwf_destroy_plan(plan);
@@ -489,10 +516,12 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
 
         if(user_params->USE_FFTW_WISDOM) {
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
         }
         else {
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
         }
         fftwf_execute(plan);
         fftwf_destroy_plan(plan);
@@ -601,7 +630,8 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                     }
                 }
                 // Now we can generate the real phi_1[i,j]
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)phi_1[PHI_INDEX(i, j)], (float *)phi_1[PHI_INDEX(i, j)], FFTW_ESTIMATE);
+                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (fftwf_complex *)phi_1[PHI_INDEX(i, j)], (float *)phi_1[PHI_INDEX(i, j)], FFTW_ESTIMATE);
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
             }
@@ -616,11 +646,30 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             for (i=0; i<user_params->DIM; i++){
                 for (j=0; j<user_params->DIM; j++){
                     for (k=0; k<user_params->DIM; k++){
-                    *( (float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i), (unsigned long long)(j), (unsigned long long)(k) )) = 0.0;
+                        *( (float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                            (unsigned long long)(j),
+                                                            (unsigned long long)(k))) = 0.0;
                         for(m = 0; m < 3; ++m){
                             for(l = m+1; l < 3; ++l){
-                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k)) ) += ( *((float *)(phi_1[PHI_INDEX(l, l)]) + R_FFT_INDEX((unsigned long long) (i),(unsigned long long) (j),(unsigned long long) (k)))  ) * (  *((float *)(phi_1[PHI_INDEX(m, m)]) + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k)))  );
-                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k)) ) -= ( *((float *)(phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),(unsigned long long) (j),(unsigned long long)(k) ) )  ) * (  *((float *)(phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k) ))  );
+                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                   (unsigned long long)(j),
+                                                                   (unsigned long long)(k)) ) += \
+                                            ( *((float *)(phi_1[PHI_INDEX(l, l)]) + R_FFT_INDEX((unsigned long long)(i),
+                                                                                                (unsigned long long)(j),
+                                                                                                (unsigned long long)(k))) ) * \
+                                            ( *((float *)(phi_1[PHI_INDEX(m, m)]) + R_FFT_INDEX((unsigned long long)(i)
+                                                                                                ,(unsigned long long)(j)
+                                                                                                ,(unsigned long long)(k))) );
+                                
+                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                   (unsigned long long)(j),
+                                                                   (unsigned long long)(k)) ) -= \
+                                            ( *((float *)(phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),
+                                                                                                (unsigned long long)(j),
+                                                                                                (unsigned long long)(k))) ) * \
+                                            ( *((float *)(phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),
+                                                                                                (unsigned long long)(j),
+                                                                                                (unsigned long long)(k))) );
                             }
                         }
                         *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k)) ) /= TOT_NUM_PIXELS;
@@ -664,34 +713,35 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                         for (i = 0; i < user_params->DIM; i++) {
                             for (j = 0; j < user_params->DIM; j++) {
                                 for (k = 0; k < user_params->DIM; k++) {
-                                    *((float *) HIRES_box +
-                                      R_FFT_INDEX((unsigned long long) (i), (unsigned long long) (j),
-                                                  (unsigned long long) (k))) = 0.0;
+                                    *((float *) HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                        (unsigned long long)(j),
+                                                                        (unsigned long long)(k))) = 0.0;
                                     for (m = 0; m < 3; ++m) {
                                         for (l = m + 1; l < 3; ++l) {
-                                            *((float *) HIRES_box +
-                                              R_FFT_INDEX((unsigned long long) (i), (unsigned long long) (j),
-                                                          (unsigned long long) (k))) +=
-                                                    (*((float *) (phi_1[PHI_INDEX(l, l)]) +
-                                                       R_FFT_INDEX((unsigned long long) (i), (unsigned long long) (j),
-                                                                   (unsigned long long) (k)))) *
-                                                    (*((float *) (phi_1[PHI_INDEX(m, m)]) +
-                                                       R_FFT_INDEX((unsigned long long) (i), (unsigned long long) (j),
-                                                                   (unsigned long long) (k))));
-                                            *((float *) HIRES_box +
-                                              R_FFT_INDEX((unsigned long long) (i), (unsigned long long) (j),
-                                                          (unsigned long long) (k))) -=
-                                                    (*((float *) (phi_1[PHI_INDEX(l, m)]) +
-                                                       R_FFT_INDEX((unsigned long long) (i), (unsigned long long) (j),
-                                                                   (unsigned long long) (k)))) *
-                                                    (*((float *) (phi_1[PHI_INDEX(l, m)]) +
-                                                       R_FFT_INDEX((unsigned long long) (i), (unsigned long long) (j),
-                                                                   (unsigned long long) (k))));
+                                            *((float *) HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                                (unsigned long long)(j),
+                                                                                (unsigned long long)(k))) +=
+                                                    ( *((float *) (phi_1[PHI_INDEX(l, l)]) + R_FFT_INDEX((unsigned long long)(i),
+                                                                                                         (unsigned long long)(j),
+                                                                                                         (unsigned long long)(k))) ) *
+                                                    ( *((float *) (phi_1[PHI_INDEX(m, m)]) + R_FFT_INDEX((unsigned long long)(i),
+                                                                                                         (unsigned long long)(j),
+                                                                                                         (unsigned long long)(k))) );
+
+                                            *((float *) HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                                (unsigned long long)(j),
+                                                                                (unsigned long long)(k))) -=
+                                                    (*((float *) (phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),
+                                                                                                        (unsigned long long)(j),
+                                                                                                        (unsigned long long)(k))) ) *
+                                                    (*((float *) (phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),
+                                                                                                        (unsigned long long)(j),
+                                                                                                        (unsigned long long)(k))) );
                                         }
                                     }
-                                    *((float *) HIRES_box +
-                                      R_FFT_INDEX((unsigned long long) (i), (unsigned long long) (j),
-                                                  (unsigned long long) (k))) /= TOT_NUM_PIXELS;
+                                    *((float *) HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                        (unsigned long long)(j),
+                                                                        (unsigned long long)(k))) /= TOT_NUM_PIXELS;
                                 }
                             }
                         }
@@ -706,7 +756,8 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             }
         }
         else {
-            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_ESTIMATE);
+            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
         fftwf_destroy_plan(plan);
@@ -778,10 +829,12 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
             if(user_params->USE_FFTW_WISDOM) {
                 // This wisdom has already been created and in memory
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
             }
             else {
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM, (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
             }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
