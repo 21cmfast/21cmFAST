@@ -79,7 +79,38 @@ void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoPara
     user_params_ufunc = user_params;
 }
 
+float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
+    // z_re: the redshift of reionization
+    // z:    the current redshift
+    // delta:the density contrast
+    float result, delta_re;
+    // just be fully ionized
+    if (fabs(z - z_re) < 1e-4)
+        result = 1;
+    else{
+        // linearly extrapolate to get density at reionization
+        delta_re = delta * (1. + z ) / (1. + z_re);
+        if (delta_re<=-1) delta_re=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
+        // evolving ionized box eq. 6 of McQuinn 2015, ignored the dependency of density at ionization
+        if (delta<=-1) delta=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
+        result  = pow((1. + delta) / (1. + delta_re), 1.1333);
+        result *= pow((1. + z) / (1. + z_re), 3.4);
+        result *= expf(pow((1. + z)/7.1, 2.5) - pow((1. + z_re)/7.1, 2.5));
+    }
+    result *= pow(global_params.T_RE, 1.7);
+    // 1e4 before helium reionization; double it after
+    result += pow(1e4 * ((1. + z)/4.), 1.7) * ( 1 + delta);
+    result  = pow(result, 0.5882);
+    //LOG_DEBUG("z_re=%.4f, z=%.4f, delta=%e, Tk=%.f", z_re, z, delta, result);
+    return result;
+}
 
+float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
+    if (res_xH<=0.) return global_params.T_RE;
+    if (res_xH>=1) return T_HI;
+
+    return T_HI * res_xH + global_params.T_RE * (1. - res_xH);
+}
 
 void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
     int n_x, n_z, n_y, dimension,midpoint;
@@ -771,12 +802,12 @@ double atomic_cooling_threshold(float z){
 }
 
 double molecular_cooling_threshold(float z){
-	return TtoM(z, 600, 1.22);
+    return TtoM(z, 600, 1.22);
 }
 
 double lyman_werner_threshold(float z, float J_21_LW){
-	// this follows Visbal+15, which is taken as the optimal fit from Fialkov+12 which
-	// was calibrated with the simulations of Stacy+11 and Greif+11;
+    // this follows Visbal+15, which is taken as the optimal fit from Fialkov+12 which
+    // was calibrated with the simulations of Stacy+11 and Greif+11;
     double mcrit_noLW = 3.314e7 * pow( 1.+z, -1.5);
     return  mcrit_noLW * (1. + 22.8685 * pow(J_21_LW, 0.47));
 }

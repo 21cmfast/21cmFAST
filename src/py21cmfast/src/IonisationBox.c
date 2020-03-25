@@ -41,7 +41,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     unsigned long long ct;
 
     float growth_factor, pixel_mass, cell_length_factor, M_MIN, nf;
-    float f_coll_crit, erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, sqrtarg, xHI_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR;
+    float f_coll_crit, erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, sqrtarg, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR;
     float Splined_Fcoll_MINI, prev_dens, ION_EFF_FACTOR_MINI, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI;
     float ave_M_coll_cell, ave_N_min_cell;
 
@@ -88,6 +88,12 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     float adjusted_redshift, required_NF, stored_redshift, adjustment_factor, future_z;
     double temp;
 
+LOG_SUPER_DEBUG("initing heat");
+    init_heat();
+    float TK;
+    TK = T_RECFAST(redshift,0);
+LOG_SUPER_DEBUG("inited heat");
+
     const gsl_rng_type * T;
     gsl_rng * r;
 
@@ -115,13 +121,14 @@ LOG_SUPER_DEBUG("defined parameters");
 
         ZSTEP = prev_redshift - redshift;
 
-        for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++) {
+        for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++)
             box->Gamma12_box[ct] = 0.0;
-            box->z_re_box[ct] = -1.0;
-        }
     }
     else {
         ZSTEP = 0.2;
+    }
+    for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
+        box->z_re_box[ct] = -1.0;
     }
 
     fabs_dtdz = fabs(dtdz(redshift));
@@ -262,6 +269,17 @@ LOG_SUPER_DEBUG("density field calculated");
     cell_length_factor = L_FACTOR;
 
 
+    if (prev_redshift < 1){
+LOG_DEBUG("first redshift, do some initialization");
+        previous_ionize_box->z_re_box    = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+        for (i=0; i<user_params->HII_DIM; i++){
+            for (j=0; j<user_params->HII_DIM; j++){
+                for (k=0; k<user_params->HII_DIM; k++){
+                    previous_ionize_box->z_re_box[HII_R_INDEX(i, j, k)] = -1.0;
+                }
+            }
+        }
+    }
     //set the minimum source mass
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (flag_options->USE_MINI_HALOS){
@@ -269,7 +287,6 @@ LOG_SUPER_DEBUG("density field calculated");
             if (prev_redshift < 1){
 LOG_DEBUG("first redshift, do some initialization");
                 previous_ionize_box->Gamma12_box = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
-                previous_ionize_box->z_re_box    = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
                 previous_ionize_box->dNrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
                 // really painful to get the length...
                 counter = 1;
@@ -291,7 +308,6 @@ LOG_DEBUG("first redshift, do some initialization");
                     for (j=0; j<user_params->HII_DIM; j++){
                         for (k=0; k<user_params->HII_DIM; k++){
                             *((float *)prev_deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = -1.5;
-                            previous_ionize_box->z_re_box[HII_R_INDEX(i, j, k)] = -1.0;
                         }
                     }
                 }
@@ -454,15 +470,16 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                 box->xH_box[ct] = 1-spin_temp->x_e_box[ct]; // convert from x_e to xH
                 global_xH += box->xH_box[ct];
+                box->temp_kinetic_all_gas[ct] = spin_temp->Tk_box[ct];
             }
             global_xH /= (double)HII_TOT_NUM_PIXELS;
         }
         else {
-            init_heat();
             global_xH = 1. - xion_RECFAST(redshift, 0);
 //            destruct_heat();
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                 box->xH_box[ct] = global_xH;
+                box->temp_kinetic_all_gas[ct] = TK;
             }
         }
     }
@@ -829,7 +846,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+max_density)-overdense_small_min);
                 }
                 overdense_small_bin_width_inv = 1./overdense_small_bin_width;
-LOG_SUPER_DEBUG("R=%f, min_density=%f, max_density=%f, overdense_small_min=%f, overdense_small_bin_width=%f", R, min_density, max_density, overdense_small_min, overdense_small_bin_width);
+LOG_ULTRA_DEBUG("R=%f, min_density=%f, max_density=%f, overdense_small_min=%f, overdense_small_bin_width=%f", R, min_density, max_density, overdense_small_min, overdense_small_bin_width);
 
                 if (flag_options->USE_MINI_HALOS){
                     // do the same for prev
@@ -1261,7 +1278,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
             rec = 0.;
 
-            xHI_from_xrays = 1;
+            xHII_from_xrays = 0;
             Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
             Gamma_R_prefactor_MINI = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR_MINI / 1.0e-12;
             if(flag_options->PHOTON_CONS) {
@@ -1314,11 +1331,11 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                         // adjust the denominator of the collapse fraction for the residual electron fraction in the neutral medium
                         if (flag_options->USE_TS_FLUCT){
-                            xHI_from_xrays = (1. - *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z)));
+                            xHII_from_xrays = *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z));
                         }
 
                         // check if fully ionized!
-                        if ( (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI> (xHI_from_xrays)*(1.0+rec)) ){ //IONIZED!!
+                        if ( (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI> (1. - xHII_from_xrays)*(1.0+rec)) ){ //IONIZED!!
 
                             // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
                             // this assumes photon-starved growth of HII regions...  breaks down post EoR
@@ -1327,8 +1344,11 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             }
 
                             // keep track of the first time this cell is ionized (earliest time)
-                            if (flag_options->INHOMO_RECO && (previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)] < 0)){
+                            if (previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)] < 0){
                                 box->z_re_box[HII_R_INDEX(x,y,z)] = redshift;
+                            }
+                            else{
+                                box->z_re_box[HII_R_INDEX(x,y,z)] = previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)];
                             }
 
                             // FLAG CELL(S) AS IONIZED
@@ -1366,7 +1386,15 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                             if (f_coll>1) f_coll=1;
                             if (f_coll_MINI>1) f_coll_MINI=1;
-                            res_xH = xHI_from_xrays - f_coll * ION_EFF_FACTOR - f_coll_MINI * ION_EFF_FACTOR_MINI;
+                            res_xH = 1. - f_coll * ION_EFF_FACTOR - f_coll_MINI * ION_EFF_FACTOR_MINI;
+                            // put the partial ionization here because we need to exclude xHII_from_xrays...
+                            if (flag_options->USE_TS_FLUCT){
+                                box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH);
+                            }
+                            else{
+                                box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(TK, res_xH);
+                            }
+                            res_xH -= xHII_from_xrays;
 
                             // and make sure fraction doesn't blow up for underdense pixels
                             if (res_xH < 0)
@@ -1392,6 +1420,29 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                 counter += 1;
         }
 
+
+        for (x=0; x<user_params->HII_DIM; x++){
+            for (y=0; y<user_params->HII_DIM; y++){
+                for (z=0; z<user_params->HII_DIM; z++){
+                    if ((box->z_re_box[HII_R_INDEX(x,y,z)]>0) && (box->xH_box[HII_R_INDEX(x,y,z)] < TINY)){
+                        box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], redshift, *((float *)deltax_unfiltered_original + HII_R_FFT_INDEX(x,y,z)));
+                        // Below sometimes (very rare though) can happen when the density drops too fast and to below T_HI
+                        if (flag_options->USE_TS_FLUCT){
+                            if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < spin_temp->Tk_box[HII_R_INDEX(x,y,z)])
+                                box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = spin_temp->Tk_box[HII_R_INDEX(x,y,z)];
+                            }
+                        else{
+                            if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < TK)
+                                box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = TK;
+                        }
+                        if(isfinite(box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)])==0){
+                            LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
+                            return(2);
+                        }
+                    }
+                }
+            }
+        }
         // find the neutral fraction
         if(LOG_LEVEL >= DEBUG_LEVEL){
             global_xH = 0;
@@ -1480,22 +1531,22 @@ LOG_SUPER_DEBUG("freed fftw boxes");
         free(Nion_spline);
         //fftwf_free(Mcrit_RE_grid);
         //fftwf_free(Mcrit_LW_grid);
-    	if(flag_options->USE_MINI_HALOS){
-        	free(log10_Nion_spline_MINI);
-        	free(Nion_spline_MINI);
-        	free(prev_log10_overdense_spline_SFR);
-        	free(prev_Overdense_spline_SFR);
-        	free(prev_log10_Nion_spline);
-        	free(prev_Nion_spline);
-        	free(prev_log10_Nion_spline_MINI);
-        	free(prev_Nion_spline_MINI);
-        	free(Mturns);
-        	free(Mturns_MINI);
-        	fftwf_free(log10_Mturnover_unfiltered);
-        	fftwf_free(log10_Mturnover_filtered);
-        	fftwf_free(log10_Mturnover_MINI_unfiltered);
-        	fftwf_free(log10_Mturnover_MINI_filtered);
-		}
+        if(flag_options->USE_MINI_HALOS){
+            free(log10_Nion_spline_MINI);
+            free(Nion_spline_MINI);
+            free(prev_log10_overdense_spline_SFR);
+            free(prev_Overdense_spline_SFR);
+            free(prev_log10_Nion_spline);
+            free(prev_Nion_spline);
+            free(prev_log10_Nion_spline_MINI);
+            free(prev_Nion_spline_MINI);
+            free(Mturns);
+            free(Mturns_MINI);
+            fftwf_free(log10_Mturnover_unfiltered);
+            fftwf_free(log10_Mturnover_filtered);
+            fftwf_free(log10_Mturnover_MINI_unfiltered);
+            fftwf_free(log10_Mturnover_MINI_filtered);
+        }
     }
 
     if(!flag_options->USE_TS_FLUCT) {
