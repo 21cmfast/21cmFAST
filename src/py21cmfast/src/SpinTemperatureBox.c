@@ -930,12 +930,16 @@ LOG_SUPER_DEBUG("Initialised SFRD table");
             if (flag_options->USE_MINI_HALOS){
                 log10_Mcrit_mol = log10(lyman_werner_threshold(zp, 0.));
                 log10_Mcrit_LW_ave = 0.0;
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
-                            *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k)) = \
-                                            log10(lyman_werner_threshold(zp, previous_spin_temp->J_21_LW_box[HII_R_INDEX(i,j,k)]));
-                            log10_Mcrit_LW_ave += *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k));
+#pragma omp parallel shared(log10_Mcrit_LW_unfiltered,previous_spin_temp,zp) private(i,j,k) num_threads(user_params->N_THREADS)
+                {
+#pragma omp for reduction(+:log10_Mcrit_LW_ave)
+                    for (i=0; i<user_params->HII_DIM; i++){
+                        for (j=0; j<user_params->HII_DIM; j++){
+                            for (k=0; k<user_params->HII_DIM; k++){
+                                *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k)) = \
+                                                log10(lyman_werner_threshold(zp, previous_spin_temp->J_21_LW_box[HII_R_INDEX(i,j,k)]));
+                                log10_Mcrit_LW_ave += *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k));
+                            }
                         }
                     }
                 }
@@ -968,8 +972,13 @@ LOG_SUPER_DEBUG("Initialised SFRD table");
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
 
-                for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++)
-                    log10_Mcrit_LW_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
+#pragma omp parallel shared(log10_Mcrit_LW_unfiltered) private(ct) num_threads(user_params->N_THREADS)
+                {
+#pragma omp for
+                    for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++) {
+                        log10_Mcrit_LW_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
+                    }
+                }
             }
             else{
                 Splined_Fcollzp_mean_MINI = 0;
@@ -1078,15 +1087,19 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                     fftwf_execute(plan);
                     fftwf_destroy_plan(plan);
                     log10_Mcrit_LW_ave = 0; //recalculate it at this filtering scale
-                    for (i=0; i<user_params->HII_DIM; i++){
-                        for (j=0; j<user_params->HII_DIM; j++){
-                            for (k=0; k<user_params->HII_DIM; k++){
-                                log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] = *((float *) log10_Mcrit_LW_filtered + HII_R_FFT_INDEX(i,j,k));
-                                if(log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] < log10_Mcrit_mol)
-                                    log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] = log10_Mcrit_mol;
-                                if (log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] > LOG10_MTURN_MAX)
-                                    log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] = LOG10_MTURN_MAX;
-                                log10_Mcrit_LW_ave += log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)];
+#pragma omp parallel shared(log10_Mcrit_LW,log10_Mcrit_LW_filtered,log10_Mcrit_mol) private(i,j,k) num_threads(user_params->N_THREADS)
+                    {
+#pragma omp for reduction(+:log10_Mcrit_LW_ave)
+                        for (i=0; i<user_params->HII_DIM; i++){
+                            for (j=0; j<user_params->HII_DIM; j++){
+                                for (k=0; k<user_params->HII_DIM; k++){
+                                    log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] = *((float *) log10_Mcrit_LW_filtered + HII_R_FFT_INDEX(i,j,k));
+                                    if(log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] < log10_Mcrit_mol)
+                                        log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] = log10_Mcrit_mol;
+                                    if (log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] > LOG10_MTURN_MAX)
+                                        log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] = LOG10_MTURN_MAX;
+                                    log10_Mcrit_LW_ave += log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)];
+                                }
                             }
                         }
                     }
