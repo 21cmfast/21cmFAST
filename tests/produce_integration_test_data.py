@@ -28,45 +28,46 @@ DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 
 OPTIONS = (
     [12, {}],
-    [11, {"zprime_step_factor": 1.02}],
-    [30, {"z_heat_max": 40}],
-    [13, {"zprime_step_factor": 1.05, "z_heat_max": 25, "HMF": 0}],
-    [16, {"interp_perturb_field": True}],
-    [14, {"USE_MASS_DEPENDENT_ZETA": True}],
-    [9, {"SUBCELL_RSD": True}],
-    [10, {"INHOMO_RECO": True}],
-    [16, {"HMF": 3, "USE_TS_FLUCT": True}],
-    [20, {"z_heat_max": 45, "M_MIN_in_Mass": True, "HMF": 2}],
-    [35, {"USE_FFTW_WISDOM": True}],
-    [18, {            
-            "USE_MINI_HALOS": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "INHOMO_RECO": True,
-            "USE_TS_FLUCT": True,
-            "zprime_step_factor": 1.1,
-            "USE_FFTW_WISDOM": True,
-        },
-    ],
-    [8, {"N_THREADS": 2}],
-    [10, {"PHOTON_CONS": True}],
-    [8, {"USE_MASS_DEPENDENT_ZETA": True, "PHOTON_CONS": True}],
-    [8, {
-            "USE_MASS_DEPENDENT_ZETA": True, 
-            "USE_TS_FLUCT": True, 
-            "INHOMO_RECO": True, 
-            "PHOTON_CONS": True
-        },
-    ],
-    [8, {
-            "N_THREADS": 2, 
-            "USE_FFTW_WISDOM": True, 
-            "USE_MASS_DEPENDENT_ZETA": True, 
-            "INHOMO_RECO": True, 
-            "USE_TS_FLUCT": True, 
-            "PHOTON_CONS": True
-        }
-    ],
+    # [11, {"zprime_step_factor": 1.02}],
+    # [30, {"z_heat_max": 40}],
+    # [13, {"zprime_step_factor": 1.05, "z_heat_max": 25, "HMF": 0}],
+    # [16, {"interp_perturb_field": True}],
+    # [14, {"USE_MASS_DEPENDENT_ZETA": True}],
+    # [9, {"SUBCELL_RSD": True}],
+    # [10, {"INHOMO_RECO": True}],
+    # [16, {"HMF": 3, "USE_TS_FLUCT": True}],
+    # [20, {"z_heat_max": 45, "M_MIN_in_Mass": True, "HMF": 2}],
+    # [35, {"USE_FFTW_WISDOM": True}],
+    # [18, {            
+    #         "USE_MINI_HALOS": True,
+    #         "USE_MASS_DEPENDENT_ZETA": True,
+    #         "INHOMO_RECO": True,
+    #         "USE_TS_FLUCT": True,
+    #         "zprime_step_factor": 1.1,
+    #         "USE_FFTW_WISDOM": True,
+    #     },
+    # ],
+    # [8, {"N_THREADS": 2}],
+    # [10, {"PHOTON_CONS": True}],
+    # [8, {"USE_MASS_DEPENDENT_ZETA": True, "PHOTON_CONS": True}],
+    # [8, {
+    #         "USE_MASS_DEPENDENT_ZETA": True, 
+    #         "USE_TS_FLUCT": True, 
+    #         "INHOMO_RECO": True, 
+    #         "PHOTON_CONS": True
+    #     },
+    # ],
+    # [8, {
+    #         "N_THREADS": 2, 
+    #         "USE_FFTW_WISDOM": True, 
+    #         "USE_MASS_DEPENDENT_ZETA": True, 
+    #         "INHOMO_RECO": True, 
+    #         "USE_TS_FLUCT": True, 
+    #         "PHOTON_CONS": True
+    #     }
+    # ],
 )
+
 
 def get_defaults(kwargs, cls):
     return {k: kwargs.get(k, v) for k, v in cls._defaults_.items()}
