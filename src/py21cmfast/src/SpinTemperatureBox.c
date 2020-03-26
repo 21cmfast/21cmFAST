@@ -56,7 +56,8 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     omp_set_num_threads(user_params->N_THREADS);
     fftwf_init_threads();
     fftwf_plan_with_nthreads(user_params->N_THREADS);
-
+    fftwf_cleanup_threads();
+    
     /////////////////// Defining variables for the computation of Ts.c //////////////
     char wisdom_filename[500];
     FILE *F, *OUT;

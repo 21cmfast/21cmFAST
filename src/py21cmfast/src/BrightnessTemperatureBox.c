@@ -21,7 +21,8 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     omp_set_num_threads(user_params->N_THREADS);
     fftwf_init_threads();
     fftwf_plan_with_nthreads(user_params->N_THREADS);
-
+    fftwf_cleanup_threads();
+    
     fftwf_plan plan;
 
     float *v = (float *) calloc(HII_TOT_FFT_NUM_PIXELS,sizeof(float));
@@ -561,6 +562,7 @@ LOG_DEBUG("z = %.2f, ave Tb = %e", redshift, ave);
         free(delta_T_RSD_LOS[i]);
     }
     free(delta_T_RSD_LOS);
+    fftwf_cleanup_threads();
     fftwf_cleanup();
 
     return(0);

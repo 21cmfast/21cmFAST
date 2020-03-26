@@ -72,6 +72,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     omp_set_num_threads(user_params->N_THREADS);
     fftwf_init_threads();
     fftwf_plan_with_nthreads(user_params->N_THREADS);
+    fftwf_cleanup_threads();
 
     // ************  INITIALIZATION ********************** //
     
@@ -181,8 +182,6 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                     // this could be used to speed-up later maybe
                     k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
                     p = power_in_k(k_mag);
-
-
 
                     // ok, now we can draw the values of the real and imaginary part
                     // of our k entry from a Gaussian distribution

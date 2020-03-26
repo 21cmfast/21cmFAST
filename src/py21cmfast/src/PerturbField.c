@@ -19,7 +19,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
     omp_set_num_threads(user_params->N_THREADS);
     fftwf_init_threads();
     fftwf_plan_with_nthreads(user_params->N_THREADS);
-
+    fftwf_cleanup_threads();
 
     char wisdom_filename[500];
 
@@ -292,7 +292,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
         // save a copy of the k-space density field
     }
     else{
-
+        
         // transform to k-space
         if(user_params->USE_FFTW_WISDOM) {
             // Check to see if the wisdom exists, create it if it doesn't
@@ -327,7 +327,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
             fftwf_execute(plan);
         }
         fftwf_destroy_plan(plan);
-
+    
         //smooth the field
         if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
             filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM);
@@ -383,7 +383,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                 }
             }
         }
-
+        
 #pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for

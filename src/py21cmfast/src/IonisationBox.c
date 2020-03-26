@@ -31,7 +31,8 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     omp_set_num_threads(user_params->N_THREADS);
     fftwf_init_threads();
     fftwf_plan_with_nthreads(user_params->N_THREADS);
-
+    fftwf_cleanup_threads();
+    
     char wisdom_filename[500];
     char filename[500];
     FILE *F;
@@ -93,7 +94,6 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     float prev_min_density, prev_max_density;
 
     float adjusted_redshift, required_NF, stored_redshift, adjustment_factor, future_z;
-    double temp;
 
     gsl_rng * r[user_params->N_THREADS];
 
@@ -271,7 +271,7 @@ LOG_SUPER_DEBUG("erfc interpolation done");
             }
         }
     }
-
+    
 LOG_SUPER_DEBUG("density field calculated");
 
     // keep the unfiltered density field in an array, to save it for later
@@ -582,12 +582,11 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
             } else {
-
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                              (float *) deltax_unfiltered, (fftwf_complex *) deltax_unfiltered,FFTW_PATIENT);
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
-
+                
                 // Store the wisdom for later use
                 fftwf_export_wisdom_to_filename(wisdom_filename);
 
@@ -641,6 +640,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
+
 LOG_SUPER_DEBUG("more ffts performed");
         }
 
@@ -655,6 +655,7 @@ LOG_SUPER_DEBUG("more ffts performed");
             }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
+
             LOG_SUPER_DEBUG("more ffts performed");
         }
 
@@ -671,6 +672,7 @@ LOG_SUPER_DEBUG("more ffts performed");
             }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
+
             LOG_SUPER_DEBUG("more ffts performed");
         }
 
@@ -781,7 +783,6 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     fftwf_execute(plan);
                     fftwf_destroy_plan(plan);
                 } else {
-
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                                  (fftwf_complex *) deltax_filtered, (float *) deltax_filtered,FFTW_PATIENT);
                     fftwf_execute(plan);
@@ -869,7 +870,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
             }
-
+            
             // Check if this is the last filtering scale.  If so, we don't need deltax_unfiltered anymore.
             // We will re-read it to get the real-space field, which we will use to set the residual neutral fraction
             ST_over_PS = 0;
@@ -1546,7 +1547,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                 if (f_coll>1) f_coll=1;
                                 if (f_coll_MINI>1) f_coll_MINI=1;
-
+                                
                                 if(ave_N_min_cell < global_params.N_POISSON) {
                                     f_coll = N_halos_in_cell * ( ave_M_coll_cell / (float)global_params.N_POISSON ) / (pixel_mass*(1. + curr_dens));
                                     if (flag_options->USE_MINI_HALOS){
