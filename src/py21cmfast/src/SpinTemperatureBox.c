@@ -122,7 +122,8 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     int redshift_int_Nion_z,redshift_int_SFRD;
     float zpp_integrand;
 
-    float log10_Mcrit_mol, log10_Mcrit_LW_ave;
+    double log10_Mcrit_LW_ave;
+    float log10_Mcrit_mol;
     float log10_Mcrit_LW_ave_table_Nion_z, log10_Mcrit_LW_ave_table_SFRD;
     int  log10_Mcrit_LW_ave_int_Nion_z, log10_Mcrit_LW_ave_int_SFRD;
     double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
@@ -142,7 +143,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
 
     double total_time, total_time2, total_time3, total_time4;
     float M_MIN_at_zp;
-
+    
     int NO_LIGHT = 0;
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -943,7 +944,7 @@ LOG_SUPER_DEBUG("Initialised SFRD table");
                         }
                     }
                 }
-                log10_Mcrit_LW_ave /= (float)HII_TOT_NUM_PIXELS;
+                log10_Mcrit_LW_ave /= (double)HII_TOT_NUM_PIXELS;
 
                 log10_Mcrit_LW_ave_int_Nion_z = (int)floor( ( log10_Mcrit_LW_ave - LOG10_MTURN_MIN) / LOG10_MTURN_INT);
                 log10_Mcrit_LW_ave_table_Nion_z = LOG10_MTURN_MIN + LOG10_MTURN_INT * (float)log10_Mcrit_LW_ave_int_Nion_z;
@@ -1103,7 +1104,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                             }
                         }
                     }
-                    log10_Mcrit_LW_ave /= (float)HII_TOT_NUM_PIXELS;
+                    log10_Mcrit_LW_ave /= (double)HII_TOT_NUM_PIXELS;
 
                     log10_Mcrit_LW_ave_int_SFRD = (int)floor( ( log10_Mcrit_LW_ave - LOG10_MTURN_MIN) / LOG10_MTURN_INT);
                     log10_Mcrit_LW_ave_table_SFRD = LOG10_MTURN_MIN + LOG10_MTURN_INT * (float)log10_Mcrit_LW_ave_int_SFRD;

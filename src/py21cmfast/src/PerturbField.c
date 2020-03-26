@@ -197,9 +197,8 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                 }
             }
         }
-        
         free(resampled_box);
-
+        
         // renormalize to the new pixel size, and make into delta
 #pragma omp parallel shared(LOWRES_density_perturb,mass_factor) private(i,j,k) num_threads(user_params->N_THREADS)
         {

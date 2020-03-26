@@ -38,7 +38,7 @@ OPTIONS = (
     [16, {"HMF": 3, "USE_TS_FLUCT": True}],
     [20, {"z_heat_max": 45, "M_MIN_in_Mass": True, "HMF": 2}],
     [35, {"USE_FFTW_WISDOM": True}],
-    [18, {
+    [18, {            
             "USE_MINI_HALOS": True,
             "USE_MASS_DEPENDENT_ZETA": True,
             "INHOMO_RECO": True,

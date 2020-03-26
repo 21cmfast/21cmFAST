@@ -149,7 +149,7 @@ LOG_SUPER_DEBUG("defined parameters");
 
     double ArgBinWidth, InvArgBinWidth, erfc_arg_val, erfc_arg_min, erfc_arg_max;
     int erfc_arg_val_index, ERFC_NUM_POINTS;
-
+    
     erfc_arg_val = 0.;
     erfc_arg_val_index = 0;
 
@@ -259,7 +259,7 @@ LOG_SUPER_DEBUG("erfc interpolation done");
     else {
         adjustment_factor = 1.;
     }
-
+    
 #pragma omp parallel shared(deltax_unfiltered,perturbed_field,adjustment_factor) private(i,j,k) num_threads(user_params->N_THREADS)
     {
 #pragma omp for
@@ -371,7 +371,7 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
                 for (x=0; x<user_params->HII_DIM; x++){
                     for (y=0; y<user_params->HII_DIM; y++){
                         for (z=0; z<user_params->HII_DIM; z++){
-
+                            
                             Mcrit_RE = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[HII_R_INDEX(x, y, z)], previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)]);
                             Mcrit_LW = lyman_werner_threshold(redshift, spin_temp->J_21_LW_box[HII_R_INDEX(x, y, z)]);
 
@@ -769,7 +769,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     filter_box(log10_Mturnover_filtered, 1, global_params.HII_FILTER, R);
                 }
             }
-
+            
             // Perform FFTs
             if (user_params->USE_FFTW_WISDOM) {
                 // Check to see if the wisdom exists, create it if it doesn't
@@ -810,7 +810,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
             }
-
+            
             if(flag_options->USE_MINI_HALOS){
                 if(user_params->USE_FFTW_WISDOM) {
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
@@ -1098,7 +1098,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
             for (i = 0; i < user_params->N_THREADS; i++) {
                 overdense_int_boundexceeded_threaded[i] = 0;
             }
-
+            
             // renormalize the collapse fraction so that the mean matches ST,
             // since we are using the evolved (non-linear) density field
 #pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded,log10_Nion_spline,Nion_spline,erfc_denom,erfc_arg_min,\
@@ -1111,7 +1111,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             prev_dens_val,) \
                     num_threads(user_params->N_THREADS)
             {
-#pragma omp for reduction(+:f_coll)
+#pragma omp for reduction(+:f_coll,f_coll_MINI)
                 for (x = 0; x < user_params->HII_DIM; x++) {
                     for (y = 0; y < user_params->HII_DIM; y++) {
                         for (z = 0; z < user_params->HII_DIM; z++) {
@@ -1420,7 +1420,6 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                 LOG_ERROR("f_coll is either infinite or NaN!");
                 return (2);
             }
-
             f_coll /= (double) HII_TOT_NUM_PIXELS;
 
             if(isfinite(f_coll_MINI)==0) {
