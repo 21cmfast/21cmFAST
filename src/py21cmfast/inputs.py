@@ -392,6 +392,9 @@ class UserParams(StructWithDefaults):
         3: PEEBLES
         4: WHITE
         5: CLASS (single cosmology)
+    N_THREADS : int, optional
+        Sets the number of processors (threads) to be used for performing 21cmFAST.
+        Default 1.
     """
 
     _ffi = ffi
@@ -404,6 +407,7 @@ class UserParams(StructWithDefaults):
         "HMF": 1,
         "USE_RELATIVE_VELOCITIES": False,
         "POWER_SPECTRUM": 0,
+        "N_THREADS": 1,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
