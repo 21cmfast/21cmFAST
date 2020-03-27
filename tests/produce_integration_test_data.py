@@ -26,7 +26,7 @@ DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
 DEFAULT_USER_PARAMS = {"HII_DIM": 50, "DIM": 150, "BOX_LEN": 100}
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 
-"""
+
 OPTIONS = (
     [12, {}],
     [11, {"zprime_step_factor": 1.02}],
@@ -53,29 +53,6 @@ OPTIONS = (
     [8, {"N_THREADS": 2}],
     [10, {"PHOTON_CONS": True}],
     [8, {"USE_MASS_DEPENDENT_ZETA": True, "PHOTON_CONS": True}],
-    [
-        8,
-        {
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "USE_TS_FLUCT": True,
-            "INHOMO_RECO": True,
-            "PHOTON_CONS": True,
-        },
-    ],
-    [
-        8,
-        {
-            "N_THREADS": 2,
-            "USE_FFTW_WISDOM": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "INHOMO_RECO": True,
-            "USE_TS_FLUCT": True,
-            "PHOTON_CONS": True,
-        },
-    ],
-)
-"""
-OPTIONS = (
     [
         8,
         {
