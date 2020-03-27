@@ -51,7 +51,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
     LOWRES_density_perturb_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
     double *resampled_box;
-    
+
     // check if the linear evolution flag was set
     if (global_params.EVOLVE_DENSITY_LINEARLY){
 #pragma omp parallel shared(growth_factor,boxes,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -127,7 +127,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 
         // Perturbing the density field required adding over multiple cells. Store intermediate result as a double to avoid rounding errors
         resampled_box = (double *)calloc(HII_TOT_NUM_PIXELS,sizeof(double));
-        
+
         // go through the high-res box, mapping the mass onto the low-res (updated) box
 
 #pragma omp parallel shared(LOWRES_density_perturb,init_growth_factor,boxes,f_pixel_factor,resampled_box) \
@@ -184,7 +184,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                 }
             }
         }
-        
+
         // Resample back to a float for remaining algorithm
 #pragma omp parallel shared(LOWRES_density_perturb,resampled_box) private(i,j,k) num_threads(user_params->N_THREADS)
         {
@@ -198,7 +198,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
             }
         }
         free(resampled_box);
-        
+
         // renormalize to the new pixel size, and make into delta
 #pragma omp parallel shared(LOWRES_density_perturb,mass_factor) private(i,j,k) num_threads(user_params->N_THREADS)
         {
@@ -292,7 +292,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
         // save a copy of the k-space density field
     }
     else{
-        
+
         // transform to k-space
         if(user_params->USE_FFTW_WISDOM) {
             // Check to see if the wisdom exists, create it if it doesn't
@@ -327,7 +327,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
             fftwf_execute(plan);
         }
         fftwf_destroy_plan(plan);
-    
+
         //smooth the field
         if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
             filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM);
@@ -383,7 +383,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
                 }
             }
         }
-        
+
 #pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for

@@ -22,7 +22,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     fftwf_init_threads();
     fftwf_plan_with_nthreads(user_params->N_THREADS);
     fftwf_cleanup_threads();
-    
+
     fftwf_plan plan;
 
     float *v = (float *) calloc(HII_TOT_FFT_NUM_PIXELS,sizeof(float));

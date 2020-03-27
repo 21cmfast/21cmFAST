@@ -2369,8 +2369,8 @@ int initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_den
             }
         }
     }
-    
-    
+
+
 #pragma omp parallel shared(Nion_spline,growthf,Mmin,Mmax,sigma2,Overdense_spline_SFR,Mturns,Alpha_star,\
                             Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,Nion_spline_MINI,Mturns_MINI,Mcrit_atom,\
                             Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI) \
@@ -2396,7 +2396,7 @@ int initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_den
             }
         }
     }
-    
+
     for(i=0;i<NSFR_high;i++) {
         for (j=0; j<NMTURN; j++){
             if(isfinite(Nion_spline[i+j*NSFR_high])==0) {
@@ -2488,7 +2488,7 @@ int initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float mi
             }
         }
     }
-    
+
     for (i=0; i<NSFR_low; i++){
         for (j=0; j<NMTURN; j++){
             if(isfinite(prev_log10_Nion_spline[i+j*NSFR_low])==0) {
@@ -2503,7 +2503,7 @@ int initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float mi
         }
     }
 
-    
+
 #pragma omp parallel shared(prev_Nion_spline,growthf,Mmin,Mmax,sigma2,prev_Overdense_spline_SFR,Mturns,\
                             Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,prev_Nion_spline_MINI,Mturns_MINI,\
                             Mcrit_atom,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI) \
@@ -2530,15 +2530,15 @@ int initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float mi
             }
         }
     }
-    
+
     for(i=0;i<NSFR_high;i++) {
         for (j=0; j<NMTURN; j++){
-    
+
             if(isfinite(prev_Nion_spline[i+j*NSFR_high])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in prev_Nion_spline");
                 return(-1);
             }
-    
+
             if(isfinite(prev_Nion_spline_MINI[i+j*NSFR_high])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in prev_Nion_spline_MINI");
                 return(-1);
@@ -2612,7 +2612,7 @@ int initialise_Nion_Ts_spline_MINI(int Nbin, float zmin, float zmax, float Alpha
             }
         }
     }
-    
+
     for (i=0; i<Nbin; i++){
         if(isfinite(Nion_z_val[i])==0) {
             i = Nbin;
@@ -2628,7 +2628,7 @@ int initialise_Nion_Ts_spline_MINI(int Nbin, float zmin, float zmax, float Alpha
             }
         }
     }
-   
+
     return(0);
 }
 
@@ -2694,7 +2694,7 @@ int initialise_SFRD_spline_MINI(int Nbin, float zmin, float zmax, float Alpha_st
             }
         }
     }
-    
+
     for (i=0; i<Nbin; i++){
         if(isfinite(SFRD_val[i])==0) {
             i = Nbin;
@@ -2904,7 +2904,7 @@ int initialise_SFRD_Conditional_table_MINI(int Nfilter, float min_density[], flo
             overdense_val = log10(1. + overdense_small_low) + (float)i/((float)NSFR_low-1.)*(log10(1.+overdense_small_high)-log10(1.+overdense_small_low));
             overdense_low_table[i] = pow(10.,overdense_val);
         }
-        
+
 #pragma omp parallel shared(log10_SFRD_z_low_table,growthf,Mmax,sigma2,overdense_low_table,Mcrit_atom,Alpha_star,Fstar10,Mlim_Fstar,\
                             log10_SFRD_z_low_table_MINI,MassTurnover,Fstar7_MINI,Mlim_Fstar_MINI,ln_10) \
                     private(i,k) num_threads(user_params_ps->N_THREADS)
@@ -2915,7 +2915,7 @@ int initialise_SFRD_Conditional_table_MINI(int Nfilter, float min_density[], flo
                 if(log10_SFRD_z_low_table[j][i] < -50.){
                     log10_SFRD_z_low_table[j][i] = -50.;
                 }
-                
+
                 log10_SFRD_z_low_table[j][i] += 10.0;
                 log10_SFRD_z_low_table[j][i] *= ln_10;
 
@@ -2930,13 +2930,13 @@ int initialise_SFRD_Conditional_table_MINI(int Nfilter, float min_density[], flo
                 }
             }
         }
-        
+
         for (i=0; i<NSFR_low; i++){
             if(isfinite(log10_SFRD_z_low_table[j][i])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in log10_SFRD_z_low_table");
                 return(-1);
             }
-            
+
             for (k=0; k<NMTURN; k++){
                 if(isfinite(log10_SFRD_z_low_table_MINI[j][i+k*NSFR_low])==0) {
                     LOG_ERROR("Detected either an infinite or NaN value in log10_SFRD_z_low_table_MINI");
@@ -2971,13 +2971,13 @@ int initialise_SFRD_Conditional_table_MINI(int Nfilter, float min_density[], flo
                 }
             }
         }
-        
+
         for(i=0;i<NSFR_high;i++) {
             if(isfinite(SFRD_z_high_table[j][i])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in SFRD_z_high_table");
                 return(-1);
             }
-            
+
             for (k=0; k<NMTURN; k++){
                 if(isfinite(SFRD_z_high_table_MINI[j][i+k*NSFR_high])==0) {
                     LOG_ERROR("Detected either an infinite or NaN value in SFRD_z_high_table_MINI");

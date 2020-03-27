@@ -57,7 +57,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     fftwf_init_threads();
     fftwf_plan_with_nthreads(user_params->N_THREADS);
     fftwf_cleanup_threads();
-    
+
     /////////////////// Defining variables for the computation of Ts.c //////////////
     char wisdom_filename[500];
     FILE *F, *OUT;
@@ -144,7 +144,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
 
     double total_time, total_time2, total_time3, total_time4;
     float M_MIN_at_zp;
-    
+
     int NO_LIGHT = 0;
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -1397,7 +1397,7 @@ LOG_SUPER_DEBUG("looping over box...");
                     dxion_source_dt_box[box_ct] = 0.;
                     dxlya_dt_box[box_ct] = 0.;
                     dstarlya_dt_box[box_ct] = 0.;
-                
+
                     if (flag_options->USE_MINI_HALOS){
                         dstarlyLW_dt_box[box_ct] = 0.;
                         dstarlyLW_dt_box_MINI[box_ct] = 0.;
@@ -1480,9 +1480,9 @@ LOG_SUPER_DEBUG("looping over box...");
                                                 // rather than the curr_dens > global_params.CRIT_DENS_TRANSITION case
                                                 // This checks for this, and calculates f_coll in this instance, rather than causing it to error
                                                 dens_val = (curr_dens - fcoll_interp_high_min)*fcoll_interp_high_bin_width_inv;
-                                        
+
                                                 fcoll_int = (int)floorf( dens_val );
-                                        
+
                                                 fcoll = SFRD_z_high_table[R_ct][fcoll_int]*( 1. + (float)fcoll_int - dens_val ) + \
                                                         SFRD_z_high_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
                                                 if (flag_options->USE_MINI_HALOS){
@@ -1500,7 +1500,7 @@ LOG_SUPER_DEBUG("looping over box...");
                                                 }
                                             }
                                             else {
-                                                
+
                                                 fcoll = log10_SFRD_z_low_table[R_ct][fcoll_int];
                                                 fcoll = expf(fcoll);
                                                 if (flag_options->USE_MINI_HALOS){
@@ -1532,7 +1532,7 @@ LOG_SUPER_DEBUG("looping over box...");
                                                                 ( 1 + (float)fcoll_int - dens_val ) +\
                                                                 log10_SFRD_z_low_table_MINI[R_ct][fcoll_int + 1 + NSFR_low*(log10_Mcrit_LW_int + 1)]*\
                                                                 ( dens_val - (float)fcoll_int );
-                                           
+
                                             fcoll_MINI = fcoll_MINI_left * (1.-log10_Mcrit_LW_diff) + fcoll_MINI_right * log10_Mcrit_LW_diff;
                                             fcoll_MINI = expf(fcoll_MINI);
                                         }
@@ -1553,7 +1553,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                                     fcoll = SFRD_z_high_table[R_ct][fcoll_int]*( 1. + (float)fcoll_int - dens_val ) + \
                                             SFRD_z_high_table[R_ct][fcoll_int+1]*( dens_val - (float)fcoll_int );
-                                
+
                                     if (flag_options->USE_MINI_HALOS){
                                         fcoll_MINI_left = SFRD_z_high_table_MINI[R_ct][fcoll_int + NSFR_high * log10_Mcrit_LW_int]*\
                                                         ( 1. + (float)fcoll_int - dens_val ) +\
@@ -1579,7 +1579,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                             if (flag_options->USE_MINI_HALOS){
                                 ave_fcoll_MINI += fcoll_MINI;
-                                
+
                                 del_fcoll_Rct_MINI[box_ct] = (1.+curr_dens)*fcoll_MINI;
                             }
                         }
@@ -1609,14 +1609,14 @@ LOG_SUPER_DEBUG("looping over box...");
                 dfcoll_dz_val = (ave_fcoll_inv/pow(10.,10.))*ST_over_PS[R_ct]*SFR_timescale_factor[R_ct]/astro_params->t_STAR;
 
                 dstarlya_dt_prefactor[R_ct] *= dfcoll_dz_val;
-                
+
                 if(flag_options->USE_MINI_HALOS){
                     dfcoll_dz_val_MINI = (ave_fcoll_inv_MINI/pow(10.,10.))*ST_over_PS_MINI[R_ct]*SFR_timescale_factor[R_ct]/astro_params->t_STAR;
                     dstarlya_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
                     dstarlyLW_dt_prefactor[R_ct] *= dfcoll_dz_val;
                     dstarlyLW_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
                 }
-                
+
 #pragma omp parallel shared(dxheat_dt_box,dxion_source_dt_box,dxlya_dt_box,dstarlya_dt_box,dfcoll_dz_val,del_fcoll_Rct,freq_int_heat_tbl_diff,\
                             m_xHII_low_box,inverse_val_box,freq_int_heat_tbl,freq_int_ion_tbl_diff,freq_int_ion_tbl,freq_int_lya_tbl_diff,\
                             freq_int_lya_tbl,dstarlya_dt_prefactor,R_ct,previous_spin_temp,this_spin_temp,const_zp_prefactor,prefactor_1,\
@@ -1661,7 +1661,7 @@ LOG_SUPER_DEBUG("looping over box...");
                                 dstarlyLW_dt_box[box_ct] += 0.;
                             }
                         }
-                        
+
                         if (flag_options->USE_MINI_HALOS){
                             if(ave_fcoll_MINI!=0.) {
                                 dxheat_dt_box_MINI[box_ct] += (dfcoll_dz_val_MINI*(double)del_fcoll_Rct_MINI[box_ct]*( \
@@ -1690,19 +1690,19 @@ LOG_SUPER_DEBUG("looping over box...");
 
                             dxlya_dt_box[box_ct] *= const_zp_prefactor*prefactor_1 * (1.+delNL0[0][box_ct]*growth_factor_zp);
                             dstarlya_dt_box[box_ct] *= prefactor_2;
-                        
+
                             if (flag_options->USE_MINI_HALOS){
                                 dstarlyLW_dt_box[box_ct] *= prefactor_2 * (hplank * 1e21);
-                                
+
                                 dxheat_dt_box_MINI[box_ct] *= const_zp_prefactor_MINI;
                                 dxion_source_dt_box_MINI[box_ct] *= const_zp_prefactor_MINI;
-                                
+
                                 dxlya_dt_box_MINI[box_ct] *= const_zp_prefactor_MINI*prefactor_1 * (1.+delNL0[0][box_ct]*growth_factor_zp);
                                 dstarlya_dt_box_MINI[box_ct] *= prefactor_2_MINI;
-                                
+
                                 dstarlyLW_dt_box_MINI[box_ct] *= prefactor_2_MINI * (hplank * 1e21);
                             }
-                            
+
                             // Now we can solve the evolution equations  //
 
                             // First let's do dxe_dzp //
@@ -1714,7 +1714,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             else{
                                 dxe_dzp = dt_dzp*(dxion_source_dt_box[box_ct] - dxion_sink_dt );
                             }
-                        
+
                             // Next, let's get the temperature components //
                             // first, adiabatic term
                             dadia_dzp = 3/(1.0+zp);
@@ -1748,7 +1748,7 @@ LOG_SUPER_DEBUG("looping over box...");
                                 } else {
                                     T += ( dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp ) * dzp;
                                 }
-                                
+
                             }
 
                             if (T<0){ // spurious bahaviour of the trapazoidalintegrator. generally overcooling in underdensities
@@ -1826,7 +1826,7 @@ LOG_SUPER_DEBUG("looping over box...");
                                     J_LW_ave_MINI += dstarlyLW_dt_box_MINI[box_ct];
                                 }
                             }
-                            
+
                             x_e_ave += x_e;
                         }
                     }
@@ -2047,7 +2047,7 @@ LOG_SUPER_DEBUG("finished loop");
 
     fftwf_free(box);
     fftwf_free(unfiltered_box);
-    
+
     if (flag_options->USE_MINI_HALOS){
         fftwf_free(log10_Mcrit_LW_unfiltered);
         fftwf_free(log10_Mcrit_LW_filtered);

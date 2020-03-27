@@ -66,7 +66,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
     gsl_rng * r[user_params->N_THREADS];
     gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
-    
+
     gsl_rng_set(rseed, random_seed);
 
     omp_set_num_threads(user_params->N_THREADS);
@@ -75,9 +75,9 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     fftwf_cleanup_threads();
 
     // ************  INITIALIZATION ********************** //
-    
+
     unsigned int seeds[user_params->N_THREADS];
-    
+
     // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
     int num_int = INT_MAX/16;
     unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int*sizeof(unsigned int))); // Some large number of possible integers
@@ -87,9 +87,9 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
     gsl_ran_choose(rseed, seeds, user_params->N_THREADS, many_ints, num_int, sizeof(unsigned int)); // Populate the seeds array from the large list of integers
     gsl_ran_shuffle(rseed, seeds, user_params->N_THREADS, sizeof(unsigned int)); // Shuffle the randomly selected integers
-    
+
     int checker;
-    
+
     checker = 0;
     // seed the random number generators
     for (thread_num = 0; thread_num < user_params->N_THREADS; thread_num++){
@@ -122,7 +122,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             checker = 0;
         }
     }
-    
+
     free(many_ints);
 
     // allocate array for the k-space and real-space boxes
@@ -187,7 +187,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                     // of our k entry from a Gaussian distribution
                     a = gsl_ran_ugaussian(r[omp_get_thread_num()]);
                     b = gsl_ran_ugaussian(r[omp_get_thread_num()]);
-                    
+
                     HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME*p/2.0) * (a + b*I);
 
 
@@ -659,7 +659,7 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
                                             ( *((float *)(phi_1[PHI_INDEX(m, m)]) + R_FFT_INDEX((unsigned long long)(i)
                                                                                                 ,(unsigned long long)(j)
                                                                                                 ,(unsigned long long)(k))) );
-                                
+
                                 *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
                                                                    (unsigned long long)(j),
                                                                    (unsigned long long)(k)) ) -= \
