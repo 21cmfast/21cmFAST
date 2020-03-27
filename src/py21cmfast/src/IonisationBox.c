@@ -556,7 +556,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
         }
         else {
             global_xH = 1. - xion_RECFAST(redshift, 0);
-          
+
 #pragma omp parallel shared(box,global_xH,TK) private(ct) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
@@ -1497,6 +1497,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                 return (2);
             }
 
+
 #pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,box,ST_over_PS,pixel_mass,M_MIN,r,f_coll_min,Gamma_R_prefactor,\
                             ION_EFF_FACTOR,ION_EFF_FACTOR_MINI,LAST_FILTER_STEP,counter,ST_over_PS_MINI,f_coll_min_MINI,Gamma_R_prefactor_MINI,TK) \
                     private(x,y,z,curr_dens,Splined_Fcoll,f_coll,ave_M_coll_cell,ave_N_min_cell,N_halos_in_cell,rec,xHII_from_xrays,res_xH,\
@@ -1605,7 +1606,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                 else{
                                     box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(TK, res_xH);
                                 }
-                                res_xH -= xHII_from_xrays;                              
+                                res_xH -= xHII_from_xrays;
 
                                 // and make sure fraction doesn't blow up for underdense pixels
                                 if (res_xH < 0)
@@ -1655,7 +1656,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                 }
             }
         }
-        
+
         for (x=0; x<user_params->HII_DIM; x++){
             for (y=0; y<user_params->HII_DIM; y++){
                 for (z=0; z<user_params->HII_DIM; z++){
@@ -1667,7 +1668,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                 }
             }
         }
-      
+
         // find the neutral fraction
         if (LOG_LEVEL >= DEBUG_LEVEL) {
             global_xH = 0;
