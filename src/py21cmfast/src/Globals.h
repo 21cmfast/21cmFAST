@@ -64,10 +64,11 @@ struct GlobalParams{
     int FILTER;
 
     char *external_table_path;
-	float R_BUBBLE_MIN;
-	float M_MIN_INTEGRAL;
-	float M_MAX_INTEGRAL;
+    float R_BUBBLE_MIN;
+    float M_MIN_INTEGRAL;
+    float M_MAX_INTEGRAL;
 
+    float T_RE;
 
 
 
@@ -128,12 +129,9 @@ struct GlobalParams global_params = {
     .SHETH_c = 0.05,
     .Zreion_HeII = 3.0,
     .FILTER = 0,
-	.R_BUBBLE_MIN = 0.620350491,
-	//Minimum radius of bubbles to be searched in cMpc.
-	//One can set this to 0, but should be careful with
-	//shot noise if running on a fine, non-linear density grid.
-	//Default is L_FACTOR which is (4PI/3)^(-1/3) = 0.620350491
+    .R_BUBBLE_MIN = 0.620350491,
+    .M_MIN_INTEGRAL = 1e5,
+    .M_MAX_INTEGRAL = 1e16,
 
-	.M_MIN_INTEGRAL = 1e5,
-	.M_MAX_INTEGRAL = 1e16,
+    .T_RE = 2e4,
 };
