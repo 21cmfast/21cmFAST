@@ -44,11 +44,10 @@ static gsl_spline *erfc_spline;
 #define Mhalo_max (double)(1e16)
 
 float calibrated_NF_min;
-int initialise_photoncons = 1;
+int initialise_photoncons;
 
 double *deltaz, *deltaz_smoothed, *NeutralFractions, *z_Q, *Q_value, *nf_vals, *z_vals;
 int N_NFsamples,N_extrapolated, N_analytic, N_calibrated, N_deltaz;
-
 
 bool initialised_ComputeLF = false;
 
@@ -3204,6 +3203,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     free(z_arr);
     free(Q_arr);
 
+    initialise_photoncons = 1;
     photon_cons_inited = true;
     return(0);
 }
@@ -3800,4 +3800,13 @@ void FreePhotonConsMemory() {
     free(Q_value);
     free(nf_vals);
     free(z_vals);
+
+    free_Q_value();
+
+    gsl_spline_free (NFHistory_spline);
+    gsl_interp_accel_free (NFHistory_spline_acc);
+    gsl_spline_free (z_NFHistory_spline);
+    gsl_interp_accel_free (z_NFHistory_spline_acc);
+    gsl_spline_free (deltaz_spline_for_photoncons);
+    gsl_interp_accel_free (deltaz_spline_for_photoncons_acc);
 }
