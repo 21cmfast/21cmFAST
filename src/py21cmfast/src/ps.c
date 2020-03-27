@@ -3790,3 +3790,14 @@ int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analyti
 
     return(0);
 }
+
+void FreePhotonConsMemory() {
+
+    free(deltaz);
+    free(deltaz_smoothed);
+    free(NeutralFractions);
+    free(z_Q);
+    free(Q_value);
+    free(nf_vals);
+    free(z_vals);
+}
