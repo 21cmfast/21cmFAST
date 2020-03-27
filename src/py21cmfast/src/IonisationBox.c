@@ -143,7 +143,7 @@ LOG_SUPER_DEBUG("defined parameters");
     if(flag_options->PHOTON_CONS) {
         adjust_redshifts_for_photoncons(astro_params,flag_options,&redshift,&stored_redshift,&absolute_delta_z);
 LOG_DEBUG("PhotonCons data:");
-LOG_DEBUG("original redshift=%f, updated redshift=%f delta-z = %f", redshift, stored_redshift, absolute_delta_z);
+LOG_DEBUG("original redshift=%f, updated redshift=%f delta-z = %f", stored_redshift, redshift, absolute_delta_z);
     }
 
     Splined_Fcoll = 0.;
