@@ -76,6 +76,17 @@ OPTIONS = (
 )
 """
 OPTIONS = (
+    [10, {"PHOTON_CONS": True}],
+    [8, {"USE_MASS_DEPENDENT_ZETA": True, "PHOTON_CONS": True}],
+    [
+        8,
+        {
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "USE_TS_FLUCT": True,
+            "INHOMO_RECO": True,
+            "PHOTON_CONS": True,
+        },
+    ],
     [
         8,
         {
