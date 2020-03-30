@@ -33,7 +33,7 @@ struct UserParams{
     int USE_RELATIVE_VELOCITIES;
     int POWER_SPECTRUM;
     int N_THREADS;
-    bool MOVE_DENSITY_HIGH_RES;
+    bool PERTURB_ON_HIGH_RES;
 };
 
 struct AstroParams{

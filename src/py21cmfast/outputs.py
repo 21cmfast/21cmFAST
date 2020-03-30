@@ -84,6 +84,11 @@ class InitialConditions(_OutputStruct):
         self.lowres_vx = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vy = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vz = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+
+        self.hires_vx = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
+        self.hires_vy = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
+        self.hires_vz = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
+
         self.lowres_vx_2LPT = np.zeros(
             self.user_params.HII_tot_num_pixels, dtype=np.float32
         )
@@ -93,9 +98,21 @@ class InitialConditions(_OutputStruct):
         self.lowres_vz_2LPT = np.zeros(
             self.user_params.HII_tot_num_pixels, dtype=np.float32
         )
+
+        self.hires_vx_2LPT = np.zeros(
+            self.user_params.tot_fft_num_pixels, dtype=np.float32
+        )
+        self.hires_vy_2LPT = np.zeros(
+            self.user_params.tot_fft_num_pixels, dtype=np.float32
+        )
+        self.hires_vz_2LPT = np.zeros(
+            self.user_params.tot_fft_num_pixels, dtype=np.float32
+        )
+
         self.hires_density = np.zeros(
             self.user_params.tot_fft_num_pixels, dtype=np.float32
         )
+
         self.hires_vcb = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
         self.lowres_vcb = np.zeros(
             self.user_params.HII_tot_num_pixels, dtype=np.float32

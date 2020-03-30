@@ -395,6 +395,9 @@ class UserParams(StructWithDefaults):
     N_THREADS : int, optional
         Sets the number of processors (threads) to be used for performing 21cmFAST.
         Default 1.
+    PERTURB_ON_HIGH_RES : bool, optional
+        Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
+        resolution grid.
     """
 
     _ffi = ffi
@@ -408,6 +411,7 @@ class UserParams(StructWithDefaults):
         "USE_RELATIVE_VELOCITIES": False,
         "POWER_SPECTRUM": 0,
         "N_THREADS": 1,
+        "PERTURB_ON_HIGH_RES": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]

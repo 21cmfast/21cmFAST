@@ -525,7 +525,7 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
     // first order Zel'Dovich perturbation
 
     else {
-#pragma omp parallel shared(LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)        
+#pragma omp parallel shared(LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
             for (i=0; i<user_params->HII_DIM; i++){
@@ -1531,8 +1531,8 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
         memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     }
 
-    float k_x, k_y, k_z, k_sq, dDdt_over_D;
-    int n_x, n_y, n_z;
+//    float k_x, k_y, k_z, k_sq, dDdt_over_D;
+//    int n_x, n_y, n_z;
 
     dDdt_over_D = dDdt/growth_factor;
 
