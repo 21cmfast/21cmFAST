@@ -189,7 +189,7 @@ if __name__ == "__main__":
     global_params.ZPRIME_STEP_FACTOR = DEFAULT_ZPRIME_STEP_FACTOR
 
     force = "--force" in sys.argv
-    remove = "--clean" not in sys.argv
+    remove = "--no-clean" not in sys.argv
 
     fnames = []
     for redshift, kwargs in OPTIONS:
