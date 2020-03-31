@@ -300,9 +300,16 @@ def _process_exitcode(exitcode):
 
 def _call_c_func(fnc, obj, direc, *args, write=True):
     logger.debug("Calling {} with args: {}".format(fnc.__name__, args))
-    exitcode = fnc(
-        *[arg() if isinstance(arg, StructWrapper) else arg for arg in args], obj()
-    )
+    try:
+        exitcode = fnc(
+            *[arg() if isinstance(arg, StructWrapper) else arg for arg in args], obj()
+        )
+    except TypeError as e:
+        logger.error(
+            f"Arguments to {fnc.__name__}: "
+            f"{[arg() if isinstance(arg, StructWrapper) else arg for arg in args]}"
+        )
+        raise e
 
     _process_exitcode(exitcode)
     obj.filled = True
