@@ -52,7 +52,15 @@ OPTIONS = (
     ],
     [8, {"N_THREADS": 2}],
     [10, {"PHOTON_CONS": True}],
-    [8, {"USE_MASS_DEPENDENT_ZETA": True, "PHOTON_CONS": True}],
+    [
+        8,
+        {
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "PHOTON_CONS": True,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
+        },
+    ],
     [
         8,
         {
@@ -60,6 +68,8 @@ OPTIONS = (
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "PHOTON_CONS": True,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
         },
     ],
     [
@@ -71,6 +81,8 @@ OPTIONS = (
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
             "PHOTON_CONS": True,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
         },
     ],
 )
@@ -139,15 +151,18 @@ def get_filename(redshift, **kwargs):
     return os.path.join(DATA_PATH, fname)
 
 
-def produce_power_spectra_for_tests(redshift, **kwargs):
-    k, p, coeval = produce_coeval_power_spectra(redshift, **kwargs)
-    k_l, p_l, lc = produce_lc_power_spectra(redshift, **kwargs)
-
+def produce_power_spectra_for_tests(redshift, force, **kwargs):
     fname = get_filename(redshift, **kwargs)
 
     # Need to manually remove it, otherwise h5py tries to add to it
     if os.path.exists(fname):
-        os.remove(fname)
+        if force:
+            os.remove(fname)
+        else:
+            return fname
+
+    k, p, coeval = produce_coeval_power_spectra(redshift, **kwargs)
+    k_l, p_l, lc = produce_lc_power_spectra(redshift, **kwargs)
 
     with h5py.File(fname, "w") as fl:
         for k, v in kwargs.items():
@@ -167,10 +182,25 @@ def produce_power_spectra_for_tests(redshift, **kwargs):
         fl["Tb"] = lc.global_brightness_temp
 
     print(f"Produced {fname} with {kwargs}")
+    return fname
 
 
 if __name__ == "__main__":
     global_params.ZPRIME_STEP_FACTOR = DEFAULT_ZPRIME_STEP_FACTOR
 
+    force = "--force" in sys.argv
+    remove = "--clean" not in sys.argv
+
+    fnames = []
     for redshift, kwargs in OPTIONS:
-        produce_power_spectra_for_tests(redshift, **kwargs)
+        fnames.append(produce_power_spectra_for_tests(redshift, force, **kwargs))
+
+    # Remove extra files that
+    all_files = glob.glob(os.path.join(DATA_PATH, "*"))
+    for fl in all_files:
+        if fl not in fnames:
+            if remove:
+                print(f"Removing old file: {fl}")
+                os.remove(fl)
+            else:
+                print(f"File is now redundant and can be removed: {fl}")
