@@ -9,6 +9,7 @@ fail at the tens-of-percent level.
 import glob
 import os
 import sys
+import tempfile
 
 import h5py
 from powerbox import get_power
@@ -17,6 +18,7 @@ from py21cmfast import AstroParams
 from py21cmfast import CosmoParams
 from py21cmfast import FlagOptions
 from py21cmfast import UserParams
+from py21cmfast import config
 from py21cmfast import global_params
 from py21cmfast import run_coeval
 from py21cmfast import run_lightcone
@@ -109,8 +111,6 @@ def get_all_options(redshift, **kwargs):
         "cosmo_params": cosmo_params,
         "astro_params": astro_params,
         "flag_options": flag_options,
-        "regenerate": True,
-        "write": False,
         "use_interp_perturb_field": kwargs.get("use_interp_perturb_field", False),
         "random_seed": SEED,
     }
@@ -132,7 +132,6 @@ def produce_coeval_power_spectra(redshift, **kwargs):
 
 def produce_lc_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
-
     lightcone = run_lightcone(max_redshift=options["redshift"] + 2, **options)
 
     p, k = get_power(
@@ -151,7 +150,7 @@ def get_filename(redshift, **kwargs):
     return os.path.join(DATA_PATH, fname)
 
 
-def produce_power_spectra_for_tests(redshift, force, **kwargs):
+def produce_power_spectra_for_tests(redshift, force, direc, **kwargs):
     fname = get_filename(redshift, **kwargs)
 
     # Need to manually remove it, otherwise h5py tries to add to it
@@ -161,8 +160,12 @@ def produce_power_spectra_for_tests(redshift, force, **kwargs):
         else:
             return fname
 
-    k, p, coeval = produce_coeval_power_spectra(redshift, **kwargs)
-    k_l, p_l, lc = produce_lc_power_spectra(redshift, **kwargs)
+    # For tests, we *don't* want to use cached boxes, but we also want to use the
+    # cache between the power spectra and lightcone. So we create a temporary
+    # directory in which to cache results.
+    with config.use(direc=direc):
+        k, p, coeval = produce_coeval_power_spectra(redshift, **kwargs)
+        k_l, p_l, lc = produce_lc_power_spectra(redshift, **kwargs)
 
     with h5py.File(fname, "w") as fl:
         for k, v in kwargs.items():
@@ -191,9 +194,23 @@ if __name__ == "__main__":
     force = "--force" in sys.argv
     remove = "--no-clean" not in sys.argv
 
+    nums = range(len(OPTIONS))
+    for arg in sys.argv:
+        if arg.startswith("--nums="):
+            nums = [int(x) for x in arg.split("=")[-1].split(",")]
+            remove = False
+            force = True
+
+    # For tests, we *don't* want to use cached boxes, but we also want to use the
+    # cache between the power spectra and lightcone. So we create a temporary
+    # directory in which to cache results.
+    direc = tempfile.mkdtemp()
     fnames = []
-    for redshift, kwargs in OPTIONS:
-        fnames.append(produce_power_spectra_for_tests(redshift, force, **kwargs))
+    for redshift, kwargs in [OPTIONS[n] for n in nums]:
+        fnames.append(produce_power_spectra_for_tests(redshift, force, direc, **kwargs))
+
+    # Clean out the cache.
+    os.rmdir(direc)
 
     # Remove extra files that
     all_files = glob.glob(os.path.join(DATA_PATH, "*"))
