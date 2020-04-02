@@ -11,6 +11,7 @@ import os
 import sys
 
 import h5py
+import numpy as np
 from powerbox import get_power
 
 from py21cmfast import AstroParams
@@ -18,6 +19,8 @@ from py21cmfast import CosmoParams
 from py21cmfast import FlagOptions
 from py21cmfast import UserParams
 from py21cmfast import global_params
+from py21cmfast import initial_conditions
+from py21cmfast import perturb_field
 from py21cmfast import run_coeval
 from py21cmfast import run_lightcone
 
@@ -29,6 +32,7 @@ DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 
 OPTIONS = (
     [12, {}],
+    [12, {"PERTURB_ON_HIGH_RES": True}],
     [11, {"zprime_step_factor": 1.02}],
     [30, {"z_heat_max": 40}],
     [13, {"zprime_step_factor": 1.05, "z_heat_max": 25, "HMF": 0}],
@@ -73,6 +77,13 @@ OPTIONS = (
             "PHOTON_CONS": True,
         },
     ],
+)
+
+OPTIONS_PT = (
+    [10, {}],
+    [10, {"SECOND_ORDER_LPT_CORRECTIONS": 0}],
+    [10, {"EVOLVE_DENSITY_LINEARLY": 1}],
+    [10, {"PERTURB_ON_HIGH_RES": True}],
 )
 
 
@@ -130,11 +141,83 @@ def produce_lc_power_spectra(redshift, **kwargs):
     return k, p, lightcone
 
 
+def produce_perturb_field_data(redshift, **kwargs):
+    options = get_all_options(redshift, **kwargs)
+
+    out = {}
+
+    for key in kwargs:
+        if key.upper() in (k.upper() for k in global_params.keys()):
+            out[key] = kwargs[key]
+
+    init_box = initial_conditions(
+        user_params=options["user_params"],
+        cosmo_params=options["cosmo_params"],
+        random_seed=options["random_seed"],
+        write=options["write"],
+        regenerate=options["regenerate"],
+    )
+
+    pt_box = perturb_field(
+        redshift=redshift,
+        init_boxes=init_box,
+        regenerate=options["regenerate"],
+        write=options["write"],
+        **out,
+    )
+
+    p_dens, k_dens = get_power(
+        pt_box.density, boxlength=options["user_params"]["BOX_LEN"],
+    )
+    p_vel, k_vel = get_power(
+        pt_box.velocity, boxlength=options["user_params"]["BOX_LEN"],
+    )
+
+    nbins = 50
+    xmin = 0.5
+    xmax = 2.0
+
+    bins_dens, edges_dens = np.histogram(
+        (pt_box.density + 1.0),
+        bins=np.logspace(np.log10(xmin), np.log10(xmax), nbins),
+        range=[xmin, xmax],
+        normed=True,
+    )
+
+    left, right = edges_dens[:-1], edges_dens[1:]
+
+    X_dens = np.array([left, right]).T.flatten()
+    Y_dens = np.array([bins_dens, bins_dens]).T.flatten()
+
+    bins_vel, edges_vel = np.histogram(
+        (pt_box.velocity + 1.0),
+        bins=np.logspace(np.log10(xmin), np.log10(xmax), nbins),
+        range=[xmin, xmax],
+        normed=True,
+    )
+
+    left, right = edges_vel[:-1], edges_vel[1:]
+
+    X_vel = np.array([left, right]).T.flatten()
+    Y_vel = np.array([bins_vel, bins_vel]).T.flatten()
+
+    return k_dens, p_dens, k_vel, p_vel, X_dens, Y_dens, X_vel, Y_vel, init_box
+
+
 def get_filename(redshift, **kwargs):
     # get sorted keys
     kwargs = {k: kwargs[k] for k in sorted(kwargs)}
     string = "_".join(f"{k}={v}" for k, v in kwargs.items())
     fname = f"power_spectra_z{redshift:.2f}_{string}.h5"
+
+    return os.path.join(DATA_PATH, fname)
+
+
+def get_filename_pt(redshift, **kwargs):
+    # get sorted keys
+    kwargs = {k: kwargs[k] for k in sorted(kwargs)}
+    string = "_".join(f"{k}={v}" for k, v in kwargs.items())
+    fname = f"perturb_field_data_z{redshift:.2f}_{string}.h5"
 
     return os.path.join(DATA_PATH, fname)
 
@@ -169,8 +252,53 @@ def produce_power_spectra_for_tests(redshift, **kwargs):
     print(f"Produced {fname} with {kwargs}")
 
 
+def produce_data_for_perturb_field_tests(redshift, **kwargs):
+    (
+        k_dens,
+        p_dens,
+        k_vel,
+        p_vel,
+        X_dens,
+        Y_dens,
+        X_vel,
+        Y_vel,
+        init_box,
+    ) = produce_perturb_field_data(redshift, **kwargs)
+
+    fname = get_filename_pt(redshift, **kwargs)
+
+    # Need to manually remove it, otherwise h5py tries to add to it
+    if os.path.exists(fname):
+        os.remove(fname)
+
+    with h5py.File(fname, "w") as fl:
+        for k, v in kwargs.items():
+            fl.attrs[k] = v
+
+        fl.attrs["HII_DIM"] = init_box.user_params.HII_DIM
+        fl.attrs["DIM"] = init_box.user_params.DIM
+        fl.attrs["BOX_LEN"] = init_box.user_params.BOX_LEN
+
+        fl["power_dens"] = p_dens
+        fl["k_dens"] = k_dens
+
+        fl["power_vel"] = p_vel
+        fl["k_vel"] = k_vel
+
+        fl["pdf_dens"] = Y_dens
+        fl["x_dens"] = X_dens
+
+        fl["pdf_vel"] = Y_vel
+        fl["x_vel"] = X_vel
+
+    print(f"Produced {fname} with {kwargs}")
+
+
 if __name__ == "__main__":
     global_params.ZPRIME_STEP_FACTOR = DEFAULT_ZPRIME_STEP_FACTOR
 
     for redshift, kwargs in OPTIONS:
         produce_power_spectra_for_tests(redshift, **kwargs)
+
+    for redshift, kwargs in OPTIONS_PT:
+        produce_data_for_perturb_field_tests(redshift, **kwargs)

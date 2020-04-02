@@ -132,7 +132,14 @@ class InitialConditions(_OutputStruct):
         self.lowres_vx_2LPT.shape = shape
         self.lowres_vy_2LPT.shape = shape
         self.lowres_vz_2LPT.shape = shape
+
         self.hires_density.shape = hires_shape
+        self.hires_vx.shape = hires_shape
+        self.hires_vy.shape = hires_shape
+        self.hires_vz.shape = hires_shape
+        self.hires_vx_2LPT.shape = hires_shape
+        self.hires_vy_2LPT.shape = hires_shape
+        self.hires_vz_2LPT.shape = hires_shape
 
         self.lowres_vcb.shape = shape
         self.hires_vcb.shape = hires_shape

@@ -195,7 +195,6 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
                     HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME*p/2.0) * (a + b*I);
 
-
                     if(user_params->USE_RELATIVE_VELOCITIES){
                         p_vcb = power_in_vcb(k_mag);
                         HIRES_box_vcb_x[C_INDEX(n_x, n_y, n_z)] = I * k_x/k_mag * C_KMS * sqrt(VOLUME*p_vcb/2.0) * (a + b*I);

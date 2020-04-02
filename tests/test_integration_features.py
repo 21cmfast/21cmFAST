@@ -32,6 +32,7 @@ from py21cmfast import global_params
 from . import produce_integration_test_data as prd
 
 options = prd.OPTIONS
+options_pt = prd.OPTIONS_PT
 
 # Skip the USE_MINI_HALOS test because it takes too long.
 # This should be revisited in the future.
@@ -73,3 +74,34 @@ def test_power_spectra_lightcone(redshift, kwargs):
     assert np.allclose(power, p, atol=1e-5, rtol=5e-3)
     assert np.allclose(xHI, lc.global_xHI, atol=1e-5, rtol=1e-3)
     assert np.allclose(Tb, lc.global_brightness_temp, atol=1e-5, rtol=1e-3)
+
+
+@pytest.mark.parametrize("redshift,kwargs", options_pt)
+def test_perturb_field_data(redshift, kwargs):
+    print("Options used for the test: ", kwargs)
+
+    # First get pre-made data
+    with h5py.File(prd.get_filename_pt(redshift, **kwargs), "r") as f:
+        power_dens = f["power_dens"][...]
+        power_vel = f["power_vel"][...]
+        pdf_dens = f["pdf_dens"][...]
+        pdf_vel = f["pdf_vel"][...]
+
+    with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
+        # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
+        (
+            k_dens,
+            p_dens,
+            k_vel,
+            p_vel,
+            x_dens,
+            y_dens,
+            x_vel,
+            y_vel,
+            ic,
+        ) = prd.produce_perturb_field_data(redshift, **kwargs)
+
+    assert np.allclose(power_dens, p_dens, atol=1e-5, rtol=1e-3)
+    assert np.allclose(power_vel, p_vel, atol=1e-5, rtol=1e-3)
+    assert np.allclose(pdf_dens, y_dens, atol=1e-5, rtol=1e-3)
+    assert np.allclose(pdf_vel, y_vel, atol=1e-5, rtol=1e-3)
