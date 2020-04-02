@@ -227,6 +227,9 @@ class IonizedBox(_AllParamsBox):
         )
         self.z_re_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.dNrec_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.temp_kinetic_all_gas = np.zeros(
+            self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
         self.Fcoll = np.zeros(
             Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32
         )
@@ -246,6 +249,7 @@ class IonizedBox(_AllParamsBox):
         self.Gamma12_box.shape = shape
         self.z_re_box.shape = shape
         self.dNrec_box.shape = shape
+        self.temp_kinetic_all_gas.shape = shape
         self.Fcoll.shape = filter_shape
 
         if self.flag_options.USE_MINI_HALOS:

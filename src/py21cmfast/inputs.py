@@ -253,6 +253,16 @@ class GlobalParams(StructInstanceWrapper):
         1. gaussian
     external_table_path : str
         The system path to find external tables for calculation speedups. DO NOT MODIFY.
+    R_BUBBLE_MIN : float
+        Minimum radius of bubbles to be searched in cMpc. One can set this to 0, but should
+        be careful with shot noise if running on a fine, non-linear density grid. Default
+        is set to L_FACTOR which is (4PI/3)^(-1/3) = 0.620350491.
+    M_MIN_INTEGRAL:
+        Minimum mass when performing integral on halo mass function.
+    M_MAX_INTEGRAL:
+        Maximum mass when performing integral on halo mass function.
+    T_RE:
+        The peak gas temperatures behind the supersonic ionization fronts during reionization.
     """
 
     def __init__(self, wrapped, ffi):
@@ -382,6 +392,9 @@ class UserParams(StructWithDefaults):
         3: PEEBLES
         4: WHITE
         5: CLASS (single cosmology)
+    N_THREADS : int, optional
+        Sets the number of processors (threads) to be used for performing 21cmFAST.
+        Default 1.
     """
 
     _ffi = ffi
@@ -394,6 +407,7 @@ class UserParams(StructWithDefaults):
         "HMF": 1,
         "USE_RELATIVE_VELOCITIES": False,
         "POWER_SPECTRUM": 0,
+        "N_THREADS": 1,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]

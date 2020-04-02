@@ -32,6 +32,7 @@ struct UserParams{
     int HMF;
     int USE_RELATIVE_VELOCITIES;
     int POWER_SPECTRUM;
+    int N_THREADS;
 
 };
 
@@ -105,6 +106,7 @@ struct IonizedBox{
     float *Gamma12_box;
     float *z_re_box;
     float *dNrec_box;
+    float *temp_kinetic_all_gas;
     float *Fcoll;
     float *Fcoll_MINI;
 };
@@ -132,7 +134,6 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                            struct TsBox *spin_temp, struct IonizedBox *ionized_box,
                            struct PerturbedField *perturb_field, struct BrightnessTemp *box);
 
-
 int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cosmo_params,
                          struct AstroParams *astro_params, struct FlagOptions *flag_options);
 
@@ -152,4 +153,5 @@ void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoPara
 void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options);
 
 void free_TsCalcBoxes(struct FlagOptions *flag_options);
+void FreePhotonConsMemory();
 bool photon_cons_inited = false;
