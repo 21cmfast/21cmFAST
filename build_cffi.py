@@ -66,7 +66,6 @@ ffi.set_source(
     library_dirs=library_dirs,
     libraries=["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"],
     extra_compile_args=extra_compile_args,
-    extra_link_args=["-fopenmp"],
 )
 
 # This is the Header file
