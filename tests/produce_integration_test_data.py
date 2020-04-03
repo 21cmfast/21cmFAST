@@ -79,17 +79,7 @@ OPTIONS = (
     ],
 )
 """
-OPTIONS = (
-    [
-        8,
-        {
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "USE_TS_FLUCT": True,
-            "INHOMO_RECO": True,
-            "PHOTON_CONS": True,
-        },
-    ],
-)
+OPTIONS = ()
 
 
 OPTIONS_PT = (
