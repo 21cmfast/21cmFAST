@@ -238,13 +238,6 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
             // copy over unfiltered box
             memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
-            // Only filter if we are perturbing on the low-resolution grid
-            if(!user_params->PERTURB_ON_HIGH_RES) {
-                if (user_params->DIM != user_params->HII_DIM) {
-                    filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-                }
-            }
-
             fftwf_destroy_plan(plan);
             plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                          (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
