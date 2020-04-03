@@ -4,9 +4,12 @@
 import fileinput
 import re
 
-START = re.compile("in loss record")
+START = re.compile(r"^==\d+== \w")
 STOP = re.compile(r"^==\d+== $")
-GOOD = re.compile(r"py21cmfast\.c_21cmfast\.c:\d+")
+GOOD = [
+    re.compile(r"py21cmfast\.c_21cmfast\.c:\d+"),
+    re.compile(r"SUMMARY"),
+]
 
 
 def main():
@@ -14,16 +17,15 @@ def main():
     in_line = False
     current = []
     for line in fileinput.input():
-        if in_line:
-            in_line = not STOP.search(line)
-        else:
-            in_line = START.search(line)
-
+        in_line = not STOP.search(line) if in_line else START.search(line)
         if in_line:
             current.append(line)
         else:
-            match = GOOD.findall("".join(current))
-            if len(match) > 0:
+            match = []
+            for g in GOOD:
+                match += g.findall("".join(current))
+
+            if match:
                 print("".join(current))
             current = []
 
