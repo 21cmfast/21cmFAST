@@ -1773,9 +1773,6 @@ def run_coeval(
         if redshift is None and perturb is None:
             raise ValueError("Either redshift or perturb must be given")
 
-        if redshift is None and perturb is None:
-            raise ValueError("Either redshift or perturb must be given")
-
         direc, regenerate, write = _get_config_options(direc, regenerate, write)
 
         # Ensure perturb is a list of boxes, not just one.
@@ -1812,7 +1809,7 @@ def run_coeval(
 
         if perturb:
             if redshift is not None:
-                if not all(p.redshift == z for p, z in zip(perturb, redshift)):
+                if any(p.redshift != z for p, z in zip(perturb, redshift)):
                     raise ValueError(
                         "Input redshifts do not match perturb field redshifts"
                     )
