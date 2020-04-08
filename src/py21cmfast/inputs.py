@@ -515,6 +515,9 @@ class FlagOptions(StructWithDefaults):
 
     Parameters
     ----------
+    USE_HALO_FIELD : bool, optional
+        Set to True if intending to find and use the halo field. If False, uses
+        the mean collapse fraction (which is considerably faster).
     USE_MINI_HALOS : bool, optional
         Set to True if using mini-halos parameterization.
         If True, USE_MASS_DEPENDENT_ZETA and INHOMO_RECO must be True.
@@ -537,11 +540,15 @@ class FlagOptions(StructWithDefaults):
     PHOTON_CONS : bool, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation.
+    USE_INTERPOLATION_TABLES: bool, optional
+        If True, calculates and evaluates quantites using interpolation tables, which
+        is considerably faster than when performing integrals explicitly.
     """
 
     _ffi = ffi
 
     _defaults_ = {
+        "USE_HALO_FIELD": False,
         "USE_MINI_HALOS": False,
         "USE_MASS_DEPENDENT_ZETA": False,
         "SUBCELL_RSD": False,
@@ -549,6 +556,7 @@ class FlagOptions(StructWithDefaults):
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
+        "USE_INTERPOLATION_TABLES": False,
     }
 
     @property
