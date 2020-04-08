@@ -424,7 +424,7 @@ def compute_luminosity_function(
     flag_options=None,
     nbins=100,
     mturnovers=None,
-    mturnovers_MINI=None,
+    mturnovers_mini=None,
     component=0,
 ):
     """Compute a the luminosity function over a given number of bins and redshifts.
@@ -446,7 +446,7 @@ def compute_luminosity_function(
     mturnovers : array-like, optional
         The turnover mass at each redshift for massive halos (ACGs).
         Only required when USE_MINI_HALOS is True.
-    mturnovers_MINI : array-like, optional
+    mturnovers_mini : array-like, optional
         The turnover mass at each redshift for minihalos (MCGs).
         Only required when USE_MINI_HALOS is True.
     component : int, optional
@@ -471,7 +471,7 @@ def compute_luminosity_function(
 
     redshifts = np.array(redshifts, dtype="float32")
     if flag_options.USE_MINI_HALOS:
-        if component == 0 or component == 1:
+        if component in [0, 1]:
             if mturnovers is None:
                 logger.warning(
                     "calculating ACG LFs with mini-halo feature requires users to specify mturnovers!"
@@ -481,21 +481,22 @@ def compute_luminosity_function(
             mturnovers = np.array(mturnovers, dtype="float32")
             if len(mturnovers) != len(redshifts):
                 logger.warning(
-                    "mturnovers(%d) does not match the lenth of redshifts (%d)"
+                    "mturnovers(%d) does not match the length of redshifts (%d)"
                     % (len(mturnovers), len(redshifts))
                 )
                 return None, None, None
-        if component == 0 or component == 2:
-            if mturnovers_MINI is None:
+        if component in [0, 2]:
+            if mturnovers_mini is None:
                 logger.warning(
-                    "calculating MCG LFs with mini-halo feature requires users to specify mturnovers_MINI!"
+                    "calculating MCG LFs with mini-halo feature requires users to "
+                    "specify mturnovers_MINI!"
                 )
                 return None, None, None
 
-            mturnovers_MINI = np.array(mturnovers, dtype="float32")
-            if len(mturnovers_MINI) != len(redshifts):
+            mturnovers_mini = np.array(mturnovers, dtype="float32")
+            if len(mturnovers_mini) != len(redshifts):
                 logger.warning(
-                    "mturnovers_MINI(%d) does not match the lenth of redshifts (%d)"
+                    "mturnovers_MINI(%d) does not match the length of redshifts (%d)"
                     % (len(mturnovers), len(redshifts))
                 )
                 return None, None, None
@@ -504,7 +505,7 @@ def compute_luminosity_function(
         mturnovers = np.zeros(len(redshifts)) + astro_params.M_TURN
         component = 1
 
-    if component == 0 or component == 1:
+    if component == 0:
         lfunc = np.zeros(len(redshifts) * nbins)
         Muvfunc = np.zeros(len(redshifts) * nbins)
         Mhfunc = np.zeros(len(redshifts) * nbins)
@@ -535,7 +536,6 @@ def compute_luminosity_function(
 
         _process_exitcode(errcode)
 
-    if component == 0 or component == 2:
         lfunc_MINI = np.zeros(len(redshifts) * nbins)
         Muvfunc_MINI = np.zeros(len(redshifts) * nbins)
         Mhfunc_MINI = np.zeros(len(redshifts) * nbins)
@@ -558,7 +558,7 @@ def compute_luminosity_function(
             2,
             len(redshifts),
             ffi.cast("float *", ffi.from_buffer(redshifts)),
-            ffi.cast("float *", ffi.from_buffer(mturnovers_MINI)),
+            ffi.cast("float *", ffi.from_buffer(mturnovers_mini)),
             c_Muvfunc_MINI,
             c_Mhfunc_MINI,
             c_lfunc_MINI,
@@ -566,16 +566,6 @@ def compute_luminosity_function(
 
         _process_exitcode(errcode)
 
-    if component == 1:
-        lfunc[lfunc <= -30] = np.nan
-        return Muvfunc, Mhfunc, lfunc
-    elif component == 2:
-        lfunc_MINI[lfunc_MINI <= -30] = np.nan
-        return Muvfunc_MINI, Mhfunc_MINI, lfunc_MINI
-    elif component != 0:
-        logger.warning("What is component %d ?" % component)
-        return None, None, None
-    else:
         # redo the Muv range using the faintest (most likely MINI) and the brightest (most likely massive)
         lfunc_all = np.zeros(len(redshifts) * nbins)
         Muvfunc_all = np.zeros(len(redshifts) * nbins)
@@ -607,6 +597,75 @@ def compute_luminosity_function(
                 ),
             ).T
         return Muvfunc_all, Mhfunc_all, lfunc_all
+    elif component == 1:
+        lfunc = np.zeros(len(redshifts) * nbins)
+        Muvfunc = np.zeros(len(redshifts) * nbins)
+        Mhfunc = np.zeros(len(redshifts) * nbins)
+
+        lfunc.shape = (len(redshifts), nbins)
+        Muvfunc.shape = (len(redshifts), nbins)
+        Mhfunc.shape = (len(redshifts), nbins)
+
+        c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
+        c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
+        c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
+
+        # Run the C code
+        errcode = lib.ComputeLF(
+            nbins,
+            user_params(),
+            cosmo_params(),
+            astro_params(),
+            flag_options(),
+            1,
+            len(redshifts),
+            ffi.cast("float *", ffi.from_buffer(redshifts)),
+            ffi.cast("float *", ffi.from_buffer(mturnovers)),
+            c_Muvfunc,
+            c_Mhfunc,
+            c_lfunc,
+        )
+
+        _process_exitcode(errcode)
+
+        lfunc[lfunc <= -30] = np.nan
+        return Muvfunc, Mhfunc, lfunc
+    elif component == 2:
+        lfunc_MINI = np.zeros(len(redshifts) * nbins)
+        Muvfunc_MINI = np.zeros(len(redshifts) * nbins)
+        Mhfunc_MINI = np.zeros(len(redshifts) * nbins)
+
+        lfunc_MINI.shape = (len(redshifts), nbins)
+        Muvfunc_MINI.shape = (len(redshifts), nbins)
+        Mhfunc_MINI.shape = (len(redshifts), nbins)
+
+        c_Muvfunc_MINI = ffi.cast("double *", ffi.from_buffer(Muvfunc_MINI))
+        c_Mhfunc_MINI = ffi.cast("double *", ffi.from_buffer(Mhfunc_MINI))
+        c_lfunc_MINI = ffi.cast("double *", ffi.from_buffer(lfunc_MINI))
+
+        # Run the C code
+        errcode = lib.ComputeLF(
+            nbins,
+            user_params(),
+            cosmo_params(),
+            astro_params(),
+            flag_options(),
+            2,
+            len(redshifts),
+            ffi.cast("float *", ffi.from_buffer(redshifts)),
+            ffi.cast("float *", ffi.from_buffer(mturnovers_mini)),
+            c_Muvfunc_MINI,
+            c_Mhfunc_MINI,
+            c_lfunc_MINI,
+        )
+
+        _process_exitcode(errcode)
+
+        lfunc_MINI[lfunc_MINI <= -30] = np.nan
+        return Muvfunc_MINI, Mhfunc_MINI, lfunc_MINI
+    else:
+        logger.warning("What is component %d ?" % component)
+        return None, None, None
 
 
 def _init_photon_conservation_correction(
@@ -661,7 +720,7 @@ def _get_photon_nonconservation_data():
       nf_photoncons: the neutral fraction as a function of redshift
     """
     # Check if photon conservation has been initialised at all
-    if not lib.photon_cons_inited:
+    if not lib.photon_cons_allocated:
         return None
 
     arbitrary_large_size = 2000
@@ -1949,9 +2008,11 @@ def run_coeval(
 
         if flag_options.PHOTON_CONS:
             photon_nonconservation_data = _get_photon_nonconservation_data()
-            lib.FreePhotonConsMemory()
+            if photon_nonconservation_data:
+                lib.FreePhotonConsMemory()
         else:
             photon_nonconservation_data = None
+
         coevals = [
             Coeval(z, init_box, p, ib, _bt, st, photon_nonconservation_data)
             for z, p, ib, _bt, st in zip(redshift, perturb, ib_tracker, bt, st_tracker)
@@ -1961,7 +2022,7 @@ def run_coeval(
         if singleton:
             coevals = coevals[0]
 
-        logger.debug("PID={} RETURNING FROM COEVAL".format(os.getpid()))
+        logger.debug("Returning from Coeval".format(os.getpid()))
 
         return coevals
 
@@ -2187,15 +2248,12 @@ def run_lightcone(
             q in _fld_names.keys() for q in global_quantities
         ), "invalid global_quantity passed."
 
-        if not flag_options.USE_TS_FLUCT:
-            if any(_fld_names[q] == "TsBox" for q in lightcone_quantities):
-                raise ValueError(
-                    "TsBox quantity found in lightcone_quantities, but not running spin_temp!"
-                )
-            if any(_fld_names[q] == "TsBox" for q in global_quantities):
-                raise ValueError(
-                    "TsBox quantity found in global_quantities, but not running spin_temp!"
-                )
+        if not flag_options.USE_TS_FLUCT and any(
+            _fld_names[q] == "TsBox" for q in lightcone_quantities + global_quantities
+        ):
+            raise ValueError(
+                "TsBox quantity found in lightcone_quantities or global_quantities, but not running spin_temp!"
+            )
 
         if init_box is None:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
@@ -2376,7 +2434,8 @@ def run_lightcone(
 
         if flag_options.PHOTON_CONS:
             photon_nonconservation_data = _get_photon_nonconservation_data()
-            lib.FreePhotonConsMemory()
+            if photon_nonconservation_data:
+                lib.FreePhotonConsMemory()
         else:
             photon_nonconservation_data = None
 
@@ -2553,7 +2612,7 @@ def calibrate_photon_cons(
         neutral_fraction_photon_cons = []
 
         # Initialise the analytic expression for the reionisation history
-        logger.debug("About to start photon conservation correction")
+        logger.info("About to start photon conservation correction")
         _init_photon_conservation_correction(
             user_params=user_params,
             cosmo_params=cosmo_params,
@@ -2563,7 +2622,7 @@ def calibrate_photon_cons(
 
         # Determine the starting redshift to start scrolling through to create the
         # calibration reionisation history
-        logger.debug("Calculating photon conservation zstart")
+        logger.info("Calculating photon conservation zstart")
         z = _calc_zstart_photon_cons()
 
         while z > 5.0:
@@ -2614,7 +2673,7 @@ def calibrate_photon_cons(
         neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
 
         # Construct the spline for the calibration curve
-        logger.debug("Calibrating photon conservation correction")
+        logger.info("Calibrating photon conservation correction")
         _calibrate_photon_conservation_correction(
             redshifts_estimate=z_for_photon_cons,
             nf_estimate=neutral_fraction_photon_cons,

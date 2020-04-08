@@ -4,13 +4,6 @@
     requires access.
 */
 
-
-/*
-    --------------------------------------------------------------------------------------------------------------------
-    PARAMETER STRUCTURES (these should be trimmed accordingly)
-    --------------------------------------------------------------------------------------------------------------------
-*/
-
 struct CosmoParams{
 
     float SIGMA_8;
@@ -154,4 +147,4 @@ void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoPara
 
 void free_TsCalcBoxes(struct FlagOptions *flag_options);
 void FreePhotonConsMemory();
-bool photon_cons_inited = false;
+bool photon_cons_allocated = false;

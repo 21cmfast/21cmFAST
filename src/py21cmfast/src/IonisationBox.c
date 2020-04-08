@@ -34,39 +34,34 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     fftwf_cleanup_threads();
 
     char wisdom_filename[500];
-    char filename[500];
-    FILE *F;
     fftwf_plan plan;
 
     // Other parameters used in the code
-    int i,j,k,ii, x,y,z, N_min_cell, LAST_FILTER_STEP, short_completely_ionised,skip_deallocate,first_step_R;
-    int n_x, n_y, n_z,counter, N_halos_in_cell;
+    int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R, short_completely_ionised;
+    int counter, N_halos_in_cell;
     unsigned long long ct;
 
-    float growth_factor, pixel_mass, cell_length_factor, M_MIN, nf;
-    float f_coll_crit, erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, sqrtarg, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR;
+    float growth_factor, pixel_mass, cell_length_factor, M_MIN;
+    float erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR, growth_factor_dz;
     float Splined_Fcoll_MINI, prev_dens, ION_EFF_FACTOR_MINI, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI;
     float ave_M_coll_cell, ave_N_min_cell;
 
     double global_xH, ST_over_PS, f_coll, R, stored_R, f_coll_min;
     double ST_over_PS_MINI, f_coll_MINI, f_coll_min_MINI;
 
-    double t_ast, dfcolldt, Gamma_R_prefactor, rec, dNrec;
-    double dfcolldt_MINI, Gamma_R_prefactor_MINI;
-    float growth_factor_dz, fabs_dtdz, ZSTEP, Gamma_R, z_eff;
+    double t_ast,  Gamma_R_prefactor, rec, dNrec;
+    double Gamma_R_prefactor_MINI;
+    float fabs_dtdz, ZSTEP, z_eff;
     const float dz = 0.01;
-
-    float redshift_table_fcollz,redshift_table_fcollz_Xray;
-    int redshift_int_fcollz,redshift_int_fcollz_Xray;
 
     float dens_val, overdense_small_min, overdense_small_bin_width, overdense_small_bin_width_inv;
     float overdense_large_min, overdense_large_bin_width, overdense_large_bin_width_inv;
     float prev_dens_val, prev_overdense_small_min, prev_overdense_small_bin_width, prev_overdense_small_bin_width_inv;
     float prev_overdense_large_min, prev_overdense_large_bin_width, prev_overdense_large_bin_width_inv;
-    float log10Mturn_val, log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
-    float log10Mturn_val_MINI, log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
+    float log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
+    float log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
 
-    int overdense_int, overdense_int_boundexceeded;
+    int overdense_int;
     int something_finite_or_infinite = 0;
     int log10_Mturnover_MINI_int, log10_Mturnover_int;
     int *overdense_int_boundexceeded_threaded = calloc(user_params->N_THREADS,sizeof(int));
@@ -85,7 +80,6 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     float Mlim_Fstar_MINI, Mlim_Fesc_MINI;
 
     float Mcrit_atom, log10_Mcrit_atom, log10_Mcrit_mol;
-    //fftwf_complex *Mcrit_LW_grid, *Mcrit_RE_grid;
     fftwf_complex *log10_Mturnover_unfiltered=NULL, *log10_Mturnover_filtered=NULL;
     fftwf_complex *log10_Mturnover_MINI_unfiltered=NULL, *log10_Mturnover_MINI_filtered=NULL;
     float log10_Mturnover, log10_Mturnover_MINI, Mcrit_LW, Mcrit_RE, Mturnover, Mturnover_MINI;
@@ -93,7 +87,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     float min_density, max_density;
     float prev_min_density, prev_max_density;
 
-    float adjusted_redshift, required_NF, stored_redshift, adjustment_factor, future_z;
+    float stored_redshift, adjustment_factor;
 
     gsl_rng * r[user_params->N_THREADS];
 
@@ -669,8 +663,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
-
-LOG_SUPER_DEBUG("more ffts performed");
         }
 
         if(flag_options->USE_TS_FLUCT) {
@@ -685,8 +677,8 @@ LOG_SUPER_DEBUG("more ffts performed");
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
 
-            LOG_SUPER_DEBUG("more ffts performed");
         }
+        LOG_SUPER_DEBUG("more ffts performed");
 
 
         if (flag_options->INHOMO_RECO) {
@@ -701,8 +693,6 @@ LOG_SUPER_DEBUG("more ffts performed");
             }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
-
-            LOG_SUPER_DEBUG("more ffts performed");
         }
 
 
@@ -1134,7 +1124,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
             // renormalize the collapse fraction so that the mean matches ST,
             // since we are using the evolved (non-linear) density field
-#pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded,log10_Nion_spline,Nion_spline,erfc_denom,erfc_arg_min,\
+#pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded_threaded,log10_Nion_spline,Nion_spline,erfc_denom,erfc_arg_min,\
                             erfc_arg_max,InvArgBinWidth,ArgBinWidth,ERFC_VALS_DIFF,ERFC_VALS,log10_Mturnover_filtered,log10Mturn_min,log10Mturn_bin_width_inv, \
                             log10_Mturnover_MINI_filtered,log10Mturn_bin_width_inv_MINI,log10_Nion_spline_MINI,prev_deltax_filtered,previous_ionize_box,ION_EFF_FACTOR,\
                             prev_overdense_small_min,prev_overdense_small_bin_width_inv,prev_log10_Nion_spline,prev_log10_Nion_spline_MINI,prev_overdense_large_min,\
@@ -1342,6 +1332,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                             if (overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
                                                 overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                                LOG_INFO("overdense_int in thread %d got value %d (exceeded bounds). Current density=%g", omp_get_thread_num(), overdense_int, dens_val);
                                             }
 
                                             Splined_Fcoll = log10_Nion_spline[overdense_int] * (1 + (float) overdense_int - dens_val) + \
@@ -1358,6 +1349,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                             if (overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
                                                 overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                                LOG_INFO("overdense_int in thread %d got value %d (exceeded bounds). Current density=%g", omp_get_thread_num(), overdense_int, dens_val);
                                             }
 
                                             Splined_Fcoll = Nion_spline[overdense_int] * (1 + (float) overdense_int - dens_val) + \

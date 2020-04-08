@@ -189,6 +189,17 @@ def produce_power_spectra_for_tests(redshift, force, direc, **kwargs):
 
 
 if __name__ == "__main__":
+    import logging
+
+    logger = logging.getLogger("21cmFAST")
+
+    lvl = "WARNING"
+    for arg in sys.argv:
+        if arg.startswith("--log"):
+            lvl = arg.split("--log")[-1]
+    lvl = getattr(logging, lvl)
+    logger.setLevel(lvl)
+
     global_params.ZPRIME_STEP_FACTOR = DEFAULT_ZPRIME_STEP_FACTOR
 
     force = "--force" in sys.argv
@@ -209,15 +220,13 @@ if __name__ == "__main__":
     for redshift, kwargs in [OPTIONS[n] for n in nums]:
         fnames.append(produce_power_spectra_for_tests(redshift, force, direc, **kwargs))
 
-    # Clean out the cache.
-    os.rmdir(direc)
-
     # Remove extra files that
-    all_files = glob.glob(os.path.join(DATA_PATH, "*"))
-    for fl in all_files:
-        if fl not in fnames:
-            if remove:
-                print(f"Removing old file: {fl}")
-                os.remove(fl)
-            else:
-                print(f"File is now redundant and can be removed: {fl}")
+    if not nums:
+        all_files = glob.glob(os.path.join(DATA_PATH, "*"))
+        for fl in all_files:
+            if fl not in fnames:
+                if remove:
+                    print(f"Removing old file: {fl}")
+                    os.remove(fl)
+                else:
+                    print(f"File is now redundant and can be removed: {fl}")
