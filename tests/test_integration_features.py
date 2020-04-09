@@ -69,7 +69,7 @@ def test_power_spectra_coeval(redshift, kwargs, tmpdir):
 
     print(power)
     print(p)
-    assert np.allclose(power, p, atol=1e-5, rtol=1e-3)
+    assert np.allclose(power, p, atol=1e-3, rtol=1e-2)
 
 
 @pytest.mark.parametrize("redshift,kwargs", options)
