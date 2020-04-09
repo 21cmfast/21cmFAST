@@ -108,7 +108,26 @@ class GlobalParams(StructInstanceWrapper):
         .. note:: If you are interested in snapshots of the same realization at several
                   redshifts,it is recommended to turn off this feature, as halos can
                   stochastically "pop in and out of" existence from one redshift to the next.
-
+    R_OVERLAP_FACTOR : float
+        When using USE_HALO_FIELD, it is used as a factor the halo's radius, R, so that the
+        effective radius is R_eff = R_OVERLAP_FACTOR * R.  Halos whose centers are less than
+        R_eff away from another halo are not allowed. R_OVERLAP_FACTOR = 1 is fully disjoint
+        R_OVERLAP_FACTOR = 0 means that centers are allowed to lay on the edges of
+        neighboring halos.
+    DELTA_CRIT_MODE : int
+        The delta_crit to be used for determining whether a halo exists in a cell
+            0: delta_crit is constant (i.e. 1.68)
+            1: delta_crit is the sheth tormen ellipsoidal collapse correction to delta_crit
+    HALO_FILTER : int
+        Filter for the density field used to generate the halo field with EPS
+            0: real space top hat filter
+            1: sharp k-space filter
+            2: gaussian filter
+    OPTIMIZE : int
+        Finding halos can be made more efficient if the filter size is sufficiently large that
+        we can switch to the collapse fraction at a later stage.
+    OPTIMIZE_MIN_MASS : float
+        Minimum mass on which the optimization for the halo finder will be used.
     T_USE_VELOCITIES : bool
         Whether to use velocity corrections in 21-cm fields
 
@@ -125,6 +144,8 @@ class GlobalParams(StructInstanceWrapper):
 
     VELOCITY_COMPONENT : int
         Component of the velocity to be used in 21-cm temperature maps (1=x, 2=y, 3=z)
+    DELTA_R_FACTOR : float
+        Factor by which to scroll through filter radius for halos
     DELTA_R_HII_FACTOR : float
         Factor by which to scroll through filter radius for bubbles
     HII_FILTER : int, {0, 1, 2}

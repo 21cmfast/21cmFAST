@@ -59,6 +59,7 @@ struct AstroParams{
 struct FlagOptions{
 
     // Parameters taken from INIT_PARAMS.H
+    bool USE_HALO_FIELD;
     bool USE_MINI_HALOS;
     bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
@@ -66,6 +67,7 @@ struct FlagOptions{
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
     bool PHOTON_CONS;
+    bool USE_INTERPOLATION_TABLES;
 };
 
 
@@ -77,6 +79,10 @@ struct InitialConditions{
 
 struct PerturbedField{
     float *density, *velocity;
+};
+
+struct HaloField{
+    float *halo_field;
 };
 
 struct TsBox{
@@ -109,6 +115,8 @@ struct BrightnessTemp{
 int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes);
 
 int ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field);
+
+int ComputeHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct InitialConditions *boxes, struct HaloField *halos);
 
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,

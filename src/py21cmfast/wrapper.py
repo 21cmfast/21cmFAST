@@ -106,6 +106,7 @@ from .inputs import UserParams
 from .inputs import global_params
 from .outputs import BrightnessTemp
 from .outputs import Coeval
+from .outputs import HaloField
 from .outputs import InitialConditions
 from .outputs import IonizedBox
 from .outputs import LightCone
@@ -1018,6 +1019,122 @@ def perturb_field(
             redshift,
             fields.user_params,
             fields.cosmo_params,
+            init_boxes,
+            write=write,
+        )
+
+
+def determine_halo_list(
+    *,
+    redshift,
+    init_boxes=None,
+    user_params=None,
+    cosmo_params=None,
+    astro_params=None,
+    random_seed=None,
+    regenerate=None,
+    write=None,
+    direc=None,
+    **global_kwargs,
+):
+    r"""
+    Find a halo list, given a redshift.
+
+    Parameters
+    ----------
+    redshift : float
+        The redshift at which to determine the halo list.
+    init_boxes : :class:`~InitialConditions`, optional
+        If given, these initial conditions boxes will be used, otherwise initial conditions will
+        be generated. If given,
+        the user and cosmo params will be set from this object.
+    user_params : :class:`~UserParams`, optional
+        Defines the overall options and parameters of the run.
+    cosmo_params : :class:`~CosmoParams`, optional
+        Defines the cosmological parameters used to compute initial conditions.
+    astro_params: :class:`~AstroParams` instance, optional
+        The astrophysical parameters defining the course of reionization.
+    \*\*global_kwargs :
+        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
+        *temporarily* set global attributes for the duration of the function. Note that
+        arguments will be treated as case-insensitive.
+
+    Returns
+    -------
+    :class:`~HaloField`
+
+    Other Parameters
+    ----------------
+    regenerate, write, direc, random_seed:
+        See docs of :func:`initial_conditions` for more information.
+
+    Examples
+    --------
+    Fill this in once finalised
+
+    """
+    direc, regenerate, write = _get_config_options(direc, regenerate, write)
+    with global_params.use(**global_kwargs):
+        _verify_types(init_boxes=init_boxes)
+
+        # Configure and check input/output parameters/structs
+        random_seed, user_params, cosmo_params = _configure_inputs(
+            [
+                ("random_seed", random_seed),
+                ("user_params", user_params),
+                ("cosmo_params", cosmo_params),
+            ],
+            init_boxes,
+        )
+
+        # Verify input parameter structs (need to do this after configure_inputs).
+        user_params = UserParams(user_params)
+        cosmo_params = CosmoParams(cosmo_params)
+        astro_params = AstroParams(astro_params)
+
+        # Initialize halo list boxes.
+        fields = HaloField(
+            redshift=redshift,
+            user_params=user_params,
+            cosmo_params=cosmo_params,
+            random_seed=random_seed,
+        )
+
+        # Check whether the boxes already exist
+        if not regenerate:
+            try:
+                fields.read(direc)
+                logger.info(
+                    "Existing z=%s determine_halo_list boxes found and read in (seed=%s)."
+                    % (redshift, fields.random_seed)
+                )
+                return fields
+            except IOError:
+                pass
+
+        # Make sure we've got computed init boxes.
+        if init_boxes is None or not init_boxes.filled:
+            init_boxes = initial_conditions(
+                user_params=user_params,
+                cosmo_params=cosmo_params,
+                regenerate=regenerate,
+                write=write,
+                direc=direc,
+                random_seed=random_seed,
+            )
+
+            # Need to update fields to have the same seed as init_boxes
+            fields._random_seed = init_boxes.random_seed
+
+        # Run the C Code
+        return _call_c_func(
+            lib.ComputeHaloField,
+            fields,
+            direc,
+            redshift,
+            fields.user_params,
+            fields.cosmo_params,
+            fields.astro_params,
             init_boxes,
             write=write,
         )

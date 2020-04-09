@@ -33,6 +33,7 @@
 #include "IonisationBox.c"
 #include "SpinTemperatureBox.c"
 #include "BrightnessTemperatureBox.c"
+#include "Find_Haloes.c"
 
 
 

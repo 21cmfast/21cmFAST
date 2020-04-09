@@ -23,10 +23,12 @@ from .wrapper import AstroParams
 from .wrapper import BrightnessTemp
 from .wrapper import CosmoParams
 from .wrapper import FlagOptions
+from .wrapper import HaloField
 from .wrapper import UserParams
 from .wrapper import brightness_temperature
 from .wrapper import compute_luminosity_function
 from .wrapper import compute_tau
+from .wrapper import determine_halo_list
 from .wrapper import get_all_fieldnames
 from .wrapper import global_params
 from .wrapper import initial_conditions

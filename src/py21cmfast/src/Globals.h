@@ -21,8 +21,15 @@ struct GlobalParams{
     int T_USE_VELOCITIES;
     float MAX_DVDR;
     float DELTA_R_HII_FACTOR;
+    float DELTA_R_FACTOR;
     int HII_FILTER;
     float INITIAL_REDSHIFT;
+    float R_OVERLAP_FACTOR;
+    int DELTA_CRIT_MODE;
+    int HALO_FILTER;
+    int OPTIMIZE;
+    float OPTIMIZE_MIN_MASS;
+
 
     float CRIT_DENS_TRANSITION;
     float MIN_DENSITY_LOW_LIMIT;
@@ -88,8 +95,15 @@ extern struct GlobalParams global_params = {
     .T_USE_VELOCITIES = 1,
     .MAX_DVDR = 0.2,
     .DELTA_R_HII_FACTOR = 1.1,
+    .DELTA_R_FACTOR = 1.1,
     .HII_FILTER = 1,
     .INITIAL_REDSHIFT = 300.,
+    .R_OVERLAP_FACTOR = 1.,
+    .DELTA_CRIT_MODE = 1,
+    .HALO_FILTER = 0,
+    .OPTIMIZE = 0,
+    .OPTIMIZE_MIN_MASS = 1e11,
+
 
     .CRIT_DENS_TRANSITION = 1.5,
     .MIN_DENSITY_LOW_LIMIT = 9e-8,

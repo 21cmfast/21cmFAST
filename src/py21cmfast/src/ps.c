@@ -99,6 +99,7 @@ float Mass_limit (float logM, float PL, float FRAC);
 void bisection(float *x, float xlow, float xup, int *iter);
 float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC);
 
+double sheth_delc(double del, double sig);
 float dNdM_conditional(float growthf, float M1, float M2, float delta1, float delta2, float sigma2);
 double dNion_ConditionallnM(double lnM, void *params);
 double Nion_ConditionalM(double growthf, double M1, double M2, double sigma2, double delta1, double delta2, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar, double Mlim_Fesc);
@@ -754,6 +755,10 @@ double dsigmasqdm_z0(double M){
     return sigma_norm * sigma_norm * result;
 }
 
+/* sheth correction to delta crit */
+double sheth_delc(double del, double sig){
+    return sqrt(SHETH_a)*del*(1. + global_params.SHETH_b*pow(sig*sig/(SHETH_a*del*del), global_params.SHETH_c));
+}
 
 
 /*

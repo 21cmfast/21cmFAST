@@ -227,6 +227,21 @@ class _AllParamsBox(_OutputStructZ):
         super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
 
 
+class HaloField(_AllParamsBox):
+    """A class containing all fields related to halos."""
+
+    def _init_arrays(self):
+        self.halo_field = np.zeros(
+            self.user_params.tot_fft_num_pixels, dtype=np.float32
+        )
+
+        self.halo_field.shape = (
+            self.user_params.DIM,
+            self.user_params.DIM,
+            self.user_params.DIM,
+        )
+
+
 class IonizedBox(_AllParamsBox):
     """A class containing all ionized boxes."""
 
