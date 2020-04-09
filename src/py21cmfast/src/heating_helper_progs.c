@@ -1116,27 +1116,20 @@ double nu_tau_one_approx_MINI(double zp, double zpp, double x_e, double HI_filli
     gsl_root_fsolver_set (s, &F, x_lo, x_hi);
 
     // iterate until we guess close enough
-//    if (DEBUG_ON) printf ("%5s [%9s, %9s] %9s %9s\n", "iter", "lower", "upper", "root", "err(est)");
     iter = 0;
     max_iter = 100;
     do{
         iter++;
         status = gsl_root_fsolver_iterate (s);
         r = gsl_root_fsolver_root (s);
-        //      printf("iter%i, r=%e\n", iter, r);
         x_lo = gsl_root_fsolver_x_lower (s);
         x_hi = gsl_root_fsolver_x_upper (s);
         status = gsl_root_test_interval (x_lo, x_hi, 0, relative_error);
-//        if (DEBUG_ON){
-//            printf ("%5d [%.7e, %.7e] %.7e %.7e\n", iter, x_lo, x_hi, r, (x_hi - x_lo)/r);
-//            fflush(NULL);
-//        }
     }
     while (status == GSL_CONTINUE && iter < max_iter);
 
     // deallocate and return
     gsl_root_fsolver_free (s);
-//    if (DEBUG_ON) printf("Root found at %e eV", r/NU_over_EV);
     return r;
 }
 

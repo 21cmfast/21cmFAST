@@ -39,7 +39,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                   struct AstroParams *astro_params, struct FlagOptions *flag_options,
                   float perturbed_field_redshift, short cleanup,
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp) {
-
+    int status;
+    Try{ // This Try{} wraps the whole function.
 LOG_DEBUG("input values:");
 LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift, prev_redshift, perturbed_field_redshift);
 if (LOG_LEVEL >= DEBUG_LEVEL){
@@ -2073,7 +2074,10 @@ LOG_SUPER_DEBUG("finished loop");
 
     free(table_int_boundexceeded_threaded);
     free(fcoll_int_boundexceeded_threaded);
-
+    } // End of try
+    Catch(status){
+        return(status);
+    }
     return(0);
 }
 

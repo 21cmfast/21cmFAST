@@ -14,14 +14,17 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                        struct IonizedBox *previous_ionize_box,
                        struct TsBox *spin_temp, struct IonizedBox *box) {
 
-LOG_DEBUG("input values:");
-LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
-#if LOG_LEVEL >= DEBUG_LEVEL
-    writeUserParams(user_params);
-    writeCosmoParams(cosmo_params);
-    writeAstroParams(flag_options, astro_params);
-    writeFlagOptions(flag_options);
-#endif
+    int status;
+
+    Try{ // This Try brackets the whole function, so we don't indent.
+    LOG_DEBUG("input values:");
+    LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
+    #if LOG_LEVEL >= DEBUG_LEVEL
+        writeUserParams(user_params);
+        writeCosmoParams(cosmo_params);
+        writeAstroParams(flag_options, astro_params);
+        writeFlagOptions(flag_options);
+    #endif
 
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
@@ -1791,6 +1794,11 @@ LOG_SUPER_DEBUG("freed fftw boxes");
 
     free(overdense_int_boundexceeded_threaded);
 
-LOG_DEBUG("finished!\n");
+    LOG_DEBUG("finished!\n");
+
+    } // End of Try()
+    Catch(status){
+        return(status);
+    }
     return(0);
 }

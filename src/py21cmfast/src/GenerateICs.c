@@ -36,8 +36,10 @@
 
 // Re-write of init.c for being accessible within the MCMC
 
-int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes) {
-
+int ComputeInitialConditions(
+    unsigned long long random_seed, struct UserParams *user_params,
+    struct CosmoParams *cosmo_params, struct InitialConditions *boxes
+){
     /*
      Generates the initial conditions: gaussian random density field (DIM^3) as well as the equal or lower resolution velocity fields, and smoothed density field (HII_DIM^3).
      See INIT_PARAMS.H and ANAL_PARAMS.H to set the appropriate parameters.
@@ -45,7 +47,10 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
      Author: Andrei Mesinger
      Date: 9/29/06
-     */
+    */
+    int status;
+
+    Try{ // This Try wraps the entire function so we don't indent.
 
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
@@ -895,8 +900,12 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
     for (i=0; i<user_params->N_THREADS; i++) {
         gsl_rng_free (r[i]);
     }
-
     LOG_DEBUG("Cleaned Up.");
+    } // End of Try{}
+
+    Catch(status){
+        return(status);
+    }
     return(0);
 }
 
