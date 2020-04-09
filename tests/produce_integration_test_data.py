@@ -55,7 +55,7 @@ OPTIONS = (
     [8, {"N_THREADS": 2}],
     [10, {"PHOTON_CONS": True}],
     [
-        8,
+        8.5,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
             "PHOTON_CONS": True,
