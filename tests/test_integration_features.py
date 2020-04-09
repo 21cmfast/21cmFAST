@@ -22,14 +22,22 @@ Comparison tests here are meant to be as small as possible while attempting to f
 a reasonable test: they should be of reduced data such as power spectra or global xHI
 measurements, and they should be generated with small simulations.
 """
+import logging
+import os
+
 import pytest
 
 import h5py
 import numpy as np
 
+from py21cmfast import config
 from py21cmfast import global_params
 
 from . import produce_integration_test_data as prd
+
+logger = logging.getLogger("21cmFAST")
+logger.setLevel(logging.INFO)
+
 
 options = prd.OPTIONS
 
@@ -41,23 +49,31 @@ options = tuple(
 )
 
 
+@pytest.fixture(scope="module")
+def tmpdir(tmp_path_factory):
+    return tmp_path_factory.mktemp("integration_cache")
+
+
 @pytest.mark.parametrize("redshift,kwargs", options)
-def test_power_spectra_coeval(redshift, kwargs):
+def test_power_spectra_coeval(redshift, kwargs, tmpdir):
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
     with h5py.File(prd.get_filename(redshift, **kwargs), "r") as f:
         power = f["power_coeval"][...]
 
-    with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
-        # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
-        k, p, bt = prd.produce_coeval_power_spectra(redshift, **kwargs)
+    with config.use(direc=tmpdir, regenerate=False, write=True):
+        with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
+            # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
+            k, p, bt = prd.produce_coeval_power_spectra(redshift, **kwargs)
 
-    assert np.allclose(power, p, atol=1e-5, rtol=1e-3)
+    print(power)
+    print(p)
+    assert np.allclose(power, p, atol=1e-3, rtol=1e-2)
 
 
 @pytest.mark.parametrize("redshift,kwargs", options)
-def test_power_spectra_lightcone(redshift, kwargs):
+def test_power_spectra_lightcone(redshift, kwargs, tmpdir):
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
@@ -66,10 +82,12 @@ def test_power_spectra_lightcone(redshift, kwargs):
         xHI = f["xHI"][...]
         Tb = f["Tb"][...]
 
-    with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
-        # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
-        k, p, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
+    with config.use(direc=tmpdir, regenerate=False, write=True):
+        with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
+            # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
+            k, p, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
+    print(os.listdir(tmpdir))
     assert np.allclose(power, p, atol=1e-5, rtol=5e-3)
     assert np.allclose(xHI, lc.global_xHI, atol=1e-5, rtol=1e-3)
     assert np.allclose(Tb, lc.global_brightness_temp, atol=1e-5, rtol=1e-3)

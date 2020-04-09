@@ -44,7 +44,6 @@ static gsl_spline *erfc_spline;
 #define Mhalo_max (double)(1e16)
 
 float calibrated_NF_min;
-int initialise_photoncons;
 
 double *deltaz, *deltaz_smoothed, *NeutralFractions, *z_Q, *Q_value, *nf_vals, *z_vals;
 int N_NFsamples,N_extrapolated, N_analytic, N_calibrated, N_deltaz;
@@ -3203,8 +3202,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     free(z_arr);
     free(Q_arr);
 
-    initialise_photoncons = 1;
-    photon_cons_inited = true;
+    LOG_DEBUG("Initialised PhotonCons.");
     return(0);
 }
 
@@ -3245,6 +3243,8 @@ void determine_deltaz_for_photoncons() {
     double temp;
     float z_cal, z_analytic, NF_sample, returned_value, NF_sample_min, gradient_analytic, z_analytic_at_endpoint, const_offset, z_analytic_2, smoothing_width;
     float bin_width, delta_NF, val1, val2, extrapolated_value;
+
+    LOG_DEBUG("Determining deltaz for photon cons.");
 
     // Number of points for determine the delta z correction of the photon non-conservation
     N_NFsamples = 100;
@@ -3524,6 +3524,8 @@ float adjust_redshifts_for_photoncons(struct AstroParams *astro_params, struct F
     double temp;
     float required_NF, adjusted_redshift, future_z, gradient_extrapolation, const_extrapolation, temp_redshift, check_required_NF;
 
+    LOG_DEBUG("Adjusting redshifts for photon cons.");
+
     // Determine the neutral fraction (filling factor) of the analytic calibration expression given the current sampled redshift
     Q_at_z(*redshift, &(temp));
     required_NF = 1.0 - (float)temp;
@@ -3589,11 +3591,10 @@ float adjust_redshifts_for_photoncons(struct AstroParams *astro_params, struct F
         }
     }
     else {
-
         // Initialise the photon non-conservation correction curve
-        if(initialise_photoncons) {
+        if(!photon_cons_allocated) {
             determine_deltaz_for_photoncons();
-            initialise_photoncons = 0;
+            photon_cons_allocated = true;
         }
 
         // We have exceeded even the end-point of the extrapolation
@@ -3792,7 +3793,7 @@ int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analyti
 }
 
 void FreePhotonConsMemory() {
-
+    LOG_DEBUG("Freeing some photon cons memory.");
     free(deltaz);
     free(deltaz_smoothed);
     free(NeutralFractions);
@@ -3809,4 +3810,7 @@ void FreePhotonConsMemory() {
     gsl_interp_accel_free (z_NFHistory_spline_acc);
     gsl_spline_free (deltaz_spline_for_photoncons);
     gsl_interp_accel_free (deltaz_spline_for_photoncons_acc);
+    LOG_DEBUG("Done Freeing photon cons memory.");
+
+    photon_cons_allocated = false;
 }

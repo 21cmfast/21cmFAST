@@ -5,7 +5,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                            struct AstroParams *astro_params, struct FlagOptions *flag_options,
                            struct TsBox *spin_temp, struct IonizedBox *ionized_box,
                            struct PerturbedField *perturb_field, struct BrightnessTemp *box) {
-
+    LOG_DEBUG("Starting Brightness Temperature calculation for redshift %f", redshift);
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
@@ -35,6 +35,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
         delta_T_RSD_LOS[i] = (float *)calloc(user_params->HII_DIM,sizeof(float));
     }
 
+
 #pragma omp parallel shared(v,perturb_field) private(i,j,k) num_threads(user_params->N_THREADS)
     {
 #pragma omp for
@@ -61,6 +62,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     sqrt( (0.15/(cosmo_params->OMm)/(cosmo_params->hlittle)/(cosmo_params->hlittle)) * (1.+redshift)/10.0 );
 
     ///////////////////////////////  END INITIALIZATION /////////////////////////////////////////////
+    LOG_DEBUG("Performed Initialization.");
 
     // ok, lets fill the delta_T box; which will be the same size as the bubble box
 #pragma omp parallel shared(const_factor,perturb_field,ionized_box,box,redshift,spin_temp,T_rad) \
@@ -94,6 +96,8 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
         }
     }
 
+    LOG_DEBUG("Filled delta_T.");
+
     if(isfinite(ave)==0) {
         LOG_ERROR("Average brightness temperature is infinite or NaN!");
         return(2);
@@ -105,10 +109,6 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     x_val2 = 1.;
 
     subcell_width = (user_params->BOX_LEN/(float)user_params->HII_DIM)/(float)(astro_params->N_RSD_STEPS);
-
-    float max_cell_distance;
-
-    max_cell_distance = 0.;
 
     // now write out the delta_T box
     if (global_params.T_USE_VELOCITIES){
@@ -546,12 +546,15 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
         }
     }
 
+    LOG_DEBUG("Included velocities.");
+
+
     if(isfinite(ave)==0) {
         LOG_ERROR("Average brightness temperature (after including velocities) is infinite or NaN!");
         return(2);
     }
 
-LOG_DEBUG("z = %.2f, ave Tb = %e", redshift, ave);
+    LOG_DEBUG("z = %.2f, ave Tb = %e", redshift, ave);
 
     free(v);
     free(vel_gradient);
@@ -564,6 +567,8 @@ LOG_DEBUG("z = %.2f, ave Tb = %e", redshift, ave);
     free(delta_T_RSD_LOS);
     fftwf_cleanup_threads();
     fftwf_cleanup();
+
+    LOG_DEBUG("Cleaned up.");
 
     return(0);
 }
