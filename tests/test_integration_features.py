@@ -50,8 +50,8 @@ options = tuple(
 
 
 @pytest.fixture(scope="module")
-def tmpdir(tmpdir_factory):
-    return tmpdir_factory.mktemp("integration_cache")
+def tmpdir(tmp_path_factory):
+    return tmp_path_factory.mktemp("integration_cache")
 
 
 @pytest.mark.parametrize("redshift,kwargs", options)
@@ -67,7 +67,8 @@ def test_power_spectra_coeval(redshift, kwargs, tmpdir):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
             k, p, bt = prd.produce_coeval_power_spectra(redshift, **kwargs)
 
-    print(os.listdir(tmpdir))
+    print(power)
+    print(p)
     assert np.allclose(power, p, atol=1e-5, rtol=1e-3)
 
 
