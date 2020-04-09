@@ -64,7 +64,7 @@ OPTIONS = (
         },
     ],
     [
-        8,
+        8.5,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
             "USE_TS_FLUCT": True,
@@ -75,7 +75,7 @@ OPTIONS = (
         },
     ],
     [
-        8,
+        8.5,
         {
             "N_THREADS": 2,
             "USE_FFTW_WISDOM": True,
