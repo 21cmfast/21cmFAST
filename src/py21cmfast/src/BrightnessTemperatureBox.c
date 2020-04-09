@@ -5,6 +5,9 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                            struct AstroParams *astro_params, struct FlagOptions *flag_options,
                            struct TsBox *spin_temp, struct IonizedBox *ionized_box,
                            struct PerturbedField *perturb_field, struct BrightnessTemp *box) {
+
+    int status;
+    Try{ // Try block around whole function.
     LOG_DEBUG("Starting Brightness Temperature calculation for redshift %f", redshift);
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
@@ -567,8 +570,12 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     free(delta_T_RSD_LOS);
     fftwf_cleanup_threads();
     fftwf_cleanup();
-
     LOG_DEBUG("Cleaned up.");
+
+    } // End of try
+    Catch(status){
+        return(status);
+    }
 
     return(0);
 }
