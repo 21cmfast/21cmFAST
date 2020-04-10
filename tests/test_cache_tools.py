@@ -12,7 +12,7 @@ from py21cmfast import wrapper
 
 @pytest.fixture(scope="module")
 def ic():
-    return wrapper.initial_conditions(user_params={"HII_DIM": 25})
+    return wrapper.initial_conditions(user_params={"HII_DIM": 25}, write=True)
 
 
 def test_query(ic):
@@ -26,28 +26,25 @@ def test_query(ic):
 
 def test_bad_fname(tmpdirec):
     with pytest.raises(ValueError):
-        cache_tools.readbox(direc=tmpdirec.strpath, fname="a_really_fake_file.h5")
+        cache_tools.readbox(direc=str(tmpdirec), fname="a_really_fake_file.h5")
 
 
 def test_readbox_data(tmpdirec, ic):
-    box = cache_tools.readbox(direc=tmpdirec.strpath, fname=ic.filename)
+    box = cache_tools.readbox(direc=str(tmpdirec), fname=ic.filename)
 
     assert np.all(box.hires_density == ic.hires_density)
 
 
 def test_readbox_filter(ic, tmpdirec):
     ic2 = cache_tools.readbox(
-        kind="InitialConditions", hsh=ic._md5, direc=tmpdirec.strpath
+        kind="InitialConditions", hsh=ic._md5, direc=str(tmpdirec)
     )
     assert np.all(ic2.hires_density == ic.hires_density)
 
 
 def test_readbox_seed(ic, tmpdirec):
     ic2 = cache_tools.readbox(
-        kind="InitialConditions",
-        hsh=ic._md5,
-        seed=ic.random_seed,
-        direc=tmpdirec.strpath,
+        kind="InitialConditions", hsh=ic._md5, seed=ic.random_seed, direc=str(tmpdirec),
     )
     assert np.all(ic2.hires_density == ic.hires_density)
 
@@ -55,5 +52,5 @@ def test_readbox_seed(ic, tmpdirec):
 def test_readbox_nohash(ic, tmpdirec):
     with pytest.raises(ValueError):
         cache_tools.readbox(
-            kind="InitialConditions", seed=ic.random_seed, direc=tmpdirec.strpath
+            kind="InitialConditions", seed=ic.random_seed, direc=str(tmpdirec)
         )

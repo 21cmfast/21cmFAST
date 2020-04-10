@@ -23,9 +23,8 @@ def test_arrays_inited(ic):
     assert not ic.arrays_initialized
 
 
-def test_pointer_fields_ic(
-    ic,
-):  # TODO: this is probably good to implement for every output struct defined in code
+# TODO: this is probably good to implement for every output struct defined in code
+def test_pointer_fields_ic(ic):
     # Get list of fields before and after array initialisation
     d = copy.copy(list(ic.__dict__.keys()))
     ic._init_arrays()
@@ -45,7 +44,7 @@ def test_pointer_fields_pf():
     # Get list of fields before and after array initialisation
 
     with pytest.raises(KeyError):
-        pf = PerturbedField()
+        PerturbedField()
 
     pf = PerturbedField(redshift=7.0)
 
@@ -60,7 +59,7 @@ def test_pointer_fields_pf():
 def test_pointer_fields_ib():
     # Get list of fields before and after array initialisation
     with pytest.raises(KeyError):
-        pf = IonizedBox()
+        IonizedBox()
 
     pf = IonizedBox(redshift=7.0)
 
@@ -75,7 +74,7 @@ def test_pointer_fields_ib():
 def test_pointer_fields_st():
     # Get list of fields before and after array initialisation
     with pytest.raises(KeyError):
-        pf = TsBox()
+        TsBox()
 
     pf = TsBox(redshift=7.0)
 
@@ -88,7 +87,7 @@ def test_pointer_fields_st():
 
 
 def test_non_existence(ic, tmpdirec):
-    assert not ic.exists(direc=tmpdirec.strpath)
+    assert not ic.exists(direc=tmpdirec)
 
 
 def test_writeability(ic):
@@ -100,12 +99,12 @@ def test_readability(tmpdirec):
     # we update this one, so don't use the global one
     ic_ = InitialConditions(init=True)
 
-    # TODO: fake it being filled (need to do both of the following to fool it. Actually, we *shouldn't* be able to
-    # TODO: fool it at all, but hey.
+    # TODO: fake it being filled (need to do both of the following to fool it.
+    # TODO: Actually, we *shouldn't* be able to fool it at all, but hey.
     ic_.filled = True
     ic_.random_seed  # accessing random_seed actually creates a random seed.
 
-    ic_.write(direc=tmpdirec.strpath)
+    ic_.write(direc=tmpdirec)
 
     ic2 = InitialConditions()
 
@@ -113,9 +112,9 @@ def test_readability(tmpdirec):
         ic_._seedless_repr() == ic2._seedless_repr()
     )  # without seeds, they are obviously exactly the same.
 
-    assert ic2.exists(direc=tmpdirec.strpath)
+    assert ic2.exists(direc=tmpdirec)
 
-    ic2.read(direc=tmpdirec.strpath)
+    ic2.read(direc=tmpdirec)
 
     assert repr(ic_) == repr(ic2)  # they should be exactly the same.
     assert str(ic_) == str(ic2)  # their str is the same.
@@ -125,7 +124,7 @@ def test_readability(tmpdirec):
 
     # make sure we can't read it twice
     with pytest.raises(IOError):
-        ic2.read(direc=tmpdirec.strpath)
+        ic2.read(direc=tmpdirec)
 
 
 def test_different_seeds(ic):
@@ -179,13 +178,13 @@ def test_match_seed(tmpdirec):
     ic_.filled = True
     ic_.random_seed
 
-    ic_.write(direc=tmpdirec.strpath)
+    ic_.write(direc=tmpdirec)
 
     ic2 = InitialConditions(random_seed=1)
     with pytest.raises(
         IOError
     ):  # should not read in just anything if its random seed is set.
-        ic2.read(direc=tmpdirec.strpath)
+        ic2.read(direc=tmpdirec)
 
 
 def test_bad_class_definition():

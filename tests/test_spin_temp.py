@@ -7,17 +7,11 @@ def test_first_box():
     the correct dimensions (before it was treated as a dummy).
     """
     initial_conditions = p21c.initial_conditions(
-        user_params=p21c.UserParams(HII_DIM=100, BOX_LEN=100, DIM=200),
-        random_seed=1,
-        write=False,
+        user_params=p21c.UserParams(HII_DIM=100, BOX_LEN=100, DIM=200), random_seed=1,
     )
 
-    perturbed_field = p21c.perturb_field(
-        redshift=29.0, init_boxes=initial_conditions, write=False
-    )
+    perturbed_field = p21c.perturb_field(redshift=29.0, init_boxes=initial_conditions)
 
-    spin_temp = p21c.spin_temperature(
-        perturbed_field=perturbed_field, z_heat_max=30.0, write=False,
-    )
+    spin_temp = p21c.spin_temperature(perturbed_field=perturbed_field, z_heat_max=30.0)
 
     assert spin_temp.redshift == 29.0

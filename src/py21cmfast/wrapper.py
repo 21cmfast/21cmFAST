@@ -1800,10 +1800,12 @@ def run_coeval(
 
         direc, regenerate, write = _get_config_options(direc, regenerate, write)
 
+        singleton = False
         # Ensure perturb is a list of boxes, not just one.
         if perturb is not None:
             if not hasattr(perturb, "__len__"):
                 perturb = [perturb]
+                singleton = True
         else:
             perturb = []
 
@@ -1854,7 +1856,6 @@ def run_coeval(
                 direc,
             )
 
-        singleton = False
         if not hasattr(redshift, "__len__"):
             singleton = True
             redshift = [redshift]

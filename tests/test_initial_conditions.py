@@ -13,8 +13,6 @@ from py21cmfast import wrapper
 @pytest.fixture(scope="module")  # call this fixture once for all tests in this module
 def basic_init_box():
     return wrapper.initial_conditions(
-        regenerate=True,
-        write=False,
         user_params=wrapper.UserParams(HII_DIM=35, BOX_LEN=70),
     )
 
@@ -38,10 +36,7 @@ def test_modified_cosmo(basic_init_box):
     """Test using a modified cosmology"""
     cosmo = wrapper.CosmoParams(SIGMA_8=0.9)
     ic = wrapper.initial_conditions(
-        cosmo_params=cosmo,
-        regenerate=True,
-        write=False,
-        user_params=basic_init_box.user_params,
+        cosmo_params=cosmo, user_params=basic_init_box.user_params,
     )
 
     assert ic.cosmo_params != basic_init_box.cosmo_params
@@ -52,8 +47,6 @@ def test_modified_cosmo(basic_init_box):
 def test_transfer_function(basic_init_box):
     """Test using a modified transfer function"""
     ic = wrapper.initial_conditions(
-        regenerate=True,
-        write=False,
         random_seed=basic_init_box.random_seed,
         user_params=wrapper.UserParams(HII_DIM=35, BOX_LEN=70, POWER_SPECTRUM=5),
     )
@@ -68,8 +61,6 @@ def test_transfer_function(basic_init_box):
 def test_relvels():
     """Test for relative velocity initial conditions"""
     ic = wrapper.initial_conditions(
-        regenerate=True,
-        write=False,
         random_seed=1,
         user_params=wrapper.UserParams(
             HII_DIM=100,
