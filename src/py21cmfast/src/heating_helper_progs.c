@@ -4,7 +4,7 @@ struct AstroParams *astro_params_hf;
 struct FlagOptions *flag_options_hf;
 
 int n_redshifts_1DTable;
-double zbin_width_1DTable,zmin_1DTable,zmax_1DTable,zbin_width_1DTable;
+double zbin_width_1DTable,zmin_1DTable,zmax_1DTable;
 
 float determine_zpp_min, zpp_bin_width;
 
@@ -34,7 +34,6 @@ double get_M_min_ion(float z){
     // check for WDM
     if (global_params.P_CUTOFF && ( MMIN < M_J_WDM()))
         MMIN = M_J_WDM();
-    //  printf("Mmin is %e\n", MMIN);
     return MMIN;
 }
 
@@ -200,8 +199,8 @@ double T_RECFAST(float z, int flag)
         // Read in the recfast data
         sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
         if ( !(F=fopen(filename, "r")) ){
-            printf("T_RECFAST: Unable to open file: %s for reading\nAborting\n", filename);
-            return -1;
+            LOG_ERROR("T_RECFAST: Unable to open file: %s for reading.", filename);
+            Throw 1;
         }
 
         for (i=(RECFAST_NPTS-1);i>=0;i--) {
@@ -227,8 +226,8 @@ double T_RECFAST(float z, int flag)
     }
 
     if (z > zt[RECFAST_NPTS-1]) { // Called at z>500! Bail out
-        printf("Called xion_RECFAST with z=%f, bailing out!\n", z);
-        return -1;
+        LOG_ERROR("Called xion_RECFAST with z=%f.", z);
+        Throw 1;
     }
     else { // Do spline
         ans = gsl_spline_eval (spline, z, acc);
@@ -254,8 +253,8 @@ double xion_RECFAST(float z, int flag)
         // Initialize vectors
         sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
         if ( !(F=fopen(filename, "r")) ){
-            printf("xion_RECFAST: Unable to open file: %s for reading\nAborting\n", RECFAST_FILENAME);
-            return -1;
+            LOG_ERROR("xion_RECFAST: Unable to open file: %s for reading\nAborting\n", RECFAST_FILENAME);
+            Throw IOError;
         }
 
         for (i=(RECFAST_NPTS-1);i>=0;i--) {
@@ -280,8 +279,8 @@ double xion_RECFAST(float z, int flag)
     }
 
     if (z > zt[RECFAST_NPTS-1]) { // Called at z>500! Bail out
-        printf("Called xion_RECFAST with z=%f, bailing out!\n", z);
-        return -1;
+        LOG_ERROR("Called xion_RECFAST with z=%f", z);
+        Throw ValueError;
     }
     else { // Do spline
         ans = gsl_spline_eval (spline, z, acc);
@@ -400,8 +399,8 @@ double spectral_emissivity(double nu_norm, int flag, int Population)
             // * Read in the data * //
             sprintf(filename,"%s/%s",global_params.external_table_path,STELLAR_SPECTRA_FILENAME);
             if (!(F = fopen(filename, "r"))){
-                printf("spectral_emissivity: Unable to open file: stellar_spectra.dat for reading\nAborting\n");
-                return -1;
+               LOG_ERROR("spectral_emissivity: Unable to open file: stellar_spectra.dat for reading.");
+                Throw IOError;
             }
 
             for (i=1;i<NSPEC_MAX;i++) {
@@ -800,16 +799,6 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
     gsl_function F;
     gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
 
-//    if (DEBUG_ON){
-//        printf("integrate over nu, parameters: %f, %f, %e, %i, thread# %i\n", zp, local_x_e, lower_int_limit, FLAG, omp_get_thread_num());
-//    }
-
-    //       if (DO_NOT_COMPARE_NUS)
-    //     lower_int_limit = NU_X_THRESH;
-    //       else
-    //     lower_int_limit = FMAX(nu_tau_one(zp, zpp, x_e, HI_filling_factor_zp), NU_X_THRESH);
-
-
     F.params = &local_x_e;
 
     if (FLAG==0)
@@ -820,10 +809,15 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
         F.function = &integrand_in_nu_lya_integral;
     }
 
-    //    gsl_integration_qag (&F, lower_int_limit, NU_X_MAX, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
-
-    gsl_integration_qag (&F, lower_int_limit, global_params.NU_X_MAX*NU_over_EV, 0, rel_tol, 1000, GSL_INTEG_GAUSS15, w, &result, &error);
+    int status;
+    gsl_set_error_handler_off();
+    status = gsl_integration_qag (&F, lower_int_limit, global_params.NU_X_MAX*NU_over_EV, 0, rel_tol, 1000, GSL_INTEG_GAUSS15, w, &result, &error);
     gsl_integration_workspace_free (w);
+
+    if(status!=0){
+        LOG_ERROR("gsl error with code %d", status);
+        Throw GSLError;
+    }
 
     // if it is the Lya integral, add prefactor
     if (FLAG == 2)
@@ -1011,9 +1005,6 @@ double tauX_approx(double nu, double x_e, double x_e_ave, double zp, double zpp,
     int redshift_int_fcollz;
     float redshift_table_fcollz;
 
-    //     if (DEBUG_ON)
-    //     printf("in taux, parameters are: %e, %e, %f, %f, %e\n", nu, x_e, zp, zpp, HI_filling_factor_zp);
-
     F.function = &tauX_integrand_approx;
     p.nu_0 = nu/(1+zp);
     p.x_e = x_e;
@@ -1044,15 +1035,11 @@ double tauX_approx(double nu, double x_e, double x_e_ave, double zp, double zpp,
         }
     }
 
+    gsl_set_error_handler_off();
 
     F.params = &p;
     gsl_integration_qag (&F, zpp, zp, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
-    //    gsl_integration_qag (&F, zpp, zp, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
     gsl_integration_workspace_free (w);
-
-
-    //     if (DEBUG_ON)
-    //     printf("returning from tauX, return value=%e\n", result);
 
     return result;
 }
@@ -1091,22 +1078,18 @@ double nu_tau_one_approx_MINI(double zp, double zpp, double x_e, double HI_filli
     double relative_error = 0.02;
     nu_tau_one_params_approx p;
 
-//    if (DEBUG_ON){
-//        printf("in nu tau one, called with parameters: zp=%f, zpp=%f, x_e=%e, HI_filling_at_zp=%e\n", zp, zpp, x_e, HI_filling_factor_zp);
-//    }
-
     // check if too ionized
     if (x_e > 0.9999){
-        //        fprintf(stderr,"Ts.c: WARNING: x_e value is too close to 1 for convergence in nu_tau_one\n");
-        return -1;
+        LOG_ERROR("x_e value is too close to 1 for convergence.");
+        Throw(ParameterError);
     }
 
     // select solver and allocate memory
     T = gsl_root_fsolver_brent;
     s = gsl_root_fsolver_alloc(T); // non-derivative based Brent method
     if (!s){
-        printf("Ts.c: Unable to allocate memory in function nu_tau_one!\n");
-        return -1;
+        LOG_ERROR("Unable to allocate memory.");
+        Throw(MemoryAllocError);
     }
 
     //check if lower bound has null
@@ -1129,27 +1112,26 @@ double nu_tau_one_approx_MINI(double zp, double zpp, double x_e, double HI_filli
     gsl_root_fsolver_set (s, &F, x_lo, x_hi);
 
     // iterate until we guess close enough
-//    if (DEBUG_ON) printf ("%5s [%9s, %9s] %9s %9s\n", "iter", "lower", "upper", "root", "err(est)");
     iter = 0;
     max_iter = 100;
     do{
         iter++;
         status = gsl_root_fsolver_iterate (s);
         r = gsl_root_fsolver_root (s);
-        //      printf("iter%i, r=%e\n", iter, r);
         x_lo = gsl_root_fsolver_x_lower (s);
         x_hi = gsl_root_fsolver_x_upper (s);
         status = gsl_root_test_interval (x_lo, x_hi, 0, relative_error);
-//        if (DEBUG_ON){
-//            printf ("%5d [%.7e, %.7e] %.7e %.7e\n", iter, x_lo, x_hi, r, (x_hi - x_lo)/r);
-//            fflush(NULL);
-//        }
     }
     while (status == GSL_CONTINUE && iter < max_iter);
 
     // deallocate and return
     gsl_root_fsolver_free (s);
-//    if (DEBUG_ON) printf("Root found at %e eV", r/NU_over_EV);
+
+    if(!isfinite(r)){
+        LOG_ERROR("Value for nu_tau_one_approx_MINI is infinite or NAN");
+        Throw(ParameterError);
+    }
+
     return r;
 }
 
@@ -1163,22 +1145,17 @@ double nu_tau_one_approx(double zp, double zpp, double x_e, double HI_filling_fa
     double relative_error = 0.02;
     nu_tau_one_params_approx p;
 
-//    if (DEBUG_ON){
-//        printf("in nu tau one, called with parameters: zp=%f, zpp=%f, x_e=%e, HI_filling_at_zp=%e\n", zp, zpp, x_e, HI_filling_factor_zp);
-//    }
-
     // check if too ionized
     if (x_e > 0.9999){
-        //        fprintf(stderr,"Ts.c: WARNING: x_e value is too close to 1 for convergence in nu_tau_one\n");
-        return -1;
+        Throw(ParameterError);
     }
 
     // select solver and allocate memory
     T = gsl_root_fsolver_brent;
     s = gsl_root_fsolver_alloc(T); // non-derivative based Brent method
     if (!s){
-        printf("Ts.c: Unable to allocate memory in function nu_tau_one!\n");
-        return -1;
+        LOG_ERROR("Unable to allocate memory.");
+        Throw(MemoryAllocError);
     }
 
     //check if lower bound has null
@@ -1199,27 +1176,26 @@ double nu_tau_one_approx(double zp, double zpp, double x_e, double HI_filling_fa
     gsl_root_fsolver_set (s, &F, x_lo, x_hi);
 
     // iterate until we guess close enough
-//    if (DEBUG_ON) printf ("%5s [%9s, %9s] %9s %9s\n", "iter", "lower", "upper", "root", "err(est)");
     iter = 0;
     max_iter = 100;
     do{
         iter++;
         status = gsl_root_fsolver_iterate (s);
         r = gsl_root_fsolver_root (s);
-        //      printf("iter%i, r=%e\n", iter, r);
         x_lo = gsl_root_fsolver_x_lower (s);
         x_hi = gsl_root_fsolver_x_upper (s);
         status = gsl_root_test_interval (x_lo, x_hi, 0, relative_error);
-//        if (DEBUG_ON){
-//            printf ("%5d [%.7e, %.7e] %.7e %.7e\n", iter, x_lo, x_hi, r, (x_hi - x_lo)/r);
-//            fflush(NULL);
-//        }
     }
     while (status == GSL_CONTINUE && iter < max_iter);
 
     // deallocate and return
     gsl_root_fsolver_free (s);
-//    if (DEBUG_ON) printf("Root found at %e eV", r/NU_over_EV);
+
+    if(!isfinite(r)){
+        LOG_ERROR("nu_tau_one_approx is infinite or NAN");
+        Throw(ParameterError);
+    }
+
     return r;
 }
 

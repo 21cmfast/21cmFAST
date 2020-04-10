@@ -252,12 +252,7 @@ void check_region(float * box, int dimensions, float Rsq_curr_index, int x, int 
 	else if (z_index>=dimensions) {z_index -= dimensions;}
 
 	// now check
-	//	printf("checking %i, %i, %i\n", x_index, y_index, z_index);
-	//printf("this is index, %llu\n", HII_R_INDEX(x_index, y_index, z_index));
-	//fflush(NULL);
 	if (box[HII_R_INDEX(x_index, y_index, z_index)]){ // untaken pixel (not part of other halo)
-	  //	  printf("in if\n");
-	  // fflush(NULL);
 	  // remember to check all reflections
 	  xsq = pow(x-x_index, 2);
 	  ysq = pow(y-y_index, 2);
@@ -308,10 +303,7 @@ void check_region(float * box, int dimensions, float Rsq_curr_index, int x, int 
 	     ){
 
 	    // we are within the sphere defined by R, so change flag in box array
-	    	    box[HII_R_INDEX(x_index, y_index, z_index)] = 0;
-	    //	    box[HII_R_INDEX(x_index, y_index, z_index)] = 15;
-	    //printf("%i, %i, %i\n", x_index, y_index, z_index);
-		    //		    fflush(NULL);
+	    box[HII_R_INDEX(x_index, y_index, z_index)] = 0;
 	  }
 	}
       }
@@ -332,8 +324,6 @@ void update_in_sphere(float * box, int dimensions, float R, float xf, float yf, 
   int x_index, y_index, z_index, x, y, z;
 
   if (R<0) return;
-  //  printf("in update, dim=%i, R=%f, x=%f, y=%f, z=%f\n", dimensions, R, xf, yf, zf);
-  //fflush(NULL);
   // convert distances to index units
   x = (int) (xf * dimensions + 0.5); // +0.5 for rounding
   y = (int) (yf * dimensions + 0.5);

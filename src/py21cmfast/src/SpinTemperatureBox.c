@@ -39,7 +39,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                   struct AstroParams *astro_params, struct FlagOptions *flag_options,
                   float perturbed_field_redshift, short cleanup,
                   struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp) {
-
+    int status;
+    Try{ // This Try{} wraps the whole function.
 LOG_DEBUG("input values:");
 LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift, prev_redshift, perturbed_field_redshift);
 if (LOG_LEVEL >= DEBUG_LEVEL){
@@ -385,16 +386,10 @@ LOG_SUPER_DEBUG("Initialised PS");
 
         if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
             if (flag_options->USE_MINI_HALOS){
-                if(initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50,1e20)!=0) {
-                    LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
-                    return(2);
-                }
+                initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50,1e20);
             }
             else{
-                if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
-                    LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
-                    return(2);
-                }
+                initialiseSigmaMInterpTable(M_MIN,1e20);
             }
         }
         LOG_SUPER_DEBUG("Initialised sigmaM interp table");
@@ -432,13 +427,11 @@ LOG_SUPER_DEBUG("read in file");
 
         if(!flag_options->M_MIN_in_Mass) {
             M_MIN = TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
-LOG_DEBUG("Attempting to initialise sigmaM table with M_MIN=%e, Tvir_MIN=%e, mu=%e", M_MIN, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
-            if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
-                LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
-                return(2);
-            }
+            LOG_DEBUG("Attempting to initialise sigmaM table with M_MIN=%e, Tvir_MIN=%e, mu=%e",
+                      M_MIN, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
+            initialiseSigmaMInterpTable(M_MIN,1e20);
         }
-LOG_SUPER_DEBUG("Initialised Sigma interp table");
+        LOG_SUPER_DEBUG("Initialised Sigma interp table");
 
     }
     else {
@@ -629,7 +622,7 @@ LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
                             for (k=0;k<user_params->HII_DIM; k++){
                                 curr_delNL0 = *((float *)box + HII_R_FFT_INDEX(i,j,k));
 
-                                if (curr_delNL0 <= -1){ // correct for alliasing in the filtering step
+                                if (curr_delNL0 <= -1){ // correct for aliasing in the filtering step
                                     curr_delNL0 = -1+FRACT_FLOAT_ERR;
                                 }
 
@@ -726,14 +719,10 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
 
         if(!flag_options->M_MIN_in_Mass) {
             M_MIN = TtoM(determine_zpp_max, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
-
-            if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
-                LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
-                return(2);
-            }
+            initialiseSigmaMInterpTable(M_MIN,1e20);
         }
 
-LOG_SUPER_DEBUG("Initialised sigma interp table");
+        LOG_SUPER_DEBUG("Initialised sigma interp table");
 
         zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0);
 
@@ -752,32 +741,20 @@ LOG_SUPER_DEBUG("Initialised sigma interp table");
 
                 /* initialise interpolation of the mean collapse fraction for global reionization.*/
                 if (!flag_options->USE_MINI_HALOS){
-                    if(initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
+                    initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                                                  astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC,
-                                                 astro_params->F_STAR10, astro_params->F_ESC10)!=0) {
-                        LOG_ERROR("Detected either an infinite or NaN value in initialise_Nion_Ts_spline");
-                        return(2);
-                    }
+                                                 astro_params->F_STAR10, astro_params->F_ESC10);
 
-                    if(initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                              astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10)!=0) {
-                        LOG_ERROR("Detected either an infinite or NaN value in initialise_SFRD_spline");
-                        return(2);
-                    }
+                    initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
+                                              astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
                 }
                 else{
-                    if(initialise_Nion_Ts_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
+                    initialise_Nion_Ts_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                                                       astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10,
-                                                      astro_params->F_ESC10, astro_params->F_STAR7_MINI, astro_params->F_ESC7_MINI)!=0) {
-                        LOG_ERROR("Detected either an infinite or NaN value in initialise_Nion_Ts_spline_MINI");
-                        return(2);
-                    }
+                                                      astro_params->F_ESC10, astro_params->F_STAR7_MINI, astro_params->F_ESC7_MINI);
 
-                    if(initialise_SFRD_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                                   astro_params->ALPHA_STAR, astro_params->F_STAR10, astro_params->F_STAR7_MINI)!=0) {
-                        LOG_ERROR("Detected either an infinite or NaN value in initialise_SFRD_spline_MINI");
-                        return(2);
-                    }
+                    initialise_SFRD_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
+                                                   astro_params->ALPHA_STAR, astro_params->F_STAR10, astro_params->F_STAR7_MINI);
                 }
             }
             else {
@@ -891,26 +868,20 @@ LOG_SUPER_DEBUG("got density gridpoints");
             }
 
             if (!flag_options->USE_MINI_HALOS){
-                if(initialise_SFRD_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,
+                initialise_SFRD_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,
                                                      max_densities,zpp_growth,R_values, astro_params->M_TURN,
-                                                     astro_params->ALPHA_STAR, astro_params->F_STAR10)!=0) {
-                    LOG_ERROR("Detected either an infinite or NaN value in initialise_SFRD_Conditional_table");
-                    return(2);
-                };
+                                                     astro_params->ALPHA_STAR, astro_params->F_STAR10);
             }
             else{
-                if(initialise_SFRD_Conditional_table_MINI(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,
+                initialise_SFRD_Conditional_table_MINI(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,
                                                           max_densities,zpp_growth,R_values,Mcrit_atom_interp_table,
                                                           astro_params->ALPHA_STAR, astro_params->F_STAR10,
-                                                          astro_params->F_STAR7_MINI)!=0) {
-                    LOG_ERROR("Detected either an infinite or NaN value in initialise_SFRD_Conditional_table_MINI");
-                    return(2);
-                };
+                                                          astro_params->F_STAR7_MINI);
             }
 
         }
 
-LOG_SUPER_DEBUG("Initialised SFRD table");
+        LOG_SUPER_DEBUG("Initialised SFRD table");
 
         zp = redshift;
         prev_zp = prev_redshift;
@@ -921,7 +892,7 @@ LOG_SUPER_DEBUG("Initialised SFRD table");
 
             if(redshift_int_Nion_z < 0 || (redshift_int_Nion_z + 1) > (zpp_interp_points_SFR - 1)) {
                 LOG_ERROR("I have overstepped my allocated memory for the interpolation table Nion_z_val");
-                return(2);
+                Throw(ParameterError);
             }
 
             redshift_table_Nion_z = determine_zpp_min + zpp_bin_width*(float)redshift_int_Nion_z;
@@ -1062,7 +1033,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
                 if(redshift_int_SFRD < 0 || (redshift_int_SFRD + 1) > (zpp_interp_points_SFR - 1)) {
                     LOG_ERROR("I have overstepped my allocated memory for the interpolation table SFRD_val");
-                    return(2);
+                    Throw(ParameterError);
                 }
 
                 redshift_table_SFRD = determine_zpp_min + zpp_bin_width*(float)redshift_int_SFRD;
@@ -1136,7 +1107,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
                 if(zpp_gridpoint1_int < 0 || (zpp_gridpoint1_int + 1) > (zpp_interp_points_SFR - 1)) {
                     LOG_ERROR("I have overstepped my allocated memory for the interpolation table fcoll_R_grid");
-                    return(2);
+                    Throw(ParameterError);
                 }
 
                 zpp_gridpoint1 = determine_zpp_min + zpp_bin_width*(float)zpp_gridpoint1_int;
@@ -1178,11 +1149,6 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 lower_int_limit = FMAX(nu_tau_one_approx(zp, zpp, x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
             }
 
-            if(isfinite(lower_int_limit)==0) {
-                LOG_ERROR("lower_int_limit has returned either an infinity or a NaN");
-                return(2);
-            }
-
             if (filling_factor_of_HI_zp < 0) filling_factor_of_HI_zp = 0; // for global evol; nu_tau_one above treats negative (post_reionization) inferred filling factors properly
 
             // set up frequency integral table for later interpolation for the cell's x_e value
@@ -1193,7 +1159,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
                 if(isfinite(freq_int_heat_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_ion_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_lya_tbl[x_e_ct][R_ct])==0) {
                     LOG_ERROR("One of the frequency interpolation tables has an infinity or a NaN");
-                    return(2);
+                    Throw(ParameterError);
                 }
             }
 
@@ -1250,7 +1216,7 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
                 }
                 if(table_int_boundexceeded==1) {
                     LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of fcoll");
-                    return(2);
+                    Throw(ParameterError);
                 }
             }
             else {
@@ -1281,7 +1247,7 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
                 for(i=0;i<user_params->N_THREADS;i++) {
                     if(table_int_boundexceeded_threaded[i]==1) {
                         LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of fcoll");
-                        return(2);
+                        Throw(ParameterError);
                     }
                 }
             }
@@ -1590,7 +1556,7 @@ LOG_SUPER_DEBUG("looping over box...");
                 for(i=0;i<user_params->N_THREADS;i++) {
                     if(fcoll_int_boundexceeded_threaded[omp_get_thread_num()]==1) {
                         LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the fcoll/nion_splines");
-                        return(2);
+                        Throw(ParameterError);
                     }
                 }
 
@@ -1999,7 +1965,7 @@ LOG_SUPER_DEBUG("looping over box...");
             for(i=0;i<user_params->N_THREADS; i++) {
                 if(table_int_boundexceeded_threaded[i]==1) {
                     LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of dfcoll_dz_val");
-                    return(2);
+                    Throw(ParameterError);
                 }
             }
         }
@@ -2007,7 +1973,7 @@ LOG_SUPER_DEBUG("looping over box...");
         for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
             if(isfinite(this_spin_temp->Ts_box[box_ct])==0) {
                 LOG_ERROR("Estimated spin temperature is either infinite of NaN!");
-                return(2);
+                Throw(ParameterError);
             }
         }
 
@@ -2073,7 +2039,10 @@ LOG_SUPER_DEBUG("finished loop");
 
     free(table_int_boundexceeded_threaded);
     free(fcoll_int_boundexceeded_threaded);
-
+    } // End of try
+    Catch(status){
+        return(status);
+    }
     return(0);
 }
 
