@@ -315,30 +315,6 @@ def _get_config_options(direc, regenerate, write):
         config["write"] if write is None else write,
     )
 
-def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
-    """Return all possible fieldnames in output structs.
-
-    Parameters
-    ----------
-    arrays_only : bool, optional
-        Whether to only return fields that are arrays.
-    lightcone_only : bool, optional
-        Whether to only return fields from classes that evolve with redshift.
-    as_dict : bool, optional
-        Whether to return results as a dictionary of ``quantity: class_name``.
-        Otherwise returns a set of quantities.
-    """
-    classes = _OutputStructZ.__subclasses__()
-    if not lightcone_only:
-        classes.append(InitialConditions)
-
-    attr = "pointer_fields" if arrays_only else "fieldnames"
-
-    if as_dict:
-        return {getattr(cls(), attr): cls.__name__ for cls in classes}
-    else:
-        return {getattr(cls(), attr) for cls in classes}
-
 
 def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
     """Return all possible fieldnames in output structs.
@@ -353,16 +329,6 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
         Whether to return results as a dictionary of ``quantity: class_name``.
         Otherwise returns a set of quantities.
     """
-
-    def get_all_subclasses(cls):
-        all_subclasses = []
-
-        for subclass in cls.__subclasses__():
-            all_subclasses.append(subclass)
-            all_subclasses.extend(get_all_subclasses(subclass))
-
-        return all_subclasses
-
     classes = [cls(redshift=0) for cls in _OutputStructZ._implementations()]
 
     if not lightcone_only:
@@ -2138,7 +2104,9 @@ def run_lightcone(
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
         # Ensure passed quantities are appropriate
-        _fld_names = get_all_fieldnames(arrays_only=True, lightcone_only=True, as_dict=True)
+        _fld_names = get_all_fieldnames(
+            arrays_only=True, lightcone_only=True, as_dict=True
+        )
         assert all(
             q in _fld_names.keys() for q in lightcone_quantities
         ), "invalid lightcone_quantity passed."
