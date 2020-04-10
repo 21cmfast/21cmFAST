@@ -26,7 +26,11 @@ below about running with valgrind). When changing C code, before
 testing, ensure that the new C code is compiled into your environment by running::
 
     $ rm -rf build
-    $ pip install -e .
+    $ pip install .
+
+Note that using a developer install (`-e`) is not recommended as it stores compiled
+objects in the working directory which don't get updated as you change code, and can
+cause problems later.
 
 There are two main purposes you may want to write some C code:
 
@@ -89,6 +93,23 @@ changes in the Python are necessary. However, you may want to consider adding th
 parameter to relevant ``_filter_params`` lists for the output struct wrapping classes in
 the wrapper. These lists control which global parameters affect which output structs,
 and merely provide for more accurate caching mechanisms.
+
+C Function Standards
+~~~~~~~~~~~~~~~~~~~~
+The C-level functions are split into two groups -- low-level "private" functions, and
+higher-level "public" or "API" functions. All API-level functions are callable from
+python (but may also be called from other C functions). All API-level functions are
+currently prototyped in `21cmFAST.h`.
+
+To enable consistency of error-checking in Python (and a reasonable standard for any
+kind of code), we enforce that any API-level function must return an integer status.
+Any "return" objects must be modified in-place (i.e. passed as pointers). This enables
+Python to control the memory access of these variables, and also to receive proper
+error statuses (see below for how we do exception handling). We also adhere to the
+convention that "output" variables should be passed to the function as its last
+argument(s). In the case that _only_ the last argument is meant to be "output", there
+exists a simple wrapper `_call_c_simple` in `wrapper.py` that will neatly handle the
+calling of the function in an intuitive pythonic way.
 
 Running with Valgrind
 ~~~~~~~~~~~~~~~~~~~~~
