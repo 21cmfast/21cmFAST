@@ -34,7 +34,7 @@ the current input parameters, it will be read-in from a caching repository and r
 directly. This behaviour can be tuned in any of the low-level (or high-level) functions
 by setting the `write`, `direc`, `regenerate` and `match_seed` parameters (see docs for
 :func:`initial_conditions` for details). The function :func:`~query_cache` can be used
-to search the cache, and return empty datasets corresponding to each (and fthese can the be
+to search the cache, and return empty datasets corresponding to each (and these can then be
 filled with the data merely by calling ``.read()`` on any data set). Conversely, a
 specific data set can be read and returned as a proper output object by calling the
 :func:`~py21cmfast.cache_tools.readbox` function.
@@ -86,7 +86,6 @@ interpolated onto the lightcone cells):
 """
 import logging
 import os
-import warnings
 from copy import deepcopy
 
 import numpy as np
@@ -96,6 +95,7 @@ from scipy.interpolate import interp1d
 
 from ._cfg import config
 from ._utils import StructWrapper
+from ._utils import _check_compatible_inputs
 from .c_21cmfast import ffi
 from .c_21cmfast import lib
 from .inputs import AstroParams
@@ -104,55 +104,15 @@ from .inputs import FlagOptions
 from .inputs import UserParams
 from .inputs import global_params
 from .outputs import BrightnessTemp
+from .outputs import Coeval
 from .outputs import InitialConditions
 from .outputs import IonizedBox
+from .outputs import LightCone
 from .outputs import PerturbedField
 from .outputs import TsBox
 from .outputs import _OutputStructZ
 
 logger = logging.getLogger("21cmFAST")
-
-
-def _check_compatible_inputs(*datasets, ignore=["redshift"]):
-    """Ensure that all defined input parameters for the provided datasets are equal.
-
-    Parameters
-    ----------
-    datasets : list of :class:`~_utils.OutputStruct`
-        A number of output datasets to cross-check.
-    ignore : list of str
-        Attributes to ignore when ensuring that parameter inputs are the same.
-
-    Raises
-    ------
-    ValueError :
-        If datasets are not compatible.
-    """
-    done = []  # keeps track of inputs we've checked so we don't double check.
-
-    for i, d in enumerate(datasets):
-        # If a dataset is None, just ignore and move on.
-        if d is None:
-            continue
-
-        # noinspection PyProtectedMember
-        for inp in d._inputs:
-            # Skip inputs that we want to ignore
-            if inp in ignore:
-                continue
-
-            if inp not in done:
-                for j, d2 in enumerate(datasets[(i + 1) :]):
-                    if d2 is None:
-                        continue
-
-                    # noinspection PyProtectedMember
-                    if inp in d2._inputs and getattr(d, inp) != getattr(d2, inp):
-                        raise ValueError(
-                            "%s and %s are incompatible"
-                            % (d.__class__.__name__, d2.__class__.__name__)
-                        )
-                done += [inp]
 
 
 def _configure_inputs(
@@ -369,19 +329,8 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
         Whether to return results as a dictionary of ``quantity: class_name``.
         Otherwise returns a set of quantities.
     """
+    classes = [cls(redshift=0) for cls in _OutputStructZ._implementations()]
 
-    def get_all_subclasses(cls):
-        all_subclasses = []
-
-        for subclass in cls.__subclasses__():
-            all_subclasses.append(subclass)
-            all_subclasses.extend(get_all_subclasses(subclass))
-
-        return all_subclasses
-
-    classes = [
-        cls(redshift=0) for cls in get_all_subclasses(_OutputStructZ) if not cls._meta
-    ]
     if not lightcone_only:
         classes.append(InitialConditions())
 
@@ -1768,63 +1717,6 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
     return redshifts[::-1]
 
 
-class Coeval:
-    """A full coeval box with all associated data."""
-
-    def __init__(
-        self,
-        redshift: float,
-        init_box: InitialConditions,
-        perturb: PerturbedField,
-        ib: IonizedBox,
-        bt: BrightnessTemp,
-        st: [TsBox, None] = None,
-        photon_nonconservation_data=None,
-    ):
-        _check_compatible_inputs(init_box, perturb, ib, bt, st, ignore=[])
-
-        self.redshift = redshift
-        self.init_struct = init_box
-        self.perturb_struct = perturb
-        self.ionization_struct = ib
-        self.brightness_temp_struct = bt
-        self.spin_temp_struct = st
-        self.photon_nonconservation_data = photon_nonconservation_data
-
-        # Expose all the fields of the structs to the surface of the Coeval object
-        for box in [init_box, perturb, ib, bt, st]:
-            if box is None:
-                continue
-
-            for field in box.fieldnames:
-                setattr(self, field, getattr(box, field))
-
-    @property
-    def user_params(self):
-        """User params shared by all datasets."""
-        return self.brightness_temp_struct.user_params
-
-    @property
-    def cosmo_params(self):
-        """Cosmo params shared by all datasets."""
-        return self.brightness_temp_struct.cosmo_params
-
-    @property
-    def flag_options(self):
-        """Flag Options shared by all datasets."""
-        return self.brightness_temp_struct.flag_options
-
-    @property
-    def astro_params(self):
-        """Astro params shared by all datasets."""
-        return self.brightness_temp_struct.astro_params
-
-    @property
-    def random_seed(self):
-        """Random seed shared by all datasets."""
-        return self.brightness_temp_struct.random_seed
-
-
 def run_coeval(
     *,
     redshift=None,
@@ -1891,7 +1783,7 @@ def run_coeval(
 
     Returns
     -------
-    coevals : :class:`~Coeval`
+    coevals : :class:`~py21cmfast.outputs.Coeval`
         The full data for the Coeval class, with init boxes, perturbed fields, ionized boxes,
         brightness temperature, and potential data from the conservation of photons. If a
         single redshift was specified, it will return such a class. If multiple redshifts
@@ -1908,10 +1800,12 @@ def run_coeval(
 
         direc, regenerate, write = _get_config_options(direc, regenerate, write)
 
+        singleton = False
         # Ensure perturb is a list of boxes, not just one.
         if perturb is not None:
             if not hasattr(perturb, "__len__"):
                 perturb = [perturb]
+                singleton = True
         else:
             perturb = []
 
@@ -1962,7 +1856,6 @@ def run_coeval(
                 direc,
             )
 
-        singleton = False
         if not hasattr(redshift, "__len__"):
             singleton = True
             redshift = [redshift]
@@ -2101,100 +1994,6 @@ def run_coeval(
         return coevals
 
 
-class LightCone:
-    """A full Lightcone with all associate evolved data."""
-
-    def __init__(
-        self,
-        redshift,
-        user_params,
-        cosmo_params,
-        astro_params,
-        flag_options,
-        lightcones,
-        node_redshifts=None,
-        global_quantities=None,
-        photon_nonconservation_data=None,
-    ):
-        self.redshift = redshift
-        self.user_params = user_params
-        self.cosmo_params = cosmo_params
-        self.astro_params = astro_params
-        self.flag_options = flag_options
-
-        self.node_redshifts = node_redshifts
-
-        if global_quantities:
-            for name, data in global_quantities.items():
-                if name.endswith("_box"):
-                    # Remove the _box because it looks dumb.
-                    setattr(self, "global_" + name[:-4], data)
-                else:
-                    setattr(self, "global_" + name, data)
-
-        self.photon_nonconservation_data = photon_nonconservation_data
-
-        for name, data in lightcones.items():
-            setattr(self, name, data)
-
-        self.quantities = lightcones
-
-    @property
-    def global_xHI(self):
-        """Global neutral fraction function."""
-        warnings.warn(
-            "global_xHI is deprecated. From now on, use global_xH. Will be removed in v3.1"
-        )
-        return self.global_xH
-
-    @property
-    def cell_size(self):
-        """Cell size [Mpc] of the lightcone voxels."""
-        return self.user_params.BOX_LEN / self.user_params.HII_DIM
-
-    @property
-    def lightcone_dimensions(self):
-        """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
-        return (
-            self.user_params.BOX_LEN,
-            self.user_params.BOX_LEN,
-            self.n_slices * self.cell_size,
-        )
-
-    @property
-    def shape(self):
-        """Shape of the lightcone as a 3-tuple."""
-        return self.brightness_temp.shape
-
-    @property
-    def n_slices(self):
-        """Number of redshift slices in the lightcone."""
-        return self.shape[-1]
-
-    @property
-    def lightcone_coords(self):
-        """Co-ordinates [Mpc] of each cell along the redshift axis."""
-        return np.linspace(0, self.lightcone_dimensions[-1], self.n_slices)
-
-    @property
-    def lightcone_distances(self):
-        """Comoving distance to each cell along the redshift axis, from z=0."""
-        return (
-            self.cosmo_params.cosmo.comoving_distance(self.redshift).value
-            + self.lightcone_coords
-        )
-
-    @property
-    def lightcone_redshifts(self):
-        """Redshift of each cell along the redshift axis."""
-        return np.array(
-            [
-                z_at_value(self.cosmo_params.cosmo.comoving_distance, d * units.Mpc)
-                for d in self.lightcone_distances
-            ]
-        )
-
-
 def run_lightcone(
     *,
     redshift=None,
@@ -2254,12 +2053,6 @@ def run_lightcone(
         These may be any of the quantities that can be used in ``lightcone_quantities``.
         The mean is taken over the full 3D cube at each redshift, rather than a 2D
         slice.
-    z_step_factor: float, optional
-        How large the logarithmic steps between redshift are (if required).
-    z_heat_max: float, optional
-        Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift up to which heating sources
-        are required to specify the ionization field. Beyond this, the ionization field is specified directly from
-        the perturbed density field.
     init_box : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
@@ -2285,7 +2078,7 @@ def run_lightcone(
 
     Returns
     -------
-    lightcone : :class:`~LightCone`
+    lightcone : :class:`~py21cmfast.LightCone`
         The lightcone object.
 
     Other Parameters
@@ -2396,7 +2189,6 @@ def run_lightcone(
         st, ib, bt, prev_perturb = None, None, None, None
         lc_index = 0
         box_index = 0
-
         lc = {
             quantity: np.zeros(
                 (user_params.HII_DIM, user_params.HII_DIM, n_lightcone),
@@ -2478,7 +2270,6 @@ def run_lightcone(
             if z < max_redshift:
                 for quantity in lightcone_quantities:
                     data1, data2 = outs[_fld_names[quantity]]
-
                     fnc = interp_functions.get(quantity, "mean")
 
                     n = _interpolate_in_redshift(
@@ -2519,10 +2310,12 @@ def run_lightcone(
             cosmo_params,
             astro_params,
             flag_options,
+            init_box.random_seed,
             lc,
             node_redshifts=scrollz,
             global_quantities=global_q,
             photon_nonconservation_data=photon_nonconservation_data,
+            _globals=dict(global_params.items()),
         )
 
 

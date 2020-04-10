@@ -7,8 +7,8 @@ import numpy as np
 from matplotlib import colors
 
 from . import outputs
-from .wrapper import Coeval
-from .wrapper import LightCone
+from .outputs import Coeval
+from .outputs import LightCone
 
 eor_colour = colors.LinearSegmentedColormap.from_list(
     "EoR",
@@ -252,6 +252,7 @@ def lightcone_sliceplot(
             slice_axis=slice_axis,
             rotate=not vertical,
             cbar_horizontal=not vertical,
+            cmap=kwargs.get("cmap", "EoR" if kind == "brightness_temp" else "viridis"),
             **kwargs,
         )
     else:

@@ -36,6 +36,10 @@ Added
   velocity cubes (option implemented, but not the actual computation yet).
 * Configuration management.
 * global params now has a context manager for changing parameters temporarily.
+* Vastly improved error handling: exceptions can be caught in C code and propagated to
+  Python to inform the user of what's going wrong.
+* Ability to write high-level data (``Coeval`` and ``Lightcone`` objects) directly to
+  file in a simple portable format.
 
 Changed
 ~~~~~~~

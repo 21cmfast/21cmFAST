@@ -1693,6 +1693,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
             else
                 Fstar = astro_params->F_STAR7_MINI*pow(Mhalo_i/1e7,astro_params->ALPHA_STAR);
             if (Fstar > 1.) Fstar = 1;
+
             if (i_unity < 0) { // Find the array number at which Fstar crosses unity.
                 if (astro_params->ALPHA_STAR > 0.) {
                     if ( (1.- Fstar) < FRACT_FLOAT_ERR ) i_unity = i;
