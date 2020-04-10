@@ -62,7 +62,7 @@ double splined_recombination_rate(double z_eff, double gamma12_bg){
     return 0;
   }
   else if (lnGamma >= (RR_lnGamma_min + RR_DEL_lnGamma * ( RR_lnGamma_NPTS - 1 )) ){
-//    fprintf(stderr, "WARNING: splined_recombination_rate: Gamma12 of %g is outside of interpolation array\n", gamma12_bg);
+    LOG_WARNING("splined_recombination_rate: Gamma12 of %g is outside of interpolation array", gamma12_bg);
     lnGamma =  RR_lnGamma_min + RR_DEL_lnGamma * ( RR_lnGamma_NPTS - 1 ) - FRACT_FLOAT_ERR;
   }
 
@@ -74,9 +74,9 @@ void init_MHR(){
   float z, gamma;
 
   // first initialize the MHR parameter look up tables
-  init_C_MHR(); /*initializes the lookup table for the C paremeter in MHR00 model*/
-  init_beta_MHR(); /*initializes the lookup table for the beta paremeter in MHR00 model*/
-  init_A_MHR(); /*initializes the lookup table for the A paremeter in MHR00 model*/
+  init_C_MHR(); /*initializes the lookup table for the C parameter in MHR00 model*/
+  init_beta_MHR(); /*initializes the lookup table for the beta parameter in MHR00 model*/
+  init_A_MHR(); /*initializes the lookup table for the A parameter in MHR00 model*/
 
   // now the recombination rate look up tables
   for (z_ct=0; z_ct < RR_Z_NPTS; z_ct++){

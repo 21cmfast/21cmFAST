@@ -282,6 +282,7 @@ class ParameterError(RuntimeError):
 
 class FatalCError(Exception):
     """An exception representing something going wrong in C."""
+
     def __init__(self, msg=None):
         default_message = "21cmFAST is exiting."
         super().__init__(msg or default_message)
@@ -292,20 +293,35 @@ IOERROR = 1
 GSLERROR = 2
 VALUEERROR = 3
 PARAMETERERROR = 4
+MEMORYALLOCERROR = 5
+
 
 def _process_exitcode(exitcode, fnc, args):
-    """
-    Determine what happens for different values of the (integer) exit code from a C function
-    """
+    """Determine what happens for different values of the (integer) exit code from a C function."""
     if exitcode != SUCCESS:
         logger.error("In function: {}.  Arguments: {}".format(fnc.__name__, args))
 
         if exitcode in (GSLERROR, PARAMETERERROR):
             raise ParameterError
-        elif exitcode in (IOERROR, VALUEERROR):
+        elif exitcode in (IOERROR, VALUEERROR, MEMORYALLOCERROR):
             raise FatalCError
         else:  # Unknown C code
             raise FatalCError("Unknown error in C. Please report this error!")
+
+
+def _call_c_simple(fnc, *args):
+    """Call a simple C function that just returns an object.
+
+    Any such function should be defined such that the last argument is an int pointer generating
+    the status.
+    """
+    # Parse the function to get the type of the last argument
+    cdata = str(ffi.addressof(lib, fnc.__name__))
+    kind = cdata.split("(")[-1].split(")")[0].split(",")[-1]
+    result = ffi.new(kind)
+    status = fnc(*args, result)
+    _process_exitcode(status, fnc, args)
+    return result[0]
 
 
 def _call_c_func(fnc, obj, direc, *args, write=True):
@@ -544,7 +560,19 @@ def compute_luminosity_function(
             c_lfunc,
         )
 
-        _process_exitcode(errcode)
+        _process_exitcode(
+            errcode,
+            lib.ComputeLF,
+            (
+                nbins,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                1,
+                len(redshifts),
+            ),
+        )
 
         lfunc_MINI = np.zeros(len(redshifts) * nbins)
         Muvfunc_MINI = np.zeros(len(redshifts) * nbins)
@@ -574,7 +602,19 @@ def compute_luminosity_function(
             c_lfunc_MINI,
         )
 
-        _process_exitcode(errcode)
+        _process_exitcode(
+            errcode,
+            lib.ComputeLF,
+            (
+                nbins,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                2,
+                len(redshifts),
+            ),
+        )
 
         # redo the Muv range using the faintest (most likely MINI) and the brightest (most likely massive)
         lfunc_all = np.zeros(len(redshifts) * nbins)
@@ -636,7 +676,19 @@ def compute_luminosity_function(
             c_lfunc,
         )
 
-        _process_exitcode(errcode)
+        _process_exitcode(
+            errcode,
+            lib.ComputeLF,
+            (
+                nbins,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                1,
+                len(redshifts),
+            ),
+        )
 
         lfunc[lfunc <= -30] = np.nan
         return Muvfunc, Mhfunc, lfunc
@@ -669,7 +721,19 @@ def compute_luminosity_function(
             c_lfunc_MINI,
         )
 
-        _process_exitcode(errcode)
+        _process_exitcode(
+            errcode,
+            lib.ComputeLF,
+            (
+                nbins,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                2,
+                len(redshifts),
+            ),
+        )
 
         lfunc_MINI[lfunc_MINI <= -30] = np.nan
         return Muvfunc_MINI, Mhfunc_MINI, lfunc_MINI
@@ -706,7 +770,7 @@ def _calibrate_photon_conservation_correction(
 
 def _calc_zstart_photon_cons():
     # Run the C code
-    return lib.ComputeZstart_PhotonCons()
+    return _call_c_simple(lib.ComputeZstart_PhotonCons)
 
 
 def _get_photon_nonconservation_data():
@@ -765,7 +829,7 @@ def _get_photon_nonconservation_data():
         c_int_NP,
     )
 
-    _process_exitcode(errcode)
+    _process_exitcode(errcode, lib.ObtainPhotonConsData, ())
 
     ArrayIndices = [
         IntVal1[0],

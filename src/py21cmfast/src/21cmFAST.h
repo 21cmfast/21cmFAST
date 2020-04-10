@@ -131,7 +131,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
                          struct AstroParams *astro_params, struct FlagOptions *flag_options);
 
 int PhotonCons_Calibration(double *z_estimate, double *xH_estimate, int NSpline);
-double ComputeZstart_PhotonCons();
+int ComputeZstart_PhotonCons(double *zstart);
 
 int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analytic, double *z_cal_data, double *nf_cal_data, int *Ndata_calibration,
                          double *PhotonCons_NFdata, double *PhotonCons_deltaz, int *Ndata_PhotonCons);
@@ -148,3 +148,6 @@ void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoPara
 void free_TsCalcBoxes(struct FlagOptions *flag_options);
 void FreePhotonConsMemory();
 bool photon_cons_allocated = false;
+int SomethingThatCatches(bool sub_func);
+int FunctionThatCatches(bool sub_func, bool pass, double* result);
+void FunctionThatThrows();

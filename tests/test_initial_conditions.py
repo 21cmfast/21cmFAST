@@ -1,6 +1,7 @@
 """
 Various tests of the initial_conditions() function and InitialConditions class.
 """
+from multiprocessing import cpu_count
 
 import pytest
 
@@ -12,7 +13,9 @@ from py21cmfast import wrapper
 @pytest.fixture(scope="module")  # call this fixture once for all tests in this module
 def basic_init_box():
     return wrapper.initial_conditions(
-        regenerate=True, write=False, user_params=wrapper.UserParams(HII_DIM=35)
+        regenerate=True,
+        write=False,
+        user_params=wrapper.UserParams(HII_DIM=35, BOX_LEN=70),
     )
 
 
@@ -31,16 +34,17 @@ def test_box_shape(basic_init_box):
     assert basic_init_box.cosmo_params == wrapper.CosmoParams()
 
 
-def test_modified_cosmo():
+def test_modified_cosmo(basic_init_box):
     """Test using a modified cosmology"""
-    cosmo = wrapper.CosmoParams(sigma_8=0.9)
+    cosmo = wrapper.CosmoParams(SIGMA_8=0.9)
     ic = wrapper.initial_conditions(
         cosmo_params=cosmo,
         regenerate=True,
         write=False,
-        user_params={"HII_DIM": 35, "BOX_LEN": 70},
+        user_params=basic_init_box.user_params,
     )
 
+    assert ic.cosmo_params != basic_init_box.cosmo_params
     assert ic.cosmo_params == cosmo
     assert ic.cosmo_params.SIGMA_8 == cosmo.SIGMA_8
 
@@ -73,6 +77,7 @@ def test_relvels():
             BOX_LEN=300,
             POWER_SPECTRUM=5,
             USE_RELATIVE_VELOCITIES=True,
+            N_THREADS=cpu_count(),  # To make this one a bit faster.
         ),
     )
 

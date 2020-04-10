@@ -101,7 +101,7 @@ void initialize_interp_arrays()
 
     if (input_file == NULL) {
       LOG_ERROR("Can't open input file %s!",input_file_name);
-      Throw 1;
+      Throw(IOError);
     }
 
     // Skip first line

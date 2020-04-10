@@ -19,6 +19,7 @@
 #include <gsl/gsl_spline.h>
 
 #include "21cmFAST.h"
+#include "exceptions.h"
 #include "logger.h"
 #include "Constants.h"
 #include "Globals.h"
@@ -32,6 +33,7 @@
 #include "IonisationBox.c"
 #include "SpinTemperatureBox.c"
 #include "BrightnessTemperatureBox.c"
+
 
 
 // Re-write of init.c for being accessible within the MCMC
@@ -157,7 +159,6 @@ int ComputeInitialConditions(
 
 
     init_ps();
-    LOG_DEBUG("Initalialized Power Spectrum.");
 
 #pragma omp parallel shared(HIRES_box,HIRES_box_vcb_x,HIRES_box_vcb_y,HIRES_box_vcb_z,r) \
                     private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,p,a,b,p_vcb) num_threads(user_params->N_THREADS)

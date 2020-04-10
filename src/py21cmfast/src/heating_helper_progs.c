@@ -4,7 +4,7 @@ struct AstroParams *astro_params_hf;
 struct FlagOptions *flag_options_hf;
 
 int n_redshifts_1DTable;
-double zbin_width_1DTable,zmin_1DTable,zmax_1DTable,zbin_width_1DTable;
+double zbin_width_1DTable,zmin_1DTable,zmax_1DTable;
 
 float determine_zpp_min, zpp_bin_width;
 
@@ -1078,22 +1078,18 @@ double nu_tau_one_approx_MINI(double zp, double zpp, double x_e, double HI_filli
     double relative_error = 0.02;
     nu_tau_one_params_approx p;
 
-//    if (DEBUG_ON){
-//        printf("in nu tau one, called with parameters: zp=%f, zpp=%f, x_e=%e, HI_filling_at_zp=%e\n", zp, zpp, x_e, HI_filling_factor_zp);
-//    }
-
     // check if too ionized
     if (x_e > 0.9999){
-        //        fprintf(stderr,"Ts.c: WARNING: x_e value is too close to 1 for convergence in nu_tau_one\n");
-        return -1;
+        LOG_ERROR("x_e value is too close to 1 for convergence.");
+        Throw(ParameterError);
     }
 
     // select solver and allocate memory
     T = gsl_root_fsolver_brent;
     s = gsl_root_fsolver_alloc(T); // non-derivative based Brent method
     if (!s){
-        printf("Ts.c: Unable to allocate memory in function nu_tau_one!\n");
-        return -1;
+        LOG_ERROR("Unable to allocate memory.");
+        Throw(MemoryAllocError);
     }
 
     //check if lower bound has null
@@ -1130,6 +1126,12 @@ double nu_tau_one_approx_MINI(double zp, double zpp, double x_e, double HI_filli
 
     // deallocate and return
     gsl_root_fsolver_free (s);
+
+    if(!isfinite(r)){
+        LOG_ERROR("Value for nu_tau_one_approx_MINI is infinite or NAN");
+        Throw(ParameterError);
+    }
+
     return r;
 }
 
@@ -1145,7 +1147,7 @@ double nu_tau_one_approx(double zp, double zpp, double x_e, double HI_filling_fa
 
     // check if too ionized
     if (x_e > 0.9999){
-        return -1;
+        Throw(ParameterError);
     }
 
     // select solver and allocate memory
@@ -1153,7 +1155,7 @@ double nu_tau_one_approx(double zp, double zpp, double x_e, double HI_filling_fa
     s = gsl_root_fsolver_alloc(T); // non-derivative based Brent method
     if (!s){
         LOG_ERROR("Unable to allocate memory.");
-        return -1;
+        Throw(MemoryAllocError);
     }
 
     //check if lower bound has null
@@ -1188,6 +1190,12 @@ double nu_tau_one_approx(double zp, double zpp, double x_e, double HI_filling_fa
 
     // deallocate and return
     gsl_root_fsolver_free (s);
+
+    if(!isfinite(r)){
+        LOG_ERROR("nu_tau_one_approx is infinite or NAN");
+        Throw(ParameterError);
+    }
+
     return r;
 }
 

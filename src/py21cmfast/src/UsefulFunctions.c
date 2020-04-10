@@ -833,3 +833,40 @@ double reionization_feedback(float z, float Gamma_halo_HII, float z_IN){
     return REION_SM13_M0 * pow(HALO_BIAS * Gamma_halo_HII, REION_SM13_A) * pow((1.+z)/10, REION_SM13_B) *
         pow(1 - pow((1.+z)/(1.+z_IN), REION_SM13_C), REION_SM13_D);
 }
+
+
+/*
+    The following functions are simply for testing the exception framework
+*/
+void FunctionThatThrows(){
+    Throw(ParameterError);
+}
+
+int SomethingThatCatches(bool sub_func){
+    // A simple function that catches a thrown error.
+    int status;
+    Try{
+        if(sub_func) FunctionThatThrows();
+        else Throw(ParameterError);
+    }
+    Catch(status){
+        return status;
+    }
+    return 0;
+}
+
+int FunctionThatCatches(bool sub_func, bool pass, double *result){
+    int status;
+    if(!pass){
+        Try{
+            if(sub_func) FunctionThatThrows();
+            else Throw(ParameterError);
+        }
+        Catch(status){
+            LOG_DEBUG("Caught the problem with status %d.", status);
+            return status;
+        }
+    }
+    *result = 5.0;
+    return 0;
+}

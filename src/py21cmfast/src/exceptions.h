@@ -10,3 +10,6 @@ struct exception_context the_exception_context[1];
 #define GSLError 2
 #define ValueError 3
 #define ParameterError 4
+#define MemoryAllocError 5
+
+#define GSL_ERROR(status) if(status>0) {LOG_ERROR("GSL Error Encountered (Code = %d): %s", status, gsl_strerror(status)); Throw(GSLError);}
