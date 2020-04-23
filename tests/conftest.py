@@ -24,7 +24,6 @@ def setup_and_teardown_package(tmpdirec):
 
     # Set default global parameters for all tests
     global_params.ZPRIME_STEP_FACTOR = 1.2
-    config["direc"] = tmpdirec.strpath
 
     # Set default config parameters for all tests.
     config["direc"] = str(tmpdirec)
