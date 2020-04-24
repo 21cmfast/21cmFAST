@@ -23,16 +23,16 @@ def user_params():
 
 @pytest.fixture(scope="module")
 def cfg(user_params, tmpdirec):
-    with open(os.path.join(tmpdirec.strpath, "cfg.yml"), "w") as f:
+    with open(tmpdirec / "cfg.yml", "w") as f:
         yaml.dump({"user_params": user_params.self}, f)
-    return os.path.join(tmpdirec.strpath, "cfg.yml")
+    return tmpdirec / "cfg.yml"
 
 
 def test_init(tmpdirec, user_params, runner, cfg):
     # Run the CLI
     result = runner.invoke(
         cli.main,
-        ["init", "--direc", tmpdirec.strpath, "--seed", "101010", "--config", cfg],
+        ["init", "--direc", str(tmpdirec), "--seed", "101010", "--config", cfg],
     )
 
     if result.exception:
@@ -41,7 +41,7 @@ def test_init(tmpdirec, user_params, runner, cfg):
     assert result.exit_code == 0
 
     ic = InitialConditions(user_params=user_params, random_seed=101010)
-    assert ic.exists(direc=tmpdirec.strpath)
+    assert ic.exists(direc=str(tmpdirec))
 
 
 def test_init_param_override(tmpdirec, runner, cfg):
@@ -51,7 +51,7 @@ def test_init_param_override(tmpdirec, runner, cfg):
         [
             "init",
             "--direc",
-            tmpdirec.strpath,
+            str(tmpdirec),
             "--seed",
             "102030",
             "--config",
@@ -69,7 +69,7 @@ def test_init_param_override(tmpdirec, runner, cfg):
     boxes = [
         res[1]
         for res in query_cache(
-            direc=tmpdirec.strpath, kind="InitialConditions", seed=102030
+            direc=str(tmpdirec), kind="InitialConditions", seed=102030
         )
     ]
 
@@ -91,7 +91,7 @@ def test_perturb(tmpdirec, runner, cfg):
             "perturb",
             "35",
             "--direc",
-            tmpdirec.strpath,
+            str(tmpdirec),
             "--seed",
             "101010",
             "--config",
@@ -109,7 +109,7 @@ def test_spin(tmpdirec, runner, cfg):
             "spin",
             "34.9",
             "--direc",
-            tmpdirec.strpath,
+            str(tmpdirec),
             "--seed",
             "101010",
             "--config",
@@ -127,7 +127,7 @@ def test_spin_heatmax(tmpdirec, runner, cfg):
             "spin",
             "34.9",
             "--direc",
-            tmpdirec.strpath,
+            str(tmpdirec),
             "--seed",
             "101010",
             "--config",
@@ -145,7 +145,7 @@ def test_ionize(tmpdirec, runner, cfg):
             "ionize",
             "35",
             "--direc",
-            tmpdirec.strpath,
+            str(tmpdirec),
             "--seed",
             "101010",
             "--config",
@@ -163,7 +163,7 @@ def test_coeval(tmpdirec, runner, cfg):
             "coeval",
             "35",
             "--direc",
-            tmpdirec.strpath,
+            str(tmpdirec),
             "--seed",
             "101010",
             "--config",
@@ -181,7 +181,7 @@ def test_lightcone(tmpdirec, runner, cfg):
             "lightcone",
             "30",
             "--direc",
-            tmpdirec.strpath,
+            str(tmpdirec),
             "--seed",
             "101010",
             "--config",
@@ -196,7 +196,7 @@ def test_lightcone(tmpdirec, runner, cfg):
 def test_query(tmpdirec, runner, cfg):
     # Run the CLI
     result = runner.invoke(
-        cli.main, ["query", "--direc", tmpdirec.strpath, "--clear"]
+        cli.main, ["query", "--direc", str(tmpdirec), "--clear"]
     )  # Clear everything in tmpdirec
     assert result.exit_code == 0
 
@@ -204,12 +204,12 @@ def test_query(tmpdirec, runner, cfg):
     # Run the CLI
     result = runner.invoke(
         cli.main,
-        ["init", "--direc", tmpdirec.strpath, "--seed", "101010", "--config", cfg],
+        ["init", "--direc", str(tmpdirec), "--seed", "101010", "--config", cfg],
     )
     assert result.exit_code == 0
 
     result = runner.invoke(
-        cli.main, ["query", "--direc", tmpdirec.strpath, "--seed", "101010"]
+        cli.main, ["query", "--direc", str(tmpdirec), "--seed", "101010"]
     )
 
     assert result.output.startswith("1 Data Sets Found:")

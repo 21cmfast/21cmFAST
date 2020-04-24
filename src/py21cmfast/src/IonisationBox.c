@@ -14,14 +14,17 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                        struct IonizedBox *previous_ionize_box,
                        struct TsBox *spin_temp, struct IonizedBox *box) {
 
-LOG_DEBUG("input values:");
-LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
-#if LOG_LEVEL >= DEBUG_LEVEL
-    writeUserParams(user_params);
-    writeCosmoParams(cosmo_params);
-    writeAstroParams(flag_options, astro_params);
-    writeFlagOptions(flag_options);
-#endif
+    int status;
+
+    Try{ // This Try brackets the whole function, so we don't indent.
+    LOG_DEBUG("input values:");
+    LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
+    #if LOG_LEVEL >= DEBUG_LEVEL
+        writeUserParams(user_params);
+        writeCosmoParams(cosmo_params);
+        writeAstroParams(flag_options, astro_params);
+        writeFlagOptions(flag_options);
+    #endif
 
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
@@ -34,39 +37,34 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     fftwf_cleanup_threads();
 
     char wisdom_filename[500];
-    char filename[500];
-    FILE *F;
     fftwf_plan plan;
 
     // Other parameters used in the code
-    int i,j,k,ii, x,y,z, N_min_cell, LAST_FILTER_STEP, short_completely_ionised,skip_deallocate,first_step_R;
-    int n_x, n_y, n_z,counter, N_halos_in_cell;
+    int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R, short_completely_ionised;
+    int counter, N_halos_in_cell;
     unsigned long long ct;
 
-    float growth_factor, pixel_mass, cell_length_factor, M_MIN, nf;
-    float f_coll_crit, erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, sqrtarg, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR;
+    float growth_factor, pixel_mass, cell_length_factor, M_MIN;
+    float erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR, growth_factor_dz;
     float Splined_Fcoll_MINI, prev_dens, ION_EFF_FACTOR_MINI, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI;
     float ave_M_coll_cell, ave_N_min_cell;
 
     double global_xH, ST_over_PS, f_coll, R, stored_R, f_coll_min;
     double ST_over_PS_MINI, f_coll_MINI, f_coll_min_MINI;
 
-    double t_ast, dfcolldt, Gamma_R_prefactor, rec, dNrec;
-    double dfcolldt_MINI, Gamma_R_prefactor_MINI;
-    float growth_factor_dz, fabs_dtdz, ZSTEP, Gamma_R, z_eff;
+    double t_ast,  Gamma_R_prefactor, rec, dNrec;
+    double Gamma_R_prefactor_MINI;
+    float fabs_dtdz, ZSTEP, z_eff;
     const float dz = 0.01;
-
-    float redshift_table_fcollz,redshift_table_fcollz_Xray;
-    int redshift_int_fcollz,redshift_int_fcollz_Xray;
 
     float dens_val, overdense_small_min, overdense_small_bin_width, overdense_small_bin_width_inv;
     float overdense_large_min, overdense_large_bin_width, overdense_large_bin_width_inv;
     float prev_dens_val, prev_overdense_small_min, prev_overdense_small_bin_width, prev_overdense_small_bin_width_inv;
     float prev_overdense_large_min, prev_overdense_large_bin_width, prev_overdense_large_bin_width_inv;
-    float log10Mturn_val, log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
-    float log10Mturn_val_MINI, log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
+    float log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
+    float log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
 
-    int overdense_int, overdense_int_boundexceeded;
+    int overdense_int;
     int something_finite_or_infinite = 0;
     int log10_Mturnover_MINI_int, log10_Mturnover_int;
     int *overdense_int_boundexceeded_threaded = calloc(user_params->N_THREADS,sizeof(int));
@@ -85,7 +83,6 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     float Mlim_Fstar_MINI, Mlim_Fesc_MINI;
 
     float Mcrit_atom, log10_Mcrit_atom, log10_Mcrit_mol;
-    //fftwf_complex *Mcrit_LW_grid, *Mcrit_RE_grid;
     fftwf_complex *log10_Mturnover_unfiltered=NULL, *log10_Mturnover_filtered=NULL;
     fftwf_complex *log10_Mturnover_MINI_unfiltered=NULL, *log10_Mturnover_MINI_filtered=NULL;
     float log10_Mturnover, log10_Mturnover_MINI, Mcrit_LW, Mcrit_RE, Mturnover, Mturnover_MINI;
@@ -93,7 +90,7 @@ LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
     float min_density, max_density;
     float prev_min_density, prev_max_density;
 
-    float adjusted_redshift, required_NF, stored_redshift, adjustment_factor, future_z;
+    float stored_redshift, adjustment_factor;
 
     gsl_rng * r[user_params->N_THREADS];
 
@@ -380,16 +377,14 @@ LOG_SUPER_DEBUG("previous density field calculated");
             Mcrit_atom              = atomic_cooling_threshold(redshift);
             log10_Mcrit_atom        = log10(Mcrit_atom);
             log10_Mcrit_mol         = log10(lyman_werner_threshold(redshift, 0.));
-            //Mcrit_RE_grid           = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-            //Mcrit_LW_grid           = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             log10_Mturnover_unfiltered      = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             log10_Mturnover_filtered        = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             log10_Mturnover_MINI_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             log10_Mturnover_MINI_filtered   = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
             if (!log10_Mturnover_unfiltered || !log10_Mturnover_filtered || !log10_Mturnover_MINI_unfiltered || !log10_Mturnover_MINI_filtered){// || !Mcrit_RE_grid || !Mcrit_LW_grid)
-                LOG_ERROR("IonisationBox.c: Error allocating memory for Mturnover or Mturnover_MINI boxes");
-                return(2);
-             }
+                LOG_ERROR("Error allocating memory for Mturnover or Mturnover_MINI boxes");
+                Throw(MemoryAllocError);
+            }
 LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular halos...");
 
 #pragma omp parallel shared(redshift,previous_ionize_box,spin_temp,Mcrit_atom,log10_Mturnover_unfiltered,log10_Mturnover_MINI_unfiltered)\
@@ -450,18 +445,10 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
 LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
 
     if(!flag_options->USE_TS_FLUCT) {
-        if(initialiseSigmaMInterpTable(M_MIN,1e20)!=0) {
-            LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
-            return(2);
-        }
+        initialiseSigmaMInterpTable(M_MIN,1e20);
     }
-    else{
-        if (flag_options->USE_MINI_HALOS){
-            if(initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e20)!=0) {
-                LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
-                return(2);
-            }
-        }
+    else if(flag_options->USE_MINI_HALOS){
+        initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e20);
     }
 
 LOG_SUPER_DEBUG("sigma table has been initialised");
@@ -526,14 +513,14 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
 
     if(isfinite(box->mean_f_coll)==0) {
         LOG_ERROR("Mean collapse fraction is either finite or NaN!");
-        return(2);
+        Throw(ParameterError);
     }
 LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %e", box->mean_f_coll);
 
     if (flag_options->USE_MINI_HALOS){
         if(isfinite(box->mean_f_coll_MINI)==0) {
             LOG_ERROR("Mean collapse fraction of MINI is either finite or NaN!");
-            return(2);
+            Throw(ParameterError);
         }
 LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f_coll_MINI);
     }
@@ -669,8 +656,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
-
-LOG_SUPER_DEBUG("more ffts performed");
         }
 
         if(flag_options->USE_TS_FLUCT) {
@@ -685,8 +670,8 @@ LOG_SUPER_DEBUG("more ffts performed");
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
 
-            LOG_SUPER_DEBUG("more ffts performed");
         }
+        LOG_SUPER_DEBUG("more ffts performed");
 
 
         if (flag_options->INHOMO_RECO) {
@@ -701,8 +686,6 @@ LOG_SUPER_DEBUG("more ffts performed");
             }
             fftwf_execute(plan);
             fftwf_destroy_plan(plan);
-
-            LOG_SUPER_DEBUG("more ffts performed");
         }
 
         // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from
@@ -1084,33 +1067,25 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                 initialiseGL_Nion(NGL_SFR, M_MIN,massofscaleR);
 
                 if(flag_options->USE_MINI_HALOS){
-                    if(initialise_Nion_General_spline_MINI(redshift,Mcrit_atom,min_density,max_density,massofscaleR,M_MIN,
+                    initialise_Nion_General_spline_MINI(redshift,Mcrit_atom,min_density,max_density,massofscaleR,M_MIN,
                                                            log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                                            astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
                                                            astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,astro_params->F_STAR7_MINI,
-                                                           astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI)!=0) {
-                        LOG_ERROR("I have encountered an infinite or a NaN value in initialise_Nion_General_spline_MINI");
-                        return(2);
-                    }
-                    if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
-                        if(initialise_Nion_General_spline_MINI_prev(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,
+                                                           astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI);
+
+                    if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
+                        initialise_Nion_General_spline_MINI_prev(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,
                                                                     massofscaleR,M_MIN,log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,
                                                                     log10Mturn_max_MINI,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                                                     astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,
                                                                     astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
-                                                                    Mlim_Fstar_MINI, Mlim_Fesc_MINI)!=0) {
-                            LOG_ERROR("I have encountered an infinite or a NaN value in initialise_Nion_General_spline_MINI for prev");
-                            return(2);
-                        }
+                                                                    Mlim_Fstar_MINI, Mlim_Fesc_MINI);
                     }
                 }
                 else{
-                    if(initialise_Nion_General_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,
+                    initialise_Nion_General_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,
                                                       astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                      astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc)!=0) {
-                        LOG_ERROR("I have encountered an infinite or a NaN value in initialise_Nion_General_spline");
-                        return(2);
-                    }
+                                                      astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
                 }
             } else {
 
@@ -1132,7 +1107,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
             // renormalize the collapse fraction so that the mean matches ST,
             // since we are using the evolved (non-linear) density field
-#pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded,log10_Nion_spline,Nion_spline,erfc_denom,erfc_arg_min,\
+#pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded_threaded,log10_Nion_spline,Nion_spline,erfc_denom,erfc_arg_min,\
                             erfc_arg_max,InvArgBinWidth,ArgBinWidth,ERFC_VALS_DIFF,ERFC_VALS,log10_Mturnover_filtered,log10Mturn_min,log10Mturn_bin_width_inv, \
                             log10_Mturnover_MINI_filtered,log10Mturn_bin_width_inv_MINI,log10_Nion_spline_MINI,prev_deltax_filtered,previous_ionize_box,ION_EFF_FACTOR,\
                             prev_overdense_small_min,prev_overdense_small_bin_width_inv,prev_log10_Nion_spline,prev_log10_Nion_spline_MINI,prev_overdense_large_min,\
@@ -1215,7 +1190,9 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                     else {
                                         if (curr_dens < 0.99*Deltac) {
 
+
                                             dens_val = (curr_dens - overdense_large_min)*overdense_large_bin_width_inv;
+
 
                                             overdense_int = (int)floorf( dens_val );
 
@@ -1249,7 +1226,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                     prev_dens = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
-                                    if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
+                                    if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
                                         if (prev_dens < global_params.CRIT_DENS_TRANSITION){
 
                                             if (prev_dens < -1.) {
@@ -1338,6 +1315,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                             if (overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
                                                 overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                                LOG_INFO("overdense_int in thread %d got value %d (exceeded bounds). Current density=%g", omp_get_thread_num(), overdense_int, dens_val);
                                             }
 
                                             Splined_Fcoll = log10_Nion_spline[overdense_int] * (1 + (float) overdense_int - dens_val) + \
@@ -1354,6 +1332,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                                             if (overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
                                                 overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                                LOG_INFO("overdense_int in thread %d got value %d (exceeded bounds). Current density=%g", omp_get_thread_num(), overdense_int, dens_val);
                                             }
 
                                             Splined_Fcoll = Nion_spline[overdense_int] * (1 + (float) overdense_int - dens_val) + \
@@ -1395,7 +1374,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                             x,y,z,curr_dens,prev_dens,previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
                                             Splined_Fcoll, prev_Splined_Fcoll, curr_dens, prev_dens, \
                                             log10_Mturnover, *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)));
-//                                    return(2);
+                                    Throw(ParameterError);
                                 }
 
                                 if (Splined_Fcoll_MINI > 1.) Splined_Fcoll_MINI = 1.;
@@ -1428,7 +1407,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                               log10_Nion_spline_MINI[overdense_int +1+ NSFR_low* log10_Mturnover_MINI_int   ], \
                                               log10_Nion_spline_MINI[overdense_int   + NSFR_low*(log10_Mturnover_MINI_int+1)],  \
                                               log10_Nion_spline_MINI[overdense_int +1+ NSFR_low*(log10_Mturnover_MINI_int+1)]);
-//                                    return(2);
+                                    Throw(ParameterError);
                                 }
                             }
                             else{
@@ -1443,18 +1422,18 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
             for (i = 0; i < user_params->N_THREADS; i++) {
                 if (overdense_int_boundexceeded_threaded[i] == 1) {
                     LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines");
-                    return (2);
+                    Throw(ParameterError);
                 }
             }
             if(isfinite(f_coll)==0) {
                 LOG_ERROR("f_coll is either infinite or NaN!");
-                return (2);
+                Throw(ParameterError);
             }
             f_coll /= (double) HII_TOT_NUM_PIXELS;
 
             if(isfinite(f_coll_MINI)==0) {
                 LOG_ERROR("f_coll_MINI is either finite or NaN!");
-                return(2);
+                Throw(ParameterError);
             }
 
             f_coll_MINI /= (double) HII_TOT_NUM_PIXELS;
@@ -1491,9 +1470,9 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
             Gamma_R_prefactor_MINI /= t_ast;
 
             if (global_params.FIND_BUBBLE_ALGORITHM != 2 && global_params.FIND_BUBBLE_ALGORITHM != 1) { // center method
-                LOG_ERROR("Incorrect choice of find bubble algorithm: %i\nAborting...",
+                LOG_ERROR("Incorrect choice of find bubble algorithm: %i",
                           global_params.FIND_BUBBLE_ALGORITHM);
-                return (2);
+                Throw(ValueError);
             }
 
 
@@ -1660,9 +1639,9 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
             for (y=0; y<user_params->HII_DIM; y++){
                 for (z=0; z<user_params->HII_DIM; z++){
                     if(isfinite(box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)])==0){
-                        LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong \
-                                  in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
-                        return(2);
+                        LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong "\
+                                  "in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
+                        Throw(ParameterError);
                     }
                 }
             }
@@ -1685,7 +1664,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
         if (isfinite(global_xH) == 0) {
             LOG_ERROR(
                     "Neutral fraction is either infinite or a Nan. Something has gone wrong in the ionisation calculation!");
-            return (2);
+            Throw(ParameterError);
         }
 
         // update the N_rec field
@@ -1727,7 +1706,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
             if (something_finite_or_infinite) {
                 LOG_ERROR("Recombinations have returned either an infinite or NaN value.");
-                return (2);
+                Throw(ParameterError);
             }
         }
 
@@ -1794,6 +1773,11 @@ LOG_SUPER_DEBUG("freed fftw boxes");
 
     free(overdense_int_boundexceeded_threaded);
 
-LOG_DEBUG("finished!\n");
+    LOG_DEBUG("finished!\n");
+
+    } // End of Try()
+    Catch(status){
+        return(status);
+    }
     return(0);
 }

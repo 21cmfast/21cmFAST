@@ -34,7 +34,7 @@ the current input parameters, it will be read-in from a caching repository and r
 directly. This behaviour can be tuned in any of the low-level (or high-level) functions
 by setting the `write`, `direc`, `regenerate` and `match_seed` parameters (see docs for
 :func:`initial_conditions` for details). The function :func:`~query_cache` can be used
-to search the cache, and return empty datasets corresponding to each (and fthese can the be
+to search the cache, and return empty datasets corresponding to each (and these can then be
 filled with the data merely by calling ``.read()`` on any data set). Conversely, a
 specific data set can be read and returned as a proper output object by calling the
 :func:`~py21cmfast.cache_tools.readbox` function.
@@ -96,6 +96,7 @@ from scipy.interpolate import interp1d
 
 from ._cfg import config
 from ._utils import StructWrapper
+from ._utils import _check_compatible_inputs
 from .c_21cmfast import ffi
 from .c_21cmfast import lib
 from .inputs import AstroParams
@@ -104,56 +105,15 @@ from .inputs import FlagOptions
 from .inputs import UserParams
 from .inputs import global_params
 from .outputs import BrightnessTemp
+from .outputs import Coeval
 from .outputs import InitialConditions
 from .outputs import IonizedBox
+from .outputs import LightCone
 from .outputs import PerturbedField
 from .outputs import TsBox
 from .outputs import _OutputStructZ
 
 logger = logging.getLogger("21cmFAST")
-
-
-def _check_compatible_inputs(*datasets, ignore=["redshift"]):
-    """Ensure that all defined input parameters for the provided datasets are equal.
-
-    Parameters
-    ----------
-    datasets : list of :class:`~_utils.OutputStruct`
-        A number of output datasets to cross-check.
-    ignore : list of str
-        Attributes to ignore when ensuring that parameter inputs are the same.
-
-    Raises
-    ------
-    ValueError :
-        If datasets are not compatible.
-
-    """
-    done = []  # keeps track of inputs we've checked so we don't double check.
-
-    for i, d in enumerate(datasets):
-        # If a dataset is None, just ignore and move on.
-        if d is None:
-            continue
-
-        # noinspection PyProtectedMember
-        for inp in d._inputs:
-            # Skip inputs that we want to ignore
-            if inp in ignore:
-                continue
-
-            if inp not in done:
-                for j, d2 in enumerate(datasets[(i + 1) :]):
-                    if d2 is None:
-                        continue
-
-                    # noinspection PyProtectedMember
-                    if inp in d2._inputs and getattr(d, inp) != getattr(d2, inp):
-                        raise ValueError(
-                            "%s and %s are incompatible"
-                            % (d.__class__.__name__, d2.__class__.__name__)
-                        )
-                done += [inp]
 
 
 def _configure_inputs(
@@ -284,28 +244,61 @@ class ParameterError(RuntimeError):
 class FatalCError(Exception):
     """An exception representing something going wrong in C."""
 
-    def __init__(self):
+    def __init__(self, msg=None):
         default_message = "21cmFAST is exiting."
-        super().__init__(default_message)
+        super().__init__(msg or default_message)
 
 
-def _process_exitcode(exitcode):
+SUCCESS = 0
+IOERROR = 1
+GSLERROR = 2
+VALUEERROR = 3
+PARAMETERERROR = 4
+MEMORYALLOCERROR = 5
+
+
+def _process_exitcode(exitcode, fnc, args):
     """Determine what happens for different values of the (integer) exit code from a C function."""
-    if exitcode == 0:
-        pass
-    elif exitcode == 1:
-        raise ParameterError
-    elif exitcode == 2:
-        raise FatalCError
+    if exitcode != SUCCESS:
+        logger.error("In function: {}.  Arguments: {}".format(fnc.__name__, args))
+
+        if exitcode in (GSLERROR, PARAMETERERROR):
+            raise ParameterError
+        elif exitcode in (IOERROR, VALUEERROR, MEMORYALLOCERROR):
+            raise FatalCError
+        else:  # Unknown C code
+            raise FatalCError("Unknown error in C. Please report this error!")
+
+
+def _call_c_simple(fnc, *args):
+    """Call a simple C function that just returns an object.
+
+    Any such function should be defined such that the last argument is an int pointer generating
+    the status.
+    """
+    # Parse the function to get the type of the last argument
+    cdata = str(ffi.addressof(lib, fnc.__name__))
+    kind = cdata.split("(")[-1].split(")")[0].split(",")[-1]
+    result = ffi.new(kind)
+    status = fnc(*args, result)
+    _process_exitcode(status, fnc, args)
+    return result[0]
 
 
 def _call_c_func(fnc, obj, direc, *args, write=True):
     logger.debug("Calling {} with args: {}".format(fnc.__name__, args))
-    exitcode = fnc(
-        *[arg() if isinstance(arg, StructWrapper) else arg for arg in args], obj()
-    )
+    try:
+        exitcode = fnc(
+            *[arg() if isinstance(arg, StructWrapper) else arg for arg in args], obj()
+        )
+    except TypeError as e:
+        logger.error(
+            f"Arguments to {fnc.__name__}: "
+            f"{[arg() if isinstance(arg, StructWrapper) else arg for arg in args]}"
+        )
+        raise e
 
-    _process_exitcode(exitcode)
+    _process_exitcode(exitcode, fnc, args)
     obj.filled = True
     obj._expose()
 
@@ -347,9 +340,8 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
 
         return all_subclasses
 
-    classes = [
-        cls(redshift=0) for cls in get_all_subclasses(_OutputStructZ) if not cls._meta
-    ]
+    classes = [cls(redshift=0) for cls in _OutputStructZ._implementations()]
+
     if not lightcone_only:
         classes.append(InitialConditions())
 
@@ -418,7 +410,7 @@ def compute_luminosity_function(
     flag_options=None,
     nbins=100,
     mturnovers=None,
-    mturnovers_MINI=None,
+    mturnovers_mini=None,
     component=0,
 ):
     """Compute a the luminosity function over a given number of bins and redshifts.
@@ -440,7 +432,7 @@ def compute_luminosity_function(
     mturnovers : array-like, optional
         The turnover mass at each redshift for massive halos (ACGs).
         Only required when USE_MINI_HALOS is True.
-    mturnovers_MINI : array-like, optional
+    mturnovers_mini : array-like, optional
         The turnover mass at each redshift for minihalos (MCGs).
         Only required when USE_MINI_HALOS is True.
     component : int, optional
@@ -465,7 +457,7 @@ def compute_luminosity_function(
 
     redshifts = np.array(redshifts, dtype="float32")
     if flag_options.USE_MINI_HALOS:
-        if component == 0 or component == 1:
+        if component in [0, 1]:
             if mturnovers is None:
                 logger.warning(
                     "calculating ACG LFs with mini-halo feature requires users to specify mturnovers!"
@@ -475,21 +467,22 @@ def compute_luminosity_function(
             mturnovers = np.array(mturnovers, dtype="float32")
             if len(mturnovers) != len(redshifts):
                 logger.warning(
-                    "mturnovers(%d) does not match the lenth of redshifts (%d)"
+                    "mturnovers(%d) does not match the length of redshifts (%d)"
                     % (len(mturnovers), len(redshifts))
                 )
                 return None, None, None
-        if component == 0 or component == 2:
-            if mturnovers_MINI is None:
+        if component in [0, 2]:
+            if mturnovers_mini is None:
                 logger.warning(
-                    "calculating MCG LFs with mini-halo feature requires users to specify mturnovers_MINI!"
+                    "calculating MCG LFs with mini-halo feature requires users to "
+                    "specify mturnovers_MINI!"
                 )
                 return None, None, None
 
-            mturnovers_MINI = np.array(mturnovers, dtype="float32")
-            if len(mturnovers_MINI) != len(redshifts):
+            mturnovers_mini = np.array(mturnovers, dtype="float32")
+            if len(mturnovers_mini) != len(redshifts):
                 logger.warning(
-                    "mturnovers_MINI(%d) does not match the lenth of redshifts (%d)"
+                    "mturnovers_MINI(%d) does not match the length of redshifts (%d)"
                     % (len(mturnovers), len(redshifts))
                 )
                 return None, None, None
@@ -498,7 +491,7 @@ def compute_luminosity_function(
         mturnovers = np.zeros(len(redshifts)) + astro_params.M_TURN
         component = 1
 
-    if component == 0 or component == 1:
+    if component == 0:
         lfunc = np.zeros(len(redshifts) * nbins)
         Muvfunc = np.zeros(len(redshifts) * nbins)
         Mhfunc = np.zeros(len(redshifts) * nbins)
@@ -527,9 +520,20 @@ def compute_luminosity_function(
             c_lfunc,
         )
 
-        _process_exitcode(errcode)
+        _process_exitcode(
+            errcode,
+            lib.ComputeLF,
+            (
+                nbins,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                1,
+                len(redshifts),
+            ),
+        )
 
-    if component == 0 or component == 2:
         lfunc_MINI = np.zeros(len(redshifts) * nbins)
         Muvfunc_MINI = np.zeros(len(redshifts) * nbins)
         Mhfunc_MINI = np.zeros(len(redshifts) * nbins)
@@ -552,24 +556,26 @@ def compute_luminosity_function(
             2,
             len(redshifts),
             ffi.cast("float *", ffi.from_buffer(redshifts)),
-            ffi.cast("float *", ffi.from_buffer(mturnovers_MINI)),
+            ffi.cast("float *", ffi.from_buffer(mturnovers_mini)),
             c_Muvfunc_MINI,
             c_Mhfunc_MINI,
             c_lfunc_MINI,
         )
 
-        _process_exitcode(errcode)
+        _process_exitcode(
+            errcode,
+            lib.ComputeLF,
+            (
+                nbins,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                2,
+                len(redshifts),
+            ),
+        )
 
-    if component == 1:
-        lfunc[lfunc <= -30] = np.nan
-        return Muvfunc, Mhfunc, lfunc
-    elif component == 2:
-        lfunc_MINI[lfunc_MINI <= -30] = np.nan
-        return Muvfunc_MINI, Mhfunc_MINI, lfunc_MINI
-    elif component != 0:
-        logger.warning("What is component %d ?" % component)
-        return None, None, None
-    else:
         # redo the Muv range using the faintest (most likely MINI) and the brightest (most likely massive)
         lfunc_all = np.zeros(len(redshifts) * nbins)
         Muvfunc_all = np.zeros(len(redshifts) * nbins)
@@ -601,6 +607,99 @@ def compute_luminosity_function(
                 ),
             ).T
         return Muvfunc_all, Mhfunc_all, lfunc_all
+    elif component == 1:
+        lfunc = np.zeros(len(redshifts) * nbins)
+        Muvfunc = np.zeros(len(redshifts) * nbins)
+        Mhfunc = np.zeros(len(redshifts) * nbins)
+
+        lfunc.shape = (len(redshifts), nbins)
+        Muvfunc.shape = (len(redshifts), nbins)
+        Mhfunc.shape = (len(redshifts), nbins)
+
+        c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
+        c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
+        c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
+
+        # Run the C code
+        errcode = lib.ComputeLF(
+            nbins,
+            user_params(),
+            cosmo_params(),
+            astro_params(),
+            flag_options(),
+            1,
+            len(redshifts),
+            ffi.cast("float *", ffi.from_buffer(redshifts)),
+            ffi.cast("float *", ffi.from_buffer(mturnovers)),
+            c_Muvfunc,
+            c_Mhfunc,
+            c_lfunc,
+        )
+
+        _process_exitcode(
+            errcode,
+            lib.ComputeLF,
+            (
+                nbins,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                1,
+                len(redshifts),
+            ),
+        )
+
+        lfunc[lfunc <= -30] = np.nan
+        return Muvfunc, Mhfunc, lfunc
+    elif component == 2:
+        lfunc_MINI = np.zeros(len(redshifts) * nbins)
+        Muvfunc_MINI = np.zeros(len(redshifts) * nbins)
+        Mhfunc_MINI = np.zeros(len(redshifts) * nbins)
+
+        lfunc_MINI.shape = (len(redshifts), nbins)
+        Muvfunc_MINI.shape = (len(redshifts), nbins)
+        Mhfunc_MINI.shape = (len(redshifts), nbins)
+
+        c_Muvfunc_MINI = ffi.cast("double *", ffi.from_buffer(Muvfunc_MINI))
+        c_Mhfunc_MINI = ffi.cast("double *", ffi.from_buffer(Mhfunc_MINI))
+        c_lfunc_MINI = ffi.cast("double *", ffi.from_buffer(lfunc_MINI))
+
+        # Run the C code
+        errcode = lib.ComputeLF(
+            nbins,
+            user_params(),
+            cosmo_params(),
+            astro_params(),
+            flag_options(),
+            2,
+            len(redshifts),
+            ffi.cast("float *", ffi.from_buffer(redshifts)),
+            ffi.cast("float *", ffi.from_buffer(mturnovers_mini)),
+            c_Muvfunc_MINI,
+            c_Mhfunc_MINI,
+            c_lfunc_MINI,
+        )
+
+        _process_exitcode(
+            errcode,
+            lib.ComputeLF,
+            (
+                nbins,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                2,
+                len(redshifts),
+            ),
+        )
+
+        lfunc_MINI[lfunc_MINI <= -30] = np.nan
+        return Muvfunc_MINI, Mhfunc_MINI, lfunc_MINI
+    else:
+        logger.warning("What is component %d ?" % component)
+        return None, None, None
 
 
 def _init_photon_conservation_correction(
@@ -631,7 +730,7 @@ def _calibrate_photon_conservation_correction(
 
 def _calc_zstart_photon_cons():
     # Run the C code
-    return lib.ComputeZstart_PhotonCons()
+    return _call_c_simple(lib.ComputeZstart_PhotonCons)
 
 
 def _get_photon_nonconservation_data():
@@ -655,7 +754,7 @@ def _get_photon_nonconservation_data():
       nf_photoncons: the neutral fraction as a function of redshift
     """
     # Check if photon conservation has been initialised at all
-    if not lib.photon_cons_inited:
+    if not lib.photon_cons_allocated:
         return None
 
     arbitrary_large_size = 2000
@@ -690,7 +789,7 @@ def _get_photon_nonconservation_data():
         c_int_NP,
     )
 
-    _process_exitcode(errcode)
+    _process_exitcode(errcode, lib.ObtainPhotonConsData, ())
 
     ArrayIndices = [
         IntVal1[0],
@@ -1629,63 +1728,6 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
     return redshifts[::-1]
 
 
-class Coeval:
-    """A full coeval box with all associated data."""
-
-    def __init__(
-        self,
-        redshift: float,
-        init_box: InitialConditions,
-        perturb: PerturbedField,
-        ib: IonizedBox,
-        bt: BrightnessTemp,
-        st: [TsBox, None] = None,
-        photon_nonconservation_data=None,
-    ):
-        _check_compatible_inputs(init_box, perturb, ib, bt, st, ignore=[])
-
-        self.redshift = redshift
-        self.init_struct = init_box
-        self.perturb_struct = perturb
-        self.ionization_struct = ib
-        self.brightness_temp_struct = bt
-        self.spin_temp_struct = st
-        self.photon_nonconservation_data = photon_nonconservation_data
-
-        # Expose all the fields of the structs to the surface of the Coeval object
-        for box in [init_box, perturb, ib, bt, st]:
-            if box is None:
-                continue
-
-            for field in box.fieldnames:
-                setattr(self, field, getattr(box, field))
-
-    @property
-    def user_params(self):
-        """User params shared by all datasets."""
-        return self.brightness_temp_struct.user_params
-
-    @property
-    def cosmo_params(self):
-        """Cosmo params shared by all datasets."""
-        return self.brightness_temp_struct.cosmo_params
-
-    @property
-    def flag_options(self):
-        """Flag Options shared by all datasets."""
-        return self.brightness_temp_struct.flag_options
-
-    @property
-    def astro_params(self):
-        """Astro params shared by all datasets."""
-        return self.brightness_temp_struct.astro_params
-
-    @property
-    def random_seed(self):
-        """Random seed shared by all datasets."""
-        return self.brightness_temp_struct.random_seed
-
-
 def run_coeval(
     *,
     redshift=None,
@@ -1752,7 +1794,7 @@ def run_coeval(
 
     Returns
     -------
-    coevals : :class:`~Coeval`
+    coevals : :class:`~py21cmfast.outputs.Coeval`
         The full data for the Coeval class, with init boxes, perturbed fields, ionized boxes,
         brightness temperature, and potential data from the conservation of photons. If a
         single redshift was specified, it will return such a class. If multiple redshifts
@@ -1767,15 +1809,14 @@ def run_coeval(
         if redshift is None and perturb is None:
             raise ValueError("Either redshift or perturb must be given")
 
-        if redshift is None and perturb is None:
-            raise ValueError("Either redshift or perturb must be given")
-
         direc, regenerate, write = _get_config_options(direc, regenerate, write)
 
+        singleton = False
         # Ensure perturb is a list of boxes, not just one.
         if perturb is not None:
             if not hasattr(perturb, "__len__"):
                 perturb = [perturb]
+                singleton = True
         else:
             perturb = []
 
@@ -1806,7 +1847,7 @@ def run_coeval(
 
         if perturb:
             if redshift is not None:
-                if not all(p.redshift == z for p, z in zip(perturb, redshift)):
+                if any(p.redshift != z for p, z in zip(perturb, redshift)):
                     raise ValueError(
                         "Input redshifts do not match perturb field redshifts"
                     )
@@ -1826,7 +1867,6 @@ def run_coeval(
                 direc,
             )
 
-        singleton = False
         if not hasattr(redshift, "__len__"):
             singleton = True
             redshift = [redshift]
@@ -1946,9 +1986,11 @@ def run_coeval(
 
         if flag_options.PHOTON_CONS:
             photon_nonconservation_data = _get_photon_nonconservation_data()
-            lib.FreePhotonConsMemory()
+            if photon_nonconservation_data:
+                lib.FreePhotonConsMemory()
         else:
             photon_nonconservation_data = None
+
         coevals = [
             Coeval(z, init_box, p, ib, _bt, st, photon_nonconservation_data)
             for z, p, ib, _bt, st in zip(redshift, perturb, ib_tracker, bt, st_tracker)
@@ -1958,103 +2000,9 @@ def run_coeval(
         if singleton:
             coevals = coevals[0]
 
-        logger.debug("PID={} RETURNING FROM COEVAL".format(os.getpid()))
+        logger.debug("Returning from Coeval".format(os.getpid()))
 
         return coevals
-
-
-class LightCone:
-    """A full Lightcone with all associate evolved data."""
-
-    def __init__(
-        self,
-        redshift,
-        user_params,
-        cosmo_params,
-        astro_params,
-        flag_options,
-        lightcones,
-        node_redshifts=None,
-        global_quantities=None,
-        photon_nonconservation_data=None,
-    ):
-        self.redshift = redshift
-        self.user_params = user_params
-        self.cosmo_params = cosmo_params
-        self.astro_params = astro_params
-        self.flag_options = flag_options
-
-        self.node_redshifts = node_redshifts
-
-        if global_quantities:
-            for name, data in global_quantities.items():
-                if name.endswith("_box"):
-                    # Remove the _box because it looks dumb.
-                    setattr(self, "global_" + name[:-4], data)
-                else:
-                    setattr(self, "global_" + name, data)
-
-        self.photon_nonconservation_data = photon_nonconservation_data
-
-        for name, data in lightcones.items():
-            setattr(self, name, data)
-
-        self.quantities = lightcones
-
-    @property
-    def global_xHI(self):
-        """Global neutral fraction function."""
-        warnings.warn(
-            "global_xHI is deprecated. From now on, use global_xH. Will be removed in v3.1"
-        )
-        return self.global_xH
-
-    @property
-    def cell_size(self):
-        """Cell size [Mpc] of the lightcone voxels."""
-        return self.user_params.BOX_LEN / self.user_params.HII_DIM
-
-    @property
-    def lightcone_dimensions(self):
-        """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
-        return (
-            self.user_params.BOX_LEN,
-            self.user_params.BOX_LEN,
-            self.n_slices * self.cell_size,
-        )
-
-    @property
-    def shape(self):
-        """Shape of the lightcone as a 3-tuple."""
-        return self.brightness_temp.shape
-
-    @property
-    def n_slices(self):
-        """Number of redshift slices in the lightcone."""
-        return self.shape[-1]
-
-    @property
-    def lightcone_coords(self):
-        """Co-ordinates [Mpc] of each cell along the redshift axis."""
-        return np.linspace(0, self.lightcone_dimensions[-1], self.n_slices)
-
-    @property
-    def lightcone_distances(self):
-        """Comoving distance to each cell along the redshift axis, from z=0."""
-        return (
-            self.cosmo_params.cosmo.comoving_distance(self.redshift).value
-            + self.lightcone_coords
-        )
-
-    @property
-    def lightcone_redshifts(self):
-        """Redshift of each cell along the redshift axis."""
-        return np.array(
-            [
-                z_at_value(self.cosmo_params.cosmo.comoving_distance, d * units.Mpc)
-                for d in self.lightcone_distances
-            ]
-        )
 
 
 def run_lightcone(
@@ -2116,12 +2064,6 @@ def run_lightcone(
         These may be any of the quantities that can be used in ``lightcone_quantities``.
         The mean is taken over the full 3D cube at each redshift, rather than a 2D
         slice.
-    z_step_factor: float, optional
-        How large the logarithmic steps between redshift are (if required).
-    z_heat_max: float, optional
-        Controls the global `Z_HEAT_MAX` parameter, which specifies the maximum redshift up to which heating sources
-        are required to specify the ionization field. Beyond this, the ionization field is specified directly from
-        the perturbed density field.
     init_box : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
@@ -2147,7 +2089,7 @@ def run_lightcone(
 
     Returns
     -------
-    lightcone : :class:`~LightCone`
+    lightcone : :class:`~py21cmfast.LightCone`
         The lightcone object.
 
     Other Parameters
@@ -2184,15 +2126,12 @@ def run_lightcone(
             q in _fld_names.keys() for q in global_quantities
         ), "invalid global_quantity passed."
 
-        if not flag_options.USE_TS_FLUCT:
-            if any(_fld_names[q] == "TsBox" for q in lightcone_quantities):
-                raise ValueError(
-                    "TsBox quantity found in lightcone_quantities, but not running spin_temp!"
-                )
-            if any(_fld_names[q] == "TsBox" for q in global_quantities):
-                raise ValueError(
-                    "TsBox quantity found in global_quantities, but not running spin_temp!"
-                )
+        if not flag_options.USE_TS_FLUCT and any(
+            _fld_names[q] == "TsBox" for q in lightcone_quantities + global_quantities
+        ):
+            raise ValueError(
+                "TsBox quantity found in lightcone_quantities or global_quantities, but not running spin_temp!"
+            )
 
         if init_box is None:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
@@ -2261,7 +2200,6 @@ def run_lightcone(
         st, ib, bt, prev_perturb = None, None, None, None
         lc_index = 0
         box_index = 0
-
         lc = {
             quantity: np.zeros(
                 (user_params.HII_DIM, user_params.HII_DIM, n_lightcone),
@@ -2343,7 +2281,6 @@ def run_lightcone(
             if z < max_redshift:
                 for quantity in lightcone_quantities:
                     data1, data2 = outs[_fld_names[quantity]]
-
                     fnc = interp_functions.get(quantity, "mean")
 
                     n = _interpolate_in_redshift(
@@ -2373,7 +2310,8 @@ def run_lightcone(
 
         if flag_options.PHOTON_CONS:
             photon_nonconservation_data = _get_photon_nonconservation_data()
-            lib.FreePhotonConsMemory()
+            if photon_nonconservation_data:
+                lib.FreePhotonConsMemory()
         else:
             photon_nonconservation_data = None
 
@@ -2383,10 +2321,12 @@ def run_lightcone(
             cosmo_params,
             astro_params,
             flag_options,
+            init_box.random_seed,
             lc,
             node_redshifts=scrollz,
             global_quantities=global_q,
             photon_nonconservation_data=photon_nonconservation_data,
+            _globals=dict(global_params.items()),
         )
 
 
@@ -2550,7 +2490,7 @@ def calibrate_photon_cons(
         neutral_fraction_photon_cons = []
 
         # Initialise the analytic expression for the reionisation history
-        logger.debug("About to start photon conservation correction")
+        logger.info("About to start photon conservation correction")
         _init_photon_conservation_correction(
             user_params=user_params,
             cosmo_params=cosmo_params,
@@ -2560,7 +2500,7 @@ def calibrate_photon_cons(
 
         # Determine the starting redshift to start scrolling through to create the
         # calibration reionisation history
-        logger.debug("Calculating photon conservation zstart")
+        logger.info("Calculating photon conservation zstart")
         z = _calc_zstart_photon_cons()
 
         while z > 5.0:
@@ -2611,7 +2551,7 @@ def calibrate_photon_cons(
         neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
 
         # Construct the spline for the calibration curve
-        logger.debug("Calibrating photon conservation correction")
+        logger.info("Calibrating photon conservation correction")
         _calibrate_photon_conservation_correction(
             redshifts_estimate=z_for_photon_cons,
             nf_estimate=neutral_fraction_photon_cons,

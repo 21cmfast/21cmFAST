@@ -9,6 +9,7 @@ fail at the tens-of-percent level.
 import glob
 import os
 import sys
+import tempfile
 
 import h5py
 import numpy as np
@@ -18,6 +19,7 @@ from py21cmfast import AstroParams
 from py21cmfast import CosmoParams
 from py21cmfast import FlagOptions
 from py21cmfast import UserParams
+from py21cmfast import config
 from py21cmfast import global_params
 from py21cmfast import initial_conditions
 from py21cmfast import perturb_field
@@ -29,7 +31,6 @@ DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
 DEFAULT_USER_PARAMS = {"HII_DIM": 50, "DIM": 150, "BOX_LEN": 100}
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 
-"""
 OPTIONS = (
     [12, {}],
     [12, {"PERTURB_ON_HIGH_RES": True}],
@@ -56,18 +57,28 @@ OPTIONS = (
     ],
     [8, {"N_THREADS": 2}],
     [10, {"PHOTON_CONS": True}],
-    [8, {"USE_MASS_DEPENDENT_ZETA": True, "PHOTON_CONS": True}],
     [
-        8,
+        8.5,
+        {
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "PHOTON_CONS": True,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
+        },
+    ],
+    [
+        9,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
             "PHOTON_CONS": True,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
         },
     ],
     [
-        8,
+        8.5,
         {
             "N_THREADS": 2,
             "USE_FFTW_WISDOM": True,
@@ -75,11 +86,11 @@ OPTIONS = (
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
             "PHOTON_CONS": True,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
         },
     ],
 )
-"""
-OPTIONS = ()
 
 
 OPTIONS_PT = (
@@ -111,8 +122,6 @@ def get_all_options(redshift, **kwargs):
         "cosmo_params": cosmo_params,
         "astro_params": astro_params,
         "flag_options": flag_options,
-        "regenerate": True,
-        "write": False,
         "use_interp_perturb_field": kwargs.get("use_interp_perturb_field", False),
         "random_seed": SEED,
     }
@@ -134,7 +143,6 @@ def produce_coeval_power_spectra(redshift, **kwargs):
 
 def produce_lc_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
-
     lightcone = run_lightcone(max_redshift=options["redshift"] + 2, **options)
 
     p, k = get_power(
@@ -144,30 +152,25 @@ def produce_lc_power_spectra(redshift, **kwargs):
     return k, p, lightcone
 
 
-def produce_perturb_field_data(redshift, **kwargs):
+def produce_perturb_field_data(redshift, direc, **kwargs):
     options = get_all_options(redshift, **kwargs)
 
-    out = {}
+    out = {
+        key: kwargs[key]
+        for key in kwargs
+        if key.upper() in (k.upper() for k in global_params.keys())
+    }
 
-    for key in kwargs:
-        if key.upper() in (k.upper() for k in global_params.keys()):
-            out[key] = kwargs[key]
+    with config.use(direc=direc):
+        init_box = initial_conditions(**options)
 
-    init_box = initial_conditions(
-        user_params=options["user_params"],
-        cosmo_params=options["cosmo_params"],
-        random_seed=options["random_seed"],
-        write=options["write"],
-        regenerate=options["regenerate"],
-    )
-
-    pt_box = perturb_field(
-        redshift=redshift,
-        init_boxes=init_box,
-        regenerate=options["regenerate"],
-        write=options["write"],
-        **out,
-    )
+        pt_box = perturb_field(
+            redshift=redshift,
+            init_boxes=init_box,
+            regenerate=options["regenerate"],
+            write=options["write"],
+            **out,
+        )
 
     p_dens, k_dens = get_power(
         pt_box.density, boxlength=options["user_params"]["BOX_LEN"],
@@ -180,29 +183,22 @@ def produce_perturb_field_data(redshift, **kwargs):
     xmin = 0.5
     xmax = 2.0
 
-    bins_dens, edges_dens = np.histogram(
-        (pt_box.density + 1.0),
-        bins=np.logspace(np.log10(xmin), np.log10(xmax), nbins),
-        range=[xmin, xmax],
-        normed=True,
-    )
+    def hist(kind):
+        bins, edges = np.histogram(
+            (getattr(pt_box, kind) + 1.0),
+            bins=np.logspace(np.log10(xmin), np.log10(xmax), nbins),
+            range=[xmin, xmax],
+            normed=True,
+        )
 
-    left, right = edges_dens[:-1], edges_dens[1:]
+        left, right = edges[:-1], edges[1:]
 
-    X_dens = np.array([left, right]).T.flatten()
-    Y_dens = np.array([bins_dens, bins_dens]).T.flatten()
+        X = np.array([left, right]).T.flatten()
+        Y = np.array([bins, bins]).T.flatten()
+        return X, Y
 
-    bins_vel, edges_vel = np.histogram(
-        (pt_box.velocity + 1.0),
-        bins=np.logspace(np.log10(xmin), np.log10(xmax), nbins),
-        range=[xmin, xmax],
-        normed=True,
-    )
-
-    left, right = edges_vel[:-1], edges_vel[1:]
-
-    X_vel = np.array([left, right]).T.flatten()
-    Y_vel = np.array([bins_vel, bins_vel]).T.flatten()
+    X_dens, Y_dens = hist("density")
+    X_vel, Y_vel = hist("velocity")
 
     return k_dens, p_dens, k_vel, p_vel, X_dens, Y_dens, X_vel, Y_vel, init_box
 
@@ -225,15 +221,22 @@ def get_filename_pt(redshift, **kwargs):
     return os.path.join(DATA_PATH, fname)
 
 
-def produce_power_spectra_for_tests(redshift, **kwargs):
-    k, p, coeval = produce_coeval_power_spectra(redshift, **kwargs)
-    k_l, p_l, lc = produce_lc_power_spectra(redshift, **kwargs)
-
+def produce_power_spectra_for_tests(redshift, force, direc, **kwargs):
     fname = get_filename(redshift, **kwargs)
 
     # Need to manually remove it, otherwise h5py tries to add to it
     if os.path.exists(fname):
-        os.remove(fname)
+        if force:
+            os.remove(fname)
+        else:
+            return fname
+
+    # For tests, we *don't* want to use cached boxes, but we also want to use the
+    # cache between the power spectra and lightcone. So we create a temporary
+    # directory in which to cache results.
+    with config.use(direc=direc):
+        k, p, coeval = produce_coeval_power_spectra(redshift, **kwargs)
+        k_l, p_l, lc = produce_lc_power_spectra(redshift, **kwargs)
 
     with h5py.File(fname, "w") as fl:
         for k, v in kwargs.items():
@@ -253,9 +256,10 @@ def produce_power_spectra_for_tests(redshift, **kwargs):
         fl["Tb"] = lc.global_brightness_temp
 
     print(f"Produced {fname} with {kwargs}")
+    return fname
 
 
-def produce_data_for_perturb_field_tests(redshift, **kwargs):
+def produce_data_for_perturb_field_tests(redshift, force, direc, **kwargs):
     (
         k_dens,
         p_dens,
@@ -266,13 +270,16 @@ def produce_data_for_perturb_field_tests(redshift, **kwargs):
         X_vel,
         Y_vel,
         init_box,
-    ) = produce_perturb_field_data(redshift, **kwargs)
+    ) = produce_perturb_field_data(redshift, direc, **kwargs)
 
     fname = get_filename_pt(redshift, **kwargs)
 
     # Need to manually remove it, otherwise h5py tries to add to it
     if os.path.exists(fname):
-        os.remove(fname)
+        if force:
+            os.remove(fname)
+        else:
+            return fname
 
     with h5py.File(fname, "w") as fl:
         for k, v in kwargs.items():
@@ -295,13 +302,63 @@ def produce_data_for_perturb_field_tests(redshift, **kwargs):
         fl["x_vel"] = X_vel
 
     print(f"Produced {fname} with {kwargs}")
+    return fname
 
 
 if __name__ == "__main__":
+    import logging
+
+    logger = logging.getLogger("21cmFAST")
+
+    lvl = "WARNING"
+    for arg in sys.argv:
+        if arg.startswith("--log"):
+            lvl = arg.split("--log")[-1]
+    lvl = getattr(logging, lvl)
+    logger.setLevel(lvl)
+
     global_params.ZPRIME_STEP_FACTOR = DEFAULT_ZPRIME_STEP_FACTOR
 
-    for redshift, kwargs in OPTIONS:
-        produce_power_spectra_for_tests(redshift, **kwargs)
+    force = "--force" in sys.argv
+    remove = "--no-clean" not in sys.argv
+    pt_only = "--pt-only" in sys.argv
+    no_pt = "--no-pt" in sys.argv
 
-    for redshift, kwargs in OPTIONS_PT:
-        produce_data_for_perturb_field_tests(redshift, **kwargs)
+    nums = range(len(OPTIONS))
+    for arg in sys.argv:
+        if arg.startswith("--nums="):
+            nums = [int(x) for x in arg.split("=")[-1].split(",")]
+            remove = False
+            force = True
+
+    if pt_only or no_pt:
+        remove = False
+
+    # For tests, we *don't* want to use cached boxes, but we also want to use the
+    # cache between the power spectra and lightcone. So we create a temporary
+    # directory in which to cache results.
+    direc = tempfile.mkdtemp()
+    fnames = []
+
+    if not pt_only:
+        for redshift, kwargs in [OPTIONS[n] for n in nums]:
+            fnames.append(
+                produce_power_spectra_for_tests(redshift, force, direc, **kwargs)
+            )
+
+    if not no_pt:
+        for redshift, kwargs in OPTIONS_PT:
+            fnames.append(
+                produce_data_for_perturb_field_tests(redshift, force, direc, **kwargs)
+            )
+
+    # Remove extra files that
+    if not (nums or pt_only or no_pt):
+        all_files = glob.glob(os.path.join(DATA_PATH, "*"))
+        for fl in all_files:
+            if fl not in fnames:
+                if remove:
+                    print(f"Removing old file: {fl}")
+                    os.remove(fl)
+                else:
+                    print(f"File is now redundant and can be removed: {fl}")

@@ -1,15 +1,20 @@
 
 // Re-write of perturb_field.c for being accessible within the MCMC
 
-int ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field) {
-
+int ComputePerturbField(
+    float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+    struct InitialConditions *boxes, struct PerturbedField *perturbed_field
+){
     /*
-     USAGE: perturb_field <REDSHIFT>
+     ComputePerturbField uses the first-order Langragian displacement field to move the
+     masses in the cells of the density field. The high-res density field is extrapolated
+     to some high-redshift (INITIAL_REDSHIFT in ANAL_PARAMS.H), then uses the zeldovich
+     approximation to move the grid "particles" onto the lower-res grid we use for the
+     maps. Then we recalculate the velocity fields on the perturbed grid.
+    */
 
-     PROGRAM PERTURB_FIELD uses the first-order Langragian displacement field to move the masses in the cells of the density field.
-     The high-res density field is extrapolated to some high-redshift (INITIAL_REDSHIFT in ANAL_PARAMS.H), then uses the zeldovich approximation
-     to move the grid "particles" onto the lower-res grid we use for the maps.  Then we recalculate the velocity fields on the perturbed grid.
-     */
+    int status;
+    Try{  // This Try{} wraps the whole function, so we don't indent.
 
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
@@ -50,8 +55,8 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 
     // perform a very rudimentary check to see if we are underresolved and not using the linear approx
     if ((user_params->BOX_LEN > user_params->DIM) && !(global_params.EVOLVE_DENSITY_LINEARLY)){
-        fprintf(stderr, "perturb_field.c: WARNING: Resolution is likely too low for accurate evolved density fields\n \
-                It Is recommended that you either increase the resolution (DIM/Box_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
+        LOG_WARNING("Resolution is likely too low for accurate evolved density fields\n \
+                It is recommended that you either increase the resolution (DIM/Box_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
     }
 
     growth_factor = dicke(redshift);
@@ -697,10 +702,12 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
     // deallocate
     fftwf_free(LOWRES_density_perturb);
     fftwf_free(LOWRES_density_perturb_saved);
-
-//    fftwf_destroy_plan(plan);
     fftwf_cleanup();
 
-    return(0);
+    } // End of Try{}
+    Catch(status){
+        return(status);
+    }
 
+    return(0);
 }

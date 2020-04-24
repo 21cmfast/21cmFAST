@@ -2,10 +2,12 @@
 import glob
 import logging
 import os
+import re
 from os import path
 
 import h5py
 
+from . import outputs
 from . import wrapper
 from ._cfg import config
 from .wrapper import global_params
@@ -13,15 +15,24 @@ from .wrapper import global_params
 logger = logging.getLogger("21cmFAST")
 
 
-def readbox(*, direc=None, fname=None, hsh=None, kind=None, seed=None, load_data=True):
+def readbox(
+    *,
+    direc=None,
+    fname=None,
+    hsh=None,
+    kind=None,
+    seed=None,
+    redshift=None,
+    load_data=True,
+):
     """
     Read in a data set and return an appropriate object for it.
 
     Parameters
     ----------
     direc : str, optional
-            The directory in which to search for the boxes. By default, this is the
-            centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
+        The directory in which to search for the boxes. By default, this is the
+        centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
     fname: str, optional
         The filename (without directory) of the data set. If given, this will be
         preferentially used, and must exist.
@@ -50,81 +61,55 @@ def readbox(*, direc=None, fname=None, hsh=None, kind=None, seed=None, load_data
     ValueError :
         If either ``fname`` is not supplied, or both ``kind`` and ``hsh`` are not supplied.
     """
-    direc = direc or path.expanduser(config["direc"])
+    direc = path.expanduser(direc or config["direc"])
 
-    # We either need fname, or hsh and kind.
-    if not fname and not (hsh and kind):
+    if not (fname or (hsh and kind)):
         raise ValueError("Either fname must be supplied, or kind and hsh")
 
-    if fname:
-        kind, hsh, seed = _parse_fname(fname)
-
-    if not seed:
-        fname = kind + "_" + hsh + "_r*.h5"
-        files = glob.glob(path.join(direc, fname))
-        if files:
-            fname = files[0]
+    zstr = "z{:.4f}_".format(redshift) if redshift is not None else ""
+    if not fname:
+        if not seed:
+            fname = kind + "_" + zstr + hsh + "_r*.h5"
+            files = glob.glob(path.join(direc, fname))
+            if files:
+                fname = files[0]
+            else:
+                raise IOError("No files exist with that kind and hsh.")
         else:
-            raise IOError("No files exist with that kind and hsh.")
+            fname = kind + "_" + zstr + hsh + "_r" + str(seed) + ".h5"
+
+    kind = _parse_fname(fname)["kind"]
+    cls = getattr(outputs, kind)
+
+    if hasattr(cls, "from_file"):
+        inst = cls.from_file(fname, direc=direc, load_data=load_data)
     else:
-        fname = kind + "_" + hsh + "_r" + str(seed) + ".h5"
-
-    # Now, open the file and read in the parameters
-    with h5py.File(path.join(direc, fname), "r") as fl:
-        # First get items out of attrs.
-        top_level = {}
-        for k, v in fl.attrs.items():
-            top_level[k] = v
-
-        # Now descend into each group of parameters
-        params = {}
-        for grp_nm, grp in fl.items():
-            if grp_nm != kind:  # is a parameter
-                params[grp_nm] = {}
-                for k, v in grp.attrs.items():
-                    params[grp_nm][k] = None if v == "none" else v
-
-    # Need to map the parameters to input parameters.
-    passed_parameters = {}
-    for k, v in params.items():
-        if "global_params" in k:
-            for kk, vv in v.items():
-                setattr(global_params, kk, vv)
-
-        else:
-            # The following line takes something like "cosmo_params", turns it into
-            # "CosmoParams", and instantiates
-            # that particular class with the dictionary parameters.
-            passed_parameters[k] = getattr(wrapper, k.title().replace("_", ""))(**v)
-
-    for k, v in top_level.items():
-        passed_parameters[k] = v
-
-    # Make an instance of the object.
-    inst = getattr(wrapper, kind)(**passed_parameters)
-
-    # Read in the actual data (this avoids duplication of reading data).
-    if load_data:
-        inst.read(direc=direc)
+        inst = cls.read(fname, direc=direc)
 
     return inst
 
 
 def _parse_fname(fname):
-    try:
-        kind = fname.split("_")[0]
-        hsh = fname.split("_")[1]
-        seed = fname.split("_")[-1].split(".")[0][1:]
-    except IndexError:
-        raise ValueError("fname does not have correct format")
+    patterns = (
+        r"(?P<kind>\w+)_(?P<hash>\w{32})_r(?P<seed>\d+).h5$",
+        r"(?P<kind>\w+)_z(?P<redshift>\d+.\d{1,4})_(?P<hash>\w{32})_r(?P<seed>\d+).h5$",
+    )
+    for pattern in patterns:
+        match = re.match(pattern, os.path.basename(fname))
+        if match:
+            break
 
-    if kind + "_" + hsh + "_r" + seed + ".h5" != fname:
-        raise ValueError("fname does not have correct format")
+    if not match:
+        raise ValueError(
+            "filename {} does not have correct format for a cached output.".format(
+                fname
+            )
+        )
 
-    return kind, hsh, seed
+    return match.groupdict()
 
 
-def list_datasets(*, direc=None, kind=None, hsh=None, seed=None):
+def list_datasets(*, direc=None, kind=None, hsh=None, seed=None, redshift=None):
     """Yield all datasets which match a given set of filters.
 
     Can be used to determine parameters of all cached datasets, in conjunction with :func:`readbox`.
@@ -149,21 +134,23 @@ def list_datasets(*, direc=None, kind=None, hsh=None, seed=None):
     parts: tuple of strings
         The (kind, hsh, seed) of the data set.
     """
-    direc = direc or path.expanduser(config["direc"])
+    direc = path.expanduser(direc or config["direc"])
 
-    kind = kind or "*"
-    hsh = hsh or "*"
-    seed = seed or "*"
+    fname = "{}{}_{}_r{}.h5".format(
+        kind or r"(?P<kind>[a-zA-Z]+)",
+        "_z{:.4f}".format(redshift) if redshift is not None else "(.*)",
+        hsh or r"(?P<hash>\w{32})",
+        seed or r"(?P<seed>\d+)",
+    )
 
-    fname = path.join(direc, str(kind) + "_" + str(hsh) + "_r" + str(seed) + ".h5")
-
-    files = [path.basename(file) for file in glob.glob(fname)]
-
-    for file in files:
-        yield file, _parse_fname(file)
+    for fl in os.listdir(direc):
+        if re.match(fname, fl):
+            yield fl
 
 
-def query_cache(*, direc=None, kind=None, hsh=None, seed=None, show=True):
+def query_cache(
+    *, direc=None, kind=None, hsh=None, seed=None, redshift=None, show=True
+):
     """Get or print datasets in the cache.
 
     Walks through the cache, with given filters, and return all un-initialised dataset
@@ -191,7 +178,9 @@ def query_cache(*, direc=None, kind=None, hsh=None, seed=None, show=True):
     obj:
        Output objects, un-initialized.
     """
-    for file, parts in list_datasets(direc=direc, kind=kind, hsh=hsh, seed=seed):
+    for file in list_datasets(
+        direc=direc, kind=kind, hsh=hsh, seed=seed, redshift=redshift
+    ):
         cls = readbox(direc=direc, fname=file, load_data=False)
         if show:
             print(file + ": " + str(cls))
