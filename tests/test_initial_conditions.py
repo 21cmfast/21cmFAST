@@ -1,15 +1,11 @@
 """
 Various tests of the initial_conditions() function and InitialConditions class.
 """
-import pickle
 from multiprocessing import cpu_count
 
 import pytest
 
-import matplotlib.pyplot as plt
 import numpy as np
-from mpl_toolkits.axes_grid1 import host_subplot
-from powerbox.tools import get_power
 
 from py21cmfast import wrapper
 
