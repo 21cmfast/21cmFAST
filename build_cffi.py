@@ -1,6 +1,5 @@
 """Build the C code with CFFI."""
 import os
-from pathlib import Path
 
 from cffi import FFI
 
