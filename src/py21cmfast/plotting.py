@@ -243,7 +243,6 @@ def lightcone_sliceplot(
             "slice_axis should be between -1 and 2 (got {})".format(slice_axis)
         )
 
-
     z_axis = ("y" if vertical else "x") if slice_axis in (0, 1) else None
 
     # Dictionary mapping axis to dimension in lightcone
