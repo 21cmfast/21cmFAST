@@ -86,6 +86,7 @@ interpolated onto the lightcone cells):
 """
 import logging
 import os
+import warnings
 from copy import deepcopy
 
 import numpy as np
@@ -329,6 +330,16 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
         Whether to return results as a dictionary of ``quantity: class_name``.
         Otherwise returns a set of quantities.
     """
+
+    def get_all_subclasses(cls):
+        all_subclasses = []
+
+        for subclass in cls.__subclasses__():
+            all_subclasses.append(subclass)
+            all_subclasses.extend(get_all_subclasses(subclass))
+
+        return all_subclasses
+
     classes = [cls(redshift=0) for cls in _OutputStructZ._implementations()]
 
     if not lightcone_only:
