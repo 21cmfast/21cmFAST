@@ -45,12 +45,48 @@ def test_coeval_sliceplot():
     assert ax.yaxis.get_label().get_text() == "z-axis [Mpc]"
 
 
-def test_lightcone_sliceplot():
-    lc = run_lightcone(
+@pytest.fixture("module")
+def lc():
+    return run_lightcone(
         redshift=25, max_redshift=30, user_params={"HII_DIM": 35, "DIM": 70}
     )
+
+
+def test_lightcone_sliceplot_default(lc):
 
     fig, ax = plotting.lightcone_sliceplot(lc)
 
     assert ax.yaxis.get_label().get_text() == "y-axis [Mpc]"
-    assert ax.xaxis.get_label().get_text() == "Redshift Axis [Mpc]"
+    assert ax.xaxis.get_label().get_text() == "Redshift"
+
+
+def test_lightcone_sliceplot_vertical(lc):
+    fig, ax = plotting.lightcone_sliceplot(lc, vertical=True)
+
+    assert ax.yaxis.get_label().get_text() == "Redshift"
+    assert ax.xaxis.get_label().get_text() == "y-axis [Mpc]"
+
+
+def test_lc_sliceplot_freq(lc):
+    fig, ax = plotting.lightcone_sliceplot(lc, zticks="frequency")
+
+    assert ax.yaxis.get_label().get_text() == "y-axis [Mpc]"
+    assert ax.xaxis.get_label().get_text() == "Frequency [MHz]"
+
+
+def test_lc_sliceplot_cdist(lc):
+    fig, ax = plotting.lightcone_sliceplot(lc, zticks="comoving_distance")
+
+    assert ax.yaxis.get_label().get_text() == "y-axis [Mpc]"
+    assert ax.xaxis.get_label().get_text() == "Comoving Distance [Mpc]"
+
+    xlim = ax.get_xticks()
+    assert xlim.min() >= 0
+    assert xlim.max() <= lc.lightcone_dimensions[-1]
+
+
+def test_lc_sliceplot_sliceax(lc):
+    fig, ax = plotting.lightcone_sliceplot(lc, slice_axis=2)
+
+    assert ax.yaxis.get_label().get_text() == "y-axis [Mpc]"
+    assert ax.xaxis.get_label().get_text() == "x-axis [Mpc]"
