@@ -44,12 +44,19 @@ class Config(dict):
                             )
                             self[k] = self[alias]
                             del self[alias]
-                    if not do_write:
-                        raise ConfigurationError(
-                            "The configuration file has key '{}' which is not known to 21cmFAST.".format(
-                                alias
-                            )
+                            break
+                    else:
+                        warnings.warn(
+                            "Your configuration file is out of date. Updating..."
                         )
+                        do_write = True
+                        self[k] = v
+
+        for k, v in self.items():
+            if k not in self._defaults:
+                raise ConfigurationError(
+                    f"The configuration file has key '{alias}' which is not known to 21cmFAST."
+                )
 
         if do_write and write:
             self.write()
