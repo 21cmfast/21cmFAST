@@ -6,6 +6,7 @@ from os import mkdir as _mkdir
 from os import path
 
 from . import cache_tools
+from . import plotting
 from ._cfg import config
 from ._logging import configure_logging
 from .cache_tools import query_cache

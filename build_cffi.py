@@ -51,23 +51,6 @@ for k, v in os.environ.items():
     elif "lib" in k.lower():
         library_dirs += [v]
 
-# Try to use conda environment
-use_conda = int(os.environ.get("USE_CONDA", -1))
-if use_conda != 0:
-    python = Path(os.popen("which python").read())
-    inc = python.parent.parent / "include"
-    lib = python.parent.parent / "lib"
-    if inc.exists():
-        if use_conda > 0:
-            include_dirs.insert(0, str(inc))
-        else:
-            include_dirs.append(str(inc))
-    if lib.exists():
-        if use_conda > 0:
-            library_dirs.insert(0, str(lib))
-        else:
-            library_dirs.append(str(lib))
-
 
 # =================================================================
 
