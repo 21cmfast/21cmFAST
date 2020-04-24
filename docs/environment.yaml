@@ -16,6 +16,8 @@ dependencies:
   - scipy
   - astropy>=2.0
   - h5py>=2.8.0
+  - fftw
+  - gsl
   - pip:
     - cached_property
     - sphinx-rtd-theme
