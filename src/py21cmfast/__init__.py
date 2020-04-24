@@ -10,7 +10,6 @@ from . import inputs
 from . import outputs
 from . import plotting
 from . import wrapper
-
 from ._cfg import config
 from ._logging import configure_logging
 from .cache_tools import query_cache
