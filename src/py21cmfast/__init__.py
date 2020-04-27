@@ -24,6 +24,7 @@ from .wrapper import BrightnessTemp
 from .wrapper import CosmoParams
 from .wrapper import FlagOptions
 from .wrapper import HaloField
+from .wrapper import PerturbHaloField
 from .wrapper import UserParams
 from .wrapper import brightness_temperature
 from .wrapper import compute_luminosity_function
@@ -34,6 +35,7 @@ from .wrapper import global_params
 from .wrapper import initial_conditions
 from .wrapper import ionize_box
 from .wrapper import perturb_field
+from .wrapper import perturb_halo_list
 from .wrapper import run_coeval
 from .wrapper import run_lightcone
 from .wrapper import spin_temperature

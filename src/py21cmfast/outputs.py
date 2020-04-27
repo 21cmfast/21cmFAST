@@ -252,6 +252,21 @@ class HaloField(_AllParamsBox):
         self.sqrtdn_dlm = np.zeros(arbitrary_size, dtype=np.float32)
 
 
+class PerturbHaloField(_AllParamsBox):
+    """A class containing all fields related to halos."""
+
+    def _init_arrays(self):
+        self.halos_perturbed = np.zeros(
+            self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
+
+        self.halos_perturbed.shape = (
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+        )
+
+
 class IonizedBox(_AllParamsBox):
     """A class containing all ionized boxes."""
 

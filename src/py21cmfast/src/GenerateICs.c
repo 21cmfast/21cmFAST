@@ -34,6 +34,7 @@
 #include "SpinTemperatureBox.c"
 #include "BrightnessTemperatureBox.c"
 #include "Find_Haloes.c"
+#include "PerturbHaloField.c"
 
 
 

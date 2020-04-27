@@ -111,6 +111,7 @@ from .outputs import InitialConditions
 from .outputs import IonizedBox
 from .outputs import LightCone
 from .outputs import PerturbedField
+from .outputs import PerturbHaloField
 from .outputs import TsBox
 from .outputs import _OutputStructZ
 
@@ -225,10 +226,12 @@ def configure_redshift(redshift, *structs):
 def _verify_types(**kwargs):
     """Ensure each argument has a type of None or that matching its name."""
     for k, v in kwargs.items():
-        for j, kk in enumerate(["init", "perturb", "ionize", "spin_temp"]):
+        for j, kk in enumerate(
+            ["init", "perturb", "ionize", "spin_temp", "halo_field"]
+        ):
             if kk in k:
                 break
-        cls = [InitialConditions, PerturbedField, IonizedBox, TsBox][j]
+        cls = [InitialConditions, PerturbedField, IonizedBox, TsBox, HaloField][j]
 
         if v is not None and not isinstance(v, cls):
             raise ValueError("%s must be an instance of %s" % (k, cls.__name__))
@@ -1149,6 +1152,153 @@ def determine_halo_list(
             fields.astro_params,
             fields.flag_options,
             init_boxes,
+            write=write,
+        )
+
+
+def perturb_halo_list(
+    *,
+    redshift,
+    init_boxes=None,
+    halo_field=None,
+    user_params=None,
+    cosmo_params=None,
+    astro_params=None,
+    flag_options=None,
+    random_seed=None,
+    regenerate=None,
+    write=None,
+    direc=None,
+    **global_kwargs,
+):
+    r"""
+    Given a halo list, perturb the halos for a given redshift.
+
+    Parameters
+    ----------
+    redshift : float
+        The redshift at which to determine the halo list.
+    init_boxes : :class:`~InitialConditions`, optional
+        If given, these initial conditions boxes will be used, otherwise initial conditions will
+        be generated. If given,
+        the user and cosmo params will be set from this object.
+    user_params : :class:`~UserParams`, optional
+        Defines the overall options and parameters of the run.
+    cosmo_params : :class:`~CosmoParams`, optional
+        Defines the cosmological parameters used to compute initial conditions.
+    astro_params: :class:`~AstroParams` instance, optional
+        The astrophysical parameters defining the course of reionization.
+    \*\*global_kwargs :
+        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
+        *temporarily* set global attributes for the duration of the function. Note that
+        arguments will be treated as case-insensitive.
+
+    Returns
+    -------
+    :class:`~PerturbHaloField`
+
+    Other Parameters
+    ----------------
+    regenerate, write, direc, random_seed:
+        See docs of :func:`initial_conditions` for more information.
+
+    Examples
+    --------
+    Fill this in once finalised
+
+    """
+    direc, regenerate, write = _get_config_options(direc, regenerate, write)
+    with global_params.use(**global_kwargs):
+        _verify_types(
+            init_boxes=init_boxes, halo_field=halo_field,
+        )
+
+        # Configure and check input/output parameters/structs
+        (
+            random_seed,
+            user_params,
+            cosmo_params,
+            astro_params,
+            flag_options,
+        ) = _configure_inputs(
+            [
+                ("random_seed", random_seed),
+                ("user_params", user_params),
+                ("cosmo_params", cosmo_params),
+                ("astro_params", astro_params),
+                ("flag_options", flag_options),
+            ],
+            init_boxes,
+            halo_field,
+        )
+        redshift = configure_redshift(redshift, halo_field)
+
+        # Verify input parameter structs (need to do this after configure_inputs).
+        user_params = UserParams(user_params)
+        cosmo_params = CosmoParams(cosmo_params)
+        astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+        flag_options = FlagOptions(flag_options)
+
+        # Initialize halo list boxes.
+        fields = PerturbHaloField(
+            redshift=redshift,
+            user_params=user_params,
+            cosmo_params=cosmo_params,
+            astro_params=astro_params,
+            flag_options=flag_options,
+            random_seed=random_seed,
+        )
+
+        # Check whether the boxes already exist
+        if not regenerate:
+            try:
+                fields.read(direc)
+                logger.info(
+                    "Existing z=%s perturb_halo_list boxes found and read in (seed=%s)."
+                    % (redshift, fields.random_seed)
+                )
+                return fields
+            except IOError:
+                pass
+
+        # Make sure we've got computed init boxes.
+        if init_boxes is None or not init_boxes.filled:
+            init_boxes = initial_conditions(
+                user_params=user_params,
+                cosmo_params=cosmo_params,
+                regenerate=regenerate,
+                write=write,
+                direc=direc,
+                random_seed=random_seed,
+            )
+
+            # Need to update fields to have the same seed as init_boxes
+            fields._random_seed = init_boxes.random_seed
+
+        # Dynamically produce the halo list.
+        if halo_field is None or not halo_field.filled:
+            halo_field = determine_halo_list(
+                init_boxes=init_boxes,
+                # NOTE: this is required, rather than using cosmo_ and user_,
+                # since init may have a set seed.
+                redshift=redshift,
+                regenerate=regenerate,
+                write=write,
+                direc=direc,
+            )
+
+        # Run the C Code
+        return _call_c_func(
+            lib.ComputePerturbHaloField,
+            fields,
+            direc,
+            redshift,
+            fields.user_params,
+            fields.cosmo_params,
+            fields.astro_params,
+            fields.flag_options,
+            init_boxes,
+            halo_field,
             write=write,
         )
 

@@ -1,8 +1,13 @@
 
 // Re-write of find_halos.c from the original 21cmFAST
 
-//int overlap_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z);
-//void update_in_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z);
+
+// Program ComputeHaloField takes in a k_space box of the linear overdensity field
+// and filters it on decreasing scales in order to find virialized halos.
+// Virialized halos are defined according to the linear critical overdensity.
+// ComputeHaloField outputs a cube with non-zero elements containing the Mass of
+// the virialized halos
+
 int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z, int check_type);
 int pixel_in_halo(struct UserParams *user_params, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index );
 

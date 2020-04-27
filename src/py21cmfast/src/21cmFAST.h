@@ -91,6 +91,11 @@ struct HaloField{
     float *sqrtdn_dlm;
 };
 
+struct PerturbHaloField{
+    float *halos_perturbed;
+};
+
+
 struct TsBox{
     int first_box;
     float *Ts_box;
@@ -125,6 +130,10 @@ int ComputePerturbField(float redshift, struct UserParams *user_params, struct C
 int ComputeHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                      struct AstroParams *astro_params, struct FlagOptions *flag_options,
                      struct InitialConditions *boxes, struct HaloField *halos);
+
+int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                     struct AstroParams *astro_params, struct FlagOptions *flag_options,
+                     struct InitialConditions *boxes, struct HaloField *halos, struct PerturbHaloField *halos_perturbed);
 
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,
