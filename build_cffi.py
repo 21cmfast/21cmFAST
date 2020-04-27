@@ -50,6 +50,7 @@ for k, v in os.environ.items():
     elif "lib" in k.lower():
         library_dirs += [v]
 
+
 # =================================================================
 
 # This is the overall C code.

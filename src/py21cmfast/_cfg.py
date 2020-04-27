@@ -20,7 +20,7 @@ class Config(dict):
 
     _aliases = {"direc": ("boxdir",)}
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, write=True, **kwargs):
 
         super().__init__(*args, **kwargs)
 
@@ -44,14 +44,21 @@ class Config(dict):
                             )
                             self[k] = self[alias]
                             del self[alias]
-                    if not do_write:
-                        raise ConfigurationError(
-                            "The configuration file has key '{}' which is not known to 21cmFAST.".format(
-                                alias
-                            )
+                            break
+                    else:
+                        warnings.warn(
+                            "Your configuration file is out of date. Updating..."
                         )
+                        do_write = True
+                        self[k] = v
 
-        if do_write:
+        for k, v in self.items():
+            if k not in self._defaults:
+                raise ConfigurationError(
+                    f"The configuration file has key '{alias}' which is not known to 21cmFAST."
+                )
+
+        if do_write and write:
             self.write()
 
     @contextlib.contextmanager
@@ -78,9 +85,12 @@ class Config(dict):
     def load(cls, file_name):
         """Create a Config object from a config file."""
         cls.file_name = file_name
-        with open(file_name, "r") as fl:
-            config = yaml.load(fl)
-        return cls(config)
+        if path.exists(file_name):
+            with open(file_name, "r") as fl:
+                config = yaml.load(fl)
+                return cls(config)
+        else:
+            return cls(write=False)
 
 
 config = Config.load(path.expanduser(path.join("~", ".21cmfast", "config.yml")))
