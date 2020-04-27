@@ -1,12 +1,16 @@
 
 // Re-write of find_halos.c from the original 21cmFAST
 
-int overlap_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z);
-void update_in_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z);
+//int overlap_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z);
+//void update_in_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z);
+int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z, int check_type);
+int pixel_in_halo(struct UserParams *user_params, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index );
 
+int ComputeHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, struct InitialConditions *boxes, struct HaloField *halos) {
 
-int ComputeHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct InitialConditions *boxes, struct HaloField *halos) {
+    int status;
 
+    Try{ // This Try brackets the whole function, so we don't indent.
 LOG_DEBUG("input value:");
 LOG_DEBUG("redshift=%f", redshift);
 #if LOG_LEVEL >= DEBUG_LEVEL
@@ -31,13 +35,15 @@ LOG_DEBUG("redshift=%f", redshift);
     fftwf_complex *density_field, *density_field_saved;
 
     float growth_factor, R, delta_m, dm, dlnm, M, Delta_R, delta_crit;
-    double fgrtm, dfgrtm;
+    double fgtrm, dfgtrm;
     unsigned long long ct;
-    char filename[80], *in_halo, *in_halo_prevR, *forbidden;
-    int i,j,k,x,y,z,dn,n;
+    char filename[80], *in_halo, *forbidden;
+    int i,j,k,x,y,z,dn,n,counter;
     float R_temp, x_temp, y_temp, z_temp, dummy, M_MIN;
 
 LOG_DEBUG("Begin Initialisation");
+
+    counter = 0;
 
     // ***************** END INITIALIZATION ***************** //
     init_ps();
@@ -46,7 +52,23 @@ LOG_DEBUG("Begin Initialisation");
     delta_crit = Deltac; // for now set to spherical; check if we want elipsoidal later
 
     //set the minimum source mass
-    M_MIN = astro_params->M_TURN/3.;
+    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+        M_MIN = astro_params->M_TURN;
+    }
+    else {
+        if(flag_options->M_MIN_in_Mass) {
+            M_MIN = (astro_params->M_TURN);
+        }
+        else {
+            //set the minimum source mass
+            if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
+                M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
+            }
+            else { // ionized IGM
+                M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
+            }
+        }
+    }
 
     // allocate array for the k-space box
     density_field = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
@@ -54,11 +76,9 @@ LOG_DEBUG("Begin Initialisation");
 
     // allocate memory for the boolean in_halo box
     in_halo = (char *) malloc(sizeof(char)*TOT_NUM_PIXELS);
-    in_halo_prevR = (char *) malloc(sizeof(char)*TOT_NUM_PIXELS);
 
     // initialize
     memset(in_halo, 0, sizeof(char)*TOT_NUM_PIXELS);
-    memset(in_halo_prevR, 0, sizeof(char)*TOT_NUM_PIXELS);
 
     if(global_params.OPTIMIZE) {
         forbidden = (char *) malloc(sizeof(char)*TOT_NUM_PIXELS);
@@ -138,7 +158,7 @@ LOG_DEBUG("Prepare to filter to find halos");
     while (R < L_FACTOR*user_params->BOX_LEN)
         R*=global_params.DELTA_R_FACTOR;
 
-    fgrtm=dfgrtm=0;
+    fgtrm=dfgtrm=0;
     n=0;
     Delta_R = L_FACTOR*2.*user_params->BOX_LEN/(user_params->DIM+0.0);
 
@@ -161,7 +181,6 @@ LOG_ULTRA_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%
                 delta_crit = Deltac;
             }
         }
-        printf("R = %e M = %e delta_crit = %e\n",R,M,delta_crit);
 
         // first let's check if virialized halos of this size are rare enough
         // that we don't have to worry about them (let's define 7 sigma away, as in Mesinger et al 05)
@@ -219,13 +238,19 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...");
                 memset(forbidden, 0, sizeof(char)*TOT_NUM_PIXELS);
                 // now go through the list of existing halos and paint on the no-go region onto <forbidden>
 
-                // Leaving this blank for now!
-
+                for (x=0; x<user_params->DIM; x++){
+                    for (y=0; y<user_params->DIM; y++){
+                        for (z=0; z<user_params->DIM; z++){
+                            if(halos->halo_field[R_INDEX(x,y,z)] > 0.) {
+                                R_temp = MtoR(halos->halo_field[R_INDEX(x,y,z)]);
+                                check_halo(forbidden, user_params, R_temp+global_params.R_OVERLAP_FACTOR*R, x,y,z,2);
+                            }
+                        }
+                    }
+                }
             }
         }
         // *****************  BEGIN OPTIMIZATION ***************** //
-
-        printf("%e %e %e\n",*((float *)density_field + R_FFT_INDEX(0,0,0)) * growth_factor / VOLUME,*((float *)density_field + R_FFT_INDEX(12,24,36)) * growth_factor / VOLUME,*((float *)density_field + R_FFT_INDEX(30,20,10)) * growth_factor / VOLUME);
 
         // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
         dn=0;
@@ -238,169 +263,95 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...");
                     if(global_params.OPTIMIZE) {
                         if(M > global_params.OPTIMIZE_MIN_MASS) {
                             if ( (delta_m > delta_crit) && !forbidden[R_INDEX(x,y,z)]){
-//                                fprintf(stderr, "Found halo #%i, delta_m = %.3f at (x,y,z) = (%i,%i,%i)\n", n+1, delta_m, x,y,z);
-//                                fprintf(OUT, "%e\t%f\t%f\t%f\n", M, x/(DIM+0.0), y/(DIM+0.0), z/(DIM+0.0));
-//                                fflush(NULL);
-                                update_in_halo(in_halo, user_params, R, x,y,z); // flag the pixels contained within this halo
-                                update_in_halo(forbidden, user_params, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z); // flag the pixels contained within this halo
+
+                                check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
+                                check_halo(forbidden, user_params, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
+
+                                halos->halo_field[R_INDEX(x,y,z)] = M;
+
                                 dn++; // keep track of the number of halos
                                 n++;
-
-                                // Leaving empty for now
                             }
                         }
                     }
                     // *****************  END OPTIMIZATION ***************** //
+                    else {
+                        if ((delta_m > delta_crit) && !in_halo[R_INDEX(x,y,z)] && !check_halo(in_halo, user_params, R, x,y,z,1)){ // we found us a "new" halo!
 
-                    if ((delta_m > delta_crit) && !in_halo[R_INDEX(x,y,z)] && !overlap_halo(in_halo, user_params, R, x,y,z)){ // we found us a "new" halo!
+                            check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
 
-//                        printf("New Halo: x = %d y = %d z = %d Mass = %e\n",x,y,z,M);
-                        update_in_halo(in_halo, user_params, R, x,y,z); // flag the pixels contained within this halo
+                            halos->halo_field[R_INDEX(x,y,z)] = M;
 
-                        dn++; // keep track of the number of halos
-                        n++;
+                            dn++; // keep track of the number of halos
+                            n++;
+                        }
                     }
                 }
             }
         }
 
         if (dn > 0){
-            // now lets print out the mass functions (FgrtR)
-            fgrtm += M/(RHOcrit*cosmo_params->OMm)*dn/VOLUME;
-            dfgrtm += pow(M/(RHOcrit*cosmo_params->OMm)*sqrt(dn)/VOLUME, 2);
-
-
-//            sprintf(filename, "../Output_files/FgtrM_files/hist_halos_z%.2f_%i_%.0fMpc_b%.3f_c%.3f", REDSHIFT, DIM, BOX_LEN, SHETH_b, SHETH_c);
-//            F = fopen(filename, "a");
-//            fprintf(F, "%e\t%e\t%e\t%e\t%e\t%e\n", M, fgrtm, sqrt(dfgrtm), FgtrM(REDSHIFT, M), FgtrM_st(REDSHIFT, M), FgtrM_bias(REDSHIFT, M, 0, sigma_z0(RtoM(L_FACTOR*BOX_LEN))) );
-//            fclose(F);
+            // now lets keep the mass functions (FgrtR)
+            fgtrm += M/(RHOcrit*cosmo_params->OMm)*dn/VOLUME;
+            dfgtrm += pow(M/(RHOcrit*cosmo_params->OMm)*sqrt(dn)/VOLUME, 2);
 
             // and the dndlnm files
-//            sprintf(filename, "../Output_files/DNDLNM_files/hist_halos_z%.2f_%i_%.0fMpc_b%.3f_c%.3f", REDSHIFT, DIM, BOX_LEN,  SHETH_b, SHETH_c);
-//            F = fopen(filename, "a");
-            //dm = RtoM(DELTA_R_FACTOR*R)-M;
             dlnm = log(RtoM(global_params.DELTA_R_FACTOR*R)) - log(M);
-//            fprintf(F, "%e\t%e\t%e\t%e\t%e\t%e\n", M, dn/VOLUME/dlnm, sqrt(dn)/VOLUME/dlnm, M*dNdM(REDSHIFT, M), M*dNdM_st(REDSHIFT, M), M*dnbiasdM(M, REDSHIFT, RtoM(L_FACTOR*BOX_LEN), 0) );
-            //      fprintf(F, "%e\t%e\t%e\t%e\t%e\t%e\n", M, M*dn/VOLUME/dm, M/dm/VOLUME*sqrt(dn), M*dNdM(REDSHIFT, M), M*dNdM_st(REDSHIFT, M), M*dnbiasdM(M, REDSHIFT, RtoM(BOX_LEN), 0) );
-//            fclose(F);
+
+            halos->mass_bins[counter] = M;
+            halos->fgtrm[counter] = fgtrm;
+            halos->sqrt_dfgtrm[counter] = sqrt(dfgtrm);
+            halos->dndlm[counter] = dn/VOLUME/dlnm;
+            halos->sqrtdn_dlm[counter] = sqrt(dn)/VOLUME/dlnm;
+
+            counter += 1;
         }
 
         R /= global_params.DELTA_R_FACTOR;
     }
 
+    free(in_halo);
 
-    return(0);
-}
-
-
-
-// Funtion OVERLAP_HALO checks if the would be halo with radius R
-// and centered on (x,y,z) overlaps with a preesisting halo
-int overlap_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z) {
-
-    int x_curr, y_curr, z_curr, x_min, x_max, y_min, y_max, z_min, z_max, R_index;
-    float Rsq_curr_index, xsq, xplussq, xminsq, ysq, yplussq, yminsq, zsq, zplussq, zminsq;
-    int x_index, y_index, z_index;
-
-    // scale R to a effective overlap size, using R_OVERLAP_FACTOR
-    R *= global_params.R_OVERLAP_FACTOR;
-
-    // convert R to index units
-    R_index = ceil(R/user_params->BOX_LEN*user_params->DIM);
-    Rsq_curr_index = pow(R/user_params->BOX_LEN*user_params->DIM, 2); // convert to index
-
-    // set parameter range
-    x_min = x-R_index;
-    x_max = x+R_index;
-    y_min = y-R_index;
-    y_max = y+R_index;
-    z_min = z-R_index;
-    z_max = z+R_index;
-
-    //    printf("min %i, %i, %i\n", x_min, y_min, z_min);
-    //printf("max %i, %i, %i\n", x_max, y_max, z_max);
-    for (x_curr=x_min; x_curr<=x_max; x_curr++){
-        for (y_curr=y_min; y_curr<=y_max; y_curr++){
-            for (z_curr=z_min; z_curr<=z_max; z_curr++){
-                x_index = x_curr;
-                y_index = y_curr;
-                z_index = z_curr;
-                // adjust if we are outside of the box
-                if (x_index<0) {x_index += user_params->DIM;}
-                else if (x_index>=user_params->DIM) {x_index -= user_params->DIM;}
-                if (y_index<0) {y_index += user_params->DIM;}
-                else if (y_index>=user_params->DIM) {y_index -= user_params->DIM;}
-                if (z_index<0) {z_index += user_params->DIM;}
-                else if (z_index>=user_params->DIM) {z_index -= user_params->DIM;}
-
-                // remember to check all reflections
-                xsq = pow(x-x_index, 2);
-                ysq = pow(y-y_index, 2);
-                zsq = pow(z-z_index, 2);
-                xplussq = pow(x-x_index+user_params->DIM, 2);
-                yplussq = pow(y-y_index+user_params->DIM, 2);
-                zplussq = pow(z-z_index+user_params->DIM, 2);
-                xminsq = pow(x-x_index-user_params->DIM, 2);
-                yminsq = pow(y-y_index-user_params->DIM, 2);
-                zminsq = pow(z-z_index-user_params->DIM, 2);
-                if ( in_halo[R_INDEX(x_index, y_index, z_index)] &&
-                    ( (Rsq_curr_index > (xsq + ysq + zsq)) || // AND pixel is within this halo
-                     (Rsq_curr_index > (xsq + ysq + zplussq)) ||
-                     (Rsq_curr_index > (xsq + ysq + zminsq)) ||
-
-                     (Rsq_curr_index > (xsq + yplussq + zsq)) ||
-                     (Rsq_curr_index > (xsq + yplussq + zplussq)) ||
-                     (Rsq_curr_index > (xsq + yplussq + zminsq)) ||
-
-                     (Rsq_curr_index > (xsq + yminsq + zsq)) ||
-                     (Rsq_curr_index > (xsq + yminsq + zplussq)) ||
-                     (Rsq_curr_index > (xsq + yminsq + zminsq)) ||
-
-
-                     (Rsq_curr_index > (xplussq + ysq + zsq)) ||
-                     (Rsq_curr_index > (xplussq + ysq + zplussq)) ||
-                     (Rsq_curr_index > (xplussq + ysq + zminsq)) ||
-
-                     (Rsq_curr_index > (xplussq + yplussq + zsq)) ||
-                     (Rsq_curr_index > (xplussq + yplussq + zplussq)) ||
-                     (Rsq_curr_index > (xplussq + yplussq + zminsq)) ||
-
-                     (Rsq_curr_index > (xplussq + yminsq + zsq)) ||
-                     (Rsq_curr_index > (xplussq + yminsq + zplussq)) ||
-                     (Rsq_curr_index > (xplussq + yminsq + zminsq)) ||
-
-
-                     (Rsq_curr_index > (xminsq + ysq + zsq)) ||
-                     (Rsq_curr_index > (xminsq + ysq + zplussq)) ||
-                     (Rsq_curr_index > (xminsq + ysq + zminsq)) ||
-
-                     (Rsq_curr_index > (xminsq + yplussq + zsq)) ||
-                     (Rsq_curr_index > (xminsq + yplussq + zplussq)) ||
-                     (Rsq_curr_index > (xminsq + yplussq + zminsq)) ||
-
-                     (Rsq_curr_index > (xminsq + yminsq + zsq)) ||
-                     (Rsq_curr_index > (xminsq + yminsq + zplussq)) ||
-                     (Rsq_curr_index > (xminsq + yminsq + zminsq))
-                     ) ){
-
-                        // this pixel already belongs to a halo, and would want to become part of this halo as well
-                        return 1;
-                    }
-            }
-        }
+    if(global_params.OPTIMIZE) {
+        free(forbidden);
     }
 
-    return 0;
+    fftwf_free(density_field);
+    fftwf_free(density_field_saved);
+
+    fftwf_cleanup_threads();
+    fftwf_cleanup();
+    fftwf_forget_wisdom();
+
+
+    } // End of Try()
+    Catch(status){
+        return(status);
+    }
+    return(0);
+
 }
 
 
+// Function check_halo combines the original two functions overlap_halo and update_in_halo
+// from the original 21cmFAST. Lots of redundant code, hence reduced into a single function
+int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z, int check_type) {
 
-// Funtion UPDATE_IN_HALO takes in a box <in_halo> and flags all points
-// which fall within radius R of (x,y,z).
-void update_in_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z){
+    // if check_type == 1 (perform original overlap halo)
+    //          Funtion OVERLAP_HALO checks if the would be halo with radius R
+    //          and centered on (x,y,z) overlaps with a pre-existing halo
+    // if check_type == 2 (perform original update in halo)
+    //          Funtion UPDATE_IN_HALO takes in a box <in_halo> and flags all points
+    //          which fall within radius R of (x,y,z).
+
     int x_curr, y_curr, z_curr, x_min, x_max, y_min, y_max, z_min, z_max, R_index;
     float Rsq_curr_index, xsq, xplussq, xminsq, ysq, yplussq, yminsq, zsq, zplussq, zminsq;
     int x_index, y_index, z_index;
+
+    if(check_type==1) {
+        // scale R to a effective overlap size, using R_OVERLAP_FACTOR
+        R *= global_params.R_OVERLAP_FACTOR;
+    }
 
     // convert R to index units
     R_index = ceil(R/user_params->BOX_LEN*user_params->DIM);
@@ -414,8 +365,6 @@ void update_in_halo(char * in_halo, struct UserParams *user_params, float R, int
     z_min = z-R_index;
     z_max = z+R_index;
 
-    //printf("min %i, %i, %i\n", x_min, y_min, z_min);
-    //printf("max %i, %i, %i\n", x_max, y_max, z_max);
     for (x_curr=x_min; x_curr<=x_max; x_curr++){
         for (y_curr=y_min; y_curr<=y_max; y_curr++){
             for (z_curr=z_min; z_curr<=z_max; z_curr++){
@@ -430,63 +379,87 @@ void update_in_halo(char * in_halo, struct UserParams *user_params, float R, int
                 if (z_index<0) {z_index += user_params->DIM;}
                 else if (z_index>=user_params->DIM) {z_index -= user_params->DIM;}
 
-                // now check
-                if (!in_halo[R_INDEX(x_index, y_index, z_index)]){ // untaken pixel (not part of other halo)
-                    // remember to check all reflections
-                    xsq = pow(x-x_index, 2);
-                    ysq = pow(y-y_index, 2);
-                    zsq = pow(z-z_index, 2);
-                    xplussq = pow(x-x_index+user_params->DIM, 2);
-                    yplussq = pow(y-y_index+user_params->DIM, 2);
-                    zplussq = pow(z-z_index+user_params->DIM, 2);
-                    xminsq = pow(x-x_index-user_params->DIM, 2);
-                    yminsq = pow(y-y_index-user_params->DIM, 2);
-                    zminsq = pow(z-z_index-user_params->DIM, 2);
-                    if ( (Rsq_curr_index > (xsq + ysq + zsq)) ||
-                        (Rsq_curr_index > (xsq + ysq + zplussq)) ||
-                        (Rsq_curr_index > (xsq + ysq + zminsq)) ||
-
-                        (Rsq_curr_index > (xsq + yplussq + zsq)) ||
-                        (Rsq_curr_index > (xsq + yplussq + zplussq)) ||
-                        (Rsq_curr_index > (xsq + yplussq + zminsq)) ||
-
-                        (Rsq_curr_index > (xsq + yminsq + zsq)) ||
-                        (Rsq_curr_index > (xsq + yminsq + zplussq)) ||
-                        (Rsq_curr_index > (xsq + yminsq + zminsq)) ||
-
-
-                        (Rsq_curr_index > (xplussq + ysq + zsq)) ||
-                        (Rsq_curr_index > (xplussq + ysq + zplussq)) ||
-                        (Rsq_curr_index > (xplussq + ysq + zminsq)) ||
-
-                        (Rsq_curr_index > (xplussq + yplussq + zsq)) ||
-                        (Rsq_curr_index > (xplussq + yplussq + zplussq)) ||
-                        (Rsq_curr_index > (xplussq + yplussq + zminsq)) ||
-
-                        (Rsq_curr_index > (xplussq + yminsq + zsq)) ||
-                        (Rsq_curr_index > (xplussq + yminsq + zplussq)) ||
-                        (Rsq_curr_index > (xplussq + yminsq + zminsq)) ||
-
-
-                        (Rsq_curr_index > (xminsq + ysq + zsq)) ||
-                        (Rsq_curr_index > (xminsq + ysq + zplussq)) ||
-                        (Rsq_curr_index > (xminsq + ysq + zminsq)) ||
-
-                        (Rsq_curr_index > (xminsq + yplussq + zsq)) ||
-                        (Rsq_curr_index > (xminsq + yplussq + zplussq)) ||
-                        (Rsq_curr_index > (xminsq + yplussq + zminsq)) ||
-
-                        (Rsq_curr_index > (xminsq + yminsq + zsq)) ||
-                        (Rsq_curr_index > (xminsq + yminsq + zplussq)) ||
-                        (Rsq_curr_index > (xminsq + yminsq + zminsq))
-                        ){
-
-                        // we are within the sphere defined by R, so change flag in in_halo array
-                        in_halo[R_INDEX(x_index, y_index, z_index)] = 1;
-                        //	    printf("%i, %i, %i\n", x_index, y_index, z_index);
+                if(check_type==1) {
+                    if ( in_halo[R_INDEX(x_index, y_index, z_index)] &&
+                        pixel_in_halo(user_params,x,x_index,y,y_index,z,z_index,Rsq_curr_index) ) {
+                            // this pixel already belongs to a halo, and would want to become part of this halo as well
+                            return 1;
+                    }
+                }
+                if(check_type==2) {
+                    // now check
+                    if (!in_halo[R_INDEX(x_index, y_index, z_index)]){
+                        if(pixel_in_halo(user_params,x,x_index,y,y_index,z,z_index,Rsq_curr_index)) {
+                            // we are within the sphere defined by R, so change flag in in_halo array
+                            in_halo[R_INDEX(x_index, y_index, z_index)] = 1;
+                        }
                     }
                 }
             }
         }
+    }
+    if(check_type==1) {
+        return 0;
+    }
+}
+
+int pixel_in_halo(struct UserParams *user_params, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index ) {
+
+    float xsq, xplussq, xminsq, ysq, yplussq, yminsq, zsq, zplussq, zminsq;
+
+    // remember to check all reflections
+    xsq = pow(x-x_index, 2);
+    ysq = pow(y-y_index, 2);
+    zsq = pow(z-z_index, 2);
+    xplussq = pow(x-x_index+user_params->DIM, 2);
+    yplussq = pow(y-y_index+user_params->DIM, 2);
+    zplussq = pow(z-z_index+user_params->DIM, 2);
+    xminsq = pow(x-x_index-user_params->DIM, 2);
+    yminsq = pow(y-y_index-user_params->DIM, 2);
+    zminsq = pow(z-z_index-user_params->DIM, 2);
+
+    if(
+       ( (Rsq_curr_index > (xsq + ysq + zsq)) || // AND pixel is within this halo
+        (Rsq_curr_index > (xsq + ysq + zplussq)) ||
+        (Rsq_curr_index > (xsq + ysq + zminsq)) ||
+
+        (Rsq_curr_index > (xsq + yplussq + zsq)) ||
+        (Rsq_curr_index > (xsq + yplussq + zplussq)) ||
+        (Rsq_curr_index > (xsq + yplussq + zminsq)) ||
+
+        (Rsq_curr_index > (xsq + yminsq + zsq)) ||
+        (Rsq_curr_index > (xsq + yminsq + zplussq)) ||
+        (Rsq_curr_index > (xsq + yminsq + zminsq)) ||
+
+
+        (Rsq_curr_index > (xplussq + ysq + zsq)) ||
+        (Rsq_curr_index > (xplussq + ysq + zplussq)) ||
+        (Rsq_curr_index > (xplussq + ysq + zminsq)) ||
+
+        (Rsq_curr_index > (xplussq + yplussq + zsq)) ||
+        (Rsq_curr_index > (xplussq + yplussq + zplussq)) ||
+        (Rsq_curr_index > (xplussq + yplussq + zminsq)) ||
+
+        (Rsq_curr_index > (xplussq + yminsq + zsq)) ||
+        (Rsq_curr_index > (xplussq + yminsq + zplussq)) ||
+        (Rsq_curr_index > (xplussq + yminsq + zminsq)) ||
+
+        (Rsq_curr_index > (xminsq + ysq + zsq)) ||
+        (Rsq_curr_index > (xminsq + ysq + zplussq)) ||
+        (Rsq_curr_index > (xminsq + ysq + zminsq)) ||
+
+        (Rsq_curr_index > (xminsq + yplussq + zsq)) ||
+        (Rsq_curr_index > (xminsq + yplussq + zplussq)) ||
+        (Rsq_curr_index > (xminsq + yplussq + zminsq)) ||
+
+        (Rsq_curr_index > (xminsq + yminsq + zsq)) ||
+        (Rsq_curr_index > (xminsq + yminsq + zplussq)) ||
+        (Rsq_curr_index > (xminsq + yminsq + zminsq))
+        )
+       ) {
+        return(1);
+    }
+    else {
+        return(0);
     }
 }

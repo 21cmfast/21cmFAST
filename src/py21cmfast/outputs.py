@@ -241,6 +241,16 @@ class HaloField(_AllParamsBox):
             self.user_params.DIM,
         )
 
+        # Arbitrarily define these to have large length (should not matter)
+        # Don't know a priori the length of arrays required
+        arbitrary_size = 100
+
+        self.mass_bins = np.zeros(arbitrary_size, dtype=np.float32)
+        self.fgtrm = np.zeros(arbitrary_size, dtype=np.float32)
+        self.sqrt_dfgtrm = np.zeros(arbitrary_size, dtype=np.float32)
+        self.dndlm = np.zeros(arbitrary_size, dtype=np.float32)
+        self.sqrtdn_dlm = np.zeros(arbitrary_size, dtype=np.float32)
+
 
 class IonizedBox(_AllParamsBox):
     """A class containing all ionized boxes."""

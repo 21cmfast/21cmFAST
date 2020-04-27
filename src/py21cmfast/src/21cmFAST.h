@@ -83,6 +83,12 @@ struct PerturbedField{
 
 struct HaloField{
     float *halo_field;
+
+    float *mass_bins;
+    float *fgtrm;
+    float *sqrt_dfgtrm;
+    float *dndlm;
+    float *sqrtdn_dlm;
 };
 
 struct TsBox{
@@ -116,7 +122,9 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
 int ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field);
 
-int ComputeHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct InitialConditions *boxes, struct HaloField *halos);
+int ComputeHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                     struct AstroParams *astro_params, struct FlagOptions *flag_options,
+                     struct InitialConditions *boxes, struct HaloField *halos);
 
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,

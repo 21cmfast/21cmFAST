@@ -1035,7 +1035,8 @@ double dFdlnM_General(double lnM, void *params){
         MassFunction = dNdM(z, M);
     }
     if(user_params_ps->HMF==1) {
-        MassFunction = dNdM_st_interp(growthf, M);
+//        MassFunction = dNdM_st_interp(growthf, M);
+        MassFunction = dNdM_st(z, M);
     }
     if(user_params_ps->HMF==2) {
         MassFunction = dNdM_WatsonFOF(growthf, M);
@@ -1534,6 +1535,51 @@ void free_lvector(unsigned long *v, long nl, long nh)
 /* free an unsigned long vector allocated with lvector() */
 {
     free((FREE_ARG) (v+nl-NR_END));
+}
+
+
+/* dnbiasdM */
+double dnbiasdM(double M, float z, double M_o, float del_o){
+    double sigsq, del, sig_one, sig_o;
+
+//    if ((M_o-M) < TINY){
+//        fprintf(stderr, "WARNING:  In function dnbiasdM: M must be less than M_o!\nAborting...\n");
+//        return -1;
+//    }
+    if ((M_o-M) < TINY){
+        LOG_ERROR(" WARNING:  In function dnbiasdM: M must be less than M_o!\nAborting...\n");
+        return(-1);
+    }
+    del = Deltac/dicke(z) - del_o;
+    if (del < 0){
+        LOG_ERROR(" In function dnbiasdM: del_o must be less than del_1 = del_crit/dicke(z)!\nAborting...\n");
+        return 0;
+    }
+//    if (del < 0){  fprintf(stderr, "ERROR:  In function dnbiasdM: del_o must be less than del_1 = del_crit/dicke(z)!\nAborting...\n"); return 0; }
+    sig_o = sigma_z0(M_o);
+    sig_one = sigma_z0(M);
+    sigsq = sig_one*sig_one - sig_o*sig_o;
+    return -(RHOcrit*cosmo_params_ps->OMm)/M /sqrt(2*PI) *del*pow(sigsq,-1.5)*pow(E, -0.5*del*del/sigsq)*dsigmasqdm_z0(M);
+}
+
+/*
+ calculates the fraction of mass contained in haloes with mass > M at redshift z, in regions with a linear overdensity of del_bias, and standard deviation sig_bias
+ */
+double FgtrM_bias(double z, double M, double del_bias, double sig_bias){
+    double del, sig, sigsmallR;
+
+    sigsmallR = sigma_z0(M);
+
+    if (!(sig_bias < sigsmallR)){ // biased region is smaller that halo!
+//        fprintf(stderr, "FgtrM_bias: Biased region is smaller than halo!\nResult is bogus.\n");
+//        return 0;
+        return 0.000001;
+    }
+
+    del = Deltac/dicke(z) - del_bias;
+    sig = sqrt(sigsmallR*sigsmallR - sig_bias*sig_bias);
+
+    return splined_erfc(del / (sqrt(2)*sig));
 }
 
 /* Uses sigma parameters instead of Mass for scale */

@@ -1031,6 +1031,7 @@ def determine_halo_list(
     user_params=None,
     cosmo_params=None,
     astro_params=None,
+    flag_options=None,
     random_seed=None,
     regenerate=None,
     write=None,
@@ -1078,11 +1079,19 @@ def determine_halo_list(
         _verify_types(init_boxes=init_boxes)
 
         # Configure and check input/output parameters/structs
-        random_seed, user_params, cosmo_params = _configure_inputs(
+        (
+            random_seed,
+            user_params,
+            cosmo_params,
+            astro_params,
+            flag_options,
+        ) = _configure_inputs(
             [
                 ("random_seed", random_seed),
                 ("user_params", user_params),
                 ("cosmo_params", cosmo_params),
+                ("astro_params", astro_params),
+                ("flag_options", flag_options),
             ],
             init_boxes,
         )
@@ -1090,13 +1099,16 @@ def determine_halo_list(
         # Verify input parameter structs (need to do this after configure_inputs).
         user_params = UserParams(user_params)
         cosmo_params = CosmoParams(cosmo_params)
-        astro_params = AstroParams(astro_params)
+        astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+        flag_options = FlagOptions(flag_options)
 
         # Initialize halo list boxes.
         fields = HaloField(
             redshift=redshift,
             user_params=user_params,
             cosmo_params=cosmo_params,
+            astro_params=astro_params,
+            flag_options=flag_options,
             random_seed=random_seed,
         )
 
@@ -1135,6 +1147,7 @@ def determine_halo_list(
             fields.user_params,
             fields.cosmo_params,
             fields.astro_params,
+            fields.flag_options,
             init_boxes,
             write=write,
         )

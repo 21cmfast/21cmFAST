@@ -1782,6 +1782,7 @@ LOG_SUPER_DEBUG("freed fftw boxes");
     LOG_DEBUG("finished!\n");
 
     } // End of Try()
+
     Catch(status){
         return(status);
     }
