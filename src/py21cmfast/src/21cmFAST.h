@@ -27,6 +27,7 @@ struct UserParams{
     int POWER_SPECTRUM;
     int N_THREADS;
     bool PERTURB_ON_HIGH_RES;
+    bool NO_RNG;
 };
 
 struct AstroParams{

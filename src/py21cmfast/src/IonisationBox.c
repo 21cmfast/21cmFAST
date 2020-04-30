@@ -1504,8 +1504,13 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             if (LAST_FILTER_STEP){
                                 ave_M_coll_cell = (f_coll + f_coll_MINI) * pixel_mass * (1. + curr_dens);
                                 ave_N_min_cell = ave_M_coll_cell / M_MIN; // ave # of M_MIN halos in cell
-                                N_halos_in_cell = (int) gsl_ran_poisson(r[omp_get_thread_num()],
-                                                                        global_params.N_POISSON);
+                                if(user_params->NO_RNG) {
+                                    N_halos_in_cell = 1.;
+                                }
+                                else {
+                                    N_halos_in_cell = (int) gsl_ran_poisson(r[omp_get_thread_num()],
+                                                                            global_params.N_POISSON);
+                                }
                             }
 
                             if (flag_options->USE_MASS_DEPENDENT_ZETA) {

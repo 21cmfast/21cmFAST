@@ -398,6 +398,9 @@ class UserParams(StructWithDefaults):
     PERTURB_ON_HIGH_RES : bool, optional
         Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
         resolution grid.
+    NO_RNG : bool, optional
+        Ability to turn off random number generation for initial conditions. Can be
+        useful for debugging and adding in new features
     """
 
     _ffi = ffi
@@ -412,6 +415,7 @@ class UserParams(StructWithDefaults):
         "POWER_SPECTRUM": 0,
         "N_THREADS": 1,
         "PERTURB_ON_HIGH_RES": False,
+        "NO_RNG": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]

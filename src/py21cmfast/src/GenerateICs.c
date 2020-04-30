@@ -163,7 +163,6 @@ int ComputeInitialConditions(
     LOG_DEBUG("Finished initialization.");
     // ************ CREATE K-SPACE GAUSSIAN RANDOM FIELD *********** //
 
-
     init_ps();
 
 #pragma omp parallel shared(HIRES_box,HIRES_box_vcb_x,HIRES_box_vcb_y,HIRES_box_vcb_z,r) \
@@ -196,8 +195,14 @@ int ComputeInitialConditions(
 
                     // ok, now we can draw the values of the real and imaginary part
                     // of our k entry from a Gaussian distribution
-                    a = gsl_ran_ugaussian(r[omp_get_thread_num()]);
-                    b = gsl_ran_ugaussian(r[omp_get_thread_num()]);
+                    if(user_params->NO_RNG) {
+                        a = 1.0;
+                        b = -1.0;
+                    }
+                    else {
+                        a = gsl_ran_ugaussian(r[omp_get_thread_num()]);
+                        b = gsl_ran_ugaussian(r[omp_get_thread_num()]);
+                    }
 
                     HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME*p/2.0) * (a + b*I);
 
