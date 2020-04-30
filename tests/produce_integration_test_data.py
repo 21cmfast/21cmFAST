@@ -28,7 +28,7 @@ from py21cmfast import run_lightcone
 
 SEED = 12345
 DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
-DEFAULT_USER_PARAMS = {"HII_DIM": 50, "DIM": 150, "BOX_LEN": 100}
+DEFAULT_USER_PARAMS = {"HII_DIM": 50, "DIM": 150, "BOX_LEN": 100, "NO_RNG": True}
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 
 OPTIONS = (
@@ -132,6 +132,21 @@ def get_all_options(redshift, **kwargs):
     return out
 
 
+def get_all_options_ics(**kwargs):
+    user_params, cosmo_params, astro_params, flag_options = get_all_defaults(kwargs)
+    user_params.update(DEFAULT_USER_PARAMS)
+    out = {
+        "user_params": user_params,
+        "cosmo_params": cosmo_params,
+        "random_seed": SEED,
+    }
+
+    for key in kwargs:
+        if key.upper() in (k.upper() for k in global_params.keys()):
+            out[key] = kwargs[key]
+    return out
+
+
 def produce_coeval_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
 
@@ -152,8 +167,9 @@ def produce_lc_power_spectra(redshift, **kwargs):
     return k, p, lightcone
 
 
-def produce_perturb_field_data(redshift, direc, **kwargs):
+def produce_perturb_field_data(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
+    options_ics = get_all_options_ics(**kwargs)
 
     out = {
         key: kwargs[key]
@@ -161,16 +177,11 @@ def produce_perturb_field_data(redshift, direc, **kwargs):
         if key.upper() in (k.upper() for k in global_params.keys())
     }
 
-    with config.use(direc=direc):
-        init_box = initial_conditions(**options)
+    init_box = initial_conditions(**options_ics, regenerate=True, write=False)
 
-        pt_box = perturb_field(
-            redshift=redshift,
-            init_boxes=init_box,
-            regenerate=options["regenerate"],
-            write=options["write"],
-            **out,
-        )
+    pt_box = perturb_field(
+        redshift=redshift, init_boxes=init_box, regenerate=True, write=False, **out,
+    )
 
     p_dens, k_dens = get_power(
         pt_box.density, boxlength=options["user_params"]["BOX_LEN"],
@@ -270,7 +281,7 @@ def produce_data_for_perturb_field_tests(redshift, force, direc, **kwargs):
         X_vel,
         Y_vel,
         init_box,
-    ) = produce_perturb_field_data(redshift, direc, **kwargs)
+    ) = produce_perturb_field_data(redshift, **kwargs)
 
     fname = get_filename_pt(redshift, **kwargs)
 
