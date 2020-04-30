@@ -128,7 +128,7 @@ def test_perturb_field_data(redshift, kwargs):
     print("Velocity PDF")
     print(pdf_vel, y_vel)
 
-    assert np.allclose(power_dens, p_dens, atol=1e-5, rtol=1e-3)
-    assert np.allclose(power_vel, p_vel, atol=1e-5, rtol=1e-3)
-    assert np.allclose(pdf_dens, y_dens, atol=1e-5, rtol=1e-3)
-    assert np.allclose(pdf_vel, y_vel, atol=1e-5, rtol=1e-3)
+    assert np.allclose(power_dens, p_dens, rtol=1e-6)
+    assert np.allclose(power_vel, p_vel, rtol=1e-6)
+    assert np.allclose(pdf_dens, y_dens, rtol=1e-6)
+    assert np.allclose(pdf_vel, y_vel, rtol=1e-6)

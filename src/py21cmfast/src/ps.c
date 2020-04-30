@@ -3122,6 +3122,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
             // With scale factor a, the above equation is written as dQ/da = n_{ion}/da - Q/t_{rec}*(dt/da)
             if (!global_params.RecombPhotonCons) {
                 Q1 = Q0 + ((Nion0-Nion1)/2/delta_a)*da; // No Recombination
+                printf("%e %e %e %e %e %e %e %e %e %e %e\n",da,delta_a,Nion0,Nion1,Q1,Q0,ION_EFF_FACTOR,z0,z1,M_MIN_z0,M_MIN_z1);
             }
             else {
                 dadt = Ho*sqrt(cosmo_params_ps->OMm/a + global_params.OMr/a/a + cosmo_params_ps->OMl*a*a); // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
