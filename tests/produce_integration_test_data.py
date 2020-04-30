@@ -31,7 +31,7 @@ DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
 DEFAULT_USER_PARAMS = {"HII_DIM": 50, "DIM": 150, "BOX_LEN": 100, "NO_RNG": True}
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 
-OPTIONS = ([12, {}],)
+OPTIONS = ([12, {}], [10, {"PHOTON_CONS": True}])
 """
 OPTIONS = (
     [12, {}],
