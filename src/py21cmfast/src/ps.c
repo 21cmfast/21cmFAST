@@ -3181,6 +3181,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     Q_at_z_spline = gsl_spline_alloc (gsl_interp_cspline, nbin);
 
     for (i=0; i<nbin; i++){
+        printf("i = %d cnt = %d z_arr = %e Q_arr = %e\n",i,cnt,z_arr[cnt-i],Q_arr[cnt-i]);
         z_Q[i] = z_arr[cnt-i];
         Q_value[i] = Q_arr[cnt-i];
     }
@@ -3201,6 +3202,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     z_at_Q_spline_acc = gsl_interp_accel_alloc ();
     z_at_Q_spline = gsl_spline_alloc (gsl_interp_linear, nbin);
     for (i=0; i<nbin; i++){
+        printf("i = %d nbin = %d Q_value = %e z_Q = %e\n",i,nbin,Q_value[nbin-1-i],z_Q[nbin-1-i]);
         Q_z[i] = Q_value[nbin-1-i];
         z_value[i] = z_Q[nbin-1-i];
     }
