@@ -3122,8 +3122,10 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
             // With scale factor a, the above equation is written as dQ/da = n_{ion}/da - Q/t_{rec}*(dt/da)
             if (!global_params.RecombPhotonCons) {
                 Q1 = Q0 + ((Nion0-Nion1)/2/delta_a)*da; // No Recombination
-                printf("%e %e %e %e %e %e %e %e %e %e %e %e\n",a,da,delta_a,Nion0,Nion1,Q1,Q0,ION_EFF_FACTOR,z0,z1,M_MIN_z0,M_MIN_z1);
-                printf("%1.15e %1.15e %1.15e %e %e %e %e\n",Nion0,Nion1,(Nion0-Nion1),(Nion0-Nion1)/2,(Nion0-Nion1)/2/delta_a,((Nion0-Nion1)/2/delta_a)*da,Q0 + ((Nion0-Nion1)/2/delta_a)*da);
+                printf("1: %1.12e %1.12e %1.12e %1.12e %1.12e\n",a,da,delta_a,Nion0,Nion1);
+                printf("2: %1.12e %1.12e %1.12e %1.12e %1.12e\n",ION_EFF_FACTOR,z0,z1,M_MIN_z0,M_MIN_z1);
+                printf("3: %1.12e %1.12e %1.12e %1.12e\n",FgtrM_General(z0,M_MIN_z0),FgtrM_General(z1,M_MIN_z1),Q1,Q0);
+                printf("4: %1.12e %1.12e %1.12e %1.12e %1.12e\n",(Nion0-Nion1),(Nion0-Nion1)/2,(Nion0-Nion1)/2/delta_a,((Nion0-Nion1)/2/delta_a)*da,Q0 + ((Nion0-Nion1)/2/delta_a)*da);
             }
             else {
                 dadt = Ho*sqrt(cosmo_params_ps->OMm/a + global_params.OMr/a/a + cosmo_params_ps->OMl*a*a); // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
