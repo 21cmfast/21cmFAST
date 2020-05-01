@@ -3104,8 +3104,10 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
                     M_MIN_z1 = TtoM(z1, astro_params->ION_Tvir_MIN, 1.22);
                 }
                 else { // ionized IGM
-                    M_MIN_z0 = TtoM(z0, astro_params->ION_Tvir_MIN, 0.6);
-                    M_MIN_z1 = TtoM(z1, astro_params->ION_Tvir_MIN, 0.6);
+//                    M_MIN_z0 = TtoM(z0, astro_params->ION_Tvir_MIN, 0.6);
+//                    M_MIN_z1 = TtoM(z1, astro_params->ION_Tvir_MIN, 0.6);
+                    M_MIN_z0 = (float)TtoMdouble(z0, astro_params->ION_Tvir_MIN, 0.6);
+                    M_MIN_z1 = (float)TtoMdouble(z1, astro_params->ION_Tvir_MIN, 0.6);
                 }
 
                 if(M_MIN_z0 < M_MIN_z1) {
