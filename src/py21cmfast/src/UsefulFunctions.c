@@ -194,8 +194,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
 
 double MtoR(double M);
 double RtoM(double R);
-float TtoM(float z, float T, float mu);
-double TtoMdouble(double z, double T, double mu);
+double TtoM(double z, double T, double mu);
 double dicke(double z);
 double dtdz(float z);
 double ddickedt(double z);
@@ -244,7 +243,7 @@ double RtoM(double R){
  SUPRESS = 0 for no radiation field supression;
  SUPRESS = 1 for supression (step function at z=z_ss, at v=v_zz)
  */
-float TtoM(float z, float T, float mu){
+double TtoM(double z, double T, double mu){
     return 7030.97 / (cosmo_params_ufunc->hlittle) * sqrt( omega_mz(z) / (cosmo_params_ufunc->OMm*Deltac_nonlinear(z))) *
     pow( T/(mu * (1+z)), 1.5 );
     /*  if (!SUPRESS || (z >= z_re) ) // pre-reionization or don't worry about supression
@@ -260,25 +259,6 @@ float TtoM(float z, float T, float mu){
      pow( VcirtoT(v_ss, mu) /(mu * (1+z)), 1.5 );
      */
 }
-
-double TtoMdouble(double z, double T, double mu){
-    return 7030.97 / (cosmo_params_ufunc->hlittle) * sqrt( omega_mz(z) / (cosmo_params_ufunc->OMm*Deltac_nonlinear(z))) *
-    pow( T/(mu * (1+z)), 1.5 );
-    /*  if (!SUPRESS || (z >= z_re) ) // pre-reionization or don't worry about supression
-     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
-     pow( T/(mu * (1+z)), 1.5 );
-
-     if (z >= z_ss) // self-shielding dominates, use T = 1e4 K
-     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
-     pow( 1.0e4 /(mu * (1+z)), 1.5 );
-
-     // optically thin
-     return 7030.97 / hlittle * sqrt( omega_mz(z) / (OMm*Deltac_nonlinear(z)) ) *
-     pow( VcirtoT(v_ss, mu) /(mu * (1+z)), 1.5 );
-     */
-}
-
-
 
 /* Physical (non-linear) overdensity at virialization (relative to critical density)
  i.e. answer is rho / rho_crit

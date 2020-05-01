@@ -68,9 +68,6 @@ def test_power_spectra_coeval(redshift, kwargs, tmpdir):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
             k, p, bt = prd.produce_coeval_power_spectra(redshift, **kwargs)
 
-    print("PS data")
-    print(power)
-    print(p)
     assert np.allclose(power, p, atol=1e-3, rtol=1e-2)
 
 
@@ -119,16 +116,7 @@ def test_perturb_field_data(redshift, kwargs):
             ic,
         ) = prd.produce_perturb_field_data(redshift, **kwargs)
 
-    print("Density PS")
-    print(power_dens, p_dens)
-    print("Density PDF")
-    print(power_vel, p_vel)
-    print("Velocity PS")
-    print(pdf_dens, y_dens)
-    print("Velocity PDF")
-    print(pdf_vel, y_vel)
-
-    assert np.allclose(power_dens, p_dens, rtol=1e-6)
-    assert np.allclose(power_vel, p_vel, rtol=1e-6)
-    assert np.allclose(pdf_dens, y_dens, rtol=1e-6)
-    assert np.allclose(pdf_vel, y_vel, rtol=1e-6)
+    assert np.allclose(power_dens, p_dens, atol=1e-5, rtol=1e-3)
+    assert np.allclose(power_vel, p_vel, atol=1e-5, rtol=1e-3)
+    assert np.allclose(pdf_dens, y_dens, atol=1e-5, rtol=1e-3)
+    assert np.allclose(pdf_vel, y_vel, atol=1e-5, rtol=1e-3)

@@ -436,12 +436,10 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
 
         //set the minimum source mass
         if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
-//            M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
-            M_MIN = (float)TtoMdouble(redshift, astro_params->ION_Tvir_MIN, 1.22);
+            M_MIN = (float)TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
         }
         else { // ionized IGM
-//            M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
-            M_MIN = (float)TtoMdouble(redshift, astro_params->ION_Tvir_MIN, 0.6);
+            M_MIN = (float)TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
         }
     }
 

@@ -3100,14 +3100,12 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
             else {
                 //set the minimum source mass
                 if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
-                    M_MIN_z0 = TtoM(z0, astro_params->ION_Tvir_MIN, 1.22);
-                    M_MIN_z1 = TtoM(z1, astro_params->ION_Tvir_MIN, 1.22);
+                    M_MIN_z0 = (float)TtoM(z0, astro_params->ION_Tvir_MIN, 1.22);
+                    M_MIN_z1 = (float)TtoM(z1, astro_params->ION_Tvir_MIN, 1.22);
                 }
                 else { // ionized IGM
-//                    M_MIN_z0 = TtoM(z0, astro_params->ION_Tvir_MIN, 0.6);
-//                    M_MIN_z1 = TtoM(z1, astro_params->ION_Tvir_MIN, 0.6);
-                    M_MIN_z0 = (float)TtoMdouble(z0, astro_params->ION_Tvir_MIN, 0.6);
-                    M_MIN_z1 = (float)TtoMdouble(z1, astro_params->ION_Tvir_MIN, 0.6);
+                    M_MIN_z0 = (float)TtoM(z0, astro_params->ION_Tvir_MIN, 0.6);
+                    M_MIN_z1 = (float)TtoM(z1, astro_params->ION_Tvir_MIN, 0.6);
                 }
 
                 if(M_MIN_z0 < M_MIN_z1) {
@@ -3124,11 +3122,6 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
             // With scale factor a, the above equation is written as dQ/da = n_{ion}/da - Q/t_{rec}*(dt/da)
             if (!global_params.RecombPhotonCons) {
                 Q1 = Q0 + ((Nion0-Nion1)/2/delta_a)*da; // No Recombination
-                printf("1: %1.12e %1.12e %1.12e %1.12e %1.12e\n",a,da,delta_a,Nion0,Nion1);
-                printf("2: %1.12e %1.12e %1.12e %1.12e %1.12e\n",ION_EFF_FACTOR,z0,z1,M_MIN_z0,M_MIN_z1);
-                printf("(double): %1.12e %1.12e %1.12e %1.12e\n",TtoMdouble(z0, astro_params->ION_Tvir_MIN, 0.6),TtoMdouble(z1, astro_params->ION_Tvir_MIN, 0.6),(float)TtoMdouble(z0, astro_params->ION_Tvir_MIN, 0.6),(float)TtoMdouble(z1, astro_params->ION_Tvir_MIN, 0.6));
-                printf("3: %1.12e %1.12e %1.12e %1.12e\n",FgtrM_General(z0,M_MIN_z0),FgtrM_General(z1,M_MIN_z1),Q1,Q0);
-                printf("4: %1.12e %1.12e %1.12e %1.12e %1.12e\n",(Nion0-Nion1),(Nion0-Nion1)/2,(Nion0-Nion1)/2/delta_a,((Nion0-Nion1)/2/delta_a)*da,Q0 + ((Nion0-Nion1)/2/delta_a)*da);
             }
             else {
                 dadt = Ho*sqrt(cosmo_params_ps->OMm/a + global_params.OMr/a/a + cosmo_params_ps->OMl*a*a); // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
@@ -3188,7 +3181,6 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     Q_at_z_spline = gsl_spline_alloc (gsl_interp_cspline, nbin);
 
     for (i=0; i<nbin; i++){
-        printf("i = %d cnt = %d z_arr = %e Q_arr = %e\n",i,cnt,z_arr[cnt-i],Q_arr[cnt-i]);
         z_Q[i] = z_arr[cnt-i];
         Q_value[i] = Q_arr[cnt-i];
     }
@@ -3209,7 +3201,6 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     z_at_Q_spline_acc = gsl_interp_accel_alloc ();
     z_at_Q_spline = gsl_spline_alloc (gsl_interp_linear, nbin);
     for (i=0; i<nbin; i++){
-        printf("i = %d nbin = %d Q_value = %e z_Q = %e\n",i,nbin,Q_value[nbin-1-i],z_Q[nbin-1-i]);
         Q_z[i] = Q_value[nbin-1-i];
         z_value[i] = z_Q[nbin-1-i];
     }

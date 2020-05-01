@@ -179,6 +179,8 @@ def produce_perturb_field_data(redshift, **kwargs):
         if key.upper() in (k.upper() for k in global_params.keys())
     }
 
+    velocity_normalisation = 1e16
+
     init_box = initial_conditions(**options_ics, regenerate=True, write=False)
 
     pt_box = perturb_field(
@@ -189,15 +191,17 @@ def produce_perturb_field_data(redshift, **kwargs):
         pt_box.density, boxlength=options["user_params"]["BOX_LEN"],
     )
     p_vel, k_vel = get_power(
-        pt_box.velocity, boxlength=options["user_params"]["BOX_LEN"],
+        pt_box.velocity * velocity_normalisation,
+        boxlength=options["user_params"]["BOX_LEN"],
     )
 
     def hist(kind, xmin, xmax, nbins):
+        data = getattr(pt_box, kind)
+        if kind == "velocity":
+            data = velocity_normalisation * data
+
         bins, edges = np.histogram(
-            (getattr(pt_box, kind)),
-            bins=np.linspace(xmin, xmax, nbins),
-            range=[xmin, xmax],
-            normed=True,
+            data, bins=np.linspace(xmin, xmax, nbins), range=[xmin, xmax], normed=True,
         )
 
         left, right = edges[:-1], edges[1:]
@@ -206,8 +210,8 @@ def produce_perturb_field_data(redshift, **kwargs):
         Y = np.array([bins, bins]).T.flatten()
         return X, Y
 
-    X_dens, Y_dens = hist("density", -0.5, 2.0, 50)
-    X_vel, Y_vel = hist("velocity", -1e-16, 1e-16, 50)
+    X_dens, Y_dens = hist("density", -0.8, 2.0, 50)
+    X_vel, Y_vel = hist("velocity", -2, 2, 50)
 
     return k_dens, p_dens, k_vel, p_vel, X_dens, Y_dens, X_vel, Y_vel, init_box
 
