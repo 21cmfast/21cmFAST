@@ -116,6 +116,39 @@ def test_perturb_field_data(redshift, kwargs):
             ic,
         ) = prd.produce_perturb_field_data(redshift, **kwargs)
 
+    print("Density PS")
+    for i in range(len(p_dens)):
+        print(
+            i,
+            power_dens[i],
+            p_dens[i],
+            np.allclose(power_dens[i], p_dens[i], atol=1e-5, rtol=1e-3),
+        )
+    print("Velocity PS")
+    for i in range(len(p_vel)):
+        print(
+            i,
+            power_vel[i],
+            p_vel[i],
+            np.allclose(power_vel[i], p_vel[i], atol=1e-5, rtol=1e-3),
+        )
+    print("Density PDF")
+    for i in range(len(y_dens)):
+        print(
+            i,
+            pdf_dens[i],
+            y_dens[i],
+            np.allclose(pdf_dens[i], y_dens[i], atol=1e-5, rtol=1e-3),
+        )
+    print("Velocity PDF")
+    for i in range(len(y_vel)):
+        print(
+            i,
+            pdf_vel[i],
+            y_vel[i],
+            np.allclose(pdf_vel[i], y_vel[i], atol=1e-5, rtol=1e-3),
+        )
+
     assert np.allclose(power_dens, p_dens, atol=1e-5, rtol=1e-3)
     assert np.allclose(power_vel, p_vel, atol=1e-5, rtol=1e-3)
     assert np.allclose(pdf_dens, y_dens, atol=1e-5, rtol=1e-3)
