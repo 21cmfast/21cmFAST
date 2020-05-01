@@ -210,8 +210,8 @@ def produce_perturb_field_data(redshift, **kwargs):
         Y = np.array([bins, bins]).T.flatten()
         return X, Y
 
-    X_dens, Y_dens = hist("density", -0.8, 2.0, 100)
-    X_vel, Y_vel = hist("velocity", -2, 2, 100)
+    X_dens, Y_dens = hist("density", -0.8, 2.0, 50)
+    X_vel, Y_vel = hist("velocity", -2, 2, 50)
 
     return k_dens, p_dens, k_vel, p_vel, X_dens, Y_dens, X_vel, Y_vel, init_box
 
