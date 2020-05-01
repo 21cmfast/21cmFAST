@@ -3124,7 +3124,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
                 Q1 = Q0 + ((Nion0-Nion1)/2/delta_a)*da; // No Recombination
                 printf("1: %1.12e %1.12e %1.12e %1.12e %1.12e\n",a,da,delta_a,Nion0,Nion1);
                 printf("2: %1.12e %1.12e %1.12e %1.12e %1.12e\n",ION_EFF_FACTOR,z0,z1,M_MIN_z0,M_MIN_z1);
-                printf("(double): %1.12e %1.12e\n",TtoMdouble(z0, astro_params->ION_Tvir_MIN, 0.6),TtoMdouble(z1, astro_params->ION_Tvir_MIN, 0.6));
+                printf("(double): %1.12e %1.12e %1.12e %1.12e\n",TtoMdouble(z0, astro_params->ION_Tvir_MIN, 0.6),TtoMdouble(z1, astro_params->ION_Tvir_MIN, 0.6),(float)TtoMdouble(z0, astro_params->ION_Tvir_MIN, 0.6),(float)TtoMdouble(z1, astro_params->ION_Tvir_MIN, 0.6));
                 printf("3: %1.12e %1.12e %1.12e %1.12e\n",FgtrM_General(z0,M_MIN_z0),FgtrM_General(z1,M_MIN_z1),Q1,Q0);
                 printf("4: %1.12e %1.12e %1.12e %1.12e %1.12e\n",(Nion0-Nion1),(Nion0-Nion1)/2,(Nion0-Nion1)/2/delta_a,((Nion0-Nion1)/2/delta_a)*da,Q0 + ((Nion0-Nion1)/2/delta_a)*da);
             }
