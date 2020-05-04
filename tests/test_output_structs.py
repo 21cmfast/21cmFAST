@@ -95,7 +95,7 @@ def test_writeability(ic):
         ic.write()
 
 
-def test_readability(tmpdirec):
+def test_readability(tmp_path_factory):
     # we update this one, so don't use the global one
     ic_ = InitialConditions(init=True)
 
@@ -104,17 +104,17 @@ def test_readability(tmpdirec):
     ic_.filled = True
     ic_.random_seed  # accessing random_seed actually creates a random seed.
 
-    ic_.write(direc=tmpdirec)
+    direc = tmp_path_factory.mktemp("readability")
 
+    ic_.write(direc=direc)
     ic2 = InitialConditions()
 
-    assert (
-        ic_._seedless_repr() == ic2._seedless_repr()
-    )  # without seeds, they are obviously exactly the same.
+    # without seeds, they are obviously exactly the same.
+    assert ic_._seedless_repr() == ic2._seedless_repr()
 
-    assert ic2.exists(direc=tmpdirec)
+    assert ic2.exists(direc=direc)
 
-    ic2.read(direc=tmpdirec)
+    ic2.read(direc=direc)
 
     assert repr(ic_) == repr(ic2)  # they should be exactly the same.
     assert str(ic_) == str(ic2)  # their str is the same.
@@ -124,7 +124,7 @@ def test_readability(tmpdirec):
 
     # make sure we can't read it twice
     with pytest.raises(IOError):
-        ic2.read(direc=tmpdirec)
+        ic2.read(direc=direc)
 
 
 def test_different_seeds(ic):
