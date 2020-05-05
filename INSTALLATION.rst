@@ -95,12 +95,11 @@ as (from top-level dir)::
 
 Otherwise, if you are using `pip`::
 
-    pip install -e .
-    pip install -r requirements_dev.txt
+    pip install -e .[dev]
 
-And if you would like to also compile documentation::
-
-    pip install -r docs/requirements.txt
+The ``[dev]`` "extra" here installs all development dependencies. You can instead use
+``[tests]`` if you only want dependencies for testing, or ``[docs]`` to be able to
+compile the documentation.
 
 Compile Options
 ---------------
