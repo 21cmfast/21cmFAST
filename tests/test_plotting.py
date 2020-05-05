@@ -4,13 +4,10 @@ Testing plots is kind of hard, but we just check that it runs through without cr
 
 import pytest
 
-from py21cmfast import initial_conditions
 from py21cmfast import plotting
-from py21cmfast import run_lightcone
 
 
-def test_coeval_sliceplot():
-    ic = initial_conditions(user_params={"HII_DIM": 35, "DIM": 70})
+def test_coeval_sliceplot(ic):
 
     fig, ax = plotting.coeval_sliceplot(ic)
 
@@ -43,13 +40,6 @@ def test_coeval_sliceplot():
     )
     assert ax.xaxis.get_label().get_text() == "x-axis [Mpc]"
     assert ax.yaxis.get_label().get_text() == "z-axis [Mpc]"
-
-
-@pytest.fixture("module")
-def lc():
-    return run_lightcone(
-        redshift=25, max_redshift=30, user_params={"HII_DIM": 35, "DIM": 70}
-    )
 
 
 def test_lightcone_sliceplot_default(lc):

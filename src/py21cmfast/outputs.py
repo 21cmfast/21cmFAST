@@ -392,7 +392,9 @@ class BrightnessTemp(_AllParamsBox):
 class _HighLevelOutput:
     def _get_prefix(self):
         return "{name}_z{redshift:.4}_{{hash}}_r{seed}.h5".format(
-            name=self.__class__.__name__, redshift=self.redshift, seed=self.random_seed
+            name=self.__class__.__name__,
+            redshift=float(self.redshift),
+            seed=self.random_seed,
         )
 
     def _input_rep(self):

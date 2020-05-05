@@ -7,12 +7,6 @@ import pytest
 import numpy as np
 
 from py21cmfast import cache_tools
-from py21cmfast import wrapper
-
-
-@pytest.fixture(scope="module")
-def ic():
-    return wrapper.initial_conditions(user_params={"HII_DIM": 25}, write=True)
 
 
 def test_query(ic):

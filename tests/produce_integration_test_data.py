@@ -179,11 +179,9 @@ def produce_perturb_field_data(redshift, **kwargs):
 
     velocity_normalisation = 1e16
 
-    init_box = initial_conditions(**options_ics, regenerate=True, write=False)
-
-    pt_box = perturb_field(
-        redshift=redshift, init_boxes=init_box, regenerate=True, write=False, **out,
-    )
+    with config.use(regenerate=True, write=False):
+        init_box = initial_conditions(**options_ics)
+        pt_box = perturb_field(redshift=redshift, init_boxes=init_box, **out)
 
     p_dens, k_dens = get_power(
         pt_box.density, boxlength=options["user_params"]["BOX_LEN"],
@@ -263,14 +261,14 @@ def produce_power_spectra_for_tests(redshift, force, direc, **kwargs):
         fl["power_lc"] = p_l
         fl["k_lc"] = k_l
 
-        fl["xHI"] = lc.global_xHI
+        fl["xHI"] = lc.global_xH
         fl["Tb"] = lc.global_brightness_temp
 
     print(f"Produced {fname} with {kwargs}")
     return fname
 
 
-def produce_data_for_perturb_field_tests(redshift, force, direc, **kwargs):
+def produce_data_for_perturb_field_tests(redshift, force, **kwargs):
     (
         k_dens,
         p_dens,
@@ -360,7 +358,7 @@ if __name__ == "__main__":
     if not no_pt:
         for redshift, kwargs in OPTIONS_PT:
             fnames.append(
-                produce_data_for_perturb_field_tests(redshift, force, direc, **kwargs)
+                produce_data_for_perturb_field_tests(redshift, force, **kwargs)
             )
 
     # Remove extra files that

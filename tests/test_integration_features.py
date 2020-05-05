@@ -23,7 +23,6 @@ a reasonable test: they should be of reduced data such as power spectra or globa
 measurements, and they should be generated with small simulations.
 """
 import logging
-import os
 
 import pytest
 
@@ -50,20 +49,15 @@ options = tuple(
 )
 
 
-@pytest.fixture(scope="module")
-def tmpdir(tmp_path_factory):
-    return tmp_path_factory.mktemp("integration_cache")
-
-
 @pytest.mark.parametrize("redshift,kwargs", options)
-def test_power_spectra_coeval(redshift, kwargs, tmpdir):
+def test_power_spectra_coeval(redshift, kwargs, module_direc):
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
     with h5py.File(prd.get_filename(redshift, **kwargs), "r") as f:
         power = f["power_coeval"][...]
 
-    with config.use(direc=tmpdir, regenerate=False, write=True):
+    with config.use(direc=module_direc, regenerate=False, write=True):
         with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
             k, p, bt = prd.produce_coeval_power_spectra(redshift, **kwargs)
@@ -72,7 +66,7 @@ def test_power_spectra_coeval(redshift, kwargs, tmpdir):
 
 
 @pytest.mark.parametrize("redshift,kwargs", options)
-def test_power_spectra_lightcone(redshift, kwargs, tmpdir):
+def test_power_spectra_lightcone(redshift, kwargs, module_direc):
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
@@ -81,13 +75,13 @@ def test_power_spectra_lightcone(redshift, kwargs, tmpdir):
         xHI = f["xHI"][...]
         Tb = f["Tb"][...]
 
-    with config.use(direc=tmpdir, regenerate=False, write=True):
+    with config.use(direc=module_direc, regenerate=False, write=True):
         with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
             k, p, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
     assert np.allclose(power, p, atol=1e-5, rtol=1e-2)
-    assert np.allclose(xHI, lc.global_xHI, atol=1e-5, rtol=1e-3)
+    assert np.allclose(xHI, lc.global_xH, atol=1e-5, rtol=1e-3)
     assert np.allclose(Tb, lc.global_brightness_temp, atol=1e-5, rtol=1e-3)
 
 
