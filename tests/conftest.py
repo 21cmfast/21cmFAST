@@ -23,7 +23,11 @@ def tmpdirec(tmp_path_factory):
 
 
 def printdir(direc):
-    width = os.get_terminal_size().columns
+    try:
+        width = os.get_terminal_size().columns
+    except OSError:
+        width = 100
+
     print()
     print(f" Files In {direc} ".center(width, "="))
     for pth in direc.iterdir():
