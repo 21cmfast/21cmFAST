@@ -73,6 +73,7 @@ test_req = [
     "pytest-cov",
     "tox",
     "pytest-remotedata>=0.3.2",
+    "powerbox",
 ]
 
 doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]
