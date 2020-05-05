@@ -3100,12 +3100,12 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
             else {
                 //set the minimum source mass
                 if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
-                    M_MIN_z0 = TtoM(z0, astro_params->ION_Tvir_MIN, 1.22);
-                    M_MIN_z1 = TtoM(z1, astro_params->ION_Tvir_MIN, 1.22);
+                    M_MIN_z0 = (float)TtoM(z0, astro_params->ION_Tvir_MIN, 1.22);
+                    M_MIN_z1 = (float)TtoM(z1, astro_params->ION_Tvir_MIN, 1.22);
                 }
                 else { // ionized IGM
-                    M_MIN_z0 = TtoM(z0, astro_params->ION_Tvir_MIN, 0.6);
-                    M_MIN_z1 = TtoM(z1, astro_params->ION_Tvir_MIN, 0.6);
+                    M_MIN_z0 = (float)TtoM(z0, astro_params->ION_Tvir_MIN, 0.6);
+                    M_MIN_z1 = (float)TtoM(z1, astro_params->ION_Tvir_MIN, 0.6);
                 }
 
                 if(M_MIN_z0 < M_MIN_z1) {

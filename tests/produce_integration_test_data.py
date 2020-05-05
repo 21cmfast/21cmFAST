@@ -12,6 +12,7 @@ import sys
 import tempfile
 
 import h5py
+import numpy as np
 from powerbox import get_power
 
 from py21cmfast import AstroParams
@@ -20,17 +21,19 @@ from py21cmfast import FlagOptions
 from py21cmfast import UserParams
 from py21cmfast import config
 from py21cmfast import global_params
+from py21cmfast import initial_conditions
+from py21cmfast import perturb_field
 from py21cmfast import run_coeval
 from py21cmfast import run_lightcone
 
 SEED = 12345
 DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
-DEFAULT_USER_PARAMS = {"HII_DIM": 50, "DIM": 150, "BOX_LEN": 100}
+DEFAULT_USER_PARAMS = {"HII_DIM": 50, "DIM": 150, "BOX_LEN": 100, "NO_RNG": True}
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
-
 
 OPTIONS = (
     [12, {}],
+    [12, {"PERTURB_ON_HIGH_RES": True}],
     [11, {"zprime_step_factor": 1.02}],
     [30, {"z_heat_max": 40}],
     [13, {"zprime_step_factor": 1.05, "z_heat_max": 25, "HMF": 0}],
@@ -90,6 +93,14 @@ OPTIONS = (
 )
 
 
+OPTIONS_PT = (
+    [10, {}],
+    [10, {"SECOND_ORDER_LPT_CORRECTIONS": 0}],
+    [10, {"EVOLVE_DENSITY_LINEARLY": 1}],
+    [10, {"PERTURB_ON_HIGH_RES": True}],
+)
+
+
 def get_defaults(kwargs, cls):
     return {k: kwargs.get(k, v) for k, v in cls._defaults_.items()}
 
@@ -121,6 +132,21 @@ def get_all_options(redshift, **kwargs):
     return out
 
 
+def get_all_options_ics(**kwargs):
+    user_params, cosmo_params, astro_params, flag_options = get_all_defaults(kwargs)
+    user_params.update(DEFAULT_USER_PARAMS)
+    out = {
+        "user_params": user_params,
+        "cosmo_params": cosmo_params,
+        "random_seed": SEED,
+    }
+
+    for key in kwargs:
+        if key.upper() in (k.upper() for k in global_params.keys()):
+            out[key] = kwargs[key]
+    return out
+
+
 def produce_coeval_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
 
@@ -141,11 +167,65 @@ def produce_lc_power_spectra(redshift, **kwargs):
     return k, p, lightcone
 
 
+def produce_perturb_field_data(redshift, **kwargs):
+    options = get_all_options(redshift, **kwargs)
+    options_ics = get_all_options_ics(**kwargs)
+
+    out = {
+        key: kwargs[key]
+        for key in kwargs
+        if key.upper() in (k.upper() for k in global_params.keys())
+    }
+
+    velocity_normalisation = 1e16
+
+    with config.use(regenerate=True, write=False):
+        init_box = initial_conditions(**options_ics)
+        pt_box = perturb_field(redshift=redshift, init_boxes=init_box, **out)
+
+    p_dens, k_dens = get_power(
+        pt_box.density, boxlength=options["user_params"]["BOX_LEN"],
+    )
+    p_vel, k_vel = get_power(
+        pt_box.velocity * velocity_normalisation,
+        boxlength=options["user_params"]["BOX_LEN"],
+    )
+
+    def hist(kind, xmin, xmax, nbins):
+        data = getattr(pt_box, kind)
+        if kind == "velocity":
+            data = velocity_normalisation * data
+
+        bins, edges = np.histogram(
+            data, bins=np.linspace(xmin, xmax, nbins), range=[xmin, xmax], normed=True,
+        )
+
+        left, right = edges[:-1], edges[1:]
+
+        X = np.array([left, right]).T.flatten()
+        Y = np.array([bins, bins]).T.flatten()
+        return X, Y
+
+    X_dens, Y_dens = hist("density", -0.8, 2.0, 50)
+    X_vel, Y_vel = hist("velocity", -2, 2, 50)
+
+    return k_dens, p_dens, k_vel, p_vel, X_dens, Y_dens, X_vel, Y_vel, init_box
+
+
 def get_filename(redshift, **kwargs):
     # get sorted keys
     kwargs = {k: kwargs[k] for k in sorted(kwargs)}
     string = "_".join(f"{k}={v}" for k, v in kwargs.items())
     fname = f"power_spectra_z{redshift:.2f}_{string}.h5"
+
+    return os.path.join(DATA_PATH, fname)
+
+
+def get_filename_pt(redshift, **kwargs):
+    # get sorted keys
+    kwargs = {k: kwargs[k] for k in sorted(kwargs)}
+    string = "_".join(f"{k}={v}" for k, v in kwargs.items())
+    fname = f"perturb_field_data_z{redshift:.2f}_{string}.h5"
 
     return os.path.join(DATA_PATH, fname)
 
@@ -181,8 +261,54 @@ def produce_power_spectra_for_tests(redshift, force, direc, **kwargs):
         fl["power_lc"] = p_l
         fl["k_lc"] = k_l
 
-        fl["xHI"] = lc.global_xHI
+        fl["xHI"] = lc.global_xH
         fl["Tb"] = lc.global_brightness_temp
+
+    print(f"Produced {fname} with {kwargs}")
+    return fname
+
+
+def produce_data_for_perturb_field_tests(redshift, force, **kwargs):
+    (
+        k_dens,
+        p_dens,
+        k_vel,
+        p_vel,
+        X_dens,
+        Y_dens,
+        X_vel,
+        Y_vel,
+        init_box,
+    ) = produce_perturb_field_data(redshift, **kwargs)
+
+    fname = get_filename_pt(redshift, **kwargs)
+
+    # Need to manually remove it, otherwise h5py tries to add to it
+    if os.path.exists(fname):
+        if force:
+            os.remove(fname)
+        else:
+            return fname
+
+    with h5py.File(fname, "w") as fl:
+        for k, v in kwargs.items():
+            fl.attrs[k] = v
+
+        fl.attrs["HII_DIM"] = init_box.user_params.HII_DIM
+        fl.attrs["DIM"] = init_box.user_params.DIM
+        fl.attrs["BOX_LEN"] = init_box.user_params.BOX_LEN
+
+        fl["power_dens"] = p_dens
+        fl["k_dens"] = k_dens
+
+        fl["power_vel"] = p_vel
+        fl["k_vel"] = k_vel
+
+        fl["pdf_dens"] = Y_dens
+        fl["x_dens"] = X_dens
+
+        fl["pdf_vel"] = Y_vel
+        fl["x_vel"] = X_vel
 
     print(f"Produced {fname} with {kwargs}")
     return fname
@@ -204,6 +330,8 @@ if __name__ == "__main__":
 
     force = "--force" in sys.argv
     remove = "--no-clean" not in sys.argv
+    pt_only = "--pt-only" in sys.argv
+    no_pt = "--no-pt" in sys.argv
 
     nums = range(len(OPTIONS))
     for arg in sys.argv:
@@ -212,16 +340,29 @@ if __name__ == "__main__":
             remove = False
             force = True
 
+    if pt_only or no_pt:
+        remove = False
+
     # For tests, we *don't* want to use cached boxes, but we also want to use the
     # cache between the power spectra and lightcone. So we create a temporary
     # directory in which to cache results.
     direc = tempfile.mkdtemp()
     fnames = []
-    for redshift, kwargs in [OPTIONS[n] for n in nums]:
-        fnames.append(produce_power_spectra_for_tests(redshift, force, direc, **kwargs))
+
+    if not pt_only:
+        for redshift, kwargs in [OPTIONS[n] for n in nums]:
+            fnames.append(
+                produce_power_spectra_for_tests(redshift, force, direc, **kwargs)
+            )
+
+    if not no_pt:
+        for redshift, kwargs in OPTIONS_PT:
+            fnames.append(
+                produce_data_for_perturb_field_tests(redshift, force, **kwargs)
+            )
 
     # Remove extra files that
-    if not nums:
+    if not (nums or pt_only or no_pt):
         all_files = glob.glob(os.path.join(DATA_PATH, "*"))
         for fl in all_files:
             if fl not in fnames:

@@ -8,14 +8,14 @@ import py21cmfast as p21
 from py21cmfast._cfg import Config
 
 
-@pytest.fixture("module")
+@pytest.fixture(scope="module")
 def cfgdir(tmp_path_factory):
     return tmp_path_factory.mktemp("config_test_dir")
 
 
-def test_config_context(cfgdir):
+def test_config_context(cfgdir, default_user_params):
     with p21.config.use(direc=cfgdir, write=True):
-        init = p21.initial_conditions(user_params={"HII_DIM": 30})
+        init = p21.initial_conditions(user_params=default_user_params)
 
     assert (cfgdir / init.filename).exists()
     assert "config_test_dir" not in p21.config["direc"]

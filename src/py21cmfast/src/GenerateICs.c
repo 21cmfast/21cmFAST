@@ -64,7 +64,7 @@ int ComputeInitialConditions(
     char wisdom_filename[500];
 
     unsigned long long ct;
-    int n_x, n_y, n_z, i, j, k, ii, thread_num;
+    int n_x, n_y, n_z, i, j, k, ii, thread_num, dimension;
     float k_x, k_y, k_z, k_mag, p, a, b, k_sq;
     double pixel_deltax;
     float p_vcb, vcb_x, vcb_y, vcb_z;
@@ -81,8 +81,16 @@ int ComputeInitialConditions(
     fftwf_plan_with_nthreads(user_params->N_THREADS);
     fftwf_cleanup_threads();
 
-    // ************  INITIALIZATION ********************** //
+    switch(user_params->PERTURB_ON_HIGH_RES) {
+        case 0:
+            dimension = user_params->HII_DIM;
+            break;
+        case 1:
+            dimension = user_params->DIM;
+            break;
+    }
 
+    // ************  INITIALIZATION ********************** //
     unsigned int seeds[user_params->N_THREADS];
 
     // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
@@ -152,11 +160,8 @@ int ComputeInitialConditions(
     f_pixel_factor = user_params->DIM/(float)user_params->HII_DIM;
 
     // ************  END INITIALIZATION ****************** //
-
     LOG_DEBUG("Finished initialization.");
-
     // ************ CREATE K-SPACE GAUSSIAN RANDOM FIELD *********** //
-
 
     init_ps();
 
@@ -165,7 +170,6 @@ int ComputeInitialConditions(
     {
 #pragma omp for
         for (n_x=0; n_x<user_params->DIM; n_x++){
-
             // convert index to numerical value for this component of the k-mode: k = (2*pi/L) * n
             if (n_x>MIDDLE)
                 k_x =(n_x-user_params->DIM) * DELTA_K;  // wrap around for FFT convention
@@ -191,11 +195,16 @@ int ComputeInitialConditions(
 
                     // ok, now we can draw the values of the real and imaginary part
                     // of our k entry from a Gaussian distribution
-                    a = gsl_ran_ugaussian(r[omp_get_thread_num()]);
-                    b = gsl_ran_ugaussian(r[omp_get_thread_num()]);
+                    if(user_params->NO_RNG) {
+                        a = 1.0;
+                        b = -1.0;
+                    }
+                    else {
+                        a = gsl_ran_ugaussian(r[omp_get_thread_num()]);
+                        b = gsl_ran_ugaussian(r[omp_get_thread_num()]);
+                    }
 
                     HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME*p/2.0) * (a + b*I);
-
 
                     if(user_params->USE_RELATIVE_VELOCITIES){
                         p_vcb = power_in_vcb(k_mag);
@@ -217,12 +226,8 @@ int ComputeInitialConditions(
         adj_complex_conj(HIRES_box_vcb_y,user_params,cosmo_params);
         adj_complex_conj(HIRES_box_vcb_z,user_params,cosmo_params);
     }
-    // *** Let's also create a lower-resolution version of the density field  *** //
 
     memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-    if (user_params->DIM != user_params->HII_DIM)
-        filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
 
     // FFT back to real space
     if(user_params->USE_FFTW_WISDOM) {
@@ -244,9 +249,6 @@ int ComputeInitialConditions(
             // copy over unfiltered box
             memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
-            if (user_params->DIM != user_params->HII_DIM)
-                filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-
             fftwf_destroy_plan(plan);
             plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                          (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
@@ -260,28 +262,63 @@ int ComputeInitialConditions(
     }
     fftwf_destroy_plan(plan);
 
-    LOG_DEBUG("Filtered hires boxes.");
+    LOG_DEBUG("FFT'd hires boxes.");
 
-    // now sample the filtered box
-#pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(boxes,HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
     {
 #pragma omp for
-        for (i=0; i<user_params->HII_DIM; i++){
-            for (j=0; j<user_params->HII_DIM; j++){
-                for (k=0; k<user_params->HII_DIM; k++){
-                    boxes->lowres_density[HII_R_INDEX(i,j,k)] =
-                    *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                       (unsigned long long)(j*f_pixel_factor+0.5),
-                                                       (unsigned long long)(k*f_pixel_factor+0.5)))/VOLUME;
+        for (i=0; i<user_params->DIM; i++){
+            for (j=0; j<user_params->DIM; j++){
+                for (k=0; k<user_params->DIM; k++){
+                    *((float *)boxes->hires_density + R_INDEX(i,j,k)) = *((float *)HIRES_box + R_FFT_INDEX(i,j,k))/VOLUME;
                 }
             }
         }
     }
 
-    // ******* Relative Velocity part ******* //
+    // *** If required, let's also create a lower-resolution version of the density field  *** //
+    memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
+
+    // Only filter if we are perturbing on the low-resolution grid
+    if(!user_params->PERTURB_ON_HIGH_RES) {
+        if (user_params->DIM != user_params->HII_DIM) {
+            filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+        }
+
+        // FFT back to real space
+        if(user_params->USE_FFTW_WISDOM) {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
+            fftwf_execute(plan);
+        }
+        else {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
+        fftwf_destroy_plan(plan);
+
+        // Renormalise the FFT'd box (sample the high-res box if we are perturbing on the low-res grid)
+#pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
+        {
+#pragma omp for
+            for (i=0; i<user_params->HII_DIM; i++){
+                for (j=0; j<user_params->HII_DIM; j++){
+                    for (k=0; k<user_params->HII_DIM; k++){
+                        boxes->lowres_density[HII_R_INDEX(i,j,k)] =
+                        *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                           (unsigned long long)(j*f_pixel_factor+0.5),
+                                                           (unsigned long long)(k*f_pixel_factor+0.5)))/VOLUME;
+                    }
+                }
+            }
+        }
+    }
+
+
+    // ******* Relative Velocity part ******* //
     if(user_params->USE_RELATIVE_VELOCITIES){
-        //for now I'm going to assume NO FFTW WISDOM, until that part is fixed.
         //note we do NOT filter our boxes first, in order to keep the total number of boxes small.
 
         for(ii=0;ii<3;ii++) {
@@ -321,156 +358,132 @@ int ComputeInitialConditions(
             }
         }
 
-        if(user_params->USE_FFTW_WISDOM) {
+        // Only filter the relative velocities if we are perturbing on the low-resolution grid
+        if(!user_params->PERTURB_ON_HIGH_RES) {
 
-            sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
-            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+            if(user_params->USE_FFTW_WISDOM) {
+
+                sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
+                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                 (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY);
+                }
+                else {
+                    // Going to need to construct an FFTW_Wisdom for this box. Now its time to allocate the memory to save a copy of the box which gets
+                    // destroyed on FFTW Wisdom creation
+                    HIRES_box_vcb_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+
+                    // Make a copy of the x-direction velocity
+                    memcpy(HIRES_box_vcb_saved, HIRES_box_vcb_x, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+
+                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_PATIENT);
+                    fftwf_execute(plan);
+
+                    // Store the wisdom for later use
+                    fftwf_export_wisdom_to_filename(wisdom_filename);
+
+                    // return copy of the x-direction velocity that we saved
+                    memcpy(HIRES_box_vcb_x, HIRES_box_vcb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+
+                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                 (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY);
+
+                    // No longer need the saved box, we only enter here once
+                    fftwf_free(HIRES_box_vcb_saved);
+                }
+                fftwf_execute(plan);
+
                 plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY);
+                                             (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (float *)HIRES_box_vcb_z, (fftwf_complex *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+
             }
             else {
-                // Going to need to construct an FFTW_Wisdom for this box. Now its time to allocate the memory to save a copy of the box which gets
-                // destroyed on FFTW Wisdom creation
-                HIRES_box_vcb_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-                // Make a copy of the x-direction velocity
-                memcpy(HIRES_box_vcb_saved, HIRES_box_vcb_x, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_PATIENT);
-                fftwf_execute(plan);
-
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                // return copy of the x-direction velocity that we saved
-                memcpy(HIRES_box_vcb_x, HIRES_box_vcb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY);
-
-                // No longer need the saved box, we only enter here once
-                fftwf_free(HIRES_box_vcb_saved);
+                for(ii=0;ii<3;ii++) {
+                    if(ii==0) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                             (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
+                    if(ii==1) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                             (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
+                    if(ii==2) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                             (float *)HIRES_box_vcb_z, (fftwf_complex *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
+                    fftwf_execute(plan);
+                }
             }
-            fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
 
-            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY);
-            fftwf_execute(plan);
-            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (float *)HIRES_box_vcb_z, (fftwf_complex *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY);
-            fftwf_execute(plan);
-
-        }
-        else {
-            for(ii=0;ii<3;ii++) {
-                if(ii==0) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
-                if(ii==1) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
-                if(ii==2) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (float *)HIRES_box_vcb_z, (fftwf_complex *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
-                fftwf_execute(plan);
+            //and filter each box:
+            if (user_params->DIM != user_params->HII_DIM){
+                filter_box(HIRES_box_vcb_x, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+                filter_box(HIRES_box_vcb_y, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+                filter_box(HIRES_box_vcb_z, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
             }
-        }
-        fftwf_destroy_plan(plan);
 
-        //and filter each box:
-        if (user_params->DIM != user_params->HII_DIM){
-            filter_box(HIRES_box_vcb_x, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-            filter_box(HIRES_box_vcb_y, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-            filter_box(HIRES_box_vcb_z, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-        }
+            //and transform back to real space
+            if(user_params->USE_FFTW_WISDOM) {
+                // FFTW Wisdom will already be in memory
+                for(ii=0;ii<3;ii++) {
+                    if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                             (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY); }
+                    if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                             (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY); }
+                    if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                             (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY); }
 
-        //and transform back to real space
-        if(user_params->USE_FFTW_WISDOM) {
-            // FFTW Wisdom will already be in memory
-            for(ii=0;ii<3;ii++) {
-                if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY); }
-                if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY); }
-                if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY); }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+                    fftwf_execute(plan);
+                    fftwf_destroy_plan(plan);
+                }
             }
-        }
-        else {
-            for(ii=0;ii<3;ii++) {
-                if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
-                if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
-                if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+            else {
+                for(ii=0;ii<3;ii++) {
+                    if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                             (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
+                    if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                             (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
+                    if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                             (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
+                    fftwf_execute(plan);
+                    fftwf_destroy_plan(plan);
+                }
             }
-        }
 
-
-
-        //to save into a lowres box
+            //to save into a lowres box
 #pragma omp parallel shared(boxes,HIRES_box_vcb_x,HIRES_box_vcb_y,HIRES_box_vcb_z,f_pixel_factor) private(i,j,k,vcb_x,vcb_y,vcb_z) num_threads(user_params->N_THREADS)
-        {
+            {
 #pragma omp for
-            for (i=0; i<user_params->HII_DIM; i++){
-                for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<user_params->HII_DIM; k++){
-                        vcb_x = *((float *)HIRES_box_vcb_x + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                                       (unsigned long long)(j*f_pixel_factor+0.5),
-                                                                       (unsigned long long)(k*f_pixel_factor+0.5)));
-                        vcb_y = *((float *)HIRES_box_vcb_y + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                                       (unsigned long long)(j*f_pixel_factor+0.5),
-                                                                       (unsigned long long)(k*f_pixel_factor+0.5)));
-                        vcb_z = *((float *)HIRES_box_vcb_z + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                                       (unsigned long long)(j*f_pixel_factor+0.5),
-                                                                       (unsigned long long)(k*f_pixel_factor+0.5)));
-                        boxes->lowres_vcb[HII_R_INDEX(i,j,k)] =sqrt(vcb_x*vcb_x+vcb_y*vcb_y+vcb_z*vcb_z)/VOLUME/TOT_NUM_PIXELS;
+                for (i=0; i<user_params->HII_DIM; i++){
+                    for (j=0; j<user_params->HII_DIM; j++){
+                        for (k=0; k<user_params->HII_DIM; k++){
+                            vcb_x = *((float *)HIRES_box_vcb_x + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                                             (unsigned long long)(j*f_pixel_factor+0.5),
+                                                                             (unsigned long long)(k*f_pixel_factor+0.5)));
+                            vcb_y = *((float *)HIRES_box_vcb_y + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                                             (unsigned long long)(j*f_pixel_factor+0.5),
+                                                                             (unsigned long long)(k*f_pixel_factor+0.5)));
+                            vcb_z = *((float *)HIRES_box_vcb_z + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                                             (unsigned long long)(j*f_pixel_factor+0.5),
+                                                                             (unsigned long long)(k*f_pixel_factor+0.5)));
+                            boxes->lowres_vcb[HII_R_INDEX(i,j,k)] =sqrt(vcb_x*vcb_x+vcb_y*vcb_y+vcb_z*vcb_z)/VOLUME/TOT_NUM_PIXELS;
+                        }
                     }
                 }
             }
+
+            fftwf_free(HIRES_box_vcb_x);
+            fftwf_free(HIRES_box_vcb_y);
+            fftwf_free(HIRES_box_vcb_z);
         }
-
-        fftwf_free(HIRES_box_vcb_x);
-        fftwf_free(HIRES_box_vcb_y);
-        fftwf_free(HIRES_box_vcb_z);
-
     }
     LOG_DEBUG("Completed Relative velocities.");
     // ******* End of Relative Velocity part ******* //
 
-    // ******* PERFORM INVERSE FOURIER TRANSFORM ***************** //
-    // add the 1/VOLUME factor when converting from k space to real space
-    memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
-    for (ct=0; ct<KSPACE_NUM_PIXELS; ct++){
-        HIRES_box[ct] /= VOLUME;
-    }
 
-    if(user_params->USE_FFTW_WISDOM) {
-        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                     (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
-    }
-    else {
-        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                     (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
-    }
-    fftwf_execute(plan);
-    fftwf_destroy_plan(plan);
 
-#pragma omp parallel shared(boxes,HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
-    {
-#pragma omp for
-        for (i=0; i<user_params->DIM; i++){
-            for (j=0; j<user_params->DIM; j++){
-                for (k=0; k<user_params->DIM; k++){
-                    *((float *)boxes->hires_density + R_INDEX(i,j,k)) = *((float *)HIRES_box + R_FFT_INDEX(i,j,k));
-                }
-            }
-        }
-    }
+    // Now look at the velocities
 
     for(ii=0;ii<3;ii++) {
 
@@ -517,8 +530,12 @@ int ComputeInitialConditions(
             }
         }
 
-        if (user_params->DIM != user_params->HII_DIM)
-            filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+        // Filter only if we require perturbing on the low-res grid
+        if(!user_params->PERTURB_ON_HIGH_RES) {
+            if (user_params->DIM != user_params->HII_DIM) {
+                filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            }
+        }
 
         if(user_params->USE_FFTW_WISDOM) {
             plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
@@ -533,29 +550,51 @@ int ComputeInitialConditions(
 
         // now sample to lower res
         // now sample the filtered box
-#pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor,ii) private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor,ii,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
-            for (i=0; i<user_params->HII_DIM; i++){
-                for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<user_params->HII_DIM; k++){
-                        if(ii==0) {
-                            boxes->lowres_vx[HII_R_INDEX(i,j,k)] =
-                            *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                               (unsigned long long)(j*f_pixel_factor+0.5),
-                                                               (unsigned long long)(k*f_pixel_factor+0.5)));
+            for (i=0; i<dimension; i++){
+                for (j=0; j<dimension; j++){
+                    for (k=0; k<dimension; k++){
+                        if(user_params->PERTURB_ON_HIGH_RES) {
+                            if(ii==0) {
+                                boxes->hires_vx[R_INDEX(i,j,k)] =
+                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                   (unsigned long long)(j),
+                                                                   (unsigned long long)(k)));
+                            }
+                            if(ii==1) {
+                                boxes->hires_vy[R_INDEX(i,j,k)] =
+                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                   (unsigned long long)(j),
+                                                                   (unsigned long long)(k)));
+                            }
+                            if(ii==2) {
+                                boxes->hires_vz[R_INDEX(i,j,k)] =
+                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                   (unsigned long long)(j),
+                                                                   (unsigned long long)(k)));
+                            }
                         }
-                        if(ii==1) {
-                            boxes->lowres_vy[HII_R_INDEX(i,j,k)] =
-                            *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                               (unsigned long long)(j*f_pixel_factor+0.5),
-                                                               (unsigned long long)(k*f_pixel_factor+0.5)));
-                        }
-                        if(ii==2) {
-                            boxes->lowres_vz[HII_R_INDEX(i,j,k)] =
-                            *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                               (unsigned long long)(j*f_pixel_factor+0.5),
-                                                               (unsigned long long)(k*f_pixel_factor+0.5)));
+                        else {
+                            if(ii==0) {
+                                boxes->lowres_vx[HII_R_INDEX(i,j,k)] =
+                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                                   (unsigned long long)(j*f_pixel_factor+0.5),
+                                                                   (unsigned long long)(k*f_pixel_factor+0.5)));
+                            }
+                            if(ii==1) {
+                                boxes->lowres_vy[HII_R_INDEX(i,j,k)] =
+                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                                   (unsigned long long)(j*f_pixel_factor+0.5),
+                                                                   (unsigned long long)(k*f_pixel_factor+0.5)));
+                            }
+                            if(ii==2) {
+                                boxes->lowres_vz[HII_R_INDEX(i,j,k)] =
+                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                                   (unsigned long long)(j*f_pixel_factor+0.5),
+                                                                   (unsigned long long)(k*f_pixel_factor+0.5)));
+                            }
                         }
                     }
                 }
@@ -634,6 +673,7 @@ int ComputeInitialConditions(
                         }
                     }
                 }
+
                 // Now we can generate the real phi_1[i,j]
                 plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                              (fftwf_complex *)phi_1[PHI_INDEX(i, j)], (float *)phi_1[PHI_INDEX(i, j)], FFTW_ESTIMATE);
@@ -829,8 +869,12 @@ int ComputeInitialConditions(
                 }
             }
 
-            if (user_params->DIM != user_params->HII_DIM)
-                filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            // Filter only if we require perturbing on the low-res grid
+            if(!user_params->PERTURB_ON_HIGH_RES) {
+                if (user_params->DIM != user_params->HII_DIM) {
+                    filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+                }
+            }
 
             if(user_params->USE_FFTW_WISDOM) {
                 // This wisdom has already been created and in memory
@@ -846,29 +890,51 @@ int ComputeInitialConditions(
 
             // now sample to lower res
             // now sample the filtered box
-#pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor,ii) private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor,ii,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
-                            if(ii==0) {
-                                boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] =
-                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                                   (unsigned long long)(j*f_pixel_factor+0.5),
-                                                                   (unsigned long long)(k*f_pixel_factor+0.5)));
+                for (i=0; i<dimension; i++){
+                    for (j=0; j<dimension; j++){
+                        for (k=0; k<dimension; k++){
+                            if(user_params->PERTURB_ON_HIGH_RES) {
+                                if(ii==0) {
+                                    boxes->hires_vx_2LPT[R_INDEX(i,j,k)] =
+                                    *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                       (unsigned long long)(j),
+                                                                       (unsigned long long)(k)));
+                                }
+                                if(ii==1) {
+                                    boxes->hires_vy_2LPT[R_INDEX(i,j,k)] =
+                                    *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                       (unsigned long long)(j),
+                                                                       (unsigned long long)(k)));
+                                }
+                                if(ii==2) {
+                                    boxes->hires_vz_2LPT[R_INDEX(i,j,k)] =
+                                    *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                                       (unsigned long long)(j),
+                                                                       (unsigned long long)(k)));
+                                }
                             }
-                            if(ii==1) {
-                                boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] =
-                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                                   (unsigned long long)(j*f_pixel_factor+0.5),
-                                                                   (unsigned long long)(k*f_pixel_factor+0.5)));
-                            }
-                            if(ii==2) {
-                                boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] =
-                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                                   (unsigned long long)(j*f_pixel_factor+0.5),
-                                                                   (unsigned long long)(k*f_pixel_factor+0.5)));
+                            else {
+                                if(ii==0) {
+                                    boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] =
+                                    *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                                       (unsigned long long)(j*f_pixel_factor+0.5),
+                                                                       (unsigned long long)(k*f_pixel_factor+0.5)));
+                                }
+                                if(ii==1) {
+                                    boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] =
+                                    *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                                       (unsigned long long)(j*f_pixel_factor+0.5),
+                                                                       (unsigned long long)(k*f_pixel_factor+0.5)));
+                                }
+                                if(ii==2) {
+                                    boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] =
+                                    *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                                       (unsigned long long)(j*f_pixel_factor+0.5),
+                                                                       (unsigned long long)(k*f_pixel_factor+0.5)));
+                                }
                             }
                         }
                     }
@@ -880,6 +946,7 @@ int ComputeInitialConditions(
         for(i = 0; i < 3; ++i){
             for(j = 0; j <= i; ++j){
                 fftwf_free(phi_1[PHI_INDEX(i,j)]);
+
             }
         }
     }

@@ -14,107 +14,64 @@ from py21cmfast import TsBox
 from py21cmfast import global_params
 
 
-@pytest.fixture(scope="module")
-def ic():
-    return InitialConditions()
+@pytest.fixture(scope="function")
+def init(default_user_params):
+    return InitialConditions(user_params=default_user_params)
 
 
-def test_arrays_inited(ic):
-    assert not ic.arrays_initialized
+@pytest.mark.parametrize("cls", [InitialConditions, PerturbedField, IonizedBox, TsBox])
+def test_pointer_fields(cls):
+    if cls is InitialConditions:
+        inst = cls()
+    else:
+        with pytest.raises(KeyError):
+            cls()
 
+        inst = cls(redshift=7.0)
 
-# TODO: this is probably good to implement for every output struct defined in code
-def test_pointer_fields_ic(ic):
     # Get list of fields before and after array initialisation
-    d = copy.copy(list(ic.__dict__.keys()))
-    ic._init_arrays()
-    new_names = [name for name in ic.__dict__ if name not in d]
+    d = copy.copy(list(inst.__dict__.keys()))
+    inst._init_arrays()
+    new_names = [name for name in inst.__dict__ if name not in d]
 
     assert new_names
-    assert all(n in ic.pointer_fields for n in new_names)
+    assert all(n in inst.pointer_fields for n in new_names)
 
     # cstruct shouldn't be initialised,
-    assert not ic.arrays_initialized
+    assert not inst.arrays_initialized
 
-    ic._init_cstruct()
-    assert ic.arrays_initialized
-
-
-def test_pointer_fields_pf():
-    # Get list of fields before and after array initialisation
-
-    with pytest.raises(KeyError):
-        PerturbedField()
-
-    pf = PerturbedField(redshift=7.0)
-
-    d = copy.copy(list(pf.__dict__.keys()))
-    pf._init_arrays()
-    new_names = [name for name in pf.__dict__ if name not in d]
-
-    assert new_names
-    assert all(n in pf.pointer_fields for n in new_names)
+    inst._init_cstruct()
+    assert inst.arrays_initialized
 
 
-def test_pointer_fields_ib():
-    # Get list of fields before and after array initialisation
-    with pytest.raises(KeyError):
-        IonizedBox()
-
-    pf = IonizedBox(redshift=7.0)
-
-    d = copy.copy(list(pf.__dict__.keys()))
-    pf._init_arrays()
-    new_names = [name for name in pf.__dict__ if name not in d]
-
-    assert new_names
-    assert all(n in pf.pointer_fields for n in new_names)
+def test_non_existence(init, test_direc):
+    assert not init.exists(direc=test_direc)
 
 
-def test_pointer_fields_st():
-    # Get list of fields before and after array initialisation
-    with pytest.raises(KeyError):
-        TsBox()
-
-    pf = TsBox(redshift=7.0)
-
-    d = copy.copy(list(pf.__dict__.keys()))
-    pf._init_arrays()
-    new_names = [name for name in pf.__dict__ if name not in d]
-
-    assert new_names
-    assert all(n in pf.pointer_fields for n in new_names)
-
-
-def test_non_existence(ic, tmpdirec):
-    assert not ic.exists(direc=tmpdirec)
-
-
-def test_writeability(ic):
+def test_writeability(init):
+    """init is not initialized and therefore can't write yet."""
     with pytest.raises(IOError):
-        ic.write()
+        init.write()
 
 
-def test_readability(tmpdirec):
+def test_readability(test_direc, default_user_params):
     # we update this one, so don't use the global one
-    ic_ = InitialConditions(init=True)
+    ic_ = InitialConditions(init=True, user_params=default_user_params)
 
     # TODO: fake it being filled (need to do both of the following to fool it.
     # TODO: Actually, we *shouldn't* be able to fool it at all, but hey.
     ic_.filled = True
     ic_.random_seed  # accessing random_seed actually creates a random seed.
 
-    ic_.write(direc=tmpdirec)
+    ic_.write(direc=test_direc)
+    ic2 = InitialConditions(user_params=default_user_params)
 
-    ic2 = InitialConditions()
+    # without seeds, they are obviously exactly the same.
+    assert ic_._seedless_repr() == ic2._seedless_repr()
 
-    assert (
-        ic_._seedless_repr() == ic2._seedless_repr()
-    )  # without seeds, they are obviously exactly the same.
+    assert ic2.exists(direc=test_direc)
 
-    assert ic2.exists(direc=tmpdirec)
-
-    ic2.read(direc=tmpdirec)
+    ic2.read(direc=test_direc)
 
     assert repr(ic_) == repr(ic2)  # they should be exactly the same.
     assert str(ic_) == str(ic2)  # their str is the same.
@@ -124,25 +81,25 @@ def test_readability(tmpdirec):
 
     # make sure we can't read it twice
     with pytest.raises(IOError):
-        ic2.read(direc=tmpdirec)
+        ic2.read(direc=test_direc)
 
 
-def test_different_seeds(ic):
-    ic2 = InitialConditions(random_seed=1)
+def test_different_seeds(init, default_user_params):
+    ic2 = InitialConditions(random_seed=2, user_params=default_user_params)
 
-    assert ic is not ic2
-    assert ic != ic2
-    assert repr(ic) != repr(ic2)
-    assert ic._seedless_repr() == ic2._seedless_repr()
+    assert init is not ic2
+    assert init != ic2
+    assert repr(init) != repr(ic2)
+    assert init._seedless_repr() == ic2._seedless_repr()
 
-    assert ic._md5 == ic2._md5
+    assert init._md5 == ic2._md5
 
     # make sure we didn't inadvertantly set the random seed while doing any of this
-    assert ic._random_seed is None
+    assert init._random_seed is None
 
 
-def test_pickleability():
-    ic_ = InitialConditions(init=True)
+def test_pickleability(default_user_params):
+    ic_ = InitialConditions(init=True, user_params=default_user_params)
     ic_.filled = True
     ic_.random_seed
 
@@ -152,11 +109,12 @@ def test_pickleability():
     assert repr(ic_) == repr(ic2)
 
 
-def test_fname():
-    ic1 = InitialConditions(user_params={"HII_DIM": 1000})
-    ic2 = InitialConditions(user_params={"HII_DIM": 1000})
+def test_fname(default_user_params):
+    ic1 = InitialConditions(user_params=default_user_params)
+    ic2 = InitialConditions(user_params=default_user_params)
 
-    # we didn't give them seeds, so can't access the filename attribute (it is undefined until a seed is set)
+    # we didn't give them seeds, so can't access the filename attribute
+    # (it is undefined until a seed is set)
     with pytest.raises(AttributeError):
         assert ic1.filename != ic2.filename  # random seeds are different
 
@@ -170,24 +128,24 @@ def test_fname():
     assert ic1._fname_skeleton == ic2._fname_skeleton
 
 
-def test_match_seed(tmpdirec):
+def test_match_seed(test_direc, default_user_params):
     # we update this one, so don't use the global one
-    ic_ = InitialConditions(init=True, random_seed=12)
+    ic_ = InitialConditions(init=True, random_seed=12, user_params=default_user_params)
 
     # fake it being filled
     ic_.filled = True
     ic_.random_seed
 
-    ic_.write(direc=tmpdirec)
+    ic_.write(direc=test_direc)
 
-    ic2 = InitialConditions(random_seed=1)
-    with pytest.raises(
-        IOError
-    ):  # should not read in just anything if its random seed is set.
-        ic2.read(direc=tmpdirec)
+    ic2 = InitialConditions(random_seed=1, user_params=default_user_params)
+
+    # should not read in just anything if its random seed is set.
+    with pytest.raises(IOError):
+        ic2.read(direc=test_direc)
 
 
-def test_bad_class_definition():
+def test_bad_class_definition(default_user_params):
     class CustomInitialConditions(InitialConditions):
         _name = "InitialConditions"
 
@@ -202,22 +160,21 @@ def test_bad_class_definition():
             del self.hires_density
 
     with pytest.raises(AttributeError):
-        CustomInitialConditions(init=True)
+        CustomInitialConditions(init=True, user_params=default_user_params)
 
 
-def test_pre_expose(ic):
+def test_pre_expose(init):
     # haven't actually tried to read in or fill the array yet.
     with pytest.raises(Exception):
-        ic._expose()
+        init._expose()
 
 
-def test_bad_write():
-    ic = InitialConditions()
-    ic.filled = True
+def test_bad_write(init):
+    init.filled = True
 
     # no random seed yet so shouldn't be able to write.
     with pytest.raises(ValueError):
-        ic.write()
+        init.write()
 
 
 def test_global_params_keys():

@@ -435,11 +435,12 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
     else {
 
         //set the minimum source mass
-        if (astro_params->ION_Tvir_MIN < 9.99999e3) // neutral IGM
-            M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
-        else // ionized IGM
-            M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
-
+        if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
+            M_MIN = (float)TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
+        }
+        else { // ionized IGM
+            M_MIN = (float)TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
+        }
     }
 
 LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
@@ -688,7 +689,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             fftwf_destroy_plan(plan);
         }
 
-
         // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from
         //  real space to k-space
         // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
@@ -761,6 +761,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
             memcpy(deltax_filtered, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
             if(flag_options->USE_MINI_HALOS){
                 memcpy(prev_deltax_filtered, prev_deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
                 memcpy(log10_Mturnover_MINI_filtered, log10_Mturnover_MINI_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -1425,7 +1426,6 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                     Throw(ParameterError);
                 }
             }
-
             if(isfinite(f_coll)==0) {
                 LOG_ERROR("f_coll is either infinite or NaN!");
                 Throw(ParameterError);
@@ -1505,8 +1505,13 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             if (LAST_FILTER_STEP){
                                 ave_M_coll_cell = (f_coll + f_coll_MINI) * pixel_mass * (1. + curr_dens);
                                 ave_N_min_cell = ave_M_coll_cell / M_MIN; // ave # of M_MIN halos in cell
-                                N_halos_in_cell = (int) gsl_ran_poisson(r[omp_get_thread_num()],
-                                                                        global_params.N_POISSON);
+                                if(user_params->NO_RNG) {
+                                    N_halos_in_cell = 1.;
+                                }
+                                else {
+                                    N_halos_in_cell = (int) gsl_ran_poisson(r[omp_get_thread_num()],
+                                                                            global_params.N_POISSON);
+                                }
                             }
 
                             if (flag_options->USE_MASS_DEPENDENT_ZETA) {

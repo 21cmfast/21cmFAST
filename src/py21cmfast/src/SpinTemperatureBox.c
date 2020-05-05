@@ -370,7 +370,7 @@ LOG_SUPER_DEBUG("initalised Ts Interp Arrays");
             else {  // ionized IGM
                 mu_for_Ts = 0.6;
             }
-            M_MIN = TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
+            M_MIN = (float)TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
         }
     }
 
@@ -426,7 +426,7 @@ LOG_SUPER_DEBUG("growth factor zp = %f", growth_factor_zp);
 LOG_SUPER_DEBUG("read in file");
 
         if(!flag_options->M_MIN_in_Mass) {
-            M_MIN = TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
+            M_MIN = (float)TtoM(redshift, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
             LOG_DEBUG("Attempting to initialise sigmaM table with M_MIN=%e, Tvir_MIN=%e, mu=%e",
                       M_MIN, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
             initialiseSigmaMInterpTable(M_MIN,1e20);
@@ -718,7 +718,7 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
         determine_zpp_max = zpp*1.001;
 
         if(!flag_options->M_MIN_in_Mass) {
-            M_MIN = TtoM(determine_zpp_max, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
+            M_MIN = (float)TtoM(determine_zpp_max, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
             initialiseSigmaMInterpTable(M_MIN,1e20);
         }
 
@@ -791,8 +791,8 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
                             ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, FMAX(M_MIN,  M_MIN_WDM));
                         }
                         else {
-                            Sigma_Tmin_grid[i] = sigma_z0(FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
-                            ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, FMAX(TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                            Sigma_Tmin_grid[i] = sigma_z0(FMAX((float)TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                            ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, FMAX((float)TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
                         }
                     }
                 }
@@ -979,7 +979,7 @@ LOG_SUPER_DEBUG("got density gridpoints");
             }
             else {
 
-                if (FgtrM(zp, FMAX(TtoM(zp, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM)) < 1e-15 )
+                if (FgtrM(zp, FMAX((float)TtoM(zp, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM)) < 1e-15 )
                     NO_LIGHT = 1;
                 else
                     NO_LIGHT = 0;

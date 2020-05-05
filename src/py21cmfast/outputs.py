@@ -95,6 +95,11 @@ class InitialConditions(_OutputStruct):
         self.lowres_vx = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vy = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.lowres_vz = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+
+        self.hires_vx = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
+        self.hires_vy = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
+        self.hires_vz = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
+
         self.lowres_vx_2LPT = np.zeros(
             self.user_params.HII_tot_num_pixels, dtype=np.float32
         )
@@ -104,9 +109,21 @@ class InitialConditions(_OutputStruct):
         self.lowres_vz_2LPT = np.zeros(
             self.user_params.HII_tot_num_pixels, dtype=np.float32
         )
+
+        self.hires_vx_2LPT = np.zeros(
+            self.user_params.tot_fft_num_pixels, dtype=np.float32
+        )
+        self.hires_vy_2LPT = np.zeros(
+            self.user_params.tot_fft_num_pixels, dtype=np.float32
+        )
+        self.hires_vz_2LPT = np.zeros(
+            self.user_params.tot_fft_num_pixels, dtype=np.float32
+        )
+
         self.hires_density = np.zeros(
             self.user_params.tot_fft_num_pixels, dtype=np.float32
         )
+
         self.hires_vcb = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
         self.lowres_vcb = np.zeros(
             self.user_params.HII_tot_num_pixels, dtype=np.float32
@@ -126,7 +143,14 @@ class InitialConditions(_OutputStruct):
         self.lowres_vx_2LPT.shape = shape
         self.lowres_vy_2LPT.shape = shape
         self.lowres_vz_2LPT.shape = shape
+
         self.hires_density.shape = hires_shape
+        self.hires_vx.shape = hires_shape
+        self.hires_vy.shape = hires_shape
+        self.hires_vz.shape = hires_shape
+        self.hires_vx_2LPT.shape = hires_shape
+        self.hires_vy_2LPT.shape = hires_shape
+        self.hires_vz_2LPT.shape = hires_shape
 
         self.lowres_vcb.shape = shape
         self.hires_vcb.shape = hires_shape
@@ -368,7 +392,9 @@ class BrightnessTemp(_AllParamsBox):
 class _HighLevelOutput:
     def _get_prefix(self):
         return "{name}_z{redshift:.4}_{{hash}}_r{seed}.h5".format(
-            name=self.__class__.__name__, redshift=self.redshift, seed=self.random_seed
+            name=self.__class__.__name__,
+            redshift=float(self.redshift),
+            seed=self.random_seed,
         )
 
     def _input_rep(self):

@@ -11,17 +11,12 @@ from py21cmfast import run_lightcone
 
 
 @pytest.fixture(scope="module")
-def lc():
-    return run_lightcone(redshift=10.0, user_params={"HII_DIM": 35, "BOX_LEN": 50},)
+def coeval(ic):
+    return run_coeval(redshift=10.0, init_box=ic)
 
 
-@pytest.fixture(scope="module")
-def coeval():
-    return run_coeval(redshift=10.0, user_params={"HII_DIM": 35, "BOX_LEN": 50},)
-
-
-def test_lightcone_roundtrip(tmpdirec, lc):
-    fname = lc.save(direc=tmpdirec)
+def test_lightcone_roundtrip(test_direc, lc):
+    fname = lc.save(direc=test_direc)
     lc2 = LightCone.read(fname)
 
     assert lc == lc2
@@ -29,13 +24,13 @@ def test_lightcone_roundtrip(tmpdirec, lc):
     assert np.all(np.isclose(lc.brightness_temp, lc2.brightness_temp))
 
 
-def test_lightcone_io_abspath(lc, tmpdirec):
-    lc.save(tmpdirec / "abs_path_lightcone.h5")
-    assert (tmpdirec / "abs_path_lightcone.h5").exists()
+def test_lightcone_io_abspath(lc, test_direc):
+    lc.save(test_direc / "abs_path_lightcone.h5")
+    assert (test_direc / "abs_path_lightcone.h5").exists()
 
 
-def test_coeval_roundtrip(tmpdirec, coeval):
-    fname = coeval.save(direc=tmpdirec)
+def test_coeval_roundtrip(test_direc, coeval):
+    fname = coeval.save(direc=test_direc)
     coeval2 = Coeval.read(fname)
 
     assert coeval == coeval2

@@ -1,4 +1,5 @@
 """Utilities that help with wrapping various C structures."""
+import copy
 import glob
 import logging
 import warnings
@@ -209,6 +210,12 @@ class StructWithDefaults(StructWrapper):
                 "The following arguments to be updated are not compatible with this class: %s"
                 % kwargs
             )
+
+    def clone(self, **kwargs):
+        """Make a fresh copy of the instance with arbitrary parameters updated."""
+        new = self.__class__(self.self)
+        new.update(**kwargs)
+        return new
 
     def __call__(self):
         """Return a filled C Structure corresponding to this instance."""

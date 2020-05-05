@@ -514,7 +514,6 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
                             ave += delta_T_RSD_LOS[omp_get_thread_num()][k];
                         }
-
                     }
                 }
             }
