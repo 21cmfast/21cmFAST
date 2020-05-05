@@ -55,9 +55,9 @@ def test_writeability():
         ic.write()
 
 
-def test_readability(test_direc):
+def test_readability(test_direc, default_user_params):
     # we update this one, so don't use the global one
-    ic_ = InitialConditions(init=True)
+    ic_ = InitialConditions(init=True, user_params=default_user_params)
 
     # TODO: fake it being filled (need to do both of the following to fool it.
     # TODO: Actually, we *shouldn't* be able to fool it at all, but hey.
@@ -65,7 +65,7 @@ def test_readability(test_direc):
     ic_.random_seed  # accessing random_seed actually creates a random seed.
 
     ic_.write(direc=test_direc)
-    ic2 = InitialConditions()
+    ic2 = InitialConditions(user_params=default_user_params)
 
     # without seeds, they are obviously exactly the same.
     assert ic_._seedless_repr() == ic2._seedless_repr()
