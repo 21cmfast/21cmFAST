@@ -15,8 +15,8 @@ from py21cmfast import global_params
 
 
 @pytest.fixture(scope="function")
-def init():
-    return InitialConditions()
+def init(default_user_params):
+    return InitialConditions(user_params=default_user_params)
 
 
 @pytest.mark.parametrize("cls", [InitialConditions, PerturbedField, IonizedBox, TsBox])
@@ -44,15 +44,14 @@ def test_pointer_fields(cls):
     assert inst.arrays_initialized
 
 
-def test_non_existence(test_direc):
-    ic = InitialConditions()
-    assert not ic.exists(direc=test_direc)
+def test_non_existence(init, test_direc):
+    assert not init.exists(direc=test_direc)
 
 
-def test_writeability():
-    ic = InitialConditions()
+def test_writeability(init):
+    """init is not initialized and therefore can't write yet."""
     with pytest.raises(IOError):
-        ic.write()
+        init.write()
 
 
 def test_readability(test_direc, default_user_params):
@@ -85,8 +84,8 @@ def test_readability(test_direc, default_user_params):
         ic2.read(direc=test_direc)
 
 
-def test_different_seeds(init):
-    ic2 = InitialConditions(random_seed=2)
+def test_different_seeds(init, default_user_params):
+    ic2 = InitialConditions(random_seed=2, user_params=default_user_params)
 
     assert init is not ic2
     assert init != ic2
@@ -99,8 +98,8 @@ def test_different_seeds(init):
     assert init._random_seed is None
 
 
-def test_pickleability():
-    ic_ = InitialConditions(init=True)
+def test_pickleability(default_user_params):
+    ic_ = InitialConditions(init=True, user_params=default_user_params)
     ic_.filled = True
     ic_.random_seed
 
@@ -110,9 +109,9 @@ def test_pickleability():
     assert repr(ic_) == repr(ic2)
 
 
-def test_fname():
-    ic1 = InitialConditions(user_params={"HII_DIM": 1000})
-    ic2 = InitialConditions(user_params={"HII_DIM": 1000})
+def test_fname(default_user_params):
+    ic1 = InitialConditions(user_params=default_user_params)
+    ic2 = InitialConditions(user_params=default_user_params)
 
     # we didn't give them seeds, so can't access the filename attribute
     # (it is undefined until a seed is set)
@@ -129,9 +128,9 @@ def test_fname():
     assert ic1._fname_skeleton == ic2._fname_skeleton
 
 
-def test_match_seed(test_direc):
+def test_match_seed(test_direc, default_user_params):
     # we update this one, so don't use the global one
-    ic_ = InitialConditions(init=True, random_seed=12)
+    ic_ = InitialConditions(init=True, random_seed=12, user_params=default_user_params)
 
     # fake it being filled
     ic_.filled = True
@@ -139,14 +138,14 @@ def test_match_seed(test_direc):
 
     ic_.write(direc=test_direc)
 
-    ic2 = InitialConditions(random_seed=1)
+    ic2 = InitialConditions(random_seed=1, user_params=default_user_params)
 
     # should not read in just anything if its random seed is set.
     with pytest.raises(IOError):
         ic2.read(direc=test_direc)
 
 
-def test_bad_class_definition():
+def test_bad_class_definition(default_user_params):
     class CustomInitialConditions(InitialConditions):
         _name = "InitialConditions"
 
@@ -161,7 +160,7 @@ def test_bad_class_definition():
             del self.hires_density
 
     with pytest.raises(AttributeError):
-        CustomInitialConditions(init=True)
+        CustomInitialConditions(init=True, user_params=default_user_params)
 
 
 def test_pre_expose(init):
