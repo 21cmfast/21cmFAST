@@ -67,6 +67,17 @@ _safe_copy_tree(join(pkgdir, "user_data"), cfgdir, safe="config.yml")
 if "TOXENV" in os.environ and "SETUPPY_CFLAGS" in os.environ:
     os.environ["CFLAGS"] = os.environ["SETUPPY_CFLAGS"]
 
+test_req = [
+    "pre-commit",
+    "pytest>=5.0",
+    "pytest-cov",
+    "tox",
+    "pytest-remotedata>=0.3.2",
+    "powerbox",
+]
+
+doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]
+
 setup(
     name="21cmFAST",
     version=_find_version("src", "py21cmfast", "__init__.py"),
@@ -111,7 +122,9 @@ setup(
         "astropy>=2.0",
         "h5py>=2.8.0",
         "cached_property",
+        "matplotlib",
     ],
+    extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
     setup_requires=["cffi>=1.0"],
     entry_points={"console_scripts": ["21cmfast = py21cmfast.cli:main"]},
     cffi_modules=["{pkgdir}/build_cffi.py:ffi".format(pkgdir=pkgdir)],
