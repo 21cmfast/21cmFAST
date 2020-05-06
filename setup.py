@@ -69,7 +69,7 @@ if "TOXENV" in os.environ and "SETUPPY_CFLAGS" in os.environ:
 
 test_req = [
     "pre-commit",
-    "pytest",
+    "pytest>=5.0",
     "pytest-cov",
     "tox",
     "pytest-remotedata>=0.3.2",
