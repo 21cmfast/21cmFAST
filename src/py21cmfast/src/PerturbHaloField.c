@@ -40,16 +40,14 @@ LOG_DEBUG("Begin Initialisation");
 
     // Function for deciding the dimensions of loops when we could
     // use either the low or high resolution grids.
-//    switch(user_params->PERTURB_ON_HIGH_RES) {
-//        case 0:
-//            dimension = user_params->HII_DIM;
-//            break;
-//        case 1:
-//            dimension = user_params->DIM;
-//            break;
-//    }
-    dimension = user_params->HII_DIM;
-
+    switch(user_params->PERTURB_ON_HIGH_RES) {
+        case 0:
+            dimension = user_params->HII_DIM;
+            break;
+        case 1:
+            dimension = user_params->DIM;
+            break;
+    }
 
     // ***************** END INITIALIZATION ***************** //
     init_ps();
@@ -60,25 +58,22 @@ LOG_DEBUG("Begin Initialisation");
     displacement_factor_2LPT_over_BOX_LEN = displacement_factor_2LPT / user_params->BOX_LEN;
 
     // now add the missing factor of Ddot to velocity field
-#pragma omp parallel shared(boxes,growth_factor,dimension,growth_factor_over_BOX_LEN) private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(boxes,dimension,growth_factor_over_BOX_LEN) private(i,j,k) num_threads(user_params->N_THREADS)
     {
 #pragma omp for
         for (i=0; i<dimension; i++){
             for (j=0; j<dimension; j++){
                 for (k=0; k<dimension; k++){
-//                    if(user_params->PERTURB_ON_HIGH_RES) {
-//                        boxes->hires_vx[R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
-//                        boxes->hires_vy[R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
-//                        boxes->hires_vz[R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
-//                    }
-//                    else {
-//                        boxes->lowres_vx[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
-//                        boxes->lowres_vy[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
-//                        boxes->lowres_vz[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
-//                    }
-                    boxes->lowres_vx[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
-                    boxes->lowres_vy[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
-                    boxes->lowres_vz[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+                    if(user_params->PERTURB_ON_HIGH_RES) {
+                        boxes->hires_vx[R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+                        boxes->hires_vy[R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+                        boxes->hires_vz[R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+                    }
+                    else {
+                        boxes->lowres_vx[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+                        boxes->lowres_vy[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+                        boxes->lowres_vz[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+                    }
                     // this is now comoving displacement in units of box size
                 }
             }
@@ -100,19 +95,16 @@ LOG_DEBUG("Begin Initialisation");
             for (i=0; i<dimension; i++){
                 for (j=0; j<dimension; j++){
                     for (k=0; k<dimension; k++){
-//                        if(user_params->PERTURB_ON_HIGH_RES) {
-//                            boxes->hires_vx_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
-//                            boxes->hires_vy_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
-//                            boxes->hires_vz_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
-//                        }
-//                        else {
-//                            boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
-//                            boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
-//                            boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
-//                        }
-                        boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
-                        boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
-                        boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+                        if(user_params->PERTURB_ON_HIGH_RES) {
+                            boxes->hires_vx_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+                            boxes->hires_vy_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+                            boxes->hires_vz_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+                        }
+                        else {
+                            boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+                            boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+                            boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+                        }
                         // this is now comoving displacement in units of box size
                     }
                 }
@@ -153,7 +145,6 @@ LOG_DEBUG("Begin Initialisation");
         for (j=0; j<user_params->DIM; j++){
             for (k=0; k<user_params->DIM; k++){
                 if(halos->halo_field[R_INDEX(i,j,k)] > 0.) {
-//                    printf("(original): i = %d j = %d k = %d mass = %e\n",i,j,k,halos->halo_field[R_INDEX(i,j,k)]);
                     halo_mass[n_halos] = halos->halo_field[R_INDEX(i,j,k)];
                     halo_x[n_halos] = i;
                     halo_y[n_halos] = j;
@@ -181,54 +172,43 @@ LOG_DEBUG("Begin Initialisation");
             yf = halo_y[i_halo]/(user_params->DIM + 0.);
             zf = halo_z[i_halo]/(user_params->DIM + 0.);
 
-            printf("(original): x = %f y = %f z = %f mass = %e\n",xf,yf,zf,halos->halo_field[R_INDEX(halo_x[i_halo],halo_y[i_halo],halo_z[i_halo])]);
-
-            // determine halo position (downsampled if required
-//            if(user_params->PERTURB_ON_HIGH_RES) {
-//                i = halo_x[i_halo];
-//                j = halo_y[i_halo];
-//                k = halo_z[i_halo];
-//            }
-//            else {
-//                i = xf * user_params->HII_DIM;
-//                j = yf * user_params->HII_DIM;
-//                k = zf * user_params->HII_DIM;
-//            }
-            i = xf * user_params->HII_DIM;
-            j = yf * user_params->HII_DIM;
-            k = zf * user_params->HII_DIM;
+            // determine halo position (downsampled if required)
+            if(user_params->PERTURB_ON_HIGH_RES) {
+                i = halo_x[i_halo];
+                j = halo_y[i_halo];
+                k = halo_z[i_halo];
+            }
+            else {
+                i = xf * user_params->HII_DIM;
+                j = yf * user_params->HII_DIM;
+                k = zf * user_params->HII_DIM;
+            }
 
             // get new positions using linear velocity displacement from z=INITIAL
-//            if(user_params->PERTURB_ON_HIGH_RES) {
-//                xf += boxes->hires_vx[R_INDEX(i,j,k)];
-//                yf += boxes->hires_vy[R_INDEX(i,j,k)];
-//                zf += boxes->hires_vz[R_INDEX(i,j,k)];
-//            }
-//            else {
-//                xf += boxes->lowres_vx[HII_R_INDEX(i,j,k)];
-//                yf += boxes->lowres_vy[HII_R_INDEX(i,j,k)];
-//                zf += boxes->lowres_vz[HII_R_INDEX(i,j,k)];
-//            }
-            xf += boxes->lowres_vx[HII_R_INDEX(i,j,k)];
-            yf += boxes->lowres_vy[HII_R_INDEX(i,j,k)];
-            zf += boxes->lowres_vz[HII_R_INDEX(i,j,k)];
+            if(user_params->PERTURB_ON_HIGH_RES) {
+                xf += boxes->hires_vx[R_INDEX(i,j,k)];
+                yf += boxes->hires_vy[R_INDEX(i,j,k)];
+                zf += boxes->hires_vz[R_INDEX(i,j,k)];
+            }
+            else {
+                xf += boxes->lowres_vx[HII_R_INDEX(i,j,k)];
+                yf += boxes->lowres_vy[HII_R_INDEX(i,j,k)];
+                zf += boxes->lowres_vz[HII_R_INDEX(i,j,k)];
+            }
 
             // 2LPT PART
             // add second order corrections
             if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
-//                if(user_params->PERTURB_ON_HIGH_RES) {
-//                    xf -= boxes->hires_vx_2LPT[R_INDEX(i,j,k)];
-//                    yf -= boxes->hires_vy_2LPT[R_INDEX(i,j,k)];
-//                    zf -= boxes->hires_vz_2LPT[R_INDEX(i,j,k)];
-//                }
-//                else {
-//                    xf -= boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)];
-//                    yf -= boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)];
-//                    zf -= boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)];
-//                }
-                xf -= boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)];
-                yf -= boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)];
-                zf -= boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)];
+                if(user_params->PERTURB_ON_HIGH_RES) {
+                    xf -= boxes->hires_vx_2LPT[R_INDEX(i,j,k)];
+                    yf -= boxes->hires_vy_2LPT[R_INDEX(i,j,k)];
+                    zf -= boxes->hires_vz_2LPT[R_INDEX(i,j,k)];
+                }
+                else {
+                    xf -= boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)];
+                    yf -= boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)];
+                    zf -= boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)];
+                }
             }
 
             // check if we wrapped around, not the casting to ensure < 1.00000
@@ -246,8 +226,6 @@ LOG_DEBUG("Begin Initialisation");
             yf = fabs(yf/(float)DI);
             zf = fabs(zf/(float)DI);
 
-            printf("(new): x = %f y = %f z = %f mass = %e\n",xf,yf,zf,halo_mass[i_halo]);
-
             xf = xf * user_params->HII_DIM;
             yf = yf * user_params->HII_DIM;
             zf = zf * user_params->HII_DIM;
@@ -256,17 +234,6 @@ LOG_DEBUG("Begin Initialisation");
         }
     }
 
-//    printf("Perturbed halo list\n");
-//    for (i=0; i<user_params->HII_DIM; i++){
-//        for (j=0; j<user_params->HII_DIM; j++){
-//            for (k=0; k<user_params->HII_DIM; k++){
-//                if(halos_perturbed->halos_perturbed[HII_R_INDEX(i,j,k)] > 0.) {
-//                    printf("(new): x = %d y = %d z = %d mass = %e\n",i,j,k,halos_perturbed->halos_perturbed[HII_R_INDEX(i,j,k)]);
-//                }
-//            }
-//        }
-//    }
-
     // Divide out multiplicative factor to return to pristine state
 #pragma omp parallel shared(boxes,growth_factor_over_BOX_LEN,dimension,displacement_factor_2LPT_over_BOX_LEN) private(i,j,k) num_threads(user_params->N_THREADS)
     {
@@ -274,37 +241,29 @@ LOG_DEBUG("Begin Initialisation");
         for (i=0; i<dimension; i++){
             for (j=0; j<dimension; j++){
                 for (k=0; k<dimension; k++){
-//                    if(user_params->PERTURB_ON_HIGH_RES) {
-//                        boxes->hires_vx[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
-//                        boxes->hires_vy[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
-//                        boxes->hires_vz[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
-//                        if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
-//                            boxes->hires_vx_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
-//                            boxes->hires_vy_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
-//                            boxes->hires_vz_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
-//                        }
-//                    }
-//                    else {
-//                        boxes->lowres_vx[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
-//                        boxes->lowres_vy[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
-//                        boxes->lowres_vz[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
-//                        if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
-//                            boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
-//                            boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
-//                            boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
-//                        }
-//                    }
-                    boxes->lowres_vx[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
-                    boxes->lowres_vy[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
-                    boxes->lowres_vz[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+                    if(user_params->PERTURB_ON_HIGH_RES) {
+                        boxes->hires_vx[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+                        boxes->hires_vy[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+                        boxes->hires_vz[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
 
-                    if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
-                        boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
-                        boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
-                        boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+                        if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+                            boxes->hires_vx_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+                            boxes->hires_vy_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+                            boxes->hires_vz_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+                        }
                     }
+                    else {
+                        boxes->lowres_vx[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+                        boxes->lowres_vy[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+                        boxes->lowres_vz[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
 
-                        // this is now comoving displacement in units of box size
+                        if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+                            boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+                            boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+                            boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+                        }
+                    }
+                    // this is now comoving displacement in units of box size
                 }
             }
         }

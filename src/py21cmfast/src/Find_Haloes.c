@@ -44,6 +44,7 @@ LOG_DEBUG("redshift=%f", redshift);
     unsigned long long ct;
     char filename[80], *in_halo, *forbidden;
     int i,j,k,x,y,z,dn,n,counter;
+    int total_halo_num;
     float R_temp, x_temp, y_temp, z_temp, dummy, M_MIN;
 
 LOG_DEBUG("Begin Initialisation");
@@ -167,6 +168,8 @@ LOG_DEBUG("Prepare to filter to find halos");
     n=0;
     Delta_R = L_FACTOR*2.*user_params->BOX_LEN/(user_params->DIM+0.0);
 
+    total_halo_num = 0;
+
     while ((R > 0.5*Delta_R) && (RtoM(R) >= M_MIN)){ // filter until we get to half the pixel size or M_MIN
 
 LOG_ULTRA_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%f M_MIN=%f", R, 0.5*Delta_R, RtoM(R), M_MIN);
@@ -176,14 +179,6 @@ LOG_ULTRA_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%
             if(user_params->HMF==1) {
                 // use sheth tormen correction
                 delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
-            }
-            if(user_params->HMF==2) {
-                // correction for Watson FoF.
-                delta_crit = Deltac;
-            }
-            if(user_params->HMF==2) {
-                // correction for Watson FoF-z.
-                delta_crit = Deltac;
             }
         }
 
@@ -276,6 +271,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...");
 
                                 dn++; // keep track of the number of halos
                                 n++;
+                                total_halo_num++;
                             }
                         }
                     }
@@ -289,6 +285,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...");
 
                             dn++; // keep track of the number of halos
                             n++;
+                            total_halo_num++;
                         }
                     }
                 }
@@ -315,7 +312,39 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...");
         R /= global_params.DELTA_R_FACTOR;
     }
 
+
+    // Minimise memory usage by only storing the halo mass and positions
+    float *halo_mass = (float *)calloc(total_halo_num,sizeof(float));
+    int **halo_pos = (int **)calloc(total_halo_num,sizeof(int *));
+    for(i=0;i<total_halo_num;i++) {
+        halo_pos[i] = (int *)calloc(3,sizeof(int));
+    }
+
+    // reuse counter as its no longer needed
+    counter = 0;
+
+    for (x=0; x<user_params->DIM; x++){
+        for (y=0; y<user_params->DIM; y++){
+            for (z=0; z<user_params->DIM; z++){
+                if(halos->halo_field[R_INDEX(x,y,z)] > 0.) {
+                    halo_mass[counter] = halos->halo_field[R_INDEX(x,y,z)];
+                    halo_pos[counter][0] = x;
+                    halo_pos[counter][1] = y;
+                    halo_pos[counter][2] = z;
+                    counter++;
+                }
+            }
+        }
+    }
+
+
     free(in_halo);
+
+    free(halo_mass);
+    for(i=0;i<total_halo_num;i++) {
+        free(halo_pos[i]);
+    }
+    free(halo_pos);
 
     if(global_params.OPTIMIZE) {
         free(forbidden);
@@ -327,7 +356,6 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...");
     fftwf_cleanup_threads();
     fftwf_cleanup();
     fftwf_forget_wisdom();
-
 
     } // End of Try()
     Catch(status){
