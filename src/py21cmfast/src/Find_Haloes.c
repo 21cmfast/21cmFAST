@@ -2,7 +2,7 @@
 // Re-write of find_halos.c from the original 21cmFAST
 
 
-// Program ComputeHaloField takes in a k_space box of the linear overdensity field
+// ComputeHaloField takes in a k_space box of the linear overdensity field
 // and filters it on decreasing scales in order to find virialized halos.
 // Virialized halos are defined according to the linear critical overdensity.
 // ComputeHaloField outputs a cube with non-zero elements containing the Mass of

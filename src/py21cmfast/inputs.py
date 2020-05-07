@@ -123,7 +123,7 @@ class GlobalParams(StructInstanceWrapper):
             0: real space top hat filter
             1: sharp k-space filter
             2: gaussian filter
-    OPTIMIZE : int
+    OPTIMIZE : bool
         Finding halos can be made more efficient if the filter size is sufficiently large that
         we can switch to the collapse fraction at a later stage.
     OPTIMIZE_MIN_MASS : float

@@ -1,9 +1,8 @@
 
 // Re-write of update_halo_pos from the original 21cmFAST
 
-// Program UPDATE_HALO_POS reads in the linear velocity field, and uses
+// ComputePerturbHaloField reads in the linear velocity field, and uses
 // it to update halo locations with a corresponding displacement field
-// creating updated_halo_ in ../Output_files/Halo_lists/ directory
 
 int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, struct InitialConditions *boxes, struct HaloField *halos, struct PerturbHaloField *halos_perturbed) {
 
@@ -32,7 +31,7 @@ LOG_DEBUG("redshift=%f", redshift);
     char wisdom_filename[500];
     fftwf_plan plan;
 
-    float growth_factor, displacement_factor_2LPT, mass, xf, yf, zf, z;
+    float growth_factor, displacement_factor_2LPT, mass, xf, yf, zf, z, growth_factor_over_BOX_LEN,displacement_factor_2LPT_over_BOX_LEN;
     int i,j,k, i_halo,xi, yi, zi, DI, dimension;
     unsigned long long ct;
     float dz = 1e-10;
@@ -57,26 +56,29 @@ LOG_DEBUG("Begin Initialisation");
     growth_factor = dicke(redshift); // normalized to 1 at z=0
     displacement_factor_2LPT = -(3.0/7.0) * growth_factor*growth_factor; // 2LPT eq. D8
 
+    growth_factor_over_BOX_LEN = growth_factor / user_params->BOX_LEN;
+    displacement_factor_2LPT_over_BOX_LEN = displacement_factor_2LPT / user_params->BOX_LEN;
+
     // now add the missing factor of Ddot to velocity field
-#pragma omp parallel shared(boxes,growth_factor,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(boxes,growth_factor,dimension,growth_factor_over_BOX_LEN) private(i,j,k) num_threads(user_params->N_THREADS)
     {
 #pragma omp for
         for (i=0; i<dimension; i++){
             for (j=0; j<dimension; j++){
                 for (k=0; k<dimension; k++){
 //                    if(user_params->PERTURB_ON_HIGH_RES) {
-//                        boxes->hires_vx[R_INDEX(i,j,k)] *= growth_factor / user_params->BOX_LEN;
-//                        boxes->hires_vy[R_INDEX(i,j,k)] *= growth_factor / user_params->BOX_LEN;
-//                        boxes->hires_vz[R_INDEX(i,j,k)] *= growth_factor / user_params->BOX_LEN;
+//                        boxes->hires_vx[R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+//                        boxes->hires_vy[R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+//                        boxes->hires_vz[R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
 //                    }
 //                    else {
-//                        boxes->lowres_vx[HII_R_INDEX(i,j,k)] *= growth_factor / user_params->BOX_LEN;
-//                        boxes->lowres_vy[HII_R_INDEX(i,j,k)] *= growth_factor / user_params->BOX_LEN;
-//                        boxes->lowres_vz[HII_R_INDEX(i,j,k)] *= growth_factor / user_params->BOX_LEN;
+//                        boxes->lowres_vx[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+//                        boxes->lowres_vy[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+//                        boxes->lowres_vz[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
 //                    }
-                    boxes->lowres_vx[HII_R_INDEX(i,j,k)] *= growth_factor / user_params->BOX_LEN;
-                    boxes->lowres_vy[HII_R_INDEX(i,j,k)] *= growth_factor / user_params->BOX_LEN;
-                    boxes->lowres_vz[HII_R_INDEX(i,j,k)] *= growth_factor / user_params->BOX_LEN;
+                    boxes->lowres_vx[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+                    boxes->lowres_vy[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+                    boxes->lowres_vz[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
                     // this is now comoving displacement in units of box size
                 }
             }
@@ -92,25 +94,25 @@ LOG_DEBUG("Begin Initialisation");
     if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
 
         // now add the missing factor in eq. D9
-#pragma omp parallel shared(boxes,displacement_factor_2LPT,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(boxes,displacement_factor_2LPT_over_BOX_LEN,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
             for (i=0; i<dimension; i++){
                 for (j=0; j<dimension; j++){
                     for (k=0; k<dimension; k++){
 //                        if(user_params->PERTURB_ON_HIGH_RES) {
-//                            boxes->hires_vx_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT / user_params->BOX_LEN;
-//                            boxes->hires_vy_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT / user_params->BOX_LEN;
-//                            boxes->hires_vz_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT / user_params->BOX_LEN;
+//                            boxes->hires_vx_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+//                            boxes->hires_vy_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+//                            boxes->hires_vz_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
 //                        }
 //                        else {
-//                            boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT / user_params->BOX_LEN;
-//                            boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT / user_params->BOX_LEN;
-//                            boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT / user_params->BOX_LEN;
+//                            boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+//                            boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+//                            boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
 //                        }
-                        boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT / user_params->BOX_LEN;
-                        boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT / user_params->BOX_LEN;
-                        boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT / user_params->BOX_LEN;
+                        boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+                        boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+                        boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
                         // this is now comoving displacement in units of box size
                     }
                 }
@@ -266,42 +268,40 @@ LOG_DEBUG("Begin Initialisation");
 //    }
 
     // Divide out multiplicative factor to return to pristine state
-#pragma omp parallel shared(boxes,growth_factor,dimension,displacement_factor_2LPT) private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(boxes,growth_factor_over_BOX_LEN,dimension,displacement_factor_2LPT_over_BOX_LEN) private(i,j,k) num_threads(user_params->N_THREADS)
     {
 #pragma omp for
         for (i=0; i<dimension; i++){
             for (j=0; j<dimension; j++){
                 for (k=0; k<dimension; k++){
 //                    if(user_params->PERTURB_ON_HIGH_RES) {
-//                        boxes->hires_vx[R_INDEX(i,j,k)] /= growth_factor / user_params->BOX_LEN;
-//                        boxes->hires_vy[R_INDEX(i,j,k)] /= growth_factor / user_params->BOX_LEN;
-//                        boxes->hires_vz[R_INDEX(i,j,k)] /= growth_factor / user_params->BOX_LEN;
+//                        boxes->hires_vx[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+//                        boxes->hires_vy[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+//                        boxes->hires_vz[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
 //                        if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
-//                            boxes->hires_vx_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT / user_params->BOX_LEN;
-//                            boxes->hires_vy_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT / user_params->BOX_LEN;
-//                            boxes->hires_vz_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT / user_params->BOX_LEN;
-//
+//                            boxes->hires_vx_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+//                            boxes->hires_vy_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+//                            boxes->hires_vz_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
 //                        }
 //                    }
 //                    else {
-//                        boxes->lowres_vx[HII_R_INDEX(i,j,k)] /= growth_factor / user_params->BOX_LEN;
-//                        boxes->lowres_vy[HII_R_INDEX(i,j,k)] /= growth_factor / user_params->BOX_LEN;
-//                        boxes->lowres_vz[HII_R_INDEX(i,j,k)] /= growth_factor / user_params->BOX_LEN;
+//                        boxes->lowres_vx[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+//                        boxes->lowres_vy[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+//                        boxes->lowres_vz[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
 //                        if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
-//                            boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT / user_params->BOX_LEN;
-//                            boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT / user_params->BOX_LEN;
-//                            boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT / user_params->BOX_LEN;
-//
+//                            boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+//                            boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+//                            boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
 //                        }
 //                    }
-                    boxes->lowres_vx[HII_R_INDEX(i,j,k)] /= growth_factor / user_params->BOX_LEN;
-                    boxes->lowres_vy[HII_R_INDEX(i,j,k)] /= growth_factor / user_params->BOX_LEN;
-                    boxes->lowres_vz[HII_R_INDEX(i,j,k)] /= growth_factor / user_params->BOX_LEN;
+                    boxes->lowres_vx[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+                    boxes->lowres_vy[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+                    boxes->lowres_vz[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
 
                     if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
-                        boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT / user_params->BOX_LEN;
-                        boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT / user_params->BOX_LEN;
-                        boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT / user_params->BOX_LEN;
+                        boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+                        boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+                        boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
                     }
 
                         // this is now comoving displacement in units of box size

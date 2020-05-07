@@ -1542,20 +1542,16 @@ void free_lvector(unsigned long *v, long nl, long nh)
 double dnbiasdM(double M, float z, double M_o, float del_o){
     double sigsq, del, sig_one, sig_o;
 
-//    if ((M_o-M) < TINY){
-//        fprintf(stderr, "WARNING:  In function dnbiasdM: M must be less than M_o!\nAborting...\n");
-//        return -1;
-//    }
     if ((M_o-M) < TINY){
-        LOG_ERROR(" WARNING:  In function dnbiasdM: M must be less than M_o!\nAborting...\n");
-        return(-1);
+        LOG_ERROR("In function dnbiasdM: M must be less than M_o!\nAborting...\n");
+        Throw(ValueError);
     }
     del = Deltac/dicke(z) - del_o;
     if (del < 0){
         LOG_ERROR(" In function dnbiasdM: del_o must be less than del_1 = del_crit/dicke(z)!\nAborting...\n");
-        return 0;
+        Throw(ValueError);
     }
-//    if (del < 0){  fprintf(stderr, "ERROR:  In function dnbiasdM: del_o must be less than del_1 = del_crit/dicke(z)!\nAborting...\n"); return 0; }
+
     sig_o = sigma_z0(M_o);
     sig_one = sigma_z0(M);
     sigsq = sig_one*sig_one - sig_o*sig_o;

@@ -38,20 +38,18 @@
 
 
 
-// Re-write of init.c for being accessible within the MCMC
+// Re-write of init.c for original 21cmFAST
 
 int ComputeInitialConditions(
     unsigned long long random_seed, struct UserParams *user_params,
     struct CosmoParams *cosmo_params, struct InitialConditions *boxes
 ){
-    /*
-     Generates the initial conditions: gaussian random density field (DIM^3) as well as the equal or lower resolution velocity fields, and smoothed density field (HII_DIM^3).
-     See INIT_PARAMS.H and ANAL_PARAMS.H to set the appropriate parameters.
-     Output is written to ../Boxes
 
-     Author: Andrei Mesinger
-     Date: 9/29/06
-    */
+//     Generates the initial conditions: gaussian random density field (user_params->DIM^3) as well as the equal or lower resolution velocity fields, and smoothed density field (user_params->HII_DIM^3).
+//
+//     Author: Andrei Mesinger
+//     Date: 9/29/06
+
     int status;
 
     Try{ // This Try wraps the entire function so we don't indent.
