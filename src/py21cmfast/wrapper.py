@@ -97,6 +97,7 @@ from scipy.interpolate import interp1d
 from ._cfg import config
 from ._utils import StructWrapper
 from ._utils import _check_compatible_inputs
+from ._utils import _process_exitcode
 from .c_21cmfast import ffi
 from .c_21cmfast import lib
 from .inputs import AstroParams
@@ -237,43 +238,6 @@ def _verify_types(**kwargs):
             raise ValueError("%s must be an instance of %s" % (k, cls.__name__))
 
 
-class ParameterError(RuntimeError):
-    """An exception representing a bad choice of parameters."""
-
-    def __init__(self):
-        default_message = "21cmFAST does not support this combination of parameters."
-        super().__init__(default_message)
-
-
-class FatalCError(Exception):
-    """An exception representing something going wrong in C."""
-
-    def __init__(self, msg=None):
-        default_message = "21cmFAST is exiting."
-        super().__init__(msg or default_message)
-
-
-SUCCESS = 0
-IOERROR = 1
-GSLERROR = 2
-VALUEERROR = 3
-PARAMETERERROR = 4
-MEMORYALLOCERROR = 5
-
-
-def _process_exitcode(exitcode, fnc, args):
-    """Determine what happens for different values of the (integer) exit code from a C function."""
-    if exitcode != SUCCESS:
-        logger.error("In function: {}.  Arguments: {}".format(fnc.__name__, args))
-
-        if exitcode in (GSLERROR, PARAMETERERROR):
-            raise ParameterError
-        elif exitcode in (IOERROR, VALUEERROR, MEMORYALLOCERROR):
-            raise FatalCError
-        else:  # Unknown C code
-            raise FatalCError("Unknown error in C. Please report this error!")
-
-
 def _call_c_simple(fnc, *args):
     """Call a simple C function that just returns an object.
 
@@ -287,30 +251,6 @@ def _call_c_simple(fnc, *args):
     status = fnc(*args, result)
     _process_exitcode(status, fnc, args)
     return result[0]
-
-
-def _call_c_func(fnc, obj, direc, *args, write=True):
-    logger.debug("Calling {} with args: {}".format(fnc.__name__, args))
-    try:
-        exitcode = fnc(
-            *[arg() if isinstance(arg, StructWrapper) else arg for arg in args], obj()
-        )
-    except TypeError as e:
-        logger.error(
-            f"Arguments to {fnc.__name__}: "
-            f"{[arg() if isinstance(arg, StructWrapper) else arg for arg in args]}"
-        )
-        raise e
-
-    _process_exitcode(exitcode, fnc, args)
-    obj.filled = True
-    obj._expose()
-
-    # Optionally do stuff with the result (like writing it)
-    if write:
-        obj.write(direc)
-
-    return obj
 
 
 def _get_config_options(direc, regenerate, write):
@@ -883,9 +823,7 @@ def initial_conditions(
             except IOError:
                 pass
 
-        return _call_c_func(
-            lib.ComputeInitialConditions,
-            boxes,
+        return boxes.compute(
             direc,
             boxes.random_seed,
             boxes.user_params,
@@ -1015,9 +953,7 @@ def perturb_field(
             fields._random_seed = init_boxes.random_seed
 
         # Run the C Code
-        return _call_c_func(
-            lib.ComputePerturbField,
-            fields,
+        return fields.compute(
             direc,
             redshift,
             fields.user_params,
@@ -1142,9 +1078,7 @@ def determine_halo_list(
             fields._random_seed = init_boxes.random_seed
 
         # Run the C Code
-        return _call_c_func(
-            lib.ComputeHaloField,
-            fields,
+        return fields.compute(
             direc,
             redshift,
             fields.user_params,
@@ -1288,9 +1222,7 @@ def perturb_halo_list(
             )
 
         # Run the C Code
-        return _call_c_func(
-            lib.ComputePerturbHaloField,
-            fields,
+        return fields.compute(
             direc,
             redshift,
             fields.user_params,
@@ -1609,9 +1541,7 @@ def ionize_box(
             )
 
         # Run the C Code
-        return _call_c_func(
-            lib.ComputeIonizedBox,
-            box,
+        return box.compute(
             direc,
             redshift,
             previous_ionize_box.redshift,
@@ -1890,9 +1820,7 @@ def spin_temperature(
             )
 
         # Run the C Code
-        return _call_c_func(
-            lib.ComputeTsBox,
-            box,
+        return box.compute(
             direc,
             redshift,
             previous_spin_temp.redshift,
@@ -1985,9 +1913,7 @@ def brightness_temperature(
             except IOError:
                 pass
 
-        return _call_c_func(
-            lib.ComputeBrightnessTemp,
-            box,
+        return box.compute(
             direc,
             ionized_box.redshift,
             ionized_box.user_params,
@@ -2002,7 +1928,7 @@ def brightness_temperature(
 
 
 def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
-    redshifts = [min_redshift]  # mult by 1.001 is probably bad...
+    redshifts = [min_redshift]
     while redshifts[-1] < zmax:
         redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
     return redshifts[::-1]

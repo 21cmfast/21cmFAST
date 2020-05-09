@@ -4,7 +4,9 @@
 // ComputePerturbHaloField reads in the linear velocity field, and uses
 // it to update halo locations with a corresponding displacement field
 
-int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, struct InitialConditions *boxes, struct HaloField *halos, struct PerturbHaloField *halos_perturbed) {
+int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                            struct AstroParams *astro_params, struct FlagOptions *flag_options,
+                            struct InitialConditions *boxes, struct HaloField *halos, struct PerturbHaloField *halos_perturbed) {
 
     int status;
 
@@ -120,40 +122,19 @@ LOG_DEBUG("Begin Initialisation");
 
     n_halos = 0;
 
-#pragma omp parallel shared(halos) private(i,j,k) num_threads(user_params->N_THREADS)
-    {
-#pragma omp for reduction(+:n_halos)
-        for (i=0; i<user_params->DIM; i++){
-            for (j=0; j<user_params->DIM; j++){
-                for (k=0; k<user_params->DIM; k++){
-                    if(halos->halo_field[R_INDEX(i,j,k)] > 0.) {
-                        n_halos += 1;
-                    }
-                }
-            }
-        }
-    }
-
-    float *halo_mass = calloc(n_halos,sizeof(float));
-    float *halo_x = calloc(n_halos,sizeof(int));
-    float *halo_y = calloc(n_halos,sizeof(int));
-    float *halo_z = calloc(n_halos,sizeof(int));
-
-    n_halos = 0;
-
-    for (i=0; i<user_params->DIM; i++){
-        for (j=0; j<user_params->DIM; j++){
-            for (k=0; k<user_params->DIM; k++){
-                if(halos->halo_field[R_INDEX(i,j,k)] > 0.) {
-                    halo_mass[n_halos] = halos->halo_field[R_INDEX(i,j,k)];
-                    halo_x[n_halos] = i;
-                    halo_y[n_halos] = j;
-                    halo_z[n_halos] = k;
-                    n_halos += 1;
-                }
-            }
-        }
-    }
+//#pragma omp parallel shared(halos) private(i,j,k) num_threads(user_params->N_THREADS)
+//    {
+//#pragma omp for reduction(+:n_halos)
+//        for (i=0; i<user_params->DIM; i++){
+//            for (j=0; j<user_params->DIM; j++){
+//                for (k=0; k<user_params->DIM; k++){
+//                    if(halos->halo_field[R_INDEX(i,j,k)] > 0.) {
+//                        n_halos += 1;
+//                    }
+//                }
+//            }
+//        }
+//    }
 
     // ******************   END INITIALIZATION     ******************************** //
 
@@ -161,22 +142,22 @@ LOG_DEBUG("Begin Initialisation");
     float max_correction = 1e-10, max_correction_2LPT = 1e-10, max_ratio = 1e-10;
     int den = 0;
 
-#pragma omp parallel shared(boxes,halos,halos_perturbed,halo_mass,halo_x,halo_y,halo_z) \
+#pragma omp parallel shared(boxes,halos,halos_perturbed) \
                     private(i_halo,i,j,k,xf,yf,zf) num_threads(user_params->N_THREADS)
     {
 #pragma omp for
-        for (i_halo=0; i_halo<n_halos; i_halo++){
+        for (i_halo=0; i_halo<halos->n_halos; i_halo++){
 
             // convert location to fractional value
-            xf = halo_x[i_halo]/(user_params->DIM + 0.);
-            yf = halo_y[i_halo]/(user_params->DIM + 0.);
-            zf = halo_z[i_halo]/(user_params->DIM + 0.);
+            xf = halos->halo_coords[i_halo][0]/(user_params->DIM + 0.);
+            yf = halos->halo_coords[i_halo][1]/(user_params->DIM + 0.);
+            zf = halos->halo_coords[i_halo][2]/(user_params->DIM + 0.);
 
             // determine halo position (downsampled if required)
             if(user_params->PERTURB_ON_HIGH_RES) {
-                i = halo_x[i_halo];
-                j = halo_y[i_halo];
-                k = halo_z[i_halo];
+                i = halos->halo_coords[i_halo][0];
+                j = halos->halo_coords[i_halo][1];
+                k = halos->halo_coords[i_halo][2];
             }
             else {
                 i = xf * user_params->HII_DIM;
@@ -226,11 +207,15 @@ LOG_DEBUG("Begin Initialisation");
             yf = fabs(yf/(float)DI);
             zf = fabs(zf/(float)DI);
 
-            xf = xf * user_params->HII_DIM;
-            yf = yf * user_params->HII_DIM;
-            zf = zf * user_params->HII_DIM;
+            xf *= user_params->HII_DIM;
+            yf *= user_params->HII_DIM;
+            zf *= user_params->HII_DIM;
 
-            halos_perturbed->halos_perturbed[HII_R_INDEX(xf,yf,zf)] = halo_mass[i_halo];
+            halos_perturbed->halo_coords[i_halo+0] = xf;
+            halos_perturbed->halo_coords[i_halo+1] = yf;
+            halos_perturbed->halo_coords[i_halo+2] = zf;
+
+            halos_perturbed->halo_masses[i_halo] = halos->halo_masses[i_halo];
         }
     }
 
@@ -268,11 +253,6 @@ LOG_DEBUG("Begin Initialisation");
             }
         }
     }
-
-    free(halo_mass);
-    free(halo_x);
-    free(halo_y);
-    free(halo_z);
 
     fftwf_cleanup_threads();
     fftwf_cleanup();

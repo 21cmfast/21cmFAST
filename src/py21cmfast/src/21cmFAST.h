@@ -82,7 +82,13 @@ struct PerturbedField{
 };
 
 struct HaloField{
-    float *halo_field;
+
+    int n_halos;
+    float *halo_masses;
+    int **halo_coords;
+
+    int n_mass_bins;
+    int max_n_mass_bins;
 
     float *mass_bins;
     float *fgtrm;
@@ -92,7 +98,9 @@ struct HaloField{
 };
 
 struct PerturbHaloField{
-    float *halos_perturbed;
+    int n_halos;
+    float *halo_masses;
+    int *halo_coords;
 };
 
 
@@ -174,3 +182,4 @@ bool photon_cons_allocated = false;
 int SomethingThatCatches(bool sub_func);
 int FunctionThatCatches(bool sub_func, bool pass, double* result);
 void FunctionThatThrows();
+void free_halo_field(struct HaloField *halos);
