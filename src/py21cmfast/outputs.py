@@ -258,26 +258,30 @@ class HaloField(_AllParamsBox):
             self.user_params.DIM,
         )
 
-    def _halo_masses_shape(self, cstruct):
-        print(cstruct.n_halos)
-        return (cstruct.n_halos,)
-
-    def _halo_coords_shape(self, cstruct):
-        return (cstruct.n_halos, 3)
+    def _c_shape(self, cstruct):
+        return {
+            "halo_masses": (cstruct.n_halos,),
+            "halo_coords": (cstruct.n_halos, 3),
+            "mass_bins": (cstruct.n_mass_bins,),
+            "fgtrm": (cstruct.n_mass_bins,),
+            "sqrt_dfgtrm": (cstruct.n_mass_bins,),
+            "dndlm": (cstruct.n_mass_bins,),
+            "sqrtdn_dlm": (cstruct.n_mass_bins,),
+        }
 
 
 class PerturbHaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
     _c_compute_function = lib.ComputePerturbHaloField
+    _c_based_pointers = ("halo_masses", "halo_coords")
+    _c_free_function = lib.free_phf
 
-    def __init__(self, *, n_halos, **kwargs):
-        self.n_halos = n_halos
-
-    def _init_arrays(self):
-        self.halo_masses = np.zeros(self.n_halos, dtype=np.float32)
-        self.halo_coords = np.zeros(self.n_halos * 3, dtype=np.int)
-        self.halo_coords.shape = (self.n_halos, 3)
+    def _c_shape(self, cstruct):
+        return {
+            "halo_masses": (cstruct.n_halos,),
+            "halo_coords": (cstruct.n_halos, 3),
+        }
 
 
 class IonizedBox(_AllParamsBox):

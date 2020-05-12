@@ -120,21 +120,11 @@ LOG_DEBUG("Begin Initialisation");
 
     unsigned long long n_halos;
 
-    n_halos = 0;
+    halos_perturbed->n_halos = halos->n_halos;
+    halos_perturbed->halo_masses = malloc(sizeof(float) * halos->n_halos);
+    halos_perturbed->halo_coords = malloc(sizeof(int) * halos->n_halos * 3);
 
-//#pragma omp parallel shared(halos) private(i,j,k) num_threads(user_params->N_THREADS)
-//    {
-//#pragma omp for reduction(+:n_halos)
-//        for (i=0; i<user_params->DIM; i++){
-//            for (j=0; j<user_params->DIM; j++){
-//                for (k=0; k<user_params->DIM; k++){
-//                    if(halos->halo_field[R_INDEX(i,j,k)] > 0.) {
-//                        n_halos += 1;
-//                    }
-//                }
-//            }
-//        }
-//    }
+
 
     // ******************   END INITIALIZATION     ******************************** //
 
@@ -149,15 +139,15 @@ LOG_DEBUG("Begin Initialisation");
         for (i_halo=0; i_halo<halos->n_halos; i_halo++){
 
             // convert location to fractional value
-            xf = halos->halo_coords[i_halo][0]/(user_params->DIM + 0.);
-            yf = halos->halo_coords[i_halo][1]/(user_params->DIM + 0.);
-            zf = halos->halo_coords[i_halo][2]/(user_params->DIM + 0.);
+            xf = halos->halo_coords[i_halo+0]/(user_params->DIM + 0.);
+            yf = halos->halo_coords[i_halo+1]/(user_params->DIM + 0.);
+            zf = halos->halo_coords[i_halo+2]/(user_params->DIM + 0.);
 
             // determine halo position (downsampled if required)
             if(user_params->PERTURB_ON_HIGH_RES) {
-                i = halos->halo_coords[i_halo][0];
-                j = halos->halo_coords[i_halo][1];
-                k = halos->halo_coords[i_halo][2];
+                i = halos->halo_coords[i_halo+0];
+                j = halos->halo_coords[i_halo+1];
+                k = halos->halo_coords[i_halo+2];
             }
             else {
                 i = xf * user_params->HII_DIM;
@@ -192,7 +182,7 @@ LOG_DEBUG("Begin Initialisation");
                 }
             }
 
-            // check if we wrapped around, not the casting to ensure < 1.00000
+            // check if we wrapped around, note the casting to ensure < 1.00000
             DI = 10000;
             xf = roundf(xf*DI);
             yf = roundf(yf*DI);
@@ -263,4 +253,10 @@ LOG_DEBUG("Begin Initialisation");
         return(status);
     }
     return(0);
+}
+
+void free_phf(struct PerturbHaloField* halos){
+    free(halos->halo_masses);
+    free(halos->halo_coords);
+    halos->n_halos = 0;
 }

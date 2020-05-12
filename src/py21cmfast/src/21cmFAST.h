@@ -85,7 +85,7 @@ struct HaloField{
 
     int n_halos;
     float *halo_masses;
-    int **halo_coords;
+    int *halo_coords;
 
     int n_mass_bins;
     int max_n_mass_bins;
@@ -183,3 +183,4 @@ int SomethingThatCatches(bool sub_func);
 int FunctionThatCatches(bool sub_func, bool pass, double* result);
 void FunctionThatThrows();
 void free_halo_field(struct HaloField *halos);
+void free_phf(struct PerturbHaloField *halos);

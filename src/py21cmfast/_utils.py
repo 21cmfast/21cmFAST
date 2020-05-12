@@ -68,19 +68,23 @@ for prefix in ("int", "uint"):
 # Floating point types
 ctype2dtype["float"] = np.dtype("f4")
 ctype2dtype["double"] = np.dtype("f8")
-ctype2dtype["int"] = np.dtype("int")
+ctype2dtype["int"] = np.dtype("i4")
 
 
-def asarray(ptr, length):
+def asarray(ptr, shape):
     """Get the canonical C type of the elements of ptr as a string."""
-    T = _ffi.getctype(_ffi.typeof(ptr).item).split("*")[0].strip()
+    ctype = _ffi.getctype(_ffi.typeof(ptr).item).split("*")[0].strip()
 
-    if T not in ctype2dtype:
+    if ctype not in ctype2dtype:
         raise RuntimeError(
-            f"Cannot create an array for element type: {T}. Can do {list(ctype2dtype.values())}."
+            f"Cannot create an array for element type: {ctype}. Can do {list(ctype2dtype.values())}."
         )
 
-    return np.frombuffer(_ffi.buffer(ptr, length * _ffi.sizeof(T)), ctype2dtype[T])
+    array = np.frombuffer(
+        _ffi.buffer(ptr, _ffi.sizeof(ctype) * np.prod(shape)), ctype2dtype[ctype]
+    )
+    array.shape = shape
+    return array
 
 
 class StructWrapper:
@@ -429,6 +433,10 @@ class OutputStruct(StructWrapper):
 
         if init:
             self._init_cstruct()
+
+    def _c_shape(self, cstruct):
+        """Return a dictionary of field: shape for arrays allocated within C."""
+        return {}
 
     @classmethod
     def _implementations(cls):
@@ -926,10 +934,9 @@ class OutputStruct(StructWrapper):
         if not self.filled:
             warnings.warn("Do not call _memory_map yourself!")
 
+        shapes = self._c_shape(self._cstruct)
         for item in self._c_based_pointers:
-            shape = getattr(self, f"_{item}_shape")(self._cstruct)
-            setattr(self, item, asarray(getattr(self._cstruct, item), np.prod(shape)))
-            getattr(self, item).shape = shape
+            setattr(self, item, asarray(getattr(self._cstruct, item), shapes[item]))
 
     def __del__(self):
         """Safely delete the object and its C-allocated memory."""

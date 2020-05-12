@@ -174,8 +174,8 @@ LOG_DEBUG("Prepare to filter to find halos");
 
 
     // This uses more memory than absolutely necessary, but is fastest.
-    init_halo_field(halos);
-    float *halo_field = malloc(sizeof(float) * TOT_NUM_PIXELS);
+    init_hmf(halos);
+    float *halo_field = calloc(TOT_NUM_PIXELS, sizeof(float));
 
 
     while ((R > 0.5*Delta_R) && (RtoM(R) >= M_MIN)){ // filter until we get to half the pixel size or M_MIN
@@ -193,7 +193,7 @@ LOG_ULTRA_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%
         // first let's check if virialized halos of this size are rare enough
         // that we don't have to worry about them (let's define 7 sigma away, as in Mesinger et al 05)
         if ((sigma_z0(M)*growth_factor*7.) < delta_crit){
-LOG_DEBUG("Haloes too rare for M = %e! Skipping...");
+LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             R /= global_params.DELTA_R_FACTOR;
             continue;
         }
@@ -325,6 +325,8 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...");
         R /= global_params.DELTA_R_FACTOR;
     }
 
+LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.");
+
     // Trim the mass function entries
     trim_hmf(halos);
 
@@ -339,14 +341,16 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...");
             for (z=0; z<user_params->DIM; z++){
                 if(halo_field[R_INDEX(x,y,z)] > 0.) {
                     halos->halo_masses[counter] = halo_field[R_INDEX(x,y,z)];
-                    halos->halo_coords[counter][0] = x;
-                    halos->halo_coords[counter][1] = y;
-                    halos->halo_coords[counter][2] = z;
+                    halos->halo_coords[counter] = x;
+                    halos->halo_coords[counter+1] = y;
+                    halos->halo_coords[counter+2] = z;
                     counter++;
                 }
             }
         }
     }
+
+LOG_DEBUG("Finished halo processing.");
 
     free(in_halo);
     free(halo_field);
@@ -362,6 +366,8 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...");
     fftwf_cleanup();
     fftwf_forget_wisdom();
 
+LOG_DEBUG("Finished halo cleanup.");
+LOG_DEBUG("Halo Masses: %e %e %e %e", halos->halo_masses[0], halos->halo_masses[1], halos->halo_masses[2], halos->halo_masses[3]);
     } // End of Try()
     Catch(status){
         return(status);
@@ -446,18 +452,12 @@ void init_halo_coords(struct HaloField *halos, int n_halos){
     int i;
     halos->n_halos = n_halos;
     halos->halo_masses = (float *)calloc(n_halos,sizeof(float));
-    halos->halo_coords = (int **)calloc(n_halos,sizeof(int *));
-    for(i=0;i<n_halos;i++) {
-        halos->halo_coords[i] = (int *)calloc(3,sizeof(int));
-    }
+    halos->halo_coords = (int *)calloc(3*n_halos,sizeof(int));
 }
 
 void free_halo_field(struct HaloField *halos){
+LOG_SUPER_DEBUG("Freeing HaloField instance.");
     free(halos->halo_masses);
-    int i;
-    for(i=0;i<halos->n_halos;i++) {
-        free(halos->halo_coords[i]);
-    }
     free(halos->halo_coords);
     halos->n_halos = 0;
 
@@ -467,12 +467,13 @@ void free_halo_field(struct HaloField *halos){
     free(halos->dndlm);
     free(halos->sqrtdn_dlm);
     halos->n_mass_bins = 0;
+LOG_SUPER_DEBUG("Freed!");
 
 
 
 
 }
-void init_halo_field(struct HaloField *halos){
+void init_hmf(struct HaloField *halos){
     // Initalize mass function array with an abitrary large number of elements.
     // We will trim it later.
     halos->max_n_mass_bins = 100;
@@ -482,8 +483,6 @@ void init_halo_field(struct HaloField *halos){
     halos->dndlm = (float *) malloc(sizeof(float) * halos->max_n_mass_bins);
     halos->sqrtdn_dlm = (float *) malloc(sizeof(float) * halos->max_n_mass_bins);
     halos->n_mass_bins = 0;
-
-
 }
 
 void trim_hmf(struct HaloField *halos){
