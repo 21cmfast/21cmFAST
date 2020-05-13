@@ -488,7 +488,9 @@ def compute_luminosity_function(
                 return None, None, None
 
     else:
-        mturnovers = np.zeros(len(redshifts)) + 10 ** astro_params.M_TURN
+        mturnovers = (
+            np.zeros(len(redshifts), dtype="float32") + 10 ** astro_params.M_TURN
+        )
         component = 1
 
     if component == 0:
