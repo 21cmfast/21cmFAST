@@ -488,7 +488,7 @@ def compute_luminosity_function(
                 return None, None, None
 
     else:
-        mturnovers = np.zeros(len(redshifts)) + astro_params.M_TURN
+        mturnovers = np.zeros(len(redshifts)) + 10 ** astro_params.M_TURN
         component = 1
 
     if component == 0:
@@ -606,6 +606,7 @@ def compute_luminosity_function(
                     Muvfunc_all[iz]
                 ),
             ).T
+        lfunc_all[lfunc_all <= -30] = np.nan
         return Muvfunc_all, Mhfunc_all, lfunc_all
     elif component == 1:
         lfunc = np.zeros(len(redshifts) * nbins)
