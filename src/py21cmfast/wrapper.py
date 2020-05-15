@@ -2000,7 +2000,7 @@ def run_coeval(
         if singleton:
             coevals = coevals[0]
 
-        logger.debug("Returning from Coeval".format(os.getpid()))
+        logger.debug("Returning from Coeval")
 
         return coevals
 
