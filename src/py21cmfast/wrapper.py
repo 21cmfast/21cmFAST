@@ -2506,7 +2506,7 @@ def calibrate_photon_cons(
         logger.info("Calculating photon conservation zstart")
         z = _calc_zstart_photon_cons()
 
-        while z > 5.0:
+        while z > global_params.PhotonConsEndCalibz:
 
             # Determine the ionisation box with recombinations, spin temperature etc.
             # turned off.
