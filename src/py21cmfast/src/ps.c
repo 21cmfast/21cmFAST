@@ -3555,6 +3555,15 @@ float adjust_redshifts_for_photoncons(
 
     LOG_DEBUG("Adjusting redshifts for photon cons.");
 
+    if(*redshift < global_params.PhotonConsEndCalibz) {
+        LOG_ERROR(
+            "You have passed a redshift (z = %f) that is lower than the enpoint of the photon non-conservation correction "\
+            "(global_params.PhotonConsEndCalibz = %f). If this behaviour is desired then set global_params.PhotonConsEndCalibz "\
+            "to a value lower than z = %f.",*redshift,global_params.PhotonConsEndCalibz,*redshift
+                  );
+        Throw(ParameterError);
+    }
+
     // Determine the neutral fraction (filling factor) of the analytic calibration expression given the current sampled redshift
     Q_at_z(*redshift, &(temp));
     required_NF = 1.0 - (float)temp;

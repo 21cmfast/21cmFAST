@@ -1895,16 +1895,13 @@ def run_coeval(
             and np.amin(redshifts) < global_params.PhotonConsEndCalibz
         ):
             raise ValueError(
+                f"""
+                You have passed a redshift (z = {np.amin(redshifts)}) that is lower than the endpoint
+                of the photon non-conservation correction
+                (global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz}).
+                If this behaviour is desired then set global_params.PhotonConsEndCalibz to a value lower than
+                z = {np.amin(redshifts)}.
                 """
-                The final (lowest) redshift (z = %g) is lower than the endpoint of the photon
-                non-conservation correction (global_params.PhotonConsEndCalibz = %g). If this behaviour
-                is desired then set global_params.PhotonConsEndCalibz to a value lower than z = %g.
-                """
-                % (
-                    np.amin(redshifts),
-                    global_params.PhotonConsEndCalibz,
-                    np.amin(redshifts),
-                )
             )
 
         if flag_options.PHOTON_CONS:
@@ -2175,16 +2172,13 @@ def run_lightcone(
             and np.amin(scrollz) < global_params.PhotonConsEndCalibz
         ):
             raise ValueError(
+                f"""
+                You have passed a redshift (z = {np.amin(scrollz)}) that is lower than the endpoint
+                of the photon non-conservation correction
+                (global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz}).
+                If this behaviour is desired then set global_params.PhotonConsEndCalibz to a value lower than
+                z = {np.amin(scrollz)}.
                 """
-                The final (lowest) redshift (z = %g) is lower than the endpoint of the photon non-conservation
-                correction (global_params.PhotonConsEndCalibz = %g). If this behaviour is desired then set
-                global_params.PhotonConsEndCalibz to a value lower than z = %g.
-                """
-                % (
-                    np.amin(scrollz),
-                    global_params.PhotonConsEndCalibz,
-                    np.amin(scrollz),
-                )
             )
 
         if init_box is None:  # no need to get cosmo, user params out of it.
