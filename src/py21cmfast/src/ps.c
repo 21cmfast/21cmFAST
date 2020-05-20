@@ -3026,7 +3026,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     //     (2) With the fiducial parameter set,
     //     the difference for the redshift where the reionization end (Q = 1) is ~0.2 % compared with accurate calculation.
     float ION_EFF_FACTOR,M_MIN,M_MIN_z0,M_MIN_z1,Mlim_Fstar, Mlim_Fesc;
-    double a_start = 0.03, a_end = 1./(1. + 5.0); // Scale factors of 0.03 and 0.17 correspond to redshifts of ~32 and ~5.0, respectively.
+    double a_start = 0.03, a_end = 1./(1. + global_params.PhotonConsEndCalibz); // Scale factors of 0.03 and 0.17 correspond to redshifts of ~32 and ~5.0, respectively.
     double C_HII = 3., T_0 = 2e4;
     double reduce_ratio = 1.003;
     double Q0,Q1,Nion0,Nion1,Trec,da,a,z0,z1,zi,dadt,ans,delta_a,zi_prev,Q1_prev;
@@ -3554,6 +3554,15 @@ float adjust_redshifts_for_photoncons(
     float required_NF, adjusted_redshift, future_z, gradient_extrapolation, const_extrapolation, temp_redshift, check_required_NF;
 
     LOG_DEBUG("Adjusting redshifts for photon cons.");
+
+    if(*redshift < global_params.PhotonConsEndCalibz) {
+        LOG_ERROR(
+            "You have passed a redshift (z = %f) that is lower than the enpoint of the photon non-conservation correction "\
+            "(global_params.PhotonConsEndCalibz = %f). If this behaviour is desired then set global_params.PhotonConsEndCalibz "\
+            "to a value lower than z = %f.",*redshift,global_params.PhotonConsEndCalibz,*redshift
+                  );
+        Throw(ParameterError);
+    }
 
     // Determine the neutral fraction (filling factor) of the analytic calibration expression given the current sampled redshift
     Q_at_z(*redshift, &(temp));
