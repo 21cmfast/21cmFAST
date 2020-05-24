@@ -422,7 +422,7 @@ int ComputePerturbField(
                                              (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
 
-                free(HIRES_density_perturb_2nd_copy);
+                fftwf_free(HIRES_density_perturb_2nd_copy);
             }
         }
         else {
