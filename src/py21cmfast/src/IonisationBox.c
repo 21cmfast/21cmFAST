@@ -1119,7 +1119,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             prev_overdense_large_bin_width_inv,prev_Nion_spline,prev_Nion_spline_MINI,box,counter) \
                     private(x,y,z,curr_dens,Splined_Fcoll,Splined_Fcoll_MINI,dens_val,overdense_int,erfc_arg_val,erfc_arg_val_index,log10_Mturnover,\
                             log10_Mturnover_int,log10_Mturnover_MINI,log10_Mturnover_MINI_int,prev_dens,prev_Splined_Fcoll,prev_Splined_Fcoll_MINI,\
-                            prev_dens_val,) \
+                            prev_dens_val) \
                     num_threads(user_params->N_THREADS)
             {
 #pragma omp for reduction(+:f_coll,f_coll_MINI)

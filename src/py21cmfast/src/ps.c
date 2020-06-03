@@ -1610,7 +1610,7 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC){
     return(0.0);
 }
 
-void initialise_ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options) {
+int initialise_ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options) {
 
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
@@ -1632,6 +1632,7 @@ void initialise_ComputeLF(int nbins, struct UserParams *user_params, struct Cosm
     }
 
     initialised_ComputeLF = true;
+    return(0);
 }
 
 void cleanup_ComputeLF(){

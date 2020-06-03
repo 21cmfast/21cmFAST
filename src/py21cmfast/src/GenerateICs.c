@@ -35,8 +35,57 @@
 #include "BrightnessTemperatureBox.c"
 
 
+void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, struct CosmoParams *cosmo_params){
+    /*****  Adjust the complex conjugate relations for a real array  *****/
 
-// Re-write of init.c for being accessible within the MCMC
+    int i, j, k;
+
+    // corners
+    HIRES_box[C_INDEX(0,0,0)] = 0;
+    HIRES_box[C_INDEX(0,0,MIDDLE)] = crealf(HIRES_box[C_INDEX(0,0,MIDDLE)]);
+    HIRES_box[C_INDEX(0,MIDDLE,0)] = crealf(HIRES_box[C_INDEX(0,MIDDLE,0)]);
+    HIRES_box[C_INDEX(0,MIDDLE,MIDDLE)] = crealf(HIRES_box[C_INDEX(0,MIDDLE,MIDDLE)]);
+    HIRES_box[C_INDEX(MIDDLE,0,0)] = crealf(HIRES_box[C_INDEX(MIDDLE,0,0)]);
+    HIRES_box[C_INDEX(MIDDLE,0,MIDDLE)] = crealf(HIRES_box[C_INDEX(MIDDLE,0,MIDDLE)]);
+    HIRES_box[C_INDEX(MIDDLE,MIDDLE,0)] = crealf(HIRES_box[C_INDEX(MIDDLE,MIDDLE,0)]);
+    HIRES_box[C_INDEX(MIDDLE,MIDDLE,MIDDLE)] = crealf(HIRES_box[C_INDEX(MIDDLE,MIDDLE,MIDDLE)]);
+
+    // do entire i except corners
+#pragma omp parallel shared(HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
+    {
+#pragma omp for
+        for (i=1; i<MIDDLE; i++){
+            // just j corners
+            for (j=0; j<=MIDDLE; j+=MIDDLE){
+                for (k=0; k<=MIDDLE; k+=MIDDLE){
+                    HIRES_box[C_INDEX(i,j,k)] = conjf(HIRES_box[C_INDEX((user_params->DIM)-i,j,k)]);
+                }
+            }
+
+            // all of j
+            for (j=1; j<MIDDLE; j++){
+                for (k=0; k<=MIDDLE; k+=MIDDLE){
+                    HIRES_box[C_INDEX(i,j,k)] = conjf(HIRES_box[C_INDEX((user_params->DIM)-i,(user_params->DIM)-j,k)]);
+                    HIRES_box[C_INDEX(i,(user_params->DIM)-j,k)] = conjf(HIRES_box[C_INDEX((user_params->DIM)-i,j,k)]);
+                }
+            }
+        } // end loop over i
+    }
+
+    // now the i corners
+#pragma omp parallel shared(HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
+    {
+#pragma omp for
+        for (i=0; i<=MIDDLE; i+=MIDDLE){
+            for (j=1; j<MIDDLE; j++){
+                for (k=0; k<=MIDDLE; k+=MIDDLE){
+                    HIRES_box[C_INDEX(i,j,k)] = conjf(HIRES_box[C_INDEX(i,(user_params->DIM)-j,k)]);
+                }
+            }
+        } // end loop over remaining j
+    }
+}
+
 
 int ComputeInitialConditions(
     unsigned long long random_seed, struct UserParams *user_params,
@@ -975,55 +1024,4 @@ int ComputeInitialConditions(
         return(status);
     }
     return(0);
-}
-
-/*****  Adjust the complex conjugate relations for a real array  *****/
-
-void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, struct CosmoParams *cosmo_params){
-    int i, j, k;
-
-    // corners
-    HIRES_box[C_INDEX(0,0,0)] = 0;
-    HIRES_box[C_INDEX(0,0,MIDDLE)] = crealf(HIRES_box[C_INDEX(0,0,MIDDLE)]);
-    HIRES_box[C_INDEX(0,MIDDLE,0)] = crealf(HIRES_box[C_INDEX(0,MIDDLE,0)]);
-    HIRES_box[C_INDEX(0,MIDDLE,MIDDLE)] = crealf(HIRES_box[C_INDEX(0,MIDDLE,MIDDLE)]);
-    HIRES_box[C_INDEX(MIDDLE,0,0)] = crealf(HIRES_box[C_INDEX(MIDDLE,0,0)]);
-    HIRES_box[C_INDEX(MIDDLE,0,MIDDLE)] = crealf(HIRES_box[C_INDEX(MIDDLE,0,MIDDLE)]);
-    HIRES_box[C_INDEX(MIDDLE,MIDDLE,0)] = crealf(HIRES_box[C_INDEX(MIDDLE,MIDDLE,0)]);
-    HIRES_box[C_INDEX(MIDDLE,MIDDLE,MIDDLE)] = crealf(HIRES_box[C_INDEX(MIDDLE,MIDDLE,MIDDLE)]);
-
-    // do entire i except corners
-#pragma omp parallel shared(HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
-    {
-#pragma omp for
-        for (i=1; i<MIDDLE; i++){
-            // just j corners
-            for (j=0; j<=MIDDLE; j+=MIDDLE){
-                for (k=0; k<=MIDDLE; k+=MIDDLE){
-                    HIRES_box[C_INDEX(i,j,k)] = conjf(HIRES_box[C_INDEX((user_params->DIM)-i,j,k)]);
-                }
-            }
-
-            // all of j
-            for (j=1; j<MIDDLE; j++){
-                for (k=0; k<=MIDDLE; k+=MIDDLE){
-                    HIRES_box[C_INDEX(i,j,k)] = conjf(HIRES_box[C_INDEX((user_params->DIM)-i,(user_params->DIM)-j,k)]);
-                    HIRES_box[C_INDEX(i,(user_params->DIM)-j,k)] = conjf(HIRES_box[C_INDEX((user_params->DIM)-i,j,k)]);
-                }
-            }
-        } // end loop over i
-    }
-
-    // now the i corners
-#pragma omp parallel shared(HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
-    {
-#pragma omp for
-        for (i=0; i<=MIDDLE; i+=MIDDLE){
-            for (j=1; j<MIDDLE; j++){
-                for (k=0; k<=MIDDLE; k+=MIDDLE){
-                    HIRES_box[C_INDEX(i,j,k)] = conjf(HIRES_box[C_INDEX(i,(user_params->DIM)-j,k)]);
-                }
-            }
-        } // end loop over remaining j
-    }
 }
