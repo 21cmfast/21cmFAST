@@ -341,9 +341,9 @@ LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.")
             for (z=0; z<user_params->DIM; z++){
                 if(halo_field[R_INDEX(x,y,z)] > 0.) {
                     halos->halo_masses[counter] = halo_field[R_INDEX(x,y,z)];
-                    halos->halo_coords[counter] = x;
-                    halos->halo_coords[counter+1] = y;
-                    halos->halo_coords[counter+2] = z;
+                    halos->halo_coords[0 + counter*3] = x;
+                    halos->halo_coords[1 + counter*3] = y;
+                    halos->halo_coords[2 + counter*3] = z;
                     counter++;
                 }
             }

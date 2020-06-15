@@ -139,15 +139,15 @@ LOG_DEBUG("Begin Initialisation");
         for (i_halo=0; i_halo<halos->n_halos; i_halo++){
 
             // convert location to fractional value
-            xf = halos->halo_coords[i_halo+0]/(user_params->DIM + 0.);
-            yf = halos->halo_coords[i_halo+1]/(user_params->DIM + 0.);
-            zf = halos->halo_coords[i_halo+2]/(user_params->DIM + 0.);
+            xf = halos->halo_coords[i_halo*3+0]/(user_params->DIM + 0.);
+            yf = halos->halo_coords[i_halo*3+1]/(user_params->DIM + 0.);
+            zf = halos->halo_coords[i_halo*3+2]/(user_params->DIM + 0.);
 
             // determine halo position (downsampled if required)
             if(user_params->PERTURB_ON_HIGH_RES) {
-                i = halos->halo_coords[i_halo+0];
-                j = halos->halo_coords[i_halo+1];
-                k = halos->halo_coords[i_halo+2];
+                i = halos->halo_coords[i_halo*3+0];
+                j = halos->halo_coords[i_halo*3+1];
+                k = halos->halo_coords[i_halo*3+2];
             }
             else {
                 i = xf * user_params->HII_DIM;
@@ -201,9 +201,9 @@ LOG_DEBUG("Begin Initialisation");
             yf *= user_params->HII_DIM;
             zf *= user_params->HII_DIM;
 
-            halos_perturbed->halo_coords[i_halo+0] = xf;
-            halos_perturbed->halo_coords[i_halo+1] = yf;
-            halos_perturbed->halo_coords[i_halo+2] = zf;
+            halos_perturbed->halo_coords[i_halo*3+0] = xf;
+            halos_perturbed->halo_coords[i_halo*3+1] = yf;
+            halos_perturbed->halo_coords[i_halo*3+2] = zf;
 
             halos_perturbed->halo_masses[i_halo] = halos->halo_masses[i_halo];
         }
