@@ -1041,6 +1041,9 @@ def determine_halo_list(
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
         flag_options = FlagOptions(flag_options)
 
+        if user_params.HMF != 1:
+            raise ValueError("USE_HALO_FIELD is only valid for HMF = 1")
+
         # Initialize halo list boxes.
         fields = HaloField(
             redshift=redshift,

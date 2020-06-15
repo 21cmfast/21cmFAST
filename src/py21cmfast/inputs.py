@@ -581,6 +581,18 @@ class FlagOptions(StructWithDefaults):
     }
 
     @property
+    def USE_HALO_FIELD(self):
+        """Automatically setting USE_MASS_DEPENDENT_ZETA to False if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and self._USE_HALO_FIELD:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
+                "Automatically setting USE_HALO_FIELD to False."
+            )
+            return False
+        else:
+            return self._USE_HALO_FIELD
+
+    @property
     def M_MIN_in_Mass(self):
         """Whether minimum halo mass is defined in mass or virial temperature."""
         if self.USE_MASS_DEPENDENT_ZETA:
