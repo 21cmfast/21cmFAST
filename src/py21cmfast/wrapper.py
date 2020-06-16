@@ -1992,7 +1992,7 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
     return redshifts[::-1]
 
 
-def run_coeval(
+def run_coeval(  # noqa: ignore=C901
     *,
     redshift=None,
     user_params=None,
@@ -2088,15 +2088,12 @@ def run_coeval(
         else:
             perturb = []
 
-        """
         # Ensure perturbed halo field is a list of boxes, not just one.
-        if flag_options.USE_HALO_FIELD:
-            if pt_halos is not None:
-                if not hasattr(pt_halos, "__len__"):
-                    pt_halos = [pt_halos]
-            else:
-                pt_halos = []
-        """
+        if flag_options.USE_HALO_FIELD and pt_halos is not None:
+            if not hasattr(pt_halos, "__len__"):
+                pt_halos = [pt_halos]
+        else:
+            pt_halos = []
 
         random_seed, user_params, cosmo_params = _configure_inputs(
             [
@@ -2106,7 +2103,7 @@ def run_coeval(
             ],
             init_box,
             *perturb,
-            *pt_halos if flag_options.USE_HALO_FIELD else None,
+            *pt_halos,
         )
 
         user_params = UserParams(user_params)
@@ -2134,17 +2131,11 @@ def run_coeval(
             else:
                 redshift = [p.redshift for p in perturb]
 
-        """
         if flag_options.USE_HALO_FIELD and pt_halos:
-            if redshift is not None:
-                if any(p.redshift != z for p, z in zip(pt_halos, redshift)):
-                    raise ValueError(
-                        "Input redshifts do not match the perturbed halo field redshifts"
-                    )
-
-            else:
-                redshift = [p.redshift for p in pt_halos]
-        """
+            if any(p.redshift != z for p, z in zip(pt_halos, redshift)):
+                raise ValueError(
+                    "Input redshifts do not match the perturbed halo field redshifts"
+                )
 
         if flag_options.PHOTON_CONS:
             calibrate_photon_cons(
@@ -2174,7 +2165,6 @@ def run_coeval(
                     )
                 ]
 
-        """
         if flag_options.USE_HALO_FIELD and not pt_halos:
             for z in redshift:
                 pt_halos += [
@@ -2185,12 +2175,19 @@ def run_coeval(
                         cosmo_params=cosmo_params,
                         astro_params=astro_params,
                         flag_options=flag_options,
+                        halo_field=determine_halo_list(
+                            redshift=z,
+                            init_boxes=init_box,
+                            astro_params=astro_params,
+                            flag_options=flag_options,
+                            regenerate=regenerate,
+                            write=write,
+                        ),
                         regenerate=regenerate,
                         write=write,
                         direc=direc,
                     )
                 ]
-        """
 
         # Get the list of redshift we need to scroll through.
         if flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
@@ -2261,7 +2258,9 @@ def run_coeval(
                         else None
                     )
                 ),
-                pt_halos=pt_halos[redshift.index(z)] if z in redshift else None,
+                pt_halos=pt_halos[redshift.index(z)]
+                if z in redshift and flag_options.USE_HALO_FIELD
+                else None,
                 astro_params=astro_params,
                 flag_options=flag_options,
                 spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
