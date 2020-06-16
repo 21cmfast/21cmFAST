@@ -18,262 +18,289 @@ int ComputeHaloField(float redshift, struct UserParams *user_params, struct Cosm
     int status;
 
     Try{ // This Try brackets the whole function, so we don't indent.
+
+    // Need the option to bypass halo finding when halo finding not required
+    // This is in order to be able to populate an empty structure
+    if(redshift < 0) {
+
+        // This uses more memory than absolutely necessary, but is fastest.
+        init_hmf(halos);
+
+        // Initialize the halo co-ordinate and mass arrays.
+        init_halo_coords(halos, 1);
+    }
+    else {
+
 LOG_DEBUG("input value:");
 LOG_DEBUG("redshift=%f", redshift);
 #if LOG_LEVEL >= DEBUG_LEVEL
-    writeUserParams(user_params);
-    writeCosmoParams(cosmo_params);
-    writeAstroParams(flag_options, astro_params);
-    writeFlagOptions(flag_options);
+        writeUserParams(user_params);
+        writeCosmoParams(cosmo_params);
+        writeAstroParams(flag_options, astro_params);
+        writeFlagOptions(flag_options);
 #endif
 
-    // Makes the parameter structs visible to a variety of functions/macros
-    // Do each time to avoid Python garbage collection issues
-    Broadcast_struct_global_PS(user_params,cosmo_params);
-    Broadcast_struct_global_UF(user_params,cosmo_params);
+        // Makes the parameter structs visible to a variety of functions/macros
+        // Do each time to avoid Python garbage collection issues
+        Broadcast_struct_global_PS(user_params,cosmo_params);
+        Broadcast_struct_global_UF(user_params,cosmo_params);
 
-    omp_set_num_threads(user_params->N_THREADS);
-    fftwf_init_threads();
-    fftwf_plan_with_nthreads(user_params->N_THREADS);
-    fftwf_cleanup_threads();
+        omp_set_num_threads(user_params->N_THREADS);
+        fftwf_init_threads();
+        fftwf_plan_with_nthreads(user_params->N_THREADS);
+        fftwf_cleanup_threads();
 
-    char wisdom_filename[500];
-    fftwf_plan plan;
-    fftwf_complex *density_field, *density_field_saved;
+        char wisdom_filename[500];
+        fftwf_plan plan;
+        fftwf_complex *density_field, *density_field_saved;
 
-    float growth_factor, R, delta_m, dm, dlnm, M, Delta_R, delta_crit;
-    double fgtrm, dfgtrm;
-    unsigned long long ct;
-    char filename[80], *in_halo, *forbidden;
-    int i,j,k,x,y,z,dn,n,counter;
-    int total_halo_num;
-    float R_temp, x_temp, y_temp, z_temp, dummy, M_MIN;
+        float growth_factor, R, delta_m, dm, dlnm, M, Delta_R, delta_crit;
+        double fgtrm, dfgtrm;
+        unsigned long long ct;
+        char filename[80], *in_halo, *forbidden;
+        int i,j,k,x,y,z,dn,n,counter;
+        int total_halo_num;
+        float R_temp, x_temp, y_temp, z_temp, dummy, M_MIN;
 
 LOG_DEBUG("Begin Initialisation");
 
-    counter = 0;
+        counter = 0;
 
-    // ***************** END INITIALIZATION ***************** //
-    init_ps();
+        // ***************** END INITIALIZATION ***************** //
+        init_ps();
 
-    growth_factor = dicke(redshift); // normalized to 1 at z=0
-    delta_crit = Deltac; // for now set to spherical; check if we want elipsoidal later
+        growth_factor = dicke(redshift); // normalized to 1 at z=0
+        delta_crit = Deltac; // for now set to spherical; check if we want elipsoidal later
 
-    //set the minimum source mass
-    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-        M_MIN = astro_params->M_TURN;
-    }
-    else {
-        if(flag_options->M_MIN_in_Mass) {
-            M_MIN = (astro_params->M_TURN);
+        //set the minimum source mass
+        if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+            M_MIN = astro_params->M_TURN;
         }
         else {
-            //set the minimum source mass
-            if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
-                M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
+            if(flag_options->M_MIN_in_Mass) {
+                M_MIN = (astro_params->M_TURN);
             }
-            else { // ionized IGM
-                M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
-            }
-        }
-    }
-
-    // allocate array for the k-space box
-    density_field = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-    density_field_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-    // allocate memory for the boolean in_halo box
-    in_halo = (char *) malloc(sizeof(char)*TOT_NUM_PIXELS);
-
-    // initialize
-    memset(in_halo, 0, sizeof(char)*TOT_NUM_PIXELS);
-
-    if(global_params.OPTIMIZE) {
-        forbidden = (char *) malloc(sizeof(char)*TOT_NUM_PIXELS);
-    }
-
-#pragma omp parallel shared(boxes,density_field) private(i,j,k) num_threads(user_params->N_THREADS)
-    {
-#pragma omp for
-        for (i=0; i<user_params->DIM; i++){
-            for (j=0; j<user_params->DIM; j++){
-                for (k=0; k<user_params->DIM; k++){
-                    *((float *)density_field + R_FFT_INDEX(i,j,k)) = *((float *)boxes->hires_density + R_INDEX(i,j,k));
+            else {
+                //set the minimum source mass
+                if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
+                    M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
+                }
+                else { // ionized IGM
+                    M_MIN = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
                 }
             }
         }
-    }
 
-    // Now need to convert the real space density to Fourier space
-    if(user_params->USE_FFTW_WISDOM) {
-        // Check to see if the wisdom exists, create it if it doesn't
-        sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
-        if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (float *)density_field, (fftwf_complex *)density_field, FFTW_WISDOM_ONLY);
-            fftwf_execute(plan);
+        // allocate array for the k-space box
+        density_field = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+        density_field_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
+        // allocate memory for the boolean in_halo box
+        in_halo = (char *) malloc(sizeof(char)*TOT_NUM_PIXELS);
+
+        // initialize
+        memset(in_halo, 0, sizeof(char)*TOT_NUM_PIXELS);
+
+        if(global_params.OPTIMIZE) {
+            forbidden = (char *) malloc(sizeof(char)*TOT_NUM_PIXELS);
         }
-        else {
 
-            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (float *)density_field, (fftwf_complex *)density_field, FFTW_PATIENT);
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-
-            // Store the wisdom for later use
-            fftwf_export_wisdom_to_filename(wisdom_filename);
-
-            // copy back over the density cube
 #pragma omp parallel shared(boxes,density_field) private(i,j,k) num_threads(user_params->N_THREADS)
-            {
+        {
 #pragma omp for
-                for (i=0; i<user_params->DIM; i++){
-                    for (j=0; j<user_params->DIM; j++){
-                        for (k=0; k<user_params->DIM; k++){
-                            *((float *)density_field + R_FFT_INDEX(i,j,k)) = *((float *)boxes->hires_density + R_INDEX(i,j,k));
-                        }
+            for (i=0; i<user_params->DIM; i++){
+                for (j=0; j<user_params->DIM; j++){
+                    for (k=0; k<user_params->DIM; k++){
+                        *((float *)density_field + R_FFT_INDEX(i,j,k)) = *((float *)boxes->hires_density + R_INDEX(i,j,k));
                     }
                 }
             }
-
-            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (float *)density_field, (fftwf_complex *)density_field, FFTW_WISDOM_ONLY);
-            fftwf_execute(plan);
-        }
-    }
-    else {
-        plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                     (float *)density_field, (fftwf_complex *)density_field, FFTW_ESTIMATE);
-        fftwf_execute(plan);
-    }
-    fftwf_destroy_plan(plan);
-
-    // save a copy of the k-space density field
-    memcpy(density_field_saved, density_field, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-
-    // ***************** END INITIALIZATION ***************** //
-
-LOG_DEBUG("Finalised Initialisation");
-
-    // lets filter it now
-    // set initial R value
-    R = MtoR(M_MIN*1.01); // one percent higher for rounding
-
-LOG_DEBUG("Prepare to filter to find halos");
-
-    while (R < L_FACTOR*user_params->BOX_LEN)
-        R*=global_params.DELTA_R_FACTOR;
-
-    fgtrm=dfgtrm=0;
-    n=0;
-    Delta_R = L_FACTOR*2.*user_params->BOX_LEN/(user_params->DIM+0.0);
-
-    total_halo_num = 0;
-
-
-    // This uses more memory than absolutely necessary, but is fastest.
-    init_hmf(halos);
-    float *halo_field = calloc(TOT_NUM_PIXELS, sizeof(float));
-
-
-    while ((R > 0.5*Delta_R) && (RtoM(R) >= M_MIN)){ // filter until we get to half the pixel size or M_MIN
-
-LOG_ULTRA_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%f M_MIN=%f", R, 0.5*Delta_R, RtoM(R), M_MIN);
-
-        M = RtoM(R);
-        if(global_params.DELTA_CRIT_MODE == 1 && (user_params->HMF>0 && user_params->HMF<4)){
-            if(user_params->HMF==1) {
-                // use sheth tormen correction
-                delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
-            }
         }
 
-        // first let's check if virialized halos of this size are rare enough
-        // that we don't have to worry about them (let's define 7 sigma away, as in Mesinger et al 05)
-        if ((sigma_z0(M)*growth_factor*7.) < delta_crit){
-LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
-            R /= global_params.DELTA_R_FACTOR;
-            continue;
-        }
-
-        memcpy(density_field, density_field_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-        // now filter the box on scale R
-        // 0 = top hat in real space, 1 = top hat in k space
-        filter_box(density_field, 0, global_params.HALO_FILTER, R);
-
-        // do the FFT to get delta_m box
+        // Now need to convert the real space density to Fourier space
         if(user_params->USE_FFTW_WISDOM) {
             // Check to see if the wisdom exists, create it if it doesn't
-            sprintf(wisdom_filename,"complex_to_real_DIM%d_NTRHEADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
+            sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (fftwf_complex *)density_field, (float *)density_field, FFTW_WISDOM_ONLY);
+                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (float *)density_field, (fftwf_complex *)density_field, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
+
             }
             else {
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (fftwf_complex *)density_field, (float *)density_field, FFTW_PATIENT);
+
+                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (float *)density_field, (fftwf_complex *)density_field, FFTW_PATIENT);
                 fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
 
                 // Store the wisdom for later use
                 fftwf_export_wisdom_to_filename(wisdom_filename);
 
-                // create the same filtered density field
-                memcpy(density_field, density_field_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+                // copy back over the density cube
+#pragma omp parallel shared(boxes,density_field) private(i,j,k) num_threads(user_params->N_THREADS)
+                {
+#pragma omp for
+                    for (i=0; i<user_params->DIM; i++){
+                        for (j=0; j<user_params->DIM; j++){
+                            for (k=0; k<user_params->DIM; k++){
+                                *((float *)density_field + R_FFT_INDEX(i,j,k)) = *((float *)boxes->hires_density + R_INDEX(i,j,k));
+                            }
+                        }
+                    }
+                }
 
-                filter_box(density_field, 0, global_params.HALO_FILTER, R);
-
-                fftwf_destroy_plan(plan);
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (fftwf_complex *)density_field, (float *)density_field, FFTW_WISDOM_ONLY);
+                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (float *)density_field, (fftwf_complex *)density_field, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
         }
         else {
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (fftwf_complex *)density_field, (float *)density_field, FFTW_ESTIMATE);
+            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (float *)density_field, (fftwf_complex *)density_field, FFTW_ESTIMATE);
             fftwf_execute(plan);
         }
         fftwf_destroy_plan(plan);
 
-        // *****************  BEGIN OPTIMIZATION ***************** //
-        // to optimize speed, if the filter size is large (switch to collapse fraction criteria later)
-        if(global_params.OPTIMIZE) {
-            if(M > global_params.OPTIMIZE_MIN_MASS) {
-                memset(forbidden, 0, sizeof(char)*TOT_NUM_PIXELS);
-                // now go through the list of existing halos and paint on the no-go region onto <forbidden>
+        // save a copy of the k-space density field
+        memcpy(density_field_saved, density_field, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
-                for (x=0; x<user_params->DIM; x++){
-                    for (y=0; y<user_params->DIM; y++){
-                        for (z=0; z<user_params->DIM; z++){
-                            if(halo_field[R_INDEX(x,y,z)] > 0.) {
-                                R_temp = MtoR(halo_field[R_INDEX(x,y,z)]);
-                                check_halo(forbidden, user_params, R_temp+global_params.R_OVERLAP_FACTOR*R, x,y,z,2);
+
+        // ***************** END INITIALIZATION ***************** //
+
+LOG_DEBUG("Finalised Initialisation");
+
+        // lets filter it now
+        // set initial R value
+        R = MtoR(M_MIN*1.01); // one percent higher for rounding
+
+LOG_DEBUG("Prepare to filter to find halos");
+
+        while (R < L_FACTOR*user_params->BOX_LEN)
+            R*=global_params.DELTA_R_FACTOR;
+
+        fgtrm=dfgtrm=0;
+        n=0;
+        Delta_R = L_FACTOR*2.*user_params->BOX_LEN/(user_params->DIM+0.0);
+
+        total_halo_num = 0;
+
+
+        // This uses more memory than absolutely necessary, but is fastest.
+        init_hmf(halos);
+        float *halo_field = calloc(TOT_NUM_PIXELS, sizeof(float));
+
+
+        while ((R > 0.5*Delta_R) && (RtoM(R) >= M_MIN)){ // filter until we get to half the pixel size or M_MIN
+
+LOG_ULTRA_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%f M_MIN=%f", R, 0.5*Delta_R, RtoM(R), M_MIN);
+
+            M = RtoM(R);
+            if(global_params.DELTA_CRIT_MODE == 1 && (user_params->HMF>0 && user_params->HMF<4)){
+                if(user_params->HMF==1) {
+                    // use sheth tormen correction
+                    delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
+                }
+            }
+
+            // first let's check if virialized halos of this size are rare enough
+            // that we don't have to worry about them (let's define 7 sigma away, as in Mesinger et al 05)
+            if ((sigma_z0(M)*growth_factor*7.) < delta_crit){
+LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
+                R /= global_params.DELTA_R_FACTOR;
+                continue;
+            }
+
+            memcpy(density_field, density_field_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+
+            // now filter the box on scale R
+            // 0 = top hat in real space, 1 = top hat in k space
+            filter_box(density_field, 0, global_params.HALO_FILTER, R);
+
+            // do the FFT to get delta_m box
+            if(user_params->USE_FFTW_WISDOM) {
+                // Check to see if the wisdom exists, create it if it doesn't
+                sprintf(wisdom_filename,"complex_to_real_DIM%d_NTRHEADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
+                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                 (fftwf_complex *)density_field, (float *)density_field, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
+                }
+                else {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                 (fftwf_complex *)density_field, (float *)density_field, FFTW_PATIENT);
+                    fftwf_execute(plan);
+
+                    // Store the wisdom for later use
+                    fftwf_export_wisdom_to_filename(wisdom_filename);
+
+                    // create the same filtered density field
+                    memcpy(density_field, density_field_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+
+                    filter_box(density_field, 0, global_params.HALO_FILTER, R);
+
+                    fftwf_destroy_plan(plan);
+                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                                 (fftwf_complex *)density_field, (float *)density_field, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
+                }
+            }
+            else {
+                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (fftwf_complex *)density_field, (float *)density_field, FFTW_ESTIMATE);
+                fftwf_execute(plan);
+            }
+            fftwf_destroy_plan(plan);
+
+            // *****************  BEGIN OPTIMIZATION ***************** //
+            // to optimize speed, if the filter size is large (switch to collapse fraction criteria later)
+            if(global_params.OPTIMIZE) {
+                if(M > global_params.OPTIMIZE_MIN_MASS) {
+                    memset(forbidden, 0, sizeof(char)*TOT_NUM_PIXELS);
+                    // now go through the list of existing halos and paint on the no-go region onto <forbidden>
+
+                    for (x=0; x<user_params->DIM; x++){
+                        for (y=0; y<user_params->DIM; y++){
+                            for (z=0; z<user_params->DIM; z++){
+                                if(halo_field[R_INDEX(x,y,z)] > 0.) {
+                                    R_temp = MtoR(halo_field[R_INDEX(x,y,z)]);
+                                    check_halo(forbidden, user_params, R_temp+global_params.R_OVERLAP_FACTOR*R, x,y,z,2);
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-        // *****************  END OPTIMIZATION ***************** //
+            // *****************  END OPTIMIZATION ***************** //
 
-        // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
-        dn=0;
-        for (x=0; x<user_params->DIM; x++){
-            for (y=0; y<user_params->DIM; y++){
-                for (z=0; z<user_params->DIM; z++){
-                    delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / VOLUME;       // don't forget the factor of 1/VOLUME!
-                    // if not within a larger halo, and radii don't overlap, update in_halo box
-                    // *****************  BEGIN OPTIMIZATION ***************** //
-                    if(global_params.OPTIMIZE) {
-                        if(M > global_params.OPTIMIZE_MIN_MASS) {
-                            if ( (delta_m > delta_crit) && !forbidden[R_INDEX(x,y,z)]){
+            // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
+            dn=0;
+            for (x=0; x<user_params->DIM; x++){
+                for (y=0; y<user_params->DIM; y++){
+                    for (z=0; z<user_params->DIM; z++){
+                        delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / VOLUME;       // don't forget the factor of 1/VOLUME!
+                        // if not within a larger halo, and radii don't overlap, update in_halo box
+                        // *****************  BEGIN OPTIMIZATION ***************** //
+                        if(global_params.OPTIMIZE) {
+                            if(M > global_params.OPTIMIZE_MIN_MASS) {
+                                if ( (delta_m > delta_crit) && !forbidden[R_INDEX(x,y,z)]){
+
+                                    check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
+                                    check_halo(forbidden, user_params, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
+
+                                    halo_field[R_INDEX(x,y,z)] = M;
+
+                                    dn++; // keep track of the number of halos
+                                    n++;
+                                    total_halo_num++;
+                                }
+                            }
+                        }
+                        // *****************  END OPTIMIZATION ***************** //
+                        else {
+                            if ((delta_m > delta_crit) && !in_halo[R_INDEX(x,y,z)] && !check_halo(in_halo, user_params, R, x,y,z,1)){ // we found us a "new" halo!
 
                                 check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
-                                check_halo(forbidden, user_params, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
 
                                 halo_field[R_INDEX(x,y,z)] = M;
 
@@ -283,91 +310,79 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                             }
                         }
                     }
-                    // *****************  END OPTIMIZATION ***************** //
-                    else {
-                        if ((delta_m > delta_crit) && !in_halo[R_INDEX(x,y,z)] && !check_halo(in_halo, user_params, R, x,y,z,1)){ // we found us a "new" halo!
+                }
+            }
 
-                            check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
+            if (dn > 0){
+                // now lets keep the mass functions (FgrtR)
+                fgtrm += M/(RHOcrit*cosmo_params->OMm)*dn/VOLUME;
+                dfgtrm += pow(M/(RHOcrit*cosmo_params->OMm)*sqrt(dn)/VOLUME, 2);
 
-                            halo_field[R_INDEX(x,y,z)] = M;
+                // and the dndlnm files
+                dlnm = log(RtoM(global_params.DELTA_R_FACTOR*R)) - log(M);
 
-                            dn++; // keep track of the number of halos
-                            n++;
-                            total_halo_num++;
-                        }
+                if (halos->n_mass_bins == halos->max_n_mass_bins){
+                    // We've gone past the limit.
+                    LOG_WARNING("Code has required more than 100 mass bins, and will no longer store masses.");
+                }
+                else{
+                    halos->mass_bins[halos->n_mass_bins] = M;
+                    halos->fgtrm[halos->n_mass_bins] = fgtrm;
+                    halos->sqrt_dfgtrm[halos->n_mass_bins] = sqrt(dfgtrm);
+                    halos->dndlm[halos->n_mass_bins] = dn/VOLUME/dlnm;
+                    halos->sqrtdn_dlm[halos->n_mass_bins] = sqrt(dn)/VOLUME/dlnm;
+                    halos->n_mass_bins++;
+                }
+            }
+
+            R /= global_params.DELTA_R_FACTOR;
+        }
+
+LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.");
+
+        // Trim the mass function entries
+        trim_hmf(halos);
+
+        // Initialize the halo co-ordinate and mass arrays.
+        init_halo_coords(halos, total_halo_num);
+
+        // reuse counter as its no longer needed
+        counter = 0;
+
+        for (x=0; x<user_params->DIM; x++){
+            for (y=0; y<user_params->DIM; y++){
+                for (z=0; z<user_params->DIM; z++){
+                    if(halo_field[R_INDEX(x,y,z)] > 0.) {
+                        halos->halo_masses[counter] = halo_field[R_INDEX(x,y,z)];
+                        halos->halo_coords[0 + counter*3] = x;
+                        halos->halo_coords[1 + counter*3] = y;
+                        halos->halo_coords[2 + counter*3] = z;
+                        counter++;
                     }
                 }
             }
         }
 
-        if (dn > 0){
-            // now lets keep the mass functions (FgrtR)
-            fgtrm += M/(RHOcrit*cosmo_params->OMm)*dn/VOLUME;
-            dfgtrm += pow(M/(RHOcrit*cosmo_params->OMm)*sqrt(dn)/VOLUME, 2);
-
-            // and the dndlnm files
-            dlnm = log(RtoM(global_params.DELTA_R_FACTOR*R)) - log(M);
-
-            if (halos->n_mass_bins == halos->max_n_mass_bins){
-                // We've gone past the limit.
-                LOG_WARNING("Code has required more than 100 mass bins, and will no longer store masses.");
-            }
-            else{
-                halos->mass_bins[halos->n_mass_bins] = M;
-                halos->fgtrm[halos->n_mass_bins] = fgtrm;
-                halos->sqrt_dfgtrm[halos->n_mass_bins] = sqrt(dfgtrm);
-                halos->dndlm[halos->n_mass_bins] = dn/VOLUME/dlnm;
-                halos->sqrtdn_dlm[halos->n_mass_bins] = sqrt(dn)/VOLUME/dlnm;
-                halos->n_mass_bins++;
-            }
-        }
-
-        R /= global_params.DELTA_R_FACTOR;
-    }
-
-LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.");
-
-    // Trim the mass function entries
-    trim_hmf(halos);
-
-    // Initialize the halo co-ordinate and mass arrays.
-    init_halo_coords(halos, total_halo_num);
-
-    // reuse counter as its no longer needed
-    counter = 0;
-
-    for (x=0; x<user_params->DIM; x++){
-        for (y=0; y<user_params->DIM; y++){
-            for (z=0; z<user_params->DIM; z++){
-                if(halo_field[R_INDEX(x,y,z)] > 0.) {
-                    halos->halo_masses[counter] = halo_field[R_INDEX(x,y,z)];
-                    halos->halo_coords[0 + counter*3] = x;
-                    halos->halo_coords[1 + counter*3] = y;
-                    halos->halo_coords[2 + counter*3] = z;
-                    counter++;
-                }
-            }
-        }
-    }
-
 LOG_DEBUG("Finished halo processing.");
 
-    free(in_halo);
-    free(halo_field);
+        free(in_halo);
+        free(halo_field);
 
-    if(global_params.OPTIMIZE) {
-        free(forbidden);
-    }
+        if(global_params.OPTIMIZE) {
+            free(forbidden);
+        }
 
-    fftwf_free(density_field);
-    fftwf_free(density_field_saved);
+        fftwf_free(density_field);
+        fftwf_free(density_field_saved);
 
-    fftwf_cleanup_threads();
-    fftwf_cleanup();
-    fftwf_forget_wisdom();
+        fftwf_cleanup_threads();
+        fftwf_cleanup();
+        fftwf_forget_wisdom();
 
 LOG_DEBUG("Finished halo cleanup.");
+LOG_DEBUG("Found %d Halos", halos->n_halos);
 LOG_DEBUG("Halo Masses: %e %e %e %e", halos->halo_masses[0], halos->halo_masses[1], halos->halo_masses[2], halos->halo_masses[3]);
+    }
     } // End of Try()
     Catch(status){
         return(status);

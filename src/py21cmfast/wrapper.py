@@ -1401,7 +1401,7 @@ def ionize_box(
             previous_perturbed_field=previous_perturbed_field,
             previous_ionize_box=previous_ionize_box,
             spin_temp=spin_temp,
-            pt_halos=pt_halos,
+            pt_halos=pt_halos if flag_options.USE_HALO_FIELD else None,
         )
 
         # Configure and check input/output parameters/structs
@@ -1425,9 +1425,14 @@ def ionize_box(
             perturbed_field,
             previous_perturbed_field,
             previous_ionize_box,
-            pt_halos,
+            pt_halos if flag_options.USE_HALO_FIELD else None,
         )
-        redshift = configure_redshift(redshift, spin_temp, perturbed_field, pt_halos)
+        redshift = configure_redshift(
+            redshift,
+            spin_temp,
+            perturbed_field,
+            pt_halos if flag_options.USE_HALO_FIELD else None,
+        )
 
         # Verify input structs
         user_params = UserParams(user_params)
@@ -1545,24 +1550,33 @@ def ionize_box(
                 )
 
         # Dynamically produce the halo field.
-        if pt_halos is None or not pt_halos.filled:
-            halo_field = determine_halo_list(
-                redshift=redshift,
+        if not flag_options.USE_HALO_FIELD:
+            pt_halos = perturb_halo_list(
+                redshift=-1.0,
                 init_boxes=init_boxes,
-                user_params=user_params,
-                cosmo_params=cosmo_params,
-                astro_params=astro_params,
-                flag_options=flag_options,
+                halo_field=determine_halo_list(
+                    redshift=-1.0,
+                    init_boxes=init_boxes,
+                    astro_params=astro_params,
+                    flag_options=flag_options,
+                    regenerate=regenerate,
+                    write=write,
+                ),
                 regenerate=regenerate,
                 write=write,
             )
-
+        elif pt_halos is None or not pt_halos.filled:
             pt_halos = perturb_halo_list(
                 redshift=redshift,
                 init_boxes=init_boxes,
-                halo_field=halo_field,
-                user_params=user_params,
-                cosmo_params=cosmo_params,
+                halo_field=determine_halo_list(
+                    redshift=redshift,
+                    init_boxes=init_boxes,
+                    astro_params=astro_params,
+                    flag_options=flag_options,
+                    regenerate=regenerate,
+                    write=write,
+                ),
                 astro_params=astro_params,
                 flag_options=flag_options,
                 regenerate=regenerate,
@@ -1991,6 +2005,7 @@ def run_coeval(
     init_box=None,
     perturb=None,
     use_interp_perturb_field=False,
+    pt_halos=None,
     random_seed=None,
     cleanup=True,
     **global_kwargs,
@@ -2031,6 +2046,9 @@ def run_coeval(
         to determine all spin temperature fields. If so, this field is interpolated in
         the underlying C-code to the correct redshift. This is less accurate (and no more
         efficient), but provides compatibility with older versions of 21cmFAST.
+    pt_halos : bool, optional
+        If given, must be compatible with init_box. It will merely negate the necessity
+        of re-calculating the perturbed halo lists.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -2070,6 +2088,16 @@ def run_coeval(
         else:
             perturb = []
 
+        """
+        # Ensure perturbed halo field is a list of boxes, not just one.
+        if flag_options.USE_HALO_FIELD:
+            if pt_halos is not None:
+                if not hasattr(pt_halos, "__len__"):
+                    pt_halos = [pt_halos]
+            else:
+                pt_halos = []
+        """
+
         random_seed, user_params, cosmo_params = _configure_inputs(
             [
                 ("random_seed", random_seed),
@@ -2078,6 +2106,7 @@ def run_coeval(
             ],
             init_box,
             *perturb,
+            *pt_halos if flag_options.USE_HALO_FIELD else None,
         )
 
         user_params = UserParams(user_params)
@@ -2104,6 +2133,18 @@ def run_coeval(
 
             else:
                 redshift = [p.redshift for p in perturb]
+
+        """
+        if flag_options.USE_HALO_FIELD and pt_halos:
+            if redshift is not None:
+                if any(p.redshift != z for p, z in zip(pt_halos, redshift)):
+                    raise ValueError(
+                        "Input redshifts do not match the perturbed halo field redshifts"
+                    )
+
+            else:
+                redshift = [p.redshift for p in pt_halos]
+        """
 
         if flag_options.PHOTON_CONS:
             calibrate_photon_cons(
@@ -2132,6 +2173,24 @@ def run_coeval(
                         direc=direc,
                     )
                 ]
+
+        """
+        if flag_options.USE_HALO_FIELD and not pt_halos:
+            for z in redshift:
+                pt_halos += [
+                    perturb_halo_list(
+                        redshift=z,
+                        init_boxes=init_box,
+                        user_params=user_params,
+                        cosmo_params=cosmo_params,
+                        astro_params=astro_params,
+                        flag_options=flag_options,
+                        regenerate=regenerate,
+                        write=write,
+                        direc=direc,
+                    )
+                ]
+        """
 
         # Get the list of redshift we need to scroll through.
         if flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
@@ -2202,6 +2261,7 @@ def run_coeval(
                         else None
                     )
                 ),
+                pt_halos=pt_halos[redshift.index(z)] if z in redshift else None,
                 astro_params=astro_params,
                 flag_options=flag_options,
                 spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
