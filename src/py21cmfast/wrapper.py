@@ -2534,6 +2534,25 @@ def run_lightcone(
                 write=write,
             )
 
+            if flag_options.USE_HALO_FIELD:
+                pt_halos = perturb_halo_list(
+                    redshift=z,
+                    init_boxes=init_box,
+                    astro_params=astro_params,
+                    flag_options=flag_options,
+                    halo_field=determine_halo_list(
+                        redshift=z,
+                        init_boxes=init_box,
+                        astro_params=astro_params,
+                        flag_options=flag_options,
+                        regenerate=regenerate,
+                        write=write,
+                    ),
+                    regenerate=regenerate,
+                    write=write,
+                    direc=direc,
+                )
+
             if flag_options.USE_TS_FLUCT:
                 st2 = spin_temperature(
                     redshift=z,
@@ -2557,6 +2576,7 @@ def run_lightcone(
                 astro_params=astro_params,
                 flag_options=flag_options,
                 spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
+                pt_halos=pt_halos if flag_options.USE_HALO_FIELD else None,
                 regenerate=regenerate,
                 write=write,
                 direc=direc,
@@ -2579,6 +2599,8 @@ def run_lightcone(
             }
             if flag_options.USE_TS_FLUCT:
                 outs["TsBox"] = (st, st2)
+            if flag_options.USE_HALO_FIELD:
+                outs["PerturbHaloes"] = pt_halos
 
             # Save mean/global quantities
             for quantity in global_quantities:
