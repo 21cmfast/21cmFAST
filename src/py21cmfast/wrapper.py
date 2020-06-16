@@ -228,11 +228,18 @@ def _verify_types(**kwargs):
     """Ensure each argument has a type of None or that matching its name."""
     for k, v in kwargs.items():
         for j, kk in enumerate(
-            ["init", "perturb", "ionize", "spin_temp", "halo_field"]
+            ["init", "perturb", "ionize", "spin_temp", "halo_field", "pt_halos"]
         ):
             if kk in k:
                 break
-        cls = [InitialConditions, PerturbedField, IonizedBox, TsBox, HaloField][j]
+        cls = [
+            InitialConditions,
+            PerturbedField,
+            IonizedBox,
+            TsBox,
+            HaloField,
+            PerturbHaloField,
+        ][j]
 
         if v is not None and not isinstance(v, cls):
             raise ValueError("%s must be an instance of %s" % (k, cls.__name__))
@@ -1247,6 +1254,7 @@ def ionize_box(
     previous_perturbed_field=None,
     previous_ionize_box=None,
     spin_temp=None,
+    pt_halos=None,
     init_boxes=None,
     cosmo_params=None,
     user_params=None,
@@ -1293,6 +1301,10 @@ def ionize_box(
         in a spin temp box at the current redshift, and failing that will try to automatically
         create one, using the previous ionized box redshift as the previous spin temperature
         redshift.
+    pt_halos: :class:`~PerturbHaloField` or None, optional
+        If passed, this contains all the dark matter haloes obtained if using the USE_HALO_FIELD.
+        This is a list of halo masses and coords for the dark matter haloes.
+        If not passed, it will try and automatically create them using the available initial conditions.
     user_params : :class:`~UserParams`, optional
         Defines the overall options and parameters of the run.
     cosmo_params : :class:`~CosmoParams`, optional
@@ -1389,6 +1401,7 @@ def ionize_box(
             previous_perturbed_field=previous_perturbed_field,
             previous_ionize_box=previous_ionize_box,
             spin_temp=spin_temp,
+            pt_halos=pt_halos,
         )
 
         # Configure and check input/output parameters/structs
@@ -1412,8 +1425,9 @@ def ionize_box(
             perturbed_field,
             previous_perturbed_field,
             previous_ionize_box,
+            pt_halos,
         )
-        redshift = configure_redshift(redshift, spin_temp, perturbed_field)
+        redshift = configure_redshift(redshift, spin_temp, perturbed_field, pt_halos)
 
         # Verify input structs
         user_params = UserParams(user_params)
@@ -1529,6 +1543,32 @@ def ionize_box(
                     write=write,
                     direc=direc,
                 )
+
+        # Dynamically produce the halo field.
+        if pt_halos is None or not pt_halos.filled:
+            halo_field = determine_halo_list(
+                redshift=redshift,
+                init_boxes=init_boxes,
+                user_params=user_params,
+                cosmo_params=cosmo_params,
+                astro_params=astro_params,
+                flag_options=flag_options,
+                regenerate=regenerate,
+                write=write,
+            )
+
+            pt_halos = perturb_halo_list(
+                redshift=redshift,
+                init_boxes=init_boxes,
+                halo_field=halo_field,
+                user_params=user_params,
+                cosmo_params=cosmo_params,
+                astro_params=astro_params,
+                flag_options=flag_options,
+                regenerate=regenerate,
+                write=write,
+            )
+
         # Set empty spin temp box if necessary.
         if not flag_options.USE_TS_FLUCT:
             spin_temp = TsBox(redshift=0)
@@ -1556,6 +1596,7 @@ def ionize_box(
             previous_perturbed_field,
             previous_ionize_box,
             spin_temp,
+            pt_halos,
             write=write,
         )
 

@@ -206,6 +206,7 @@ LOG_DEBUG("Begin Initialisation");
             halos_perturbed->halo_coords[i_halo*3+2] = zf;
 
             halos_perturbed->halo_masses[i_halo] = halos->halo_masses[i_halo];
+
         }
     }
 

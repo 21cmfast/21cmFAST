@@ -12,7 +12,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                        struct PerturbedField *perturbed_field,
                        struct PerturbedField *previous_perturbed_field,
                        struct IonizedBox *previous_ionize_box,
-                       struct TsBox *spin_temp, struct IonizedBox *box) {
+                       struct TsBox *spin_temp,
+                       struct PerturbHaloField *halos,
+                       struct IonizedBox *box) {
 
     int status;
 
@@ -40,14 +42,14 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     fftwf_plan plan;
 
     // Other parameters used in the code
-    int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R, short_completely_ionised;
+    int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R, short_completely_ionised,i_halo;
     int counter, N_halos_in_cell;
     unsigned long long ct;
 
     float growth_factor, pixel_mass, cell_length_factor, M_MIN;
     float erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR, growth_factor_dz;
     float Splined_Fcoll_MINI, prev_dens, ION_EFF_FACTOR_MINI, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI;
-    float ave_M_coll_cell, ave_N_min_cell;
+    float ave_M_coll_cell, ave_N_min_cell, pixel_volume, density_over_mean;
 
     double global_xH, ST_over_PS, f_coll, R, stored_R, f_coll_min;
     double ST_over_PS_MINI, f_coll_MINI, f_coll_min_MINI;
@@ -103,6 +105,8 @@ LOG_SUPER_DEBUG("inited heat");
     init_ps();
 
 LOG_SUPER_DEBUG("defined parameters");
+
+    pixel_volume = pow(user_params->BOX_LEN/((float)(user_params->HII_DIM)), 3);
 
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -218,6 +222,7 @@ LOG_SUPER_DEBUG("erfc interpolation done");
     fftwf_complex *deltax_unfiltered, *deltax_unfiltered_original, *deltax_filtered;
     fftwf_complex *xe_unfiltered, *xe_filtered, *N_rec_unfiltered, *N_rec_filtered;
     fftwf_complex *prev_deltax_unfiltered, *prev_deltax_filtered;
+    fftwf_complex *M_coll_unfiltered,*M_coll_filtered;
 
     deltax_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     deltax_unfiltered_original = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -302,6 +307,9 @@ LOG_SUPER_DEBUG("density field calculated");
     pixel_mass = RtoM(L_FACTOR*user_params->BOX_LEN/(float)(user_params->HII_DIM));
     cell_length_factor = L_FACTOR;
 
+    if(flag_options->USE_HALO_FIELD && (global_params.FIND_BUBBLE_ALGORITHM == 2) && ((user_params->BOX_LEN/(float)(user_params->HII_DIM) < 1))) {
+        cell_length_factor = 1.;
+    }
 
     if (prev_redshift < 1){
 LOG_DEBUG("first redshift, do some initialization");
@@ -461,6 +469,35 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
         M_MIN = M_J_WDM();
         LOG_WARNING("Setting a new effective Jeans mass from WDM pressure supression of %e Msun", M_MIN);
     }
+
+    // ARE WE USING A DISCRETE HALO FIELD (identified in the ICs with FindHaloes.c and evolved  with PerturbHaloField.c)
+    if(flag_options->USE_HALO_FIELD) {
+        M_coll_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        M_coll_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+#pragma omp parallel shared(M_coll_unfiltered) private(ct) num_threads(user_params->N_THREADS)
+        {
+#pragma omp for
+            for (ct=0; ct<HII_TOT_FFT_NUM_PIXELS; ct++){
+                *((float *)M_coll_unfiltered + ct) = 0;
+            }
+        }
+
+#pragma omp parallel shared(M_coll_unfiltered,halos) \
+private(i_halo,x,y,z) num_threads(user_params->N_THREADS)
+        {
+#pragma omp for
+            for (i_halo=0; i_halo<halos->n_halos; i_halo++){
+                x = halos->halo_coords[0+3*i_halo];
+                y = halos->halo_coords[1+3*i_halo];
+                z = halos->halo_coords[2+3*i_halo];
+
+                *((float *)M_coll_unfiltered + HII_R_FFT_INDEX(x, y, z)) += halos->halo_masses[i_halo];
+            }
+        }
+    } // end of the USE_HALO_FIELD option
+
+
 
 
     // lets check if we are going to bother with computing the inhmogeneous field at all...
@@ -659,6 +696,19 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             fftwf_destroy_plan(plan);
         }
 
+        if (flag_options->USE_HALO_FIELD){
+            if(user_params->USE_FFTW_WISDOM) {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *)M_coll_unfiltered, (fftwf_complex *)M_coll_unfiltered, FFTW_WISDOM_ONLY);
+            }
+            else {
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *)M_coll_unfiltered, (fftwf_complex *)M_coll_unfiltered, FFTW_ESTIMATE);
+            }
+            fftwf_execute(plan);
+            fftwf_destroy_plan(plan);
+        }
+
         if(flag_options->USE_TS_FLUCT) {
             if(user_params->USE_FFTW_WISDOM) {
                 plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
@@ -693,7 +743,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
         //  real space to k-space
         // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
 #pragma omp parallel shared(deltax_unfiltered,xe_unfiltered,N_rec_unfiltered,prev_deltax_unfiltered,\
-                            log10_Mturnover_unfiltered,log10_Mturnover_MINI_unfiltered) \
+                            log10_Mturnover_unfiltered,log10_Mturnover_MINI_unfiltered,M_coll_unfiltered) \
                     private(ct) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
@@ -701,6 +751,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                 deltax_unfiltered[ct] /= (HII_TOT_NUM_PIXELS+0.0);
                 if(flag_options->USE_TS_FLUCT) { xe_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS; }
                 if (flag_options->INHOMO_RECO){ N_rec_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS; }
+                if(flag_options->USE_HALO_FIELD) { M_coll_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS; }
                 if(flag_options->USE_MINI_HALOS){
                     prev_deltax_unfiltered[ct]          /= (HII_TOT_NUM_PIXELS+0.0);
                     log10_Mturnover_unfiltered[ct]      /= (HII_TOT_NUM_PIXELS+0.0);
@@ -759,6 +810,9 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             if (flag_options->INHOMO_RECO) {
                 memcpy(N_rec_filtered, N_rec_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
             }
+            if (flag_options->USE_HALO_FIELD) {
+                memcpy(M_coll_filtered, M_coll_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+            }
 
             memcpy(deltax_filtered, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
@@ -776,6 +830,9 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 }
                 if (flag_options->INHOMO_RECO) {
                     filter_box(N_rec_filtered, 1, global_params.HII_FILTER, R);
+                }
+                if (flag_options->USE_HALO_FIELD) {
+                    filter_box(M_coll_filtered, 1, global_params.HII_FILTER, R);
                 }
                 filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
                 if(flag_options->USE_MINI_HALOS){
@@ -860,6 +917,18 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 fftwf_destroy_plan(plan);
             }
 
+            if (flag_options->USE_HALO_FIELD) {
+                if (user_params->USE_FFTW_WISDOM) {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                 (fftwf_complex *)M_coll_filtered, (float *)M_coll_filtered, FFTW_WISDOM_ONLY);
+                } else {
+                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                 (fftwf_complex *)M_coll_filtered, (float *)M_coll_filtered, FFTW_ESTIMATE);
+                }
+                fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
+            }
+
             if (flag_options->USE_TS_FLUCT) {
                 if (user_params->USE_FFTW_WISDOM) {
                     plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
@@ -892,211 +961,213 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             f_coll_MINI = 0;
             massofscaleR = RtoM(R);
 
-            if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+            if (!flag_options->USE_HALO_FIELD) {
+                if (flag_options->USE_MASS_DEPENDENT_ZETA) {
 
-                min_density = max_density = 0.0;
+                    min_density = max_density = 0.0;
 
 #pragma omp parallel shared(deltax_filtered) private(x, y, z) num_threads(user_params->N_THREADS)
-                {
-#pragma omp for reduction(max:max_density) reduction(min:min_density)
-                    for (x = 0; x < user_params->HII_DIM; x++) {
-                        for (y = 0; y < user_params->HII_DIM; y++) {
-                            for (z = 0; z < user_params->HII_DIM; z++) {
-                                // delta cannot be less than -1
-                                *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
-                                        *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
-
-                                if (*((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) < min_density) {
-                                    min_density = *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z));
-                                }
-                                if (*((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) > max_density) {
-                                    max_density = *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z));
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (min_density < 0.) {
-                    min_density = min_density * 1.001;
-                    if (min_density <= -1.) {
-                        // Use MIN_DENSITY_LOW_LIMIT as is it smaller than FRACT_FLOAT_ERR
-                        min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
-                    }
-                } else {
-                    min_density = min_density * 0.999;
-                }
-
-                if (max_density < 0.) {
-                    max_density = max_density * 0.999;
-                } else {
-                    max_density = max_density * 1.001;
-                }
-
-                if (global_params.HII_FILTER == 1) {
-                    if ((0.413566994 * R * 2. * PI / user_params->BOX_LEN) > 1.) {
-                        // The sharp k-space filter will set every cell to zero, and the interpolation table using a flexible min/max density will fail.
-
-                        min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
-                        max_density = global_params.CRIT_DENS_TRANSITION * 1.001;
-                    }
-                }
-
-                overdense_small_min = log10(1. + min_density);
-                if (max_density > global_params.CRIT_DENS_TRANSITION * 1.001) {
-                    overdense_small_bin_width = 1 / ((double) NSFR_low - 1.) *
-                                                (log10(1. + global_params.CRIT_DENS_TRANSITION * 1.001) -
-                                                 overdense_small_min);
-                } else {
-                    overdense_small_bin_width =
-                            1 / ((double) NSFR_low - 1.) * (log10(1. + max_density) - overdense_small_min);
-                }
-
-                overdense_small_bin_width_inv = 1./overdense_small_bin_width;
-
-LOG_ULTRA_DEBUG("R=%f, min_density=%f, max_density=%f, overdense_small_min=%f, overdense_small_bin_width=%f",\
-                R, min_density, max_density, overdense_small_min, overdense_small_bin_width);
-
-                if (flag_options->USE_MINI_HALOS){
-                    // do the same for prev
-                    prev_min_density = prev_max_density = 0.0;
-
-#pragma omp parallel shared(prev_deltax_filtered) private(x, y, z) num_threads(user_params->N_THREADS)
                     {
-#pragma omp for reduction(max:prev_max_density) reduction(min:prev_min_density)
-                        for (x=0; x<user_params->HII_DIM; x++){
-                            for (y=0; y<user_params->HII_DIM; y++){
-                                for (z=0; z<user_params->HII_DIM; z++){
+#pragma omp for reduction(max:max_density) reduction(min:min_density)
+                        for (x = 0; x < user_params->HII_DIM; x++) {
+                            for (y = 0; y < user_params->HII_DIM; y++) {
+                                for (z = 0; z < user_params->HII_DIM; z++) {
                                     // delta cannot be less than -1
-                                    *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = \
-                                                        FMAX(*((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
+                                    *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
+                                                *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
 
-                                    if( *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) < prev_min_density ) {
-                                        prev_min_density = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                                    if (*((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) < min_density) {
+                                                min_density = *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z));
                                     }
-                                    if( *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) > prev_max_density ) {
-                                        prev_max_density = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                                    if (*((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) > max_density) {
+                                                max_density = *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z));
                                     }
                                 }
                             }
                         }
                     }
 
-                    if(prev_min_density < 0.) {
-                        prev_min_density = prev_min_density*1.001;
-                        if(prev_min_density < -1.) {
+                    if (min_density < 0.) {
+                        min_density = min_density * 1.001;
+                        if (min_density <= -1.) {
                             // Use MIN_DENSITY_LOW_LIMIT as is it smaller than FRACT_FLOAT_ERR
-                            prev_min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
+                            min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
                         }
-                    }
-                    else {
-                        prev_min_density = prev_min_density*0.999;
-                    }
-                    if(prev_max_density < 0.) {
-                        prev_max_density = prev_max_density*0.999;
-                    }
-                    else {
-                        prev_max_density = prev_max_density*1.001;
+                    } else {
+                        min_density = min_density * 0.999;
                     }
 
-                    if(global_params.HII_FILTER==1) {
-                        if((0.413566994*R*2.*PI/user_params->BOX_LEN) > 1.) {
+                    if (max_density < 0.) {
+                        max_density = max_density * 0.999;
+                    } else {
+                        max_density = max_density * 1.001;
+                    }
+
+                    if (global_params.HII_FILTER == 1) {
+                        if ((0.413566994 * R * 2. * PI / user_params->BOX_LEN) > 1.) {
                             // The sharp k-space filter will set every cell to zero, and the interpolation table using a flexible min/max density will fail.
 
-                            prev_min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
-                            prev_max_density = global_params.CRIT_DENS_TRANSITION*1.001;
+                            min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
+                            max_density = global_params.CRIT_DENS_TRANSITION * 1.001;
                         }
                     }
 
-                    prev_overdense_small_min = log10(1. + prev_min_density);
-                    if(prev_max_density > global_params.CRIT_DENS_TRANSITION*1.001) {
-                        prev_overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+global_params.CRIT_DENS_TRANSITION*1.001)-prev_overdense_small_min);
+                    overdense_small_min = log10(1. + min_density);
+                    if (max_density > global_params.CRIT_DENS_TRANSITION * 1.001) {
+                        overdense_small_bin_width = 1 / ((double) NSFR_low - 1.) *
+                                                (log10(1. + global_params.CRIT_DENS_TRANSITION * 1.001) -
+                                                 overdense_small_min);
+                    } else {
+                        overdense_small_bin_width =
+                                1 / ((double) NSFR_low - 1.) * (log10(1. + max_density) - overdense_small_min);
                     }
-                    else {
-                        prev_overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+prev_max_density)-prev_overdense_small_min);
-                    }
-                    prev_overdense_small_bin_width_inv = 1./prev_overdense_small_bin_width;
-LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f, prev_overdense_small_bin_width=%f", \
-                prev_min_density, prev_max_density, prev_overdense_small_min, prev_overdense_small_bin_width);
 
-                    // do the same for logM
-                    log10Mturn_min = 999;
-                    log10Mturn_max = 0.0;
-                    log10Mturn_min_MINI = 999;
-                    log10Mturn_max_MINI = 0.0;
+                    overdense_small_bin_width_inv = 1./overdense_small_bin_width;
 
-#pragma omp parallel shared(log10_Mturnover_filtered,log10_Mturnover_MINI_filtered,log10_Mcrit_atom,log10_Mcrit_mol) private(x, y, z) num_threads(user_params->N_THREADS)
-                    {
-#pragma omp for reduction(max:log10Mturn_max,log10Mturn_max_MINI) reduction(min:log10Mturn_min,log10Mturn_min_MINI)
-                        for (x=0; x<user_params->HII_DIM; x++){
-                            for (y=0; y<user_params->HII_DIM; y++){
-                                for (z=0; z<user_params->HII_DIM; z++){
-                                    if (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) < log10_Mcrit_atom)
-                                        *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) = log10_Mcrit_atom;
-                                    if (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) > LOG10_MTURN_MAX)
-                                        *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) = LOG10_MTURN_MAX;
-                                    // Mturnover cannot be less than Mcrit_mol
-                                    if (*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) < log10_Mcrit_mol)
-                                        *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) = log10_Mcrit_mol;
-                                    if (*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) > LOG10_MTURN_MAX)
-                                        *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) = LOG10_MTURN_MAX;
+LOG_ULTRA_DEBUG("R=%f, min_density=%f, max_density=%f, overdense_small_min=%f, overdense_small_bin_width=%f",\
+                    R, min_density, max_density, overdense_small_min, overdense_small_bin_width);
 
-                                    if (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) < log10Mturn_min)
-                                        log10Mturn_min = *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z));
-                                    if (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) > log10Mturn_max)
-                                        log10Mturn_max = *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z));
-                                    if (*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) < log10Mturn_min_MINI)
-                                        log10Mturn_min_MINI = *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z));
-                                    if (*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) > log10Mturn_max_MINI)
-                                        log10Mturn_max_MINI = *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z));
+                    if (flag_options->USE_MINI_HALOS){
+                        // do the same for prev
+                        prev_min_density = prev_max_density = 0.0;
+
+#pragma omp parallel shared(prev_deltax_filtered) private(x, y, z) num_threads(user_params->N_THREADS)
+                        {
+#pragma omp for reduction(max:prev_max_density) reduction(min:prev_min_density)
+                            for (x=0; x<user_params->HII_DIM; x++){
+                                for (y=0; y<user_params->HII_DIM; y++){
+                                    for (z=0; z<user_params->HII_DIM; z++){
+                                        // delta cannot be less than -1
+                                        *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = \
+                                                        FMAX(*((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
+
+                                        if( *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) < prev_min_density ) {
+                                            prev_min_density = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                                        }
+                                        if( *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) > prev_max_density ) {
+                                            prev_max_density = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                                        }
+                                    }
                                 }
                             }
                         }
+
+                        if(prev_min_density < 0.) {
+                            prev_min_density = prev_min_density*1.001;
+                            if(prev_min_density < -1.) {
+                                // Use MIN_DENSITY_LOW_LIMIT as is it smaller than FRACT_FLOAT_ERR
+                                prev_min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
+                            }
+                        }
+                        else {
+                            prev_min_density = prev_min_density*0.999;
+                        }
+                        if(prev_max_density < 0.) {
+                            prev_max_density = prev_max_density*0.999;
+                        }
+                        else {
+                            prev_max_density = prev_max_density*1.001;
+                        }
+
+                        if(global_params.HII_FILTER==1) {
+                            if((0.413566994*R*2.*PI/user_params->BOX_LEN) > 1.) {
+                                // The sharp k-space filter will set every cell to zero, and the interpolation table using a flexible min/max density will fail.
+
+                                prev_min_density = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
+                                prev_max_density = global_params.CRIT_DENS_TRANSITION*1.001;
+                            }
+                        }
+
+                        prev_overdense_small_min = log10(1. + prev_min_density);
+                        if(prev_max_density > global_params.CRIT_DENS_TRANSITION*1.001) {
+                            prev_overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+global_params.CRIT_DENS_TRANSITION*1.001)-prev_overdense_small_min);
+                        }
+                        else {
+                            prev_overdense_small_bin_width = 1/((double)NSFR_low-1.)*(log10(1.+prev_max_density)-prev_overdense_small_min);
+                        }
+                        prev_overdense_small_bin_width_inv = 1./prev_overdense_small_bin_width;
+LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f, prev_overdense_small_bin_width=%f", \
+                    prev_min_density, prev_max_density, prev_overdense_small_min, prev_overdense_small_bin_width);
+
+                        // do the same for logM
+                        log10Mturn_min = 999;
+                        log10Mturn_max = 0.0;
+                        log10Mturn_min_MINI = 999;
+                        log10Mturn_max_MINI = 0.0;
+
+#pragma omp parallel shared(log10_Mturnover_filtered,log10_Mturnover_MINI_filtered,log10_Mcrit_atom,log10_Mcrit_mol) private(x, y, z) num_threads(user_params->N_THREADS)
+                        {
+#pragma omp for reduction(max:log10Mturn_max,log10Mturn_max_MINI) reduction(min:log10Mturn_min,log10Mturn_min_MINI)
+                            for (x=0; x<user_params->HII_DIM; x++){
+                                for (y=0; y<user_params->HII_DIM; y++){
+                                    for (z=0; z<user_params->HII_DIM; z++){
+                                        if (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) < log10_Mcrit_atom)
+                                            *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) = log10_Mcrit_atom;
+                                        if (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) > LOG10_MTURN_MAX)
+                                            *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) = LOG10_MTURN_MAX;
+                                        // Mturnover cannot be less than Mcrit_mol
+                                        if (*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) < log10_Mcrit_mol)
+                                            *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) = log10_Mcrit_mol;
+                                        if (*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) > LOG10_MTURN_MAX)
+                                            *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) = LOG10_MTURN_MAX;
+
+                                        if (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) < log10Mturn_min)
+                                            log10Mturn_min = *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z));
+                                        if (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) > log10Mturn_max)
+                                            log10Mturn_max = *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z));
+                                        if (*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) < log10Mturn_min_MINI)
+                                            log10Mturn_min_MINI = *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z));
+                                        if (*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) > log10Mturn_max_MINI)
+                                            log10Mturn_max_MINI = *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z));
+                                    }
+                                }
+                            }
+                        }
+
+                        log10Mturn_min = log10Mturn_min *0.99;
+                        log10Mturn_max = log10Mturn_max *1.01;
+                        log10Mturn_min_MINI = log10Mturn_min_MINI *0.99;
+                        log10Mturn_max_MINI = log10Mturn_max_MINI *1.01;
+
+                        log10Mturn_bin_width = (log10Mturn_max - log10Mturn_min) / NMTURN;
+                        log10Mturn_bin_width_inv = 1./log10Mturn_bin_width;
+                        log10Mturn_bin_width_MINI = (log10Mturn_max_MINI - log10Mturn_min_MINI) / NMTURN;
+                        log10Mturn_bin_width_inv_MINI = 1./log10Mturn_bin_width_MINI;
                     }
 
-                    log10Mturn_min = log10Mturn_min *0.99;
-                    log10Mturn_max = log10Mturn_max *1.01;
-                    log10Mturn_min_MINI = log10Mturn_min_MINI *0.99;
-                    log10Mturn_max_MINI = log10Mturn_max_MINI *1.01;
+                    initialiseGL_Nion(NGL_SFR, M_MIN,massofscaleR);
 
-                    log10Mturn_bin_width = (log10Mturn_max - log10Mturn_min) / NMTURN;
-                    log10Mturn_bin_width_inv = 1./log10Mturn_bin_width;
-                    log10Mturn_bin_width_MINI = (log10Mturn_max_MINI - log10Mturn_min_MINI) / NMTURN;
-                    log10Mturn_bin_width_inv_MINI = 1./log10Mturn_bin_width_MINI;
-                }
-
-                initialiseGL_Nion(NGL_SFR, M_MIN,massofscaleR);
-
-                if(flag_options->USE_MINI_HALOS){
-                    initialise_Nion_General_spline_MINI(redshift,Mcrit_atom,min_density,max_density,massofscaleR,M_MIN,
+                    if(flag_options->USE_MINI_HALOS){
+                        initialise_Nion_General_spline_MINI(redshift,Mcrit_atom,min_density,max_density,massofscaleR,M_MIN,
                                                            log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                                            astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
                                                            astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,astro_params->F_STAR7_MINI,
                                                            astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI);
 
-                    if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
-                        initialise_Nion_General_spline_MINI_prev(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,
+                        if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
+                            initialise_Nion_General_spline_MINI_prev(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,
                                                                     massofscaleR,M_MIN,log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,
                                                                     log10Mturn_max_MINI,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                                                     astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,
                                                                     astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
                                                                     Mlim_Fstar_MINI, Mlim_Fesc_MINI);
+                        }
                     }
-                }
-                else{
-                    initialise_Nion_General_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,
+                    else{
+                        initialise_Nion_General_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,
                                                       astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
                                                       astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
-                }
-            } else {
+                    }
+                } else {
 
-                erfc_denom = 2. * (pow(sigma_z0(M_MIN), 2) - pow(sigma_z0(massofscaleR), 2));
-                if (erfc_denom < 0) { // our filtering scale has become too small
-                    break;
-                }
-                erfc_denom = sqrt(erfc_denom);
-                erfc_denom = 1. / (growth_factor * erfc_denom);
+                    erfc_denom = 2. * (pow(sigma_z0(M_MIN), 2) - pow(sigma_z0(massofscaleR), 2));
+                    if (erfc_denom < 0) { // our filtering scale has become too small
+                        break;
+                    }
+                    erfc_denom = sqrt(erfc_denom);
+                    erfc_denom = 1. / (growth_factor * erfc_denom);
 
+                }
             }
 
             // Determine the global averaged f_coll for the overall normalisation
@@ -1112,10 +1183,10 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             erfc_arg_max,InvArgBinWidth,ArgBinWidth,ERFC_VALS_DIFF,ERFC_VALS,log10_Mturnover_filtered,log10Mturn_min,log10Mturn_bin_width_inv, \
                             log10_Mturnover_MINI_filtered,log10Mturn_bin_width_inv_MINI,log10_Nion_spline_MINI,prev_deltax_filtered,previous_ionize_box,ION_EFF_FACTOR,\
                             prev_overdense_small_min,prev_overdense_small_bin_width_inv,prev_log10_Nion_spline,prev_log10_Nion_spline_MINI,prev_overdense_large_min,\
-                            prev_overdense_large_bin_width_inv,prev_Nion_spline,prev_Nion_spline_MINI,box,counter) \
+                            prev_overdense_large_bin_width_inv,prev_Nion_spline,prev_Nion_spline_MINI,box,counter,M_coll_filtered,massofscaleR,pixel_volume) \
                     private(x,y,z,curr_dens,Splined_Fcoll,Splined_Fcoll_MINI,dens_val,overdense_int,erfc_arg_val,erfc_arg_val_index,log10_Mturnover,\
                             log10_Mturnover_int,log10_Mturnover_MINI,log10_Mturnover_MINI_int,prev_dens,prev_Splined_Fcoll,prev_Splined_Fcoll_MINI,\
-                            prev_dens_val,) \
+                            prev_dens_val,density_over_mean) \
                     num_threads(user_params->N_THREADS)
             {
 #pragma omp for reduction(+:f_coll,f_coll_MINI)
@@ -1125,49 +1196,66 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
 
                             // delta cannot be less than -1
                             *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
-                                    *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
+                                                *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
 
-                            // <N_rec> cannot be less than zero
-                            if (flag_options->INHOMO_RECO) {
-                                *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
-                                        *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
+                            if(flag_options->USE_HALO_FIELD) {
+
+                                // collapsed mass cannot be less than zero
+                                if (flag_options->USE_HALO_FIELD) {
+                                    *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(
+                                            *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
+                                }
+
+                                density_over_mean = 1.0 + *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+
+                                Splined_Fcoll = *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) / (massofscaleR*density_over_mean);
+                                Splined_Fcoll *= (4/3.0)*PI*pow(R,3) / pixel_volume;
+
+
                             }
+                            else {
 
-                            // x_e has to be between zero and unity
-                            if (flag_options->USE_TS_FLUCT) {
-                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
-                                        *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.);
-                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMIN(
-                                        *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.999);
-                            }
+                                // <N_rec> cannot be less than zero
+                                if (flag_options->INHOMO_RECO) {
+                                    *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
+                                            *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
+                                }
 
-                            curr_dens = *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z));
+                                // x_e has to be between zero and unity
+                                if (flag_options->USE_TS_FLUCT) {
+                                    *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
+                                            *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.);
+                                    *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMIN(
+                                            *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.999);
+                                }
 
-                            if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+                                curr_dens = *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z));
 
-                                if (flag_options->USE_MINI_HALOS){
-	                                log10_Mturnover = (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) -
+                                if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+
+                                    if (flag_options->USE_MINI_HALOS){
+                                        log10_Mturnover = (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) -
                                                        log10Mturn_min ) * log10Mturn_bin_width_inv;
-        	                        log10_Mturnover_int = (int)floorf( log10_Mturnover );
-                	                log10_Mturnover_MINI = (*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) - \
+                                        log10_Mturnover_int = (int)floorf( log10_Mturnover );
+                                        log10_Mturnover_MINI = (*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)) - \
                                                             log10Mturn_min_MINI ) * log10Mturn_bin_width_inv_MINI;
-                        	        log10_Mturnover_MINI_int = (int)floorf( log10_Mturnover_MINI );
+                                        log10_Mturnover_MINI_int = (int)floorf( log10_Mturnover_MINI );
 
-                                    if (curr_dens < global_params.CRIT_DENS_TRANSITION){
+                                        if (curr_dens < global_params.CRIT_DENS_TRANSITION){
 
-                                        if (curr_dens <= -1.) {
-                                            Splined_Fcoll = 0;
-                                            Splined_Fcoll_MINI = 0;
-                                        }
-                                        else {
-                                            dens_val = (log10f(curr_dens+1.) - overdense_small_min)*overdense_small_bin_width_inv;
-                                            overdense_int = (int)floorf( dens_val );
-
-                                            if(overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
-                                                overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                            if (curr_dens <= -1.) {
+                                                Splined_Fcoll = 0;
+                                                Splined_Fcoll_MINI = 0;
                                             }
+                                            else {
+                                                dens_val = (log10f(curr_dens+1.) - overdense_small_min)*overdense_small_bin_width_inv;
+                                                overdense_int = (int)floorf( dens_val );
 
-                                            Splined_Fcoll = ( \
+                                                if(overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
+                                                    overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                                }
+
+                                                Splined_Fcoll = ( \
                                                              log10_Nion_spline[overdense_int + NSFR_low*log10_Mturnover_int]*( 1 + (float)overdense_int - dens_val ) + \
                                                              log10_Nion_spline[overdense_int + 1 + NSFR_low*log10_Mturnover_int]*( dens_val - (float)overdense_int ) \
                                                              ) * (1 + (float)log10_Mturnover_int - log10_Mturnover) + \
@@ -1175,9 +1263,9 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                                              log10_Nion_spline[overdense_int + NSFR_low*(log10_Mturnover_int+1)]*( 1 + (float)overdense_int - dens_val ) + \
                                                              log10_Nion_spline[overdense_int + 1 + NSFR_low*(log10_Mturnover_int+1)]*( dens_val - (float)overdense_int ) \
                                                             ) * (log10_Mturnover - (float)log10_Mturnover_int);
-                                            Splined_Fcoll = expf(Splined_Fcoll);
+                                                Splined_Fcoll = expf(Splined_Fcoll);
 
-                                            Splined_Fcoll_MINI = ( \
+                                                Splined_Fcoll_MINI = ( \
                                                                   log10_Nion_spline_MINI[overdense_int + NSFR_low*log10_Mturnover_MINI_int]*( 1 + (float)overdense_int - dens_val ) + \
                                                                   log10_Nion_spline_MINI[overdense_int + 1 + NSFR_low*log10_Mturnover_MINI_int]*( dens_val - (float)overdense_int ) \
                                                                   ) * (1 + (float)log10_Mturnover_MINI_int - log10_Mturnover_MINI) + \
@@ -1185,23 +1273,23 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                                                  log10_Nion_spline_MINI[overdense_int + NSFR_low*(log10_Mturnover_MINI_int+1)]*( 1 + (float)overdense_int - dens_val ) + \
                                                                  log10_Nion_spline_MINI[overdense_int + 1 + NSFR_low*(log10_Mturnover_MINI_int+1)]*( dens_val - (float)overdense_int ) \
                                                                  ) * (log10_Mturnover_MINI - (float)log10_Mturnover_MINI_int);
-                                            Splined_Fcoll_MINI = expf(Splined_Fcoll_MINI);
-                                        }
-                                    }
-                                    else {
-                                        if (curr_dens < 0.99*Deltac) {
-
-
-                                            dens_val = (curr_dens - overdense_large_min)*overdense_large_bin_width_inv;
-
-
-                                            overdense_int = (int)floorf( dens_val );
-
-                                            if(overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
-                                                overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                                Splined_Fcoll_MINI = expf(Splined_Fcoll_MINI);
                                             }
+                                        }
+                                        else {
+                                            if (curr_dens < 0.99*Deltac) {
 
-                                            Splined_Fcoll = ( \
+
+                                                dens_val = (curr_dens - overdense_large_min)*overdense_large_bin_width_inv;
+
+
+                                                overdense_int = (int)floorf( dens_val );
+
+                                                if(overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
+                                                    overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                                }
+
+                                                Splined_Fcoll = ( \
                                                              Nion_spline[overdense_int + NSFR_high* log10_Mturnover_int]*( 1 + (float)overdense_int - dens_val ) + \
                                                              Nion_spline[overdense_int + 1 + NSFR_high* log10_Mturnover_int]*( dens_val - (float)overdense_int ) \
                                                              ) * (1 + (float)log10_Mturnover_int - log10_Mturnover) + \
@@ -1210,7 +1298,7 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                                              Nion_spline[overdense_int+ 1 + NSFR_high*(log10_Mturnover_int+1)]*( dens_val - (float)overdense_int ) \
                                                              ) * (log10_Mturnover - (float)log10_Mturnover_int);
 
-                                            Splined_Fcoll_MINI = ( \
+                                                Splined_Fcoll_MINI = ( \
                                                                   Nion_spline_MINI[overdense_int + NSFR_high* log10_Mturnover_MINI_int]*( 1 + (float)overdense_int - dens_val ) + \
                                                                   Nion_spline_MINI[overdense_int + 1 + NSFR_high* log10_Mturnover_MINI_int]*( dens_val - (float)overdense_int ) \
                                                                   ) * (1 + (float)log10_Mturnover_MINI_int - log10_Mturnover_MINI) + \
@@ -1218,31 +1306,31 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                                                  Nion_spline_MINI[overdense_int + NSFR_high*(log10_Mturnover_MINI_int+1)]*( 1 + (float)overdense_int - dens_val ) + \
                                                                  Nion_spline_MINI[overdense_int + 1 + NSFR_high*(log10_Mturnover_MINI_int+1)]*( dens_val - (float)overdense_int ) \
                                                                  ) * (log10_Mturnover_MINI - (float)log10_Mturnover_MINI_int);
-                                        }
-                                        else {
-                                            Splined_Fcoll = 1.;
-                                            Splined_Fcoll_MINI = 1.;
-                                        }
-                                    }
-
-                                    prev_dens = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
-
-                                    if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
-                                        if (prev_dens < global_params.CRIT_DENS_TRANSITION){
-
-                                            if (prev_dens < -1.) {
-                                                prev_Splined_Fcoll = 0;
-                                                prev_Splined_Fcoll_MINI = 0;
                                             }
-                                            else{
-                                                prev_dens_val = (log10f(prev_dens+1.) - prev_overdense_small_min)*prev_overdense_small_bin_width_inv;
-                                                overdense_int = (int)floorf( prev_dens_val );
+                                            else {
+                                                Splined_Fcoll = 1.;
+                                                Splined_Fcoll_MINI = 1.;
+                                            }
+                                        }
 
-                                                if(overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
-                                                    overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                        prev_dens = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+
+                                        if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
+                                            if (prev_dens < global_params.CRIT_DENS_TRANSITION){
+
+                                                if (prev_dens < -1.) {
+                                                    prev_Splined_Fcoll = 0;
+                                                    prev_Splined_Fcoll_MINI = 0;
                                                 }
+                                                else{
+                                                    prev_dens_val = (log10f(prev_dens+1.) - prev_overdense_small_min)*prev_overdense_small_bin_width_inv;
+                                                    overdense_int = (int)floorf( prev_dens_val );
 
-                                                prev_Splined_Fcoll = ( \
+                                                    if(overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
+                                                        overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                                    }
+
+                                                    prev_Splined_Fcoll = ( \
                                                         prev_log10_Nion_spline[overdense_int + NSFR_low* log10_Mturnover_int]*( 1 + (float)overdense_int - prev_dens_val ) +\
                                                         prev_log10_Nion_spline[overdense_int + 1 + NSFR_low* log10_Mturnover_int]*( prev_dens_val - (float)overdense_int ) \
                                                     ) * (1 + (float)log10_Mturnover_int - log10_Mturnover) + \
@@ -1251,108 +1339,109 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                                         prev_log10_Nion_spline[overdense_int + 1 + NSFR_low*(log10_Mturnover_int+1)]*( prev_dens_val - (float)overdense_int )\
                                                     ) * (log10_Mturnover - (float)log10_Mturnover_int);
 
-                                                prev_Splined_Fcoll = expf(prev_Splined_Fcoll);
+                                                    prev_Splined_Fcoll = expf(prev_Splined_Fcoll);
 
-                                                prev_Splined_Fcoll_MINI = (\
-                                                        prev_log10_Nion_spline_MINI[overdense_int + NSFR_low* log10_Mturnover_MINI_int]*( 1 + (float)overdense_int - prev_dens_val ) +\
-                                                        prev_log10_Nion_spline_MINI[overdense_int + 1 + NSFR_low* log10_Mturnover_MINI_int]*( prev_dens_val - (float)overdense_int )\
-                                                    ) * (1 + (float)log10_Mturnover_MINI_int - log10_Mturnover_MINI) + \
-                                                    (\
-                                                        prev_log10_Nion_spline_MINI[overdense_int + NSFR_low*(log10_Mturnover_MINI_int+1)]*( 1 + (float)overdense_int - prev_dens_val ) +\
-                                                        prev_log10_Nion_spline_MINI[overdense_int + 1 + NSFR_low*(log10_Mturnover_MINI_int+1)]*( prev_dens_val - (float)overdense_int )\
-                                                    ) * (log10_Mturnover_MINI - (float)log10_Mturnover_MINI_int);
-                                                prev_Splined_Fcoll_MINI = expf(prev_Splined_Fcoll_MINI);
+                                                    prev_Splined_Fcoll_MINI = (\
+                                                            prev_log10_Nion_spline_MINI[overdense_int + NSFR_low* log10_Mturnover_MINI_int]*( 1 + (float)overdense_int - prev_dens_val ) +\
+                                                            prev_log10_Nion_spline_MINI[overdense_int + 1 + NSFR_low* log10_Mturnover_MINI_int]*( prev_dens_val - (float)overdense_int )\
+                                                        ) * (1 + (float)log10_Mturnover_MINI_int - log10_Mturnover_MINI) + \
+                                                        (\
+                                                            prev_log10_Nion_spline_MINI[overdense_int + NSFR_low*(log10_Mturnover_MINI_int+1)]*( 1 + (float)overdense_int - prev_dens_val ) +\
+                                                            prev_log10_Nion_spline_MINI[overdense_int + 1 + NSFR_low*(log10_Mturnover_MINI_int+1)]*( prev_dens_val - (float)overdense_int )\
+                                                         ) * (log10_Mturnover_MINI - (float)log10_Mturnover_MINI_int);
+                                                    prev_Splined_Fcoll_MINI = expf(prev_Splined_Fcoll_MINI);
 
-                                            }
-                                        }
-                                        else {
-                                            if (prev_dens < 0.99*Deltac) {
-
-                                                prev_dens_val = (prev_dens - prev_overdense_large_min)*prev_overdense_large_bin_width_inv;
-
-                                                overdense_int = (int)floorf( prev_dens_val );
-
-                                                if(overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
-                                                    overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
                                                 }
-
-                                                prev_Splined_Fcoll = (\
-                                                        prev_Nion_spline[overdense_int   + NSFR_high* log10_Mturnover_int   ]*( 1 + (float)overdense_int - prev_dens_val ) +\
-                                                        prev_Nion_spline[overdense_int+1 + NSFR_high* log10_Mturnover_int   ]*( prev_dens_val - (float)overdense_int )\
-                                                    ) * (1 + (float)log10_Mturnover_int - log10_Mturnover) + \
-                                                    (\
-                                                        prev_Nion_spline[overdense_int   + NSFR_high*(log10_Mturnover_int+1)]*( 1 + (float)overdense_int - prev_dens_val ) +\
-                                                        prev_Nion_spline[overdense_int+1 + NSFR_high*(log10_Mturnover_int+1)]*( prev_dens_val - (float)overdense_int )\
-                                                    ) * (log10_Mturnover - (float)log10_Mturnover_int);
-
-                                                prev_Splined_Fcoll_MINI = (\
-                                                        prev_Nion_spline_MINI[overdense_int   + NSFR_high* log10_Mturnover_MINI_int   ]*( 1 + (float)overdense_int - prev_dens_val ) +\
-                                                        prev_Nion_spline_MINI[overdense_int +1+ NSFR_high* log10_Mturnover_MINI_int   ]*( prev_dens_val - (float)overdense_int )\
-                                                    ) * (1 + (float)log10_Mturnover_MINI_int - log10_Mturnover_MINI) +\
-                                                    (\
-                                                        prev_Nion_spline_MINI[overdense_int   + NSFR_high*(log10_Mturnover_MINI_int+1)]*( 1 + (float)overdense_int - prev_dens_val ) +\
-                                                        prev_Nion_spline_MINI[overdense_int +1+ NSFR_high*(log10_Mturnover_MINI_int+1)]*( prev_dens_val - (float)overdense_int )\
-                                                    ) * (log10_Mturnover_MINI - (float)log10_Mturnover_MINI_int);
                                             }
                                             else {
-                                                prev_Splined_Fcoll = 1.;
-                                                prev_Splined_Fcoll_MINI = 1.;
+                                                if (prev_dens < 0.99*Deltac) {
+
+                                                    prev_dens_val = (prev_dens - prev_overdense_large_min)*prev_overdense_large_bin_width_inv;
+
+                                                    overdense_int = (int)floorf( prev_dens_val );
+
+                                                    if(overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
+                                                        overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                                    }
+
+                                                    prev_Splined_Fcoll = (\
+                                                            prev_Nion_spline[overdense_int   + NSFR_high* log10_Mturnover_int   ]*( 1 + (float)overdense_int - prev_dens_val ) +\
+                                                            prev_Nion_spline[overdense_int+1 + NSFR_high* log10_Mturnover_int   ]*( prev_dens_val - (float)overdense_int )\
+                                                        ) * (1 + (float)log10_Mturnover_int - log10_Mturnover) + \
+                                                        (\
+                                                            prev_Nion_spline[overdense_int   + NSFR_high*(log10_Mturnover_int+1)]*( 1 + (float)overdense_int - prev_dens_val ) +\
+                                                            prev_Nion_spline[overdense_int+1 + NSFR_high*(log10_Mturnover_int+1)]*( prev_dens_val - (float)overdense_int )\
+                                                         ) * (log10_Mturnover - (float)log10_Mturnover_int);
+
+                                                    prev_Splined_Fcoll_MINI = (\
+                                                            prev_Nion_spline_MINI[overdense_int   + NSFR_high* log10_Mturnover_MINI_int   ]*( 1 + (float)overdense_int - prev_dens_val ) +\
+                                                            prev_Nion_spline_MINI[overdense_int +1+ NSFR_high* log10_Mturnover_MINI_int   ]*( prev_dens_val - (float)overdense_int )\
+                                                        ) * (1 + (float)log10_Mturnover_MINI_int - log10_Mturnover_MINI) +\
+                                                        (\
+                                                            prev_Nion_spline_MINI[overdense_int   + NSFR_high*(log10_Mturnover_MINI_int+1)]*( 1 + (float)overdense_int - prev_dens_val ) +\
+                                                            prev_Nion_spline_MINI[overdense_int +1+ NSFR_high*(log10_Mturnover_MINI_int+1)]*( prev_dens_val - (float)overdense_int )\
+                                                         ) * (log10_Mturnover_MINI - (float)log10_Mturnover_MINI_int);
+                                                }
+                                                else {
+                                                    prev_Splined_Fcoll = 1.;
+                                                    prev_Splined_Fcoll_MINI = 1.;
+                                                }
                                             }
+                                        }
+                                        else{
+                                            prev_Splined_Fcoll = 0.;
+                                            prev_Splined_Fcoll_MINI = 0.;
                                         }
                                     }
                                     else{
-                                        prev_Splined_Fcoll = 0.;
-                                        prev_Splined_Fcoll_MINI = 0.;
+                                        if (curr_dens < global_params.CRIT_DENS_TRANSITION) {
+
+                                            if (curr_dens <= -1.) {
+                                                Splined_Fcoll = 0;
+                                            } else {
+                                                dens_val = (log10f(curr_dens + 1.) - overdense_small_min) * overdense_small_bin_width_inv;
+                                                overdense_int = (int) floorf(dens_val);
+
+                                                if (overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
+                                                    overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                                    LOG_INFO("overdense_int in thread %d got value %d (exceeded bounds). Current density=%g", omp_get_thread_num(), overdense_int, dens_val);
+                                                }
+
+                                                Splined_Fcoll = log10_Nion_spline[overdense_int] * (1 + (float) overdense_int - dens_val) + \
+                                                                log10_Nion_spline[overdense_int + 1] * (dens_val - (float) overdense_int);
+                                                Splined_Fcoll = expf(Splined_Fcoll);
+
+                                            }
+                                        } else {
+                                            if (curr_dens < 0.99 * Deltac) {
+
+                                                dens_val = (curr_dens - overdense_large_min) * overdense_large_bin_width_inv;
+
+                                                overdense_int = (int) floorf(dens_val);
+
+                                                if (overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
+                                                    overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
+                                                    LOG_INFO("overdense_int in thread %d got value %d (exceeded bounds). Current density=%g", omp_get_thread_num(), overdense_int, dens_val);
+                                                }
+
+                                                Splined_Fcoll = Nion_spline[overdense_int] * (1 + (float) overdense_int - dens_val) + \
+                                                                Nion_spline[overdense_int + 1] * (dens_val - (float) overdense_int);
+                                            } else {
+                                                Splined_Fcoll = 1.;
+                                            }
+                                        }
                                     }
                                 }
-                                else{
-                                    if (curr_dens < global_params.CRIT_DENS_TRANSITION) {
-
-                                        if (curr_dens <= -1.) {
-                                            Splined_Fcoll = 0;
-                                        } else {
-                                            dens_val = (log10f(curr_dens + 1.) - overdense_small_min) * overdense_small_bin_width_inv;
-                                            overdense_int = (int) floorf(dens_val);
-
-                                            if (overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
-                                                overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
-                                                LOG_INFO("overdense_int in thread %d got value %d (exceeded bounds). Current density=%g", omp_get_thread_num(), overdense_int, dens_val);
-                                            }
-
-                                            Splined_Fcoll = log10_Nion_spline[overdense_int] * (1 + (float) overdense_int - dens_val) + \
-                                                            log10_Nion_spline[overdense_int + 1] * (dens_val - (float) overdense_int);
-                                            Splined_Fcoll = expf(Splined_Fcoll);
-
-                                        }
+                                else {
+                                    erfc_arg_val = (Deltac - curr_dens) * erfc_denom;
+                                    if (erfc_arg_val < erfc_arg_min || erfc_arg_val > erfc_arg_max) {
+                                        Splined_Fcoll = splined_erfc(erfc_arg_val);
                                     } else {
-                                        if (curr_dens < 0.99 * Deltac) {
+                                        erfc_arg_val_index = (int) floor((erfc_arg_val - erfc_arg_min) * InvArgBinWidth);
 
-                                            dens_val = (curr_dens - overdense_large_min) * overdense_large_bin_width_inv;
-
-                                            overdense_int = (int) floorf(dens_val);
-
-                                            if (overdense_int < 0 || (overdense_int + 1) > (NSFR_high - 1)) {
-                                                overdense_int_boundexceeded_threaded[omp_get_thread_num()] = 1;
-                                                LOG_INFO("overdense_int in thread %d got value %d (exceeded bounds). Current density=%g", omp_get_thread_num(), overdense_int, dens_val);
-                                            }
-
-                                            Splined_Fcoll = Nion_spline[overdense_int] * (1 + (float) overdense_int - dens_val) + \
-                                                            Nion_spline[overdense_int + 1] * (dens_val - (float) overdense_int);
-                                        } else {
-                                            Splined_Fcoll = 1.;
-                                        }
+                                        Splined_Fcoll = ERFC_VALS[erfc_arg_val_index] + \
+                                                (erfc_arg_val - (erfc_arg_min + ArgBinWidth * (double) erfc_arg_val_index)) * ERFC_VALS_DIFF[erfc_arg_val_index] *InvArgBinWidth;
                                     }
-                                }
-                            }
-                            else {
-                                erfc_arg_val = (Deltac - curr_dens) * erfc_denom;
-                                if (erfc_arg_val < erfc_arg_min || erfc_arg_val > erfc_arg_max) {
-                                    Splined_Fcoll = splined_erfc(erfc_arg_val);
-                                } else {
-                                    erfc_arg_val_index = (int) floor((erfc_arg_val - erfc_arg_min) * InvArgBinWidth);
-
-                                    Splined_Fcoll = ERFC_VALS[erfc_arg_val_index] + \
-                                            (erfc_arg_val - (erfc_arg_min + ArgBinWidth * (double) erfc_arg_val_index)) * ERFC_VALS_DIFF[erfc_arg_val_index] *InvArgBinWidth;
                                 }
                             }
 
@@ -1564,20 +1653,22 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                                 if (f_coll>1) f_coll=1;
                                 if (f_coll_MINI>1) f_coll_MINI=1;
 
-                                if(ave_N_min_cell < global_params.N_POISSON) {
-                                    f_coll = N_halos_in_cell * ( ave_M_coll_cell / (float)global_params.N_POISSON ) / (pixel_mass*(1. + curr_dens));
-                                    if (flag_options->USE_MINI_HALOS){
-                                        f_coll_MINI = f_coll * (f_coll_MINI * ION_EFF_FACTOR_MINI) / (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI);
-                                        f_coll = f_coll - f_coll_MINI;
+                                if (!flag_options->USE_HALO_FIELD){
+                                    if(ave_N_min_cell < global_params.N_POISSON) {
+                                        f_coll = N_halos_in_cell * ( ave_M_coll_cell / (float)global_params.N_POISSON ) / (pixel_mass*(1. + curr_dens));
+                                        if (flag_options->USE_MINI_HALOS){
+                                            f_coll_MINI = f_coll * (f_coll_MINI * ION_EFF_FACTOR_MINI) / (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI);
+                                            f_coll = f_coll - f_coll_MINI;
+                                        }
+                                        else{
+                                            f_coll_MINI = 0.;
+                                        }
                                     }
-                                    else{
+
+                                    if (ave_M_coll_cell < (M_MIN / 5.)) {
+                                        f_coll = 0.;
                                         f_coll_MINI = 0.;
                                     }
-                                }
-
-                                if (ave_M_coll_cell < (M_MIN / 5.)) {
-                                    f_coll = 0.;
-                                    f_coll_MINI = 0.;
                                 }
 
                                 if (f_coll>1) f_coll=1;
