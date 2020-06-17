@@ -760,7 +760,12 @@ class OutputStruct(StructWrapper):
 
             # Fill our arrays.
             for k in boxes.keys():
-                getattr(self, k)[...] = boxes[k][...]
+                if k in self._c_based_pointers:
+                    # C-based pointers can just be read straight in.
+                    setattr(self, k, boxes[k][...])
+                else:
+                    # Other pointers should fill the already-instantiated arrays.
+                    getattr(self, k)[...] = boxes[k][...]
 
             for k in boxes.attrs.keys():
                 if k == "version":
@@ -769,7 +774,6 @@ class OutputStruct(StructWrapper):
 
                     if version != ".".join(__version__.split(".")[:2]):
                         # Ensure that the major and minor versions are the same.
-                        # TODO: This may be a bit extreme in some circumstances?
                         warnings.warn(
                             "The file {} is out of date (version = {}.{}). Consider "
                             "using another box and removing it!".format(

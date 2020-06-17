@@ -1062,7 +1062,6 @@ def determine_halo_list(
             flag_options=flag_options,
             random_seed=random_seed,
         )
-        """
         # Check whether the boxes already exist
         if not regenerate:
             try:
@@ -1074,7 +1073,6 @@ def determine_halo_list(
                 return fields
             except IOError:
                 pass
-        """
 
         # Make sure we've got computed init boxes.
         if init_boxes is None or not init_boxes.filled:
@@ -1196,7 +1194,6 @@ def perturb_halo_list(
             random_seed=random_seed,
         )
 
-        """
         # Check whether the boxes already exist
         if not regenerate:
             try:
@@ -1208,7 +1205,6 @@ def perturb_halo_list(
                 return fields
             except IOError:
                 pass
-        """
 
         # Make sure we've got computed init boxes.
         if init_boxes is None or not init_boxes.filled:
