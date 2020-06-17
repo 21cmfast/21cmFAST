@@ -20,9 +20,11 @@ from py21cmfast import CosmoParams
 from py21cmfast import FlagOptions
 from py21cmfast import UserParams
 from py21cmfast import config
+from py21cmfast import determine_halo_list
 from py21cmfast import global_params
 from py21cmfast import initial_conditions
 from py21cmfast import perturb_field
+from py21cmfast import perturb_halo_list
 from py21cmfast import run_coeval
 from py21cmfast import run_lightcone
 
@@ -90,6 +92,29 @@ OPTIONS = (
             "zprime_step_factor": 1.1,
         },
     ],
+    [9, {"USE_HALO_FIELD": True}],
+    [
+        8.5,
+        {
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "USE_HALO_FIELD": True,
+            "USE_TS_FLUCT": True,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
+        },
+    ],
+    [
+        8.5,
+        {
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "USE_HALO_FIELD": True,
+            "USE_TS_FLUCT": False,
+            "PERTURB_ON_HIGH_RES": True,
+            "N_THREADS": 2,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
+        },
+    ],
 )
 
 
@@ -99,6 +124,9 @@ OPTIONS_PT = (
     [10, {"EVOLVE_DENSITY_LINEARLY": 1}],
     [10, {"PERTURB_ON_HIGH_RES": True}],
 )
+
+OPTIONS_PT = ()
+OPTIONS_HALO = ([9, {"USE_HALO_FIELD": True}],)
 
 
 def get_defaults(kwargs, cls):
@@ -138,6 +166,24 @@ def get_all_options_ics(**kwargs):
     out = {
         "user_params": user_params,
         "cosmo_params": cosmo_params,
+        "random_seed": SEED,
+    }
+
+    for key in kwargs:
+        if key.upper() in (k.upper() for k in global_params.keys()):
+            out[key] = kwargs[key]
+    return out
+
+
+def get_all_options_halo(redshift, **kwargs):
+    user_params, cosmo_params, astro_params, flag_options = get_all_defaults(kwargs)
+    user_params.update(DEFAULT_USER_PARAMS)
+    out = {
+        "redshift": redshift,
+        "user_params": user_params,
+        "cosmo_params": cosmo_params,
+        "astro_params": astro_params,
+        "flag_options": flag_options,
         "random_seed": SEED,
     }
 
@@ -212,6 +258,15 @@ def produce_perturb_field_data(redshift, **kwargs):
     return k_dens, p_dens, k_vel, p_vel, X_dens, Y_dens, X_vel, Y_vel, init_box
 
 
+def produce_halo_field_data(redshift, **kwargs):
+    options_halo = get_all_options_halo(redshift, **kwargs)
+
+    with config.use(regenerate=True, write=False):
+        pt_halos = perturb_halo_list(**options_halo)
+
+    return pt_halos
+
+
 def get_filename(redshift, **kwargs):
     # get sorted keys
     kwargs = {k: kwargs[k] for k in sorted(kwargs)}
@@ -226,6 +281,15 @@ def get_filename_pt(redshift, **kwargs):
     kwargs = {k: kwargs[k] for k in sorted(kwargs)}
     string = "_".join(f"{k}={v}" for k, v in kwargs.items())
     fname = f"perturb_field_data_z{redshift:.2f}_{string}.h5"
+
+    return os.path.join(DATA_PATH, fname)
+
+
+def get_filename_halo(redshift, **kwargs):
+    # get sorted keys
+    kwargs = {k: kwargs[k] for k in sorted(kwargs)}
+    string = "_".join(f"{k}={v}" for k, v in kwargs.items())
+    fname = f"halo_field_data_z{redshift:.2f}_{string}.h5"
 
     return os.path.join(DATA_PATH, fname)
 
@@ -314,6 +378,30 @@ def produce_data_for_perturb_field_tests(redshift, force, **kwargs):
     return fname
 
 
+def produce_data_for_halo_field_tests(redshift, force, **kwargs):
+
+    pt_halos = produce_halo_field_data(redshift, **kwargs)
+
+    fname = get_filename_halo(redshift, **kwargs)
+
+    # Need to manually remove it, otherwise h5py tries to add to it
+    if os.path.exists(fname):
+        if force:
+            os.remove(fname)
+        else:
+            return fname
+
+    with h5py.File(fname, "w") as fl:
+        for k, v in kwargs.items():
+            fl.attrs[k] = v
+
+        fl["n_pt_halos"] = pt_halos.n_halos
+        fl["pt_halo_masses"] = pt_halos.halo_masses
+
+    print(f"Produced {fname} with {kwargs}")
+    return fname
+
+
 if __name__ == "__main__":
     import logging
 
@@ -332,6 +420,7 @@ if __name__ == "__main__":
     remove = "--no-clean" not in sys.argv
     pt_only = "--pt-only" in sys.argv
     no_pt = "--no-pt" in sys.argv
+    no_halo = "--no-halo" in sys.argv
 
     nums = range(len(OPTIONS))
     for arg in sys.argv:
@@ -340,7 +429,7 @@ if __name__ == "__main__":
             remove = False
             force = True
 
-    if pt_only or no_pt:
+    if pt_only or no_pt or no_halo:
         remove = False
 
     # For tests, we *don't* want to use cached boxes, but we also want to use the
@@ -361,8 +450,12 @@ if __name__ == "__main__":
                 produce_data_for_perturb_field_tests(redshift, force, **kwargs)
             )
 
+    if not no_halo:
+        for redshift, kwargs in OPTIONS_HALO:
+            fnames.append(produce_data_for_halo_field_tests(redshift, force, **kwargs))
+
     # Remove extra files that
-    if not (nums or pt_only or no_pt):
+    if not (nums or pt_only or no_pt or no_halo):
         all_files = glob.glob(os.path.join(DATA_PATH, "*"))
         for fl in all_files:
             if fl not in fnames:

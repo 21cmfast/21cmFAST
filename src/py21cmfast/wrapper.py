@@ -1045,11 +1045,13 @@ def determine_halo_list(
         # Verify input parameter structs (need to do this after configure_inputs).
         user_params = UserParams(user_params)
         cosmo_params = CosmoParams(cosmo_params)
-        astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
         flag_options = FlagOptions(flag_options)
+        astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
+        """
         if user_params.HMF != 1:
             raise ValueError("USE_HALO_FIELD is only valid for HMF = 1")
+        """
 
         # Initialize halo list boxes.
         fields = HaloField(
@@ -1060,7 +1062,7 @@ def determine_halo_list(
             flag_options=flag_options,
             random_seed=random_seed,
         )
-
+        """
         # Check whether the boxes already exist
         if not regenerate:
             try:
@@ -1072,6 +1074,7 @@ def determine_halo_list(
                 return fields
             except IOError:
                 pass
+        """
 
         # Make sure we've got computed init boxes.
         if init_boxes is None or not init_boxes.filled:
@@ -1180,8 +1183,8 @@ def perturb_halo_list(
         # Verify input parameter structs (need to do this after configure_inputs).
         user_params = UserParams(user_params)
         cosmo_params = CosmoParams(cosmo_params)
-        astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
         flag_options = FlagOptions(flag_options)
+        astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
         # Initialize halo list boxes.
         fields = PerturbHaloField(
@@ -1193,6 +1196,7 @@ def perturb_halo_list(
             random_seed=random_seed,
         )
 
+        """
         # Check whether the boxes already exist
         if not regenerate:
             try:
@@ -1204,6 +1208,7 @@ def perturb_halo_list(
                 return fields
             except IOError:
                 pass
+        """
 
         # Make sure we've got computed init boxes.
         if init_boxes is None or not init_boxes.filled:
@@ -2089,7 +2094,11 @@ def run_coeval(  # noqa: ignore=C901
             perturb = []
 
         # Ensure perturbed halo field is a list of boxes, not just one.
-        if flag_options.USE_HALO_FIELD and pt_halos is not None:
+        if (
+            flag_options["USE_HALO_FIELD"]
+            if type(flag_options) is dict
+            else flag_options.USE_HALO_FIELD
+        ) and pt_halos is not None:
             if not hasattr(pt_halos, "__len__"):
                 pt_halos = [pt_halos]
         else:

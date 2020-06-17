@@ -484,7 +484,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
         }
 
 #pragma omp parallel shared(M_coll_unfiltered,halos) \
-private(i_halo,x,y,z) num_threads(user_params->N_THREADS)
+                    private(i_halo,x,y,z) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
             for (i_halo=0; i_halo<halos->n_halos; i_halo++){
@@ -492,6 +492,7 @@ private(i_halo,x,y,z) num_threads(user_params->N_THREADS)
                 y = halos->halo_coords[1+3*i_halo];
                 z = halos->halo_coords[2+3*i_halo];
 
+#pragma omp atomic
                 *((float *)M_coll_unfiltered + HII_R_FFT_INDEX(x, y, z)) += halos->halo_masses[i_halo];
             }
         }
@@ -1201,10 +1202,8 @@ LOG_DEBUG("prev_min_density=%f, prev_max_density=%f, prev_overdense_small_min=%f
                             if(flag_options->USE_HALO_FIELD) {
 
                                 // collapsed mass cannot be less than zero
-                                if (flag_options->USE_HALO_FIELD) {
-                                    *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(
-                                            *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
-                                }
+                                *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(
+                                        *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
 
                                 density_over_mean = 1.0 + *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
