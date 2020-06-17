@@ -1986,7 +1986,7 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
     return redshifts[::-1]
 
 
-def run_coeval(  # noqa: ignore=C901
+def run_coeval(
     *,
     redshift=None,
     user_params=None,
@@ -2119,11 +2119,10 @@ def run_coeval(  # noqa: ignore=C901
             )
 
         if perturb:
-            if redshift is not None:
-                if any(p.redshift != z for p, z in zip(perturb, redshift)):
-                    raise ValueError(
-                        "Input redshifts do not match perturb field redshifts"
-                    )
+            if redshift is not None and any(
+                p.redshift != z for p, z in zip(perturb, redshift)
+            ):
+                raise ValueError("Input redshifts do not match perturb field redshifts")
             else:
                 redshift = [p.redshift for p in perturb]
 
