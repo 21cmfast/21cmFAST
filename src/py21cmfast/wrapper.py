@@ -168,7 +168,7 @@ def _configure_inputs(
                 break
 
         # If both data and default have values
-        if val is not None and data_val is not None and data_val != val:
+        if not (val is None or data_val is None or data_val == val):
             raise ValueError(
                 "%s has an inconsistent value with %s"
                 % (key, dataset.__class__.__name__)
@@ -205,11 +205,7 @@ def configure_redshift(redshift, *structs):
         If both `redshift` and *all* structs have a value of `None`, **or** if any of them
         are different from each other (and not `None`).
     """
-    zs = set()
-    for s in structs:
-        if s is not None and hasattr(s, "redshift"):
-            zs.add(s.redshift)
-
+    zs = {s.redshift for s in structs if s is not None and hasattr(s, "redshift")}
     zs = list(zs)
 
     if len(zs) > 1 or (len(zs) == 1 and redshift is not None and zs[0] != redshift):
@@ -1048,10 +1044,8 @@ def determine_halo_list(
         flag_options = FlagOptions(flag_options)
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
-        """
         if user_params.HMF != 1:
             raise ValueError("USE_HALO_FIELD is only valid for HMF = 1")
-        """
 
         # Initialize halo list boxes.
         fields = HaloField(
@@ -1183,6 +1177,9 @@ def perturb_halo_list(
         cosmo_params = CosmoParams(cosmo_params)
         flag_options = FlagOptions(flag_options)
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+
+        if user_params.HMF != 1:
+            raise ValueError("USE_HALO_FIELD is only valid for HMF = 1")
 
         # Initialize halo list boxes.
         fields = PerturbHaloField(
@@ -1552,19 +1549,14 @@ def ionize_box(
 
         # Dynamically produce the halo field.
         if not flag_options.USE_HALO_FIELD:
-            pt_halos = perturb_halo_list(
-                redshift=-1.0,
-                init_boxes=init_boxes,
-                halo_field=determine_halo_list(
-                    redshift=-1.0,
-                    init_boxes=init_boxes,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    regenerate=regenerate,
-                    write=write,
-                ),
-                regenerate=regenerate,
-                write=write,
+            # Construct an empty halo field to pass in to the function.
+            pt_halos = PerturbHaloField(
+                redshift=redshift,
+                user_params=user_params,
+                cosmo_params=cosmo_params,
+                astro_params=astro_params,
+                flag_options=flag_options,
+                random_seed=random_seed,
             )
         elif pt_halos is None or not pt_halos.filled:
             pt_halos = perturb_halo_list(
@@ -1829,7 +1821,8 @@ def spin_temperature(
         # Ensure the previous spin temperature has a higher redshift than this one.
         if prev_z and prev_z <= redshift:
             raise ValueError(
-                "Previous spin temperature box must have a higher redshift than that being evaluated."
+                "Previous spin temperature box must have a higher redshift than "
+                "that being evaluated."
             )
 
         # Dynamically produce the initial conditions.
@@ -2089,17 +2082,6 @@ def run_coeval(  # noqa: ignore=C901
         else:
             perturb = []
 
-        # Ensure perturbed halo field is a list of boxes, not just one.
-        if (
-            flag_options["USE_HALO_FIELD"]
-            if type(flag_options) is dict
-            else flag_options.USE_HALO_FIELD
-        ) and pt_halos is not None:
-            if not hasattr(pt_halos, "__len__"):
-                pt_halos = [pt_halos]
-        else:
-            pt_halos = []
-
         random_seed, user_params, cosmo_params = _configure_inputs(
             [
                 ("random_seed", random_seed),
@@ -2115,6 +2097,16 @@ def run_coeval(  # noqa: ignore=C901
         cosmo_params = CosmoParams(cosmo_params)
         flag_options = FlagOptions(flag_options)
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+
+        # Ensure perturbed halo field is a list of boxes, not just one.
+        if (
+            flag_options.USE_HALO_FIELD
+            and pt_halos is not None
+            and not hasattr(pt_halos, "__len__")
+        ):
+            pt_halos = [pt_halos]
+        else:
+            pt_halos = []
 
         if init_box is None:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
@@ -2132,15 +2124,17 @@ def run_coeval(  # noqa: ignore=C901
                     raise ValueError(
                         "Input redshifts do not match perturb field redshifts"
                     )
-
             else:
                 redshift = [p.redshift for p in perturb]
 
-        if flag_options.USE_HALO_FIELD and pt_halos:
-            if any(p.redshift != z for p, z in zip(pt_halos, redshift)):
-                raise ValueError(
-                    "Input redshifts do not match the perturbed halo field redshifts"
-                )
+        if (
+            flag_options.USE_HALO_FIELD
+            and pt_halos
+            and any(p.redshift != z for p, z in zip(pt_halos, redshift))
+        ):
+            raise ValueError(
+                "Input redshifts do not match the perturbed halo field redshifts"
+            )
 
         if flag_options.PHOTON_CONS:
             calibrate_photon_cons(
@@ -2314,7 +2308,7 @@ def run_coeval(  # noqa: ignore=C901
         if singleton:
             coevals = coevals[0]
 
-        logger.debug("Returning from Coeval".format(os.getpid()))
+        logger.debug("Returning from Coeval")
 
         return coevals
 
@@ -2444,7 +2438,8 @@ def run_lightcone(
             _fld_names[q] == "TsBox" for q in lightcone_quantities + global_quantities
         ):
             raise ValueError(
-                "TsBox quantity found in lightcone_quantities or global_quantities, but not running spin_temp!"
+                "TsBox quantity found in lightcone_quantities or global_quantities, "
+                "but not running spin_temp!"
             )
 
         if init_box is None:  # no need to get cosmo, user params out of it.
