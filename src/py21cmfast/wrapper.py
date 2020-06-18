@@ -2082,6 +2082,17 @@ def run_coeval(
         else:
             perturb = []
 
+        # Ensure perturbed halo field is a list of boxes, not just one.
+        if (
+            flag_options["USE_HALO_FIELD"]
+            if type(flag_options) is dict
+            else flag_options.USE_HALO_FIELD
+        ) and pt_halos is not None:
+            if not hasattr(pt_halos, "__len__"):
+                pt_halos = [pt_halos]
+        else:
+            pt_halos = []
+
         random_seed, user_params, cosmo_params = _configure_inputs(
             [
                 ("random_seed", random_seed),
@@ -2097,16 +2108,6 @@ def run_coeval(
         cosmo_params = CosmoParams(cosmo_params)
         flag_options = FlagOptions(flag_options)
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
-
-        # Ensure perturbed halo field is a list of boxes, not just one.
-        if (
-            flag_options.USE_HALO_FIELD
-            and pt_halos is not None
-            and not hasattr(pt_halos, "__len__")
-        ):
-            pt_halos = [pt_halos]
-        else:
-            pt_halos = []
 
         if init_box is None:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
