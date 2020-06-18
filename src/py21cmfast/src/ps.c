@@ -820,14 +820,20 @@ double dNdM_WatsonFOF(double growthf, double M){
     float MassBinLow;
     int MassBin;
 
-    MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
-    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    if(user_params_ps->USE_INTERPOLATION_TABLES) {
+        MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
+        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
 
-    sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+        sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+
+        dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+        dsigmadm = -pow(10.,dsigmadm);
+    }
+    else {
+        sigma = sigma_z0(M);
+        dsigmadm = dsigmasqdm_z0(M);
+    }
     sigma = sigma * growthf;
-
-    dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
-    dsigmadm = -pow(10.,dsigmadm);
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
 
     f_sigma = Watson_A * ( pow( Watson_beta/sigma, Watson_alpha) + 1. ) * exp( - Watson_gamma/(sigma*sigma) );
@@ -853,14 +859,20 @@ double dNdM_WatsonFOF_z(double z, double growthf, double M){
     float MassBinLow;
     int MassBin;
 
-    MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
-    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    if(user_params_ps->USE_INTERPOLATION_TABLES) {
+        MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
+        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
 
-    sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+        sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+
+        dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+        dsigmadm = -pow(10.,dsigmadm);
+    }
+    else {
+        sigma = sigma_z0(M);
+        dsigmadm = dsigmasqdm_z0(M);
+    }
     sigma = sigma * growthf;
-
-    dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
-    dsigmadm = -pow(10.,dsigmadm);
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
 
     Omega_m_z = (cosmo_params_ps->OMm)*pow(1.+z,3.) / ( (cosmo_params_ps->OMl) + (cosmo_params_ps->OMm)*pow(1.+z,3.) + (global_params.OMr)*pow(1.+z,4.) );
@@ -1881,13 +1893,20 @@ float dNdM_conditional(float growthf, float M1, float M2, float delta1, float de
     float MassBinLow;
     int MassBin;
 
-    MassBin = (int)floor( (M1 - MinMass )*inv_mass_bin_width );
+    if(user_params_ps->USE_INTERPOLATION_TABLES) {
+        MassBin = (int)floor( (M1 - MinMass )*inv_mass_bin_width );
 
-    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
 
-    sigma1 = Sigma_InterpTable[MassBin] + ( M1 - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+        sigma1 = Sigma_InterpTable[MassBin] + ( M1 - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
 
-    dsigma_val = dSigmadm_InterpTable[MassBin] + ( M1 - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+        dsigma_val = dSigmadm_InterpTable[MassBin] + ( M1 - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+        dsigmadm = -pow(10.,dsigma_val);
+    }
+    else {
+        sigma1 = sigma_z0(exp(M1));
+        dsigmadm = dsigmasqdm_z0(exp(M1));
+    }
 
     M1 = exp(M1);
     M2 = exp(M2);
@@ -1895,7 +1914,7 @@ float dNdM_conditional(float growthf, float M1, float M2, float delta1, float de
     sigma1 = sigma1*sigma1;
     sigma2 = sigma2*sigma2;
 
-    dsigmadm = -pow(10.,dsigma_val)/(2.0*sigma1); // This is actually sigma1^{2} as calculated above, however, it should just be sigma1. It cancels with the same factor below. Why I have decided to write it like that I don't know!
+    dsigmadm = dsigmadm/(2.0*sigma1); // This is actually sigma1^{2} as calculated above, however, it should just be sigma1. It cancels with the same factor below. Why I have decided to write it like that I don't know!
 
     if((sigma1 > sigma2)) {
 
