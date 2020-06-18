@@ -125,7 +125,6 @@ OPTIONS_PT = (
     [10, {"PERTURB_ON_HIGH_RES": True}],
 )
 
-OPTIONS_PT = ()
 OPTIONS_HALO = ([9, {"USE_HALO_FIELD": True}],)
 
 

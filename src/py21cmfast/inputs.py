@@ -422,6 +422,9 @@ class UserParams(StructWithDefaults):
     NO_RNG : bool, optional
         Ability to turn off random number generation for initial conditions. Can be
         useful for debugging and adding in new features
+    USE_INTERPOLATION_TABLES : bool, optional
+        Whether or not to use interpolation tables to speed up the calculation. Default is
+        set to False, corresponding to original 21cmFAST
     """
 
     _ffi = ffi
@@ -437,6 +440,7 @@ class UserParams(StructWithDefaults):
         "N_THREADS": 1,
         "PERTURB_ON_HIGH_RES": False,
         "NO_RNG": False,
+        "USE_INTERPOLATION_TABLES": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]

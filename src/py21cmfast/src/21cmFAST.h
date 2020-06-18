@@ -28,6 +28,7 @@ struct UserParams{
     int N_THREADS;
     bool PERTURB_ON_HIGH_RES;
     bool NO_RNG;
+    bool USE_INTERPOLATION_TABLES;
 };
 
 struct AstroParams{

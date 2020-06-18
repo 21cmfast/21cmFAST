@@ -760,30 +760,8 @@ double sheth_delc(double del, double sig){
     return sqrt(SHETH_a)*del*(1. + global_params.SHETH_b*pow(sig*sig/(SHETH_a*del*del), global_params.SHETH_c));
 }
 
-
 /*
- FUNCTION dNdM(z, M)
- Computes the Press_schechter mass function with Sheth-Torman correction for ellipsoidal collapse at
- redshift z, and dark matter halo mass M (in solar masses).
-
- The return value is the number density per unit mass of halos in the mass range M to M+dM in units of:
- comoving Mpc^-3 Msun^-1
-
- Reference: Sheth, Mo, Torman 2001
- */
-double dNdM_st(double z, double M){
-    double sigma, dsigmadm, nuhat, dicke_growth;
-
-    dicke_growth = dicke(z);
-    sigma = sigma_z0(M) * dicke_growth;
-    dsigmadm = dsigmasqdm_z0(M) * dicke_growth*dicke_growth/(2.0*sigma);
-    nuhat = sqrt(SHETH_a) * Deltac / sigma;
-
-    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * sqrt(2./PI)*SHETH_A * (1+ pow(nuhat, -2*SHETH_p)) * nuhat * pow(E, -nuhat*nuhat/2.0);
-}
-
-/*
- FUNCTION dNdM_st_interp(z, M)
+ FUNCTION dNdM_st(z, M)
  Computes the Press_schechter mass function with Sheth-Torman correction for ellipsoidal collapse at
  redshift z, and dark matter halo mass M (in solar masses).
 
@@ -794,21 +772,28 @@ double dNdM_st(double z, double M){
 
  Reference: Sheth, Mo, Torman 2001
  */
-double dNdM_st_interp(double growthf, double M){
+double dNdM_st(double growthf, double M){
 
     double sigma, dsigmadm, nuhat;
 
     float MassBinLow;
     int MassBin;
 
-    MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
-    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    if(user_params_ps->USE_INTERPOLATION_TABLES) {
+        MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
+        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
 
-    sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+        sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+
+        dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+        dsigmadm = -pow(10.,dsigmadm);
+    }
+    else {
+        sigma = sigma_z0(M);
+        dsigmadm = dsigmasqdm_z0(M);
+    }
+
     sigma = sigma * growthf;
-
-    dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
-    dsigmadm = -pow(10.,dsigmadm);
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
 
     nuhat = sqrt(SHETH_a) * Deltac / sigma;
@@ -889,31 +874,10 @@ double dNdM_WatsonFOF_z(double z, double growthf, double M){
     return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * f_sigma;
 }
 
-
 /*
- FUNCTION dNdM(z, M)
+ FUNCTION dNdM(growthf, M)
  Computes the Press_schechter mass function at
- redshift z, and dark matter halo mass M (in solar masses).
-
- The return value is the number density per unit mass of halos in the mass range M to M+dM in units of:
- comoving Mpc^-3 Msun^-1
-
- Reference: Padmanabhan, pg. 214
- */
-double dNdM(double z, double M){
-    double sigma, dsigmadm, dicke_growth;
-
-    dicke_growth = dicke(z);
-    sigma = sigma_z0(M) * dicke_growth;
-    dsigmadm = dsigmasqdm_z0(M) * (dicke_growth*dicke_growth/(2.*sigma));
-
-    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * sqrt(2/PI) * (Deltac/(sigma*sigma)) * dsigmadm * pow(E, -(Deltac*Deltac)/(2*sigma*sigma));
-}
-
-/*
- FUNCTION dNdM_interp(z, M)
- Computes the Press_schechter mass function at
- redshift z, and dark matter halo mass M (in solar masses).
+ redshift z (using the growth factor), and dark matter halo mass M (in solar masses).
 
  Uses interpolated sigma and dsigmadm to be computed faster. Necessary for mass-dependent ionising efficiencies.
 
@@ -927,14 +891,21 @@ double dNdM_interp(double growthf, double M){
     float MassBinLow;
     int MassBin;
 
-    MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
-    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    if(user_params_ps->USE_INTERPOLATION_TABLES) {
+        MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
+        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
 
-    sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+        sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+
+        dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
+        dsigmadm = -pow(10.,dsigmadm);
+    }
+    else {
+        sigma = sigma_z0(M);
+        dsigmadm = dsigmasqdm_z0(M);
+    }
+
     sigma = sigma * growthf;
-
-    dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
-    dsigmadm = -pow(10.,dsigmadm);
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
 
     return (-(cosmo_params_ps->OMm)*RHOcrit/M) * sqrt(2/PI) * (Deltac/(sigma*sigma)) * dsigmadm * pow(E, -(Deltac*Deltac)/(2*sigma*sigma));
@@ -1032,11 +1003,10 @@ double dFdlnM_General(double lnM, void *params){
     double MassFunction;
 
     if(user_params_ps->HMF==0) {
-        MassFunction = dNdM(z, M);
+        MassFunction = dNdM(growthf, M);
     }
     if(user_params_ps->HMF==1) {
-//        MassFunction = dNdM_st_interp(growthf, M);
-        MassFunction = dNdM_st(z, M);
+        MassFunction = dNdM_st(growthf, M);
     }
     if(user_params_ps->HMF==2) {
         MassFunction = dNdM_WatsonFOF(growthf, M);
@@ -1129,10 +1099,10 @@ double dNion_General(double lnM, void *params){
         Fesc = pow(M/1e10,Alpha_esc);
 
     if(user_params_ps->HMF==0) {
-        MassFunction = dNdM(z, M);
+        MassFunction = dNdM(growthf, M);
     }
     if(user_params_ps->HMF==1) {
-        MassFunction = dNdM_st_interp(growthf,M);
+        MassFunction = dNdM_st(growthf,M);
     }
     if(user_params_ps->HMF==2) {
         MassFunction = dNdM_WatsonFOF(growthf, M);
@@ -1228,10 +1198,10 @@ double dNion_General_MINI(double lnM, void *params){
         Fesc = pow(M/1e7,Alpha_esc);
 
     if(user_params_ps->HMF==0) {
-        MassFunction = dNdM(z, M);
+        MassFunction = dNdM(growthf, M);
     }
     if(user_params_ps->HMF==1) {
-        MassFunction = dNdM_st_interp(growthf,M);
+        MassFunction = dNdM_st(growthf,M);
     }
     if(user_params_ps->HMF==2) {
         MassFunction = dNdM_WatsonFOF(growthf, M);
@@ -1801,10 +1771,10 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
                 else
                     f_duty_upper = exp(-(Mhalo_param[i]/Mcrit_atom));
                 if(mf==0) {
-                    log10phi[i + i_z*nbins] = log10( dNdM(z_LF[i_z], exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
+                    log10phi[i + i_z*nbins] = log10( dNdM(growthf, exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
                 }
                 else if(mf==1) {
-                    log10phi[i + i_z*nbins] = log10( dNdM_st_interp(growthf, exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
+                    log10phi[i + i_z*nbins] = log10( dNdM_st(growthf, exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
                 }
                 else if(mf==2) {
                     log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF(growthf, exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
@@ -1873,9 +1843,9 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
                     f_duty_upper = exp(-(Mhalo_param[i]/Mcrit_atom));
 
                 if(mf==0)
-                    dndm = dNdM(z_LF[i_z], Mhalo_param[i]);
+                    dndm = dNdM(growthf, Mhalo_param[i]);
                 else if(mf==1)
-                    dndm = dNdM_st_interp(growthf, Mhalo_param[i]);
+                    dndm = dNdM_st(growthf, Mhalo_param[i]);
                 else if(mf==2)
                     dndm = dNdM_WatsonFOF(growthf, Mhalo_param[i]);
                 else if(mf==3)
