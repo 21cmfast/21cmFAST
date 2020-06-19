@@ -898,7 +898,7 @@ double dNdM_WatsonFOF_z(double z, double growthf, double M){
 
  Reference: Padmanabhan, pg. 214
  */
-double dNdM_interp(double growthf, double M){
+double dNdM(double growthf, double M){
     double sigma, dsigmadm;
     float MassBinLow;
     int MassBin;
