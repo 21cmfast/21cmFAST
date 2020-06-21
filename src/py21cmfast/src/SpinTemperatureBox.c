@@ -1041,7 +1041,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 dzpp_for_evolve = zpp_edge[R_ct-1] - zpp_edge[R_ct];
             }
             zpp_growth[R_ct] = dicke(zpp);
-            if (flag_options->USE_MINI_HALOS && user_params-USE_INTERPOLATION_TABLES){
+            if (flag_options->USE_MINI_HALOS && user_params->USE_INTERPOLATION_TABLES){
                 Mcrit_atom_interp_table[R_ct] = atomic_cooling_threshold(zpp);
             }
 
