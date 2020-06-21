@@ -1176,6 +1176,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
             }
             else{
                 lower_int_limit = FMAX(nu_tau_one_approx(zp, zpp, x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
+                printf("lower_limit = %e\n",lower_int_limit);
             }
 
             if (filling_factor_of_HI_zp < 0) filling_factor_of_HI_zp = 0; // for global evol; nu_tau_one above treats negative (post_reionization) inferred filling factors properly
