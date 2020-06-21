@@ -848,8 +848,8 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
 
 typedef struct{
     double nu_0, x_e, x_e_ave, ion_eff, ion_eff_MINI, log10_Mturn_MINI, LOG10_MTURN_INT;
-} tauX_params_approx;
-double tauX_integrand_approx_MINI(double zhat, void *params){
+} tauX_params;
+double tauX_integrand_MINI(double zhat, void *params){
 
     double n, drpropdz, nuhat, sigma_tilde, fcoll, HI_filling_factor_zhat;
 
@@ -864,7 +864,7 @@ double tauX_integrand_approx_MINI(double zhat, void *params){
 
     float Mcrit_atom_val, Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI;
 
-    tauX_params_approx *p = (tauX_params_approx *) params;
+    tauX_params *p = (tauX_params *) params;
 
     drpropdz = C * dtdz(zhat);
     n = N_b0 * pow(1+zhat, 3);
@@ -920,7 +920,7 @@ double tauX_integrand_approx_MINI(double zhat, void *params){
 
     return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
 }
-double tauX_integrand_approx(double zhat, void *params){
+double tauX_integrand(double zhat, void *params){
 
     double n, drpropdz, nuhat, sigma_tilde, fcoll, HI_filling_factor_zhat;
 
@@ -934,7 +934,7 @@ double tauX_integrand_approx(double zhat, void *params){
 
     float Mlim_Fstar, Mlim_Fesc;
 
-    tauX_params_approx *p = (tauX_params_approx *) params;
+    tauX_params *p = (tauX_params *) params;
 
     drpropdz = C * dtdz(zhat);
     n = N_b0 * pow(1+zhat, 3);
@@ -990,7 +990,7 @@ double tauX_integrand_approx(double zhat, void *params){
 
     return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
 }
-double tauX_approx_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, double HI_filling_factor_zp, double log10_Mturn_MINI, double LOG10_MTURN_INT){
+double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, double HI_filling_factor_zp, double log10_Mturn_MINI, double LOG10_MTURN_INT){
 
     double result, error, fcoll;
 
@@ -999,7 +999,7 @@ double tauX_approx_MINI(double nu, double x_e, double x_e_ave, double zp, double
     double rel_tol  = 0.005; //<- relative tolerance
     //    double rel_tol  = 0.01; //<- relative tolerance
     gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
-    tauX_params_approx p;
+    tauX_params p;
 
     int z_fcoll_int1,z_fcoll_int2;
     float z_fcoll_val1,z_fcoll_val2;
@@ -1012,7 +1012,7 @@ double tauX_approx_MINI(double nu, double x_e, double x_e_ave, double zp, double
     //     if (DEBUG_ON)
     //     printf("in taux, parameters are: %e, %e, %f, %f, %e\n", nu, x_e, zp, zpp, HI_filling_factor_zp);
 
-    F.function = &tauX_integrand_approx_MINI;
+    F.function = &tauX_integrand_MINI;
     p.nu_0 = nu/(1+zp);
     p.x_e = x_e;
     p.x_e_ave = x_e_ave;
@@ -1033,7 +1033,7 @@ double tauX_approx_MINI(double nu, double x_e, double x_e_ave, double zp, double
     return result;
 }
 
-double tauX_approx(double nu, double x_e, double x_e_ave, double zp, double zpp, double HI_filling_factor_zp){
+double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double HI_filling_factor_zp){
 
     double result, error, fcoll;
 
@@ -1042,7 +1042,7 @@ double tauX_approx(double nu, double x_e, double x_e_ave, double zp, double zpp,
     double rel_tol  = 0.005; //<- relative tolerance
     //    double rel_tol  = 0.01; //<- relative tolerance
     gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
-    tauX_params_approx p;
+    tauX_params p;
 
     int z_fcoll_int1,z_fcoll_int2;
     float z_fcoll_val1,z_fcoll_val2;
@@ -1052,7 +1052,7 @@ double tauX_approx(double nu, double x_e, double x_e_ave, double zp, double zpp,
     int redshift_int_fcollz;
     float redshift_table_fcollz;
 
-    F.function = &tauX_integrand_approx;
+    F.function = &tauX_integrand;
     p.nu_0 = nu/(1+zp);
     p.x_e = x_e;
     p.x_e_ave = x_e_ave;
@@ -1117,16 +1117,16 @@ double tauX_approx(double nu, double x_e, double x_e_ave, double zp, double zpp,
 
 typedef struct{
     double x_e, zp, zpp, HI_filling_factor_zp,log10_Mturn_MINI,LOG10_MTURN_INT;
-} nu_tau_one_params_approx;
-double nu_tau_one_helper_approx_MINI(double nu, void * params){
-    nu_tau_one_params_approx *p = (nu_tau_one_params_approx *) params;
-    return tauX_approx_MINI(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp,p->log10_Mturn_MINI,p->LOG10_MTURN_INT) - 1;
+} nu_tau_one_params;
+double nu_tau_one_helper_MINI(double nu, void * params){
+    nu_tau_one_params *p = (nu_tau_one_params *) params;
+    return tauX_MINI(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp,p->log10_Mturn_MINI,p->LOG10_MTURN_INT) - 1;
 }
-double nu_tau_one_helper_approx(double nu, void * params){
-    nu_tau_one_params_approx *p = (nu_tau_one_params_approx *) params;
-    return tauX_approx(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp) - 1;
+double nu_tau_one_helper(double nu, void * params){
+    nu_tau_one_params *p = (nu_tau_one_params *) params;
+    return tauX(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp) - 1;
 }
-double nu_tau_one_approx_MINI(double zp, double zpp, double x_e, double HI_filling_factor_zp, double log10_Mturn_MINI, double LOG10_MTURN_INT){
+double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_factor_zp, double log10_Mturn_MINI, double LOG10_MTURN_INT){
 
     int status, iter, max_iter;
     const gsl_root_fsolver_type * T;
@@ -1134,7 +1134,7 @@ double nu_tau_one_approx_MINI(double zp, double zpp, double x_e, double HI_filli
     gsl_function F;
     double x_lo, x_hi, r=0;
     double relative_error = 0.02;
-    nu_tau_one_params_approx p;
+    nu_tau_one_params p;
 
     // check if too ionized
     if (x_e > 0.9999){
@@ -1151,7 +1151,7 @@ double nu_tau_one_approx_MINI(double zp, double zpp, double x_e, double HI_filli
     }
 
     //check if lower bound has null
-    if (tauX_approx_MINI(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp, log10_Mturn_MINI, LOG10_MTURN_INT) < 1)
+    if (tauX_MINI(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp, log10_Mturn_MINI, LOG10_MTURN_INT) < 1)
         return HeI_NUIONIZATION;
 
     // set frequency boundary values
@@ -1165,7 +1165,7 @@ double nu_tau_one_approx_MINI(double zp, double zpp, double x_e, double HI_filli
     p.HI_filling_factor_zp = HI_filling_factor_zp;
     p.log10_Mturn_MINI = log10_Mturn_MINI;
     p.LOG10_MTURN_INT = LOG10_MTURN_INT;
-    F.function = &nu_tau_one_helper_approx_MINI;
+    F.function = &nu_tau_one_helper_MINI;
     F.params = &p;
     gsl_root_fsolver_set (s, &F, x_lo, x_hi);
 
@@ -1186,14 +1186,14 @@ double nu_tau_one_approx_MINI(double zp, double zpp, double x_e, double HI_filli
     gsl_root_fsolver_free (s);
 
     if(!isfinite(r)){
-        LOG_ERROR("Value for nu_tau_one_approx_MINI is infinite or NAN");
+        LOG_ERROR("Value for nu_tau_one_MINI is infinite or NAN");
         Throw(ParameterError);
     }
 
     return r;
 }
 
-double nu_tau_one_approx(double zp, double zpp, double x_e, double HI_filling_factor_zp){
+double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp){
 
     int status, iter, max_iter;
     const gsl_root_fsolver_type * T;
@@ -1201,7 +1201,7 @@ double nu_tau_one_approx(double zp, double zpp, double x_e, double HI_filling_fa
     gsl_function F;
     double x_lo, x_hi, r=0;
     double relative_error = 0.02;
-    nu_tau_one_params_approx p;
+    nu_tau_one_params p;
 
     // check if too ionized
     if (x_e > 0.9999){
@@ -1217,7 +1217,7 @@ double nu_tau_one_approx(double zp, double zpp, double x_e, double HI_filling_fa
     }
 
     //check if lower bound has null
-    if (tauX_approx(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp) < 1)
+    if (tauX(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp) < 1)
         return HeI_NUIONIZATION;
 
     // set frequency boundary values
@@ -1229,7 +1229,7 @@ double nu_tau_one_approx(double zp, double zpp, double x_e, double HI_filling_fa
     p.zp = zp;
     p.zpp = zpp;
     p.HI_filling_factor_zp = HI_filling_factor_zp;
-    F.function = &nu_tau_one_helper_approx;
+    F.function = &nu_tau_one_helper;
     F.params = &p;
     gsl_root_fsolver_set (s, &F, x_lo, x_hi);
 
@@ -1250,7 +1250,7 @@ double nu_tau_one_approx(double zp, double zpp, double x_e, double HI_filling_fa
     gsl_root_fsolver_free (s);
 
     if(!isfinite(r)){
-        LOG_ERROR("nu_tau_one_approx is infinite or NAN");
+        LOG_ERROR("nu_tau_one is infinite or NAN");
         Throw(ParameterError);
     }
 
