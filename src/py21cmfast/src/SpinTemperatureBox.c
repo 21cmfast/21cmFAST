@@ -122,7 +122,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
 
     int fcoll_int;
     int redshift_int_Nion_z,redshift_int_SFRD;
-    float zpp_integrand;
+    float zpp_integrand, Mlim_Fstar, Mlim_Fstar_MINI, Mmax, sigmaMmax;
 
     double log10_Mcrit_LW_ave;
     float log10_Mcrit_mol;
@@ -360,10 +360,19 @@ LOG_SUPER_DEBUG("initalised Ts Interp Arrays");
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (flag_options->USE_MINI_HALOS){
             M_MIN = (global_params.M_MIN_INTEGRAL)/50.;
+
+            Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
+            Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR,
+                                                   astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR));
         }
         else{
             M_MIN = (astro_params->M_TURN)/50.;
+
+            Mlim_Fstar = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
         }
+
+
+
     }
     else {
 
@@ -921,25 +930,48 @@ LOG_SUPER_DEBUG("got density gridpoints");
 
                 Splined_Fcollzp_mean = Nion_z_val[redshift_int_Nion_z] + \
                         ( zp - redshift_table_Nion_z )*( Nion_z_val[redshift_int_Nion_z+1] - Nion_z_val[redshift_int_Nion_z] )/(zpp_bin_width);
+            }
 
-                if (flag_options->USE_MINI_HALOS){
-                    log10_Mcrit_mol = log10(lyman_werner_threshold(zp, 0.));
-                    log10_Mcrit_LW_ave = 0.0;
+            if (flag_options->USE_MINI_HALOS){
+                log10_Mcrit_mol = log10(lyman_werner_threshold(zp, 0.));
+                log10_Mcrit_LW_ave = 0.0;
 #pragma omp parallel shared(log10_Mcrit_LW_unfiltered,previous_spin_temp,zp) private(i,j,k) num_threads(user_params->N_THREADS)
-                    {
+                {
 #pragma omp for reduction(+:log10_Mcrit_LW_ave)
-                        for (i=0; i<user_params->HII_DIM; i++){
-                            for (j=0; j<user_params->HII_DIM; j++){
-                                for (k=0; k<user_params->HII_DIM; k++){
-                                    *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k)) = \
+                    for (i=0; i<user_params->HII_DIM; i++){
+                        for (j=0; j<user_params->HII_DIM; j++){
+                            for (k=0; k<user_params->HII_DIM; k++){
+                                *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k)) = \
                                                 log10(lyman_werner_threshold(zp, previous_spin_temp->J_21_LW_box[HII_R_INDEX(i,j,k)]));
-                                    log10_Mcrit_LW_ave += *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k));
-                                }
+                                log10_Mcrit_LW_ave += *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k));
                             }
                         }
                     }
-                    log10_Mcrit_LW_ave /= (double)HII_TOT_NUM_PIXELS;
+                }
+                log10_Mcrit_LW_ave /= (double)HII_TOT_NUM_PIXELS;
 
+                // NEED TO FILTER Mcrit_LW!!!
+                /*** Transform unfiltered box to k-space to prepare for filtering ***/
+                if(user_params->USE_FFTW_WISDOM) {
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                 (float *)log10_Mcrit_LW_unfiltered, (fftwf_complex *)log10_Mcrit_LW_unfiltered, FFTW_WISDOM_ONLY);
+                }
+                else {
+                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                 (float *)log10_Mcrit_LW_unfiltered, (fftwf_complex *)log10_Mcrit_LW_unfiltered, FFTW_ESTIMATE);
+                }
+                fftwf_execute(plan);
+                fftwf_destroy_plan(plan);
+
+#pragma omp parallel shared(log10_Mcrit_LW_unfiltered) private(ct) num_threads(user_params->N_THREADS)
+                {
+#pragma omp for
+                    for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++) {
+                        log10_Mcrit_LW_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
+                    }
+                }
+
+                if(user_params->USE_INTERPOLATION_TABLES) {
                     log10_Mcrit_LW_ave_int_Nion_z = (int)floor( ( log10_Mcrit_LW_ave - LOG10_MTURN_MIN) / LOG10_MTURN_INT);
                     log10_Mcrit_LW_ave_table_Nion_z = LOG10_MTURN_MIN + LOG10_MTURN_INT * (float)log10_Mcrit_LW_ave_int_Nion_z;
 
@@ -953,27 +985,6 @@ LOG_SUPER_DEBUG("got density gridpoints");
                                                     Nion_z_val_MINI[redshift_int_Nion_z + zpp_interp_points_SFR * (log10_Mcrit_LW_ave_int_Nion_z+1)] );
                     Splined_Fcollzp_mean_MINI = Splined_Fcollzp_mean_MINI_left + \
                                 (log10_Mcrit_LW_ave - log10_Mcrit_LW_ave_table_Nion_z) / LOG10_MTURN_INT * (Splined_Fcollzp_mean_MINI_right - Splined_Fcollzp_mean_MINI_left);
-
-                    // NEED TO FILTER Mcrit_LW!!!
-                    /*** Transform unfiltered box to k-space to prepare for filtering ***/
-                    if(user_params->USE_FFTW_WISDOM) {
-                        plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (float *)log10_Mcrit_LW_unfiltered, (fftwf_complex *)log10_Mcrit_LW_unfiltered, FFTW_WISDOM_ONLY);
-                    }
-                    else {
-                        plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (float *)log10_Mcrit_LW_unfiltered, (fftwf_complex *)log10_Mcrit_LW_unfiltered, FFTW_ESTIMATE);
-                    }
-                    fftwf_execute(plan);
-                    fftwf_destroy_plan(plan);
-
-#pragma omp parallel shared(log10_Mcrit_LW_unfiltered) private(ct) num_threads(user_params->N_THREADS)
-                    {
-#pragma omp for
-                        for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++) {
-                            log10_Mcrit_LW_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
-                        }
-                    }
                 }
                 else{
                     Splined_Fcollzp_mean_MINI = 0;
@@ -1041,7 +1052,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 dzpp_for_evolve = zpp_edge[R_ct-1] - zpp_edge[R_ct];
             }
             zpp_growth[R_ct] = dicke(zpp);
-            if (flag_options->USE_MINI_HALOS && user_params->USE_INTERPOLATION_TABLES){
+            if (flag_options->USE_MINI_HALOS){
                 Mcrit_atom_interp_table[R_ct] = atomic_cooling_threshold(zpp);
             }
 
@@ -1067,6 +1078,10 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
                     ST_over_PS[R_ct] = pow(1+zpp, -astro_params->X_RAY_SPEC_INDEX)*fabs(dzpp_for_evolve);
                     ST_over_PS[R_ct] *= Splined_SFRD_zpp;
+                }
+                else {
+                    ST_over_PS[R_ct] = pow(1+zpp, -astro_params->X_RAY_SPEC_INDEX)*fabs(dzpp_for_evolve);
+                    ST_over_PS[R_ct] *= Nion_General(zpp, M_MIN, astro_params->M_TURN, astro_params->ALPHA_STAR, 0., astro_params->F_STAR10, 1.,Mlim_Fstar,0.); // TODO
                 }
 
                 if(flag_options->USE_MINI_HALOS){
@@ -1121,6 +1136,12 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                         ST_over_PS_MINI[R_ct] = pow(1+zpp, -astro_params->X_RAY_SPEC_INDEX)*fabs(dzpp_for_evolve);
                         ST_over_PS_MINI[R_ct] *= Splined_SFRD_zpp_MINI;
                     }
+                    else {
+                        ST_over_PS_MINI[R_ct] = pow(1+zpp, -astro_params->X_RAY_SPEC_INDEX)*fabs(dzpp_for_evolve);
+                        ST_over_PS_MINI[R_ct] *= Nion_General_MINI(zpp, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mcrit_LW_ave),
+                                                                   Mcrit_atom_interp_table[R_ct], astro_params->ALPHA_STAR, 0.,
+                                                                   astro_params->F_STAR7_MINI, 1.,Mlim_Fstar_MINI,0.); // TODO
+                    }
                 }
 
                 SFR_timescale_factor[R_ct] = hubble(zpp)*fabs(dtdz(zpp));
@@ -1166,6 +1187,12 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                     ST_over_PS[R_ct] = dzpp_for_evolve * pow(1+zpp, -(astro_params->X_RAY_SPEC_INDEX));
                     ST_over_PS[R_ct] *= ( ST_over_PS_arg_grid[zpp_gridpoint1_int] + \
                                          grad2*( ST_over_PS_arg_grid[zpp_gridpoint2_int] - ST_over_PS_arg_grid[zpp_gridpoint1_int] ) );
+                }
+                else {
+                    sigma_Tmin[R_ct] = sigma_z0(FMAX(M_MIN, M_MIN_WDM));
+
+                    ST_over_PS[R_ct] = dzpp_for_evolve * pow(1+zpp, -(astro_params->X_RAY_SPEC_INDEX));
+                    ST_over_PS[R_ct] *= FgtrM_General(zpp, FMAX(M_MIN, M_MIN_WDM)); // TODO
                 }
 
             }
@@ -1246,6 +1273,9 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
                                             fcoll_interp2[dens_grid_int_vals[box_ct][R_ct]][R_ct]* \
                                             ( delNL0_rev[box_ct][R_ct] - density_gridpoints[dens_grid_int_vals[box_ct][R_ct]][R_ct] ) );
                         }
+                        else {
+                            fcoll_R_array[R_ct] += sigmaparam_FgtrM_bias(zpp_for_evolve_list[R_ct],sigma_Tmin[R_ct],delNL0_rev[box_ct][R_ct],sigma_atR[R_ct]); // TODO
+                        }
                     }
                     if(table_int_boundexceeded==1) {
                         LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of fcoll");
@@ -1259,7 +1289,7 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
                     fcoll_R_for_reduction = 0.;
 
 #pragma omp parallel shared(dens_grid_int_vals,R_ct,fcoll_interp1,density_gridpoints,delNL0_rev,fcoll_interp2,\
-                            table_int_boundexceeded_threaded) \
+                            table_int_boundexceeded_threaded,zpp_for_evolve_list,sigma_Tmin,sigma_atR) \
                     private(box_ct) num_threads(user_params->N_THREADS)
                     {
 #pragma omp for reduction(+:fcoll_R_for_reduction)
@@ -1274,6 +1304,9 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
                                                       ( density_gridpoints[dens_grid_int_vals[box_ct][R_ct] + 1][R_ct] - delNL0_rev[box_ct][R_ct] ) + \
                                                       fcoll_interp2[dens_grid_int_vals[box_ct][R_ct]][R_ct]* \
                                                       ( delNL0_rev[box_ct][R_ct] - density_gridpoints[dens_grid_int_vals[box_ct][R_ct]][R_ct] ) );
+                            }
+                            else {
+                                fcoll_R_for_reduction += sigmaparam_FgtrM_bias(zpp_for_evolve_list[R_ct],sigma_Tmin[R_ct],delNL0_rev[box_ct][R_ct],sigma_atR[R_ct]); // TODO
                             }
                         }
                     }
@@ -1427,6 +1460,11 @@ LOG_SUPER_DEBUG("looping over box...");
 
             for (R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
 
+                if(!user_params->USE_INTERPOLATION_TABLES) {
+                    Mmax = RtoM(R_values[R_ct-1]);
+                    sigmaMmax = sigma_z0(Mmax);
+                }
+
                 if(user_params->USE_INTERPOLATION_TABLES) {
                     if( min_densities[R_ct]*zpp_growth[R_ct] <= -1.) {
                         fcoll_interp_min = log10(global_params.MIN_DENSITY_LOW_LIMIT);
@@ -1448,7 +1486,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
 #pragma omp parallel shared(delNL0,zpp_growth,SFRD_z_high_table,fcoll_interp_high_min,fcoll_interp_high_bin_width_inv,log10_SFRD_z_low_table,\
                             fcoll_int_boundexceeded_threaded,log10_Mcrit_LW,SFRD_z_high_table_MINI,\
-                            log10_SFRD_z_low_table_MINI,del_fcoll_Rct,del_fcoll_Rct_MINI) \
+                            log10_SFRD_z_low_table_MINI,del_fcoll_Rct,del_fcoll_Rct_MINI,Mmax,sigmaMmax,Mcrit_atom_interp_table) \
                     private(box_ct,curr_dens,fcoll,dens_val,fcoll_int,log10_Mcrit_LW_val,log10_Mcrit_LW_int,log10_Mcrit_LW_diff,\
                             fcoll_MINI_left,fcoll_MINI_right,fcoll_MINI) \
                     num_threads(user_params->N_THREADS)
@@ -1579,6 +1617,19 @@ LOG_SUPER_DEBUG("looping over box...");
                                         fcoll_MINI =1e10;
                                     }
                                 }
+                            }
+                            else {
+                                fcoll = Nion_ConditionalM(zpp_growth[R_ct],log(astro_params->M_TURN),log(Mmax),sigmaMmax,Deltac,curr_dens,astro_params->M_TURN,
+                                                          astro_params->ALPHA_STAR,0.,astro_params->F_STAR10,1.,Mlim_Fstar,0.);
+
+                                if (flag_options->USE_MINI_HALOS){
+
+                                    fcoll_MINI = Nion_ConditionalM_MINI(zpp_growth[R_ct],log(global_params.M_MIN_INTEGRAL),log(Mmax),sigmaMmax,Deltac,\
+                                                           curr_dens,pow(10,log10_Mcrit_LW_val),Mcrit_atom_interp_table[R_ct],\
+                                                           astro_params->ALPHA_STAR,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI, 0.);
+
+                                }
+                                 // TODO
                             }
                             ave_fcoll += fcoll;
 
@@ -1892,6 +1943,11 @@ LOG_SUPER_DEBUG("looping over box...");
                                                         (density_gridpoints[dens_grid_int_vals[box_ct][R_ct] + 1][R_ct] - delNL0_rev[box_ct][R_ct]) + \
                                                     dfcoll_interp2[dens_grid_int_vals[box_ct][R_ct]][R_ct]*\
                                                         (delNL0_rev[box_ct][R_ct] - density_gridpoints[dens_grid_int_vals[box_ct][R_ct]][R_ct]) );
+                            }
+                            else {
+                                 // TODO
+                                dfcoll_dz_val = ST_over_PS[R_ct]*(1.+delNL0_rev[box_ct][R_ct]*zpp_growth[R_ct])*( \
+                                                dfcoll_dz(zpp_for_evolve_list[R_ct], sigma_Tmin[R_ct], delNL0_rev[box_ct][R_ct], sigma_atR[R_ct]) );
                             }
 
                             dxheat_dt += dfcoll_dz_val * \
