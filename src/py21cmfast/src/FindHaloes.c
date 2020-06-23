@@ -19,18 +19,6 @@ int ComputeHaloField(float redshift, struct UserParams *user_params, struct Cosm
 
     Try{ // This Try brackets the whole function, so we don't indent.
 
-    // Need the option to bypass halo finding when halo finding not required
-    // This is in order to be able to populate an empty structure
-    if(redshift < 0) {
-
-        // This uses more memory than absolutely necessary, but is fastest.
-        init_hmf(halos);
-
-        // Initialize the halo co-ordinate and mass arrays.
-        init_halo_coords(halos, 1);
-    }
-    else {
-
 LOG_DEBUG("input value:");
 LOG_DEBUG("redshift=%f", redshift);
 #if LOG_LEVEL >= DEBUG_LEVEL
@@ -382,7 +370,7 @@ LOG_DEBUG("Finished halo processing.");
 LOG_DEBUG("Finished halo cleanup.");
 LOG_DEBUG("Found %d Halos", halos->n_halos);
 LOG_DEBUG("Halo Masses: %e %e %e %e", halos->halo_masses[0], halos->halo_masses[1], halos->halo_masses[2], halos->halo_masses[3]);
-    }
+
     } // End of Try()
     Catch(status){
         return(status);

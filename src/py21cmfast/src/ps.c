@@ -192,6 +192,7 @@ double power_in_vcb(double k); /* Returns the value of the DM-b relative velocit
 
 
 double FgtrM(double z, double M);
+double FgtrM_wsigma(double z, double sig);
 double FgtrM_st(double z, double M);
 double FgtrM_Watson(double growthf, double M);
 double FgtrM_Watson_z(double z, double growthf, double M);
@@ -932,6 +933,19 @@ double FgtrM(double z, double M){
 
     del = Deltac/dicke(z); //regular spherical collapse delta
     sig = sigma_z0(M);
+
+    return splined_erfc(del / (sqrt(2)*sig));
+}
+
+/*
+ FUNCTION FgtrM_wsigma(z, sigma_z0(M))
+ Computes the fraction of mass contained in haloes with mass > M at redshift z.
+ Requires sigma_z0(M) rather than M to make certain heating integrals faster
+ */
+double FgtrM_wsigma(double z, double sig){
+    double del;
+
+    del = Deltac/dicke(z); //regular spherical collapse delta
 
     return splined_erfc(del / (sqrt(2)*sig));
 }
@@ -2051,6 +2065,7 @@ double Nion_ConditionalM_MINI(double growthf, double M1, double M2, double sigma
 }
 
 double Nion_ConditionalM(double growthf, double M1, double M2, double sigma2, double delta1, double delta2, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar, double Mlim_Fesc) {
+
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     double rel_tol = 0.01; //<- relative tolerance
@@ -2837,6 +2852,7 @@ void initialise_SFRD_Conditional_table(
             for (i=0; i<NSFR_low; i++){
 
                 log10_SFRD_z_low_table[j][i] = GaussLegendreQuad_Nion(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.);
+//                printf("%d %d %e %e %e %e %e %e %e %e %e %e %e %e %e %e %e\n",j,i,R[j],RtoM(R[j]),growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.,log10_SFRD_z_low_table[j][i]);
                 if(fabs(log10_SFRD_z_low_table[j][i]) < 1e-38) {
                     log10_SFRD_z_low_table[j][i] = 1e-38;
                 }

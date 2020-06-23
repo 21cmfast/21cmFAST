@@ -177,7 +177,7 @@ void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoPara
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options);
 
-void free_TsCalcBoxes(struct FlagOptions *flag_options);
+void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_options);
 void FreePhotonConsMemory();
 bool photon_cons_allocated = false;
 int SomethingThatCatches(bool sub_func);

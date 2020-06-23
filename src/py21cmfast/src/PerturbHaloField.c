@@ -12,17 +12,6 @@ int ComputePerturbHaloField(float redshift, struct UserParams *user_params, stru
 
     Try{ // This Try brackets the whole function, so we don't indent.
 
-    // Need the option to bypass halo finding when halo finding not required
-    // This is in order to be able to populate an empty structure
-    if(redshift<0.) {
-        unsigned long long n_halos;
-
-        halos_perturbed->n_halos = halos->n_halos;
-        halos_perturbed->halo_masses = malloc(sizeof(float) * halos->n_halos);
-        halos_perturbed->halo_coords = malloc(sizeof(int) * halos->n_halos * 3);
-
-    }
-    else {
 LOG_DEBUG("input value:");
 LOG_DEBUG("redshift=%f", redshift);
 #if LOG_LEVEL >= DEBUG_LEVEL
@@ -261,7 +250,7 @@ LOG_DEBUG("Begin Initialisation");
         fftwf_cleanup();
         fftwf_forget_wisdom();
         LOG_DEBUG("Perturbed positions of %d Halos", halos_perturbed->n_halos);
-    }
+
     } // End of Try()
     Catch(status){
         return(status);
