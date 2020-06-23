@@ -144,10 +144,11 @@ def coeval_sliceplot(
     over-plotting previous figures,
     and the `imshow_kw` argument, which allows arbitrary styling of the plot.
     """
-    if kind is None and isinstance(struct, outputs._OutputStruct):
-        kind = struct.fieldnames[0]
-    elif kind is None and isinstance(struct, Coeval):
-        kind = "brightness_temp"
+    if kind is None:
+        if isinstance(struct, outputs._OutputStruct):
+            kind = struct.fieldnames[0]
+        elif isinstance(struct, Coeval):
+            kind = "brightness_temp"
 
     try:
         cube = getattr(struct, kind)
@@ -182,13 +183,14 @@ def coeval_sliceplot(
 
     cbar = fig._gci().colorbar
 
-    if cbar_label is None:
-        if kind == "brightness_temp":
-            cbar_label = r"Brightness Temperature, $\delta T_B$ [mK]"
-        elif kind == "xH_box":
-            cbar_label = r"Ionized fraction"
+    if cbar is not None:
+        if cbar_label is None:
+            if kind == "brightness_temp":
+                cbar_label = r"Brightness Temperature, $\delta T_B$ [mK]"
+            elif kind == "xH_box":
+                cbar_label = r"Neutral fraction"
 
-    cbar.ax.set_ylabel(cbar_label)
+        cbar.ax.set_ylabel(cbar_label)
 
     return fig, ax
 
