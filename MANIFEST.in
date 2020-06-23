@@ -1,2 +1,3 @@
-include README.rst user_data/* CHANGELOG.rst build_cffi.py LICENSE
+include README.rst CHANGELOG.rst build_cffi.py LICENSE
 recursive-include src *
+recursive-include user_data *
