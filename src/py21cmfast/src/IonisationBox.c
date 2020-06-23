@@ -70,13 +70,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     float fabs_dtdz, ZSTEP, z_eff;
     const float dz = 0.01;
 
-//    float dens_val, overdense_small_min, overdense_small_bin_width, overdense_small_bin_width_inv;
-//    float overdense_large_min, overdense_large_bin_width, overdense_large_bin_width_inv;
     float dens_val, prev_dens_val;
-//    float prev_dens_val, prev_overdense_small_min, prev_overdense_small_bin_width, prev_overdense_small_bin_width_inv;
-//    float prev_overdense_large_min, prev_overdense_large_bin_width, prev_overdense_large_bin_width_inv;
-//    float log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
-//    float log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
 
     int overdense_int,status_int;
     int something_finite_or_infinite = 0;
