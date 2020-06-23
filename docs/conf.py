@@ -18,7 +18,10 @@ class Mock(MagicMock):
         return MagicMock()
 
 
-MOCK_MODULES = ['py21cmfast.c_21cmfast', 'matplotlib', 'matplotlib.pyplot', 'click', 'tqdm', 'pyyaml', 'scipy', 'scipy.interpolate', 'h5py', 'cached_property']
+MOCK_MODULES = [
+    'py21cmfast.c_21cmfast', 'click', 'tqdm', 'pyyaml',
+    'scipy', 'scipy.interpolate', 'h5py', 'cached_property'
+]
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 import py21cmfast
