@@ -15,7 +15,7 @@ float log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width
 float log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
 
 
-int EvaluateSplineTable(bool MINI_HALOS, float curr_dens, float filtered_Mturn, float filtered_Mturn_MINI, float *Splined_Fcoll, float *Splined_Fcoll_MINI);
+int EvaluateSplineTable(bool MINI_HALOS, int dens_type, float curr_dens, float filtered_Mturn, float filtered_Mturn_MINI, float *Splined_Fcoll, float *Splined_Fcoll_MINI);
 void InterpolationRange(int dens_type, float R, float L, float *min_density, float *max_density);
 
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
@@ -1201,7 +1201,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                                         if(user_params->USE_INTERPOLATION_TABLES) {
 
-                                            status_int = EvaluateSplineTable(flag_options->USE_MINI_HALOS,curr_dens,log10_Mturnover,log10_Mturnover_MINI,
+                                            status_int = EvaluateSplineTable(flag_options->USE_MINI_HALOS,1,curr_dens,log10_Mturnover,log10_Mturnover_MINI,
                                                                         &Splined_Fcoll,&Splined_Fcoll_MINI);
 
                                             if(status_int > 0) {
@@ -1227,7 +1227,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                                             if(user_params->USE_INTERPOLATION_TABLES) {
 
-                                                status_int = EvaluateSplineTable(flag_options->USE_MINI_HALOS,prev_dens,log10_Mturnover,log10_Mturnover_MINI,
+                                                status_int = EvaluateSplineTable(flag_options->USE_MINI_HALOS,2,prev_dens,log10_Mturnover,log10_Mturnover_MINI,
                                                                             &prev_Splined_Fcoll,&prev_Splined_Fcoll_MINI);
 
                                                 if(status_int > 0) {
@@ -1256,7 +1256,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                                         if(user_params->USE_INTERPOLATION_TABLES) {
 
-                                            status_int = EvaluateSplineTable(flag_options->USE_MINI_HALOS,curr_dens,0.,0.,&Splined_Fcoll,&Splined_Fcoll_MINI);
+                                            status_int = EvaluateSplineTable(flag_options->USE_MINI_HALOS,1,curr_dens,0.,0.,&Splined_Fcoll,&Splined_Fcoll_MINI);
 
                                             if(status_int > 0) {
                                                 overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
@@ -1676,14 +1676,22 @@ LOG_DEBUG("global_xH = %e",global_xH);
         fftwf_free(N_rec_filtered);
     }
 
+    if(flag_options->USE_HALO_FIELD) {
+        fftwf_free(M_coll_unfiltered);
+        fftwf_free(M_coll_filtered);
+    }
+
+
 LOG_SUPER_DEBUG("freed fftw boxes");
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         free(xi_SFR);
         free(wi_SFR);
 
-        free(log10_overdense_spline_SFR);
-        free(Overdense_spline_SFR);
+        if(user_params->USE_INTERPOLATION_TABLES) {
+            free(log10_overdense_spline_SFR);
+            free(Overdense_spline_SFR);
+        }
 
         if(flag_options->USE_MINI_HALOS){
             free(Mturns);
@@ -1733,10 +1741,10 @@ LOG_SUPER_DEBUG("freed fftw boxes");
 }
 
 
-int EvaluateSplineTable(bool MINI_HALOS, float curr_dens, float filtered_Mturn, float filtered_Mturn_MINI, float *Splined_Fcoll, float *Splined_Fcoll_MINI) {
+int EvaluateSplineTable(bool MINI_HALOS, int dens_type, float curr_dens, float filtered_Mturn, float filtered_Mturn_MINI, float *Splined_Fcoll, float *Splined_Fcoll_MINI) {
 
     int overdense_int,overdense_int_status;
-    float dens_val;
+    float dens_val, small_bin_width, small_bin_width_inv, small_min;
     float log10_Mturnover, log10_Mturnover_MINI;
     int log10_Mturnover_int, log10_Mturnover_MINI_int;
 
@@ -1749,6 +1757,17 @@ int EvaluateSplineTable(bool MINI_HALOS, float curr_dens, float filtered_Mturn, 
         log10_Mturnover_MINI_int = (int)floorf( log10_Mturnover_MINI );
     }
 
+    if(dens_type==1) {
+        small_min = overdense_small_min;
+        small_bin_width = overdense_small_bin_width;
+        small_bin_width_inv = overdense_small_bin_width_inv;
+    }
+    if(dens_type==2) {
+        small_min = prev_overdense_small_min;
+        small_bin_width = prev_overdense_small_bin_width;
+        small_bin_width_inv = prev_overdense_small_bin_width_inv;
+    }
+
     if (curr_dens < global_params.CRIT_DENS_TRANSITION) {
 
         if (curr_dens <= -1.) {
@@ -1757,7 +1776,7 @@ int EvaluateSplineTable(bool MINI_HALOS, float curr_dens, float filtered_Mturn, 
                 *Splined_Fcoll_MINI = 0;
             }
         } else {
-            dens_val = (log10f(curr_dens + 1.) - overdense_small_min) * overdense_small_bin_width_inv;
+            dens_val = (log10f(curr_dens + 1.) - small_min) * small_bin_width_inv;
             overdense_int = (int) floorf(dens_val);
 
             if (overdense_int < 0 || (overdense_int + 1) > (NSFR_low - 1)) {
@@ -1766,7 +1785,8 @@ int EvaluateSplineTable(bool MINI_HALOS, float curr_dens, float filtered_Mturn, 
             }
 
             if(MINI_HALOS) {
-                *Splined_Fcoll = ( \
+                if(dens_type==1) {
+                    *Splined_Fcoll = ( \
                                  log10_Nion_spline[overdense_int + NSFR_low*log10_Mturnover_int]*( 1 + (float)overdense_int - dens_val ) + \
                                  log10_Nion_spline[overdense_int + 1 + NSFR_low*log10_Mturnover_int]*( dens_val - (float)overdense_int ) \
                                  ) * (1 + (float)log10_Mturnover_int - log10_Mturnover) + \
@@ -1775,7 +1795,7 @@ int EvaluateSplineTable(bool MINI_HALOS, float curr_dens, float filtered_Mturn, 
                                  log10_Nion_spline[overdense_int + 1 + NSFR_low*(log10_Mturnover_int+1)]*( dens_val - (float)overdense_int ) \
                                  ) * (log10_Mturnover - (float)log10_Mturnover_int);
 
-                *Splined_Fcoll_MINI = ( \
+                    *Splined_Fcoll_MINI = ( \
                                       log10_Nion_spline_MINI[overdense_int + NSFR_low*log10_Mturnover_MINI_int]*( 1 + (float)overdense_int - dens_val ) + \
                                       log10_Nion_spline_MINI[overdense_int + 1 + NSFR_low*log10_Mturnover_MINI_int]*( dens_val - (float)overdense_int ) \
                                       ) * (1 + (float)log10_Mturnover_MINI_int - log10_Mturnover_MINI) + \
@@ -1783,6 +1803,26 @@ int EvaluateSplineTable(bool MINI_HALOS, float curr_dens, float filtered_Mturn, 
                                      log10_Nion_spline_MINI[overdense_int + NSFR_low*(log10_Mturnover_MINI_int+1)]*( 1 + (float)overdense_int - dens_val ) + \
                                      log10_Nion_spline_MINI[overdense_int + 1 + NSFR_low*(log10_Mturnover_MINI_int+1)]*( dens_val - (float)overdense_int ) \
                                      ) * (log10_Mturnover_MINI - (float)log10_Mturnover_MINI_int);
+                }
+                if(dens_type==2) {
+                    *Splined_Fcoll = ( \
+                                      prev_log10_Nion_spline[overdense_int + NSFR_low*log10_Mturnover_int]*( 1 + (float)overdense_int - dens_val ) + \
+                                      prev_log10_Nion_spline[overdense_int + 1 + NSFR_low*log10_Mturnover_int]*( dens_val - (float)overdense_int ) \
+                                      ) * (1 + (float)log10_Mturnover_int - log10_Mturnover) + \
+                                    ( \
+                                     prev_log10_Nion_spline[overdense_int + NSFR_low*(log10_Mturnover_int+1)]*( 1 + (float)overdense_int - dens_val ) + \
+                                     prev_log10_Nion_spline[overdense_int + 1 + NSFR_low*(log10_Mturnover_int+1)]*( dens_val - (float)overdense_int ) \
+                                     ) * (log10_Mturnover - (float)log10_Mturnover_int);
+
+                    *Splined_Fcoll_MINI = ( \
+                                           prev_log10_Nion_spline_MINI[overdense_int + NSFR_low*log10_Mturnover_MINI_int]*( 1 + (float)overdense_int - dens_val ) + \
+                                           prev_log10_Nion_spline_MINI[overdense_int + 1 + NSFR_low*log10_Mturnover_MINI_int]*( dens_val - (float)overdense_int ) \
+                                           ) * (1 + (float)log10_Mturnover_MINI_int - log10_Mturnover_MINI) + \
+                                    ( \
+                                     prev_log10_Nion_spline_MINI[overdense_int + NSFR_low*(log10_Mturnover_MINI_int+1)]*( 1 + (float)overdense_int - dens_val ) + \
+                                     prev_log10_Nion_spline_MINI[overdense_int + 1 + NSFR_low*(log10_Mturnover_MINI_int+1)]*( dens_val - (float)overdense_int ) \
+                                     ) * (log10_Mturnover_MINI - (float)log10_Mturnover_MINI_int);
+                }
 
                 *Splined_Fcoll_MINI = expf(*Splined_Fcoll_MINI);
             }
@@ -1795,7 +1835,12 @@ int EvaluateSplineTable(bool MINI_HALOS, float curr_dens, float filtered_Mturn, 
     else {
         if (curr_dens < 0.99 * Deltac) {
 
-            dens_val = (curr_dens - overdense_large_min) * overdense_large_bin_width_inv;
+            if(dens_type==1) {
+                dens_val = (curr_dens - overdense_large_min) * overdense_large_bin_width_inv;
+            }
+            if(dens_type==2) {
+                dens_val = (curr_dens - prev_overdense_large_min) * prev_overdense_large_bin_width_inv;
+            }
 
             overdense_int = (int) floorf(dens_val);
 
@@ -1805,7 +1850,8 @@ int EvaluateSplineTable(bool MINI_HALOS, float curr_dens, float filtered_Mturn, 
             }
 
             if(MINI_HALOS) {
-                *Splined_Fcoll = ( \
+                if(dens_type==1) {
+                    *Splined_Fcoll = ( \
                                  Nion_spline[overdense_int + NSFR_high* log10_Mturnover_int]*( 1 + (float)overdense_int - dens_val ) + \
                                  Nion_spline[overdense_int + 1 + NSFR_high* log10_Mturnover_int]*( dens_val - (float)overdense_int ) \
                                  ) * (1 + (float)log10_Mturnover_int - log10_Mturnover) + \
@@ -1814,7 +1860,7 @@ int EvaluateSplineTable(bool MINI_HALOS, float curr_dens, float filtered_Mturn, 
                                  Nion_spline[overdense_int+ 1 + NSFR_high*(log10_Mturnover_int+1)]*( dens_val - (float)overdense_int ) \
                                  ) * (log10_Mturnover - (float)log10_Mturnover_int);
 
-                *Splined_Fcoll_MINI = ( \
+                    *Splined_Fcoll_MINI = ( \
                                       Nion_spline_MINI[overdense_int + NSFR_high* log10_Mturnover_MINI_int]*( 1 + (float)overdense_int - dens_val ) + \
                                       Nion_spline_MINI[overdense_int + 1 + NSFR_high* log10_Mturnover_MINI_int]*( dens_val - (float)overdense_int ) \
                                       ) * (1 + (float)log10_Mturnover_MINI_int - log10_Mturnover_MINI) + \
@@ -1822,6 +1868,26 @@ int EvaluateSplineTable(bool MINI_HALOS, float curr_dens, float filtered_Mturn, 
                                      Nion_spline_MINI[overdense_int + NSFR_high*(log10_Mturnover_MINI_int+1)]*( 1 + (float)overdense_int - dens_val ) + \
                                      Nion_spline_MINI[overdense_int + 1 + NSFR_high*(log10_Mturnover_MINI_int+1)]*( dens_val - (float)overdense_int ) \
                                      ) * (log10_Mturnover_MINI - (float)log10_Mturnover_MINI_int);
+                }
+                if(dens_type==2) {
+                    *Splined_Fcoll = ( \
+                                      prev_Nion_spline[overdense_int + NSFR_high* log10_Mturnover_int]*( 1 + (float)overdense_int - dens_val ) + \
+                                      prev_Nion_spline[overdense_int + 1 + NSFR_high* log10_Mturnover_int]*( dens_val - (float)overdense_int ) \
+                                      ) * (1 + (float)log10_Mturnover_int - log10_Mturnover) + \
+                                    ( \
+                                    prev_Nion_spline[overdense_int + NSFR_high*(log10_Mturnover_int+1)]*( 1 + (float)overdense_int - dens_val ) + \
+                                     prev_Nion_spline[overdense_int+ 1 + NSFR_high*(log10_Mturnover_int+1)]*( dens_val - (float)overdense_int ) \
+                                     ) * (log10_Mturnover - (float)log10_Mturnover_int);
+
+                    *Splined_Fcoll_MINI = ( \
+                                           prev_Nion_spline_MINI[overdense_int + NSFR_high* log10_Mturnover_MINI_int]*( 1 + (float)overdense_int - dens_val ) + \
+                                           prev_Nion_spline_MINI[overdense_int + 1 + NSFR_high* log10_Mturnover_MINI_int]*( dens_val - (float)overdense_int ) \
+                                           ) * (1 + (float)log10_Mturnover_MINI_int - log10_Mturnover_MINI) + \
+                                        ( \
+                                         prev_Nion_spline_MINI[overdense_int + NSFR_high*(log10_Mturnover_MINI_int+1)]*( 1 + (float)overdense_int - dens_val ) + \
+                                         prev_Nion_spline_MINI[overdense_int + 1 + NSFR_high*(log10_Mturnover_MINI_int+1)]*( dens_val - (float)overdense_int ) \
+                                         ) * (log10_Mturnover_MINI - (float)log10_Mturnover_MINI_int);
+                }
             }
             else {
                 *Splined_Fcoll = Nion_spline[overdense_int] * (1 + (float) overdense_int - dens_val) + Nion_spline[overdense_int + 1] * (dens_val - (float) overdense_int);
