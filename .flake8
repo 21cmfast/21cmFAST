@@ -11,6 +11,7 @@ ignore =
     N806  # Naming upper/lowercase -- too hard right now.
     N802  # Naming upper/lowercase -- too hard right now.
     D401  # Docstring in imperative mood. This should *not* be the case for @property's, but can't ignore them atm.
+	C901
 max-line-length = 88
 max-complexity = 21
 docstring-convention=numpy
