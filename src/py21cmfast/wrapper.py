@@ -1918,7 +1918,7 @@ def run_coeval(
 
         ib_tracker = [0] * len(redshift)
         bt = [0] * len(redshift)
-        st, ib = None, None  # At first we don't have any "previous" st or ib.
+        st, ib, pf = None, None, None  # At first we don't have any "previous" st or ib.
         logger.debug("redshifts: %s", redshifts)
 
         minarg = np.argmin(redshift)
@@ -1927,17 +1927,28 @@ def run_coeval(
 
         # Iterate through redshift from top to bottom
         for iz, z in enumerate(redshifts):
+            if z in redshift:
+                pf2 = perturb[redshift.index(z)]
+            else:
+                if flag_options.USE_MINI_HALOS:
+                    pf2 = perturb_field(
+                        redshift=z,
+                        init_boxes=init_box,
+                        regenerate=regenerate,
+                        direc=direc,
+                        write=write,
+                    )
+                else:
+                    pf2 = None
 
             if flag_options.USE_TS_FLUCT:
                 logger.debug("PID={} doing spin temp for z={}".format(os.getpid(), z))
                 st2 = spin_temperature(
                     redshift=z,
                     previous_spin_temp=st,
-                    perturbed_field=(
-                        perturb[minarg]
-                        if use_interp_perturb_field
-                        else (perturb[redshift.index(z)] if z in redshift else None)
-                    ),
+                    perturbed_field=perturb[minarg]
+                    if use_interp_perturb_field
+                    else pf2,
                     # remember that perturb field is interpolated, so no need to provide exact one.
                     astro_params=astro_params,
                     flag_options=flag_options,
@@ -1958,17 +1969,9 @@ def run_coeval(
                 redshift=z,
                 previous_ionize_box=ib,
                 init_boxes=init_box,
-                perturbed_field=perturb[redshift.index(z)] if z in redshift else None,
+                perturbed_field=pf2,
                 # perturb field *not* interpolated here.
-                previous_perturbed_field=(
-                    None
-                    if iz == 0 or not flag_options.USE_MINI_HALOS
-                    else (
-                        perturb[redshift.index(redshifts[iz - 1])]
-                        if redshifts[iz - 1] in redshift
-                        else None
-                    )
-                ),
+                previous_perturbed_field=pf,
                 astro_params=astro_params,
                 flag_options=flag_options,
                 spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
@@ -1983,6 +1986,8 @@ def run_coeval(
 
             if z not in redshift:
                 ib = ib2
+                if flag_options.USE_MINI_HALOS:
+                    pf = pf2
             else:
                 logger.debug(
                     "PID={} doing brightness temp for z={}".format(os.getpid(), z)
