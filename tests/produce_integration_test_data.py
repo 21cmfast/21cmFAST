@@ -47,12 +47,14 @@ OPTIONS = (
     [
         18,
         {
+            "z_heat_max": 25,
             "USE_MINI_HALOS": True,
             "USE_MASS_DEPENDENT_ZETA": True,
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
-            "zprime_step_factor": 1.1,
+            "zprime_step_factor": 1.2,
             "USE_FFTW_WISDOM": True,
+            "NUM_FILTER_STEPS_FOR_Ts": 8,
         },
     ],
     [8, {"N_THREADS": 2}],
@@ -88,18 +90,6 @@ OPTIONS = (
             "PHOTON_CONS": True,
             "z_heat_max": 25,
             "zprime_step_factor": 1.1,
-        },
-    ],
-    [
-        18,
-        {
-            "z_heat_max": 25,
-            "USE_MINI_HALOS": True,
-            "USE_MASS_DEPENDENT_ZETA": True,
-            "INHOMO_RECO": True,
-            "USE_TS_FLUCT": True,
-            "zprime_step_factor": 1.2,
-            "USE_FFTW_WISDOM": True,
         },
     ],
 )
