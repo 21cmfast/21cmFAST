@@ -1567,7 +1567,7 @@ def spin_temperature(
             )
 
         # Dynamically produce the initial conditions.
-        if (init_boxes is None or not init_boxes.filled) and not perturbed_field.filled:
+        if init_boxes is None or not init_boxes.filled:
             init_boxes = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -1843,7 +1843,9 @@ def run_coeval(
         flag_options = FlagOptions(flag_options)
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
-        if init_box is None and not skip_init:  # no need to get cosmo, user params out of it.
+        if (
+            init_box is None and not skip_init
+        ):  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -2196,7 +2198,9 @@ def run_lightcone(
                 """
             )
 
-        if init_box is None and not skip_init:  # no need to get cosmo, user params out of it.
+        if (
+            init_box is None and not skip_init
+        ):  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -2217,6 +2221,7 @@ def run_lightcone(
                 write=write,
             )
 
+        print(init_box, skip_init)
         if flag_options.PHOTON_CONS:
             calibrate_photon_cons(
                 user_params,
