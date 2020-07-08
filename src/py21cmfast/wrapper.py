@@ -1042,6 +1042,7 @@ def ionize_box(
     write=None,
     direc=None,
     random_seed=None,
+    skip_init=False,
     cleanup=True,
     **global_kwargs,
 ):
@@ -1085,6 +1086,10 @@ def ionize_box(
         Defines the overall options and parameters of the run.
     cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
+    skip_init : bool, optional
+        Whether to skip calling initial_conditions. This requires all needed PerturbedField
+        have already been cached. This will release some RAM pressure and can be particularly
+        useful for 21CMMC.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning. Typically,
         if `spin_temperature` is called directly, you will want this to be true, as if the next box
@@ -1261,7 +1266,7 @@ def ionize_box(
             prev_z = None
 
         # Get init_box required.
-        if init_boxes is None or not init_boxes.filled:
+        if (init_boxes is None or not init_boxes.filled) and not skip_init:
             init_boxes = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -1285,11 +1290,15 @@ def ionize_box(
                 previous_ionize_box = ionize_box(
                     astro_params=astro_params,
                     flag_options=flag_options,
+                    user_params=user_params if skip_init else None,
+                    cosmo_params=cosmo_params if skip_init else None,
+                    random_seed=random_seed if skip_init else None,
                     redshift=prev_z,
                     init_boxes=init_boxes,
                     regenerate=regenerate,
                     write=write,
                     direc=direc,
+                    skip_init=skip_init,
                     cleanup=False,  # We *know* we're going to need the memory again.
                 )
 
@@ -1299,6 +1308,9 @@ def ionize_box(
                 init_boxes=init_boxes,
                 # NOTE: this is required, rather than using cosmo_ and user_,
                 # since init may have a set seed.
+                user_params=user_params if skip_init else None,
+                cosmo_params=cosmo_params if skip_init else None,
+                random_seed=random_seed if skip_init else None,
                 redshift=redshift,
                 regenerate=regenerate,
                 write=write,
@@ -1312,6 +1324,9 @@ def ionize_box(
             else:
                 previous_perturbed_field = perturb_field(
                     init_boxes=init_boxes,
+                    user_params=user_params if skip_init else None,
+                    cosmo_params=cosmo_params if skip_init else None,
+                    random_seed=random_seed if skip_init else None,
                     redshift=prev_z,
                     regenerate=regenerate,
                     write=write,
@@ -1328,7 +1343,12 @@ def ionize_box(
                 direc=direc,
                 write=write,
                 regenerate=regenerate,
+                skip_init=skip_init,
                 cleanup=cleanup,
+                astro_params=astro_params if skip_init else None,
+                user_params=user_params if skip_init else None,
+                cosmo_params=cosmo_params if skip_init else None,
+                random_seed=random_seed if skip_init else None,
             )
 
         # Run the C Code
@@ -1364,6 +1384,7 @@ def spin_temperature(
     write=None,
     direc=None,
     random_seed=None,
+    skip_init=False,
     cleanup=True,
     **global_kwargs,
 ):
@@ -1400,6 +1421,10 @@ def spin_temperature(
         Defines the overall options and parameters of the run.
     cosmo_params : :class:`~CosmoParams`, optional
         Defines the cosmological parameters used to compute initial conditions.
+    skip_init : bool, optional
+        Whether to skip calling initial_conditions. This requires all needed PerturbedField
+        have already been cached. This will release some RAM pressure and can be particularly
+        useful for 21CMMC.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -1567,7 +1592,7 @@ def spin_temperature(
             )
 
         # Dynamically produce the initial conditions.
-        if init_boxes is None or not init_boxes.filled:
+        if (init_boxes is None or not init_boxes.filled) and not skip_init:
             init_boxes = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -1585,8 +1610,8 @@ def spin_temperature(
             if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
                 previous_spin_temp = TsBox(
                     redshift=global_params.Z_HEAT_MAX,
-                    user_params=init_boxes.user_params,
-                    cosmo_params=init_boxes.cosmo_params,
+                    user_params=user_params if skip_init else init_boxes.user_params,
+                    cosmo_params=cosmo_params if skip_init else init_boxes.cosmo_params,
                     astro_params=astro_params,
                     flag_options=flag_options,
                 )
@@ -1595,10 +1620,14 @@ def spin_temperature(
                     init_boxes=init_boxes,
                     astro_params=astro_params,
                     flag_options=flag_options,
+                    user_params=user_params if skip_init else None,
+                    cosmo_params=cosmo_params if skip_init else None,
+                    random_seed=random_seed if skip_init else None,
                     redshift=prev_z,
                     regenerate=regenerate,
                     write=write,
                     direc=direc,
+                    skip_init=skip_init,
                     cleanup=False,  # we know we'll need the memory again
                 )
 
@@ -1878,6 +1907,9 @@ def run_coeval(
                         regenerate=regenerate,
                         write=write,
                         direc=direc,
+                        user_params=user_params if skip_init else None,
+                        cosmo_params=cosmo_params if skip_init else None,
+                        random_seed=random_seed if skip_init else None,
                     )
                 ]
 
@@ -1921,6 +1953,8 @@ def run_coeval(
                 regenerate,
                 write,
                 direc,
+                skip_init=skip_init,
+                random_seed=random_seed if skip_init else None,
             )
 
         ib_tracker = [0] * len(redshift)
@@ -1941,6 +1975,9 @@ def run_coeval(
                     pf2 = perturb_field(
                         redshift=z,
                         init_boxes=init_box,
+                        user_params=user_params if skip_init else None,
+                        cosmo_params=cosmo_params if skip_init else None,
+                        random_seed=random_seed if skip_init else None,
                         regenerate=regenerate,
                         direc=direc,
                         write=write,
@@ -1959,10 +1996,14 @@ def run_coeval(
                     # remember that perturb field is interpolated, so no need to provide exact one.
                     astro_params=astro_params,
                     flag_options=flag_options,
+                    user_params=user_params if skip_init else None,
+                    cosmo_params=cosmo_params if skip_init else None,
+                    random_seed=random_seed if skip_init else None,
                     regenerate=regenerate,
                     init_boxes=init_box,
                     write=write,
                     direc=direc,
+                    skip_init=skip_init,
                     cleanup=(
                         cleanup and z == redshifts[-1]
                     ),  # cleanup if its the last time through
@@ -1981,11 +2022,15 @@ def run_coeval(
                 previous_perturbed_field=pf,
                 astro_params=astro_params,
                 flag_options=flag_options,
+                user_params=user_params if skip_init else None,
+                cosmo_params=cosmo_params if skip_init else None,
+                random_seed=random_seed if skip_init else None,
                 spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
                 regenerate=regenerate,
                 z_heat_max=global_params.Z_HEAT_MAX,
                 write=write,
                 direc=direc,
+                skip_init=skip_init,
                 cleanup=(
                     cleanup and z == redshifts[-1]
                 ),  # cleanup if its the last time through
@@ -2219,9 +2264,11 @@ def run_lightcone(
                 regenerate=regenerate,
                 direc=direc,
                 write=write,
+                random_seed=random_seed if skip_init else None,
+                user_params=user_params if skip_init else None,
+                cosmo_params=cosmo_params if skip_init else None,
             )
 
-        print(init_box, skip_init)
         if flag_options.PHOTON_CONS:
             calibrate_photon_cons(
                 user_params,
@@ -2232,6 +2279,8 @@ def run_lightcone(
                 regenerate,
                 write,
                 direc,
+                skip_init=skip_init,
+                random_seed=random_seed if skip_init else None,
             )
 
         d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(
@@ -2274,6 +2323,9 @@ def run_lightcone(
                 regenerate=regenerate,
                 direc=direc,
                 write=write,
+                random_seed=random_seed if skip_init else None,
+                user_params=user_params if skip_init else None,
+                cosmo_params=cosmo_params if skip_init else None,
             )
 
             if flag_options.USE_TS_FLUCT:
@@ -2282,11 +2334,15 @@ def run_lightcone(
                     previous_spin_temp=st,
                     astro_params=astro_params,
                     flag_options=flag_options,
+                    user_params=user_params if skip_init else None,
+                    cosmo_params=cosmo_params if skip_init else None,
+                    random_seed=random_seed if skip_init else None,
                     perturbed_field=perturb if use_interp_perturb_field else pf2,
                     regenerate=regenerate,
                     init_boxes=init_box,
                     write=write,
                     direc=direc,
+                    skip_init=skip_init,
                     cleanup=(cleanup and iz == (len(scrollz) - 1)),
                 )
 
@@ -2298,11 +2354,15 @@ def run_lightcone(
                 previous_perturbed_field=prev_perturb,
                 astro_params=astro_params,
                 flag_options=flag_options,
+                user_params=user_params,
+                cosmo_params=cosmo_params,
                 spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
                 regenerate=regenerate,
                 write=write,
                 direc=direc,
+                skip_init=skip_init,
                 cleanup=(cleanup and iz == (len(scrollz) - 1)),
+                random_seed=random_seed,
             )
 
             bt2 = brightness_temperature(
@@ -2484,6 +2544,8 @@ def calibrate_photon_cons(
     regenerate,
     write,
     direc,
+    skip_init=False,
+    random_seed=None,
     **global_kwargs,
 ):
     r"""
@@ -2508,6 +2570,10 @@ def calibrate_photon_cons(
     init_box : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
+    skip_init : bool, optional
+        Whether to skip calling initial_conditions. This requires all needed PerturbedField
+        have already been cached. This will release some RAM pressure and can be particularly
+        useful for 21CMMC.
     \*\*global_kwargs :
         Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
         *temporarily* set global attributes for the duration of the function. Note that
@@ -2564,6 +2630,9 @@ def calibrate_photon_cons(
                 regenerate=regenerate,
                 write=write,
                 direc=direc,
+                user_params=user_params if skip_init else None,
+                cosmo_params=cosmo_params if skip_init else None,
+                random_seed=random_seed if skip_init else None,
             )
 
             ib2 = ionize_box(
@@ -2574,10 +2643,14 @@ def calibrate_photon_cons(
                 previous_perturbed_field=prev_perturb,
                 astro_params=astro_params_photoncons,
                 flag_options=flag_options_photoncons,
+                user_params=user_params if skip_init else None,
+                cosmo_params=cosmo_params if skip_init else None,
+                random_seed=random_seed if skip_init else None,
                 spin_temp=None,
                 regenerate=regenerate,
                 write=write,
                 direc=direc,
+                skip_init=skip_init,
             )
 
             mean_nf = np.mean(ib2.xH_box)
