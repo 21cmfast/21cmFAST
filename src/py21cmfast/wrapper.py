@@ -1567,7 +1567,7 @@ def spin_temperature(
             )
 
         # Dynamically produce the initial conditions.
-        if init_boxes is None or not init_boxes.filled:
+        if (init_boxes is None or not init_boxes.filled) and not perturbed_field.filled:
             init_boxes = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -1744,6 +1744,7 @@ def run_coeval(
     init_box=None,
     perturb=None,
     use_interp_perturb_field=False,
+    skip_init=False,
     random_seed=None,
     cleanup=True,
     **global_kwargs,
@@ -1784,6 +1785,10 @@ def run_coeval(
         to determine all spin temperature fields. If so, this field is interpolated in
         the underlying C-code to the correct redshift. This is less accurate (and no more
         efficient), but provides compatibility with older versions of 21cmFAST.
+    skip_init : bool, optional
+        Whether to skip calling initial_conditions. This requires all needed PerturbedField
+        have already been cached. This will release some RAM pressure and can be particularly
+        useful for 21CMMC.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -1838,7 +1843,7 @@ def run_coeval(
         flag_options = FlagOptions(flag_options)
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
-        if init_box is None:  # no need to get cosmo, user params out of it.
+        if init_box is None and not skip_init:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -2044,6 +2049,7 @@ def run_lightcone(
     perturb=None,
     random_seed=None,
     use_interp_perturb_field=False,
+    skip_init=False,
     cleanup=True,
     **global_kwargs,
 ):
@@ -2098,6 +2104,10 @@ def run_lightcone(
         to determine all spin temperature fields. If so, this field is interpolated in the
         underlying C-code to the correct redshift. This is less accurate (and no more efficient),
         but provides compatibility with older versions of 21cmFAST.
+    skip_init : bool, optional
+        Whether to skip calling initial_conditions. This requires all needed PerturbedField
+        have already been cached. This will release some RAM pressure and can be particularly
+        useful for 21CMMC.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -2186,7 +2196,7 @@ def run_lightcone(
                 """
             )
 
-        if init_box is None:  # no need to get cosmo, user params out of it.
+        if init_box is None and not skip_init:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -2357,7 +2367,7 @@ def run_lightcone(
             cosmo_params,
             astro_params,
             flag_options,
-            init_box.random_seed,
+            random_seed,
             lc,
             node_redshifts=scrollz,
             global_quantities=global_q,
