@@ -1,4 +1,3 @@
-
 // Re-write of perturb_field.c for being accessible within the MCMC
 
 int ComputePerturbField(
@@ -702,6 +701,10 @@ int ComputePerturbField(
     // deallocate
     fftwf_free(LOWRES_density_perturb);
     fftwf_free(LOWRES_density_perturb_saved);
+    if(user_params->PERTURB_ON_HIGH_RES) {
+        fftwf_free(HIRES_density_perturb);
+        fftwf_free(HIRES_density_perturb_saved);
+    }
     fftwf_cleanup();
 
     } // End of Try{}

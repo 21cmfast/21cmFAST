@@ -12,7 +12,8 @@ The C libraries required are:
 * `gsl`
 * `fftw` (compiled with floating-point enabled, and `--enable-shared`)
 * `openmp`
-* A C-compiler with compatibility with the `-fopenmp` flag.
+* A C-compiler with compatibility with the `-fopenmp` flag. **Note:** it seems that on
+  OSX, if using `gcc`, you will need `v4.9.4+`.
 
 As it turns out, though these are fairly common libraries, getting them installed in a
 way that `21cmFAST` understands on various operating systems can be slightly non-trivial.
