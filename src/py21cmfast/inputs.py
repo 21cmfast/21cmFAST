@@ -289,10 +289,14 @@ class GlobalParams(StructInstanceWrapper):
     def __init__(self, wrapped, ffi):
         super().__init__(wrapped, ffi)
 
-        EXTERNALTABLES = ffi.new(
-            "char[]", path.join(path.expanduser("~"), ".21cmfast").encode()
-        )
+        table_path = path.join(path.expanduser("~"), ".21cmfast")
+        EXTERNALTABLES = ffi.new("char[]", table_path.encode())
         self.external_table_path = EXTERNALTABLES
+
+        if not path.exists(table_path):
+            raise IOError(
+                f"Found no user data directory for 21cmFAST! Should be at {table_path}"
+            )
 
     @contextlib.contextmanager
     def use(self, **kwargs):

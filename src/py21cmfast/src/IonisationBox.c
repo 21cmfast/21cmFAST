@@ -166,6 +166,10 @@ LOG_SUPER_DEBUG("defined parameters");
         adjust_redshifts_for_photoncons(astro_params,flag_options,&redshift,&stored_redshift,&absolute_delta_z);
 LOG_DEBUG("PhotonCons data:");
 LOG_DEBUG("original redshift=%f, updated redshift=%f delta-z = %f", stored_redshift, redshift, absolute_delta_z);
+        if(isfinite(redshift)==0 || isfinite(absolute_delta_z)==0) {
+            LOG_ERROR("Updated photon non-conservation redshift is either infinite or NaN!");
+            Throw(ParameterError);
+        }
     }
 
     Splined_Fcoll = 0.;
@@ -569,14 +573,14 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
     }
 
     if(isfinite(box->mean_f_coll)==0) {
-        LOG_ERROR("Mean collapse fraction is either finite or NaN!");
+        LOG_ERROR("Mean collapse fraction is either infinite or NaN!");
         Throw(ParameterError);
     }
 LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %e", box->mean_f_coll);
 
     if (flag_options->USE_MINI_HALOS){
         if(isfinite(box->mean_f_coll_MINI)==0) {
-            LOG_ERROR("Mean collapse fraction of MINI is either finite or NaN!");
+            LOG_ERROR("Mean collapse fraction of MINI is either infinite or NaN!");
             Throw(ParameterError);
         }
 LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f_coll_MINI);
@@ -1299,7 +1303,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 //    box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                                 f_coll += box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                                 if(isfinite(f_coll)==0) {
-                                    LOG_ERROR("f_coll is either finite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g,%g,%g",\
+                                    LOG_ERROR("f_coll is either infinite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g,%g,%g",\
                                             x,y,z,curr_dens,prev_dens,previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
                                             Splined_Fcoll, prev_Splined_Fcoll, curr_dens, prev_dens, \
                                             log10_Mturnover, *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)));
@@ -1319,7 +1323,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 //    box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                                 f_coll_MINI += box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                                 if(isfinite(f_coll_MINI)==0) {
-                                    LOG_ERROR("f_coll_MINI is either finite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g",\
+                                    LOG_ERROR("f_coll_MINI is either infinite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g",\
                                               x,y,z,curr_dens, prev_dens, previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
                                               Splined_Fcoll_MINI, prev_Splined_Fcoll_MINI, log10_Mturnover_MINI,\
                                               *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)));
@@ -1361,7 +1365,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             f_coll /= (double) HII_TOT_NUM_PIXELS;
 
             if(isfinite(f_coll_MINI)==0) {
-                LOG_ERROR("f_coll_MINI is either finite or NaN!");
+                LOG_ERROR("f_coll_MINI is either infinite or NaN!");
                 Throw(ParameterError);
             }
 

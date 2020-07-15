@@ -44,10 +44,7 @@ options_halo = prd.OPTIONS_HALO
 
 # Skip the USE_MINI_HALOS test because it takes too long.
 # This should be revisited in the future.
-options = tuple(
-    pytest.param(z, kw, marks=pytest.mark.skip) if "USE_MINI_HALOS" in kw else [z, kw]
-    for z, kw in prd.OPTIONS
-)
+options = tuple([z, kw] for z, kw in prd.OPTIONS)
 
 
 @pytest.mark.parametrize("redshift,kwargs", options)

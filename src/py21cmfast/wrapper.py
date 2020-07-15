@@ -2207,9 +2207,35 @@ def run_coeval(
         redshifts += redshift
         redshifts = sorted(set(redshifts), reverse=True)
 
+        if (
+            flag_options.PHOTON_CONS
+            and np.amin(redshifts) < global_params.PhotonConsEndCalibz
+        ):
+            raise ValueError(
+                f"""
+                You have passed a redshift (z = {np.amin(redshifts)}) that is lower than the endpoint
+                of the photon non-conservation correction
+                (global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz}).
+                If this behaviour is desired then set global_params.PhotonConsEndCalibz to a value lower than
+                z = {np.amin(redshifts)}.
+                """
+            )
+
+        if flag_options.PHOTON_CONS:
+            calibrate_photon_cons(
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                init_box,
+                regenerate,
+                write,
+                direc,
+            )
+
         ib_tracker = [0] * len(redshift)
         bt = [0] * len(redshift)
-        st, ib = None, None  # At first we don't have any "previous" st or ib.
+        st, ib, pf = None, None, None  # At first we don't have any "previous" st or ib.
         logger.debug("redshifts: %s", redshifts)
 
         minarg = np.argmin(redshift)
@@ -2218,17 +2244,28 @@ def run_coeval(
 
         # Iterate through redshift from top to bottom
         for iz, z in enumerate(redshifts):
+            if z in redshift:
+                pf2 = perturb[redshift.index(z)]
+            else:
+                if flag_options.USE_MINI_HALOS:
+                    pf2 = perturb_field(
+                        redshift=z,
+                        init_boxes=init_box,
+                        regenerate=regenerate,
+                        direc=direc,
+                        write=write,
+                    )
+                else:
+                    pf2 = None
 
             if flag_options.USE_TS_FLUCT:
                 logger.debug("PID={} doing spin temp for z={}".format(os.getpid(), z))
                 st2 = spin_temperature(
                     redshift=z,
                     previous_spin_temp=st,
-                    perturbed_field=(
-                        perturb[minarg]
-                        if use_interp_perturb_field
-                        else (perturb[redshift.index(z)] if z in redshift else None)
-                    ),
+                    perturbed_field=perturb[minarg]
+                    if use_interp_perturb_field
+                    else pf2,
                     # remember that perturb field is interpolated, so no need to provide exact one.
                     astro_params=astro_params,
                     flag_options=flag_options,
@@ -2249,17 +2286,9 @@ def run_coeval(
                 redshift=z,
                 previous_ionize_box=ib,
                 init_boxes=init_box,
-                perturbed_field=perturb[redshift.index(z)] if z in redshift else None,
+                perturbed_field=pf2,
                 # perturb field *not* interpolated here.
-                previous_perturbed_field=(
-                    None
-                    if iz == 0 or not flag_options.USE_MINI_HALOS
-                    else (
-                        perturb[redshift.index(redshifts[iz - 1])]
-                        if redshifts[iz - 1] in redshift
-                        else None
-                    )
-                ),
+                previous_perturbed_field=pf,
                 pt_halos=pt_halos[redshift.index(z)]
                 if z in redshift and flag_options.USE_HALO_FIELD
                 else None,
@@ -2277,6 +2306,8 @@ def run_coeval(
 
             if z not in redshift:
                 ib = ib2
+                if flag_options.USE_MINI_HALOS:
+                    pf = pf2
             else:
                 logger.debug(
                     "PID={} doing brightness temp for z={}".format(os.getpid(), z)
@@ -2445,6 +2476,37 @@ def run_lightcone(
                 "but not running spin_temp!"
             )
 
+        redshift = configure_redshift(redshift, perturb)
+
+        max_redshift = (
+            global_params.Z_HEAT_MAX
+            if (
+                flag_options.INHOMO_RECO
+                or flag_options.USE_TS_FLUCT
+                or max_redshift is None
+            )
+            else max_redshift
+        )
+
+        # Get the redshift through which we scroll and evaluate the ionization field.
+        scrollz = _logscroll_redshifts(
+            redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift
+        )
+
+        if (
+            flag_options.PHOTON_CONS
+            and np.amin(scrollz) < global_params.PhotonConsEndCalibz
+        ):
+            raise ValueError(
+                f"""
+                You have passed a redshift (z = {np.amin(scrollz)}) that is lower than the endpoint
+                of the photon non-conservation correction
+                (global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz}).
+                If this behaviour is desired then set global_params.PhotonConsEndCalibz to a value lower than
+                z = {np.amin(scrollz)}.
+                """
+            )
+
         if init_box is None:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
                 user_params=user_params,
@@ -2454,8 +2516,6 @@ def run_lightcone(
                 direc=direc,
                 random_seed=random_seed,
             )
-
-        redshift = configure_redshift(redshift, perturb)
 
         if perturb is None:
             # The perturb field that we get here is at the *final* redshift,
@@ -2468,16 +2528,6 @@ def run_lightcone(
                 write=write,
             )
 
-        max_redshift = (
-            global_params.Z_HEAT_MAX
-            if (
-                flag_options.INHOMO_RECO
-                or flag_options.USE_TS_FLUCT
-                or max_redshift is None
-            )
-            else max_redshift
-        )
-
         if flag_options.PHOTON_CONS:
             calibrate_photon_cons(
                 user_params,
@@ -2489,11 +2539,6 @@ def run_lightcone(
                 write,
                 direc,
             )
-
-        # Get the redshift through which we scroll and evaluate the ionization field.
-        scrollz = _logscroll_redshifts(
-            redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift
-        )
 
         d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(
             cosmo_params,
@@ -2837,7 +2882,7 @@ def calibrate_photon_cons(
         logger.info("Calculating photon conservation zstart")
         z = _calc_zstart_photon_cons()
 
-        while z > 5.0:
+        while z > global_params.PhotonConsEndCalibz:
 
             # Determine the ionisation box with recombinations, spin temperature etc.
             # turned off.
