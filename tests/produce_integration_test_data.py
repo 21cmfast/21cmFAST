@@ -30,7 +30,13 @@ from py21cmfast import run_lightcone
 
 SEED = 12345
 DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
-DEFAULT_USER_PARAMS = {"HII_DIM": 50, "DIM": 150, "BOX_LEN": 100, "NO_RNG": True}
+DEFAULT_USER_PARAMS = {
+    "HII_DIM": 50,
+    "DIM": 150,
+    "BOX_LEN": 100,
+    "NO_RNG": True,
+    "USE_INTERPOLATION_TABLES": True,
+}
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 
 OPTIONS = (
@@ -113,6 +119,43 @@ OPTIONS = (
             "N_THREADS": 2,
             "z_heat_max": 25,
             "zprime_step_factor": 1.1,
+        },
+    ],
+    [
+        12.0,
+        {
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "USE_TS_FLUCT": True,
+            "PERTURB_ON_HIGH_RES": False,
+            "N_THREADS": 2,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
+            "NUM_FILTER_STEPS_FOR_Ts": 4,
+            "USE_INTERPOLATION_TABLES": False,
+        },
+    ],
+    [
+        12.0,
+        {
+            "USE_TS_FLUCT": True,
+            "N_THREADS": 2,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
+            "NUM_FILTER_STEPS_FOR_Ts": 4,
+            "USE_INTERPOLATION_TABLES": False,
+        },
+    ],
+    [
+        12.0,
+        {
+            "USE_MINI_HALOS": True,
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "USE_TS_FLUCT": True,
+            "N_THREADS": 2,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
+            "NUM_FILTER_STEPS_FOR_Ts": 4,
+            "USE_INTERPOLATION_TABLES": False,
         },
     ],
 )

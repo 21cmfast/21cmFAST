@@ -1161,6 +1161,17 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
                                                 *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
 
+                            // <N_rec> cannot be less than zero
+                            if (flag_options->INHOMO_RECO) {
+                                *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(*((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
+                            }
+
+                            // x_e has to be between zero and unity
+                            if (flag_options->USE_TS_FLUCT) {
+                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(*((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.);
+                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMIN(*((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.999);
+                            }
+
                             if(flag_options->USE_HALO_FIELD) {
 
                                 // collapsed mass cannot be less than zero
@@ -1175,20 +1186,6 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                             }
                             else {
-
-                                // <N_rec> cannot be less than zero
-                                if (flag_options->INHOMO_RECO) {
-                                    *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
-                                            *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
-                                }
-
-                                // x_e has to be between zero and unity
-                                if (flag_options->USE_TS_FLUCT) {
-                                    *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
-                                            *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.);
-                                    *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMIN(
-                                            *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.999);
-                                }
 
                                 curr_dens = *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z));
 
