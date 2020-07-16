@@ -426,9 +426,11 @@ class UserParams(StructWithDefaults):
     NO_RNG : bool, optional
         Ability to turn off random number generation for initial conditions. Can be
         useful for debugging and adding in new features
-    USE_INTERPOLATION_TABLES : bool, optional
-        Whether or not to use interpolation tables to speed up the calculation. Default is
-        set to False, corresponding to original 21cmFAST
+    USE_FFTW_WISDOM : bool, optional
+        Whether or not to use stored FFTW_WISDOMs for improving performance of FFTs
+    USE_INTERPOLATION_TABLES: bool, optional
+        If True, calculates and evaluates quantites using interpolation tables, which
+        is considerably faster than when performing integrals explicitly.
     """
 
     _ffi = ffi
@@ -569,9 +571,6 @@ class FlagOptions(StructWithDefaults):
     PHOTON_CONS : bool, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation.
-    USE_INTERPOLATION_TABLES: bool, optional
-        If True, calculates and evaluates quantites using interpolation tables, which
-        is considerably faster than when performing integrals explicitly.
     """
 
     _ffi = ffi
@@ -585,7 +584,6 @@ class FlagOptions(StructWithDefaults):
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
-        "USE_INTERPOLATION_TABLES": False,
     }
 
     @property

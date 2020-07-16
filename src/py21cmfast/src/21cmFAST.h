@@ -68,7 +68,6 @@ struct FlagOptions{
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
     bool PHOTON_CONS;
-    bool USE_INTERPOLATION_TABLES;
 };
 
 
