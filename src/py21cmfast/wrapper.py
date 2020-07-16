@@ -1402,7 +1402,7 @@ def ionize_box(
             previous_perturbed_field=previous_perturbed_field,
             previous_ionize_box=previous_ionize_box,
             spin_temp=spin_temp,
-            pt_halos=pt_halos if flag_options.USE_HALO_FIELD else None,
+            pt_halos=pt_halos,
         )
 
         # Configure and check input/output parameters/structs
@@ -1426,14 +1426,9 @@ def ionize_box(
             perturbed_field,
             previous_perturbed_field,
             previous_ionize_box,
-            pt_halos if flag_options.USE_HALO_FIELD else None,
+            pt_halos,
         )
-        redshift = configure_redshift(
-            redshift,
-            spin_temp,
-            perturbed_field,
-            pt_halos if flag_options.USE_HALO_FIELD else None,
-        )
+        redshift = configure_redshift(redshift, spin_temp, perturbed_field, pt_halos,)
 
         # Verify input structs
         user_params = UserParams(user_params)
@@ -2086,13 +2081,18 @@ def run_coeval(
             perturb = []
 
         # Ensure perturbed halo field is a list of boxes, not just one.
-        if (
-            flag_options["USE_HALO_FIELD"]
-            if type(flag_options) is dict
-            else flag_options.USE_HALO_FIELD
-        ) and pt_halos is not None:
-            if not hasattr(pt_halos, "__len__"):
-                pt_halos = [pt_halos]
+        if flag_options is not None and pt_halos is not None:
+            if (
+                flag_options["USE_HALO_FIELD"]
+                if type(flag_options) is dict
+                else flag_options.USE_HALO_FIELD
+            ):
+                if not hasattr(pt_halos, "__len__"):
+                    pt_halos = [pt_halos]
+                else:
+                    pt_halos = []
+            else:
+                pt_halos = []
         else:
             pt_halos = []
 

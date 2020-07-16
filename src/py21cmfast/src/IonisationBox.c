@@ -1692,6 +1692,9 @@ LOG_SUPER_DEBUG("freed fftw boxes");
         if(user_params->USE_INTERPOLATION_TABLES) {
             free(log10_overdense_spline_SFR);
             free(Overdense_spline_SFR);
+            free(log10_Nion_spline);
+            free(Nion_spline);
+
         }
 
         if(flag_options->USE_MINI_HALOS){
@@ -1701,17 +1704,12 @@ LOG_SUPER_DEBUG("freed fftw boxes");
             fftwf_free(log10_Mturnover_filtered);
             fftwf_free(log10_Mturnover_MINI_unfiltered);
             fftwf_free(log10_Mturnover_MINI_filtered);
-        }
 
-        if(user_params->USE_INTERPOLATION_TABLES) {
-            free(log10_Nion_spline);
-            free(Nion_spline);
-            free(prev_log10_overdense_spline_SFR);
-            free(prev_Overdense_spline_SFR);
-            free(prev_log10_Nion_spline);
-            free(prev_Nion_spline);
-
-            if(flag_options->USE_MINI_HALOS){
+            if(user_params->USE_INTERPOLATION_TABLES) {
+                free(prev_log10_overdense_spline_SFR);
+                free(prev_Overdense_spline_SFR);
+                free(prev_log10_Nion_spline);
+                free(prev_Nion_spline);
                 free(log10_Nion_spline_MINI);
                 free(Nion_spline_MINI);
                 free(prev_log10_Nion_spline_MINI);

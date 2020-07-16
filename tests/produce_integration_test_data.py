@@ -39,6 +39,7 @@ DEFAULT_USER_PARAMS = {
 }
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 
+
 OPTIONS = (
     [12, {}],
     [12, {"PERTURB_ON_HIGH_RES": True}],
@@ -161,7 +162,6 @@ OPTIONS = (
         },
     ],
 )
-
 
 OPTIONS_PT = (
     [10, {}],
