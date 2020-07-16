@@ -1016,7 +1016,6 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     }
 
                     if(user_params->USE_INTERPOLATION_TABLES) {
-
                         InterpolationRange(1,R,user_params->BOX_LEN,&min_density, &max_density);
 
                     }

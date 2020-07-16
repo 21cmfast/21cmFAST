@@ -39,7 +39,7 @@ DEFAULT_USER_PARAMS = {
 }
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 
-
+"""
 OPTIONS = (
     [12, {}],
     [12, {"PERTURB_ON_HIGH_RES": True}],
@@ -162,6 +162,24 @@ OPTIONS = (
         },
     ],
 )
+"""
+
+OPTIONS = (
+    [
+        18,
+        {
+            "z_heat_max": 25,
+            "USE_MINI_HALOS": True,
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "INHOMO_RECO": True,
+            "USE_TS_FLUCT": True,
+            "zprime_step_factor": 1.2,
+            "USE_FFTW_WISDOM": True,
+            "NUM_FILTER_STEPS_FOR_Ts": 8,
+        },
+    ],
+)
+
 
 OPTIONS_PT = (
     [10, {}],
