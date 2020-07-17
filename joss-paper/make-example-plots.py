@@ -26,7 +26,7 @@ lightcone = p21c.run_lightcone(
 )
 
 # Save to a unique filename hashing all input parameters
-lightcone.save()
+lightcone.save(clobber=True)
 
 # Make a lightcone sliceplot
 fig, ax = p21c.plotting.lightcone_sliceplot(lightcone, "brightness_temp")
