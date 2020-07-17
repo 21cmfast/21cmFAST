@@ -29,8 +29,8 @@ lightcone = p21c.run_lightcone(
 lightcone.save()
 
 # Make a lightcone sliceplot
-fig = p21c.plotting.lightcone_sliceplot(lightcone, "brightness_temp")
+fig, ax = p21c.plotting.lightcone_sliceplot(lightcone, "brightness_temp")
 fig.savefig("lightcone.pdf")
 
-fig = p21c.plotting.plot_global_history(lightcone, "xH")
+fig, ax = p21c.plotting.plot_global_history(lightcone, "xH")
 fig.savefig("xH_history.pdf")

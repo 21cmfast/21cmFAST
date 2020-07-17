@@ -188,15 +188,14 @@ lightcone = p21c.run_lightcone(
 lightcone.save()
 
 # Make a lightcone sliceplot
-p21c.plotting(lightcone, "brightness_temp")
+p21c.plotting.lightcone_sliceplot(lightcone, "brightness_temp")
 ```
 
 ![Brightness Temperature Lightcone](lightcone.pdf){height=300px}
 
 ```python
 # Plot a global quantity
-import matplotlib.pyplot as plt
-plt.plot(lightcone.node_redshifts, lightcone.xH_box)
+p21c.plotting.plot_global_history(lightcone, "xH")
 ```
 
 ![Global reionization history](xH_history.pdf){height=300px}
