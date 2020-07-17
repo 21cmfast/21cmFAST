@@ -1064,8 +1064,8 @@ def determine_halo_list(
             try:
                 fields.read(direc)
                 logger.info(
-                    "Existing z=%s determine_halo_list boxes found and read in (seed=%s)."
-                    % (redshift, fields.random_seed)
+                    f"Existing z={redshift} determine_halo_list boxes found and read in "
+                    f"(seed={fields.random_seed})."
                 )
                 return fields
             except IOError:
@@ -2084,13 +2084,10 @@ def run_coeval(
         if flag_options is not None and pt_halos is not None:
             if (
                 flag_options["USE_HALO_FIELD"]
-                if type(flag_options) is dict
+                if isinstance(flag_options, dict)
                 else flag_options.USE_HALO_FIELD
             ):
-                if not hasattr(pt_halos, "__len__"):
-                    pt_halos = [pt_halos]
-                else:
-                    pt_halos = []
+                pt_halos = [pt_halos] if not hasattr(pt_halos, "__len__") else []
             else:
                 pt_halos = []
         else:

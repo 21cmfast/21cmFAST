@@ -116,7 +116,7 @@ class GlobalParams(StructInstanceWrapper):
         neighboring halos.
     DELTA_CRIT_MODE : int
         The delta_crit to be used for determining whether a halo exists in a cell
-            0: delta_crit is constant (i.e. 1.68)
+            0: delta_crit is constant (i.e. 1.686)
             1: delta_crit is the sheth tormen ellipsoidal collapse correction to delta_crit
     HALO_FILTER : int
         Filter for the density field used to generate the halo field with EPS

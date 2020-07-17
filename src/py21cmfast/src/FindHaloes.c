@@ -433,7 +433,7 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
                             return 1;
                     }
                 }
-                if(check_type==2) {
+                else if(check_type==2) {
                     // now check
                     if (!in_halo[R_INDEX(x_index, y_index, z_index)]){
                         if(pixel_in_halo(user_params,x,x_index,y,y_index,z,z_index,Rsq_curr_index)) {
@@ -441,6 +441,10 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
                             in_halo[R_INDEX(x_index, y_index, z_index)] = 1;
                         }
                     }
+                }
+                else {
+                    LOG_ERROR("check_type must be 1 or 2, got %d", check_type);
+                    Throw ValueError;
                 }
             }
         }

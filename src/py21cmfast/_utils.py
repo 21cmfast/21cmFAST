@@ -46,7 +46,7 @@ MEMORYALLOCERROR = 5
 def _process_exitcode(exitcode, fnc, args):
     """Determine what happens for different values of the (integer) exit code from a C function."""
     if exitcode != SUCCESS:
-        logger.error("In function: {}.  Arguments: {}".format(fnc.__name__, args))
+        logger.error(f"In function: {fnc.__name__}.  Arguments: {args}")
 
         if exitcode in (GSLERROR, PARAMETERERROR):
             raise ParameterError
@@ -486,8 +486,7 @@ class OutputStruct(StructWrapper):
 
         if not self.arrays_initialized:
             raise AttributeError(
-                "%s is ill-defined. It has not initialized all necessary arrays."
-                % self.__class__.__name__
+                f"{self.__class__.__name__} is ill-defined. It has not initialized all necessary arrays."
             )
 
     def _ary2buf(self, ary):
@@ -595,9 +594,8 @@ class OutputStruct(StructWrapper):
                             if file_v != v:
                                 logger.debug("For file %s:" % fname)
                                 logger.debug(
-                                    "\tThough md5 and seed matched, the parameter %s did not match,"
-                                    " with values %s and %s in file and user respectively"
-                                    % (kk, file_v, v)
+                                    f"\tThough md5 and seed matched, the parameter {kk} did not match,"
+                                    f" with values {file_v} and {v} in file and user respectively"
                                 )
                                 return False
                 else:
@@ -754,8 +752,8 @@ class OutputStruct(StructWrapper):
                 boxes = f[self._name]
             except KeyError:
                 raise IOError(
-                    "While trying to read in %s, the file exists, but does not have the "
-                    "correct structure." % self._name
+                    f"While trying to read in {self._name}, the file exists, but does not have the "
+                    "correct structure."
                 )
 
             # Fill our arrays.
@@ -775,10 +773,8 @@ class OutputStruct(StructWrapper):
                     if version != ".".join(__version__.split(".")[:2]):
                         # Ensure that the major and minor versions are the same.
                         warnings.warn(
-                            "The file {} is out of date (version = {}.{}). Consider "
-                            "using another box and removing it!".format(
-                                pth, version, patch
-                            )
+                            f"The file {pth} is out of date (version = {version}.{patch}). "
+                            f"Consider using another box and removing it!"
                         )
 
                     self.version = version
@@ -906,9 +902,7 @@ class OutputStruct(StructWrapper):
 
     def compute(self, direc, *args, write=True):
         """Compute the actual function that fills this struct."""
-        logger.debug(
-            "Calling {} with args: {}".format(self._c_compute_function.__name__, args)
-        )
+        logger.debug(f"Calling {self._c_compute_function.__name__} with args: {args}")
         try:
             exitcode = self._c_compute_function(
                 *[arg() if isinstance(arg, StructWrapper) else arg for arg in args],
