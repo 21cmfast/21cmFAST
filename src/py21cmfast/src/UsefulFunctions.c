@@ -79,7 +79,38 @@ void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoPara
     user_params_ufunc = user_params;
 }
 
+float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
+    // z_re: the redshift of reionization
+    // z:    the current redshift
+    // delta:the density contrast
+    float result, delta_re;
+    // just be fully ionized
+    if (fabs(z - z_re) < 1e-4)
+        result = 1;
+    else{
+        // linearly extrapolate to get density at reionization
+        delta_re = delta * (1. + z ) / (1. + z_re);
+        if (delta_re<=-1) delta_re=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
+        // evolving ionized box eq. 6 of McQuinn 2015, ignored the dependency of density at ionization
+        if (delta<=-1) delta=-1. + global_params.MIN_DENSITY_LOW_LIMIT;
+        result  = pow((1. + delta) / (1. + delta_re), 1.1333);
+        result *= pow((1. + z) / (1. + z_re), 3.4);
+        result *= expf(pow((1. + z)/7.1, 2.5) - pow((1. + z_re)/7.1, 2.5));
+    }
+    result *= pow(global_params.T_RE, 1.7);
+    // 1e4 before helium reionization; double it after
+    result += pow(1e4 * ((1. + z)/4.), 1.7) * ( 1 + delta);
+    result  = pow(result, 0.5882);
+    //LOG_DEBUG("z_re=%.4f, z=%.4f, delta=%e, Tk=%.f", z_re, z, delta, result);
+    return result;
+}
 
+float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
+    if (res_xH<=0.) return global_params.T_RE;
+    if (res_xH>=1) return T_HI;
+
+    return T_HI * res_xH + global_params.T_RE * (1. - res_xH);
+}
 
 void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
     int n_x, n_z, n_y, dimension,midpoint;
@@ -97,53 +128,73 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
     }
 
     // loop through k-box
-    for (n_x=dimension; n_x--;){
-        if (n_x>midpoint) {k_x =(n_x-dimension) * DELTA_K;}
-        else {k_x = n_x * DELTA_K;}
 
-        for (n_y=dimension; n_y--;){
-            if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
-            else {k_y = n_y * DELTA_K;}
+#pragma omp parallel shared(box) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,kR) num_threads(user_params_ufunc->N_THREADS)
+    {
+#pragma omp for
+        for (n_x=0; n_x<dimension; n_x++){
+//        for (n_x=dimension; n_x--;){
+            if (n_x>midpoint) {k_x =(n_x-dimension) * DELTA_K;}
+            else {k_x = n_x * DELTA_K;}
 
-            for (n_z=(midpoint+1); n_z--;){
-                k_z = n_z * DELTA_K;
+            for (n_y=0; n_y<dimension; n_y++){
+//            for (n_y=dimension; n_y--;){
+                if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
+                else {k_y = n_y * DELTA_K;}
 
-                k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
+//                for (n_z=(midpoint+1); n_z--;){
+                for (n_z=0; n_z<=midpoint; n_z++){
+                    k_z = n_z * DELTA_K;
 
-                kR = k_mag*R; // real space top-hat
+                    if (filter_type == 0){ // real space top-hat
 
-                if (filter_type == 0){ // real space top-hat
-                    if (kR > 1e-4){
-                        if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
-                        if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
+                        k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
+
+                        kR = k_mag*R; // real space top-hat
+
+                        if (kR > 1e-4){
+                            if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
+                            if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= 3.0*pow(kR, -3) * (sin(kR) - cos(kR)*kR); }
+                        }
                     }
-                }
-                else if (filter_type == 1){ // k-space top hat
-                    kR *= 0.413566994; // equates integrated volume to the real space top-hat (9pi/2)^(-1/3)
-                    if (kR > 1){
-                        if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] = 0; }
-                        if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] = 0; }
+                    else if (filter_type == 1){ // k-space top hat
+
+                        // This is actually (kR^2) but since we zero the value and find kR > 1 this is more computationally efficient
+                        // as we don't need to evaluate the slower sqrt function
+//                        kR = 0.17103765852*( k_x*k_x + k_y*k_y + k_z*k_z )*R*R;
+
+                        k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
+                        kR = k_mag*R; // real space top-hat
+
+                        kR *= 0.413566994; // equates integrated volume to the real space top-hat (9pi/2)^(-1/3)
+                        if (kR > 1){
+                            if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] = 0; }
+                            if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] = 0; }
+                        }
                     }
-                }
-                else if (filter_type == 2){ // gaussian
-                    kR *= 0.643; // equates integrated volume to the real space top-hat
-                    if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= pow(E, -kR*kR/2.0); }
-                    if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= pow(E, -kR*kR/2.0); }
-                }
-                else{
-                    if ( (n_x==0) && (n_y==0) && (n_z==0) )
-                        LOG_WARNING("Filter type %i is undefined. Box is unfiltered.", filter_type);
+                    else if (filter_type == 2){ // gaussian
+                        // This is actually (kR^2) but since we zero the value and find kR > 1 this is more computationally efficient
+                        // as we don't need to evaluate the slower sqrt function
+                        kR = 0.643*0.643*( k_x*k_x + k_y*k_y + k_z*k_z )*R*R;
+//                        kR *= 0.643; // equates integrated volume to the real space top-hat
+                        if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= pow(E, -kR/2.0); }
+                        if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= pow(E, -kR/2.0); }
+                    }
+                    else{
+                        if ( (n_x==0) && (n_y==0) && (n_z==0) )
+                            LOG_WARNING("Filter type %i is undefined. Box is unfiltered.", filter_type);
+                    }
                 }
             }
-        }
-    } // end looping through k box
+        } // end looping through k box
+    }
 
     return;
 }
 
 double MtoR(double M);
 double RtoM(double R);
-float TtoM(float z, float T, float mu);
+double TtoM(double z, double T, double mu);
 double dicke(double z);
 double dtdz(float z);
 double ddickedt(double z);
@@ -170,7 +221,7 @@ double MtoR(double M){
         return pow( M/(pow(2*PI, 1.5) * cosmo_params_ufunc->OMm * RHOcrit), 1.0/3.0 );
     else // filter not defined
         LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
-    return -1;
+    Throw ValueError;
 }
 
 /* R in Mpc, M in Msun */
@@ -182,7 +233,7 @@ double RtoM(double R){
         return pow(2*PI, 1.5) * cosmo_params_ufunc->OMm*RHOcrit * pow(R, 3);
     else // filter not defined
         LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
-    return -1;
+    Throw ValueError;
 }
 
 /*
@@ -192,7 +243,7 @@ double RtoM(double R){
  SUPRESS = 0 for no radiation field supression;
  SUPRESS = 1 for supression (step function at z=z_ss, at v=v_zz)
  */
-float TtoM(float z, float T, float mu){
+double TtoM(double z, double T, double mu){
     return 7030.97 / (cosmo_params_ufunc->hlittle) * sqrt( omega_mz(z) / (cosmo_params_ufunc->OMm*Deltac_nonlinear(z))) *
     pow( T/(mu * (1+z)), 1.5 );
     /*  if (!SUPRESS || (z >= z_re) ) // pre-reionization or don't worry about supression
@@ -208,7 +259,6 @@ float TtoM(float z, float T, float mu){
      pow( VcirtoT(v_ss, mu) /(mu * (1+z)), 1.5 );
      */
 }
-
 
 /* Physical (non-linear) overdensity at virialization (relative to critical density)
  i.e. answer is rho / rho_crit
@@ -260,11 +310,11 @@ double dicke(double z){
     }
     else if ( (cosmo_params_ufunc->OMl > (-tiny)) && (fabs(global_params.OMtot-1.0) < tiny) && (fabs(global_params.wl+1) > tiny) ){
         LOG_WARNING("IN WANG.");
-        return -1;
+        Throw ValueError;
     }
 
-    LOG_ERROR("No growth function!!! Output will be fucked up.");
-    return -1;
+    LOG_ERROR("No growth function!");
+    Throw ValueError;
 }
 
 /* function DTDZ returns the value of dt/dz at the redshift parameter z. */
@@ -303,8 +353,8 @@ double ddickedt(double z){
         return ddickdz / dick_0 / dtdz(z);
     }
 
-    LOG_ERROR("No growth function!!! Output will be fucked up.");
-    return -1;
+    LOG_ERROR("No growth function!");
+    Throw ValueError;
 }
 
 /* returns the hubble "constant" (in 1/sec) at z */
@@ -446,10 +496,6 @@ double dtau_e_dz(double z, void *params){
 
         // linearly interpolate in redshift
         xH = p.xH[i-1] + (p.xH[i] - p.xH[i-1])/(p.z[i] - p.z[i-1]) * (z - p.z[i-1]);
-        /*
-         fprintf(stderr, "in taue: Interpolating between xH(%f)=%f and xH(%f)=%f to obtain xH(%f)=%f\n",
-         p.z[i-1], p.xH[i-1], p.z[i], p.xH[i], z, xH);
-         */
         xi = 1.0-xH;
         if (xi<0){
             LOG_WARNING("in taue: funny business xi=%e, changing to 0.", xi);
@@ -473,7 +519,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
 
     if (zstart >= zend){
         LOG_ERROR("in tau_e: First parameter must be smaller than the second.\n");
-        return 0;
+        Throw ValueError;
     }
 
     F.function = &dtau_e_dz;
@@ -521,8 +567,8 @@ float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_param
 
 
 void writeUserParams(struct UserParams *p){
-    LOG_INFO("UserParams: [HII_DIM=%d, DIM=%d, BOX_LEN=%f, USE_FFTW_WISDOM=%d]",
-             p->HII_DIM, p->DIM, p->BOX_LEN, p->USE_FFTW_WISDOM);
+    LOG_INFO("UserParams: [HII_DIM=%d, DIM=%d, BOX_LEN=%f, HMF=%d, POWER_SPECTRUM=%d, USE_RELATIVE_VELOCITIES=%d, N_THREADS=%d, PERTURB_ON_HIGH_RES=%d, NO_RNG=%d, USE_FFTW_WISDOM=%d, USE_INTERPOLATION_TABLES=%d]",
+             p->HII_DIM, p->DIM, p->BOX_LEN, p->HMF, p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->N_THREADS, p->PERTURB_ON_HIGH_RES, p->NO_RNG, p->USE_FFTW_WISDOM, p->USE_INTERPOLATION_TABLES);
 }
 
 void writeCosmoParams(struct CosmoParams *p){
@@ -533,20 +579,20 @@ void writeCosmoParams(struct CosmoParams *p){
 void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p){
 
     if(fo->USE_MASS_DEPENDENT_ZETA) {
-        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, F_ESC10=%f, ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%e, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, F_STAR=%f, N_RSD_STEPS=%f]",
-             p->HII_EFF_FACTOR, p->ALPHA_STAR, p->F_ESC10, p->ALPHA_ESC, p->M_TURN,
-             p->R_BUBBLE_MAX, p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->t_STAR, p->N_RSD_STEPS);
+        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, F_ESC10=%f (F_ESC7_MINI=%f), ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%e (L_X_MINI=%e), NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f (F_STAR7_MINI=%f), t_STAR=%f, N_RSD_STEPS=%f]",
+             p->HII_EFF_FACTOR, p->ALPHA_STAR, p->F_ESC10,p->F_ESC7_MINI, p->ALPHA_ESC, p->M_TURN,
+             p->R_BUBBLE_MAX, p->L_X, p->L_X_MINI, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->F_STAR7_MINI, p->t_STAR, p->N_RSD_STEPS);
     }
     else {
-        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ION_Tvir_MIN=%f, X_RAY_Tvir_MIN=%f, R_BUBBLE_MAX=%f, L_X=%e, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, F_STAR=%f, N_RSD_STEPS=%f]",
+        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ION_Tvir_MIN=%f, X_RAY_Tvir_MIN=%f, R_BUBBLE_MAX=%f, L_X=%e, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, t_STAR=%f, N_RSD_STEPS=%f]",
              p->HII_EFF_FACTOR, p->ION_Tvir_MIN, p->X_RAY_Tvir_MIN,
              p->R_BUBBLE_MAX, p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->t_STAR, p->N_RSD_STEPS);
     }
 }
 
 void writeFlagOptions(struct FlagOptions *p){
-    LOG_INFO("AstroParams: [USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d]",
-             p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO, p->USE_TS_FLUCT);
+    LOG_INFO("AstroParams: [USE_HALO_FIELD=%d, USE_MINI_HALOS=%d, USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d, M_MIN_in_Mass=%d, PHOTON_CONS=%d]",
+             p->USE_HALO_FIELD, p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->PHOTON_CONS);
 }
 
 
@@ -561,6 +607,20 @@ char *print_output_header(int print_pid, const char *name){
 
     printf("%s%s:\n", pid, name);
     return (pid);
+}
+
+
+void print_corners_real(float *x, int size){
+    int s = size-1;
+    int i,j,k;
+    for(i=0;i<size;i=i+s){
+        for(j=0;j<size;j=j+s){
+            for(k=0;k<size;k=k+s){
+                printf("%f, ", x[k + size*(j + size*i)]);
+            }
+        }
+    }
+    printf("\n");
 }
 
 void inspectInitialConditions(struct InitialConditions *x, int print_pid, int print_corners, int print_first,
@@ -751,17 +811,61 @@ void inspectBrightnessTemp(struct BrightnessTemp *x, int print_pid, int print_co
         print_corners_real(x->brightness_temp, HII_DIM);
     }
 }
+double atomic_cooling_threshold(float z){
+    return TtoM(z, 1e4, 0.59);
+}
+
+double molecular_cooling_threshold(float z){
+    return TtoM(z, 600, 1.22);
+}
+
+double lyman_werner_threshold(float z, float J_21_LW){
+    // this follows Visbal+15, which is taken as the optimal fit from Fialkov+12 which
+    // was calibrated with the simulations of Stacy+11 and Greif+11;
+    double mcrit_noLW = 3.314e7 * pow( 1.+z, -1.5);
+    return  mcrit_noLW * (1. + 22.8685 * pow(J_21_LW, 0.47));
+}
+
+double reionization_feedback(float z, float Gamma_halo_HII, float z_IN){
+    if (z_IN<=1e-19)
+        return 1e-40;
+    return REION_SM13_M0 * pow(HALO_BIAS * Gamma_halo_HII, REION_SM13_A) * pow((1.+z)/10, REION_SM13_B) *
+        pow(1 - pow((1.+z)/(1.+z_IN), REION_SM13_C), REION_SM13_D);
+}
 
 
-void print_corners_real(float *x, int size){
-    int s = size-1;
-    int i,j,k;
-    for(i=0;i<size;i=i+s){
-        for(j=0;j<size;j=j+s){
-            for(k=0;k<size;k=k+s){
-                printf("%f, ", x[k + size*(j + size*i)]);
-            }
+/*
+    The following functions are simply for testing the exception framework
+*/
+void FunctionThatThrows(){
+    Throw(ParameterError);
+}
+
+int SomethingThatCatches(bool sub_func){
+    // A simple function that catches a thrown error.
+    int status;
+    Try{
+        if(sub_func) FunctionThatThrows();
+        else Throw(ParameterError);
+    }
+    Catch(status){
+        return status;
+    }
+    return 0;
+}
+
+int FunctionThatCatches(bool sub_func, bool pass, double *result){
+    int status;
+    if(!pass){
+        Try{
+            if(sub_func) FunctionThatThrows();
+            else Throw(ParameterError);
+        }
+        Catch(status){
+            LOG_DEBUG("Caught the problem with status %d.", status);
+            return status;
         }
     }
-    printf("\n");
+    *result = 5.0;
+    return 0;
 }

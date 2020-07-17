@@ -1,0 +1,15 @@
+channels:
+  - defaults
+  - conda-forge
+
+dependencies:
+  - pip
+  - ipython
+  - nbsphinx
+  - numpydoc
+  - sphinx>=1.3
+  - astropy  # need this here, because we base classes off it (and docs need that).
+  - pyyaml
+  - matplotlib
+  - pip:
+    - sphinx-rtd-theme

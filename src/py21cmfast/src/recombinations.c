@@ -16,7 +16,7 @@ static gsl_spline *beta_spline;
 
 #define RR_Z_NPTS (int) (300) // number of points in redshift axis;  we will only interpolate over gamma, and just index sample in redshift
 #define RR_DEL_Z (float) (0.2)
-#define RR_lnGamma_NPTS (int) (200) // number of samples of gamma for the interpolation tables
+#define RR_lnGamma_NPTS (int) (250) // number of samples of gamma for the interpolation tables
 #define RR_lnGamma_min (double) (-10) // min ln gamma12 used
 #define RR_DEL_lnGamma (float) (0.1)
 static double RR_table[RR_Z_NPTS][RR_lnGamma_NPTS], lnGamma_values[RR_lnGamma_NPTS];
@@ -52,20 +52,18 @@ double splined_recombination_rate(double z_eff, double gamma12_bg){
 
   // check out of bounds
   if ( z_ct < 0 ){ // out of array bounds
-//    fprintf(stderr, "WARNING: splined_recombination_rate: effective redshift %g is outside of array bouds\n", z_eff);
     z_ct = 0;
   }
   else if (z_ct  >= RR_Z_NPTS){
-//    fprintf(stderr, "WARNING: splined_recombination_rate: effective redshift %g is outside of array bouds\n", z_eff);
     z_ct = RR_Z_NPTS-1;
   }
 
   if (lnGamma < RR_lnGamma_min){
     return 0;
   }
-  else if (lnGamma >= (RR_lnGamma_min + RR_DEL_lnGamma * RR_lnGamma_NPTS) ){
-//    fprintf(stderr, "WARNING: splined_recombination_rate: Gamma12 of %g is outside of interpolation array\n", gamma12_bg);
-    lnGamma =  RR_lnGamma_min + RR_DEL_lnGamma * RR_lnGamma_NPTS - FRACT_FLOAT_ERR;
+  else if (lnGamma >= (RR_lnGamma_min + RR_DEL_lnGamma * ( RR_lnGamma_NPTS - 1 )) ){
+    LOG_WARNING("splined_recombination_rate: Gamma12 of %g is outside of interpolation array", gamma12_bg);
+    lnGamma =  RR_lnGamma_min + RR_DEL_lnGamma * ( RR_lnGamma_NPTS - 1 ) - FRACT_FLOAT_ERR;
   }
 
   return gsl_spline_eval(RR_spline[z_ct], lnGamma, RR_acc[z_ct]);
@@ -76,9 +74,9 @@ void init_MHR(){
   float z, gamma;
 
   // first initialize the MHR parameter look up tables
-  init_C_MHR(); /*initializes the lookup table for the C paremeter in MHR00 model*/
-  init_beta_MHR(); /*initializes the lookup table for the beta paremeter in MHR00 model*/
-  init_A_MHR(); /*initializes the lookup table for the A paremeter in MHR00 model*/
+  init_C_MHR(); /*initializes the lookup table for the C parameter in MHR00 model*/
+  init_beta_MHR(); /*initializes the lookup table for the beta parameter in MHR00 model*/
+  init_A_MHR(); /*initializes the lookup table for the A parameter in MHR00 model*/
 
   // now the recombination rate look up tables
   for (z_ct=0; z_ct < RR_Z_NPTS; z_ct++){
@@ -145,8 +143,6 @@ double MHR_rr (double lnD, void *params){
     alpha = alpha_B(p.T4*1e4);
   else
     alpha = alpha_A(p.T4*1e4);
-
-  //  fprintf(stderr, "%g\t%g\t%g\t%g\t%g\n", n_H, PDelta, alpha, x_e, D);
 
   return n_H * PDelta * alpha * x_e * x_e * del * del;//note extra D since we are integrating over lnD
 }

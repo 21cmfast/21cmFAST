@@ -9,89 +9,45 @@ import numpy as np
 
 from py21cmfast import wrapper
 
-REDSHIFT = 15
-LOW_REDSHIFT = 8
+
+@pytest.fixture(scope="module")
+def perturb_field_lowz(ic, low_redshift):
+    """A default perturb_field"""
+    return wrapper.perturb_field(redshift=low_redshift, init_boxes=ic, write=True)
 
 
 @pytest.fixture(scope="module")
-def user_params():
-    # Do a small box, for testing
-    return wrapper.UserParams(HII_DIM=35, DIM=70)
-
-
-@pytest.fixture(scope="module")
-def init_box(user_params, tmpdirec):
-    return wrapper.initial_conditions(
-        user_params=user_params, regenerate=True, direc=tmpdirec.strpath, random_seed=12
-    )
-
-
-@pytest.fixture(scope="module")
-def perturb_field(init_box, tmpdirec):
-    "A default perturb_field"
-    return wrapper.perturb_field(
-        redshift=REDSHIFT,
-        regenerate=True,  # i.e. make sure we don't read it in.
-        init_boxes=init_box,
-        direc=tmpdirec.strpath,
-    )
-
-
-@pytest.fixture(scope="module")
-def perturb_field_lowz(init_box, tmpdirec):
-    "A default perturb_field"
-    return wrapper.perturb_field(
-        redshift=LOW_REDSHIFT,
-        regenerate=True,  # i.e. make sure we don't read it in.
-        init_boxes=init_box,
-        direc=tmpdirec.strpath,
-    )
-
-
-@pytest.fixture(scope="module")
-def ionize_box(perturb_field, tmpdirec):
+def ionize_box(perturb_field):
     """A default ionize_box"""
-    return wrapper.ionize_box(
-        perturbed_field=perturb_field,
-        regenerate=True,  # i.e. make sure we don't read it in.
-        direc=tmpdirec.strpath,
-    )
+    return wrapper.ionize_box(perturbed_field=perturb_field, write=True)
 
 
 @pytest.fixture(scope="module")
-def ionize_box_lowz(perturb_field_lowz, tmpdirec):
+def ionize_box_lowz(perturb_field_lowz):
     """A default ionize_box at lower redshift."""
-    return wrapper.ionize_box(
-        perturbed_field=perturb_field_lowz,
-        regenerate=True,  # i.e. make sure we don't read it in.
-        direc=tmpdirec.strpath,
-    )
+    return wrapper.ionize_box(perturbed_field=perturb_field_lowz, write=True)
 
 
 @pytest.fixture(scope="module")
-def spin_temp(perturb_field, tmpdirec):
-    "A default perturb_field"
-    return wrapper.spin_temperature(
-        perturbed_field=perturb_field,
-        regenerate=True,  # i.e. make sure we don't read it in.
-        direc=tmpdirec.strpath,
-    )
+def spin_temp(perturb_field):
+    """A default perturb_field"""
+    return wrapper.spin_temperature(perturbed_field=perturb_field, write=True)
 
 
-def test_perturb_field_no_ic(user_params, perturb_field):
+def test_perturb_field_no_ic(default_user_params, redshift, perturb_field):
     """Run a perturb field without passing an init box"""
-    assert (
-        len(perturb_field.density)
-        == perturb_field.user_params.HII_DIM
-        == user_params.HII_DIM
-    )
-    assert perturb_field.redshift == REDSHIFT
-    assert not np.all(perturb_field.density == 0)
+    pf = wrapper.perturb_field(redshift=redshift, user_params=default_user_params)
+    assert len(pf.density) == pf.user_params.HII_DIM == default_user_params.HII_DIM
+    assert pf.redshift == redshift
+    assert pf.random_seed != perturb_field.random_seed
+    assert not np.all(pf.density == 0)
+    assert pf != perturb_field
+    assert pf._seedless_repr() == perturb_field._seedless_repr()
 
 
-def test_ib_no_z(init_box):
+def test_ib_no_z(ic):
     with pytest.raises(ValueError):
-        wrapper.ionize_box(init_boxes=init_box)
+        wrapper.ionize_box(init_boxes=ic)
 
 
 def test_pf_unnamed_param():
@@ -100,17 +56,11 @@ def test_pf_unnamed_param():
         wrapper.perturb_field(7)
 
 
-def test_perturb_field_ic(user_params, perturb_field, tmpdirec):
-    ic = wrapper.initial_conditions(
-        user_params=user_params, regenerate=True, direc=tmpdirec.strpath, write=False
-    )
-    pf = wrapper.perturb_field(
-        redshift=REDSHIFT,
-        init_boxes=ic,
-        regenerate=True,
-        direc=tmpdirec.strpath,
-        write=False,
-    )
+def test_perturb_field_ic(perturb_field, ic):
+    # this will run perturb_field again, since by default regenerate=True for tests.
+    # BUT it should produce exactly the same as the default perturb_field since it has
+    # the same seed.
+    pf = wrapper.perturb_field(redshift=perturb_field.redshift, init_boxes=ic)
 
     assert len(pf.density) == len(ic.lowres_density)
     assert pf.cosmo_params == ic.cosmo_params
@@ -118,26 +68,21 @@ def test_perturb_field_ic(user_params, perturb_field, tmpdirec):
     assert not np.all(pf.density == 0)
 
     assert pf.user_params == perturb_field.user_params
-    assert pf.random_seed != perturb_field.random_seed
     assert pf.cosmo_params == perturb_field.cosmo_params
 
-    # they shouldn't be the same, as they have different seeds
-    assert pf != perturb_field
-
-    # but they are the same in every other way
-    assert pf._seedless_repr() == perturb_field._seedless_repr()
+    assert pf == perturb_field
 
 
-def test_cache_exists(user_params, perturb_field, tmpdirec):
+def test_cache_exists(default_user_params, perturb_field, tmpdirec):
     pf = wrapper.PerturbedField(
         redshift=perturb_field.redshift,
         cosmo_params=perturb_field.cosmo_params,
-        user_params=user_params,
+        user_params=default_user_params,
     )
 
-    assert pf.exists(tmpdirec.strpath)
+    assert pf.exists(tmpdirec)
 
-    pf.read(tmpdirec.strpath)
+    pf.read(tmpdirec)
     assert np.all(pf.density == perturb_field.density)
     assert pf == perturb_field
 
@@ -146,14 +91,11 @@ def test_pf_new_seed(perturb_field, tmpdirec):
     pf = wrapper.perturb_field(
         redshift=perturb_field.redshift,
         user_params=perturb_field.user_params,
-        direc=tmpdirec.strpath,
         random_seed=1,
-        write=False,
     )
 
-    assert not pf.exists(
-        direc=tmpdirec.strpath
-    )  # we didn't write it, and this has a different seed (presumably)
+    # we didn't write it, and this has a different seed
+    assert not pf.exists(direc=tmpdirec)
     assert pf.random_seed != perturb_field.random_seed
 
     assert not np.all(pf.density == perturb_field.density)
@@ -162,24 +104,19 @@ def test_pf_new_seed(perturb_field, tmpdirec):
 def test_ib_new_seed(ionize_box_lowz, perturb_field_lowz, tmpdirec):
     # this should fail because perturb_field has a seed set already, which isn't 1.
     with pytest.raises(ValueError):
-        ib = wrapper.ionize_box(
-            perturbed_field=perturb_field_lowz,
-            direc=tmpdirec.strpath,
-            random_seed=1,
-            write=False,
+        wrapper.ionize_box(
+            perturbed_field=perturb_field_lowz, random_seed=1,
         )
 
     ib = wrapper.ionize_box(
         cosmo_params=perturb_field_lowz.cosmo_params,
         redshift=perturb_field_lowz.redshift,
         user_params=perturb_field_lowz.user_params,
-        direc=tmpdirec.strpath,
         random_seed=1,
-        write=False,
     )
 
-    # we didn't write it, and this has a different seed (presumably)
-    assert not ib.exists(direc=tmpdirec.strpath)
+    # we didn't write it, and this has a different seed
+    assert not ib.exists(direc=tmpdirec)
     assert ib.random_seed != ionize_box_lowz.random_seed
     assert not np.all(ib.xH_box == ionize_box_lowz.xH_box)
 
@@ -188,10 +125,7 @@ def test_st_new_seed(spin_temp, perturb_field, tmpdirec):
     # this should fail because perturb_field has a seed set already, which isn't 1.
     with pytest.raises(ValueError):
         wrapper.spin_temperature(
-            perturbed_field=perturb_field,
-            direc=tmpdirec.strpath,
-            random_seed=1,
-            write=False,
+            perturbed_field=perturb_field, random_seed=1,
         )
 
     st = wrapper.spin_temperature(
@@ -200,66 +134,42 @@ def test_st_new_seed(spin_temp, perturb_field, tmpdirec):
         astro_params=spin_temp.astro_params,
         flag_options=spin_temp.flag_options,
         redshift=spin_temp.redshift,
-        direc=tmpdirec.strpath,
         random_seed=1,
-        write=False,
     )
 
-    assert not st.exists(
-        direc=tmpdirec.strpath
-    )  # we didn't write it, and this has a different seed (presumably)
+    # we didn't write it, and this has a different seed
+    assert not st.exists(direc=tmpdirec)
     assert st.random_seed != spin_temp.random_seed
     assert not np.all(st.Ts_box == spin_temp.Ts_box)
 
 
-def test_st_from_z(init_box, tmpdirec, spin_temp):
-    pf = wrapper.perturb_field(
-        redshift=12, init_boxes=init_box, write=False, regenerate=True
-    )
+def test_st_from_z(perturb_field_lowz, spin_temp):
 
-    # This one has all the same parameters as the nominal spin_temp, but is evaluated with
-    # perturb field exactly matching it, rather than interpolated
+    # This one has all the same parameters as the nominal spin_temp, but is evaluated
+    # with an interpolated perturb_field
     st = wrapper.spin_temperature(
-        perturbed_field=pf,
+        perturbed_field=perturb_field_lowz,
         astro_params=spin_temp.astro_params,
         flag_options=spin_temp.flag_options,
-        direc=tmpdirec.strpath,
-        redshift=spin_temp.redshift,
-        write=False,
+        redshift=spin_temp.redshift,  # Higher redshift
     )
 
-    # TODO: This REALLY SHOULD NOT BE TRUE!!!!!
     assert st == spin_temp
-    assert np.all(st.Ts_box == spin_temp.Ts_box)
+    assert not np.all(st.Ts_box == spin_temp.Ts_box)
 
 
-def test_pf_regenerate(perturb_field, tmpdirec):
-    pf = wrapper.perturb_field(
-        redshift=perturb_field.redshift,
-        user_params=perturb_field.user_params,
-        direc=tmpdirec.strpath,
-        regenerate=True,
-    )
-
-    assert not np.all(pf.density == perturb_field.density)
-    assert pf.random_seed != perturb_field.random_seed
-
-
-def test_ib_from_pf(perturb_field, tmpdirec):
-    ib = wrapper.ionize_box(
-        perturbed_field=perturb_field, direc=tmpdirec.strpath, write=False
-    )
+def test_ib_from_pf(perturb_field):
+    ib = wrapper.ionize_box(perturbed_field=perturb_field)
     assert ib.redshift == perturb_field.redshift
     assert ib.user_params == perturb_field.user_params
     assert ib.cosmo_params == perturb_field.cosmo_params
 
 
-def test_ib_from_z(user_params, perturb_field, tmpdirec):
+def test_ib_from_z(default_user_params, perturb_field):
     ib = wrapper.ionize_box(
         redshift=perturb_field.redshift,
-        user_params=user_params,
-        direc=tmpdirec.strpath,
-        write=False,
+        user_params=default_user_params,
+        regenerate=False,
     )
     assert ib.redshift == perturb_field.redshift
     assert ib.user_params == perturb_field.user_params
@@ -267,34 +177,27 @@ def test_ib_from_z(user_params, perturb_field, tmpdirec):
     assert ib.cosmo_params is not perturb_field.cosmo_params
 
 
-def test_ib_override_z(perturb_field, tmpdirec):
+def test_ib_override_z(perturb_field):
     with pytest.raises(ValueError):
         wrapper.ionize_box(
-            redshift=perturb_field.redshift + 1,
-            perturbed_field=perturb_field,
-            direc=tmpdirec.strpath,
-            write=False,
+            redshift=perturb_field.redshift + 1, perturbed_field=perturb_field,
         )
 
 
-def test_ib_override_z_heat_max(perturb_field, tmpdirec):
+def test_ib_override_z_heat_max(perturb_field):
     # save previous z_heat_max
     zheatmax = wrapper.global_params.Z_HEAT_MAX
 
     wrapper.ionize_box(
-        redshift=perturb_field.redshift,
-        perturbed_field=perturb_field,
-        direc=tmpdirec.strpath,
-        write=False,
-        z_heat_max=12.0,
+        redshift=perturb_field.redshift, perturbed_field=perturb_field, z_heat_max=12.0,
     )
 
     assert wrapper.global_params.Z_HEAT_MAX == zheatmax
 
 
-def test_ib_bad_st(init_box):
+def test_ib_bad_st(ic, redshift):
     with pytest.raises(ValueError):
-        wrapper.ionize_box(redshift=REDSHIFT, spin_temp=init_box)
+        wrapper.ionize_box(redshift=redshift, spin_temp=ic)
 
 
 def test_bt(ionize_box, spin_temp, perturb_field):
@@ -317,22 +220,60 @@ def test_bt(ionize_box, spin_temp, perturb_field):
     assert bt.astro_params == ionize_box.astro_params
 
 
-def test_coeval_against_direct(init_box, perturb_field, ionize_box):
-    coeval = wrapper.run_coeval(perturb=perturb_field, init_box=init_box, write=False)
+def test_coeval_against_direct(ic, perturb_field, ionize_box):
+    coeval = wrapper.run_coeval(perturb=perturb_field, init_box=ic)
 
-    assert coeval[0].init_struct == init_box
-    assert coeval[0].perturb_struct == perturb_field
-    assert coeval[0].ionization_struct == ionize_box
+    assert coeval.init_struct == ic
+    assert coeval.perturb_struct == perturb_field
+    assert coeval.ionization_struct == ionize_box
 
 
-def test_lightcone(init_box, perturb_field):
+def test_lightcone(lc, default_user_params, redshift, max_redshift):
+    assert lc.lightcone_redshifts[-1] >= max_redshift
+    assert np.isclose(lc.lightcone_redshifts[0], redshift, atol=1e-4)
+    assert lc.cell_size == default_user_params.BOX_LEN / default_user_params.HII_DIM
+
+
+def test_lightcone_quantities(ic, max_redshift, perturb_field):
     lc = wrapper.run_lightcone(
-        init_box=init_box, perturb=perturb_field, max_redshift=10.0
+        init_box=ic,
+        perturb=perturb_field,
+        max_redshift=max_redshift,
+        lightcone_quantities=("dNrec_box", "density", "brightness_temp"),
+        global_quantities=("density", "Gamma12_box"),
     )
 
-    assert lc.lightcone_redshifts[-1] >= 10.0
-    assert np.isclose(lc.lightcone_redshifts[0], perturb_field.redshift, atol=1e-4)
-    assert lc.cell_size == init_box.user_params.BOX_LEN / init_box.user_params.HII_DIM
+    assert hasattr(lc, "dNrec_box")
+    assert hasattr(lc, "density")
+    assert hasattr(lc, "global_density")
+    assert hasattr(lc, "global_Gamma12")
+
+    # dNrec is not filled because we're not doing INHOMO_RECO
+    assert lc.dNrec_box.max() == lc.dNrec_box.min() == 0
+
+    # density should be filled with not zeros.
+    assert lc.density.min() != lc.density.max() != 0
+
+    # Simply ensure that different quantities are not getting crossed/referred to each other.
+    assert lc.density.min() != lc.brightness_temp.min() != lc.brightness_temp.max()
+
+    # Raise an error since we're not doing spin temp.
+    with pytest.raises(ValueError):
+        wrapper.run_lightcone(
+            init_box=ic,
+            perturb=perturb_field,
+            max_redshift=20.0,
+            lightcone_quantities=("Ts_box", "density"),
+        )
+
+    # And also raise an error for global quantities.
+    with pytest.raises(ValueError):
+        wrapper.run_lightcone(
+            init_box=ic,
+            perturb=perturb_field,
+            max_redshift=20.0,
+            global_quantities=("Ts_box",),
+        )
 
 
 def test_run_lf():
@@ -348,9 +289,9 @@ def test_run_lf():
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
 
 
-def test_coeval_st(init_box):
+def test_coeval_st(ic, perturb_field):
     coeval = wrapper.run_coeval(
-        redshift=15.0, init_box=init_box, flag_options={"USE_TS_FLUCT": True}
+        init_box=ic, perturb=perturb_field, flag_options={"USE_TS_FLUCT": True},
     )
 
     assert isinstance(coeval.spin_temp_struct, wrapper.TsBox)
