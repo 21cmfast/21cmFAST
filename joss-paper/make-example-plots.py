@@ -8,6 +8,7 @@ lightcone = p21c.run_lightcone(
         "HII_DIM": 150,  # Number of cells along a side in the output cube
         "DIM": 400,  # Original high-resolution cell number
         "BOX_LEN": 300,  # Size of the simulation in Mpc
+        "N_THREADS": 16,
     },
     flag_options={
         "USE_TS_FLUCT": True,  # Do not assume saturated spin temperature
