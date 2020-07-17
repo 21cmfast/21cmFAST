@@ -7,7 +7,7 @@ int ComputePerturbField(
     /*
      ComputePerturbField uses the first-order Langragian displacement field to move the
      masses in the cells of the density field. The high-res density field is extrapolated
-     to some high-redshift (INITIAL_REDSHIFT in ANAL_PARAMS.H), then uses the zeldovich
+     to some high-redshift (global_params.INITIAL_REDSHIFT), then uses the zeldovich
      approximation to move the grid "particles" onto the lower-res grid we use for the
      maps. Then we recalculate the velocity fields on the perturbed grid.
     */

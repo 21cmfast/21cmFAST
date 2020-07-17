@@ -108,7 +108,26 @@ class GlobalParams(StructInstanceWrapper):
         .. note:: If you are interested in snapshots of the same realization at several
                   redshifts,it is recommended to turn off this feature, as halos can
                   stochastically "pop in and out of" existence from one redshift to the next.
-
+    R_OVERLAP_FACTOR : float
+        When using USE_HALO_FIELD, it is used as a factor the halo's radius, R, so that the
+        effective radius is R_eff = R_OVERLAP_FACTOR * R.  Halos whose centers are less than
+        R_eff away from another halo are not allowed. R_OVERLAP_FACTOR = 1 is fully disjoint
+        R_OVERLAP_FACTOR = 0 means that centers are allowed to lay on the edges of
+        neighboring halos.
+    DELTA_CRIT_MODE : int
+        The delta_crit to be used for determining whether a halo exists in a cell
+            0: delta_crit is constant (i.e. 1.686)
+            1: delta_crit is the sheth tormen ellipsoidal collapse correction to delta_crit
+    HALO_FILTER : int
+        Filter for the density field used to generate the halo field with EPS
+            0: real space top hat filter
+            1: sharp k-space filter
+            2: gaussian filter
+    OPTIMIZE : bool
+        Finding halos can be made more efficient if the filter size is sufficiently large that
+        we can switch to the collapse fraction at a later stage.
+    OPTIMIZE_MIN_MASS : float
+        Minimum mass on which the optimization for the halo finder will be used.
     T_USE_VELOCITIES : bool
         Whether to use velocity corrections in 21-cm fields
 
@@ -125,6 +144,8 @@ class GlobalParams(StructInstanceWrapper):
 
     VELOCITY_COMPONENT : int
         Component of the velocity to be used in 21-cm temperature maps (1=x, 2=y, 3=z)
+    DELTA_R_FACTOR : float
+        Factor by which to scroll through filter radius for halos
     DELTA_R_HII_FACTOR : float
         Factor by which to scroll through filter radius for bubbles
     HII_FILTER : int, {0, 1, 2}
@@ -405,6 +426,11 @@ class UserParams(StructWithDefaults):
     NO_RNG : bool, optional
         Ability to turn off random number generation for initial conditions. Can be
         useful for debugging and adding in new features
+    USE_FFTW_WISDOM : bool, optional
+        Whether or not to use stored FFTW_WISDOMs for improving performance of FFTs
+    USE_INTERPOLATION_TABLES: bool, optional
+        If True, calculates and evaluates quantites using interpolation tables, which
+        is considerably faster than when performing integrals explicitly.
     """
 
     _ffi = ffi
@@ -420,6 +446,7 @@ class UserParams(StructWithDefaults):
         "N_THREADS": 1,
         "PERTURB_ON_HIGH_RES": False,
         "NO_RNG": False,
+        "USE_INTERPOLATION_TABLES": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
@@ -519,6 +546,9 @@ class FlagOptions(StructWithDefaults):
 
     Parameters
     ----------
+    USE_HALO_FIELD : bool, optional
+        Set to True if intending to find and use the halo field. If False, uses
+        the mean collapse fraction (which is considerably faster).
     USE_MINI_HALOS : bool, optional
         Set to True if using mini-halos parameterization.
         If True, USE_MASS_DEPENDENT_ZETA and INHOMO_RECO must be True.
@@ -546,6 +576,7 @@ class FlagOptions(StructWithDefaults):
     _ffi = ffi
 
     _defaults_ = {
+        "USE_HALO_FIELD": False,
         "USE_MINI_HALOS": False,
         "USE_MASS_DEPENDENT_ZETA": False,
         "SUBCELL_RSD": False,
@@ -554,6 +585,18 @@ class FlagOptions(StructWithDefaults):
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
     }
+
+    @property
+    def USE_HALO_FIELD(self):
+        """Automatically setting USE_MASS_DEPENDENT_ZETA to False if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and self._USE_HALO_FIELD:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
+                "Automatically setting USE_HALO_FIELD to False."
+            )
+            return False
+        else:
+            return self._USE_HALO_FIELD
 
     @property
     def M_MIN_in_Mass(self):

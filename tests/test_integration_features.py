@@ -40,6 +40,7 @@ logger.setLevel(logging.INFO)
 
 options = prd.OPTIONS
 options_pt = prd.OPTIONS_PT
+options_halo = prd.OPTIONS_HALO
 
 # Skip the USE_MINI_HALOS test because it takes too long.
 # This should be revisited in the future.
@@ -111,3 +112,22 @@ def test_perturb_field_data(redshift, kwargs):
     assert np.allclose(power_vel, p_vel, atol=5e-3, rtol=1e-3)
     assert np.allclose(pdf_dens, y_dens, atol=5e-3, rtol=1e-3)
     assert np.allclose(pdf_vel, y_vel, atol=5e-3, rtol=1e-3)
+
+
+@pytest.mark.parametrize("redshift,kwargs", options_halo)
+def test_halo_field_data(redshift, kwargs):
+    print("Options used for the test: ", kwargs)
+
+    # First get pre-made data
+    with h5py.File(prd.get_filename_halo(redshift, **kwargs), "r") as f:
+        n_pt_halos = f["n_pt_halos"][...]
+        pt_halo_masses = f["pt_halo_masses"][...]
+
+    with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
+        # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
+        pt_halos = prd.produce_halo_field_data(redshift, **kwargs)
+
+    assert np.allclose(n_pt_halos, pt_halos.n_halos, atol=5e-3, rtol=1e-3)
+    assert np.allclose(
+        np.sum(pt_halo_masses), np.sum(pt_halos.halo_masses), atol=5e-3, rtol=1e-3
+    )

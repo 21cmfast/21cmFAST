@@ -28,6 +28,7 @@ struct UserParams{
     int N_THREADS;
     bool PERTURB_ON_HIGH_RES;
     bool NO_RNG;
+    bool USE_INTERPOLATION_TABLES;
 };
 
 struct AstroParams{
@@ -59,6 +60,7 @@ struct AstroParams{
 struct FlagOptions{
 
     // Parameters taken from INIT_PARAMS.H
+    bool USE_HALO_FIELD;
     bool USE_MINI_HALOS;
     bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
@@ -78,6 +80,29 @@ struct InitialConditions{
 struct PerturbedField{
     float *density, *velocity;
 };
+
+struct HaloField{
+
+    int n_halos;
+    float *halo_masses;
+    int *halo_coords;
+
+    int n_mass_bins;
+    int max_n_mass_bins;
+
+    float *mass_bins;
+    float *fgtrm;
+    float *sqrt_dfgtrm;
+    float *dndlm;
+    float *sqrtdn_dlm;
+};
+
+struct PerturbHaloField{
+    int n_halos;
+    float *halo_masses;
+    int *halo_coords;
+};
+
 
 struct TsBox{
     int first_box;
@@ -110,6 +135,14 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
 int ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field);
 
+int ComputeHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                     struct AstroParams *astro_params, struct FlagOptions *flag_options,
+                     struct InitialConditions *boxes, struct HaloField *halos);
+
+int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                     struct AstroParams *astro_params, struct FlagOptions *flag_options,
+                     struct InitialConditions *boxes, struct HaloField *halos, struct PerturbHaloField *halos_perturbed);
+
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,
                   short cleanup,
@@ -118,7 +151,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options, struct PerturbedField *perturbed_field,
                        struct PerturbedField *previous_perturbed_field, struct IonizedBox *previous_ionize_box,
-                       struct TsBox *spin_temp, struct IonizedBox *box);
+                       struct TsBox *spin_temp, struct PerturbHaloField *halo, struct IonizedBox *box);
 
 int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                            struct AstroParams *astro_params, struct FlagOptions *flag_options,
@@ -143,9 +176,11 @@ void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoPara
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options);
 
-void free_TsCalcBoxes(struct FlagOptions *flag_options);
+void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_options);
 void FreePhotonConsMemory();
 bool photon_cons_allocated = false;
 int SomethingThatCatches(bool sub_func);
 int FunctionThatCatches(bool sub_func, bool pass, double* result);
 void FunctionThatThrows();
+void free_halo_field(struct HaloField *halos);
+void free_phf(struct PerturbHaloField *halos);

@@ -19,6 +19,74 @@ _ffi = FFI()
 logger = logging.getLogger("21cmFAST")
 
 
+class ParameterError(RuntimeError):
+    """An exception representing a bad choice of parameters."""
+
+    def __init__(self):
+        default_message = "21cmFAST does not support this combination of parameters."
+        super().__init__(default_message)
+
+
+class FatalCError(Exception):
+    """An exception representing something going wrong in C."""
+
+    def __init__(self, msg=None):
+        default_message = "21cmFAST is exiting."
+        super().__init__(msg or default_message)
+
+
+SUCCESS = 0
+IOERROR = 1
+GSLERROR = 2
+VALUEERROR = 3
+PARAMETERERROR = 4
+MEMORYALLOCERROR = 5
+
+
+def _process_exitcode(exitcode, fnc, args):
+    """Determine what happens for different values of the (integer) exit code from a C function."""
+    if exitcode != SUCCESS:
+        logger.error(f"In function: {fnc.__name__}.  Arguments: {args}")
+
+        if exitcode in (GSLERROR, PARAMETERERROR):
+            raise ParameterError
+        elif exitcode in (IOERROR, VALUEERROR, MEMORYALLOCERROR):
+            raise FatalCError
+        else:  # Unknown C code
+            raise FatalCError("Unknown error in C. Please report this error!")
+
+
+ctype2dtype = {}
+
+# Integer types
+for prefix in ("int", "uint"):
+    for log_bytes in range(4):
+        ctype = "%s%d_t" % (prefix, 8 * (2 ** log_bytes))
+        dtype = "%s%d" % (prefix[0], 2 ** log_bytes)
+        ctype2dtype[ctype] = np.dtype(dtype)
+
+# Floating point types
+ctype2dtype["float"] = np.dtype("f4")
+ctype2dtype["double"] = np.dtype("f8")
+ctype2dtype["int"] = np.dtype("i4")
+
+
+def asarray(ptr, shape):
+    """Get the canonical C type of the elements of ptr as a string."""
+    ctype = _ffi.getctype(_ffi.typeof(ptr).item).split("*")[0].strip()
+
+    if ctype not in ctype2dtype:
+        raise RuntimeError(
+            f"Cannot create an array for element type: {ctype}. Can do {list(ctype2dtype.values())}."
+        )
+
+    array = np.frombuffer(
+        _ffi.buffer(ptr, _ffi.sizeof(ctype) * np.prod(shape)), ctype2dtype[ctype]
+    )
+    array.shape = shape
+    return array
+
+
 class StructWrapper:
     """
     A base-class python wrapper for C structures (not instances of them).
@@ -95,6 +163,10 @@ class StructWrapper:
             del self.__cstruct
         except AttributeError:
             pass
+
+    def __call__(self):
+        """Return an instance of the C struct."""
+        pass
 
 
 class StructWithDefaults(StructWrapper):
@@ -325,6 +397,9 @@ class OutputStruct(StructWrapper):
     _global_params = None
     _inputs = ["user_params", "cosmo_params", "_random_seed"]
     _filter_params = ["external_table_path"]
+    _c_based_pointers = ()
+    _c_compute_function = None
+    _c_free_function = None
 
     _TYPEMAP = {"float32": "float *", "float64": "double *", "int32": "int *"}
 
@@ -359,6 +434,10 @@ class OutputStruct(StructWrapper):
         if init:
             self._init_cstruct()
 
+    def _c_shape(self, cstruct):
+        """Return a dictionary of field: shape for arrays allocated within C."""
+        return {}
+
     @classmethod
     def _implementations(cls):
         all_classes = get_all_subclasses(cls)
@@ -384,6 +463,8 @@ class OutputStruct(StructWrapper):
         """
         # This assumes that all pointer fields will be arrays...
         for k in self.pointer_fields:
+            if k in self._c_based_pointers:
+                continue
             if not hasattr(self, k):
                 return False
             elif getattr(self._cstruct, k) == self._ffi.NULL:
@@ -395,7 +476,8 @@ class OutputStruct(StructWrapper):
             self._init_arrays()
 
         for k in self.pointer_fields:
-            setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
+            if k not in self._c_based_pointers:
+                setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
         for k in self.primitive_fields:
             try:
                 setattr(self._cstruct, k, getattr(self, k))
@@ -404,8 +486,7 @@ class OutputStruct(StructWrapper):
 
         if not self.arrays_initialized:
             raise AttributeError(
-                "%s is ill-defined. It has not initialized all necessary arrays."
-                % self.__class__.__name__
+                f"{self.__class__.__name__} is ill-defined. It has not initialized all necessary arrays."
             )
 
     def _ary2buf(self, ary):
@@ -417,7 +498,7 @@ class OutputStruct(StructWrapper):
 
     def __call__(self):
         """Initialize/allocate a fresh C struct in memory and return it."""
-        if not self.arrays_initialized and not self.dummy:
+        if not (self.arrays_initialized or self.dummy):
             self._init_cstruct()
 
         return self._cstruct
@@ -504,11 +585,7 @@ class OutputStruct(StructWrapper):
                 ):
                     grp = f[kfile]
 
-                    if isinstance(q, StructWithDefaults):
-                        dct = q.self
-                    else:
-                        dct = q
-
+                    dct = q.self if isinstance(q, StructWithDefaults) else q
                     for kk, v in dct.items():
                         if kk not in self._filter_params:
                             file_v = grp.attrs[kk]
@@ -517,8 +594,8 @@ class OutputStruct(StructWrapper):
                             if file_v != v:
                                 logger.debug("For file %s:" % fname)
                                 logger.debug(
-                                    "\tThough md5 and seed matched, the parameter %s did not match, with values %s and %s in file and user respectively"
-                                    % (kk, file_v, v)
+                                    f"\tThough md5 and seed matched, the parameter {kk} did not match,"
+                                    f" with values {file_v} and {v} in file and user respectively"
                                 )
                                 return False
                 else:
@@ -675,13 +752,18 @@ class OutputStruct(StructWrapper):
                 boxes = f[self._name]
             except KeyError:
                 raise IOError(
-                    "While trying to read in %s, the file exists, but does not have the correct structure."
-                    % self._name
+                    f"While trying to read in {self._name}, the file exists, but does not have the "
+                    "correct structure."
                 )
 
             # Fill our arrays.
             for k in boxes.keys():
-                getattr(self, k)[...] = boxes[k][...]
+                if k in self._c_based_pointers:
+                    # C-based pointers can just be read straight in.
+                    setattr(self, k, boxes[k][...])
+                else:
+                    # Other pointers should fill the already-instantiated arrays.
+                    getattr(self, k)[...] = boxes[k][...]
 
             for k in boxes.attrs.keys():
                 if k == "version":
@@ -690,11 +772,9 @@ class OutputStruct(StructWrapper):
 
                     if version != ".".join(__version__.split(".")[:2]):
                         # Ensure that the major and minor versions are the same.
-                        # TODO: This may be a bit extreme in some circumstances?
                         warnings.warn(
-                            "The file {} is out of date (version = {}.{}). Consider using another box and removing it!".format(
-                                pth, version, patch
-                            )
+                            f"The file {pth} is out of date (version = {version}.{patch}). "
+                            f"Consider using another box and removing it!"
                         )
 
                     self.version = version
@@ -819,6 +899,47 @@ class OutputStruct(StructWrapper):
     def __eq__(self, other):
         """Check equality with another object via its __repr__."""
         return repr(self) == repr(other)
+
+    def compute(self, direc, *args, write=True):
+        """Compute the actual function that fills this struct."""
+        logger.debug(f"Calling {self._c_compute_function.__name__} with args: {args}")
+        try:
+            exitcode = self._c_compute_function(
+                *[arg() if isinstance(arg, StructWrapper) else arg for arg in args],
+                self(),
+            )
+        except TypeError as e:
+            logger.error(
+                f"Arguments to {self._c_compute_function.__name__}: "
+                f"{[arg() if isinstance(arg, StructWrapper) else arg for arg in args]}"
+            )
+            raise e
+
+        _process_exitcode(exitcode, self._c_compute_function, args)
+
+        # Ensure memory created in C gets mapped to numpy arrays in this struct.
+        self.filled = True
+        self._memory_map()
+        self._expose()
+
+        # Optionally do stuff with the result (like writing it)
+        if write:
+            self.write(direc)
+
+        return self
+
+    def _memory_map(self):
+        if not self.filled:
+            warnings.warn("Do not call _memory_map yourself!")
+
+        shapes = self._c_shape(self._cstruct)
+        for item in self._c_based_pointers:
+            setattr(self, item, asarray(getattr(self._cstruct, item), shapes[item]))
+
+    def __del__(self):
+        """Safely delete the object and its C-allocated memory."""
+        if self._c_free_function is not None:
+            self._c_free_function(self._cstruct)
 
 
 class StructInstanceWrapper:

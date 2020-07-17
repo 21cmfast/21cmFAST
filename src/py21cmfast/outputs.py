@@ -27,6 +27,7 @@ from ._cfg import config
 from ._utils import OutputStruct as _BaseOutputStruct
 from ._utils import _check_compatible_inputs
 from .c_21cmfast import ffi
+from .c_21cmfast import lib
 from .inputs import AstroParams
 from .inputs import CosmoParams
 from .inputs import FlagOptions
@@ -54,6 +55,8 @@ class _OutputStructZ(_OutputStruct):
 
 class InitialConditions(_OutputStruct):
     """A class containing all initial conditions boxes."""
+
+    _c_compute_function = lib.ComputeInitialConditions
 
     # The filter params indicates parameters to overlook when deciding if a cached box
     # matches current parameters.
@@ -159,6 +162,8 @@ class InitialConditions(_OutputStruct):
 class PerturbedField(_OutputStructZ):
     """A class containing all perturbed field boxes."""
 
+    _c_compute_function = lib.ComputePerturbField
+
     _meta = False
     _filter_params = _OutputStruct._filter_params + [
         "ALPHA_UVB",  # ionization
@@ -227,10 +232,63 @@ class _AllParamsBox(_OutputStructZ):
         super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
 
 
+class HaloField(_AllParamsBox):
+    """A class containing all fields related to halos."""
+
+    _c_based_pointers = (
+        "halo_masses",
+        "halo_coords",
+        "mass_bins",
+        "fgtrm",
+        "sqrt_dfgtrm",
+        "dndlm",
+        "sqrtdn_dlm",
+    )
+    _c_compute_function = lib.ComputeHaloField
+    _c_free_function = lib.free_halo_field
+
+    def _init_arrays(self):
+        self.halo_field = np.zeros(
+            self.user_params.tot_fft_num_pixels, dtype=np.float32
+        )
+
+        self.halo_field.shape = (
+            self.user_params.DIM,
+            self.user_params.DIM,
+            self.user_params.DIM,
+        )
+
+    def _c_shape(self, cstruct):
+        return {
+            "halo_masses": (cstruct.n_halos,),
+            "halo_coords": (cstruct.n_halos, 3),
+            "mass_bins": (cstruct.n_mass_bins,),
+            "fgtrm": (cstruct.n_mass_bins,),
+            "sqrt_dfgtrm": (cstruct.n_mass_bins,),
+            "dndlm": (cstruct.n_mass_bins,),
+            "sqrtdn_dlm": (cstruct.n_mass_bins,),
+        }
+
+
+class PerturbHaloField(_AllParamsBox):
+    """A class containing all fields related to halos."""
+
+    _c_compute_function = lib.ComputePerturbHaloField
+    _c_based_pointers = ("halo_masses", "halo_coords")
+    _c_free_function = lib.free_phf
+
+    def _c_shape(self, cstruct):
+        return {
+            "halo_masses": (cstruct.n_halos,),
+            "halo_coords": (cstruct.n_halos, 3),
+        }
+
+
 class IonizedBox(_AllParamsBox):
     """A class containing all ionized boxes."""
 
     _meta = False
+    _c_compute_function = lib.ComputeIonizedBox
 
     def _init_arrays(self):
         if self.flag_options.USE_MINI_HALOS:
@@ -310,6 +368,7 @@ class IonizedBox(_AllParamsBox):
 class TsBox(_AllParamsBox):
     """A class containing all spin temperature boxes."""
 
+    _c_compute_function = lib.ComputeTsBox
     _meta = False
 
     def _init_arrays(self):
@@ -363,6 +422,8 @@ class TsBox(_AllParamsBox):
 
 class BrightnessTemp(_AllParamsBox):
     """A class containing the brightness temperature box."""
+
+    _c_compute_function = lib.ComputeBrightnessTemp
 
     _meta = False
     _filter_params = _OutputStructZ._filter_params
