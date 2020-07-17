@@ -416,7 +416,7 @@ def plot_global_history(
         The matplotlib Axes object on which to plot. Otherwise, created.
     """
     if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=(4, 7))
+        fig, ax = plt.subplots(1, 1, figsize=(7, 4))
     else:
         fig = ax._gci().figure
 
