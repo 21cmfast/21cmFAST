@@ -74,7 +74,7 @@ For example, the following figure contains slices of lightcones (3D fields in wh
 axis corresponds to both spatial *and* temporal evolution) for the various
 component fields produced by `21cmFAST`.
 
-![Sample of Component Fields output by 21cmFAST](yuxiangs_big_plot_smaller.pdf){height=300px}
+![Sample of Component Fields output by 21cmFAST](yuxiangs-plot-small.pdf){height=300px}
 
 However, `21cmFAST` is a highly specialized code, and its implementation has been
 quite specific and relatively inflexible.
