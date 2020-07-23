@@ -27,7 +27,7 @@ int ComputePerturbField(
 
     char wisdom_filename[500];
 
-    fftwf_complex *HIRES_density_perturb, *HIRES_density_perturb_saved, *HIRES_density_perturb_2nd_copy;
+    fftwf_complex *HIRES_density_perturb, *HIRES_density_perturb_saved;
     fftwf_complex *LOWRES_density_perturb, *LOWRES_density_perturb_saved;
     fftwf_plan plan;
 
@@ -356,24 +356,8 @@ int ComputePerturbField(
 
             }
             else {
-                // Save a copy of the density field for wisdom creation
-                memcpy(HIRES_density_perturb_saved, HIRES_density_perturb, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_PATIENT);
-                fftwf_execute(plan);
-
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                // copy over unfiltered box
-                memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-                fftwf_destroy_plan(plan);
-
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
+                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                Throw(FileError);
             }
         }
         else {
@@ -394,35 +378,15 @@ int ComputePerturbField(
         // FFT back to real space
         if(user_params->USE_FFTW_WISDOM) {
             // Check to see if the wisdom exists, create it if it doesn't
-            sprintf(wisdom_filename,"complex_to_real_DIM%d_NTRHEADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
+            sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
                 plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                              (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
                 fftwf_execute(plan);
             }
             else {
-
-                // Need a temporary copy of the filtered density field (for wisdom creation)
-                HIRES_density_perturb_2nd_copy = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-                memcpy(HIRES_density_perturb_2nd_copy, HIRES_density_perturb, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_PATIENT);
-                fftwf_execute(plan);
-
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                // copy over unfiltered box
-                memcpy(HIRES_density_perturb, HIRES_density_perturb_2nd_copy, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-                fftwf_destroy_plan(plan);
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
-
-                fftwf_free(HIRES_density_perturb_2nd_copy);
+                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                Throw(FileError);
             }
         }
         else {
@@ -483,23 +447,8 @@ int ComputePerturbField(
             fftwf_execute(plan);
         }
         else {
-            // save a copy of the k-space density field
-            memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-
-            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                         (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_PATIENT);
-            fftwf_execute(plan);
-
-            // Store the wisdom for later use
-            fftwf_export_wisdom_to_filename(wisdom_filename);
-
-            // copy over unfiltered box
-            memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-
-            fftwf_destroy_plan(plan);
-            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                         (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
-            fftwf_execute(plan);
+            LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+            Throw(FileError);
         }
     }
     else {
@@ -526,21 +475,8 @@ int ComputePerturbField(
             fftwf_execute(plan);
         }
         else {
-
-            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                         (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_PATIENT);
-            fftwf_execute(plan);
-
-            // Store the wisdom for later use
-            fftwf_export_wisdom_to_filename(wisdom_filename);
-
-            // copy over unfiltered box
-            memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-
-            fftwf_destroy_plan(plan);
-            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                         (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
-            fftwf_execute(plan);
+            LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+            Throw(FileError);
         }
     }
     else {
