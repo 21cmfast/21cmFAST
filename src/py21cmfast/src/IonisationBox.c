@@ -660,21 +660,8 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                 fftwf_execute(plan);
                 fftwf_destroy_plan(plan);
             } else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *) deltax_unfiltered, (fftwf_complex *) deltax_unfiltered,FFTW_PATIENT);
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
-
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                // copy over unfiltered box
-                memcpy(deltax_unfiltered, deltax_unfiltered_original, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *) deltax_unfiltered, (fftwf_complex *) deltax_unfiltered,FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                Throw(FileError);
             }
         } else {
             plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
@@ -877,27 +864,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     fftwf_execute(plan);
                     fftwf_destroy_plan(plan);
                 } else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *) deltax_filtered, (float *) deltax_filtered,FFTW_PATIENT);
-                    fftwf_execute(plan);
-
-                    // Store the wisdom for later use
-                    fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                    // copy over unfiltered box
-                    memcpy(deltax_filtered, deltax_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-
-                    // Repeat calculation as the FFTW WISDOM destroys the data
-                    if (!LAST_FILTER_STEP ||
-                        ((R - cell_length_factor * (user_params->BOX_LEN / (double) (user_params->HII_DIM))) > FRACT_FLOAT_ERR)) {
-                        filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
-                    }
-
-                    fftwf_destroy_plan(plan);
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *) deltax_filtered, (float *) deltax_filtered,FFTW_WISDOM_ONLY);
-                    fftwf_execute(plan);
-                    fftwf_destroy_plan(plan);
+                    LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                    Throw(FileError);
                 }
             } else {
                 plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
