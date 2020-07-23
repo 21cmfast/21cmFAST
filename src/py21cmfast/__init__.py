@@ -29,6 +29,7 @@ from .wrapper import UserParams
 from .wrapper import brightness_temperature
 from .wrapper import compute_luminosity_function
 from .wrapper import compute_tau
+from .wrapper import construct_fftw_wisdoms
 from .wrapper import determine_halo_list
 from .wrapper import get_all_fieldnames
 from .wrapper import global_params

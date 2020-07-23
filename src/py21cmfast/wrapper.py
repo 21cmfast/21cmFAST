@@ -307,6 +307,22 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
 # ======================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================
+def construct_fftw_wisdoms(*, user_params=None, cosmo_params=None):
+    """Construct all necessary FFTW wisdomes.
+
+    Parameters
+    ----------
+    user_params : :class:`~inputs.UserParams`
+        Parameters defining the simulation run.
+
+    """
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+
+    # Run the C code
+    return lib.CreateFFTW_Wisdoms(user_params(), cosmo_params())
+
+
 def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
     """Compute the optical depth to reionization under the given model.
 
