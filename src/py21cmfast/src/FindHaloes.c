@@ -185,7 +185,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             // do the FFT to get delta_m box
             if(user_params->USE_FFTW_WISDOM) {
                 // Check to see if the wisdom exists, create it if it doesn't
-                sprintf(wisdom_filename,"complex_to_real_DIM%d_NTRHEADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
+                sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
                 if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
                     plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                                  (fftwf_complex *)density_field, (float *)density_field, FFTW_WISDOM_ONLY);

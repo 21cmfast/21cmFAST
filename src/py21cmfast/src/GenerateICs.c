@@ -984,8 +984,8 @@ int CreateFFTW_Wisdoms(struct UserParams *user_params, struct CosmoParams *cosmo
 
                 // Store the wisdom for later use
                 fftwf_export_wisdom_to_filename(wisdom_filename);
+                fftwf_destroy_plan(plan);
             }
-            fftwf_destroy_plan(plan);
 
             sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
             if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
@@ -997,8 +997,8 @@ int CreateFFTW_Wisdoms(struct UserParams *user_params, struct CosmoParams *cosmo
 
                 // Store the wisdom for later use
                 fftwf_export_wisdom_to_filename(wisdom_filename);
+                fftwf_destroy_plan(plan);
             }
-            fftwf_destroy_plan(plan);
 
             sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
             if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
@@ -1010,8 +1010,8 @@ int CreateFFTW_Wisdoms(struct UserParams *user_params, struct CosmoParams *cosmo
 
                 // Store the wisdom for later use
                 fftwf_export_wisdom_to_filename(wisdom_filename);
+                fftwf_destroy_plan(plan);
             }
-            fftwf_destroy_plan(plan);
 
             sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
             if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
@@ -1023,8 +1023,8 @@ int CreateFFTW_Wisdoms(struct UserParams *user_params, struct CosmoParams *cosmo
 
                 // Store the wisdom for later use
                 fftwf_export_wisdom_to_filename(wisdom_filename);
+                fftwf_destroy_plan(plan);
             }
-            fftwf_destroy_plan(plan);
 
             fftwf_cleanup_threads();
             fftwf_cleanup();
