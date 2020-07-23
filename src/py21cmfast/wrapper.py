@@ -833,6 +833,9 @@ def initial_conditions(
             user_params=user_params, cosmo_params=cosmo_params, random_seed=random_seed
         )
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # First check whether the boxes already exist.
         if not regenerate:
             try:
@@ -960,6 +963,9 @@ def perturb_field(
             except IOError:
                 pass
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # Make sure we've got computed init boxes.
         if init_boxes is None or not init_boxes.filled:
             init_boxes = initial_conditions(
@@ -1086,6 +1092,9 @@ def determine_halo_list(
                 return fields
             except IOError:
                 pass
+
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
 
         # Make sure we've got computed init boxes.
         if init_boxes is None or not init_boxes.filled:
@@ -1473,6 +1482,9 @@ def ionize_box(
             random_seed=random_seed,
         )
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # Check whether the boxes already exist
         if not regenerate:
             try:
@@ -1811,6 +1823,9 @@ def spin_temperature(
             random_seed=random_seed,
         )
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # Check whether the boxes already exist on disk.
         if not regenerate:
             try:
@@ -1965,6 +1980,11 @@ def brightness_temperature(
             flag_options=ionized_box.flag_options,
             redshift=ionized_box.redshift,
             random_seed=ionized_box.random_seed,
+        )
+
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(
+            user_params=ionized_box.user_params, cosmo_params=ionized_box.cosmo_params
         )
 
         # Check whether the boxes already exist on disk.
