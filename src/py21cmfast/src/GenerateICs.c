@@ -938,7 +938,7 @@ int ComputeInitialConditions(
     return(0);
 }
 
-int CreateFFTW_Wisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_params) {
+int CreateFFTWWisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_params) {
 
     int status;
 
