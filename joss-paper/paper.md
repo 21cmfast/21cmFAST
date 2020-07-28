@@ -64,17 +64,17 @@ parameter space that still remains consistent with the data.
 
 Amongst practitioners in the field of 21-cm cosmology, the `21cmFAST` program has become
 the *de facto* standard for such semi-numerical simulators.
-`21cmFAST` [@mesinger2007,@mesinger2010] is a high-performance C code that uses the
+`21cmFAST` [@mesinger2007; @mesinger2010] is a high-performance C code that uses the
 excursion set formalism [@furlanetto2004] to
 identify regions of ionized hydrogen atop a cosmological density field evolved using
-first- or second-order Lagrangian perturbation theory [@zeldovich1970, @scocciomarro2002],
+first- or second-order Lagrangian perturbation theory [@zeldovich1970; @scoccimarro2002],
 tracking the thermal and ionization state of the intergalactic medium, and computing
 X-ray, soft UV and ionizing UV cosmic radiation fields based on parametrized galaxy models.
 For example, the following figure contains slices of lightcones (3D fields in which one
 axis corresponds to both spatial *and* temporal evolution) for the various
 component fields produced by `21cmFAST`.
 
-![Sample of Component Fields output by 21cmFAST](yuxiangs-plot-small.pdf){height=300px}
+![Sample of Component Fields output by 21cmFAST](yuxiangs-plot-small.png){height=300px}
 
 However, `21cmFAST` is a highly specialized code, and its implementation has been
 quite specific and relatively inflexible.
