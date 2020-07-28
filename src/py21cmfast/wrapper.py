@@ -308,7 +308,7 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
 # WRAPPING FUNCTIONS
 # ======================================================================================
 def construct_fftw_wisdoms(*, user_params=None, cosmo_params=None):
-    """Construct all necessary FFTW wisdomes.
+    """Construct all necessary FFTW wisdoms.
 
     Parameters
     ----------
@@ -320,7 +320,7 @@ def construct_fftw_wisdoms(*, user_params=None, cosmo_params=None):
     cosmo_params = CosmoParams(cosmo_params)
 
     # Run the C code
-    return lib.CreateFFTW_Wisdoms(user_params(), cosmo_params())
+    return lib.CreateFFTWWisdoms(user_params(), cosmo_params())
 
 
 def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):

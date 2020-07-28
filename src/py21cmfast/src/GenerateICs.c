@@ -975,6 +975,18 @@ int CreateFFTW_Wisdoms(struct UserParams *user_params, struct CosmoParams *cosmo
                 }
             }
 
+#pragma omp parallel shared(LOWRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
+            {
+#pragma omp for
+                for (i=0; i<user_params->HII_DIM; i++){
+                    for (j=0; j<user_params->HII_DIM; j++){
+                        for (k=0; k<=HII_MIDDLE; k++){
+                            LOWRES_box[HII_C_INDEX(i, j, k)] = 0.0;
+                        }
+                    }
+                }
+            }
+
             sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
             if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
                 // Going to need to construct an FFTW_Wisdom for this box

@@ -172,7 +172,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
 
 float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_params, int Npoints, float *redshifts, float *global_xHI);
 
-int CreateFFTW_Wisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_params);
+int CreateFFTWWisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params);
