@@ -15,7 +15,7 @@ authors:
   - name: Andrei Mesinger
     orcid: 0000-0003-3374-1772
     affiliation: 4
-  - name: Julian B. Mu\~noz
+  - name: Julian B. Muñoz
     orcid: 0000-0002-8984-0465
     affiliation: 5
   - name: Yuxiang Qin
