@@ -1,5 +1,5 @@
 """The py21cmfast package."""
-__version__ = "3.0.0"
+__version__ = "3.0.1"
 
 # This just ensures that the default directory for boxes is created.
 from os import mkdir as _mkdir
@@ -29,6 +29,7 @@ from .wrapper import UserParams
 from .wrapper import brightness_temperature
 from .wrapper import compute_luminosity_function
 from .wrapper import compute_tau
+from .wrapper import construct_fftw_wisdoms
 from .wrapper import determine_halo_list
 from .wrapper import get_all_fieldnames
 from .wrapper import global_params

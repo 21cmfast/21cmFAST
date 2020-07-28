@@ -116,31 +116,8 @@ LOG_DEBUG("Begin Initialisation");
 
             }
             else {
-
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (float *)density_field, (fftwf_complex *)density_field, FFTW_PATIENT);
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
-
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                // copy back over the density cube
-#pragma omp parallel shared(boxes,density_field) private(i,j,k) num_threads(user_params->N_THREADS)
-                {
-#pragma omp for
-                    for (i=0; i<user_params->DIM; i++){
-                        for (j=0; j<user_params->DIM; j++){
-                            for (k=0; k<user_params->DIM; k++){
-                                *((float *)density_field + R_FFT_INDEX(i,j,k)) = *((float *)boxes->hires_density + R_INDEX(i,j,k));
-                            }
-                        }
-                    }
-                }
-
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (float *)density_field, (fftwf_complex *)density_field, FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
+                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                Throw(FileError);
             }
         }
         else {
@@ -208,29 +185,15 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             // do the FFT to get delta_m box
             if(user_params->USE_FFTW_WISDOM) {
                 // Check to see if the wisdom exists, create it if it doesn't
-                sprintf(wisdom_filename,"complex_to_real_DIM%d_NTRHEADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
+                sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
                 if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
                     plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                                  (fftwf_complex *)density_field, (float *)density_field, FFTW_WISDOM_ONLY);
                     fftwf_execute(plan);
                 }
                 else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                 (fftwf_complex *)density_field, (float *)density_field, FFTW_PATIENT);
-                    fftwf_execute(plan);
-
-                    // Store the wisdom for later use
-                    fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                    // create the same filtered density field
-                    memcpy(density_field, density_field_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-                    filter_box(density_field, 0, global_params.HALO_FILTER, R);
-
-                    fftwf_destroy_plan(plan);
-                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                 (fftwf_complex *)density_field, (float *)density_field, FFTW_WISDOM_ONLY);
-                    fftwf_execute(plan);
+                    LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                    Throw(FileError);
                 }
             }
             else {

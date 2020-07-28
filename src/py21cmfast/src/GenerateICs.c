@@ -282,27 +282,15 @@ int ComputeInitialConditions(
     // FFT back to real space
     if(user_params->USE_FFTW_WISDOM) {
         // Check to see if the wisdom exists, create it if it doesn't
-        sprintf(wisdom_filename,"complex_to_real_DIM%d_NTRHEADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
+        sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
         if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
             plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                          (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
             fftwf_execute(plan);
         }
         else {
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_PATIENT);
-            fftwf_execute(plan);
-
-            // Store the wisdom for later use
-            fftwf_export_wisdom_to_filename(wisdom_filename);
-
-            // copy over unfiltered box
-            memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-            fftwf_destroy_plan(plan);
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
-            fftwf_execute(plan);
+            LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+            Throw(FileError);
         }
     }
     else {
@@ -417,32 +405,12 @@ int ComputeInitialConditions(
                 if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
                     plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                                  (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY);
+                    fftwf_execute(plan);
                 }
                 else {
-                    // Going to need to construct an FFTW_Wisdom for this box. Now its time to allocate the memory to save a copy of the box which gets
-                    // destroyed on FFTW Wisdom creation
-                    HIRES_box_vcb_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-                    // Make a copy of the x-direction velocity
-                    memcpy(HIRES_box_vcb_saved, HIRES_box_vcb_x, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_PATIENT);
-                    fftwf_execute(plan);
-
-                    // Store the wisdom for later use
-                    fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                    // return copy of the x-direction velocity that we saved
-                    memcpy(HIRES_box_vcb_x, HIRES_box_vcb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                 (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY);
-
-                    // No longer need the saved box, we only enter here once
-                    fftwf_free(HIRES_box_vcb_saved);
+                    LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                    Throw(FileError);
                 }
-                fftwf_execute(plan);
 
                 plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                              (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY);
@@ -788,65 +756,8 @@ int ComputeInitialConditions(
                                                  (float *) HIRES_box, (fftwf_complex *) HIRES_box, FFTW_WISDOM_ONLY);
                     fftwf_execute(plan);
                 } else {
-                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                 (float *) HIRES_box, (fftwf_complex *) HIRES_box, FFTW_PATIENT);
-                    fftwf_execute(plan);
-
-                    // Store the wisdom for later use
-                    fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                    memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
-
-                    // Repeating the above computation as the creating the wisdom overwrites the input data
-
-                    // Then we will have the laplacian of phi_2 (eq. D13b)
-                    // After that we have to return in Fourier space and generate the Fourier transform of phi_2
-                    int m, l;
-#pragma omp parallel shared(HIRES_box, phi_1) private(i, j, k, m, l) num_threads(user_params->N_THREADS)
-                    {
-#pragma omp for
-                        for (i = 0; i < user_params->DIM; i++) {
-                            for (j = 0; j < user_params->DIM; j++) {
-                                for (k = 0; k < user_params->DIM; k++) {
-                                    *((float *) HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                        (unsigned long long)(j),
-                                                                        (unsigned long long)(k))) = 0.0;
-                                    for (m = 0; m < 3; ++m) {
-                                        for (l = m + 1; l < 3; ++l) {
-                                            *((float *) HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                                (unsigned long long)(j),
-                                                                                (unsigned long long)(k))) +=
-                                                    ( *((float *) (phi_1[PHI_INDEX(l, l)]) + R_FFT_INDEX((unsigned long long)(i),
-                                                                                                         (unsigned long long)(j),
-                                                                                                         (unsigned long long)(k))) ) *
-                                                    ( *((float *) (phi_1[PHI_INDEX(m, m)]) + R_FFT_INDEX((unsigned long long)(i),
-                                                                                                         (unsigned long long)(j),
-                                                                                                         (unsigned long long)(k))) );
-
-                                            *((float *) HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                                (unsigned long long)(j),
-                                                                                (unsigned long long)(k))) -=
-                                                    (*((float *) (phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),
-                                                                                                        (unsigned long long)(j),
-                                                                                                        (unsigned long long)(k))) ) *
-                                                    (*((float *) (phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),
-                                                                                                        (unsigned long long)(j),
-                                                                                                        (unsigned long long)(k))) );
-                                        }
-                                    }
-                                    *((float *) HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                        (unsigned long long)(j),
-                                                                        (unsigned long long)(k))) /= TOT_NUM_PIXELS;
-                                }
-                            }
-                        }
-                    }
-
-
-                    fftwf_destroy_plan(plan);
-                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                 (float *) HIRES_box, (fftwf_complex *) HIRES_box, FFTW_WISDOM_ONLY);
-                    fftwf_execute(plan);
+                    LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                    Throw(FileError);
                 }
             }
         }
@@ -1019,6 +930,123 @@ int ComputeInitialConditions(
         gsl_rng_free (r[i]);
     }
     LOG_DEBUG("Cleaned Up.");
+    } // End of Try{}
+
+    Catch(status){
+        return(status);
+    }
+    return(0);
+}
+
+int CreateFFTWWisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_params) {
+
+    int status;
+
+    Try{ // This Try wraps the entire function so we don't indent.
+
+        // Put this check here to minimise checks on Python side
+        if(user_params->USE_FFTW_WISDOM) {
+            Broadcast_struct_global_UF(user_params,cosmo_params);
+
+            fftwf_plan plan;
+
+            char wisdom_filename[500];
+
+            int i,j,k;
+
+            omp_set_num_threads(user_params->N_THREADS);
+            fftwf_init_threads();
+            fftwf_plan_with_nthreads(user_params->N_THREADS);
+            fftwf_cleanup_threads();
+
+            // allocate array for the k-space and real-space boxes
+            fftwf_complex *HIRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+            fftwf_complex *LOWRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+#pragma omp parallel shared(HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
+            {
+#pragma omp for
+                for (i=0; i<user_params->DIM; i++){
+                    for (j=0; j<user_params->DIM; j++){
+                        for (k=0; k<=MIDDLE; k++){
+                            HIRES_box[C_INDEX(i, j, k)] = 0.0;
+                        }
+                    }
+                }
+            }
+
+#pragma omp parallel shared(LOWRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
+            {
+#pragma omp for
+                for (i=0; i<user_params->HII_DIM; i++){
+                    for (j=0; j<user_params->HII_DIM; j++){
+                        for (k=0; k<=HII_MIDDLE; k++){
+                            LOWRES_box[HII_C_INDEX(i, j, k)] = 0.0;
+                        }
+                    }
+                }
+            }
+
+            sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
+            if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
+                // Going to need to construct an FFTW_Wisdom for this box
+                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_PATIENT);
+                fftwf_execute(plan);
+
+                // Store the wisdom for later use
+                fftwf_export_wisdom_to_filename(wisdom_filename);
+                fftwf_destroy_plan(plan);
+            }
+
+            sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
+            if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
+
+                // Going to need to construct an FFTW_Wisdom for this box
+                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_PATIENT);
+                fftwf_execute(plan);
+
+                // Store the wisdom for later use
+                fftwf_export_wisdom_to_filename(wisdom_filename);
+                fftwf_destroy_plan(plan);
+            }
+
+            sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
+            if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
+
+                // Going to need to construct an FFTW_Wisdom for this box
+                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *)LOWRES_box, (fftwf_complex *)LOWRES_box, FFTW_PATIENT);
+                fftwf_execute(plan);
+
+                // Store the wisdom for later use
+                fftwf_export_wisdom_to_filename(wisdom_filename);
+                fftwf_destroy_plan(plan);
+            }
+
+            sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
+            if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
+
+                // Going to need to construct an FFTW_Wisdom for this box
+                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                             (float *)LOWRES_box, (fftwf_complex *)LOWRES_box, FFTW_PATIENT);
+                fftwf_execute(plan);
+
+                // Store the wisdom for later use
+                fftwf_export_wisdom_to_filename(wisdom_filename);
+                fftwf_destroy_plan(plan);
+            }
+
+            fftwf_cleanup_threads();
+            fftwf_cleanup();
+            fftwf_forget_wisdom();
+
+            // deallocate
+            fftwf_free(HIRES_box);
+            fftwf_free(LOWRES_box);
+        }
+
     } // End of Try{}
 
     Catch(status){

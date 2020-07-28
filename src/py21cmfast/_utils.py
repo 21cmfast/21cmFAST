@@ -41,6 +41,7 @@ GSLERROR = 2
 VALUEERROR = 3
 PARAMETERERROR = 4
 MEMORYALLOCERROR = 5
+FILEERROR = 6
 
 
 def _process_exitcode(exitcode, fnc, args):
@@ -50,7 +51,7 @@ def _process_exitcode(exitcode, fnc, args):
 
         if exitcode in (GSLERROR, PARAMETERERROR):
             raise ParameterError
-        elif exitcode in (IOERROR, VALUEERROR, MEMORYALLOCERROR):
+        elif exitcode in (IOERROR, VALUEERROR, MEMORYALLOCERROR, FILEERROR):
             raise FatalCError
         else:  # Unknown C code
             raise FatalCError("Unknown error in C. Please report this error!")

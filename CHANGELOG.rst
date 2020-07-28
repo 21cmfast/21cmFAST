@@ -1,6 +1,15 @@
 Changelog
 =========
 
+v3.0.1
+------
+Modifications to the internal code structure of 21cmFAST
+
+Added
+~~~~~
+* Refactor FFTW wisdom creation to be a python callable function
+
+
 v3.0.0
 ------
 Complete overhaul of 21cmFAST, including a robust python-wrapper and interface,

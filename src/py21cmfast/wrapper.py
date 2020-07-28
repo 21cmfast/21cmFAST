@@ -307,6 +307,22 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
 # ======================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================
+def construct_fftw_wisdoms(*, user_params=None, cosmo_params=None):
+    """Construct all necessary FFTW wisdoms.
+
+    Parameters
+    ----------
+    user_params : :class:`~inputs.UserParams`
+        Parameters defining the simulation run.
+
+    """
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+
+    # Run the C code
+    return lib.CreateFFTWWisdoms(user_params(), cosmo_params())
+
+
 def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
     """Compute the optical depth to reionization under the given model.
 
@@ -817,6 +833,9 @@ def initial_conditions(
             user_params=user_params, cosmo_params=cosmo_params, random_seed=random_seed
         )
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # First check whether the boxes already exist.
         if not regenerate:
             try:
@@ -944,6 +963,9 @@ def perturb_field(
             except IOError:
                 pass
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # Make sure we've got computed init boxes.
         if init_boxes is None or not init_boxes.filled:
             init_boxes = initial_conditions(
@@ -1070,6 +1092,9 @@ def determine_halo_list(
                 return fields
             except IOError:
                 pass
+
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
 
         # Make sure we've got computed init boxes.
         if init_boxes is None or not init_boxes.filled:
@@ -1457,6 +1482,9 @@ def ionize_box(
             random_seed=random_seed,
         )
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # Check whether the boxes already exist
         if not regenerate:
             try:
@@ -1795,6 +1823,9 @@ def spin_temperature(
             random_seed=random_seed,
         )
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # Check whether the boxes already exist on disk.
         if not regenerate:
             try:
@@ -1949,6 +1980,11 @@ def brightness_temperature(
             flag_options=ionized_box.flag_options,
             redshift=ionized_box.redshift,
             random_seed=ionized_box.random_seed,
+        )
+
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(
+            user_params=ionized_box.user_params, cosmo_params=ionized_box.cosmo_params
         )
 
         # Check whether the boxes already exist on disk.
