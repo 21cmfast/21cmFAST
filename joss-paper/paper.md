@@ -136,7 +136,7 @@ While in v3 we have focused on the establishment of a stable and extendable infr
 we have also incorporated several new scientific features, appearing in separate papers:
 
 * Generate transfer functions using the `CLASS` Boltzmann code.
-* Simulate the effects of relative velocities between dark matter and Baryons [@munoz2019a,@munoz2019b].
+* Simulate the effects of relative velocities between dark matter and Baryons [@munoz2019a; @munoz2019b].
 * Correction for non-conservation of ionizing photons (Park, Greig et al., *in prep*).
 * Include molecularly cooled galaxies with distinct properties [@qin2020]
 * Calculate rest-frame UV luminosity functions based on parametrized galaxy models.
