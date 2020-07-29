@@ -1,6 +1,13 @@
 Changelog
 =========
 
+v3.0.2
+------
+
+Fixed
+-----
+* Added prototype functions to enable compilation for some standard compilers on MacOS.
+
 v3.0.1
 ------
 Modifications to the internal code structure of 21cmFAST

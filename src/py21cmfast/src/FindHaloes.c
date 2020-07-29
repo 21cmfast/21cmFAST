@@ -10,6 +10,11 @@
 
 int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z, int check_type);
 int pixel_in_halo(struct UserParams *user_params, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index );
+void init_halo_coords(struct HaloField *halos, int n_halos);
+void free_halo_field(struct HaloField *halos);
+void init_hmf(struct HaloField *halos);
+void trim_hmf(struct HaloField *halos);
+
 
 int ComputeHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                      struct AstroParams *astro_params, struct FlagOptions *flag_options,
@@ -341,6 +346,7 @@ LOG_DEBUG("Halo Masses: %e %e %e %e", halos->halo_masses[0], halos->halo_masses[
     return(0);
 
 }
+
 
 
 // Function check_halo combines the original two functions overlap_halo and update_in_halo
