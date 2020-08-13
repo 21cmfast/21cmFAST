@@ -683,12 +683,8 @@ class OutputStruct(StructWrapper):
                 # Save the boxes to the file
                 boxes = f.create_group(self._name)
 
-                # Go through all fields in this struct, and save
-                for k in self.pointer_fields:
-                    boxes.create_dataset(k, data=getattr(self, k))
+                self.write_data_to_hdf5_group(boxes)
 
-                for k in self.primitive_fields:
-                    boxes.attrs[k] = getattr(self, k)
         except OSError as e:
             logger.warning(
                 "When attempting to write {} to file, write failed with the "
@@ -697,6 +693,22 @@ class OutputStruct(StructWrapper):
                 )
             )
             logger.warning(e)
+
+    def write_data_to_hdf5_group(self, group: h5py.Group):
+        """
+        Write out this object to a particular HDF5 subgroup.
+
+        Parameters
+        ----------
+        group
+            The HDF5 group into which to write the object.
+        """
+        # Go through all fields in this struct, and save
+        for k in self.pointer_fields:
+            group.create_dataset(k, data=getattr(self, k))
+
+        for k in self.primitive_fields:
+            group.attrs[k] = getattr(self, k)
 
     def save(self, fname=None, direc="."):
         """Save the box to disk.

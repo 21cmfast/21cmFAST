@@ -2275,6 +2275,11 @@ def run_coeval(
 
         st_tracker = [None] * len(redshift)
 
+        spin_temp_files = []
+        perturb_files = []
+        ionize_files = []
+        brightness_files = []
+
         # Iterate through redshift from top to bottom
         for iz, z in enumerate(redshifts):
             if z in redshift:
@@ -2342,9 +2347,7 @@ def run_coeval(
                 if flag_options.USE_MINI_HALOS:
                     pf = pf2
             else:
-                logger.debug(
-                    "PID={} doing brightness temp for z={}".format(os.getpid(), z)
-                )
+                logger.debug(f"PID={os.getpid()} doing brightness temp for z={z}")
                 ib_tracker[redshift.index(z)] = ib2
                 st_tracker[redshift.index(z)] = (
                     st2 if flag_options.USE_TS_FLUCT else None
@@ -2359,6 +2362,12 @@ def run_coeval(
                     regenerate=regenerate,
                 )
 
+            perturb_files.append((z, os.path.join(direc, pf2.filename)))
+            if flag_options.USE_TS_FLUCT:
+                spin_temp_files.append((z, os.path.join(direc, st2.filename)))
+            ionize_files.append((z, os.path.join(direc, ib2.filename)))
+            brightness_files.append((z, os.path.join(direc, bt.filename)))
+
         if flag_options.PHOTON_CONS:
             photon_nonconservation_data = _get_photon_nonconservation_data()
             if photon_nonconservation_data:
@@ -2366,8 +2375,24 @@ def run_coeval(
         else:
             photon_nonconservation_data = None
 
+        # TODO: fix this call up.
         coevals = [
-            Coeval(z, init_box, p, ib, _bt, st, photon_nonconservation_data)
+            Coeval(
+                z,
+                init_box,
+                p,
+                ib,
+                _bt,
+                st,
+                photon_nonconservation_data,
+                cache_files={
+                    "init": (0, os.path.join(direc, init_box.filename)),
+                    "perturb": perturb_files,
+                    "ionize": ionize_files,
+                    "brightness": brightness_files,
+                    "spin_temp": spin_temp_files,
+                },
+            )
             for z, p, ib, _bt, st in zip(redshift, perturb, ib_tracker, bt, st_tracker)
         ]
 
