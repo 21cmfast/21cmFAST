@@ -24,6 +24,9 @@ authors:
   - name: Jaehong Park
     orcid: 0000-0003-3095-6137
     affiliation: 4
+  - name: Catherine A. Watkinson
+    orcid: https://orcid.org/0000-0003-1443-3483
+    affiliation: 6
 
 affiliations:
  - name: School of Earth and Space Exploration, Arizona State University, Phoenix, USA
@@ -36,6 +39,9 @@ affiliations:
    index: 4
  - name: Department of Physics, Harvard University, 17 Oxford St., Cambridge, MA, 02138, USA
    index: 5
+ - name: School of Physics and Astronomy, Queen Mary University of London, G O Jones Building, 327 Mile End Road, London, E1 4NS, UK
+   index: 6
+
 date: 29 Feb 2020
 bibliography: paper.bib
 ---
