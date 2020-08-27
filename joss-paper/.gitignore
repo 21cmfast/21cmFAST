@@ -1,0 +1,8 @@
+*.aux
+*.bcf
+*.dvi
+*.log
+*.out
+*.pdf
+*.run.xml
+*.tex

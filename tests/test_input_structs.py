@@ -19,7 +19,7 @@ def c():
 
 
 def test_diff(c):
-    "Ensure that the python dict has all fields"
+    """Ensure that the python dict has all fields"""
     d = CosmoParams(SIGMA_8=0.9)
 
     assert c is not d
@@ -68,6 +68,12 @@ def test_dynamic_variables():
     u.update(DIM=200)
 
     assert u.DIM == 200
+
+
+def test_clone():
+    u = UserParams()
+    v = u.clone()
+    assert u == v
 
 
 def test_repr(c):

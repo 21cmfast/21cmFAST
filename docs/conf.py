@@ -5,9 +5,9 @@ from __future__ import unicode_literals
 import os
 import sys
 from unittest.mock import MagicMock
+from pathlib import Path
 
-sys.path.insert(0, os.path.abspath("../"))
-
+sys.path.insert(0, str(Path(__file__).absolute().parent.parent / 'src'))
 
 class Mock(MagicMock):
     """Make a Mock so that a package doesn't have to actually exist."""
@@ -18,8 +18,14 @@ class Mock(MagicMock):
         return MagicMock()
 
 
-MOCK_MODULES = ["c_21cmfast"]
+MOCK_MODULES = [
+    'py21cmfast.c_21cmfast', 'click', 'tqdm', 'pyyaml',
+    'scipy', 'scipy.interpolate', 'h5py', 'cached_property'
+]
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+
+import py21cmfast
+#import py21cmfast.cache_tools
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -50,10 +56,10 @@ numpydoc_show_class_members = False
 source_suffix = ".rst"
 master_doc = "index"
 project = "21cmFAST"
-year = "2019"
+year = "2020"
 author = "The 21cmFAST collaboration"
 copyright = "{0}, {1}".format(year, author)
-version = release = "0.1.0"
+version = release = py21cmfast.__version__
 templates_path = ["templates"]
 
 pygments_style = "trac"

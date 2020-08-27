@@ -15,7 +15,7 @@ authors:
   - name: Andrei Mesinger
     orcid: 0000-0003-3374-1772
     affiliation: 4
-  - name: Julian B. Mu\~noz
+  - name: Julian B. Muñoz
     orcid: 0000-0002-8984-0465
     affiliation: 5
   - name: Yuxiang Qin
@@ -70,17 +70,17 @@ parameter space that still remains consistent with the data.
 
 Amongst practitioners in the field of 21-cm cosmology, the `21cmFAST` program has become
 the *de facto* standard for such semi-numerical simulators.
-`21cmFAST` [@mesinger2007,@mesinger2010] is a high-performance C code that uses the
+`21cmFAST` [@mesinger2007; @mesinger2010] is a high-performance C code that uses the
 excursion set formalism [@furlanetto2004] to
 identify regions of ionized hydrogen atop a cosmological density field evolved using
-first- or second-order Lagrangian perturbation theory [@zeldovich1970, @scocciomarro2002],
+first- or second-order Lagrangian perturbation theory [@zeldovich1970; @scoccimarro2002],
 tracking the thermal and ionization state of the intergalactic medium, and computing
 X-ray, soft UV and ionizing UV cosmic radiation fields based on parametrized galaxy models.
 For example, the following figure contains slices of lightcones (3D fields in which one
 axis corresponds to both spatial *and* temporal evolution) for the various
 component fields produced by `21cmFAST`.
 
-![Sample of Component Fields output by 21cmFAST](yuxiangs_big_plot_smaller.pdf){height=300px}
+![Sample of Component Fields output by 21cmFAST](yuxiangs-plot-small.png){height=300px}
 
 However, `21cmFAST` is a highly specialized code, and its implementation has been
 quite specific and relatively inflexible.
@@ -142,7 +142,7 @@ While in v3 we have focused on the establishment of a stable and extendable infr
 we have also incorporated several new scientific features, appearing in separate papers:
 
 * Generate transfer functions using the `CLASS` Boltzmann code.
-* Simulate the effects of relative velocities between dark matter and Baryons [@munoz2019a,@munoz2019b].
+* Simulate the effects of relative velocities between dark matter and Baryons [@munoz2019a; @munoz2019b].
 * Correction for non-conservation of ionizing photons (Park, Greig et al., *in prep*).
 * Include molecularly cooled galaxies with distinct properties [@qin2020]
 * Calculate rest-frame UV luminosity functions based on parametrized galaxy models.
@@ -194,15 +194,14 @@ lightcone = p21c.run_lightcone(
 lightcone.save()
 
 # Make a lightcone sliceplot
-p21c.plotting(lightcone, "brightness_temp")
+p21c.plotting.lightcone_sliceplot(lightcone, "brightness_temp")
 ```
 
 ![Brightness Temperature Lightcone](lightcone.pdf){height=300px}
 
 ```python
 # Plot a global quantity
-import matplotlib.pyplot as plt
-plt.plot(lightcone.node_redshifts, lightcone.xH_box)
+p21c.plotting.plot_global_history(lightcone, "xH")
 ```
 
 ![Global reionization history](xH_history.pdf){height=300px}

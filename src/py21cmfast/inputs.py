@@ -108,7 +108,26 @@ class GlobalParams(StructInstanceWrapper):
         .. note:: If you are interested in snapshots of the same realization at several
                   redshifts,it is recommended to turn off this feature, as halos can
                   stochastically "pop in and out of" existence from one redshift to the next.
-
+    R_OVERLAP_FACTOR : float
+        When using USE_HALO_FIELD, it is used as a factor the halo's radius, R, so that the
+        effective radius is R_eff = R_OVERLAP_FACTOR * R.  Halos whose centers are less than
+        R_eff away from another halo are not allowed. R_OVERLAP_FACTOR = 1 is fully disjoint
+        R_OVERLAP_FACTOR = 0 means that centers are allowed to lay on the edges of
+        neighboring halos.
+    DELTA_CRIT_MODE : int
+        The delta_crit to be used for determining whether a halo exists in a cell
+            0: delta_crit is constant (i.e. 1.686)
+            1: delta_crit is the sheth tormen ellipsoidal collapse correction to delta_crit
+    HALO_FILTER : int
+        Filter for the density field used to generate the halo field with EPS
+            0: real space top hat filter
+            1: sharp k-space filter
+            2: gaussian filter
+    OPTIMIZE : bool
+        Finding halos can be made more efficient if the filter size is sufficiently large that
+        we can switch to the collapse fraction at a later stage.
+    OPTIMIZE_MIN_MASS : float
+        Minimum mass on which the optimization for the halo finder will be used.
     T_USE_VELOCITIES : bool
         Whether to use velocity corrections in 21-cm fields
 
@@ -125,6 +144,8 @@ class GlobalParams(StructInstanceWrapper):
 
     VELOCITY_COMPONENT : int
         Component of the velocity to be used in 21-cm temperature maps (1=x, 2=y, 3=z)
+    DELTA_R_FACTOR : float
+        Factor by which to scroll through filter radius for halos
     DELTA_R_HII_FACTOR : float
         Factor by which to scroll through filter radius for bubbles
     HII_FILTER : int, {0, 1, 2}
@@ -253,15 +274,29 @@ class GlobalParams(StructInstanceWrapper):
         1. gaussian
     external_table_path : str
         The system path to find external tables for calculation speedups. DO NOT MODIFY.
+    R_BUBBLE_MIN : float
+        Minimum radius of bubbles to be searched in cMpc. One can set this to 0, but should
+        be careful with shot noise if running on a fine, non-linear density grid. Default
+        is set to L_FACTOR which is (4PI/3)^(-1/3) = 0.620350491.
+    M_MIN_INTEGRAL:
+        Minimum mass when performing integral on halo mass function.
+    M_MAX_INTEGRAL:
+        Maximum mass when performing integral on halo mass function.
+    T_RE:
+        The peak gas temperatures behind the supersonic ionization fronts during reionization.
     """
 
     def __init__(self, wrapped, ffi):
         super().__init__(wrapped, ffi)
 
-        EXTERNALTABLES = ffi.new(
-            "char[]", path.join(path.expanduser("~"), ".21cmfast").encode()
-        )
+        table_path = path.join(path.expanduser("~"), ".21cmfast")
+        EXTERNALTABLES = ffi.new("char[]", table_path.encode())
         self.external_table_path = EXTERNALTABLES
+
+        if not path.exists(table_path):
+            raise IOError(
+                f"Found no user data directory for 21cmFAST! Should be at {table_path}"
+            )
 
     @contextlib.contextmanager
     def use(self, **kwargs):
@@ -382,6 +417,20 @@ class UserParams(StructWithDefaults):
         3: PEEBLES
         4: WHITE
         5: CLASS (single cosmology)
+    N_THREADS : int, optional
+        Sets the number of processors (threads) to be used for performing 21cmFAST.
+        Default 1.
+    PERTURB_ON_HIGH_RES : bool, optional
+        Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
+        resolution grid.
+    NO_RNG : bool, optional
+        Ability to turn off random number generation for initial conditions. Can be
+        useful for debugging and adding in new features
+    USE_FFTW_WISDOM : bool, optional
+        Whether or not to use stored FFTW_WISDOMs for improving performance of FFTs
+    USE_INTERPOLATION_TABLES: bool, optional
+        If True, calculates and evaluates quantites using interpolation tables, which
+        is considerably faster than when performing integrals explicitly.
     """
 
     _ffi = ffi
@@ -394,6 +443,10 @@ class UserParams(StructWithDefaults):
         "HMF": 1,
         "USE_RELATIVE_VELOCITIES": False,
         "POWER_SPECTRUM": 0,
+        "N_THREADS": 1,
+        "PERTURB_ON_HIGH_RES": False,
+        "NO_RNG": False,
+        "USE_INTERPOLATION_TABLES": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
@@ -493,6 +546,12 @@ class FlagOptions(StructWithDefaults):
 
     Parameters
     ----------
+    USE_HALO_FIELD : bool, optional
+        Set to True if intending to find and use the halo field. If False, uses
+        the mean collapse fraction (which is considerably faster).
+    USE_MINI_HALOS : bool, optional
+        Set to True if using mini-halos parameterization.
+        If True, USE_MASS_DEPENDENT_ZETA and INHOMO_RECO must be True.
     USE_MASS_DEPENDENT_ZETA : bool, optional
         Set to True if using new parameterization. Setting to True will automatically
         set `M_MIN_in_Mass` to True.
@@ -517,6 +576,8 @@ class FlagOptions(StructWithDefaults):
     _ffi = ffi
 
     _defaults_ = {
+        "USE_HALO_FIELD": False,
+        "USE_MINI_HALOS": False,
         "USE_MASS_DEPENDENT_ZETA": False,
         "SUBCELL_RSD": False,
         "INHOMO_RECO": False,
@@ -526,6 +587,18 @@ class FlagOptions(StructWithDefaults):
     }
 
     @property
+    def USE_HALO_FIELD(self):
+        """Automatically setting USE_MASS_DEPENDENT_ZETA to False if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and self._USE_HALO_FIELD:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
+                "Automatically setting USE_HALO_FIELD to False."
+            )
+            return False
+        else:
+            return self._USE_HALO_FIELD
+
+    @property
     def M_MIN_in_Mass(self):
         """Whether minimum halo mass is defined in mass or virial temperature."""
         if self.USE_MASS_DEPENDENT_ZETA:
@@ -533,6 +606,54 @@ class FlagOptions(StructWithDefaults):
 
         else:
             return self._M_MIN_in_Mass
+
+    @property
+    def USE_MASS_DEPENDENT_ZETA(self):
+        """Automatically setting USE_MASS_DEPENDENT_ZETA to True if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and not self._USE_MASS_DEPENDENT_ZETA:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA to False! "
+                "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
+            )
+            return True
+        else:
+            return self._USE_MASS_DEPENDENT_ZETA
+
+    @property
+    def INHOMO_RECO(self):
+        """Automatically setting INHOMO_RECO to True if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and not self._INHOMO_RECO:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
+                "Automatically setting INHOMO_RECO to True."
+            )
+            return True
+        else:
+            return self._INHOMO_RECO
+
+    @property
+    def USE_TS_FLUCT(self):
+        """Automatically setting USE_TS_FLUCT to True if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and not self._USE_TS_FLUCT:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
+                "Automatically setting USE_TS_FLUCT to True."
+            )
+            return True
+        else:
+            return self._USE_TS_FLUCT
+
+    @property
+    def PHOTON_CONS(self):
+        """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and self._PHOTON_CONS:
+            logger.warning(
+                "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
+                "Automatically setting PHOTON_CONS to False."
+            )
+            return False
+        else:
+            return self._PHOTON_CONS
 
 
 class AstroParams(StructWithDefaults):
@@ -558,6 +679,13 @@ class AstroParams(StructWithDefaults):
         If so, this is used along with `F_ESC10` to determine `HII_EFF_FACTOR` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
         Given in log10 units.
+    F_STAR7_MINI : float, optional
+        The fraction of galactic gas in stars for 10^7 solar mass minihaloes.
+        Only used in the "minihalo" parameterization,
+        i.e. when `USE_MINI_HALOS` is set to True (in :class:`FlagOptions`).
+        If so, this is used along with `F_ESC7_MINI` to determine `HII_EFF_FACTOR_MINI` (which
+        is then unused). See Eq. 8 of Qin+2020.
+        Given in log10 units.
     ALPHA_STAR : float, optional
         Power-law index of fraction of galactic gas in stars as a function of halo mass.
         See Sec 2.1 of Park+2018.
@@ -567,6 +695,13 @@ class AstroParams(StructWithDefaults):
         i.e. when `USE_MASS_DEPENDENT_ZETA` is set to True (in :class:`FlagOptions`).
         If so, this is used along with `F_STAR10` to determine `HII_EFF_FACTOR` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
+    F_ESC7_MINI: float, optional
+        The "escape fraction for minihalos", i.e. the fraction of ionizing photons escaping
+        into the IGM, for 10^7 solar mass minihaloes. Only used in the "minihalo" parameterization,
+        i.e. when `USE_MINI_HALOS` is set to True (in :class:`FlagOptions`).
+        If so, this is used along with `F_ESC7_MINI` to determine `HII_EFF_FACTOR_MINI` (which
+        is then unused). See Eq. 17 of Qin+2020.
+        Given in log10 units.
     ALPHA_ESC : float, optional
         Power-law index of escape fraction as a function of halo mass. See Sec 2.1 of
         Park+2018.
@@ -584,6 +719,9 @@ class AstroParams(StructWithDefaults):
     L_X : float, optional
         The specific X-ray luminosity per unit star formation escaping host galaxies.
         Cf. Eq. 6 of Greig+2018. Given in log10 units.
+    L_X_MINI: float, optional
+        The specific X-ray luminosity per unit star formation escaping host galaxies for
+        minihalos. Cf. Eq. 23 of Qin+2020. Given in log10 units.
     NU_X_THRESH : float, optional
         X-ray energy threshold for self-absorption by host galaxies (in eV). Also called
         E_0 (cf. Sec 4.1 of Greig+2018). Typical range is (100, 1500).
@@ -593,6 +731,9 @@ class AstroParams(StructWithDefaults):
     X_RAY_Tvir_MIN : float, optional
         Minimum halo virial temperature in which X-rays are produced. Given in log10
         units. Default is `ION_Tvir_MIN`.
+    F_H2_SHIELD: float, optional
+        Self-shielding factor of molecular hydrogen when experiencing LW suppression.
+        Cf. Eq. 12 of Qin+2020
     t_STAR : float, optional
         Fractional characteristic time-scale (fraction of hubble time) defining the
         star-formation rate of galaxies. Only used if `USE_MASS_DEPENDENT_ZETA` is set
@@ -607,16 +748,20 @@ class AstroParams(StructWithDefaults):
     _defaults_ = {
         "HII_EFF_FACTOR": 30.0,
         "F_STAR10": -1.3,
+        "F_STAR7_MINI": -2.0,
         "ALPHA_STAR": 0.5,
         "F_ESC10": -1.0,
+        "F_ESC7_MINI": -2.0,
         "ALPHA_ESC": -0.5,
         "M_TURN": 8.7,
         "R_BUBBLE_MAX": None,
         "ION_Tvir_MIN": 4.69897,
         "L_X": 40.0,
+        "L_X_MINI": 40.0,
         "NU_X_THRESH": 500.0,
         "X_RAY_SPEC_INDEX": 1.0,
         "X_RAY_Tvir_MIN": None,
+        "F_H2_SHIELD": 0.0,
         "t_STAR": 0.5,
         "N_RSD_STEPS": 20,
     }
@@ -634,9 +779,12 @@ class AstroParams(StructWithDefaults):
         if key in [
             "F_STAR10",
             "F_ESC10",
+            "F_STAR7_MINI",
+            "F_ESC7_MINI",
             "M_TURN",
             "ION_Tvir_MIN",
             "L_X",
+            "L_X_MINI",
             "X_RAY_Tvir_MIN",
         ]:
             return 10 ** val

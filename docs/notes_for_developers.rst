@@ -26,7 +26,11 @@ below about running with valgrind). When changing C code, before
 testing, ensure that the new C code is compiled into your environment by running::
 
     $ rm -rf build
-    $ pip install -e .
+    $ pip install .
+
+Note that using a developer install (`-e`) is not recommended as it stores compiled
+objects in the working directory which don't get updated as you change code, and can
+cause problems later.
 
 There are two main purposes you may want to write some C code:
 
@@ -90,6 +94,23 @@ parameter to relevant ``_filter_params`` lists for the output struct wrapping cl
 the wrapper. These lists control which global parameters affect which output structs,
 and merely provide for more accurate caching mechanisms.
 
+C Function Standards
+~~~~~~~~~~~~~~~~~~~~
+The C-level functions are split into two groups -- low-level "private" functions, and
+higher-level "public" or "API" functions. All API-level functions are callable from
+python (but may also be called from other C functions). All API-level functions are
+currently prototyped in `21cmFAST.h`.
+
+To enable consistency of error-checking in Python (and a reasonable standard for any
+kind of code), we enforce that any API-level function must return an integer status.
+Any "return" objects must be modified in-place (i.e. passed as pointers). This enables
+Python to control the memory access of these variables, and also to receive proper
+error statuses (see below for how we do exception handling). We also adhere to the
+convention that "output" variables should be passed to the function as its last
+argument(s). In the case that _only_ the last argument is meant to be "output", there
+exists a simple wrapper `_call_c_simple` in `wrapper.py` that will neatly handle the
+calling of the function in an intuitive pythonic way.
+
 Running with Valgrind
 ~~~~~~~~~~~~~~~~~~~~~
 If any changes to the C code are made, it is ideal to run tests under valgrind, and
@@ -134,3 +155,50 @@ Producing Integration Test Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 There are bunch of so-called "integration tests", which rely on previously-produced
 data. To produce this data, run `python tests/produce_integration_test_data.py`.
+
+Furthermore, this data should only be produced with good reason -- the idea is to keep
+it static while the code changes, to have something steady to compare to. If a particular
+PR fixes a bug which affects a certain tests' data, then that data should be re-run, in
+the context of the PR, so it can be explained.
+
+Logging in C
+~~~~~~~~~~~~
+The C code has a header file ``logging.h``. The C code should *never* contain bare
+print-statements -- everything should be formally logged, so that the different levels
+can be printed to screen correctly. The levels are defined in ``logging.h``, and include
+levels such as ``INFO``, ``WARNING`` and ``DEBUG``. Each level has a corresponding macro
+that starts with ``LOG_``. Thus to log run-time information to stdout, you would use
+``LOG_INFO("message");``. Note that the message does not require a final newline character.
+
+Exception handling in C
+~~~~~~~~~~~~~~~~~~~~~~~
+There are various places that things can go wrong in the C code, and they need to be
+handled gracefully so that Python knows what to do with it (rather than just quitting!).
+We use the simple ``cexcept.h`` header file from http://www.nicemice.net/cexcept/ to
+enable a simple form of exception handling. That file itself should **not be edited**.
+There is another header -- ``exceptions.h`` -- that defines how we use exceptions
+throughout ``21cmFAST``. Any time an error arises that can be understood, the developer
+should add a ``Throw <ErrorKind>;`` line. The ``ErrorKind`` can be any of the kinds
+defined in ``exceptions.h`` (eg. ``GSLError`` or ``ValueError``). These are just integers.
+
+Any C function that has a header in ``21cmFAST.h`` -- i.e. any function that is callable
+directly from Python -- *must* be globally wrapped in a ``Try {} Catch(error_code) {}`` block. See
+``GenerateICs.c`` for an example. Most of the code should be in the ``Try`` block.
+Anything that does a ``Throw`` at any level of the call stack within that ``Try`` will
+trigger a jump to the ``Catch``. The ``error_code`` is the integer that was thrown.
+Typically, one will perhaps want to do some cleanup here, and then finally *return* the
+error code.
+
+Python knows about the exit codes it can expect to receive, and will raise Python
+exceptions accordingly. From the python side, two main kinds of exceptions could be
+raised, depending on the error code returned from C. The lesser exception is called a
+``ParameterError``, and is supposed to indicate an error that happened merely because
+the parameters that were input to the calculation were just too extreme to handle.
+In the case of something like an automatic Monte Carlo algorithm that's iterating over
+random parameters, one would *usually* want to just keep going at this point, because
+perhaps it just wandered too far in parameter space.
+The other kind of error is a ``FatalCError``, and this is where things went truly wrong,
+and probably will do for any combination of parameters.
+
+If you add a kind of Exception in the C code (to ``exceptions.h``), then be sure to add
+a handler for it in the ``_process_exitcode`` function in ``wrapper.py``.

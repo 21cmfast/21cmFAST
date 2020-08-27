@@ -12,7 +12,8 @@ The C libraries required are:
 * `gsl`
 * `fftw` (compiled with floating-point enabled, and `--enable-shared`)
 * `openmp`
-* A C-compiler with compatibility with the `-fopenmp` flag.
+* A C-compiler with compatibility with the `-fopenmp` flag. **Note:** it seems that on
+  OSX, if using `gcc`, you will need `v4.9.4+`.
 
 As it turns out, though these are fairly common libraries, getting them installed in a
 way that `21cmFAST` understands on various operating systems can be slightly non-trivial.
@@ -95,12 +96,11 @@ as (from top-level dir)::
 
 Otherwise, if you are using `pip`::
 
-    pip install -e .
-    pip install -r requirements_dev.txt
+    pip install -e .[dev]
 
-And if you would like to also compile documentation::
-
-    pip install -r docs/requirements.txt
+The ``[dev]`` "extra" here installs all development dependencies. You can instead use
+``[tests]`` if you only want dependencies for testing, or ``[docs]`` to be able to
+compile the documentation.
 
 Compile Options
 ---------------

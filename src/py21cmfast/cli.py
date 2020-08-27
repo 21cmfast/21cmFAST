@@ -23,7 +23,7 @@ def _get_config(config=None):
         config = path.expanduser(path.join("~", ".21cmfast", "runconfig_example.yml"))
 
     with open(config, "r") as f:
-        cfg = yaml.load(f)
+        cfg = yaml.load(f, Loader=yaml.FullLoader)
 
     return cfg
 

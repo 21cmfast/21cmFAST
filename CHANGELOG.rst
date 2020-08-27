@@ -4,10 +4,23 @@ Changelog
 v3.0.0.dev
 ----------
 Complete overhaul of 21cmFAST, including a robust python-wrapper and interface,
-caching mechanisms, and public repository with continuous integration.
+caching mechanisms, and public repository with continuous integration. Changes
+and equations for minihalo features in this version are found in
+https://arxiv.org/abs/2003.04442
 
 Added
 ~~~~~
+* Updated the radiation source model: (i) all radiation fields including X-rays, UV
+  ionizing, Lyman Werner and Lyman alpha are considered from two seperated population
+  namely atomic-cooling (ACGs) and minihalo-hosted molecular-cooling galaxies (MCGs);
+  (ii) the turn-over masses of ACGs and MCGs are estimated with cooling efficiency and
+  feedback from reionization and lyman werner suppression (Qin et al. 2020). This can
+  be switched on using new ``flag_options`` ``USE_MINI_HALOS``.
+* Updated kinetic temperature of the IGM with fully ionized cells following equation 6
+  of McQuinn (2015) and partially ionized cells having the volume-weightied temperature
+  between the ionized (volume: 1-xHI; temperature T_RE ) and neutral components (volume:
+  xHI; temperature: temperature of HI). This is stored in IonizedBox as
+  temp_kinetic_all_gas. Note that Tk in TsBox remains to be the kinetic temperature of HI.
 * Tests: many unit tests, and also some regression tests.
 * CLI: run 21cmFAST boxes from the command line, query the cache database, and produce
   plots for standard comparison runs.
@@ -23,6 +36,10 @@ Added
   velocity cubes (option implemented, but not the actual computation yet).
 * Configuration management.
 * global params now has a context manager for changing parameters temporarily.
+* Vastly improved error handling: exceptions can be caught in C code and propagated to
+  Python to inform the user of what's going wrong.
+* Ability to write high-level data (``Coeval`` and ``Lightcone`` objects) directly to
+  file in a simple portable format.
 
 Changed
 ~~~~~~~

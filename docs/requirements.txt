@@ -1,5 +1,0 @@
-ipython
-nbsphinx
-numpydoc
-sphinx-rtd-theme
-sphinx>=1.3
