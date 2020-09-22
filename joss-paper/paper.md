@@ -60,11 +60,11 @@ through to fully hydrodynamical simulations of the 3D evolution of the brightnes
 temperature of the spectral line.
 Between these extremes lies an especially versatile middle-ground: fast semi-numerical
 models that approximate the full 3D evolution of the relevant fields: density, velocity,
-temperature, ionization, and radiation.
+temperature, ionization, and radiation (Lyman-alpha, neutral hydrogen 21-cm, etc.).
 These have the advantage of being comparable to the full first-principles
 hydrodynamic simulations, but significantly quicker to run; so much so that they can
 be used to produce thousands of realizations on scales comparable to those observable
-by upcoming telescopes, in order to explore the very wide
+by upcoming low-frequency radio telescopes, in order to explore the very wide
 parameter space that still remains consistent with the data.
 
 
@@ -81,6 +81,7 @@ axis corresponds to both spatial *and* temporal evolution) for the various
 component fields produced by `21cmFAST`.
 
 ![Sample of Component Fields output by 21cmFAST](yuxiangs-plot-small.png){height=300px}
+*Figure 1: A Sample of component field lightcones produced by 21cmFAST. Cosmic evolution occurs from bottom to top. From left to right, quantities shown are: (i) dark matter overdensity field; (ii) Lyman-alpha flux; (iii) Lyman-Werner flux; (iv) X-ray heating rate; (v) locally-averaged UVB; (vi) critical halo mass for star formation in Atomically Cooled Galaxies; (vii) critical halo mass for star formation in Molecularly Cooled Galaxies; (viii) cumulative number of recombinations per baryon; (ix) neutral hydrogen fraction; and (x) the 21cm brightness temperature. A high-resolution version of this figure is available at http://homepage.sns.it/mesinger/Media/light-cones_minihalo.png*
 
 However, `21cmFAST` is a highly specialized code, and its implementation has been
 quite specific and relatively inflexible.
@@ -90,7 +91,7 @@ This lack of modularity within the code has led to
 widespread code "branching" as researchers hack new physical features of interest
 into the C code; the lack of a streamlined API has led derivative codes which run
 multiple realizations of `21cmFAST` simulations (such as the Monte Carlo simulator,
-`21CMMC`) to re-write large portions of the code in order to serve their purpose.
+`21CMMC` [@greig2015]) to re-write large portions of the code in order to serve their purpose.
 It is thus of critical importance, as the field moves forward in its understanding -- and
 the range and scale of physical models of interest continues to increase -- to
 reformulate the `21cmFAST` code in order to provide a fast, modular, well-documented,
@@ -98,7 +99,8 @@ well-tested, stable simulator for the community.
 
 # Features of 21cmFAST v3
 
-This paper presents `21cmFAST` v3+, which enables these essential new features.
+This paper presents `21cmFAST` v3+, which is formulated to follow these essential
+guiding principles.
 While keeping the same core functionality of previous versions of `21cmFAST`, it has
 been fully integrated into a Python package, with a simple and intuitive interface, and
 a great deal more flexibility.
@@ -141,7 +143,7 @@ The primary *new* usability features of `21cmFAST` v3+ are:
 While in v3 we have focused on the establishment of a stable and extendable infrastructure,
 we have also incorporated several new scientific features, appearing in separate papers:
 
-* Generate transfer functions using the `CLASS` Boltzmann code.
+* Generate transfer functions using the `CLASS` Boltzmann code [@Lesgourgues2011].
 * Simulate the effects of relative velocities between dark matter and Baryons [@munoz2019a; @munoz2019b].
 * Correction for non-conservation of ionizing photons (Park, Greig et al., *in prep*).
 * Include molecularly cooled galaxies with distinct properties [@qin2020]
@@ -150,7 +152,8 @@ we have also incorporated several new scientific features, appearing in separate
 `21cmFAST` is still in very active development.
 Amongst further usability and performance improvements,
 future versions will see several new physical models implemented,
-including milli-charged dark matter models and forward-modelled CMB auxiliary data.
+including milli-charged dark matter models [@Munoz2018] and forward-modelled CMB
+auxiliary data [@qin2020a].
 
 In addition, `21cmFAST` will be incorporated into large-scale inference codes, such as
 `21CMMC`, and is being used to create large data-sets for inference via machine learning.
@@ -197,14 +200,14 @@ lightcone.save()
 p21c.plotting.lightcone_sliceplot(lightcone, "brightness_temp")
 ```
 
-![Brightness Temperature Lightcone](lightcone.pdf){height=300px}
+![Brightness Temperature Lightcone](lightcone.pdf){height=300px}*Figure 2: Brightness temperature lightcone produced by the example code in this paper.*
 
 ```python
 # Plot a global quantity
 p21c.plotting.plot_global_history(lightcone, "xH")
 ```
 
-![Global reionization history](xH_history.pdf){height=300px}
+![Global reionization history](xH_history.pdf){height=300px}*Globally volume-averaged hydrogen neutral fraction produced by the example code in this paper.*
 
 
 # Acknowledgements
