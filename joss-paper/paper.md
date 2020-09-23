@@ -163,6 +163,10 @@ We hope that with this new framework, `21cmFAST` will remain an important compon
 
 # Examples
 
+`21cmFAST` supports installation using `conda`, which means installation is as simple
+as typing `conda install -c conda-forge 21cmFAST`. The following example can then
+be run in a Python interpreter.
+
 In-depth examples can be found in the official documentation.
 As an example of the simplicity with which a full lightcone may be produced with
 the new `21cmFAST` v3, the following may be run in a Python interpreter (or Jupyter
