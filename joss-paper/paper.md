@@ -223,6 +223,6 @@ This work was supported in part by the European Research Council
 (ERC) under the European Union’s Horizon 2020 research
 and innovation programme (AIDA – #638809). The results
 presented here reflect the authors’ views; the ERC is not
-responsible for their use.
+responsible for their use. JBM was partially supported by NSF grant AST-1813694
 
 # References
