@@ -105,7 +105,8 @@ def test_ib_new_seed(ionize_box_lowz, perturb_field_lowz, tmpdirec):
     # this should fail because perturb_field has a seed set already, which isn't 1.
     with pytest.raises(ValueError):
         wrapper.ionize_box(
-            perturbed_field=perturb_field_lowz, random_seed=1,
+            perturbed_field=perturb_field_lowz,
+            random_seed=1,
         )
 
     ib = wrapper.ionize_box(
@@ -125,7 +126,8 @@ def test_st_new_seed(spin_temp, perturb_field, tmpdirec):
     # this should fail because perturb_field has a seed set already, which isn't 1.
     with pytest.raises(ValueError):
         wrapper.spin_temperature(
-            perturbed_field=perturb_field, random_seed=1,
+            perturbed_field=perturb_field,
+            random_seed=1,
         )
 
     st = wrapper.spin_temperature(
@@ -180,7 +182,8 @@ def test_ib_from_z(default_user_params, perturb_field):
 def test_ib_override_z(perturb_field):
     with pytest.raises(ValueError):
         wrapper.ionize_box(
-            redshift=perturb_field.redshift + 1, perturbed_field=perturb_field,
+            redshift=perturb_field.redshift + 1,
+            perturbed_field=perturb_field,
         )
 
 
@@ -189,7 +192,9 @@ def test_ib_override_z_heat_max(perturb_field):
     zheatmax = wrapper.global_params.Z_HEAT_MAX
 
     wrapper.ionize_box(
-        redshift=perturb_field.redshift, perturbed_field=perturb_field, z_heat_max=12.0,
+        redshift=perturb_field.redshift,
+        perturbed_field=perturb_field,
+        z_heat_max=12.0,
     )
 
     assert wrapper.global_params.Z_HEAT_MAX == zheatmax
@@ -291,7 +296,9 @@ def test_run_lf():
 
 def test_coeval_st(ic, perturb_field):
     coeval = wrapper.run_coeval(
-        init_box=ic, perturb=perturb_field, flag_options={"USE_TS_FLUCT": True},
+        init_box=ic,
+        perturb=perturb_field,
+        flag_options={"USE_TS_FLUCT": True},
     )
 
     assert isinstance(coeval.spin_temp_struct, wrapper.TsBox)

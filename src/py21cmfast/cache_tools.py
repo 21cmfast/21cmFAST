@@ -1,14 +1,12 @@
 """A set of tools for reading/writing/querying the in-built cache."""
 import glob
+import h5py
 import logging
 import os
 import re
 from os import path
 
-import h5py
-
-from . import outputs
-from . import wrapper
+from . import outputs, wrapper
 from ._cfg import config
 from .wrapper import global_params
 

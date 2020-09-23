@@ -1,8 +1,7 @@
-from os import path
-
 import pytest
 
 import yaml
+from os import path
 
 import py21cmfast as p21
 from py21cmfast._cfg import Config

@@ -14,21 +14,20 @@ used throughout the computation which are very rarely varied.
 """
 import contextlib
 import logging
+from astropy.cosmology import Planck15
 from os import path
 
-from astropy.cosmology import Planck15
-
-from ._utils import StructInstanceWrapper
-from ._utils import StructWithDefaults
-from .c_21cmfast import ffi
-from .c_21cmfast import lib
+from ._utils import StructInstanceWrapper, StructWithDefaults
+from .c_21cmfast import ffi, lib
 
 logger = logging.getLogger("21cmFAST")
 
 # Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
 # Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
 Planck18 = Planck15.clone(
-    Om0=(0.02242 + 0.11933) / 0.6766 ** 2, Ob0=0.02242 / 0.6766 ** 2, H0=67.66,
+    Om0=(0.02242 + 0.11933) / 0.6766 ** 2,
+    Ob0=0.02242 / 0.6766 ** 2,
+    H0=67.66,
 )
 
 
