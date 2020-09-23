@@ -1,15 +1,13 @@
 """Utilities that help with wrapping various C structures."""
 import copy
 import glob
-import logging
-import warnings
-from hashlib import md5
-from os import makedirs
-from os import path
-
 import h5py
+import logging
 import numpy as np
+import warnings
 from cffi import FFI
+from hashlib import md5
+from os import makedirs, path
 
 from . import __version__
 from ._cfg import config

@@ -22,15 +22,13 @@ Comparison tests here are meant to be as small as possible while attempting to f
 a reasonable test: they should be of reduced data such as power spectra or global xHI
 measurements, and they should be generated with small simulations.
 """
-import logging
-
 import pytest
 
 import h5py
+import logging
 import numpy as np
 
-from py21cmfast import config
-from py21cmfast import global_params
+from py21cmfast import config, global_params
 
 from . import produce_integration_test_data as prd
 

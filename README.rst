@@ -12,6 +12,9 @@
 .. image:: https://readthedocs.org/projects/21cmfast/badge/?version=latest
     :target: https://21cmfast.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
+.. image:: https://img.shields.io/conda/dn/conda-forge/21cmFAST
+    :target: https://github.com/conda-forge/21cmfast-feedstock
+    :alt: Conda
 .. end-badges
 
 **A semi-numerical cosmological simulation code for the radio 21cm signal.**

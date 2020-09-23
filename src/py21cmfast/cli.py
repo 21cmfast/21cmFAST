@@ -1,20 +1,15 @@
 """Module that contains the command line app."""
 import builtins
+import click
 import inspect
 import logging
-import warnings
-from os import path
-from os import remove
-
-import click
 import matplotlib.pyplot as plt
 import numpy as np
+import warnings
 import yaml
+from os import path, remove
 
-from . import _cfg
-from . import cache_tools
-from . import global_params
-from . import plotting
+from . import _cfg, cache_tools, global_params, plotting
 from . import wrapper as lib
 
 

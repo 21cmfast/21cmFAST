@@ -85,36 +85,30 @@ interpolated onto the lightcone cells):
 >>> lightcone = p21.run_lightcone(redshift=z2, max_redshift=z2, z_step_factor=1.03)
 """
 import logging
+import numpy as np
 import os
 import warnings
-from copy import deepcopy
-
-import numpy as np
 from astropy import units
 from astropy.cosmology import z_at_value
+from copy import deepcopy
 from scipy.interpolate import interp1d
 
 from ._cfg import config
-from ._utils import StructWrapper
-from ._utils import _check_compatible_inputs
-from ._utils import _process_exitcode
-from .c_21cmfast import ffi
-from .c_21cmfast import lib
-from .inputs import AstroParams
-from .inputs import CosmoParams
-from .inputs import FlagOptions
-from .inputs import UserParams
-from .inputs import global_params
-from .outputs import BrightnessTemp
-from .outputs import Coeval
-from .outputs import HaloField
-from .outputs import InitialConditions
-from .outputs import IonizedBox
-from .outputs import LightCone
-from .outputs import PerturbedField
-from .outputs import PerturbHaloField
-from .outputs import TsBox
-from .outputs import _OutputStructZ
+from ._utils import StructWrapper, _check_compatible_inputs, _process_exitcode
+from .c_21cmfast import ffi, lib
+from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+from .outputs import (
+    BrightnessTemp,
+    Coeval,
+    HaloField,
+    InitialConditions,
+    IonizedBox,
+    LightCone,
+    PerturbedField,
+    PerturbHaloField,
+    TsBox,
+    _OutputStructZ,
+)
 
 logger = logging.getLogger("21cmFAST")
 
@@ -1177,7 +1171,8 @@ def perturb_halo_list(
     direc, regenerate, write = _get_config_options(direc, regenerate, write)
     with global_params.use(**global_kwargs):
         _verify_types(
-            init_boxes=init_boxes, halo_field=halo_field,
+            init_boxes=init_boxes,
+            halo_field=halo_field,
         )
 
         # Configure and check input/output parameters/structs
@@ -1453,7 +1448,12 @@ def ionize_box(
             previous_ionize_box,
             pt_halos,
         )
-        redshift = configure_redshift(redshift, spin_temp, perturbed_field, pt_halos,)
+        redshift = configure_redshift(
+            redshift,
+            spin_temp,
+            perturbed_field,
+            pt_halos,
+        )
 
         # Verify input structs
         user_params = UserParams(user_params)
