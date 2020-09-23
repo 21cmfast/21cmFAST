@@ -25,7 +25,7 @@ authors:
     orcid: 0000-0003-3095-6137
     affiliation: 4
   - name: Catherine A. Watkinson
-    orcid: https://orcid.org/0000-0003-1443-3483
+    orcid: 0000-0003-1443-3483
     affiliation: 6
 
 affiliations:
