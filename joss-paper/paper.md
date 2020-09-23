@@ -81,6 +81,7 @@ axis corresponds to both spatial *and* temporal evolution) for the various
 component fields produced by `21cmFAST`.
 
 ![Sample of Component Fields output by 21cmFAST](yuxiangs-plot-small.png){height=300px}
+
 *Figure 1: A Sample of component field lightcones produced by 21cmFAST. Cosmic evolution occurs from bottom to top. From left to right, quantities shown are: (i) dark matter overdensity field; (ii) Lyman-alpha flux; (iii) Lyman-Werner flux; (iv) X-ray heating rate; (v) locally-averaged UVB; (vi) critical halo mass for star formation in Atomically Cooled Galaxies; (vii) critical halo mass for star formation in Molecularly Cooled Galaxies; (viii) cumulative number of recombinations per baryon; (ix) neutral hydrogen fraction; and (x) the 21cm brightness temperature. A high-resolution version of this figure is available at http://homepage.sns.it/mesinger/Media/light-cones_minihalo.png*
 
 However, `21cmFAST` is a highly specialized code, and its implementation has been
@@ -171,24 +172,24 @@ notebook):
 import py21cmfast as p21c
 
 lightcone = p21c.run_lightcone(
-    redshift=6.0,              # Minimum redshift of the lightcone
+    redshift=6.0,              # Minimum redshift of lightcone
     max_redshift=30.0,
     user_params={
-        "HII_DIM": 150,        # Number of cells along a side in the output cube
-        "DIM": 400,            # Original high-resolution cell number
+        "HII_DIM": 150,        # N cells along side in output cube
+        "DIM": 400,            # Original high-res cell number
         "BOX_LEN": 300,        # Size of the simulation in Mpc
     },
     flag_options={
-        "USE_TS_FLUCT": True,  # Do not assume saturated spin temperature
-        "INHOMO_RECO": True,   # Use inhomogeneous recominations
+        "USE_TS_FLUCT": True,  # Don't assume saturated spin temp
+        "INHOMO_RECO": True,   # Use inhomogeneous recombinations
     },
-    lightcone_quantities=(     # Component fields to store as interpolated lightcones
+    lightcone_quantities=(     # Components to store as lightcones
         "brightness_temp",
         "xH_box",
         "density"
     ),
-    global_quantities=(        # Component fields to store as mean values per redshift
-        "xH_box",
+    global_quantities=(        # Components to store as mean
+        "xH_box",              # values per redshift
         "brightness_temp"
     ),
 )
@@ -200,17 +201,24 @@ lightcone.save()
 p21c.plotting.lightcone_sliceplot(lightcone, "brightness_temp")
 ```
 
-![Brightness Temperature Lightcone](lightcone.pdf){height=300px}*Figure 2: Brightness temperature lightcone produced by the example code in this paper.*
+![Brightness Temperature Lightcone](lightcone.pdf){height=300px}
+*Figure 2: Brightness temperature lightcone produced by the example code in this paper.*
 
 ```python
 # Plot a global quantity
 p21c.plotting.plot_global_history(lightcone, "xH")
 ```
 
-![Global reionization history](xH_history.pdf){height=300px}*Globally volume-averaged hydrogen neutral fraction produced by the example code in this paper.*
+![Global reionization history](xH_history.pdf){height=300px}
+*Figure 3: Globally volume-averaged hydrogen neutral fraction produced by the example code in this paper.*
 
 
 # Acknowledgements
 
+This work was supported in part by the European Research Council
+(ERC) under the European Union’s Horizon 2020 research
+and innovation programme (AIDA – #638809). The results
+presented here reflect the authors’ views; the ERC is not
+responsible for their use.
 
 # References
