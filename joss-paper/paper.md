@@ -23,7 +23,7 @@ authors:
     affiliation: 4
   - name: Jaehong Park
     orcid: 0000-0003-3095-6137
-    affiliation: 4
+    affiliation: 4, 7
   - name: Catherine A. Watkinson
     orcid: 0000-0003-1443-3483
     affiliation: 6
@@ -41,8 +41,10 @@ affiliations:
    index: 5
  - name: School of Physics and Astronomy, Queen Mary University of London, G O Jones Building, 327 Mile End Road, London, E1 4NS, UK
    index: 6
+ - name: School of Physics, Korea Institute for Advanced Study, 85 Hoegiro, Dongdaemun-gu, Seoul, 02455, Republic of Korea
+   index: 7
 
-date: 29 Feb 2020
+date: 24 Sep 2020
 bibliography: paper.bib
 ---
 
@@ -223,6 +225,12 @@ This work was supported in part by the European Research Council
 (ERC) under the European Union’s Horizon 2020 research
 and innovation programme (AIDA – #638809). The results
 presented here reflect the authors’ views; the ERC is not
-responsible for their use. JBM was partially supported by NSF grant AST-1813694
+responsible for their use. JBM was partially supported by NSF grant AST-1813694.
+Parts of this research were supported by the European Research Council under ERC grant
+number 638743-FIRSTDAWN. Parts of this research were supported by the Australian Research
+Council Centre of Excellence for
+All Sky Astrophysics in 3 Dimensions (ASTRO 3D), through project number CE170100013.
+JP was supported in part by a KIAS individual Grant (PG078701) at Korea Institute for
+Advanced Study.
 
 # References
