@@ -1,15 +1,13 @@
 """Utilities that help with wrapping various C structures."""
 import copy
 import glob
-import logging
-import warnings
-from hashlib import md5
-from os import makedirs
-from os import path
-
 import h5py
+import logging
 import numpy as np
+import warnings
 from cffi import FFI
+from hashlib import md5
+from os import makedirs, path
 
 from . import __version__
 from ._cfg import config
@@ -41,6 +39,7 @@ GSLERROR = 2
 VALUEERROR = 3
 PARAMETERERROR = 4
 MEMORYALLOCERROR = 5
+FILEERROR = 6
 
 
 def _process_exitcode(exitcode, fnc, args):
@@ -50,7 +49,7 @@ def _process_exitcode(exitcode, fnc, args):
 
         if exitcode in (GSLERROR, PARAMETERERROR):
             raise ParameterError
-        elif exitcode in (IOERROR, VALUEERROR, MEMORYALLOCERROR):
+        elif exitcode in (IOERROR, VALUEERROR, MEMORYALLOCERROR, FILEERROR):
             raise FatalCError
         else:  # Unknown C code
             raise FatalCError("Unknown error in C. Please report this error!")

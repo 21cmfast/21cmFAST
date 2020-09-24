@@ -2,6 +2,11 @@
 Installation
 ============
 
+The easiest way to install `21cmFAST` is to use `conda`. Simply use
+`conda install -c conda-forge 21cmFAST`. With this method, all dependencies are taken
+care of, and it should work on either Linux or MacOS. If for some reason this is not
+possible for you, read on.
+
 Dependencies
 ------------
 We try to have as many of the dependencies automatically installed as possible.

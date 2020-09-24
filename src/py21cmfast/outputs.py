@@ -11,28 +11,22 @@ parameter objects necessary to define it.
              as output objects from the various functions contained here. Only the data
              within the objects should be accessed.
 """
-import os
-import warnings
-from hashlib import md5
-
 import h5py
 import numpy as np
+import os
+import warnings
 from astropy import units
 from astropy.cosmology import z_at_value
 from cached_property import cached_property
+from hashlib import md5
 
 from . import __version__
 from . import _utils as _ut
 from ._cfg import config
 from ._utils import OutputStruct as _BaseOutputStruct
 from ._utils import _check_compatible_inputs
-from .c_21cmfast import ffi
-from .c_21cmfast import lib
-from .inputs import AstroParams
-from .inputs import CosmoParams
-from .inputs import FlagOptions
-from .inputs import UserParams
-from .inputs import global_params
+from .c_21cmfast import ffi, lib
+from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
 
 
 class _OutputStruct(_BaseOutputStruct):

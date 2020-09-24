@@ -1,15 +1,16 @@
 """Quick test of finding halos."""
 
-from py21cmfast import AstroParams
-from py21cmfast import CosmoParams
-from py21cmfast import FlagOptions
-from py21cmfast import UserParams
-from py21cmfast import determine_halo_list
-from py21cmfast import initial_conditions
-from py21cmfast import perturb_field
+from py21cmfast import (
+    AstroParams,
+    CosmoParams,
+    FlagOptions,
+    UserParams,
+    determine_halo_list,
+    initial_conditions,
+    perturb_field,
+)
 from py21cmfast._utils import StructInstanceWrapper
-from py21cmfast.c_21cmfast import ffi
-from py21cmfast.c_21cmfast import lib
+from py21cmfast.c_21cmfast import ffi, lib
 
 global_params = StructInstanceWrapper(lib.global_params, ffi)
 

@@ -1,12 +1,32 @@
 Changelog
 =========
 
-v3.0.0.dev
-----------
+v3.0.2
+------
+
+Fixed
+-----
+* Added prototype functions to enable compilation for some standard compilers on MacOS.
+
+v3.0.1
+------
+Modifications to the internal code structure of 21cmFAST
+
+Added
+~~~~~
+* Refactor FFTW wisdom creation to be a python callable function
+
+
+v3.0.0
+------
 Complete overhaul of 21cmFAST, including a robust python-wrapper and interface,
 caching mechanisms, and public repository with continuous integration. Changes
 and equations for minihalo features in this version are found in
 https://arxiv.org/abs/2003.04442
+
+All functionality of the original 21cmFAST v2 C-code has been implemented in this
+version, including ``USE_HALO_FIELD`` and performing full integration instead of using
+the interpolation tables (which are faster).
 
 Added
 ~~~~~

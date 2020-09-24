@@ -2,16 +2,13 @@
 Unit tests for output structures
 """
 
+import pytest
+
 import copy
 import pickle
 
-import pytest
-
 from py21cmfast import InitialConditions  # An example of an output struct
-from py21cmfast import IonizedBox
-from py21cmfast import PerturbedField
-from py21cmfast import TsBox
-from py21cmfast import global_params
+from py21cmfast import IonizedBox, PerturbedField, TsBox, global_params
 
 
 @pytest.fixture(scope="function")

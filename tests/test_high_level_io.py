@@ -1,13 +1,9 @@
-from os import path
-
 import pytest
 
 import numpy as np
+from os import path
 
-from py21cmfast import Coeval
-from py21cmfast import LightCone
-from py21cmfast import run_coeval
-from py21cmfast import run_lightcone
+from py21cmfast import Coeval, LightCone, run_coeval, run_lightcone
 
 
 @pytest.fixture(scope="module")

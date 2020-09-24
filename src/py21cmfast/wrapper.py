@@ -85,36 +85,30 @@ interpolated onto the lightcone cells):
 >>> lightcone = p21.run_lightcone(redshift=z2, max_redshift=z2, z_step_factor=1.03)
 """
 import logging
+import numpy as np
 import os
 import warnings
-from copy import deepcopy
-
-import numpy as np
 from astropy import units
 from astropy.cosmology import z_at_value
+from copy import deepcopy
 from scipy.interpolate import interp1d
 
 from ._cfg import config
-from ._utils import StructWrapper
-from ._utils import _check_compatible_inputs
-from ._utils import _process_exitcode
-from .c_21cmfast import ffi
-from .c_21cmfast import lib
-from .inputs import AstroParams
-from .inputs import CosmoParams
-from .inputs import FlagOptions
-from .inputs import UserParams
-from .inputs import global_params
-from .outputs import BrightnessTemp
-from .outputs import Coeval
-from .outputs import HaloField
-from .outputs import InitialConditions
-from .outputs import IonizedBox
-from .outputs import LightCone
-from .outputs import PerturbedField
-from .outputs import PerturbHaloField
-from .outputs import TsBox
-from .outputs import _OutputStructZ
+from ._utils import StructWrapper, _check_compatible_inputs, _process_exitcode
+from .c_21cmfast import ffi, lib
+from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+from .outputs import (
+    BrightnessTemp,
+    Coeval,
+    HaloField,
+    InitialConditions,
+    IonizedBox,
+    LightCone,
+    PerturbedField,
+    PerturbHaloField,
+    TsBox,
+    _OutputStructZ,
+)
 
 logger = logging.getLogger("21cmFAST")
 
@@ -307,6 +301,22 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
 # ======================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================
+def construct_fftw_wisdoms(*, user_params=None, cosmo_params=None):
+    """Construct all necessary FFTW wisdoms.
+
+    Parameters
+    ----------
+    user_params : :class:`~inputs.UserParams`
+        Parameters defining the simulation run.
+
+    """
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+
+    # Run the C code
+    return lib.CreateFFTWWisdoms(user_params(), cosmo_params())
+
+
 def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
     """Compute the optical depth to reionization under the given model.
 
@@ -817,6 +827,9 @@ def initial_conditions(
             user_params=user_params, cosmo_params=cosmo_params, random_seed=random_seed
         )
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # First check whether the boxes already exist.
         if not regenerate:
             try:
@@ -943,6 +956,9 @@ def perturb_field(
                 return fields
             except IOError:
                 pass
+
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
 
         # Make sure we've got computed init boxes.
         if init_boxes is None or not init_boxes.filled:
@@ -1071,6 +1087,9 @@ def determine_halo_list(
             except IOError:
                 pass
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # Make sure we've got computed init boxes.
         if init_boxes is None or not init_boxes.filled:
             init_boxes = initial_conditions(
@@ -1152,7 +1171,8 @@ def perturb_halo_list(
     direc, regenerate, write = _get_config_options(direc, regenerate, write)
     with global_params.use(**global_kwargs):
         _verify_types(
-            init_boxes=init_boxes, halo_field=halo_field,
+            init_boxes=init_boxes,
+            halo_field=halo_field,
         )
 
         # Configure and check input/output parameters/structs
@@ -1428,7 +1448,12 @@ def ionize_box(
             previous_ionize_box,
             pt_halos,
         )
-        redshift = configure_redshift(redshift, spin_temp, perturbed_field, pt_halos,)
+        redshift = configure_redshift(
+            redshift,
+            spin_temp,
+            perturbed_field,
+            pt_halos,
+        )
 
         # Verify input structs
         user_params = UserParams(user_params)
@@ -1456,6 +1481,9 @@ def ionize_box(
             flag_options=flag_options,
             random_seed=random_seed,
         )
+
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
 
         # Check whether the boxes already exist
         if not regenerate:
@@ -1795,6 +1823,9 @@ def spin_temperature(
             random_seed=random_seed,
         )
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # Check whether the boxes already exist on disk.
         if not regenerate:
             try:
@@ -1949,6 +1980,11 @@ def brightness_temperature(
             flag_options=ionized_box.flag_options,
             redshift=ionized_box.redshift,
             random_seed=ionized_box.random_seed,
+        )
+
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(
+            user_params=ionized_box.user_params, cosmo_params=ionized_box.cosmo_params
         )
 
         # Check whether the boxes already exist on disk.

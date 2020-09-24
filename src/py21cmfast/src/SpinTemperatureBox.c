@@ -536,31 +536,8 @@ LOG_SUPER_DEBUG("Allocated unfiltered box");
                     fftwf_execute(plan);
                 }
                 else {
-
-                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_PATIENT);
-                    fftwf_execute(plan);
-
-                    // Store the wisdom for later use
-                    fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                    // allocate memory for the nonlinear density field
-#pragma omp parallel shared(unfiltered_box,perturbed_field) private(i,j,k) num_threads(user_params->N_THREADS)
-                    {
-#pragma omp for
-                        for (i=0; i<user_params->HII_DIM; i++){
-                            for (j=0; j<user_params->HII_DIM; j++){
-                                for (k=0; k<user_params->HII_DIM; k++){
-                                    *((float *)unfiltered_box + HII_R_FFT_INDEX(i,j,k)) = perturbed_field->density[HII_R_INDEX(i,j,k)];
-                                }
-                            }
-                        }
-                    }
-
-                    fftwf_destroy_plan(plan);
-                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_WISDOM_ONLY);
-                    fftwf_execute(plan);
+                    LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                    Throw(FileError);
                 }
             }
             else {
@@ -608,25 +585,8 @@ LOG_SUPER_DEBUG("normalised unfiltered box");
                         fftwf_execute(plan);
                     }
                     else {
-
-                        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                     (fftwf_complex *)box, (float *)box, FFTW_PATIENT);
-                        fftwf_execute(plan);
-
-                        // Store the wisdom for later use
-                        fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                        // copy over unfiltered box
-                        memcpy(box, unfiltered_box, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-
-                        if (R_ct > 0){ // don't filter on cell size
-                            filter_box(box, 1, global_params.HEAT_FILTER, R);
-                        }
-
-                        fftwf_destroy_plan(plan);
-                        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                     (fftwf_complex *)box, (float *)box, FFTW_WISDOM_ONLY);
-                        fftwf_execute(plan);
+                        LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                        Throw(FileError);
                     }
                 }
                 else {

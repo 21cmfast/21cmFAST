@@ -1,12 +1,8 @@
-import os
-
 import pytest
 
-from py21cmfast import UserParams
-from py21cmfast import config
-from py21cmfast import global_params
-from py21cmfast import run_lightcone
-from py21cmfast import wrapper
+import os
+
+from py21cmfast import UserParams, config, global_params, run_lightcone, wrapper
 from py21cmfast.cache_tools import clear_cache
 
 

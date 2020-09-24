@@ -128,21 +128,8 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                 fftwf_execute(plan);
             }
             else {
-
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_PATIENT);
-                fftwf_execute(plan);
-
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                // copy over unfiltered box
-                memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-
-                fftwf_destroy_plan(plan);
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
+                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                Throw(FileError);
             }
         }
         else {
@@ -186,51 +173,8 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                 fftwf_execute(plan);
             }
             else {
-
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_PATIENT);
-                fftwf_execute(plan);
-
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
-
-                // copy over unfiltered box
-                memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-
-                // re-perform calculation
-                fftwf_destroy_plan(plan);
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
-
-#pragma omp parallel shared(vel_gradient) private(n_x,n_y,n_z,k_x,k_y,k_z) num_threads(user_params->N_THREADS)
-                {
-#pragma omp for
-                    for (n_x=0; n_x<user_params->HII_DIM; n_x++){
-                        if (n_x>HII_MIDDLE)
-                            k_x =(n_x-user_params->HII_DIM) * DELTA_K;  // wrap around for FFT convention
-                        else
-                            k_x = n_x * DELTA_K;
-
-                        for (n_y=0; n_y<user_params->HII_DIM; n_y++){
-                            if (n_y>HII_MIDDLE)
-                                k_y =(n_y-user_params->HII_DIM) * DELTA_K;
-                            else
-                                k_y = n_y * DELTA_K;
-
-                            for (n_z=0; n_z<=HII_MIDDLE; n_z++){
-                                k_z = n_z * DELTA_K;
-
-                                // take partial deriavative along the line of sight
-                                *((fftwf_complex *) vel_gradient + HII_C_INDEX(n_x,n_y,n_z)) *= k_z*I/(float)HII_TOT_NUM_PIXELS;
-                            }
-                        }
-                    }
-                }
-                fftwf_destroy_plan(plan);
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
+                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                Throw(FileError);
             }
         }
         else {

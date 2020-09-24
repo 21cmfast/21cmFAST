@@ -1,16 +1,14 @@
 """Simple plotting functions for 21cmFAST objects."""
-from typing import Optional
-
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as un
 from astropy.cosmology import z_at_value
 from matplotlib import colors
 from matplotlib.ticker import AutoLocator
+from typing import Optional
 
 from . import outputs
-from .outputs import Coeval
-from .outputs import LightCone
+from .outputs import Coeval, LightCone
 
 eor_colour = colors.LinearSegmentedColormap.from_list(
     "EoR",

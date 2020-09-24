@@ -2,15 +2,12 @@
 Unit tests for input structures
 """
 
-import pickle
-
 import pytest
 
+import pickle
+
 from py21cmfast import AstroParams  # An example of a struct with defaults
-from py21cmfast import CosmoParams
-from py21cmfast import FlagOptions
-from py21cmfast import UserParams
-from py21cmfast import global_params
+from py21cmfast import CosmoParams, FlagOptions, UserParams, global_params
 
 
 @pytest.fixture(scope="module")

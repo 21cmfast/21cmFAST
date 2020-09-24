@@ -1,11 +1,10 @@
 """
 Various tests of the initial_conditions() function and InitialConditions class.
 """
-from multiprocessing import cpu_count
-
 import pytest
 
 import numpy as np
+from multiprocessing import cpu_count
 
 from py21cmfast import wrapper
 
@@ -37,7 +36,10 @@ def test_box_shape(ic):
 def test_modified_cosmo(ic):
     """Test using a modified cosmology"""
     cosmo = wrapper.CosmoParams(SIGMA_8=0.9)
-    ic2 = wrapper.initial_conditions(cosmo_params=cosmo, user_params=ic.user_params,)
+    ic2 = wrapper.initial_conditions(
+        cosmo_params=cosmo,
+        user_params=ic.user_params,
+    )
 
     assert ic2.cosmo_params != ic.cosmo_params
     assert ic2.cosmo_params == cosmo
@@ -48,7 +50,8 @@ def test_transfer_function(ic, default_user_params):
     """Test using a modified transfer function"""
     user_params = default_user_params.clone(POWER_SPECTRUM=5)
     ic2 = wrapper.initial_conditions(
-        random_seed=ic.random_seed, user_params=user_params,
+        random_seed=ic.random_seed,
+        user_params=user_params,
     )
 
     rmsnew = np.sqrt(np.mean(ic2.hires_density ** 2))
