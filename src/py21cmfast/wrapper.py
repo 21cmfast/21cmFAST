@@ -2396,6 +2396,7 @@ def run_lightcone(
     init_box=None,
     perturb=None,
     random_seed=None,
+    coeval_callback=None,
     use_interp_perturb_field=False,
     cleanup=True,
     **global_kwargs,
@@ -2446,6 +2447,9 @@ def run_lightcone(
         If given, must be compatible with init_box. It will merely negate the necessity of
         re-calculating the
         perturb fields. It will also be used to set the redshift if given.
+    coeval_callback : callable, optional
+        User-defined arbitrary function computed on :class:`~Coeval`, at each node redshift.
+        If given, the function returns :class:`~LightCone` and the list of coeval_callback outputs.
     use_interp_perturb_field : bool, optional
         Whether to use a single perturb field, at the lowest redshift of the lightcone,
         to determine all spin temperature fields. If so, this field is interpolated in the
@@ -2466,6 +2470,8 @@ def run_lightcone(
     -------
     lightcone : :class:`~py21cmfast.LightCone`
         The lightcone object.
+    coeval_callback_output : list
+        Only if coeval_callback in not None.
 
     Other Parameters
     ----------------
@@ -2605,6 +2611,8 @@ def run_lightcone(
         global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
         pf = perturb
 
+        coeval_callback_output = []
+
         for iz, z in enumerate(scrollz):
             # Best to get a perturb for this redshift, to pass to brightness_temperature
             pf2 = perturb_field(
@@ -2673,6 +2681,19 @@ def run_lightcone(
                 regenerate=regenerate,
             )
 
+            if coeval_callback is not None:
+                coeval = Coeval(
+                    redshift=z,
+                    initial_conditions=init_box,
+                    perturbed_field=pf2,
+                    ionized_box=ib2,
+                    brightness_temp=bt2,
+                    ts_box=st2 if flag_options.USE_TS_FLUCT else None,
+                    photon_nonconservation_data=_get_photon_nonconservation_data() if flag_options.PHOTON_CONS else None,
+                    _globals=None,
+                    )
+                coeval_callback_output.append(coeval_callback(coeval))
+
             outs = {
                 "PerturbedField": (pf, pf2),
                 "IonizedBox": (ib, ib2),
@@ -2726,21 +2747,28 @@ def run_lightcone(
                 lib.FreePhotonConsMemory()
         else:
             photon_nonconservation_data = None
+        
 
-        return LightCone(
-            redshift,
-            user_params,
-            cosmo_params,
-            astro_params,
-            flag_options,
-            init_box.random_seed,
-            lc,
-            node_redshifts=scrollz,
-            global_quantities=global_q,
-            photon_nonconservation_data=photon_nonconservation_data,
-            _globals=dict(global_params.items()),
-        )
-
+        out = (
+            LightCone(
+                redshift,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                init_box.random_seed,
+                lc,
+                node_redshifts=scrollz,
+                global_quantities=global_q,
+                photon_nonconservation_data=photon_nonconservation_data,
+                _globals=dict(global_params.items()),
+                ),
+            coeval_callback_output
+            )
+        if coeval_callback is None:
+            return out[0]
+        else:
+            return out
 
 def _interpolate_in_redshift(
     z_index,
