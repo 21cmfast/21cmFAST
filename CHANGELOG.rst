@@ -5,7 +5,7 @@ dev
 ------
 Added
 ~~~~~
-* ``coeval_callback`` fflag to the ``run_lightcone``. Gives the ability to run arbitrary code
+* ``coeval_callback`` flag to the ``run_lightcone``. Gives the ability to run arbitrary code
   on each ``Coeval`` box for each node redshift.
 
 v3.0.2
