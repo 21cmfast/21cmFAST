@@ -2689,9 +2689,11 @@ def run_lightcone(
                     ionized_box=ib2,
                     brightness_temp=bt2,
                     ts_box=st2 if flag_options.USE_TS_FLUCT else None,
-                    photon_nonconservation_data=_get_photon_nonconservation_data() if flag_options.PHOTON_CONS else None,
+                    photon_nonconservation_data=_get_photon_nonconservation_data()
+                    if flag_options.PHOTON_CONS
+                    else None,
                     _globals=None,
-                    )
+                )
                 coeval_callback_output.append(coeval_callback(coeval))
 
             outs = {
@@ -2747,7 +2749,6 @@ def run_lightcone(
                 lib.FreePhotonConsMemory()
         else:
             photon_nonconservation_data = None
-        
 
         out = (
             LightCone(
@@ -2762,13 +2763,14 @@ def run_lightcone(
                 global_quantities=global_q,
                 photon_nonconservation_data=photon_nonconservation_data,
                 _globals=dict(global_params.items()),
-                ),
-            coeval_callback_output
-            )
+            ),
+            coeval_callback_output,
+        )
         if coeval_callback is None:
             return out[0]
         else:
             return out
+
 
 def _interpolate_in_redshift(
     z_index,
