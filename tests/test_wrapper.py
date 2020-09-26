@@ -302,3 +302,23 @@ def test_coeval_st(ic, perturb_field):
     )
 
     assert isinstance(coeval.spin_temp_struct, wrapper.TsBox)
+
+
+def _global_Tb(coeval_box):
+    assert isinstance(coeval_box, wrapper.Coeval)
+    global_Tb =  coeval_box.brightness_temp.mean(dtype=np.float128).astype(np.float32)
+    assert np.isclose(global_Tb, coeval_box.brightness_temp_struct.global_Tb)
+    return global_Tb
+def test_coeval_callback(ic, max_redshift, perturb_field):
+    lc, coeval_output = wrapper.run_lightcone(
+        init_box=ic,
+        perturb=perturb_field,
+        max_redshift=max_redshift,
+        lightcone_quantities=("brightness_temp"),
+        global_quantities=("brightness_temp"),
+        coeval_callback=_global_Tb,
+    )
+    assert isinstance(lc, wrapper.LightCone)
+    assert isinstance(coeval_output, list)
+    assert len(lc.node_redshifts) == len(coeval_output)
+    assert np.allclose(lc.global_brightness_temp, np.array(coeval_output, dtype=np.float32))
