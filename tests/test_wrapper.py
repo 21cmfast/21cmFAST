@@ -330,7 +330,7 @@ def test_coeval_callback(ic, max_redshift, perturb_field):
 
 def test_coeval_callback_redshifts(ic, redshift, max_redshift, perturb_field):
     coeval_callback_redshifts = np.array(
-        [redshift, redshift, (redshift + max_redshift) / 2, max_redshift],
+        [max_redshift, max_redshift, (redshift + max_redshift) / 2, redshift],
         dtype=np.float32,
     )
     lc, coeval_output = wrapper.run_lightcone(
@@ -341,7 +341,8 @@ def test_coeval_callback_redshifts(ic, redshift, max_redshift, perturb_field):
         coeval_callback_redshifts=coeval_callback_redshifts,
     )
     assert len(coeval_callback_redshifts) - 1 == len(coeval_output)
-    log_difference = np.abs(
-        np.log(coeval_output) - np.log(coeval_callback_redshifts[1:])
-    )
-    assert np.all(log_difference < np.log(lc.global_params["ZPRIME_STEP_FACTOR"]))
+    computed_redshifts = [
+        lc.node_redshifts[np.argmin(np.abs(i - lc.node_redshifts))]
+        for i in coeval_callback_redshifts[1:]
+    ]
+    assert np.allclose(coeval_output, computed_redshifts)

@@ -2555,10 +2555,10 @@ def run_lightcone(
 
         coeval_callback_output = []
         if coeval_callback is not None:
-            if isinstance(coeval_callback_redshifts, list):
+            if isinstance(coeval_callback_redshifts, (list, np.ndarray)):
                 compute_coeval_callback = [False for i in range(len(scrollz))]
                 for coeval_z in coeval_callback_redshifts:
-                    assert isinstance(coeval_z, (int, float))
+                    assert isinstance(coeval_z, (int, float, np.number))
                     compute_coeval_callback[
                         np.argmin(np.abs(scrollz - coeval_z))
                     ] = True
