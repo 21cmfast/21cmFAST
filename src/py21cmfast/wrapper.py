@@ -2554,9 +2554,9 @@ def run_lightcone(
             )
 
         coeval_callback_output = []
+        compute_coeval_callback = [False for i in range(len(scrollz))]
         if coeval_callback is not None:
             if isinstance(coeval_callback_redshifts, (list, np.ndarray)):
-                compute_coeval_callback = [False for i in range(len(scrollz))]
                 for coeval_z in coeval_callback_redshifts:
                     assert isinstance(coeval_z, (int, float, np.number))
                     compute_coeval_callback[
@@ -2571,8 +2571,7 @@ def run_lightcone(
                 and coeval_callback_redshifts > 0
             ):
                 compute_coeval_callback = [
-                    True if i % coeval_callback_redshifts == 0 else False
-                    for i in range(len(scrollz))
+                    not i % coeval_callback_redshifts for i in range(len(scrollz))
                 ]
             else:
                 raise ValueError(
@@ -2712,22 +2711,31 @@ def run_lightcone(
                 regenerate=regenerate,
             )
 
-            if coeval_callback is not None:
-                if compute_coeval_callback[iz]:
-                    coeval = Coeval(
-                        redshift=z,
-                        initial_conditions=init_box,
-                        perturbed_field=pf2,
-                        ionized_box=ib2,
-                        brightness_temp=bt2,
-                        ts_box=st2 if flag_options.USE_TS_FLUCT else None,
-                        photon_nonconservation_data=_get_photon_nonconservation_data()
-                        if flag_options.PHOTON_CONS
-                        else None,
-                        _globals=None,
-                    )
+            if coeval_callback is not None and compute_coeval_callback[iz]:
+                coeval = Coeval(
+                    redshift=z,
+                    initial_conditions=init_box,
+                    perturbed_field=pf2,
+                    ionized_box=ib2,
+                    brightness_temp=bt2,
+                    ts_box=st2 if flag_options.USE_TS_FLUCT else None,
+                    photon_nonconservation_data=_get_photon_nonconservation_data()
+                    if flag_options.PHOTON_CONS
+                    else None,
+                    _globals=None,
+                )
+                try:
                     coeval_callback_output.append(coeval_callback(coeval))
-
+                except Exception as e:
+                    if sum(compute_coeval_callback[: iz + 1]) == 1:
+                        raise RuntimeError(
+                            f"coeval_callback computation failed on first trial, z={z}."
+                        )
+                    else:
+                        logger.warning(
+                            f"coeval_callback computation failed on z={z}, skipping."
+                        )
+                        logger.warning(e)
             outs = {
                 "PerturbedField": (pf, pf2),
                 "IonizedBox": (ib, ib2),
