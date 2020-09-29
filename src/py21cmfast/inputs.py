@@ -291,7 +291,7 @@ class GlobalParams(StructInstanceWrapper):
 
         self._table_path = Path.home() / ".21cmfast"
         EXTERNALTABLES = ffi.new("char[]", str(self._table_path).encode())
-        self._external_table_path = EXTERNALTABLES
+        self.external_table_path = EXTERNALTABLES
 
     @property
     def external_table_path(self):
@@ -302,6 +302,10 @@ class GlobalParams(StructInstanceWrapper):
                 f"Try re-installing 21cmFAST. "
             )
         return self._external_table_path
+
+    @external_table_path.setter
+    def external_table_path(self, val):
+        self._external_table_path = val
 
     @contextlib.contextmanager
     def use(self, **kwargs):
