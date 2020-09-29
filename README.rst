@@ -17,10 +17,26 @@
     :alt: Conda
 .. end-badges
 
-**A semi-numerical cosmological simulation code for the radio 21cm signal.**
+**A semi-numerical cosmological simulation code for the radio 21-cm signal.**
 
-This is the official repository for 21cmFAST. As of `v3.0.0`, it is conveniently
-wrapped in Python to enable more dynamic code.
+.. image:: joss-paper/yuxiangs-small-plots.png
+    :target:
+
+This is the official repository for `21cmFAST`: a semi-numerical code that is able to
+produce 3D cosmological realisations of many physical fields in the early Universe.
+It is super-fast, combining the excursion set formalism with perturbation theory to
+efficiently generate density, velocity, halo, ionization, spin temperature, 21-cm, and
+even ionizing flux fields (see the above lightcones!).
+It has been tested extensively against numerical simulations, with excellent agreement
+at the relevant scales.
+
+`21cmFAST` has been widely used, for example, by the Murchinson Widefield Array (MWA),
+LOw-Frequency ARray (LOFAR) and Hydrogen Epoch of Reionization Array (HERA), to model the
+large-scale cosmological 21-cm signal. In particular, the speed of `21cmFAST` is important
+to produce simulations that are large enough (several Gpc across) to represent modern
+low-frequency observations.
+
+As of `v3.0.0`, `21cmFAST` is conveniently wrapped in Python to enable more dynamic code.
 
 
 New Features in 3.0.0+
