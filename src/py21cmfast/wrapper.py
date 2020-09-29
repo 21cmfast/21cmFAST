@@ -2397,6 +2397,7 @@ def run_lightcone(
     perturb=None,
     random_seed=None,
     coeval_callback=None,
+    coeval_callback_redshifts=1,
     use_interp_perturb_field=False,
     cleanup=True,
     **global_kwargs,
@@ -2448,8 +2449,14 @@ def run_lightcone(
         re-calculating the
         perturb fields. It will also be used to set the redshift if given.
     coeval_callback : callable, optional
-        User-defined arbitrary function computed on :class:`~Coeval`, at each node redshift.
-        If given, the function returns :class:`~LightCone` and the list of coeval_callback outputs.
+        User-defined arbitrary function computed on :class:`~Coeval`, at redshifts defined in
+        `coeval_callback_redshifts`.
+        If given, the function returns :class:`~LightCone` and the list of `coeval_callback` outputs.
+    coeval_callback_redshifts : list or int, optional
+        Redshifts for `coeval_callback` computation.
+        If list, computes the function on `node_redshifts` closest to the specified ones.
+        If positive integer, computes the function on every n-th redshift in `node_redshifts`.
+        Ignored in the case `coeval_callback is None`.
     use_interp_perturb_field : bool, optional
         Whether to use a single perturb field, at the lowest redshift of the lightcone,
         to determine all spin temperature fields. If so, this field is interpolated in the
@@ -2546,6 +2553,32 @@ def run_lightcone(
                 """
             )
 
+        coeval_callback_output = []
+        if coeval_callback is not None:
+            if isinstance(coeval_callback_redshifts, list):
+                compute_coeval_callback = [False for i in range(len(scrollz))]
+                for coeval_z in coeval_callback_redshifts:
+                    assert isinstance(coeval_z, (int, float))
+                    compute_coeval_callback[
+                        np.argmin(np.abs(scrollz - coeval_z))
+                    ] = True
+                if sum(compute_coeval_callback) != len(coeval_callback_redshifts):
+                    logger.warning(
+                        "some of the coeval_callback_redshifts refer to the same node_redshift"
+                    )
+            elif (
+                isinstance(coeval_callback_redshifts, int)
+                and coeval_callback_redshifts > 0
+            ):
+                compute_coeval_callback = [
+                    True if i % coeval_callback_redshifts == 0 else False
+                    for i in range(len(scrollz))
+                ]
+            else:
+                raise ValueError(
+                    "coeval_callback_redshifts has to be list or integer > 0."
+                )
+
         if init_box is None:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
                 user_params=user_params,
@@ -2610,8 +2643,6 @@ def run_lightcone(
 
         global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
         pf = perturb
-
-        coeval_callback_output = []
 
         for iz, z in enumerate(scrollz):
             # Best to get a perturb for this redshift, to pass to brightness_temperature
@@ -2682,19 +2713,20 @@ def run_lightcone(
             )
 
             if coeval_callback is not None:
-                coeval = Coeval(
-                    redshift=z,
-                    initial_conditions=init_box,
-                    perturbed_field=pf2,
-                    ionized_box=ib2,
-                    brightness_temp=bt2,
-                    ts_box=st2 if flag_options.USE_TS_FLUCT else None,
-                    photon_nonconservation_data=_get_photon_nonconservation_data()
-                    if flag_options.PHOTON_CONS
-                    else None,
-                    _globals=None,
-                )
-                coeval_callback_output.append(coeval_callback(coeval))
+                if compute_coeval_callback[iz]:
+                    coeval = Coeval(
+                        redshift=z,
+                        initial_conditions=init_box,
+                        perturbed_field=pf2,
+                        ionized_box=ib2,
+                        brightness_temp=bt2,
+                        ts_box=st2 if flag_options.USE_TS_FLUCT else None,
+                        photon_nonconservation_data=_get_photon_nonconservation_data()
+                        if flag_options.PHOTON_CONS
+                        else None,
+                        _globals=None,
+                    )
+                    coeval_callback_output.append(coeval_callback(coeval))
 
             outs = {
                 "PerturbedField": (pf, pf2),
