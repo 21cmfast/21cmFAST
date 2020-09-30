@@ -348,13 +348,18 @@ def test_coeval_callback_redshifts(ic, redshift, max_redshift, perturb_field):
     assert np.allclose(coeval_output, computed_redshifts)
 
 
+def Heaviside(x):
+    return 1 if x > 0 else 0
+
+
 def test_coeval_callback_exceptions(ic, redshift, max_redshift, perturb_field):
     # should output warning in logs and not raise an error
     lc, coeval_output = wrapper.run_lightcone(
         init_box=ic,
         perturb=perturb_field,
         max_redshift=max_redshift,
-        coeval_callback=lambda x: 1 / int(x.redshift - redshift),
+        coeval_callback=lambda x: 1
+        / Heaviside(x.redshift - (redshift + max_redshift) / 2),
         coeval_callback_redshifts=[max_redshift, redshift],
     )
     # should raise an error
