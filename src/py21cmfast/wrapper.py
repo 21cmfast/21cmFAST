@@ -2560,7 +2560,7 @@ def run_lightcone(
                 for coeval_z in coeval_callback_redshifts:
                     assert isinstance(coeval_z, (int, float, np.number))
                     compute_coeval_callback[
-                        np.argmin(np.abs(scrollz - coeval_z))
+                        np.argmin(np.abs(np.array(scrollz) - coeval_z))
                     ] = True
                 if sum(compute_coeval_callback) != len(coeval_callback_redshifts):
                     logger.warning(
@@ -2733,9 +2733,9 @@ def run_lightcone(
                         )
                     else:
                         logger.warning(
-                            f"coeval_callback computation failed on z={z}, skipping."
+                            f"coeval_callback computation failed on z={z}, skipping. {type(e).__name__}: {e}"
                         )
-                        logger.warning(e)
+
             outs = {
                 "PerturbedField": (pf, pf2),
                 "IonizedBox": (ib, ib2),
