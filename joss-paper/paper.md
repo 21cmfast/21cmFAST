@@ -218,6 +218,33 @@ p21c.plotting.plot_global_history(lightcone, "xH")
 ![Global reionization history](xH_history.pdf){height=300px}
 *Figure 3: Globally volume-averaged hydrogen neutral fraction produced by the example code in this paper.*
 
+# Performance
+
+Despite being a Python code, `21cmFAST` v3 does not diminish the performance of previous
+pure-C versions. It utilises `CFFI` to provide the interface to the C-code through
+Python, which is managed by some custom Python classes that oversee the construction and
+memory allocation of each C `struct`.
+
+OpenMP parallelization is enabled within the C-code, providing excellent speed-up for
+large simulations when performed on high-performance machines.
+
+A simple performance comparison between v3 and v2.1 (the last pure-C version), running
+a coeval simulation at redshift 8.0 with spin temperature fluctuations and XXXX, with
+a resolution of 250 cells, and 1000 cells for initial conditions, on a XXX CPU with XXX
+shared-memory cores, reveals that XXXXX (time and memory?).
+
+To guide the user, we list some performance benchmarks for variations on this simulation,
+run with `21cmFAST` v3.0.2.
+
+| Variation                | Time (min) | Memory (GB) |
+|--------------------------|------------|-------------|
+| Single Core              |            |             |
+| No Spin Temp             |            |             |
+| Use Interpolation Tables |            |             |
+| Resolution = 500         |            |             |
+| Use Mini-Halos           |            |             |
+| Use FFTW Wisdoms         |            |             |
+| ...                      |            |             |
 
 # Acknowledgements
 
