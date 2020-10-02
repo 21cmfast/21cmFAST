@@ -108,9 +108,10 @@ command-line parameters. You can run specific steps of the simulation independen
 or an entire simulation at once. For example, to run just the initial density field,
 you can do::
 
-    $ 21cmfast init --HII_DIM=35
+    $ 21cmfast init --HII_DIM=100
 
-The simulation box produced is automatically saved into the cache (by default, at ``~/21cmFAST-cache``).
+The (quite small) simulation box produced is automatically saved into the cache
+(by default, at ``~/21cmFAST-cache``).
 You can list all the files in your cache (and the parameters used in each of the simulations)
 with::
 
@@ -118,7 +119,7 @@ with::
 
 To run an entire coeval cube, use the following as an example::
 
-    $ 21cmfast coeval 8.0 --out=output/coeval.h5 --HII_DIM=35
+    $ 21cmfast coeval 8.0 --out=output/coeval.h5 --HII_DIM=100
 
 In this case all the intermediate steps are cached in the standard cache directory, and
 the final ``Coeval`` box is saved to ``output/coeval.h5``. If no ``--out`` is specified,
