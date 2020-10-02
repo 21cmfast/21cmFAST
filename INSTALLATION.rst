@@ -23,6 +23,14 @@ The C libraries required are:
 As it turns out, though these are fairly common libraries, getting them installed in a
 way that `21cmFAST` understands on various operating systems can be slightly non-trivial.
 
+HPC
+~~~
+These libraries will *usually* be available on a HPC environment by using the
+``module load gsl`` and similar commands. Note that just because they are loaded
+doesn't mean that ``21cmFAST`` will be able to find them. You may have to point to the
+relevant ``lib/`` and ``include/`` folders for both ``gsl`` and ``fftw`` (these should
+be available using ``module show gsl`` etc.)
+
 Linux
 ~~~~~
 Most linux distros come with packages for the requirements, and also `gcc` by default,

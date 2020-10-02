@@ -57,7 +57,7 @@ Installation
 ============
 We support Linux and MacOS (please let us know if you are successful in installing on
 Windows!). On these systems, the simplest way to get `21cmFAST` is by using
-`<https://www.anaconda.com/>conda`_::
+`conda<https://www.anaconda.com/>`_::
 
     conda install -c conda-forge 21cmFAST
 
@@ -65,7 +65,74 @@ Windows!). On these systems, the simplest way to get `21cmFAST` is by using
 it depends on some external (non-python) libraries that may not be present, and so this
 method is discouraged unless absolutely necessary. If using `pip` to install `21cmFAST`
 (especially on MacOS), we thoroughly recommend reading the detailed
-`<https://21cmfast.readthedocs.io/en/latest/installation.html>installation instructions`_.
+`installation instructions<https://21cmfast.readthedocs.io/en/latest/installation.html>`_.
+
+Basic Usage
+===========
+``21cmFAST`` can be run both interactively and from the command line (CLI).
+
+Interactive
+-----------
+The most basic example of running a (very small) coeval simulation at a given redshift,
+and plotting an image of a slice through it::
+
+    >>> import py21cmfast as p21c
+    >>> coeval = p21c.run_coeval(
+    >>>     redshift=8.0,
+    >>>     user_params={'HII_DIM': 50, "USE_INTERPOLATION_TABLES": False}
+    >>> )
+    >>> p21c.plotting.coeval_sliceplot(coeval, kind='brightness_temp')
+
+The coeval object here has much more than just the ``brightness_temp`` field in it. You
+can plot the ``density`` field, ``velocity`` field or a number of other fields.
+To simulate a full lightcone::
+
+    >>> lc = p21c.run_lightcone(
+    >>>     redshift=8.0,
+    >>>     max_redshift=15.0,
+    >>>     init_box = coeval.init_struct,
+    >>> )
+    >>> p21c.plotting.lightcone_sliceplot(lc)
+
+Here, we used the already-computed initial density field from ``coeval``, which sets
+the size and parameters of the run, but also means we don't have to compute that
+(relatively expensive step again). Explore the full range of functionality in the
+`API Docs<https://21cmfast.readthedocs.io/en/latest/reference/py21cmfast.html>`_,
+or read more `in-depth tutorials<https://21cmfast.readthedocs.io/en/latest/tutorials.html>`_
+for further guidance.
+
+CLI
+---
+The CLI can be used to generate boxes on-disk directly from a configuration file or
+command-line parameters. You can run specific steps of the simulation independently,
+or an entire simulation at once. For example, to run just the initial density field,
+you can do::
+
+    $ 21cmfast init --HII_DIM=35
+
+The simulation box produced is automatically saved into the cache (by default, at ``~/21cmFAST-cache``).
+You can list all the files in your cache (and the parameters used in each of the simulations)
+with::
+
+    $ 21cmfast query
+
+To run an entire coeval cube, use the following as an example::
+
+    $ 21cmfast coeval 8.0 --out=output/coeval.h5 --HII_DIM=35
+
+In this case all the intermediate steps are cached in the standard cache directory, and
+the final ``Coeval`` box is saved to ``output/coeval.h5``. If no ``--out`` is specified,
+the coeval box itself is not written, but don't worry -- all of its parts are cached, and
+so it can be rebuilt extremely quickly. Every input parameter to any of the
+`input classes<https://21cmfast.readthedocs.io/en/latest/reference/_autosummary/py21cmfast.inputs.html>`_
+(there are a lot of parameters) can be specified at the end of the call with prefixes of
+``--`` (like ``HII_DIM`` here). Alternatively, you can point to a config YAML file, eg.::
+
+    $ 21cmfast lightcone 8.0 --max-z=15.0 --out=. --config=~/.21cmfast/runconfig_example.yml
+
+There is an example configuration file `here<user_data/runconfig_example.yml>`_ that you
+can build from. All input parameters are
+`documented here<https://21cmfast.readthedocs.io/en/latest/reference/_autosummary/py21cmfast.inputs.html>`_.
 
 Documentation
 =============
