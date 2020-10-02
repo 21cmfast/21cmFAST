@@ -19,6 +19,7 @@ from astropy import units
 from astropy.cosmology import z_at_value
 from cached_property import cached_property
 from hashlib import md5
+from typing import List
 
 from . import __version__
 from . import _utils as _ut
@@ -663,6 +664,18 @@ class Coeval(_HighLevelOutput):
                 continue
             for field in box.fieldnames:
                 setattr(self, field, getattr(box, field))
+
+    @classmethod
+    def get_fields(cls, spin_temp: bool = True) -> List[str]:
+        """Obtain a list of name of simulation boxes saved in the Coeval object."""
+        pointer_fields = []
+        for cls in [InitialConditions, PerturbedField, IonizedBox, BrightnessTemp]:
+            pointer_fields += cls.get_pointer_fields()
+
+        if spin_temp:
+            pointer_fields += TsBox.get_pointer_fields()
+
+        return pointer_fields
 
     @property
     def user_params(self):
