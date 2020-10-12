@@ -339,13 +339,19 @@ def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
     Raises
     ------
     ValueError :
-        If `redshifts` and `global_xHI` have inconsistent length.
+        If `redshifts` and `global_xHI` have inconsistent length or if redshifts are not
+        in ascending order.
     """
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
 
     if len(redshifts) != len(global_xHI):
         raise ValueError("redshifts and global_xHI must have same length")
+
+    if sum(
+        (redshifts[i + 1] - redshifts[i]) > 0 for i in range(len(redshifts) - 1)
+    ) != (len(redshifts) - 1):
+        raise ValueError("redshifts and global_xHI must be in ascending order")
 
     # Convert the data to the right type
     redshifts = np.array(redshifts, dtype="float32")
