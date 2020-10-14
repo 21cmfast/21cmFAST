@@ -229,22 +229,36 @@ OpenMP parallelization is enabled within the C-code, providing excellent speed-u
 large simulations when performed on high-performance machines.
 
 A simple performance comparison between v3 and v2.1 (the last pure-C version), running
-a coeval simulation at redshift 8.0 with spin temperature fluctuations and XXXX, with
-a resolution of 250 cells, and 1000 cells for initial conditions, on a XXX CPU with XXX
-shared-memory cores, reveals that XXXXX (time and memory?).
+a light-cone simulation over a redshift range between 35 and 5 (92 snapshots) with spin
+temperature fluctuations ('USE_TS_FLUCT'), inhomogeneous recombinations ('INHOMO_RECO'),
+FFTW Wisdoms ('USE_FFTW_WISDOM') and interpolation tables ('INTERPOLATION_TABLE'), with
+a resolution of 250 cells, and 1000 cells for initial conditions, on an Intel(R) Xeon(R)
+CPU (E5-4657L v2 @ 2.40GHz) with 16 shared-memory cores, reveals that a clock time of
+7.63(12.63) hours and a maximum RAM of 224(105) gigabytes are needed for v3(v2.1). Note
+that while a full light-cone simulation can be expensive to perform, it only takes 2-3min
+to calculate a Coeval box (excluding the initial condition). For instance, the aferomentioned
+timing for v3 includes 1hour and 20min to generate the initial condition, which also dominate
+the maximum RAM needed, with additional ~4 minutes per snapshot to calculate all required
+fields of pertubartion, ionisation, spin temperature and brightness temperature.
 
 To guide the user, we list some performance benchmarks for variations on this simulation,
 run with `21cmFAST` v3.0.2.
 
-| Variation                | Time (min) | Memory (GB) |
-|--------------------------|------------|-------------|
-| Single Core              |            |             |
-| No Spin Temp             |            |             |
-| Use Interpolation Tables |            |             |
-| Resolution = 500         |            |             |
-| Use Mini-Halos           |            |             |
-| Use FFTW Wisdoms         |            |             |
-| ...                      |            |             |
+| Variation                                       | Time (hr) | Memory (GB) |
+| ----------------------------------------------- | --------- | ----------- |
+| Reference                                       | 7.63      | 224         |
+| Single Core                                     | 14.77     | 224         |
+| 4 Shared-memory Cores                           | 7.42      | 224         |
+| 64 Shared-memory Cores                          | 9.60      | 224         |
+| Higher Resolution <br />(HII_DIM=500, DIM=2000) | 302.10    | 1790        |
+| Lower Resolution <br />(HII_DIM=125, DIM=500)   | 0.68      | 28          |
+| Use Interpolation Tables                        | N/A       | N/A         |
+| No Spin Temperature                             | 4.50      | 224         |
+| Use Mini-Halos                                  | 11.57     | 233         |
+| No FFTW Wisdoms                                 | 32.24     | 224         |
+
+The 21cmFAST team suggests using less than 4 shared-memory cores. However, it is worth noting
+that as performance does vary on different machines, users are recommended to calculate their own scalability. 
 
 # Acknowledgements
 
