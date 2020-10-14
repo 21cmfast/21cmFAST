@@ -31,7 +31,7 @@ even ionizing flux fields (see the above lightcones!).
 It has been tested extensively against numerical simulations, with excellent agreement
 at the relevant scales.
 
-`21cmFAST` has been widely used, for example, by the Murchinson Widefield Array (MWA),
+`21cmFAST` has been widely used, for example, by the Murchison Widefield Array (MWA),
 LOw-Frequency ARray (LOFAR) and Hydrogen Epoch of Reionization Array (HERA), to model the
 large-scale cosmological 21-cm signal. In particular, the speed of `21cmFAST` is important
 to produce simulations that are large enough (several Gpc across) to represent modern
