@@ -31,7 +31,7 @@ even ionizing flux fields (see the above lightcones!).
 It has been tested extensively against numerical simulations, with excellent agreement
 at the relevant scales.
 
-`21cmFAST` has been widely used, for example, by the Murchinson Widefield Array (MWA),
+`21cmFAST` has been widely used, for example, by the Murchison Widefield Array (MWA),
 LOw-Frequency ARray (LOFAR) and Hydrogen Epoch of Reionization Array (HERA), to model the
 large-scale cosmological 21-cm signal. In particular, the speed of `21cmFAST` is important
 to produce simulations that are large enough (several Gpc across) to represent modern
@@ -57,7 +57,7 @@ Installation
 ============
 We support Linux and MacOS (please let us know if you are successful in installing on
 Windows!). On these systems, the simplest way to get `21cmFAST` is by using
-`conda<https://www.anaconda.com/>`_::
+`conda <https://www.anaconda.com/>`_::
 
     conda install -c conda-forge 21cmFAST
 
@@ -65,7 +65,7 @@ Windows!). On these systems, the simplest way to get `21cmFAST` is by using
 it depends on some external (non-python) libraries that may not be present, and so this
 method is discouraged unless absolutely necessary. If using `pip` to install `21cmFAST`
 (especially on MacOS), we thoroughly recommend reading the detailed
-`installation instructions<https://21cmfast.readthedocs.io/en/latest/installation.html>`_.
+`installation instructions <https://21cmfast.readthedocs.io/en/latest/installation.html>`_.
 
 Basic Usage
 ===========
@@ -97,8 +97,8 @@ To simulate a full lightcone::
 Here, we used the already-computed initial density field from ``coeval``, which sets
 the size and parameters of the run, but also means we don't have to compute that
 (relatively expensive step again). Explore the full range of functionality in the
-`API Docs<https://21cmfast.readthedocs.io/en/latest/reference/py21cmfast.html>`_,
-or read more `in-depth tutorials<https://21cmfast.readthedocs.io/en/latest/tutorials.html>`_
+`API Docs <https://21cmfast.readthedocs.io/en/latest/reference/py21cmfast.html>`_,
+or read more `in-depth tutorials <https://21cmfast.readthedocs.io/en/latest/tutorials.html>`_
 for further guidance.
 
 CLI
@@ -125,15 +125,15 @@ In this case all the intermediate steps are cached in the standard cache directo
 the final ``Coeval`` box is saved to ``output/coeval.h5``. If no ``--out`` is specified,
 the coeval box itself is not written, but don't worry -- all of its parts are cached, and
 so it can be rebuilt extremely quickly. Every input parameter to any of the
-`input classes<https://21cmfast.readthedocs.io/en/latest/reference/_autosummary/py21cmfast.inputs.html>`_
+`input classes <https://21cmfast.readthedocs.io/en/latest/reference/_autosummary/py21cmfast.inputs.html>`_
 (there are a lot of parameters) can be specified at the end of the call with prefixes of
 ``--`` (like ``HII_DIM`` here). Alternatively, you can point to a config YAML file, eg.::
 
     $ 21cmfast lightcone 8.0 --max-z=15.0 --out=. --config=~/.21cmfast/runconfig_example.yml
 
-There is an example configuration file `here<user_data/runconfig_example.yml>`_ that you
+There is an example configuration file `here <user_data/runconfig_example.yml>`_ that you
 can build from. All input parameters are
-`documented here<https://21cmfast.readthedocs.io/en/latest/reference/_autosummary/py21cmfast.inputs.html>`_.
+`documented here <https://21cmfast.readthedocs.io/en/latest/reference/_autosummary/py21cmfast.inputs.html>`_.
 
 Documentation
 =============
