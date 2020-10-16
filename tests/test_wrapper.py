@@ -302,3 +302,73 @@ def test_coeval_st(ic, perturb_field):
     )
 
     assert isinstance(coeval.spin_temp_struct, wrapper.TsBox)
+
+
+def _global_Tb(coeval_box):
+    assert isinstance(coeval_box, wrapper.Coeval)
+    global_Tb = coeval_box.brightness_temp.mean(dtype=np.float128).astype(np.float32)
+    assert np.isclose(global_Tb, coeval_box.brightness_temp_struct.global_Tb)
+    return global_Tb
+
+
+def test_coeval_callback(ic, max_redshift, perturb_field):
+    lc, coeval_output = wrapper.run_lightcone(
+        init_box=ic,
+        perturb=perturb_field,
+        max_redshift=max_redshift,
+        lightcone_quantities=("brightness_temp",),
+        global_quantities=("brightness_temp",),
+        coeval_callback=_global_Tb,
+    )
+    assert isinstance(lc, wrapper.LightCone)
+    assert isinstance(coeval_output, list)
+    assert len(lc.node_redshifts) == len(coeval_output)
+    assert np.allclose(
+        lc.global_brightness_temp, np.array(coeval_output, dtype=np.float32)
+    )
+
+
+def test_coeval_callback_redshifts(ic, redshift, max_redshift, perturb_field):
+    coeval_callback_redshifts = np.array(
+        [max_redshift, max_redshift, (redshift + max_redshift) / 2, redshift],
+        dtype=np.float32,
+    )
+    lc, coeval_output = wrapper.run_lightcone(
+        init_box=ic,
+        perturb=perturb_field,
+        max_redshift=max_redshift,
+        coeval_callback=lambda x: x.redshift,
+        coeval_callback_redshifts=coeval_callback_redshifts,
+    )
+    assert len(coeval_callback_redshifts) - 1 == len(coeval_output)
+    computed_redshifts = [
+        lc.node_redshifts[np.argmin(np.abs(i - lc.node_redshifts))]
+        for i in coeval_callback_redshifts[1:]
+    ]
+    assert np.allclose(coeval_output, computed_redshifts)
+
+
+def Heaviside(x):
+    return 1 if x > 0 else 0
+
+
+def test_coeval_callback_exceptions(ic, redshift, max_redshift, perturb_field):
+    # should output warning in logs and not raise an error
+    lc, coeval_output = wrapper.run_lightcone(
+        init_box=ic,
+        perturb=perturb_field,
+        max_redshift=max_redshift,
+        coeval_callback=lambda x: 1
+        / Heaviside(x.redshift - (redshift + max_redshift) / 2),
+        coeval_callback_redshifts=[max_redshift, redshift],
+    )
+    # should raise an error
+    with pytest.raises(RuntimeError) as excinfo:
+        lc, coeval_output = wrapper.run_lightcone(
+            init_box=ic,
+            perturb=perturb_field,
+            max_redshift=max_redshift,
+            coeval_callback=lambda x: 1 / 0,
+            coeval_callback_redshifts=[max_redshift, redshift],
+        )
+    assert "coeval_callback computation failed on first trial" in str(excinfo.value)

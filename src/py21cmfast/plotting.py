@@ -124,7 +124,8 @@ def coeval_sliceplot(
         The output of a function such as `ionize_box` (a class containing several quantities), or
         `run_coeval`.
     kind : str
-        The quantity within the structure to be shown.
+        The quantity within the structure to be shown. A full list of available options
+        can be obtained by running ``Coeval.get_fields()``.
     cbar_label : str, optional
         A label for the colorbar. Some values of `kind` will have automatically chosen
         labels, but these can be turned off by setting ``cbar_label=''``.

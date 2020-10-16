@@ -2396,6 +2396,8 @@ def run_lightcone(
     init_box=None,
     perturb=None,
     random_seed=None,
+    coeval_callback=None,
+    coeval_callback_redshifts=1,
     use_interp_perturb_field=False,
     cleanup=True,
     **global_kwargs,
@@ -2446,6 +2448,15 @@ def run_lightcone(
         If given, must be compatible with init_box. It will merely negate the necessity of
         re-calculating the
         perturb fields. It will also be used to set the redshift if given.
+    coeval_callback : callable, optional
+        User-defined arbitrary function computed on :class:`~Coeval`, at redshifts defined in
+        `coeval_callback_redshifts`.
+        If given, the function returns :class:`~LightCone` and the list of `coeval_callback` outputs.
+    coeval_callback_redshifts : list or int, optional
+        Redshifts for `coeval_callback` computation.
+        If list, computes the function on `node_redshifts` closest to the specified ones.
+        If positive integer, computes the function on every n-th redshift in `node_redshifts`.
+        Ignored in the case `coeval_callback is None`.
     use_interp_perturb_field : bool, optional
         Whether to use a single perturb field, at the lowest redshift of the lightcone,
         to determine all spin temperature fields. If so, this field is interpolated in the
@@ -2466,6 +2477,8 @@ def run_lightcone(
     -------
     lightcone : :class:`~py21cmfast.LightCone`
         The lightcone object.
+    coeval_callback_output : list
+        Only if coeval_callback in not None.
 
     Other Parameters
     ----------------
@@ -2539,6 +2552,31 @@ def run_lightcone(
                 z = {np.amin(scrollz)}.
                 """
             )
+
+        coeval_callback_output = []
+        compute_coeval_callback = [False for i in range(len(scrollz))]
+        if coeval_callback is not None:
+            if isinstance(coeval_callback_redshifts, (list, np.ndarray)):
+                for coeval_z in coeval_callback_redshifts:
+                    assert isinstance(coeval_z, (int, float, np.number))
+                    compute_coeval_callback[
+                        np.argmin(np.abs(np.array(scrollz) - coeval_z))
+                    ] = True
+                if sum(compute_coeval_callback) != len(coeval_callback_redshifts):
+                    logger.warning(
+                        "some of the coeval_callback_redshifts refer to the same node_redshift"
+                    )
+            elif (
+                isinstance(coeval_callback_redshifts, int)
+                and coeval_callback_redshifts > 0
+            ):
+                compute_coeval_callback = [
+                    not i % coeval_callback_redshifts for i in range(len(scrollz))
+                ]
+            else:
+                raise ValueError(
+                    "coeval_callback_redshifts has to be list or integer > 0."
+                )
 
         if init_box is None:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
@@ -2673,6 +2711,31 @@ def run_lightcone(
                 regenerate=regenerate,
             )
 
+            if coeval_callback is not None and compute_coeval_callback[iz]:
+                coeval = Coeval(
+                    redshift=z,
+                    initial_conditions=init_box,
+                    perturbed_field=pf2,
+                    ionized_box=ib2,
+                    brightness_temp=bt2,
+                    ts_box=st2 if flag_options.USE_TS_FLUCT else None,
+                    photon_nonconservation_data=_get_photon_nonconservation_data()
+                    if flag_options.PHOTON_CONS
+                    else None,
+                    _globals=None,
+                )
+                try:
+                    coeval_callback_output.append(coeval_callback(coeval))
+                except Exception as e:
+                    if sum(compute_coeval_callback[: iz + 1]) == 1:
+                        raise RuntimeError(
+                            f"coeval_callback computation failed on first trial, z={z}."
+                        )
+                    else:
+                        logger.warning(
+                            f"coeval_callback computation failed on z={z}, skipping. {type(e).__name__}: {e}"
+                        )
+
             outs = {
                 "PerturbedField": (pf, pf2),
                 "IonizedBox": (ib, ib2),
@@ -2727,19 +2790,26 @@ def run_lightcone(
         else:
             photon_nonconservation_data = None
 
-        return LightCone(
-            redshift,
-            user_params,
-            cosmo_params,
-            astro_params,
-            flag_options,
-            init_box.random_seed,
-            lc,
-            node_redshifts=scrollz,
-            global_quantities=global_q,
-            photon_nonconservation_data=photon_nonconservation_data,
-            _globals=dict(global_params.items()),
+        out = (
+            LightCone(
+                redshift,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                init_box.random_seed,
+                lc,
+                node_redshifts=scrollz,
+                global_quantities=global_q,
+                photon_nonconservation_data=photon_nonconservation_data,
+                _globals=dict(global_params.items()),
+            ),
+            coeval_callback_output,
         )
+        if coeval_callback is None:
+            return out[0]
+        else:
+            return out
 
 
 def _interpolate_in_redshift(

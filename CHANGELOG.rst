@@ -1,6 +1,13 @@
 Changelog
 =========
 
+dev
+------
+Added
+~~~~~
+* ``coeval_callback`` and ``coeval_callback_redshifts`` flags to the ``run_lightcone``.
+  Gives the ability to run arbitrary code on ``Coeval`` boxes.
+
 v3.0.2
 ------
 
