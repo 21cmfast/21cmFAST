@@ -255,11 +255,11 @@ memory consumption are planned for the near future.
 | Single Core                                     | 14.77     | 224         |
 | 4 Shared-memory Cores                           | 7.42      | 224         |
 | 64 Shared-memory Cores                          | 9.60      | 224         |
-| Higher Resolution <br />(HII_DIM=500, DIM=2000) | 302.10    | 1790        |
+| Higher Resolution <br />(HII_DIM=500, DIM=2000) | 68.37     | 1790        |
 | Lower Resolution <br />(HII_DIM=125, DIM=500)   | 0.68      | 28          |
 | No Spin Temperature                             | 4.50      | 224         |
 | Use Mini-Halos                                  | 11.57     | 233         |
-| No FFTW Wisdoms                                 | 32.24     | 224         |
+| No FFTW Wisdoms                                 | 7.33      | 224         |
 
 At this time, the `21cmFAST` team suggests using 4 or fewer shared-memory cores.
 However, it is worth noting that as performance does vary on different machines,
