@@ -240,7 +240,7 @@ for v3(v2.1).
 Note that while a full light-cone simulation can be expensive to perform,
 it only takes 2-3min to calculate a Coeval box (excluding the initial conditions).
 For instance, the aforementioned timing for v3 includes 80 minutes to generate the
-initial condition, which also dominate the maximum RAM required, with an additional
+initial condition, which also dominates the maximum RAM required, with an additional
 ~4 minutes per snapshot to calculate all required fields of perturbation, ionization,
 spin temperature and brightness temperature.
 
