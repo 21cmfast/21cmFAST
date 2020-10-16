@@ -348,9 +348,7 @@ def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
     if len(redshifts) != len(global_xHI):
         raise ValueError("redshifts and global_xHI must have same length")
 
-    if sum(
-        (redshifts[i + 1] - redshifts[i]) > 0 for i in range(len(redshifts) - 1)
-    ) != (len(redshifts) - 1):
+    if not np.all(np.diff(redshifts) > 0):
         raise ValueError("redshifts and global_xHI must be in ascending order")
 
     # Convert the data to the right type
