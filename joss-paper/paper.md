@@ -229,7 +229,7 @@ a light-cone simulation over a redshift range between 35 and 5 (92 snapshots) wi
 temperature fluctuations (`USE_TS_FLUCT`), inhomogeneous recombinations
 (`INHOMO_RECO`), FFTW Wisdoms (`USE_FFTW_WISDOM`) and interpolation tables
 (`USE_INTERPOLATION_TABLES`),
-with a resolution of `HII_DIM=250` cells, and 'DIM=1000` cells for the initial conditions,
+with a resolution of `HII_DIM=250` cells, and `DIM=1000` cells for the initial conditions,
 on an Intel(R) Xeon(R) CPU (E5-4657L v2 @ 2.40GHz) with 16 shared-memory cores, reveals
 that a clock time of 7.63(12.63) hours and a maximum RAM of 224(105) gigabytes are needed
 for v3(v2.1).
