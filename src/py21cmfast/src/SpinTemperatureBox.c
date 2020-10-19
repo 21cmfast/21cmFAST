@@ -2164,6 +2164,8 @@ LOG_SUPER_DEBUG("finished loop");
     fftwf_free(box);
     fftwf_free(unfiltered_box);
 
+    free(FgtrM_1DTable_linear);
+
     if (flag_options->USE_MINI_HALOS){
         fftwf_free(log10_Mcrit_LW_unfiltered);
         fftwf_free(log10_Mcrit_LW_filtered);

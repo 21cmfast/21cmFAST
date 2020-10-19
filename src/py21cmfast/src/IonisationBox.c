@@ -1688,10 +1688,32 @@ LOG_SUPER_DEBUG("freed fftw boxes");
 
     }
 
+    if (prev_redshift < 1){
+        free(previous_ionize_box->z_re_box);
+        if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+            if (flag_options->USE_MINI_HALOS){
+                free(previous_ionize_box->Gamma12_box);
+                free(previous_ionize_box->dNrec_box);
+                free(previous_ionize_box->Fcoll);
+                free(previous_ionize_box->Fcoll_MINI);
+            }
+        }
+    }
+
     if(!flag_options->USE_TS_FLUCT) {
         if(user_params->USE_INTERPOLATION_TABLES) {
             freeSigmaMInterpTable();
         }
+    }
+
+    if(INIT_ERFC_INTERPOLATION) {
+
+        free(ERFC_VALS);
+        free(ERFC_VALS_DIFF);
+    }
+
+    for(thread_num = 0; thread_num < user_params->N_THREADS; thread_num++){
+        gsl_rng_free(r[thread_num]);
     }
 
     free(overdense_int_boundexceeded_threaded);
