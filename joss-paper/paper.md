@@ -94,7 +94,7 @@ This lack of modularity within the code has led to
 widespread code "branching" as researchers hack new physical features of interest
 into the C code; the lack of a streamlined API has led derivative codes which run
 multiple realizations of `21cmFAST` simulations [such as the Monte Carlo simulator,
-`21CMMC` @greig2015] to re-write large portions of the code in order to serve their purpose.
+`21CMMC`, @greig2015] to re-write large portions of the code in order to serve their purpose.
 It is thus of critical importance, as the field moves forward in its understanding -- and
 the range and scale of physical models of interest continues to increase -- to
 reformulate the `21cmFAST` code in order to provide a fast, modular, well-documented,
