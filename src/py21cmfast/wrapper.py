@@ -2366,6 +2366,9 @@ def run_coeval(
         else:
             photon_nonconservation_data = None
 
+        if flag_options.USE_TS_FLUCT and user_params.USE_INTERPOLATION_TABLES:
+            lib.FreeTsInterpolationTables(flag_options)
+
         coevals = [
             Coeval(z, init_box, p, ib, _bt, st, photon_nonconservation_data)
             for z, p, ib, _bt, st in zip(redshift, perturb, ib_tracker, bt, st_tracker)

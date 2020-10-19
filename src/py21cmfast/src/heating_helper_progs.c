@@ -4,12 +4,7 @@ struct CosmoParams *cosmo_params_hf;
 struct AstroParams *astro_params_hf;
 struct FlagOptions *flag_options_hf;
 
-int n_redshifts_1DTable;
-double zbin_width_1DTable,zmin_1DTable,zmax_1DTable;
-
 float determine_zpp_min, zpp_bin_width;
-
-double *FgtrM_1DTable_linear;
 
 double BinWidth_pH,inv_BinWidth_pH,BinWidth_elec,inv_BinWidth_elec,BinWidth_10,inv_BinWidth_10,PS_ION_EFF;
 

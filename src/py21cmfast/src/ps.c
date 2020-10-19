@@ -109,6 +109,9 @@ double Nion_ConditionalM_MINI(double growthf, double M1, double M2, double sigma
 float GaussLegendreQuad_Nion(int Type, int n, float growthf, float M2, float sigma2, float delta1, float delta2, float MassTurnover, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc);
 float GaussLegendreQuad_Nion_MINI(int Type, int n, float growthf, float M2, float sigma2, float delta1, float delta2, float MassTurnover, float MassTurnover_upper, float Alpha_star, float Alpha_esc, float Fstar7_MINI, float Fesc7_MINI, float Mlim_Fstar_MINI, float Mlim_Fesc_MINI);
 
+int n_redshifts_1DTable;
+double zmin_1DTable, zmax_1DTable, zbin_width_1DTable;
+double *FgtrM_1DTable_linear;
 
 static gsl_interp_accel *Q_at_z_spline_acc;
 static gsl_spline *Q_at_z_spline;
@@ -3918,4 +3921,25 @@ void FreePhotonConsMemory() {
     LOG_DEBUG("Done Freeing photon cons memory.");
 
     photon_cons_allocated = false;
+}
+
+void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
+    LOG_DEBUG("Freeing some interpolation table memory.");
+    if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+        free(z_val);
+        free(Nion_z_val);
+        free(z_X_val);
+        free(SFRD_val);
+        if (flag_options->USE_MINI_HALOS){
+            free(Nion_z_val_MINI);
+            free(SFRD_val_MINI);
+        }
+        free(overdense_low_table);
+        free(overdense_high_table);
+    }
+    else{
+        free(FgtrM_1DTable_linear);
+    }
+
+    LOG_DEBUG("Done Freeing interpolation table memory.");
 }
