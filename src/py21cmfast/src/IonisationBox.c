@@ -1712,10 +1712,6 @@ LOG_SUPER_DEBUG("freed fftw boxes");
         free(ERFC_VALS_DIFF);
     }
 
-    for(thread_num = 0; thread_num < user_params->N_THREADS; thread_num++){
-        gsl_rng_free(r[thread_num]);
-    }
-
     free(overdense_int_boundexceeded_threaded);
 
     LOG_DEBUG("finished!\n");
