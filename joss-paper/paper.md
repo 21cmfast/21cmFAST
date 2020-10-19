@@ -82,9 +82,7 @@ For example, the following figure contains slices of lightcones (3D fields in wh
 axis corresponds to both spatial *and* temporal evolution) for the various
 component fields produced by `21cmFAST`.
 
-![Sample of Component Fields output by 21cmFAST](yuxiangs-plot-small.png){height=300px}
-
-*Figure 1: A Sample of component field lightcones produced by 21cmFAST. Cosmic evolution occurs from bottom to top. From left to right, quantities shown are: (i) dark matter overdensity field; (ii) Lyman-alpha flux; (iii) Lyman-Werner flux; (iv) X-ray heating rate; (v) locally-averaged UVB; (vi) critical halo mass for star formation in Atomically Cooled Galaxies; (vii) critical halo mass for star formation in Molecularly Cooled Galaxies; (viii) cumulative number of recombinations per baryon; (ix) neutral hydrogen fraction; and (x) the 21cm brightness temperature. A high-resolution version of this figure is available at http://homepage.sns.it/mesinger/Media/lightcones_minihalo.png*
+![Sample of Component Fields output by 21cmFAST. Cosmic evolution occurs from bottom to top. From left to right, quantities shown are: (i) dark matter overdensity field; (ii) Lyman-alpha flux; (iii) Lyman-Werner flux; (iv) X-ray heating rate; (v) locally-averaged UVB; (vi) critical halo mass for star formation in Atomically Cooled Galaxies; (vii) critical halo mass for star formation in Molecularly Cooled Galaxies; (viii) cumulative number of recombinations per baryon; (ix) neutral hydrogen fraction; and (x) the 21cm brightness temperature. A high-resolution version of this figure is available at http://homepage.sns.it/mesinger/Media/lightcones_minihalo.png](yuxiangs-plot-small.png){height=450px}
 
 However, `21cmFAST` is a highly specialized code, and its implementation has been
 quite specific and relatively inflexible.
@@ -207,16 +205,14 @@ lightcone.save()
 p21c.plotting.lightcone_sliceplot(lightcone, "brightness_temp")
 ```
 
-![Brightness Temperature Lightcone](lightcone.pdf){height=300px}
-*Figure 2: Brightness temperature lightcone produced by the example code in this paper.*
+![Brightness temperature lightcone produced by the example code in this paper.](lightcone.pdf){height=300px}
 
 ```python
 # Plot a global quantity
 p21c.plotting.plot_global_history(lightcone, "xH")
 ```
 
-![Global reionization history](xH_history.pdf){height=300px}
-*Figure 3: Globally volume-averaged hydrogen neutral fraction produced by the example code in this paper.*
+![Globally volume-averaged hydrogen neutral fraction produced by the example code in this paper.](xH_history.pdf){height=300px}
 
 # Performance
 
@@ -230,9 +226,10 @@ large simulations when performed on high-performance machines.
 
 A simple performance comparison between v3 and v2.1 (the last pure-C version), running
 a light-cone simulation over a redshift range between 35 and 5 (92 snapshots) with spin
-temperature fluctuations ('USE_TS_FLUCT'), inhomogeneous recombinations ('INHOMO_RECO'),
-FFTW Wisdoms ('USE_FFTW_WISDOM') and interpolation tables ('USE_INTERPOLATION_TABLES'),
-with a resolution of 250 cells ('HII_DIM'), and 1000 cells for initial conditions ('DIM'),
+temperature fluctuations (`USE_TS_FLUCT`), inhomogeneous recombinations
+(`INHOMO_RECO`), FFTW Wisdoms (`USE_FFTW_WISDOM`) and interpolation tables
+(`USE_INTERPOLATION_TABLES`),
+with a resolution of `HII_DIM=250` cells, and `DIM=1000` cells for the initial conditions,
 on an Intel(R) Xeon(R) CPU (E5-4657L v2 @ 2.40GHz) with 16 shared-memory cores, reveals
 that a clock time of 7.63(12.63) hours and a maximum RAM of 224(105) gigabytes are needed
 for v3(v2.1).
