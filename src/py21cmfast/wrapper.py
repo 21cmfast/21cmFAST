@@ -2793,6 +2793,9 @@ def run_lightcone(
         else:
             photon_nonconservation_data = None
 
+        if flag_options.USE_TS_FLUCT and user_params.USE_INTERPOLATION_TABLES:
+            lib.FreeTsInterpolationTables(flag_options())
+
         out = (
             LightCone(
                 redshift,
