@@ -751,6 +751,7 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
                         initialise_SFRD_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                                                    astro_params->ALPHA_STAR, astro_params->F_STAR10, astro_params->F_STAR7_MINI);
                     }
+					interpolation_tables_allocated = true;
                 }
                 else {
                     // An interpolation table for f_coll (delta vs redshift)

@@ -3943,4 +3943,5 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
     }
 
     LOG_DEBUG("Done Freeing interpolation table memory.");
+	interpolation_tables_allocated = false;
 }
