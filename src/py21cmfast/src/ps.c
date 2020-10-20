@@ -3925,6 +3925,7 @@ void FreePhotonConsMemory() {
 
 void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
     LOG_DEBUG("Freeing some interpolation table memory.");
+	freeSigmaMInterpTable();
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         free(z_val);
         free(Nion_z_val);

@@ -1698,10 +1698,8 @@ LOG_SUPER_DEBUG("freed fftw boxes");
         }
     }
 
-    if(!flag_options->USE_TS_FLUCT) {
-        if(user_params->USE_INTERPOLATION_TABLES) {
+    if(!flag_options->USE_TS_FLUCT && user_params->USE_INTERPOLATION_TABLES) {
             freeSigmaMInterpTable();
-        }
     }
 
     if(!flag_options->USE_MASS_DEPENDENT_ZETA && INIT_ERFC_INTERPOLATION) {
