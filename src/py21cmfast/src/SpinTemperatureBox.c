@@ -751,7 +751,7 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
                         initialise_SFRD_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                                                    astro_params->ALPHA_STAR, astro_params->F_STAR10, astro_params->F_STAR7_MINI);
                     }
-					interpolation_tables_allocated = true;
+                    interpolation_tables_allocated = true;
                 }
                 else {
                     // An interpolation table for f_coll (delta vs redshift)
@@ -2286,7 +2286,8 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
             free(dstarlya_dt_box_MINI);
             free(dstarlyLW_dt_box_MINI);
         }
-
+        free(overdense_low_table);
+        free(overdense_high_table);
     }
     else {
 

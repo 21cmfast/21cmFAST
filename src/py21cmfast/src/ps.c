@@ -3935,8 +3935,6 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
             free(Nion_z_val_MINI);
             free(SFRD_val_MINI);
         }
-        free(overdense_low_table);
-        free(overdense_high_table);
     }
     else{
         free(FgtrM_1DTable_linear);
