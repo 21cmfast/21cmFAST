@@ -770,7 +770,7 @@ def _get_photon_nonconservation_data():
         "z_calibration",
         "nf_calibration",
         "nf_photoncons",
-        "delta_z_photon_consnf_photoncons",
+        "delta_z_photon_cons",
     ]
 
     photon_nonconservation_data = {
