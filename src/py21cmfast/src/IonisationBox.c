@@ -1702,12 +1702,6 @@ LOG_SUPER_DEBUG("freed fftw boxes");
             freeSigmaMInterpTable();
     }
 
-    if(!flag_options->USE_MASS_DEPENDENT_ZETA && INIT_ERFC_INTERPOLATION) {
-
-        free(ERFC_VALS);
-        free(ERFC_VALS_DIFF);
-    }
-
     free(overdense_int_boundexceeded_threaded);
 
     LOG_DEBUG("finished!\n");
