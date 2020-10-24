@@ -2291,8 +2291,6 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
             free(dstarlya_dt_box_MINI);
             free(dstarlyLW_dt_box_MINI);
         }
-        free(overdense_low_table);
-        free(overdense_high_table);
     }
     else {
 
