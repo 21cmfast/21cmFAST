@@ -1404,6 +1404,7 @@ void freeSigmaMInterpTable()
     free(Mass_InterpTable);
     free(Sigma_InterpTable);
     free(dSigmadm_InterpTable);
+    Mass_InterpTable = NULL;
 }
 
 
@@ -1689,6 +1690,7 @@ void cleanup_ComputeLF(){
     free(Mhalo_param);
     gsl_spline_free (LF_spline);
     gsl_interp_accel_free(LF_spline_acc);
+    freeSigmaMInterpTable();
 	initialised_ComputeLF = 0;
 }
 
@@ -3177,6 +3179,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
 
                 Nion0 = ION_EFF_FACTOR*FgtrM_General(z0,M_MIN_z0);
                 Nion1 = ION_EFF_FACTOR*FgtrM_General(z1,M_MIN_z1);
+                freeSigmaMInterpTable();
             }
 
             // With scale factor a, the above equation is written as dQ/da = n_{ion}/da - Q/t_{rec}*(dt/da)
@@ -3209,7 +3212,6 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
             Q0 = Q1;
             a = a + da;
         }
-
 
         // A check to see if we ended up with a monotonically increasing function
         if(not_mono_increasing==0) {
@@ -3270,6 +3272,10 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
 
     free(z_arr);
     free(Q_arr);
+
+    if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+      freeSigmaMInterpTable;
+    }
 
     LOG_DEBUG("Initialised PhotonCons.");
     } // End of try
@@ -3931,9 +3937,9 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
     LOG_DEBUG("Freeing some interpolation table memory.");
 	freeSigmaMInterpTable();
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-        free(z_val);
+        free(z_val); z_val = NULL;
         free(Nion_z_val);
-        free(z_X_val);
+        free(z_X_val); z_X_val = NULL;
         free(SFRD_val);
         if (flag_options->USE_MINI_HALOS){
             free(Nion_z_val_MINI);
