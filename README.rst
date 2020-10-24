@@ -15,6 +15,8 @@
 .. image:: https://img.shields.io/conda/dn/conda-forge/21cmFAST
     :target: https://github.com/conda-forge/21cmfast-feedstock
     :alt: Conda
+.. image:: https://joss.theoj.org/papers/10.21105/joss.02582/status.svg
+   :target: https://doi.org/10.21105/joss.02582
 .. end-badges
 
 **A semi-numerical cosmological simulation code for the radio 21-cm signal.**
@@ -142,15 +144,30 @@ found at https://21cmfast.readthedocs.org.
 
 Acknowledging
 =============
-If you find `21cmFAST` useful in your research please cite at least one of the following
-(whichever is most suitable to you):
+If you use `21cmFAST v3+` in your research please cite both of:
 
-    Andrei Mesinger and Steven Furlanetto, "Efficient Simulations of Early Structure
-    Formation and Reionization", The Astrophysical Journal, Volume 669, Issue 2,
-    pp. 663-675 (2007),
-    https://ui.adsabs.harvard.edu/link_gateway/2007ApJ...669..663M/doi:10.1086/521806
+    Murray et al., (2020). 21cmFAST v3: A Python-integrated C code for generating 3D
+    realizations of the cosmic 21cm signal. Journal of Open Source Software, 5(54),
+    2582, https://doi.org/10.21105/joss.02582
 
     Andrei Mesinger, Steven Furlanetto and Renyue Cen, "21CMFAST: a fast, seminumerical
     simulation of the high-redshift 21-cm signal", Monthly Notices of the Royal
     Astronomical Society, Volume 411, Issue 2, pp. 955-972 (2011),
     https://ui.adsabs.harvard.edu/link_gateway/2011MNRAS.411..955M/doi:10.1111/j.1365-2966.2010.17731.x
+
+In addition, the following papers introduce various features into `21cmFAST`. If you use
+these features, please cite the relevant papers.
+
+Mini-halos:
+
+    Qin, Y., Mesinger, A., Park, J., Greig, B., and Muñoz, J. B.,
+    “A tale of two sites - I. Inferring the properties of minihalo-hosted galaxies from
+    current observations”, Monthly Notices of the Royal Astronomical Society, vol. 495,
+    no. 1, pp. 123–140, 2020. https://doi.org/10.1093/mnras/staa1131.
+
+Mass-dependent ionizing efficiency:
+
+    Park, J., Mesinger, A., Greig, B., and Gillet, N.,
+    “Inferring the astrophysics of reionization and cosmic dawn from galaxy luminosity
+    functions and the 21-cm signal”, Monthly Notices of the Royal Astronomical Society,
+    vol. 484, no. 1, pp. 933–949, 2019. https://doi.org/10.1093/mnras/stz032.
