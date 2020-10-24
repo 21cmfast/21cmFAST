@@ -37,6 +37,9 @@ double get_M_min_ion(float z){
 // * initialization routine * //
 int init_heat();
 
+/* destruction/deallocation routine */
+void destruct_heat();
+
 // * returns the spectral emissity * //
 double spectral_emissivity(double nu_norm, int flag, int Population);
 
@@ -98,6 +101,12 @@ int init_heat()
     initialize_interp_arrays();
 
     return 0;
+}
+
+void destruct_heat()
+{
+  T_RECFAST(100.0,2);
+  xion_RECFAST(100.0,2);
 }
 
 float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float * curr_xalpha){

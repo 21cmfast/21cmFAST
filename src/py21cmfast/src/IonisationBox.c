@@ -1622,6 +1622,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
         fftwf_forget_wisdom();
     }
 
+	destruct_heat();
+
     for (i=0; i<user_params->N_THREADS; i++) {
         gsl_rng_free (r[i]);
     }

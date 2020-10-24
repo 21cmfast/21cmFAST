@@ -1371,9 +1371,11 @@ void initialiseSigmaMInterpTable(float M_Min, float M_Max)
     int i;
     float Mass;
 
-    Mass_InterpTable = calloc(NMass,sizeof(float));
-    Sigma_InterpTable = calloc(NMass,sizeof(float));
-    dSigmadm_InterpTable = calloc(NMass,sizeof(float));
+    if (Mass_InterpTable == NULL){
+      Mass_InterpTable = calloc(NMass,sizeof(float));
+      Sigma_InterpTable = calloc(NMass,sizeof(float));
+      dSigmadm_InterpTable = calloc(NMass,sizeof(float));
+    }
 
 #pragma omp parallel shared(Mass_InterpTable,Sigma_InterpTable,dSigmadm_InterpTable) private(i) num_threads(user_params_ps->N_THREADS)
     {
@@ -2634,8 +2636,10 @@ void initialise_Nion_Ts_spline(
     float Mmin = MassTurn/50., Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fesc;
 
-    z_val = calloc(Nbin,sizeof(double));
-    Nion_z_val = calloc(Nbin,sizeof(double));
+    if (z_val == NULL){
+      z_val = calloc(Nbin,sizeof(double));
+      Nion_z_val = calloc(Nbin,sizeof(double));
+    }
 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     Mlim_Fesc = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc10);
@@ -2665,9 +2669,11 @@ void initialise_Nion_Ts_spline_MINI(
     float Mmin = global_params.M_MIN_INTEGRAL, Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI, Mcrit_atom_val;
 
-    z_val = calloc(Nbin,sizeof(double));
-    Nion_z_val = calloc(Nbin,sizeof(double));
-    Nion_z_val_MINI = calloc(Nbin*NMTURN,sizeof(double));
+    if (z_val == NULL){
+      z_val = calloc(Nbin,sizeof(double));
+      Nion_z_val = calloc(Nbin,sizeof(double));
+      Nion_z_val_MINI = calloc(Nbin*NMTURN,sizeof(double));
+    }
 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     Mlim_Fesc = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc10);
@@ -2717,8 +2723,10 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float MassTurn, fl
     float Mmin = MassTurn/50., Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar;
 
-    z_X_val = calloc(Nbin,sizeof(double));
-    SFRD_val = calloc(Nbin,sizeof(double));
+    if (z_X_val == NULL){
+      z_X_val = calloc(Nbin,sizeof(double));
+      SFRD_val = calloc(Nbin,sizeof(double));
+    }
 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
 
@@ -2744,9 +2752,11 @@ void initialise_SFRD_spline_MINI(int Nbin, float zmin, float zmax, float Alpha_s
     float Mmin = global_params.M_MIN_INTEGRAL, Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fstar_MINI, Mcrit_atom_val;
 
-    z_X_val = calloc(Nbin,sizeof(double));
-    SFRD_val = calloc(Nbin,sizeof(double));
-    SFRD_val_MINI = calloc(Nbin*NMTURN,sizeof(double));
+    if (z_X_val == NULL){
+      z_X_val = calloc(Nbin,sizeof(double));
+      SFRD_val = calloc(Nbin,sizeof(double));
+      SFRD_val_MINI = calloc(Nbin*NMTURN,sizeof(double));
+    }
 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar7_MINI * pow(1e3, Alpha_star));
@@ -2797,9 +2807,6 @@ void initialise_SFRD_Conditional_table(
     double overdense_val;
     double overdense_large_high = Deltac, overdense_large_low = global_params.CRIT_DENS_TRANSITION;
     double overdense_small_high, overdense_small_low;
-
-    overdense_low_table = calloc(NSFR_low,sizeof(double));
-    overdense_high_table = calloc(NSFR_high,sizeof(double));
 
     float Mmin,Mmax,Mlim_Fstar,sigma2;
     int i,j,k,i_tot;
@@ -2902,9 +2909,6 @@ void initialise_SFRD_Conditional_table_MINI(
     double overdense_val;
     double overdense_large_high = Deltac, overdense_large_low = global_params.CRIT_DENS_TRANSITION;
     double overdense_small_high, overdense_small_low;
-
-    overdense_low_table = calloc(NSFR_low,sizeof(double));
-    overdense_high_table = calloc(NSFR_high,sizeof(double));
 
     float Mmin,Mmax,Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
     int i,j,k,i_tot;
