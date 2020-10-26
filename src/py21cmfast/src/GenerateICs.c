@@ -377,7 +377,7 @@ int ComputeInitialConditions(
                                                          (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
             }
             fftwf_execute(plan);
-	        fftwf_destroy_plan(plan);
+            fftwf_destroy_plan(plan);
         }
 
         // sample the UNfiltered velocity box and save it to python
@@ -929,6 +929,7 @@ int ComputeInitialConditions(
     for (i=0; i<user_params->N_THREADS; i++) {
         gsl_rng_free (r[i]);
     }
+    gsl_rng_free(rseed);
     LOG_DEBUG("Cleaned Up.");
     } // End of Try{}
 

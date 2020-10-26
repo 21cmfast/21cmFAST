@@ -191,7 +191,7 @@ LOG_DEBUG("original redshift=%f, updated redshift=%f delta-z = %f", stored_redsh
     ArgBinWidth = (erfc_arg_max - erfc_arg_min)/((double)ERFC_NUM_POINTS - 1.);
     InvArgBinWidth = 1./ArgBinWidth;
 
-    if(INIT_ERFC_INTERPOLATION) {
+    if(!flag_options->USE_MASS_DEPENDENT_ZETA && INIT_ERFC_INTERPOLATION) {
 
         ERFC_VALS = calloc(ERFC_NUM_POINTS,sizeof(double));
         ERFC_VALS_DIFF = calloc(ERFC_NUM_POINTS,sizeof(double));
@@ -1622,6 +1622,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
         fftwf_forget_wisdom();
     }
 
+	destruct_heat();
+
     for (i=0; i<user_params->N_THREADS; i++) {
         gsl_rng_free (r[i]);
     }
@@ -1688,10 +1690,18 @@ LOG_SUPER_DEBUG("freed fftw boxes");
 
     }
 
-    if(!flag_options->USE_TS_FLUCT) {
-        if(user_params->USE_INTERPOLATION_TABLES) {
-            freeSigmaMInterpTable();
+    if (prev_redshift < 1){
+        free(previous_ionize_box->z_re_box);
+        if (flag_options->USE_MASS_DEPENDENT_ZETA && flag_options->USE_MINI_HALOS){
+            free(previous_ionize_box->Gamma12_box);
+            free(previous_ionize_box->dNrec_box);
+            free(previous_ionize_box->Fcoll);
+            free(previous_ionize_box->Fcoll_MINI);
         }
+    }
+
+    if(!flag_options->USE_TS_FLUCT && user_params->USE_INTERPOLATION_TABLES) {
+            freeSigmaMInterpTable();
     }
 
     free(overdense_int_boundexceeded_threaded);
