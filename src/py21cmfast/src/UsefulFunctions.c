@@ -679,9 +679,9 @@ void inspectPerturbedField(struct PerturbedField *x, int print_pid, int print_co
         }
         printf("\n");
 
-        printf("%s\t\tvelocity: ", pid);
+        printf("%s\t\tvelocity (z): ", pid);
         for(i=0;i<10;i++){
-            printf("%f, ", x->velocity[i]);
+            printf("%f, ", x->velocity_z[i]);
         }
         printf("\n");
 
@@ -694,7 +694,7 @@ void inspectPerturbedField(struct PerturbedField *x, int print_pid, int print_co
         print_corners_real(x->density, HII_DIM);
 
         printf("%s\t\tvelocity: ", pid);
-        print_corners_real(x->velocity, HII_DIM);
+        print_corners_real(x->velocity_z, HII_DIM);
     }
 
 }

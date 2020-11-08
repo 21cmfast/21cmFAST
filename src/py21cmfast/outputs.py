@@ -186,14 +186,32 @@ class PerturbedField(_OutputStructZ):
 
     def _init_arrays(self):
         self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.velocity_x = np.zeros(
+            self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
+        self.velocity_y = np.zeros(
+            self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
+        self.velocity_z = np.zeros(
+            self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
 
         self.density.shape = (
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
         )
-        self.velocity.shape = (
+        self.velocity_x.shape = (
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+        )
+        self.velocity_y.shape = (
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+        )
+        self.velocity_z.shape = (
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,

@@ -45,7 +45,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
         for (i=0; i<user_params->HII_DIM; i++){
             for (j=0; j<user_params->HII_DIM; j++){
                 for (k=0; k<user_params->HII_DIM; k++){
-                    *((float *)v + HII_R_FFT_INDEX(i,j,k)) = perturb_field->velocity[HII_R_INDEX(i,j,k)];
+                    *((float *)v + HII_R_FFT_INDEX(i,j,k)) = perturb_field->velocity_z[HII_R_INDEX(i,j,k)];
                 }
             }
         }

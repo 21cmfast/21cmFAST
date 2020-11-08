@@ -283,7 +283,7 @@ def produce_perturb_field_data(redshift, **kwargs):
         boxlength=options["user_params"]["BOX_LEN"],
     )
     p_vel, k_vel = get_power(
-        pt_box.velocity * velocity_normalisation,
+        pt_box.velocity_z * velocity_normalisation,
         boxlength=options["user_params"]["BOX_LEN"],
     )
 
