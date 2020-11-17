@@ -763,7 +763,6 @@ int ComputeInitialConditions(
         else {
             plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                          (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_ESTIMATE);
-            fftwf_execute(plan);
         }
         fftwf_execute(plan);
         fftwf_destroy_plan(plan);
