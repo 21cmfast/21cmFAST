@@ -754,12 +754,12 @@ int ComputeInitialConditions(
                 if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
                     plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                                  (float *) HIRES_box, (fftwf_complex *) HIRES_box, FFTW_WISDOM_ONLY);
-                    fftwf_execute(plan);
                 } else {
                     LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
                     Throw(FileError);
                 }
             }
+            fftwf_execute(plan);
         }
         else {
             plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
