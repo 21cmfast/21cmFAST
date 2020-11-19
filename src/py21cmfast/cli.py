@@ -1,20 +1,16 @@
 """Module that contains the command line app."""
 import builtins
+import click
 import inspect
 import logging
-import warnings
-from os import path
-from os import remove
-
-import click
 import matplotlib.pyplot as plt
 import numpy as np
+import warnings
 import yaml
+from os import path, remove
+from pathlib import Path
 
-from . import _cfg
-from . import cache_tools
-from . import global_params
-from . import plotting
+from . import _cfg, cache_tools, global_params, plotting
 from . import wrapper as lib
 
 
@@ -394,6 +390,12 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     help="Path to the configuration file (default ~/.21cmfast/runconfig_single.yml)",
 )
 @click.option(
+    "--out",
+    type=click.Path(dir_okay=True, file_okay=True),
+    default=None,
+    help="Path to output full Coeval simulation to (directory OK).",
+)
+@click.option(
     "--regen/--no-regen",
     default=False,
     help="Whether to force regeneration of init/perturb files if they already exist.",
@@ -402,7 +404,7 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     "--direc",
     type=click.Path(exists=True, dir_okay=True),
     default=None,
-    help="directory to write data and plots to -- must exist.",
+    help="cache directory",
 )
 @click.option(
     "--seed",
@@ -411,7 +413,7 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     help="specify a random seed for the initial conditions",
 )
 @click.pass_context
-def coeval(ctx, redshift, config, regen, direc, seed):
+def coeval(ctx, redshift, config, out, regen, direc, seed):
     """Efficiently generate coeval cubes at a given redshift.
 
     Parameters
@@ -429,6 +431,13 @@ def coeval(ctx, redshift, config, regen, direc, seed):
     seed : int
         Random seed used to generate data.
     """
+    if out is not None:
+        out = Path(out).absolute()
+        if len(out.suffix) not in (2, 3) and not out.exists():
+            out.mkdir()
+        elif not out.parent.exists():
+            out.parent.mkdir()
+
     try:
         redshift = [float(z.strip()) for z in redshift.split(",")]
     except TypeError:
@@ -446,7 +455,7 @@ def coeval(ctx, redshift, config, regen, direc, seed):
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
-    lib.run_coeval(
+    coeval = lib.run_coeval(
         redshift=redshift,
         astro_params=astro_params,
         flag_options=flag_options,
@@ -457,6 +466,18 @@ def coeval(ctx, redshift, config, regen, direc, seed):
         direc=direc,
         random_seed=seed,
     )
+
+    if out:
+        for i, (z, c) in enumerate(zip(redshift, coeval)):
+            if out.is_dir():
+                fname = out / c.get_unique_filename()
+            elif len(redshift) == 1:
+                fname = out
+            else:
+                out = out.parent / f"{out.name}_z{z}{out.suffix}"
+            c.save(fname)
+
+        print(f"Saved Coeval box to {fname}.")
 
 
 @main.command(
@@ -471,6 +492,12 @@ def coeval(ctx, redshift, config, regen, direc, seed):
     type=click.Path(exists=True, dir_okay=False),
     default=None,
     help="Path to the configuration file (default ~/.21cmfast/runconfig_single.yml)",
+)
+@click.option(
+    "--out",
+    type=click.Path(dir_okay=True, file_okay=True),
+    default=None,
+    help="Path to output full Lightcone to (directory OK).",
 )
 @click.option(
     "--regen/--no-regen",
@@ -497,7 +524,7 @@ def coeval(ctx, redshift, config, regen, direc, seed):
     help="specify a random seed for the initial conditions",
 )
 @click.pass_context
-def lightcone(ctx, redshift, config, regen, direc, max_z, seed):
+def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed):
     """Efficiently generate coeval cubes at a given redshift.
 
     Parameters
@@ -519,6 +546,13 @@ def lightcone(ctx, redshift, config, regen, direc, max_z, seed):
     """
     cfg = _get_config(config)
 
+    if out is not None:
+        out = Path(out).absolute()
+        if len(out.suffix) not in (2, 3) and not out.exists():
+            out.mkdir()
+        elif not out.parent.exists():
+            out.parent.mkdir()
+
     # Set user/cosmo params from config.
     user_params = lib.UserParams(**cfg.get("user_params", {}))
     cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
@@ -529,7 +563,7 @@ def lightcone(ctx, redshift, config, regen, direc, max_z, seed):
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
-    lib.run_lightcone(
+    lc = lib.run_lightcone(
         redshift=redshift,
         max_redshift=max_z,
         astro_params=astro_params,
@@ -541,6 +575,12 @@ def lightcone(ctx, redshift, config, regen, direc, max_z, seed):
         direc=direc,
         random_seed=seed,
     )
+
+    if out:
+        fname = out / lc.get_unique_filename() if out.is_dir() else out
+        lc.save(fname)
+
+        print(f"Saved Lightcone to {fname}.")
 
 
 def _query(direc=None, kind=None, md5=None, seed=None, clear=False):

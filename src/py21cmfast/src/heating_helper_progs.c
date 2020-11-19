@@ -4,12 +4,7 @@ struct CosmoParams *cosmo_params_hf;
 struct AstroParams *astro_params_hf;
 struct FlagOptions *flag_options_hf;
 
-int n_redshifts_1DTable;
-double zbin_width_1DTable,zmin_1DTable,zmax_1DTable;
-
 float determine_zpp_min, zpp_bin_width;
-
-double *FgtrM_1DTable_linear;
 
 double BinWidth_pH,inv_BinWidth_pH,BinWidth_elec,inv_BinWidth_elec,BinWidth_10,inv_BinWidth_10,PS_ION_EFF;
 
@@ -41,6 +36,9 @@ double get_M_min_ion(float z){
 
 // * initialization routine * //
 int init_heat();
+
+/* destruction/deallocation routine */
+void destruct_heat();
 
 // * returns the spectral emissity * //
 double spectral_emissivity(double nu_norm, int flag, int Population);
@@ -103,6 +101,12 @@ int init_heat()
     initialize_interp_arrays();
 
     return 0;
+}
+
+void destruct_heat()
+{
+  T_RECFAST(100.0,2);
+  xion_RECFAST(100.0,2);
 }
 
 float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float * curr_xalpha){

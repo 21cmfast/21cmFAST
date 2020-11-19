@@ -7,26 +7,27 @@ and then numerical noise gets relatively more important, and can make the compar
 fail at the tens-of-percent level.
 """
 import glob
+import h5py
+import numpy as np
 import os
 import sys
 import tempfile
-
-import h5py
-import numpy as np
 from powerbox import get_power
 
-from py21cmfast import AstroParams
-from py21cmfast import CosmoParams
-from py21cmfast import FlagOptions
-from py21cmfast import UserParams
-from py21cmfast import config
-from py21cmfast import determine_halo_list
-from py21cmfast import global_params
-from py21cmfast import initial_conditions
-from py21cmfast import perturb_field
-from py21cmfast import perturb_halo_list
-from py21cmfast import run_coeval
-from py21cmfast import run_lightcone
+from py21cmfast import (
+    AstroParams,
+    CosmoParams,
+    FlagOptions,
+    UserParams,
+    config,
+    determine_halo_list,
+    global_params,
+    initial_conditions,
+    perturb_field,
+    perturb_halo_list,
+    run_coeval,
+    run_lightcone,
+)
 
 SEED = 12345
 DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
@@ -242,7 +243,10 @@ def produce_coeval_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
 
     coeval = run_coeval(**options)
-    p, k = get_power(coeval.brightness_temp, boxlength=coeval.user_params.BOX_LEN,)
+    p, k = get_power(
+        coeval.brightness_temp,
+        boxlength=coeval.user_params.BOX_LEN,
+    )
 
     return k, p, coeval
 
@@ -275,7 +279,8 @@ def produce_perturb_field_data(redshift, **kwargs):
         pt_box = perturb_field(redshift=redshift, init_boxes=init_box, **out)
 
     p_dens, k_dens = get_power(
-        pt_box.density, boxlength=options["user_params"]["BOX_LEN"],
+        pt_box.density,
+        boxlength=options["user_params"]["BOX_LEN"],
     )
     p_vel, k_vel = get_power(
         pt_box.velocity * velocity_normalisation,
@@ -288,7 +293,10 @@ def produce_perturb_field_data(redshift, **kwargs):
             data = velocity_normalisation * data
 
         bins, edges = np.histogram(
-            data, bins=np.linspace(xmin, xmax, nbins), range=[xmin, xmax], normed=True,
+            data,
+            bins=np.linspace(xmin, xmax, nbins),
+            range=[xmin, xmax],
+            normed=True,
         )
 
         left, right = edges[:-1], edges[1:]

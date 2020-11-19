@@ -1,15 +1,13 @@
 """Utilities that help with wrapping various C structures."""
 import copy
 import glob
-import logging
-import warnings
-from hashlib import md5
-from os import makedirs
-from os import path
-
 import h5py
+import logging
 import numpy as np
+import warnings
 from cffi import FFI
+from hashlib import md5
+from os import makedirs, path
 
 from . import __version__
 from ._cfg import config
@@ -105,8 +103,11 @@ class StructWrapper:
     def __init__(self):
 
         # Set the name of this struct in the C code
-        if self._name is None:
-            self._name = self.__class__.__name__
+        self._name = self._get_name()
+
+    @classmethod
+    def _get_name(cls):
+        return cls._name or cls.__name__
 
     @property
     def _cstruct(self):
@@ -130,10 +131,28 @@ class StructWrapper:
         """Return a new empty C structure corresponding to this class."""
         return self._ffi.new("struct " + self._name + "*")
 
+    @classmethod
+    def get_fields(cls, cstruct=None):
+        """Obtain the C-side fields of this struct."""
+        if cstruct is None:
+            cstruct = cls._ffi.new("struct " + cls._get_name() + "*")
+        return cls._ffi.typeof(cstruct[0]).fields
+
+    @classmethod
+    def get_fieldnames(cls, cstruct=None):
+        """Obtain the C-side field names of this struct."""
+        fields = cls.get_fields(cstruct)
+        return [f for f, t in fields]
+
+    @classmethod
+    def get_pointer_fields(cls, cstruct=None):
+        """Obtain all pointer fields of the struct (typically simulation boxes)."""
+        return [f for f, t in cls.get_fields(cstruct) if t.type.kind == "pointer"]
+
     @property
     def fields(self):
         """List of fields of the underlying C struct (a list of tuples of "name, type")."""
-        return self._ffi.typeof(self._cstruct[0]).fields
+        return self.get_fields(self._cstruct)
 
     @property
     def fieldnames(self):

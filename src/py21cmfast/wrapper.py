@@ -85,36 +85,30 @@ interpolated onto the lightcone cells):
 >>> lightcone = p21.run_lightcone(redshift=z2, max_redshift=z2, z_step_factor=1.03)
 """
 import logging
+import numpy as np
 import os
 import warnings
-from copy import deepcopy
-
-import numpy as np
 from astropy import units
 from astropy.cosmology import z_at_value
+from copy import deepcopy
 from scipy.interpolate import interp1d
 
 from ._cfg import config
-from ._utils import StructWrapper
-from ._utils import _check_compatible_inputs
-from ._utils import _process_exitcode
-from .c_21cmfast import ffi
-from .c_21cmfast import lib
-from .inputs import AstroParams
-from .inputs import CosmoParams
-from .inputs import FlagOptions
-from .inputs import UserParams
-from .inputs import global_params
-from .outputs import BrightnessTemp
-from .outputs import Coeval
-from .outputs import HaloField
-from .outputs import InitialConditions
-from .outputs import IonizedBox
-from .outputs import LightCone
-from .outputs import PerturbedField
-from .outputs import PerturbHaloField
-from .outputs import TsBox
-from .outputs import _OutputStructZ
+from ._utils import StructWrapper, _check_compatible_inputs, _process_exitcode
+from .c_21cmfast import ffi, lib
+from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+from .outputs import (
+    BrightnessTemp,
+    Coeval,
+    HaloField,
+    InitialConditions,
+    IonizedBox,
+    LightCone,
+    PerturbedField,
+    PerturbHaloField,
+    TsBox,
+    _OutputStructZ,
+)
 
 logger = logging.getLogger("21cmFAST")
 
@@ -1177,7 +1171,8 @@ def perturb_halo_list(
     direc, regenerate, write = _get_config_options(direc, regenerate, write)
     with global_params.use(**global_kwargs):
         _verify_types(
-            init_boxes=init_boxes, halo_field=halo_field,
+            init_boxes=init_boxes,
+            halo_field=halo_field,
         )
 
         # Configure and check input/output parameters/structs
@@ -1453,7 +1448,12 @@ def ionize_box(
             previous_ionize_box,
             pt_halos,
         )
-        redshift = configure_redshift(redshift, spin_temp, perturbed_field, pt_halos,)
+        redshift = configure_redshift(
+            redshift,
+            spin_temp,
+            perturbed_field,
+            pt_halos,
+        )
 
         # Verify input structs
         user_params = UserParams(user_params)
@@ -2375,7 +2375,13 @@ def run_coeval(
         else:
             photon_nonconservation_data = None
 
-        # TODO: fix this call up.
+        if (
+            flag_options.USE_TS_FLUCT
+            and user_params.USE_INTERPOLATION_TABLES
+            and lib.interpolation_tables_allocated
+        ):
+            lib.FreeTsInterpolationTables(flag_options())
+
         coevals = [
             Coeval(
                 z,
@@ -2421,6 +2427,8 @@ def run_lightcone(
     init_box=None,
     perturb=None,
     random_seed=None,
+    coeval_callback=None,
+    coeval_callback_redshifts=1,
     use_interp_perturb_field=False,
     cleanup=True,
     **global_kwargs,
@@ -2471,6 +2479,15 @@ def run_lightcone(
         If given, must be compatible with init_box. It will merely negate the necessity of
         re-calculating the
         perturb fields. It will also be used to set the redshift if given.
+    coeval_callback : callable, optional
+        User-defined arbitrary function computed on :class:`~Coeval`, at redshifts defined in
+        `coeval_callback_redshifts`.
+        If given, the function returns :class:`~LightCone` and the list of `coeval_callback` outputs.
+    coeval_callback_redshifts : list or int, optional
+        Redshifts for `coeval_callback` computation.
+        If list, computes the function on `node_redshifts` closest to the specified ones.
+        If positive integer, computes the function on every n-th redshift in `node_redshifts`.
+        Ignored in the case `coeval_callback is None`.
     use_interp_perturb_field : bool, optional
         Whether to use a single perturb field, at the lowest redshift of the lightcone,
         to determine all spin temperature fields. If so, this field is interpolated in the
@@ -2491,6 +2508,8 @@ def run_lightcone(
     -------
     lightcone : :class:`~py21cmfast.LightCone`
         The lightcone object.
+    coeval_callback_output : list
+        Only if coeval_callback in not None.
 
     Other Parameters
     ----------------
@@ -2564,6 +2583,31 @@ def run_lightcone(
                 z = {np.amin(scrollz)}.
                 """
             )
+
+        coeval_callback_output = []
+        compute_coeval_callback = [False for i in range(len(scrollz))]
+        if coeval_callback is not None:
+            if isinstance(coeval_callback_redshifts, (list, np.ndarray)):
+                for coeval_z in coeval_callback_redshifts:
+                    assert isinstance(coeval_z, (int, float, np.number))
+                    compute_coeval_callback[
+                        np.argmin(np.abs(np.array(scrollz) - coeval_z))
+                    ] = True
+                if sum(compute_coeval_callback) != len(coeval_callback_redshifts):
+                    logger.warning(
+                        "some of the coeval_callback_redshifts refer to the same node_redshift"
+                    )
+            elif (
+                isinstance(coeval_callback_redshifts, int)
+                and coeval_callback_redshifts > 0
+            ):
+                compute_coeval_callback = [
+                    not i % coeval_callback_redshifts for i in range(len(scrollz))
+                ]
+            else:
+                raise ValueError(
+                    "coeval_callback_redshifts has to be list or integer > 0."
+                )
 
         if init_box is None:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
@@ -2698,6 +2742,31 @@ def run_lightcone(
                 regenerate=regenerate,
             )
 
+            if coeval_callback is not None and compute_coeval_callback[iz]:
+                coeval = Coeval(
+                    redshift=z,
+                    initial_conditions=init_box,
+                    perturbed_field=pf2,
+                    ionized_box=ib2,
+                    brightness_temp=bt2,
+                    ts_box=st2 if flag_options.USE_TS_FLUCT else None,
+                    photon_nonconservation_data=_get_photon_nonconservation_data()
+                    if flag_options.PHOTON_CONS
+                    else None,
+                    _globals=None,
+                )
+                try:
+                    coeval_callback_output.append(coeval_callback(coeval))
+                except Exception as e:
+                    if sum(compute_coeval_callback[: iz + 1]) == 1:
+                        raise RuntimeError(
+                            f"coeval_callback computation failed on first trial, z={z}."
+                        )
+                    else:
+                        logger.warning(
+                            f"coeval_callback computation failed on z={z}, skipping. {type(e).__name__}: {e}"
+                        )
+
             outs = {
                 "PerturbedField": (pf, pf2),
                 "IonizedBox": (ib, ib2),
@@ -2752,19 +2821,33 @@ def run_lightcone(
         else:
             photon_nonconservation_data = None
 
-        return LightCone(
-            redshift,
-            user_params,
-            cosmo_params,
-            astro_params,
-            flag_options,
-            init_box.random_seed,
-            lc,
-            node_redshifts=scrollz,
-            global_quantities=global_q,
-            photon_nonconservation_data=photon_nonconservation_data,
-            _globals=dict(global_params.items()),
+        if (
+            flag_options.USE_TS_FLUCT
+            and user_params.USE_INTERPOLATION_TABLES
+            and lib.interpolation_tables_allocated
+        ):
+            lib.FreeTsInterpolationTables(flag_options())
+
+        out = (
+            LightCone(
+                redshift,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                init_box.random_seed,
+                lc,
+                node_redshifts=scrollz,
+                global_quantities=global_q,
+                photon_nonconservation_data=photon_nonconservation_data,
+                _globals=dict(global_params.items()),
+            ),
+            coeval_callback_output,
         )
+        if coeval_callback is None:
+            return out[0]
+        else:
+            return out
 
 
 def _interpolate_in_redshift(

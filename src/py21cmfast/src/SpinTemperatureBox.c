@@ -203,6 +203,9 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
             wi_SFR_Xray = calloc(NGL_SFR+1,sizeof(double));
 
             if(user_params->USE_INTERPOLATION_TABLES) {
+                overdense_low_table = calloc(NSFR_low,sizeof(double));
+                overdense_high_table = calloc(NSFR_high,sizeof(double));
+
                 log10_SFRD_z_low_table = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
                 for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
                     log10_SFRD_z_low_table[j] = (float *)calloc(NSFR_low,sizeof(float));
@@ -401,12 +404,12 @@ LOG_SUPER_DEBUG("initalised Ts Interp Arrays");
     init_ps();
 
 LOG_SUPER_DEBUG("Initialised PS");
+LOG_SUPER_DEBUG("About to initialise heat");
+    init_heat();
+LOG_SUPER_DEBUG("Initialised heat");
 
     // Initialize some interpolation tables
     if(this_spin_temp->first_box || (fabs(initialised_redshift - perturbed_field_redshift) > 0.0001) ) {
-        LOG_SUPER_DEBUG("About to initialise heat");
-        init_heat();
-        LOG_SUPER_DEBUG("Initialised heat");
 
         if(user_params->USE_INTERPOLATION_TABLES) {
             if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -751,6 +754,7 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
                         initialise_SFRD_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                                                    astro_params->ALPHA_STAR, astro_params->F_STAR10, astro_params->F_STAR7_MINI);
                     }
+                    interpolation_tables_allocated = true;
                 }
                 else {
                     // An interpolation table for f_coll (delta vs redshift)
@@ -2245,6 +2249,8 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
         free(wi_SFR_Xray);
 
         if(user_params->USE_INTERPOLATION_TABLES) {
+            free(overdense_low_table);
+            free(overdense_high_table);
             for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
                 free(log10_SFRD_z_low_table[j]);
             }
@@ -2285,7 +2291,6 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
             free(dstarlya_dt_box_MINI);
             free(dstarlyLW_dt_box_MINI);
         }
-
     }
     else {
 
@@ -2360,5 +2365,6 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
     free(freq_int_ion_tbl_diff);
     free(freq_int_lya_tbl_diff);
 
+    destruct_heat();
     TsInterpArraysInitialised = false;
 }

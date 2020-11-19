@@ -2,8 +2,9 @@
 # -*- encoding: utf-8 -*-
 """Setup the package."""
 
-from __future__ import absolute_import
-from __future__ import print_function
+from __future__ import absolute_import, print_function
+
+from setuptools import find_packages, setup
 
 import glob
 import io
@@ -11,11 +12,7 @@ import os
 import re
 import shutil
 from distutils.dir_util import copy_tree
-from os.path import dirname
-from os.path import expanduser
-from os.path import join
-from setuptools import find_packages
-from setuptools import setup
+from os.path import dirname, expanduser, join
 
 
 def _read(*names, **kwargs):

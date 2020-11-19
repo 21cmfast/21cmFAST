@@ -12,7 +12,7 @@ ignore =
     N802  # Naming upper/lowercase -- too hard right now.
     D401  # Docstring in imperative mood. This should *not* be the case for @property's, but can't ignore them atm.
 max-line-length = 88
-max-complexity = 30
+max-complexity = 35
 docstring-convention=numpy
 ignore-decorators=click.option
 per-file-ignores =

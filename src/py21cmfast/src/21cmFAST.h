@@ -180,7 +180,9 @@ void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoPara
 
 void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_options);
 void FreePhotonConsMemory();
+void FreeTsInterpolationTables(struct FlagOptions *flag_options);
 bool photon_cons_allocated = false;
+bool interpolation_tables_allocated = false;
 int SomethingThatCatches(bool sub_func);
 int FunctionThatCatches(bool sub_func, bool pass, double* result);
 void FunctionThatThrows();

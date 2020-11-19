@@ -1,13 +1,10 @@
 """Simple script to simulate an MCMC-like routine to check for memory leaks."""
+import numpy as np
 import os
+import psutil
 import tracemalloc
 
-import numpy as np
-import psutil
-
-from py21cmfast import initial_conditions
-from py21cmfast import perturb_field
-from py21cmfast import run_coeval
+from py21cmfast import initial_conditions, perturb_field, run_coeval
 
 tracemalloc.start()
 snapshot = tracemalloc.take_snapshot()

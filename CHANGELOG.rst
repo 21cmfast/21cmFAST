@@ -1,6 +1,21 @@
 Changelog
 =========
 
+v3.0.3
+------
+
+Added
+~~~~~
+* ``coeval_callback`` and ``coeval_callback_redshifts`` flags to the ``run_lightcone``.
+  Gives the ability to run arbitrary code on ``Coeval`` boxes.
+* JOSS paper!
+* ``get_fields`` classmethod on all output classes, so that one can easily figure out
+  what fields are computed (and available) for that class.
+
+Fixed
+~~~~~
+* Only raise error on non-available ``external_table_path`` when actually going to use it.
+
 v3.0.2
 ------
 

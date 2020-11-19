@@ -1,16 +1,14 @@
 """Simple plotting functions for 21cmFAST objects."""
-from typing import Optional
-
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as un
 from astropy.cosmology import z_at_value
 from matplotlib import colors
 from matplotlib.ticker import AutoLocator
+from typing import Optional
 
 from . import outputs
-from .outputs import Coeval
-from .outputs import LightCone
+from .outputs import Coeval, LightCone
 
 eor_colour = colors.LinearSegmentedColormap.from_list(
     "EoR",
@@ -126,7 +124,8 @@ def coeval_sliceplot(
         The output of a function such as `ionize_box` (a class containing several quantities), or
         `run_coeval`.
     kind : str
-        The quantity within the structure to be shown.
+        The quantity within the structure to be shown. A full list of available options
+        can be obtained by running ``Coeval.get_fields()``.
     cbar_label : str, optional
         A label for the colorbar. Some values of `kind` will have automatically chosen
         labels, but these can be turned off by setting ``cbar_label=''``.
@@ -416,7 +415,7 @@ def plot_global_history(
         The matplotlib Axes object on which to plot. Otherwise, created.
     """
     if ax is None:
-        fig, ax = plt.subplots(1, 1, figsize=(4, 7))
+        fig, ax = plt.subplots(1, 1, figsize=(7, 4))
     else:
         fig = ax._gci().figure
 

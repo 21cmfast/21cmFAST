@@ -2,6 +2,11 @@
 Installation
 ============
 
+The easiest way to install `21cmFAST` is to use `conda`. Simply use
+`conda install -c conda-forge 21cmFAST`. With this method, all dependencies are taken
+care of, and it should work on either Linux or MacOS. If for some reason this is not
+possible for you, read on.
+
 Dependencies
 ------------
 We try to have as many of the dependencies automatically installed as possible.
@@ -9,14 +14,26 @@ However, since `21cmFAST` relies on some C libraries, this is not always possibl
 
 The C libraries required are:
 
-* `gsl`
-* `fftw` (compiled with floating-point enabled, and `--enable-shared`)
-* `openmp`
-* A C-compiler with compatibility with the `-fopenmp` flag. **Note:** it seems that on
-  OSX, if using `gcc`, you will need `v4.9.4+`.
+* ``gsl``
+* ``fftw`` (compiled with floating-point enabled, and `--enable-shared`)
+* ``openmp``
+* A C-compiler with compatibility with the ``-fopenmp`` flag. **Note:** it seems that on
+  OSX, if using ``gcc``, you will need ``v4.9.4+``.
 
 As it turns out, though these are fairly common libraries, getting them installed in a
-way that `21cmFAST` understands on various operating systems can be slightly non-trivial.
+way that ``21cmFAST`` understands on various operating systems can be slightly non-trivial.
+
+HPC
+~~~
+These libraries will often be available on a HPC environment by using the
+``module load gsl`` and similar commands. Note that just because they are loaded
+doesn't mean that ``21cmFAST`` will be able to find them. You may have to point to the
+relevant ``lib/`` and ``include/`` folders for both ``gsl`` and ``fftw`` (these should
+be available using ``module show gsl`` etc.)
+
+Note also that while ``fftw`` may be available to load, it may not have the correct
+compilation options (i.e. float-enabled and multiprocessing-enabled). In this case,
+see below.
 
 Linux
 ~~~~~
