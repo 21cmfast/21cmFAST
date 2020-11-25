@@ -839,7 +839,7 @@ class OutputStruct(StructWrapper):
         """
         direc = path.expanduser(direc or config["direc"])
 
-        if not path.isabs(fname):
+        if not path.exists(fname):
             fname = path.join(direc, fname)
 
         self = cls(**cls._read_inputs(fname))

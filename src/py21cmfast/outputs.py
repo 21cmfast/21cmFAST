@@ -19,6 +19,7 @@ from astropy import units
 from astropy.cosmology import z_at_value
 from cached_property import cached_property
 from hashlib import md5
+from pathlib import Path
 from typing import List, Sequence
 
 from . import __version__
@@ -506,11 +507,11 @@ class _HighLevelOutput:
 
     def gather(
         self,
-        fname: [str, None] = None,
+        fname: [str, None, Path] = None,
         kinds: [Sequence, None] = None,
         clean: [bool, dict] = False,
-        direc=None,
-    ) -> str:
+        direc: [str, Path, None] = None,
+    ) -> Path:
         """Gather the cached data associated with this object into its file."""
         kinds = kinds or [
             "init",
@@ -526,13 +527,11 @@ class _HighLevelOutput:
                 "You are trying to clean cached items that you will not be gathering."
             )
 
-        direc = os.path.expanduser(direc or config["direc"])
+        direc = Path(direc or config["direc"]).expanduser().absolute()
+        fname = Path(fname or self.get_unique_filename()).expanduser()
 
-        if fname is None:
-            fname = self.get_unique_filename()
-
-        if not os.path.isabs(fname):
-            fname = os.path.abspath(os.path.join(direc, fname))
+        if not fname.exists():
+            fname = direc / fname
 
         for kind in kinds:
             redshifts = (f[0] for f in self.cache_files[kind])
