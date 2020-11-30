@@ -8,6 +8,7 @@ import warnings
 from cffi import FFI
 from hashlib import md5
 from os import makedirs, path
+from pathlib import Path
 
 from . import __version__
 from ._cfg import config
@@ -753,15 +754,18 @@ class OutputStruct(StructWrapper):
 
         self.write(direc, fname)
 
-    def read(self, direc=None, fname=None):
+    def read(self, direc: [str, Path, None] = None, fname: [str, Path, None] = None):
         """
         Try find and read existing boxes from cache, which match the parameters of this instance.
 
         Parameters
         ----------
-        direc : str, optional
+        direc
             The directory in which to search for the boxes. By default, this is the
             centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
+        fname
+            The filename to read. By default, use the filename associated with this
+            object.
         """
         if self.filled:
             raise IOError("This data is already filled, no need to read in.")
@@ -772,8 +776,9 @@ class OutputStruct(StructWrapper):
             if pth is None:
                 raise IOError("No boxes exist for these parameters.")
         else:
-            direc = path.expanduser(direc or config["direc"])
-            pth = fname if path.isabs(fname) else path.join(direc, fname)
+            direc = Path(direc or config["direc"]).expanduser()
+            fname = Path(fname)
+            pth = fname if fname.exists() else direc / fname
 
         # Need to make sure arrays are initialized before reading in data to them.
         if not self.arrays_initialized:
