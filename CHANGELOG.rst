@@ -10,6 +10,11 @@ Added
 * Ability to gather all evolutionary antecedents from a Coeval/Lightcone into the one
   file.
 
+Fixed
+~~~~~
+* Bug in 2LPT when `USE_RELATIVE_VELOCITIES=True` [Issue #191, PR #192]
+
+
 v3.0.3
 ------
 
