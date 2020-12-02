@@ -8,6 +8,7 @@ import warnings
 from cffi import FFI
 from hashlib import md5
 from os import makedirs, path
+from pathlib import Path
 
 from . import __version__
 from ._cfg import config
@@ -702,12 +703,8 @@ class OutputStruct(StructWrapper):
                 # Save the boxes to the file
                 boxes = f.create_group(self._name)
 
-                # Go through all fields in this struct, and save
-                for k in self.pointer_fields:
-                    boxes.create_dataset(k, data=getattr(self, k))
+                self.write_data_to_hdf5_group(boxes)
 
-                for k in self.primitive_fields:
-                    boxes.attrs[k] = getattr(self, k)
         except OSError as e:
             logger.warning(
                 "When attempting to write {} to file, write failed with the "
@@ -716,6 +713,22 @@ class OutputStruct(StructWrapper):
                 )
             )
             logger.warning(e)
+
+    def write_data_to_hdf5_group(self, group: h5py.Group):
+        """
+        Write out this object to a particular HDF5 subgroup.
+
+        Parameters
+        ----------
+        group
+            The HDF5 group into which to write the object.
+        """
+        # Go through all fields in this struct, and save
+        for k in self.pointer_fields:
+            group.create_dataset(k, data=getattr(self, k))
+
+        for k in self.primitive_fields:
+            group.attrs[k] = getattr(self, k)
 
     def save(self, fname=None, direc="."):
         """Save the box to disk.
@@ -741,15 +754,18 @@ class OutputStruct(StructWrapper):
 
         self.write(direc, fname)
 
-    def read(self, direc=None, fname=None):
+    def read(self, direc: [str, Path, None] = None, fname: [str, Path, None] = None):
         """
         Try find and read existing boxes from cache, which match the parameters of this instance.
 
         Parameters
         ----------
-        direc : str, optional
+        direc
             The directory in which to search for the boxes. By default, this is the
             centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
+        fname
+            The filename to read. By default, use the filename associated with this
+            object.
         """
         if self.filled:
             raise IOError("This data is already filled, no need to read in.")
@@ -760,8 +776,9 @@ class OutputStruct(StructWrapper):
             if pth is None:
                 raise IOError("No boxes exist for these parameters.")
         else:
-            direc = path.expanduser(direc or config["direc"])
-            pth = fname if path.isabs(fname) else path.join(direc, fname)
+            direc = Path(direc or config["direc"]).expanduser()
+            fname = Path(fname)
+            pth = fname if fname.exists() else direc / fname
 
         # Need to make sure arrays are initialized before reading in data to them.
         if not self.arrays_initialized:
@@ -827,7 +844,7 @@ class OutputStruct(StructWrapper):
         """
         direc = path.expanduser(direc or config["direc"])
 
-        if not path.isabs(fname):
+        if not path.exists(fname):
             fname = path.join(direc, fname)
 
         self = cls(**cls._read_inputs(fname))

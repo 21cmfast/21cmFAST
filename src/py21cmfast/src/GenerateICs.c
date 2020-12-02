@@ -377,7 +377,7 @@ int ComputeInitialConditions(
                                                          (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
             }
             fftwf_execute(plan);
-	        fftwf_destroy_plan(plan);
+            fftwf_destroy_plan(plan);
         }
 
         // sample the UNfiltered velocity box and save it to python
@@ -754,7 +754,6 @@ int ComputeInitialConditions(
                 if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
                     plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                                  (float *) HIRES_box, (fftwf_complex *) HIRES_box, FFTW_WISDOM_ONLY);
-                    fftwf_execute(plan);
                 } else {
                     LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
                     Throw(FileError);
@@ -764,8 +763,8 @@ int ComputeInitialConditions(
         else {
             plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
                                          (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_ESTIMATE);
-            fftwf_execute(plan);
         }
+        fftwf_execute(plan);
         fftwf_destroy_plan(plan);
 
         memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
@@ -929,6 +928,7 @@ int ComputeInitialConditions(
     for (i=0; i<user_params->N_THREADS; i++) {
         gsl_rng_free (r[i]);
     }
+    gsl_rng_free(rseed);
     LOG_DEBUG("Cleaned Up.");
     } // End of Try{}
 
