@@ -19,7 +19,8 @@ from astropy import units
 from astropy.cosmology import z_at_value
 from cached_property import cached_property
 from hashlib import md5
-from typing import List
+from pathlib import Path
+from typing import List, Sequence
 
 from . import __version__
 from . import _utils as _ut
@@ -446,6 +447,118 @@ class BrightnessTemp(_AllParamsBox):
 
 
 class _HighLevelOutput:
+    def get_cached_data(
+        self, kind: str, redshift: float, load_data: bool = False
+    ) -> _OutputStruct:
+        """
+        Return an OutputStruct object which was cached in creating this Coeval box.
+
+        Parameters
+        ----------
+        kind
+            The kind of object: "init", "perturb", "spin_temp", "ionize" or "brightness"
+        redshift
+            The (approximate) redshift of the object to return.
+        load_data
+            Whether to actually read the field data of the object in (call ``obj.read()``
+            after this function to do this manually)
+
+        Returns
+        -------
+        output
+            The output struct object.
+        """
+        if self.cache_files is None:
+            raise AttributeError(
+                "No cache files were associated with this Coeval object."
+            )
+
+        # TODO: also check this file, because it may have been "gather"d.
+
+        if kind not in self.cache_files:
+            raise ValueError(
+                f"{kind} is not a valid kind for the cache. Valid options: "
+                f"{self.cache_files.keys()}"
+            )
+
+        files = self.cache_files.get(kind, {})
+        # files is a list of tuples of (redshift, filename)
+
+        redshifts = np.array([f[0] for f in files])
+
+        indx = np.argmin(np.abs(redshifts - redshift))
+        fname = files[indx][1]
+
+        if not os.path.exists(fname):
+            raise IOError(
+                "The cached file you requested does not exist (maybe it was removed?)."
+            )
+
+        kinds = {
+            "init": InitialConditions,
+            "perturb_field": PerturbedField,
+            "ionized_box": IonizedBox,
+            "spin_temp": TsBox,
+            "brightness_temp": BrightnessTemp,
+        }
+        cls = kinds[kind]
+
+        return cls.from_file(fname, load_data=load_data)
+
+    def gather(
+        self,
+        fname: [str, None, Path] = None,
+        kinds: [Sequence, None] = None,
+        clean: [bool, dict] = False,
+        direc: [str, Path, None] = None,
+    ) -> Path:
+        """Gather the cached data associated with this object into its file."""
+        kinds = kinds or [
+            "init",
+            "perturb_field",
+            "ionized_box",
+            "spin_temp",
+            "brightness_temp",
+        ]
+
+        clean = kinds if clean and not hasattr(clean, "__len__") else []
+        if any(c not in kinds for c in clean):
+            raise ValueError(
+                "You are trying to clean cached items that you will not be gathering."
+            )
+
+        direc = Path(direc or config["direc"]).expanduser().absolute()
+        fname = Path(fname or self.get_unique_filename()).expanduser()
+
+        if not fname.exists():
+            fname = direc / fname
+
+        for kind in kinds:
+            redshifts = (f[0] for f in self.cache_files[kind])
+            for i, z in enumerate(redshifts):
+                cache_fname = self.cache_files[kind][i][1]
+
+                obj = self.get_cached_data(kind, redshift=z, load_data=True)
+                with h5py.File(fname, "a") as fl:
+                    cache = (
+                        fl.create_group("cache") if "cache" not in fl else fl["cache"]
+                    )
+                    kind_group = (
+                        cache.create_group(kind) if kind not in cache else cache[kind]
+                    )
+
+                    zstr = f"z{z:.2f}"
+                    if zstr not in kind_group:
+                        z_group = kind_group.create_group(zstr)
+                    else:
+                        z_group = kind_group[zstr]
+
+                    obj.write_data_to_hdf5_group(z_group)
+
+                    if kind in clean:
+                        os.remove(cache_fname)
+        return fname
+
     def _get_prefix(self):
         return "{name}_z{redshift:.4}_{{hash}}_r{seed}.h5".format(
             name=self.__class__.__name__,
@@ -629,6 +742,7 @@ class Coeval(_HighLevelOutput):
         ionized_box: IonizedBox,
         brightness_temp: BrightnessTemp,
         ts_box: [TsBox, None] = None,
+        cache_files: [dict, None] = None,
         photon_nonconservation_data=None,
         _globals=None,
     ):
@@ -647,6 +761,8 @@ class Coeval(_HighLevelOutput):
         self.ionization_struct = ionized_box
         self.brightness_temp_struct = brightness_temp
         self.spin_temp_struct = ts_box
+
+        self.cache_files = cache_files
 
         self.photon_nonconservation_data = photon_nonconservation_data
         # A *copy* of the current global parameters.
@@ -751,6 +867,7 @@ class LightCone(_HighLevelOutput):
         node_redshifts=None,
         global_quantities=None,
         photon_nonconservation_data=None,
+        cache_files: [dict, None] = None,
         _globals=None,
     ):
         self.redshift = redshift
@@ -760,6 +877,7 @@ class LightCone(_HighLevelOutput):
         self.astro_params = astro_params
         self.flag_options = flag_options
         self.node_redshifts = node_redshifts
+        self.cache_files = cache_files
 
         # A *copy* of the current global parameters.
         self.global_params = _globals or dict(global_params.items())

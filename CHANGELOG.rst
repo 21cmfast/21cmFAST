@@ -3,6 +3,12 @@ Changelog
 
 dev
 ---
+Added
+~~~~~
+* Ability to access all evolutionary Coeval components, either from the end Coeval
+  class, or the Lightcone.
+* Ability to gather all evolutionary antecedents from a Coeval/Lightcone into the one
+  file.
 
 Fixed
 ~~~~~
