@@ -1,0 +1,18 @@
+channels:
+  - defaults
+dependencies:
+  - pre-commit
+  - pytest>=5.0
+  - pytest-cov
+  - pytest-remotedata>=0.3.2
+  - click
+  - numpy
+  - pyyaml
+  - cffi>=1.0
+  - scipy
+  - astropy>=2.0
+  - h5py>=2.8.0
+  - matplotlib
+  - pip:
+    - powerbox
+    - cached_property

@@ -11,7 +11,6 @@ import io
 import os
 import re
 import shutil
-from distutils.dir_util import copy_tree
 from os.path import dirname, expanduser, join
 
 
