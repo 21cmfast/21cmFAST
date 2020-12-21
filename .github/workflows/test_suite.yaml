@@ -7,10 +7,20 @@ on:
   push:
     tags-ignore:
       - 'v*'
+    paths-ignore:
+      - "*.rst"
+      - "docs/**"
+      - "joss-paper/**"
+      - "devel/**"
   pull_request:
     branches:
       - 'master'
       - 'production'
+    paths-ignore:
+      - "*.rst"
+      - "docs/**"
+      - "joss-paper/**"
+      - "devel/**"
 
 jobs:
   tests:
