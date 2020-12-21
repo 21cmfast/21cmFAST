@@ -74,6 +74,7 @@ jobs:
           conda install -c conda-forge fftw
           conda install -c conda-forge/label/cf201901 gcc
       - name: Install 21cmFAST Linux
+        if: matrix.os == 'ubuntu-latest'
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
