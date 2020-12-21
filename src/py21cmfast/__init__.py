@@ -1,5 +1,14 @@
 """The py21cmfast package."""
-__version__ = "3.0.3"
+try:
+    from importlib.metadata import PackageNotFoundError, version
+except ImportError:
+    from importlib_metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version(__name__)
+except PackageNotFoundError:
+    # package is not installed
+    pass
 
 # This just ensures that the default directory for boxes is created.
 from os import mkdir as _mkdir

@@ -20,14 +20,6 @@ def _read(*names, **kwargs):
     ).read()
 
 
-def _find_version(*file_paths):
-    version_file = _read(*file_paths)
-    version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
-    if version_match:
-        return version_match.group(1)
-    raise RuntimeError("Unable to find version string.")
-
-
 # ======================================================================================
 # Create a user-level config directory for 21cmFAST, for configuration.
 cfgdir = expanduser(join("~", ".21cmfast"))
@@ -76,7 +68,6 @@ doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]
 
 setup(
     name="21cmFAST",
-    version=_find_version("src", "py21cmfast", "__init__.py"),
     license="MIT license",
     description="A semi-numerical cosmological simulation code for the 21cm signal",
     long_description="%s\n%s"
@@ -121,7 +112,8 @@ setup(
         "matplotlib",
     ],
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
-    setup_requires=["cffi>=1.0"],
+    setup_requires=["cffi>=1.0", "setuptools_scm"],
     entry_points={"console_scripts": ["21cmfast = py21cmfast.cli:main"]},
     cffi_modules=["{pkgdir}/build_cffi.py:ffi".format(pkgdir=pkgdir)],
+    use_scm_version=True,
 )
