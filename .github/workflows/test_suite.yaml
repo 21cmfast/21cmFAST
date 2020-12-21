@@ -59,7 +59,7 @@ jobs:
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate ${ENV_NAME}
-          conda install -y --file ci/test-env.yaml
+          conda env update -f ci/test-env.yml
       - name: Get C Libraries Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
