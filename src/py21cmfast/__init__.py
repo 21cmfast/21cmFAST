@@ -5,7 +5,7 @@ except ImportError:
     from importlib_metadata import PackageNotFoundError, version
 
 try:
-    __version__ = version(__name__)
+    __version__ = version("21cmFAST")
 except PackageNotFoundError:
     # package is not installed
     pass
