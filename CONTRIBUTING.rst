@@ -79,7 +79,7 @@ The following steps are the same for both *members* and *non-members*:
 
    or if using `conda` (suggested)::
 
-    conda env update -f environment.yml
+    conda env update -f environment_dev.yml
 
 4. Install pre-commit hooks::
 
