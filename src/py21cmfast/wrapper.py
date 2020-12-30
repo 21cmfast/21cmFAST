@@ -339,13 +339,17 @@ def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
     Raises
     ------
     ValueError :
-        If `redshifts` and `global_xHI` have inconsistent length.
+        If `redshifts` and `global_xHI` have inconsistent length or if redshifts are not
+        in ascending order.
     """
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
 
     if len(redshifts) != len(global_xHI):
         raise ValueError("redshifts and global_xHI must have same length")
+
+    if not np.all(np.diff(redshifts) > 0):
+        raise ValueError("redshifts and global_xHI must be in ascending order")
 
     # Convert the data to the right type
     redshifts = np.array(redshifts, dtype="float32")
@@ -765,8 +769,8 @@ def _get_photon_nonconservation_data():
         "Q_analytic",
         "z_calibration",
         "nf_calibration",
-        "delta_z_photon_cons",
         "nf_photoncons",
+        "delta_z_photon_cons",
     ]
 
     photon_nonconservation_data = {
