@@ -13,6 +13,7 @@ Added
 Fixed
 ~~~~~
 * Bug in 2LPT when `USE_RELATIVE_VELOCITIES=True` [Issue #191, PR #192]
+* Error raised when redshifts are not in ascending order [Issue #176, PR #177]
 
 
 v3.0.3
