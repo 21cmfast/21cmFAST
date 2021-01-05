@@ -481,12 +481,6 @@ class UserParams(StructWithDefaults):
     _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
 
     @property
-    def HII_DIM(self):
-        """Number of cells for the low-res box along a principal axis. Must be even."""
-        if self._HII_DIM % 2:
-            raise ValueError("HII_DIM must be even!")
-
-    @property
     def DIM(self):
         """Number of cells for the high-res box (sampling ICs) along a principal axis."""
         return self._DIM or 3 * self.HII_DIM

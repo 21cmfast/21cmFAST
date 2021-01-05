@@ -117,7 +117,6 @@ int ComputePerturbField(
                             *((float *)HIRES_density_perturb + R_FFT_INDEX(i,j,k)) = 0.;
                         }
                         else {
-                            LOG_DEBUG("Doing %d %d %d = %d", i,j,k, HII_R_FFT_INDEX(i,j,k));
                             *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) = 0.;
                         }
 
@@ -125,15 +124,6 @@ int ComputePerturbField(
                 }
             }
         }
-
-        for (i=0; i<dimension*dimension*dimension; i++){
-            LOG_DEBUG("ABout to do %d", i);
-            LOG_DEBUG("%f", LOWRES_density_perturb[i]);
-        }
-        Throw(IOError);
-
-        LOG_DEBUG("A few values in LOWRES_density_perturb: %f %f %f %f", LOWRES_density_perturb[0],
-        LOWRES_density_perturb[user_params->HII_DIM], LOWRES_density_perturb[user_params->HII_DIM*user_params->HII_DIM], LOWRES_density_perturb[10*user_params->HII_DIM]);
 
         velocity_displacement_factor = (growth_factor-init_growth_factor) / user_params->BOX_LEN;
 
