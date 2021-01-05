@@ -44,7 +44,7 @@ int dft_r2c_cube(bool use_wisdom, int dim, int n_threads, fftwf_complex *box){
                 LOG_WARNING("Cannot locate FFTW Wisdom: %s file not found. Reverting to FFTW_ESTIMATE.", wisdom_filename);
             }
         }
-        plan = fftwf_plan_dft_c2r_3d(dim, dim, dim, (float *)box, (fftwf_complex *)box, flag);
+        plan = fftwf_plan_dft_r2c_3d(dim, dim, dim, (float *)box, (fftwf_complex *)box, flag);
         fftwf_execute(plan);
         fftwf_destroy_plan(plan);
     }
