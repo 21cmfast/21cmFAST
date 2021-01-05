@@ -530,25 +530,7 @@ LOG_SUPER_DEBUG("Looping through R");
 LOG_SUPER_DEBUG("Allocated unfiltered box");
 
             ////////////////// Transform unfiltered box to k-space to prepare for filtering /////////////////
-            if(user_params->USE_FFTW_WISDOM) {
-                // Check to see if the wisdom exists, create it if it doesn't
-                sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
-                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_WISDOM_ONLY);
-                    fftwf_execute(plan);
-                }
-                else {
-                    LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-                    Throw(FileError);
-                }
-            }
-            else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)unfiltered_box, (fftwf_complex *)unfiltered_box, FFTW_ESTIMATE);
-                fftwf_execute(plan);
-            }
-            fftwf_destroy_plan(plan);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, unfiltered_box);
 LOG_SUPER_DEBUG("Done FFT on unfiltered box");
 
             // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
@@ -579,25 +561,7 @@ LOG_SUPER_DEBUG("normalised unfiltered box");
                     filter_box(box, 1, global_params.HEAT_FILTER, R);
                 }
                 // now fft back to real space
-                if(user_params->USE_FFTW_WISDOM) {
-                    // Check to see if the wisdom exists, create it if it doesn't
-                    sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
-                    if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                     (fftwf_complex *)box, (float *)box, FFTW_WISDOM_ONLY);
-                        fftwf_execute(plan);
-                    }
-                    else {
-                        LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-                        Throw(FileError);
-                    }
-                }
-                else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)box, (float *)box, FFTW_ESTIMATE);
-                    fftwf_execute(plan);
-                }
-                fftwf_destroy_plan(plan);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, box);
 LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
 
                 min_density = 0.0;
@@ -934,16 +898,7 @@ LOG_SUPER_DEBUG("got density gridpoints");
 
                 // NEED TO FILTER Mcrit_LW!!!
                 /*** Transform unfiltered box to k-space to prepare for filtering ***/
-                if(user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (float *)log10_Mcrit_LW_unfiltered, (fftwf_complex *)log10_Mcrit_LW_unfiltered, FFTW_WISDOM_ONLY);
-                }
-                else {
-                    plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (float *)log10_Mcrit_LW_unfiltered, (fftwf_complex *)log10_Mcrit_LW_unfiltered, FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+                dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mcrit_LW_unfiltered);
 
 #pragma omp parallel shared(log10_Mcrit_LW_unfiltered) private(ct) num_threads(user_params->N_THREADS)
                 {
@@ -1075,16 +1030,8 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                     if (R_ct > 0){// don't filter on cell size
                         filter_box(log10_Mcrit_LW_filtered, 1, global_params.HEAT_FILTER, R_values[R_ct]);
                     }
-                    if(user_params->USE_FFTW_WISDOM) {
-                        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                     (fftwf_complex *)log10_Mcrit_LW_filtered, (float *)log10_Mcrit_LW_filtered, FFTW_WISDOM_ONLY);
-                    }
-                    else {
-                        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                     (fftwf_complex *)log10_Mcrit_LW_filtered, (float *)log10_Mcrit_LW_filtered, FFTW_ESTIMATE);
-                    }
-                    fftwf_execute(plan);
-                    fftwf_destroy_plan(plan);
+                    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mcrit_LW_filtered);
+
                     log10_Mcrit_LW_ave = 0; //recalculate it at this filtering scale
 #pragma omp parallel shared(log10_Mcrit_LW,log10_Mcrit_LW_filtered,log10_Mcrit_mol) private(i,j,k) num_threads(user_params->N_THREADS)
                     {

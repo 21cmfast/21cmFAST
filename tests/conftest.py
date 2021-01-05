@@ -97,7 +97,7 @@ def setup_and_teardown_package(tmpdirec):
 
 @pytest.fixture(scope="session")
 def default_user_params():
-    return UserParams(HII_DIM=35, DIM=70, BOX_LEN=50)
+    return UserParams(HII_DIM=32, DIM=64, BOX_LEN=50)
 
 
 @pytest.fixture(scope="session")
