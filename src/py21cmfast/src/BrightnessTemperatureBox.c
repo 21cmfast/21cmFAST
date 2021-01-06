@@ -22,11 +22,6 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     ave = 0.;
 
     omp_set_num_threads(user_params->N_THREADS);
-    fftwf_init_threads();
-    fftwf_plan_with_nthreads(user_params->N_THREADS);
-    fftwf_cleanup_threads();
-
-    fftwf_plan plan;
 
     float *v = (float *) calloc(HII_TOT_FFT_NUM_PIXELS,sizeof(float));
     float *vel_gradient = (float *) calloc(HII_TOT_FFT_NUM_PIXELS,sizeof(float));

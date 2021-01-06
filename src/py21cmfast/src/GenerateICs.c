@@ -23,6 +23,7 @@
 #include "logger.h"
 #include "Constants.h"
 #include "Globals.h"
+#include "indexing.c"
 #include "UsefulFunctions.c"
 #include "ps.c"
 #include "dft.c"
@@ -125,9 +126,6 @@ int ComputeInitialConditions(
     gsl_rng_set(rseed, random_seed);
 
     omp_set_num_threads(user_params->N_THREADS);
-    fftwf_init_threads();
-    fftwf_plan_with_nthreads(user_params->N_THREADS);
-    fftwf_cleanup_threads();
 
     switch(user_params->PERTURB_ON_HIGH_RES) {
         case 0:

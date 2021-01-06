@@ -45,12 +45,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     Broadcast_struct_global_UF(user_params,cosmo_params);
 
     omp_set_num_threads(user_params->N_THREADS);
-    fftwf_init_threads();
-    fftwf_plan_with_nthreads(user_params->N_THREADS);
-    fftwf_cleanup_threads();
-
-    char wisdom_filename[500];
-    fftwf_plan plan;
 
     // Other parameters used in the code
     int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R, short_completely_ionised,i_halo;

@@ -77,32 +77,6 @@ int CreateFFTWWisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_
         // allocate array for the k-space and real-space boxes
         fftwf_complex *HIRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
         fftwf_complex *LOWRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-//
-//#pragma omp parallel shared(HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
-//        {
-//#pragma omp for
-//            for (i=0; i<user_params->DIM; i++){
-//                for (j=0; j<user_params->DIM; j++){
-//                    for (k=0; k<=MIDDLE; k++){
-//                        HIRES_box[C_INDEX(i, j, k)] = 0.0;
-//                    }
-//                }
-//            }
-//        }
-//
-//#pragma omp parallel shared(LOWRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
-//        {
-//#pragma omp for
-//            for (i=0; i<user_params->HII_DIM; i++){
-//                for (j=0; j<user_params->HII_DIM; j++){
-//                    for (k=0; k<=HII_MIDDLE; k++){
-//                        LOWRES_box[HII_C_INDEX(i, j, k)] = 0.0;
-//                    }
-//                }
-//            }
-//        }
-
-
 
         sprintf(wisdom_filename,"%s/r2c_DIM%d_NTHREADS%d",global_params.wisdoms_path, user_params->DIM,user_params->N_THREADS);
         if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
@@ -152,18 +126,3 @@ int CreateFFTWWisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_
     }
     return(0);
 }
-
-//int CreateFFTWWisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_params) {
-//    fftwf_plan plan;
-//    int dim = 75;
-//
-//    // allocate array for the k-space and real-space boxes
-////    fftwf_complex *HIRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*dim*dim*(dim/2+1));
-//    fftwf_complex *oned_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*dim);
-//
-//    // Going to need to construct an FFTW_Wisdom for this box
-////    plan = fftwf_plan_dft_r2c_3d(dim,dim,dim, (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_PATIENT);
-//    plan = fftwf_plan_dft_1d(dim, oned_box, oned_box, FFTW_FORWARD, FFTW_PATIENT);
-//    printf("Made a plan!\n");
-//    fftwf_print_plan(plan);
-//}

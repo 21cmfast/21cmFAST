@@ -22,15 +22,9 @@ int ComputePerturbField(
     Broadcast_struct_global_UF(user_params,cosmo_params);
 
     omp_set_num_threads(user_params->N_THREADS);
-    fftwf_init_threads();
-    fftwf_plan_with_nthreads(user_params->N_THREADS);
-    fftwf_cleanup_threads();
-
-    char wisdom_filename[500];
 
     fftwf_complex *HIRES_density_perturb, *HIRES_density_perturb_saved;
     fftwf_complex *LOWRES_density_perturb, *LOWRES_density_perturb_saved;
-    fftwf_plan plan;
 
     float growth_factor, displacement_factor_2LPT, init_growth_factor, init_displacement_factor_2LPT, xf, yf, zf;
     float mass_factor, dDdt, f_pixel_factor, velocity_displacement_factor, velocity_displacement_factor_2LPT;

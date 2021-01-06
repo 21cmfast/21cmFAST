@@ -39,12 +39,7 @@ LOG_DEBUG("redshift=%f", redshift);
         Broadcast_struct_global_UF(user_params,cosmo_params);
 
         omp_set_num_threads(user_params->N_THREADS);
-        fftwf_init_threads();
-        fftwf_plan_with_nthreads(user_params->N_THREADS);
-        fftwf_cleanup_threads();
 
-        char wisdom_filename[500];
-        fftwf_plan plan;
         fftwf_complex *density_field, *density_field_saved;
 
         float growth_factor, R, delta_m, dm, dlnm, M, Delta_R, delta_crit;
