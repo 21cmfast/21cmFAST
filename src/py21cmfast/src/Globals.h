@@ -72,6 +72,7 @@ struct GlobalParams{
     int FILTER;
 
     char *external_table_path;
+    char *wisdoms_path;
     float R_BUBBLE_MIN;
     float M_MIN_INTEGRAL;
     float M_MAX_INTEGRAL;

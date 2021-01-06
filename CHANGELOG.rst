@@ -14,7 +14,12 @@ Fixed
 ~~~~~
 * Bug in 2LPT when `USE_RELATIVE_VELOCITIES=True` [Issue #191, PR #192]
 * Error raised when redshifts are not in ascending order [Issue #176, PR #177]
+* Errors when ``USE_FFTW_WISDOM`` is used on some systems [Issue #174, PR #199]
 
+Internals
+~~~~~~~~~
+
+* Added ``dft.c``, which makes doing all the cubic FFTs a lot easier and more consistent. [PR #199]
 
 v3.0.3
 ------

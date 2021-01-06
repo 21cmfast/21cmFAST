@@ -39,12 +39,7 @@ LOG_DEBUG("redshift=%f", redshift);
         Broadcast_struct_global_UF(user_params,cosmo_params);
 
         omp_set_num_threads(user_params->N_THREADS);
-        fftwf_init_threads();
-        fftwf_plan_with_nthreads(user_params->N_THREADS);
-        fftwf_cleanup_threads();
 
-        char wisdom_filename[500];
-        fftwf_plan plan;
         fftwf_complex *density_field, *density_field_saved;
 
         float growth_factor, R, delta_m, dm, dlnm, M, Delta_R, delta_crit;
@@ -110,27 +105,7 @@ LOG_DEBUG("Begin Initialisation");
             }
         }
 
-        // Now need to convert the real space density to Fourier space
-        if(user_params->USE_FFTW_WISDOM) {
-            // Check to see if the wisdom exists, create it if it doesn't
-            sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
-            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (float *)density_field, (fftwf_complex *)density_field, FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
-
-            }
-            else {
-                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-                Throw(FileError);
-            }
-        }
-        else {
-            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (float *)density_field, (fftwf_complex *)density_field, FFTW_ESTIMATE);
-            fftwf_execute(plan);
-        }
-        fftwf_destroy_plan(plan);
+        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, density_field);
 
         // save a copy of the k-space density field
         memcpy(density_field_saved, density_field, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
@@ -188,25 +163,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             filter_box(density_field, 0, global_params.HALO_FILTER, R);
 
             // do the FFT to get delta_m box
-            if(user_params->USE_FFTW_WISDOM) {
-                // Check to see if the wisdom exists, create it if it doesn't
-                sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
-                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                 (fftwf_complex *)density_field, (float *)density_field, FFTW_WISDOM_ONLY);
-                    fftwf_execute(plan);
-                }
-                else {
-                    LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-                    Throw(FileError);
-                }
-            }
-            else {
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (fftwf_complex *)density_field, (float *)density_field, FFTW_ESTIMATE);
-                fftwf_execute(plan);
-            }
-            fftwf_destroy_plan(plan);
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, density_field);
 
             // *****************  BEGIN OPTIMIZATION ***************** //
             // to optimize speed, if the filter size is large (switch to collapse fraction criteria later)

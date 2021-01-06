@@ -417,7 +417,7 @@ class OutputStruct(StructWrapper):
     _fields_ = []
     _global_params = None
     _inputs = ["user_params", "cosmo_params", "_random_seed"]
-    _filter_params = ["external_table_path"]
+    _filter_params = ["external_table_path", "wisdoms_path"]
     _c_based_pointers = ()
     _c_compute_function = None
     _c_free_function = None
@@ -601,9 +601,13 @@ class OutputStruct(StructWrapper):
                 if q is None:
                     continue
 
-                if isinstance(q, StructWithDefaults) or isinstance(
-                    q, StructInstanceWrapper
+                if (
+                    not isinstance(q, StructWithDefaults)
+                    and not isinstance(q, StructInstanceWrapper)
+                    and f.attrs[kfile] != q
                 ):
+                    return False
+                elif isinstance(q, (StructWithDefaults, StructInstanceWrapper)):
                     grp = f[kfile]
 
                     dct = q.self if isinstance(q, StructWithDefaults) else q
@@ -619,9 +623,6 @@ class OutputStruct(StructWrapper):
                                     f" with values {file_v} and {v} in file and user respectively"
                                 )
                                 return False
-                else:
-                    if f.attrs[kfile] != q:
-                        return False
         return True
 
     def exists(self, direc=None):
@@ -693,7 +694,12 @@ class OutputStruct(StructWrapper):
 
                             for kk, v in dct.items():
                                 if kk not in self._filter_params:
-                                    grp.attrs[kk] = "none" if v is None else v
+                                    try:
+                                        grp.attrs[kk] = "none" if v is None else v
+                                    except TypeError:
+                                        raise TypeError(
+                                            f"key {kk} with value {v} is not able to be written to HDF5 attrs!"
+                                        )
                         else:
                             f.attrs[kfile] = q
 

@@ -314,7 +314,10 @@ def construct_fftw_wisdoms(*, user_params=None, cosmo_params=None):
     cosmo_params = CosmoParams(cosmo_params)
 
     # Run the C code
-    return lib.CreateFFTWWisdoms(user_params(), cosmo_params())
+    if user_params.USE_FFTW_WISDOM:
+        return lib.CreateFFTWWisdoms(user_params(), cosmo_params())
+    else:
+        return 0
 
 
 def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):

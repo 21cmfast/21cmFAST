@@ -27,12 +27,6 @@ LOG_DEBUG("redshift=%f", redshift);
         Broadcast_struct_global_UF(user_params,cosmo_params);
 
         omp_set_num_threads(user_params->N_THREADS);
-        fftwf_init_threads();
-        fftwf_plan_with_nthreads(user_params->N_THREADS);
-        fftwf_cleanup_threads();
-
-        char wisdom_filename[500];
-        fftwf_plan plan;
 
         float growth_factor, displacement_factor_2LPT, mass, xf, yf, zf, z, growth_factor_over_BOX_LEN,displacement_factor_2LPT_over_BOX_LEN;
         int i,j,k, i_halo,xi, yi, zi, DI, dimension;
