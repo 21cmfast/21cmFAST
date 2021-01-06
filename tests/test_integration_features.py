@@ -59,10 +59,10 @@ def test_power_spectra_coeval(redshift, kwargs, module_direc):
             k, p, bt = prd.produce_coeval_power_spectra(redshift, **kwargs)
 
     assert np.allclose(
-        power[: len(power) // 2], p[: len(power) // 2], atol=1e-3, rtol=1e-3
+        power[: len(power) // 2], p[: len(power) // 2], atol=0, rtol=1e-2
     )
     assert np.allclose(
-        power[(len(power) // 2) :], p[(len(power) // 2) :], atol=1e-2, rtol=1e-2
+        power[(len(power) // 2) :], p[(len(power) // 2) :], atol=0, rtol=5e-2
     )
 
 
@@ -82,10 +82,10 @@ def test_power_spectra_lightcone(redshift, kwargs, module_direc):
             k, p, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
     assert np.allclose(
-        power[: len(power) // 2], p[: len(power) // 2], atol=1e-5, rtol=1e-2
+        power[: len(power) // 2], p[: len(power) // 2], atol=0, rtol=1e-2
     )
     assert np.allclose(
-        power[(len(power) // 2) :], p[(len(power) // 2) :], atol=5e-2, rtol=5e-2
+        power[(len(power) // 2) :], p[(len(power) // 2) :], atol=0, rtol=5e-2
     )
 
     assert np.allclose(xHI, lc.global_xH, atol=1e-5, rtol=1e-3)
