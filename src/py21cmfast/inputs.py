@@ -290,8 +290,11 @@ class GlobalParams(StructInstanceWrapper):
         super().__init__(wrapped, ffi)
 
         self._table_path = Path.home() / ".21cmfast"
-        EXTERNALTABLES = ffi.new("char[]", str(self._table_path).encode())
-        self.external_table_path = EXTERNALTABLES
+        external_tables = ffi.new("char[]", str(self._table_path).encode())
+        self.external_table_path = external_tables
+        self.wisdoms_path = ffi.new(
+            "char[]", str(self._table_path / "wisdoms").encode()
+        )
 
     @property
     def external_table_path(self):
@@ -306,6 +309,23 @@ class GlobalParams(StructInstanceWrapper):
     @external_table_path.setter
     def external_table_path(self, val):
         self._external_table_path = val
+
+    @property
+    def wisdoms_path(self):
+        """An ffi char pointer to the path to which external tables are kept."""
+        if not self._table_path.exists():
+            raise IOError(
+                f"Found no user data directory for 21cmFAST! Should be at {self._table_path}."
+                f"Try re-installing 21cmFAST. "
+            )
+        if not (self._table_path / "wisdoms").exists():
+            (self._table_path / "wisdoms").mkdir()
+
+        return self._wisdom_path
+
+    @wisdoms_path.setter
+    def wisdoms_path(self, val):
+        self._wisdom_path = val
 
     @contextlib.contextmanager
     def use(self, **kwargs):
@@ -327,10 +347,9 @@ class GlobalParams(StructInstanceWrapper):
                 raise ValueError(
                     "{} is not a valid parameter of global_params".format(k)
                 )
-            else:
-                key = this_attr_upper[k.upper()]
-                prev[key] = getattr(self, key)
-                setattr(self, key, val)
+            key = this_attr_upper[k.upper()]
+            prev[key] = getattr(self, key)
+            setattr(self, key, val)
 
         yield
 

@@ -2,7 +2,6 @@ import pytest
 
 import h5py
 import numpy as np
-from os import path
 
 from py21cmfast import (
     BrightnessTemp,

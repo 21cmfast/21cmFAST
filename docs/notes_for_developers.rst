@@ -149,7 +149,12 @@ Valgrind will likely run very slowly, and sometimes  you will know already which
 tests are those which may have problems, or are relevant to your particular changes.
 To run these::
 
-    $ valgrind --tool=memcheck --track-origins=yes --leak-check=full --suppressions=devel/valgrind-suppress-all-but-c.supp pytest -v tests/<test_file>::<test_func>
+    $ PYTHONMALLOC=malloc valgrind --tool=memcheck --track-origins=yes --leak-check=full --suppressions=devel/valgrind-suppress-all-but-c.supp pytest -v tests/<test_file>::<test_func> > valgrind.out 2>&1
+
+Note that we also routed the stderr output to a file, which is useful because it can be
+quite voluminous. There is a python script, `devel/filter_valgrind.py` which can be run
+over the output (`valgrind.out` in the above command) to filter it down to only have
+stuff from 21cmfast in it.
 
 Producing Integration Test Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

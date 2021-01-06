@@ -58,7 +58,7 @@ def test_power_spectra_coeval(redshift, kwargs, module_direc):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
             k, p, bt = prd.produce_coeval_power_spectra(redshift, **kwargs)
 
-    assert np.allclose(power, p, atol=1e-3, rtol=1e-2)
+    assert np.allclose(power, p, atol=1e-2, rtol=1e-2)
 
 
 @pytest.mark.parametrize("redshift,kwargs", options)

@@ -22,11 +22,6 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     ave = 0.;
 
     omp_set_num_threads(user_params->N_THREADS);
-    fftwf_init_threads();
-    fftwf_plan_with_nthreads(user_params->N_THREADS);
-    fftwf_cleanup_threads();
-
-    fftwf_plan plan;
 
     float *v = (float *) calloc(HII_TOT_FFT_NUM_PIXELS,sizeof(float));
     float *vel_gradient = (float *) calloc(HII_TOT_FFT_NUM_PIXELS,sizeof(float));
@@ -119,25 +114,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
         memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
-        if(user_params->USE_FFTW_WISDOM) {
-            // Check to see if the wisdom exists, create it if it doesn't
-            sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
-            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
-            }
-            else {
-                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-                Throw(FileError);
-            }
-        }
-        else {
-            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                         (float *)vel_gradient, (fftwf_complex *)vel_gradient, FFTW_ESTIMATE);
-            fftwf_execute(plan);
-        }
-        fftwf_destroy_plan(plan);
+        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, vel_gradient);
 
 #pragma omp parallel shared(vel_gradient) private(n_x,n_y,n_z,k_x,k_y,k_z) num_threads(user_params->N_THREADS)
         {
@@ -164,25 +141,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
             }
         }
 
-        if(user_params->USE_FFTW_WISDOM) {
-            // Check to see if the wisdom exists, create it if it doesn't
-            sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
-            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
-            }
-            else {
-                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-                Throw(FileError);
-            }
-        }
-        else {
-            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                         (fftwf_complex *)vel_gradient, (float *)vel_gradient, FFTW_ESTIMATE);
-            fftwf_execute(plan);
-        }
-        fftwf_destroy_plan(plan);
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, vel_gradient);
 
         // now add the velocity correction to the delta_T maps (only used for T_S >> T_CMB case).
         max_v_deriv = fabs(global_params.MAX_DVDR*H);

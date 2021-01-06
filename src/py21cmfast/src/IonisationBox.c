@@ -45,12 +45,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     Broadcast_struct_global_UF(user_params,cosmo_params);
 
     omp_set_num_threads(user_params->N_THREADS);
-    fftwf_init_threads();
-    fftwf_plan_with_nthreads(user_params->N_THREADS);
-    fftwf_cleanup_threads();
-
-    char wisdom_filename[500];
-    fftwf_plan plan;
 
     // Other parameters used in the code
     int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R, short_completely_ionised,i_halo;
@@ -650,104 +644,30 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             }
         }
 
-        if (user_params->USE_FFTW_WISDOM) {
-            // Check to see if the wisdom exists, create it if it doesn't
-            sprintf(wisdom_filename, "real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom", user_params->HII_DIM,
-                    user_params->N_THREADS);
-            if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *) deltax_unfiltered, (fftwf_complex *) deltax_unfiltered,FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
-            } else {
-                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-                Throw(FileError);
-            }
-        } else {
-            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                         (float *) deltax_unfiltered, (fftwf_complex *) deltax_unfiltered,FFTW_ESTIMATE);
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-        }
+        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, deltax_unfiltered);
 
         LOG_SUPER_DEBUG("FFTs performed");
 
         if(flag_options->USE_MINI_HALOS){
-            if(user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)prev_deltax_unfiltered, (fftwf_complex *)prev_deltax_unfiltered, FFTW_WISDOM_ONLY);
-            }
-            else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)prev_deltax_unfiltered, (fftwf_complex *)prev_deltax_unfiltered, FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-
-            if(user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)log10_Mturnover_MINI_unfiltered, (fftwf_complex *)log10_Mturnover_MINI_unfiltered, FFTW_WISDOM_ONLY);
-            }
-            else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)log10_Mturnover_MINI_unfiltered, (fftwf_complex *)log10_Mturnover_MINI_unfiltered, FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-
-            if(user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)log10_Mturnover_unfiltered, (fftwf_complex *)log10_Mturnover_unfiltered, FFTW_WISDOM_ONLY);
-            }
-            else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)log10_Mturnover_unfiltered, (fftwf_complex *)log10_Mturnover_unfiltered, FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, prev_deltax_unfiltered);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mturnover_MINI_unfiltered);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mturnover_unfiltered);
+            LOG_SUPER_DEBUG("MINI HALO ffts performed");
         }
 
         if (flag_options->USE_HALO_FIELD){
-            if(user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)M_coll_unfiltered, (fftwf_complex *)M_coll_unfiltered, FFTW_WISDOM_ONLY);
-            }
-            else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)M_coll_unfiltered, (fftwf_complex *)M_coll_unfiltered, FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, M_coll_unfiltered);
+            LOG_SUPER_DEBUG("HALO_FIELD ffts performed");
         }
 
         if(flag_options->USE_TS_FLUCT) {
-            if(user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)xe_unfiltered, (fftwf_complex *)xe_unfiltered, FFTW_WISDOM_ONLY);
-            }
-            else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)xe_unfiltered, (fftwf_complex *)xe_unfiltered, FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, xe_unfiltered);
+            LOG_SUPER_DEBUG("Ts ffts performed");
         }
-        LOG_SUPER_DEBUG("more ffts performed");
 
 
         if (flag_options->INHOMO_RECO) {
-            if (user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *) N_rec_unfiltered, (fftwf_complex *) N_rec_unfiltered,
-                                             FFTW_WISDOM_ONLY);
-            } else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *) N_rec_unfiltered, (fftwf_complex *) N_rec_unfiltered,
-                                             FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, N_rec_unfiltered);
         }
 
         // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from
@@ -854,95 +774,24 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
             // Perform FFTs
-            if (user_params->USE_FFTW_WISDOM) {
-                // Check to see if the wisdom exists, create it if it doesn't
-                sprintf(wisdom_filename, "complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom", user_params->HII_DIM,
-                        user_params->N_THREADS);
-                if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *) deltax_filtered, (float *) deltax_filtered,FFTW_WISDOM_ONLY);
-                    fftwf_execute(plan);
-                    fftwf_destroy_plan(plan);
-                } else {
-                    LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-                    Throw(FileError);
-                }
-            } else {
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (fftwf_complex *) deltax_filtered, (float *) deltax_filtered,FFTW_ESTIMATE);
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
-            }
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, deltax_filtered);
 
             if(flag_options->USE_MINI_HALOS){
-                if(user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)prev_deltax_filtered, (float *)prev_deltax_filtered, FFTW_WISDOM_ONLY);
-                }
-                else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)prev_deltax_filtered, (float *)prev_deltax_filtered, FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
-
-                if(user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)log10_Mturnover_MINI_filtered, (float *)log10_Mturnover_MINI_filtered, FFTW_WISDOM_ONLY);
-                }
-                else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)log10_Mturnover_MINI_filtered, (float *)log10_Mturnover_MINI_filtered, FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
-
-                if(user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)log10_Mturnover_filtered, (float *)log10_Mturnover_filtered, FFTW_WISDOM_ONLY);
-                }
-                else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)log10_Mturnover_filtered, (float *)log10_Mturnover_filtered, FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, prev_deltax_filtered);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mturnover_MINI_filtered);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mturnover_filtered);
             }
 
             if (flag_options->USE_HALO_FIELD) {
-                if (user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)M_coll_filtered, (float *)M_coll_filtered, FFTW_WISDOM_ONLY);
-                } else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)M_coll_filtered, (float *)M_coll_filtered, FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, M_coll_filtered);
             }
 
             if (flag_options->USE_TS_FLUCT) {
-                if (user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *) xe_filtered, (float *) xe_filtered,FFTW_WISDOM_ONLY);
-                } else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *) xe_filtered, (float *) xe_filtered, FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, xe_filtered);
             }
 
             if (flag_options->INHOMO_RECO) {
-                if (user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *) N_rec_filtered, (float *) N_rec_filtered,FFTW_WISDOM_ONLY);
-                } else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *) N_rec_filtered, (float *) N_rec_filtered,FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, N_rec_filtered);
             }
 
             // Check if this is the last filtering scale.  If so, we don't need deltax_unfiltered anymore.
