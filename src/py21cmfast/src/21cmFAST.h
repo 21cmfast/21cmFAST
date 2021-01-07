@@ -78,7 +78,7 @@ struct InitialConditions{
 };
 
 struct PerturbedField{
-    float *density, *velocity;
+    float *density, *velocity, *velocity_y, *velocity_x;
 };
 
 struct HaloField{
@@ -120,6 +120,7 @@ struct IonizedBox{
     double log10_Mturnover_MINI_ave;
     float *xH_box;
     float *Gamma12_box;
+    float *MFP_box;
     float *z_re_box;
     float *dNrec_box;
     float *temp_kinetic_all_gas;

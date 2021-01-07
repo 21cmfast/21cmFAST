@@ -187,6 +187,8 @@ class PerturbedField(_OutputStructZ):
     def _init_arrays(self):
         self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.velocity_x = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+        self.velocity_y = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
         self.density.shape = (
             self.user_params.HII_DIM,
@@ -194,6 +196,16 @@ class PerturbedField(_OutputStructZ):
             self.user_params.HII_DIM,
         )
         self.velocity.shape = (
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+        )
+        self.velocity_x.shape = (
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+            self.user_params.HII_DIM,
+        )
+        self.velocity_y.shape = (
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
@@ -314,6 +326,9 @@ class IonizedBox(_AllParamsBox):
         self.Gamma12_box = np.zeros(
             self.user_params.HII_tot_num_pixels, dtype=np.float32
         )
+        self.MFP_box = np.zeros(
+            self.user_params.HII_tot_num_pixels, dtype=np.float32
+        )
         self.z_re_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.dNrec_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.temp_kinetic_all_gas = np.zeros(
@@ -336,6 +351,7 @@ class IonizedBox(_AllParamsBox):
         )
         self.xH_box.shape = shape
         self.Gamma12_box.shape = shape
+        self.MFP_box.shape = shape
         self.z_re_box.shape = shape
         self.dNrec_box.shape = shape
         self.temp_kinetic_all_gas.shape = shape

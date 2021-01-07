@@ -141,6 +141,7 @@ LOG_SUPER_DEBUG("defined parameters");
 #pragma omp for
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++) {
                 box->Gamma12_box[ct] = 0.0;
+                box->MFP_box[ct] = 0.0;
             }
         }
     }
@@ -1441,6 +1442,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 // this assumes photon-starved growth of HII regions...  breaks down post EoR
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
                                     box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll + Gamma_R_prefactor_MINI * f_coll_MINI;
+                                    box->MFP_box[HII_R_INDEX(x,y,z)] = R;
                                 }
 
                                 // keep track of the first time this cell is ionized (earliest time)
