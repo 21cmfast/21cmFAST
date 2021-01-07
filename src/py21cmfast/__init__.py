@@ -8,7 +8,7 @@ try:
     __version__ = version("21cmFAST")
 except PackageNotFoundError:
     # package is not installed
-    pass
+    __version__ = "unknown"
 
 # This just ensures that the default directory for boxes is created.
 from os import mkdir as _mkdir
