@@ -469,10 +469,10 @@ LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
 
     if(user_params->USE_INTERPOLATION_TABLES) {
         if(!flag_options->USE_TS_FLUCT) {
-            initialiseSigmaMInterpTable(M_MIN,1e20);
+            initialiseSigmaMInterpTable(M_MIN,1e16);
         }
         else if(flag_options->USE_MINI_HALOS){
-            initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e20);
+            initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e16);
         }
     }
 
@@ -922,7 +922,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                                     log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                                     astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
                                                     astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,astro_params->F_STAR7_MINI,
-                                                    astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI);
+                                                    astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI, flag_options->FAST_FCOLL_TABLES);
 
                             if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
                                     initialise_Nion_General_spline_MINI_prev(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,
@@ -930,13 +930,13 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                                                     log10Mturn_max_MINI,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                                                     astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,
                                                                     astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
-                                                                    Mlim_Fstar_MINI, Mlim_Fesc_MINI);
+                                                                    Mlim_Fstar_MINI, Mlim_Fesc_MINI, flag_options->FAST_FCOLL_TABLES);
                             }
                         }
                         else{
                             initialise_Nion_General_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,
                                                         astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                        astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                                        astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc, flag_options->FAST_FCOLL_TABLES);
                         }
                     }
                 }
@@ -1030,12 +1030,12 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                             Splined_Fcoll = Nion_ConditionalM(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,curr_dens,
                                                                               pow(10.,log10_Mturnover),astro_params->ALPHA_STAR,
                                                                               astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                                              astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                                                              astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc, flag_options->FAST_FCOLL_TABLES);
 
                                             Splined_Fcoll_MINI = Nion_ConditionalM_MINI(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,curr_dens,
                                                                                     pow(10.,log10_Mturnover_MINI),Mcrit_atom,astro_params->ALPHA_STAR,
                                                                                     astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
-                                                                                    Mlim_Fstar_MINI,Mlim_Fesc_MINI);
+                                                                                    Mlim_Fstar_MINI,Mlim_Fesc_MINI, flag_options->FAST_FCOLL_TABLES);
                                         }
 
                                         prev_dens = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
@@ -1056,12 +1056,12 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                                 prev_Splined_Fcoll = Nion_ConditionalM(prev_growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,prev_dens,
                                                                                        pow(10.,log10_Mturnover),astro_params->ALPHA_STAR,
                                                                                        astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                                                       astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                                                                       astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc, flag_options->FAST_FCOLL_TABLES);
 
                                                 prev_Splined_Fcoll_MINI = Nion_ConditionalM_MINI(prev_growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,prev_dens,
                                                                                         pow(10.,log10_Mturnover_MINI),Mcrit_atom,astro_params->ALPHA_STAR,
                                                                                         astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
-                                                                                        Mlim_Fstar_MINI,Mlim_Fesc_MINI);
+                                                                                        Mlim_Fstar_MINI,Mlim_Fesc_MINI, flag_options->FAST_FCOLL_TABLES);
                                             }
                                         }
                                         else{
@@ -1086,7 +1086,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                             Splined_Fcoll = Nion_ConditionalM(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,curr_dens,
                                                                               astro_params->M_TURN,astro_params->ALPHA_STAR,
                                                                               astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                                              astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                                                              astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc, flag_options->FAST_FCOLL_TABLES);
 
                                         }
                                     }

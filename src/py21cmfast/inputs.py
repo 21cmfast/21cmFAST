@@ -327,6 +327,7 @@ class GlobalParams(StructInstanceWrapper):
     def wisdoms_path(self, val):
         self._wisdom_path = val
 
+
     @contextlib.contextmanager
     def use(self, **kwargs):
         """Set given parameters for a certain context.
@@ -599,6 +600,8 @@ class FlagOptions(StructWithDefaults):
     PHOTON_CONS : bool, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation.
+    FAST_FCOLL_TABLES: bool, optional
+        Whether to use fast Fcoll tables, as described in Sec X of JBM XX. Significant speedup for minihaloes.
     """
 
     _ffi = ffi
@@ -612,6 +615,7 @@ class FlagOptions(StructWithDefaults):
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
+        "FAST_FCOLL_TABLES": False,
     }
 
     @property
@@ -658,6 +662,17 @@ class FlagOptions(StructWithDefaults):
             return True
         else:
             return self._INHOMO_RECO
+
+    @property
+    def FAST_FCOLL_TABLES(self):
+        """Automatically setting FAST_FCOLL_TABLES to True if USE_MINI_HALOS. For speed."""
+        if self.USE_MINI_HALOS and not self._FAST_FCOLL_TABLES:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but FAST_FCOLL_TABLES to False, so the code will be very slow. Setting to true"
+            )
+            return True
+        else:
+            return self._FAST_FCOLL_TABLES
 
     @property
     def USE_TS_FLUCT(self):
