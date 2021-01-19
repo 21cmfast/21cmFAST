@@ -408,6 +408,10 @@ LOG_SUPER_DEBUG("Initialised heat");
     if(this_spin_temp->first_box || (fabs(initialised_redshift - perturbed_field_redshift) > 0.0001) ) {
 
         if(user_params->USE_INTERPOLATION_TABLES) {
+          if(flag_options->FAST_FCOLL_TABLES){
+            initialiseSigmaMInterpTable(2e4,1e20);
+          }
+          else{
             if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
                 if (flag_options->USE_MINI_HALOS){
                     initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e20);
@@ -417,6 +421,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                 }
             }
             LOG_SUPER_DEBUG("Initialised sigmaM interp table");
+          }
         }
     }
 
@@ -454,7 +459,12 @@ LOG_SUPER_DEBUG("read in file");
             LOG_DEBUG("Attempting to initialise sigmaM table with M_MIN=%e, Tvir_MIN=%e, mu=%e",
                       M_MIN, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
             if(user_params->USE_INTERPOLATION_TABLES) {
+              if(flag_options->FAST_FCOLL_TABLES){
+                initialiseSigmaMInterpTable(2e4,1e20);
+              }
+              else{
                 initialiseSigmaMInterpTable(M_MIN,1e20);
+              }
             }
         }
         LOG_SUPER_DEBUG("Initialised Sigma interp table");
@@ -672,7 +682,12 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
         if(!flag_options->M_MIN_in_Mass) {
             M_MIN = (float)TtoM(determine_zpp_max, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
             if(user_params->USE_INTERPOLATION_TABLES) {
+              if(flag_options->FAST_FCOLL_TABLES){
+                initialiseSigmaMInterpTable(2e4,1e20);
+              }
+              else{
                 initialiseSigmaMInterpTable(M_MIN,1e20);
+              }
             }
         }
 

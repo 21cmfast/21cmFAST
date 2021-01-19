@@ -468,13 +468,20 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
 LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
 
     if(user_params->USE_INTERPOLATION_TABLES) {
+      if(flag_options->FAST_FCOLL_TABLES){
+        initialiseSigmaMInterpTable(2e4,1e20);
+      }
+      else{
         if(!flag_options->USE_TS_FLUCT) {
             initialiseSigmaMInterpTable(M_MIN,1e16);
         }
         else if(flag_options->USE_MINI_HALOS){
             initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e16);
         }
+      }
+
     }
+
 
 LOG_SUPER_DEBUG("sigma table has been initialised");
 
