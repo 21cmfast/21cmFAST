@@ -3325,7 +3325,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
         Mlim_Fstar = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
         Mlim_Fesc = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
         if(flag_options->FAST_FCOLL_TABLES){
-          initialiseSigmaMInterpTable(2e4,1e16);
+          initialiseSigmaMInterpTable(fmin(2e4,M_MIN),1e20);
         }
         else{
           initialiseSigmaMInterpTable(M_MIN,1e20);
@@ -3393,7 +3393,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
 
                 if(M_MIN_z0 < M_MIN_z1) {
                   if(flag_options->FAST_FCOLL_TABLES){
-                    initialiseSigmaMInterpTable(2e4,1e16);
+                    initialiseSigmaMInterpTable(fmin(2e4,M_MIN_z0),1e20);
                   }
                   else{
                     initialiseSigmaMInterpTable(M_MIN_z0,1e20);
@@ -3401,7 +3401,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
                 }
                 else {
                   if(flag_options->FAST_FCOLL_TABLES){
-                    initialiseSigmaMInterpTable(2e4,1e16);
+                    initialiseSigmaMInterpTable(fmin(2e4,M_MIN_z1),1e20);
                   }
                   else{
                     initialiseSigmaMInterpTable(M_MIN_z1,1e20);
