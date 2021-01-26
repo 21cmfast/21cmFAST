@@ -408,8 +408,8 @@ LOG_SUPER_DEBUG("Initialised heat");
     if(this_spin_temp->first_box || (fabs(initialised_redshift - perturbed_field_redshift) > 0.0001) ) {
 
         if(user_params->USE_INTERPOLATION_TABLES) {
-          if(flag_options->FAST_FCOLL_TABLES){
-            initialiseSigmaMInterpTable(fmin(2e4,M_MIN),1e20);
+          if(user_params->FAST_FCOLL_TABLES){
+            initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
           }
           else{
             if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -459,8 +459,8 @@ LOG_SUPER_DEBUG("read in file");
             LOG_DEBUG("Attempting to initialise sigmaM table with M_MIN=%e, Tvir_MIN=%e, mu=%e",
                       M_MIN, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
             if(user_params->USE_INTERPOLATION_TABLES) {
-              if(flag_options->FAST_FCOLL_TABLES){
-                initialiseSigmaMInterpTable(fmin(2e4,M_MIN),1e20);
+              if(user_params->FAST_FCOLL_TABLES){
+                initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
               }
               else{
                 initialiseSigmaMInterpTable(M_MIN,1e20);
@@ -682,8 +682,8 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
         if(!flag_options->M_MIN_in_Mass) {
             M_MIN = (float)TtoM(determine_zpp_max, astro_params->X_RAY_Tvir_MIN, mu_for_Ts);
             if(user_params->USE_INTERPOLATION_TABLES) {
-              if(flag_options->FAST_FCOLL_TABLES){
-                initialiseSigmaMInterpTable(fmin(2e4,M_MIN),1e20);
+              if(user_params->FAST_FCOLL_TABLES){
+                initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
               }
               else{
                 initialiseSigmaMInterpTable(M_MIN,1e20);
@@ -846,13 +846,13 @@ LOG_SUPER_DEBUG("got density gridpoints");
                 if (!flag_options->USE_MINI_HALOS){
                     initialise_SFRD_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,
                                                      max_densities,zpp_growth,R_values, astro_params->M_TURN,
-                                                     astro_params->ALPHA_STAR, astro_params->F_STAR10, flag_options->FAST_FCOLL_TABLES);
+                                                     astro_params->ALPHA_STAR, astro_params->F_STAR10, user_params->FAST_FCOLL_TABLES);
                 }
                 else{
                     initialise_SFRD_Conditional_table_MINI(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,
                                                           max_densities,zpp_growth,R_values,Mcrit_atom_interp_table,
                                                           astro_params->ALPHA_STAR, astro_params->F_STAR10,
-                                                          astro_params->F_STAR7_MINI, flag_options->FAST_FCOLL_TABLES);
+                                                          astro_params->F_STAR7_MINI, user_params->FAST_FCOLL_TABLES);
                 }
             }
         }
@@ -1631,17 +1631,17 @@ LOG_SUPER_DEBUG("looping over box...");
                                 if (flag_options->USE_MINI_HALOS){
 
                                     fcoll = Nion_ConditionalM(zpp_growth[R_ct],log(global_params.M_MIN_INTEGRAL),log(Mmax),sigmaMmax,Deltac,curr_dens,Mcrit_atom_interp_table[R_ct],
-                                                              astro_params->ALPHA_STAR,0.,astro_params->F_STAR10,1.,Mlim_Fstar,0., flag_options->FAST_FCOLL_TABLES);
+                                                              astro_params->ALPHA_STAR,0.,astro_params->F_STAR10,1.,Mlim_Fstar,0., user_params->FAST_FCOLL_TABLES);
 
                                     fcoll_MINI = Nion_ConditionalM_MINI(zpp_growth[R_ct],log(global_params.M_MIN_INTEGRAL),log(Mmax),sigmaMmax,Deltac,\
                                                            curr_dens,pow(10,log10_Mcrit_LW[R_ct][box_ct]),Mcrit_atom_interp_table[R_ct],\
-                                                           astro_params->ALPHA_STAR,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI, 0., flag_options->FAST_FCOLL_TABLES);
+                                                           astro_params->ALPHA_STAR,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI, 0., user_params->FAST_FCOLL_TABLES);
                                     fcoll_MINI *= pow(10.,10.);
 
                                 }
                                 else {
                                     fcoll = Nion_ConditionalM(zpp_growth[R_ct],log(M_MIN),log(Mmax),sigmaMmax,Deltac,curr_dens,astro_params->M_TURN,
-                                                              astro_params->ALPHA_STAR,0.,astro_params->F_STAR10,1.,Mlim_Fstar,0., flag_options->FAST_FCOLL_TABLES);
+                                                              astro_params->ALPHA_STAR,0.,astro_params->F_STAR10,1.,Mlim_Fstar,0., user_params->FAST_FCOLL_TABLES);
                                 }
                                 fcoll *= pow(10.,10.);
                             }

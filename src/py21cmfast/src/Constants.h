@@ -174,6 +174,14 @@
 #define KBOT_CLASS (float) (1e-5) //max and min k in  CLASS transfer function, temporary until interfaced properly
 #define KTOP_CLASS (float) (1e3)
 
+//parameters for the M(sigma) power-law relation for FAST_FCOLL_TABLES
+#define MPIVOT1 (double) (1.5e9) //pivot masses
+#define MPIVOT2 (double) (5.3e5)
+#define AINDEX1 (double) (9.0) //power-law indices for low, intermediate, and high masses
+#define AINDEX2 (double) (13.6)
+#define AINDEX3 (double) (21.0)
+#define MMIN_FAST (double) (1e5) // min mass at which the sigma table is computed if FAST_FCOLL_TABLES is turned on. Has to be below MPIVOT2 
+
 
 // ----------------------------------------------------------------------------------------- //
 

@@ -460,6 +460,8 @@ class UserParams(StructWithDefaults):
     USE_INTERPOLATION_TABLES: bool, optional
         If True, calculates and evaluates quantites using interpolation tables, which
         is considerably faster than when performing integrals explicitly.
+    FAST_FCOLL_TABLES: bool, optional
+        Whether to use fast Fcoll tables, as described in Sec X of JBM XX. Significant speedup for minihaloes.
     """
 
     _ffi = ffi
@@ -476,6 +478,7 @@ class UserParams(StructWithDefaults):
         "PERTURB_ON_HIGH_RES": False,
         "NO_RNG": False,
         "USE_INTERPOLATION_TABLES": False,
+        "FAST_FCOLL_TABLES": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
@@ -561,6 +564,17 @@ class UserParams(StructWithDefaults):
         """String representation of the power spectrum model used."""
         return self._power_models[self.POWER_SPECTRUM]
 
+    @property
+    def FAST_FCOLL_TABLES(self):
+        """Check that USE_INTERPOLATION_TABLES is True"""
+        if self._FAST_FCOLL_TABLES and not self.USE_INTERPOLATION_TABLES:
+            logger.warning(
+                "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES."
+            )
+            return False
+        else:
+            return self._FAST_FCOLL_TABLES
+
 
 class FlagOptions(StructWithDefaults):
     """
@@ -600,8 +614,6 @@ class FlagOptions(StructWithDefaults):
     PHOTON_CONS : bool, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation.
-    FAST_FCOLL_TABLES: bool, optional
-        Whether to use fast Fcoll tables, as described in Sec X of JBM XX. Significant speedup for minihaloes.
     """
 
     _ffi = ffi
@@ -615,7 +627,6 @@ class FlagOptions(StructWithDefaults):
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
-        "FAST_FCOLL_TABLES": False,
     }
 
     @property
@@ -663,16 +674,6 @@ class FlagOptions(StructWithDefaults):
         else:
             return self._INHOMO_RECO
 
-    @property
-    def FAST_FCOLL_TABLES(self):
-        """Automatically setting FAST_FCOLL_TABLES to True if USE_MINI_HALOS. For speed."""
-        if self.USE_MINI_HALOS and not self._FAST_FCOLL_TABLES:
-            logger.warning(
-                "You have set USE_MINI_HALOS to True but FAST_FCOLL_TABLES to False, so the code will be very slow. Setting to true"
-            )
-            return True
-        else:
-            return self._FAST_FCOLL_TABLES
 
     @property
     def USE_TS_FLUCT(self):

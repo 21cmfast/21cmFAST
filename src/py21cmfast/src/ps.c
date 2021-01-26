@@ -2268,36 +2268,41 @@ float GaussLegendreQuad_Nion_MINI(int Type, int n, float growthf, float M2, floa
         return 1e-40; //in sharp cut it's zero
       }
 
+      double delta_arg = pow( (delta1 - delta2)/growthf , 2.);
+
+
       double LogMass=log(MassTurnover);
       int MassBin = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
       double MassBinLow = MinMass + mass_bin_width*(double)MassBin;
       double sigmaM1 = Sigma_InterpTable[MassBin] + ( LogMass - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
-      nu_lower_limit = (delta1-delta2)*(delta1-delta2)/(sigmaM1*sigmaM1-sigma2*sigma2)/growthf/growthf;
+      nu_lower_limit = delta_arg/(sigmaM1 * sigmaM1 - sigma2 * sigma2);
+
+
 
       LogMass = log(MassTurnover_upper);
       MassBin = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
       MassBinLow = MinMass + mass_bin_width*(double)MassBin;
       double sigmaM2 = Sigma_InterpTable[MassBin] + ( LogMass - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
-      nu_higher_limit = (delta1-delta2)*(delta1-delta2)/(sigmaM2*sigmaM2-sigma2*sigma2)/growthf/growthf;
+      nu_higher_limit = delta_arg/(sigmaM2*sigmaM2-sigma2*sigma2);
 
 
       //note we keep nupivot1 just in case very negative delta makes it reach that nu
-      LogMass = log(1.5e9); //jbm could be done outside and it'd be even faster
+      LogMass = log(MPIVOT1); //jbm could be done outside and it'd be even faster
       int MassBinpivot = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
       double MassBinLowpivot = MinMass + mass_bin_width*(double)MassBinpivot;
       double sigmapivot1 = Sigma_InterpTable[MassBinpivot] + ( LogMass - MassBinLowpivot )*( Sigma_InterpTable[MassBinpivot+1] - Sigma_InterpTable[MassBinpivot] )*inv_mass_bin_width;
-      double nupivot1 = (delta1-delta2)*(delta1-delta2)/(sigmapivot1*sigmapivot1)/growthf/growthf; //note, it does not have the sigma2 on purpose.
+      double nupivot1 = delta_arg/(sigmapivot1*sigmapivot1); //note, it does not have the sigma2 on purpose.
 
-      LogMass = log(5.3e5); //jbm could be done outside and it'd be even faster
+      LogMass = log(MPIVOT2); //jbm could be done outside and it'd be even faster
       MassBinpivot = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
       MassBinLowpivot = MinMass + mass_bin_width*(double)MassBinpivot;
       double sigmapivot2 = Sigma_InterpTable[MassBinpivot] + ( LogMass - MassBinLowpivot )*( Sigma_InterpTable[MassBinpivot+1] - Sigma_InterpTable[MassBinpivot] )*inv_mass_bin_width;
-      double nupivot2 = (delta1-delta2)*(delta1-delta2)/(sigmapivot2*sigmapivot2)/growthf/growthf;
+      double nupivot2 = delta_arg/(sigmapivot2*sigmapivot2);
 
 
-      double beta1 = (Alpha_star+Alpha_esc) * 9.0 * (0.5); //exponent for Fcollapprox for nu>nupivot1 (large M)
-      double beta2 = (Alpha_star+Alpha_esc) * 13.6 * (0.5); //exponent for Fcollapprox for nupivot1>nu>nupivot2 (small M)
-      double beta3 = (Alpha_star+Alpha_esc) * 21.0 * (0.5); //exponent for Fcollapprox for nu<nupivot2 (smallest M)
+      double beta1 = (Alpha_star+Alpha_esc) * AINDEX1 * (0.5); //exponent for Fcollapprox for nu>nupivot1 (large M)
+      double beta2 = (Alpha_star+Alpha_esc) * AINDEX2 * (0.5); //exponent for Fcollapprox for nupivot1>nu>nupivot2 (small M)
+      double beta3 = (Alpha_star+Alpha_esc) * AINDEX3 * (0.5); //exponent for Fcollapprox for nu<nupivot2 (smallest M)
       //beta2 fixed by continuity.
 
 
@@ -2330,22 +2335,19 @@ float GaussLegendreQuad_Nion_MINI(int Type, int n, float growthf, float M2, floa
     }
     else{
 
-      if(delta2 > delta1){
-          return 1.;
-      }
-      else{
-          for(i=1; i<(n+1); i++){
-              if(Type==1) {
-                  x = xi_SFR_Xray[i];
-                  integrand += wi_SFR_Xray[i]*Nion_ConditionallnM_GL_MINI(x,parameters_gsl_SFR_con);
-              }
-              if(Type==0) {
-                  x = xi_SFR[i];
-                  integrand += wi_SFR[i]*Nion_ConditionallnM_GL_MINI(x,parameters_gsl_SFR_con);
-              }
+
+      for(i=1; i<(n+1); i++){
+          if(Type==1) {
+              x = xi_SFR_Xray[i];
+              integrand += wi_SFR_Xray[i]*Nion_ConditionallnM_GL_MINI(x,parameters_gsl_SFR_con);
           }
-          return integrand;
+          if(Type==0) {
+              x = xi_SFR[i];
+              integrand += wi_SFR[i]*Nion_ConditionallnM_GL_MINI(x,parameters_gsl_SFR_con);
+          }
       }
+      return integrand;
+
     }
 
 
@@ -2358,7 +2360,7 @@ float GaussLegendreQuad_Nion_MINI(int Type, int n, float growthf, float M2, floa
 
 
 
-//JBM: Added the approximation if flag_options->FAST_FCOLL_TABLES==True
+//JBM: Added the approximation if user_params->FAST_FCOLL_TABLES==True
 float GaussLegendreQuad_Nion(int Type, int n, float growthf, float M2, float sigma2, float delta1, float delta2, float MassTurnover, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc, bool FAST_FCOLL_TABLES) {
     //Performs the Gauss-Legendre quadrature.
     int i;
@@ -2391,34 +2393,36 @@ float GaussLegendreQuad_Nion(int Type, int n, float growthf, float M2, float sig
 
     if (FAST_FCOLL_TABLES){ //JBM: Fast tables. Assume sharp Mturn, not exponential cutoff.
 
+
+      double delta_arg = pow( (delta1 - delta2)/growthf , 2.0);
+
       double LogMass=log(MassTurnover);
       int MassBin = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
       double MassBinLow = MinMass + mass_bin_width*(double)MassBin;
       double sigmaM1 = Sigma_InterpTable[MassBin] + ( LogMass - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
-      nu_lower_limit = (delta1-delta2)*(delta1-delta2)/(sigmaM1*sigmaM1-sigma2*sigma2)/growthf/growthf;
+      nu_lower_limit = delta_arg/(sigmaM1*sigmaM1-sigma2*sigma2);
 
 
-      LogMass = log(1.5e9); //jbm could be done outside and it'd be even faster
+      LogMass = log(MPIVOT1); //jbm could be done outside and it'd be even faster
       int MassBinpivot = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
       double MassBinLowpivot = MinMass + mass_bin_width*(double)MassBinpivot;
       double sigmapivot1 = Sigma_InterpTable[MassBinpivot] + ( LogMass - MassBinLowpivot )*( Sigma_InterpTable[MassBinpivot+1] - Sigma_InterpTable[MassBinpivot] )*inv_mass_bin_width;
-      double nupivot1 = (delta1-delta2)*(delta1-delta2)/(sigmapivot1*sigmapivot1)/growthf/growthf; //note, it does not have the sigma2 on purpose.
+      double nupivot1 = delta_arg/(sigmapivot1*sigmapivot1); //note, it does not have the sigma2 on purpose.
 
-      LogMass = log(5.3e5); //jbm could be done outside and it'd be even faster
+      LogMass = log(MPIVOT2); //jbm could be done outside and it'd be even faster
       MassBinpivot = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
       MassBinLowpivot = MinMass + mass_bin_width*(double)MassBinpivot;
       double sigmapivot2 = Sigma_InterpTable[MassBinpivot] + ( LogMass - MassBinLowpivot )*( Sigma_InterpTable[MassBinpivot+1] - Sigma_InterpTable[MassBinpivot] )*inv_mass_bin_width;
-      double nupivot2 = (delta1-delta2)*(delta1-delta2)/(sigmapivot2*sigmapivot2)/growthf/growthf;
+      double nupivot2 = delta_arg/(sigmapivot2*sigmapivot2);
 
 
-      double beta1 = (Alpha_star+Alpha_esc) * 9.0 * (0.5); //exponent for Fcollapprox for nu>nupivot1 (large M)
-      double beta2 = (Alpha_star+Alpha_esc) * 13.6 * (0.5); //exponent for Fcollapprox for nupivot2<nu<nupivot1 (small M)
-      double beta3 = (Alpha_star+Alpha_esc) * 21.0 * (0.5); //exponent for Fcollapprox for nu<nupivot2 (smallest M)
+      double beta1 = (Alpha_star+Alpha_esc) * AINDEX1 * (0.5); //exponent for Fcollapprox for nu>nupivot1 (large M)
+      double beta2 = (Alpha_star+Alpha_esc) * AINDEX2 * (0.5); //exponent for Fcollapprox for nupivot2<nu<nupivot1 (small M)
+      double beta3 = (Alpha_star+Alpha_esc) * AINDEX3 * (0.5); //exponent for Fcollapprox for nu<nupivot2 (smallest M)
     //beta2 fixed by continuity.
 
 
-      double corrfact=sigma2/(delta1-delta2)*growthf+1e-10; //small number added to avoid infinities
-      double nucrit_sigma2 = 1.0/corrfact/corrfact; //above this nu sigma2>sigma1, so HMF=0
+      double nucrit_sigma2 = delta_arg*pow(sigma2+1e-10,-2.0); //above this nu sigma2>sigma1, so HMF=0. eps added to avoid infinities
 
 
 
@@ -2473,8 +2477,8 @@ float GaussLegendreQuad_Nion(int Type, int n, float growthf, float M2, float sig
 //JBM: Integral of a power-law times exponential for EPS: \int dnu nu^beta * exp(-nu/2)/sqrt(nu) from numin to infty.
 double Fcollapprox (double numin, double beta){
 //nu is deltacrit^2/sigma^2, corrected by delta(R) and sigma(R)
-  double gg = gsl_sf_gamma_inc(1.0/2.0+beta,numin/2.0);
-  return gg*pow(2.0,1.0/2.0+beta)/sqrt(2.0*PI);
+  double gg = gsl_sf_gamma_inc(0.5+beta,0.5*numin);
+  return gg*pow(2,0.5+beta)*pow(2.0*PI,-0.5);
 }
 
 
@@ -3324,8 +3328,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
         M_MIN = astro_params->M_TURN/50.;
         Mlim_Fstar = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
         Mlim_Fesc = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
-        if(flag_options->FAST_FCOLL_TABLES){
-          initialiseSigmaMInterpTable(fmin(2e4,M_MIN),1e20);
+        if(user_params->FAST_FCOLL_TABLES){
+          initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
         }
         else{
           initialiseSigmaMInterpTable(M_MIN,1e20);
@@ -3392,16 +3396,16 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
                 }
 
                 if(M_MIN_z0 < M_MIN_z1) {
-                  if(flag_options->FAST_FCOLL_TABLES){
-                    initialiseSigmaMInterpTable(fmin(2e4,M_MIN_z0),1e20);
+                  if(user_params->FAST_FCOLL_TABLES){
+                    initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN_z0),1e20);
                   }
                   else{
                     initialiseSigmaMInterpTable(M_MIN_z0,1e20);
                   }
                 }
                 else {
-                  if(flag_options->FAST_FCOLL_TABLES){
-                    initialiseSigmaMInterpTable(fmin(2e4,M_MIN_z1),1e20);
+                  if(user_params->FAST_FCOLL_TABLES){
+                    initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN_z1),1e20);
                   }
                   else{
                     initialiseSigmaMInterpTable(M_MIN_z1,1e20);
