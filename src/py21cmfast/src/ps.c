@@ -2391,7 +2391,7 @@ float GaussLegendreQuad_Nion(int Type, int n, float growthf, float M2, float sig
         .LimitMass_Fesc = Mlim_Fesc
     };
 
-    if (FAST_FCOLL_TABLES){ //JBM: Fast tables. Assume sharp Mturn, not exponential cutoff.
+  if (FAST_FCOLL_TABLES && FLAG_FAST_ATOMIC){ //JBM: Fast tables. Assume sharp Mturn, not exponential cutoff.
 
 
       double delta_arg = pow( (delta1 - delta2)/growthf , 2.0);
