@@ -181,8 +181,6 @@
 #define AINDEX2 (double) (13.6)
 #define AINDEX3 (double) (21.0)
 #define MMIN_FAST (double) (1e5) // min mass at which the sigma table is computed if FAST_FCOLL_TABLES is turned on. Has to be below MPIVOT2 
-#define FLAG_FAST_ATOMIC (bool) (0) //whether to apply the fast fcoll tables for atomic cooling haloes, usually turned off as it's not a big computational cost and those can deviate ~5-10% at z<10.
-
 
 
 // ----------------------------------------------------------------------------------------- //
