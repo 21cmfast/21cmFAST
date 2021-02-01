@@ -49,7 +49,7 @@ dependencies:
   - ipython_genutils
   - cffi
   - pytest-remotedata
-  - mkl
+  - nomkl
   - chardet
   - xz
   - docutils
@@ -69,7 +69,6 @@ dependencies:
   - pytest-arraydiff
   - intel-openmp
   - sphinxcontrib-qthelp
-  - mkl_random
   - pickleshare
   - py
   - requests
@@ -84,7 +83,6 @@ dependencies:
   - icu
   - gst-plugins-base
   - matplotlib
-  - mkl_fft
   - ncurses
   - pytest-doctestplus
   - cryptography
