@@ -180,7 +180,7 @@
 #define AINDEX1 (double) (9.0) //power-law indices for low, intermediate, and high masses
 #define AINDEX2 (double) (13.6)
 #define AINDEX3 (double) (21.0)
-#define MMIN_FAST (double) (1e5) // min mass at which the sigma table is computed if FAST_FCOLL_TABLES is turned on. Has to be below MPIVOT2 
+#define MMIN_FAST (double) (1e5) // min mass at which the sigma table is computed if FAST_FCOLL_TABLES is turned on. Has to be below MPIVOT2
 
 
 // ----------------------------------------------------------------------------------------- //

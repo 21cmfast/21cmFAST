@@ -30,7 +30,7 @@ struct UserParams{
     bool NO_RNG;
     bool USE_INTERPOLATION_TABLES;
     bool FAST_FCOLL_TABLES; //jbm:Whether to use the fast Fcoll table approximation in EPS
-  
+
 };
 
 struct AstroParams{

@@ -327,7 +327,6 @@ class GlobalParams(StructInstanceWrapper):
     def wisdoms_path(self, val):
         self._wisdom_path = val
 
-
     @contextlib.contextmanager
     def use(self, **kwargs):
         """Set given parameters for a certain context.
@@ -566,7 +565,7 @@ class UserParams(StructWithDefaults):
 
     @property
     def FAST_FCOLL_TABLES(self):
-        """Check that USE_INTERPOLATION_TABLES is True"""
+        """Check that USE_INTERPOLATION_TABLES is True."""
         if self._FAST_FCOLL_TABLES and not self.USE_INTERPOLATION_TABLES:
             logger.warning(
                 "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES."
@@ -673,7 +672,6 @@ class FlagOptions(StructWithDefaults):
             return True
         else:
             return self._INHOMO_RECO
-
 
     @property
     def USE_TS_FLUCT(self):
