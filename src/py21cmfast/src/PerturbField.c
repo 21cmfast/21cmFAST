@@ -1,5 +1,4 @@
 // Re-write of perturb_field.c for being accessible within the MCMC
-
 int ComputePerturbField(
     float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
     struct InitialConditions *boxes, struct PerturbedField *perturbed_field

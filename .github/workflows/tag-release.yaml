@@ -1,0 +1,17 @@
+name: Tag-Release
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  tag-release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: echo "version=$(cat VERSION)" >> $GITHUB_ENV
+    - name: Tag commit
+      uses: tvdias/github-tagger@v0.0.2
+      with:
+        repo-token: "${{ secrets.BUMP_VERSION }}"
+        tag: "${{ version }}"
