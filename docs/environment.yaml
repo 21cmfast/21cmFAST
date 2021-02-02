@@ -13,3 +13,4 @@ dependencies:
   - matplotlib
   - pip:
     - sphinx-rtd-theme
+    - setuptools_scm

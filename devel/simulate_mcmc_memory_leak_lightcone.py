@@ -46,9 +46,20 @@ def trace_print():
 trace_print()
 
 run_lightcone(
-    redshift = 15,
-    user_params = {'USE_INTERPOLATION_TABLES': True, 'N_THREADS' : 1, 'DIM': 100, 'HII_DIM': 25, 'PERTURB_ON_HIGH_RES':True, 'USE_FFTW_WISDOM': False},
-    flag_options = {'USE_MASS_DEPENDENT_ZETA': True, 'INHOMO_RECO': True, 'USE_TS_FLUCT': True},
-    direc='_cache_%s'%(os.path.basename(__file__)[:-3]),
-    random_seed=1993
+    redshift=15,
+    user_params={
+        "USE_INTERPOLATION_TABLES": True,
+        "N_THREADS": 1,
+        "DIM": 100,
+        "HII_DIM": 25,
+        "PERTURB_ON_HIGH_RES": True,
+        "USE_FFTW_WISDOM": False,
+    },
+    flag_options={
+        "USE_MASS_DEPENDENT_ZETA": True,
+        "INHOMO_RECO": True,
+        "USE_TS_FLUCT": True,
+    },
+    direc="_cache_%s" % (os.path.basename(__file__)[:-3]),
+    random_seed=1993,
 )
