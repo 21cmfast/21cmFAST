@@ -58,6 +58,8 @@ class Config(dict):
                     f"The configuration file has key '{k}' which is not known to 21cmFAST."
                 )
 
+        self["direc"] = Path(self["direc"]).expanduser().absolute()
+
         if do_write and write and self.file_name:
             self.write()
 
@@ -66,7 +68,7 @@ class Config(dict):
         """Context manager for using certain configuration options for a set time."""
         backup = self.copy()
         for k, v in kwargs.items():
-            self[k] = v
+            self[k] = Path(v).expanduser().absolute() if k == "direc" else v
         yield self
         for k in kwargs:
             self[k] = backup[k]
