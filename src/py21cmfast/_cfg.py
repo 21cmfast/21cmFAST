@@ -2,7 +2,7 @@
 import contextlib
 import copy
 import warnings
-from os import path
+from pathlib import Path
 
 from . import yaml
 
@@ -20,9 +20,10 @@ class Config(dict):
 
     _aliases = {"direc": ("boxdir",)}
 
-    def __init__(self, *args, write=True, **kwargs):
+    def __init__(self, *args, write=True, file_name=None, **kwargs):
 
         super().__init__(*args, **kwargs)
+        self.file_name = file_name
 
         # Ensure the keys that got read in are the right keys for the current version
         do_write = False
@@ -38,9 +39,8 @@ class Config(dict):
                         if alias in self:
                             do_write = True
                             warnings.warn(
-                                "Your configuration file has old key '{}' which has been re-named '{}'. Updating...".format(
-                                    alias, k
-                                )
+                                f"Your configuration file has old key '{alias}' which "
+                                f"has been re-named '{k}'. Updating..."
                             )
                             self[k] = self[alias]
                             del self[alias]
@@ -55,10 +55,10 @@ class Config(dict):
         for k, v in self.items():
             if k not in self._defaults:
                 raise ConfigurationError(
-                    f"The configuration file has key '{alias}' which is not known to 21cmFAST."
+                    f"The configuration file has key '{k}' which is not known to 21cmFAST."
                 )
 
-        if do_write and write:
+        if do_write and write and self.file_name:
             self.write()
 
     @contextlib.contextmanager
@@ -71,29 +71,34 @@ class Config(dict):
         for k in kwargs:
             self[k] = backup[k]
 
-    def write(self, fname=None):
+    def write(self, fname: [str, Path, None] = None):
         """Write current configuration to file to make it permanent."""
-        fname = fname or self.file_name
-        with open(fname, "w") as fl:
-            yaml.dump(self._as_dict(), fl)
+        fname = Path(fname or self.file_name)
+        if fname:
+            if not fname.parent.exists():
+                fname.parent.mkdir(parents=True)
+
+            with open(fname, "w") as fl:
+                yaml.dump(self._as_dict(), fl)
 
     def _as_dict(self):
         """The plain dict defining the instance."""
         return {k: v for k, v in self.items()}
 
     @classmethod
-    def load(cls, file_name):
+    def load(cls, file_name: [str, Path]):
         """Create a Config object from a config file."""
-        cls.file_name = file_name
-        if path.exists(file_name):
+        file_name = Path(file_name).expanduser().absolute()
+
+        if file_name.exists():
             with open(file_name, "r") as fl:
-                config = yaml.load(fl)
-                return cls(config)
+                cfg = yaml.load(fl)
+            return cls(cfg, file_name=file_name)
         else:
             return cls(write=False)
 
 
-config = Config.load(path.expanduser(path.join("~", ".21cmfast", "config.yml")))
+config = Config.load(Path("~/.21cmfast/config.yml"))
 
 # Keep an original copy around
 default_config = copy.deepcopy(config)

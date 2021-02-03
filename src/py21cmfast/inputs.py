@@ -18,6 +18,7 @@ from astropy.cosmology import Planck15
 from os import path
 from pathlib import Path
 
+from ._cfg import config
 from ._utils import StructInstanceWrapper, StructWithDefaults
 from .c_21cmfast import ffi, lib
 
@@ -30,6 +31,8 @@ Planck18 = Planck15.clone(
     Ob0=0.02242 / 0.6766 ** 2,
     H0=67.66,
 )
+
+DATA_PATH = Path(__file__).parent / "data"
 
 
 class GlobalParams(StructInstanceWrapper):
@@ -289,21 +292,13 @@ class GlobalParams(StructInstanceWrapper):
     def __init__(self, wrapped, ffi):
         super().__init__(wrapped, ffi)
 
-        self._table_path = Path.home() / ".21cmfast"
-        external_tables = ffi.new("char[]", str(self._table_path).encode())
-        self.external_table_path = external_tables
-        self.wisdoms_path = ffi.new(
-            "char[]", str(self._table_path / "wisdoms").encode()
-        )
+        self.external_table_path = ffi.new("char[]", str(DATA_PATH).encode())
+        self._wisdoms_path = Path(config["direc"]) / "wisdoms"
+        self.wisdoms_path = ffi.new("char[]", str(self._wisdoms_path).encode())
 
     @property
     def external_table_path(self):
         """An ffi char pointer to the path to which external tables are kept."""
-        if not self._table_path.exists():
-            raise IOError(
-                f"Found no user data directory for 21cmFAST! Should be at {self._table_path}."
-                f"Try re-installing 21cmFAST. "
-            )
         return self._external_table_path
 
     @external_table_path.setter
@@ -313,13 +308,8 @@ class GlobalParams(StructInstanceWrapper):
     @property
     def wisdoms_path(self):
         """An ffi char pointer to the path to which external tables are kept."""
-        if not self._table_path.exists():
-            raise IOError(
-                f"Found no user data directory for 21cmFAST! Should be at {self._table_path}."
-                f"Try re-installing 21cmFAST. "
-            )
-        if not (self._table_path / "wisdoms").exists():
-            (self._table_path / "wisdoms").mkdir()
+        if not self._wisdoms_path.exists():
+            self._wisdoms_path.mkdir(parents=True)
 
         return self._wisdom_path
 

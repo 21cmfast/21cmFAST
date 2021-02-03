@@ -61,7 +61,7 @@ void initialize_interp_arrays()
 {
   FILE *input_file;
   char input_file_name[100];
-  char input_base[100] = "External_tables/x_int_tables/";
+  char input_base[100] = "x_int_tables/";
   char input_tail[100] = ".dat";
   char mode[10] = "r";
 
