@@ -903,12 +903,12 @@ double tauX_integrand_MINI(double zhat, void *params){
         fcoll = Nion_General(zhat, global_params.M_MIN_INTEGRAL, Mcrit_atom_val, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
                              astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
 
-        Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_STAR,
-                                               astro_params_hf->F_STAR7_MINI * pow(1e3, astro_params_hf->ALPHA_STAR));
+        Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_STAR_MINI,
+                                               astro_params_hf->F_STAR7_MINI * pow(1e3, astro_params_hf->ALPHA_STAR_MINI));
         Mlim_Fesc_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_ESC,
                                               astro_params_hf->F_ESC7_MINI * pow(1e3, astro_params_hf->ALPHA_ESC));
 
-        fcoll_MINI = Nion_General_MINI(zhat, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mturn_MINI), Mcrit_atom_val, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
+        fcoll_MINI = Nion_General_MINI(zhat, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mturn_MINI), Mcrit_atom_val, astro_params_hf->ALPHA_STAR_MINI, astro_params_hf->ALPHA_ESC,
                           astro_params_hf->F_STAR7_MINI, astro_params_hf->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
     }
 

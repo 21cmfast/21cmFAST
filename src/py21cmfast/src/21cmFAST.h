@@ -30,7 +30,6 @@ struct UserParams{
     bool NO_RNG;
     bool USE_INTERPOLATION_TABLES;
     bool FAST_FCOLL_TABLES; //jbm:Whether to use the fast Fcoll table approximation in EPS
-
 };
 
 struct AstroParams{
@@ -40,6 +39,7 @@ struct AstroParams{
 
     float F_STAR10;
     float ALPHA_STAR;
+    float ALPHA_STAR_MINI;
     float F_ESC10;
     float ALPHA_ESC;
     float M_TURN;
@@ -53,6 +53,11 @@ struct AstroParams{
     float NU_X_THRESH;
     float X_RAY_SPEC_INDEX;
     float X_RAY_Tvir_MIN;
+
+    double A_LW;
+    double BETA_LW;
+    double A_VCB;
+    double BETA_VCB;
 
     float t_STAR;
 
@@ -70,7 +75,7 @@ struct FlagOptions{
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
     bool PHOTON_CONS;
-
+    bool FIX_VCB_AVG;
 };
 
 
@@ -149,12 +154,14 @@ int ComputePerturbHaloField(float redshift, struct UserParams *user_params, stru
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,
                   short cleanup,
-                  struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp);
+                  struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct InitialConditions *ini_boxes,
+                  struct TsBox *this_spin_temp);
 
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                        struct AstroParams *astro_params, struct FlagOptions *flag_options, struct PerturbedField *perturbed_field,
                        struct PerturbedField *previous_perturbed_field, struct IonizedBox *previous_ionize_box,
-                       struct TsBox *spin_temp, struct PerturbHaloField *halo, struct IonizedBox *box);
+                       struct TsBox *spin_temp, struct PerturbHaloField *halo, struct InitialConditions *ini_boxes,
+                       struct IonizedBox *box);
 
 int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                            struct AstroParams *astro_params, struct FlagOptions *flag_options,

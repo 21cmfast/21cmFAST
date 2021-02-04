@@ -518,8 +518,8 @@ void writeCosmoParams(struct CosmoParams *p){
 void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p){
 
     if(fo->USE_MASS_DEPENDENT_ZETA) {
-        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, F_ESC10=%f (F_ESC7_MINI=%f), ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%e (L_X_MINI=%e), NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f (F_STAR7_MINI=%f), t_STAR=%f, N_RSD_STEPS=%f]",
-             p->HII_EFF_FACTOR, p->ALPHA_STAR, p->F_ESC10,p->F_ESC7_MINI, p->ALPHA_ESC, p->M_TURN,
+        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, ALPHA_STAR_MINI=%f, F_ESC10=%f (F_ESC7_MINI=%f), ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%e (L_X_MINI=%e), NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f (F_STAR7_MINI=%f), t_STAR=%f, N_RSD_STEPS=%f]",
+             p->HII_EFF_FACTOR, p->ALPHA_STAR, p->ALPHA_STAR_MINI, p->F_ESC10,p->F_ESC7_MINI, p->ALPHA_ESC, p->M_TURN,
              p->R_BUBBLE_MAX, p->L_X, p->L_X_MINI, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->F_STAR7_MINI, p->t_STAR, p->N_RSD_STEPS);
     }
     else {
@@ -758,11 +758,19 @@ double molecular_cooling_threshold(float z){
     return TtoM(z, 600, 1.22);
 }
 
-double lyman_werner_threshold(float z, float J_21_LW){
-    // this follows Visbal+15, which is taken as the optimal fit from Fialkov+12 which
-    // was calibrated with the simulations of Stacy+11 and Greif+11;
-    double mcrit_noLW = 3.314e7 * pow( 1.+z, -1.5);
-    return  mcrit_noLW * (1. + 22.8685 * pow(J_21_LW, 0.47));
+double lyman_werner_threshold(float z, float J_21_LW, float vcb, struct AstroParams *astro_params){
+    // correction follows Schauer+20, fit jointly to LW feedback and relative velocities. They find weaker effect of LW feedback than before (Stacy+11, Greif+11, etc.) due to HII self shielding.
+    double mcrit_noLW = 3.314e7 * pow( 1.+z, -1.5);// this follows Visbal+15, which is taken as the optimal fit from Fialkov+12 which was calibrated with the simulations of Stacy+11 and Greif+11;
+
+    double f_LW = 1.0 + astro_params->A_LW * pow(J_21_LW, astro_params->BETA_LW);
+
+    double f_vcb = pow(1.0 + astro_params->A_VCB * vcb/SIGMAVCB, astro_params->BETA_VCB);
+
+    // double mcrit_LW = mcrit_noLW * (1.0 + 10. * sqrt(J_21_LW)); //Eq. (12) in Schauer+20
+    // return pow(10.0, log10(mcrit_LW) + 0.416 * vcb/SIGMAVCB ); //vcb and sigmacb in km/s, from Eq. (9)
+
+    return (mcrit_noLW * f_LW * f_vcb);
+
 }
 
 double reionization_feedback(float z, float Gamma_halo_HII, float z_IN){

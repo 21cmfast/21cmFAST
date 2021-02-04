@@ -40,7 +40,8 @@ float initialised_redshift = 0.0;
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options,
                   float perturbed_field_redshift, short cleanup,
-                  struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp) {
+                  struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp,
+                  struct InitialConditions *ini_boxes, struct TsBox *this_spin_temp) {
     int status;
     Try{ // This Try{} wraps the whole function.
 LOG_DEBUG("input values:");
@@ -100,6 +101,8 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
 
     float curr_dens, min_curr_dens, max_curr_dens;
 
+    //jbm:
+    float curr_vcb;
     min_curr_dens = max_curr_dens = 0.;
 
     int fcoll_int_min, fcoll_int_max;
@@ -369,8 +372,8 @@ LOG_SUPER_DEBUG("initalised Ts Interp Arrays");
             Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
             Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
 
-            Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR,
-                                                   astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR));
+            Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
+                                                   astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
             Mlim_Fesc_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC,
                                                   astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
         }
@@ -723,11 +726,11 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
                     }
                     else{
                         initialise_Nion_Ts_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                                      astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10,
+                                                      astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI, astro_params->ALPHA_ESC, astro_params->F_STAR10,
                                                       astro_params->F_ESC10, astro_params->F_STAR7_MINI, astro_params->F_ESC7_MINI);
 
                         initialise_SFRD_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                                   astro_params->ALPHA_STAR, astro_params->F_STAR10, astro_params->F_STAR7_MINI);
+                                                   astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR10, astro_params->F_STAR7_MINI);
                     }
                     interpolation_tables_allocated = true;
                 }
@@ -851,7 +854,7 @@ LOG_SUPER_DEBUG("got density gridpoints");
                 else{
                     initialise_SFRD_Conditional_table_MINI(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,
                                                           max_densities,zpp_growth,R_values,Mcrit_atom_interp_table,
-                                                          astro_params->ALPHA_STAR, astro_params->F_STAR10,
+                                                          astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR10,
                                                           astro_params->F_STAR7_MINI, user_params->FAST_FCOLL_TABLES);
                 }
             }
@@ -890,16 +893,38 @@ LOG_SUPER_DEBUG("got density gridpoints");
             }
 
             if (flag_options->USE_MINI_HALOS){
-                log10_Mcrit_mol = log10(lyman_werner_threshold(zp, 0.));
+                log10_Mcrit_mol = log10(lyman_werner_threshold(zp, 0., 0.,astro_params));
                 log10_Mcrit_LW_ave = 0.0;
-#pragma omp parallel shared(log10_Mcrit_LW_unfiltered,previous_spin_temp,zp) private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(log10_Mcrit_LW_unfiltered,previous_spin_temp,zp) private(i,j,k,curr_vcb) num_threads(user_params->N_THREADS)
                 {
 #pragma omp for reduction(+:log10_Mcrit_LW_ave)
                     for (i=0; i<user_params->HII_DIM; i++){
                         for (j=0; j<user_params->HII_DIM; j++){
                             for (k=0; k<user_params->HII_DIM; k++){
-                                *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k)) = \
-                                                log10(lyman_werner_threshold(zp, previous_spin_temp->J_21_LW_box[HII_R_INDEX(i,j,k)]));
+
+                              if (flag_options->FIX_VCB_AVG){ //with this flag we ignore reading vcb box
+                                curr_vcb = VAVG;
+                              }
+                              else{
+                                if(user_params->USE_RELATIVE_VELOCITIES){
+                                  curr_vcb = ini_boxes->lowres_vcb[HII_R_INDEX(i,j,k)];
+                                }
+                                else{ //set vcb to a constant, either zero or vavg.
+                                  curr_vcb = 0.0;
+                                }
+                              }
+
+                              *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k)) = \
+                                              log10(lyman_werner_threshold(zp, previous_spin_temp->J_21_LW_box[HII_R_INDEX(i,j,k)],
+                                              curr_vcb, astro_params) );
+
+//JBM: There might be a better way than just reading ALL the ICs? Is the struct populated by defualt?
+
+
+//JBM: this only accounts for effect 3 (largest on minihaloes). Effects 1 and 2 affect both minihaloes (MCGs) and regular ACGs, but they're smaller ~10%. Return to this (TODO)
+
+
+
                                 log10_Mcrit_LW_ave += *((float *)log10_Mcrit_LW_unfiltered + HII_R_FFT_INDEX(i,j,k));
                             }
                         }
@@ -936,7 +961,7 @@ LOG_SUPER_DEBUG("got density gridpoints");
                 }
                 else {
                     Splined_Fcollzp_mean_MINI = Nion_General_MINI(zp, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mcrit_LW_ave), atomic_cooling_threshold(zp),
-                                                                  astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR7_MINI,
+                                                                  astro_params->ALPHA_STAR_MINI, astro_params->ALPHA_ESC, astro_params->F_STAR7_MINI,
                                                                   astro_params->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
                 }
             }
@@ -1212,7 +1237,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                             ST_over_PS[R_ct] *= Nion_General(zpp_for_evolve_list[R_ct], global_params.M_MIN_INTEGRAL, Mcrit_atom_interp_table[R_ct],
                                                              astro_params->ALPHA_STAR, 0., astro_params->F_STAR10, 1.,Mlim_Fstar,0.);
                             ST_over_PS_MINI[R_ct] *= Nion_General_MINI(zpp_for_evolve_list[R_ct], global_params.M_MIN_INTEGRAL, pow(10.,log10_Mcrit_LW_ave_list[R_ct]),
-                                                                Mcrit_atom_interp_table[R_ct], astro_params->ALPHA_STAR, 0.,
+                                                                Mcrit_atom_interp_table[R_ct], astro_params->ALPHA_STAR_MINI, 0.,
                                                                 astro_params->F_STAR7_MINI, 1.,Mlim_Fstar_MINI,0.);
                         }
                         else {
@@ -1635,7 +1660,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                                     fcoll_MINI = Nion_ConditionalM_MINI(zpp_growth[R_ct],log(global_params.M_MIN_INTEGRAL),log(Mmax),sigmaMmax,Deltac,\
                                                            curr_dens,pow(10,log10_Mcrit_LW[R_ct][box_ct]),Mcrit_atom_interp_table[R_ct],\
-                                                           astro_params->ALPHA_STAR,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI, 0., user_params->FAST_FCOLL_TABLES);
+                                                           astro_params->ALPHA_STAR_MINI,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI, 0., user_params->FAST_FCOLL_TABLES);
                                     fcoll_MINI *= pow(10.,10.);
 
                                 }

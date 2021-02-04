@@ -613,6 +613,8 @@ class FlagOptions(StructWithDefaults):
     PHOTON_CONS : bool, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation.
+    FIX_VCB_AVG: bool, optional
+        Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations.
     """
 
     _ffi = ffi
@@ -626,6 +628,7 @@ class FlagOptions(StructWithDefaults):
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
+        "FIX_VCB_AVG": False
     }
 
     @property
@@ -697,6 +700,10 @@ class FlagOptions(StructWithDefaults):
         else:
             return self._PHOTON_CONS
 
+    @property
+    def FIX_VCB_AVG(self):
+        return self._FIX_VCB_AVG
+
 
 class AstroParams(StructWithDefaults):
     """
@@ -731,6 +738,9 @@ class AstroParams(StructWithDefaults):
     ALPHA_STAR : float, optional
         Power-law index of fraction of galactic gas in stars as a function of halo mass.
         See Sec 2.1 of Park+2018.
+    ALPHA_STAR_MINI : float, optional
+        Power-law index of fraction of galactic gas in stars as a function of halo mass, for MCGs.
+        See XXX (JBM to fill out later).
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
         IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization,
@@ -783,6 +793,10 @@ class AstroParams(StructWithDefaults):
     N_RSD_STEPS : int, optional
         Number of steps used in redshift-space-distortion algorithm. NOT A PHYSICAL
         PARAMETER.
+    A_LW, BETA_LW: float, optional
+        Impact of the LW feedback on Mturn for minihaloes. Default is 2.0 and 0.6, respectively. See Eq. XX.
+    A_VCB, BETA_VCB: float, optional
+        Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Eq. XX.
     """
 
     _ffi = ffi
@@ -792,6 +806,7 @@ class AstroParams(StructWithDefaults):
         "F_STAR10": -1.3,
         "F_STAR7_MINI": -2.0,
         "ALPHA_STAR": 0.5,
+        "ALPHA_STAR_MINI": 0.5,
         "F_ESC10": -1.0,
         "F_ESC7_MINI": -2.0,
         "ALPHA_ESC": -0.5,
@@ -806,6 +821,10 @@ class AstroParams(StructWithDefaults):
         "F_H2_SHIELD": 0.0,
         "t_STAR": 0.5,
         "N_RSD_STEPS": 20,
+        "A_LW": 2.0,
+        "BETA_LW": 0.6,
+        "A_VCB": 1.0,
+        "BETA_VCB": 1.8,
     }
 
     def __init__(
