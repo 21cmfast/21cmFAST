@@ -19,6 +19,7 @@ from os import path
 from pathlib import Path
 
 from ._cfg import config
+from ._data import DATA_PATH
 from ._utils import StructInstanceWrapper, StructWithDefaults
 from .c_21cmfast import ffi, lib
 
@@ -31,8 +32,6 @@ Planck18 = Planck15.clone(
     Ob0=0.02242 / 0.6766 ** 2,
     H0=67.66,
 )
-
-DATA_PATH = Path(__file__).parent / "data"
 
 
 class GlobalParams(StructInstanceWrapper):
