@@ -9,6 +9,8 @@ Added
   class, or the Lightcone.
 * Ability to gather all evolutionary antecedents from a Coeval/Lightcone into the one
   file.
+* ``FAST_FCOLL_TABLES`` in ``UserParams`` which improves speeds quite significantly for
+  ~10% accuracy decrease.
 
 Fixed
 ~~~~~
