@@ -76,11 +76,16 @@ jobs:
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
           CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+      - name: Check Installation Files
+        run: |
+          ls /home/runner/miniconda/envs/tests/lib/python3.7/site-packages/py21cmfast
+          ls /home/runner/miniconda/envs/tests/lib/python3.7/site-packages/py21cmfast/data
+          ls /home/runner/miniconda/envs/tests/lib/python3.7/site-packages/py21cmfast/data/x_int_tables
       - name: Run Tests
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          python -m pytest --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
+          python -m pytest tests/test_data_exists.py --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
       - uses: codecov/codecov-action@master
         if: matrix.os == 'ubuntu-latest' && success()
         with:
