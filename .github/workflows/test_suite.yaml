@@ -79,8 +79,8 @@ jobs:
       - name: Check Installation Files
         run: |
           ls /home/runner/miniconda/envs/tests/lib/python3.7/site-packages/py21cmfast
-          ls /home/runner/miniconda/envs/tests/lib/python3.7/site-packages/py21cmfast/data
-          ls /home/runner/miniconda/envs/tests/lib/python3.7/site-packages/py21cmfast/data/x_int_tables
+          ls /home/runner/miniconda/envs/tests/lib/python3.7/site-packages/py21cmfast/_data
+          ls /home/runner/miniconda/envs/tests/lib/python3.7/site-packages/py21cmfast/_data/x_int_tables
       - name: Run Tests
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
