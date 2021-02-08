@@ -1420,7 +1420,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     if (f_coll_MINI <= f_coll_min_MINI) f_coll_MINI = f_coll_min_MINI;
                                 }
                             }
-
+/*
                             if (flag_options->INHOMO_RECO) {
                                 rec = (*((float *) N_rec_filtered +
                                          HII_R_FFT_INDEX(x, y, z))); // number of recombinations per mean baryon
@@ -1428,7 +1428,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             } else {
                                 rec = 0.;
                             }
-
+*/
+							rec = 0.;
                             // adjust the denominator of the collapse fraction for the residual electron fraction in the neutral medium
                             if (flag_options->USE_TS_FLUCT){
                                 xHII_from_xrays = *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z));
@@ -1515,8 +1516,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             } else {
                 R /= (global_params.DELTA_R_HII_FACTOR);
             }
-            if (flag_options->USE_MINI_HALOS)
-                counter += 1;
+            counter += 1;
         }
 
 
