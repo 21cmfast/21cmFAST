@@ -314,7 +314,10 @@ def construct_fftw_wisdoms(*, user_params=None, cosmo_params=None):
     cosmo_params = CosmoParams(cosmo_params)
 
     # Run the C code
-    return lib.CreateFFTWWisdoms(user_params(), cosmo_params())
+    if user_params.USE_FFTW_WISDOM:
+        return lib.CreateFFTWWisdoms(user_params(), cosmo_params())
+    else:
+        return 0
 
 
 def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
@@ -339,13 +342,17 @@ def compute_tau(*, redshifts, global_xHI, user_params=None, cosmo_params=None):
     Raises
     ------
     ValueError :
-        If `redshifts` and `global_xHI` have inconsistent length.
+        If `redshifts` and `global_xHI` have inconsistent length or if redshifts are not
+        in ascending order.
     """
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
 
     if len(redshifts) != len(global_xHI):
         raise ValueError("redshifts and global_xHI must have same length")
+
+    if not np.all(np.diff(redshifts) > 0):
+        raise ValueError("redshifts and global_xHI must be in ascending order")
 
     # Convert the data to the right type
     redshifts = np.array(redshifts, dtype="float32")
@@ -765,8 +772,8 @@ def _get_photon_nonconservation_data():
         "Q_analytic",
         "z_calibration",
         "nf_calibration",
-        "delta_z_photon_cons",
         "nf_photoncons",
+        "delta_z_photon_cons",
     ]
 
     photon_nonconservation_data = {
@@ -2245,13 +2252,11 @@ def run_coeval(
             and np.amin(redshifts) < global_params.PhotonConsEndCalibz
         ):
             raise ValueError(
-                f"""
-                You have passed a redshift (z = {np.amin(redshifts)}) that is lower than the endpoint
-                of the photon non-conservation correction
-                (global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz}).
-                If this behaviour is desired then set global_params.PhotonConsEndCalibz to a value lower than
-                z = {np.amin(redshifts)}.
-                """
+                f"You have passed a redshift (z = {np.amin(redshifts)}) that is lower than"
+                "the endpoint of the photon non-conservation correction"
+                f"(global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz})."
+                "If this behaviour is desired then set global_params.PhotonConsEndCalibz"
+                f"to a value lower than z = {np.amin(redshifts)}."
             )
 
         if flag_options.PHOTON_CONS:
@@ -2274,6 +2279,11 @@ def run_coeval(
         minarg = np.argmin(redshift)
 
         st_tracker = [None] * len(redshift)
+
+        spin_temp_files = []
+        perturb_files = []
+        ionize_files = []
+        brightness_files = []
 
         # Iterate through redshift from top to bottom
         for iz, z in enumerate(redshifts):
@@ -2341,16 +2351,15 @@ def run_coeval(
                 ib = ib2
                 if flag_options.USE_MINI_HALOS:
                     pf = pf2
+                _bt = None
             else:
-                logger.debug(
-                    "PID={} doing brightness temp for z={}".format(os.getpid(), z)
-                )
+                logger.debug(f"PID={os.getpid()} doing brightness temp for z={z}")
                 ib_tracker[redshift.index(z)] = ib2
                 st_tracker[redshift.index(z)] = (
                     st2 if flag_options.USE_TS_FLUCT else None
                 )
 
-                bt[redshift.index(z)] = brightness_temperature(
+                _bt = brightness_temperature(
                     ionized_box=ib2,
                     perturbed_field=perturb[redshift.index(z)],
                     spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
@@ -2358,6 +2367,17 @@ def run_coeval(
                     direc=direc,
                     regenerate=regenerate,
                 )
+
+                bt[redshift.index(z)] = _bt
+
+            if pf2 is not None:
+                perturb_files.append((z, os.path.join(direc, pf2.filename)))
+            if flag_options.USE_TS_FLUCT:
+                spin_temp_files.append((z, os.path.join(direc, st2.filename)))
+            ionize_files.append((z, os.path.join(direc, ib2.filename)))
+
+            if _bt is not None:
+                brightness_files.append((z, os.path.join(direc, _bt.filename)))
 
         if flag_options.PHOTON_CONS:
             photon_nonconservation_data = _get_photon_nonconservation_data()
@@ -2374,7 +2394,22 @@ def run_coeval(
             lib.FreeTsInterpolationTables(flag_options())
 
         coevals = [
-            Coeval(z, init_box, p, ib, _bt, st, photon_nonconservation_data)
+            Coeval(
+                redshift=z,
+                initial_conditions=init_box,
+                perturbed_field=p,
+                ionized_box=ib,
+                brightness_temp=_bt,
+                ts_box=st,
+                photon_nonconservation_data=photon_nonconservation_data,
+                cache_files={
+                    "init": [(0, os.path.join(direc, init_box.filename))],
+                    "perturb_field": perturb_files,
+                    "ionized_box": ionize_files,
+                    "brightness_temp": brightness_files,
+                    "spin_temp": spin_temp_files,
+                },
+            )
             for z, p, ib, _bt, st in zip(redshift, perturb, ib_tracker, bt, st_tracker)
         ]
 
@@ -2650,6 +2685,10 @@ def run_lightcone(
         global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
         pf = perturb
 
+        perturb_files = []
+        spin_temp_files = []
+        ionize_files = []
+        brightness_files = []
         for iz, z in enumerate(scrollz):
             # Best to get a perturb for this redshift, to pass to brightness_temperature
             pf2 = perturb_field(
@@ -2743,6 +2782,12 @@ def run_lightcone(
                             f"coeval_callback computation failed on z={z}, skipping. {type(e).__name__}: {e}"
                         )
 
+            perturb_files.append((z, os.path.join(direc, pf2.filename)))
+            if flag_options.USE_TS_FLUCT:
+                spin_temp_files.append((z, os.path.join(direc, st2.filename)))
+            ionize_files.append((z, os.path.join(direc, ib2.filename)))
+            brightness_files.append((z, os.path.join(direc, bt2.filename)))
+
             outs = {
                 "PerturbedField": (pf, pf2),
                 "IonizedBox": (ib, ib2),
@@ -2817,6 +2862,13 @@ def run_lightcone(
                 global_quantities=global_q,
                 photon_nonconservation_data=photon_nonconservation_data,
                 _globals=dict(global_params.items()),
+                cache_files={
+                    "init": [(0, os.path.join(direc, init_box.filename))],
+                    "perturb_field": perturb_files,
+                    "ionized_box": ionize_files,
+                    "brightness_temp": brightness_files,
+                    "spin_temp": spin_temp_files,
+                },
             ),
             coeval_callback_output,
         )

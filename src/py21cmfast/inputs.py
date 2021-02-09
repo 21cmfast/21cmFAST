@@ -290,8 +290,11 @@ class GlobalParams(StructInstanceWrapper):
         super().__init__(wrapped, ffi)
 
         self._table_path = Path.home() / ".21cmfast"
-        EXTERNALTABLES = ffi.new("char[]", str(self._table_path).encode())
-        self.external_table_path = EXTERNALTABLES
+        external_tables = ffi.new("char[]", str(self._table_path).encode())
+        self.external_table_path = external_tables
+        self.wisdoms_path = ffi.new(
+            "char[]", str(self._table_path / "wisdoms").encode()
+        )
 
     @property
     def external_table_path(self):
@@ -306,6 +309,23 @@ class GlobalParams(StructInstanceWrapper):
     @external_table_path.setter
     def external_table_path(self, val):
         self._external_table_path = val
+
+    @property
+    def wisdoms_path(self):
+        """An ffi char pointer to the path to which external tables are kept."""
+        if not self._table_path.exists():
+            raise IOError(
+                f"Found no user data directory for 21cmFAST! Should be at {self._table_path}."
+                f"Try re-installing 21cmFAST. "
+            )
+        if not (self._table_path / "wisdoms").exists():
+            (self._table_path / "wisdoms").mkdir()
+
+        return self._wisdom_path
+
+    @wisdoms_path.setter
+    def wisdoms_path(self, val):
+        self._wisdom_path = val
 
     @contextlib.contextmanager
     def use(self, **kwargs):
@@ -327,10 +347,9 @@ class GlobalParams(StructInstanceWrapper):
                 raise ValueError(
                     "{} is not a valid parameter of global_params".format(k)
                 )
-            else:
-                key = this_attr_upper[k.upper()]
-                prev[key] = getattr(self, key)
-                setattr(self, key, val)
+            key = this_attr_upper[k.upper()]
+            prev[key] = getattr(self, key)
+            setattr(self, key, val)
 
         yield
 
@@ -440,6 +459,8 @@ class UserParams(StructWithDefaults):
     USE_INTERPOLATION_TABLES: bool, optional
         If True, calculates and evaluates quantites using interpolation tables, which
         is considerably faster than when performing integrals explicitly.
+    FAST_FCOLL_TABLES: bool, optional
+        Whether to use fast Fcoll tables, as described in Sec X of JBM XX. Significant speedup for minihaloes.
     """
 
     _ffi = ffi
@@ -456,6 +477,7 @@ class UserParams(StructWithDefaults):
         "PERTURB_ON_HIGH_RES": False,
         "NO_RNG": False,
         "USE_INTERPOLATION_TABLES": False,
+        "FAST_FCOLL_TABLES": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
@@ -540,6 +562,17 @@ class UserParams(StructWithDefaults):
     def power_spectrum_model(self):
         """String representation of the power spectrum model used."""
         return self._power_models[self.POWER_SPECTRUM]
+
+    @property
+    def FAST_FCOLL_TABLES(self):
+        """Check that USE_INTERPOLATION_TABLES is True."""
+        if self._FAST_FCOLL_TABLES and not self.USE_INTERPOLATION_TABLES:
+            logger.warning(
+                "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES."
+            )
+            return False
+        else:
+            return self._FAST_FCOLL_TABLES
 
 
 class FlagOptions(StructWithDefaults):

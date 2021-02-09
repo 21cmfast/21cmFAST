@@ -45,12 +45,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     Broadcast_struct_global_UF(user_params,cosmo_params);
 
     omp_set_num_threads(user_params->N_THREADS);
-    fftwf_init_threads();
-    fftwf_plan_with_nthreads(user_params->N_THREADS);
-    fftwf_cleanup_threads();
-
-    char wisdom_filename[500];
-    fftwf_plan plan;
 
     // Other parameters used in the code
     int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R, short_completely_ionised,i_halo;
@@ -478,13 +472,20 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
 LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
 
     if(user_params->USE_INTERPOLATION_TABLES) {
+      if(user_params->FAST_FCOLL_TABLES){
+        initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
+      }
+      else{
         if(!flag_options->USE_TS_FLUCT) {
             initialiseSigmaMInterpTable(M_MIN,1e20);
         }
         else if(flag_options->USE_MINI_HALOS){
             initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e20);
         }
+      }
+
     }
+
 
 LOG_SUPER_DEBUG("sigma table has been initialised");
 
@@ -654,104 +655,30 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             }
         }
 
-        if (user_params->USE_FFTW_WISDOM) {
-            // Check to see if the wisdom exists, create it if it doesn't
-            sprintf(wisdom_filename, "real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom", user_params->HII_DIM,
-                    user_params->N_THREADS);
-            if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *) deltax_unfiltered, (fftwf_complex *) deltax_unfiltered,FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
-            } else {
-                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-                Throw(FileError);
-            }
-        } else {
-            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                         (float *) deltax_unfiltered, (fftwf_complex *) deltax_unfiltered,FFTW_ESTIMATE);
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-        }
+        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, deltax_unfiltered);
 
         LOG_SUPER_DEBUG("FFTs performed");
 
         if(flag_options->USE_MINI_HALOS){
-            if(user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)prev_deltax_unfiltered, (fftwf_complex *)prev_deltax_unfiltered, FFTW_WISDOM_ONLY);
-            }
-            else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)prev_deltax_unfiltered, (fftwf_complex *)prev_deltax_unfiltered, FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-
-            if(user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)log10_Mturnover_MINI_unfiltered, (fftwf_complex *)log10_Mturnover_MINI_unfiltered, FFTW_WISDOM_ONLY);
-            }
-            else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)log10_Mturnover_MINI_unfiltered, (fftwf_complex *)log10_Mturnover_MINI_unfiltered, FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-
-            if(user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)log10_Mturnover_unfiltered, (fftwf_complex *)log10_Mturnover_unfiltered, FFTW_WISDOM_ONLY);
-            }
-            else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)log10_Mturnover_unfiltered, (fftwf_complex *)log10_Mturnover_unfiltered, FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, prev_deltax_unfiltered);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mturnover_MINI_unfiltered);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mturnover_unfiltered);
+            LOG_SUPER_DEBUG("MINI HALO ffts performed");
         }
 
         if (flag_options->USE_HALO_FIELD){
-            if(user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)M_coll_unfiltered, (fftwf_complex *)M_coll_unfiltered, FFTW_WISDOM_ONLY);
-            }
-            else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)M_coll_unfiltered, (fftwf_complex *)M_coll_unfiltered, FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, M_coll_unfiltered);
+            LOG_SUPER_DEBUG("HALO_FIELD ffts performed");
         }
 
         if(flag_options->USE_TS_FLUCT) {
-            if(user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)xe_unfiltered, (fftwf_complex *)xe_unfiltered, FFTW_WISDOM_ONLY);
-            }
-            else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)xe_unfiltered, (fftwf_complex *)xe_unfiltered, FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, xe_unfiltered);
+            LOG_SUPER_DEBUG("Ts ffts performed");
         }
-        LOG_SUPER_DEBUG("more ffts performed");
 
 
         if (flag_options->INHOMO_RECO) {
-            if (user_params->USE_FFTW_WISDOM) {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *) N_rec_unfiltered, (fftwf_complex *) N_rec_unfiltered,
-                                             FFTW_WISDOM_ONLY);
-            } else {
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *) N_rec_unfiltered, (fftwf_complex *) N_rec_unfiltered,
-                                             FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, N_rec_unfiltered);
         }
 
         // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from
@@ -858,95 +785,24 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
             // Perform FFTs
-            if (user_params->USE_FFTW_WISDOM) {
-                // Check to see if the wisdom exists, create it if it doesn't
-                sprintf(wisdom_filename, "complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom", user_params->HII_DIM,
-                        user_params->N_THREADS);
-                if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *) deltax_filtered, (float *) deltax_filtered,FFTW_WISDOM_ONLY);
-                    fftwf_execute(plan);
-                    fftwf_destroy_plan(plan);
-                } else {
-                    LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-                    Throw(FileError);
-                }
-            } else {
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (fftwf_complex *) deltax_filtered, (float *) deltax_filtered,FFTW_ESTIMATE);
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
-            }
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, deltax_filtered);
 
             if(flag_options->USE_MINI_HALOS){
-                if(user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)prev_deltax_filtered, (float *)prev_deltax_filtered, FFTW_WISDOM_ONLY);
-                }
-                else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)prev_deltax_filtered, (float *)prev_deltax_filtered, FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
-
-                if(user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)log10_Mturnover_MINI_filtered, (float *)log10_Mturnover_MINI_filtered, FFTW_WISDOM_ONLY);
-                }
-                else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)log10_Mturnover_MINI_filtered, (float *)log10_Mturnover_MINI_filtered, FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
-
-                if(user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)log10_Mturnover_filtered, (float *)log10_Mturnover_filtered, FFTW_WISDOM_ONLY);
-                }
-                else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)log10_Mturnover_filtered, (float *)log10_Mturnover_filtered, FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, prev_deltax_filtered);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mturnover_MINI_filtered);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mturnover_filtered);
             }
 
             if (flag_options->USE_HALO_FIELD) {
-                if (user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)M_coll_filtered, (float *)M_coll_filtered, FFTW_WISDOM_ONLY);
-                } else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *)M_coll_filtered, (float *)M_coll_filtered, FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, M_coll_filtered);
             }
 
             if (flag_options->USE_TS_FLUCT) {
-                if (user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *) xe_filtered, (float *) xe_filtered,FFTW_WISDOM_ONLY);
-                } else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *) xe_filtered, (float *) xe_filtered, FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, xe_filtered);
             }
 
             if (flag_options->INHOMO_RECO) {
-                if (user_params->USE_FFTW_WISDOM) {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *) N_rec_filtered, (float *) N_rec_filtered,FFTW_WISDOM_ONLY);
-                } else {
-                    plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                                 (fftwf_complex *) N_rec_filtered, (float *) N_rec_filtered,FFTW_ESTIMATE);
-                }
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, N_rec_filtered);
             }
 
             // Check if this is the last filtering scale.  If so, we don't need deltax_unfiltered anymore.
@@ -1077,7 +933,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                                     log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                                     astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
                                                     astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,astro_params->F_STAR7_MINI,
-                                                    astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI);
+                                                    astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI, user_params->FAST_FCOLL_TABLES);
 
                             if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
                                     initialise_Nion_General_spline_MINI_prev(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,
@@ -1085,13 +941,13 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                                                     log10Mturn_max_MINI,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                                                     astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,
                                                                     astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
-                                                                    Mlim_Fstar_MINI, Mlim_Fesc_MINI);
+                                                                    Mlim_Fstar_MINI, Mlim_Fesc_MINI, user_params->FAST_FCOLL_TABLES);
                             }
                         }
                         else{
                             initialise_Nion_General_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,
                                                         astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                        astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                                        astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
                         }
                     }
                 }
@@ -1185,12 +1041,12 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                             Splined_Fcoll = Nion_ConditionalM(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,curr_dens,
                                                                               pow(10.,log10_Mturnover),astro_params->ALPHA_STAR,
                                                                               astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                                              astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                                                              astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
 
                                             Splined_Fcoll_MINI = Nion_ConditionalM_MINI(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,curr_dens,
                                                                                     pow(10.,log10_Mturnover_MINI),Mcrit_atom,astro_params->ALPHA_STAR,
                                                                                     astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
-                                                                                    Mlim_Fstar_MINI,Mlim_Fesc_MINI);
+                                                                                    Mlim_Fstar_MINI,Mlim_Fesc_MINI, user_params->FAST_FCOLL_TABLES);
                                         }
 
                                         prev_dens = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
@@ -1211,12 +1067,12 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                                 prev_Splined_Fcoll = Nion_ConditionalM(prev_growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,prev_dens,
                                                                                        pow(10.,log10_Mturnover),astro_params->ALPHA_STAR,
                                                                                        astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                                                       astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                                                                       astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
 
                                                 prev_Splined_Fcoll_MINI = Nion_ConditionalM_MINI(prev_growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,prev_dens,
                                                                                         pow(10.,log10_Mturnover_MINI),Mcrit_atom,astro_params->ALPHA_STAR,
                                                                                         astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
-                                                                                        Mlim_Fstar_MINI,Mlim_Fesc_MINI);
+                                                                                        Mlim_Fstar_MINI,Mlim_Fesc_MINI, user_params->FAST_FCOLL_TABLES);
                                             }
                                         }
                                         else{
@@ -1241,7 +1097,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                             Splined_Fcoll = Nion_ConditionalM(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,curr_dens,
                                                                               astro_params->M_TURN,astro_params->ALPHA_STAR,
                                                                               astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                                              astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                                                              astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
 
                                         }
                                     }

@@ -1,4 +1,4 @@
-exclude: '(^docs/conf.py|^user_data/External_tables/*)'
+exclude: '(^docs/conf.py|^user_data/External_tables/*|changethelog.py)'
 
 repos:
     - repo: git://github.com/pre-commit/pre-commit-hooks

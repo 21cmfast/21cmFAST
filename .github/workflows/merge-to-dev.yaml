@@ -1,0 +1,22 @@
+name: Merge to master
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  pull-request:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: pull-request
+      uses: repo-sync/pull-request@v2
+      with:
+        source_branch: "production"
+        destination_branch: "master"
+        pr_title: "Backporting Production to Master"      # Title of pull request
+        pr_body: ":crown: *An automated PR*"              # Full markdown support, requires pr_title to be set
+        pr_assignee: "steven-murray"                      # Comma-separated list (no spaces)
+        pr_label: "auto-pr"                               # Comma-separated list (no spaces)
+        github_token: ${{ secrets.BUMP_VERSION }}

@@ -163,6 +163,10 @@ OPTIONS = (
             "USE_INTERPOLATION_TABLES": False,
         },
     ],
+    [
+        12.1,
+        {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTEPOLATION_TABLES": True},
+    ],
 )
 
 OPTIONS_PT = (

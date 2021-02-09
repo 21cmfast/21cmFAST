@@ -72,11 +72,15 @@ struct GlobalParams{
     int FILTER;
 
     char *external_table_path;
+    char *wisdoms_path;
     float R_BUBBLE_MIN;
     float M_MIN_INTEGRAL;
     float M_MAX_INTEGRAL;
 
     float T_RE;
+
+
+    bool USE_FAST_ATOMIC; //whether to apply the fast fcoll tables for atomic cooling haloes, usually turned off as it's not a big computational cost and those can deviate ~5-10% at z<10.
 
 
 
@@ -150,4 +154,6 @@ extern struct GlobalParams global_params = {
     .M_MAX_INTEGRAL = 1e16,
 
     .T_RE = 2e4,
+
+    .USE_FAST_ATOMIC = 0,
 };

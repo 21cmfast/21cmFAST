@@ -3,6 +3,7 @@
 from __future__ import unicode_literals
 
 import os
+import subprocess
 import sys
 from unittest.mock import MagicMock
 from pathlib import Path
@@ -24,8 +25,9 @@ MOCK_MODULES = [
 ]
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
-import py21cmfast
-#import py21cmfast.cache_tools
+# Get the version by running from shell -- this uses the git repo info, rather than
+# requiring it to be installed.
+out = subprocess.run(['python', 'setup.py', '--version'], capture_output=True)
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -59,7 +61,7 @@ project = "21cmFAST"
 year = "2020"
 author = "The 21cmFAST collaboration"
 copyright = "{0}, {1}".format(year, author)
-version = release = py21cmfast.__version__
+version = release = out.stdout.decode().rstrip()  # Get it from `python setup.py --version`
 templates_path = ["templates"]
 
 pygments_style = "trac"

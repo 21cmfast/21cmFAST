@@ -1,66 +1,6 @@
-// ----------------------------------------------------------------------------------------- //
-
-// Taken from INIT_PARAMS.H
-
-// ----------------------------------------------------------------------------------------- //
-
-
-
-#define MIDDLE (user_params_ufunc->DIM/2)
-#define D (unsigned long long)user_params_ufunc->DIM // the unsigned long long dimension
-#define MID ((unsigned long long)MIDDLE)
-#define VOLUME (user_params_ufunc->BOX_LEN*user_params_ufunc->BOX_LEN*user_params_ufunc->BOX_LEN) // in Mpc^3
-#define DELTA_K (TWOPI/user_params_ufunc->BOX_LEN)
-#define TOT_NUM_PIXELS ((unsigned long long)(D*D*D)) // no padding
-#define TOT_FFT_NUM_PIXELS ((unsigned long long)(D*D*2llu*(MID+1llu)))
-#define KSPACE_NUM_PIXELS ((unsigned long long)(D*D*(MID+1llu)))
-
-// Define some useful macros
-
-// for 3D complex array
-#define C_INDEX(x,y,z)((unsigned long long)((z)+(MID+1llu)*((y)+D*(x))))
-
-// for 3D real array with the FFT padding
-#define R_FFT_INDEX(x,y,z)((unsigned long long)((z)+2llu*(MID+1llu)*((y)+D*(x))))
-
-// for 3D real array with no padding
-#define R_INDEX(x,y,z)((unsigned long long)((z)+D*((y)+D*(x))))
-
-
-// ----------------------------------------------------------------------------------------- //
-
-// Taken from ANAL_PARAMS.H
-
-// ----------------------------------------------------------------------------------------- //
-
-
-
-#define HII_D (unsigned long long) (user_params_ufunc->HII_DIM)
-#define HII_MIDDLE (user_params_ufunc->HII_DIM/2)
-#define HII_MID ((unsigned long long)HII_MIDDLE)
-
-#define HII_TOT_NUM_PIXELS (unsigned long long)(HII_D*HII_D*HII_D)
-#define HII_TOT_FFT_NUM_PIXELS ((unsigned long long)(HII_D*HII_D*2llu*(HII_MID+1llu)))
-#define HII_KSPACE_NUM_PIXELS ((unsigned long long)(HII_D*HII_D*(HII_MID+1llu)))
-
-// INDEXING MACROS //
-// for 3D complex array
-#define HII_C_INDEX(x,y,z)((unsigned long long)((z)+(HII_MID+1llu)*((y)+HII_D*(x))))
-// for 3D real array with the FFT padding
-#define HII_R_FFT_INDEX(x,y,z)((unsigned long long)((z)+2llu*(HII_MID+1llu)*((y)+HII_D*(x))))
-// for 3D real array with no padding
-#define HII_R_INDEX(x,y,z)((unsigned long long)((z)+HII_D*((y)+HII_D*(x))))
-
-
-
-// ----------------------------------------------------------------------------------------- //
-
+// -------------------------------------------------------------------------------------
 // Taken from COSMOLOGY.H
-
-// ----------------------------------------------------------------------------------------- //
-
-
-
+// -------------------------------------------------------------------------------------
 #define Ho  (double) (cosmo_params_ufunc->hlittle*3.2407e-18) // s^-1 at z=0
 #define RHOcrit (double) ( (3.0*Ho*Ho / (8.0*PI*G)) * (CMperMPC*CMperMPC*CMperMPC)/Msun) // Msun Mpc^-3 ---- at z=0
 #define RHOcrit_cgs (double) (3.0*Ho*Ho / (8.0*PI*G)) // g pcm^-3 ---- at z=0
@@ -74,7 +14,6 @@ struct CosmoParams *cosmo_params_ufunc;
 struct UserParams *user_params_ufunc;
 
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params){
-
     cosmo_params_ufunc = cosmo_params;
     user_params_ufunc = user_params;
 }
@@ -567,8 +506,8 @@ float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_param
 
 
 void writeUserParams(struct UserParams *p){
-    LOG_INFO("UserParams: [HII_DIM=%d, DIM=%d, BOX_LEN=%f, HMF=%d, POWER_SPECTRUM=%d, USE_RELATIVE_VELOCITIES=%d, N_THREADS=%d, PERTURB_ON_HIGH_RES=%d, NO_RNG=%d, USE_FFTW_WISDOM=%d, USE_INTERPOLATION_TABLES=%d]",
-             p->HII_DIM, p->DIM, p->BOX_LEN, p->HMF, p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->N_THREADS, p->PERTURB_ON_HIGH_RES, p->NO_RNG, p->USE_FFTW_WISDOM, p->USE_INTERPOLATION_TABLES);
+    LOG_INFO("UserParams: [HII_DIM=%d, DIM=%d, BOX_LEN=%f, HMF=%d, POWER_SPECTRUM=%d, USE_RELATIVE_VELOCITIES=%d, N_THREADS=%d, PERTURB_ON_HIGH_RES=%d, NO_RNG=%d, USE_FFTW_WISDOM=%d, USE_INTERPOLATION_TABLES=%d, FAST_FCOLL_TABLES=%d]",
+             p->HII_DIM, p->DIM, p->BOX_LEN, p->HMF, p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->N_THREADS, p->PERTURB_ON_HIGH_RES, p->NO_RNG, p->USE_FFTW_WISDOM, p->USE_INTERPOLATION_TABLES, p->FAST_FCOLL_TABLES);
 }
 
 void writeCosmoParams(struct CosmoParams *p){
@@ -591,8 +530,8 @@ void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p){
 }
 
 void writeFlagOptions(struct FlagOptions *p){
-    LOG_INFO("AstroParams: [USE_HALO_FIELD=%d, USE_MINI_HALOS=%d, USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d, M_MIN_in_Mass=%d, PHOTON_CONS=%d]",
-             p->USE_HALO_FIELD, p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->PHOTON_CONS);
+    LOG_INFO("FlagOptions: [USE_HALO_FIELD=%d, USE_MINI_HALOS=%d, USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d, M_MIN_in_Mass=%d, PHOTON_CONS=%d]",
+           p->USE_HALO_FIELD, p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->PHOTON_CONS);
 }
 
 

@@ -23,8 +23,10 @@
 #include "logger.h"
 #include "Constants.h"
 #include "Globals.h"
+#include "indexing.c"
 #include "UsefulFunctions.c"
 #include "ps.c"
+#include "dft.c"
 #include "PerturbField.c"
 #include "bubble_helper_progs.c"
 #include "elec_interp.c"
@@ -35,6 +37,7 @@
 #include "BrightnessTemperatureBox.c"
 #include "FindHaloes.c"
 #include "PerturbHaloField.c"
+
 
 
 void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, struct CosmoParams *cosmo_params){
@@ -109,10 +112,6 @@ int ComputeInitialConditions(
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
 
-    fftwf_plan plan;
-
-    char wisdom_filename[500];
-
     unsigned long long ct;
     int n_x, n_y, n_z, i, j, k, ii, thread_num, dimension;
     float k_x, k_y, k_z, k_mag, p, a, b, k_sq;
@@ -127,9 +126,6 @@ int ComputeInitialConditions(
     gsl_rng_set(rseed, random_seed);
 
     omp_set_num_threads(user_params->N_THREADS);
-    fftwf_init_threads();
-    fftwf_plan_with_nthreads(user_params->N_THREADS);
-    fftwf_cleanup_threads();
 
     switch(user_params->PERTURB_ON_HIGH_RES) {
         case 0:
@@ -280,26 +276,8 @@ int ComputeInitialConditions(
     memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
     // FFT back to real space
-    if(user_params->USE_FFTW_WISDOM) {
-        // Check to see if the wisdom exists, create it if it doesn't
-        sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
-        if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
-            fftwf_execute(plan);
-        }
-        else {
-            LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-            Throw(FileError);
-        }
-    }
-    else {
-        plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                     (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
-        fftwf_execute(plan);
-    }
-    fftwf_destroy_plan(plan);
-
+    int stat = dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box);
+    if(stat>0) Throw(stat);
     LOG_DEBUG("FFT'd hires boxes.");
 
 #pragma omp parallel shared(boxes,HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -325,17 +303,7 @@ int ComputeInitialConditions(
         }
 
         // FFT back to real space
-        if(user_params->USE_FFTW_WISDOM) {
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
-            fftwf_execute(plan);
-        }
-        else {
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
-            fftwf_execute(plan);
-        }
-        fftwf_destroy_plan(plan);
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box);
 
         // Renormalise the FFT'd box (sample the high-res box if we are perturbing on the low-res grid)
 #pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -359,26 +327,10 @@ int ComputeInitialConditions(
     if(user_params->USE_RELATIVE_VELOCITIES){
         //note we do NOT filter our boxes first, in order to keep the total number of boxes small.
 
-        for(ii=0;ii<3;ii++) {
-            if(user_params->USE_FFTW_WISDOM) {
-                if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY); }
-                if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY); }
-                if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY); }
-            }
-            else {
-                if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
-                if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
-                if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                         (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
-        }
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box_vcb_x);
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box_vcb_y);
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box_vcb_z);
+
 
         // sample the UNfiltered velocity box and save it to python
 #pragma omp parallel shared(boxes,HIRES_box_vcb_x,HIRES_box_vcb_y,HIRES_box_vcb_z) private(i,j,k,vcb_x,vcb_y,vcb_z) num_threads(user_params->N_THREADS)
@@ -399,39 +351,9 @@ int ComputeInitialConditions(
         // Only filter the relative velocities if we are perturbing on the low-resolution grid
         if(!user_params->PERTURB_ON_HIGH_RES) {
 
-            if(user_params->USE_FFTW_WISDOM) {
-
-                sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
-                if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                 (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY);
-                    fftwf_execute(plan);
-                }
-                else {
-                    LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-                    Throw(FileError);
-                }
-
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (float *)HIRES_box_vcb_z, (fftwf_complex *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY);
-                fftwf_execute(plan);
-
-            }
-            else {
-                for(ii=0;ii<3;ii++) {
-                    if(ii==0) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                             (float *)HIRES_box_vcb_x, (fftwf_complex *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
-                    if(ii==1) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                             (float *)HIRES_box_vcb_y, (fftwf_complex *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
-                    if(ii==2) { plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                             (float *)HIRES_box_vcb_z, (fftwf_complex *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
-                    fftwf_execute(plan);
-                }
-            }
-            fftwf_destroy_plan(plan);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box_vcb_x);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box_vcb_y);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box_vcb_z);
 
             //and filter each box:
             if (user_params->DIM != user_params->HII_DIM){
@@ -441,32 +363,9 @@ int ComputeInitialConditions(
             }
 
             //and transform back to real space
-            if(user_params->USE_FFTW_WISDOM) {
-                // FFTW Wisdom will already be in memory
-                for(ii=0;ii<3;ii++) {
-                    if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                             (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_WISDOM_ONLY); }
-                    if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                             (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_WISDOM_ONLY); }
-                    if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                             (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_WISDOM_ONLY); }
-
-                    fftwf_execute(plan);
-                    fftwf_destroy_plan(plan);
-                }
-            }
-            else {
-                for(ii=0;ii<3;ii++) {
-                    if(ii==0) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                             (fftwf_complex *)HIRES_box_vcb_x, (float *)HIRES_box_vcb_x, FFTW_ESTIMATE); }
-                    if(ii==1) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                             (fftwf_complex *)HIRES_box_vcb_y, (float *)HIRES_box_vcb_y, FFTW_ESTIMATE); }
-                    if(ii==2) { plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                             (fftwf_complex *)HIRES_box_vcb_z, (float *)HIRES_box_vcb_z, FFTW_ESTIMATE); }
-                    fftwf_execute(plan);
-                    fftwf_destroy_plan(plan);
-                }
-            }
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box_vcb_x);
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box_vcb_y);
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box_vcb_z);
 
             //to save into a lowres box
 #pragma omp parallel shared(boxes,HIRES_box_vcb_x,HIRES_box_vcb_y,HIRES_box_vcb_z,f_pixel_factor) private(i,j,k,vcb_x,vcb_y,vcb_z) num_threads(user_params->N_THREADS)
@@ -555,16 +454,7 @@ int ComputeInitialConditions(
             }
         }
 
-        if(user_params->USE_FFTW_WISDOM) {
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
-        }
-        else {
-            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
-        }
-        fftwf_execute(plan);
-        fftwf_destroy_plan(plan);
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box);
 
         // now sample to lower res
         // now sample the filtered box
@@ -692,11 +582,7 @@ int ComputeInitialConditions(
                     }
                 }
 
-                // Now we can generate the real phi_1[i,j]
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (fftwf_complex *)phi_1[PHI_INDEX(i, j)], (float *)phi_1[PHI_INDEX(i, j)], FFTW_ESTIMATE);
-                fftwf_execute(plan);
-                fftwf_destroy_plan(plan);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, phi_1[PHI_INDEX(i, j)]);
             }
         }
 
@@ -742,38 +628,14 @@ int ComputeInitialConditions(
         }
 
         // Perform FFTs
-        if(user_params->USE_FFTW_WISDOM) {
-            // Check to see if wisdom exists, if not create it
-            if (user_params->USE_RELATIVE_VELOCITIES) {
-                // if this is true, we have already created the wisdom and its in memory
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM, (float *) HIRES_box,
-                                             (fftwf_complex *) HIRES_box, FFTW_WISDOM_ONLY);
-            } else {
-                sprintf(wisdom_filename, "real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom", user_params->DIM,
-                        user_params->N_THREADS);
-                if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
-                    plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                                 (float *) HIRES_box, (fftwf_complex *) HIRES_box, FFTW_WISDOM_ONLY);
-                    fftwf_execute(plan);
-                } else {
-                    LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
-                    Throw(FileError);
-                }
-            }
-        }
-        else {
-            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                         (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_ESTIMATE);
-            fftwf_execute(plan);
-        }
-        fftwf_destroy_plan(plan);
+        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box);
 
         memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
-        // Now we can store the content of box in a back-up file
+        // Now we can store the content of box in a back-up array
         // Then we can generate the gradients of phi_2 (eq. D13b and D9)
 
-        // ***** Write out back-up k-box RHS eq. D13b ***** //
+        // ***** Store back-up k-box RHS eq. D13b ***** //
 
         // For each component, we generate the velocity field (same as the ZA part)
 
@@ -837,17 +699,7 @@ int ComputeInitialConditions(
                 }
             }
 
-            if(user_params->USE_FFTW_WISDOM) {
-                // This wisdom has already been created and in memory
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_WISDOM_ONLY);
-            }
-            else {
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (fftwf_complex *)HIRES_box, (float *)HIRES_box, FFTW_ESTIMATE);
-            }
-            fftwf_execute(plan);
-            fftwf_destroy_plan(plan);
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box);
 
             // now sample to lower res
             // now sample the filtered box
@@ -931,123 +783,6 @@ int ComputeInitialConditions(
     }
     gsl_rng_free(rseed);
     LOG_DEBUG("Cleaned Up.");
-    } // End of Try{}
-
-    Catch(status){
-        return(status);
-    }
-    return(0);
-}
-
-int CreateFFTWWisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_params) {
-
-    int status;
-
-    Try{ // This Try wraps the entire function so we don't indent.
-
-        // Put this check here to minimise checks on Python side
-        if(user_params->USE_FFTW_WISDOM) {
-            Broadcast_struct_global_UF(user_params,cosmo_params);
-
-            fftwf_plan plan;
-
-            char wisdom_filename[500];
-
-            int i,j,k;
-
-            omp_set_num_threads(user_params->N_THREADS);
-            fftwf_init_threads();
-            fftwf_plan_with_nthreads(user_params->N_THREADS);
-            fftwf_cleanup_threads();
-
-            // allocate array for the k-space and real-space boxes
-            fftwf_complex *HIRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-            fftwf_complex *LOWRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-
-#pragma omp parallel shared(HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
-            {
-#pragma omp for
-                for (i=0; i<user_params->DIM; i++){
-                    for (j=0; j<user_params->DIM; j++){
-                        for (k=0; k<=MIDDLE; k++){
-                            HIRES_box[C_INDEX(i, j, k)] = 0.0;
-                        }
-                    }
-                }
-            }
-
-#pragma omp parallel shared(LOWRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
-            {
-#pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<=HII_MIDDLE; k++){
-                            LOWRES_box[HII_C_INDEX(i, j, k)] = 0.0;
-                        }
-                    }
-                }
-            }
-
-            sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
-            if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
-                // Going to need to construct an FFTW_Wisdom for this box
-                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_PATIENT);
-                fftwf_execute(plan);
-
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
-                fftwf_destroy_plan(plan);
-            }
-
-            sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
-            if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
-
-                // Going to need to construct an FFTW_Wisdom for this box
-                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
-                                             (float *)HIRES_box, (fftwf_complex *)HIRES_box, FFTW_PATIENT);
-                fftwf_execute(plan);
-
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
-                fftwf_destroy_plan(plan);
-            }
-
-            sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
-            if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
-
-                // Going to need to construct an FFTW_Wisdom for this box
-                plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)LOWRES_box, (fftwf_complex *)LOWRES_box, FFTW_PATIENT);
-                fftwf_execute(plan);
-
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
-                fftwf_destroy_plan(plan);
-            }
-
-            sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
-            if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
-
-                // Going to need to construct an FFTW_Wisdom for this box
-                plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
-                                             (float *)LOWRES_box, (fftwf_complex *)LOWRES_box, FFTW_PATIENT);
-                fftwf_execute(plan);
-
-                // Store the wisdom for later use
-                fftwf_export_wisdom_to_filename(wisdom_filename);
-                fftwf_destroy_plan(plan);
-            }
-
-            fftwf_cleanup_threads();
-            fftwf_cleanup();
-            fftwf_forget_wisdom();
-
-            // deallocate
-            fftwf_free(HIRES_box);
-            fftwf_free(LOWRES_box);
-        }
-
     } // End of Try{}
 
     Catch(status){

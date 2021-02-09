@@ -11,18 +11,18 @@
 
 input	:= paper
 
-vol     := 3
-issue   := 28
-gh_issue  := 850
-year    := 2018
-submitted := 23 July $(year)
-accepted  := 21 August $(year)
+vol     := 5
+issue   := 54
+gh_issue  := 2582
+year    := 2020
+submitted := 20 July $(year)
+accepted  := 22 October $(year)
 
 # Main code -- no more customization variables after this point
 # .............................................................................
 
 title	:= $(shell grep title: $(input).md | sed 's/title: *//' | tr -d "'")
-authors := $(shell sed -n '/authors:/,/affiliations:/p' $(input).d | grep name: | sed 's/- name: *//' | paste -d, -s - | sed 's/,/, /g')
+authors := $(shell sed -n '/authors:/,/affiliations:/p' $(input).md | grep name: | sed 's/- name: *//' | paste -d, -s - | sed 's/,/, /g')
 repo	:= $(shell git remote get-url origin | sed 's|git@github.com:|https://github.com/|' | sed 's/\.git//')
 
 $(input).tex: $(input).md $(input).bib Makefile
