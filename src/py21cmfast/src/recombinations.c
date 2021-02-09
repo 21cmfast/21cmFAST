@@ -88,6 +88,7 @@ void init_MHR(){
       lnGamma_values[gamma_ct] = RR_lnGamma_min  + gamma_ct*RR_DEL_lnGamma;  // ln of Gamma12
       gamma = exp(lnGamma_values[gamma_ct]);
       RR_table[z_ct][gamma_ct] = recombination_rate(z, gamma, 1, 1); // CHANGE THIS TO INCLUDE TEMPERATURE
+	  LOG_DEBUG("z_ct=%d, z=%f,gamma_ct=%d,lnGamma_values=%f,gamma=%f,RR_table=%.20f,recombination_rate=%.20f", z_ct,z,gamma_ct,lnGamma_values[gamma_ct],gamma, RR_table[z_ct][gamma_ct],recombination_rate(z, gamma, 1, 1));
     }
 
     // set up the spline in gamma
@@ -144,7 +145,7 @@ double MHR_rr (double lnD, void *params){
   else
     alpha = alpha_A(p.T4*1e4);
 
-  return n_H * PDelta * alpha * x_e * x_e * del * del;//note extra D since we are integrating over lnD
+  return 1e15*n_H * PDelta * alpha * x_e * x_e * del * del;//note extra D since we are integrating over lnD
 }
 
 

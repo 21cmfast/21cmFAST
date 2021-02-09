@@ -134,6 +134,9 @@ LOG_SUPER_DEBUG("defined parameters");
             INIT_RECOMBINATIONS=0;
         }
 
+     if (prev_redshift < 1) //first redshift, just assign ZSTEP = 2
+         ZSTEP = 2;
+     else
         ZSTEP = prev_redshift - redshift;
 
 #pragma omp parallel shared(box) private(ct) num_threads(user_params->N_THREADS)
@@ -157,7 +160,7 @@ LOG_SUPER_DEBUG("defined parameters");
         }
     }
 
-    fabs_dtdz = fabs(dtdz(redshift));
+    fabs_dtdz = fabs(dtdz(redshift))/1e15; //reduce to have good precision
     t_ast = astro_params->t_STAR * t_hubble(redshift);
     growth_factor_dz = dicke(redshift-dz);
 
@@ -344,6 +347,8 @@ LOG_DEBUG("first redshift, do some initialization");
                 }
             }
         }
+        if (flag_options->INHOMO_RECO)
+            previous_ionize_box->dNrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     }
     //set the minimum source mass
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -353,9 +358,7 @@ LOG_DEBUG("first redshift, do some initialization");
 
             // this is the first z, and the previous_ionize_box  are empty
             if (prev_redshift < 1){
-LOG_DEBUG("first redshift, do some initialization");
                 previous_ionize_box->Gamma12_box = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
-                previous_ionize_box->dNrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
                 // really painful to get the length...
                 counter = 1;
                 R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
@@ -1420,7 +1423,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     if (f_coll_MINI <= f_coll_min_MINI) f_coll_MINI = f_coll_min_MINI;
                                 }
                             }
-/*
+
                             if (flag_options->INHOMO_RECO) {
                                 rec = (*((float *) N_rec_filtered +
                                          HII_R_FFT_INDEX(x, y, z))); // number of recombinations per mean baryon
@@ -1428,8 +1431,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             } else {
                                 rec = 0.;
                             }
-*/
-							rec = 0.;
+
                             // adjust the denominator of the collapse fraction for the residual electron fraction in the neutral medium
                             if (flag_options->USE_TS_FLUCT){
                                 xHII_from_xrays = *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z));
@@ -1608,6 +1610,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                             box->dNrec_box[HII_R_INDEX(x, y, z)] =
                                     previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)] + dNrec;
+                            if ((box->dNrec_box[HII_R_INDEX(x, y, z)]<0) || (box->dNrec_box[HII_R_INDEX(x, y, z)]>50) ||( (x==146) && (y==663) && (z==506)))
+                                LOG_DEBUG("(%i,%i,%i), curr_dens=%f,z_eff=%f,Gamma12_box=%f,xH_box=%f,splined_recombination_rate=%f,fabs_dtdz=%f,ZSTEP=%f,dNrec=%f, previous_ionize_box->dNrec_box=%f,box->dNrec_box=%f", x,y,z,curr_dens,z_eff,box->Gamma12_box[HII_R_INDEX(x, y, z)],box->xH_box[HII_R_INDEX(x, y, z)],splined_recombination_rate(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]), fabs_dtdz, ZSTEP, dNrec, previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)],box->dNrec_box[HII_R_INDEX(x, y, z)]);
                         }
                     }
                 }
@@ -1624,7 +1628,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
         fftwf_forget_wisdom();
     }
 
-	destruct_heat();
+    destruct_heat();
 
     for (i=0; i<user_params->N_THREADS; i++) {
         gsl_rng_free (r[i]);
