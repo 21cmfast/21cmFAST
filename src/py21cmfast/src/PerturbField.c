@@ -1,4 +1,5 @@
 // Re-write of perturb_field.c for being accessible within the MCMC
+
 int ComputePerturbField(
     float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
     struct InitialConditions *boxes, struct PerturbedField *perturbed_field
@@ -20,9 +21,15 @@ int ComputePerturbField(
     Broadcast_struct_global_UF(user_params,cosmo_params);
 
     omp_set_num_threads(user_params->N_THREADS);
+    fftwf_init_threads();
+    fftwf_plan_with_nthreads(user_params->N_THREADS);
+    fftwf_cleanup_threads();
+
+    char wisdom_filename[500];
 
     fftwf_complex *HIRES_density_perturb, *HIRES_density_perturb_saved;
     fftwf_complex *LOWRES_density_perturb, *LOWRES_density_perturb_saved;
+    fftwf_plan plan;
 
     float growth_factor, displacement_factor_2LPT, init_growth_factor, init_displacement_factor_2LPT, xf, yf, zf;
     float mass_factor, dDdt, f_pixel_factor, velocity_displacement_factor, velocity_displacement_factor_2LPT;
@@ -339,7 +346,26 @@ int ComputePerturbField(
         LOG_DEBUG("Downsample the high-res perturbed density");
 
         // Transform to Fourier space to sample (filter) the box
-        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_density_perturb);
+        if(user_params->USE_FFTW_WISDOM) {
+            // Check to see if the wisdom exists, create it if it doesn't
+            sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
+            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+
+            }
+            else {
+                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                Throw(FileError);
+            }
+        }
+        else {
+            plan = fftwf_plan_dft_r2c_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (float *)HIRES_density_perturb, (fftwf_complex *)HIRES_density_perturb, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
+        fftwf_destroy_plan(plan);
 
         // Need to save a copy of the high-resolution unfiltered density field for the velocities
         memcpy(HIRES_density_perturb_saved, HIRES_density_perturb, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
@@ -350,7 +376,25 @@ int ComputePerturbField(
         }
 
         // FFT back to real space
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_density_perturb);
+        if(user_params->USE_FFTW_WISDOM) {
+            // Check to see if the wisdom exists, create it if it doesn't
+            sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->DIM,user_params->N_THREADS);
+            if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+                plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                             (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+                fftwf_execute(plan);
+            }
+            else {
+                LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+                Throw(FileError);
+            }
+        }
+        else {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
+        fftwf_destroy_plan(plan);
 
         // Renormalise the FFT'd box
 #pragma omp parallel shared(HIRES_density_perturb,LOWRES_density_perturb,f_pixel_factor,mass_factor) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -394,7 +438,25 @@ int ComputePerturbField(
     }
 
     // transform to k-space
-    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, LOWRES_density_perturb);
+    if(user_params->USE_FFTW_WISDOM) {
+        // Check to see if the wisdom exists, create it if it doesn't
+        sprintf(wisdom_filename,"real_to_complex_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
+        if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+            plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                         (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+            fftwf_execute(plan);
+        }
+        else {
+            LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+            Throw(FileError);
+        }
+    }
+    else {
+        plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                     (float *)LOWRES_density_perturb, (fftwf_complex *)LOWRES_density_perturb, FFTW_ESTIMATE);
+        fftwf_execute(plan);
+    }
+    fftwf_destroy_plan(plan);
 
     //smooth the field
     if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
@@ -404,7 +466,25 @@ int ComputePerturbField(
     // save a copy of the k-space density field
     memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
-    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, LOWRES_density_perturb);
+    if(user_params->USE_FFTW_WISDOM) {
+        // Check to see if the wisdom exists, create it if it doesn't
+        sprintf(wisdom_filename,"complex_to_real_DIM%d_NTHREADS%d.fftwf_wisdom",user_params->HII_DIM,user_params->N_THREADS);
+        if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
+            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                         (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+            fftwf_execute(plan);
+        }
+        else {
+            LOG_ERROR("Cannot locate FFTW Wisdom: %s file not found",wisdom_filename);
+            Throw(FileError);
+        }
+    }
+    else {
+        plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                     (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_ESTIMATE);
+        fftwf_execute(plan);
+    }
+    fftwf_destroy_plan(plan);
 
     // normalize after FFT
 #pragma omp parallel shared(LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -433,7 +513,7 @@ int ComputePerturbField(
         }
     }
 
-    // ****  Convert to velocities ***** //
+    // ****  Print and convert to velocities ***** //
     LOG_DEBUG("Generate velocity fields");
 
     float k_x, k_y, k_z, k_sq, dDdt_over_D;
@@ -499,7 +579,17 @@ int ComputePerturbField(
         if (user_params->DIM != user_params->HII_DIM)
             filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
 
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_density_perturb);
+        if(user_params->USE_FFTW_WISDOM) {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+            fftwf_execute(plan);
+        }
+        else {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
+        fftwf_destroy_plan(plan);
 
 #pragma omp parallel shared(perturbed_field,HIRES_density_perturb,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
         {
@@ -514,7 +604,18 @@ int ComputePerturbField(
         }
     }
     else {
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, LOWRES_density_perturb);
+
+        if(user_params->USE_FFTW_WISDOM) {
+            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+            fftwf_execute(plan);
+        }
+        else {
+            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                         (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
+        fftwf_destroy_plan(plan);
 
 #pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
         {
@@ -523,6 +624,224 @@ int ComputePerturbField(
                 for (j=0; j<user_params->HII_DIM; j++){
                     for (k=0; k<user_params->HII_DIM; k++){
                         *((float *)perturbed_field->velocity + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
+                    }
+                }
+            }
+        }
+    }
+
+    if(user_params->PERTURB_ON_HIGH_RES) {
+        // We are going to generate the velocity field on the high-resolution perturbed density grid
+        memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+    }
+    else {
+        // We are going to generate the velocity field on the low-resolution perturbed density grid
+        memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    }
+
+#pragma omp parallel shared(LOWRES_density_perturb,HIRES_density_perturb,dDdt_over_D,dimension,switch_mid) \
+                        private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq) num_threads(user_params->N_THREADS)
+    {
+#pragma omp for
+        for (n_x=0; n_x<dimension; n_x++){
+            if (n_x>switch_mid)
+                k_x =(n_x-dimension) * DELTA_K;  // wrap around for FFT convention
+            else
+                k_x = n_x * DELTA_K;
+
+            for (n_y=0; n_y<dimension; n_y++){
+                if (n_y>switch_mid)
+                    k_y =(n_y-dimension) * DELTA_K;
+                else
+                    k_y = n_y * DELTA_K;
+
+                for (n_z=0; n_z<=switch_mid; n_z++){
+                    k_z = n_z * DELTA_K;
+
+                    k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
+
+                    // now set the velocities
+                    if ((n_x==0) && (n_y==0) && (n_z==0)) { // DC mode
+                        if(user_params->PERTURB_ON_HIGH_RES) {
+                            HIRES_density_perturb[0] = 0;
+                        }
+                        else {
+                            LOWRES_density_perturb[0] = 0;
+                        }
+                    }
+                    else{
+                        if(user_params->PERTURB_ON_HIGH_RES) {
+                            HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_y*I/k_sq/(TOT_NUM_PIXELS+0.0);
+                        }
+                        else {
+                            LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_y*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if(user_params->PERTURB_ON_HIGH_RES) {
+
+        // smooth the high resolution field ready for resampling
+        if (user_params->DIM != user_params->HII_DIM)
+            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+
+        if(user_params->USE_FFTW_WISDOM) {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+            fftwf_execute(plan);
+        }
+        else {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
+        fftwf_destroy_plan(plan);
+
+#pragma omp parallel shared(perturbed_field,HIRES_density_perturb,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
+        {
+#pragma omp for
+            for (i=0; i<user_params->HII_DIM; i++){
+                for (j=0; j<user_params->HII_DIM; j++){
+                    for (k=0; k<user_params->HII_DIM; k++){
+                        *((float *)perturbed_field->velocity_y + HII_R_INDEX(i,j,k)) = *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5), (unsigned long long)(j*f_pixel_factor+0.5), (unsigned long long)(k*f_pixel_factor+0.5)));
+                    }
+                }
+            }
+        }
+    }
+    else {
+
+        if(user_params->USE_FFTW_WISDOM) {
+            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+            fftwf_execute(plan);
+        }
+        else {
+            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                         (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
+        fftwf_destroy_plan(plan);
+
+#pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
+        {
+#pragma omp for
+            for (i=0; i<user_params->HII_DIM; i++){
+                for (j=0; j<user_params->HII_DIM; j++){
+                    for (k=0; k<user_params->HII_DIM; k++){
+                        *((float *)perturbed_field->velocity_y + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
+                    }
+                }
+            }
+        }
+    }
+
+    if(user_params->PERTURB_ON_HIGH_RES) {
+        // We are going to generate the velocity field on the high-resolution perturbed density grid
+        memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+    }
+    else {
+        // We are going to generate the velocity field on the low-resolution perturbed density grid
+        memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    }
+
+#pragma omp parallel shared(LOWRES_density_perturb,HIRES_density_perturb,dDdt_over_D,dimension,switch_mid) \
+                        private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq) num_threads(user_params->N_THREADS)
+    {
+#pragma omp for
+        for (n_x=0; n_x<dimension; n_x++){
+            if (n_x>switch_mid)
+                k_x =(n_x-dimension) * DELTA_K;  // wrap around for FFT convention
+            else
+                k_x = n_x * DELTA_K;
+
+            for (n_y=0; n_y<dimension; n_y++){
+                if (n_y>switch_mid)
+                    k_y =(n_y-dimension) * DELTA_K;
+                else
+                    k_y = n_y * DELTA_K;
+
+                for (n_z=0; n_z<=switch_mid; n_z++){
+                    k_z = n_z * DELTA_K;
+
+                    k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
+
+                    // now set the velocities
+                    if ((n_x==0) && (n_y==0) && (n_z==0)) { // DC mode
+                        if(user_params->PERTURB_ON_HIGH_RES) {
+                            HIRES_density_perturb[0] = 0;
+                        }
+                        else {
+                            LOWRES_density_perturb[0] = 0;
+                        }
+                    }
+                    else{
+                        if(user_params->PERTURB_ON_HIGH_RES) {
+                            HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_x*I/k_sq/(TOT_NUM_PIXELS+0.0);
+                        }
+                        else {
+                            LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_x*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if(user_params->PERTURB_ON_HIGH_RES) {
+
+        // smooth the high resolution field ready for resampling
+        if (user_params->DIM != user_params->HII_DIM)
+            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+
+        if(user_params->USE_FFTW_WISDOM) {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_WISDOM_ONLY);
+            fftwf_execute(plan);
+        }
+        else {
+            plan = fftwf_plan_dft_c2r_3d(user_params->DIM, user_params->DIM, user_params->DIM,
+                                         (fftwf_complex *)HIRES_density_perturb, (float *)HIRES_density_perturb, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
+        fftwf_destroy_plan(plan);
+
+#pragma omp parallel shared(perturbed_field,HIRES_density_perturb,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
+        {
+#pragma omp for
+            for (i=0; i<user_params->HII_DIM; i++){
+                for (j=0; j<user_params->HII_DIM; j++){
+                    for (k=0; k<user_params->HII_DIM; k++){
+                        *((float *)perturbed_field->velocity_x + HII_R_INDEX(i,j,k)) = *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5), (unsigned long long)(j*f_pixel_factor+0.5), (unsigned long long)(k*f_pixel_factor+0.5)));
+                    }
+                }
+            }
+        }
+    }
+    else {
+
+        if(user_params->USE_FFTW_WISDOM) {
+            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                                (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_WISDOM_ONLY);
+            fftwf_execute(plan);
+        }
+        else {
+            plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
+                                         (fftwf_complex *)LOWRES_density_perturb, (float *)LOWRES_density_perturb, FFTW_ESTIMATE);
+            fftwf_execute(plan);
+        }
+        fftwf_destroy_plan(plan);
+
+#pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
+        {
+#pragma omp for
+            for (i=0; i<user_params->HII_DIM; i++){
+                for (j=0; j<user_params->HII_DIM; j++){
+                    for (k=0; k<user_params->HII_DIM; k++){
+                        *((float *)perturbed_field->velocity_x + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
                     }
                 }
             }

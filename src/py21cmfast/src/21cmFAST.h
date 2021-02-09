@@ -81,7 +81,7 @@ struct InitialConditions{
 };
 
 struct PerturbedField{
-    float *density, *velocity;
+    float *density, *velocity, *velocity_y, *velocity_x;
 };
 
 struct HaloField{
