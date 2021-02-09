@@ -260,7 +260,7 @@ double xion_RECFAST(float z, int flag)
         // Initialize vectors
         sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
         if ( !(F=fopen(filename, "r")) ){
-            LOG_ERROR("xion_RECFAST: Unable to open file: %s for reading\nAborting\n", RECFAST_FILENAME);
+            LOG_ERROR("xion_RECFAST: Unable to open file: %s for reading.", RECFAST_FILENAME);
             Throw IOError;
         }
 

@@ -61,9 +61,6 @@ void initialize_interp_arrays()
 {
   FILE *input_file;
   char input_file_name[100];
-  char input_base[100] = "x_int_tables/";
-  char input_tail[100] = ".dat";
-  char mode[10] = "r";
 
   float xHI,xHeI,xHeII,z,T;
   float trash;
@@ -92,12 +89,12 @@ void initialize_interp_arrays()
 
     // Construct filename
     if (x_int_XHII[n_ion] < 0.3) {
-      sprintf(input_file_name,"%s/%slog_xi_%1.1f%s",global_params.external_table_path,input_base,log10(x_int_XHII[n_ion]),input_tail);
+      sprintf(input_file_name,"%s/x_int_tables/log_xi_%1.1f.dat",global_params.external_table_path,log10(x_int_XHII[n_ion]));
     } else {
-      sprintf(input_file_name,"%s/%sxi_%1.3f%s",global_params.external_table_path,input_base,x_int_XHII[n_ion],input_tail);
+      sprintf(input_file_name,"%s/x_int_tables/xi_%1.3f.dat",global_params.external_table_path,x_int_XHII[n_ion]);
     }
 
-    input_file = fopen(input_file_name, mode);
+    input_file = fopen(input_file_name, "r");
 
     if (input_file == NULL) {
       LOG_ERROR("Can't open input file %s!",input_file_name);
@@ -113,6 +110,8 @@ void initialize_interp_arrays()
     // Skip third line -- first have to get past the second line ending.
     skipline(input_file, 2);
 
+    LOG_SUPER_DEBUG("Reading %s", input_file_name);
+
     for (i=0;i<x_int_NENERGY;i++) {
 
       fscanf(input_file,"%g %g %g %g %g %g %g %g %g",
@@ -127,6 +126,8 @@ void initialize_interp_arrays()
 	     &trash);
 
     }
+
+    LOG_SUPER_DEBUG("Done reading %s", input_file_name);
 
     fclose(input_file);
 
