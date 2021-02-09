@@ -135,7 +135,7 @@ LOG_SUPER_DEBUG("defined parameters");
         }
 
      if (prev_redshift < 1) //first redshift, just assign ZSTEP = 2
-         ZSTEP = 2;
+         ZSTEP = 0.2;
      else
         ZSTEP = prev_redshift - redshift;
 
@@ -1518,7 +1518,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             } else {
                 R /= (global_params.DELTA_R_HII_FACTOR);
             }
-            counter += 1;
+            if (flag_options->USE_MINI_HALOS)
+                counter += 1;
         }
 
 
@@ -1610,8 +1611,6 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                             box->dNrec_box[HII_R_INDEX(x, y, z)] =
                                     previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)] + dNrec;
-                            if ((box->dNrec_box[HII_R_INDEX(x, y, z)]<0) || (box->dNrec_box[HII_R_INDEX(x, y, z)]>50) ||( (x==146) && (y==663) && (z==506)))
-                                LOG_DEBUG("(%i,%i,%i), curr_dens=%f,z_eff=%f,Gamma12_box=%f,xH_box=%f,splined_recombination_rate=%f,fabs_dtdz=%f,ZSTEP=%f,dNrec=%f, previous_ionize_box->dNrec_box=%f,box->dNrec_box=%f", x,y,z,curr_dens,z_eff,box->Gamma12_box[HII_R_INDEX(x, y, z)],box->xH_box[HII_R_INDEX(x, y, z)],splined_recombination_rate(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]), fabs_dtdz, ZSTEP, dNrec, previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)],box->dNrec_box[HII_R_INDEX(x, y, z)]);
                         }
                     }
                 }

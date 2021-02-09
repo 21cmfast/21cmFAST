@@ -187,8 +187,6 @@ class PerturbedField(_OutputStructZ):
     def _init_arrays(self):
         self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.velocity_x = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.velocity_y = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
 
         self.density.shape = (
             self.user_params.HII_DIM,
@@ -196,16 +194,6 @@ class PerturbedField(_OutputStructZ):
             self.user_params.HII_DIM,
         )
         self.velocity.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-        self.velocity_x.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-        self.velocity_y.shape = (
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
             self.user_params.HII_DIM,
@@ -298,24 +286,27 @@ class IonizedBox(_AllParamsBox):
     _c_compute_function = lib.ComputeIonizedBox
 
     def _init_arrays(self):
-        Nfiltering = (
-            int(
-                np.log(
-                    min(
-                        self.astro_params.R_BUBBLE_MAX,
-                        0.620350491 * self.user_params.BOX_LEN,
+        if self.flag_options.USE_MINI_HALOS:
+            Nfiltering = (
+                int(
+                    np.log(
+                        min(
+                            self.astro_params.R_BUBBLE_MAX,
+                            0.620350491 * self.user_params.BOX_LEN,
+                        )
+                        / max(
+                            global_params.R_BUBBLE_MIN,
+                            0.620350491
+                            * self.user_params.BOX_LEN
+                            / self.user_params.HII_DIM,
+                        )
                     )
-                    / max(
-                        global_params.R_BUBBLE_MIN,
-                        0.620350491
-                        * self.user_params.BOX_LEN
-                        / self.user_params.HII_DIM,
-                    )
+                    / np.log(global_params.DELTA_R_HII_FACTOR)
                 )
-                / np.log(global_params.DELTA_R_HII_FACTOR)
+                + 1
             )
-            + 1
-        )
+        else:
+            Nfiltering = 1
 
         # ionized_box is always initialised to be neutral for excursion set algorithm.
         # Hence np.ones instead of np.zeros

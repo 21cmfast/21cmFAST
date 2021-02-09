@@ -88,7 +88,6 @@ void init_MHR(){
       lnGamma_values[gamma_ct] = RR_lnGamma_min  + gamma_ct*RR_DEL_lnGamma;  // ln of Gamma12
       gamma = exp(lnGamma_values[gamma_ct]);
       RR_table[z_ct][gamma_ct] = recombination_rate(z, gamma, 1, 1); // CHANGE THIS TO INCLUDE TEMPERATURE
-	  LOG_DEBUG("z_ct=%d, z=%f,gamma_ct=%d,lnGamma_values=%f,gamma=%f,RR_table=%.20f,recombination_rate=%.20f", z_ct,z,gamma_ct,lnGamma_values[gamma_ct],gamma, RR_table[z_ct][gamma_ct],recombination_rate(z, gamma, 1, 1));
     }
 
     // set up the spline in gamma
@@ -149,7 +148,7 @@ double MHR_rr (double lnD, void *params){
 }
 
 
-// returns the recombination rate per baryon (1/s), integrated over the MHR density PDF,
+// returns the recombination rate per baryon (1/1e15s), integrated over the MHR density PDF,
 // given an ionizing background of gamma12_bg
 // temeperature T4 (in 1e4 K), and usecaseB rate coefficient
 // Assumes self-shielding according to Rahmati+ 2013
