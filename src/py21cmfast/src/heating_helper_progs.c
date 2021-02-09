@@ -97,6 +97,7 @@ int init_heat()
         return -2;
     if( kappa_10_pH(1.0,1) < 0)
         return -3;
+    LOG_SUPER_DEBUG("About to initialize interp arrays");
 
     initialize_interp_arrays();
 
