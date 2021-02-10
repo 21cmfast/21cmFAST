@@ -9,12 +9,15 @@ Added
   class, or the Lightcone.
 * Ability to gather all evolutionary antecedents from a Coeval/Lightcone into the one
   file.
+* Also output the mean free path (i.e. MFP_box in IonizedBox).
 
 Fixed
 ~~~~~
 * Bug in 2LPT when `USE_RELATIVE_VELOCITIES=True` [Issue #191, PR #192]
 * Error raised when redshifts are not in ascending order [Issue #176, PR #177]
 * Errors when ``USE_FFTW_WISDOM`` is used on some systems [Issue #174, PR #199]
+* Bug in ComputeIonizedBox causing negative recombination rate and ring structure in Gamma12_box [Issue #194, PR #210]
+* Error in determining the wisdom file name [Issue #209, PR#210]
 
 Internals
 ~~~~~~~~~
