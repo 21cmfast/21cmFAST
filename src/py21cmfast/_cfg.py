@@ -85,7 +85,7 @@ class Config(dict):
 
     def _as_dict(self):
         """The plain dict defining the instance."""
-        return {k: v for k, v in self.items()}
+        return {k: str(Path) if isinstance(v, Path) else v for k, v in self.items()}
 
     @classmethod
     def load(cls, file_name: [str, Path]):
