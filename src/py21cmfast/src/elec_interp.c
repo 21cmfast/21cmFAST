@@ -60,7 +60,7 @@ void skipline(FILE *fl, int n){
 void initialize_interp_arrays()
 {
   FILE *input_file;
-  char input_file_name[100];
+  char input_file_name[256]; // needs to be longer than 100.
 
   float xHI,xHeI,xHeII,z,T;
   float trash;
@@ -132,6 +132,7 @@ void initialize_interp_arrays()
     fclose(input_file);
 
   }
+  LOG_SUPER_DEBUG("Done reading x_int_tables.");
 
   return;
 }

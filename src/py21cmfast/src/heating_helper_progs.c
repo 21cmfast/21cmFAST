@@ -35,7 +35,7 @@ double get_M_min_ion(float z){
 }
 
 // * initialization routine * //
-int init_heat();
+// int init_heat();
 
 /* destruction/deallocation routine */
 void destruct_heat();
@@ -101,6 +101,7 @@ int init_heat()
 
     initialize_interp_arrays();
 
+    LOG_SUPER_DEBUG("Done initializing heat.");
     return 0;
 }
 
@@ -207,7 +208,7 @@ double T_RECFAST(float z, int flag)
         sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
         if ( !(F=fopen(filename, "r")) ){
             LOG_ERROR("T_RECFAST: Unable to open file: %s for reading.", filename);
-            Throw 1;
+            Throw(IOError);
         }
 
         for (i=(RECFAST_NPTS-1);i>=0;i--) {
