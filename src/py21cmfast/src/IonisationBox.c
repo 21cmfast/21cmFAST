@@ -128,8 +128,8 @@ LOG_SUPER_DEBUG("defined parameters");
             INIT_RECOMBINATIONS=0;
         }
 
-     if (prev_redshift < 1) //first redshift, just assign ZSTEP = 2
-         ZSTEP = 0.2;
+     if (prev_redshift < 1) //deal with first redshift
+		 ZSTEP = (1. + redshift) * (global_params.ZPRIME_STEP_FACTOR - 1.);
      else
         ZSTEP = prev_redshift - redshift;
 
