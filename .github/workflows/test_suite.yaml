@@ -69,7 +69,7 @@ jobs:
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          pip install .
+          DEBUG=1 LOG_LEVEL=SUPER_DEBUG pip install .
       - name: Install 21cmFAST MacOS
         if: matrix.os == 'macos-latest'
         run: |
@@ -80,7 +80,7 @@ jobs:
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          python -m pytest --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
+          python -m pytest --cov=py21cmfast --cov-config=.coveragerc -s -vv --cov-report xml:./coverage.xml --durations=25
       - uses: codecov/codecov-action@master
         if: matrix.os == 'ubuntu-latest' && success()
         with:
