@@ -28,7 +28,6 @@ def test_box_shape(ic):
     assert ic.hires_vx_2LPT.shape == hires_shape
     assert ic.hires_vy_2LPT.shape == hires_shape
     assert ic.hires_vz_2LPT.shape == hires_shape
-    assert ic.hires_vcb.shape == hires_shape
 
     assert ic.cosmo_params == wrapper.CosmoParams()
 
@@ -75,20 +74,12 @@ def test_relvels():
         ),
     )
 
-    vcbrms = np.sqrt(np.mean(ic.hires_vcb ** 2))
-    vcbavg = np.mean(ic.hires_vcb)
-
     vcbrms_lowres = np.sqrt(np.mean(ic.lowres_vcb ** 2))
     vcbavg_lowres = np.mean(ic.lowres_vcb)
 
-    assert vcbrms > 25.0
-    assert vcbrms < 35.0  # it should be about 30 km/s, so we check it is around it
-
+    # we test the lowres box
+    # rms should be about 30 km/s for LCDM, so we check it is finite and not far off
     # the average should be 0.92*vrms, since it follows a maxwell boltzmann
-    assert vcbavg < 0.95 * vcbrms
-    assert vcbavg > 0.90 * vcbrms
-
-    # we also test the lowres box. Increase its error margin because its low res.
     assert vcbrms_lowres > 20.0
     assert vcbrms_lowres < 40.0
     assert vcbavg_lowres < 0.97 * vcbrms_lowres
