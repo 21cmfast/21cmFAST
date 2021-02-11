@@ -3069,7 +3069,7 @@ void initialise_SFRD_Conditional_table(
 #pragma omp for
             for (i=0; i<NSFR_low; i++){
 
-                log10_SFRD_z_low_table[j][i] = GaussLegendreQuad_Nion(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.);
+                log10_SFRD_z_low_table[j][i] = GaussLegendreQuad_Nion(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., FAST_FCOLL_TABLES);
 //                printf("%d %d %e %e %e %e %e %e %e %e %e %e %e %e %e %e %e\n",j,i,R[j],RtoM(R[j]),growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.,log10_SFRD_z_low_table[j][i]);
                 if(fabs(log10_SFRD_z_low_table[j][i]) < 1e-38) {
                     log10_SFRD_z_low_table[j][i] = 1e-38;

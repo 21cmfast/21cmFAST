@@ -421,7 +421,6 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
                         for (z=0; z<user_params->HII_DIM; z++){
 
                             Mcrit_RE = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[HII_R_INDEX(x, y, z)], previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)]);
-                            //Mcrit_LW = lyman_werner_threshold(redshift, spin_temp->J_21_LW_box[HII_R_INDEX(x, y, z)]);
                             if (flag_options->FIX_VCB_AVG){ //with this flag we ignore reading vcb box
                               curr_vcb = VAVG;
                             }

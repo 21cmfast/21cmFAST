@@ -2018,7 +2018,6 @@ def brightness_temperature(
             spin_temp,
             ionized_box,
             perturbed_field,
-            init_boxes, #JBM: added this
             write=write,
         )
 
