@@ -9,6 +9,7 @@ Added
   class, or the Lightcone.
 * Ability to gather all evolutionary antecedents from a Coeval/Lightcone into the one
   file.
+* Fast and low-memory generation of relative-velocity (vcb) initial conditions. Eliminated hi-res vcb boxes, as they are never needed.
 * Also output the mean free path (i.e. MFP_box in IonizedBox).
 
 Fixed

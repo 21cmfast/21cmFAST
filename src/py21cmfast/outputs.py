@@ -123,7 +123,6 @@ class InitialConditions(_OutputStruct):
             self.user_params.tot_fft_num_pixels, dtype=np.float32
         )
 
-        self.hires_vcb = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
         self.lowres_vcb = np.zeros(
             self.user_params.HII_tot_num_pixels, dtype=np.float32
         )
@@ -152,7 +151,6 @@ class InitialConditions(_OutputStruct):
         self.hires_vz_2LPT.shape = hires_shape
 
         self.lowres_vcb.shape = shape
-        self.hires_vcb.shape = hires_shape
 
 
 class PerturbedField(_OutputStructZ):
