@@ -8,7 +8,8 @@ import sys
 from unittest.mock import MagicMock
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).absolute().parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).absolute().parent.parent / "src"))
+
 
 class Mock(MagicMock):
     """Make a Mock so that a package doesn't have to actually exist."""
@@ -20,14 +21,20 @@ class Mock(MagicMock):
 
 
 MOCK_MODULES = [
-    'py21cmfast.c_21cmfast', 'click', 'tqdm', 'pyyaml',
-    'scipy', 'scipy.interpolate', 'h5py', 'cached_property'
+    "py21cmfast.c_21cmfast",
+    "click",
+    "tqdm",
+    "pyyaml",
+    "scipy",
+    "scipy.interpolate",
+    "h5py",
+    "cached_property",
 ]
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 # Get the version by running from shell -- this uses the git repo info, rather than
 # requiring it to be installed.
-out = subprocess.run(['python', 'setup.py', '--version'], capture_output=True)
+out = subprocess.run(["python", "setup.py", "--version"], capture_output=True)
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -61,7 +68,9 @@ project = "21cmFAST"
 year = "2020"
 author = "The 21cmFAST collaboration"
 copyright = "{0}, {1}".format(year, author)
-version = release = out.stdout.decode().rstrip()  # Get it from `python setup.py --version`
+version = (
+    release
+) = out.stdout.decode().rstrip()  # Get it from `python setup.py --version`
 templates_path = ["templates"]
 
 pygments_style = "trac"
