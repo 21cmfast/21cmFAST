@@ -128,6 +128,9 @@ LOG_SUPER_DEBUG("defined parameters");
             INIT_RECOMBINATIONS=0;
         }
 
+     if (prev_redshift < 1) //deal with first redshift
+		 ZSTEP = (1. + redshift) * (global_params.ZPRIME_STEP_FACTOR - 1.);
+     else
         ZSTEP = prev_redshift - redshift;
 
 #pragma omp parallel shared(box) private(ct) num_threads(user_params->N_THREADS)
@@ -135,6 +138,7 @@ LOG_SUPER_DEBUG("defined parameters");
 #pragma omp for
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++) {
                 box->Gamma12_box[ct] = 0.0;
+                box->MFP_box[ct] = 0.0;
             }
         }
     }
@@ -150,7 +154,7 @@ LOG_SUPER_DEBUG("defined parameters");
         }
     }
 
-    fabs_dtdz = fabs(dtdz(redshift));
+    fabs_dtdz = fabs(dtdz(redshift))/1e15; //reduce to have good precision
     t_ast = astro_params->t_STAR * t_hubble(redshift);
     growth_factor_dz = dicke(redshift-dz);
 
@@ -337,6 +341,8 @@ LOG_DEBUG("first redshift, do some initialization");
                 }
             }
         }
+        if (flag_options->INHOMO_RECO)
+            previous_ionize_box->dNrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     }
     //set the minimum source mass
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -346,9 +352,7 @@ LOG_DEBUG("first redshift, do some initialization");
 
             // this is the first z, and the previous_ionize_box  are empty
             if (prev_redshift < 1){
-LOG_DEBUG("first redshift, do some initialization");
                 previous_ionize_box->Gamma12_box = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
-                previous_ionize_box->dNrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
                 // really painful to get the length...
                 counter = 1;
                 R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
@@ -1297,6 +1301,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 // this assumes photon-starved growth of HII regions...  breaks down post EoR
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
                                     box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll + Gamma_R_prefactor_MINI * f_coll_MINI;
+                                    box->MFP_box[HII_R_INDEX(x,y,z)] = R;
                                 }
 
                                 // keep track of the first time this cell is ionized (earliest time)
@@ -1478,7 +1483,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
         fftwf_forget_wisdom();
     }
 
-	destruct_heat();
+    destruct_heat();
 
     for (i=0; i<user_params->N_THREADS; i++) {
         gsl_rng_free (r[i]);
