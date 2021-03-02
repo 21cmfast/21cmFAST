@@ -123,7 +123,6 @@ class InitialConditions(_OutputStruct):
             self.user_params.tot_fft_num_pixels, dtype=np.float32
         )
 
-        self.hires_vcb = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
         self.lowres_vcb = np.zeros(
             self.user_params.HII_tot_num_pixels, dtype=np.float32
         )
@@ -152,7 +151,6 @@ class InitialConditions(_OutputStruct):
         self.hires_vz_2LPT.shape = hires_shape
 
         self.lowres_vcb.shape = shape
-        self.hires_vcb.shape = hires_shape
 
 
 class PerturbedField(_OutputStructZ):
@@ -315,6 +313,7 @@ class IonizedBox(_AllParamsBox):
         self.Gamma12_box = np.zeros(
             self.user_params.HII_tot_num_pixels, dtype=np.float32
         )
+        self.MFP_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.z_re_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.dNrec_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
         self.temp_kinetic_all_gas = np.zeros(
@@ -337,6 +336,7 @@ class IonizedBox(_AllParamsBox):
         )
         self.xH_box.shape = shape
         self.Gamma12_box.shape = shape
+        self.MFP_box.shape = shape
         self.z_re_box.shape = shape
         self.dNrec_box.shape = shape
         self.temp_kinetic_all_gas.shape = shape
