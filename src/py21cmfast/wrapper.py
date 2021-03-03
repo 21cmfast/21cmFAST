@@ -1637,7 +1637,7 @@ def ionize_box(
             previous_ionize_box,
             spin_temp,
             pt_halos,
-            init_boxes, #JBM: added this
+            init_boxes,
             write=write,
         )
 
@@ -1921,7 +1921,7 @@ def spin_temperature(
             cleanup,
             perturbed_field,
             previous_spin_temp,
-            init_boxes, #JBM: added this
+            init_boxes,
             write=write,
         )
 

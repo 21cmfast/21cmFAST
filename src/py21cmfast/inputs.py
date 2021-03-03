@@ -628,7 +628,7 @@ class FlagOptions(StructWithDefaults):
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
-        "FIX_VCB_AVG": False
+        "FIX_VCB_AVG": False,
     }
 
     @property
@@ -699,10 +699,6 @@ class FlagOptions(StructWithDefaults):
             return False
         else:
             return self._PHOTON_CONS
-
-    @property
-    def FIX_VCB_AVG(self):
-        return self._FIX_VCB_AVG
 
 
 class AstroParams(StructWithDefaults):
