@@ -633,15 +633,16 @@ class FlagOptions(StructWithDefaults):
         "FIX_VCB_AVG": False,
     }
 
-
     # This checks if relative velocities are off to complain if minihaloes are on
     def __init__(
-        self, *args, USE_VELS_AUX=UserParams._defaults_["USE_RELATIVE_VELOCITIES"], **kwargs
+        self,
+        *args,
+        USE_VELS_AUX=UserParams._defaults_["USE_RELATIVE_VELOCITIES"],
+        **kwargs,
     ):
         # TODO: same as with inhomo_reco. USE_VELS_AUX used to check that relvels are on if MCGs are too
         self.USE_VELS_AUX = USE_VELS_AUX
         super().__init__(*args, **kwargs)
-
 
     @property
     def USE_HALO_FIELD(self):

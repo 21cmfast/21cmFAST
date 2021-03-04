@@ -10,9 +10,10 @@ Added
 * Ability to gather all evolutionary antecedents from a Coeval/Lightcone into the one
   file.
 * ``FAST_FCOLL_TABLES`` in ``UserParams`` which improves speeds quite significantly for
-  ~10% accuracy decrease.
+  ~<10% accuracy decrease.
 * Fast and low-memory generation of relative-velocity (vcb) initial conditions. Eliminated hi-res vcb boxes, as they are never needed.
 * Also output the mean free path (i.e. MFP_box in IonizedBox).
+* Added the effect of DM-baryon relative velocities on PopIII-forming minihaloes. This now provides the correct background evolution jointly with LW feedback. It gives rise to velocity-induced acoustic oscillations (VAOs) from the relative-velocity fluctuations. We also follow a more-flexible parametrization for LW feedback in minihaloes, following new simulation results, and add a new index ALPHA_STAR_MINI for minihaloes, now independent of regular ACGs.
 
 Fixed
 ~~~~~
