@@ -643,6 +643,10 @@ class FlagOptions(StructWithDefaults):
         # TODO: same as with inhomo_reco. USE_VELS_AUX used to check that relvels are on if MCGs are too
         self.USE_VELS_AUX = USE_VELS_AUX
         super().__init__(*args, **kwargs)
+        if self.USE_MINI_HALOS and not self.USE_VELS_AUX and not self.FIX_VCB_AVG:
+            logger.warning(
+                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
+            )
 
     @property
     def USE_HALO_FIELD(self):
@@ -713,17 +717,20 @@ class FlagOptions(StructWithDefaults):
         else:
             return self._PHOTON_CONS
 
-    @property
-    def FIX_VCB_AVG(self):
-        """Automatically setting FIX_VCB_AVG to True if USE_MINI_HALOS but not USE_RELATIVE_VELOCITIES."""
-        if self.USE_MINI_HALOS and not self.USE_VELS_AUX and not self._FIX_VCB_AVG:
-            logger.warning(
-                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution"
-                "Setting FIX_VCB_AVG to True, which includes rel.vels., though only on average."
-            )
-            return True
-        else:
-            return self._FIX_VCB_AVG
+
+
+#TODO question: do we want to force some velocities when using minihaloes? The background would be wrong otherwise, but it's supported not to have them.
+    # @property
+    # def FIX_VCB_AVG(self):
+    #     """Automatically setting FIX_VCB_AVG to True if USE_MINI_HALOS but not USE_RELATIVE_VELOCITIES."""
+    #     if self.USE_MINI_HALOS and not self.USE_VELS_AUX and not self._FIX_VCB_AVG:
+    #         logger.warning(
+    #             "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution"
+    #             "Setting FIX_VCB_AVG to True, which includes rel.vels., though only on average."
+    #         )
+    #         return self._FIX_VCB_AVG
+    #     else:
+    #         return self._FIX_VCB_AVG
 
 
 class AstroParams(StructWithDefaults):

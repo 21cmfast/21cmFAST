@@ -66,8 +66,6 @@ OPTIONS = (
             "N_THREADS": 4,
             "USE_FFTW_WISDOM": True,
             "NUM_FILTER_STEPS_FOR_Ts": 8,
-            "A_LW": 22.8685,
-            "BETA_LW": 0.47,
         },
     ],
     [8, {"N_THREADS": 2}],
@@ -163,13 +161,11 @@ OPTIONS = (
             "zprime_step_factor": 1.2,
             "NUM_FILTER_STEPS_FOR_Ts": 4,
             "USE_INTERPOLATION_TABLES": False,
-            "A_LW": 22.8685,
-            "BETA_LW": 0.47,
         },
     ],
     [
         12.1,
-        {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTEPOLATION_TABLES": True},
+        {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True},
     ],
 )
 
