@@ -615,6 +615,8 @@ class FlagOptions(StructWithDefaults):
         photon non-conservation.
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations.
+    USE_VELS_AUX: bool, optional
+        Auxiliar variable (not input) to check if minihaloes are being used without relative velocities and complain
     """
 
     _ffi = ffi
@@ -628,8 +630,18 @@ class FlagOptions(StructWithDefaults):
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
-        "FIX_VCB_AVG": False
+        "FIX_VCB_AVG": False,
     }
+
+
+    # This checks if relative velocities are off to complain if minihaloes are on
+    def __init__(
+        self, *args, USE_VELS_AUX=UserParams._defaults_["USE_RELATIVE_VELOCITIES"], **kwargs
+    ):
+        # TODO: same as with inhomo_reco. USE_VELS_AUX used to check that relvels are on if MCGs are too
+        self.USE_VELS_AUX = USE_VELS_AUX
+        super().__init__(*args, **kwargs)
+
 
     @property
     def USE_HALO_FIELD(self):
@@ -702,7 +714,15 @@ class FlagOptions(StructWithDefaults):
 
     @property
     def FIX_VCB_AVG(self):
-        return self._FIX_VCB_AVG
+        """Automatically setting FIX_VCB_AVG to True if USE_MINI_HALOS but not USE_RELATIVE_VELOCITIES."""
+        if self.USE_MINI_HALOS and not self.USE_VELS_AUX and not self._FIX_VCB_AVG:
+            logger.warning(
+                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution"
+                "Setting FIX_VCB_AVG to True, which includes rel.vels., though only on average."
+            )
+            return True
+        else:
+            return self._FIX_VCB_AVG
 
 
 class AstroParams(StructWithDefaults):
@@ -785,7 +805,7 @@ class AstroParams(StructWithDefaults):
         units. Default is `ION_Tvir_MIN`.
     F_H2_SHIELD: float, optional
         Self-shielding factor of molecular hydrogen when experiencing LW suppression.
-        Cf. Eq. 12 of Qin+2020
+        Cf. Eq. 12 of Qin+2020. Obsolete in new version.
     t_STAR : float, optional
         Fractional characteristic time-scale (fraction of hubble time) defining the
         star-formation rate of galaxies. Only used if `USE_MASS_DEPENDENT_ZETA` is set
