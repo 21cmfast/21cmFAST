@@ -807,7 +807,7 @@ class AstroParams(StructWithDefaults):
         Number of steps used in redshift-space-distortion algorithm. NOT A PHYSICAL
         PARAMETER.
     A_LW, BETA_LW: float, optional
-        Impact of the LW feedback on Mturn for minihaloes. Default is 2.0 and 0.6, respectively. See Eq. XX.
+        Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Eq. XX.
     A_VCB, BETA_VCB: float, optional
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Eq. XX.
     """
@@ -834,8 +834,8 @@ class AstroParams(StructWithDefaults):
         "F_H2_SHIELD": 0.0,
         "t_STAR": 0.5,
         "N_RSD_STEPS": 20,
-        "A_LW": 2.0,
-        "BETA_LW": 0.6,
+        "A_LW" 22.8685,
+        "BETA_LW": 0.47,
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
     }
