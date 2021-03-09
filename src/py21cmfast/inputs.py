@@ -284,6 +284,8 @@ class GlobalParams(StructInstanceWrapper):
         Maximum mass when performing integral on halo mass function.
     T_RE:
         The peak gas temperatures behind the supersonic ionization fronts during reionization.
+    VAVG:
+        Avg value of the DM-b relative velocity [im km/s], ~0.9*SIGMAVCB (=25.86 km/s) normally.
     """
 
     def __init__(self, wrapped, ffi):

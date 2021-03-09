@@ -67,7 +67,6 @@
 
 //JBM relvel stuff
 #define SIGMAVCB (29.0) //rms value of the DM-b relative velocity [im km/s]
-#define VAVG (25.86) //avg value of the DM-b relative velocity [im km/s], ~0.9*SIGMAVCB
 
 
 // Universal FOF HMF (Watson et al. 2013)

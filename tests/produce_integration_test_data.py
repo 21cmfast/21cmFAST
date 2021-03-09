@@ -167,6 +167,23 @@ OPTIONS = (
         12.1,
         {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True},
     ],
+    [
+        18,
+        {
+            "z_heat_max": 25,
+            "USE_MINI_HALOS": True,
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "INHOMO_RECO": True,
+            "USE_TS_FLUCT": True,
+            "zprime_step_factor": 1.2,
+            "N_THREADS": 4,
+            "USE_FFTW_WISDOM": True,
+            "NUM_FILTER_STEPS_FOR_Ts": 8,
+            "USE_INTERPOLATION_TABLES": True,
+            "FAST_FCOLL_TABLES": True,
+            "USE_RELATIVE_VELOCITIES": True,
+        },
+    ],
 )
 
 OPTIONS_PT = (
