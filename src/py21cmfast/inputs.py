@@ -800,7 +800,8 @@ class AstroParams(StructWithDefaults):
         units. Default is `ION_Tvir_MIN`.
     F_H2_SHIELD: float, optional
         Self-shielding factor of molecular hydrogen when experiencing LW suppression.
-        Cf. Eq. 12 of Qin+2020. Obsolete in new version.
+        Cf. Eq. 12 of Qin+2020. Consistently included in A_LW fit from sims.
+        If used we recommend going back to Macachek+01 A_LW=22.86.
     t_STAR : float, optional
         Fractional characteristic time-scale (fraction of hubble time) defining the
         star-formation rate of galaxies. Only used if `USE_MASS_DEPENDENT_ZETA` is set
