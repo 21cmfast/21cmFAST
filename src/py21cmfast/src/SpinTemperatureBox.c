@@ -560,7 +560,7 @@ LOG_SUPER_DEBUG("normalised unfiltered box");
                 R_values[R_ct] = R;
 
                 if(!flag_options->USE_MASS_DEPENDENT_ZETA) {
-                    sigma_atR[R_ct] = sigma_z0(RtoM(R));
+                    sigma_atR[R_ct] = sigma_z0(RtoM(R,flag_options));
                 }
 
                 // copy over unfiltered box
@@ -1494,7 +1494,7 @@ LOG_SUPER_DEBUG("looping over box...");
             for (R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
 
                 if(!user_params->USE_INTERPOLATION_TABLES) {
-                    Mmax = RtoM(R_values[R_ct]);
+                    Mmax = RtoM(R_values[R_ct],flag_options);
                     sigmaMmax = sigma_z0(Mmax);
                 }
 

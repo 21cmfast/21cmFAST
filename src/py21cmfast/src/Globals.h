@@ -69,7 +69,6 @@ struct GlobalParams{
     float SHETH_b;
     float SHETH_c;
     double Zreion_HeII;
-    int FILTER;
 
     char *external_table_path;
     char *wisdoms_path;
@@ -148,7 +147,6 @@ extern struct GlobalParams global_params = {
     .SHETH_b = 0.15,
     .SHETH_c = 0.05,
     .Zreion_HeII = 3.0,
-    .FILTER = 0,
     .R_BUBBLE_MIN = 0.620350491,
     .M_MIN_INTEGRAL = 1e5,
     .M_MAX_INTEGRAL = 1e16,

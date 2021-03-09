@@ -117,7 +117,7 @@ LOG_DEBUG("Finalised Initialisation");
 
         // lets filter it now
         // set initial R value
-        R = MtoR(M_MIN*1.01); // one percent higher for rounding
+        R = MtoR(M_MIN*1.01, flag_options); // one percent higher for rounding
 
 LOG_DEBUG("Prepare to filter to find halos");
 
@@ -136,11 +136,11 @@ LOG_DEBUG("Prepare to filter to find halos");
         float *halo_field = calloc(TOT_NUM_PIXELS, sizeof(float));
 
 
-        while ((R > 0.5*Delta_R) && (RtoM(R) >= M_MIN)){ // filter until we get to half the pixel size or M_MIN
+        while ((R > 0.5*Delta_R) && (RtoM(R, flag_options) >= M_MIN)){ // filter until we get to half the pixel size or M_MIN
 
-LOG_ULTRA_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%f M_MIN=%f", R, 0.5*Delta_R, RtoM(R), M_MIN);
+LOG_ULTRA_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%f M_MIN=%f", R, 0.5*Delta_R, RtoM(R, flag_options), M_MIN);
 
-            M = RtoM(R);
+            M = RtoM(R, flag_options);
             if(global_params.DELTA_CRIT_MODE == 1 && (user_params->HMF>0 && user_params->HMF<4)){
                 if(user_params->HMF==1) {
                     // use sheth tormen correction
@@ -176,7 +176,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                         for (y=0; y<user_params->DIM; y++){
                             for (z=0; z<user_params->DIM; z++){
                                 if(halo_field[R_INDEX(x,y,z)] > 0.) {
-                                    R_temp = MtoR(halo_field[R_INDEX(x,y,z)]);
+                                    R_temp = MtoR(halo_field[R_INDEX(x,y,z)], flag_options);
                                     check_halo(forbidden, user_params, R_temp+global_params.R_OVERLAP_FACTOR*R, x,y,z,2);
                                 }
                             }
@@ -232,7 +232,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                 dfgtrm += pow(M/(RHOcrit*cosmo_params->OMm)*sqrt(dn)/VOLUME, 2);
 
                 // and the dndlnm files
-                dlnm = log(RtoM(global_params.DELTA_R_FACTOR*R)) - log(M);
+                dlnm = log(RtoM(global_params.DELTA_R_FACTOR*R, flag_options)) - log(M);
 
                 if (halos->n_mass_bins == halos->max_n_mass_bins){
                     // We've gone past the limit.

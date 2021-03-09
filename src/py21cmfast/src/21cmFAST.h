@@ -76,6 +76,8 @@ struct FlagOptions{
     bool M_MIN_in_Mass;
     bool PHOTON_CONS;
     bool FIX_VCB_AVG;
+    int FILTER;
+    bool USE_ETHOS;
 };
 
 
