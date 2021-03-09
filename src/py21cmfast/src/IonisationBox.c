@@ -426,7 +426,7 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
 
                             Mcrit_RE = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[HII_R_INDEX(x, y, z)], previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)]);
                             if (flag_options->FIX_VCB_AVG){ //with this flag we ignore reading vcb box
-                              curr_vcb = VAVG;
+                              curr_vcb = global_params.VAVG;
                             }
                             else{
                               if(user_params->USE_RELATIVE_VELOCITIES ){

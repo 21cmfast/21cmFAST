@@ -903,7 +903,7 @@ LOG_SUPER_DEBUG("got density gridpoints");
                             for (k=0; k<user_params->HII_DIM; k++){
 
                               if (flag_options->FIX_VCB_AVG){ //with this flag we ignore reading vcb box
-                                curr_vcb = VAVG;
+                                curr_vcb = global_params.VAVG;
                               }
                               else{
                                 if(user_params->USE_RELATIVE_VELOCITIES){
