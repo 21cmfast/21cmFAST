@@ -836,8 +836,8 @@ class AstroParams(StructWithDefaults):
         "F_H2_SHIELD": 0.0,
         "t_STAR": 0.5,
         "N_RSD_STEPS": 20,
-        "A_LW": 22.8685,
-        "BETA_LW": 0.47,
+        "A_LW": 2.00,
+        "BETA_LW": 0.6,
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
     }
