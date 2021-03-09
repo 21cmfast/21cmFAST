@@ -1,4 +1,4 @@
-exclude: '(^docs/conf.py|^user_data/External_tables/*|changethelog.py)'
+exclude: '(^docs/conf.py|^src/py21cmfast/_data/*|changethelog.py)'
 
 repos:
     - repo: git://github.com/pre-commit/pre-commit-hooks

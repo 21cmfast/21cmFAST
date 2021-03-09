@@ -35,7 +35,7 @@ double get_M_min_ion(float z){
 }
 
 // * initialization routine * //
-int init_heat();
+// int init_heat();
 
 /* destruction/deallocation routine */
 void destruct_heat();
@@ -97,9 +97,11 @@ int init_heat()
         return -2;
     if( kappa_10_pH(1.0,1) < 0)
         return -3;
+    LOG_SUPER_DEBUG("About to initialize interp arrays");
 
     initialize_interp_arrays();
 
+    LOG_SUPER_DEBUG("Done initializing heat.");
     return 0;
 }
 
@@ -206,7 +208,7 @@ double T_RECFAST(float z, int flag)
         sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
         if ( !(F=fopen(filename, "r")) ){
             LOG_ERROR("T_RECFAST: Unable to open file: %s for reading.", filename);
-            Throw 1;
+            Throw(IOError);
         }
 
         for (i=(RECFAST_NPTS-1);i>=0;i--) {
@@ -259,7 +261,7 @@ double xion_RECFAST(float z, int flag)
         // Initialize vectors
         sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
         if ( !(F=fopen(filename, "r")) ){
-            LOG_ERROR("xion_RECFAST: Unable to open file: %s for reading\nAborting\n", RECFAST_FILENAME);
+            LOG_ERROR("xion_RECFAST: Unable to open file: %s for reading.", RECFAST_FILENAME);
             Throw IOError;
         }
 
