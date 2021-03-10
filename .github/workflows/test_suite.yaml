@@ -69,13 +69,13 @@ jobs:
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          pip install .
+          LOG_LEVEL=DEBUG pip install .
       - name: Install 21cmFAST MacOS
         if: matrix.os == 'macos-latest'
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+          LOG_LEVEL=DEBUG CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
       - name: Run Tests
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
