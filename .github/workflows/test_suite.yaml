@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@master
         with:
-          fetch-depth: 1
+          fetch-depth: 0
       - name: Get Miniconda MacOSX
         if: matrix.os == 'macos-latest'
         run: |

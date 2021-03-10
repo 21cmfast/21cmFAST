@@ -20,34 +20,8 @@ def _read(*names, **kwargs):
     ).read()
 
 
-# ======================================================================================
-# Create a user-level config directory for 21cmFAST, for configuration.
-cfgdir = expanduser(join("~", ".21cmfast"))
-
 pkgdir = os.path.dirname(os.path.abspath(__file__))
 
-if not os.path.exists(cfgdir):
-    os.makedirs(cfgdir)
-
-
-def _safe_copy_tree(src, dst, safe=None):
-    safe = safe or []
-    for fl in glob.glob(join(src, "*")):
-        fname = os.path.basename(fl)
-        if fname not in safe or not os.path.exists(join(dst, fname)):
-            if os.path.isdir(join(src, fname)):
-                if os.path.exists(join(dst, fname)):
-                    shutil.rmtree(join(dst, fname))
-                shutil.copytree(join(src, fname), join(dst, fname))
-            else:
-                shutil.copy(join(src, fname), join(dst, fname))
-
-
-# Copy the user data into the config directory.
-# We *don't* want to overwrite the config file that is already there, because maybe the user
-# has changed the configuration, and that would destroy it!
-_safe_copy_tree(join(pkgdir, "user_data"), cfgdir, safe="config.yml")
-# ======================================================================================
 
 # Enable code coverage for C code: we can't use CFLAGS=-coverage in tox.ini, since that
 # may mess with compiling dependencies (e.g. numpy). Therefore we set SETUPPY_
@@ -101,7 +75,6 @@ setup(
     keywords=["Epoch of Reionization", "Cosmology"],
     install_requires=[
         "click",
-        # 'tqdm',
         "numpy",
         "pyyaml",
         "cffi>=1.0",
@@ -114,6 +87,6 @@ setup(
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
     setup_requires=["cffi>=1.0", "setuptools_scm"],
     entry_points={"console_scripts": ["21cmfast = py21cmfast.cli:main"]},
-    cffi_modules=["{pkgdir}/build_cffi.py:ffi".format(pkgdir=pkgdir)],
+    cffi_modules=[f"{pkgdir}/build_cffi.py:ffi"],
     use_scm_version=True,
 )
