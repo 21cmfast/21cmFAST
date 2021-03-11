@@ -848,7 +848,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             for (y = 0; y < user_params->HII_DIM; y++) {
                                 for (z = 0; z < user_params->HII_DIM; z++) {
                                     // delta cannot be less than -1
-                                    *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
+                                    *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(
                                                 *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
 
                                     if (*((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) < min_density) {
@@ -879,7 +879,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     for (z=0; z<user_params->HII_DIM; z++){
                                         // delta cannot be less than -1
                                         *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = \
-                                                        FMAX(*((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
+                                                        fmaxf(*((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
 
                                         if( *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) < prev_min_density ) {
                                             prev_min_density = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
@@ -996,6 +996,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 #pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded_threaded,log10_Nion_spline,Nion_spline,erfc_denom,erfc_arg_min,\
                             erfc_arg_max,InvArgBinWidth,ArgBinWidth,ERFC_VALS_DIFF,ERFC_VALS,log10_Mturnover_filtered,log10Mturn_min,log10Mturn_bin_width_inv, \
                             log10_Mturnover_MINI_filtered,log10Mturn_bin_width_inv_MINI,log10_Nion_spline_MINI,prev_deltax_filtered,previous_ionize_box,ION_EFF_FACTOR,\
+                            prev_overdense_small_bin_width, overdense_small_bin_width,overdense_small_bin_width_inv,\
                             prev_overdense_small_min,prev_overdense_small_bin_width_inv,prev_log10_Nion_spline,prev_log10_Nion_spline_MINI,prev_overdense_large_min,\
                             prev_overdense_large_bin_width_inv,prev_Nion_spline,prev_Nion_spline_MINI,box,counter,M_coll_filtered,massofscaleR,pixel_volume,sigmaMmax,\
                             M_MIN,growth_factor,Mlim_Fstar,Mlim_Fesc,Mcrit_atom,Mlim_Fstar_MINI,Mlim_Fesc_MINI,prev_growth_factor) \
@@ -1010,24 +1011,24 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                         for (z = 0; z < user_params->HII_DIM; z++) {
 
                             // delta cannot be less than -1
-                            *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
+                            *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(
                                                 *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
 
                             // <N_rec> cannot be less than zero
                             if (flag_options->INHOMO_RECO) {
-                                *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(*((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
+                                *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(*((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
                             }
 
                             // x_e has to be between zero and unity
                             if (flag_options->USE_TS_FLUCT) {
-                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(*((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.);
-                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMIN(*((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.999);
+                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(*((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.);
+                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = fminf(*((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.999);
                             }
 
                             if(flag_options->USE_HALO_FIELD) {
 
                                 // collapsed mass cannot be less than zero
-                                *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(
+                                *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) = fmaxf(
                                         *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
 
                                 density_over_mean = 1.0 + *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
@@ -1055,6 +1056,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                                             if(status_int > 0) {
                                                 overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
+                                                LOG_ULTRA_DEBUG("Broken 1059 in thread=%d", omp_get_thread_num());
                                             }
                                         }
                                         else {
@@ -1081,6 +1083,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                                                 if(status_int > 0) {
                                                     overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
+                                                    LOG_ULTRA_DEBUG("Broken 1086 in thread=%d", omp_get_thread_num());
                                                 }
                                             }
                                             else {
@@ -1109,6 +1112,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                                             if(status_int > 0) {
                                                 overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
+                                                LOG_ULTRA_DEBUG("Broken 1115 in thread=%d", omp_get_thread_num());
                                             }
 
 
@@ -1695,10 +1699,16 @@ int EvaluateSplineTable(bool MINI_HALOS, int dens_type, float curr_dens, float f
 
             if(dens_type==1) {
                 dens_val = (curr_dens - overdense_large_min) * overdense_large_bin_width_inv;
+              LOG_ULTRA_DEBUG("type=%d curr_dens=%e, overdense_large_min=%e, overdense_large_bin_width_inv=%e",\
+              dens_type,curr_dens, overdense_large_min,overdense_large_bin_width_inv);
             }
             if(dens_type==2) {
                 dens_val = (curr_dens - prev_overdense_large_min) * prev_overdense_large_bin_width_inv;
-            }
+                LOG_ULTRA_DEBUG("type=%d curr_dens=%e, prev_overdense_large_min=%e, prev_overdense_large_bin_width_inv=%e",\
+                dens_type,curr_dens, prev_overdense_large_min,prev_overdense_large_bin_width_inv);
+              }
+
+
 
             overdense_int = (int) floorf(dens_val);
 

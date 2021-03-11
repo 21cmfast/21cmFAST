@@ -764,12 +764,12 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
                             zpp_grid = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points_SFR-1.0);
 
                             if(flag_options->M_MIN_in_Mass) {
-                                Sigma_Tmin_grid[i] = sigma_z0(FMAX(M_MIN,  M_MIN_WDM));
-                                ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, FMAX(M_MIN,  M_MIN_WDM));
+                                Sigma_Tmin_grid[i] = sigma_z0(fmaxf(M_MIN,  M_MIN_WDM));
+                                ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, fmaxf(M_MIN,  M_MIN_WDM));
                             }
                             else {
-                                Sigma_Tmin_grid[i] = sigma_z0(FMAX((float)TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
-                                ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, FMAX((float)TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                                Sigma_Tmin_grid[i] = sigma_z0(fmaxf((float)TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                                ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, fmaxf((float)TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
                             }
                         }
                     }
@@ -982,7 +982,7 @@ LOG_SUPER_DEBUG("got density gridpoints");
 
             if(flag_options->M_MIN_in_Mass) {
 
-                if (FgtrM(zp, FMAX(M_MIN,  M_MIN_WDM)) < 1e-15 )
+                if (FgtrM(zp, fmaxf(M_MIN,  M_MIN_WDM)) < 1e-15 )
                     NO_LIGHT = 1;
                 else
                     NO_LIGHT = 0;
@@ -991,7 +991,7 @@ LOG_SUPER_DEBUG("got density gridpoints");
             }
             else {
 
-                if (FgtrM(zp, FMAX((float)TtoM(zp, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM)) < 1e-15 )
+                if (FgtrM(zp, fmaxf((float)TtoM(zp, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM)) < 1e-15 )
                     NO_LIGHT = 1;
                 else
                     NO_LIGHT = 0;
@@ -1158,10 +1158,10 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 }
                 else {
                     if(flag_options->M_MIN_in_Mass) {
-                        sigma_Tmin[R_ct] = sigma_z0(FMAX(M_MIN, M_MIN_WDM));
+                        sigma_Tmin[R_ct] = sigma_z0(fmaxf(M_MIN, M_MIN_WDM));
                     }
                     else {
-                        sigma_Tmin[R_ct] = sigma_z0(FMAX((float)TtoM(zpp, astro_params->X_RAY_Tvir_MIN, mu_for_Ts), M_MIN_WDM));
+                        sigma_Tmin[R_ct] = sigma_z0(fmaxf((float)TtoM(zpp, astro_params->X_RAY_Tvir_MIN, mu_for_Ts), M_MIN_WDM));
                     }
 
                     ST_over_PS[R_ct] = dzpp_for_evolve * pow(1+zpp, -(astro_params->X_RAY_SPEC_INDEX));
@@ -1171,11 +1171,11 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
             if(user_params->USE_INTERPOLATION_TABLES) {
                 if(flag_options->USE_MINI_HALOS){
-                    lower_int_limit = FMAX(nu_tau_one_MINI(zp, zpp, x_e_ave, filling_factor_of_HI_zp,
+                    lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp, x_e_ave, filling_factor_of_HI_zp,
                                                               log10_Mcrit_LW_ave,LOG10_MTURN_INT), (astro_params->NU_X_THRESH)*NU_over_EV);
                 }
                 else{
-                    lower_int_limit = FMAX(nu_tau_one(zp, zpp, x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
+                    lower_int_limit = fmax(nu_tau_one(zp, zpp, x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
                 }
 
                 if (filling_factor_of_HI_zp < 0) filling_factor_of_HI_zp = 0; // for global evol; nu_tau_one above treats negative (post_reionization) inferred filling factors properly
@@ -1246,19 +1246,19 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                     }
                     else {
                         if(flag_options->M_MIN_in_Mass) {
-                            ST_over_PS[R_ct] *= FgtrM_General(zpp_for_evolve_list[R_ct], FMAX(M_MIN, M_MIN_WDM));
+                            ST_over_PS[R_ct] *= FgtrM_General(zpp_for_evolve_list[R_ct], fmaxf(M_MIN, M_MIN_WDM));
                         }
                         else {
-                            ST_over_PS[R_ct] *= FgtrM_General(zpp_for_evolve_list[R_ct], FMAX((float)TtoM(zpp_for_evolve_list[R_ct], astro_params->X_RAY_Tvir_MIN, mu_for_Ts), M_MIN_WDM));
+                            ST_over_PS[R_ct] *= FgtrM_General(zpp_for_evolve_list[R_ct], fmaxf((float)TtoM(zpp_for_evolve_list[R_ct], astro_params->X_RAY_Tvir_MIN, mu_for_Ts), M_MIN_WDM));
                         }
                     }
 
                     if(flag_options->USE_MINI_HALOS){
-                        lower_int_limit = FMAX(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
+                        lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
                                                                log10_Mcrit_LW_ave_list[R_ct],LOG10_MTURN_INT), (astro_params->NU_X_THRESH)*NU_over_EV);
                     }
                     else{
-                        lower_int_limit = FMAX(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
+                        lower_int_limit = fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
                     }
 
                     if (filling_factor_of_HI_zp < 0) filling_factor_of_HI_zp = 0; // for global evol; nu_tau_one above treats negative (post_reionization) inferred filling factors properly

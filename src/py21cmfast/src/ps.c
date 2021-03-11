@@ -420,8 +420,8 @@ double sigma_z0(double M){
     // now lets do the integral for sigma and scale it with sigma_norm
 
     if(user_params_ps->POWER_SPECTRUM == 5){
-      kstart = FMAX(1.0e-99/Radius, KBOT_CLASS);
-      kend = FMIN(350.0/Radius, KTOP_CLASS);
+      kstart = fmax(1.0e-99/Radius, KBOT_CLASS);
+      kend = fmin(350.0/Radius, KTOP_CLASS);
     }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
     else{
       kstart = 1.0e-99/Radius;
@@ -606,8 +606,8 @@ double init_ps(){
     Radius_8 = 8.0/cosmo_params_ps->hlittle;
 
     if(user_params_ps->POWER_SPECTRUM == 5){
-      kstart = FMAX(1.0e-99/Radius_8, KBOT_CLASS);
-      kend = FMIN(350.0/Radius_8, KTOP_CLASS);
+      kstart = fmax(1.0e-99/Radius_8, KBOT_CLASS);
+      kend = fmin(350.0/Radius_8, KTOP_CLASS);
     }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
     else{
       kstart = 1.0e-99/Radius_8;
@@ -744,8 +744,8 @@ double dsigmasqdm_z0(double M){
 
     // now lets do the integral for sigma and scale it with sigma_norm
     if(user_params_ps->POWER_SPECTRUM == 5){
-      kstart = FMAX(1.0e-99/Radius, KBOT_CLASS);
-      kend = FMIN(350.0/Radius, KTOP_CLASS);
+      kstart = fmax(1.0e-99/Radius, KBOT_CLASS);
+      kend = fmin(350.0/Radius, KTOP_CLASS);
     }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
     else{
       kstart = 1.0e-99/Radius;
@@ -998,7 +998,7 @@ double FgtrM_Watson_z(double z, double growthf, double M){
 
     F.params = &parameters_gsl_FgtrM;
     lower_limit = log(M);
-    upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M*100));
+    upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
 
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
@@ -1028,7 +1028,7 @@ double FgtrM_Watson(double growthf, double M){
     F.function = &dFdlnM_Watson;
     F.params = &growthf;
     lower_limit = log(M);
-    upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M*100));
+    upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
 
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
@@ -1089,7 +1089,7 @@ double FgtrM_General(double z, double M){
         F.params = &parameters_gsl_FgtrM;
 
         lower_limit = log(M);
-        upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M*100));
+        upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
 
         gsl_set_error_handler_off();
 
@@ -1190,7 +1190,7 @@ double Nion_General(double z, double M_Min, double MassTurnover, double Alpha_st
         F.params = &parameters_gsl_SFR;
 
         lower_limit = log(M_Min);
-        upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M_Min*100));
+        upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M_Min*100));
 
         gsl_set_error_handler_off();
 
@@ -1289,7 +1289,7 @@ double Nion_General_MINI(double z, double M_Min, double MassTurnover, double Mas
         F.params = &parameters_gsl_SFR;
 
         lower_limit = log(M_Min);
-        upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M_Min*100));
+        upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M_Min*100));
 
         gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
         gsl_integration_workspace_free (w);
