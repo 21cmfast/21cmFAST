@@ -158,7 +158,7 @@ OPTIONS = (
             "USE_TS_FLUCT": True,
             "N_THREADS": 4,
             "z_heat_max": 25,
-            "zprime_step_factor": 1.2,
+            "zprime_step_factor": 1.1,
             "NUM_FILTER_STEPS_FOR_Ts": 4,
             "USE_INTERPOLATION_TABLES": False,
         },
@@ -172,7 +172,7 @@ OPTIONS = (
         {
             "z_heat_max": 25,
             "USE_MINI_HALOS": True,
-            "zprime_step_factor": 1.2,
+            "zprime_step_factor": 1.1,
             "N_THREADS": 4,
             "NUM_FILTER_STEPS_FOR_Ts": 8,
             "USE_INTERPOLATION_TABLES": True,
