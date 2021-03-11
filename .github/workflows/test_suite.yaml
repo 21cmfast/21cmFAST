@@ -69,18 +69,18 @@ jobs:
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          LOG_LEVEL=DEBUG pip install .
+          LOG_LEVEL=ULTRA_DEBUG pip install .
       - name: Install 21cmFAST MacOS
         if: matrix.os == 'macos-latest'
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          LOG_LEVEL=DEBUG CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+          LOG_LEVEL=ULTA_DEBUG CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
       - name: Run Tests
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          python -m pytest --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
+          python -m pytest --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 -s  -k 'kwargs12 or kwargs25' tests/test_integration_features.py::test_power_spectra_coeval tests/test_integration_features.py::test_power_spectra_lightcone
       - uses: codecov/codecov-action@master
         if: matrix.os == 'ubuntu-latest' && success()
         with:
