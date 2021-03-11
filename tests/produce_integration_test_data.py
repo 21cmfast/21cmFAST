@@ -62,7 +62,7 @@ OPTIONS = (
             "USE_MASS_DEPENDENT_ZETA": True,
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
-            "zprime_step_factor": 1.2,
+            "zprime_step_factor": 1.1,
             "N_THREADS": 4,
             "USE_FFTW_WISDOM": True,
             "NUM_FILTER_STEPS_FOR_Ts": 8,
