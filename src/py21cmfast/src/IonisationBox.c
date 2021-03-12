@@ -57,7 +57,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     float Splined_Fcoll_MINI, prev_dens, ION_EFF_FACTOR_MINI, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI;
     float ave_M_coll_cell, ave_N_min_cell, pixel_volume, density_over_mean;
 
-    //jbm:
     float curr_vcb;
 
     double global_xH, ST_over_PS, f_coll, R, stored_R, f_coll_min;

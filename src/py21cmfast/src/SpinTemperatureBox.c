@@ -101,7 +101,6 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
 
     float curr_dens, min_curr_dens, max_curr_dens;
 
-    //jbm:
     float curr_vcb;
     min_curr_dens = max_curr_dens = 0.;
 
@@ -918,10 +917,8 @@ LOG_SUPER_DEBUG("got density gridpoints");
                                               log10(lyman_werner_threshold(zp, previous_spin_temp->J_21_LW_box[HII_R_INDEX(i,j,k)],
                                               curr_vcb, astro_params) );
 
-//JBM: There might be a better way than just reading ALL the ICs? Is the struct populated by defualt?
 
-
-//JBM: this only accounts for effect 3 (largest on minihaloes). Effects 1 and 2 affect both minihaloes (MCGs) and regular ACGs, but they're smaller ~10%. Return to this (TODO)
+//This only accounts for effect 3 (only on minihaloes). Effects 1+2 also affects ACGs, but is included only on average.
 
 
 

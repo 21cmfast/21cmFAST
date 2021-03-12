@@ -417,7 +417,7 @@ def compute_luminosity_function(
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     astro_params = AstroParams(astro_params)
-    flag_options = FlagOptions(flag_options)
+    flag_options = FlagOptions(flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES)
 
     redshifts = np.array(redshifts, dtype="float32")
     if flag_options.USE_MINI_HALOS:
@@ -675,7 +675,7 @@ def _init_photon_conservation_correction(
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     astro_params = AstroParams(astro_params)
-    flag_options = FlagOptions(flag_options)
+    flag_options = FlagOptions(flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES)
 
     return lib.InitialisePhotonCons(
         user_params(), cosmo_params(), astro_params(), flag_options()
@@ -1067,7 +1067,7 @@ def determine_halo_list(
         # Verify input parameter structs (need to do this after configure_inputs).
         user_params = UserParams(user_params)
         cosmo_params = CosmoParams(cosmo_params)
-        flag_options = FlagOptions(flag_options)
+        flag_options = FlagOptions(flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES)
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
         if user_params.HMF != 1:
@@ -1205,7 +1205,7 @@ def perturb_halo_list(
         # Verify input parameter structs (need to do this after configure_inputs).
         user_params = UserParams(user_params)
         cosmo_params = CosmoParams(cosmo_params)
-        flag_options = FlagOptions(flag_options)
+        flag_options = FlagOptions(flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES)
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
         if user_params.HMF != 1:
@@ -1465,7 +1465,7 @@ def ionize_box(
         # Verify input structs
         user_params = UserParams(user_params)
         cosmo_params = CosmoParams(cosmo_params)
-        flag_options = FlagOptions(flag_options)
+        flag_options = FlagOptions(flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES)
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
         if spin_temp is not None and not flag_options.USE_TS_FLUCT:
@@ -1637,7 +1637,7 @@ def ionize_box(
             previous_ionize_box,
             spin_temp,
             pt_halos,
-            init_boxes,  # JBM: added this
+            init_boxes,
             write=write,
         )
 
@@ -1810,7 +1810,7 @@ def spin_temperature(
                 )
         user_params = UserParams(user_params)
         cosmo_params = CosmoParams(cosmo_params)
-        flag_options = FlagOptions(flag_options)
+        flag_options = FlagOptions(flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES)
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
         # Explicitly set this flag to True, though it shouldn't be required!
@@ -1921,7 +1921,7 @@ def spin_temperature(
             cleanup,
             perturbed_field,
             previous_spin_temp,
-            init_boxes,  # JBM: added this
+            init_boxes,
             write=write,
         )
 
@@ -2151,7 +2151,7 @@ def run_coeval(
 
         user_params = UserParams(user_params)
         cosmo_params = CosmoParams(cosmo_params)
-        flag_options = FlagOptions(flag_options)
+        flag_options = FlagOptions(flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES)
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
         if init_box is None:  # no need to get cosmo, user params out of it.
@@ -2544,7 +2544,7 @@ def run_lightcone(
 
         user_params = UserParams(user_params)
         cosmo_params = CosmoParams(cosmo_params)
-        flag_options = FlagOptions(flag_options)
+        flag_options = FlagOptions(flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES)
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
         # Ensure passed quantities are appropriate
@@ -3030,6 +3030,7 @@ def calibrate_photon_cons(
         flag_options_photoncons = FlagOptions(
             USE_MASS_DEPENDENT_ZETA=flag_options.USE_MASS_DEPENDENT_ZETA,
             M_MIN_in_Mass=flag_options.M_MIN_in_Mass,
+            USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES,
         )
 
         ib = None

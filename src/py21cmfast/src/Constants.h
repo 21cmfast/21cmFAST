@@ -65,7 +65,7 @@
 #define SHETH_p (0.175) // Sheth and Tormen p parameter (from Jenkins et al. 2001)
 #define SHETH_A (0.353) // Sheth and Tormen A parameter (from Jenkins et al. 2001)
 
-//JBM relvel stuff
+
 #define SIGMAVCB (29.0) //rms value of the DM-b relative velocity [im km/s]
 
 
