@@ -65,6 +65,10 @@
 #define SHETH_p (0.175) // Sheth and Tormen p parameter (from Jenkins et al. 2001)
 #define SHETH_A (0.353) // Sheth and Tormen A parameter (from Jenkins et al. 2001)
 
+
+#define SIGMAVCB (29.0) //rms value of the DM-b relative velocity [im km/s]
+
+
 // Universal FOF HMF (Watson et al. 2013)
 #define Watson_A (0.282) // Watson FOF HMF, A parameter (Watson et al. 2013)
 #define Watson_alpha (2.163) // Watson FOF HMF, alpha parameter (Watson et al. 2013)
@@ -173,7 +177,6 @@
 #define CLASS_LENGTH  150 //length of the CLASS transfer function
 #define KBOT_CLASS (float) (1e-5) //max and min k in  CLASS transfer function, temporary until interfaced properly
 #define KTOP_CLASS (float) (1e3)
-
 //parameters for the M(sigma) power-law relation for FAST_FCOLL_TABLES
 #define MPIVOT1 (double) (1.5e9) //pivot masses
 #define MPIVOT2 (double) (5.3e5)
@@ -181,6 +184,11 @@
 #define AINDEX2 (double) (13.6)
 #define AINDEX3 (double) (21.0)
 #define MMIN_FAST (double) (1e5) // min mass at which the sigma table is computed if FAST_FCOLL_TABLES is turned on. Has to be below MPIVOT2
+//parameters for DM-baryon relative velocity effect on the power spectrum
+#define KP_VCB_PM (300.0) //Mpc-1
+#define A_VCB_PM (0.24)
+#define SIGMAK_VCB_PM (0.9)
+//this is for vcb=vrms at z=20. It scales roughly as sqrt(v) and (1+z)^(-1/6.)
 
 
 // ----------------------------------------------------------------------------------------- //

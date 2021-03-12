@@ -62,7 +62,7 @@ OPTIONS = (
             "USE_MASS_DEPENDENT_ZETA": True,
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
-            "zprime_step_factor": 1.2,
+            "zprime_step_factor": 1.1,
             "N_THREADS": 4,
             "USE_FFTW_WISDOM": True,
             "NUM_FILTER_STEPS_FOR_Ts": 8,
@@ -158,14 +158,27 @@ OPTIONS = (
             "USE_TS_FLUCT": True,
             "N_THREADS": 4,
             "z_heat_max": 25,
-            "zprime_step_factor": 1.2,
+            "zprime_step_factor": 1.1,
             "NUM_FILTER_STEPS_FOR_Ts": 4,
             "USE_INTERPOLATION_TABLES": False,
         },
     ],
     [
         12.1,
-        {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTEPOLATION_TABLES": True},
+        {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True},
+    ],
+    [
+        18,
+        {
+            "z_heat_max": 25,
+            "USE_MINI_HALOS": True,
+            "zprime_step_factor": 1.1,
+            "N_THREADS": 4,
+            "NUM_FILTER_STEPS_FOR_Ts": 8,
+            "USE_INTERPOLATION_TABLES": True,
+            "FAST_FCOLL_TABLES": True,
+            "USE_RELATIVE_VELOCITIES": True,
+        },
     ],
 )
 

@@ -378,6 +378,9 @@ double dsigma_dk(double k, void *params){
     else if (user_params_ps->POWER_SPECTRUM == 5){ // output of CLASS
         T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS. Note, flag_int = 1 here always, since now we have to have initialized the interpolator for CLASS
   	    p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
+        if(user_params_ps->USE_RELATIVE_VELOCITIES) { //jbm:Add average relvel suppression
+          p *= 1.0 - A_VCB_PM*exp( -pow(log(k/KP_VCB_PM),2.0)/(2.0*SIGMAK_VCB_PM*SIGMAK_VCB_PM)); //for v=vrms
+        }
     }
     else{
         LOG_ERROR("No such power spectrum defined: %i. Output is bogus.", user_params_ps->POWER_SPECTRUM);
@@ -417,8 +420,8 @@ double sigma_z0(double M){
     // now lets do the integral for sigma and scale it with sigma_norm
 
     if(user_params_ps->POWER_SPECTRUM == 5){
-      kstart = FMAX(1.0e-99/Radius, KBOT_CLASS);
-      kend = FMIN(350.0/Radius, KTOP_CLASS);
+      kstart = fmax(1.0e-99/Radius, KBOT_CLASS);
+      kend = fmin(350.0/Radius, KTOP_CLASS);
     }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
     else{
       kstart = 1.0e-99/Radius;
@@ -534,6 +537,9 @@ double power_in_k(double k){
     else if (user_params_ps->POWER_SPECTRUM == 5){ // output of CLASS
         T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS. Note, flag_int = 1 here always, since now we have to have initialized the interpolator for CLASS
   	    p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
+        if(user_params_ps->USE_RELATIVE_VELOCITIES) { //jbm:Add average relvel suppression
+          p *= 1.0 - A_VCB_PM*exp( -pow(log(k/KP_VCB_PM),2.0)/(2.0*SIGMAK_VCB_PM*SIGMAK_VCB_PM)); //for v=vrms
+        }
     }
     else{
         LOG_ERROR("No such power spectrum defined: %i. Output is bogus.", user_params_ps->POWER_SPECTRUM);
@@ -600,8 +606,8 @@ double init_ps(){
     Radius_8 = 8.0/cosmo_params_ps->hlittle;
 
     if(user_params_ps->POWER_SPECTRUM == 5){
-      kstart = FMAX(1.0e-99/Radius_8, KBOT_CLASS);
-      kend = FMIN(350.0/Radius_8, KTOP_CLASS);
+      kstart = fmax(1.0e-99/Radius_8, KBOT_CLASS);
+      kend = fmin(350.0/Radius_8, KTOP_CLASS);
     }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
     else{
       kstart = 1.0e-99/Radius_8;
@@ -686,6 +692,9 @@ double dsigmasq_dm(double k, void *params){
     else if (user_params_ps->POWER_SPECTRUM == 5){ // JBM: CLASS
       T = TF_CLASS(k, 1, 0); //read from z=0 output of CLASS
         p = pow(k, cosmo_params_ps->POWER_INDEX) * T * T;
+        if(user_params_ps->USE_RELATIVE_VELOCITIES) { //jbm:Add average relvel suppression
+          p *= 1.0 - A_VCB_PM*exp( -pow(log(k/KP_VCB_PM),2.0)/(2.0*SIGMAK_VCB_PM*SIGMAK_VCB_PM)); //for v=vrms
+        }
       }
     else{
         LOG_ERROR("No such power spectrum defined: %i. Output is bogus.", user_params_ps->POWER_SPECTRUM);
@@ -735,8 +744,8 @@ double dsigmasqdm_z0(double M){
 
     // now lets do the integral for sigma and scale it with sigma_norm
     if(user_params_ps->POWER_SPECTRUM == 5){
-      kstart = FMAX(1.0e-99/Radius, KBOT_CLASS);
-      kend = FMIN(350.0/Radius, KTOP_CLASS);
+      kstart = fmax(1.0e-99/Radius, KBOT_CLASS);
+      kend = fmin(350.0/Radius, KTOP_CLASS);
     }//we establish a maximum k of KTOP_CLASS~1e3 Mpc-1 and a minimum at KBOT_CLASS,~1e-5 Mpc-1 since the CLASS transfer function has a max!
     else{
       kstart = 1.0e-99/Radius;
@@ -989,7 +998,7 @@ double FgtrM_Watson_z(double z, double growthf, double M){
 
     F.params = &parameters_gsl_FgtrM;
     lower_limit = log(M);
-    upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M*100));
+    upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
 
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
@@ -1019,7 +1028,7 @@ double FgtrM_Watson(double growthf, double M){
     F.function = &dFdlnM_Watson;
     F.params = &growthf;
     lower_limit = log(M);
-    upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M*100));
+    upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
 
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
@@ -1080,7 +1089,7 @@ double FgtrM_General(double z, double M){
         F.params = &parameters_gsl_FgtrM;
 
         lower_limit = log(M);
-        upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M*100));
+        upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
 
         gsl_set_error_handler_off();
 
@@ -1181,7 +1190,7 @@ double Nion_General(double z, double M_Min, double MassTurnover, double Alpha_st
         F.params = &parameters_gsl_SFR;
 
         lower_limit = log(M_Min);
-        upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M_Min*100));
+        upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M_Min*100));
 
         gsl_set_error_handler_off();
 
@@ -1280,7 +1289,7 @@ double Nion_General_MINI(double z, double M_Min, double MassTurnover, double Mas
         F.params = &parameters_gsl_SFR;
 
         lower_limit = log(M_Min);
-        upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, M_Min*100));
+        upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M_Min*100));
 
         gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
         gsl_integration_workspace_free (w);
@@ -1748,7 +1757,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
             if (component == 1)
                 Fstar = astro_params->F_STAR10*pow(Mhalo_i/1e10,astro_params->ALPHA_STAR);
             else
-                Fstar = astro_params->F_STAR7_MINI*pow(Mhalo_i/1e7,astro_params->ALPHA_STAR);
+                Fstar = astro_params->F_STAR7_MINI*pow(Mhalo_i/1e7,astro_params->ALPHA_STAR_MINI);
             if (Fstar > 1.) Fstar = 1;
 
             if (i_unity < 0) { // Find the array number at which Fstar crosses unity.
@@ -1759,7 +1768,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
                     if (component == 1)
                         Fstar_temp = astro_params->F_STAR10*pow( exp(lnMhalo_min + dlnMhalo*(double)(i+1))/1e10,astro_params->ALPHA_STAR);
                     else
-                        Fstar_temp = astro_params->F_STAR7_MINI*pow( exp(lnMhalo_min + dlnMhalo*(double)(i+1))/1e7,astro_params->ALPHA_STAR);
+                        Fstar_temp = astro_params->F_STAR7_MINI*pow( exp(lnMhalo_min + dlnMhalo*(double)(i+1))/1e7,astro_params->ALPHA_STAR_MINI);
                     if (Fstar_temp < 1. && (1.- Fstar) < FRACT_FLOAT_ERR) i_unity = i;
                 }
             }
@@ -2334,8 +2343,6 @@ float GaussLegendreQuad_Nion_MINI(int Type, int n, float growthf, float M2, floa
       return (fcollres-fcollres_high);
     }
     else{
-
-
       for(i=1; i<(n+1); i++){
           if(Type==1) {
               x = xi_SFR_Xray[i];
@@ -2347,19 +2354,8 @@ float GaussLegendreQuad_Nion_MINI(int Type, int n, float growthf, float M2, floa
           }
       }
       return integrand;
-
     }
-
-
-
-
-
-
 }
-
-
-
-
 //JBM: Added the approximation if user_params->FAST_FCOLL_TABLES==True
 float GaussLegendreQuad_Nion(int Type, int n, float growthf, float M2, float sigma2, float delta1, float delta2, float MassTurnover, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc, bool FAST_FCOLL_TABLES) {
     //Performs the Gauss-Legendre quadrature.
@@ -2481,10 +2477,6 @@ double Fcollapprox (double numin, double beta){
   return gg*pow(2,0.5+beta)*pow(2.0*PI,-0.5);
 }
 
-
-
-
-
 void initialise_Nion_General_spline(float z, float min_density, float max_density, float Mmax, float MassTurnover, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc, bool FAST_FCOLL_TABLES){
 
 
@@ -2528,8 +2520,6 @@ void initialise_Nion_General_spline(float z, float min_density, float max_densit
 
             log10_overdense_spline_SFR[i] = overdense_val;
             log10_Nion_spline[i] = GaussLegendreQuad_Nion(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,pow(10.,overdense_val)-1.,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc, FAST_FCOLL_TABLES);
-
-
             if(fabs(log10_Nion_spline[i]) < 1e-38) {
                 log10_Nion_spline[i] = 1e-38;
             }
@@ -2558,8 +2548,6 @@ void initialise_Nion_General_spline(float z, float min_density, float max_densit
             Overdense_spline_SFR[i] = overdense_large_low + (float)i/((float)NSFR_high-1.)*(overdense_large_high - overdense_large_low);
             Nion_spline[i] = Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,Deltac,Overdense_spline_SFR[i],MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc, FAST_FCOLL_TABLES);
 
-
-
             if(Nion_spline[i]<0.) {
                 Nion_spline[i]=pow(10.,-40.0);
             }
@@ -2574,7 +2562,7 @@ void initialise_Nion_General_spline(float z, float min_density, float max_densit
     }
 }
 
-void initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_density, float max_density, float Mmax, float Mmin, float log10Mturn_min, float log10Mturn_max, float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI, float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, bool FAST_FCOLL_TABLES){
+void initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_density, float max_density, float Mmax, float Mmin, float log10Mturn_min, float log10Mturn_max, float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI, float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, bool FAST_FCOLL_TABLES){
 
     double growthf, sigma2;
     double overdense_large_high = Deltac, overdense_large_low = global_params.CRIT_DENS_TRANSITION*0.999;
@@ -2619,7 +2607,7 @@ void initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_de
     }
 
 #pragma omp parallel shared(log10_Nion_spline,growthf,Mmax,sigma2,log10_overdense_spline_SFR,Mturns,Mturns_MINI,\
-                            Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,ln_10,log10_Nion_spline_MINI,Mcrit_atom,\
+                            Alpha_star,Alpha_star_mini,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,ln_10,log10_Nion_spline_MINI,Mcrit_atom,\
                             Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI) \
                     private(i,j) num_threads(user_params_ps->N_THREADS)
     {
@@ -2640,7 +2628,7 @@ void initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_de
 
                 log10_Nion_spline_MINI[i+j*NSFR_low] = log10(GaussLegendreQuad_Nion_MINI(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,\
                                                         pow(10.,log10_overdense_spline_SFR[i])-1.,Mturns_MINI[j],Mcrit_atom,\
-                                                                Alpha_star,Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI, FAST_FCOLL_TABLES));
+                                                                Alpha_star_mini,Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI, FAST_FCOLL_TABLES));
 
                 if(log10_Nion_spline_MINI[i+j*NSFR_low] < -40.){
                     log10_Nion_spline_MINI[i+j*NSFR_low] = -40.;
@@ -2666,7 +2654,7 @@ void initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_de
     }
 
 
-#pragma omp parallel shared(Nion_spline,growthf,Mmin,Mmax,sigma2,Overdense_spline_SFR,Mturns,Alpha_star,\
+#pragma omp parallel shared(Nion_spline,growthf,Mmin,Mmax,sigma2,Overdense_spline_SFR,Mturns,Alpha_star,Alpha_star_mini,\
                             Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,Nion_spline_MINI,Mturns_MINI,Mcrit_atom,\
                             Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI) \
                     private(i,j) num_threads(user_params_ps->N_THREADS)
@@ -2685,7 +2673,7 @@ void initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_de
 
                 Nion_spline_MINI[i+j*NSFR_high] = Nion_ConditionalM_MINI(
                     growthf,Mmin,Mmax,sigma2,Deltac,Overdense_spline_SFR[i],
-                    Mturns_MINI[j],Mcrit_atom,Alpha_star,Alpha_esc,Fstar7_MINI,Fesc7_MINI,
+                    Mturns_MINI[j],Mcrit_atom,Alpha_star_mini,Alpha_esc,Fstar7_MINI,Fesc7_MINI,
                     Mlim_Fstar_MINI,Mlim_Fesc_MINI, FAST_FCOLL_TABLES
                 );
 
@@ -2712,7 +2700,7 @@ void initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_de
     }
 }
 
-void initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float min_density, float max_density, float Mmax, float Mmin, float log10Mturn_min, float log10Mturn_max, float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI, float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, bool FAST_FCOLL_TABLES){
+void initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float min_density, float max_density, float Mmax, float Mmin, float log10Mturn_min, float log10Mturn_max, float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10, float Fesc10, float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI, float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, bool FAST_FCOLL_TABLES){
 
     double growthf, sigma2;
     double overdense_large_high = Deltac, overdense_large_low = global_params.CRIT_DENS_TRANSITION*0.999;
@@ -2756,7 +2744,7 @@ void initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float m
         Mturns_MINI[i] = pow(10., log10Mturn_min_MINI + (float)i/((float)NMTURN-1.)*(log10Mturn_max_MINI-log10Mturn_min_MINI));
     }
 
-#pragma omp parallel shared(prev_log10_Nion_spline,growthf,Mmax,sigma2,prev_log10_overdense_spline_SFR,Mturns,Alpha_star,\
+#pragma omp parallel shared(prev_log10_Nion_spline,growthf,Mmax,sigma2,prev_log10_overdense_spline_SFR,Mturns,Alpha_star,Alpha_star_mini,\
                             Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,prev_log10_Nion_spline_MINI,Mturns_MINI,Mcrit_atom,\
                             Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI) \
                     private(i,j) num_threads(user_params_ps->N_THREADS)
@@ -2776,7 +2764,7 @@ void initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float m
 
                 prev_log10_Nion_spline_MINI[i+j*NSFR_low] = log10(GaussLegendreQuad_Nion_MINI(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,\
                                                             pow(10.,prev_log10_overdense_spline_SFR[i])-1.,Mturns_MINI[j],Mcrit_atom,\
-                                                            Alpha_star,Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI, FAST_FCOLL_TABLES));
+                                                            Alpha_star_mini,Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI, FAST_FCOLL_TABLES));
 
                 if(prev_log10_Nion_spline_MINI[i+j*NSFR_low] < -40.){
                     prev_log10_Nion_spline_MINI[i+j*NSFR_low] = -40.;
@@ -2803,7 +2791,7 @@ void initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float m
 
 
 #pragma omp parallel shared(prev_Nion_spline,growthf,Mmin,Mmax,sigma2,prev_Overdense_spline_SFR,Mturns,\
-                            Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,prev_Nion_spline_MINI,Mturns_MINI,\
+                            Alpha_star,Alpha_star_mini,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,prev_Nion_spline_MINI,Mturns_MINI,\
                             Mcrit_atom,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI) \
                     private(i,j) num_threads(user_params_ps->N_THREADS)
     {
@@ -2820,7 +2808,7 @@ void initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float m
 
 
                 prev_Nion_spline_MINI[i+j*NSFR_high] = Nion_ConditionalM_MINI(growthf,Mmin,Mmax,sigma2,Deltac,\
-                                                                    prev_Overdense_spline_SFR[i],Mturns_MINI[j],Mcrit_atom,Alpha_star,\
+                                                                    prev_Overdense_spline_SFR[i],Mturns_MINI[j],Mcrit_atom,Alpha_star_mini,\
                                                                     Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI, FAST_FCOLL_TABLES);
 
                 if(prev_Nion_spline_MINI[i+j*NSFR_high]<0.) {
@@ -2881,7 +2869,7 @@ void initialise_Nion_Ts_spline(
 }
 
 void initialise_Nion_Ts_spline_MINI(
-    int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_esc, float Fstar10,
+    int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10,
     float Fesc10, float Fstar7_MINI, float Fesc7_MINI
 ){
     int i,j;
@@ -2896,14 +2884,14 @@ void initialise_Nion_Ts_spline_MINI(
 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     Mlim_Fesc = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc10);
-    Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar7_MINI * pow(1e3, Alpha_star));
+    Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
     Mlim_Fesc_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc7_MINI * pow(1e3, Alpha_esc));
     float MassTurnover[NMTURN];
     for (i=0;i<NMTURN;i++){
         MassTurnover[i] = pow(10., LOG10_MTURN_MIN + (float)i/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
     }
 
-#pragma omp parallel shared(z_val,Nion_z_val,Nbin,zmin,zmax,Mmin,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,\
+#pragma omp parallel shared(z_val,Nion_z_val,Nbin,zmin,zmax,Mmin,Alpha_star,Alpha_star_mini,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,\
                             Nion_z_val_MINI,MassTurnover,Fstar7_MINI, Fesc7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI) \
                     private(i,j,Mcrit_atom_val) num_threads(user_params_ps->N_THREADS)
     {
@@ -2914,7 +2902,7 @@ void initialise_Nion_Ts_spline_MINI(
             Nion_z_val[i] = Nion_General(z_val[i], Mmin, Mcrit_atom_val, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
 
             for (j=0; j<NMTURN; j++){
-                Nion_z_val_MINI[i+j*Nbin] = Nion_General_MINI(z_val[i], Mmin, MassTurnover[j], Mcrit_atom_val, Alpha_star, Alpha_esc, Fstar7_MINI, Fesc7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
+                Nion_z_val_MINI[i+j*Nbin] = Nion_General_MINI(z_val[i], Mmin, MassTurnover[j], Mcrit_atom_val, Alpha_star_mini, Alpha_esc, Fstar7_MINI, Fesc7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
             }
         }
     }
@@ -2966,7 +2954,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float MassTurn, fl
     }
 }
 
-void initialise_SFRD_spline_MINI(int Nbin, float zmin, float zmax, float Alpha_star, float Fstar10, float Fstar7_MINI){
+void initialise_SFRD_spline_MINI(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI){
     int i,j;
     float Mmin = global_params.M_MIN_INTEGRAL, Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fstar_MINI, Mcrit_atom_val;
@@ -2978,14 +2966,14 @@ void initialise_SFRD_spline_MINI(int Nbin, float zmin, float zmax, float Alpha_s
     }
 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
-    Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar7_MINI * pow(1e3, Alpha_star));
+    Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
 
     float MassTurnover[NMTURN];
     for (i=0;i<NMTURN;i++){
         MassTurnover[i] = pow(10., LOG10_MTURN_MIN + (float)i/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
     }
 
-#pragma omp parallel shared(z_X_val,zmin,zmax,Nbin,SFRD_val,Mmin, Alpha_star,Fstar10,Mlim_Fstar,\
+#pragma omp parallel shared(z_X_val,zmin,zmax,Nbin,SFRD_val,Mmin, Alpha_star,Alpha_star_mini,Fstar10,Mlim_Fstar,\
                             SFRD_val_MINI,MassTurnover,Fstar7_MINI,Mlim_Fstar_MINI) \
                     private(i,j,Mcrit_atom_val) num_threads(user_params_ps->N_THREADS)
     {
@@ -2996,7 +2984,7 @@ void initialise_SFRD_spline_MINI(int Nbin, float zmin, float zmax, float Alpha_s
             SFRD_val[i] = Nion_General(z_X_val[i], Mmin, Mcrit_atom_val, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
 
             for (j=0; j<NMTURN; j++){
-                SFRD_val_MINI[i+j*Nbin] = Nion_General_MINI(z_X_val[i], Mmin, MassTurnover[j], Mcrit_atom_val, Alpha_star, 0., Fstar7_MINI, 1.,Mlim_Fstar_MINI,0.);
+                SFRD_val_MINI[i+j*Nbin] = Nion_General_MINI(z_X_val[i], Mmin, MassTurnover[j], Mcrit_atom_val, Alpha_star_mini, 0., Fstar7_MINI, 1.,Mlim_Fstar_MINI,0.);
             }
         }
     }
@@ -3083,8 +3071,6 @@ void initialise_SFRD_Conditional_table(
 
                 log10_SFRD_z_low_table[j][i] = GaussLegendreQuad_Nion(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., FAST_FCOLL_TABLES);
 //                printf("%d %d %e %e %e %e %e %e %e %e %e %e %e %e %e %e %e\n",j,i,R[j],RtoM(R[j]),growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.,log10_SFRD_z_low_table[j][i]);
-
-
                 if(fabs(log10_SFRD_z_low_table[j][i]) < 1e-38) {
                     log10_SFRD_z_low_table[j][i] = 1e-38;
                 }
@@ -3125,7 +3111,7 @@ void initialise_SFRD_Conditional_table(
 
 void initialise_SFRD_Conditional_table_MINI(
     int Nfilter, float min_density[], float max_density[], float growthf[], float R[],
-    float Mcrit_atom[], float Alpha_star, float Fstar10, float Fstar7_MINI, bool FAST_FCOLL_TABLES
+    float Mcrit_atom[], float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI, bool FAST_FCOLL_TABLES
 ){
 
     double overdense_val;
@@ -3142,7 +3128,7 @@ void initialise_SFRD_Conditional_table_MINI(
     Mmin = global_params.M_MIN_INTEGRAL;
     Mmax = RtoM(R[Nfilter-1]);
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
-    Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar7_MINI * pow(1e3, Alpha_star));
+    Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
 
     float MassTurnover[NMTURN];
     for (i=0;i<NMTURN;i++){
@@ -3187,7 +3173,7 @@ void initialise_SFRD_Conditional_table_MINI(
             overdense_low_table[i] = pow(10.,overdense_val);
         }
 
-#pragma omp parallel shared(log10_SFRD_z_low_table,growthf,Mmax,sigma2,overdense_low_table,Mcrit_atom,Alpha_star,Fstar10,Mlim_Fstar,\
+#pragma omp parallel shared(log10_SFRD_z_low_table,growthf,Mmax,sigma2,overdense_low_table,Mcrit_atom,Alpha_star,Alpha_star_mini,Fstar10,Mlim_Fstar,\
                             log10_SFRD_z_low_table_MINI,MassTurnover,Fstar7_MINI,Mlim_Fstar_MINI,ln_10) \
                     private(i,k) num_threads(user_params_ps->N_THREADS)
         {
@@ -3202,7 +3188,7 @@ void initialise_SFRD_Conditional_table_MINI(
                 log10_SFRD_z_low_table[j][i] *= ln_10;
 
                 for (k=0; k<NMTURN; k++){
-                    log10_SFRD_z_low_table_MINI[j][i+k*NSFR_low] = log10(GaussLegendreQuad_Nion_MINI(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover[k], Mcrit_atom[j],Alpha_star,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., FAST_FCOLL_TABLES));
+                    log10_SFRD_z_low_table_MINI[j][i+k*NSFR_low] = log10(GaussLegendreQuad_Nion_MINI(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover[k], Mcrit_atom[j],Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., FAST_FCOLL_TABLES));
                     if(log10_SFRD_z_low_table_MINI[j][i+k*NSFR_low] < -50.){
                         log10_SFRD_z_low_table_MINI[j][i+k*NSFR_low] = -50.;
                     }
@@ -3227,7 +3213,7 @@ void initialise_SFRD_Conditional_table_MINI(
             }
         }
 
-#pragma omp parallel shared(SFRD_z_high_table,growthf,Mmin,Mmax,sigma2,overdense_high_table,Mcrit_atom,Alpha_star,Fstar10,\
+#pragma omp parallel shared(SFRD_z_high_table,growthf,Mmin,Mmax,sigma2,overdense_high_table,Mcrit_atom,Alpha_star,Alpha_star_mini,Fstar10,\
                             Mlim_Fstar,SFRD_z_high_table_MINI,MassTurnover,Fstar7_MINI,Mlim_Fstar_MINI) \
                     private(i,k) num_threads(user_params_ps->N_THREADS)
         {
@@ -3245,7 +3231,7 @@ void initialise_SFRD_Conditional_table_MINI(
                 for (k=0; k<NMTURN; k++){
                     SFRD_z_high_table_MINI[j][i+k*NSFR_high] = Nion_ConditionalM_MINI(growthf[j],Mmin,Mmax,sigma2,Deltac,\
                                                                     overdense_high_table[i],MassTurnover[k],Mcrit_atom[j],\
-                                                                    Alpha_star,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., FAST_FCOLL_TABLES);
+                                                                    Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., FAST_FCOLL_TABLES);
 
                     if (SFRD_z_high_table_MINI[j][i+k*NSFR_high] < 1e-50){
                         SFRD_z_high_table_MINI[j][i+k*NSFR_high] = 1e-50;

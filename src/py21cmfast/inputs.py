@@ -286,6 +286,8 @@ class GlobalParams(StructInstanceWrapper):
         Maximum mass when performing integral on halo mass function.
     T_RE:
         The peak gas temperatures behind the supersonic ionization fronts during reionization.
+    VAVG:
+        Avg value of the DM-b relative velocity [im km/s], ~0.9*SIGMAVCB (=25.86 km/s) normally.
     """
 
     def __init__(self, wrapped, ffi):
@@ -602,6 +604,10 @@ class FlagOptions(StructWithDefaults):
     PHOTON_CONS : bool, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation.
+    FIX_VCB_AVG: bool, optional
+        Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations.
+    USE_VELS_AUX: bool, optional
+        Auxiliar variable (not input) to check if minihaloes are being used without relative velocities and complain
     """
 
     _ffi = ffi
@@ -615,7 +621,23 @@ class FlagOptions(StructWithDefaults):
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
+        "FIX_VCB_AVG": False,
     }
+
+    # This checks if relative velocities are off to complain if minihaloes are on
+    def __init__(
+        self,
+        *args,
+        USE_VELS_AUX=UserParams._defaults_["USE_RELATIVE_VELOCITIES"],
+        **kwargs,
+    ):
+        # TODO: same as with inhomo_reco. USE_VELS_AUX used to check that relvels are on if MCGs are too
+        self.USE_VELS_AUX = USE_VELS_AUX
+        super().__init__(*args, **kwargs)
+        if self.USE_MINI_HALOS and not self.USE_VELS_AUX and not self.FIX_VCB_AVG:
+            logger.warning(
+                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
+            )
 
     @property
     def USE_HALO_FIELD(self):
@@ -720,6 +742,9 @@ class AstroParams(StructWithDefaults):
     ALPHA_STAR : float, optional
         Power-law index of fraction of galactic gas in stars as a function of halo mass.
         See Sec 2.1 of Park+2018.
+    ALPHA_STAR_MINI : float, optional
+        Power-law index of fraction of galactic gas in stars as a function of halo mass, for MCGs.
+        See XXX (JBM to fill out later).
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
         IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization,
@@ -764,7 +789,8 @@ class AstroParams(StructWithDefaults):
         units. Default is `ION_Tvir_MIN`.
     F_H2_SHIELD: float, optional
         Self-shielding factor of molecular hydrogen when experiencing LW suppression.
-        Cf. Eq. 12 of Qin+2020
+        Cf. Eq. 12 of Qin+2020. Consistently included in A_LW fit from sims.
+        If used we recommend going back to Macachek+01 A_LW=22.86.
     t_STAR : float, optional
         Fractional characteristic time-scale (fraction of hubble time) defining the
         star-formation rate of galaxies. Only used if `USE_MASS_DEPENDENT_ZETA` is set
@@ -772,6 +798,10 @@ class AstroParams(StructWithDefaults):
     N_RSD_STEPS : int, optional
         Number of steps used in redshift-space-distortion algorithm. NOT A PHYSICAL
         PARAMETER.
+    A_LW, BETA_LW: float, optional
+        Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Eq. XX.
+    A_VCB, BETA_VCB: float, optional
+        Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Eq. XX.
     """
 
     _ffi = ffi
@@ -781,6 +811,7 @@ class AstroParams(StructWithDefaults):
         "F_STAR10": -1.3,
         "F_STAR7_MINI": -2.0,
         "ALPHA_STAR": 0.5,
+        "ALPHA_STAR_MINI": 0.5,
         "F_ESC10": -1.0,
         "F_ESC7_MINI": -2.0,
         "ALPHA_ESC": -0.5,
@@ -795,6 +826,10 @@ class AstroParams(StructWithDefaults):
         "F_H2_SHIELD": 0.0,
         "t_STAR": 0.5,
         "N_RSD_STEPS": 20,
+        "A_LW": 2.00,
+        "BETA_LW": 0.6,
+        "A_VCB": 1.0,
+        "BETA_VCB": 1.8,
     }
 
     def __init__(
