@@ -370,7 +370,7 @@ int ComputeInitialConditions(
 
 
 
-      #pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor,ii,dimension) private(i,j,k,vcb_i) num_threads(user_params->N_THREADS)
+      #pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor,ii) private(i,j,k,vcb_i) num_threads(user_params->N_THREADS)
               {
       #pragma omp for
                   for (i=0; i<user_params->HII_DIM; i++){
