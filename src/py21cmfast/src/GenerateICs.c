@@ -370,12 +370,12 @@ int ComputeInitialConditions(
 
 
 
-      #pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor,ii,dimension) private(i,j,k,vcb_i) num_threads(user_params->N_THREADS)
+      #pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor,ii) private(i,j,k,vcb_i) num_threads(user_params->N_THREADS)
               {
       #pragma omp for
-                  for (i=0; i<dimension; i++){
-                      for (j=0; j<dimension; j++){
-                          for (k=0; k<dimension; k++){
+                  for (i=0; i<user_params->HII_DIM; i++){
+                      for (j=0; j<user_params->HII_DIM; j++){
+                          for (k=0; k<user_params->HII_DIM; k++){
                             vcb_i = *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
                                                              (unsigned long long)(j*f_pixel_factor+0.5),
                                                              (unsigned long long)(k*f_pixel_factor+0.5)));
@@ -390,9 +390,9 @@ int ComputeInitialConditions(
 
 
 //now we take the sqrt of that and normalize the FFT
-    for (i=0; i<dimension; i++){
-        for (j=0; j<dimension; j++){
-            for (k=0; k<dimension; k++){
+    for (i=0; i<user_params->HII_DIM; i++){
+        for (j=0; j<user_params->HII_DIM; j++){
+            for (k=0; k<user_params->HII_DIM; k++){
               boxes->lowres_vcb[HII_R_INDEX(i,j,k)] = sqrt(boxes->lowres_vcb[HII_R_INDEX(i,j,k)])/VOLUME;
             }
         }
