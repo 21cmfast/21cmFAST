@@ -293,8 +293,6 @@ class GlobalParams(StructInstanceWrapper):
             "char[]", str(self._table_path / "wisdoms").encode()
         )
 
-
-
     @property
     def external_table_path(self):
         """An ffi char pointer to the path to which external tables are kept."""
@@ -648,7 +646,7 @@ class FlagOptions(StructWithDefaults):
                 "Automatically setting USE_HALO_FIELD to False."
             )
             return False
-        if GlobalParams.USE_ETHOS and self.USE_HALO_FIELD :
+        if GlobalParams.USE_ETHOS and self.USE_HALO_FIELD:
             logger.warning(
                 "You have set USE_ETHOS to True but USE_HALO_FIELD is also True! Code not equipped. "
                 "Automatically setting USE_HALO_FIELD to False."
@@ -716,13 +714,12 @@ class FlagOptions(StructWithDefaults):
 
     @property
     def FIX_VCB_AVG(self):
+        """FIX_VCB_AVG docstring TODO."""
         return self._FIX_VCB_AVG
 
     @property
     def FILTER(self):
-        """
-        The filter to use for the HMF calculations.
-        """
+        """The filter to use for the HMF calculations."""
         if self.USE_ETHOS:
             return 2
             logger.warning(
@@ -730,7 +727,6 @@ class FlagOptions(StructWithDefaults):
             )
         else:
             return self._FILTER
-
 
 
 class AstroParams(StructWithDefaults):

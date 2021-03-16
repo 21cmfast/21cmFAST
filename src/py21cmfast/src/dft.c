@@ -94,7 +94,7 @@ int CreateFFTWWisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_
             fftwf_destroy_plan(plan);
         }
 
-        sprintf(wisdom_filename,"r2c_DIM%d_NTHREADS%d",global_params.wisdoms_path, user_params->HII_DIM,user_params->N_THREADS);
+        sprintf(wisdom_filename,"%s/r2c_DIM%d_NTHREADS%d",global_params.wisdoms_path, user_params->HII_DIM,user_params->N_THREADS);
         if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
             plan = fftwf_plan_dft_r2c_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                          (float *)LOWRES_box, (fftwf_complex *)LOWRES_box, FFTW_PATIENT);
@@ -102,7 +102,7 @@ int CreateFFTWWisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_
             fftwf_destroy_plan(plan);
         }
 
-        sprintf(wisdom_filename,"c2r_DIM%d_NTHREADS%d",global_params.wisdoms_path, user_params->HII_DIM,user_params->N_THREADS);
+        sprintf(wisdom_filename,"%s/c2r_DIM%d_NTHREADS%d",global_params.wisdoms_path, user_params->HII_DIM,user_params->N_THREADS);
         if(fftwf_import_wisdom_from_filename(wisdom_filename)==0) {
             plan = fftwf_plan_dft_c2r_3d(user_params->HII_DIM, user_params->HII_DIM, user_params->HII_DIM,
                                          (fftwf_complex *)LOWRES_box, (float *)LOWRES_box,  FFTW_PATIENT);
