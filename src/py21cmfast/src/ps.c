@@ -4298,5 +4298,3 @@ double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd){
     return T_ETHOS;
 
 }
-
-}
