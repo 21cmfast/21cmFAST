@@ -62,6 +62,9 @@ struct AstroParams{
     float t_STAR;
 
     int N_RSD_STEPS;
+
+    float k_PEAK;
+    float h_PEAK;
 };
 
 struct FlagOptions{
@@ -189,6 +192,7 @@ int CreateFFTWWisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options);
+void Broadcast_struct_global_SFRD(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options);
 
 void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_options);
 void FreePhotonConsMemory();

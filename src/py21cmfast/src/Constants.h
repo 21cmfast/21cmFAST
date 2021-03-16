@@ -89,6 +89,20 @@
 #define Watson_gamma_z (1.318) // Watson FOF HMF, gamma parameter (Watson et al. 2013)
 
 
+// Modified ST mass function for a smooth window function and ETHOS _hmf_models. Fitted to z>5 sims.
+#define SHETH_a_SMOOTH (1.0) // we set it to one since we vary c above
+#define SHETH_p_SMOOTH (0.15) //
+#define SHETH_A_SMOOTH (0.3222) //
+//triple check later
+//And window function parameters for smooth window
+#define beta_SMOOTH (3.6) //index, sets the smoothness of filter
+#define c_SMOOTH (3.6) //sets the mass scale for R/k
+#define beta_SMOOTH_0 (50.) //large index for sharp-k emulation for hpeak=0
+#define c_SMOOTH_0 (2.8) //different scale for hpeak=0
+
+
+
+
 // CONSTANTS //
 #define LN10 (double) (2.30258509299)
 #define SIGMAT (double) (6.6524e-25)  // Thomson scattering cross section in cm^-2

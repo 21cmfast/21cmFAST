@@ -44,6 +44,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_SFRD(user_params,cosmo_params,astro_params,flag_options);
 
     omp_set_num_threads(user_params->N_THREADS);
 

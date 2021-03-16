@@ -131,8 +131,8 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
     return;
 }
 
-double MtoR(double M);
-double RtoM(double R);
+double MtoR(double M, struct FlagOptions *flag_options);
+double RtoM(double R, struct FlagOptions *flag_options);
 double TtoM(double z, double T, double mu);
 double dicke(double z);
 double dtdz(float z);
@@ -151,27 +151,30 @@ double HI_ion_crosssec(double nu);
 
 
 /* R in Mpc, M in Msun */
-double MtoR(double M){
+double MtoR(double M, struct FlagOptions *flag_options){
 
+//TODO: check flag_options->FILTER == 2 definition
     // set R according to M<->R conversion defined by the filter type in ../Parameter_files/COSMOLOGY.H
-    if (global_params.FILTER == 0) //top hat M = (4/3) PI <rho> R^3
+    if (flag_options->FILTER == 0 || flag_options->FILTER == 2) //top hat M = (4/3) PI <rho> R^3
         return pow(3*M/(4*PI*cosmo_params_ufunc->OMm*RHOcrit), 1.0/3.0);
-    else if (global_params.FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
+    else if (flag_options->FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
         return pow( M/(pow(2*PI, 1.5) * cosmo_params_ufunc->OMm * RHOcrit), 1.0/3.0 );
     else // filter not defined
-        LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
+        LOG_ERROR("No such filter = %i. Results are bogus.", flag_options->FILTER);
     Throw ValueError;
 }
 
 /* R in Mpc, M in Msun */
-double RtoM(double R){
+double RtoM(double R, struct FlagOptions *flag_options){
+  //TODO: check flag_options->FILTER == 2 definition
+
     // set M according to M<->R conversion defined by the filter type in ../Parameter_files/COSMOLOGY.H
-    if (global_params.FILTER == 0) //top hat M = (4/3) PI <rho> R^3
+    if (flag_options->FILTER == 0 || flag_options->FILTER == 2) //top hat M = (4/3) PI <rho> R^3
         return (4.0/3.0)*PI*pow(R,3)*(cosmo_params_ufunc->OMm*RHOcrit);
-    else if (global_params.FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
+    else if (flag_options->FILTER == 1) //gaussian: M = (2PI)^1.5 <rho> R^3
         return pow(2*PI, 1.5) * cosmo_params_ufunc->OMm*RHOcrit * pow(R, 3);
     else // filter not defined
-        LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
+        LOG_ERROR("No such filter = %i. Results are bogus.", flag_options->FILTER);
     Throw ValueError;
 }
 
@@ -530,8 +533,8 @@ void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p){
 }
 
 void writeFlagOptions(struct FlagOptions *p){
-    LOG_INFO("FlagOptions: [USE_HALO_FIELD=%d, USE_MINI_HALOS=%d, USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d, M_MIN_in_Mass=%d, PHOTON_CONS=%d]",
-           p->USE_HALO_FIELD, p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->PHOTON_CONS);
+    LOG_INFO("FlagOptions: [USE_HALO_FIELD=%d, USE_MINI_HALOS=%d, USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d, M_MIN_in_Mass=%d, PHOTON_CONS=%d, FILTER=%d, USE_ETHOS=%d]",
+           p->USE_HALO_FIELD, p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->PHOTON_CONS,p->FILTER,p->USE_ETHOS);
 }
 
 

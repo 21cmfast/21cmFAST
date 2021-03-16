@@ -55,6 +55,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_HF(user_params,cosmo_params,astro_params, flag_options);
+    Broadcast_struct_global_SFRD(user_params,cosmo_params,astro_params,flag_options);
 
     // This is an entire re-write of Ts.c from 21cmFAST. You can refer back to Ts.c in 21cmFAST if this become a little obtuse. The computation has remained the same //
     omp_set_num_threads(user_params->N_THREADS);

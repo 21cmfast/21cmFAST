@@ -268,10 +268,7 @@ class GlobalParams(StructInstanceWrapper):
         Sheth-Tormen parameter for ellipsoidal collapse (for HMF). See notes for `SHETH_b`.
     Zreion_HeII : float
         Redshift of helium reionization, currently only used for tau_e
-    FILTER : int, {0, 1}
-        Filter to use for smoothing.
-        0. tophat
-        1. gaussian
+
     external_table_path : str
         The system path to find external tables for calculation speedups. DO NOT MODIFY.
     R_BUBBLE_MIN : float
@@ -295,6 +292,8 @@ class GlobalParams(StructInstanceWrapper):
         self.wisdoms_path = ffi.new(
             "char[]", str(self._table_path / "wisdoms").encode()
         )
+
+
 
     @property
     def external_table_path(self):
@@ -615,6 +614,13 @@ class FlagOptions(StructWithDefaults):
         photon non-conservation.
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations.
+    FILTER : int, {0, 1, 2}
+        Filter to use for smoothing for the HMF.
+        0. tophat (DEFAULT)
+        1. gaussian
+        2. smooth-k (also includes sharp-k)
+    USE_ETHOS: bool, optional
+        Whether to include ETHOS DM models, if true it forces FILTER to be smooth-k (2).
     """
 
     _ffi = ffi
@@ -628,7 +634,9 @@ class FlagOptions(StructWithDefaults):
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
-        "FIX_VCB_AVG": False
+        "FIX_VCB_AVG": False,
+        "FILTER": 0,
+        "USE_ETHOS": False,
     }
 
     @property
@@ -637,6 +645,12 @@ class FlagOptions(StructWithDefaults):
         if self.USE_MINI_HALOS and self._USE_HALO_FIELD:
             logger.warning(
                 "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
+                "Automatically setting USE_HALO_FIELD to False."
+            )
+            return False
+        if GlobalParams.USE_ETHOS and self.USE_HALO_FIELD :
+            logger.warning(
+                "You have set USE_ETHOS to True but USE_HALO_FIELD is also True! Code not equipped. "
                 "Automatically setting USE_HALO_FIELD to False."
             )
             return False
@@ -703,6 +717,20 @@ class FlagOptions(StructWithDefaults):
     @property
     def FIX_VCB_AVG(self):
         return self._FIX_VCB_AVG
+
+    @property
+    def FILTER(self):
+        """
+        The filter to use for the HMF calculations.
+        """
+        if self.USE_ETHOS:
+            return 2
+            logger.warning(
+                "Automatically setting filter to 2 (smooth) as you are using ETHOS models"
+            )
+        else:
+            return self._FILTER
+
 
 
 class AstroParams(StructWithDefaults):
@@ -797,6 +825,8 @@ class AstroParams(StructWithDefaults):
         Impact of the LW feedback on Mturn for minihaloes. Default is 2.0 and 0.6, respectively. See Eq. XX.
     A_VCB, BETA_VCB: float, optional
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Eq. XX.
+    h_PEAK, k_PEAK: double, optional
+        ETHOS parameters for dark acoustic oscillations (DAOs) in the matter power spectrum. Location (log10(k_PEAK/Mpc-1)) and height (h_PEAK from 0 to 1) of the first DAO peak. Warm dark matter (WDM) corresponds to h_PEAK=0, and k_PEAK changes its mass. See Ref.~YY. (TODO!)
     """
 
     _ffi = ffi
@@ -825,6 +855,8 @@ class AstroParams(StructWithDefaults):
         "BETA_LW": 0.6,
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
+        "k_PEAK": 2.0,
+        "h_PEAK": 0.0,
     }
 
     def __init__(
@@ -847,6 +879,7 @@ class AstroParams(StructWithDefaults):
             "L_X",
             "L_X_MINI",
             "X_RAY_Tvir_MIN",
+            "k_PEAK",
         ]:
             return 10 ** val
         else:
