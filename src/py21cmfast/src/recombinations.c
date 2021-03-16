@@ -144,11 +144,11 @@ double MHR_rr (double lnD, void *params){
   else
     alpha = alpha_A(p.T4*1e4);
 
-  return n_H * PDelta * alpha * x_e * x_e * del * del;//note extra D since we are integrating over lnD
+  return 1e15*n_H * PDelta * alpha * x_e * x_e * del * del;//note extra D since we are integrating over lnD
 }
 
 
-// returns the recombination rate per baryon (1/s), integrated over the MHR density PDF,
+// returns the recombination rate per baryon (1/1e15s), integrated over the MHR density PDF,
 // given an ionizing background of gamma12_bg
 // temeperature T4 (in 1e4 K), and usecaseB rate coefficient
 // Assumes self-shielding according to Rahmati+ 2013
