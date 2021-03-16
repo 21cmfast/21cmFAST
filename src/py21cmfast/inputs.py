@@ -723,7 +723,7 @@ class FlagOptions(StructWithDefaults):
         if self.USE_ETHOS:
             return 2
             logger.warning(
-                "Automatically setting filter to 2 (smooth) as you are using ETHOS models"
+                "Automatically setting filter to 2 (smooth-k) as you are using ETHOS models"
             )
         else:
             return self._FILTER
