@@ -153,6 +153,11 @@ struct parameters_gsl_FgtrM_int_{
     double gf_obs;
 };
 
+struct parameters_gsl_dsigmak_{
+    double Radius;
+    int FLAG_sigma8;
+};
+
 struct parameters_gsl_SFR_General_int_{
     double z_obs;
     double gf_obs;
@@ -400,13 +405,17 @@ double dsigma_dk(double k, void *params){
         LOG_ERROR("No such power spectrum defined: %i. Output is bogus.", user_params_ps->POWER_SPECTRUM);
         Throw(ValueError);
     }
-    double Radius;
 
-    Radius = *(double *)params;
+    struct parameters_gsl_dsigmak_ vals = *(struct parameters_gsl_dsigmak_ *)params;
+
+    double Radius = vals.Radius;
+    int FLAG_sigma8 = vals.FLAG_sigma8;
+
+    //Radius = *(double *)params;
 
     kR = k*Radius;
 
-    if ( (flag_options_sfrd->FILTER == 0) || (sigma_norm < 0) ){ // top hat
+    if ( FLAG_sigma8 || (flag_options_sfrd->FILTER == 0) || (sigma_norm < 0) ){ // top hat
         if ( (kR) < 1.0e-4 ){ w = 1.0;} // w converges to 1 as (kR) -> 0
         else { w = 3.0 * (sin(kR)/pow(kR, 3) - cos(kR)/pow(kR, 2));}
     }
@@ -423,8 +432,8 @@ double dsigma_dk(double k, void *params){
         Throw(ValueError);
     }
 
-    if (flag_options_sfrd->USE_ETHOS == 1){
-      //add the suppression and DAOs due to ETHOS DM-DR interactions
+    if ((!FLAG_sigma8) && flag_options_sfrd->USE_ETHOS == 1){
+      //add the suppression and DAOs due to ETHOS DM-DR interactions. Only use in SFRD not in sigma8 calculation (to avoid messing up ICs)
       p*=ETHOS_DAOs(astro_params_sfrd);
     }
 
@@ -457,7 +466,13 @@ double sigma_z0(double M){
     upper_limit = kend;//log(kend);
 
     F.function = &dsigma_dk;
-    F.params = &Radius;
+    int FLAG_sigma8 = 0; //whether we are calculating sigma8 or not.
+    struct parameters_gsl_dsigmak_ parameters_gsl_dsigmak = {
+        .Radius = Radius,
+        .FLAG_sigma8 = FLAG_sigma8,
+    };
+    F.params = &parameters_gsl_dsigmak;
+
     //gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
     //    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS41, w, &result, &error);
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
@@ -646,11 +661,12 @@ double init_ps(){
 
     F.function = &dsigma_dk;
 
-    struct parameters_gsl_sigma8_ parameters_gsl_sigma8 = {
-        .Radius_8 = Radius_8,
-        .flag = FLAG_sigma8,
+    int FLAG_sigma8 = 1; //whether we are calculating sigma8 or not.
+    struct parameters_gsl_dsigmak_ parameters_gsl_dsigmak = {
+        .Radius = Radius_8,
+        .FLAG_sigma8 = FLAG_sigma8,
     };
-    F.params = &parameters_gsl_sigma8;
+    F.params = &parameters_gsl_dsigmak;
 
     // F.params = &Radius_8;
     gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
