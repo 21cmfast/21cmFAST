@@ -4263,7 +4263,7 @@ double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd){
 //nb: hpeak=astro_params_sfrd->h_PEAK
 //nb: kpeak=astro_params_sfrd->k_PEAK
 
-    double b, d, tau, sig, c, h2, X, A, B, C;
+    double b, d, tau, sig, c, h2, h2_X, h2_A, h2_B, h2_C;
 
     b = -2.1*exp(-3.7*astro_params_sfrd->h_PEAK) + 4.1;
     d = 1.8*exp(-6.7*astro_params_sfrd->h_PEAK) + 2.5;
@@ -4277,11 +4277,11 @@ double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd){
     }
     // Height of 2nd peak in P(k)
     else {
-        X = (astro_params_sfrd->h_PEAK - 0.7)/0.2
-        A = 0.17/sqrt(2.*PI)/0.2 * exp(-0.5*X**2.) * (1 + 1 - erfcc(-3*X/sqrt(2.)));
-        B = 1.*(tanh(3.*(astro_params_sfrd->h_PEAK+0.32))-1.);
-        C = 0.54*(tanh(8.*(astro_params_sfrd->h_PEAK-0.7))+1.);
-        h2 = A*exp(B*astro_params_sfrd->k_PEAK) + C;
+        h2_X = (astro_params_sfrd->h_PEAK - 0.7)/0.2;
+        h2_A = 0.17/sqrt(2.*PI)/0.2 * exp(-0.5*pow(h2_X,2.)) * (1 + 1 - erfcc(-3*h2_X/sqrt(2.)));
+        h2_B = 1.*(tanh(3.*(astro_params_sfrd->h_PEAK+0.32))-1.);
+        h2_C = 0.54*(tanh(8.*(astro_params_sfrd->h_PEAK-0.7))+1.);
+        h2 = h2_A*exp(h2_B*astro_params_sfrd->k_PEAK) + h2_C;
     }
 
     double alpha = d/astro_params_sfrd->k_PEAK * pow(1./pow(sqrt(2),1./c)-1,1./b);
@@ -4296,7 +4296,5 @@ double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd){
               + sqrt(h2)/4. * erfcc(x_peak2/tau - 2) * erfcc(-x_peak2/sig - 2) * cos(1.1083*PI*k/astro_params_sfrd->k_PEAK));
     
     return T_ETHOS;
-
-}
 
 }
