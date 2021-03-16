@@ -4257,12 +4257,46 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
 
 
 
-double ETHOS_DAOs(struct AstroParams *astro_params_sfrd){
+double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd){
 //this function returns the ratio between the power spectrum in an ETHOS model of hpeak and kpeak and that of LCDM. Depends on h_PEAK and k_PEAK which are in astro_params
 
 //nb: hpeak=astro_params_sfrd->h_PEAK
 //nb: kpeak=astro_params_sfrd->k_PEAK
 
-  return 1.0;
+    double b, d, tau, sig, c, h2, X, A, B, C;
+
+    b = -2.1*exp(-3.7*astro_params_sfrd->h_PEAK) + 4.1;
+    d = 1.8*exp(-6.7*astro_params_sfrd->h_PEAK) + 2.5;
+    tau = 0.03*exp(2.6*astro_params_sfrd->h_PEAK) + 0.27;
+    sig = 0.2;
+    c = -20;
+
+    // WDM-like, P(k) turns over)
+    if (astro_params_sfrd->h_PEAK==0){
+        h2 = 0.;
+    }
+    // Height of 2nd peak in P(k)
+    else {
+        X = (astro_params_sfrd->h_PEAK - 0.7)/0.2
+        A = 0.17/sqrt(2.*PI)/0.2 * exp(-0.5*X**2.) * (1 + 1 - erfcc(-3*X/sqrt(2.)));
+        B = 1.*(tanh(3.*(astro_params_sfrd->h_PEAK+0.32))-1.);
+        C = 0.54*(tanh(8.*(astro_params_sfrd->h_PEAK-0.7))+1.);
+        h2 = A*exp(B*astro_params_sfrd->k_PEAK) + C;
+    }
+
+    double alpha = d/astro_params_sfrd->k_PEAK * pow(1./pow(sqrt(2),1./c)-1,1./b);
+    double T_noncdm = pow(1. + pow(alpha*k, b),c); // General non-CDM transfer function following Muriga+17
+
+    double peak2_ratio = 1.805;
+    double x_peak1 = (k - astro_params_sfrd->k_PEAK)/astro_params_sfrd->k_PEAK;
+    double x_peak2 = (k - peak2_ratio*astro_params_sfrd->k_PEAK)/astro_params_sfrd->k_PEAK;
+
+    // ETHOS T(k) following Bohr+2020
+    double T_ETHOS = fabs(T_noncdm) - sqrt(astro_params_sfrd->h_PEAK) * exp(-0.5*pow(x_peak1/sig, 2)
+              + sqrt(h2)/4. * erfcc(x_peak2/tau - 2) * erfcc(-x_peak2/sig - 2) * cos(1.1083*PI*k/astro_params_sfrd->k_PEAK));
+    
+    return T_ETHOS;
+
+}
 
 }
