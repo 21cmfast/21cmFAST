@@ -117,7 +117,7 @@ float GaussLegendreQuad_Nion_MINI(int Type, int n, float growthf, float M2, floa
 //JBM: Exact integral for power-law indices non zero (for zero it's erfc)
 double Fcollapprox (double numin, double beta);
 
-double ETHOS_DAOs(astro_params_sfrd);
+double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd);
 
 
 int n_redshifts_1DTable;
@@ -434,7 +434,7 @@ double dsigma_dk(double k, void *params){
 
     if ((!FLAG_sigma8) && flag_options_sfrd->USE_ETHOS == 1){
       //add the suppression and DAOs due to ETHOS DM-DR interactions. Only use in SFRD not in sigma8 calculation (to avoid messing up ICs)
-      p*=ETHOS_DAOs(astro_params_sfrd);
+      p*=ETHOS_DAOs(k, astro_params_sfrd);
     }
 
     return k*k*p*w*w;
@@ -789,7 +789,7 @@ double dsigmasq_dm(double k, void *params){
 
     if (flag_options_sfrd->USE_ETHOS == 1){
       //add the suppression and DAOs due to ETHOS DM-DR interactions
-      p*=ETHOS_DAOs(astro_params_sfrd);
+      p*=ETHOS_DAOs(k, astro_params_sfrd);
     }
 
 //    return k*k*p*2*w*dwdr*drdm * d2fact;
@@ -4294,7 +4294,7 @@ double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd){
     // ETHOS T(k) following Bohr+2020
     double T_ETHOS = fabs(T_noncdm) - sqrt(astro_params_sfrd->h_PEAK) * exp(-0.5*pow(x_peak1/sig, 2)
               + sqrt(h2)/4. * erfcc(x_peak2/tau - 2) * erfcc(-x_peak2/sig - 2) * cos(1.1083*PI*k/astro_params_sfrd->k_PEAK));
-    
+
     return T_ETHOS;
 
 }

@@ -293,8 +293,6 @@ class GlobalParams(StructInstanceWrapper):
             "char[]", str(self._table_path / "wisdoms").encode()
         )
 
-
-
     @property
     def external_table_path(self):
         """An ffi char pointer to the path to which external tables are kept."""
@@ -648,7 +646,7 @@ class FlagOptions(StructWithDefaults):
                 "Automatically setting USE_HALO_FIELD to False."
             )
             return False
-        if GlobalParams.USE_ETHOS and self.USE_HALO_FIELD :
+        if GlobalParams.USE_ETHOS and self.USE_HALO_FIELD:
             logger.warning(
                 "You have set USE_ETHOS to True but USE_HALO_FIELD is also True! Code not equipped. "
                 "Automatically setting USE_HALO_FIELD to False."
@@ -730,7 +728,6 @@ class FlagOptions(StructWithDefaults):
             )
         else:
             return self._FILTER
-
 
 
 class AstroParams(StructWithDefaults):
