@@ -714,13 +714,12 @@ class FlagOptions(StructWithDefaults):
 
     @property
     def FIX_VCB_AVG(self):
+        """FIX_VCB_AVG docstring TODO."""
         return self._FIX_VCB_AVG
 
     @property
     def FILTER(self):
-        """
-        The filter to use for the HMF calculations.
-        """
+        """The filter to use for the HMF calculations."""
         if self.USE_ETHOS:
             return 2
             logger.warning(
