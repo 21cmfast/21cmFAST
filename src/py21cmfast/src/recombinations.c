@@ -164,8 +164,21 @@ double recombination_rate(double z, double gamma12_bg, double T4, int usecaseB){
   lower_limit = log(0.01);
   upper_limit = log(200);
 
-  gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+  int status;
+
+  gsl_set_error_handler_off();
+
+  status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
 		       1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+  if(status!=0) {
+      LOG_ERROR("gsl integration error occured!");
+      LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+      LOG_ERROR("data: z=%e gamma12_bg=%e T4=%e A_MHR(z)=%e",z,gamma12_bg,T4,A_MHR(z));
+      LOG_ERROR("data: C_MHR(z)=%e beta_MHR(z)=%e nH=%e usecaseB=%d\n",C_MHR(z),beta_MHR(z),No*pow( 1+z, 3),usecaseB);
+      Throw GSLError;
+  }
+
   gsl_integration_workspace_free (w);
 
   return result;
@@ -191,8 +204,20 @@ double A_aux_integral(double z){
   lower_limit = 1e-25;
   upper_limit = 1e25;
 
-  gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+  int status;
+
+  gsl_set_error_handler_off();
+
+  status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
 		       1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+  if(status!=0) {
+      LOG_ERROR("gsl integration error occured!");
+      LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+      LOG_ERROR("data: z=%e",z);
+      Throw GSLError;
+  }
+
   gsl_integration_workspace_free (w);
 
   return result;

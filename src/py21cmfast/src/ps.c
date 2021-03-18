@@ -433,9 +433,20 @@ double sigma_z0(double M){
 
     F.function = &dsigma_dk;
     F.params = &Radius;
-    //gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
-    //    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS41, w, &result, &error);
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
+
+    int status;
+
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: M=%e",M);
+        Throw GSLError;
+    }
+
     gsl_integration_workspace_free (w);
 
     return sigma_norm * sqrt(result);
@@ -621,8 +632,20 @@ double init_ps(){
 
     F.function = &dsigma_dk;
     F.params = &Radius_8;
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+
+    int status;
+
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        Throw GSLError;
+    }
+
     gsl_integration_workspace_free (w);
 
     LOG_DEBUG("Initialized Power Spectrum.");
@@ -766,8 +789,20 @@ double dsigmasqdm_z0(double M){
 
     F.function = &dsigmasq_dm;
     F.params = &Radius;
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
-    //  gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
+
+    int status;
+
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: M=%e",M);
+        Throw GSLError;
+    }
+
     gsl_integration_workspace_free (w);
 
 //    return sigma_norm * sigma_norm * result /d2fact;
@@ -1000,8 +1035,20 @@ double FgtrM_Watson_z(double z, double growthf, double M){
     lower_limit = log(M);
     upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
 
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+    int status;
+
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: z=%e growthf=%e M=%e",z,growthf,M);
+        Throw GSLError;
+    }
+
     gsl_integration_workspace_free (w);
 
     return result / (cosmo_params_ps->OMm*RHOcrit);
@@ -1030,8 +1077,20 @@ double FgtrM_Watson(double growthf, double M){
     lower_limit = log(M);
     upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
 
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+    int status;
+
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: growthf=%e M=%e",growthf,M);
+        Throw(GSLError);
+    }
+
     gsl_integration_workspace_free (w);
 
     return result / (cosmo_params_ps->OMm*RHOcrit);
@@ -1195,9 +1254,12 @@ double Nion_General(double z, double M_Min, double MassTurnover, double Alpha_st
         gsl_set_error_handler_off();
 
         status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
         if(status!=0) {
-            LOG_ERROR("(function argument): %e %e %e %e %e\n",lower_limit,upper_limit,rel_tol,result,error);
-            LOG_ERROR("data: %e %e %e %e %e %e %e %e %e\n",z,growthf,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+            LOG_ERROR("gsl integration error occured!");
+            LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+            LOG_ERROR("data: z=%e growthf=%e MassTurnover=%e Alpha_star=%e Alpha_esc=%e",z,growthf,MassTurnover,Alpha_star,Alpha_esc);
+            LOG_ERROR("data: Fstar10=%e Fesc10=%e Mlim_Fstar=%e Mlim_Fesc=%e",Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
             Throw GSLError;
         }
         gsl_integration_workspace_free (w);
@@ -1260,6 +1322,7 @@ double dNion_General_MINI(double lnM, void *params){
 double Nion_General_MINI(double z, double M_Min, double MassTurnover, double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc){
 
     double growthf;
+    int status;
 
     growthf = dicke(z);
 
@@ -1291,7 +1354,18 @@ double Nion_General_MINI(double z, double M_Min, double MassTurnover, double Mas
         lower_limit = log(M_Min);
         upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M_Min*100));
 
-        gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
+        gsl_set_error_handler_off();
+
+        status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+        if(status!=0) {
+            LOG_ERROR("gsl integration error occurred!");
+            LOG_ERROR("lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+            LOG_ERROR("data: z=%e growthf=%e MassTurnover=%e MassTurnover_upper=%e",z,growthf,MassTurnover,MassTurnover_upper);
+            LOG_ERROR("data: Alpha_star=%e Alpha_esc=%e Fstar7_MINI=%e Fesc7_MINI=%e Mlim_Fstar=%e Mlim_Fesc=%e",Alpha_star,Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar,Mlim_Fesc);
+            Throw(GSLError);
+        }
+
         gsl_integration_workspace_free (w);
 
         return result / ((cosmo_params_ps->OMm)*RHOcrit);
@@ -2075,14 +2149,26 @@ double Nion_ConditionalM_MINI(double growthf, double M1, double M2, double sigma
         .LimitMass_Fstar = Mlim_Fstar,
         .LimitMass_Fesc = Mlim_Fesc
     };
+    int status;
 
     F.function = &dNion_ConditionallnM_MINI;
     F.params = &parameters_gsl_SFR_con;
     lower_limit = M1;
     upper_limit = M2;
 
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: growthf=%e M2=%e sigma2=%e delta1=%e delta2=%e MassTurnover=%e",growthf,M2,sigma2,delta1,delta2,MassTurnover);
+        LOG_ERROR("data: MassTurnover_upper=%e Alpha_star=%e Alpha_esc=%e Fstar10=%e Fesc10=%e Mlim_Fstar=%e Mlim_Fesc=%e",MassTurnover_upper,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+        Throw GSLError;
+    }
+
     gsl_integration_workspace_free (w);
 
     if(delta2 > delta1) {
@@ -2143,8 +2229,10 @@ double Nion_ConditionalM(double growthf, double M1, double M2, double sigma2, do
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
 
     if(status!=0) {
-        LOG_ERROR("(function argument): %e %e %e %e %e\n",lower_limit,upper_limit,rel_tol,result,error);
-        LOG_ERROR("data: %e %e %e %e %e %e %e %e %e %e %e %e %e\n",growthf,M1,M2,sigma2,delta1,delta2,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: growthf=%e M1=%e M2=%e sigma2=%e delta1=%e delta2=%e",growthf,M1,M2,sigma2,delta1,delta2);
+        LOG_ERROR("data: MassTurnover=%e Alpha_star=%e Alpha_esc=%e Fstar10=%e Fesc10=%e Mlim_Fstar=%e Mlim_Fesc=%e",MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
         Throw GSLError;
     }
 

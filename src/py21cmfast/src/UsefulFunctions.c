@@ -469,23 +469,54 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
     if ((len > 0) && zarry)
         zend = zarry[len-1] - FRACT_FLOAT_ERR;
 
+    int status;
+
+    gsl_set_error_handler_off();
+
     if (zend > global_params.Zreion_HeII){// && (zstart < Zreion_HeII)){
         if (zstart < global_params.Zreion_HeII){
-            gsl_integration_qag (&F, global_params.Zreion_HeII, zstart, 0, rel_tol,
+            status = gsl_integration_qag (&F, global_params.Zreion_HeII, zstart, 0, rel_tol,
                                  1000, GSL_INTEG_GAUSS61, w, &prehelium, &error);
-            gsl_integration_qag (&F, zend, global_params.Zreion_HeII, 0, rel_tol,
+
+            if(status!=0) {
+                LOG_ERROR("gsl integration error occured!");
+                LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",global_params.Zreion_HeII,zstart,rel_tol,prehelium,error);
+                LOG_ERROR("data: zstart=%e zend=%e",zstart,zend);
+                Throw GSLError;
+            }
+
+            status = gsl_integration_qag (&F, zend, global_params.Zreion_HeII, 0, rel_tol,
                                  1000, GSL_INTEG_GAUSS61, w, &posthelium, &error);
+
+            if(status!=0) {
+                LOG_ERROR("gsl integration error occured!");
+                LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,global_params.Zreion_HeII,rel_tol,posthelium,error);
+                LOG_ERROR("data: zstart=%e zend=%e",zstart,zend);
+                Throw GSLError;
+            }
         }
         else{
             prehelium = 0;
-            gsl_integration_qag (&F, zend, zstart, 0, rel_tol,
+            status = gsl_integration_qag (&F, zend, zstart, 0, rel_tol,
                                  1000, GSL_INTEG_GAUSS61, w, &posthelium, &error);
+
+            if(status!=0) {
+                LOG_ERROR("gsl integration error occured!");
+                LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,zstart,rel_tol,posthelium,error);
+                Throw GSLError;
+            }
         }
     }
     else{
         posthelium = 0;
-        gsl_integration_qag (&F, zend, zstart, 0, rel_tol,
+        status = gsl_integration_qag (&F, zend, zstart, 0, rel_tol,
                              1000, GSL_INTEG_GAUSS61, w, &prehelium, &error);
+
+        if(status!=0) {
+            LOG_ERROR("gsl integration error occured!");
+            LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,zstart,rel_tol,prehelium,error);
+            Throw GSLError;
+        }
     }
     gsl_integration_workspace_free (w);
 
