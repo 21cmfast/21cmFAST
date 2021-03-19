@@ -1217,7 +1217,8 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
 
     if(!isfinite(r)){
         LOG_ERROR("Value for nu_tau_one_MINI is infinite or NAN");
-        Throw(ParameterError);
+//        Throw(ParameterError);
+        Throw(InfinityorNaNError);
     }
 
     return r;
@@ -1282,7 +1283,8 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
 
     if(!isfinite(r)){
         LOG_ERROR("nu_tau_one is infinite or NAN");
-        Throw(ParameterError);
+//        Throw(ParameterError);
+        Throw(InfinityorNaNError);
     }
 
     return r;
