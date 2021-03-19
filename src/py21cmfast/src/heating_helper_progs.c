@@ -1168,8 +1168,9 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
 
     // check if too ionized
     if (x_e > 0.9999){
-        LOG_ERROR("x_e value is too close to 1 for convergence.");
-        Throw(ParameterError);
+//        LOG_ERROR("x_e value is too close to 1 for convergence.");
+//        Throw(ParameterError);
+        return global_params.NU_X_THRESH;
     }
 
     // select solver and allocate memory
@@ -1235,7 +1236,8 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
 
     // check if too ionized
     if (x_e > 0.9999){
-        Throw(ParameterError);
+//        Throw(ParameterError);
+        return global_params.NU_X_THRESH;
     }
 
     // select solver and allocate memory
