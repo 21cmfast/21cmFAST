@@ -816,7 +816,8 @@ double reionization_feedback(float z, float Gamma_halo_HII, float z_IN){
     The following functions are simply for testing the exception framework
 */
 void FunctionThatThrows(){
-    Throw(ParameterError);
+//    Throw(ParameterError);
+    Throw(PhotonConsError);
 }
 
 int SomethingThatCatches(bool sub_func){
@@ -824,7 +825,8 @@ int SomethingThatCatches(bool sub_func){
     int status;
     Try{
         if(sub_func) FunctionThatThrows();
-        else Throw(ParameterError);
+        else Throw(PhotonConsError);
+//        else Throw(ParameterError);
     }
     Catch(status){
         return status;
@@ -837,7 +839,8 @@ int FunctionThatCatches(bool sub_func, bool pass, double *result){
     if(!pass){
         Try{
             if(sub_func) FunctionThatThrows();
-            else Throw(ParameterError);
+            else Throw(PhotonConsError);
+//            else Throw(ParameterError);
         }
         Catch(status){
             LOG_DEBUG("Caught the problem with status %d.", status);
