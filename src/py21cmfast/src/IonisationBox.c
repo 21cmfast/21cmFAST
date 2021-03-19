@@ -169,7 +169,10 @@ LOG_DEBUG("PhotonCons data:");
 LOG_DEBUG("original redshift=%f, updated redshift=%f delta-z = %f", stored_redshift, redshift, absolute_delta_z);
         if(isfinite(redshift)==0 || isfinite(absolute_delta_z)==0) {
             LOG_ERROR("Updated photon non-conservation redshift is either infinite or NaN!");
-            Throw(ParameterError);
+            LOG_ERROR("This can sometimes occur when reionisation stalls (i.e. extremely low"\
+                      "F_ESC or F_STAR or not enough sources)");
+//            Throw(ParameterError);
+            Throw(PhotonConsError);
         }
     }
 
@@ -597,14 +600,16 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
 
     if(isfinite(box->mean_f_coll)==0) {
         LOG_ERROR("Mean collapse fraction is either infinite or NaN!");
-        Throw(ParameterError);
+//        Throw(ParameterError);
+        Throw(InfinityorNaNError);
     }
 LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %e", box->mean_f_coll);
 
     if (flag_options->USE_MINI_HALOS){
         if(isfinite(box->mean_f_coll_MINI)==0) {
             LOG_ERROR("Mean collapse fraction of MINI is either infinite or NaN!");
-            Throw(ParameterError);
+//            Throw(ParameterError);
+            Throw(InfinityorNaNError);
         }
 LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f_coll_MINI);
     }
@@ -1158,7 +1163,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                             x,y,z,curr_dens,prev_dens,previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
                                             Splined_Fcoll, prev_Splined_Fcoll, curr_dens, prev_dens, \
                                             log10_Mturnover, *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)));
-                                    Throw(ParameterError);
+//                                    Throw(ParameterError);
+                                    Throw(InfinityorNaNError);
                                 }
 
                                 if (Splined_Fcoll_MINI > 1.) Splined_Fcoll_MINI = 1.;
@@ -1191,7 +1197,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                               log10_Nion_spline_MINI[overdense_int +1+ NSFR_low* log10_Mturnover_MINI_int   ], \
                                               log10_Nion_spline_MINI[overdense_int   + NSFR_low*(log10_Mturnover_MINI_int+1)],  \
                                               log10_Nion_spline_MINI[overdense_int +1+ NSFR_low*(log10_Mturnover_MINI_int+1)]);
-                                    Throw(ParameterError);
+//                                    Throw(ParameterError);
+                                    Throw(InfinityorNaNError);
                                 }
                             }
                             else{
@@ -1206,18 +1213,21 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             for (i = 0; i < user_params->N_THREADS; i++) {
                 if (overdense_int_boundexceeded_threaded[i] == 1) {
                     LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines");
-                    Throw(ParameterError);
+//                    Throw(ParameterError);
+                    Throw(TableEvaluationError);
                 }
             }
             if(isfinite(f_coll)==0) {
                 LOG_ERROR("f_coll is either infinite or NaN!");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(InfinityorNaNError);
             }
             f_coll /= (double) HII_TOT_NUM_PIXELS;
 
             if(isfinite(f_coll_MINI)==0) {
                 LOG_ERROR("f_coll_MINI is either infinite or NaN!");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(InfinityorNaNError);
             }
 
             f_coll_MINI /= (double) HII_TOT_NUM_PIXELS;
@@ -1433,7 +1443,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     if(isfinite(box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)])==0){
                         LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong "\
                                   "in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(InfinityorNaNError);
                     }
                 }
             }
@@ -1456,7 +1467,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
         if (isfinite(global_xH) == 0) {
             LOG_ERROR(
                     "Neutral fraction is either infinite or a Nan. Something has gone wrong in the ionisation calculation!");
-            Throw(ParameterError);
+//            Throw(ParameterError);
+            Throw(InfinityorNaNError);
         }
 
         // update the N_rec field
@@ -1498,7 +1510,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
             if (something_finite_or_infinite) {
                 LOG_ERROR("Recombinations have returned either an infinite or NaN value.");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(InfinityorNaNError);
             }
         }
 
