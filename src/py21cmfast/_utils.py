@@ -38,9 +38,14 @@ SUCCESS = 0
 IOERROR = 1
 GSLERROR = 2
 VALUEERROR = 3
-PARAMETERERROR = 4
-MEMORYALLOCERROR = 5
-FILEERROR = 6
+"""PARAMETERERROR = 4"""
+PHOTONCONSERROR = 4
+TABLEGENERATIONERROR = 5
+TABLEEVALUATIONERROR = 6
+INFINITYORNANERROR = 7
+MASSDEPZETAERROR = 8
+MEMORYALLOCERROR = 9
+FILEERROR = 10
 
 
 def _process_exitcode(exitcode, fnc, args):
@@ -48,10 +53,56 @@ def _process_exitcode(exitcode, fnc, args):
     if exitcode != SUCCESS:
         logger.error(f"In function: {fnc.__name__}.  Arguments: {args}")
 
+        """
         if exitcode in (GSLERROR, PARAMETERERROR):
             raise ParameterError
         elif exitcode in (IOERROR, VALUEERROR, MEMORYALLOCERROR, FILEERROR):
             raise FatalCError
+        """
+        if exitcode is IOERROR:
+            raise FatalCError(
+                "Expected file could not be found! (check the LOG for more info)"
+            )
+        elif exitcode is GSLERROR:
+            raise FatalCError(
+                "A GSL routine has errored! (check the LOG for more info)"
+            )
+        elif exitcode is VALUEERROR:
+            raise FatalCError(
+                "An incorrect argument has been defined or passed! (check the LOG for more info)"
+            )
+        elif exitcode is PHOTONCONSERROR:
+            raise FatalCError(
+                "An error has occured with the Photon non-conservation correction! (check the LOG for more info)"
+            )
+        elif exitcode is TABLEGENERATIONERROR:
+            raise FatalCError(
+                """An error has occured when generating an interpolation table!
+                This has likely occured due to the choice of input AstroParams (check the LOG for more info)"""
+            )
+        elif exitcode is TABLEEVALUATIONERROR:
+            raise FatalCError(
+                """An error has occured when evaluating an interpolation table!
+                This can sometimes occur due to small boxes (either small DIM/HII_DIM or BOX_LEN) (check the LOG for more info)"""
+            )
+        elif exitcode is INFINITYORNANERROR:
+            raise FatalCError(
+                """Something has returned an infinity or a NaN! This could be due to an issue with an
+                input parameter choice (check the LOG for more info)"""
+            )
+        elif exitcode is MASSDEPZETAERROR:
+            raise FatalCError(
+                """There is an issue with the choice of parameters under MASS_DEPENDENT_ZETA. Could be an issue with
+                any of the chosen F_STAR10, ALPHA_STAR, F_ESC10 or ALPHA_ESC."""
+            )
+        elif exitcode is MEMORYALLOCERROR:
+            raise FatalCError(
+                "An error has occured while attempting to allocate memory! (check the LOG for more info)"
+            )
+        elif exitcode is FILEERROR:
+            raise FatalCError(
+                "I don't know what this one is, possibly redundant with IOERROR?"
+            )
         else:  # Unknown C code
             raise FatalCError("Unknown error in C. Please report this error!")
 
