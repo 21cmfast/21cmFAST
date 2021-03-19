@@ -1,7 +1,7 @@
 import pytest
 
 """from py21cmfast._utils import PARAMETERERROR, ParameterError"""
-from py21cmfast._utils import PHOTONCONSERROR, PhotonConsError
+from py21cmfast._utils import PHOTONCONSERROR, ParameterError
 from py21cmfast.c_21cmfast import lib
 from py21cmfast.wrapper import _call_c_simple
 
@@ -15,8 +15,7 @@ def test_basic(subfunc):
 
 @pytest.mark.parametrize("subfunc", [True, False])
 def test_simple(subfunc):
-    """with pytest.raises(ParameterError):"""
-    with pytest.raises(PhotonConsError):
+    with pytest.raises(ParameterError):
         _call_c_simple(lib.FunctionThatCatches, subfunc, False)
 
 
