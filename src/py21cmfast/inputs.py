@@ -904,3 +904,11 @@ class AstroParams(StructWithDefaults):
                 )
             else:
                 return self._NU_X_THRESH
+
+    @property
+    def t_STAR(self):
+        """Check if the choice of NU_X_THRESH is sensible."""
+        if self._t_STAR <= 0.0 or self._t_STAR > 1.0:
+            raise ValueError("t_STAR must be above zero and less than or equal to one")
+        else:
+            return self._t_STAR
