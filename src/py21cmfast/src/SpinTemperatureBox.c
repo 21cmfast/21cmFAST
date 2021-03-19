@@ -871,7 +871,8 @@ LOG_SUPER_DEBUG("got density gridpoints");
 
                 if(redshift_int_Nion_z < 0 || (redshift_int_Nion_z + 1) > (zpp_interp_points_SFR - 1)) {
                     LOG_ERROR("I have overstepped my allocated memory for the interpolation table Nion_z_val");
-                    Throw(ParameterError);
+//                    Throw(ParameterError);
+                    Throw(TableEvaluationError);
                 }
 
                 redshift_table_Nion_z = determine_zpp_min + zpp_bin_width*(float)redshift_int_Nion_z;
@@ -1043,7 +1044,8 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
                     if(redshift_int_SFRD < 0 || (redshift_int_SFRD + 1) > (zpp_interp_points_SFR - 1)) {
                         LOG_ERROR("I have overstepped my allocated memory for the interpolation table SFRD_val");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableEvaluationError);
                     }
 
                     redshift_table_SFRD = determine_zpp_min + zpp_bin_width*(float)redshift_int_SFRD;
@@ -1121,7 +1123,8 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
                     if(zpp_gridpoint1_int < 0 || (zpp_gridpoint1_int + 1) > (zpp_interp_points_SFR - 1)) {
                         LOG_ERROR("I have overstepped my allocated memory for the interpolation table fcoll_R_grid");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableEvaluationError);
                     }
 
                     zpp_gridpoint1 = determine_zpp_min + zpp_bin_width*(float)zpp_gridpoint1_int;
@@ -1185,7 +1188,8 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
                     if(isfinite(freq_int_heat_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_ion_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_lya_tbl[x_e_ct][R_ct])==0) {
                         LOG_ERROR("One of the frequency interpolation tables has an infinity or a NaN");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableGenerationError);
                     }
                 }
             }
@@ -1273,7 +1277,8 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 for (x_e_ct = 0; x_e_ct < x_int_NXHII; x_e_ct++){
                     if(isfinite(freq_int_heat_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_ion_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_lya_tbl[x_e_ct][R_ct])==0) {
                         LOG_ERROR("One of the frequency interpolation tables has an infinity or a NaN");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableGenerationError);
                     }
                 }
             }
@@ -1309,7 +1314,8 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
                     }
                     if(table_int_boundexceeded==1) {
                         LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of fcoll");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableEvaluationError);
                     }
                 }
             }
@@ -1345,7 +1351,8 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
                 for(i=0;i<user_params->N_THREADS;i++) {
                     if(table_int_boundexceeded_threaded[i]==1) {
                         LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of fcoll");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableEvaluationError);
                     }
                 }
             }
@@ -1685,7 +1692,8 @@ LOG_SUPER_DEBUG("looping over box...");
                 for(i=0;i<user_params->N_THREADS;i++) {
                     if(fcoll_int_boundexceeded_threaded[omp_get_thread_num()]==1) {
                         LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the fcoll/nion_splines");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableEvaluationError);
                     }
                 }
 
@@ -2100,7 +2108,8 @@ LOG_SUPER_DEBUG("looping over box...");
             for(i=0;i<user_params->N_THREADS; i++) {
                 if(table_int_boundexceeded_threaded[i]==1) {
                     LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of dfcoll_dz_val");
-                    Throw(ParameterError);
+//                    Throw(ParameterError);
+                    Throw(TableEvaluationError);
                 }
             }
         }
@@ -2108,7 +2117,8 @@ LOG_SUPER_DEBUG("looping over box...");
         for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
             if(isfinite(this_spin_temp->Ts_box[box_ct])==0) {
                 LOG_ERROR("Estimated spin temperature is either infinite of NaN!");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(InfinityorNaNError);
             }
         }
 
