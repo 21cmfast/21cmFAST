@@ -875,3 +875,32 @@ class AstroParams(StructWithDefaults):
     def X_RAY_Tvir_MIN(self):
         """Minimum virial temperature of X-ray emitting sources (unlogged and set dynamically)."""
         return self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
+
+    @property
+    def NU_X_THRESH(self):
+        """Check if the choice of NU_X_THRESH is sensible."""
+        if self._NU_X_THRESH < 100.0:
+            raise ValueError(
+                "Chosen NU_X_THRESH is < 100 eV. NU_X_THRESH must be above 100 eV as it describes X-ray photons"
+            )
+        elif self._NU_X_THRESH >= global_params.NU_X_BAND_MAX:
+            raise ValueError(
+                """
+                Chosen NU_X_THRESH > {}, which is the upper limit of the adopted X-ray band
+                (fiducially the soft band 0.5 - 2.0 keV). If you know what you are doing with this
+                choice, please modify the global parameter: NU_X_BAND_MAX""".format(
+                    global_params.NU_X_BAND_MAX
+                )
+            )
+        else:
+            if global_params.NU_X_BAND_MAX > global_params.NU_X_MAX:
+                raise ValueError(
+                    """
+                    Chosen NU_X_BAND_MAX > {}, which is the upper limit of X-ray integrals (fiducially 10 keV)
+                    If you know what you are doing, please modify the global parameter:
+                    NU_X_MAX""".format(
+                        global_params.NU_X_MAX
+                    )
+                )
+            else:
+                return self._NU_X_THRESH
