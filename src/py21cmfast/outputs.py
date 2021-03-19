@@ -20,7 +20,7 @@ from astropy.cosmology import z_at_value
 from cached_property import cached_property
 from hashlib import md5
 from pathlib import Path
-from typing import List, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 from . import __version__
 from . import _utils as _ut
@@ -35,12 +35,11 @@ class _OutputStruct(_BaseOutputStruct):
     _global_params = global_params
 
     def __init__(self, *, user_params=None, cosmo_params=None, **kwargs):
-        if cosmo_params is None:
-            cosmo_params = CosmoParams()
-        if user_params is None:
-            user_params = UserParams()
 
-        super().__init__(user_params=user_params, cosmo_params=cosmo_params, **kwargs)
+        self.cosmo_params = cosmo_params or CosmoParams()
+        self.user_params = user_params or UserParams()
+
+        super().__init__(**kwargs)
 
     _ffi = ffi
 
@@ -87,70 +86,62 @@ class InitialConditions(_OutputStruct):
         "NU_X_MAX",  # ib
     ]
 
-    def _init_arrays(self):
-        self.lowres_density = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-        self.lowres_vx = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.lowres_vy = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.lowres_vz = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+    def get_requirements(self, cls: str) -> List[str]:
+        """See super-class docstring."""
+        out = super().get_requirements()
 
-        self.hires_vx = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
-        self.hires_vy = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
-        self.hires_vz = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
+        if cls in (PerturbedField, HaloField):
+            if self.user_params.PERTURB_ON_HIGH_RES:
+                out.remove("lowres_density")
+                out.remove("lowres_vx")
+                out.remove("lowres_vy")
+                out.remove("lowres_vz")
 
-        self.lowres_vx_2LPT = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-        self.lowres_vy_2LPT = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-        self.lowres_vz_2LPT = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
+                if self.user_params.USE_2LPT:
+                    out.remove("lowres_vx_2LPT")
+                    out.remove("lowres_vy_2LPT")
+                    out.remove("lowres_vz_2LPT")
+            else:
+                out.remove("hires_vx")
+                out.remove("hires_vy")
+                out.remove("hires_vz")
 
-        self.hires_vx_2LPT = np.zeros(
-            self.user_params.tot_fft_num_pixels, dtype=np.float32
-        )
-        self.hires_vy_2LPT = np.zeros(
-            self.user_params.tot_fft_num_pixels, dtype=np.float32
-        )
-        self.hires_vz_2LPT = np.zeros(
-            self.user_params.tot_fft_num_pixels, dtype=np.float32
-        )
+                if self.user_params.USE_2LPT:
+                    out.remove("hires_vx_2LPT")
+                    out.remove("hires_vy_2LPT")
+                    out.remove("hires_vz_2LPT")
 
-        self.hires_density = np.zeros(
-            self.user_params.tot_fft_num_pixels, dtype=np.float32
-        )
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        shape = (self.user_params.HII_DIM,) * 3
+        hires_shape = (self.user_params.DIM,) * 3
 
-        self.lowres_vcb = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
+        out = {
+            "lowres_density": shape,
+            "lowres_vx": shape,
+            "lowres_vy": shape,
+            "lowres_vz": shape,
+            "hires_density": hires_shape,
+            "hires_vx": hires_shape,
+            "hires_vy": hires_shape,
+            "hires_vz": hires_shape,
+        }
 
-        shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-        hires_shape = (self.user_params.DIM, self.user_params.DIM, self.user_params.DIM)
+        if self.user_params.USE_2LPT:
+            out.update(
+                {
+                    "lowres_vx_2LPT": shape,
+                    "lowres_vy_2LPT": shape,
+                    "lowres_vz_2LPT": shape,
+                    "hires_vx_2LPT": hires_shape,
+                    "hires_vy_2LPT": hires_shape,
+                    "hires_vz_2LPT": hires_shape,
+                }
+            )
 
-        self.lowres_density.shape = shape
-        self.lowres_vx.shape = shape
-        self.lowres_vy.shape = shape
-        self.lowres_vz.shape = shape
-        self.lowres_vx_2LPT.shape = shape
-        self.lowres_vy_2LPT.shape = shape
-        self.lowres_vz_2LPT.shape = shape
+        if self.user_params.USE_RELATIVE_VELOCITIES:
+            out.update({"lowres_vcb": shape})
 
-        self.hires_density.shape = hires_shape
-        self.hires_vx.shape = hires_shape
-        self.hires_vy.shape = hires_shape
-        self.hires_vz.shape = hires_shape
-        self.hires_vx_2LPT.shape = hires_shape
-        self.hires_vy_2LPT.shape = hires_shape
-        self.hires_vz_2LPT.shape = hires_shape
-
-        self.lowres_vcb.shape = shape
+        return out
 
 
 class PerturbedField(_OutputStructZ):
@@ -183,20 +174,42 @@ class PerturbedField(_OutputStructZ):
         "NU_X_MAX",  # ib
     ]
 
-    def _init_arrays(self):
-        self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+    def get_requirements(self, cls: str) -> List[str]:
+        """See superclass docstring."""
+        if cls == "InitialConditions":
+            out = []
+            if self.user_params.PERTURB_ON_HIGH_RES:
+                out += ["hires_density", "hires_vx", "hires_vy", "hires_vz"]
+                if self.user_params.USE_2LPT:
+                    out += [
+                        "hires_vx_2LPT",
+                        "hires_vy_2LPT",
+                        "hires_vz_2LPT",
+                    ]
+            else:
+                out += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
+                if self.user_params.USE_2LPT:
+                    out += [
+                        "lowres_vx_2LPT",
+                        "lowres_vy_2LPT",
+                        "lowres_vz_2LPT",
+                    ]
 
-        self.density.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-        self.velocity.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
+            if self.user_params.USE_RELATIVE_VELOCITIES:
+                # TODO: this is a bit dodge. Actually lowres_vcb never appears in
+                # PerturbField.c, but appears later. If we don't add it here, it will
+                # be removed, and if no caching/writing is done, it will be lost forever.
+                out.append("lowres_vcb")
+
+            return out
+        else:
+            return []
+
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        return {
+            "density": (self.user_params.HII_DIM,) * 3,
+            "velocity": (self.user_params.HII_DIM,) * 3,
+        }
 
 
 class _AllParamsBox(_OutputStructZ):
@@ -208,12 +221,17 @@ class _AllParamsBox(_OutputStructZ):
         "MAX_DVDR",  # bt
     ]
 
-    def __init__(self, astro_params=None, flag_options=None, first_box=False, **kwargs):
-        if flag_options is None:
-            flag_options = FlagOptions()
-
-        if astro_params is None:
-            astro_params = AstroParams(INHOMO_RECO=flag_options.INHOMO_RECO)
+    def __init__(
+        self,
+        astro_params: Optional[AstroParams] = None,
+        flag_options: Optional[FlagOptions] = None,
+        first_box=False,
+        **kwargs,
+    ):
+        self.flag_options = flag_options or FlagOptions()
+        self.astro_params = astro_params or AstroParams(
+            INHOMO_RECO=flag_options.INHOMO_RECO
+        )
 
         self.log10_Mturnover_ave = 0.0
         self.log10_Mturnover_MINI_ave = 0.0
@@ -223,7 +241,7 @@ class _AllParamsBox(_OutputStructZ):
             self.mean_f_coll = 0.0
             self.mean_f_coll_MINI = 0.0
 
-        super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
+        super().__init__(**kwargs)
 
 
 class HaloField(_AllParamsBox):
@@ -241,16 +259,15 @@ class HaloField(_AllParamsBox):
     _c_compute_function = lib.ComputeHaloField
     _c_free_function = lib.free_halo_field
 
-    def _init_arrays(self):
-        self.halo_field = np.zeros(
-            self.user_params.tot_fft_num_pixels, dtype=np.float32
-        )
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        return {"halo_field": (self.user_params.HII_DIM,) * 3}
 
-        self.halo_field.shape = (
-            self.user_params.DIM,
-            self.user_params.DIM,
-            self.user_params.DIM,
-        )
+    def get_requirements(self, cls: _BaseOutputStruct) -> List[str]:
+        """See superclass docstring."""
+        if cls.__class__ == InitialConditions:
+            return
+        else:
+            super().get_requirements(cls)
 
     def _c_shape(self, cstruct):
         return {
@@ -286,7 +303,7 @@ class IonizedBox(_AllParamsBox):
 
     def _init_arrays(self):
         if self.flag_options.USE_MINI_HALOS:
-            Nfiltering = (
+            n_filtering = (
                 int(
                     np.log(
                         min(
@@ -305,7 +322,7 @@ class IonizedBox(_AllParamsBox):
                 + 1
             )
         else:
-            Nfiltering = 1
+            n_filtering = 1
 
         # ionized_box is always initialised to be neutral for excursion set algorithm.
         # Hence np.ones instead of np.zeros
@@ -320,20 +337,12 @@ class IonizedBox(_AllParamsBox):
             self.user_params.HII_tot_num_pixels, dtype=np.float32
         )
         self.Fcoll = np.zeros(
-            Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32
+            n_filtering * self.user_params.HII_tot_num_pixels, dtype=np.float32
         )
 
-        shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-        filter_shape = (
-            Nfiltering,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
+        shape = (self.user_params.HII_DIM,) * 3
+        filter_shape = (n_filtering,) + shape
+
         self.xH_box.shape = shape
         self.Gamma12_box.shape = shape
         self.MFP_box.shape = shape
@@ -344,11 +353,9 @@ class IonizedBox(_AllParamsBox):
 
         if self.flag_options.USE_MINI_HALOS:
             self.Fcoll_MINI = np.zeros(
-                Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32
+                n_filtering * self.user_params.HII_tot_num_pixels, dtype=np.float32
             )
             self.Fcoll_MINI.shape = filter_shape
-        else:
-            self.Fcoll_MINI = np.array([], dtype=np.float32)
 
     @cached_property
     def global_xH(self):

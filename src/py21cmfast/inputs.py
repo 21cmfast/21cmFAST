@@ -452,6 +452,9 @@ class UserParams(StructWithDefaults):
         is considerably faster than when performing integrals explicitly.
     FAST_FCOLL_TABLES: bool, optional
         Whether to use fast Fcoll tables, as described in Sec X of JBM XX. Significant speedup for minihaloes.
+    USE_2LPT: bool, optional
+        Whether to use second-order Lagrangian Perturbation corrections.
+
     """
 
     _ffi = ffi
@@ -469,6 +472,7 @@ class UserParams(StructWithDefaults):
         "NO_RNG": False,
         "USE_INTERPOLATION_TABLES": False,
         "FAST_FCOLL_TABLES": False,
+        "USE_2LPT": True,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
@@ -607,7 +611,7 @@ class FlagOptions(StructWithDefaults):
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations.
     USE_VELS_AUX: bool, optional
-        Auxiliar variable (not input) to check if minihaloes are being used without relative velocities and complain
+        Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain
     """
 
     _ffi = ffi

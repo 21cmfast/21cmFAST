@@ -1,21 +1,26 @@
 """Utilities that help with wrapping various C structures."""
+from __future__ import annotations
+
 import copy
 import glob
 import h5py
 import logging
 import numpy as np
 import warnings
+from abc import ABCMeta, abstractmethod
+from bidict import bidict
 from cffi import FFI
 from hashlib import md5
 from os import makedirs, path
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from . import __version__
 from ._cfg import config
 
 _ffi = FFI()
 
-logger = logging.getLogger("21cmFAST")
+logger = logging.getLogger(__name__)
 
 
 class ParameterError(RuntimeError):
@@ -133,40 +138,40 @@ class StructWrapper:
         return self._ffi.new("struct " + self._name + "*")
 
     @classmethod
-    def get_fields(cls, cstruct=None):
+    def get_fields(cls, cstruct=None) -> Dict[str, Any]:
         """Obtain the C-side fields of this struct."""
         if cstruct is None:
             cstruct = cls._ffi.new("struct " + cls._get_name() + "*")
-        return cls._ffi.typeof(cstruct[0]).fields
+        return dict(cls._ffi.typeof(cstruct[0]).fields)
 
     @classmethod
-    def get_fieldnames(cls, cstruct=None):
+    def get_fieldnames(cls, cstruct=None) -> List[str]:
         """Obtain the C-side field names of this struct."""
         fields = cls.get_fields(cstruct)
         return [f for f, t in fields]
 
     @classmethod
-    def get_pointer_fields(cls, cstruct=None):
+    def get_pointer_fields(cls, cstruct=None) -> List[str]:
         """Obtain all pointer fields of the struct (typically simulation boxes)."""
         return [f for f, t in cls.get_fields(cstruct) if t.type.kind == "pointer"]
 
     @property
-    def fields(self):
+    def fields(self) -> Dict[str, Any]:
         """List of fields of the underlying C struct (a list of tuples of "name, type")."""
         return self.get_fields(self._cstruct)
 
     @property
-    def fieldnames(self):
+    def fieldnames(self) -> List[str]:
         """List names of fields of the underlying C struct."""
         return [f for f, t in self.fields]
 
     @property
-    def pointer_fields(self):
+    def pointer_fields(self) -> List[str]:
         """List of names of fields which have pointer type in the C struct."""
         return [f for f, t in self.fields if t.type.kind == "pointer"]
 
     @property
-    def primitive_fields(self):
+    def primitive_fields(self) -> List[str]:
         """List of names of fields which have primitive type in the C struct."""
         return [f for f, t in self.fields if t.type.kind == "primitive"]
 
@@ -234,8 +239,8 @@ class StructWithDefaults(StructWrapper):
                 kwargs.update(args[0])
             else:
                 raise TypeError(
-                    "optional positional argument for %s must be None, dict, or an instance of itself"
-                    % self.__class__.__name__
+                    f"optional positional argument for {self.__class__.__name__} must be"
+                    f" None, dict, or an instance of itself"
                 )
 
         for k, v in self._defaults_.items():
@@ -391,7 +396,7 @@ def snake_to_camel(word: str, publicize: bool = True):
 
 def camel_to_snake(word: str, depublicize: bool = False):
     """Convert came case to snake case."""
-    word = "".join(["_" + i.lower() if i.isupper() else i for i in word])
+    word = "".join("_" + i.lower() if i.isupper() else i for i in word)
 
     if not depublicize:
         word = word.lstrip("_")
@@ -410,7 +415,7 @@ def get_all_subclasses(cls):
     return all_subclasses
 
 
-class OutputStruct(StructWrapper):
+class OutputStruct(StructWrapper, metaclass=ABCMeta):
     """Base class for any class that wraps a C struct meant to be output from a C function."""
 
     _meta = True
@@ -422,7 +427,7 @@ class OutputStruct(StructWrapper):
     _c_compute_function = None
     _c_free_function = None
 
-    _TYPEMAP = {"float32": "float *", "float64": "double *", "int32": "int *"}
+    _TYPEMAP = bidict({"float32": "float *", "float64": "double *", "int32": "int *"})
 
     def __init__(self, *, random_seed=None, init=False, dummy=False, **kwargs):
         super().__init__()
@@ -430,6 +435,7 @@ class OutputStruct(StructWrapper):
         self.filled = False
         self.version = ".".join(__version__.split(".")[:2])
         self.patch_version = ".".join(__version__.split(".")[2:])
+        self.path = None
 
         self._random_seed = random_seed
 
@@ -440,22 +446,44 @@ class OutputStruct(StructWrapper):
                     setattr(self, k, kwargs.pop(k))
                 except KeyError:
                     raise KeyError(
-                        "%s requires the keyword argument %s"
-                        % (self.__class__.__name__, k)
+                        f"{self.__class__.__name__} requires the keyword argument {k}"
                     )
 
         if kwargs:
             warnings.warn(
-                "%s received the following unexpected arguments: %s"
-                % (self.__class__.__name__, list(kwargs.keys()))
+                f"{self.__class__.__name__} received the following unexpected "
+                f"arguments: {list(kwargs.keys())}"
             )
 
         self.dummy = dummy
 
+        self._array_structure = self._get_box_structures()
+
+        for k in self._array_structure:
+            assert k in self.pointer_fields
+
         if init:
             self._init_cstruct()
 
-    def _c_shape(self, cstruct):
+    @abstractmethod
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        """Return a dictionary of names mapping to shapes for each array in the struct.
+
+        The reason this is a function, not a simple attribute, is that we may need to
+        decide on what arrays need to be initialized based on the inputs (eg. if USE_2LPT
+        is True or False).
+
+        Each actual OutputStruct subclass needs to implement this. Note that the arrays
+        are not actually initialized here -- that's done automatically by :func:`_init_arrays`
+        using this information. This function means that the names of the actually required
+        arrays can be accessed without doing any actual initialization.
+
+        Note also that this only contains arrays allocated *by Python* not C. Arrays
+        allocated by C are specified in :func:`_c_shape`.
+        """
+        pass
+
+    def _c_shape(self, cstruct) -> Dict[str, Tuple[int]]:
         """Return a dictionary of field: shape for arrays allocated within C."""
         return {}
 
@@ -464,9 +492,20 @@ class OutputStruct(StructWrapper):
         all_classes = get_all_subclasses(cls)
         return [c for c in all_classes if not c._meta]
 
-    def _init_arrays(self):  # pragma: nocover
-        """Abstract base method for initializing any arrays that the structure has."""
-        pass
+    def _init_arrays(self, arrays: Optional[Sequence[str]] = None):
+        arrays = arrays or self._array_structure.keys()
+        for k in arrays:
+            params = self._array_structure[k]
+            tp = self._TYPEMAP.inverse[self.fields[k].type.cname]
+
+            if isinstance(params, tuple):
+                shape = params
+                fnc = np.zeros
+            elif isinstance(params, dict):
+                fnc = params.get("init", np.zeros)
+                shape = params.get("shape")
+
+            setattr(k, fnc(shape, dtype=tp))
 
     @property
     def random_seed(self):
@@ -476,39 +515,20 @@ class OutputStruct(StructWrapper):
 
         return self._random_seed
 
-    @property
-    def arrays_initialized(self):
-        """Whether all necessary arrays are initialized.
+    def _init_cstruct(self, required=None):
+        required = required or list(self._array_structure.keys())
 
-        .. note:: This must be true before passing to a C function.
-        """
-        # This assumes that all pointer fields will be arrays...
-        for k in self.pointer_fields:
-            if k in self._c_based_pointers:
-                continue
+        for k in required:
             if not hasattr(self, k):
-                return False
-            elif getattr(self._cstruct, k) == self._ffi.NULL:
-                return False
-        return True
+                self._init_arrays([k])
 
-    def _init_cstruct(self):
-        if not self.filled:
-            self._init_arrays()
+            setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
-        for k in self.pointer_fields:
-            if k not in self._c_based_pointers:
-                setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
         for k in self.primitive_fields:
             try:
                 setattr(self._cstruct, k, getattr(self, k))
             except AttributeError:
                 pass
-
-        if not self.arrays_initialized:
-            raise AttributeError(
-                f"{self.__class__.__name__} is ill-defined. It has not initialized all necessary arrays."
-            )
 
     def _ary2buf(self, ary):
         if not isinstance(ary, np.ndarray):
@@ -517,10 +537,30 @@ class OutputStruct(StructWrapper):
             OutputStruct._TYPEMAP[ary.dtype.name], self._ffi.from_buffer(ary)
         )
 
-    def __call__(self):
+    @abstractmethod
+    def get_requirements(self, cls: OutputStruct) -> List[str]:
+        """Get the arrays within cls that are required to compute this object.
+
+        The idea here is to be able to specify which bits of any structs are required
+        to be able to compute this one.
+
+        Notes
+        -----
+        This seems like a great idea, but I don't think it really works. The problem is
+        that actually using this information can strip out required arrays from the object
+        when they might be needed in the *next* step. We don't want to flush out arrays
+        that need to be re-read later (at least, not usually).
+        """
+        return list(cls._array_structure.keys()) + list(cls._c_based_pointers)
+
+    def __call__(self, caller: Optional[OutputStruct] = None):
         """Initialize/allocate a fresh C struct in memory and return it."""
-        if not (self.arrays_initialized or self.dummy):
+        if not self.dummy and caller.__class__.__name__ == self.__class__.__name__:
             self._init_cstruct()
+        else:
+            keep = caller.get_requirements(self.__class__.__name__)
+            self.prepare(keep=keep)
+            self._init_cstruct(keep)
 
         return self._cstruct
 
@@ -537,6 +577,38 @@ class OutputStruct(StructWrapper):
     def _fname_skeleton(self):
         """The filename without specifying the random seed."""
         return self._name + "_" + self._md5 + "_r{seed}.h5"
+
+    def prepare(
+        self,
+        flush: Optional[Sequence[str]] = None,
+        keep: Optional[Sequence[str]] = None,
+    ):
+        """Prepare the instance for being passed to another function.
+
+        Parameters
+        ----------
+        flush
+            Arrays to flush out of memory. Note that if no file is associated with this
+            instance, these arrays will be lost forever.
+        keep
+            Arrays to keep or load into memory. Note that if these do not already
+            exist, they will be loaded from file (if the file exists). Only one of
+            ``flush`` and ``keep`` should be specified.
+        """
+        if not bool(flush) ^ bool(keep):
+            raise ValueError("Provide either flush or keep, but not both!")
+
+        if flush:
+            keep = [k for k in self._array_structure if k not in flush]
+        elif keep:
+            flush = [k for k in self._array_structure if k not in keep]
+
+        for k in flush:
+            if hasattr(self, k):
+                delattr(self, k)
+
+        if self.path:
+            self.read(fname=self.path, keys=keep)
 
     @property
     def filename(self):
@@ -711,12 +783,12 @@ class OutputStruct(StructWrapper):
 
                 self.write_data_to_hdf5_group(boxes)
 
+                self.path = Path(fname)
+
         except OSError as e:
             logger.warning(
-                "When attempting to write {} to file, write failed with the "
-                "following error. Continuing without caching.".format(
-                    self.__class__.__name__
-                )
+                f"When attempting to write {self.__class__.__name__} to file, write failed "
+                "with the following error. Continuing without caching."
             )
             logger.warning(e)
 
@@ -730,7 +802,7 @@ class OutputStruct(StructWrapper):
             The HDF5 group into which to write the object.
         """
         # Go through all fields in this struct, and save
-        for k in self.pointer_fields:
+        for k in self._array_structure:
             group.create_dataset(k, data=getattr(self, k))
 
         for k in self.primitive_fields:
@@ -757,10 +829,33 @@ class OutputStruct(StructWrapper):
         # If fname is absolute path, then get direc from it, otherwise assume current dir.
         if path.isabs(fname):
             direc = path.dirname(fname)
+            fname = path.basename(fname)
 
         self.write(direc, fname)
 
-    def read(self, direc: [str, Path, None] = None, fname: [str, Path, None] = None):
+    def _get_path(
+        self, direc: [str, Path, None] = None, fname: [str, Path, None] = None
+    ) -> Path:
+        if direc is None and fname is None and self.path:
+            return self.path
+
+        if fname is None:
+            pth = self.find_existing(direc)
+
+            if pth is None:
+                raise IOError("No boxes exist for these parameters.")
+        else:
+            direc = Path(direc or config["direc"]).expanduser()
+            fname = Path(fname)
+            pth = fname if fname.exists() else direc / fname
+        return pth
+
+    def read(
+        self,
+        direc: [str, Path, None] = None,
+        fname: [str, Path, None] = None,
+        keys: Optional[Sequence[str]] = None,
+    ):
         """
         Try find and read existing boxes from cache, which match the parameters of this instance.
 
@@ -772,23 +867,10 @@ class OutputStruct(StructWrapper):
         fname
             The filename to read. By default, use the filename associated with this
             object.
+        keys
+            The names of boxes to read in (can be a subset). By default, read everything.
         """
-        if self.filled:
-            raise IOError("This data is already filled, no need to read in.")
-
-        if fname is None:
-            pth = self.find_existing(direc)
-
-            if pth is None:
-                raise IOError("No boxes exist for these parameters.")
-        else:
-            direc = Path(direc or config["direc"]).expanduser()
-            fname = Path(fname)
-            pth = fname if fname.exists() else direc / fname
-
-        # Need to make sure arrays are initialized before reading in data to them.
-        if not self.arrays_initialized:
-            self._init_cstruct()
+        pth = self._get_path(direc, fname)
 
         with h5py.File(pth, "r") as f:
             try:
@@ -799,14 +881,10 @@ class OutputStruct(StructWrapper):
                     "correct structure."
                 )
 
-            # Fill our arrays.
+            # Set our arrays.
             for k in boxes.keys():
-                if k in self._c_based_pointers:
-                    # C-based pointers can just be read straight in.
+                if keys is None or k in keys:
                     setattr(self, k, boxes[k][...])
-                else:
-                    # Other pointers should fill the already-instantiated arrays.
-                    getattr(self, k)[...] = boxes[k][...]
 
             for k in boxes.attrs.keys():
                 if k == "version":
@@ -831,6 +909,7 @@ class OutputStruct(StructWrapper):
 
         self.filled = True
         self._expose()
+        self.path = pth
 
     @classmethod
     def from_file(cls, fname, direc=None, load_data=True):
@@ -886,15 +965,16 @@ class OutputStruct(StructWrapper):
         """Return a fully unique representation of the instance."""
         # This is the class name and all parameters which belong to C-based input structs,
         # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
+        # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
         return self._seedless_repr() + "_random_seed={}".format(self._random_seed)
 
     def _seedless_repr(self):
         # The same as __repr__ except without the seed.
         return (
-            self._name
-            + "("
-            + "; ".join(
-                [
+            (
+                self._name
+                + "("
+                + "; ".join(
                     repr(v)
                     if isinstance(v, StructWithDefaults)
                     else (
@@ -907,7 +987,7 @@ class OutputStruct(StructWrapper):
                         for k in self._inputs + ["_global_params"]
                         if k != "_random_seed"
                     ]
-                ]
+                )
             )
             + "; v{}".format(self.version)
             + ")"
@@ -920,15 +1000,12 @@ class OutputStruct(StructWrapper):
             self._name
             + "("
             + ";\n\t".join(
-                [
-                    repr(v)
-                    if isinstance(v, StructWithDefaults)
-                    else k.lstrip("_") + ":" + repr(v)
-                    for k, v in [(k, getattr(self, k)) for k in self._inputs]
-                ]
+                repr(v)
+                if isinstance(v, StructWithDefaults)
+                else k.lstrip("_") + ":" + repr(v)
+                for k, v in [(k, getattr(self, k)) for k in self._inputs]
             )
-            + ")"
-        )
+        ) + ")"
 
     def __hash__(self):
         """Return a unique hsh for this instance, even global params and random seed."""
@@ -946,11 +1023,21 @@ class OutputStruct(StructWrapper):
     def compute(self, direc, *args, write=True):
         """Compute the actual function that fills this struct."""
         logger.debug(f"Calling {self._c_compute_function.__name__} with args: {args}")
+        inputs = []
+
+        # Construct the args. All StructWrapper objects need to actually pass their
+        # underlying cstruct, rather than themselves. OutputStructs also pass the
+        # class in that's calling this.
+        for arg in args:
+            if isinstance(OutputStruct):
+                inputs.append(arg(self))
+            elif isinstance(StructWrapper):
+                inputs.append(arg())
+            else:
+                inputs.append(arg)
+
         try:
-            exitcode = self._c_compute_function(
-                *[arg() if isinstance(arg, StructWrapper) else arg for arg in args],
-                self(),
-            )
+            exitcode = self._c_compute_function(*inputs, self())
         except TypeError as e:
             logger.error(
                 f"Arguments to {self._c_compute_function.__name__}: "
@@ -1030,9 +1117,8 @@ class StructInstanceWrapper:
         return (
             self._ctype
             + "("
-            + ";".join([k + "=" + str(v) for k, v in sorted(self.items())])
-            + ")"
-        )
+            + ";".join(k + "=" + str(v) for k, v in sorted(self.items()))
+        ) + ")"
 
     def filtered_repr(self, filter_params):
         """Get a fully unique representation of the instance that filters out some parameters.
@@ -1046,14 +1132,11 @@ class StructInstanceWrapper:
             self._ctype
             + "("
             + ";".join(
-                [
-                    k + "=" + str(v)
-                    for k, v in sorted(self.items())
-                    if k not in filter_params
-                ]
+                k + "=" + str(v)
+                for k, v in sorted(self.items())
+                if k not in filter_params
             )
-            + ")"
-        )
+        ) + ")"
 
 
 def _check_compatible_inputs(*datasets, ignore=["redshift"]):

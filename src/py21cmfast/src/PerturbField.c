@@ -145,7 +145,7 @@ int ComputePerturbField(
         // *                           BEGIN 2LPT PART                                 * //
         // * ************************************************************************* * //
         // reference: reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
-        if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+        if(user_params->USE_2LPT){
             LOG_DEBUG("Apply 2LPT");
 
             // allocate memory for the velocity boxes and read them in
@@ -220,7 +220,7 @@ int ComputePerturbField(
 
                         // 2LPT PART
                         // add second order corrections
-                        if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+                        if(user_params->USE_2LPT){
                             if(user_params->PERTURB_ON_HIGH_RES) {
                                 xf -= (boxes->hires_vx_2LPT)[R_INDEX(i,j,k)];
                                 yf -= (boxes->hires_vy_2LPT)[R_INDEX(i,j,k)];
@@ -308,7 +308,7 @@ int ComputePerturbField(
             }
         }
 
-        if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+        if(user_params->USE_2LPT){
 #pragma omp parallel shared(boxes,velocity_displacement_factor_2LPT,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
             {
 #pragma omp for

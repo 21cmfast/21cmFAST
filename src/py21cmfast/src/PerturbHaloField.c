@@ -83,7 +83,7 @@ LOG_DEBUG("Begin Initialisation");
         // ************************************************************************* //
 
         // reference: reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
-        if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+        if(user_params->USE_2LPT){
 
             // now add the missing factor in eq. D9
 #pragma omp parallel shared(boxes,displacement_factor_2LPT_over_BOX_LEN,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -164,7 +164,7 @@ LOG_DEBUG("Begin Initialisation");
 
                 // 2LPT PART
                 // add second order corrections
-                if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+                if(user_params->USE_2LPT){
                     if(user_params->PERTURB_ON_HIGH_RES) {
                         xf -= boxes->hires_vx_2LPT[R_INDEX(i,j,k)];
                         yf -= boxes->hires_vy_2LPT[R_INDEX(i,j,k)];
@@ -217,7 +217,7 @@ LOG_DEBUG("Begin Initialisation");
                             boxes->hires_vy[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
                             boxes->hires_vz[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
 
-                            if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+                            if(user_params->USE_2LPT){
                                 boxes->hires_vx_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
                                 boxes->hires_vy_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
                                 boxes->hires_vz_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
@@ -228,7 +228,7 @@ LOG_DEBUG("Begin Initialisation");
                             boxes->lowres_vy[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
                             boxes->lowres_vz[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
 
-                            if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+                            if(user_params->USE_2LPT){
                                 boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
                                 boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
                                 boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
