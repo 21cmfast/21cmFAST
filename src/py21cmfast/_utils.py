@@ -34,6 +34,94 @@ class FatalCError(Exception):
         super().__init__(msg or default_message)
 
 
+class ErrorIO(FatalCError):
+    """An exception when an error occurs with file I/O."""
+
+    def __init__(self):
+        error_message = (
+            "Expected file could not be found! (check the LOG for more info)"
+        )
+        super().__init__(error_message)
+
+
+class GSLError(FatalCError):
+    """An exception when a GSL routine encounters an error."""
+
+    def __init__(self):
+        error_message = "A GSL routine has errored! (check the LOG for more info)"
+        super().__init__(error_message)
+
+
+class ErrorValue(FatalCError):
+    """An exception when a function takes an unexpected input."""
+
+    def __init__(self):
+        error_message = "An incorrect argument has been defined or passed! (check the LOG for more info)"
+        super().__init__(error_message)
+
+
+class PhotonConsError(FatalCError):
+    """An exception when the photon non-conservation correction routine errors."""
+
+    def __init__(self):
+        error_message = "An error has occured with the Photon non-conservation correction! (check the LOG for more info)"
+        super().__init__(error_message)
+
+
+class TableGenerationError(FatalCError):
+    """An exception when an issue arises populating one of the interpolation tables."""
+
+    def __init__(self):
+        error_message = """An error has occured when generating an interpolation table!
+                This has likely occured due to the choice of input AstroParams (check the LOG for more info)"""
+        super().__init__(error_message)
+
+
+class TableEvaluationError(FatalCError):
+    """An exception when an issue arises populating one of the interpolation tables."""
+
+    def __init__(self):
+        error_message = """An error has occured when evaluating an interpolation table!
+                This can sometimes occur due to small boxes (either small DIM/HII_DIM or BOX_LEN) (check the LOG for more info)"""
+        super().__init__(error_message)
+
+
+class InfinityorNaNError(FatalCError):
+    """An exception when an infinity or NaN is encountered in a calculated quantity."""
+
+    def __init__(self):
+        error_message = """Something has returned an infinity or a NaN! This could be due to an issue with an
+                input parameter choice (check the LOG for more info)"""
+        super().__init__(error_message)
+
+
+class MassDepZetaError(FatalCError):
+    """An exception when determining the bisection for stellar mass/escape fraction."""
+
+    def __init__(self):
+        error_message = """There is an issue with the choice of parameters under MASS_DEPENDENT_ZETA. Could be an issue with
+                any of the chosen F_STAR10, ALPHA_STAR, F_ESC10 or ALPHA_ESC."""
+        super().__init__(error_message)
+
+
+class MemoryAllocError(FatalCError):
+    """An exception when unable to allocated memory."""
+
+    def __init__(self):
+        error_message = """An error has occured while attempting to allocate memory! (check the LOG for more info)"""
+        super().__init__(error_message)
+
+
+class FileError(FatalCError):
+    """Unknown what this refers to at this point, maintain for now."""
+
+    def __init__(self):
+        error_message = (
+            """I don't know what this one is, possibly redundant with IOERROR?"""
+        )
+        super().__init__(error_message)
+
+
 SUCCESS = 0
 IOERROR = 1
 GSLERROR = 2
@@ -60,49 +148,23 @@ def _process_exitcode(exitcode, fnc, args):
             raise FatalCError
         """
         if exitcode is IOERROR:
-            raise FatalCError(
-                "Expected file could not be found! (check the LOG for more info)"
-            )
+            raise ErrorIO
         elif exitcode is GSLERROR:
-            raise FatalCError(
-                "A GSL routine has errored! (check the LOG for more info)"
-            )
+            raise GSLError
         elif exitcode is VALUEERROR:
-            raise FatalCError(
-                "An incorrect argument has been defined or passed! (check the LOG for more info)"
-            )
+            raise ErrorValue
         elif exitcode is PHOTONCONSERROR:
-            raise FatalCError(
-                "An error has occured with the Photon non-conservation correction! (check the LOG for more info)"
-            )
+            raise PhotonConsError
         elif exitcode is TABLEGENERATIONERROR:
-            raise FatalCError(
-                """An error has occured when generating an interpolation table!
-                This has likely occured due to the choice of input AstroParams (check the LOG for more info)"""
-            )
+            raise TableGenerationError
         elif exitcode is TABLEEVALUATIONERROR:
-            raise FatalCError(
-                """An error has occured when evaluating an interpolation table!
-                This can sometimes occur due to small boxes (either small DIM/HII_DIM or BOX_LEN) (check the LOG for more info)"""
-            )
-        elif exitcode is INFINITYORNANERROR:
-            raise FatalCError(
-                """Something has returned an infinity or a NaN! This could be due to an issue with an
-                input parameter choice (check the LOG for more info)"""
-            )
+            raise TableEvaluationError
         elif exitcode is MASSDEPZETAERROR:
-            raise FatalCError(
-                """There is an issue with the choice of parameters under MASS_DEPENDENT_ZETA. Could be an issue with
-                any of the chosen F_STAR10, ALPHA_STAR, F_ESC10 or ALPHA_ESC."""
-            )
+            raise MassDepZetaError
         elif exitcode is MEMORYALLOCERROR:
-            raise FatalCError(
-                "An error has occured while attempting to allocate memory! (check the LOG for more info)"
-            )
+            raise MEMORYALLOCERROR
         elif exitcode is FILEERROR:
-            raise FatalCError(
-                "I don't know what this one is, possibly redundant with IOERROR?"
-            )
+            raise FileError
         else:  # Unknown C code
             raise FatalCError("Unknown error in C. Please report this error!")
 
