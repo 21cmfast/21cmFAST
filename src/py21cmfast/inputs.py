@@ -646,7 +646,7 @@ class FlagOptions(StructWithDefaults):
                 "Automatically setting USE_HALO_FIELD to False."
             )
             return False
-        if GlobalParams.USE_ETHOS and self.USE_HALO_FIELD:
+        if self.USE_ETHOS and self.USE_HALO_FIELD:
             logger.warning(
                 "You have set USE_ETHOS to True but USE_HALO_FIELD is also True! Code not equipped. "
                 "Automatically setting USE_HALO_FIELD to False."
