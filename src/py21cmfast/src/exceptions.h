@@ -14,8 +14,6 @@ struct exception_context the_exception_context[1];
 #define TableEvaluationError 6
 #define InfinityorNaNError 7
 #define MassDepZetaError 8
-//#define ParameterError 4
 #define MemoryAllocError 9
-#define FileError 10
 
 #define GSL_ERROR(status) if(status>0) {LOG_ERROR("GSL Error Encountered (Code = %d): %s", status, gsl_strerror(status)); Throw(GSLError);}

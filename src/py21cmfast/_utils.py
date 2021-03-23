@@ -21,119 +21,89 @@ logger = logging.getLogger("21cmFAST")
 class ParameterError(RuntimeError):
     """An exception representing a bad choice of parameters."""
 
-    def __init__(self):
-        default_message = "21cmFAST does not support this combination of parameters."
-        super().__init__(default_message)
+    default_message = "21cmFAST does not support this combination of parameters."
+
+    def __init__(self, msg=None):
+        super().__init__(msg or self.default_message)
 
 
 class FatalCError(Exception):
     """An exception representing something going wrong in C."""
 
+    default_message = "21cmFAST is exiting."
+
     def __init__(self, msg=None):
-        default_message = "21cmFAST is exiting."
-        super().__init__(msg or default_message)
+        super().__init__(msg or self.default_message)
 
 
 class ErrorIO(FatalCError):
     """An exception when an error occurs with file I/O."""
 
-    def __init__(self):
-        error_message = (
-            "Expected file could not be found! (check the LOG for more info)"
-        )
-        super().__init__(error_message)
+    default_message = "Expected file could not be found! (check the LOG for more info"
 
 
-class GSLError(FatalCError):
+class GSLError(ParameterError):
     """An exception when a GSL routine encounters an error."""
 
-    def __init__(self):
-        error_message = "A GSL routine has errored! (check the LOG for more info)"
-        super().__init__(error_message)
+    default_message = "A GSL routine has errored! (check the LOG for more info)"
 
 
 class ErrorValue(FatalCError):
     """An exception when a function takes an unexpected input."""
 
-    def __init__(self):
-        error_message = "An incorrect argument has been defined or passed! (check the LOG for more info)"
-        super().__init__(error_message)
+    default_message = "An incorrect argument has been defined or passed! (check the LOG for more info)"
 
 
-class PhotonConsError(FatalCError):
+class PhotonConsError(ParameterError):
     """An exception when the photon non-conservation correction routine errors."""
 
-    def __init__(self):
-        error_message = "An error has occured with the Photon non-conservation correction! (check the LOG for more info)"
-        super().__init__(error_message)
+    default_message = "An error has occured with the Photon non-conservation correction! (check the LOG for more info)"
 
 
-class TableGenerationError(FatalCError):
+class TableGenerationError(ParameterError):
     """An exception when an issue arises populating one of the interpolation tables."""
 
-    def __init__(self):
-        error_message = """An error has occured when generating an interpolation table!
+    default_message = """An error has occured when generating an interpolation table!
                 This has likely occured due to the choice of input AstroParams (check the LOG for more info)"""
-        super().__init__(error_message)
 
 
-class TableEvaluationError(FatalCError):
+class TableEvaluationError(ParameterError):
     """An exception when an issue arises populating one of the interpolation tables."""
 
-    def __init__(self):
-        error_message = """An error has occured when evaluating an interpolation table!
+    default_message = """An error has occured when evaluating an interpolation table!
                 This can sometimes occur due to small boxes (either small DIM/HII_DIM or BOX_LEN) (check the LOG for more info)"""
-        super().__init__(error_message)
 
 
-class InfinityorNaNError(FatalCError):
+class InfinityorNaNError(ParameterError):
     """An exception when an infinity or NaN is encountered in a calculated quantity."""
 
-    def __init__(self):
-        error_message = """Something has returned an infinity or a NaN! This could be due to an issue with an
+    default_message = """Something has returned an infinity or a NaN! This could be due to an issue with an
                 input parameter choice (check the LOG for more info)"""
-        super().__init__(error_message)
 
 
-class MassDepZetaError(FatalCError):
+class MassDepZetaError(ParameterError):
     """An exception when determining the bisection for stellar mass/escape fraction."""
 
-    def __init__(self):
-        error_message = """There is an issue with the choice of parameters under MASS_DEPENDENT_ZETA. Could be an issue with
+    default_message = """There is an issue with the choice of parameters under MASS_DEPENDENT_ZETA. Could be an issue with
                 any of the chosen F_STAR10, ALPHA_STAR, F_ESC10 or ALPHA_ESC."""
-        super().__init__(error_message)
 
 
 class MemoryAllocError(FatalCError):
     """An exception when unable to allocated memory."""
 
-    def __init__(self):
-        error_message = """An error has occured while attempting to allocate memory! (check the LOG for more info)"""
-        super().__init__(error_message)
-
-
-class FileError(FatalCError):
-    """Unknown what this refers to at this point, maintain for now."""
-
-    def __init__(self):
-        error_message = (
-            """I don't know what this one is, possibly redundant with IOERROR?"""
-        )
-        super().__init__(error_message)
+    default_message = """An error has occured while attempting to allocate memory! (check the LOG for more info)"""
 
 
 SUCCESS = 0
 IOERROR = 1
 GSLERROR = 2
 VALUEERROR = 3
-"""PARAMETERERROR = 4"""
 PHOTONCONSERROR = 4
 TABLEGENERATIONERROR = 5
 TABLEEVALUATIONERROR = 6
 INFINITYORNANERROR = 7
 MASSDEPZETAERROR = 8
 MEMORYALLOCERROR = 9
-FILEERROR = 10
 
 
 def _process_exitcode(exitcode, fnc, args):
@@ -141,32 +111,22 @@ def _process_exitcode(exitcode, fnc, args):
     if exitcode != SUCCESS:
         logger.error(f"In function: {fnc.__name__}.  Arguments: {args}")
 
-        """
-        if exitcode in (GSLERROR, PARAMETERERROR):
-            raise ParameterError
-        elif exitcode in (IOERROR, VALUEERROR, MEMORYALLOCERROR, FILEERROR):
-            raise FatalCError
-        """
-        if exitcode is IOERROR:
-            raise ErrorIO
-        elif exitcode is GSLERROR:
-            raise GSLError
-        elif exitcode is VALUEERROR:
-            raise ErrorValue
-        elif exitcode is PHOTONCONSERROR:
-            raise PhotonConsError
-        elif exitcode is TABLEGENERATIONERROR:
-            raise TableGenerationError
-        elif exitcode is TABLEEVALUATIONERROR:
-            raise TableEvaluationError
-        elif exitcode is MASSDEPZETAERROR:
-            raise MassDepZetaError
-        elif exitcode is MEMORYALLOCERROR:
-            raise MEMORYALLOCERROR
-        elif exitcode is FILEERROR:
-            raise FileError
-        else:  # Unknown C code
-            raise FatalCError("Unknown error in C. Please report this error!")
+        if exitcode:
+            try:
+                raise {
+                    IOERROR: ErrorIO,
+                    GSLERROR: GSLError,
+                    VALUEERROR: ErrorValue,
+                    PHOTONCONSERROR: PhotonConsError,
+                    TABLEGENERATIONERROR: TableGenerationError,
+                    TABLEEVALUATIONERROR: TableEvaluationError,
+                    MASSDEPZETAERROR: MassDepZetaError,
+                    MEMORYALLOCERROR: MemoryAllocError,
+                }[exitcode]
+            except KeyError:
+                raise FatalCError(
+                    "Unknown error in C. Please report this error!"
+                )  # Unknown C code
 
 
 ctype2dtype = {}
