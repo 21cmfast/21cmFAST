@@ -39,7 +39,7 @@ class FatalCError(Exception):
 class ErrorIO(FatalCError):
     """An exception when an error occurs with file I/O."""
 
-    default_message = "Expected file could not be found! (check the LOG for more info"
+    default_message = "Expected file could not be found! (check the LOG for more info)"
 
 
 class GSLError(ParameterError):
@@ -123,7 +123,7 @@ def _process_exitcode(exitcode, fnc, args):
                     MASSDEPZETAERROR: MassDepZetaError,
                     MEMORYALLOCERROR: MemoryAllocError,
                 }[exitcode]
-            except KeyError:
+            except KeyError:  # pragma: no cover
                 raise FatalCError(
                     "Unknown error in C. Please report this error!"
                 )  # Unknown C code
