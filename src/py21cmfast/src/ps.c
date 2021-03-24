@@ -433,9 +433,20 @@ double sigma_z0(double M){
 
     F.function = &dsigma_dk;
     F.params = &Radius;
-    //gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
-    //    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS41, w, &result, &error);
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
+
+    int status;
+
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: M=%e",M);
+        Throw GSLError;
+    }
+
     gsl_integration_workspace_free (w);
 
     return sigma_norm * sqrt(result);
@@ -621,8 +632,20 @@ double init_ps(){
 
     F.function = &dsigma_dk;
     F.params = &Radius_8;
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+
+    int status;
+
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        Throw GSLError;
+    }
+
     gsl_integration_workspace_free (w);
 
     LOG_DEBUG("Initialized Power Spectrum.");
@@ -766,8 +789,20 @@ double dsigmasqdm_z0(double M){
 
     F.function = &dsigmasq_dm;
     F.params = &Radius;
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
-    //  gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
+
+    int status;
+
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: M=%e",M);
+        Throw GSLError;
+    }
+
     gsl_integration_workspace_free (w);
 
 //    return sigma_norm * sigma_norm * result /d2fact;
@@ -1000,8 +1035,20 @@ double FgtrM_Watson_z(double z, double growthf, double M){
     lower_limit = log(M);
     upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
 
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+    int status;
+
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: z=%e growthf=%e M=%e",z,growthf,M);
+        Throw GSLError;
+    }
+
     gsl_integration_workspace_free (w);
 
     return result / (cosmo_params_ps->OMm*RHOcrit);
@@ -1030,8 +1077,20 @@ double FgtrM_Watson(double growthf, double M){
     lower_limit = log(M);
     upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
 
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+    int status;
+
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: growthf=%e M=%e",growthf,M);
+        Throw(GSLError);
+    }
+
     gsl_integration_workspace_free (w);
 
     return result / (cosmo_params_ps->OMm*RHOcrit);
@@ -1195,9 +1254,12 @@ double Nion_General(double z, double M_Min, double MassTurnover, double Alpha_st
         gsl_set_error_handler_off();
 
         status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
         if(status!=0) {
-            LOG_ERROR("(function argument): %e %e %e %e %e\n",lower_limit,upper_limit,rel_tol,result,error);
-            LOG_ERROR("data: %e %e %e %e %e %e %e %e %e\n",z,growthf,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+            LOG_ERROR("gsl integration error occured!");
+            LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+            LOG_ERROR("data: z=%e growthf=%e MassTurnover=%e Alpha_star=%e Alpha_esc=%e",z,growthf,MassTurnover,Alpha_star,Alpha_esc);
+            LOG_ERROR("data: Fstar10=%e Fesc10=%e Mlim_Fstar=%e Mlim_Fesc=%e",Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
             Throw GSLError;
         }
         gsl_integration_workspace_free (w);
@@ -1206,7 +1268,7 @@ double Nion_General(double z, double M_Min, double MassTurnover, double Alpha_st
     }
     else {
         LOG_ERROR("Incorrect HMF selected: %i (should be between 0 and 3).", user_params_ps->HMF);
-        Throw ValueError;
+        Throw(ValueError);
     }
 }
 
@@ -1260,6 +1322,7 @@ double dNion_General_MINI(double lnM, void *params){
 double Nion_General_MINI(double z, double M_Min, double MassTurnover, double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc){
 
     double growthf;
+    int status;
 
     growthf = dicke(z);
 
@@ -1291,7 +1354,18 @@ double Nion_General_MINI(double z, double M_Min, double MassTurnover, double Mas
         lower_limit = log(M_Min);
         upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M_Min*100));
 
-        gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
+        gsl_set_error_handler_off();
+
+        status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+        if(status!=0) {
+            LOG_ERROR("gsl integration error occurred!");
+            LOG_ERROR("lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+            LOG_ERROR("data: z=%e growthf=%e MassTurnover=%e MassTurnover_upper=%e",z,growthf,MassTurnover,MassTurnover_upper);
+            LOG_ERROR("data: Alpha_star=%e Alpha_esc=%e Fstar7_MINI=%e Fesc7_MINI=%e Mlim_Fstar=%e Mlim_Fesc=%e",Alpha_star,Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar,Mlim_Fesc);
+            Throw(GSLError);
+        }
+
         gsl_integration_workspace_free (w);
 
         return result / ((cosmo_params_ps->OMm)*RHOcrit);
@@ -1405,7 +1479,8 @@ void initialiseSigmaMInterpTable(float M_Min, float M_Max)
     for(i=0;i<NMass;i++) {
         if(isfinite(Mass_InterpTable[i]) == 0 || isfinite(Sigma_InterpTable[i]) == 0 || isfinite(dSigmadm_InterpTable[i])==0) {
             LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
-            Throw(ParameterError);
+//            Throw(ParameterError);
+            Throw(TableGenerationError);
         }
     }
 
@@ -1669,7 +1744,8 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC){
     // Got to max_iter without finding a solution.
     LOG_ERROR("Failed to find a mass limit to regulate stellar fraction/escape fraction is between 0 and 1.");
     LOG_ERROR(" The solution does not converge or iterations are not sufficient.");
-    Throw(ParameterError);
+//    Throw(ParameterError);
+    Throw(MassDepZetaError);
 
     return(0.0);
 }
@@ -2075,14 +2151,26 @@ double Nion_ConditionalM_MINI(double growthf, double M1, double M2, double sigma
         .LimitMass_Fstar = Mlim_Fstar,
         .LimitMass_Fesc = Mlim_Fesc
     };
+    int status;
 
     F.function = &dNion_ConditionallnM_MINI;
     F.params = &parameters_gsl_SFR_con;
     lower_limit = M1;
     upper_limit = M2;
 
-    gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: growthf=%e M2=%e sigma2=%e delta1=%e delta2=%e MassTurnover=%e",growthf,M2,sigma2,delta1,delta2,MassTurnover);
+        LOG_ERROR("data: MassTurnover_upper=%e Alpha_star=%e Alpha_esc=%e Fstar10=%e Fesc10=%e Mlim_Fstar=%e Mlim_Fesc=%e",MassTurnover_upper,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+        Throw GSLError;
+    }
+
     gsl_integration_workspace_free (w);
 
     if(delta2 > delta1) {
@@ -2143,8 +2231,10 @@ double Nion_ConditionalM(double growthf, double M1, double M2, double sigma2, do
                          1000, GSL_INTEG_GAUSS61, w, &result, &error);
 
     if(status!=0) {
-        LOG_ERROR("(function argument): %e %e %e %e %e\n",lower_limit,upper_limit,rel_tol,result,error);
-        LOG_ERROR("data: %e %e %e %e %e %e %e %e %e %e %e %e %e\n",growthf,M1,M2,sigma2,delta1,delta2,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("data: growthf=%e M1=%e M2=%e sigma2=%e delta1=%e delta2=%e",growthf,M1,M2,sigma2,delta1,delta2);
+        LOG_ERROR("data: MassTurnover=%e Alpha_star=%e Alpha_esc=%e Fstar10=%e Fesc10=%e Mlim_Fstar=%e Mlim_Fesc=%e",MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
         Throw GSLError;
     }
 
@@ -2537,7 +2627,8 @@ void initialise_Nion_General_spline(float z, float min_density, float max_densit
     for (i=0; i<NSFR_low; i++){
         if(!isfinite(log10_Nion_spline[i])) {
             LOG_ERROR("Detected either an infinite or NaN value in log10_Nion_spline");
-            Throw(ParameterError);
+//            Throw(ParameterError);
+            Throw(TableGenerationError);
         }
     }
 
@@ -2557,7 +2648,8 @@ void initialise_Nion_General_spline(float z, float min_density, float max_densit
     for(i=0;i<NSFR_high;i++) {
         if(!isfinite(Nion_spline[i])) {
             LOG_ERROR("Detected either an infinite or NaN value in log10_Nion_spline");
-            Throw(ParameterError);
+//            Throw(ParameterError);
+            Throw(TableGenerationError);
         }
     }
 }
@@ -2643,12 +2735,14 @@ void initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_de
         for (j=0; j<NMTURN; j++){
             if(isfinite(log10_Nion_spline[i+j*NSFR_low])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in log10_Nion_spline");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
 
             if(isfinite(log10_Nion_spline_MINI[i+j*NSFR_low])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in log10_Nion_spline_MINI");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
         }
     }
@@ -2689,12 +2783,14 @@ void initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_de
         for (j=0; j<NMTURN; j++){
             if(isfinite(Nion_spline[i+j*NSFR_high])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in Nion_spline");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
 
             if(isfinite(Nion_spline_MINI[i+j*NSFR_high])==0) {
                LOG_ERROR("Detected either an infinite or NaN value in Nion_spline_MINI");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
         }
     }
@@ -2779,12 +2875,14 @@ void initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float m
         for (j=0; j<NMTURN; j++){
             if(isfinite(prev_log10_Nion_spline[i+j*NSFR_low])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in prev_log10_Nion_spline");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
 
             if(isfinite(prev_log10_Nion_spline_MINI[i+j*NSFR_low])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in prev_log10_Nion_spline_MINI");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
         }
     }
@@ -2824,12 +2922,14 @@ void initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float m
         for (j=0; j<NMTURN; j++){
             if(isfinite(prev_Nion_spline[i+j*NSFR_high])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in prev_Nion_spline");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
 
             if(isfinite(prev_Nion_spline_MINI[i+j*NSFR_high])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in prev_Nion_spline_MINI");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
         }
     }
@@ -2863,7 +2963,8 @@ void initialise_Nion_Ts_spline(
     for (i=0; i<Nbin; i++){
         if(isfinite(Nion_z_val[i])==0) {
             LOG_ERROR("Detected either an infinite or NaN value in Nion_z_val");
-            Throw(ParameterError);
+//            Throw(ParameterError);
+            Throw(TableGenerationError);
         }
     }
 }
@@ -2911,14 +3012,16 @@ void initialise_Nion_Ts_spline_MINI(
         if(isfinite(Nion_z_val[i])==0) {
             i = Nbin;
             LOG_ERROR("Detected either an infinite or NaN value in Nion_z_val");
-            Throw(ParameterError);
+//            Throw(ParameterError);
+            Throw(TableGenerationError);
         }
 
         for (j=0; j<NMTURN; j++){
             if(isfinite(Nion_z_val_MINI[i+j*Nbin])==0){
                 j = NMTURN;
                 LOG_ERROR("Detected either an infinite or NaN value in Nion_z_val_MINI");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
         }
     }
@@ -2949,7 +3052,8 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float MassTurn, fl
     for (i=0; i<Nbin; i++){
         if(isfinite(SFRD_val[i])==0) {
             LOG_ERROR("Detected either an infinite or NaN value in SFRD_val");
-            Throw(ParameterError);
+//            Throw(ParameterError);
+            Throw(TableGenerationError);
         }
     }
 }
@@ -2993,14 +3097,16 @@ void initialise_SFRD_spline_MINI(int Nbin, float zmin, float zmax, float Alpha_s
         if(isfinite(SFRD_val[i])==0) {
             i = Nbin;
             LOG_ERROR("Detected either an infinite or NaN value in SFRD_val");
-            Throw(ParameterError);
+//            Throw(ParameterError);
+            Throw(TableGenerationError);
         }
 
         for (j=0; j<NMTURN; j++){
             if(isfinite(SFRD_val_MINI[i+j*Nbin])==0) {
                 j = NMTURN;
                 LOG_ERROR("Detected either an infinite or NaN value in SFRD_val_MINI");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
         }
     }
@@ -3070,7 +3176,6 @@ void initialise_SFRD_Conditional_table(
             for (i=0; i<NSFR_low; i++){
 
                 log10_SFRD_z_low_table[j][i] = GaussLegendreQuad_Nion(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., FAST_FCOLL_TABLES);
-//                printf("%d %d %e %e %e %e %e %e %e %e %e %e %e %e %e %e %e\n",j,i,R[j],RtoM(R[j]),growthf[j],Mmax,sigma2,Deltac,overdense_low_table[i]-1.,MassTurnover,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0.,log10_SFRD_z_low_table[j][i]);
                 if(fabs(log10_SFRD_z_low_table[j][i]) < 1e-38) {
                     log10_SFRD_z_low_table[j][i] = 1e-38;
                 }
@@ -3084,7 +3189,8 @@ void initialise_SFRD_Conditional_table(
         for (i=0; i<NSFR_low; i++){
             if(isfinite(log10_SFRD_z_low_table[j][i])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in log10_SFRD_z_low_table");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
         }
 
@@ -3102,7 +3208,8 @@ void initialise_SFRD_Conditional_table(
         for(i=0;i<NSFR_high;i++) {
             if(isfinite(SFRD_z_high_table[j][i])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in SFRD_z_high_table");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
         }
 
@@ -3202,13 +3309,15 @@ void initialise_SFRD_Conditional_table_MINI(
         for (i=0; i<NSFR_low; i++){
             if(isfinite(log10_SFRD_z_low_table[j][i])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in log10_SFRD_z_low_table");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
 
             for (k=0; k<NMTURN; k++){
                 if(isfinite(log10_SFRD_z_low_table_MINI[j][i+k*NSFR_low])==0) {
                     LOG_ERROR("Detected either an infinite or NaN value in log10_SFRD_z_low_table_MINI");
-                    Throw(ParameterError);
+//                    Throw(ParameterError);
+                    Throw(TableGenerationError);
                 }
             }
         }
@@ -3243,13 +3352,15 @@ void initialise_SFRD_Conditional_table_MINI(
         for(i=0;i<NSFR_high;i++) {
             if(isfinite(SFRD_z_high_table[j][i])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in SFRD_z_high_table");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(TableGenerationError);
             }
 
             for (k=0; k<NMTURN; k++){
                 if(isfinite(SFRD_z_high_table_MINI[j][i+k*NSFR_high])==0) {
                     LOG_ERROR("Detected either an infinite or NaN value in SFRD_z_high_table_MINI");
-                    Throw(ParameterError);
+//                    Throw(ParameterError);
+                    Throw(TableGenerationError);
                 }
             }
         }
@@ -3442,7 +3553,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
             num_fails += 1;
             if(num_fails>10) {
                 LOG_ERROR("Failed too many times.");
-                Throw ParameterError;
+//                Throw ParameterError;
+                Throw(PhotonConsError);
             }
         }
 
@@ -3848,7 +3960,8 @@ float adjust_redshifts_for_photoncons(
             "(global_params.PhotonConsEndCalibz = %f). If this behaviour is desired then set global_params.PhotonConsEndCalibz "\
             "to a value lower than z = %f.",*redshift,global_params.PhotonConsEndCalibz,*redshift
                   );
-        Throw(ParameterError);
+//        Throw(ParameterError);
+        Throw(PhotonConsError);
     }
 
     // Determine the neutral fraction (filling factor) of the analytic calibration expression given the current sampled redshift
@@ -4002,11 +4115,16 @@ void z_at_Q(double Q, double *splined_value){
 
     if (Q < Qmin) {
         LOG_ERROR("The minimum value of Q is %.4e",Qmin);
-        Throw(ParameterError);
+//        Throw(ParameterError);
+        Throw(PhotonConsError);
     }
     else if (Q > Qmax) {
         LOG_ERROR("The maximum value of Q is %.4e. Reionization ends at ~%.4f.",Qmax,Zmin);
-        Throw(ParameterError);
+        LOG_ERROR("This error can occur if global_params.PhotonConsEndCalibz is close to "\
+                  "the final sampled redshift. One can consider a lower value for "\
+                  "global_params.PhotonConsEndCalibz to mitigate this");
+//        Throw(ParameterError);
+        Throw(PhotonConsError);
     }
     else {
         returned_value = gsl_spline_eval(z_at_Q_spline, Q, z_at_Q_spline_acc);
