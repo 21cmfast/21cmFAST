@@ -69,6 +69,8 @@ def estimate_memory_lightcone(
 
     memory_bt = mem_brightness_temperature(user_params=user_params)
 
+    memory_hf = mem_halo_field(user_params=user_params)
+
     return {
         "ics_python": memory_ics["python"],
         "ics_c": memory_ics["c"],
@@ -80,6 +82,8 @@ def estimate_memory_lightcone(
         "st_c": memory_bt["c"],
         "bt_python": memory_st["python"],
         "bt_c": memory_bt["c"],
+        "hf_python": memory_hf["python"],
+        "hf_c": memory_hf["c"],
     }
 
 
@@ -372,5 +376,50 @@ def mem_brightness_temperature(
     num_c_boxes = 2.0
 
     size_c = (np.float32(1.0).nbytes) * num_c_boxes * hii_tot_fft_num_pixels
+
+    return {"python": size_py, "c": size_c}
+
+
+def mem_halo_field(
+    *,
+    user_params=None,
+):
+    """A function to estimate total memory usage of a determine_halo_list call."""
+    """Memory usage of Python HaloField class."""
+
+    """All declared DIM boxes"""
+    # halo_field
+    num_py_boxes = 1.0
+
+    size_py = num_py_boxes * (user_params.DIM) ** 3
+
+    # These are all float arrays
+    size_py = (np.float32(1.0).nbytes) * size_py
+
+    """Memory usage within FindHaloes.c"""
+    kspace_num_pixels = (float(user_params.DIM) / 2.0 + 1.0) * (user_params.DIM) ** 2
+
+    # density_field, density_field_saved
+    num_c_boxes = 2.0
+
+    # halo_field, in_halo
+    num_c_boxes_alt = (
+        1.25  # in_halo is size 1 (char *) so count it as 0.25 of float (4)
+    )
+
+    if global_params.OPTIMIZE:
+        # forbidden
+        num_c_boxes_alt += 0.25
+
+    # These are fftwf complex arrays (thus 2 * size)
+    size_c = (2.0 * np.float32(1.0).nbytes) * num_c_boxes * kspace_num_pixels
+
+    size_c += (np.float32(1.0).nbytes) * num_c_boxes_alt * (user_params.DIM) ** 3
+
+    # We don't know a priori how many haloes that will be found, but we'll estimate the memory usage
+    # at 10 per cent of the total number of pixels (likely an over estimate)
+    # Below the factor of 4 corresponds to the mass and three spatial locations. It is defined as an
+    # int but I'll leave it as 4 bytes in case
+    size_py += 0.1 * 4.0 * (np.float32(1.0).nbytes) * (user_params.DIM) ** 3
 
     return {"python": size_py, "c": size_c}
