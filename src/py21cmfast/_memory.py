@@ -67,6 +67,8 @@ def estimate_memory_lightcone(
         flag_options=flag_options,
     )
 
+    memory_bt = mem_brightness_temperature(user_params=user_params)
+
     return {
         "ics_python": memory_ics["python"],
         "ics_c": memory_ics["c"],
@@ -75,7 +77,9 @@ def estimate_memory_lightcone(
         "ib_python": memory_ib["python"],
         "ib_c": memory_ib["c"],
         "st_python": memory_st["python"],
-        "st_c": memory_st["c"],
+        "st_c": memory_bt["c"],
+        "bt_python": memory_st["python"],
+        "bt_c": memory_bt["c"],
     }
 
 
@@ -339,5 +343,34 @@ def mem_spin_temperature(
     size_c += (np.float32(1.0).nbytes) * num_c_boxes_alt * (user_params.HII_DIM ** 3.0)
 
     size_c += mem_c_interp
+
+    return {"python": size_py, "c": size_c}
+
+
+def mem_brightness_temperature(
+    *,
+    user_params=None,
+):
+    """A function to estimate total memory usage of a brightness_temperature call."""
+    """Memory usage of Python BrightnessTemp class."""
+
+    """All declared HII_DIM boxes"""
+    # brightness_temp
+    num_py_boxes = 1.0
+
+    size_py = num_py_boxes * (user_params.HII_DIM) ** 3
+
+    # These are all float arrays
+    size_py = (np.float32(1.0).nbytes) * size_py
+
+    """Memory usage within BrightnessTemperatureBox.c"""
+    hii_tot_fft_num_pixels = (
+        2.0 * (float(user_params.HII_DIM) / 2.0 + 1.0) * (user_params.HII_DIM) ** 2
+    )
+
+    # box, unfiltered_box
+    num_c_boxes = 2.0
+
+    size_c = (np.float32(1.0).nbytes) * num_c_boxes * hii_tot_fft_num_pixels
 
     return {"python": size_py, "c": size_c}
