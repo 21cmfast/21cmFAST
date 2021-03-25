@@ -71,6 +71,8 @@ def estimate_memory_lightcone(
 
     memory_hf = mem_halo_field(user_params=user_params)
 
+    memory_phf = mem_perturb_halo(user_params=user_params)
+
     return {
         "ics_python": memory_ics["python"],
         "ics_c": memory_ics["c"],
@@ -84,6 +86,8 @@ def estimate_memory_lightcone(
         "bt_c": memory_bt["c"],
         "hf_python": memory_hf["python"],
         "hf_c": memory_hf["c"],
+        "phf_python": memory_phf["python"],
+        "phf_c": memory_phf["c"],
     }
 
 
@@ -417,9 +421,25 @@ def mem_halo_field(
     size_c += (np.float32(1.0).nbytes) * num_c_boxes_alt * (user_params.DIM) ** 3
 
     # We don't know a priori how many haloes that will be found, but we'll estimate the memory usage
-    # at 10 per cent of the total number of pixels (likely an over estimate)
+    # at 10 per cent of the total number of pixels (HII_DIM, likely an over estimate)
     # Below the factor of 4 corresponds to the mass and three spatial locations. It is defined as an
     # int but I'll leave it as 4 bytes in case
-    size_py += 0.1 * 4.0 * (np.float32(1.0).nbytes) * (user_params.DIM) ** 3
+    size_c += 0.1 * 4.0 * (np.float32(1.0).nbytes) * (user_params.HII_DIM) ** 3
 
     return {"python": size_py, "c": size_c}
+
+
+def mem_perturb_halo(
+    *,
+    user_params=None,
+):
+    """A function to estimate total memory usage of a perturb_halo_list call."""
+    """Memory usage of Python PerturbHaloField class."""
+
+    # We don't know a priori how many haloes that will be found, but we'll estimate the memory usage
+    # at 10 per cent of the total number of pixels (HII_DIM, likely an over estimate)
+    # Below the factor of 4 corresponds to the mass and three spatial locations. It is defined as an
+    # int but I'll leave it as 4 bytes in case
+    size_c = 0.1 * 4.0 * (np.float32(1.0).nbytes) * (user_params.HII_DIM) ** 3
+
+    return {"python": 0.0, "c": size_c}
