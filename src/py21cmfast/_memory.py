@@ -51,7 +51,9 @@ def estimate_memory_lightcone(
     flag_options=None,
 ):
     """Compute an estimate of the requisite memory needed by the user for a run_lightcone call."""
-    return {}
+    memory_ics = mem_initial_conditions(user_params=user_params)
+
+    return memory_ics
 
 
 def mem_initial_conditions(
@@ -59,34 +61,35 @@ def mem_initial_conditions(
     user_params=None,
 ):
     """Memory usage of Python initial conditions class."""
-    # lowres_density, lowres_vx, lowres_vy, lowres_vz, lowres_vcb,
+    """All declared HII_DIM boxes"""
+    # lowres_density, lowres_vx, lowres_vy, lowres_vz, lowres_vcb
     # lowres_vx_2LPT, lowres_vy_2LPT, lowres_vz_2LPT
     num_py_boxes_HII_DIM = 8.0
 
-    # hires_density, hires_vx, hires_vy, hires_vz, hires_vcb,
+    """All declared DIM boxes"""
+    # hires_density, hires_vx, hires_vy, hires_vz
     # hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT
-    num_py_boxes_DIM = 8.0
+    num_py_boxes_DIM = 7.0
 
     size_py = num_py_boxes_DIM * (user_params.DIM) ** 3
     size_py += num_py_boxes_HII_DIM * (user_params.HII_DIM) ** 3
 
+    # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
 
     """Memory usage of C initial conditions"""
-    KSPACE_NUM_PIXELS = (float(user_params.DIM) / 2.0 + 1.0) * (user_params.DIM) ** 2
+    kspace_num_pixels = (float(user_params.DIM) / 2.0 + 1.0) * (user_params.DIM) ** 2
 
+    """All declared DIM boxes"""
     # HIRES_box, HIRES_box_saved
     num_c_boxes = 2
 
-    # HIRES_box_vcb_x, HIRES_box_vcb_y, HIRES_box_vcb_z
-    if user_params.USE_RELATIVE_VELOCITIES:
-        num_c_boxes += 3
-
+    """All declared fftwf boxes (DIM)"""
     # phi_1 (6 components)
     if global_params.SECOND_ORDER_LPT_CORRECTIONS:
         num_c_boxes += 6
 
     # These are all fftwf complex arrays (thus 2 * size)
-    size_c = (2.0 * (np.float32(1.0).nbytes)) * num_c_boxes * KSPACE_NUM_PIXELS
+    size_c = (2.0 * (np.float32(1.0).nbytes)) * num_c_boxes * kspace_num_pixels
 
     return {"python": size_py, "c": size_c}
