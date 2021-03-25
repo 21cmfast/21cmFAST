@@ -55,11 +55,19 @@ def estimate_memory_lightcone(
 
     memory_pf = mem_perturb_field(user_params=user_params)
 
+    memory_ib = mem_ionize_box(
+        user_params=user_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+    )
+
     return {
         "ics_python": memory_ics["python"],
         "ics_c": memory_ics["c"],
         "pf_python": memory_pf["python"],
         "pf_c": memory_pf["c"],
+        "ib_python": memory_ib["python"],
+        "ib_c": memory_ib["c"],
     }
 
 
@@ -146,5 +154,87 @@ def mem_perturb_field(
     else:
         # For resampled_box (double)
         size_c += (np.float64(1.0).nbytes) * hii_tot_num_pixels
+
+    return {"python": size_py, "c": size_c}
+
+
+def mem_ionize_box(
+    *,
+    user_params=None,
+    astro_params=None,
+    flag_options=None,
+):
+    """A function to estimate total memory usage of an ionize_box call."""
+    # First do check on inhomogeneous recombinations
+    astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+
+    # determine number of filtering scales (for USE_MINI_HALOS)
+    if flag_options.USE_MINI_HALOS:
+        n_filtering = (
+            int(
+                np.log(
+                    min(astro_params.R_BUBBLE_MAX, 0.620350491 * user_params.BOX_LEN)
+                    / max(
+                        global_params.R_BUBBLE_MIN,
+                        0.620350491
+                        * user_params.BOX_LEN
+                        / np.float64(user_params.HII_DIM),
+                    )
+                )
+                / np.log(global_params.DELTA_R_HII_FACTOR)
+            )
+        ) + 1
+    else:
+        n_filtering = 1
+
+    """Memory usage of Python IonizedBox class."""
+
+    """All declared HII_DIM boxes"""
+    # xH_box, Gamma12_box, MFP_box, z_re_box, dNrec_box, temp_kinetic_all_gas
+    num_py_boxes = 6.0
+
+    # Fcoll
+    num_py_boxes += n_filtering
+
+    # Fcoll_MINI
+    if flag_options.USE_MINI_HALOS:
+        num_py_boxes += n_filtering
+
+    size_py = num_py_boxes * (user_params.HII_DIM) ** 3
+
+    # These are all float arrays
+    size_py = (np.float32(1.0).nbytes) * size_py
+
+    """Memory usage within IonisationBox.c"""
+    hii_kspace_num_pixels = (float(user_params.HII_DIM) / 2.0 + 1.0) * (
+        user_params.HII_DIM
+    ) ** 2
+
+    # deltax_unfiltered, delta_unfiltered_original, deltax_filtered
+    num_c_boxes = 3.0
+
+    if flag_options.USE_MINI_HALOS:
+        # prev_deltax_unfiltered, prev_deltax_filtered
+        num_c_boxes += 2.0
+
+    if flag_options.USE_TS_FLUCT:
+        # xe_unfiltered, xe_filtered
+        num_c_boxes += 2.0
+
+    if flag_options.INHOMO_RECO:
+        # N_rec_unfiltered, N_rec_filtered
+        num_c_boxes += 2.0
+
+    # There are a bunch of 1 and 2D interpolation tables, but ignore those as they are small relative to 3D grids
+
+    if flag_options.USE_MASS_DEPENDENT_ZETA and flag_options.USE_MINI_HALOS:
+        # log10_Mturnover_unfiltered, log10_Mturnover_filtered, log10_Mturnover_MINI_unfiltered, log10_Mturnover_MINI_filtered
+        num_c_boxes += 4.0
+
+    if flag_options.USE_HALO_FIELD:
+        # M_coll_unfiltered, M_coll_filtered
+        num_c_boxes += 2.0
+
+    size_c = (2.0 * (np.float32(1.0).nbytes)) * num_c_boxes * hii_kspace_num_pixels
 
     return {"python": size_py, "c": size_c}
