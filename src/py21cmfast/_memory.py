@@ -3,6 +3,7 @@
 import numpy as np
 
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+from .wrapper import _logscroll_redshifts, _setup_lightcone
 
 
 def estimate_memory_coeval(
@@ -45,10 +46,13 @@ def estimate_memory_coeval(
 
 def estimate_memory_lightcone(
     *,
+    redshift=None,
+    max_redshift=None,
     user_params=None,
     cosmo_params=None,
     astro_params=None,
     flag_options=None,
+    lightcone_quantities=("brightness_temp",),
 ):
     """Compute an estimate of the requisite memory needed by the user for a run_lightcone call."""
     memory_ics = mem_initial_conditions(user_params=user_params)
@@ -72,6 +76,41 @@ def estimate_memory_lightcone(
     memory_hf = mem_halo_field(user_params=user_params)
 
     memory_phf = mem_perturb_halo(user_params=user_params)
+
+    # Now need to determine the size of the light-cone and how many types are to be stored in memory.
+    # Below are taken from the run_lightcone function.
+    # Determine the maximum redshift (starting point) for the light-cone.
+    max_redshift = (
+        global_params.Z_HEAT_MAX
+        if (
+            flag_options.INHOMO_RECO
+            or flag_options.USE_TS_FLUCT
+            or max_redshift is None
+        )
+        else max_redshift
+    )
+
+    # Get the redshift through which we scroll and evaluate the ionization field.
+    scrollz = _logscroll_redshifts(
+        redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift
+    )
+
+    # Obtain the size of the light-cone object (n_lightcone)
+    d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(
+        cosmo_params,
+        max_redshift,
+        redshift,
+        scrollz,
+        user_params,
+        global_params.ZPRIME_STEP_FACTOR,
+    )
+
+    # Total number of light-cones to be stored in memory
+    num_lightcones = len(lightcone_quantities)
+
+    # Calculate memory footprint for all light-cones
+    size_lightcones = n_lightcone * (user_params.HII_DIM) ** 2
+    size_lightcones = (np.float32(1.0).nbytes) * num_lightcones * size_lightcones
 
     return {
         "ics_python": memory_ics["python"],
