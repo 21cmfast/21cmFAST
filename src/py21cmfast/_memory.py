@@ -1,10 +1,13 @@
 """Function to estimate total memory usage."""
 
+import logging
 import numpy as np
 from copy import deepcopy
 
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
 from .wrapper import _logscroll_redshifts, _setup_lightcone
+
+logger = logging.getLogger("21cmFAST")
 
 
 def estimate_memory_coeval(
@@ -255,6 +258,13 @@ def estimate_memory_lightcone(
     peak_memory = peak_memory if peak_memory > current_memory else current_memory
 
     memory_data.update({"peak_memory": peak_memory})
+
+    format_output(
+        memory_data=memory_data,
+        user_params=user_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+    )
 
     return memory_data
 
@@ -619,3 +629,78 @@ def mem_perturb_halo(
     size_c = 0.1 * 4.0 * (np.float32(1.0).nbytes) * (user_params.HII_DIM) ** 3
 
     return {"python": 0.0, "c": size_c}
+
+
+def format_output(
+    *,
+    memory_data=None,
+    user_params=None,
+    astro_params=None,
+    flag_options=None,
+):
+    """Function to output information in a manageable format."""
+    bytes_in_gb = 1024 ** 3
+
+    print("")
+    if "python_lc" in memory_data.keys():
+        print("Memory info for run_lightcone")
+    else:
+        print("Memory info for run_coeval")
+    print("")
+    print("%s" % (user_params))
+    print("%s" % (astro_params))
+    print("%s" % (flag_options))
+    print("")
+    print("Peak memory usage: %g (GB)" % (memory_data["peak_memory"] / bytes_in_gb))
+    print("")
+    if "python_lc" in memory_data.keys():
+        print(
+            "Memory for stored lightcones: %g (GB)"
+            % (memory_data["python_lc"] / bytes_in_gb)
+        )
+    """logger.info("Peak memory usage: %g (GB)"%(memory_data['peak_memory']/bytes_in_gb))"""
+    print(
+        "Memory for ICs: %g (GB; Python) %g (GB; C)"
+        % (memory_data["ics_python"] / bytes_in_gb, memory_data["ics_c"] / bytes_in_gb)
+    )
+    print(
+        "Memory for single perturbed field: %g (GB; Python) %g (GB; C)"
+        % (memory_data["pf_python"] / bytes_in_gb, memory_data["pf_c"] / bytes_in_gb)
+    )
+    if flag_options.USE_HALO_FIELD:
+        print(
+            "Note these are approximations as we don't know a priori how many haloes there are (assume 10 per cent of volume)"
+        )
+        print(
+            "Memory for generating halo list: %g (GB; Python) %g (GB; C)"
+            % (
+                memory_data["hf_python"] / bytes_in_gb,
+                memory_data["hf_c"] / bytes_in_gb,
+            )
+        )
+        print(
+            "Memory for perturbing halo list: %g (GB; Python) %g (GB; C)"
+            % (
+                memory_data["phf_python"] / bytes_in_gb,
+                memory_data["phf_c"] / bytes_in_gb,
+            )
+        )
+
+    print(
+        "Memory for single ionized box: %g (GB; Python) %g (GB; C)"
+        % (memory_data["ib_python"] / bytes_in_gb, memory_data["ib_c"] / bytes_in_gb)
+    )
+    if flag_options.USE_TS_FLUCT:
+        print(
+            "Memory for single spin temperature box: %g (GB; Python) %g (GB; C per z) %g (GB; C retained)"
+            % (
+                memory_data["st_python"] / bytes_in_gb,
+                memory_data["st_c_per_z"] / bytes_in_gb,
+                memory_data["st_c_init"] / bytes_in_gb,
+            )
+        )
+    print(
+        "Memory for single brightness temperature box: %g (GB; Python) %g (GB; C)"
+        % (memory_data["bt_python"] / bytes_in_gb, memory_data["bt_c"] / bytes_in_gb)
+    )
+    print("")
