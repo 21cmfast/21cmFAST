@@ -31,6 +31,7 @@
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
+#include <omp.h>
 
 // === auxiliary functions
 static inline char *timenow();
@@ -54,8 +55,9 @@ static inline char *timenow();
 #define PRINTOUTFUNCTION(format, ...)   fprintf(stdout, format, __VA_ARGS__)
 
 
-#define LOG_FMT             "%s | %-7s | %-15s | %s:%d [pid=%d] | "
-#define LOG_ARGS(LOG_TAG)   timenow(), LOG_TAG, _FILE, __FUNCTION__, __LINE__, getpid()
+#define LOG_FMT             "%s | %-7s | %-15s | %s:%d [pid=%d/thr=%d] | "
+#define LOG_ARGS(LOG_TAG)   timenow(), LOG_TAG, _FILE, __FUNCTION__, __LINE__, getpid(), omp_get_thread_num()
+
 
 #define NEWLINE     "\n"
 

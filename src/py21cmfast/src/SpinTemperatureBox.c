@@ -102,7 +102,6 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
 
     float curr_dens, min_curr_dens, max_curr_dens;
 
-    //jbm:
     float curr_vcb;
     min_curr_dens = max_curr_dens = 0.;
 
@@ -765,12 +764,12 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
                             zpp_grid = determine_zpp_min + (determine_zpp_max - determine_zpp_min)*(float)i/((float)zpp_interp_points_SFR-1.0);
 
                             if(flag_options->M_MIN_in_Mass) {
-                                Sigma_Tmin_grid[i] = sigma_z0(FMAX(M_MIN,  M_MIN_WDM));
-                                ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, FMAX(M_MIN,  M_MIN_WDM));
+                                Sigma_Tmin_grid[i] = sigma_z0(fmaxf(M_MIN,  M_MIN_WDM));
+                                ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, fmaxf(M_MIN,  M_MIN_WDM));
                             }
                             else {
-                                Sigma_Tmin_grid[i] = sigma_z0(FMAX((float)TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
-                                ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, FMAX((float)TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                                Sigma_Tmin_grid[i] = sigma_z0(fmaxf((float)TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
+                                ST_over_PS_arg_grid[i] = FgtrM_General(zpp_grid, fmaxf((float)TtoM(zpp_grid, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM));
                             }
                         }
                     }
@@ -873,7 +872,8 @@ LOG_SUPER_DEBUG("got density gridpoints");
 
                 if(redshift_int_Nion_z < 0 || (redshift_int_Nion_z + 1) > (zpp_interp_points_SFR - 1)) {
                     LOG_ERROR("I have overstepped my allocated memory for the interpolation table Nion_z_val");
-                    Throw(ParameterError);
+//                    Throw(ParameterError);
+                    Throw(TableEvaluationError);
                 }
 
                 redshift_table_Nion_z = determine_zpp_min + zpp_bin_width*(float)redshift_int_Nion_z;
@@ -904,7 +904,7 @@ LOG_SUPER_DEBUG("got density gridpoints");
                             for (k=0; k<user_params->HII_DIM; k++){
 
                               if (flag_options->FIX_VCB_AVG){ //with this flag we ignore reading vcb box
-                                curr_vcb = VAVG;
+                                curr_vcb = global_params.VAVG;
                               }
                               else{
                                 if(user_params->USE_RELATIVE_VELOCITIES){
@@ -919,10 +919,8 @@ LOG_SUPER_DEBUG("got density gridpoints");
                                               log10(lyman_werner_threshold(zp, previous_spin_temp->J_21_LW_box[HII_R_INDEX(i,j,k)],
                                               curr_vcb, astro_params) );
 
-//JBM: There might be a better way than just reading ALL the ICs? Is the struct populated by defualt?
 
-
-//JBM: this only accounts for effect 3 (largest on minihaloes). Effects 1 and 2 affect both minihaloes (MCGs) and regular ACGs, but they're smaller ~10%. Return to this (TODO)
+//This only accounts for effect 3 (only on minihaloes). Effects 1+2 also affects ACGs, but is included only on average.
 
 
 
@@ -983,7 +981,7 @@ LOG_SUPER_DEBUG("got density gridpoints");
 
             if(flag_options->M_MIN_in_Mass) {
 
-                if (FgtrM(zp, FMAX(M_MIN,  M_MIN_WDM)) < 1e-15 )
+                if (FgtrM(zp, fmaxf(M_MIN,  M_MIN_WDM)) < 1e-15 )
                     NO_LIGHT = 1;
                 else
                     NO_LIGHT = 0;
@@ -992,7 +990,7 @@ LOG_SUPER_DEBUG("got density gridpoints");
             }
             else {
 
-                if (FgtrM(zp, FMAX((float)TtoM(zp, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM)) < 1e-15 )
+                if (FgtrM(zp, fmaxf((float)TtoM(zp, astro_params->X_RAY_Tvir_MIN, mu_for_Ts),  M_MIN_WDM)) < 1e-15 )
                     NO_LIGHT = 1;
                 else
                     NO_LIGHT = 0;
@@ -1047,7 +1045,8 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
                     if(redshift_int_SFRD < 0 || (redshift_int_SFRD + 1) > (zpp_interp_points_SFR - 1)) {
                         LOG_ERROR("I have overstepped my allocated memory for the interpolation table SFRD_val");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableEvaluationError);
                     }
 
                     redshift_table_SFRD = determine_zpp_min + zpp_bin_width*(float)redshift_int_SFRD;
@@ -1125,7 +1124,8 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
                     if(zpp_gridpoint1_int < 0 || (zpp_gridpoint1_int + 1) > (zpp_interp_points_SFR - 1)) {
                         LOG_ERROR("I have overstepped my allocated memory for the interpolation table fcoll_R_grid");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableEvaluationError);
                     }
 
                     zpp_gridpoint1 = determine_zpp_min + zpp_bin_width*(float)zpp_gridpoint1_int;
@@ -1159,10 +1159,10 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 }
                 else {
                     if(flag_options->M_MIN_in_Mass) {
-                        sigma_Tmin[R_ct] = sigma_z0(FMAX(M_MIN, M_MIN_WDM));
+                        sigma_Tmin[R_ct] = sigma_z0(fmaxf(M_MIN, M_MIN_WDM));
                     }
                     else {
-                        sigma_Tmin[R_ct] = sigma_z0(FMAX((float)TtoM(zpp, astro_params->X_RAY_Tvir_MIN, mu_for_Ts), M_MIN_WDM));
+                        sigma_Tmin[R_ct] = sigma_z0(fmaxf((float)TtoM(zpp, astro_params->X_RAY_Tvir_MIN, mu_for_Ts), M_MIN_WDM));
                     }
 
                     ST_over_PS[R_ct] = dzpp_for_evolve * pow(1+zpp, -(astro_params->X_RAY_SPEC_INDEX));
@@ -1172,11 +1172,11 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
             if(user_params->USE_INTERPOLATION_TABLES) {
                 if(flag_options->USE_MINI_HALOS){
-                    lower_int_limit = FMAX(nu_tau_one_MINI(zp, zpp, x_e_ave, filling_factor_of_HI_zp,
+                    lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp, x_e_ave, filling_factor_of_HI_zp,
                                                               log10_Mcrit_LW_ave,LOG10_MTURN_INT), (astro_params->NU_X_THRESH)*NU_over_EV);
                 }
                 else{
-                    lower_int_limit = FMAX(nu_tau_one(zp, zpp, x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
+                    lower_int_limit = fmax(nu_tau_one(zp, zpp, x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
                 }
 
                 if (filling_factor_of_HI_zp < 0) filling_factor_of_HI_zp = 0; // for global evol; nu_tau_one above treats negative (post_reionization) inferred filling factors properly
@@ -1189,7 +1189,8 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
                     if(isfinite(freq_int_heat_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_ion_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_lya_tbl[x_e_ct][R_ct])==0) {
                         LOG_ERROR("One of the frequency interpolation tables has an infinity or a NaN");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableGenerationError);
                     }
                 }
             }
@@ -1247,19 +1248,19 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                     }
                     else {
                         if(flag_options->M_MIN_in_Mass) {
-                            ST_over_PS[R_ct] *= FgtrM_General(zpp_for_evolve_list[R_ct], FMAX(M_MIN, M_MIN_WDM));
+                            ST_over_PS[R_ct] *= FgtrM_General(zpp_for_evolve_list[R_ct], fmaxf(M_MIN, M_MIN_WDM));
                         }
                         else {
-                            ST_over_PS[R_ct] *= FgtrM_General(zpp_for_evolve_list[R_ct], FMAX((float)TtoM(zpp_for_evolve_list[R_ct], astro_params->X_RAY_Tvir_MIN, mu_for_Ts), M_MIN_WDM));
+                            ST_over_PS[R_ct] *= FgtrM_General(zpp_for_evolve_list[R_ct], fmaxf((float)TtoM(zpp_for_evolve_list[R_ct], astro_params->X_RAY_Tvir_MIN, mu_for_Ts), M_MIN_WDM));
                         }
                     }
 
                     if(flag_options->USE_MINI_HALOS){
-                        lower_int_limit = FMAX(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
+                        lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
                                                                log10_Mcrit_LW_ave_list[R_ct],LOG10_MTURN_INT), (astro_params->NU_X_THRESH)*NU_over_EV);
                     }
                     else{
-                        lower_int_limit = FMAX(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
+                        lower_int_limit = fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
                     }
 
                     if (filling_factor_of_HI_zp < 0) filling_factor_of_HI_zp = 0; // for global evol; nu_tau_one above treats negative (post_reionization) inferred filling factors properly
@@ -1277,7 +1278,8 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 for (x_e_ct = 0; x_e_ct < x_int_NXHII; x_e_ct++){
                     if(isfinite(freq_int_heat_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_ion_tbl[x_e_ct][R_ct])==0 || isfinite(freq_int_lya_tbl[x_e_ct][R_ct])==0) {
                         LOG_ERROR("One of the frequency interpolation tables has an infinity or a NaN");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableGenerationError);
                     }
                 }
             }
@@ -1313,7 +1315,8 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
                     }
                     if(table_int_boundexceeded==1) {
                         LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of fcoll");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableEvaluationError);
                     }
                 }
             }
@@ -1349,7 +1352,8 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
                 for(i=0;i<user_params->N_THREADS;i++) {
                     if(table_int_boundexceeded_threaded[i]==1) {
                         LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of fcoll");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableEvaluationError);
                     }
                 }
             }
@@ -1689,7 +1693,8 @@ LOG_SUPER_DEBUG("looping over box...");
                 for(i=0;i<user_params->N_THREADS;i++) {
                     if(fcoll_int_boundexceeded_threaded[omp_get_thread_num()]==1) {
                         LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the fcoll/nion_splines");
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(TableEvaluationError);
                     }
                 }
 
@@ -2104,7 +2109,8 @@ LOG_SUPER_DEBUG("looping over box...");
             for(i=0;i<user_params->N_THREADS; i++) {
                 if(table_int_boundexceeded_threaded[i]==1) {
                     LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables of dfcoll_dz_val");
-                    Throw(ParameterError);
+//                    Throw(ParameterError);
+                    Throw(TableEvaluationError);
                 }
             }
         }
@@ -2112,7 +2118,8 @@ LOG_SUPER_DEBUG("looping over box...");
         for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
             if(isfinite(this_spin_temp->Ts_box[box_ct])==0) {
                 LOG_ERROR("Estimated spin temperature is either infinite of NaN!");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(InfinityorNaNError);
             }
         }
 

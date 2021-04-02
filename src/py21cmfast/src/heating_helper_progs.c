@@ -35,7 +35,7 @@ double get_M_min_ion(float z){
 }
 
 // * initialization routine * //
-int init_heat();
+// int init_heat();
 
 /* destruction/deallocation routine */
 void destruct_heat();
@@ -97,9 +97,11 @@ int init_heat()
         return -2;
     if( kappa_10_pH(1.0,1) < 0)
         return -3;
+    LOG_SUPER_DEBUG("About to initialize interp arrays");
 
     initialize_interp_arrays();
 
+    LOG_SUPER_DEBUG("Done initializing heat.");
     return 0;
 }
 
@@ -206,7 +208,7 @@ double T_RECFAST(float z, int flag)
         sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
         if ( !(F=fopen(filename, "r")) ){
             LOG_ERROR("T_RECFAST: Unable to open file: %s for reading.", filename);
-            Throw 1;
+            Throw(IOError);
         }
 
         for (i=(RECFAST_NPTS-1);i>=0;i--) {
@@ -259,7 +261,7 @@ double xion_RECFAST(float z, int flag)
         // Initialize vectors
         sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
         if ( !(F=fopen(filename, "r")) ){
-            LOG_ERROR("xion_RECFAST: Unable to open file: %s for reading\nAborting\n", RECFAST_FILENAME);
+            LOG_ERROR("xion_RECFAST: Unable to open file: %s for reading.", RECFAST_FILENAME);
             Throw IOError;
         }
 
@@ -818,12 +820,15 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
     int status;
     gsl_set_error_handler_off();
     status = gsl_integration_qag (&F, lower_int_limit, global_params.NU_X_MAX*NU_over_EV, 0, rel_tol, 1000, GSL_INTEG_GAUSS15, w, &result, &error);
-    gsl_integration_workspace_free (w);
 
     if(status!=0){
         LOG_ERROR("gsl error with code %d", status);
+        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_int_limit,global_params.NU_X_MAX*NU_over_EV,rel_tol,result,error);
+        LOG_ERROR("data: zp=%e local_x_e=%e FLAG=%d",zp,local_x_e,FLAG);
         Throw GSLError;
     }
+
+    gsl_integration_workspace_free (w);
 
     // if it is the Lya integral, add prefactor
     if (FLAG == 2)
@@ -1026,10 +1031,22 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, d
     p.LOG10_MTURN_INT = LOG10_MTURN_INT;
 
     F.params = &p;
-    gsl_integration_qag (&F, zpp, zp, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
-    //    gsl_integration_qag (&F, zpp, zp, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
-    gsl_integration_workspace_free (w);
 
+    int status;
+
+    gsl_set_error_handler_off();
+
+    status = gsl_integration_qag (&F, zpp, zp, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
+
+    if(status!=0){
+        LOG_ERROR("gsl error with code %d", status);
+        LOG_ERROR("(function argument): zp=%e zpp=%e rel_tol=%e result=%e error=%e",zp,zpp,rel_tol,result,error);
+        LOG_ERROR("data: nu=%e nu_0=%e x_e=%e x_e_ave=%e",nu,p.nu_0,p.x_e,p.x_e_ave);
+        LOG_ERROR("data: ion_eff=%e ion_eff_MINI=%e log10_Mturn_MINI=%e LOG10_MTURN_INT=%e",p.ion_eff,p.ion_eff_MINI,p.log10_Mturn_MINI,p.LOG10_MTURN_INT);
+        Throw GSLError;
+    }
+
+    gsl_integration_workspace_free (w);
 
     //     if (DEBUG_ON)
     //     printf("returning from tauX, return value=%e\n", result);
@@ -1097,16 +1114,25 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
         }
     }
 
+    F.params = &p;
+
+    int status;
+
     gsl_set_error_handler_off();
 
-    F.params = &p;
-    gsl_integration_qag (&F, zpp, zp, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
+    status = gsl_integration_qag (&F, zpp, zp, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
+
+    if(status!=0){
+        LOG_ERROR("gsl error with code %d", status);
+        LOG_ERROR("(function argument): zp=%e zpp=%e rel_tol=%e result=%e error=%e",zp,zpp,rel_tol,result,error);
+        LOG_ERROR("data: nu=%e nu_0=%e x_e=%e x_e_ave=%e ion_eff=%e",nu,nu/(1+zp),x_e,x_e_ave,p.ion_eff);
+        Throw GSLError;
+    }
+
     gsl_integration_workspace_free (w);
 
     return result;
 }
-
-
 
 // Returns the frequency threshold where \tau_X = 1, given parameter values of
 // electron fraction in the IGM outside of HII regions, x_e,
@@ -1142,8 +1168,8 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
 
     // check if too ionized
     if (x_e > 0.9999){
-        LOG_ERROR("x_e value is too close to 1 for convergence.");
-        Throw(ParameterError);
+//        LOG_ERROR("x_e value is too close to 1 for convergence.");
+        return astro_params_hf->NU_X_THRESH;
     }
 
     // select solver and allocate memory
@@ -1191,7 +1217,8 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
 
     if(!isfinite(r)){
         LOG_ERROR("Value for nu_tau_one_MINI is infinite or NAN");
-        Throw(ParameterError);
+//        Throw(ParameterError);
+        Throw(InfinityorNaNError);
     }
 
     return r;
@@ -1209,7 +1236,8 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
 
     // check if too ionized
     if (x_e > 0.9999){
-        Throw(ParameterError);
+//        LOG_ERROR("x_e value is too close to 1 for convergence.");
+        return astro_params_hf->NU_X_THRESH;
     }
 
     // select solver and allocate memory
@@ -1255,7 +1283,8 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
 
     if(!isfinite(r)){
         LOG_ERROR("nu_tau_one is infinite or NAN");
-        Throw(ParameterError);
+//        Throw(ParameterError);
+        Throw(InfinityorNaNError);
     }
 
     return r;

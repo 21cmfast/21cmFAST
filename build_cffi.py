@@ -18,7 +18,7 @@ else:
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,
 # we set it to the level just above no logging at all.
-log_level = os.environ.get("LOG_LEVEL", 3 if "DEBUG" in os.environ else 1)
+log_level = os.environ.get("LOG_LEVEL", 4 if "DEBUG" in os.environ else 1)
 available_levels = [
     "NONE",
     "ERROR",

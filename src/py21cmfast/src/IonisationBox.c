@@ -58,7 +58,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     float Splined_Fcoll_MINI, prev_dens, ION_EFF_FACTOR_MINI, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI;
     float ave_M_coll_cell, ave_N_min_cell, pixel_volume, density_over_mean;
 
-    //jbm:
     float curr_vcb;
 
     double global_xH, ST_over_PS, f_coll, R, stored_R, f_coll_min;
@@ -171,7 +170,10 @@ LOG_DEBUG("PhotonCons data:");
 LOG_DEBUG("original redshift=%f, updated redshift=%f delta-z = %f", stored_redshift, redshift, absolute_delta_z);
         if(isfinite(redshift)==0 || isfinite(absolute_delta_z)==0) {
             LOG_ERROR("Updated photon non-conservation redshift is either infinite or NaN!");
-            Throw(ParameterError);
+            LOG_ERROR("This can sometimes occur when reionisation stalls (i.e. extremely low"\
+                      "F_ESC or F_STAR or not enough sources)");
+//            Throw(ParameterError);
+            Throw(PhotonConsError);
         }
     }
 
@@ -427,7 +429,7 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
 
                             Mcrit_RE = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[HII_R_INDEX(x, y, z)], previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)]);
                             if (flag_options->FIX_VCB_AVG){ //with this flag we ignore reading vcb box
-                              curr_vcb = VAVG;
+                              curr_vcb = global_params.VAVG;
                             }
                             else{
                               if(user_params->USE_RELATIVE_VELOCITIES ){
@@ -599,14 +601,16 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
 
     if(isfinite(box->mean_f_coll)==0) {
         LOG_ERROR("Mean collapse fraction is either infinite or NaN!");
-        Throw(ParameterError);
+//        Throw(ParameterError);
+        Throw(InfinityorNaNError);
     }
 LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %e", box->mean_f_coll);
 
     if (flag_options->USE_MINI_HALOS){
         if(isfinite(box->mean_f_coll_MINI)==0) {
             LOG_ERROR("Mean collapse fraction of MINI is either infinite or NaN!");
-            Throw(ParameterError);
+//            Throw(ParameterError);
+            Throw(InfinityorNaNError);
         }
 LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f_coll_MINI);
     }
@@ -849,7 +853,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
                             for (y = 0; y < user_params->HII_DIM; y++) {
                                 for (z = 0; z < user_params->HII_DIM; z++) {
                                     // delta cannot be less than -1
-                                    *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
+                                    *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(
                                                 *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
 
                                     if (*((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) < min_density) {
@@ -880,7 +884,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
                                     for (z=0; z<user_params->HII_DIM; z++){
                                         // delta cannot be less than -1
                                         *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = \
-                                                        FMAX(*((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
+                                                        fmaxf(*((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
 
                                         if( *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) < prev_min_density ) {
                                             prev_min_density = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
@@ -997,6 +1001,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
 #pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded_threaded,log10_Nion_spline,Nion_spline,erfc_denom,erfc_arg_min,\
                             erfc_arg_max,InvArgBinWidth,ArgBinWidth,ERFC_VALS_DIFF,ERFC_VALS,log10_Mturnover_filtered,log10Mturn_min,log10Mturn_bin_width_inv, \
                             log10_Mturnover_MINI_filtered,log10Mturn_bin_width_inv_MINI,log10_Nion_spline_MINI,prev_deltax_filtered,previous_ionize_box,ION_EFF_FACTOR,\
+                            prev_overdense_small_bin_width, overdense_small_bin_width,overdense_small_bin_width_inv,\
                             prev_overdense_small_min,prev_overdense_small_bin_width_inv,prev_log10_Nion_spline,prev_log10_Nion_spline_MINI,prev_overdense_large_min,\
                             prev_overdense_large_bin_width_inv,prev_Nion_spline,prev_Nion_spline_MINI,box,counter,M_coll_filtered,massofscaleR,pixel_volume,sigmaMmax,\
                             M_MIN,growth_factor,Mlim_Fstar,Mlim_Fesc,Mcrit_atom,Mlim_Fstar_MINI,Mlim_Fesc_MINI,prev_growth_factor) \
@@ -1011,24 +1016,24 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
                         for (z = 0; z < user_params->HII_DIM; z++) {
 
                             // delta cannot be less than -1
-                            *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(
+                            *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(
                                                 *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
 
                             // <N_rec> cannot be less than zero
                             if (flag_options->INHOMO_RECO) {
-                                *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(*((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
+                                *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(*((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
                             }
 
                             // x_e has to be between zero and unity
                             if (flag_options->USE_TS_FLUCT) {
-                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMAX(*((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.);
-                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = FMIN(*((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.999);
+                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(*((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.);
+                                *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = fminf(*((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.999);
                             }
 
                             if(flag_options->USE_HALO_FIELD) {
 
                                 // collapsed mass cannot be less than zero
-                                *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) = FMAX(
+                                *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) = fmaxf(
                                         *((float *)M_coll_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
 
                                 density_over_mean = 1.0 + *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
@@ -1056,6 +1061,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
 
                                             if(status_int > 0) {
                                                 overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
+                                                LOG_ULTRA_DEBUG("Broken 1059 in thread=%d", omp_get_thread_num());
                                             }
                                         }
                                         else {
@@ -1082,6 +1088,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
 
                                                 if(status_int > 0) {
                                                     overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
+                                                    LOG_ULTRA_DEBUG("Broken 1086 in thread=%d", omp_get_thread_num());
                                                 }
                                             }
                                             else {
@@ -1110,6 +1117,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
 
                                             if(status_int > 0) {
                                                 overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
+                                                LOG_ULTRA_DEBUG("Broken 1115 in thread=%d", omp_get_thread_num());
                                             }
 
 
@@ -1156,7 +1164,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
                                             x,y,z,curr_dens,prev_dens,previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
                                             Splined_Fcoll, prev_Splined_Fcoll, curr_dens, prev_dens, \
                                             log10_Mturnover, *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)));
-                                    Throw(ParameterError);
+//                                    Throw(ParameterError);
+                                    Throw(InfinityorNaNError);
                                 }
 
                                 if (Splined_Fcoll_MINI > 1.) Splined_Fcoll_MINI = 1.;
@@ -1189,7 +1198,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
                                               log10_Nion_spline_MINI[overdense_int +1+ NSFR_low* log10_Mturnover_MINI_int   ], \
                                               log10_Nion_spline_MINI[overdense_int   + NSFR_low*(log10_Mturnover_MINI_int+1)],  \
                                               log10_Nion_spline_MINI[overdense_int +1+ NSFR_low*(log10_Mturnover_MINI_int+1)]);
-                                    Throw(ParameterError);
+//                                    Throw(ParameterError);
+                                    Throw(InfinityorNaNError);
                                 }
                             }
                             else{
@@ -1204,18 +1214,21 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
             for (i = 0; i < user_params->N_THREADS; i++) {
                 if (overdense_int_boundexceeded_threaded[i] == 1) {
                     LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines");
-                    Throw(ParameterError);
+//                    Throw(ParameterError);
+                    Throw(TableEvaluationError);
                 }
             }
             if(isfinite(f_coll)==0) {
                 LOG_ERROR("f_coll is either infinite or NaN!");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(InfinityorNaNError);
             }
             f_coll /= (double) HII_TOT_NUM_PIXELS;
 
             if(isfinite(f_coll_MINI)==0) {
                 LOG_ERROR("f_coll_MINI is either infinite or NaN!");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(InfinityorNaNError);
             }
 
             f_coll_MINI /= (double) HII_TOT_NUM_PIXELS;
@@ -1431,7 +1444,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
                     if(isfinite(box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)])==0){
                         LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong "\
                                   "in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
-                        Throw(ParameterError);
+//                        Throw(ParameterError);
+                        Throw(InfinityorNaNError);
                     }
                 }
             }
@@ -1454,7 +1468,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
         if (isfinite(global_xH) == 0) {
             LOG_ERROR(
                     "Neutral fraction is either infinite or a Nan. Something has gone wrong in the ionisation calculation!");
-            Throw(ParameterError);
+//            Throw(ParameterError);
+            Throw(InfinityorNaNError);
         }
 
         // update the N_rec field
@@ -1496,7 +1511,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
 
             if (something_finite_or_infinite) {
                 LOG_ERROR("Recombinations have returned either an infinite or NaN value.");
-                Throw(ParameterError);
+//                Throw(ParameterError);
+                Throw(InfinityorNaNError);
             }
         }
 
@@ -1696,10 +1712,16 @@ int EvaluateSplineTable(bool MINI_HALOS, int dens_type, float curr_dens, float f
 
             if(dens_type==1) {
                 dens_val = (curr_dens - overdense_large_min) * overdense_large_bin_width_inv;
+              LOG_ULTRA_DEBUG("type=%d curr_dens=%e, overdense_large_min=%e, overdense_large_bin_width_inv=%e",\
+              dens_type,curr_dens, overdense_large_min,overdense_large_bin_width_inv);
             }
             if(dens_type==2) {
                 dens_val = (curr_dens - prev_overdense_large_min) * prev_overdense_large_bin_width_inv;
-            }
+                LOG_ULTRA_DEBUG("type=%d curr_dens=%e, prev_overdense_large_min=%e, prev_overdense_large_bin_width_inv=%e",\
+                dens_type,curr_dens, prev_overdense_large_min,prev_overdense_large_bin_width_inv);
+              }
+
+
 
             overdense_int = (int) floorf(dens_val);
 

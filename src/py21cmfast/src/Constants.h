@@ -29,10 +29,10 @@
  Filenames of the appropriate output from RECFAST to be used as boundary conditions in Ts.c
  as well as other tables used to compute the spin temperature
  */
-#define RECFAST_FILENAME (const char *) "External_tables/recfast_LCDM.dat"
-#define STELLAR_SPECTRA_FILENAME (const char *) "External_tables/stellar_spectra.dat"
-#define KAPPA_EH_FILENAME (const char *) "External_tables/kappa_eH_table.dat"
-#define KAPPA_PH_FILENAME (const char *) "External_tables/kappa_pH_table.dat"
+#define RECFAST_FILENAME (const char *) "recfast_LCDM.dat"
+#define STELLAR_SPECTRA_FILENAME (const char *) "stellar_spectra.dat"
+#define KAPPA_EH_FILENAME (const char *) "kappa_eH_table.dat"
+#define KAPPA_PH_FILENAME (const char *) "kappa_pH_table.dat"
 
 
 
@@ -65,9 +65,8 @@
 #define SHETH_p (0.175) // Sheth and Tormen p parameter (from Jenkins et al. 2001)
 #define SHETH_A (0.353) // Sheth and Tormen A parameter (from Jenkins et al. 2001)
 
-//JBM relvel stuff
+
 #define SIGMAVCB (29.0) //rms value of the DM-b relative velocity [im km/s]
-#define VAVG (25.86) //avg value of the DM-b relative velocity [im km/s], ~0.9*SIGMAVCB
 
 
 // Universal FOF HMF (Watson et al. 2013)
@@ -188,7 +187,7 @@
 // ----------------------------------------------------------------------------------------- //
 
 
-#define CLASS_FILENAME (const char *) "External_tables/Transfers_z0.dat"
+#define CLASS_FILENAME (const char *) "Transfers_z0.dat"
 #define CLASS_LENGTH  150 //length of the CLASS transfer function
 #define KBOT_CLASS (float) (1e-5) //max and min k in  CLASS transfer function, temporary until interfaced properly
 #define KTOP_CLASS (float) (1e3)

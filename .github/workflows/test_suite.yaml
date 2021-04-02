@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@master
         with:
-          fetch-depth: 1
+          fetch-depth: 0
       - name: Get Miniconda MacOSX
         if: matrix.os == 'macos-latest'
         run: |
@@ -42,6 +42,16 @@ jobs:
         run: |
           wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O $HOME/miniconda.sh;
           bash $HOME/miniconda.sh -b -p $HOME/miniconda
+      - name: Make it a Debug Run
+        if: "contains(github.event.head_commit.message, 'ci debug')"
+        run: |
+          echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
+          echo "extra_pytest_args='-s'" >> $GITHUB_ENV
+      - name: Make it a Normal Run
+        if: "!contains(github.event.head_commit.message, 'ci debug')"
+        run: |
+          echo "log_level=INFO" >> $GITHUB_ENV
+          echo "extra_pytest_args=" >> $GITHUB_ENV
       - name: Setup Environment
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
@@ -69,18 +79,18 @@ jobs:
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          pip install .
+          LOG_LEVEL=ULTRA_DEBUG pip install .
       - name: Install 21cmFAST MacOS
         if: matrix.os == 'macos-latest'
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+          LOG_LEVEL=${{ env.log_level }} CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
       - name: Run Tests
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          python -m pytest --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
+          python -m pytest --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 ${{ env.extra_pytest_args }}
       - uses: codecov/codecov-action@master
         if: matrix.os == 'ubuntu-latest' && success()
         with:
