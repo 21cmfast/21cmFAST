@@ -18,6 +18,8 @@ from astropy.cosmology import Planck15
 from os import path
 from pathlib import Path
 
+from ._cfg import config
+from ._data import DATA_PATH
 from ._utils import StructInstanceWrapper, StructWithDefaults
 from .c_21cmfast import ffi, lib
 
@@ -268,7 +270,6 @@ class GlobalParams(StructInstanceWrapper):
         Sheth-Tormen parameter for ellipsoidal collapse (for HMF). See notes for `SHETH_b`.
     Zreion_HeII : float
         Redshift of helium reionization, currently only used for tau_e
-
     external_table_path : str
         The system path to find external tables for calculation speedups. DO NOT MODIFY.
     R_BUBBLE_MIN : float
@@ -281,26 +282,20 @@ class GlobalParams(StructInstanceWrapper):
         Maximum mass when performing integral on halo mass function.
     T_RE:
         The peak gas temperatures behind the supersonic ionization fronts during reionization.
+    VAVG:
+        Avg value of the DM-b relative velocity [im km/s], ~0.9*SIGMAVCB (=25.86 km/s) normally.
     """
 
     def __init__(self, wrapped, ffi):
         super().__init__(wrapped, ffi)
 
-        self._table_path = Path.home() / ".21cmfast"
-        external_tables = ffi.new("char[]", str(self._table_path).encode())
-        self.external_table_path = external_tables
-        self.wisdoms_path = ffi.new(
-            "char[]", str(self._table_path / "wisdoms").encode()
-        )
+        self.external_table_path = ffi.new("char[]", str(DATA_PATH).encode())
+        self._wisdoms_path = Path(config["direc"]) / "wisdoms"
+        self.wisdoms_path = ffi.new("char[]", str(self._wisdoms_path).encode())
 
     @property
     def external_table_path(self):
         """An ffi char pointer to the path to which external tables are kept."""
-        if not self._table_path.exists():
-            raise IOError(
-                f"Found no user data directory for 21cmFAST! Should be at {self._table_path}."
-                f"Try re-installing 21cmFAST. "
-            )
         return self._external_table_path
 
     @external_table_path.setter
@@ -310,13 +305,8 @@ class GlobalParams(StructInstanceWrapper):
     @property
     def wisdoms_path(self):
         """An ffi char pointer to the path to which external tables are kept."""
-        if not self._table_path.exists():
-            raise IOError(
-                f"Found no user data directory for 21cmFAST! Should be at {self._table_path}."
-                f"Try re-installing 21cmFAST. "
-            )
-        if not (self._table_path / "wisdoms").exists():
-            (self._table_path / "wisdoms").mkdir()
+        if not self._wisdoms_path.exists():
+            self._wisdoms_path.mkdir(parents=True)
 
         return self._wisdom_path
 
@@ -612,6 +602,8 @@ class FlagOptions(StructWithDefaults):
         photon non-conservation.
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations.
+    USE_VELS_AUX: bool, optional
+        Auxiliar variable (not input) to check if minihaloes are being used without relative velocities and complain
     FILTER : int, {0, 1, 2}
         Filter to use for smoothing for the HMF.
         0. tophat (DEFAULT)
@@ -636,6 +628,21 @@ class FlagOptions(StructWithDefaults):
         "FILTER": 0,
         "USE_ETHOS": False,
     }
+
+    # This checks if relative velocities are off to complain if minihaloes are on
+    def __init__(
+        self,
+        *args,
+        USE_VELS_AUX=UserParams._defaults_["USE_RELATIVE_VELOCITIES"],
+        **kwargs,
+    ):
+        # TODO: same as with inhomo_reco. USE_VELS_AUX used to check that relvels are on if MCGs are too
+        self.USE_VELS_AUX = USE_VELS_AUX
+        super().__init__(*args, **kwargs)
+        if self.USE_MINI_HALOS and not self.USE_VELS_AUX and not self.FIX_VCB_AVG:
+            logger.warning(
+                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
+            )
 
     @property
     def USE_HALO_FIELD(self):
@@ -809,7 +816,8 @@ class AstroParams(StructWithDefaults):
         units. Default is `ION_Tvir_MIN`.
     F_H2_SHIELD: float, optional
         Self-shielding factor of molecular hydrogen when experiencing LW suppression.
-        Cf. Eq. 12 of Qin+2020
+        Cf. Eq. 12 of Qin+2020. Consistently included in A_LW fit from sims.
+        If used we recommend going back to Macachek+01 A_LW=22.86.
     t_STAR : float, optional
         Fractional characteristic time-scale (fraction of hubble time) defining the
         star-formation rate of galaxies. Only used if `USE_MASS_DEPENDENT_ZETA` is set
@@ -818,7 +826,7 @@ class AstroParams(StructWithDefaults):
         Number of steps used in redshift-space-distortion algorithm. NOT A PHYSICAL
         PARAMETER.
     A_LW, BETA_LW: float, optional
-        Impact of the LW feedback on Mturn for minihaloes. Default is 2.0 and 0.6, respectively. See Eq. XX.
+        Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Eq. XX.
     A_VCB, BETA_VCB: float, optional
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Eq. XX.
     h_PEAK, log10_k_PEAK: double, optional
@@ -849,7 +857,7 @@ class AstroParams(StructWithDefaults):
         "F_H2_SHIELD": 0.0,
         "t_STAR": 0.5,
         "N_RSD_STEPS": 20,
-        "A_LW": 2.0,
+        "A_LW": 2.00,
         "BETA_LW": 0.6,
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
