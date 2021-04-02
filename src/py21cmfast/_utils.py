@@ -1,7 +1,4 @@
 """Utilities that help with wrapping various C structures."""
-from __future__ import annotations
-
-import copy
 import glob
 import h5py
 import logging
