@@ -679,6 +679,8 @@ double init_ps(){
 
     // F.params = &Radius_8;
 
+    int status;
+
     gsl_set_error_handler_off();
 
     status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
