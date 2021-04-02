@@ -646,7 +646,7 @@ class FlagOptions(StructWithDefaults):
                 "Automatically setting USE_HALO_FIELD to False."
             )
             return False
-        if self.USE_ETHOS and self.USE_HALO_FIELD:
+        if self.USE_ETHOS and self._USE_HALO_FIELD:
             logger.warning(
                 "You have set USE_ETHOS to True but USE_HALO_FIELD is also True! Code not equipped. "
                 "Automatically setting USE_HALO_FIELD to False."
@@ -821,8 +821,10 @@ class AstroParams(StructWithDefaults):
         Impact of the LW feedback on Mturn for minihaloes. Default is 2.0 and 0.6, respectively. See Eq. XX.
     A_VCB, BETA_VCB: float, optional
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Eq. XX.
-    h_PEAK, k_PEAK: double, optional
-        ETHOS parameters for dark acoustic oscillations (DAOs) in the matter power spectrum. Location (log10(k_PEAK/Mpc-1)) and height (h_PEAK from 0 to 1) of the first DAO peak. Warm dark matter (WDM) corresponds to h_PEAK=0, and k_PEAK changes its mass. See Ref.~YY. (TODO!)
+    h_PEAK, log10_k_PEAK: double, optional
+        ETHOS parameters for dark acoustic oscillations (DAOs) in the matter power spectrum.
+        Location (10^log10_k_PEAK h/Mpc-1) and height (h_PEAK from 0 to 1) of the first DAO peak.
+        Warm dark matter (WDM) corresponds to h_PEAK=0, and log10_k_PEAK changes its mass. See Ref.~YY. (TODO!)
     """
 
     _ffi = ffi
@@ -851,7 +853,7 @@ class AstroParams(StructWithDefaults):
         "BETA_LW": 0.6,
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
-        "k_PEAK": 2.0,
+        "log10_k_PEAK": 2.0,
         "h_PEAK": 0.0,
     }
 
@@ -875,7 +877,7 @@ class AstroParams(StructWithDefaults):
             "L_X",
             "L_X_MINI",
             "X_RAY_Tvir_MIN",
-            "k_PEAK",
+            "log10_k_PEAK",
         ]:
             return 10 ** val
         else:
@@ -899,3 +901,19 @@ class AstroParams(StructWithDefaults):
     def X_RAY_Tvir_MIN(self):
         """Minimum virial temperature of X-ray emitting sources (unlogged and set dynamically)."""
         return self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
+
+    @property
+    def log10_k_PEAK(self):
+        """
+        Location (10^log10_k_PEAK h/Mpc-1) of the first DAO peak / WDM cut-off
+
+        Must be 1 < log10_k_PEAK < ~10 to avoid overflow
+        """
+        val = self._log10_k_PEAK
+
+        if not 1 <= val <= 10.:
+            raise ValueError(
+                "log10_k_PEAK must be 1-10 to avoid overflow."
+            )
+
+        return val

@@ -63,7 +63,7 @@ struct AstroParams{
 
     int N_RSD_STEPS;
 
-    float k_PEAK;
+    float log10_k_PEAK;
     float h_PEAK;
 };
 

@@ -4258,10 +4258,10 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
 
 
 double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd){
-//this function returns the ratio between the power spectrum in an ETHOS model of hpeak and kpeak and that of LCDM. Depends on h_PEAK and k_PEAK which are in astro_params
+//this function returns the ratio between the power spectrum in an ETHOS model of hpeak and kpeak and that of LCDM. Depends on h_PEAK and log10_k_PEAK which are in astro_params
 
 //nb: hpeak=astro_params_sfrd->h_PEAK
-//nb: kpeak=astro_params_sfrd->k_PEAK
+//nb: kpeak=astro_params_sfrd->log10_k_PEAK
 
     double b, d, tau, sig, c, h2, h2_X, h2_A, h2_B, h2_C;
 
@@ -4281,19 +4281,19 @@ double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd){
         h2_A = 0.17/sqrt(2.*PI)/0.2 * exp(-0.5*pow(h2_X,2.)) * (1 + 1 - erfcc(-3*h2_X/sqrt(2.)));
         h2_B = 1.*(tanh(3.*(astro_params_sfrd->h_PEAK+0.32))-1.);
         h2_C = 0.54*(tanh(8.*(astro_params_sfrd->h_PEAK-0.7))+1.);
-        h2 = h2_A*exp(h2_B*astro_params_sfrd->k_PEAK) + h2_C;
+        h2 = h2_A*exp(h2_B*astro_params_sfrd->log10_k_PEAK) + h2_C;
     }
 
-    double alpha = d/astro_params_sfrd->k_PEAK * pow(1./pow(sqrt(2),1./c)-1,1./b);
+    double alpha = d/astro_params_sfrd->log10_k_PEAK * pow(1./pow(sqrt(2),1./c)-1,1./b);
     double T_noncdm = pow(1. + pow(alpha*k, b),c); // General non-CDM transfer function following Muriga+17
 
     double peak2_ratio = 1.805;
-    double x_peak1 = (k - astro_params_sfrd->k_PEAK)/astro_params_sfrd->k_PEAK;
-    double x_peak2 = (k - peak2_ratio*astro_params_sfrd->k_PEAK)/astro_params_sfrd->k_PEAK;
+    double x_peak1 = (k - astro_params_sfrd->log10_k_PEAK)/astro_params_sfrd->log10_k_PEAK;
+    double x_peak2 = (k - peak2_ratio*astro_params_sfrd->log10_k_PEAK)/astro_params_sfrd->log10_k_PEAK;
 
     // ETHOS T(k) following Bohr+2020
     double T_ETHOS = fabs(T_noncdm) - sqrt(astro_params_sfrd->h_PEAK) * exp(-0.5*pow(x_peak1/sig, 2)
-              + sqrt(h2)/4. * erfcc(x_peak2/tau - 2) * erfcc(-x_peak2/sig - 2) * cos(1.1083*PI*k/astro_params_sfrd->k_PEAK));
+              + sqrt(h2)/4. * erfcc(x_peak2/tau - 2) * erfcc(-x_peak2/sig - 2) * cos(1.1083*PI*k/astro_params_sfrd->log10_k_PEAK));
 
     return T_ETHOS;
 
