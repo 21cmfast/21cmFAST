@@ -20,14 +20,16 @@ def test_box_shape(ic):
     assert ic.lowres_vx_2LPT.shape == shape
     assert ic.lowres_vy_2LPT.shape == shape
     assert ic.lowres_vz_2LPT.shape == shape
-    assert ic.lowres_vcb.shape == shape
     assert ic.hires_density.shape == hires_shape
+
     assert ic.hires_vx.shape == hires_shape
     assert ic.hires_vy.shape == hires_shape
     assert ic.hires_vz.shape == hires_shape
     assert ic.hires_vx_2LPT.shape == hires_shape
     assert ic.hires_vy_2LPT.shape == hires_shape
     assert ic.hires_vz_2LPT.shape == hires_shape
+
+    assert not hasattr(ic, "lowres_vcb")
 
     assert ic.cosmo_params == wrapper.CosmoParams()
 

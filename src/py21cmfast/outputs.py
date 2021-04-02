@@ -86,30 +86,45 @@ class InitialConditions(_OutputStruct):
         "NU_X_MAX",  # ib
     ]
 
-    def get_requirements(self, cls: str) -> List[str]:
-        """See super-class docstring."""
-        out = super().get_requirements()
+    def prepare_for_perturb(self, flag_options: FlagOptions):
+        """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
+        keep = []
 
-        if cls in (PerturbedField, HaloField):
-            if self.user_params.PERTURB_ON_HIGH_RES:
-                out.remove("lowres_density")
-                out.remove("lowres_vx")
-                out.remove("lowres_vy")
-                out.remove("lowres_vz")
+        if not self.user_params.PERTURB_ON_HIGH_RES:
+            keep.append("lowres_density")
+            keep.append("lowres_vx")
+            keep.append("lowres_vy")
+            keep.append("lowres_vz")
 
-                if self.user_params.USE_2LPT:
-                    out.remove("lowres_vx_2LPT")
-                    out.remove("lowres_vy_2LPT")
-                    out.remove("lowres_vz_2LPT")
-            else:
-                out.remove("hires_vx")
-                out.remove("hires_vy")
-                out.remove("hires_vz")
+            if self.user_params.USE_2LPT:
+                keep.append("lowres_vx_2LPT")
+                keep.append("lowres_vy_2LPT")
+                keep.append("lowres_vz_2LPT")
 
-                if self.user_params.USE_2LPT:
-                    out.remove("hires_vx_2LPT")
-                    out.remove("hires_vy_2LPT")
-                    out.remove("hires_vz_2LPT")
+            if flag_options.USE_HALO_FIELD:
+                keep.append("hires_density")
+        else:
+            keep.append("hires_density")
+            keep.append("hires_vx")
+            keep.append("hires_vy")
+            keep.append("hires_vz")
+
+            if self.user_params.USE_2LPT:
+                keep.append("hires_vx_2LPT")
+                keep.append("hires_vy_2LPT")
+                keep.append("hires_vz_2LPT")
+
+        if self.user_params.USE_RELATIVE_VELOCITIES:
+            keep.append("lowres_vcb")
+
+        self.prepare(keep=keep)
+
+    def prepare_for_spin_temp(self, flag_options: FlagOptions):
+        """Ensure ICs have all boxes required for spin_temp, and no more."""
+        keep = []
+        if self.user_params.USE_RELATIVE_VELOCITIES:
+            keep.append("lowres_vcb")
+        self.prepare(keep=keep)
 
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         shape = (self.user_params.HII_DIM,) * 3
@@ -174,37 +189,6 @@ class PerturbedField(_OutputStructZ):
         "NU_X_MAX",  # ib
     ]
 
-    def get_requirements(self, cls: str) -> List[str]:
-        """See superclass docstring."""
-        if cls == "InitialConditions":
-            out = []
-            if self.user_params.PERTURB_ON_HIGH_RES:
-                out += ["hires_density", "hires_vx", "hires_vy", "hires_vz"]
-                if self.user_params.USE_2LPT:
-                    out += [
-                        "hires_vx_2LPT",
-                        "hires_vy_2LPT",
-                        "hires_vz_2LPT",
-                    ]
-            else:
-                out += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
-                if self.user_params.USE_2LPT:
-                    out += [
-                        "lowres_vx_2LPT",
-                        "lowres_vy_2LPT",
-                        "lowres_vz_2LPT",
-                    ]
-
-            if self.user_params.USE_RELATIVE_VELOCITIES:
-                # TODO: this is a bit dodge. Actually lowres_vcb never appears in
-                # PerturbField.c, but appears later. If we don't add it here, it will
-                # be removed, and if no caching/writing is done, it will be lost forever.
-                out.append("lowres_vcb")
-
-            return out
-        else:
-            return []
-
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         return {
             "density": (self.user_params.HII_DIM,) * 3,
@@ -230,7 +214,7 @@ class _AllParamsBox(_OutputStructZ):
     ):
         self.flag_options = flag_options or FlagOptions()
         self.astro_params = astro_params or AstroParams(
-            INHOMO_RECO=flag_options.INHOMO_RECO
+            INHOMO_RECO=self.flag_options.INHOMO_RECO
         )
 
         self.log10_Mturnover_ave = 0.0
@@ -260,14 +244,7 @@ class HaloField(_AllParamsBox):
     _c_free_function = lib.free_halo_field
 
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
-        return {"halo_field": (self.user_params.HII_DIM,) * 3}
-
-    def get_requirements(self, cls: _BaseOutputStruct) -> List[str]:
-        """See superclass docstring."""
-        if cls.__class__ == InitialConditions:
-            return
-        else:
-            super().get_requirements(cls)
+        return {}
 
     def _c_shape(self, cstruct):
         return {
@@ -288,6 +265,9 @@ class PerturbHaloField(_AllParamsBox):
     _c_based_pointers = ("halo_masses", "halo_coords")
     _c_free_function = lib.free_phf
 
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        return {}
+
     def _c_shape(self, cstruct):
         return {
             "halo_masses": (cstruct.n_halos,),
@@ -301,7 +281,7 @@ class IonizedBox(_AllParamsBox):
     _meta = False
     _c_compute_function = lib.ComputeIonizedBox
 
-    def _init_arrays(self):
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         if self.flag_options.USE_MINI_HALOS:
             n_filtering = (
                 int(
@@ -324,38 +304,23 @@ class IonizedBox(_AllParamsBox):
         else:
             n_filtering = 1
 
-        # ionized_box is always initialised to be neutral for excursion set algorithm.
-        # Hence np.ones instead of np.zeros
-        self.xH_box = np.ones(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.Gamma12_box = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-        self.MFP_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.z_re_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.dNrec_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.temp_kinetic_all_gas = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-        self.Fcoll = np.zeros(
-            n_filtering * self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-
         shape = (self.user_params.HII_DIM,) * 3
         filter_shape = (n_filtering,) + shape
 
-        self.xH_box.shape = shape
-        self.Gamma12_box.shape = shape
-        self.MFP_box.shape = shape
-        self.z_re_box.shape = shape
-        self.dNrec_box.shape = shape
-        self.temp_kinetic_all_gas.shape = shape
-        self.Fcoll.shape = filter_shape
+        out = {
+            "xH_box": {"init": np.ones, "shape": shape},
+            "Gamma12_box": shape,
+            "MFP_box": shape,
+            "z_re_box": shape,
+            "dNrec_box": shape,
+            "temp_kinetic_all_gas": shape,
+            "Fcoll": filter_shape,
+        }
 
         if self.flag_options.USE_MINI_HALOS:
-            self.Fcoll_MINI = np.zeros(
-                n_filtering * self.user_params.HII_tot_num_pixels, dtype=np.float32
-            )
-            self.Fcoll_MINI.shape = filter_shape
+            out["Fcoll_MINI"] = filter_shape
+
+        return out
 
     @cached_property
     def global_xH(self):
@@ -374,23 +339,14 @@ class TsBox(_AllParamsBox):
     _c_compute_function = lib.ComputeTsBox
     _meta = False
 
-    def _init_arrays(self):
-        self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.x_e_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.Tk_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.J_21_LW_box = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-        shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-
-        self.Ts_box.shape = shape
-        self.x_e_box.shape = shape
-        self.Tk_box.shape = shape
-        self.J_21_LW_box.shape = shape
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        shape = (self.user_params.HII_DIM,) * 3
+        return {
+            "Ts_box": shape,
+            "x_e_box": shape,
+            "Tk_box": shape,
+            "J_21_LW_box": shape,
+        }
 
     @cached_property
     def global_Ts(self):
@@ -431,16 +387,8 @@ class BrightnessTemp(_AllParamsBox):
     _meta = False
     _filter_params = _OutputStructZ._filter_params
 
-    def _init_arrays(self):
-        self.brightness_temp = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-
-        self.brightness_temp.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        return {"brightness_temp": (self.user_params.HII_DIM,) * 3}
 
     @cached_property
     def global_Tb(self):
@@ -785,7 +733,7 @@ class Coeval(_HighLevelOutput):
         ]:
             if box is None:
                 continue
-            for field in box.fieldnames:
+            for field in box._get_box_structures():
                 setattr(self, field, getattr(box, field))
 
     @classmethod

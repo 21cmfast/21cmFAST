@@ -13,7 +13,7 @@ from cffi import FFI
 from hashlib import md5
 from os import makedirs, path
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from . import __version__
 from ._cfg import config
@@ -163,17 +163,17 @@ class StructWrapper:
     @property
     def fieldnames(self) -> List[str]:
         """List names of fields of the underlying C struct."""
-        return [f for f, t in self.fields]
+        return [f for f, t in self.fields.items()]
 
     @property
     def pointer_fields(self) -> List[str]:
         """List of names of fields which have pointer type in the C struct."""
-        return [f for f, t in self.fields if t.type.kind == "pointer"]
+        return [f for f, t in self.fields.items() if t.type.kind == "pointer"]
 
     @property
     def primitive_fields(self) -> List[str]:
         """List of names of fields which have primitive type in the C struct."""
-        return [f for f, t in self.fields if t.type.kind == "primitive"]
+        return [f for f, t in self.fields.items() if t.type.kind == "primitive"]
 
     def __getstate__(self):
         """Return the current state of the class without pointers."""
@@ -460,7 +460,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         self._array_structure = self._get_box_structures()
 
         for k in self._array_structure:
-            assert k in self.pointer_fields
+            if k not in self.pointer_fields:
+                raise TypeError(f"Key {k} in {self} not a defined pointer field in C.")
 
         if init:
             self._init_cstruct()
@@ -504,8 +505,10 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             elif isinstance(params, dict):
                 fnc = params.get("init", np.zeros)
                 shape = params.get("shape")
+            else:
+                raise ValueError("params is not a tuple or dict")
 
-            setattr(k, fnc(shape, dtype=tp))
+            setattr(self, k, fnc(shape, dtype=tp))
 
     @property
     def random_seed(self):
@@ -520,7 +523,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         for k in required:
             if not hasattr(self, k):
-                self._init_arrays([k])
+                self._init_arrays(arrays=[k])
 
             setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
@@ -537,30 +540,10 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             OutputStruct._TYPEMAP[ary.dtype.name], self._ffi.from_buffer(ary)
         )
 
-    @abstractmethod
-    def get_requirements(self, cls: OutputStruct) -> List[str]:
-        """Get the arrays within cls that are required to compute this object.
-
-        The idea here is to be able to specify which bits of any structs are required
-        to be able to compute this one.
-
-        Notes
-        -----
-        This seems like a great idea, but I don't think it really works. The problem is
-        that actually using this information can strip out required arrays from the object
-        when they might be needed in the *next* step. We don't want to flush out arrays
-        that need to be re-read later (at least, not usually).
-        """
-        return list(cls._array_structure.keys()) + list(cls._c_based_pointers)
-
-    def __call__(self, caller: Optional[OutputStruct] = None):
+    def __call__(self):
         """Initialize/allocate a fresh C struct in memory and return it."""
-        if not self.dummy and caller.__class__.__name__ == self.__class__.__name__:
+        if not self.dummy:
             self._init_cstruct()
-        else:
-            keep = caller.get_requirements(self.__class__.__name__)
-            self.prepare(keep=keep)
-            self._init_cstruct(keep)
 
         return self._cstruct
 
@@ -595,20 +578,41 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             exist, they will be loaded from file (if the file exists). Only one of
             ``flush`` and ``keep`` should be specified.
         """
-        if not bool(flush) ^ bool(keep):
+        if flush is None and keep is None:
+            raise ValueError("Must provide either flush or keep")
+        elif flush is not None and keep is not None:
             raise ValueError("Provide either flush or keep, but not both!")
 
-        if flush:
+        if flush is not None:
             keep = [k for k in self._array_structure if k not in flush]
-        elif keep:
+        elif keep is not None:
             flush = [k for k in self._array_structure if k not in keep]
 
         for k in flush:
             if hasattr(self, k):
                 delattr(self, k)
 
+        # Only go and load the stuff that we need to from file.
+        keep = [k for k in keep if not hasattr(self, k)]
+
+        if (not self.path or not self.path.exists()) and keep:
+            raise IOError(
+                f"Cannot load keys {keep} from file, as a file does not exist for {self}."
+            )
+
         if self.path:
             self.read(fname=self.path, keys=keep)
+
+    def purge(self):
+        """Flush all the boxes out of memory.
+
+        Be careful: if this object is not saved to file, you lose all the data in it!
+        """
+        self.prepare(keep=[])
+
+    def load_all(self):
+        """Load all possible arrays into memory."""
+        self.prepare(flush=[])
 
     @property
     def filename(self):
@@ -909,7 +913,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         self.filled = True
         self._expose()
-        self.path = pth
+        self.path = Path(pth)
 
     @classmethod
     def from_file(cls, fname, direc=None, load_data=True):
@@ -1020,7 +1024,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         """Check equality with another object via its __repr__."""
         return repr(self) == repr(other)
 
-    def compute(self, direc, *args, write=True):
+    def compute(
+        self, *args, hooks: Optional[Dict[Union[str, Callable], Dict[str, Any]]] = None
+    ):
         """Compute the actual function that fills this struct."""
         logger.debug(f"Calling {self._c_compute_function.__name__} with args: {args}")
         inputs = []
@@ -1029,9 +1035,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         # underlying cstruct, rather than themselves. OutputStructs also pass the
         # class in that's calling this.
         for arg in args:
-            if isinstance(OutputStruct):
-                inputs.append(arg(self))
-            elif isinstance(StructWrapper):
+            if isinstance(arg, StructWrapper):
                 inputs.append(arg())
             else:
                 inputs.append(arg)
@@ -1053,8 +1057,14 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         self._expose()
 
         # Optionally do stuff with the result (like writing it)
-        if write:
-            self.write(direc)
+        if hooks is None:
+            hooks = {"write": {"direc": config["direc"]}}
+
+        for hook, params in hooks.items():
+            if callable(hook):
+                hook(self, **params)
+            else:
+                getattr(self, hook)(**params)
 
         return self
 
@@ -1175,7 +1185,11 @@ def _check_compatible_inputs(*datasets, ignore=["redshift"]):
                     # noinspection PyProtectedMember
                     if inp in d2._inputs and getattr(d, inp) != getattr(d2, inp):
                         raise ValueError(
-                            "%s and %s are incompatible"
-                            % (d.__class__.__name__, d2.__class__.__name__)
+                            f"""
+                            {d.__class__.__name__} and {d2.__class__.__name__} are incompatible.
+                            {inp}: {getattr(d, inp)}
+                            vs.
+                            {inp}: {getattr(d2, inp)}
+                            """
                         )
                 done += [inp]

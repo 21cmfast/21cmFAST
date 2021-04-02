@@ -313,7 +313,7 @@ def produce_perturb_field_data(redshift, **kwargs):
             data,
             bins=np.linspace(xmin, xmax, nbins),
             range=[xmin, xmax],
-            normed=True,
+            density=True,
         )
 
         left, right = edges[:-1], edges[1:]

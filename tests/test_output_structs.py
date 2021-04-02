@@ -34,12 +34,6 @@ def test_pointer_fields(cls):
     assert new_names
     assert all(n in inst.pointer_fields for n in new_names)
 
-    # cstruct shouldn't be initialised,
-    assert not inst.arrays_initialized
-
-    inst._init_cstruct()
-    assert inst.arrays_initialized
-
 
 def test_non_existence(init, test_direc):
     assert not init.exists(direc=test_direc)
@@ -75,10 +69,6 @@ def test_readability(test_direc, default_user_params):
     assert hash(ic_) == hash(ic2)
     assert ic_ == ic2
     assert ic_ is not ic2
-
-    # make sure we can't read it twice
-    with pytest.raises(IOError):
-        ic2.read(direc=test_direc)
 
 
 def test_different_seeds(init, default_user_params):
@@ -150,13 +140,12 @@ def test_bad_class_definition(default_user_params):
         A class containing all initial conditions boxes.
         """
 
-        def _init_arrays(self):
-            super()._init_arrays()
+        def _get_box_structures(self):
+            out = super()._get_box_structures()
+            out["unknown_key"] = (1, 1, 1)
+            return out
 
-            # remove one of the arrays that needs to be defined.
-            del self.hires_density
-
-    with pytest.raises(AttributeError):
+    with pytest.raises(TypeError):
         CustomInitialConditions(init=True, user_params=default_user_params)
 
 
