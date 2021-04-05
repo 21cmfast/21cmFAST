@@ -792,8 +792,9 @@ double dsigmasq_dm(double k, void *params){
         drdm = 1.0 / (pow(2*PI, 1.5) * cosmo_params_ps->OMm*RHOcrit * 3*Radius*Radius);
     }
     else if (flag_options_sfrd->FILTER == 2){ //smooth-k filter, pls use for ETHOS models
-      double c_wnd_smooth = (astro_params_sfrd->h_PEAK > 0.) ? c_SMOOTH : c_SMOOTH_0;
-      double beta_wnd_smooth = (astro_params_sfrd->h_PEAK > 0.) ? beta_SMOOTH : beta_SMOOTH_0;
+        double c_wnd_smooth = (astro_params_sfrd->h_PEAK > 0.) ? c_SMOOTH : c_SMOOTH_0;
+        double beta_wnd_smooth = (astro_params_sfrd->h_PEAK > 0.) ? beta_SMOOTH : beta_SMOOTH_0;
+
         w = 1.0/(1.0 + pow(kR/c_wnd_smooth,beta_wnd_smooth) );
         dwdr = -beta_wnd_smooth/Radius * w*w * pow(kR/c_wnd_smooth,beta_wnd_smooth);
         drdm = 1.0 / (4.0*PI * cosmo_params_ps->OMm*RHOcrit * Radius*Radius);
@@ -806,7 +807,9 @@ double dsigmasq_dm(double k, void *params){
 
     if (flag_options_sfrd->USE_ETHOS == 1){
       //add the suppression and DAOs due to ETHOS DM-DR interactions
-      p*=ETHOS_DAOs(k, astro_params_sfrd);
+      // TODO: add debugging
+        // LOG_DEBUG("T=%e",ETHOS_DAOs(k, astro_params_sfrd));
+        p*=ETHOS_DAOs(k, astro_params_sfrd);
     }
     //    return k*k*p*2*w*dwdr*drdm * d2fact;
     return k*k*p*2*w*dwdr*drdm;
@@ -847,6 +850,7 @@ double dsigmasqdm_z0(double M){
 
     F.function = &dsigmasq_dm;
     F.params = &Radius;
+
 
     int status;
 
@@ -1549,6 +1553,7 @@ void initialiseSigmaMInterpTable(float M_Min, float M_Max)
 
     for(i=0;i<NMass;i++) {
         if(isfinite(Mass_InterpTable[i]) == 0 || isfinite(Sigma_InterpTable[i]) == 0 || isfinite(dSigmadm_InterpTable[i])==0) {
+            LOG_ERROR("%e, %e, %e", Mass_InterpTable[i], Sigma_InterpTable[i], dSigmadm_InterpTable[i]);
             LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
 //            Throw(ParameterError);
             Throw(TableGenerationError);
@@ -4401,8 +4406,15 @@ double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd){
     double x_peak2 = (k - peak2_ratio*astro_params_sfrd->log10_k_PEAK)/astro_params_sfrd->log10_k_PEAK;
 
     // ETHOS T(k) following Bohr+2020
-    double T_ETHOS = fabs(T_noncdm) - sqrt(astro_params_sfrd->h_PEAK) * exp(-0.5*pow(x_peak1/sig, 2)
+    double T_ETHOS = fabs(T_noncdm - sqrt(astro_params_sfrd->h_PEAK) * exp(-0.5*pow(x_peak1/sig, 2))
               + sqrt(h2)/4. * erfcc(x_peak2/tau - 2) * erfcc(-x_peak2/sig - 2) * cos(1.1083*PI*k/astro_params_sfrd->log10_k_PEAK));
+
+    if (T_ETHOS < 0.){
+        LOG_DEBUG("In function ETHOS_DAOs: T_ETHOS is < 0 for some reason..!\nT=%e, k=%e, h_peak=%e, k_peak=%e, Setting T=0...\n",
+                  T_ETHOS, k, astro_params_sfrd->h_PEAK, astro_params_sfrd->log10_k_PEAK);
+        // Throw(ValueError);
+        T_ETHOS = 0.;
+    }
 
     return T_ETHOS;
 
