@@ -452,6 +452,8 @@ class UserParams(StructWithDefaults):
         is considerably faster than when performing integrals explicitly.
     FAST_FCOLL_TABLES: bool, optional
         Whether to use fast Fcoll tables, as described in Sec X of JBM XX. Significant speedup for minihaloes.
+    MINIMISE_MEMORY_USAGE: bool, optional
+        Whether or not to try and minimise memory usage, generally at the expense of additional computations
     """
 
     _ffi = ffi
@@ -469,6 +471,7 @@ class UserParams(StructWithDefaults):
         "NO_RNG": False,
         "USE_INTERPOLATION_TABLES": False,
         "FAST_FCOLL_TABLES": False,
+        "MINIMISE_MEMORY_USAGE": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
