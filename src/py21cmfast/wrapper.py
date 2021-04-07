@@ -814,7 +814,7 @@ def initial_conditions(
     direc=None,
     hooks: Optional[Dict[Callable, Dict[str, Any]]] = None,
     **global_kwargs,
-):
+) -> InitialConditions:
     r"""
     Compute initial conditions.
 
@@ -895,7 +895,7 @@ def perturb_field(
     direc=None,
     hooks: Optional[Dict[Callable, Dict[str, Any]]] = None,
     **global_kwargs,
-):
+) -> PerturbedField:
     r"""
     Compute a perturbed field at a given redshift.
 
@@ -1325,7 +1325,7 @@ def ionize_box(
     cleanup=True,
     hooks=None,
     **global_kwargs,
-):
+) -> IonizedBox:
     r"""
     Compute an ionized box at a given redshift.
 
@@ -1693,7 +1693,7 @@ def spin_temperature(
     cleanup=True,
     hooks=None,
     **global_kwargs,
-):
+) -> TsBox:
     r"""
     Compute spin temperature boxes at a given redshift.
 
@@ -1972,7 +1972,7 @@ def brightness_temperature(
     direc=None,
     hooks=None,
     **global_kwargs,
-):
+) -> BrightnessTemp:
     r"""
     Compute a coeval brightness temperature box.
 
@@ -2256,18 +2256,26 @@ def run_coeval(
         # redshift, even if we are interpolating the perturb field, because the
         # ionize box needs it.
         pz = [p.redshift for p in perturb]
-        perturb = [
-            perturb_field(
-                redshift=z,
-                init_boxes=init_box,
-                regenerate=regenerate,
-                hooks=hooks,
-                direc=direc,
+        perturb_ = []
+        for z in pz:
+            p = (
+                perturb_field(
+                    redshift=z,
+                    init_boxes=init_box,
+                    regenerate=regenerate,
+                    hooks=hooks,
+                    direc=direc,
+                )
+                if z not in pz
+                else perturb[pz.index(z)]
             )
-            if z not in pz
-            else perturb[pz.index(z)]
-            for z in redshifts
-        ]
+
+            if user_params.MINIMIZE_MEMORY:
+                p.purge()
+
+            perturb_.append(p)
+
+        perturb = perturb_
 
         # Now we can purge init_box further.
         if always_purge or (init_box.path and init_box.path.exists()):
@@ -2340,6 +2348,8 @@ def run_coeval(
         # Iterate through redshift from top to bottom
         for iz, z in enumerate(redshifts):
             pf2 = perturb[iz]
+            pf2.load_all()
+
             if flag_options.USE_TS_FLUCT:
                 logger.debug(f"Doing spin temp for z={z}.")
                 st2 = spin_temperature(
@@ -2497,7 +2507,6 @@ def run_lightcone(
     cleanup=True,
     hooks=None,
     always_purge: bool = False,
-    minimize_memory_usage=False,
     **global_kwargs,
 ):
     r"""
@@ -2589,11 +2598,6 @@ def run_lightcone(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
-    if minimize_memory_usage and not write:
-        raise ValueError(
-            "If trying to minimize memory usage, you must be caching. Set write=True!"
-        )
-
     with global_params.use(**global_kwargs):
         random_seed, user_params, cosmo_params = _configure_inputs(
             [
@@ -2611,6 +2615,11 @@ def run_lightcone(
             flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
         )
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+
+        if user_params.MINIMIZE_MEMORY and not write:
+            raise ValueError(
+                "If trying to minimize memory usage, you must be caching. Set write=True!"
+            )
 
         # Ensure passed quantities are appropriate
         _fld_names = get_all_fieldnames(
@@ -2720,7 +2729,7 @@ def run_lightcone(
                 direc=direc,
                 hooks=hooks,
             )
-            if minimize_memory_usage:
+            if user_params.MINIMIZE_MEMORY:
                 p.purge()
 
             perturb_.append(p)

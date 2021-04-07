@@ -454,7 +454,9 @@ class UserParams(StructWithDefaults):
         Whether to use fast Fcoll tables, as described in Sec X of JBM XX. Significant speedup for minihaloes.
     USE_2LPT: bool, optional
         Whether to use second-order Lagrangian Perturbation corrections.
-
+    MINIMIZE_MEMORY: bool, optional
+        If set, the code will run in a mode that minimizes memory usage, at the expense
+        of some CPU/disk-IO. Good for large boxes / small computers.
     """
 
     _ffi = ffi
@@ -473,6 +475,7 @@ class UserParams(StructWithDefaults):
         "USE_INTERPOLATION_TABLES": False,
         "FAST_FCOLL_TABLES": False,
         "USE_2LPT": True,
+        "MINIMIZE_MEMORY": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
