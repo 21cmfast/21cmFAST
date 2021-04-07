@@ -665,7 +665,7 @@ class _HighLevelOutput:
     def _write_particulars(self, fname):
         pass
 
-    def save(self, fname=None, direc="."):
+    def save(self, fname=None, direc=".", clobber=False):
         """Save to disk.
 
         This function has defaults that make it easy to save a unique box to
@@ -677,13 +677,15 @@ class _HighLevelOutput:
             The filename to write, default a unique name produced by the inputs.
         direc : str, optional
             The directory into which to write the file. Default is the current directory.
+        clobber : bool, optional
+            Whether to overwrite existing file.
 
         Returns
         -------
         str :
             The filename to which the box was written.
         """
-        return self._write(direc=direc, fname=fname)
+        return self._write(direc=direc, fname=fname, clobber=clobber)
 
     @classmethod
     def _read_inputs(cls, fname):
