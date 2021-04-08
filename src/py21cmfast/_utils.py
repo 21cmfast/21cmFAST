@@ -499,7 +499,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     _TYPEMAP = bidict({"float32": "float *", "float64": "double *", "int32": "int *"})
 
-    def __init__(self, *, random_seed=None, init=False, dummy=False, **kwargs):
+    def __init__(self, *, random_seed=None, dummy=False, **kwargs):
         super().__init__()
 
         self.filled = False
@@ -511,7 +511,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         for k in self._inputs:
 
-            if not hasattr(self, k):
+            if k not in self.__dict__:
                 try:
                     setattr(self, k, kwargs.pop(k))
                 except KeyError:
@@ -528,13 +528,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         self.dummy = dummy
 
         self._array_structure = self._get_box_structures()
+        self._initialized_arrays = set()
+        self._computed_arrays = set()
 
         for k in self._array_structure:
             if k not in self.pointer_fields:
                 raise TypeError(f"Key {k} in {self} not a defined pointer field in C.")
-
-        if init:
-            self._init_cstruct()
 
     @abstractmethod
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
@@ -580,6 +579,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
             setattr(self, k, fnc(shape, dtype=tp))
 
+            # Change the state of the object. This array is now initialized, but
+            # not "computed".
+            self._initialized_arrays.add(k)
+            if k in self._computed_arrays:
+                self._computed_arrays.remove(k)
+
     @property
     def random_seed(self):
         """The random seed for this particular instance."""
@@ -592,7 +597,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         required = required or list(self._array_structure.keys())
 
         for k in required:
-            if not hasattr(self, k):
+            if k not in self._initialized_arrays and k not in self._computed_arrays:
                 self._init_arrays(arrays=[k])
 
             setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
@@ -617,12 +622,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         return self._cstruct
 
-    def _expose(self):
+    def __expose(self):
         """Expose the non-array primitives of the ctype to the top-level object."""
-        if not self.filled:
-            raise Exception(
-                "You need to have actually called the C code before the primitives can be exposed."
-            )
         for k in self.primitive_fields:
             setattr(self, k, getattr(self._cstruct, k))
 
@@ -659,19 +660,32 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             flush = [k for k in self._array_structure if k not in keep]
 
         for k in flush:
-            if hasattr(self, k):
-                delattr(self, k)
+            self._remove_array(k)
 
-        # Only go and load the stuff that we need to from file.
-        keep = [k for k in keep if not hasattr(self, k)]
+        # Accessing the array loads it into memory.
+        for k in keep:
+            getattr(self, k)
 
-        if (not self.path or not self.path.exists()) and keep:
+    def _remove_array(self, k):
+        if k in self._computed_arrays:
+            self._computed_arrays.remove(k)
+        if k in self._initialized_arrays:
+            self._initialized_arrays.remove(k)
+        if hasattr(self, k):
+            delattr(self, k)
+
+    def __getattr__(self, item):
+        """Gets arrays that aren't already in memory."""
+        if "_array_structure" not in self.__dict__ or item not in self._array_structure:
+            raise self.__getattribute__(item)
+
+        if not self.path or not self.path.exists():
             raise IOError(
-                f"Cannot load keys {keep} from file, as a file does not exist for {self}."
+                f"Cannot get {item} as it is not in memory, and this object is not cached to disk."
             )
 
-        if self.path:
-            self.read(fname=self.path, keys=keep)
+        self.read(fname=self.path, keys=[item])
+        return getattr(self, item)
 
     def purge(self):
         """Flush all the boxes out of memory.
@@ -798,8 +812,10 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             Whether to write the inputs to the file. Can be useful to set to False if
             the input file already exists and has parts already written.
         """
-        if not self.filled:
-            raise IOError("The boxes have not yet been computed.")
+        if any(k not in self._computed_arrays for k in self._array_structure):
+            raise IOError(
+                "Not all boxes have been computed (or maybe some have been purged). Cannot write."
+            )
 
         if not self._random_seed:
             raise ValueError(
@@ -959,6 +975,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             for k in boxes.keys():
                 if keys is None or k in keys:
                     setattr(self, k, boxes[k][...])
+                    self._computed_arrays.add(k)
+                    setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
             for k in boxes.attrs.keys():
                 if k == "version":
@@ -976,13 +994,16 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                     self.patch_version = patch
 
                 setattr(self, k, boxes.attrs[k])
+                try:
+                    setattr(self._cstruct, k, getattr(self, k))
+                except AttributeError:
+                    pass
 
             # Need to make sure that the seed is set to the one that's read in.
             seed = f.attrs["random_seed"]
             self._random_seed = seed
 
-        self.filled = True
-        self._expose()
+        self.__expose()
         self.path = Path(pth)
 
     @classmethod
@@ -1110,6 +1131,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             else:
                 inputs.append(arg)
 
+        for name in self._array_structure:
+            if name in self._computed_arrays:
+                raise ValueError(
+                    f"You are trying to compute {self.__class__.__name__}, but it has already been computed."
+                )
+
         try:
             exitcode = self._c_compute_function(*inputs, self())
         except TypeError as e:
@@ -1122,9 +1149,11 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         _process_exitcode(exitcode, self._c_compute_function, args)
 
         # Ensure memory created in C gets mapped to numpy arrays in this struct.
-        self.filled = True
-        self._memory_map()
-        self._expose()
+        for k in self._initialized_arrays:
+            self._computed_arrays.add(k)
+
+        self.__memory_map()
+        self.__expose()
 
         # Optionally do stuff with the result (like writing it)
         if hooks is None:
@@ -1138,10 +1167,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         return self
 
-    def _memory_map(self):
-        if not self.filled:
-            warnings.warn("Do not call _memory_map yourself!")
-
+    def __memory_map(self):
         shapes = self._c_shape(self._cstruct)
         for item in self._c_based_pointers:
             setattr(self, item, asarray(getattr(self._cstruct, item), shapes[item]))
