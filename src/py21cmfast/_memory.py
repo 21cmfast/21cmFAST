@@ -59,10 +59,13 @@ def estimate_memory_lightcone(
     lightcone_quantities=("brightness_temp",),
 ):
     """Compute an estimate of the requisite memory needed by the user for a run_lightcone call."""
+    # Deal with AstroParams and INHOMO_RECO
+    astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+
     # First, calculate the memory usage for the initial conditions
     memory_ics = mem_initial_conditions(user_params=user_params)
 
-    memory_data = {"ics_%s" % k: memory_ics["%s" % k] for k in memory_ics.keys()}
+    memory_data = {"ics_%s" % k: memory_ics[k] for k in memory_ics.keys()}
 
     # Maximum memory while running ICs
     peak_memory = memory_ics["c"] + memory_ics["python"]
@@ -70,7 +73,7 @@ def estimate_memory_lightcone(
     # Now the perturb field
     memory_pf = mem_perturb_field(user_params=user_params)
 
-    memory_data.update({"pf_%s" % k: memory_pf["%s" % k] for k in memory_pf.keys()})
+    memory_data.update({"pf_%s" % k: memory_pf[k] for k in memory_pf.keys()})
 
     # Stored ICs in python + allocated C and Python memory for perturb_field
     current_memory = memory_ics["python"] + memory_pf["python"] + memory_pf["c"]
@@ -82,7 +85,6 @@ def estimate_memory_lightcone(
     if flag_options.PHOTON_CONS:
         # First need to create new structs for photon the photon-conservation
         astro_params_photoncons = deepcopy(astro_params)
-        astro_params_photoncons._R_BUBBLE_MAX = astro_params.R_BUBBLE_MAX
 
         flag_options_photoncons = FlagOptions(
             USE_MASS_DEPENDENT_ZETA=flag_options.USE_MASS_DEPENDENT_ZETA,
@@ -169,12 +171,12 @@ def estimate_memory_lightcone(
     # Calculate the memory for a determine_halo_list call
     memory_hf = mem_halo_field(user_params=user_params)
 
-    memory_data.update({"hf_%s" % k: memory_hf["%s" % k] for k in memory_hf.keys()})
+    memory_data.update({"hf_%s" % k: memory_hf[k] for k in memory_hf.keys()})
 
     # Calculate the memory for a perturb_halo_list call
     memory_phf = mem_perturb_halo(user_params=user_params)
 
-    memory_data.update({"phf_%s" % k: memory_phf["%s" % k] for k in memory_phf.keys()})
+    memory_data.update({"phf_%s" % k: memory_phf[k] for k in memory_phf.keys()})
 
     # Calculate the memory for an ionize_box call
     memory_ib = mem_ionize_box(
@@ -183,7 +185,7 @@ def estimate_memory_lightcone(
         flag_options=flag_options,
     )
 
-    memory_data.update({"ib_%s" % k: memory_ib["%s" % k] for k in memory_ib.keys()})
+    memory_data.update({"ib_%s" % k: memory_ib[k] for k in memory_ib.keys()})
 
     # Calculate the memory for a spin_temperature call
     memory_st = mem_spin_temperature(
@@ -192,12 +194,12 @@ def estimate_memory_lightcone(
         flag_options=flag_options,
     )
 
-    memory_data.update({"st_%s" % k: memory_st["%s" % k] for k in memory_st.keys()})
+    memory_data.update({"st_%s" % k: memory_st[k] for k in memory_st.keys()})
 
     # Calculate the memory for a brightness_temperature call
     memory_bt = mem_brightness_temperature(user_params=user_params)
 
-    memory_data.update({"bt_%s" % k: memory_bt["%s" % k] for k in memory_bt.keys()})
+    memory_data.update({"bt_%s" % k: memory_bt[k] for k in memory_bt.keys()})
 
     # Now, when calculating the light-cone we always need two concurrent boxes (current and previous redshift)
 
@@ -274,13 +276,13 @@ def mem_initial_conditions(
     user_params=None,
 ):
     """A function to estimate total memory usage of an initial_conditions call."""
-    """Memory usage of Python InitialConditions class."""
-    """All declared HII_DIM boxes"""
+    # Memory usage of Python InitialConditions class.
+    # All declared HII_DIM boxes
     # lowres_density, lowres_vx, lowres_vy, lowres_vz, lowres_vcb
     # lowres_vx_2LPT, lowres_vy_2LPT, lowres_vz_2LPT
     num_py_boxes_HII_DIM = 8.0
 
-    """All declared DIM boxes"""
+    # All declared DIM boxes
     # hires_density, hires_vx, hires_vy, hires_vz
     # hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT
     num_py_boxes_DIM = 7.0
@@ -291,14 +293,14 @@ def mem_initial_conditions(
     # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
 
-    """Memory usage within GenerateICs"""
+    # Memory usage within GenerateICs
     kspace_num_pixels = (float(user_params.DIM) / 2.0 + 1.0) * (user_params.DIM) ** 2
 
-    """All declared DIM boxes"""
+    # All declared DIM boxes
     # HIRES_box, HIRES_box_saved
     num_c_boxes = 2
 
-    """All declared 2LPT boxes (DIM)"""
+    # All declared 2LPT boxes (DIM)
     # phi_1 (6 components)
     if global_params.SECOND_ORDER_LPT_CORRECTIONS:
         num_c_boxes += 6
@@ -314,8 +316,8 @@ def mem_perturb_field(
     user_params=None,
 ):
     """A function to estimate total memory usage of a perturb_field call."""
-    """Memory usage of Python PerturbedField class."""
-    """All declared HII_DIM boxes"""
+    # Memory usage of Python PerturbedField class.
+    # All declared HII_DIM boxes"""
     # density, velocity
     num_py_boxes_HII_DIM = 2.0
 
@@ -324,7 +326,7 @@ def mem_perturb_field(
     # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
 
-    """Memory usage within PerturbField.c"""
+    # Memory usage within PerturbField.c
     kspace_num_pixels = (float(user_params.DIM) / 2.0 + 1.0) * (user_params.DIM) ** 2
     hii_kspace_num_pixels = (float(user_params.HII_DIM) / 2.0 + 1.0) * (
         user_params.HII_DIM
@@ -365,9 +367,7 @@ def mem_ionize_box(
     flag_options=None,
 ):
     """A function to estimate total memory usage of an ionize_box call."""
-    # First do check on inhomogeneous recombinations
-    astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
-
+    # Implicitly have dealt with INHOMO_RECO earlier
     # determine number of filtering scales (for USE_MINI_HALOS)
     if flag_options.USE_MINI_HALOS:
         n_filtering = (
@@ -387,9 +387,9 @@ def mem_ionize_box(
     else:
         n_filtering = 1
 
-    """Memory usage of Python IonizedBox class."""
+    # Memory usage of Python IonizedBox class.
 
-    """All declared HII_DIM boxes"""
+    # All declared HII_DIM boxes
     # xH_box, Gamma12_box, MFP_box, z_re_box, dNrec_box, temp_kinetic_all_gas
     num_py_boxes = 6.0
 
@@ -405,7 +405,7 @@ def mem_ionize_box(
     # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
 
-    """Memory usage within IonisationBox.c"""
+    # Memory usage within IonisationBox.c
     hii_kspace_num_pixels = (float(user_params.HII_DIM) / 2.0 + 1.0) * (
         user_params.HII_DIM
     ) ** 2
@@ -448,9 +448,9 @@ def mem_spin_temperature(
     flag_options=None,
 ):
     """A function to estimate total memory usage of a spin_temperature call."""
-    """Memory usage of Python IonizedBox class."""
+    # Memory usage of Python IonizedBox class.
 
-    """All declared HII_DIM boxes"""
+    # All declared HII_DIM boxes
     # Ts_bx, x_e_box, Tk_box, J_21_LW_box
     num_py_boxes = 4.0
 
@@ -459,7 +459,7 @@ def mem_spin_temperature(
     # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
 
-    """Memory usage within SpinTemperatureBox.c"""
+    # Memory usage within SpinTemperatureBox.c
     hii_kspace_num_pixels = (float(user_params.HII_DIM) / 2.0 + 1.0) * (
         user_params.HII_DIM
     ) ** 2
@@ -546,9 +546,9 @@ def mem_brightness_temperature(
     user_params=None,
 ):
     """A function to estimate total memory usage of a brightness_temperature call."""
-    """Memory usage of Python BrightnessTemp class."""
+    # Memory usage of Python BrightnessTemp class.
 
-    """All declared HII_DIM boxes"""
+    # All declared HII_DIM boxes
     # brightness_temp
     num_py_boxes = 1.0
 
@@ -557,7 +557,7 @@ def mem_brightness_temperature(
     # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
 
-    """Memory usage within BrightnessTemperatureBox.c"""
+    # Memory usage within BrightnessTemperatureBox.c
     hii_tot_fft_num_pixels = (
         2.0 * (float(user_params.HII_DIM) / 2.0 + 1.0) * (user_params.HII_DIM) ** 2
     )
@@ -575,9 +575,9 @@ def mem_halo_field(
     user_params=None,
 ):
     """A function to estimate total memory usage of a determine_halo_list call."""
-    """Memory usage of Python HaloField class."""
+    # Memory usage of Python HaloField class.
 
-    """All declared DIM boxes"""
+    # All declared DIM boxes
     # halo_field
     num_py_boxes = 1.0
 
@@ -586,7 +586,7 @@ def mem_halo_field(
     # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
 
-    """Memory usage within FindHaloes.c"""
+    # Memory usage within FindHaloes.c
     kspace_num_pixels = (float(user_params.DIM) / 2.0 + 1.0) * (user_params.DIM) ** 2
 
     # density_field, density_field_saved
@@ -620,7 +620,7 @@ def mem_perturb_halo(
     user_params=None,
 ):
     """A function to estimate total memory usage of a perturb_halo_list call."""
-    """Memory usage of Python PerturbHaloField class."""
+    # Memory usage of Python PerturbHaloField class.
 
     # We don't know a priori how many haloes that will be found, but we'll estimate the memory usage
     # at 10 per cent of the total number of pixels (HII_DIM, likely an over estimate)
