@@ -50,20 +50,23 @@ def test_power_spectra_coeval(redshift, kwargs, module_direc):
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
-    with h5py.File(prd.get_filename(redshift, **kwargs), "r") as f:
-        power = f["power_coeval"][...]
+    with h5py.File(prd.get_filename(redshift, "power_spectra", **kwargs), "r") as fl:
+        true_powers = {
+            "_".join(key.split("_")[1:]): value[...]
+            for key, value in fl["coeval"].items()
+            if key.startswith("power_")
+        }
 
+    # Now compute the Coeval object
     with config.use(direc=module_direc, regenerate=False, write=True):
         with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
-            k, p, bt = prd.produce_coeval_power_spectra(redshift, **kwargs)
+            test_k, test_powers, coeval = prd.produce_coeval_power_spectra(
+                redshift, **kwargs
+            )
 
-    assert np.allclose(
-        power[: len(power) // 2], p[: len(power) // 2], atol=0, rtol=1e-2
-    )
-    assert np.allclose(
-        power[(len(power) // 2) :], p[(len(power) // 2) :], atol=0, rtol=5e-2
-    )
+    for key, value in true_powers.items():
+        assert np.allclose(value, test_powers[key], atol=0, rtol=1e-2)
 
 
 @pytest.mark.parametrize("redshift,kwargs", options)
@@ -71,25 +74,25 @@ def test_power_spectra_lightcone(redshift, kwargs, module_direc):
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
-    with h5py.File(prd.get_filename(redshift, **kwargs), "r") as f:
-        power = f["power_lc"][...]
-        xHI = f["xHI"][...]
-        Tb = f["Tb"][...]
+    with h5py.File(prd.get_filename(redshift, "power_spectra", **kwargs), "r") as fl:
+        true_powers = {}
+        true_global = {}
+        for key in fl["lightcone"].keys():
+            if key.startswith("power_"):
+                true_powers["_".join(key.split("_")[1:])] = fl["lightcone"][key][...]
+            elif key.startswith("global_"):
+                true_global["_".join(key.split("_")[1:])] = fl["lightcone"][key][...]
 
+    # Now compute the lightcone
     with config.use(direc=module_direc, regenerate=False, write=True):
         with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
-            k, p, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
+            test_k, test_powers, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
-    assert np.allclose(
-        power[: len(power) // 2], p[: len(power) // 2], atol=0, rtol=1e-2
-    )
-    assert np.allclose(
-        power[(len(power) // 2) :], p[(len(power) // 2) :], atol=0, rtol=5e-2
-    )
-
-    assert np.allclose(xHI, lc.global_xH, atol=1e-5, rtol=1e-3)
-    assert np.allclose(Tb, lc.global_brightness_temp, atol=1e-5, rtol=1e-3)
+    for key, value in true_powers.items():
+        assert np.allclose(value, test_powers[key], atol=0, rtol=1e-2)
+    for key, value in true_global.items():
+        assert np.allclose(value, getattr(lc, f"global_{key}"), atol=0, rtol=1e-3)
 
 
 @pytest.mark.parametrize("redshift,kwargs", options_pt)
@@ -97,7 +100,7 @@ def test_perturb_field_data(redshift, kwargs):
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
-    with h5py.File(prd.get_filename_pt(redshift, **kwargs), "r") as f:
+    with h5py.File(prd.get_filename(redshift, "perturb_field", **kwargs), "r") as f:
         power_dens = f["power_dens"][...]
         power_vel = f["power_vel"][...]
         pdf_dens = f["pdf_dens"][...]
@@ -128,7 +131,7 @@ def test_halo_field_data(redshift, kwargs):
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
-    with h5py.File(prd.get_filename_halo(redshift, **kwargs), "r") as f:
+    with h5py.File(prd.get_filename(redshift, "halo_field", **kwargs), "r") as f:
         n_pt_halos = f["n_pt_halos"][...]
         pt_halo_masses = f["pt_halo_masses"][...]
 
