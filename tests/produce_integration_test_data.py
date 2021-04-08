@@ -12,6 +12,7 @@ import numpy as np
 import os
 import sys
 import tempfile
+from pathlib import Path
 from powerbox import get_power
 
 from py21cmfast import (
@@ -30,7 +31,7 @@ from py21cmfast import (
 )
 
 SEED = 12345
-DATA_PATH = os.path.join(os.path.dirname(__file__), "test_data")
+DATA_PATH = Path(__file__).parent / "test_data"
 DEFAULT_USER_PARAMS = {
     "HII_DIM": 50,
     "DIM": 150,
@@ -39,7 +40,20 @@ DEFAULT_USER_PARAMS = {
     "USE_INTERPOLATION_TABLES": True,
 }
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
-
+SAVE_FIELDS = [
+    "brightness_temp",
+    "lowres_density",
+    "density",
+    "velocity",
+    "xH",
+    "Ts",
+    "z_re",
+    "Gamma12",
+    "dNrec",
+    "x_e",
+    "Tk",
+    "J_21_LW",
+]
 
 OPTIONS = (
     [12, {}],
@@ -260,10 +274,13 @@ def produce_coeval_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
 
     coeval = run_coeval(**options)
-    p, k = get_power(
-        coeval.brightness_temp,
-        boxlength=coeval.user_params.BOX_LEN,
-    )
+    p = {}
+
+    for field in SAVE_FIELDS:
+        if hasattr(coeval, field):
+            p[field], k = get_power(
+                getattr(coeval, field), boxlength=coeval.user_params.BOX_LEN
+            )
 
     return k, p, coeval
 
@@ -272,9 +289,12 @@ def produce_lc_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
     lightcone = run_lightcone(max_redshift=options["redshift"] + 2, **options)
 
-    p, k = get_power(
-        lightcone.brightness_temp, boxlength=lightcone.lightcone_dimensions
-    )
+    p = {}
+    for field in SAVE_FIELDS:
+        if hasattr(lightcone, field):
+            p[field], k = get_power(
+                getattr(lightcone, field), boxlength=lightcone.lightcone_dimensions
+            )
 
     return k, p, lightcone
 
@@ -337,41 +357,24 @@ def produce_halo_field_data(redshift, **kwargs):
     return pt_halos
 
 
-def get_filename(redshift, **kwargs):
+def get_filename(redshift, kind, **kwargs):
     # get sorted keys
     kwargs = {k: kwargs[k] for k in sorted(kwargs)}
     string = "_".join(f"{k}={v}" for k, v in kwargs.items())
-    fname = f"power_spectra_z{redshift:.2f}_{string}.h5"
+    fname = f"{kind}_z{redshift:.2f}_{string}.h5"
 
-    return os.path.join(DATA_PATH, fname)
-
-
-def get_filename_pt(redshift, **kwargs):
-    # get sorted keys
-    kwargs = {k: kwargs[k] for k in sorted(kwargs)}
-    string = "_".join(f"{k}={v}" for k, v in kwargs.items())
-    fname = f"perturb_field_data_z{redshift:.2f}_{string}.h5"
-
-    return os.path.join(DATA_PATH, fname)
-
-
-def get_filename_halo(redshift, **kwargs):
-    # get sorted keys
-    kwargs = {k: kwargs[k] for k in sorted(kwargs)}
-    string = "_".join(f"{k}={v}" for k, v in kwargs.items())
-    fname = f"halo_field_data_z{redshift:.2f}_{string}.h5"
-
-    return os.path.join(DATA_PATH, fname)
+    return DATA_PATH / fname
 
 
 def produce_power_spectra_for_tests(redshift, force, direc, **kwargs):
-    fname = get_filename(redshift, **kwargs)
+    fname = get_filename(redshift, "power_spectra", **kwargs)
 
     # Need to manually remove it, otherwise h5py tries to add to it
-    if os.path.exists(fname):
+    if fname.exists():
         if force:
-            os.remove(fname)
+            fname.unlink()
         else:
+            print(f"Skipping {fname} because it already exists.")
             return fname
 
     # For tests, we *don't* want to use cached boxes, but we also want to use the
@@ -389,14 +392,18 @@ def produce_power_spectra_for_tests(redshift, force, direc, **kwargs):
         fl.attrs["DIM"] = coeval.user_params.DIM
         fl.attrs["BOX_LEN"] = coeval.user_params.BOX_LEN
 
-        fl["power_coeval"] = p
-        fl["k_coeval"] = k
+        coeval_grp = fl.create_group("coeval")
+        coeval_grp["k"] = k
+        for key, val in p.items():
+            coeval_grp[f"power_{key}"] = val
 
-        fl["power_lc"] = p_l
-        fl["k_lc"] = k_l
+        lc_grp = fl.create_group("lightcone")
+        lc_grp["k"] = k_l
+        for key, val in p_l.items():
+            lc_grp[f"power_{key}"] = val
 
-        fl["xHI"] = lc.global_xH
-        fl["Tb"] = lc.global_brightness_temp
+        lc_grp["global_xH"] = lc.global_xH
+        lc_grp["global_brightness_temp"] = lc.global_brightness_temp
 
     print(f"Produced {fname} with {kwargs}")
     return fname
@@ -415,7 +422,7 @@ def produce_data_for_perturb_field_tests(redshift, force, **kwargs):
         init_box,
     ) = produce_perturb_field_data(redshift, **kwargs)
 
-    fname = get_filename_pt(redshift, **kwargs)
+    fname = get_filename(redshift, "perturb_field", **kwargs)
 
     # Need to manually remove it, otherwise h5py tries to add to it
     if os.path.exists(fname):
@@ -452,7 +459,7 @@ def produce_data_for_halo_field_tests(redshift, force, **kwargs):
 
     pt_halos = produce_halo_field_data(redshift, **kwargs)
 
-    fname = get_filename_halo(redshift, **kwargs)
+    fname = get_filename(redshift, "halo_field", **kwargs)
 
     # Need to manually remove it, otherwise h5py tries to add to it
     if os.path.exists(fname):
@@ -526,7 +533,7 @@ if __name__ == "__main__":
 
     # Remove extra files that
     if not (nums or pt_only or no_pt or no_halo):
-        all_files = glob.glob(os.path.join(DATA_PATH, "*"))
+        all_files = DATA_PATH.glob("*")
         for fl in all_files:
             if fl not in fnames:
                 if remove:
