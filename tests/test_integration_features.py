@@ -46,7 +46,7 @@ options = tuple([z, kw] for z, kw in prd.OPTIONS)
 
 
 @pytest.mark.parametrize("redshift,kwargs", options)
-def test_power_spectra_coeval(redshift, kwargs, module_direc):
+def test_power_spectra_coeval(redshift, kwargs, module_direc, plt):
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
@@ -58,6 +58,8 @@ def test_power_spectra_coeval(redshift, kwargs, module_direc):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
             k, p, bt = prd.produce_coeval_power_spectra(redshift, **kwargs)
 
+    make_coeval_comparison_plot(k, power, p, plt)
+
     assert np.allclose(
         power[: len(power) // 2], p[: len(power) // 2], atol=0, rtol=1e-2
     )
@@ -67,7 +69,7 @@ def test_power_spectra_coeval(redshift, kwargs, module_direc):
 
 
 @pytest.mark.parametrize("redshift,kwargs", options)
-def test_power_spectra_lightcone(redshift, kwargs, module_direc):
+def test_power_spectra_lightcone(redshift, kwargs, module_direc, plt):
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
@@ -81,6 +83,18 @@ def test_power_spectra_lightcone(redshift, kwargs, module_direc):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
             k, p, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
+    make_lightcone_comparison_plot(
+        k,
+        lc.node_redshifts,
+        power,
+        xHI,
+        Tb,
+        p,
+        lc.global_xHI,
+        lc.global_brightness_temp,
+        plt,
+    )
+
     assert np.allclose(
         power[: len(power) // 2], p[: len(power) // 2], atol=0, rtol=1e-2
     )
@@ -90,6 +104,44 @@ def test_power_spectra_lightcone(redshift, kwargs, module_direc):
 
     assert np.allclose(xHI, lc.global_xH, atol=1e-5, rtol=1e-3)
     assert np.allclose(Tb, lc.global_brightness_temp, atol=1e-5, rtol=1e-3)
+
+
+def make_lightcone_comparison_plot(
+    k, z, true_power, true_xHI, true_Tb, test_power, test_xHI, test_Tb, plt
+):
+    fig, ax = plt.subplots(2, 3, figsize=(9, 12), sharex=True)
+
+    make_comparison_plot(k, true_power, test_power, ax[:, 0], xlab="k", ylab="Power")
+    make_comparison_plot(
+        z, true_xHI, test_xHI, ax[:, 1], xlab="z", ylab="xHI", logx=False, logy=False
+    )
+    make_comparison_plot(
+        z, true_Tb, test_Tb, ax[:, 2], xlab="z", ylab="Tb", logx=False, logy=False
+    )
+
+
+def make_coeval_comparison_plot(k, true_power, test_power, plt):
+    fig, ax = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
+    make_comparison_plot(k, true_power, test_power, ax, xlab="k", ylab="Power")
+
+
+def make_comparison_plot(x, true, test, ax, logx=True, logy=True, xlab=None, ylab=None):
+
+    ax[0].plot(x, true, label="True")
+    ax[0].plot(x, test, label="Test")
+    if logx:
+        ax[0].set_xscale("log")
+    if logy:
+        ax[0].set_yscale("log")
+    if xlab:
+        ax[0].set_xlabel(xlab)
+    if ylab:
+        ax[0].set_ylabel(ylab)
+
+    ax[0].legend()
+
+    ax[1].plot(x, (test - true) / true)
+    ax[1].set_ylabel("Fractional Difference")
 
 
 @pytest.mark.parametrize("redshift,kwargs", options_pt)

@@ -2257,7 +2257,7 @@ def run_coeval(
         # ionize box needs it.
         pz = [p.redshift for p in perturb]
         perturb_ = []
-        for z in pz:
+        for z in redshifts:
             p = (
                 perturb_field(
                     redshift=z,

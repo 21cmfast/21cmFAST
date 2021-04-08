@@ -36,6 +36,7 @@ test_req = [
     "tox",
     "pytest-remotedata>=0.3.2",
     "powerbox",
+    "pytest-plt",
 ]
 
 doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]
