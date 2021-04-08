@@ -192,7 +192,7 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
 
             SFR_timescale_factor = (float *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
 
-            if(user_params->MINIMISE_MEMORY_USAGE) {
+            if(user_params->MINIMIZE_MEMORY) {
                 delNL0 = (float **)calloc(1,sizeof(float *));
                 delNL0[0] = (float *)calloc((float)HII_TOT_NUM_PIXELS,sizeof(float));
             }
@@ -598,7 +598,7 @@ LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
                                 curr_delNL0 *= inverse_growth_factor_z;
 
                                 if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-                                    if(!user_params->MINIMISE_MEMORY_USAGE) {
+                                    if(!user_params->MINIMIZE_MEMORY) {
                                         delNL0[R_ct][HII_R_INDEX(i,j,k)] = curr_delNL0;
                                     }
                                 }
@@ -1531,7 +1531,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                 // If we are minimising memory usage, then we must smooth the box again
                 // It's slower this way, but notably more memory efficient
-                if(user_params->MINIMISE_MEMORY_USAGE) {
+                if(user_params->MINIMIZE_MEMORY) {
 
                     // copy over unfiltered box
                     memcpy(box, unfiltered_box, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -1587,7 +1587,7 @@ LOG_SUPER_DEBUG("looping over box...");
 #pragma omp for reduction(+:ave_fcoll,ave_fcoll_MINI)
                     for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
 
-                        if(user_params->MINIMISE_MEMORY_USAGE) {
+                        if(user_params->MINIMIZE_MEMORY) {
                             curr_dens = delNL0[0][box_ct]*zpp_growth[R_ct];
                         }
                         else {
@@ -1845,7 +1845,7 @@ LOG_SUPER_DEBUG("looping over box...");
                         // If R_ct == 0, as this is the final smoothing scale (i.e. it is reversed)
                         if(R_ct==0) {
 
-                            // Note here, that by construction it doesn't matter if using MINIMISE_MEMORY_USAGE as only need the R_ct = 0 box
+                            // Note here, that by construction it doesn't matter if using MINIMIZE_MEMORY as only need the R_ct = 0 box
                             curr_delNL0 = delNL0[0][box_ct];
 
                             x_e = previous_spin_temp->x_e_box[box_ct];
@@ -2294,7 +2294,7 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         free(SFR_timescale_factor);
 
-        if(user_params->MINIMISE_MEMORY_USAGE) {
+        if(user_params->MINIMIZE_MEMORY) {
             free(delNL0[0]);
         }
         else {
