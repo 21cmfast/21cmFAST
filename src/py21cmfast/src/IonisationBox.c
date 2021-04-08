@@ -267,9 +267,6 @@ LOG_SUPER_DEBUG("erfc interpolation done");
             log10_overdense_spline_SFR = calloc(NSFR_low,sizeof(double));
             Overdense_spline_SFR = calloc(NSFR_high,sizeof(float));
 
-            log10_Nion_spline = calloc(NSFR_low,sizeof(float));
-            Nion_spline = calloc(NSFR_high,sizeof(float));
-
             if (flag_options->USE_MINI_HALOS){
                 prev_log10_overdense_spline_SFR = calloc(NSFR_low,sizeof(double));
                 prev_Overdense_spline_SFR = calloc(NSFR_high,sizeof(float));
@@ -281,6 +278,10 @@ LOG_SUPER_DEBUG("erfc interpolation done");
                 prev_Nion_spline = calloc(NSFR_high*NMTURN,sizeof(float));
                 prev_log10_Nion_spline_MINI = calloc(NSFR_low*NMTURN,sizeof(float));
                 prev_Nion_spline_MINI = calloc(NSFR_high*NMTURN,sizeof(float));
+            }
+            else {
+                log10_Nion_spline = calloc(NSFR_low,sizeof(float));
+                Nion_spline = calloc(NSFR_high,sizeof(float));
             }
         }
 

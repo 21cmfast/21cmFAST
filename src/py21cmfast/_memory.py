@@ -9,6 +9,18 @@ from .wrapper import _logscroll_redshifts, _setup_lightcone
 
 logger = logging.getLogger("21cmFAST")
 
+# Constants defining interpolation table lengths (from C side)
+# Not ideal to be here, but unlikely to ever change (names in lower case)
+nmass = 300.0
+nsfr_high = 200.0
+nsfr_low = 250.0
+ngl_sfr = 100.0
+nmturn = 50.0
+
+zpp_interp_points_sfr = 400.0
+dens_ninterp = 400.0
+erfc_num_points = 10000.0
+
 
 def estimate_memory_coeval(
     *,
@@ -435,8 +447,44 @@ def mem_ionize_box(
         # M_coll_unfiltered, M_coll_filtered
         num_c_boxes += 2.0
 
+    tables_float = tables_double = 0.0
+    if flag_options.USE_MASS_DEPENDENT_ZETA:
+        tables_float += 2.0 * (ngl_sfr + 1)  # xi_SFR, wi_SFR
+
+        if user_params.USE_INTERPOLATION_TABLES:
+            tables_double += nsfr_low  # log10_overdense_spline_SFR
+            tables_float += nsfr_high  # Overdense_spline_SFR
+
+            if flag_options.USE_MINI_HALOS:
+                tables_double += nsfr_low  # prev_log10_overdense_spline_SFR
+                tables_float += nsfr_high  # prev_Overdense_spline_SFR
+                tables_float += (
+                    4.0 * nsfr_low * nmturn
+                )  # log10_Nion_spline, log10_Nion_spline_MINI, prev_log10_Nion_spline, prev_log10_Nion_spline_MINI
+                tables_float += (
+                    4.0 * nsfr_high * nmturn
+                )  # Nion_spline, Nion_spline_MINI, prev_Nion_spline, prev_Nion_spline_MINI
+            else:
+                tables_float += nsfr_high + nsfr_low  # log10_Nion_spline, Nion_spline
+
+        if flag_options.USE_MINI_HALOS:
+            tables_float += 2.0 * nmturn  # Mturns, Mturns_MINI
+    else:
+        tables_double += 2.0 * erfc_num_points  # ERFC_VALS, ERFC_VALS_DIFF
+
+    # These can only exist in ionisation box if spin temperature is not being computed (otherwise it exists there)
+    if user_params.USE_INTERPOLATION_TABLES and not flag_options.USE_TS_FLUCT:
+        tables_float += (
+            3.0 * nmass
+        )  # Mass_InterpTable, Sigma_InterpTable, dSigmadm_InterpTable
+
     # These are all fftwf complex arrays (thus 2 * size)
     size_c = (2.0 * (np.float32(1.0).nbytes)) * num_c_boxes * hii_kspace_num_pixels
+
+    # Now add in the additional interpolation tables
+    size_c += (np.float32(1.0).nbytes) * tables_float + (
+        np.float64(1.0).nbytes
+    ) * tables_double
 
     return {"python": size_py, "c": size_c}
 
@@ -506,12 +554,12 @@ def mem_spin_temperature(
             if user_params.USE_INTERPOLATION_TABLES:
                 # log10_SFRD_z_low_table_MINI, SFRD_z_high_table_MINI (factor of 4 as these are float tables)
                 mem_c_interp += (
-                    4.0 * global_params.NUM_FILTER_STEPS_FOR_Ts * 250.0 * 50.0
-                )  # NSFR_low = 250, NMTURN = 50
+                    4.0 * global_params.NUM_FILTER_STEPS_FOR_Ts * nsfr_low * nmturn
+                )
 
                 mem_c_interp += (
-                    4.0 * global_params.NUM_FILTER_STEPS_FOR_Ts * 200.0 * 50.0
-                )  # NSFR_high = 200, NMTURN = 50
+                    4.0 * global_params.NUM_FILTER_STEPS_FOR_Ts * nsfr_high * nmturn
+                )
     else:
         # delNL0_rev
         num_c_boxes_initialised += global_params.NUM_FILTER_STEPS_FOR_Ts
@@ -519,8 +567,14 @@ def mem_spin_temperature(
         if user_params.USE_INTERPOLATION_TABLES:
             # fcoll_R_grid, dfcoll_dz_grid (factor of 8. as these are double)
             mem_c_interp += (
-                2.0 * 8.0 * (global_params.NUM_FILTER_STEPS_FOR_Ts * 400 * 400)
-            )  # zpp_interp_points_SFR = 400, dens_Ninterp = 400
+                2.0
+                * 8.0
+                * (
+                    global_params.NUM_FILTER_STEPS_FOR_Ts
+                    * zpp_interp_points_sfr
+                    * dens_ninterp
+                )
+            )
 
             # dens_grid_int_vals
             num_c_boxes_initialised += 0.5  # 0.5 as it is a short
