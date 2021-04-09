@@ -62,7 +62,7 @@ def test_power_spectra_coeval(redshift, kwargs, module_direc, plt):
     with config.use(direc=module_direc, regenerate=False, write=True):
         with global_params.use(zprime_step_factor=prd.DEFAULT_ZPRIME_STEP_FACTOR):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
-            test_k, test_powers, coeval = prd.produce_coeval_power_spectra(
+            test_k, test_powers, _ = prd.produce_coeval_power_spectra(
                 redshift, **kwargs
             )
 
