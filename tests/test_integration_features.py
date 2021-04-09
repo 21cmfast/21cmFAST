@@ -110,12 +110,12 @@ def make_lightcone_comparison_plot(
     n = len(true_global) + len(true_powers)
     fig, ax = plt.subplots(2, n, figsize=(3 * n, 5), sharex=True)
 
-    for i, (key, val) in enumerate(true_powers):
+    for i, (key, val) in enumerate(true_powers.items()):
         make_comparison_plot(
             k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
         )
 
-    for i, (key, val) in enumerate(true_global, start=i + 1):
+    for i, (key, val) in enumerate(true_global.items(), start=i + 1):
         make_comparison_plot(
             k, val, getattr(lc, key), ax[:, i], xlab="z", ylab=f"{key}"
         )
