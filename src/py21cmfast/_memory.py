@@ -21,6 +21,8 @@ zpp_interp_points_sfr = 400.0
 dens_ninterp = 400.0
 erfc_num_points = 10000.0
 
+x_int_nxhii = 14.0
+
 
 def estimate_memory_coeval(
     *,
@@ -517,8 +519,6 @@ def mem_spin_temperature(
     num_c_boxes_alt = 0.0
     num_c_boxes_initialised = 0.0
 
-    mem_c_interp = 0.0
-
     if flag_options.USE_MINI_HALOS:
         # log10_Mcrit_LW_unfiltered, log10_Mcrit_LW_filtered
         num_c_boxes += 2.0
@@ -526,8 +526,17 @@ def mem_spin_temperature(
         # log10_Mcrit_LW
         num_c_boxes_alt += global_params.NUM_FILTER_STEPS_FOR_Ts
 
-    # There are a bunch of 1 and 2D interpolation tables, but ignore those as they are small relative to 3D grids
-    # I will add any that could end up considerably large.
+    # Now go through and add in all the interpolation table information
+    tables_float = tables_double = 0.0
+
+    tables_float += global_params.NUM_FILTER_STEPS_FOR_Ts  # R_values
+    tables_double += 2.0 * global_params.NUM_FILTER_STEPS_FOR_Ts  # zpp_edge, sigma_atR
+
+    if user_params.USE_INTERPOLATION_TABLES:
+        tables_float += (
+            2.0 * global_params.NUM_FILTER_STEPS_FOR_Ts
+        )  # min_densities, max_densities
+        tables_float += zpp_interp_points_sfr  # zpp_interp_table
 
     if flag_options.USE_MASS_DEPENDENT_ZETA:
         # delNL0
@@ -541,6 +550,18 @@ def mem_spin_temperature(
         # dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box
         num_c_boxes_initialised += 2.0 * 4.0  # factor of 2. as these are doubles
 
+        tables_float += global_params.NUM_FILTER_STEPS_FOR_Ts  # SFR_timescale_factor
+        tables_double += 2.0 * (ngl_sfr + 1.0)  # xi_SFR_Xray, wi_SFR_Xray
+
+        if user_params.USE_INTERPOLATION_TABLES:
+            tables_double += (
+                nsfr_low + nsfr_high
+            )  # overdense_low_table, overdense_high_table
+
+            tables_float += global_params.NUM_FILTER_STEPS_FOR_Ts * (
+                nsfr_low + nsfr_high
+            )  # log10_SFRD_z_low_table, SFRD_z_high_table
+
         if flag_options.USE_MINI_HALOS:
             # del_fcoll_Rct_MINI
             num_c_boxes_initialised += 1.0
@@ -551,33 +572,89 @@ def mem_spin_temperature(
                 2.0 * 6.0
             )  # factor of 2. taking into account that these are doubles
 
+            tables_double += (
+                global_params.NUM_FILTER_STEPS_FOR_Ts
+            )  # log10_Mcrit_LW_ave_list
+
             if user_params.USE_INTERPOLATION_TABLES:
-                # log10_SFRD_z_low_table_MINI, SFRD_z_high_table_MINI (factor of 4 as these are float tables)
-                mem_c_interp += (
-                    4.0 * global_params.NUM_FILTER_STEPS_FOR_Ts * nsfr_low * nmturn
+                # log10_SFRD_z_low_table_MINI, SFRD_z_high_table_MINI
+                tables_float += (
+                    global_params.NUM_FILTER_STEPS_FOR_Ts
+                    * nmturn
+                    * (nsfr_low + nsfr_high)
                 )
 
-                mem_c_interp += (
-                    4.0 * global_params.NUM_FILTER_STEPS_FOR_Ts * nsfr_high * nmturn
-                )
     else:
         # delNL0_rev
         num_c_boxes_initialised += global_params.NUM_FILTER_STEPS_FOR_Ts
 
         if user_params.USE_INTERPOLATION_TABLES:
-            # fcoll_R_grid, dfcoll_dz_grid (factor of 8. as these are double)
-            mem_c_interp += (
-                2.0
-                * 8.0
-                * (
-                    global_params.NUM_FILTER_STEPS_FOR_Ts
-                    * zpp_interp_points_sfr
-                    * dens_ninterp
-                )
+            tables_double += zpp_interp_points_sfr  # Sigma_Tmin_grid
+
+            # fcoll_R_grid, dfcoll_dz_grid
+            tables_double += 2.0 * (
+                global_params.NUM_FILTER_STEPS_FOR_Ts
+                * zpp_interp_points_sfr
+                * dens_ninterp
             )
+
+            tables_double += (
+                6.0 * global_params.NUM_FILTER_STEPS_FOR_Ts * dens_ninterp
+            )  # grid_dens, density_gridpoints, fcoll_interp1, fcoll_interp2, dfcoll_interp1, dfcoll_interp2
+            tables_double += zpp_interp_points_sfr  # ST_over_PS_arg_grid
+
+            tables_float += (
+                7.0 * global_params.NUM_FILTER_STEPS_FOR_Ts
+            )  # delNL0_bw, delNL0_Offset, delNL0_LL, delNL0_UL, delNL0_ibw, log10delNL0_diff, log10delNL0_diff_UL
 
             # dens_grid_int_vals
             num_c_boxes_initialised += 0.5  # 0.5 as it is a short
+
+    tables_double += global_params.NUM_FILTER_STEPS_FOR_Ts  # dstarlya_dt_prefactor
+    if flag_options.USE_MINI_HALOS:
+        tables_double += (
+            3.0 * global_params.NUM_FILTER_STEPS_FOR_Ts
+        )  # dstarlya_dt_prefactor_MINI, dstarlyLW_dt_prefactor, dstarlyLW_dt_prefactor_MINI
+
+        tables_double += (
+            4.0 * global_params.NUM_FILTER_STEPS_FOR_Ts
+        )  # ST_over_PS_MINI, sum_lyn_MINI, sum_lyLWn, sum_lyLWn_MINI,
+        tables_float += global_params.NUM_FILTER_STEPS_FOR_Ts  # Mcrit_atom_interp_table
+
+    tables_float += (
+        1.5 * global_params.NUM_FILTER_STEPS_FOR_Ts
+    )  # zpp_for_evolve_list, SingleVal_int (0.5 as it is a short)
+
+    tables_double += (
+        6.0 * x_int_nxhii * global_params.NUM_FILTER_STEPS_FOR_Ts
+    )  # freq_int_heat_tbl, freq_int_ion_tbl, freq_int_lya_tbl, freq_int_heat_tbl_diff, freq_int_ion_tbl_diff, freq_int_lya_tbl_diff
+
+    tables_double += (
+        4.0 * global_params.NUM_FILTER_STEPS_FOR_Ts
+    )  # fcoll_R_array, sigma_Tmin, ST_over_PS, sum_lyn
+    tables_float += (
+        x_int_nxhii + global_params.NUM_FILTER_STEPS_FOR_Ts
+    )  # inverse_diff, zpp_growth
+
+    if user_params.USE_MASS_DEPENDENT_ZETA:
+        if flag_options.USE_MINI_HALOS:
+            tables_double += (
+                4.0 * zpp_interp_points_sfr + 2.0 * zpp_interp_points_sfr * nmturn
+            )  # z_val, Nion_z_val, Nion_z_val_MINI, z_X_val, SFRD_val, SFRD_val_MINI
+        else:
+            tables_double += (
+                4.0 * zpp_interp_points_sfr
+            )  # z_val, Nion_z_val, z_X_val, SFRD_val
+    else:
+        # This is dependent on the user defined input, that cannot be captured here.
+        # However, approximating it as ~ 1000 (almost certainly an overestimate) should be sufficient for almost all uses.
+        tables_double += 1000.0  # FgtrM_1DTable_linear
+
+    # These supersede usage in IonisationBox
+    if user_params.USE_INTERPOLATION_TABLES:
+        tables_float += (
+            3.0 * nmass
+        )  # Mass_InterpTable, Sigma_InterpTable, dSigmadm_InterpTable
 
     # These are all fftwf complex arrays (thus 2 * size)
     size_c = (2.0 * (np.float32(1.0).nbytes)) * num_c_boxes * hii_kspace_num_pixels
@@ -590,7 +667,10 @@ def mem_spin_temperature(
         * (user_params.HII_DIM ** 3.0)
     )
 
-    size_c_init += mem_c_interp
+    # Now, add all the table data (which are kept throughout the calculation)
+    size_c_init += (np.float32(1.0).nbytes) * tables_float + (
+        np.float64(1.0).nbytes
+    ) * tables_double
 
     return {"python": size_py, "c_init": size_c_init, "c_per_z": size_c}
 
