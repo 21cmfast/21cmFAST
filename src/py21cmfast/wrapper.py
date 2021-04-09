@@ -92,7 +92,8 @@ from astropy import units
 from astropy.cosmology import z_at_value
 from copy import deepcopy
 from scipy.interpolate import interp1d
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union, Set, Sequence
+
 
 from ._cfg import config
 from ._utils import (
@@ -278,7 +279,9 @@ def _get_config_options(
     )
 
 
-def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
+def get_all_fieldnames(
+    arrays_only=True, lightcone_only=False, as_dict=False
+) -> Union[Dict[str, str], Set[str]]:
     """Return all possible fieldnames in output structs.
 
     Parameters
@@ -291,16 +294,6 @@ def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
         Whether to return results as a dictionary of ``quantity: class_name``.
         Otherwise returns a set of quantities.
     """
-
-    def get_all_subclasses(cls):
-        all_subclasses = []
-
-        for subclass in cls.__subclasses__():
-            all_subclasses.append(subclass)
-            all_subclasses.extend(get_all_subclasses(subclass))
-
-        return all_subclasses
-
     classes = [cls(redshift=0) for cls in _OutputStructZ._implementations()]
 
     if not lightcone_only:
@@ -2622,23 +2615,9 @@ def run_lightcone(
             )
 
         # Ensure passed quantities are appropriate
-        _fld_names = get_all_fieldnames(
-            arrays_only=True, lightcone_only=True, as_dict=True
+        _fld_names = _get_interpolation_outputs(
+            lightcone_quantities, global_quantities, flag_options
         )
-        assert all(
-            q in _fld_names.keys() for q in lightcone_quantities
-        ), "invalid lightcone_quantity passed."
-        assert all(
-            q in _fld_names.keys() for q in global_quantities
-        ), "invalid global_quantity passed."
-
-        if not flag_options.USE_TS_FLUCT and any(
-            _fld_names[q] == "TsBox" for q in lightcone_quantities + global_quantities
-        ):
-            raise ValueError(
-                "TsBox quantity found in lightcone_quantities or global_quantities, "
-                "but not running spin_temp!"
-            )
 
         redshift = configure_redshift(redshift, perturb)
 
@@ -2981,6 +2960,36 @@ def run_lightcone(
             return out[0]
         else:
             return out
+
+
+def _get_interpolation_outputs(
+    lightcone_quantities: Sequence,
+    global_quantities: Sequence,
+    flag_options: FlagOptions,
+) -> Dict[str, str]:
+    _fld_names = get_all_fieldnames(arrays_only=True, lightcone_only=True, as_dict=True)
+
+    incorrect_lc = [q for q in lightcone_quantities if q not in _fld_names.keys()]
+    if incorrect_lc:
+        raise ValueError(
+            f"The following lightcone_quantities are not available: {incorrect_lc}"
+        )
+
+    incorrect_gl = [q for q in global_quantities if q not in _fld_names.keys()]
+    if incorrect_gl:
+        raise ValueError(
+            f"The following global_quantities are not available: {incorrect_gl}"
+        )
+
+    if not flag_options.USE_TS_FLUCT and any(
+        _fld_names[q] == "TsBox" for q in lightcone_quantities + global_quantities
+    ):
+        raise ValueError(
+            "TsBox quantity found in lightcone_quantities or global_quantities, "
+            "but not running spin_temp!"
+        )
+
+    return _fld_names
 
 
 def _interpolate_in_redshift(
