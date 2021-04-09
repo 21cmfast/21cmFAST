@@ -26,6 +26,7 @@ import pytest
 
 import h5py
 import logging
+import matplotlib as mpl
 import numpy as np
 
 from py21cmfast import config, global_params
@@ -65,7 +66,8 @@ def test_power_spectra_coeval(redshift, kwargs, module_direc, plt):
                 redshift, **kwargs
             )
 
-    make_coeval_comparison_plot(test_k, true_powers, test_powers, plt)
+    if plt == mpl.pyplot:
+        make_coeval_comparison_plot(test_k, true_powers, test_powers, plt)
 
     for key, value in true_powers.items():
         assert np.allclose(value, test_powers[key], atol=0, rtol=1e-2)
@@ -83,7 +85,7 @@ def test_power_spectra_lightcone(redshift, kwargs, module_direc, plt):
             if key.startswith("power_"):
                 true_powers["_".join(key.split("_")[1:])] = fl["lightcone"][key][...]
             elif key.startswith("global_"):
-                true_global["_".join(key.split("_")[1:])] = fl["lightcone"][key][...]
+                true_global[key] = fl["lightcone"][key][...]
 
     # Now compute the lightcone
     with config.use(direc=module_direc, regenerate=False, write=True):
@@ -91,9 +93,10 @@ def test_power_spectra_lightcone(redshift, kwargs, module_direc, plt):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
             test_k, test_powers, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
-    make_lightcone_comparison_plot(
-        test_k, lc.node_redshifts, true_powers, test_powers, true_global, lc
-    )
+    if plt == mpl.pyplot:
+        make_lightcone_comparison_plot(
+            test_k, lc.node_redshifts, true_powers, test_powers, true_global, lc, plt
+        )
 
     for key, value in true_powers.items():
         assert np.allclose(value, test_powers[key], atol=0, rtol=1e-2)
@@ -102,17 +105,20 @@ def test_power_spectra_lightcone(redshift, kwargs, module_direc, plt):
 
 
 def make_lightcone_comparison_plot(
-    k, z, true_power, true_xHI, true_Tb, test_power, test_xHI, test_Tb, plt
+    k, z, true_powers, true_global, test_powers, lc, plt
 ):
-    fig, ax = plt.subplots(2, 3, figsize=(9, 12), sharex=True)
+    n = len(true_global) + len(true_powers)
+    fig, ax = plt.subplots(2, n, figsize=(3 * n, 5), sharex=True)
 
-    make_comparison_plot(k, true_power, test_power, ax[:, 0], xlab="k", ylab="Power")
-    make_comparison_plot(
-        z, true_xHI, test_xHI, ax[:, 1], xlab="z", ylab="xHI", logx=False, logy=False
-    )
-    make_comparison_plot(
-        z, true_Tb, test_Tb, ax[:, 2], xlab="z", ylab="Tb", logx=False, logy=False
-    )
+    for i, (key, val) in enumerate(true_powers):
+        make_comparison_plot(
+            k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
+        )
+
+    for i, (key, val) in enumerate(true_global, start=i + 1):
+        make_comparison_plot(
+            k, val, getattr(lc, key), ax[:, i], xlab="z", ylab=f"{key}"
+        )
 
 
 def make_coeval_comparison_plot(k, true_powers, test_powers, plt):
