@@ -92,6 +92,7 @@ from astropy import units
 from astropy.cosmology import z_at_value
 from copy import deepcopy
 from scipy.interpolate import interp1d
+from typing import Dict, Sequence, Set, Union
 
 from ._cfg import config
 from ._utils import StructWrapper, _check_compatible_inputs, _process_exitcode
@@ -258,7 +259,9 @@ def _get_config_options(direc, regenerate, write):
     )
 
 
-def get_all_fieldnames(arrays_only=True, lightcone_only=False, as_dict=False):
+def get_all_fieldnames(
+    arrays_only=True, lightcone_only=False, as_dict=False
+) -> Union[Dict[str, str], Set[str]]:
     """Return all possible fieldnames in output structs.
 
     Parameters
@@ -2564,23 +2567,9 @@ def run_lightcone(
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
         # Ensure passed quantities are appropriate
-        _fld_names = get_all_fieldnames(
-            arrays_only=True, lightcone_only=True, as_dict=True
+        _fld_names = _get_interpolation_outputs(
+            lightcone_quantities, global_quantities, flag_options
         )
-        assert all(
-            q in _fld_names.keys() for q in lightcone_quantities
-        ), "invalid lightcone_quantity passed."
-        assert all(
-            q in _fld_names.keys() for q in global_quantities
-        ), "invalid global_quantity passed."
-
-        if not flag_options.USE_TS_FLUCT and any(
-            _fld_names[q] == "TsBox" for q in lightcone_quantities + global_quantities
-        ):
-            raise ValueError(
-                "TsBox quantity found in lightcone_quantities or global_quantities, "
-                "but not running spin_temp!"
-            )
 
         redshift = configure_redshift(redshift, perturb)
 
@@ -2894,6 +2883,37 @@ def run_lightcone(
             return out[0]
         else:
             return out
+
+
+def _get_interpolation_outputs(
+    lightcone_quantities: Sequence,
+    global_quantities: Sequence,
+    flag_options: FlagOptions,
+) -> Dict[str, str]:
+    _fld_names = get_all_fieldnames(arrays_only=True, lightcone_only=True, as_dict=True)
+
+    incorrect_lc = (q not in _fld_names.keys() for q in lightcone_quantities)
+    if any(incorrect_lc):
+        raise ValueError(
+            f"The following lightcone_quantities are not available: {incorrect_lc}"
+        )
+
+    assert all(
+        q in _fld_names.keys() for q in lightcone_quantities
+    ), "invalid lightcone_quantity passed."
+    assert all(
+        q in _fld_names.keys() for q in global_quantities
+    ), "invalid global_quantity passed."
+
+    if not flag_options.USE_TS_FLUCT and any(
+        _fld_names[q] == "TsBox" for q in lightcone_quantities + global_quantities
+    ):
+        raise ValueError(
+            "TsBox quantity found in lightcone_quantities or global_quantities, "
+            "but not running spin_temp!"
+        )
+
+    return _fld_names
 
 
 def _interpolate_in_redshift(
