@@ -41,18 +41,18 @@ DEFAULT_USER_PARAMS = {
 }
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 SAVE_FIELDS = [
-    "brightness_temp",
     "lowres_density",
     "density",
     "velocity",
-    "xH",
-    "Ts",
-    "z_re",
-    "Gamma12",
-    "dNrec",
-    "x_e",
-    "Tk",
-    "J_21_LW",
+    "xH_box",
+    "Ts_box",
+    "z_re_box",
+    "Gamma12_box",
+    "dNrec_box",
+    "x_e_box",
+    "Tk_box",
+    "J_21_LW_box",
+    "brightness_temp",
 ]
 
 OPTIONS = (
@@ -287,7 +287,11 @@ def produce_coeval_power_spectra(redshift, **kwargs):
 
 def produce_lc_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
-    lightcone = run_lightcone(max_redshift=options["redshift"] + 2, **options)
+    lightcone = run_lightcone(
+        max_redshift=options["redshift"] + 2,
+        lightcone_quantities=SAVE_FIELDS,
+        **options,
+    )
 
     p = {}
     for field in SAVE_FIELDS:
