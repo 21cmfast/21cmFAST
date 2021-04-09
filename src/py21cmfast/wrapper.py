@@ -1650,6 +1650,32 @@ def ionize_box(
                 cleanup=cleanup,
             )
 
+        for input_box in [
+            perturbed_field,
+            previous_perturbed_field,
+            previous_ionize_box,
+            spin_temp,
+            init_boxes,
+            pt_halos,
+        ]:
+            if not isinstance(input_box, OutputStruct):
+                continue
+
+            for field in input_box._computed_arrays:
+                if (
+                    not getattr(input_box(), field)[0]
+                    == getattr(input_box, field).flatten()[0]
+                ):
+                    raise ValueError(
+                        f"{input_box.__class__.__name__} has not propagated its python memory to C memory!"
+                    )
+                else:
+                    print(
+                        input_box.__class__.__name__,
+                        field,
+                        getattr(input_box, field).flatten()[0],
+                    )
+
         # Run the C Code
         return box.compute(
             redshift,

@@ -1120,6 +1120,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
     ):
         """Compute the actual function that fills this struct."""
         logger.debug(f"Calling {self._c_compute_function.__name__} with args: {args}")
+
         inputs = []
 
         # Construct the args. All StructWrapper objects need to actually pass their
@@ -1131,11 +1132,10 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             else:
                 inputs.append(arg)
 
-        for name in self._array_structure:
-            if name in self._computed_arrays:
-                raise ValueError(
-                    f"You are trying to compute {self.__class__.__name__}, but it has already been computed."
-                )
+        if any(name in self._computed_arrays for name in self._array_structure):
+            raise ValueError(
+                f"You are trying to compute {self.__class__.__name__}, but it has already been computed."
+            )
 
         try:
             exitcode = self._c_compute_function(*inputs, self())

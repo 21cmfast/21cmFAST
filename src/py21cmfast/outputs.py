@@ -351,7 +351,7 @@ class TsBox(_AllParamsBox):
     @cached_property
     def global_Ts(self):
         """Global (mean) spin temperature."""
-        if not self.filled:
+        if "Ts_box" not in self._computed_arrays:
             raise AttributeError(
                 "global_Ts is not defined until the ionization calculation has been performed"
             )
@@ -361,7 +361,7 @@ class TsBox(_AllParamsBox):
     @cached_property
     def global_Tk(self):
         """Global (mean) Tk."""
-        if not self.filled:
+        if "Tk_box" not in self._computed_arrays:
             raise AttributeError(
                 "global_Tk is not defined until the ionization calculation has been performed"
             )
@@ -371,7 +371,7 @@ class TsBox(_AllParamsBox):
     @cached_property
     def global_x_e(self):
         """Global (mean) x_e."""
-        if not self.filled:
+        if "x_e_box" not in self._computed_arrays:
             raise AttributeError(
                 "global_x_e is not defined until the ionization calculation has been performed"
             )
