@@ -22,6 +22,8 @@ dens_ninterp = 400.0
 erfc_num_points = 10000.0
 
 x_int_nxhii = 14.0
+rr_z_npts = 300.0
+rr_lngamma_npts = 250.0
 
 
 def estimate_memory_coeval(
@@ -482,6 +484,11 @@ def mem_ionize_box(
             tables_float += 2.0 * nmturn  # Mturns, Mturns_MINI
     else:
         tables_double += 2.0 * erfc_num_points  # ERFC_VALS, ERFC_VALS_DIFF
+
+    if flag_options.INHOMO_RECO:
+        tables_double += (
+            rr_z_npts * rr_lngamma_npts + rr_lngamma_npts
+        )  # RR_table, lnGamma_values
 
     # These can only exist in ionisation box if spin temperature is not being computed (otherwise it exists there)
     if user_params.USE_INTERPOLATION_TABLES and not flag_options.USE_TS_FLUCT:
