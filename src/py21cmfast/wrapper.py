@@ -987,7 +987,7 @@ def perturb_field(
         construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
 
         # Make sure we've got computed init boxes.
-        if init_boxes is None or not init_boxes.filled:
+        if init_boxes is None or not init_boxes.is_computed:
             init_boxes = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -1120,7 +1120,7 @@ def determine_halo_list(
         construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
 
         # Make sure we've got computed init boxes.
-        if init_boxes is None or not init_boxes.filled:
+        if init_boxes is None or not init_boxes.is_computed:
             init_boxes = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -1259,7 +1259,7 @@ def perturb_halo_list(
                 pass
 
         # Make sure we've got computed init boxes.
-        if init_boxes is None or not init_boxes.filled:
+        if init_boxes is None or not init_boxes.is_computed:
             init_boxes = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -1273,7 +1273,7 @@ def perturb_halo_list(
             fields._random_seed = init_boxes.random_seed
 
         # Dynamically produce the halo list.
-        if halo_field is None or not halo_field.filled:
+        if halo_field is None or not halo_field.is_computed:
             halo_field = determine_halo_list(
                 init_boxes=init_boxes,
                 # NOTE: this is required, rather than using cosmo_ and user_,
@@ -1506,7 +1506,7 @@ def ionize_box(
             > global_params.Z_HEAT_MAX
             and (
                 not isinstance(previous_ionize_box, IonizedBox)
-                or not previous_ionize_box.filled
+                or not previous_ionize_box.is_computed
             ),
             user_params=user_params,
             cosmo_params=cosmo_params,
@@ -1550,7 +1550,7 @@ def ionize_box(
             prev_z = None
 
         # Get init_box required.
-        if init_boxes is None or not init_boxes.filled:
+        if init_boxes is None or not init_boxes.is_computed:
             init_boxes = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -1564,7 +1564,7 @@ def ionize_box(
             box._random_seed = init_boxes.random_seed
 
         # Get appropriate previous ionization box
-        if previous_ionize_box is None or not previous_ionize_box.filled:
+        if previous_ionize_box is None or not previous_ionize_box._computed_arrays:
             # If we are beyond Z_HEAT_MAX, just make an empty box
             if prev_z is None or prev_z > global_params.Z_HEAT_MAX:
                 previous_ionize_box = IonizedBox(redshift=0)
@@ -1583,7 +1583,7 @@ def ionize_box(
                 )
 
         # Dynamically produce the perturbed field.
-        if perturbed_field is None or not perturbed_field.filled:
+        if perturbed_field is None or not perturbed_field._computed_arrays:
             perturbed_field = perturb_field(
                 init_boxes=init_boxes,
                 # NOTE: this is required, rather than using cosmo_ and user_,
@@ -1594,7 +1594,7 @@ def ionize_box(
                 direc=direc,
             )
 
-        if previous_perturbed_field is None or not previous_perturbed_field.filled:
+        if previous_perturbed_field is None or not previous_perturbed_field.is_computed:
             # If we are beyond Z_HEAT_MAX, just make an empty box
             if prev_z is None or prev_z > global_params.Z_HEAT_MAX:
                 previous_perturbed_field = PerturbedField(redshift=0)
@@ -1618,7 +1618,7 @@ def ionize_box(
                 flag_options=flag_options,
                 random_seed=random_seed,
             )
-        elif pt_halos is None or not pt_halos.filled:
+        elif pt_halos is None or not pt_halos.is_computed:
             pt_halos = perturb_halo_list(
                 redshift=redshift,
                 init_boxes=init_boxes,
@@ -1650,15 +1650,18 @@ def ionize_box(
                 cleanup=cleanup,
             )
 
-        for input_box in [
-            perturbed_field,
-            previous_perturbed_field,
-            previous_ionize_box,
-            spin_temp,
-            init_boxes,
-            pt_halos,
-        ]:
+        for i, input_box in enumerate(
+            [
+                perturbed_field,
+                previous_perturbed_field,
+                previous_ionize_box,
+                spin_temp,
+                init_boxes,
+                pt_halos,
+            ]
+        ):
             if not isinstance(input_box, OutputStruct):
+                print(f"{i} not an output struct!")
                 continue
 
             for field in input_box._computed_arrays:
@@ -1876,7 +1879,7 @@ def spin_temperature(
             > global_params.Z_HEAT_MAX
             and (
                 not isinstance(previous_spin_temp, IonizedBox)
-                or not previous_spin_temp.filled
+                or not previous_spin_temp.is_computed
             ),
             user_params=user_params,
             cosmo_params=cosmo_params,
@@ -1918,7 +1921,7 @@ def spin_temperature(
             )
 
         # Dynamically produce the initial conditions.
-        if init_boxes is None or not init_boxes.filled:
+        if init_boxes is None or not init_boxes.is_computed:
             init_boxes = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -1954,7 +1957,7 @@ def spin_temperature(
                 )
 
         # Dynamically produce the perturbed field.
-        if perturbed_field is None or not perturbed_field.filled:
+        if perturbed_field is None or not perturbed_field.is_computed:
             perturbed_field = perturb_field(
                 redshift=redshift,
                 init_boxes=init_boxes,
@@ -2390,6 +2393,15 @@ def run_coeval(
                     st = st2
 
             logger.debug(f"Doing ionize box for z={z}")
+
+            if pf is not None:
+                print(
+                    z,
+                    pf.redshift,
+                    pf2.redshift,
+                    pf._computed_arrays,
+                    pf2._computed_arrays,
+                )
             ib2 = ionize_box(
                 redshift=z,
                 previous_ionize_box=ib,
@@ -2411,6 +2423,9 @@ def run_coeval(
                     cleanup and z == redshifts[-1]
                 ),  # cleanup if its the last time through
             )
+
+            if pf is not None:
+                pf.purge()
 
             if z in redshift:
                 logger.debug(f"PID={os.getpid()} doing brightness temp for z={z}")

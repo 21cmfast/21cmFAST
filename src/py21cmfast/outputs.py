@@ -158,6 +158,10 @@ class InitialConditions(_OutputStruct):
 
         return out
 
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        return []
+
 
 class PerturbedField(_OutputStructZ):
     """A class containing all perturbed field boxes."""
@@ -194,6 +198,37 @@ class PerturbedField(_OutputStructZ):
             "density": (self.user_params.HII_DIM,) * 3,
             "velocity": (self.user_params.HII_DIM,) * 3,
         }
+
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+
+        if isinstance(input_box, InitialConditions):
+            if not self.user_params.PERTURB_ON_HIGH_RES:
+                required += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
+
+                if self.user_params.USE_2LPT:
+                    required += [
+                        "lowres_vx_2LPT",
+                        "lowres_vy_2LPT",
+                        "lowres_vz_2LPT",
+                    ]
+
+            else:
+                required += ["hires_density", "hires_vx", "hires_vy", "hires_vz"]
+
+                if self.user_params.USE_2LPT:
+                    required += ["hires_vx_2LPT", "hires_vy_2LPT", "hires_vz_2LPT"]
+
+            if self.user_params.USE_RELATIVE_VELOCITIES:
+                required.append("lowres_vcb")
+
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for PerturbedField!"
+            )
+
+        return required
 
 
 class _AllParamsBox(_OutputStructZ):
@@ -257,6 +292,15 @@ class HaloField(_AllParamsBox):
             "sqrtdn_dlm": (cstruct.n_mass_bins,),
         }
 
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        if isinstance(input_box, InitialConditions):
+            return ["hires_density"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for HaloField!"
+            )
+
 
 class PerturbHaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
@@ -273,6 +317,97 @@ class PerturbHaloField(_AllParamsBox):
             "halo_masses": (cstruct.n_halos,),
             "halo_coords": (cstruct.n_halos, 3),
         }
+
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, InitialConditions):
+            if self.user_params.PERTURB_ON_HIGH_RES:
+                required += ["hires_vx", "hires_vy", "hires_vz"]
+            else:
+                required += ["lowres_vx", "lowres_vy", "lowres_vz"]
+
+            if self.user_params.USE_2LPT:
+                required += [k + "_2LPT" for k in required]
+        elif isinstance(input_box, HaloField):
+            required += ["halo_coords", "halo_masses"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for PerturbHaloField!"
+            )
+
+        return required
+
+
+class TsBox(_AllParamsBox):
+    """A class containing all spin temperature boxes."""
+
+    _c_compute_function = lib.ComputeTsBox
+    _meta = False
+
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        shape = (self.user_params.HII_DIM,) * 3
+        return {
+            "Ts_box": shape,
+            "x_e_box": shape,
+            "Tk_box": shape,
+            "J_21_LW_box": shape,
+        }
+
+    @cached_property
+    def global_Ts(self):
+        """Global (mean) spin temperature."""
+        if "Ts_box" not in self._computed_arrays:
+            raise AttributeError(
+                "global_Ts is not defined until the ionization calculation has been performed"
+            )
+        else:
+            return np.mean(self.Ts_box)
+
+    @cached_property
+    def global_Tk(self):
+        """Global (mean) Tk."""
+        if "Tk_box" not in self._computed_arrays:
+            raise AttributeError(
+                "global_Tk is not defined until the ionization calculation has been performed"
+            )
+        else:
+            return np.mean(self.Tk_box)
+
+    @cached_property
+    def global_x_e(self):
+        """Global (mean) x_e."""
+        if "x_e_box" not in self._computed_arrays:
+            raise AttributeError(
+                "global_x_e is not defined until the ionization calculation has been performed"
+            )
+        else:
+            return np.mean(self.x_e_box)
+
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, InitialConditions):
+            if (
+                self.user_params.USE_RELATIVE_VELOCITIES
+                and self.flag_options.USE_MINI_HALOS
+            ):
+                required += ["lowres_vcb"]
+        elif isinstance(input_box, PerturbedField):
+            required += ["density"]
+        elif isinstance(input_box, TsBox):
+            required += [
+                "Tk_box",
+                "x_e_box",
+            ]
+            if self.flag_options.USE_MINI_HALOS:
+                required += ["J_21_LW_box"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for PerturbHaloField!"
+            )
+
+        return required
 
 
 class IonizedBox(_AllParamsBox):
@@ -332,51 +467,38 @@ class IonizedBox(_AllParamsBox):
         else:
             return np.mean(self.xH_box)
 
-
-class TsBox(_AllParamsBox):
-    """A class containing all spin temperature boxes."""
-
-    _c_compute_function = lib.ComputeTsBox
-    _meta = False
-
-    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
-        shape = (self.user_params.HII_DIM,) * 3
-        return {
-            "Ts_box": shape,
-            "x_e_box": shape,
-            "Tk_box": shape,
-            "J_21_LW_box": shape,
-        }
-
-    @cached_property
-    def global_Ts(self):
-        """Global (mean) spin temperature."""
-        if "Ts_box" not in self._computed_arrays:
-            raise AttributeError(
-                "global_Ts is not defined until the ionization calculation has been performed"
-            )
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, InitialConditions):
+            if (
+                self.user_params.USE_RELATIVE_VELOCITIES
+                and self.flag_options.USE_MASS_DEPENDENT_ZETA
+            ):
+                required += ["lowres_vcb"]
+        elif isinstance(input_box, PerturbedField):
+            required += ["density"]
+        elif isinstance(input_box, TsBox):
+            required += ["J_21_LW_box", "x_e_box", "Tk_box"]
+        elif isinstance(input_box, IonizedBox):
+            required += ["z_re_box", "Gamma12_box"]
+            if self.flag_options.INHOMO_RECO:
+                required += [
+                    "dNrec_box",
+                ]
+            if (
+                self.flag_options.USE_MASS_DEPENDENT_ZETA
+                and self.flag_options.USE_MINI_HALOS
+            ):
+                required += ["Fcoll", "Fcoll_MINI"]
+        elif isinstance(input_box, PerturbHaloField):
+            required += ["halo_coords", "halo_masses"]
         else:
-            return np.mean(self.Ts_box)
-
-    @cached_property
-    def global_Tk(self):
-        """Global (mean) Tk."""
-        if "Tk_box" not in self._computed_arrays:
-            raise AttributeError(
-                "global_Tk is not defined until the ionization calculation has been performed"
+            raise ValueError(
+                f"{type(input_box)} is not an input required for IonizedBox!"
             )
-        else:
-            return np.mean(self.Tk_box)
 
-    @cached_property
-    def global_x_e(self):
-        """Global (mean) x_e."""
-        if "x_e_box" not in self._computed_arrays:
-            raise AttributeError(
-                "global_x_e is not defined until the ionization calculation has been performed"
-            )
-        else:
-            return np.mean(self.x_e_box)
+        return required
 
 
 class BrightnessTemp(_AllParamsBox):
@@ -399,6 +521,22 @@ class BrightnessTemp(_AllParamsBox):
             )
         else:
             return np.mean(self.brightness_temp)
+
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, PerturbedField):
+            required += ["velocity"]
+        elif isinstance(input_box, TsBox):
+            required += ["Ts_box"]
+        elif isinstance(input_box, IonizedBox):
+            required += ["xH_box"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for BrightnessTemp!"
+            )
+
+        return required
 
 
 class _HighLevelOutput:

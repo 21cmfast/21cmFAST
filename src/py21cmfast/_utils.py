@@ -502,7 +502,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
     def __init__(self, *, random_seed=None, dummy=False, **kwargs):
         super().__init__()
 
-        self.filled = False
         self.version = ".".join(__version__.split(".")[:2])
         self.patch_version = ".".join(__version__.split(".")[2:])
         self.path = None
@@ -636,8 +635,14 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         self,
         flush: Optional[Sequence[str]] = None,
         keep: Optional[Sequence[str]] = None,
+        force: bool = False,
     ):
         """Prepare the instance for being passed to another function.
+
+        This will flush all arrays in "flush" from memory, and ensure all arrays
+        in "keep" are in memory. At least one of these must be provided. By default,
+        the complement of the given parameter is all flushed/kept.
+
 
         Parameters
         ----------
@@ -648,16 +653,19 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             Arrays to keep or load into memory. Note that if these do not already
             exist, they will be loaded from file (if the file exists). Only one of
             ``flush`` and ``keep`` should be specified.
+        force
+            Whether to force flushing arrays even if no disk storage exists.
         """
         if flush is None and keep is None:
             raise ValueError("Must provide either flush or keep")
-        elif flush is not None and keep is not None:
-            raise ValueError("Provide either flush or keep, but not both!")
 
-        if flush is not None:
+        if flush is not None and keep is None:
             keep = [k for k in self._array_structure if k not in flush]
-        elif keep is not None:
+        elif keep is not None and flush is None:
             flush = [k for k in self._array_structure if k not in keep]
+
+        flush = flush or []
+        keep = keep or []
 
         for k in flush:
             self._remove_array(k)
@@ -666,7 +674,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         for k in keep:
             getattr(self, k)
 
-    def _remove_array(self, k):
+    def _remove_array(self, k, force=False):
+        if not self.path or not self.path.exists() and not force:
+            raise IOError(
+                f"Trying to purge array {k} from memory that hasn't been stored! Use force=True if you meant to do this."
+            )
+
         if k in self._computed_arrays:
             self._computed_arrays.remove(k)
         if k in self._initialized_arrays:
@@ -687,12 +700,15 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         self.read(fname=self.path, keys=[item])
         return getattr(self, item)
 
-    def purge(self):
+    def purge(self, force=False):
         """Flush all the boxes out of memory.
 
-        Be careful: if this object is not saved to file, you lose all the data in it!
+        Parameters
+        ----------
+        force
+            Whether to force the purge even if no disk storage exists.
         """
-        self.prepare(keep=[])
+        self.prepare(keep=[], force=force)
 
     def load_all(self):
         """Load all possible arrays into memory."""
@@ -820,7 +836,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         if not self._random_seed:
             raise ValueError(
                 "Attempting to write when no random seed has been set. "
-                "Struct has been 'filled' inconsistently."
+                "Struct has been 'computed' inconsistently."
             )
 
         if not write_inputs:
@@ -1115,6 +1131,52 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         """Check equality with another object via its __repr__."""
         return repr(self) == repr(other)
 
+    @property
+    def is_computed(self) -> bool:
+        """Whether this instance has been computed at all.
+
+        This is true either if the current instance has called :meth:`compute`,
+        or if it has a current existing :attr:`path` pointing to stored data,
+        or if such a path exists.
+
+        Just because the instance has been computed does *not* mean that all
+        relevant quantities are available -- some may have been purged from
+        memory without writing. Use :meth:`has` to check whether certain arrays
+        are available.
+        """
+        if (
+            self._computed_arrays
+            or (self.path is not None and self.path.exists())
+            or self.exists()
+        ):
+            return True
+
+        return False
+
+    def ensure_arrays_computed(self, *arrays) -> bool:
+        """Check if the given arrays are computed (not just initialized)."""
+        if not self.is_computed:
+            return False
+
+        for field in arrays:
+            # This works because when check hasattr() it will load the box from file
+            # if it doesn't already exist (see __getattr__). In doing so, it will
+            # put it into _computed_arrays, and so we check that as well, because
+            # otherwise we might get boxes that are just initialized, not computed.
+            if not hasattr(self, field) or field not in self._computed_arrays:
+                return False
+
+        return True
+
+    @abstractmethod
+    def get_required_input_arrays(self, input_box) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        pass
+
+    def ensure_input_computed(self, input_box) -> bool:
+        """Ensure all the inputs have been computed."""
+        return self.ensure_arrays_computed(*self.get_required_input_arrays(input_box))
+
     def compute(
         self, *args, hooks: Optional[Dict[Union[str, Callable], Dict[str, Any]]] = None
     ):
@@ -1136,6 +1198,13 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             raise ValueError(
                 f"You are trying to compute {self.__class__.__name__}, but it has already been computed."
             )
+
+        # Check that all required inputs are really there.
+        for inp in inputs:
+            if isinstance(inp, OutputStruct) and not self.ensure_input_computed(inp):
+                raise ValueError(
+                    f"Trying to use {inp} to compute {self}, but some required arrays are not computed!"
+                )
 
         try:
             exitcode = self._c_compute_function(*inputs, self())
