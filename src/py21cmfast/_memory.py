@@ -322,6 +322,15 @@ def mem_initial_conditions(
     # These are all fftwf complex arrays (thus 2 * size)
     size_c = (2.0 * (np.float32(1.0).nbytes)) * num_c_boxes * kspace_num_pixels
 
+    # Storage of large number of integers (for seeding in multithreading)
+    # Note, this is somewhat hard coded as it is C compiler/architecture specific (INT_MAX)
+    size_c_RNG = (
+        134217727.0 * 4.0
+    )  # First, is INT_MAX/16, factor of 4. is for an unsigned int
+
+    if size_c_RNG > size_c:
+        size_c = size_c_RNG
+
     return {"python": size_py, "c": size_c}
 
 
@@ -636,7 +645,7 @@ def mem_spin_temperature(
         x_int_nxhii + global_params.NUM_FILTER_STEPS_FOR_Ts
     )  # inverse_diff, zpp_growth
 
-    if user_params.USE_MASS_DEPENDENT_ZETA:
+    if flag_options.USE_MASS_DEPENDENT_ZETA:
         if flag_options.USE_MINI_HALOS:
             tables_double += (
                 4.0 * zpp_interp_points_sfr + 2.0 * zpp_interp_points_sfr * nmturn

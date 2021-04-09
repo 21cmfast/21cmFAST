@@ -787,6 +787,7 @@ int ComputeInitialConditions(
         gsl_rng_free (r[i]);
     }
     gsl_rng_free(rseed);
+
     LOG_DEBUG("Cleaned Up.");
     } // End of Try{}
 
