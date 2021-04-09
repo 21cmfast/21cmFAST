@@ -2892,18 +2892,17 @@ def _get_interpolation_outputs(
 ) -> Dict[str, str]:
     _fld_names = get_all_fieldnames(arrays_only=True, lightcone_only=True, as_dict=True)
 
-    incorrect_lc = (q not in _fld_names.keys() for q in lightcone_quantities)
+    incorrect_lc = [q not in _fld_names.keys() for q in lightcone_quantities]
     if any(incorrect_lc):
         raise ValueError(
             f"The following lightcone_quantities are not available: {incorrect_lc}"
         )
 
-    assert all(
-        q in _fld_names.keys() for q in lightcone_quantities
-    ), "invalid lightcone_quantity passed."
-    assert all(
-        q in _fld_names.keys() for q in global_quantities
-    ), "invalid global_quantity passed."
+    incorrect_gl = [q not in _fld_names.keys() for q in global_quantities]
+    if any(incorrect_gl):
+        raise ValueError(
+            f"The following global_quantities are not available: {incorrect_gl}"
+        )
 
     if not flag_options.USE_TS_FLUCT and any(
         _fld_names[q] == "TsBox" for q in lightcone_quantities + global_quantities
