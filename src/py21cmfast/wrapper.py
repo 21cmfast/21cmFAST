@@ -274,16 +274,6 @@ def get_all_fieldnames(
         Whether to return results as a dictionary of ``quantity: class_name``.
         Otherwise returns a set of quantities.
     """
-
-    def get_all_subclasses(cls):
-        all_subclasses = []
-
-        for subclass in cls.__subclasses__():
-            all_subclasses.append(subclass)
-            all_subclasses.extend(get_all_subclasses(subclass))
-
-        return all_subclasses
-
     classes = [cls(redshift=0) for cls in _OutputStructZ._implementations()]
 
     if not lightcone_only:
@@ -2892,14 +2882,14 @@ def _get_interpolation_outputs(
 ) -> Dict[str, str]:
     _fld_names = get_all_fieldnames(arrays_only=True, lightcone_only=True, as_dict=True)
 
-    incorrect_lc = [q not in _fld_names.keys() for q in lightcone_quantities]
-    if any(incorrect_lc):
+    incorrect_lc = [q for q in lightcone_quantities if q not in _fld_names.keys()]
+    if incorrect_lc:
         raise ValueError(
             f"The following lightcone_quantities are not available: {incorrect_lc}"
         )
 
-    incorrect_gl = [q not in _fld_names.keys() for q in global_quantities]
-    if any(incorrect_gl):
+    incorrect_gl = [q for q in global_quantities if q not in _fld_names.keys()]
+    if incorrect_gl:
         raise ValueError(
             f"The following global_quantities are not available: {incorrect_gl}"
         )

@@ -40,8 +40,8 @@ DEFAULT_USER_PARAMS = {
     "USE_INTERPOLATION_TABLES": True,
 }
 DEFAULT_ZPRIME_STEP_FACTOR = 1.04
-SAVE_FIELDS = [
-    "lowres_density",
+
+LIGHTCONE_FIELDS = [
     "density",
     "velocity",
     "xH_box",
@@ -54,6 +54,8 @@ SAVE_FIELDS = [
     "J_21_LW_box",
     "brightness_temp",
 ]
+
+COEVAL_FIELDS = ["lowres_density"] + LIGHTCONE_FIELDS
 
 OPTIONS = (
     [12, {}],
@@ -276,7 +278,7 @@ def produce_coeval_power_spectra(redshift, **kwargs):
     coeval = run_coeval(**options)
     p = {}
 
-    for field in SAVE_FIELDS:
+    for field in COEVAL_FIELDS:
         if hasattr(coeval, field):
             p[field], k = get_power(
                 getattr(coeval, field), boxlength=coeval.user_params.BOX_LEN
@@ -289,12 +291,12 @@ def produce_lc_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
     lightcone = run_lightcone(
         max_redshift=options["redshift"] + 2,
-        lightcone_quantities=SAVE_FIELDS,
+        lightcone_quantities=LIGHTCONE_FIELDS,
         **options,
     )
 
     p = {}
-    for field in SAVE_FIELDS:
+    for field in LIGHTCONE_FIELDS:
         if hasattr(lightcone, field):
             p[field], k = get_power(
                 getattr(lightcone, field), boxlength=lightcone.lightcone_dimensions
