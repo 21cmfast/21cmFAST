@@ -74,7 +74,62 @@ def estimate_memory_lightcone(
     flag_options=None,
     lightcone_quantities=("brightness_temp",),
 ):
-    """Compute an estimate of the requisite memory needed by the user for a run_lightcone call."""
+    r"""
+    Compute an estimate of the requisite memory needed by the user for a run_lightcone call.
+
+    Note, this is an upper-limit as it assumes all requisite data needs to be generated.
+    Actual memory usage may be less than this estimate if using pre-computed data.
+
+    Parameters
+    ----------
+    redshift : float
+        The minimum redshift of the lightcone.
+    max_redshift : float, optional
+        The maximum redshift at which to keep lightcone information. By default, this is equal to
+        `z_heat_max`. Note that this is not *exact*, but will be typically slightly exceeded.
+    user_params : `~UserParams`, optional
+        Defines the overall options and parameters of the run.
+    astro_params : :class:`~AstroParams`, optional
+        Defines the astrophysical parameters of the run.
+    cosmo_params : :class:`~CosmoParams`, optional
+        Defines the cosmological parameters used to compute initial conditions.
+    flag_options : :class:`~FlagOptions`, optional
+        Options concerning how the reionization process is run, eg. if spin temperature
+        fluctuations are required.
+    lightcone_quantities : tuple of str, optional
+        The quantities to form into a lightcone. By default, just the brightness
+        temperature. Note that these quantities must exist in one of the output
+        structures:
+
+        * :class:`~InitialConditions`
+        * :class:`~PerturbField`
+        * :class:`~TsBox`
+        * :class:`~IonizedBox`
+        * :class:`BrightnessTemp`
+
+        To get a full list of possible quantities, run :func:`get_all_fieldnames`.
+
+    Returns
+    -------
+    dict :
+        ics_python: Estimate of python allocated memory for initial conditions (in Bytes)
+        ics_c: Estimate of C allocated memory for initial conditions (in Bytes)
+        pf_python: Estimate of python allocated memory for a single perturb field (in Bytes)
+        pf_c: Estimate of C allocated memory for a single perturb field (in Bytes)
+        hf_python: Estimate of python allocated memory for determine halo list (in Bytes)
+        hf_c: Estimate of C allocated memory for determine halo list (in Bytes)
+        phf_python: Estimate of python allocated memory for a single perturb halo list (in Bytes)
+        phf_c: Estimate of C allocated memory for a single perturb halo list (in Bytes)
+        ib_python: Estimate of python allocated memory for a single ionized box (in Bytes)
+        ib_c: Estimate of C allocated memory for a single ionized box (in Bytes)
+        st_python: Estimate of python allocated memory for a single spin temperature box (in Bytes)
+        st_c_init: Estimate of retained memory for any spin temperature box (in Bytes)
+        st_c_per_z: Estimate of C allocated memory for a single spin temperature box (in Bytes)
+        bt_python: Estimate of python allocated memory for a single brightness temperature box (in Bytes)
+        bt_c: Estimate of C allocated memory for a single brightness temperature box (in Bytes)
+        peak_memory: As estimate of the peak memory usage for running a lightcone (generating all data) (in Bytes)
+
+    """
     # Deal with AstroParams and INHOMO_RECO
     astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
