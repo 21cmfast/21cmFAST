@@ -259,7 +259,7 @@ def estimate_memory_coeval(
 
     memory_data.update({"peak_memory": peak_memory})
 
-    format_output(
+    print_memory_estimate(
         memory_data=memory_data,
         user_params=user_params,
         astro_params=astro_params,
@@ -538,11 +538,103 @@ def estimate_memory_lightcone(
 
     memory_data.update({"peak_memory": peak_memory})
 
-    format_output(
+    print_memory_estimate(
         memory_data=memory_data,
         user_params=user_params,
         astro_params=astro_params,
         flag_options=flag_options,
+    )
+
+    return memory_data
+
+
+def estimate_memory_ics(
+    *,
+    user_params=None,
+):
+    r"""
+    Compute an estimate of the requisite memory needed just for the initial conditions.
+
+    Note, this is an upper-limit
+
+    Parameters
+    ----------
+    user_params : `~UserParams`, optional
+        Defines the overall options and parameters of the run.
+
+    Returns
+    -------
+    dict :
+        ics_python: Estimate of python allocated memory for initial conditions (in Bytes)
+        ics_c: Estimate of C allocated memory for initial conditions (in Bytes)
+        peak_memory: As estimate of the peak memory usage for running a lightcone (generating all data) (in Bytes)
+    """
+    # Calculate the memory usage for the initial conditions
+    memory_ics = mem_initial_conditions(user_params=user_params)
+
+    memory_data = {"ics_%s" % k: memory_ics[k] for k in memory_ics.keys()}
+
+    # Maximum memory while running ICs
+    peak_memory = memory_ics["c"] + memory_ics["python"]
+
+    memory_data.update({"peak_memory": peak_memory})
+
+    print_memory_estimate(
+        memory_data=memory_data,
+        user_params=user_params,
+    )
+
+    return memory_data
+
+
+def estimate_memory_perturb(
+    *,
+    user_params=None,
+):
+    r"""
+    Compute an estimate of the requisite memory needed by the user for a single perturb_field call.
+
+    Note, this is an upper-limit
+
+    Parameters
+    ----------
+    user_params : `~UserParams`, optional
+        Defines the overall options and parameters of the run.
+
+    Returns
+    -------
+    dict :
+        ics_python: Estimate of python allocated memory for initial conditions (in Bytes)
+        ics_c: Estimate of C allocated memory for initial conditions (in Bytes)
+        pf_python: Estimate of python allocated memory for a single perturb field (in Bytes)
+        pf_c: Estimate of C allocated memory for a single perturb field (in Bytes)
+        peak_memory: As estimate of the peak memory usage for running a lightcone (generating all data) (in Bytes)
+
+    """
+    # First, calculate the memory usage for the initial conditions
+    memory_ics = mem_initial_conditions(user_params=user_params)
+
+    memory_data = {"ics_%s" % k: memory_ics[k] for k in memory_ics.keys()}
+
+    # Maximum memory while running ICs
+    peak_memory = memory_ics["c"] + memory_ics["python"]
+
+    # Now the perturb field
+    memory_pf = mem_perturb_field(user_params=user_params)
+
+    memory_data.update({"pf_%s" % k: memory_pf[k] for k in memory_pf.keys()})
+
+    # Stored ICs in python + allocated C and Python memory for perturb_field
+    current_memory = memory_ics["python"] + memory_pf["python"] + memory_pf["c"]
+
+    # Check if running perturb_field requires more memory than generating ICs
+    peak_memory = peak_memory if peak_memory > current_memory else current_memory
+
+    memory_data.update({"peak_memory": peak_memory})
+
+    print_memory_estimate(
+        memory_data=memory_data,
+        user_params=user_params,
     )
 
     return memory_data
@@ -1042,7 +1134,7 @@ def mem_perturb_halo(
     return {"python": 0.0, "c": size_c}
 
 
-def format_output(
+def print_memory_estimate(
     *,
     memory_data=None,
     user_params=None,
@@ -1055,12 +1147,18 @@ def format_output(
     print("")
     if "python_lc" in memory_data.keys():
         print("Memory info for run_lightcone")
+    elif len(memory_data) == 3:
+        print("Memory info for initial_conditions")
+    elif len(memory_data) == 5:
+        print("Memory info for perturb_field")
     else:
         print("Memory info for run_coeval")
     print("")
     print("%s" % (user_params))
-    print("%s" % (astro_params))
-    print("%s" % (flag_options))
+    if astro_params is not None:
+        print("%s" % (astro_params))
+    if flag_options is not None:
+        print("%s" % (flag_options))
     print("")
     print("Peak memory usage: %g (GB)" % (memory_data["peak_memory"] / bytes_in_gb))
     print("")
@@ -1074,11 +1172,15 @@ def format_output(
         "Memory for ICs: %g (GB; Python) %g (GB; C)"
         % (memory_data["ics_python"] / bytes_in_gb, memory_data["ics_c"] / bytes_in_gb)
     )
-    print(
-        "Memory for single perturbed field: %g (GB; Python) %g (GB; C)"
-        % (memory_data["pf_python"] / bytes_in_gb, memory_data["pf_c"] / bytes_in_gb)
-    )
-    if flag_options.USE_HALO_FIELD:
+    if "pf_python" in memory_data.keys():
+        print(
+            "Memory for single perturbed field: %g (GB; Python) %g (GB; C)"
+            % (
+                memory_data["pf_python"] / bytes_in_gb,
+                memory_data["pf_c"] / bytes_in_gb,
+            )
+        )
+    if "hf_python" in memory_data.keys() and flag_options.USE_HALO_FIELD:
         print(
             "Note these are approximations as we don't know a priori how many haloes there are (assume 10 per cent of volume)"
         )
@@ -1096,12 +1198,16 @@ def format_output(
                 memory_data["phf_c"] / bytes_in_gb,
             )
         )
+    if "ib_python" in memory_data.keys():
+        print(
+            "Memory for single ionized box: %g (GB; Python) %g (GB; C)"
+            % (
+                memory_data["ib_python"] / bytes_in_gb,
+                memory_data["ib_c"] / bytes_in_gb,
+            )
+        )
 
-    print(
-        "Memory for single ionized box: %g (GB; Python) %g (GB; C)"
-        % (memory_data["ib_python"] / bytes_in_gb, memory_data["ib_c"] / bytes_in_gb)
-    )
-    if flag_options.USE_TS_FLUCT:
+    if "st_python" in memory_data.keys() and flag_options.USE_TS_FLUCT:
         print(
             "Memory for single spin temperature box: %g (GB; Python) %g (GB; C per z) %g (GB; C retained)"
             % (
@@ -1110,8 +1216,12 @@ def format_output(
                 memory_data["st_c_init"] / bytes_in_gb,
             )
         )
-    print(
-        "Memory for single brightness temperature box: %g (GB; Python) %g (GB; C)"
-        % (memory_data["bt_python"] / bytes_in_gb, memory_data["bt_c"] / bytes_in_gb)
-    )
+    if "bt_python" in memory_data.keys():
+        print(
+            "Memory for single brightness temperature box: %g (GB; Python) %g (GB; C)"
+            % (
+                memory_data["bt_python"] / bytes_in_gb,
+                memory_data["bt_c"] / bytes_in_gb,
+            )
+        )
     print("")
