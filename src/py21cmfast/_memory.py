@@ -28,40 +28,245 @@ rr_lngamma_npts = 250.0
 
 def estimate_memory_coeval(
     *,
+    redshift=None,
     user_params=None,
     cosmo_params=None,
     astro_params=None,
     flag_options=None,
 ):
-    """Compute an estimate of the requisite memory needed by the user for a run_coeval call."""
+    r"""
+    Compute an estimate of the requisite memory needed by the user for a run_coeval call.
+
+    Note, this is an upper-limit as it assumes all requisite data needs to be generated.
+    Actual memory usage may be less than this estimate if using pre-computed data.
+
+    Parameters
+    ----------
+    redshift : array_like
+        A single redshift, or multiple redshift, at which to return results. The minimum of these
+        will define the log-scrolling behaviour (if necessary).
+    user_params : `~UserParams`, optional
+        Defines the overall options and parameters of the run.
+    astro_params : :class:`~AstroParams`, optional
+        Defines the astrophysical parameters of the run.
+    cosmo_params : :class:`~CosmoParams`, optional
+        Defines the cosmological parameters used to compute initial conditions.
+    flag_options : :class:`~FlagOptions`, optional
+        Options concerning how the reionization process is run, eg. if spin temperature
+        fluctuations are required.
+
+    Returns
+    -------
+    dict :
+        ics_python: Estimate of python allocated memory for initial conditions (in Bytes)
+        ics_c: Estimate of C allocated memory for initial conditions (in Bytes)
+        pf_python: Estimate of python allocated memory for a single perturb field (in Bytes)
+        pf_c: Estimate of C allocated memory for a single perturb field (in Bytes)
+        hf_python: Estimate of python allocated memory for determine halo list (in Bytes)
+        hf_c: Estimate of C allocated memory for determine halo list (in Bytes)
+        phf_python: Estimate of python allocated memory for a single perturb halo list (in Bytes)
+        phf_c: Estimate of C allocated memory for a single perturb halo list (in Bytes)
+        ib_python: Estimate of python allocated memory for a single ionized box (in Bytes)
+        ib_c: Estimate of C allocated memory for a single ionized box (in Bytes)
+        st_python: Estimate of python allocated memory for a single spin temperature box (in Bytes)
+        st_c_init: Estimate of retained memory for any spin temperature box (in Bytes)
+        st_c_per_z: Estimate of C allocated memory for a single spin temperature box (in Bytes)
+        bt_python: Estimate of python allocated memory for a single brightness temperature box (in Bytes)
+        bt_c: Estimate of C allocated memory for a single brightness temperature box (in Bytes)
+        peak_memory: As estimate of the peak memory usage for running a lightcone (generating all data) (in Bytes)
+
     """
-    # Initial conditions
-    mem_initial_conditions(user_params=self.user_params)
+    # Deal with AstroParams and INHOMO_RECO
+    astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
-    # Perturb field
+    # First, calculate the memory usage for the initial conditions
+    memory_ics = mem_initial_conditions(user_params=user_params)
 
-    # Halo field
-    if flag_options.USE_HALO_FIELD:
+    memory_data = {"ics_%s" % k: memory_ics[k] for k in memory_ics.keys()}
 
-    # Photon non-conservation
+    # Maximum memory while running ICs
+    peak_memory = memory_ics["c"] + memory_ics["python"]
+
+    # Now the perturb field
+    memory_pf = mem_perturb_field(user_params=user_params)
+
+    memory_data.update({"pf_%s" % k: memory_pf[k] for k in memory_pf.keys()})
+
+    # If we are using the photon non-conservation correction
     if flag_options.PHOTON_CONS:
+        # First need to create new structs for photon the photon-conservation
+        astro_params_photoncons = deepcopy(astro_params)
 
-    # Note, if any of below are set the require current and
-    # previous boxes, thus need to be careful
+        flag_options_photoncons = FlagOptions(
+            USE_MASS_DEPENDENT_ZETA=flag_options.USE_MASS_DEPENDENT_ZETA,
+            M_MIN_in_Mass=flag_options.M_MIN_in_Mass,
+            USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES,
+        )
 
-    # Spin temperature
-    if flag_options.USE_TS_FLUCT:
+        # First perturb_field
+        memory_pf = mem_perturb_field(user_params=user_params)
 
-    # Mini-halos
+        # First ionize_box
+        memory_ib = mem_ionize_box(
+            user_params=user_params,
+            astro_params=astro_params_photoncons,
+            flag_options=flag_options_photoncons,
+        )
+
+        # As we iterate through we storing the python memory of two
+        # perturb_field and ionize_boxes plus the C memory of either
+        # of the ionize_box or perturb field as it is being calculated
+        peak_memory_photoncons = memory_ics[
+            "python"
+        ]  # We have the initial conditions in memory
+        peak_memory_photoncons += 2 * (
+            memory_pf["python"] + memory_ib["python"]
+        )  # The python memory
+        peak_memory_photoncons += (
+            memory_pf["c"] if memory_pf["c"] > memory_ib["c"] else memory_ib["c"]
+        )  # Maximum C memory, as it is freed after usage
+
+        # Check if the memory required to do the photon non-conservation correction exceeds
+        # current peak memory usage
+        peak_memory = (
+            peak_memory
+            if peak_memory > peak_memory_photoncons
+            else peak_memory_photoncons
+        )
+
+    # Determine the number of redshifts passed
+    if not hasattr(redshift, "__len__"):
+        redshift = [redshift]
+
+    n_redshifts = len(redshift)
+
+    current_memory = memory_ics["python"]  # We have the initial conditions in memory
+    current_memory += (
+        n_redshifts * memory_pf["python"]
+    )  # Python memory for all perturb fields
+    current_memory += memory_pf["c"]  # Plus C memory for a single perturb field
+
+    # Check if running perturb_field requires more memory than generating ICs
+    peak_memory = peak_memory if peak_memory > current_memory else current_memory
+
+    # Now start generating estimates for all other data products
+
+    # Calculate the memory for a determine_halo_list call
+    memory_hf = mem_halo_field(user_params=user_params)
+
+    memory_data.update({"hf_%s" % k: memory_hf[k] for k in memory_hf.keys()})
+
+    # Calculate the memory for a perturb_halo_list call
+    memory_phf = mem_perturb_halo(user_params=user_params)
+
+    memory_data.update({"phf_%s" % k: memory_phf[k] for k in memory_phf.keys()})
+
+    # Calculate the memory for an ionize_box call
+    memory_ib = mem_ionize_box(
+        user_params=user_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+    )
+
+    memory_data.update({"ib_%s" % k: memory_ib[k] for k in memory_ib.keys()})
+
+    # Calculate the memory for a spin_temperature call
+    memory_st = mem_spin_temperature(
+        user_params=user_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+    )
+
+    memory_data.update({"st_%s" % k: memory_st[k] for k in memory_st.keys()})
+
+    # Calculate the memory for a brightness_temperature call
+    memory_bt = mem_brightness_temperature(user_params=user_params)
+
+    memory_data.update({"bt_%s" % k: memory_bt[k] for k in memory_bt.keys()})
+
+    # All the data kept in memory at this point in Python
+    stored_memory = memory_ics["python"]  # We have the initial conditions in memory
+    stored_memory += (
+        n_redshifts * memory_pf["python"]
+    )  # Python memory for all perturb fields
+
+    current_memory = stored_memory
+
+    # If using haloes, then need to add all of these too.
+    if flag_options.USE_HALO_FIELD:
+        current_memory += n_redshifts * memory_phf["python"] + memory_hf["python"]
+
+        if memory_phf["c"] > memory_hf["c"]:
+            current_memory += memory_phf["c"]
+        else:
+            current_memory += memory_hf["c"]
+
+        # Check if running perturb_halos requires more memory than generating ICs
+        peak_memory = peak_memory if peak_memory > current_memory else current_memory
+
+        # We keep all the python memory for the haloes
+        stored_memory += n_redshifts * memory_phf["python"] + memory_hf["python"]
+
     if flag_options.USE_MINI_HALOS:
+        # If using minihaloes we (might) need 2 perturbs, so two python + one in C
+        current_memory = stored_memory + 2.0 * memory_pf["python"] + memory_pf["c"]
 
-    # Inhomogeneous recombinations
-    if flag_options.INHOMO_RECO:
+        # Check if our peak memory usage has been exceeded
+        peak_memory = peak_memory if peak_memory > current_memory else current_memory
 
+        stored_memory += 2.0 * memory_pf["python"]  # We (might) need two perturb's
 
-    # Output a summary of information in human readable format
-    """
-    return {}
+    # Add the two ionized boxes
+    stored_memory += 2.0 * memory_ib["python"]
+
+    # Add (if necessary) the two spin temperature boxes
+    if flag_options.USE_TS_FLUCT:
+        stored_memory += 2.0 * memory_st["python"]
+
+        # We also have initialied C memory that is retained until the end of the calculation
+        stored_memory += memory_st["c_init"]
+
+    # Add the two brightness_temperature boxes
+    stored_memory += 2.0 * memory_bt["python"]
+
+    # Now we have an estimate for the data retained in memory, now we just need to check
+    # the peak memory usage (which includes the additional C memory that is allocated
+    # and then freed on a single redshift call)
+    # First check perturb field
+    current_memory = stored_memory + memory_pf["c"]  # Add the temporary C memory
+
+    # Check if our peak memory usage has been exceeded
+    peak_memory = peak_memory if peak_memory > current_memory else current_memory
+
+    # Check spin temperature
+    if flag_options.USE_TS_FLUCT:
+        current_memory = stored_memory + memory_st["c_per_z"]
+
+        # Check if our peak memory usage has been exceeded
+        peak_memory = peak_memory if peak_memory > current_memory else current_memory
+
+    # Check ionized box
+    current_memory = stored_memory + memory_ib["c"]
+
+    # Check if our peak memory usage has been exceeded
+    peak_memory = peak_memory if peak_memory > current_memory else current_memory
+
+    # Check brightness temperature
+    current_memory = stored_memory + memory_bt["c"]
+
+    # Check if our peak memory usage has been exceeded
+    peak_memory = peak_memory if peak_memory > current_memory else current_memory
+
+    memory_data.update({"peak_memory": peak_memory})
+
+    format_output(
+        memory_data=memory_data,
+        user_params=user_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+    )
+
+    return memory_data
 
 
 def estimate_memory_lightcone(
@@ -127,6 +332,7 @@ def estimate_memory_lightcone(
         st_c_per_z: Estimate of C allocated memory for a single spin temperature box (in Bytes)
         bt_python: Estimate of python allocated memory for a single brightness temperature box (in Bytes)
         bt_c: Estimate of C allocated memory for a single brightness temperature box (in Bytes)
+        python_lc: Estimate of python allocated memory for all provided lightcones (in Bytes)
         peak_memory: As estimate of the peak memory usage for running a lightcone (generating all data) (in Bytes)
 
     """
