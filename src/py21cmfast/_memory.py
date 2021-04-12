@@ -257,6 +257,11 @@ def estimate_memory_coeval(
     # Check if our peak memory usage has been exceeded
     peak_memory = peak_memory if peak_memory > current_memory else current_memory
 
+    # I have been finding that remaining memory (variables etc.) consistently appear
+    # to contribute about 0.1 Gb. So I'll add this amount. Only important for small
+    # box sizes.
+    peak_memory += 0.1 * 1024 ** 3
+
     memory_data.update({"peak_memory": peak_memory})
 
     print_memory_estimate(
@@ -536,6 +541,11 @@ def estimate_memory_lightcone(
     # Check if our peak memory usage has been exceeded
     peak_memory = peak_memory if peak_memory > current_memory else current_memory
 
+    # I have been finding that remaining memory (variables etc.) consistently appear
+    # to contribute about 0.1 Gb. So I'll add this amount. Only important for small
+    # box sizes.
+    peak_memory += 0.1 * 1024 ** 3
+
     memory_data.update({"peak_memory": peak_memory})
 
     print_memory_estimate(
@@ -576,6 +586,11 @@ def estimate_memory_ics(
 
     # Maximum memory while running ICs
     peak_memory = memory_ics["c"] + memory_ics["python"]
+
+    # I have been finding that remaining memory (variables etc.) consistently appear
+    # to contribute about 0.1 Gb. So I'll add this amount. Only important for small
+    # box sizes.
+    peak_memory += 0.1 * 1024 ** 3
 
     memory_data.update({"peak_memory": peak_memory})
 
@@ -629,6 +644,11 @@ def estimate_memory_perturb(
 
     # Check if running perturb_field requires more memory than generating ICs
     peak_memory = peak_memory if peak_memory > current_memory else current_memory
+
+    # I have been finding that remaining memory (variables etc.) consistently appear
+    # to contribute about 0.1 Gb. So I'll add this amount. Only important for small
+    # box sizes.
+    peak_memory += 0.1 * 1024 ** 3
 
     memory_data.update({"peak_memory": peak_memory})
 
