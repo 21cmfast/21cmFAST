@@ -1564,10 +1564,10 @@ def ionize_box(
             box._random_seed = init_boxes.random_seed
 
         # Get appropriate previous ionization box
-        if previous_ionize_box is None or not previous_ionize_box._computed_arrays:
+        if previous_ionize_box is None or not previous_ionize_box.is_computed:
             # If we are beyond Z_HEAT_MAX, just make an empty box
             if prev_z is None or prev_z > global_params.Z_HEAT_MAX:
-                previous_ionize_box = IonizedBox(redshift=0)
+                previous_ionize_box = IonizedBox(redshift=0, dummy=True)
 
             # Otherwise recursively create new previous box.
             else:
@@ -1583,7 +1583,7 @@ def ionize_box(
                 )
 
         # Dynamically produce the perturbed field.
-        if perturbed_field is None or not perturbed_field._computed_arrays:
+        if perturbed_field is None or not perturbed_field.is_computed:
             perturbed_field = perturb_field(
                 init_boxes=init_boxes,
                 # NOTE: this is required, rather than using cosmo_ and user_,
@@ -1597,7 +1597,7 @@ def ionize_box(
         if previous_perturbed_field is None or not previous_perturbed_field.is_computed:
             # If we are beyond Z_HEAT_MAX, just make an empty box
             if prev_z is None or prev_z > global_params.Z_HEAT_MAX:
-                previous_perturbed_field = PerturbedField(redshift=0)
+                previous_perturbed_field = PerturbedField(redshift=0, dummy=True)
             else:
                 previous_perturbed_field = perturb_field(
                     init_boxes=init_boxes,
@@ -1610,14 +1610,7 @@ def ionize_box(
         # Dynamically produce the halo field.
         if not flag_options.USE_HALO_FIELD:
             # Construct an empty halo field to pass in to the function.
-            pt_halos = PerturbHaloField(
-                redshift=redshift,
-                user_params=user_params,
-                cosmo_params=cosmo_params,
-                astro_params=astro_params,
-                flag_options=flag_options,
-                random_seed=random_seed,
-            )
+            pt_halos = PerturbHaloField(redshift=0, dummy=True)
         elif pt_halos is None or not pt_halos.is_computed:
             pt_halos = perturb_halo_list(
                 redshift=redshift,
@@ -1638,7 +1631,7 @@ def ionize_box(
 
         # Set empty spin temp box if necessary.
         if not flag_options.USE_TS_FLUCT:
-            spin_temp = TsBox(redshift=0)
+            spin_temp = TsBox(redshift=0, dummy=True)
         elif spin_temp is None:
             spin_temp = spin_temperature(
                 perturbed_field=perturbed_field,
@@ -2276,6 +2269,7 @@ def run_coeval(
         # Get all the perturb boxes early. We need to get the perturb at every
         # redshift, even if we are interpolating the perturb field, because the
         # ionize box needs it.
+
         pz = [p.redshift for p in perturb]
         perturb_ = []
         for z in redshifts:
@@ -2402,6 +2396,7 @@ def run_coeval(
                     pf._computed_arrays,
                     pf2._computed_arrays,
                 )
+
             ib2 = ionize_box(
                 redshift=z,
                 previous_ionize_box=ib,

@@ -1175,7 +1175,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def ensure_input_computed(self, input_box) -> bool:
         """Ensure all the inputs have been computed."""
-        return self.ensure_arrays_computed(*self.get_required_input_arrays(input_box))
+        return input_box.ensure_arrays_computed(
+            *self.get_required_input_arrays(input_box)
+        )
 
     def compute(
         self, *args, hooks: Optional[Dict[Union[str, Callable], Dict[str, Any]]] = None
@@ -1183,29 +1185,27 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         """Compute the actual function that fills this struct."""
         logger.debug(f"Calling {self._c_compute_function.__name__} with args: {args}")
 
-        inputs = []
+        # Check that all required inputs are really there.
+        for arg in args:
+            if isinstance(arg, OutputStruct) and not (
+                arg.dummy or self.ensure_input_computed(arg)
+            ):
+                raise ValueError(
+                    f"Trying to use {arg} to compute {self}, but some required arrays are not computed!"
+                )
 
         # Construct the args. All StructWrapper objects need to actually pass their
         # underlying cstruct, rather than themselves. OutputStructs also pass the
         # class in that's calling this.
-        for arg in args:
-            if isinstance(arg, StructWrapper):
-                inputs.append(arg())
-            else:
-                inputs.append(arg)
+        inputs = [arg() if isinstance(arg, StructWrapper) else arg for arg in args]
 
+        # Ensure we haven't already tried to compute this instance.
         if any(name in self._computed_arrays for name in self._array_structure):
             raise ValueError(
                 f"You are trying to compute {self.__class__.__name__}, but it has already been computed."
             )
 
-        # Check that all required inputs are really there.
-        for inp in inputs:
-            if isinstance(inp, OutputStruct) and not self.ensure_input_computed(inp):
-                raise ValueError(
-                    f"Trying to use {inp} to compute {self}, but some required arrays are not computed!"
-                )
-
+        # Perform the C computation
         try:
             exitcode = self._c_compute_function(*inputs, self())
         except TypeError as e:
