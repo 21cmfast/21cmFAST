@@ -1,5 +1,6 @@
 import pytest
 
+import logging
 import os
 
 from py21cmfast import UserParams, config, global_params, run_lightcone, wrapper
@@ -81,6 +82,9 @@ def setup_and_teardown_package(tmpdirec):
     config["direc"] = str(tmpdirec)
     config["regenerate"] = True
     config["write"] = False
+
+    logger = logging.getLogger("21cmFAST")
+    logger.setLevel(logging.DEBUG)
 
     yield
 
