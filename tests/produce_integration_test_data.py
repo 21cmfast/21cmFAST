@@ -58,7 +58,10 @@ LIGHTCONE_FIELDS = [
 COEVAL_FIELDS = [
     "lowres_density",
     "lowres_vx_2LPT",
-    "lowres_vcb",
+    "lowres_vx",
+    "hires_density",
+    "hires_vx_2LPT",
+    "hires_vx",
 ] + LIGHTCONE_FIELDS
 
 OPTIONS = (
