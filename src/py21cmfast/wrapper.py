@@ -1000,6 +1000,10 @@ def perturb_field(
             # Need to update fields to have the same seed as init_boxes
             fields._random_seed = init_boxes.random_seed
 
+        logger.debug(
+            f"z={redshift}, {np.sum(init_boxes.lowres_density)}, {np.sum(init_boxes.lowres_vx_2LPT)}"
+        )
+
         # Run the C Code
         return fields.compute(
             redshift,
@@ -2651,7 +2655,7 @@ def run_lightcone(
 
         # Ensure passed quantities are appropriate
         _fld_names = _get_interpolation_outputs(
-            lightcone_quantities, global_quantities, flag_options
+            list(lightcone_quantities), list(global_quantities), flag_options
         )
 
         redshift = configure_redshift(redshift, perturb)
