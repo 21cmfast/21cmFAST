@@ -55,7 +55,11 @@ LIGHTCONE_FIELDS = [
     "brightness_temp",
 ]
 
-COEVAL_FIELDS = ["lowres_density", 'lowres_vx_2LPT', 'lowres_vcb', ] + LIGHTCONE_FIELDS
+COEVAL_FIELDS = [
+    "lowres_density",
+    "lowres_vx_2LPT",
+    "lowres_vcb",
+] + LIGHTCONE_FIELDS
 
 OPTIONS = (
     [12, {}],
@@ -291,7 +295,14 @@ def produce_lc_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
     lightcone = run_lightcone(
         max_redshift=options["redshift"] + 2,
-        lightcone_quantities=[k for k in LIGHTCONE_FIELDS if (options['flag_options'].get('USE_TS_FLUCT', False) or k not in ('Ts_box', 'x_e_box', 'Tk_box', 'J_21_LW_box'))],
+        lightcone_quantities=[
+            k
+            for k in LIGHTCONE_FIELDS
+            if (
+                options["flag_options"].get("USE_TS_FLUCT", False)
+                or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
+            )
+        ],
         **options,
     )
 
