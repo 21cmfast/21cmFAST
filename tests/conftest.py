@@ -83,8 +83,7 @@ def setup_and_teardown_package(tmpdirec):
     config["regenerate"] = True
     config["write"] = False
 
-    logger = logging.getLogger("21cmFAST")
-    logger.setLevel(logging.DEBUG)
+    logging.getLogger("py21cmfast").setLevel(logging.DEBUG)
 
     yield
 

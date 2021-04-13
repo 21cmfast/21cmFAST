@@ -88,7 +88,7 @@ class InitialConditions(_OutputStruct):
 
     def prepare_for_perturb(self, flag_options: FlagOptions):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
-        keep = []
+        keep = ["hires_density"]
 
         if not self.user_params.PERTURB_ON_HIGH_RES:
             keep.append("lowres_density")
@@ -104,7 +104,6 @@ class InitialConditions(_OutputStruct):
             if flag_options.USE_HALO_FIELD:
                 keep.append("hires_density")
         else:
-            keep.append("hires_density")
             keep.append("hires_vx")
             keep.append("hires_vy")
             keep.append("hires_vz")
@@ -204,6 +203,9 @@ class PerturbedField(_OutputStructZ):
         required = []
 
         if isinstance(input_box, InitialConditions):
+            # Always require hires_density
+            required += ["hires_density"]
+
             if not self.user_params.PERTURB_ON_HIGH_RES:
                 required += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
 
@@ -215,7 +217,7 @@ class PerturbedField(_OutputStructZ):
                     ]
 
             else:
-                required += ["hires_density", "hires_vx", "hires_vy", "hires_vz"]
+                required += ["hires_vx", "hires_vy", "hires_vz"]
 
                 if self.user_params.USE_2LPT:
                     required += ["hires_vx_2LPT", "hires_vy_2LPT", "hires_vz_2LPT"]

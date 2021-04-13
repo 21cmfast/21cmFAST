@@ -7,6 +7,7 @@ import warnings
 from abc import ABCMeta, abstractmethod
 from bidict import bidict
 from cffi import FFI
+from enum import IntEnum
 from hashlib import md5
 from os import makedirs, path
 from pathlib import Path
@@ -18,6 +19,16 @@ from ._cfg import config
 _ffi = FFI()
 
 logger = logging.getLogger(__name__)
+
+
+class ArrayState(IntEnum):
+    """Define the memory state of a struct array."""
+
+    UNINITIALIZED = 0
+    INITIALIZED = 1
+    COMPUTED_ON_DISK = 2
+    COMPUTED_IN_MEMORY = 3
+    COMPUTED_IN_MEMORY_AND_DISK = 4
 
 
 class ParameterError(RuntimeError):
@@ -456,6 +467,16 @@ class StructWithDefaults(StructWrapper):
         """Generate a unique hsh for the instance."""
         return hash(self.__repr__())
 
+    def __str__(self):
+        """Human-readable string representation of the object."""
+        biggest_k = max(len(k) for k in self.defining_dict)
+        params = "\n    ".join(
+            sorted(f"{k:<{biggest_k}}: {v}" for k, v in self.defining_dict.items())
+        )
+        return f"""{self.__class__.__name__}:
+    {params}
+    """
+
 
 def snake_to_camel(word: str, publicize: bool = True):
     """Convert snake case to camel case."""
@@ -527,8 +548,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         self.dummy = dummy
 
         self._array_structure = self._get_box_structures()
-        self._initialized_arrays = set()
-        self._computed_arrays = set()
+        self._array_state = {k: ArrayState.UNINITIALIZED for k in self._array_structure}
 
         for k in self._array_structure:
             if k not in self.pointer_fields:
@@ -561,9 +581,13 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         all_classes = get_all_subclasses(cls)
         return [c for c in all_classes if not c._meta]
 
-    def _init_arrays(self, arrays: Optional[Sequence[str]] = None):
-        arrays = arrays or self._array_structure.keys()
-        for k in arrays:
+    def _init_arrays(self):
+        for k in self._array_structure.keys():
+
+            # Only initialize uninitialized arrays.
+            if self._array_state[k] != ArrayState.UNINITIALIZED:
+                continue
+
             params = self._array_structure[k]
             tp = self._TYPEMAP.inverse[self.fields[k].type.cname]
 
@@ -578,11 +602,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
             setattr(self, k, fnc(shape, dtype=tp))
 
-            # Change the state of the object. This array is now initialized, but
-            # not "computed".
-            self._initialized_arrays.add(k)
-            if k in self._computed_arrays:
-                self._computed_arrays.remove(k)
+            # Add it to initialized arrays.
+            self._array_state[k] = ArrayState.INITIALIZED
 
     @property
     def random_seed(self):
@@ -592,14 +613,21 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         return self._random_seed
 
-    def _init_cstruct(self, required=None):
-        required = required or list(self._array_structure.keys())
+    def _init_cstruct(self):
+        # Initialize all uninitialized arrays.
+        self._init_arrays()
 
-        for k in required:
-            if k not in self._initialized_arrays and k not in self._computed_arrays:
-                self._init_arrays(arrays=[k])
-
-            setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
+        for k in self._array_structure:
+            # We do *not* set COMPUTED_ON_DISK items to the C-struct here, because we have no
+            # way of knowing (in this function) what is required to load in, and we don't want
+            # to unnecessarily load things in. We leave it to the user to ensure that all
+            # required arrays are loaded into memory before calling this function.
+            if self._array_state[k] in (
+                ArrayState.INITIALIZED,
+                ArrayState.COMPUTED_IN_MEMORY,
+            ):
+                print(k, self._array_state[k])
+                setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
         for k in self.primitive_fields:
             try:
@@ -668,7 +696,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         keep = keep or []
 
         for k in flush:
-            self._remove_array(k)
+            self._remove_array(k, force)
 
         # Accessing the array loads it into memory.
         for k in keep:
@@ -679,20 +707,29 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             raise IOError(
                 f"Trying to purge array {k} from memory that hasn't been stored! Use force=True if you meant to do this."
             )
-
-        if k in self._computed_arrays:
-            self._computed_arrays.remove(k)
-        if k in self._initialized_arrays:
-            self._initialized_arrays.remove(k)
-        if hasattr(self, k):
+        if self._array_state[k] == ArrayState.INITIALIZED:
             delattr(self, k)
+        elif self._array_state[k] == ArrayState.UNINITIALIZED:
+            warnings.warn(f"Trying to remove array that isn't yet created: {k}")
+        elif self._array_state[k] == ArrayState.COMPUTED_IN_MEMORY:
+            if not force:
+                raise IOError(
+                    f"Trying to purge array {k} from memory that hasn't been stored! Use force=True if you meant to do this."
+                )
+            else:
+                delattr(self, k)
+                self._array_state[k] = ArrayState.UNINITIALIZED
+        elif self._array_state[k] == ArrayState.COMPUTED_IN_MEMORY_AND_DISK:
+            delattr(self, k)
+            self._array_state[k] = ArrayState.COMPUTED_ON_DISK
 
     def __getattr__(self, item):
         """Gets arrays that aren't already in memory."""
-        if "_array_structure" not in self.__dict__ or item not in self._array_structure:
+        # Have to use __dict__ here to test membership, otherwise we get recursion error.
+        if "_array_state" not in self.__dict__ or item not in self._array_state:
             raise self.__getattribute__(item)
 
-        if not self.path or not self.path.exists():
+        if self._array_state[item] != ArrayState.COMPUTED_ON_DISK:
             raise IOError(
                 f"Cannot get {item} as it is not in memory, and this object is not cached to disk."
             )
@@ -828,7 +865,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             Whether to write the inputs to the file. Can be useful to set to False if
             the input file already exists and has parts already written.
         """
-        if any(k not in self._computed_arrays for k in self._array_structure):
+        if any(v < ArrayState.COMPUTED_ON_DISK for v in self._array_state.values()):
             raise IOError(
                 "Not all boxes have been computed (or maybe some have been purged). Cannot write."
             )
@@ -910,6 +947,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         # Go through all fields in this struct, and save
         for k in self._array_structure:
             group.create_dataset(k, data=getattr(self, k))
+            self._array_state[k] = ArrayState.COMPUTED_IN_MEMORY_AND_DISK
 
         for k in self.primitive_fields:
             group.attrs[k] = getattr(self, k)
@@ -991,7 +1029,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             for k in boxes.keys():
                 if keys is None or k in keys:
                     setattr(self, k, boxes[k][...])
-                    self._computed_arrays.add(k)
+                    self._array_state[k] = ArrayState.COMPUTED_IN_MEMORY_AND_DISK
                     setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
             for k in boxes.attrs.keys():
@@ -1144,51 +1182,66 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         memory without writing. Use :meth:`has` to check whether certain arrays
         are available.
         """
-        if (
-            self._computed_arrays
-            or (self.path is not None and self.path.exists())
-            or self.exists()
-        ):
-            return True
+        return any(v >= ArrayState.COMPUTED_ON_DISK for v in self._array_state.values())
 
-        return False
-
-    def ensure_arrays_computed(self, *arrays) -> bool:
+    def ensure_arrays_computed(self, *arrays, load=False) -> bool:
         """Check if the given arrays are computed (not just initialized)."""
         if not self.is_computed:
             return False
 
-        for field in arrays:
-            # This works because when check hasattr() it will load the box from file
-            # if it doesn't already exist (see __getattr__). In doing so, it will
-            # put it into _computed_arrays, and so we check that as well, because
-            # otherwise we might get boxes that are just initialized, not computed.
-            if not hasattr(self, field) or field not in self._computed_arrays:
-                return False
+        computed = all(
+            self._array_state[k] >= ArrayState.COMPUTED_ON_DISK for k in arrays
+        )
 
-        return True
+        if computed and load:
+            self.prepare(keep=arrays, flush=[])
+
+        return computed
 
     @abstractmethod
     def get_required_input_arrays(self, input_box) -> List[str]:
         """Return all input arrays required to compute this object."""
         pass
 
-    def ensure_input_computed(self, input_box) -> bool:
+    def ensure_input_computed(self, input_box, load=False) -> bool:
         """Ensure all the inputs have been computed."""
         return input_box.ensure_arrays_computed(
-            *self.get_required_input_arrays(input_box)
+            *self.get_required_input_arrays(input_box), load=load
         )
 
     def compute(
         self, *args, hooks: Optional[Dict[Union[str, Callable], Dict[str, Any]]] = None
     ):
         """Compute the actual function that fills this struct."""
-        logger.debug(f"Calling {self._c_compute_function.__name__} with args: {args}")
+        # Write a detailed message about call arguments if debug turned on.
+        logger.debug(
+            f"Calling {self._c_compute_function.__name__} with following args:"
+        )
+        for arg in args:
+            if isinstance(arg, OutputStruct):
+                if not arg.dummy:
+                    logger.debug(f"    {arg.__class__.__name__}")
+                    for fieldname in arg.primitive_fields:
+                        logger.debug(f"        {fieldname}: {getattr(arg, fieldname)}")
+                    for fieldname in self.get_required_input_arrays(arg):
+                        x = getattr(arg, fieldname).flatten()
 
-        # Check that all required inputs are really there.
+                        logger.debug(
+                            f"        {fieldname} (first,last,min,max, sum): {x[0]}, {x[-1]}, {x.min()}, {x.max()}, {np.sum(x)}"
+                        )
+
+                else:
+                    logger.debug(f"    {arg.__class__.__name__} (dummy struct)")
+            elif isinstance(arg, StructWithDefaults):
+                for line in str(arg).split("\n"):
+                    logger.debug(f"    {line}")
+            else:
+                logger.debug(f"    {arg}")
+
+        # Check that all required inputs are really computed, and load them into memory if they're not already.
         for arg in args:
             if isinstance(arg, OutputStruct) and not (
-                arg.dummy or self.ensure_input_computed(arg)
+                arg.dummy or self.ensure_input_computed(arg, load=True)
             ):
                 raise ValueError(
                     f"Trying to use {arg} to compute {self}, but some required arrays are not computed!"
@@ -1200,7 +1253,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         inputs = [arg() if isinstance(arg, StructWrapper) else arg for arg in args]
 
         # Ensure we haven't already tried to compute this instance.
-        if any(name in self._computed_arrays for name in self._array_structure):
+        if self.is_computed:
             raise ValueError(
                 f"You are trying to compute {self.__class__.__name__}, but it has already been computed."
             )
@@ -1218,8 +1271,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         _process_exitcode(exitcode, self._c_compute_function, args)
 
         # Ensure memory created in C gets mapped to numpy arrays in this struct.
-        for k in self._initialized_arrays:
-            self._computed_arrays.add(k)
+        for k in self._array_state:
+            self._array_state[k] = ArrayState.COMPUTED_IN_MEMORY
 
         self.__memory_map()
         self.__expose()

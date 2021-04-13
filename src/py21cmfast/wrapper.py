@@ -116,7 +116,7 @@ from .outputs import (
     _OutputStructZ,
 )
 
-logger = logging.getLogger("21cmFAST")
+logger = logging.getLogger(__name__)
 
 
 def _configure_inputs(
@@ -1000,10 +1000,6 @@ def perturb_field(
             # Need to update fields to have the same seed as init_boxes
             fields._random_seed = init_boxes.random_seed
 
-        logger.debug(
-            f"z={redshift}, {np.sum(init_boxes.lowres_density)}, {np.sum(init_boxes.lowres_vx_2LPT)}"
-        )
-
         # Run the C Code
         return fields.compute(
             redshift,
@@ -1646,35 +1642,6 @@ def ionize_box(
                 regenerate=regenerate,
                 cleanup=cleanup,
             )
-
-        for i, input_box in enumerate(
-            [
-                perturbed_field,
-                previous_perturbed_field,
-                previous_ionize_box,
-                spin_temp,
-                init_boxes,
-                pt_halos,
-            ]
-        ):
-            if not isinstance(input_box, OutputStruct):
-                print(f"{i} not an output struct!")
-                continue
-
-            for field in input_box._computed_arrays:
-                if (
-                    not getattr(input_box(), field)[0]
-                    == getattr(input_box, field).flatten()[0]
-                ):
-                    raise ValueError(
-                        f"{input_box.__class__.__name__} has not propagated its python memory to C memory!"
-                    )
-                else:
-                    print(
-                        input_box.__class__.__name__,
-                        field,
-                        getattr(input_box, field).flatten()[0],
-                    )
 
         # Run the C Code
         return box.compute(
@@ -2389,8 +2356,6 @@ def run_coeval(
 
                 if z not in redshift:
                     st = st2
-
-            logger.debug(f"Doing ionize box for z={z}")
 
             if pf is not None:
                 print(

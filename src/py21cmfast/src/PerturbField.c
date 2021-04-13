@@ -48,7 +48,7 @@ int ComputePerturbField(
     // perform a very rudimentary check to see if we are underresolved and not using the linear approx
     if ((user_params->BOX_LEN > user_params->DIM) && !(global_params.EVOLVE_DENSITY_LINEARLY)){
         LOG_WARNING("Resolution is likely too low for accurate evolved density fields\n \
-                It is recommended that you either increase the resolution (DIM/Box_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
+                It is recommended that you either increase the resolution (DIM/BOX_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
     }
 
     growth_factor = dicke(redshift);
@@ -72,6 +72,10 @@ int ComputePerturbField(
     }
 
     double *resampled_box;
+
+    debugSummarizeIC(boxes, user_params->HII_DIM, user_params->DIM);
+    LOG_SUPER_DEBUG("growth_factor=%f, displacemet_factor_2LPT=%f, dDdt=%f, init_growth_factor=%f, init_displacement_factor_2LPT=%f, mass_factor=%f",
+                    growth_factor, displacement_factor_2LPT, dDdt, init_growth_factor, init_displacement_factor_2LPT, mass_factor);
 
     // check if the linear evolution flag was set
     if (global_params.EVOLVE_DENSITY_LINEARLY){
@@ -174,6 +178,7 @@ int ComputePerturbField(
             }
         }
 
+
         // * ************************************************************************* * //
         // *                            END 2LPT PART                                  * //
         // * ************************************************************************* * //
@@ -252,6 +257,10 @@ int ComputePerturbField(
                         if (zi >= (dimension)){ zi -= (dimension);}
                         if (zi < 0) {zi += (dimension);}
 
+                        if(xi==0&&yi==0&&zi==0){
+                            LOG_SUPER_DEBUG("For zeroth resampled_box: %f, %d, %d, %d, %f", init_growth_factor, i,j,k, (boxes->hires_density)[R_INDEX(i,j,k)] );
+                        }
+
                         if(user_params->PERTURB_ON_HIGH_RES) {
 #pragma omp atomic
                             resampled_box[R_INDEX(xi,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)]);
@@ -264,6 +273,9 @@ int ComputePerturbField(
                 }
             }
         }
+
+        LOG_SUPER_DEBUG("resampled_box: ");
+        debugSummarizeBoxDouble(resampled_box, dimension, "  ");
 
         // Resample back to a float for remaining algorithm
 #pragma omp parallel shared(LOWRES_density_perturb,HIRES_density_perturb,resampled_box,dimension) \
@@ -285,6 +297,13 @@ int ComputePerturbField(
         }
         free(resampled_box);
         LOG_DEBUG("Finished perturbing the density field");
+
+        LOG_SUPER_DEBUG("density_perturb: ");
+        if(user_params->PERTURB_ON_HIGH_RES){
+            debugSummarizeBox(HIRES_density_perturb, dimension, "  ");
+        }else{
+            debugSummarizeBox(LOWRES_density_perturb, dimension, "  ");
+        }
 
         // deallocate
 #pragma omp parallel shared(boxes,velocity_displacement_factor,dimension) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -393,6 +412,9 @@ int ComputePerturbField(
         }
     }
 
+    LOG_SUPER_DEBUG("LOWRES_density_perturb: ");
+    debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, "  ");
+
     // transform to k-space
     dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, LOWRES_density_perturb);
 
@@ -401,10 +423,16 @@ int ComputePerturbField(
         filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM);
     }
 
+    LOG_SUPER_DEBUG("LOWRES_density_perturb after smoothing: ");
+    debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, "  ");
+
     // save a copy of the k-space density field
     memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
     dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, LOWRES_density_perturb);
+
+    LOG_SUPER_DEBUG("LOWRES_density_perturb back in real space: ");
+    debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, "  ");
 
     // normalize after FFT
 #pragma omp parallel shared(LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -414,12 +442,18 @@ int ComputePerturbField(
             for(j=0; j<user_params->HII_DIM; j++){
                 for(k=0; k<user_params->HII_DIM; k++){
                     *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) /= (float)HII_TOT_NUM_PIXELS;
-                    if (*((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) < -1) // shouldn't happen
+                    if (*((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) < -1) { // shouldn't happen
+                        LOG_WARNING("LOWRES_density_perturb is <-1 for index %d %d %d (value=%f)", i,j,k, *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)));
                         *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) = -1+FRACT_FLOAT_ERR;
+                    }
                 }
             }
         }
     }
+
+    LOG_SUPER_DEBUG("LOWRES_density_perturb back in real space (normalized): ");
+    debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, "  ");
+
 
 #pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
     {
@@ -492,6 +526,7 @@ int ComputePerturbField(
             }
         }
     }
+
 
     if(user_params->PERTURB_ON_HIGH_RES) {
 

@@ -499,12 +499,12 @@ def produce_data_for_halo_field_tests(redshift, force, **kwargs):
 if __name__ == "__main__":
     import logging
 
-    logger = logging.getLogger("21cmFAST")
+    logger = logging.getLogger("py21cmfast")
 
     lvl = "WARNING"
     for arg in sys.argv:
         if arg.startswith("--log"):
-            lvl = arg.split("--log")[-1]
+            lvl = arg.split("--log=")[-1]
     lvl = getattr(logging, lvl)
     logger.setLevel(lvl)
 
