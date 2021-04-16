@@ -95,13 +95,16 @@ def test_power_spectra_lightcone(redshift, kwargs, module_direc, plt):
 
     if plt == mpl.pyplot:
         make_lightcone_comparison_plot(
-            test_k, lc.node_redshifts, true_powers, test_powers, true_global, lc, plt
+            test_k, lc.node_redshifts, true_powers, true_global, test_powers, lc, plt
         )
 
     for key, value in true_powers.items():
+        print(f"Testing {key}")
         assert np.allclose(value, test_powers[key], atol=0, rtol=1e-2)
+
     for key, value in true_global.items():
-        assert np.allclose(value, getattr(lc, f"global_{key}"), atol=0, rtol=1e-3)
+        print(f"Testing Global {key}")
+        assert np.allclose(value, getattr(lc, key), atol=0, rtol=1e-3)
 
 
 def make_lightcone_comparison_plot(
@@ -117,7 +120,7 @@ def make_lightcone_comparison_plot(
 
     for i, (key, val) in enumerate(true_global.items(), start=i + 1):
         make_comparison_plot(
-            k, val, getattr(lc, key), ax[:, i], xlab="z", ylab=f"{key}"
+            z, val, getattr(lc, key), ax[:, i], xlab="z", ylab=f"{key}"
         )
 
 
@@ -156,7 +159,9 @@ def test_perturb_field_data(redshift, kwargs):
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
-    with h5py.File(prd.get_filename(redshift, "perturb_field", **kwargs), "r") as f:
+    with h5py.File(
+        prd.get_filename(redshift, "perturb_field_data", **kwargs), "r"
+    ) as f:
         power_dens = f["power_dens"][...]
         power_vel = f["power_vel"][...]
         pdf_dens = f["pdf_dens"][...]
@@ -187,7 +192,7 @@ def test_halo_field_data(redshift, kwargs):
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
-    with h5py.File(prd.get_filename(redshift, "halo_field", **kwargs), "r") as f:
+    with h5py.File(prd.get_filename(redshift, "halo_field_data", **kwargs), "r") as f:
         n_pt_halos = f["n_pt_halos"][...]
         pt_halo_masses = f["pt_halo_masses"][...]
 

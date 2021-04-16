@@ -257,10 +257,6 @@ int ComputePerturbField(
                         if (zi >= (dimension)){ zi -= (dimension);}
                         if (zi < 0) {zi += (dimension);}
 
-                        if(xi==0&&yi==0&&zi==0){
-                            LOG_SUPER_DEBUG("For zeroth resampled_box: %f, %d, %d, %d, %f", init_growth_factor, i,j,k, (boxes->hires_density)[R_INDEX(i,j,k)] );
-                        }
-
                         if(user_params->PERTURB_ON_HIGH_RES) {
 #pragma omp atomic
                             resampled_box[R_INDEX(xi,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)]);

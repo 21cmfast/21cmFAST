@@ -520,7 +520,22 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     _TYPEMAP = bidict({"float32": "float *", "float64": "double *", "int32": "int *"})
 
-    def __init__(self, *, random_seed=None, dummy=False, **kwargs):
+    def __init__(self, *, random_seed=None, dummy=False, initial=False, **kwargs):
+        """
+        Base type for output structures from C functions.
+
+        Parameters
+        ----------
+        random_seed
+            Seed associated with the output.
+        dummy
+            Specify this as a dummy struct, in which no arrays are to be
+            initialized or computed.
+        initial
+            Specify this as an initial struct, where arrays are to be
+            initialized, but do not need to be computed to pass into another
+            struct's compute().
+        """
         super().__init__()
 
         self.version = ".".join(__version__.split(".")[:2])
@@ -546,9 +561,13 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             )
 
         self.dummy = dummy
+        self.initial = initial
 
         self._array_structure = self._get_box_structures()
         self._array_state = {k: ArrayState.UNINITIALIZED for k in self._array_structure}
+        self._array_state.update(
+            {k: ArrayState.UNINITIALIZED for k in self._c_based_pointers}
+        )
 
         for k in self._array_structure:
             if k not in self.pointer_fields:
@@ -583,6 +602,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def _init_arrays(self):
         for k in self._array_structure.keys():
+            # Note that we must iterate through _array_structure, not
+            # _array_state, since _array_state also contains C-based pointers.
 
             # Only initialize uninitialized arrays.
             if self._array_state[k] != ArrayState.UNINITIALIZED:
@@ -626,7 +647,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 ArrayState.INITIALIZED,
                 ArrayState.COMPUTED_IN_MEMORY,
             ):
-                print(k, self._array_state[k])
                 setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
         for k in self.primitive_fields:
@@ -688,9 +708,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             raise ValueError("Must provide either flush or keep")
 
         if flush is not None and keep is None:
-            keep = [k for k in self._array_structure if k not in flush]
+            keep = [k for k in self._array_state if k not in flush]
         elif keep is not None and flush is None:
-            flush = [k for k in self._array_structure if k not in keep]
+            flush = [k for k in self._array_state if k not in keep]
 
         flush = flush or []
         keep = keep or []
@@ -703,10 +723,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             getattr(self, k)
 
     def _remove_array(self, k, force=False):
-        if not self.path or not self.path.exists() and not force:
-            raise IOError(
-                f"Trying to purge array {k} from memory that hasn't been stored! Use force=True if you meant to do this."
-            )
         if self._array_state[k] == ArrayState.INITIALIZED:
             delattr(self, k)
         elif self._array_state[k] == ArrayState.UNINITIALIZED:
@@ -714,7 +730,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         elif self._array_state[k] == ArrayState.COMPUTED_IN_MEMORY:
             if not force:
                 raise IOError(
-                    f"Trying to purge array {k} from memory that hasn't been stored! Use force=True if you meant to do this."
+                    f"Trying to purge array '{k}'' from memory that hasn't been stored! Use force=True if you meant to do this."
                 )
             else:
                 delattr(self, k)
@@ -945,7 +961,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             The HDF5 group into which to write the object.
         """
         # Go through all fields in this struct, and save
-        for k in self._array_structure:
+        for k in self._array_state:
             group.create_dataset(k, data=getattr(self, k))
             self._array_state[k] = ArrayState.COMPUTED_IN_MEMORY_AND_DISK
 
@@ -1205,9 +1221,10 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def ensure_input_computed(self, input_box, load=False) -> bool:
         """Ensure all the inputs have been computed."""
-        return input_box.ensure_arrays_computed(
-            *self.get_required_input_arrays(input_box), load=load
-        )
+        if input_box.dummy or input_box.initial:
+            return True
+        arrays = self.get_required_input_arrays(input_box)
+        return input_box.ensure_arrays_computed(*arrays, load=load)
 
     def compute(
         self, *args, hooks: Optional[Dict[Union[str, Callable], Dict[str, Any]]] = None
@@ -1219,17 +1236,19 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         )
         for arg in args:
             if isinstance(arg, OutputStruct):
-                if not arg.dummy:
+                if not (arg.dummy or arg.initial):
                     logger.debug(f"    {arg.__class__.__name__}")
                     for fieldname in arg.primitive_fields:
                         logger.debug(f"        {fieldname}: {getattr(arg, fieldname)}")
                     for fieldname in self.get_required_input_arrays(arg):
                         x = getattr(arg, fieldname).flatten()
 
-                        logger.debug(
-                            f"        {fieldname} (first,last,min,max, sum): {x[0]}, {x[-1]}, {x.min()}, {x.max()}, {np.sum(x)}"
-                        )
-
+                        try:
+                            logger.debug(
+                                f"        {fieldname} (first,last,min,max, sum): {x[0]}, {x[-1]}, {x.min()}, {x.max()}, {np.sum(x)}"
+                            )
+                        except IndexError:
+                            logger.debug(f"        {fieldname}  [empty]")
                 else:
                     logger.debug(f"    {arg.__class__.__name__} (dummy struct)")
             elif isinstance(arg, StructWithDefaults):

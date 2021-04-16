@@ -92,7 +92,7 @@ from astropy import units
 from astropy.cosmology import z_at_value
 from copy import deepcopy
 from scipy.interpolate import interp1d
-from typing import Any, Callable, Dict, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from ._cfg import config
 from ._utils import (
@@ -1907,6 +1907,7 @@ def spin_temperature(
                     cosmo_params=init_boxes.cosmo_params,
                     astro_params=astro_params,
                     flag_options=flag_options,
+                    initial=True,
                 )
             else:
                 previous_spin_temp = spin_temperature(
@@ -2194,12 +2195,10 @@ def run_coeval(
 
         # We can go ahead and purge some of the stuff in the init_box, but only if
         # it is cached -- otherwise we could be losing information.
-        if always_purge or (init_box.path and init_box.path.exists()):
-            # TODO: should really check that the file at path actually contains a fully
-            # working copy of the init_box.
-            init_box.prepare_for_perturb(
-                flag_options=flag_options,
-            )
+        try:
+            init_box.prepare_for_perturb(flag_options=flag_options, force=always_purge)
+        except IOError:
+            pass
 
         if perturb:
             if redshift is not None and any(
@@ -2257,17 +2256,22 @@ def run_coeval(
             )
 
             if user_params.MINIMIZE_MEMORY:
-                p.purge()
+                try:
+                    p.purge(force=always_purge)
+                except IOError:
+                    pass
 
             perturb_.append(p)
 
         perturb = perturb_
 
         # Now we can purge init_box further.
-        if always_purge or (init_box.path and init_box.path.exists()):
+        try:
             init_box.prepare_for_spin_temp(
-                flag_options=flag_options,
+                flag_options=flag_options, force=always_purge
             )
+        except IOError:
+            pass
 
         if flag_options.USE_HALO_FIELD and not pt_halos:
             for z in redshift:
@@ -2357,15 +2361,6 @@ def run_coeval(
                 if z not in redshift:
                     st = st2
 
-            if pf is not None:
-                print(
-                    z,
-                    pf.redshift,
-                    pf2.redshift,
-                    pf._computed_arrays,
-                    pf2._computed_arrays,
-                )
-
             ib2 = ionize_box(
                 redshift=z,
                 previous_ionize_box=ib,
@@ -2389,7 +2384,10 @@ def run_coeval(
             )
 
             if pf is not None:
-                pf.purge()
+                try:
+                    pf.purge(force=always_purge)
+                except IOError:
+                    pass
 
             if z in redshift:
                 logger.debug(f"PID={os.getpid()} doing brightness temp for z={z}")
@@ -2655,29 +2653,9 @@ def run_lightcone(
             )
 
         coeval_callback_output = []
-        compute_coeval_callback = [False for i in range(len(scrollz))]
-        if coeval_callback is not None:
-            if isinstance(coeval_callback_redshifts, (list, np.ndarray)):
-                for coeval_z in coeval_callback_redshifts:
-                    assert isinstance(coeval_z, (int, float, np.number))
-                    compute_coeval_callback[
-                        np.argmin(np.abs(np.array(scrollz) - coeval_z))
-                    ] = True
-                if sum(compute_coeval_callback) != len(coeval_callback_redshifts):
-                    logger.warning(
-                        "some of the coeval_callback_redshifts refer to the same node_redshift"
-                    )
-            elif (
-                isinstance(coeval_callback_redshifts, int)
-                and coeval_callback_redshifts > 0
-            ):
-                compute_coeval_callback = [
-                    not i % coeval_callback_redshifts for i in range(len(scrollz))
-                ]
-            else:
-                raise ValueError(
-                    "coeval_callback_redshifts has to be list or integer > 0."
-                )
+        compute_coeval_callback = _get_coeval_callbacks(
+            scrollz, coeval_callback, coeval_callback_redshifts
+        )
 
         if init_box is None:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
@@ -2691,12 +2669,12 @@ def run_lightcone(
 
         # We can go ahead and purge some of the stuff in the init_box, but only if
         # it is cached -- otherwise we could be losing information.
-        if always_purge or (init_box.path and init_box.path.exists()):
+        try:
             # TODO: should really check that the file at path actually contains a fully
             # working copy of the init_box.
-            init_box.prepare_for_perturb(
-                flag_options=flag_options,
-            )
+            init_box.prepare_for_perturb(flag_options=flag_options, force=always_purge)
+        except IOError:
+            pass
 
         if perturb is None:
             zz = scrollz
@@ -2713,7 +2691,10 @@ def run_lightcone(
                 hooks=hooks,
             )
             if user_params.MINIMIZE_MEMORY:
-                p.purge()
+                try:
+                    p.purge(force=always_purge)
+                except IOError:
+                    pass
 
             perturb_.append(p)
 
@@ -2723,10 +2704,12 @@ def run_lightcone(
         perturb_min = perturb[np.argmin(scrollz)]
 
         # Now that we've got all the perturb fields, we can purge init more.
-        if always_purge or (init_box.path and init_box.path.exists()):
+        try:
             init_box.prepare_for_spin_temp(
-                flag_options=flag_options,
+                flag_options=flag_options, force=always_purge
             )
+        except IOError:
+            pass
 
         if flag_options.PHOTON_CONS:
             calibrate_photon_cons(
@@ -2920,7 +2903,11 @@ def run_lightcone(
                 prev_perturb = pf2
 
             if pf is not None:
-                pf.purge()
+                try:
+                    pf.purge(force=always_purge)
+                except IOError:
+                    pass
+
             pf = pf2
 
         if flag_options.PHOTON_CONS:
@@ -2964,6 +2951,34 @@ def run_lightcone(
             return out[0]
         else:
             return out
+
+
+def _get_coeval_callbacks(
+    scrollz: List[float], coeval_callback, coeval_callback_redshifts
+) -> List[bool]:
+
+    compute_coeval_callback = [False for i in range(len(scrollz))]
+    if coeval_callback is not None:
+        if isinstance(coeval_callback_redshifts, (list, np.ndarray)):
+            for coeval_z in coeval_callback_redshifts:
+                assert isinstance(coeval_z, (int, float, np.number))
+                compute_coeval_callback[
+                    np.argmin(np.abs(np.array(scrollz) - coeval_z))
+                ] = True
+            if sum(compute_coeval_callback) != len(coeval_callback_redshifts):
+                logger.warning(
+                    "some of the coeval_callback_redshifts refer to the same node_redshift"
+                )
+        elif (
+            isinstance(coeval_callback_redshifts, int) and coeval_callback_redshifts > 0
+        ):
+            compute_coeval_callback = [
+                not i % coeval_callback_redshifts for i in range(len(scrollz))
+            ]
+        else:
+            raise ValueError("coeval_callback_redshifts has to be list or integer > 0.")
+
+    return compute_coeval_callback
 
 
 def _get_interpolation_outputs(

@@ -439,7 +439,7 @@ def produce_data_for_perturb_field_tests(redshift, force, **kwargs):
         init_box,
     ) = produce_perturb_field_data(redshift, **kwargs)
 
-    fname = get_filename(redshift, "perturb_field", **kwargs)
+    fname = get_filename(redshift, "perturb_field_data", **kwargs)
 
     # Need to manually remove it, otherwise h5py tries to add to it
     if os.path.exists(fname):
@@ -476,7 +476,7 @@ def produce_data_for_halo_field_tests(redshift, force, **kwargs):
 
     pt_halos = produce_halo_field_data(redshift, **kwargs)
 
-    fname = get_filename(redshift, "halo_field", **kwargs)
+    fname = get_filename(redshift, "halo_field_data", **kwargs)
 
     # Need to manually remove it, otherwise h5py tries to add to it
     if os.path.exists(fname):

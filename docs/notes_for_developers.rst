@@ -209,6 +209,40 @@ If you add a kind of Exception in the C code (to ``exceptions.h``), then be sure
 a handler for it in the ``_process_exitcode`` function in ``wrapper.py``.
 
 
+Maintaining Array State
+~~~~~~~~~~~~~~~~~~~~~~~
+Part of the challenge of maintaining a nice wrapper around the fast C-code is keeping
+track of initialized memory, and ensuring that the C structures that require that memory
+are pointing to the right place. Most of the arrays that are computed in ``21cmFAST``
+are initialized *in Python* (using Numpy), then a pointer to their memory is given to
+the C wrapper object.
+
+To make matters more complicated, since some of the arrays are really big, it is sometimes
+necessary to write them to disk to relieve memory pressure, and load them back in as required.
+That means that any time, a given array in a C-based class may have several different "states":
+
+1. Completely Uninitialized
+1. Allocated an initialized in memory
+1. Computed (i.e. filled with the values defining that array after computation in C)
+1. Stored on disk
+1. Stored *and* in memory.
+
+It's important to keep track of these states, because when passing the struct to the ``compute()``
+function of another struct (as input), we go and check if the array exists in memory, and
+initialize it. Of course, we shouldn't initialize it with zeros if in fact it has been computed already
+and is sitting on disk ready to be loaded. Thus, the ``OutputStruct`` tries to keep track of these
+states for every array in the structure, using the ``_array_state`` dictionary. Every write/read/compute/purge
+operation self-consistently modifies the status of the array.
+
+However, one needs to be careful -- you *can* modify the actual state without modifying the ``_array_state``
+(eg. simply by doing a ``del object.array``). In the future, we may be able to protect this to some extent,
+but for now we rely on the good intent of the user.
+
+Purging/Loading C-arrays to/from Disk
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+As of v3.1.0, there are more options for granular I/O, allowing large arrays to be purged from memory
+when they are unnecessary for further computation.
+
 
 Branching and Releasing
 -----------------------

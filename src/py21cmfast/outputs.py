@@ -86,7 +86,7 @@ class InitialConditions(_OutputStruct):
         "NU_X_MAX",  # ib
     ]
 
-    def prepare_for_perturb(self, flag_options: FlagOptions):
+    def prepare_for_perturb(self, flag_options: FlagOptions, force: bool = False):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
         keep = ["hires_density"]
 
@@ -116,14 +116,14 @@ class InitialConditions(_OutputStruct):
         if self.user_params.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
 
-        self.prepare(keep=keep)
+        self.prepare(keep=keep, force=force)
 
-    def prepare_for_spin_temp(self, flag_options: FlagOptions):
+    def prepare_for_spin_temp(self, flag_options: FlagOptions, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
         if self.user_params.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
-        self.prepare(keep=keep)
+        self.prepare(keep=keep, force=force)
 
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         shape = (self.user_params.HII_DIM,) * 3
