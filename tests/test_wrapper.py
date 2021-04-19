@@ -293,6 +293,12 @@ def test_run_lf():
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
 
+    muv_minih, mhalo_minih, lf_minih = wrapper.compute_luminosity_function(redshifts=[7, 8, 9], nbins=100,
+                                                        component=0, flag_options={'USE_MINI_HALOS':True},
+                                                        mturnovers=[7.,7.,7.], mturnovers_mini=[5.,5.,5.]))
+    assert np.all(lf_minih[~np.isnan(lf_minih)] > -30)
+    assert lf_minih.shape == (3, 100)
+
 
 def test_coeval_st(ic, perturb_field):
     coeval = wrapper.run_coeval(

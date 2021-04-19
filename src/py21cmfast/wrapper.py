@@ -560,19 +560,19 @@ def compute_luminosity_function(
             )
             lfunc_all[iz] = np.log10(
                 10
-                ** (interp1d(Muvfunc, lfunc, fill_value="extrapolate")(Muvfunc_all[iz]))
+                ** (interp1d(Muvfunc[iz], lfunc[iz], fill_value="extrapolate")(Muvfunc_all[iz]))
                 + 10
                 ** (
-                    interp1d(Muvfunc_MINI, lfunc_MINI, fill_value="extrapolate")(
+                    interp1d(Muvfunc_MINI[iz], lfunc_MINI[iz], fill_value="extrapolate")(
                         Muvfunc_all[iz]
                     )
                 )
             )
             Mhfunc_all[iz] = np.array(
-                interp1d(Muvfunc, Mhfunc, fill_value="extrapolate")(Muvfunc_all[iz]),
-                interp1d(Muvfunc_MINI, Mhfunc_MINI, fill_value="extrapolate")(
+                [interp1d(Muvfunc[iz], Mhfunc[iz], fill_value="extrapolate")(Muvfunc_all[iz]),
+                interp1d(Muvfunc_MINI[iz], Mhfunc_MINI[iz], fill_value="extrapolate")(
                     Muvfunc_all[iz]
-                ),
+                )],
             ).T
         lfunc_all[lfunc_all <= -30] = np.nan
         return Muvfunc_all, Mhfunc_all, lfunc_all
