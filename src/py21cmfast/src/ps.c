@@ -438,7 +438,8 @@ double sigma_z0(double M){
 
     gsl_set_error_handler_off();
 
-    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
+//    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
 
     if(status!=0) {
         LOG_ERROR("gsl integration error occured!");
