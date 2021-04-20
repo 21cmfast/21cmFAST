@@ -443,6 +443,7 @@ double sigma_z0(double M){
 
     if(status!=0) {
         LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("error: %s\n", gsl_strerror (status));
         LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
         LOG_ERROR("data: M=%e",M);
         Throw GSLError;
