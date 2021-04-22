@@ -438,12 +438,11 @@ double sigma_z0(double M){
 
     gsl_set_error_handler_off();
 
-//    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
     status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,1000, GSL_INTEG_GAUSS61, w, &result, &error);
 
     if(status!=0) {
         LOG_ERROR("gsl integration error occured!");
-        LOG_ERROR("error: %s\n", gsl_strerror (status));
+        LOG_ERROR("gsl inbuilt error message: %s\n", gsl_strerror (status));
         LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
         LOG_ERROR("data: M=%e",M);
         Throw GSLError;
