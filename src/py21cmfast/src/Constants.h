@@ -89,8 +89,9 @@
 
 
 // Modified ST mass function for a smooth window function and ETHOS _hmf_models. Fitted to z>5 sims.
-#define SHETH_a_SMOOTH (1.0) // we set it to one since we vary c below
-#define SHETH_p_SMOOTH (0.15) //
+// Based on modified ST params from Schneider et al. 2013
+#define SHETH_a_SMOOTH (1.0)  // we set it to one since we vary c below (equivalent to q in ST)
+#define SHETH_p_SMOOTH (0.3)  // NB this _is_ p not p/2!!
 #define SHETH_A_SMOOTH (0.3222) //
 //triple check later
 //And window function parameters for smooth window
