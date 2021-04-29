@@ -1234,6 +1234,10 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
             // steps were infinitely large, we would have contributions between these two discrete radii
             // Thus, this aims to add a weighted contribution to the first radii where this occurs to smooth out
             // kinks in the average Lyman-alpha flux.
+
+            // Note: We do not apply this correction to the LW background as it is unaffected by this. It is only
+            // the Lyn contribution that experiences the kink. Applying this correction to LW introduces kinks
+            // into the otherwise smooth quantity
             if(R_ct > 1 && sum_lyn[R_ct]==0.0 && sum_lyn[R_ct-1]>0. && first_radii) {
 
                 // The current zpp for which we are getting zero contribution
@@ -1266,12 +1270,9 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 sum_lyn[R_ct] = weight * sum_lyn[R_ct-1];
                 if (flag_options->USE_MINI_HALOS){
                     sum_lyn_MINI[R_ct] = weight * sum_lyn_MINI[R_ct-1];
-                    sum_lyLWn[R_ct] = weight * sum_lyLWn[R_ct-1];
-                    sum_lyLWn_MINI[R_ct] = weight * sum_lyLWn_MINI[R_ct-1];
                 }
                 first_radii = false;
             }
-
 
 
         } // end loop over R_ct filter steps
