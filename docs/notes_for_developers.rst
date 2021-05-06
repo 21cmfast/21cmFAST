@@ -219,7 +219,7 @@ the C wrapper object.
 
 To make matters more complicated, since some of the arrays are really big, it is sometimes
 necessary to write them to disk to relieve memory pressure, and load them back in as required.
-That means that any time, a given array in a C-based class may have several different "states":
+That means that any time, a given array in a C-based class may have one of several different "states":
 
 1. Completely Uninitialized
 1. Allocated an initialized in memory
@@ -241,7 +241,21 @@ but for now we rely on the good intent of the user.
 Purging/Loading C-arrays to/from Disk
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 As of v3.1.0, there are more options for granular I/O, allowing large arrays to be purged from memory
-when they are unnecessary for further computation.
+when they are unnecessary for further computation. As a developer, you should be aware of the ``_get_required_input_arrays``
+method on all ``OutputStruct`` subclasses. This is available to tell the given class what arrays need to
+be available at compute time in any of the input structs. For example, if doing ``PERTURB_ON_HIGH_RES``,
+the ``PerturbedField`` requires the hi-res density fields in ``InitialConditions``. This gives indications
+as to what boxes can be purged to disk (all the low-res boxes in the ICs, for example).
+Currently, this is only used to *check* that all boxes are available at compute time, and is not used
+to actually automatically purge anything. Note however that ``InitialConditions`` does have two
+custom methods that will purge unnecessary arrays before computing perturb fields or ionization fields.
+
+.. note:: If you add a new quantity to a struct, and it is required input for other structs, you need
+          to add it to the relevant ``_get_required_input_arrays`` methods.
+
+Further note that as of v3.1.0, partial structs can be written and read from disk (so you can specify
+``keys=['hires_density']`` in the ``.read()`` method to just read the hi-res density field into the object.
+
 
 
 Branching and Releasing

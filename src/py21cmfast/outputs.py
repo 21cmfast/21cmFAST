@@ -202,33 +202,32 @@ class PerturbedField(_OutputStructZ):
         """Return all input arrays required to compute this object."""
         required = []
 
-        if isinstance(input_box, InitialConditions):
-            # Always require hires_density
-            required += ["hires_density"]
-
-            if not self.user_params.PERTURB_ON_HIGH_RES:
-                required += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
-
-                if self.user_params.USE_2LPT:
-                    required += [
-                        "lowres_vx_2LPT",
-                        "lowres_vy_2LPT",
-                        "lowres_vz_2LPT",
-                    ]
-
-            else:
-                required += ["hires_vx", "hires_vy", "hires_vz"]
-
-                if self.user_params.USE_2LPT:
-                    required += ["hires_vx_2LPT", "hires_vy_2LPT", "hires_vz_2LPT"]
-
-            if self.user_params.USE_RELATIVE_VELOCITIES:
-                required.append("lowres_vcb")
-
-        else:
+        if not isinstance(input_box, InitialConditions):
             raise ValueError(
                 f"{type(input_box)} is not an input required for PerturbedField!"
             )
+
+        # Always require hires_density
+        required += ["hires_density"]
+
+        if self.user_params.PERTURB_ON_HIGH_RES:
+            required += ["hires_vx", "hires_vy", "hires_vz"]
+
+            if self.user_params.USE_2LPT:
+                required += ["hires_vx_2LPT", "hires_vy_2LPT", "hires_vz_2LPT"]
+
+        else:
+            required += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
+
+            if self.user_params.USE_2LPT:
+                required += [
+                    "lowres_vx_2LPT",
+                    "lowres_vy_2LPT",
+                    "lowres_vz_2LPT",
+                ]
+
+        if self.user_params.USE_RELATIVE_VELOCITIES:
+            required.append("lowres_vcb")
 
         return required
 
