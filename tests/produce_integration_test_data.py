@@ -91,6 +91,18 @@ OPTIONS = (
         },
     ],
     [
+        9,
+        {
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "USE_TS_FLUCT": True,
+            "INHOMO_RECO": True,
+            "PHOTON_CONS": True,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
+            "MINIMIZE_MEMORY": True,
+        },
+    ],
+    [
         8.5,
         {
             "N_THREADS": 2,
