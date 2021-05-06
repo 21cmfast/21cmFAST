@@ -19,6 +19,7 @@ from py21cmfast import (
     AstroParams,
     CosmoParams,
     FlagOptions,
+    InitialConditions,
     UserParams,
     config,
     determine_halo_list,
@@ -279,7 +280,7 @@ def get_all_options_halo(redshift, **kwargs):
 def produce_coeval_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
 
-    coeval = run_coeval(**options)
+    coeval = run_coeval(write=write_ics_only_hook, **options)
     p = {}
 
     for field in COEVAL_FIELDS:
@@ -303,6 +304,7 @@ def produce_lc_power_spectra(redshift, **kwargs):
                 or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
             )
         ],
+        write=write_ics_only_hook,
         **options,
     )
 
@@ -381,6 +383,11 @@ def get_filename(redshift, kind, **kwargs):
     fname = f"{kind}_z{redshift:.2f}_{string}.h5"
 
     return DATA_PATH / fname
+
+
+def write_ics_only_hook(obj, **params):
+    if isinstance(obj, InitialConditions):
+        obj.write(**params)
 
 
 def produce_power_spectra_for_tests(redshift, force, direc, **kwargs):

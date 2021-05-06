@@ -732,9 +732,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 raise IOError(
                     f"Trying to purge array '{k}'' from memory that hasn't been stored! Use force=True if you meant to do this."
                 )
-            else:
-                delattr(self, k)
-                self._array_state[k] = ArrayState.UNINITIALIZED
+            delattr(self, k)
+            self._array_state[k] = ArrayState.UNINITIALIZED
         elif self._array_state[k] == ArrayState.COMPUTED_IN_MEMORY_AND_DISK:
             delattr(self, k)
             self._array_state[k] = ArrayState.COMPUTED_ON_DISK
@@ -1131,7 +1130,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         # This is the class name and all parameters which belong to C-based input structs,
         # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
         # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
-        return self._seedless_repr() + "_random_seed={}".format(self._random_seed)
+        return f"{self._seedless_repr()}_random_seed={self._random_seed}"
 
     def _seedless_repr(self):
         # The same as __repr__ except without the seed.
@@ -1301,6 +1300,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             hooks = {"write": {"direc": config["direc"]}}
 
         for hook, params in hooks.items():
+
             if callable(hook):
                 hook(self, **params)
             else:

@@ -100,7 +100,10 @@ def test_power_spectra_lightcone(redshift, kwargs, module_direc, plt):
 
     for key, value in true_powers.items():
         print(f"Testing {key}")
-        assert np.allclose(value, test_powers[key], atol=0, rtol=1e-2)
+        # Ensure all but 2 of the values is within 1%, and none of the values
+        # is outside 10%
+        assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=1e-2)) < 3
+        assert np.allclose(value, test_powers[key], atol=0, rtol=1e-1)
 
     for key, value in true_global.items():
         print(f"Testing Global {key}")
@@ -111,7 +114,7 @@ def make_lightcone_comparison_plot(
     k, z, true_powers, true_global, test_powers, lc, plt
 ):
     n = len(true_global) + len(true_powers)
-    fig, ax = plt.subplots(2, n, figsize=(3 * n, 5), sharex=True)
+    fig, ax = plt.subplots(2, n, figsize=(3 * n, 5))
 
     for i, (key, val) in enumerate(true_powers.items()):
         make_comparison_plot(

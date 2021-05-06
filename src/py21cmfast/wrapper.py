@@ -262,14 +262,16 @@ def _get_config_options(
 
     direc = str(os.path.expanduser(config["direc"] if direc is None else direc))
     hooks = hooks or {}
-    if "write" not in hooks:
+
+    if callable(write) and write not in hooks:
+        hooks[write] = {"direc": direc}
+
+    if not hooks:
         if write is None:
             write = config["write"]
 
         if not callable(write) and write:
             hooks["write"] = {"direc": direc}
-        elif callable(write):
-            hooks[write] = {"direc": direc}
 
     return (
         direc,
@@ -1541,7 +1543,7 @@ def ionize_box(
             else:
                 prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
 
-            # Ensure the previous spin temperature has a higher redshift than this one.
+            # Ensure the previous ionized box has a higher redshift than this one.
             if prev_z and prev_z <= redshift:
                 raise ValueError(
                     "Previous ionized box must have a higher redshift than that being evaluated."
