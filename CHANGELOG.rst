@@ -14,19 +14,27 @@ Added
 * Fast and low-memory generation of relative-velocity (vcb) initial conditions. Eliminated hi-res vcb boxes, as they are never needed.
 * Also output the mean free path (i.e. MFP_box in IonizedBox).
 * Added the effect of DM-baryon relative velocities on PopIII-forming minihaloes. This now provides the correct background evolution jointly with LW feedback. It gives rise to velocity-induced acoustic oscillations (VAOs) from the relative-velocity fluctuations. We also follow a more flexible parametrization for LW feedback in minihaloes, following new simulation results, and add a new index ALPHA_STAR_MINI for minihaloes, now independent of regular ACGs.
+* New ``hooks`` keyword to high-level functions, that are run on the completion of each computational step, and can
+  be used to more generically write parts of the data to file.
+* Ability to pass a function to ``write=`` to write more specific aspects of the data (internally, this will be put into the ``hooks`` dictionary).
+* ``run_lightcone`` and ``run_coeval`` use significantly less memory by offloading initial conditions and perturb_field instances to disk if possible.
 
 Fixed
 ~~~~~
 * Bug in 2LPT when `USE_RELATIVE_VELOCITIES=True` [Issue #191, PR #192]
 * Error raised when redshifts are not in ascending order [Issue #176, PR #177]
 * Errors when ``USE_FFTW_WISDOM`` is used on some systems [Issue #174, PR #199]
-* Bug in ComputeIonizedBox causing negative recombination rate and ring structure in Gamma12_box [Issue #194, PR #210]
+* Bug in ComputeIonizedBox causing negative recombination rate and ring structure in ``Gamma12_box`` [Issue #194, PR #210]
 * Error in determining the wisdom file name [Issue #209, PR#210]
 
 Internals
 ~~~~~~~~~
 
 * Added ``dft.c``, which makes doing all the cubic FFTs a lot easier and more consistent. [PR #199]
+* More generic way of keeping track of arrays to be passed between C and Python, and their shape in Python, using ``_get_box_structures``.
+  This also means that the various boxes can be queried before they are initialized and computed.
+* More stringent integration tests that test each array, not just the final brightness temperature.
+* Ability to plot the integration test data to more easily identify where things have gone wrong (use ``--plots`` in the ``pytest`` invocation).
 
 v3.0.3
 ------
