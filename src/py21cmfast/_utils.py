@@ -540,7 +540,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         self.version = ".".join(__version__.split(".")[:2])
         self.patch_version = ".".join(__version__.split(".")[2:])
-        self.path = None
+        self._paths = []
 
         self._random_seed = random_seed
 
@@ -572,6 +572,19 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         for k in self._array_structure:
             if k not in self.pointer_fields:
                 raise TypeError(f"Key {k} in {self} not a defined pointer field in C.")
+
+    @property
+    def path(self) -> Tuple[None, Path]:
+        """The path to an on-disk version of this object."""
+        if not self._paths:
+            return None
+
+        for pth in self._paths:
+            if pth.exists():
+                return pth
+
+        logger.info("All paths that defined {self} have been deleted on disk.")
+        return None
 
     @abstractmethod
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
@@ -941,7 +954,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
                 self.write_data_to_hdf5_group(boxes)
 
-                self.path = Path(fname)
+                self._paths.insert(0, Path(fname))
 
         except OSError as e:
             logger.warning(
@@ -1073,7 +1086,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             self._random_seed = seed
 
         self.__expose()
-        self.path = Path(pth)
+        self._paths.insert(0, Path(pth))
 
     @classmethod
     def from_file(cls, fname, direc=None, load_data=True):

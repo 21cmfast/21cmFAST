@@ -111,7 +111,7 @@ def default_user_params():
 @pytest.fixture(scope="session")
 def ic(default_user_params, tmpdirec):
     return wrapper.initial_conditions(
-        user_params=default_user_params, write=True, direc=str(tmpdirec), random_seed=12
+        user_params=default_user_params, write=True, direc=tmpdirec, random_seed=12
     )
 
 

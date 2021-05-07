@@ -615,7 +615,11 @@ class _HighLevelOutput:
             "brightness_temp",
         ]
 
-        clean = kinds if clean and not hasattr(clean, "__len__") else []
+        clean = (
+            kinds
+            if clean and not hasattr(clean, "__len__")
+            else (clean if clean else [])
+        )
         if any(c not in kinds for c in clean):
             raise ValueError(
                 "You are trying to clean cached items that you will not be gathering."
