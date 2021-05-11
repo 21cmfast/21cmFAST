@@ -533,7 +533,7 @@ int ComputePerturbField(
         }
 
 #pragma omp parallel shared(LOWRES_density_perturb,HIRES_density_perturb,dDdt_over_D,dimension,switch_mid) \
-                        private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq) num_threads(user_params->N_THREADS)
+                        private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq,k_direc) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
             for (n_x=0; n_x<dimension; n_x++){
