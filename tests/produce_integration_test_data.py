@@ -6,10 +6,13 @@ This is necessary, because low redshifts mean that neutral fractions are small,
 and then numerical noise gets relatively more important, and can make the comparison
 fail at the tens-of-percent level.
 """
+import click
 import glob
 import h5py
+import logging
 import numpy as np
 import os
+import questionary as qs
 import sys
 import tempfile
 from pathlib import Path
@@ -30,6 +33,9 @@ from py21cmfast import (
     run_coeval,
     run_lightcone,
 )
+
+logger = logging.getLogger("py21cmfast")
+
 
 SEED = 12345
 DATA_PATH = Path(__file__).parent / "test_data"
@@ -62,20 +68,23 @@ COEVAL_FIELDS = [
     "lowres_vx",
 ] + LIGHTCONE_FIELDS
 
-OPTIONS = (
-    [12, {}],
-    [12, {"PERTURB_ON_HIGH_RES": True}],
-    [11, {"zprime_step_factor": 1.02}],
-    [30, {"z_heat_max": 40}],
-    [13, {"zprime_step_factor": 1.05, "z_heat_max": 25, "HMF": 0}],
-    [16, {"interp_perturb_field": True}],
-    [14, {"USE_MASS_DEPENDENT_ZETA": True}],
-    [9, {"SUBCELL_RSD": True}],
-    [10, {"INHOMO_RECO": True}],
-    [16, {"HMF": 3, "USE_TS_FLUCT": True}],
-    [20, {"z_heat_max": 45, "M_MIN_in_Mass": True, "HMF": 2}],
-    [35, {"USE_FFTW_WISDOM": True}],
-    [
+OPTIONS = {
+    "simple": [12, {}],
+    "perturb_high_res": [12, {"PERTURB_ON_HIGH_RES": True}],
+    "change_step_factor": [11, {"zprime_step_factor": 1.02}],
+    "change_z_heat_max": [30, {"z_heat_max": 40}],
+    "larger_step_factor": [
+        13,
+        {"zprime_step_factor": 1.05, "z_heat_max": 25, "HMF": 0},
+    ],
+    "interp_perturb_field": [16, {"interp_perturb_field": True}],
+    "mdzeta": [14, {"USE_MASS_DEPENDENT_ZETA": True}],
+    "rsd": [9, {"SUBCELL_RSD": True}],
+    "inhomo": [10, {"INHOMO_RECO": True}],
+    "tsfluct": [16, {"HMF": 3, "USE_TS_FLUCT": True}],
+    "mmin_in_mass": [20, {"z_heat_max": 45, "M_MIN_in_Mass": True, "HMF": 2}],
+    "fftw_wisdom": [35, {"USE_FFTW_WISDOM": True}],
+    "mini_halos": [
         18,
         {
             "z_heat_max": 25,
@@ -89,9 +98,9 @@ OPTIONS = (
             "NUM_FILTER_STEPS_FOR_Ts": 8,
         },
     ],
-    [8, {"N_THREADS": 2}],
-    [10, {"PHOTON_CONS": True}],
-    [
+    "nthreads": [8, {"N_THREADS": 2}],
+    "photoncons": [10, {"PHOTON_CONS": True}],
+    "mdz_and_photoncons": [
         8.5,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
@@ -100,7 +109,7 @@ OPTIONS = (
             "zprime_step_factor": 1.1,
         },
     ],
-    [
+    "mdz_and_ts_fluct": [
         9,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
@@ -111,7 +120,7 @@ OPTIONS = (
             "zprime_step_factor": 1.1,
         },
     ],
-    [
+    "mdz_and_tsfluct_nthreads": [
         8.5,
         {
             "N_THREADS": 2,
@@ -124,8 +133,8 @@ OPTIONS = (
             "zprime_step_factor": 1.1,
         },
     ],
-    [9, {"USE_HALO_FIELD": True}],
-    [
+    "halo_field": [9, {"USE_HALO_FIELD": True}],
+    "halo_field_mdz": [
         8.5,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
@@ -135,7 +144,7 @@ OPTIONS = (
             "zprime_step_factor": 1.1,
         },
     ],
-    [
+    "halo_field_mdz_highres": [
         8.5,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
@@ -147,7 +156,7 @@ OPTIONS = (
             "zprime_step_factor": 1.1,
         },
     ],
-    [
+    "mdz_tsfluct_nthreads": [
         12.0,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
@@ -160,7 +169,7 @@ OPTIONS = (
             "USE_INTERPOLATION_TABLES": False,
         },
     ],
-    [
+    "ts_fluct_no_tables": [
         12.0,
         {
             "USE_TS_FLUCT": True,
@@ -171,7 +180,7 @@ OPTIONS = (
             "USE_INTERPOLATION_TABLES": False,
         },
     ],
-    [
+    "minihalos_no_tables": [
         12.0,
         {
             "USE_MINI_HALOS": True,
@@ -184,11 +193,11 @@ OPTIONS = (
             "USE_INTERPOLATION_TABLES": False,
         },
     ],
-    [
+    "fast_fcoll": [
         12.1,
         {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True},
     ],
-    [
+    "relvel": [
         18,
         {
             "z_heat_max": 25,
@@ -201,16 +210,25 @@ OPTIONS = (
             "USE_RELATIVE_VELOCITIES": True,
         },
     ],
-)
+}
 
-OPTIONS_PT = (
-    [10, {}],
-    [10, {"SECOND_ORDER_LPT_CORRECTIONS": 0}],
-    [10, {"EVOLVE_DENSITY_LINEARLY": 1}],
-    [10, {"PERTURB_ON_HIGH_RES": True}],
-)
+if len(set(OPTIONS.keys())) != len(list(OPTIONS.keys())):
+    raise ValueError("There is a non-unique option name!")
 
-OPTIONS_HALO = ([9, {"USE_HALO_FIELD": True}],)
+OPTIONS_PT = {
+    "simple": [10, {}],
+    "no2lpt": [10, {"SECOND_ORDER_LPT_CORRECTIONS": False}],
+    "linear": [10, {"EVOLVE_DENSITY_LINEARLY": 1}],
+    "highres": [10, {"PERTURB_ON_HIGH_RES": True}],
+}
+
+if len(set(OPTIONS_PT.keys())) != len(list(OPTIONS_PT.keys())):
+    raise ValueError("There is a non-unique option_pt name!")
+
+OPTIONS_HALO = {"halo_field": [9, {"USE_HALO_FIELD": True}]}
+
+if len(set(OPTIONS_HALO.keys())) != len(list(OPTIONS_HALO.keys())):
+    raise ValueError("There is a non-unique option_halo name!")
 
 
 def get_defaults(kwargs, cls):
@@ -376,7 +394,13 @@ def produce_halo_field_data(redshift, **kwargs):
     return pt_halos
 
 
-def get_filename(redshift, kind, **kwargs):
+def get_filename(kind, name, **kwargs):
+    # get sorted keys
+    fname = f"{kind}_{name}.h5"
+    return DATA_PATH / fname
+
+
+def get_old_filename(redshift, kind, **kwargs):
     # get sorted keys
     kwargs = {k: kwargs[k] for k in sorted(kwargs)}
     string = "_".join(f"{k}={v}" for k, v in kwargs.items())
@@ -390,8 +414,8 @@ def write_ics_only_hook(obj, **params):
         obj.write(**params)
 
 
-def produce_power_spectra_for_tests(redshift, force, direc, **kwargs):
-    fname = get_filename(redshift, "power_spectra", **kwargs)
+def produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs):
+    fname = get_filename("power_spectra", name)
 
     # Need to manually remove it, otherwise h5py tries to add to it
     if fname.exists():
@@ -433,7 +457,7 @@ def produce_power_spectra_for_tests(redshift, force, direc, **kwargs):
     return fname
 
 
-def produce_data_for_perturb_field_tests(redshift, force, **kwargs):
+def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
     (
         k_dens,
         p_dens,
@@ -446,7 +470,7 @@ def produce_data_for_perturb_field_tests(redshift, force, **kwargs):
         init_box,
     ) = produce_perturb_field_data(redshift, **kwargs)
 
-    fname = get_filename(redshift, "perturb_field_data", **kwargs)
+    fname = get_filename("perturb_field_data", name)
 
     # Need to manually remove it, otherwise h5py tries to add to it
     if os.path.exists(fname):
@@ -479,11 +503,11 @@ def produce_data_for_perturb_field_tests(redshift, force, **kwargs):
     return fname
 
 
-def produce_data_for_halo_field_tests(redshift, force, **kwargs):
+def produce_data_for_halo_field_tests(name, redshift, force, **kwargs):
 
     pt_halos = produce_halo_field_data(redshift, **kwargs)
 
-    fname = get_filename(redshift, "halo_field_data", **kwargs)
+    fname = get_filename("halo_field_data", name)
 
     # Need to manually remove it, otherwise h5py tries to add to it
     if os.path.exists(fname):
@@ -503,32 +527,37 @@ def produce_data_for_halo_field_tests(redshift, force, **kwargs):
     return fname
 
 
-if __name__ == "__main__":
-    import logging
+main = click.Group()
 
-    logger = logging.getLogger("py21cmfast")
 
-    lvl = "WARNING"
-    for arg in sys.argv:
-        if arg.startswith("--log"):
-            lvl = arg.split("--log=")[-1]
-    lvl = getattr(logging, lvl)
-    logger.setLevel(lvl)
-
+@main.command()
+@click.option("--log-level", default="WARNING")
+@click.option("--force/--no-force", default=False)
+@click.option("--remove/--no-remove", default=True)
+@click.option("--pt-only/--not-pt-only", default=False)
+@click.option("--no-pt/--pt", default=False)
+@click.option("--no-halo/--do-halo", default=False)
+@click.option(
+    "--names",
+    multiple=True,
+    type=click.Choice(list(OPTIONS.keys())),
+    default=list(OPTIONS.keys()),
+)
+def go(
+    log_level: str,
+    force: bool,
+    remove: bool,
+    pt_only: bool,
+    no_pt: bool,
+    no_halo,
+    names,
+):
+    logger.setLevel(log_level.upper())
     global_params.ZPRIME_STEP_FACTOR = DEFAULT_ZPRIME_STEP_FACTOR
 
-    force = "--force" in sys.argv
-    remove = "--no-clean" not in sys.argv
-    pt_only = "--pt-only" in sys.argv
-    no_pt = "--no-pt" in sys.argv
-    no_halo = "--no-halo" in sys.argv
-
-    nums = range(len(OPTIONS))
-    for arg in sys.argv:
-        if arg.startswith("--nums="):
-            nums = [int(x) for x in arg.split("=")[-1].split(",")]
-            remove = False
-            force = True
+    if names != list(OPTIONS.keys()):
+        remove = False
+        force = True
 
     if pt_only or no_pt or no_halo:
         remove = False
@@ -540,9 +569,12 @@ if __name__ == "__main__":
     fnames = []
 
     if not pt_only:
-        for redshift, kwargs in [OPTIONS[n] for n in nums]:
+        for name in names:
+            redshift = OPTIONS[name][0]
+            kwargs = OPTIONS[name][1]
+
             fnames.append(
-                produce_power_spectra_for_tests(redshift, force, direc, **kwargs)
+                produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs)
             )
 
     if not no_pt:
@@ -556,7 +588,7 @@ if __name__ == "__main__":
             fnames.append(produce_data_for_halo_field_tests(redshift, force, **kwargs))
 
     # Remove extra files that
-    if not (nums or pt_only or no_pt or no_halo):
+    if not (names or pt_only or no_pt or no_halo):
         all_files = DATA_PATH.glob("*")
         for fl in all_files:
             if fl not in fnames:
@@ -565,3 +597,77 @@ if __name__ == "__main__":
                     os.remove(fl)
                 else:
                     print(f"File is now redundant and can be removed: {fl}")
+
+
+@main.command()
+def convert():
+    """Convert old-style data file names to new ones."""
+    all_files = DATA_PATH.glob("*")
+
+    old_names = {
+        get_old_filename(v[0], "power_spectra", **v[1]): k for k, v in OPTIONS.items()
+    }
+    old_names_pt = {
+        get_old_filename(v[0], "perturb_field_data", **v[1]): k
+        for k, v in OPTIONS_PT.items()
+    }
+    old_names_hf = {
+        get_old_filename(v[0], "halo_field_data", **v[1]): k
+        for k, v in OPTIONS_HALO.items()
+    }
+
+    for fl in all_files:
+        if fl.name.startswith("power_spectra"):
+            if fl.stem.split("power_spectra_")[-1] in OPTIONS:
+                continue
+            elif fl in old_names:
+                new_file = get_filename("power_spectra", old_names[fl])
+                fl.rename(new_file)
+                continue
+        elif fl.name.startswith("perturb_field_data"):
+            if fl.stem.split("perturb_field_data_")[-1] in OPTIONS_PT:
+                continue
+            elif fl in old_names_pt:
+                new_file = get_filename("perturb_field_data", old_names_pt[fl])
+                fl.rename(new_file)
+                continue
+        elif fl.name.startswith("halo_field_data"):
+            if fl.stem.split("halo_field_data_")[-1] in OPTIONS_HALO:
+                continue
+            elif fl in old_names_hf:
+                new_file = get_filename("halo_field_data", old_names_hf[fl])
+                fl.rename(new_file)
+                continue
+
+        if qs.confirm(f"Remove {fl}?").ask():
+            fl.unlink()
+
+
+@main.command()
+def clean():
+    """Convert old-style data file names to new ones."""
+    all_files = DATA_PATH.glob("*")
+
+    for fl in all_files:
+        if (
+            fl.stem.startswith("power_spectra")
+            and fl.stem.split("power_spectra_")[-1] in OPTIONS
+        ):
+            continue
+        elif (
+            fl.stem.startswith("perturb_field_data")
+            and fl.stem.split("perturb_field_data_")[-1] in OPTIONS_PT
+        ):
+            continue
+        elif (
+            fl.stem.startswith("halo_field_data")
+            and fl.stem.split("halo_field_data_")[-1] in OPTIONS_HALO
+        ):
+            continue
+
+        if qs.confirm(f"Remove {fl}?").ask():
+            fl.unlink()
+
+
+if __name__ == "__main__":
+    main()

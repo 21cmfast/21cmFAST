@@ -10,6 +10,7 @@ import pickle
 
 from py21cmfast import InitialConditions  # An example of an output struct
 from py21cmfast import IonizedBox, PerturbedField, TsBox, global_params
+from py21cmfast._utils import ArrayState
 
 
 @pytest.fixture(scope="function")
@@ -149,14 +150,12 @@ def test_reading_purged(ic: InitialConditions):
     ic.purge()
 
     assert "lowres_density" not in ic.__dict__
-    assert "lowres_density" not in ic._computed_arrays
-    assert "lowres_density" not in ic._initialized_arrays
+    assert ic._array_state["lowres_density"] == ArrayState.COMPUTED_ON_DISK
 
     # But we can still get it.
     lowres_density_2 = ic.lowres_density
 
-    assert "lowres_density" in ic._computed_arrays
-    assert "lowres_density" not in ic._initialized_arrays
+    assert ic._array_state["lowres_density"] == ArrayState.COMPUTED_IN_MEMORY_AND_DISK
 
     assert np.allclose(lowres_density_2, lowres_density)
 

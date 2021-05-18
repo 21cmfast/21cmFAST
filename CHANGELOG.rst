@@ -35,6 +35,9 @@ Internals
   This also means that the various boxes can be queried before they are initialized and computed.
 * More stringent integration tests that test each array, not just the final brightness temperature.
 * Ability to plot the integration test data to more easily identify where things have gone wrong (use ``--plots`` in the ``pytest`` invocation).
+* Nicer CLI interface for ``produce_integration_test_data.py``. New options to ``clean`` the `test_data/`` directory,
+  and also test data is saved by user-defined key rather than massive string of variables.
+* Nicer debug statements before calls to C, for easily comparing between versions.
 
 v3.0.3
 ------

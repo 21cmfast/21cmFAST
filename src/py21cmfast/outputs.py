@@ -45,7 +45,7 @@ class _OutputStruct(_BaseOutputStruct):
 
 
 class _OutputStructZ(_OutputStruct):
-    _inputs = _OutputStruct._inputs + ["redshift"]
+    _inputs = _OutputStruct._inputs + ("redshift",)
 
 
 class InitialConditions(_OutputStruct):
@@ -161,6 +161,15 @@ class InitialConditions(_OutputStruct):
         """Return all input arrays required to compute this object."""
         return []
 
+    def compute(self, hooks: dict):
+        """Compute the function."""
+        return self._compute(
+            self.random_seed,
+            self.user_params,
+            self.cosmo_params,
+            hooks=hooks,
+        )
+
 
 class PerturbedField(_OutputStructZ):
     """A class containing all perturbed field boxes."""
@@ -231,10 +240,20 @@ class PerturbedField(_OutputStructZ):
 
         return required
 
+    def compute(self, *, ics: InitialConditions, hooks: dict):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.user_params,
+            self.cosmo_params,
+            ics,
+            hooks=hooks,
+        )
+
 
 class _AllParamsBox(_OutputStructZ):
     _meta = True
-    _inputs = _OutputStructZ._inputs + ["flag_options", "astro_params"]
+    _inputs = _OutputStructZ._inputs + ("flag_options", "astro_params")
 
     _filter_params = _OutputStruct._filter_params + [
         "T_USE_VELOCITIES",  # bt
@@ -243,9 +262,10 @@ class _AllParamsBox(_OutputStructZ):
 
     def __init__(
         self,
+        *,
         astro_params: Optional[AstroParams] = None,
         flag_options: Optional[FlagOptions] = None,
-        first_box=False,
+        first_box: bool = False,
         **kwargs,
     ):
         self.flag_options = flag_options or FlagOptions()
@@ -302,6 +322,18 @@ class HaloField(_AllParamsBox):
                 f"{type(input_box)} is not an input required for HaloField!"
             )
 
+    def compute(self, *, ics: InitialConditions, hooks: dict):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            ics,
+            hooks=hooks,
+        )
+
 
 class PerturbHaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
@@ -339,12 +371,37 @@ class PerturbHaloField(_AllParamsBox):
 
         return required
 
+    def compute(self, *, ics: InitialConditions, halo_field: HaloField, hooks: dict):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            ics,
+            halo_field,
+            hooks=hooks,
+        )
+
 
 class TsBox(_AllParamsBox):
     """A class containing all spin temperature boxes."""
 
     _c_compute_function = lib.ComputeTsBox
     _meta = False
+    _inputs = _AllParamsBox._inputs + ("prev_spin_redshift", "perturbed_field_redshift")
+
+    def __init__(
+        self,
+        *,
+        prev_spin_redshift: Optional[float] = None,
+        perturbed_field_redshift: Optional[float] = None,
+        **kwargs,
+    ):
+        self.prev_spin_redshift = prev_spin_redshift
+        self.perturbed_field_redshift = perturbed_field_redshift
+        super().__init__(**kwargs)
 
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         shape = (self.user_params.HII_DIM,) * 3
@@ -410,12 +467,42 @@ class TsBox(_AllParamsBox):
 
         return required
 
+    def compute(
+        self,
+        *,
+        cleanup: bool,
+        perturbed_field: PerturbedField,
+        prev_spin_temp,
+        ics: InitialConditions,
+        hooks: dict,
+    ):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.prev_spin_redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            self.perturbed_field_redshift,
+            cleanup,
+            perturbed_field,
+            prev_spin_temp,
+            ics,
+            hooks=hooks,
+        )
+
 
 class IonizedBox(_AllParamsBox):
     """A class containing all ionized boxes."""
 
     _meta = False
     _c_compute_function = lib.ComputeIonizedBox
+    _inputs = _AllParamsBox._inputs + ("prev_ionize_redshift",)
+
+    def __init__(self, *, prev_ionize_redshift: Optional[float] = None, **kwargs):
+        self.prev_ionize_redshift = prev_ionize_redshift
+        super().__init__(**kwargs)
 
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         if self.flag_options.USE_MINI_HALOS:
@@ -501,6 +588,34 @@ class IonizedBox(_AllParamsBox):
 
         return required
 
+    def compute(
+        self,
+        *,
+        perturbed_field: PerturbedField,
+        prev_perturbed_field: PerturbedField,
+        prev_ionize_box,
+        spin_temp: TsBox,
+        pt_halos: PerturbHaloField,
+        ics: InitialConditions,
+        hooks: dict,
+    ):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.prev_ionize_redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            perturbed_field,
+            prev_perturbed_field,
+            prev_ionize_box,
+            spin_temp,
+            pt_halos,
+            ics,
+            hooks=hooks,
+        )
+
 
 class BrightnessTemp(_AllParamsBox):
     """A class containing the brightness temperature box."""
@@ -516,7 +631,7 @@ class BrightnessTemp(_AllParamsBox):
     @cached_property
     def global_Tb(self):
         """Global (mean) brightness temperature."""
-        if not self.filled:
+        if not self.is_computed:
             raise AttributeError(
                 "global_Tb is not defined until the ionization calculation has been performed"
             )
@@ -538,6 +653,27 @@ class BrightnessTemp(_AllParamsBox):
             )
 
         return required
+
+    def compute(
+        self,
+        *,
+        spin_temp: TsBox,
+        ionized_box: IonizedBox,
+        perturbed_field: PerturbedField,
+        hooks: dict,
+    ):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            spin_temp,
+            ionized_box,
+            perturbed_field,
+            hooks=hooks,
+        )
 
 
 class _HighLevelOutput:
@@ -615,11 +751,7 @@ class _HighLevelOutput:
             "brightness_temp",
         ]
 
-        clean = (
-            kinds
-            if clean and not hasattr(clean, "__len__")
-            else (clean if clean else [])
-        )
+        clean = kinds if clean and not hasattr(clean, "__len__") else clean or []
         if any(c not in kinds for c in clean):
             raise ValueError(
                 "You are trying to clean cached items that you will not be gathering."

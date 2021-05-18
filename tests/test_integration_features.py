@@ -37,21 +37,18 @@ logger = logging.getLogger("21cmFAST")
 logger.setLevel(logging.INFO)
 
 
-options = prd.OPTIONS
-options_pt = prd.OPTIONS_PT
-options_halo = prd.OPTIONS_HALO
-
-# Skip the USE_MINI_HALOS test because it takes too long.
-# This should be revisited in the future.
-options = tuple([z, kw] for z, kw in prd.OPTIONS)
+options = list(prd.OPTIONS.keys())
+options_pt = list(prd.OPTIONS_PT.keys())
+options_halo = list(prd.OPTIONS_HALO.keys())
 
 
-@pytest.mark.parametrize("redshift,kwargs", options)
-def test_power_spectra_coeval(redshift, kwargs, module_direc, plt):
-    print("Options used for the test: ", kwargs)
+@pytest.mark.parametrize("name", options)
+def test_power_spectra_coeval(name, module_direc, plt):
+    redshift, kwargs = prd.OPTIONS[name]
+    print(f"Options used for the test at z={redshift}: ", kwargs)
 
     # First get pre-made data
-    with h5py.File(prd.get_filename(redshift, "power_spectra", **kwargs), "r") as fl:
+    with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
         true_powers = {
             "_".join(key.split("_")[1:]): value[...]
             for key, value in fl["coeval"].items()
@@ -70,15 +67,17 @@ def test_power_spectra_coeval(redshift, kwargs, module_direc, plt):
         make_coeval_comparison_plot(test_k, true_powers, test_powers, plt)
 
     for key, value in true_powers.items():
+        print(f"Testing {key}")
         assert np.allclose(value, test_powers[key], atol=0, rtol=1e-2)
 
 
-@pytest.mark.parametrize("redshift,kwargs", options)
-def test_power_spectra_lightcone(redshift, kwargs, module_direc, plt):
-    print("Options used for the test: ", kwargs)
+@pytest.mark.parametrize("name", options)
+def test_power_spectra_lightcone(name, module_direc, plt):
+    redshift, kwargs = prd.OPTIONS[name]
+    print(f"Options used for the test at z={redshift}: ", kwargs)
 
     # First get pre-made data
-    with h5py.File(prd.get_filename(redshift, "power_spectra", **kwargs), "r") as fl:
+    with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
         true_powers = {}
         true_global = {}
         for key in fl["lightcone"].keys():
@@ -157,14 +156,13 @@ def make_comparison_plot(x, true, test, ax, logx=True, logy=True, xlab=None, yla
     ax[1].set_ylabel("Fractional Difference")
 
 
-@pytest.mark.parametrize("redshift,kwargs", options_pt)
-def test_perturb_field_data(redshift, kwargs):
+@pytest.mark.parametrize("name", options_pt)
+def test_perturb_field_data(name):
+    redshift, kwargs = prd.OPTIONS_PT[name]
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
-    with h5py.File(
-        prd.get_filename(redshift, "perturb_field_data", **kwargs), "r"
-    ) as f:
+    with h5py.File(prd.get_filename("perturb_field_data", name), "r") as f:
         power_dens = f["power_dens"][...]
         power_vel = f["power_vel"][...]
         pdf_dens = f["pdf_dens"][...]
@@ -190,12 +188,13 @@ def test_perturb_field_data(redshift, kwargs):
     assert np.allclose(pdf_vel, y_vel, atol=5e-3, rtol=1e-3)
 
 
-@pytest.mark.parametrize("redshift,kwargs", options_halo)
-def test_halo_field_data(redshift, kwargs):
+@pytest.mark.parametrize("name", options_halo)
+def test_halo_field_data(name):
+    redshift, kwargs = prd.OPTIONS_HALO[name]
     print("Options used for the test: ", kwargs)
 
     # First get pre-made data
-    with h5py.File(prd.get_filename(redshift, "halo_field_data", **kwargs), "r") as f:
+    with h5py.File(prd.get_filename("halo_field_data", name), "r") as f:
         n_pt_halos = f["n_pt_halos"][...]
         pt_halo_masses = f["pt_halo_masses"][...]
 

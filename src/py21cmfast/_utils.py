@@ -512,7 +512,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
     _meta = True
     _fields_ = []
     _global_params = None
-    _inputs = ["user_params", "cosmo_params", "_random_seed"]
+    _inputs = ("user_params", "cosmo_params", "_random_seed")
     _filter_params = ["external_table_path", "wisdoms_path"]
     _c_based_pointers = ()
     _c_compute_function = None
@@ -831,7 +831,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def _check_parameters(self, fname):
         with h5py.File(fname, "r") as f:
-            for k in self._inputs + ["_global_params"]:
+            for k in self._inputs + ("_global_params",):
                 q = getattr(self, k)
 
                 # The key name as it should appear in file.
@@ -920,7 +920,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             with h5py.File(fname, mode) as f:
                 # Save input parameters to the file
                 if write_inputs:
-                    for k in self._inputs + ["_global_params"]:
+                    for k in self._inputs + ("_global_params",):
                         q = getattr(self, k)
 
                         kfile = k.lstrip("_")
@@ -1161,7 +1161,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                     )
                     for k, v in [
                         (k, getattr(self, k))
-                        for k in self._inputs + ["_global_params"]
+                        for k in self._inputs + ("_global_params",)
                         if k != "_random_seed"
                     ]
                 )
@@ -1226,6 +1226,15 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         return computed
 
+    def ensure_arrays_inited(self, *arrays, init=False) -> bool:
+        """Check if the given arrays are initialized (or computed)."""
+        inited = all(self._array_state[k] >= ArrayState.INITIALIZED for k in arrays)
+
+        if init and not inited:
+            self._init_arrays()
+
+        return True
+
     @abstractmethod
     def get_required_input_arrays(self, input_box) -> List[str]:
         """Return all input arrays required to compute this object."""
@@ -1233,12 +1242,46 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def ensure_input_computed(self, input_box, load=False) -> bool:
         """Ensure all the inputs have been computed."""
-        if input_box.dummy or input_box.initial:
+        if input_box.dummy:
             return True
+
         arrays = self.get_required_input_arrays(input_box)
+
+        if input_box.initial:
+            return input_box.ensure_arrays_inited(*arrays, init=load)
+
         return input_box.ensure_arrays_computed(*arrays, load=load)
 
-    def compute(
+    def summarize(self, indent=0) -> str:
+        """Generate a string summary of the struct."""
+        indent = indent * "    "
+        out = f"\n{indent}{self.__class__.__name__}\n"
+
+        out += "\n".join(
+            f"{indent}    {fieldname:>15}: {getattr(self, fieldname, 'non-existent')}"
+            for fieldname in self.primitive_fields
+        )
+
+        for fieldname, state in self._array_state.items():
+            if state == ArrayState.UNINITIALIZED:
+                out += f"{indent}    {fieldname:>15}: uninitialized\n"
+            elif state == ArrayState.INITIALIZED:
+                out += f"{indent}    {fieldname>15}: initialized\n"
+            elif state in (
+                ArrayState.COMPUTED_IN_MEMORY,
+                ArrayState.COMPUTED_IN_MEMORY_AND_DISK,
+            ):
+                x = getattr(self, fieldname).flatten()
+                if len(x) > 0:
+                    out += f"{indent}    {fieldname>15}: {x[0]:1.4e}, {x[-1]:1.4e}, {x.min():1.4e}, {x.max():1.4e}, {np.mean(x):1.4e}\n"
+                else:
+                    out += f"{indent}    {fieldname>15}: size zero\n"
+            elif state == ArrayState.COMPUTED_IN_MEMORY:
+                out += f"{indent}    {fieldname:>15}: computed in memory\n"
+
+        return out
+
+    def _compute(
         self, *args, hooks: Optional[Dict[Union[str, Callable], Dict[str, Any]]] = None
     ):
         """Compute the actual function that fills this struct."""
@@ -1248,21 +1291,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         )
         for arg in args:
             if isinstance(arg, OutputStruct):
-                if not (arg.dummy or arg.initial):
-                    logger.debug(f"    {arg.__class__.__name__}")
-                    for fieldname in arg.primitive_fields:
-                        logger.debug(f"        {fieldname}: {getattr(arg, fieldname)}")
-                    for fieldname in self.get_required_input_arrays(arg):
-                        x = getattr(arg, fieldname).flatten()
-
-                        try:
-                            logger.debug(
-                                f"        {fieldname} (first,last,min,max, sum): {x[0]}, {x[-1]}, {x.min()}, {x.max()}, {np.sum(x)}"
-                            )
-                        except IndexError:
-                            logger.debug(f"        {fieldname}  [empty]")
-                else:
-                    logger.debug(f"    {arg.__class__.__name__} (dummy struct)")
+                logger.debug(arg.summarize(indent=1))
             elif isinstance(arg, StructWithDefaults):
                 for line in str(arg).split("\n"):
                     logger.debug(f"    {line}")
@@ -1271,8 +1300,10 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         # Check that all required inputs are really computed, and load them into memory if they're not already.
         for arg in args:
-            if isinstance(arg, OutputStruct) and not (
-                arg.dummy or self.ensure_input_computed(arg, load=True)
+            if (
+                isinstance(arg, OutputStruct)
+                and not arg.dummy
+                and not self.ensure_input_computed(arg, load=True)
             ):
                 raise ValueError(
                     f"Trying to use {arg} to compute {self}, but some required arrays are not computed!"

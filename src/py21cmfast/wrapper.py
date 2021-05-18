@@ -877,12 +877,7 @@ def initial_conditions(
             except IOError:
                 pass
 
-        return boxes.compute(
-            boxes.random_seed,
-            boxes.user_params,
-            boxes.cosmo_params,
-            hooks=hooks,
-        )
+        return boxes.compute(hooks=hooks)
 
 
 def perturb_field(
@@ -1011,13 +1006,7 @@ def perturb_field(
             fields._random_seed = init_boxes.random_seed
 
         # Run the C Code
-        return fields.compute(
-            redshift,
-            fields.user_params,
-            fields.cosmo_params,
-            init_boxes,
-            hooks=hooks,
-        )
+        return fields.compute(ics=init_boxes, hooks=hooks)
 
 
 def determine_halo_list(
@@ -1144,15 +1133,7 @@ def determine_halo_list(
             fields._random_seed = init_boxes.random_seed
 
         # Run the C Code
-        return fields.compute(
-            redshift,
-            fields.user_params,
-            fields.cosmo_params,
-            fields.astro_params,
-            fields.flag_options,
-            init_boxes,
-            hooks=hooks,
-        )
+        return fields.compute(ics=init_boxes, hooks=hooks)
 
 
 def perturb_halo_list(
@@ -1295,16 +1276,7 @@ def perturb_halo_list(
             )
 
         # Run the C Code
-        return fields.compute(
-            redshift,
-            fields.user_params,
-            fields.cosmo_params,
-            fields.astro_params,
-            fields.flag_options,
-            init_boxes,
-            halo_field,
-            hooks=hooks,
-        )
+        return fields.compute(ics=init_boxes, halo_field=halo_field, hooks=hooks)
 
 
 def ionize_box(
@@ -1511,6 +1483,24 @@ def ionize_box(
             )
             flag_options.USE_TS_FLUCT = True
 
+        # Get the previous redshift
+        if previous_ionize_box is not None and previous_ionize_box.is_computed:
+            prev_z = previous_ionize_box.redshift
+
+            # Ensure the previous ionized box has a higher redshift than this one.
+            if prev_z <= redshift:
+                raise ValueError(
+                    "Previous ionized box must have a higher redshift than that being evaluated."
+                )
+        elif flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
+            prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
+            # if the previous box is before our starting point, we set it to zero,
+            # which is what the C-code expects for an "initial" box
+            if prev_z > global_params.Z_HEAT_MAX:
+                prev_z = 0
+        else:
+            prev_z = 0
+
         box = IonizedBox(
             first_box=((1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1)
             > global_params.Z_HEAT_MAX
@@ -1524,6 +1514,7 @@ def ionize_box(
             astro_params=astro_params,
             flag_options=flag_options,
             random_seed=random_seed,
+            prev_ionize_redshift=prev_z,
         )
 
         # Construct FFTW wisdoms. Only if required
@@ -1543,21 +1534,6 @@ def ionize_box(
 
         # EVERYTHING PAST THIS POINT ONLY HAPPENS IF THE BOX DOESN'T ALREADY EXIST
         # ------------------------------------------------------------------------
-        # Get the previous redshift
-        if flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
-
-            if previous_ionize_box is not None:
-                prev_z = previous_ionize_box.redshift
-            else:
-                prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
-
-            # Ensure the previous ionized box has a higher redshift than this one.
-            if prev_z and prev_z <= redshift:
-                raise ValueError(
-                    "Previous ionized box must have a higher redshift than that being evaluated."
-                )
-        else:
-            prev_z = None
 
         # Get init_box required.
         if init_boxes is None or not init_boxes.is_computed:
@@ -1576,8 +1552,10 @@ def ionize_box(
         # Get appropriate previous ionization box
         if previous_ionize_box is None or not previous_ionize_box.is_computed:
             # If we are beyond Z_HEAT_MAX, just make an empty box
-            if prev_z is None or prev_z > global_params.Z_HEAT_MAX:
-                previous_ionize_box = IonizedBox(redshift=0, dummy=True)
+            if prev_z == 0:
+                previous_ionize_box = IonizedBox(
+                    redshift=0, flag_options=flag_options, initial=True
+                )
 
             # Otherwise recursively create new previous box.
             else:
@@ -1607,7 +1585,9 @@ def ionize_box(
         if previous_perturbed_field is None or not previous_perturbed_field.is_computed:
             # If we are beyond Z_HEAT_MAX, just make an empty box
             if prev_z is None or prev_z > global_params.Z_HEAT_MAX:
-                previous_perturbed_field = PerturbedField(redshift=0, dummy=True)
+                previous_perturbed_field = PerturbedField(
+                    redshift=0, flag_options=flag_options, initial=True
+                )
             else:
                 previous_perturbed_field = perturb_field(
                     init_boxes=init_boxes,
@@ -1655,18 +1635,12 @@ def ionize_box(
 
         # Run the C Code
         return box.compute(
-            redshift,
-            previous_ionize_box.redshift,
-            box.user_params,
-            box.cosmo_params,
-            box.astro_params,
-            box.flag_options,
-            perturbed_field,
-            previous_perturbed_field,
-            previous_ionize_box,
-            spin_temp,
-            pt_halos,
-            init_boxes,
+            perturbed_field=perturbed_field,
+            prev_perturbed_field=previous_perturbed_field,
+            prev_ionize_box=previous_ionize_box,
+            spin_temp=spin_temp,
+            pt_halos=pt_halos,
+            ics=init_boxes,
             hooks=hooks,
         )
 
@@ -1848,6 +1822,23 @@ def spin_temperature(
         # Explicitly set this flag to True, though it shouldn't be required!
         flag_options.update(USE_TS_FLUCT=True)
 
+        # Get the previous redshift
+        if previous_spin_temp is not None:
+            prev_z = previous_spin_temp.redshift
+        else:
+            prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
+            prev_z = min(global_params.Z_HEAT_MAX, prev_z)
+
+        # Ensure the previous spin temperature has a higher redshift than this one.
+        # TODO: there's a bit of a weird thing here where prev_z may be set to z_HEAT_MAX
+        #       but `redshift` may be higher than Z_HEAT_MAX. Might need to fix this later.
+        if prev_z <= redshift and prev_z < global_params.Z_HEAT_MAX:
+            raise ValueError(
+                "Previous spin temperature box must have a higher redshift than "
+                "that being evaluated."
+            )
+
+        # TODO: why is the below checking for IonizedBox??
         box = TsBox(
             first_box=((1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1)
             > global_params.Z_HEAT_MAX
@@ -1861,6 +1852,10 @@ def spin_temperature(
             astro_params=astro_params,
             flag_options=flag_options,
             random_seed=random_seed,
+            prev_spin_redshift=prev_z,
+            perturbed_field_redshift=perturbed_field.redshift
+            if (perturbed_field is not None and perturbed_field.is_computed)
+            else redshift,
         )
 
         # Construct FFTW wisdoms. Only if required
@@ -1880,20 +1875,6 @@ def spin_temperature(
 
         # EVERYTHING PAST THIS POINT ONLY HAPPENS IF THE BOX DOESN'T ALREADY EXIST
         # ------------------------------------------------------------------------
-
-        # Get the previous redshift
-        if previous_spin_temp is not None:
-            prev_z = previous_spin_temp.redshift
-        else:
-            prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
-
-        # Ensure the previous spin temperature has a higher redshift than this one.
-        if prev_z and prev_z <= redshift:
-            raise ValueError(
-                "Previous spin temperature box must have a higher redshift than "
-                "that being evaluated."
-            )
-
         # Dynamically produce the initial conditions.
         if init_boxes is None or not init_boxes.is_computed:
             init_boxes = initial_conditions(
@@ -1910,7 +1891,7 @@ def spin_temperature(
 
         # Create appropriate previous_spin_temp
         if not isinstance(previous_spin_temp, TsBox):
-            if prev_z > global_params.Z_HEAT_MAX or prev_z is None:
+            if prev_z >= global_params.Z_HEAT_MAX:
                 previous_spin_temp = TsBox(
                     redshift=global_params.Z_HEAT_MAX,
                     user_params=init_boxes.user_params,
@@ -1943,17 +1924,10 @@ def spin_temperature(
 
         # Run the C Code
         return box.compute(
-            redshift,
-            previous_spin_temp.redshift,
-            box.user_params,
-            box.cosmo_params,
-            box.astro_params,
-            box.flag_options,
-            perturbed_field.redshift,
-            cleanup,
-            perturbed_field,
-            previous_spin_temp,
-            init_boxes,
+            cleanup=cleanup,
+            perturbed_field=perturbed_field,
+            prev_spin_temp=previous_spin_temp,
+            ics=init_boxes,
             hooks=hooks,
         )
 
@@ -2034,22 +2008,16 @@ def brightness_temperature(
             try:
                 box.read(direc)
                 logger.info(
-                    "Existing brightness_temp box found and read in (seed=%s)."
-                    % (box.random_seed)
+                    f"Existing brightness_temp box found and read in (seed={box.random_seed})."
                 )
                 return box
             except IOError:
                 pass
 
         return box.compute(
-            ionized_box.redshift,
-            ionized_box.user_params,
-            ionized_box.cosmo_params,
-            ionized_box.astro_params,
-            ionized_box.flag_options,
-            spin_temp,
-            ionized_box,
-            perturbed_field,
+            spin_temp=spin_temp,
+            ionized_box=ionized_box,
+            perturbed_field=perturbed_field,
             hooks=hooks,
         )
 

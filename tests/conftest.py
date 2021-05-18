@@ -87,7 +87,7 @@ def setup_and_teardown_package(tmpdirec, request):
     config["regenerate"] = True
     config["write"] = False
 
-    log_level = request.config.getoption("--log-level-21")
+    log_level = request.config.getoption("--log-level-21") or logging.INFO
     logging.getLogger("py21cmfast").setLevel(log_level)
 
     yield
