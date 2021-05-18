@@ -1266,16 +1266,16 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             if state == ArrayState.UNINITIALIZED:
                 out += f"{indent}    {fieldname:>15}: uninitialized\n"
             elif state == ArrayState.INITIALIZED:
-                out += f"{indent}    {fieldname>15}: initialized\n"
+                out += f"{indent}    {fieldname:>15}: initialized\n"
             elif state in (
                 ArrayState.COMPUTED_IN_MEMORY,
                 ArrayState.COMPUTED_IN_MEMORY_AND_DISK,
             ):
                 x = getattr(self, fieldname).flatten()
                 if len(x) > 0:
-                    out += f"{indent}    {fieldname>15}: {x[0]:1.4e}, {x[-1]:1.4e}, {x.min():1.4e}, {x.max():1.4e}, {np.mean(x):1.4e}\n"
+                    out += f"{indent}    {fieldname:>15}: {x[0]:1.4e}, {x[-1]:1.4e}, {x.min():1.4e}, {x.max():1.4e}, {np.mean(x):1.4e}\n"
                 else:
-                    out += f"{indent}    {fieldname>15}: size zero\n"
+                    out += f"{indent}    {fieldname:>15}: size zero\n"
             elif state == ArrayState.COMPUTED_IN_MEMORY:
                 out += f"{indent}    {fieldname:>15}: computed in memory\n"
 
