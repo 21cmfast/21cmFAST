@@ -35,7 +35,7 @@ from py21cmfast import (
 )
 
 logger = logging.getLogger("py21cmfast")
-
+logging.basicConfig()
 
 SEED = 12345
 DATA_PATH = Path(__file__).parent / "test_data"

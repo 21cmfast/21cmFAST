@@ -294,7 +294,8 @@ LOG_DEBUG("Finished halo processing.");
 
 LOG_DEBUG("Finished halo cleanup.");
 LOG_DEBUG("Found %d Halos", halos->n_halos);
-LOG_DEBUG("Halo Masses: %e %e %e %e", halos->halo_masses[0], halos->halo_masses[1], halos->halo_masses[2], halos->halo_masses[3]);
+if (halos->n_halos > 3)
+    LOG_DEBUG("Halo Masses: %e %e %e %e", halos->halo_masses[0], halos->halo_masses[1], halos->halo_masses[2], halos->halo_masses[3]);
 
     } // End of Try()
     Catch(status){
