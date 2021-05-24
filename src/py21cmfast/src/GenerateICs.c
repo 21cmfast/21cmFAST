@@ -553,7 +553,7 @@ int ComputeInitialConditions(
                 memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
                 // generate the phi_1 boxes in Fourier transform
-#pragma omp parallel shared(HIRES_box,phi_1) private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(HIRES_box,phi_1,i,j) private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq,k) num_threads(user_params->N_THREADS)
                 {
 #pragma omp for
                     for (n_x=0; n_x<user_params->DIM; n_x++){
@@ -655,7 +655,7 @@ int ComputeInitialConditions(
                 memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
             }
 
-#pragma omp parallel shared(HIRES_box,ii) private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(HIRES_box,ii) private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
             // set velocities/dD/dt
