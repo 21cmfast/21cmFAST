@@ -431,22 +431,27 @@ int ComputePerturbField(
     debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, "  ");
 
     // normalize after FFT
-#pragma omp parallel shared(LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
+    int bad_count=0;
+#pragma omp parallel shared(LOWRES_density_perturb,bad_count) private(i,j,k) num_threads(user_params->N_THREADS)
     {
 #pragma omp for
         for(i=0; i<user_params->HII_DIM; i++){
             for(j=0; j<user_params->HII_DIM; j++){
                 for(k=0; k<user_params->HII_DIM; k++){
                     *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) /= (float)HII_TOT_NUM_PIXELS;
-                    if (*((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) < -1) { // shouldn't happen
-                        LOG_WARNING("LOWRES_density_perturb is <-1 for index %d %d %d (value=%f)", i,j,k, *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)));
+
+                    if (*((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) < -1.0) { // shouldn't happen
+
+                        if(bad_count<5) LOG_WARNING("LOWRES_density_perturb is <-1 for index %d %d %d (value=%f)", i,j,k, *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)));
+                        if(bad_count==5) LOG_WARNING("Skipping further warnings for LOWRES_density_perturb.");
                         *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) = -1+FRACT_FLOAT_ERR;
+                        bad_count++;
                     }
                 }
             }
         }
     }
-
+    if(bad_count>=5) LOG_WARNING("Total number of bad indices for LOW_density_perturb: %d", bad_count);
     LOG_SUPER_DEBUG("LOWRES_density_perturb back in real space (normalized): ");
     debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, "  ");
 

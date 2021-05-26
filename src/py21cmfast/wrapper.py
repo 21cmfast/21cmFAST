@@ -1611,12 +1611,14 @@ def ionize_box(
                     astro_params=astro_params,
                     flag_options=flag_options,
                     regenerate=regenerate,
-                    write=write,
+                    hooks=hooks,
+                    direc=direc,
                 ),
                 astro_params=astro_params,
                 flag_options=flag_options,
                 regenerate=regenerate,
                 hooks=hooks,
+                direc=direc,
             )
 
         # Set empty spin temp box if necessary.
@@ -2267,7 +2269,8 @@ def run_coeval(
                             astro_params=astro_params,
                             flag_options=flag_options,
                             regenerate=regenerate,
-                            write=write,
+                            hooks=hooks,
+                            direc=direc,
                         ),
                         regenerate=regenerate,
                         hooks=hooks,
@@ -2746,19 +2749,22 @@ def run_lightcone(
             pf2.load_all()
 
             if flag_options.USE_HALO_FIELD:
+
+                halo_field = determine_halo_list(
+                    redshift=z,
+                    init_boxes=init_box,
+                    astro_params=astro_params,
+                    flag_options=flag_options,
+                    regenerate=regenerate,
+                    hooks=hooks,
+                    direc=direc,
+                )
                 pt_halos = perturb_halo_list(
                     redshift=z,
                     init_boxes=init_box,
                     astro_params=astro_params,
                     flag_options=flag_options,
-                    halo_field=determine_halo_list(
-                        redshift=z,
-                        init_boxes=init_box,
-                        astro_params=astro_params,
-                        flag_options=flag_options,
-                        regenerate=regenerate,
-                        write=write,
-                    ),
+                    halo_field=halo_field,
                     regenerate=regenerate,
                     hooks=hooks,
                     direc=direc,

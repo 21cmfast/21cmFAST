@@ -253,7 +253,6 @@ int ComputeInitialConditions(
         }
     }
     LOG_DEBUG("Drawn random fields.");
-    LOG_DEBUG("Last random a/b values drawn: %f %f", a, b);
 
     // *****  Adjust the complex conjugate relations for a real array  ***** //
     adj_complex_conj(HIRES_box,user_params,cosmo_params);

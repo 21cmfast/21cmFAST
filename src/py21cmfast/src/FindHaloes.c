@@ -390,7 +390,7 @@ void init_halo_coords(struct HaloField *halos, int n_halos){
 }
 
 void free_halo_field(struct HaloField *halos){
-LOG_SUPER_DEBUG("Freeing HaloField instance.");
+    LOG_DEBUG("Freeing HaloField instance.");
     free(halos->halo_masses);
     free(halos->halo_coords);
     halos->n_halos = 0;
@@ -401,11 +401,6 @@ LOG_SUPER_DEBUG("Freeing HaloField instance.");
     free(halos->dndlm);
     free(halos->sqrtdn_dlm);
     halos->n_mass_bins = 0;
-LOG_SUPER_DEBUG("Freed!");
-
-
-
-
 }
 void init_hmf(struct HaloField *halos){
     // Initalize mass function array with an abitrary large number of elements.

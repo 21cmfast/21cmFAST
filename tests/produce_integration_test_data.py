@@ -217,7 +217,7 @@ if len(set(OPTIONS.keys())) != len(list(OPTIONS.keys())):
 
 OPTIONS_PT = {
     "simple": [10, {}],
-    "no2lpt": [10, {"SECOND_ORDER_LPT_CORRECTIONS": False}],
+    "no2lpt": [10, {"USE_2LPT": False}],
     "linear": [10, {"EVOLVE_DENSITY_LINEARLY": 1}],
     "highres": [10, {"PERTURB_ON_HIGH_RES": True}],
 }
@@ -578,14 +578,16 @@ def go(
             )
 
     if not no_pt:
-        for redshift, kwargs in OPTIONS_PT:
+        for name, (redshift, kwargs) in OPTIONS_PT.items():
             fnames.append(
-                produce_data_for_perturb_field_tests(redshift, force, **kwargs)
+                produce_data_for_perturb_field_tests(name, redshift, force, **kwargs)
             )
 
     if not no_halo:
-        for redshift, kwargs in OPTIONS_HALO:
-            fnames.append(produce_data_for_halo_field_tests(redshift, force, **kwargs))
+        for name, (redshift, kwargs) in OPTIONS_HALO.items():
+            fnames.append(
+                produce_data_for_halo_field_tests(name, redshift, force, **kwargs)
+            )
 
     # Remove extra files that
     if not (names or pt_only or no_pt or no_halo):

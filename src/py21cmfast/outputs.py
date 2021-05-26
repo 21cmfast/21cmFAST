@@ -1057,6 +1057,19 @@ class Coeval(_HighLevelOutput):
             if struct is not None:
                 struct.write(fname=fname, write_inputs=False)
 
+                # Also write any other inputs to any of the constituent boxes
+                # to the overarching attrs.
+                with h5py.File(fname, "a") as fl:
+                    for inp in struct._inputs:
+                        if inp not in fl.attrs and inp not in [
+                            "user_params",
+                            "cosmo_params",
+                            "flag_options",
+                            "astro_params",
+                            "global_params",
+                        ]:
+                            fl.attrs[inp] = getattr(struct, inp)
+
     @classmethod
     def _read_particular(cls, fname):
         kwargs = {}

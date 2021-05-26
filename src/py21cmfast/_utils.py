@@ -738,6 +738,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
     def _remove_array(self, k, force=False):
         if self._array_state[k] == ArrayState.INITIALIZED:
             delattr(self, k)
+            self._array_state[k] = ArrayState.UNINITIALIZED
         elif self._array_state[k] == ArrayState.UNINITIALIZED:
             warnings.warn(f"Trying to remove array that isn't yet created: {k}")
         elif self._array_state[k] == ArrayState.COMPUTED_IN_MEMORY:
