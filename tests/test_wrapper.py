@@ -156,7 +156,7 @@ def test_st_from_z(perturb_field_lowz, spin_temp):
         redshift=spin_temp.redshift,  # Higher redshift
     )
 
-    assert st == spin_temp
+    assert st != spin_temp
     assert not np.all(st.Ts_box == spin_temp.Ts_box)
 
 
@@ -293,6 +293,17 @@ def test_run_lf():
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
 
+    muv_minih, mhalo_minih, lf_minih = wrapper.compute_luminosity_function(
+        redshifts=[7, 8, 9],
+        nbins=100,
+        component=0,
+        flag_options={"USE_MINI_HALOS": True},
+        mturnovers=[7.0, 7.0, 7.0],
+        mturnovers_mini=[5.0, 5.0, 5.0],
+    )
+    assert np.all(lf_minih[~np.isnan(lf_minih)] > -30)
+    assert lf_minih.shape == (3, 100)
+
 
 def test_coeval_st(ic, perturb_field):
     coeval = wrapper.run_coeval(
@@ -372,3 +383,28 @@ def test_coeval_callback_exceptions(ic, redshift, max_redshift, perturb_field):
             coeval_callback_redshifts=[max_redshift, redshift],
         )
     assert "coeval_callback computation failed on first trial" in str(excinfo.value)
+
+
+def test_coeval_vs_low_level(ic):
+
+    coeval = wrapper.run_coeval(
+        redshift=20,
+        init_box=ic,
+        zprime_step_factor=1.1,
+        regenerate=True,
+        flag_options={"USE_TS_FLUCT": True},
+        write=False,
+    )
+
+    st = wrapper.spin_temperature(
+        redshift=20,
+        init_boxes=ic,
+        zprime_step_factor=1.1,
+        regenerate=True,
+        flag_options={"USE_TS_FLUCT": True},
+        write=False,
+    )
+
+    assert np.allclose(coeval.Tk_box, st.Tk_box)
+    assert np.allclose(coeval.Ts_box, st.Ts_box)
+    assert np.allclose(coeval.x_e_box, st.x_e_box)

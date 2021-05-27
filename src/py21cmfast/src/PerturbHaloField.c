@@ -253,7 +253,9 @@ LOG_DEBUG("Begin Initialisation");
 }
 
 void free_phf(struct PerturbHaloField* halos){
+    LOG_DEBUG("Freeing PerturbHaloField");
     free(halos->halo_masses);
     free(halos->halo_coords);
+    LOG_DEBUG("Done Freeing PerturbHaloField");
     halos->n_halos = 0;
 }

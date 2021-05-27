@@ -83,12 +83,6 @@ class GlobalParams(StructInstanceWrapper):
         overcompensates by an effective loss in resolution. **Added in 1.1.0**.
     R_smooth_density : float
         Determines the smoothing length to use if `SMOOTH_EVOLVED_DENSITY_FIELD` is True.
-    SECOND_ORDER_LPT_CORRECTIONS : bool
-        Use second-order Lagrangian perturbation theory (2LPT).
-        Set this to True if the density field or the halo positions are extrapolated to
-        low redshifts. The current implementation is very naive and adds a factor ~6 to
-        the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
-        Appendix D.
     HII_ROUND_ERR : float
         Rounding error on the ionization fraction. If the mean xHI is greater than
         ``1 - HII_ROUND_ERR``, then finding HII bubbles is skipped, and a homogeneous

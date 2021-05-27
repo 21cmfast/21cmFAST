@@ -71,8 +71,6 @@ def test_coeval_cache(coeval):
         kind="spin_temp", redshift=global_params.Z_HEAT_MAX * 1.01, load_data=True
     )
 
-    print(out.redshift)
-
     assert isinstance(out, TsBox)
     assert not np.all(out.Ts_box == coeval.Ts_box)
 
@@ -119,7 +117,7 @@ def test_lightcone_cache(lightcone):
         lightcone.get_cached_data(kind="bad", redshift=100.0)
 
     print(lightcone.cache_files)
-    lightcone.gather(fname="tmp_lightcone_gather.h5", clean=True)
+    lightcone.gather(fname="tmp_lightcone_gather.h5", clean=["brightness_temp"])
 
     with pytest.raises(IOError):
         lightcone.get_cached_data(kind="brightness_temp", redshift=25.1)
