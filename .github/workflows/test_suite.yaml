@@ -46,7 +46,7 @@ jobs:
         if: "contains(github.event.head_commit.message, 'ci debug')"
         run: |
           echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
-          echo "extra_pytest_args='-s --log-level-21=DEBUG'" >> $GITHUB_ENV
+          echo "extra_pytest_args='-s -k test_perturb_field_data --log-level-21=DEBUG'" >> $GITHUB_ENV
       - name: Make it a Normal Run
         if: "!contains(github.event.head_commit.message, 'ci debug')"
         run: |
