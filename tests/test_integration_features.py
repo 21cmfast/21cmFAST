@@ -68,7 +68,8 @@ def test_power_spectra_coeval(name, module_direc, plt):
 
     for key, value in true_powers.items():
         print(f"Testing {key}")
-        assert np.allclose(value, test_powers[key], atol=0, rtol=1e-2)
+        assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=1e-2)) < 10
+        np.testing.assert_allclose(value, test_powers[key], atol=0, rtol=1e-1)
 
 
 @pytest.mark.parametrize("name", options)

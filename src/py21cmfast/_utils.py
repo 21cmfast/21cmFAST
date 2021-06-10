@@ -1258,8 +1258,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         indent = indent * "    "
         out = f"\n{indent}{self.__class__.__name__}\n"
 
-        out += "\n".join(
-            f"{indent}    {fieldname:>15}: {getattr(self, fieldname, 'non-existent')}"
+        out += "".join(
+            f"{indent}    {fieldname:>15}: {getattr(self, fieldname, 'non-existent')}\n"
             for fieldname in self.primitive_fields
         )
 
@@ -1282,24 +1282,21 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         return out
 
-    def _compute(
-        self, *args, hooks: Optional[Dict[Union[str, Callable], Dict[str, Any]]] = None
-    ):
-        """Compute the actual function that fills this struct."""
-        # Write a detailed message about call arguments if debug turned on.
-        logger.debug(
-            f"Calling {self._c_compute_function.__name__} with following args:"
-        )
+    @classmethod
+    def _log_call_arguments(cls, *args):
+        logger.debug(f"Calling {cls._c_compute_function.__name__} with following args:")
+
         for arg in args:
             if isinstance(arg, OutputStruct):
-                logger.debug(arg.summarize(indent=1))
+                for line in arg.summarize(indent=1).split("\n"):
+                    logger.debug(line)
             elif isinstance(arg, StructWithDefaults):
                 for line in str(arg).split("\n"):
                     logger.debug(f"    {line}")
             else:
                 logger.debug(f"    {arg}")
 
-        # Check that all required inputs are really computed, and load them into memory if they're not already.
+    def _ensure_arguments_exist(self, *args):
         for arg in args:
             if (
                 isinstance(arg, OutputStruct)
@@ -1307,8 +1304,21 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 and not self.ensure_input_computed(arg, load=True)
             ):
                 raise ValueError(
-                    f"Trying to use {arg} to compute {self}, but some required arrays are not computed!"
+                    f"Trying to use {arg} to compute {self}, but some required arrays "
+                    f"are not computed!"
                 )
+
+    def _compute(
+        self, *args, hooks: Optional[Dict[Union[str, Callable], Dict[str, Any]]] = None
+    ):
+        """Compute the actual function that fills this struct."""
+        # Write a detailed message about call arguments if debug turned on.
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            self._log_call_arguments(*args)
+
+        # Check that all required inputs are really computed, and load them into memory
+        # if they're not already.
+        self._ensure_arguments_exist(*args)
 
         # Construct the args. All StructWrapper objects need to actually pass their
         # underlying cstruct, rather than themselves. OutputStructs also pass the
@@ -1341,6 +1351,11 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         self.__expose()
 
         # Optionally do stuff with the result (like writing it)
+        self._call_hooks(hooks)
+
+        return self
+
+    def _call_hooks(self, hooks):
         if hooks is None:
             hooks = {"write": {"direc": config["direc"]}}
 
@@ -1350,8 +1365,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 hook(self, **params)
             else:
                 getattr(self, hook)(**params)
-
-        return self
 
     def __memory_map(self):
         shapes = self._c_shape(self._cstruct)

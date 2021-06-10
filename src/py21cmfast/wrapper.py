@@ -719,6 +719,7 @@ def _calibrate_photon_conservation_correction(
     z = ffi.cast("double *", ffi.from_buffer(redshifts_estimate))
     xHI = ffi.cast("double *", ffi.from_buffer(nf_estimate))
 
+    logger.debug(f"PhotonCons nf estimates: {nf_estimate}")
     return lib.PhotonCons_Calibration(z, xHI, NSpline)
 
 
@@ -1584,9 +1585,9 @@ def ionize_box(
 
         if previous_perturbed_field is None or not previous_perturbed_field.is_computed:
             # If we are beyond Z_HEAT_MAX, just make an empty box
-            if prev_z is None or prev_z > global_params.Z_HEAT_MAX:
+            if not prev_z:
                 previous_perturbed_field = PerturbedField(
-                    redshift=0, flag_options=flag_options, initial=True
+                    redshift=0, user_params=user_params, initial=True
                 )
             else:
                 previous_perturbed_field = perturb_field(
@@ -2124,24 +2125,22 @@ def run_coeval(
         # Ensure perturb is a list of boxes, not just one.
         if perturb is None:
             perturb = []
-        else:
-            if not hasattr(perturb, "__len__"):
-                perturb = [perturb]
-                singleton = True
+        elif not hasattr(perturb, "__len__"):
+            perturb = [perturb]
+            singleton = True
 
         # Ensure perturbed halo field is a list of boxes, not just one.
-        if flag_options is not None and pt_halos is not None:
-            if (
-                flag_options["USE_HALO_FIELD"]
-                if isinstance(flag_options, dict)
-                else flag_options.USE_HALO_FIELD
-            ):
-                pt_halos = [pt_halos] if not hasattr(pt_halos, "__len__") else []
-            else:
-                pt_halos = []
-        else:
+        if flag_options is None or pt_halos is None:
             pt_halos = []
 
+        elif (
+            flag_options["USE_HALO_FIELD"]
+            if isinstance(flag_options, dict)
+            else flag_options.USE_HALO_FIELD
+        ):
+            pt_halos = [pt_halos] if not hasattr(pt_halos, "__len__") else []
+        else:
+            pt_halos = []
         random_seed, user_params, cosmo_params = _configure_inputs(
             [
                 ("random_seed", random_seed),
@@ -2305,7 +2304,6 @@ def run_coeval(
         ib_tracker = [0] * len(redshift)
         bt = [0] * len(redshift)
         st, ib, pf = None, None, None  # At first we don't have any "previous" st or ib.
-        logger.debug(f"redshifts: {redshifts}")
 
         perturb_min = perturb[np.argmin(redshift)]
 
