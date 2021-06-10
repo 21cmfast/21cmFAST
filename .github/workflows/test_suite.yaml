@@ -42,15 +42,19 @@ jobs:
         run: |
           wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O $HOME/miniconda.sh;
           bash $HOME/miniconda.sh -b -p $HOME/miniconda
+      - name: Logging
+        run: |
+          echo ${{ github.event.commits }}
+          echo ${{ github.event.commits[0] }}
       - name: Make it a Debug Run
-        if: "contains(github.event.commits[0].message, 'ci-debug')"
+        if: "contains(github.event.payload.commits[0].message, 'ci debug')"
         run: |
           echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
           echo "extra_pytest_args='-s -k test_perturb_field_data --log-level-21=DEBUG'" >> $GITHUB_ENV
       - name: 'Log Commit Message'
         run: echo ${{ github.event.commits[0].message }}
       - name: Make it a Normal Run
-        if: "!contains(github.event.commits[0].message, 'ci-debug')"
+        if: "!contains(github.event.commits[0].message, 'ci debug')"
         run: |
           echo "log_level=INFO" >> $GITHUB_ENV
           echo "extra_pytest_args=" >> $GITHUB_ENV
@@ -81,7 +85,7 @@ jobs:
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          LOG_LEVEL=ULTRA_DEBUG pip install .
+          LOG_LEVEL=${{ env.log_level }} pip install .
       - name: Install 21cmFAST MacOS
         if: matrix.os == 'macos-latest'
         run: |

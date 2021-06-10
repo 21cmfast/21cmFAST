@@ -685,12 +685,6 @@ void debugSummarizeIC(struct InitialConditions *x, int HII_DIM, int DIM){
     debugSummarizeBox(x->lowres_vy, HII_DIM, "    ");
     LOG_SUPER_DEBUG("  lowres_vz: ");
     debugSummarizeBox(x->lowres_vz, HII_DIM, "    ");
-    LOG_SUPER_DEBUG("  lowres_vx_2LPT: ");
-    debugSummarizeBox(x->lowres_vx_2LPT, HII_DIM, "    ");
-    LOG_SUPER_DEBUG("  lowres_vy_2LPT: ");
-    debugSummarizeBox(x->lowres_vy_2LPT, HII_DIM, "    ");
-    LOG_SUPER_DEBUG("  lowres_vz_2LPT: ");
-    debugSummarizeBox(x->lowres_vz_2LPT, HII_DIM, "    ");
 }
 
 void debugSummarizePerturbField(struct PerturbedField *x, int HII_DIM){
