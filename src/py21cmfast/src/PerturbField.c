@@ -432,7 +432,7 @@ int ComputePerturbField(
 
     // normalize after FFT
     int bad_count=0;
-#pragma omp parallel shared(LOWRES_density_perturb,bad_count) private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(LOWRES_density_perturb,bad_count) private(i,j,k) num_threads(user_params->N_THREADS) reduction(+: bad_count)
     {
 #pragma omp for
         for(i=0; i<user_params->HII_DIM; i++){
