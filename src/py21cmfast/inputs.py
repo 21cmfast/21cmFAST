@@ -447,7 +447,11 @@ class UserParams(StructWithDefaults):
     FAST_FCOLL_TABLES: bool, optional
         Whether to use fast Fcoll tables, as described in Sec X of JBM XX. Significant speedup for minihaloes.
     USE_2LPT: bool, optional
-        Whether to use second-order Lagrangian Perturbation corrections.
+        Whether to use second-order Lagrangian perturbation theory (2LPT).
+        Set this to True if the density field or the halo positions are extrapolated to
+        low redshifts. The current implementation is very naive and adds a factor ~6 to
+        the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
+        Appendix D.
     MINIMIZE_MEMORY: bool, optional
         If set, the code will run in a mode that minimizes memory usage, at the expense
         of some CPU/disk-IO. Good for large boxes / small computers.
