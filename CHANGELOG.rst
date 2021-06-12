@@ -26,7 +26,8 @@ Fixed
 * Errors when ``USE_FFTW_WISDOM`` is used on some systems [Issue #174, PR #199]
 * Bug in ComputeIonizedBox causing negative recombination rate and ring structure in ``Gamma12_box`` [Issue #194, PR #210]
 * Error in determining the wisdom file name [Issue #209, PR#210]
-
+* Bug in which cached C-based memory would be read in and free'd twice.
+*
 Internals
 ~~~~~~~~~
 
@@ -38,6 +39,7 @@ Internals
 * Nicer CLI interface for ``produce_integration_test_data.py``. New options to ``clean`` the `test_data/`` directory,
   and also test data is saved by user-defined key rather than massive string of variables.
 * Nicer debug statements before calls to C, for easily comparing between versions.
+* Much nicer methods of keeping track of array state (in memory, on disk, c-controlled, etc.)
 
 v3.0.3
 ------
