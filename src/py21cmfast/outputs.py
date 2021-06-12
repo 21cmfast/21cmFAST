@@ -297,7 +297,6 @@ class HaloField(_AllParamsBox):
         "sqrtdn_dlm",
     )
     _c_compute_function = lib.ComputeHaloField
-    _c_free_function = lib.free_halo_field
 
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         return {}
@@ -340,7 +339,6 @@ class PerturbHaloField(_AllParamsBox):
 
     _c_compute_function = lib.ComputePerturbHaloField
     _c_based_pointers = ("halo_masses", "halo_coords")
-    _c_free_function = lib.free_phf
 
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         return {}

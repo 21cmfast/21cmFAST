@@ -15,20 +15,81 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from . import __version__
 from ._cfg import config
+from .c_21cmfast import lib
 
 _ffi = FFI()
 
 logger = logging.getLogger(__name__)
 
 
-class ArrayState(IntEnum):
+class ArrayStateError(ValueError):
+    """Errors arising from incorrectly modifying array state."""
+
+    pass
+
+
+class ArrayState:
     """Define the memory state of a struct array."""
 
-    UNINITIALIZED = 0
-    INITIALIZED = 1
-    COMPUTED_ON_DISK = 2
-    COMPUTED_IN_MEMORY = 3
-    COMPUTED_IN_MEMORY_AND_DISK = 4
+    def __init__(
+        self, initialized=False, c_memory=False, computed_in_mem=False, on_disk=False
+    ):
+        self._initialized = initialized
+        self._c_memory = c_memory
+        self._computed_in_mem = computed_in_mem
+        self._on_disk = on_disk
+
+    @property
+    def initialized(self):
+        """Whether the array is initialized (i.e. allocated memory)."""
+        return self._initialized
+
+    @initialized.setter
+    def initialized(self, val):
+        if not val:
+            # if its not initialized, can't be computed in memory
+            self.computed_in_mem = False
+        self._initialized = bool(val)
+
+    @property
+    def c_memory(self):
+        """Whether the array's memory (if any) is controlled by C."""
+        return self._c_memory
+
+    @c_memory.setter
+    def c_memory(self, val):
+        self._c_memory = bool(val)
+
+    @property
+    def computed_in_mem(self):
+        """Whether the array is computed and stored in memory."""
+        return self._computed_in_mem
+
+    @computed_in_mem.setter
+    def computed_in_mem(self, val):
+        if val:
+            # any time we pull something into memory, it must be initialized.
+            self.initialized = True
+        self._computed_in_mem = bool(val)
+
+    @property
+    def on_disk(self):
+        """Whether the array is computed and store on disk."""
+        return self._on_disk
+
+    @on_disk.setter
+    def on_disk(self, val):
+        self._on_disk = bool(val)
+
+    @property
+    def computed(self):
+        """Whether the array is computed anywhere."""
+        return self.computed_in_mem or self.on_disk
+
+    @property
+    def c_has_active_memory(self):
+        """Whether C currently has initialized memory for this array."""
+        return self.c_memory and self.initialized
 
 
 class ParameterError(RuntimeError):
@@ -516,7 +577,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
     _filter_params = ["external_table_path", "wisdoms_path"]
     _c_based_pointers = ()
     _c_compute_function = None
-    _c_free_function = None
 
     _TYPEMAP = bidict({"float32": "float *", "float64": "double *", "int32": "int *"})
 
@@ -564,10 +624,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         self.initial = initial
 
         self._array_structure = self._get_box_structures()
-        self._array_state = {k: ArrayState.UNINITIALIZED for k in self._array_structure}
-        self._array_state.update(
-            {k: ArrayState.UNINITIALIZED for k in self._c_based_pointers}
-        )
+        self._array_state = {k: ArrayState() for k in self._array_structure}
+        self._array_state.update({k: ArrayState() for k in self._c_based_pointers})
 
         for k in self._array_structure:
             if k not in self.pointer_fields:
@@ -614,12 +672,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         return [c for c in all_classes if not c._meta]
 
     def _init_arrays(self):
-        for k in self._array_structure.keys():
-            # Note that we must iterate through _array_structure, not
-            # _array_state, since _array_state also contains C-based pointers.
-
-            # Only initialize uninitialized arrays.
-            if self._array_state[k] != ArrayState.UNINITIALIZED:
+        for k, state in self._array_state.items():
+            # Don't initialize C-based pointers or already-inited stuff
+            if k in self._c_based_pointers or state.initialized:
                 continue
 
             params = self._array_structure[k]
@@ -637,7 +692,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             setattr(self, k, fnc(shape, dtype=tp))
 
             # Add it to initialized arrays.
-            self._array_state[k] = ArrayState.INITIALIZED
+            state.initialized = True
 
     @property
     def random_seed(self):
@@ -651,15 +706,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         # Initialize all uninitialized arrays.
         self._init_arrays()
 
-        for k in self._array_structure:
+        for k, state in self._array_state.items():
             # We do *not* set COMPUTED_ON_DISK items to the C-struct here, because we have no
             # way of knowing (in this function) what is required to load in, and we don't want
             # to unnecessarily load things in. We leave it to the user to ensure that all
             # required arrays are loaded into memory before calling this function.
-            if self._array_state[k] in (
-                ArrayState.INITIALIZED,
-                ArrayState.COMPUTED_IN_MEMORY,
-            ):
+            if state.initialized:
                 setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
         for k in self.primitive_fields:
@@ -736,21 +788,22 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             getattr(self, k)
 
     def _remove_array(self, k, force=False):
-        if self._array_state[k] == ArrayState.INITIALIZED:
-            delattr(self, k)
-            self._array_state[k] = ArrayState.UNINITIALIZED
-        elif self._array_state[k] == ArrayState.UNINITIALIZED:
+        state = self._array_state[k]
+
+        if not state.initialized:
             warnings.warn(f"Trying to remove array that isn't yet created: {k}")
-        elif self._array_state[k] == ArrayState.COMPUTED_IN_MEMORY:
-            if not force:
-                raise IOError(
-                    f"Trying to purge array '{k}'' from memory that hasn't been stored! Use force=True if you meant to do this."
-                )
-            delattr(self, k)
-            self._array_state[k] = ArrayState.UNINITIALIZED
-        elif self._array_state[k] == ArrayState.COMPUTED_IN_MEMORY_AND_DISK:
-            delattr(self, k)
-            self._array_state[k] = ArrayState.COMPUTED_ON_DISK
+            return
+
+        if state.computed_in_mem and not state.on_disk and not force:
+            raise IOError(
+                f"Trying to purge array '{k}'' from memory that hasn't been stored! Use force=True if you meant to do this."
+            )
+
+        if state.c_has_active_memory:
+            lib.free(getattr(self._cstruct, k))
+
+        delattr(self, k)
+        state.initialized = False
 
     def __getattr__(self, item):
         """Gets arrays that aren't already in memory."""
@@ -758,7 +811,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         if "_array_state" not in self.__dict__ or item not in self._array_state:
             raise self.__getattribute__(item)
 
-        if self._array_state[item] != ArrayState.COMPUTED_ON_DISK:
+        if not self._array_state[item].on_disk:
             raise IOError(
                 f"Cannot get {item} as it is not in memory, and this object is not cached to disk."
             )
@@ -894,9 +947,10 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             Whether to write the inputs to the file. Can be useful to set to False if
             the input file already exists and has parts already written.
         """
-        if any(v < ArrayState.COMPUTED_ON_DISK for v in self._array_state.values()):
+        if not all(v.computed for v in self._array_state.values()):
             raise IOError(
                 "Not all boxes have been computed (or maybe some have been purged). Cannot write."
+                f"Non-computed boxes: {[k for k, v in self._array_state.items() if not v.computed]}"
             )
 
         if not self._random_seed:
@@ -926,16 +980,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
                         kfile = k.lstrip("_")
 
-                        if isinstance(q, StructWithDefaults) or isinstance(
-                            q, StructInstanceWrapper
-                        ):
+                        if isinstance(q, (StructWithDefaults, StructInstanceWrapper)):
                             grp = f.create_group(kfile)
-                            if isinstance(q, StructWithDefaults):
-                                # using self allows to rebuild the object from HDF5 file.
-                                dct = q.self
-                            else:
-                                dct = q
-
+                            dct = q.self if isinstance(q, StructWithDefaults) else q
                             for kk, v in dct.items():
                                 if kk not in self._filter_params:
                                     try:
@@ -959,9 +1006,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         except OSError as e:
             logger.warning(
-                f"When attempting to write {self.__class__.__name__} to file, write failed "
-                "with the following error. Continuing without caching."
+                f"When attempting to write {self.__class__.__name__} to file, write failed with the following error. Continuing without caching."
             )
+
             logger.warning(e)
 
     def write_data_to_hdf5_group(self, group: h5py.Group):
@@ -974,9 +1021,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             The HDF5 group into which to write the object.
         """
         # Go through all fields in this struct, and save
-        for k in self._array_state:
+        for k, state in self._array_state.items():
             group.create_dataset(k, data=getattr(self, k))
-            self._array_state[k] = ArrayState.COMPUTED_IN_MEMORY_AND_DISK
+            state.on_disk = True
 
         for k in self.primitive_fields:
             group.attrs[k] = getattr(self, k)
@@ -1007,7 +1054,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         self.write(direc, fname)
 
     def _get_path(
-        self, direc: [str, Path, None] = None, fname: [str, Path, None] = None
+        self, direc: Union[str, Path, None] = None, fname: Union[str, Path, None] = None
     ) -> Path:
         if direc is None and fname is None and self.path:
             return self.path
@@ -1025,8 +1072,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def read(
         self,
-        direc: [str, Path, None] = None,
-        fname: [str, Path, None] = None,
+        direc: Union[str, Path, None] = None,
+        fname: Union[str, Path, None] = None,
         keys: Optional[Sequence[str]] = None,
     ):
         """
@@ -1058,7 +1105,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             for k in boxes.keys():
                 if keys is None or k in keys:
                     setattr(self, k, boxes[k][...])
-                    self._array_state[k] = ArrayState.COMPUTED_IN_MEMORY_AND_DISK
+                    self._array_state[k].on_disk = True
+                    self._array_state[k].computed_in_mem = True
                     setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
             for k in boxes.attrs.keys():
@@ -1211,16 +1259,14 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         memory without writing. Use :meth:`has` to check whether certain arrays
         are available.
         """
-        return any(v >= ArrayState.COMPUTED_ON_DISK for v in self._array_state.values())
+        return any(v.computed for v in self._array_state.values())
 
     def ensure_arrays_computed(self, *arrays, load=False) -> bool:
         """Check if the given arrays are computed (not just initialized)."""
         if not self.is_computed:
             return False
 
-        computed = all(
-            self._array_state[k] >= ArrayState.COMPUTED_ON_DISK for k in arrays
-        )
+        computed = all(self._array_state[k].computed for k in arrays)
 
         if computed and load:
             self.prepare(keep=arrays, flush=[])
@@ -1229,7 +1275,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def ensure_arrays_inited(self, *arrays, init=False) -> bool:
         """Check if the given arrays are initialized (or computed)."""
-        inited = all(self._array_state[k] >= ArrayState.INITIALIZED for k in arrays)
+        inited = all(self._array_state[k].initialized for k in arrays)
 
         if init and not inited:
             self._init_arrays()
@@ -1264,21 +1310,18 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         )
 
         for fieldname, state in self._array_state.items():
-            if state == ArrayState.UNINITIALIZED:
+            if not state.initialized:
                 out += f"{indent}    {fieldname:>15}: uninitialized\n"
-            elif state == ArrayState.INITIALIZED:
+            elif not state.computed:
                 out += f"{indent}    {fieldname:>15}: initialized\n"
-            elif state in (
-                ArrayState.COMPUTED_IN_MEMORY,
-                ArrayState.COMPUTED_IN_MEMORY_AND_DISK,
-            ):
+            elif not state.computed_in_mem:
+                out += f"{indent}    {fieldname:>15}: computed on disk\n"
+            else:
                 x = getattr(self, fieldname).flatten()
                 if len(x) > 0:
                     out += f"{indent}    {fieldname:>15}: {x[0]:1.4e}, {x[-1]:1.4e}, {x.min():1.4e}, {x.max():1.4e}, {np.mean(x):1.4e}\n"
                 else:
                     out += f"{indent}    {fieldname:>15}: size zero\n"
-            elif state == ArrayState.COMPUTED_IN_MEMORY:
-                out += f"{indent}    {fieldname:>15}: computed in memory\n"
 
         return out
 
@@ -1344,8 +1387,11 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         _process_exitcode(exitcode, self._c_compute_function, args)
 
         # Ensure memory created in C gets mapped to numpy arrays in this struct.
-        for k in self._array_state:
-            self._array_state[k] = ArrayState.COMPUTED_IN_MEMORY
+        for k, state in self._array_state.items():
+            print(k)
+            if state.initialized:
+                print("setting ocmputed")
+                state.computed_in_mem = True
 
         self.__memory_map()
         self.__expose()
@@ -1370,11 +1416,14 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         shapes = self._c_shape(self._cstruct)
         for item in self._c_based_pointers:
             setattr(self, item, asarray(getattr(self._cstruct, item), shapes[item]))
+            self._array_state[item].c_memory = True
+            self._array_state[item].computed_in_mem = True
 
     def __del__(self):
         """Safely delete the object and its C-allocated memory."""
-        if self._c_free_function is not None:
-            self._c_free_function(self._cstruct)
+        for k in self._c_based_pointers:
+            if self._array_state[k].c_has_active_memory:
+                lib.free(getattr(self._cstruct, k))
 
 
 class StructInstanceWrapper:

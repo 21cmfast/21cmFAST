@@ -408,3 +408,42 @@ def test_coeval_vs_low_level(ic):
     assert np.allclose(coeval.Tk_box, st.Tk_box)
     assert np.allclose(coeval.Ts_box, st.Ts_box)
     assert np.allclose(coeval.x_e_box, st.x_e_box)
+
+
+def test_using_cached_halo_field(ic, test_direc):
+    """Test whether the C-based memory in halo fields is cached correctly.
+
+    Prior to v3.1 this was segfaulting, so this test ensure that this behaviour does
+    not regress.
+    """
+    halo_field = wrapper.determine_halo_list(
+        redshift=10.0,
+        init_boxes=ic,
+        write=True,
+        direc=test_direc,
+    )
+
+    pt_halos = wrapper.perturb_halo_list(
+        redshift=10.0,
+        init_boxes=ic,
+        halo_field=halo_field,
+        write=True,
+        direc=test_direc,
+    )
+
+    print("DONE WITH FIRST BOXES!")
+    # Now get the halo field again at the same redshift -- should be cached
+    new_halo_field = wrapper.determine_halo_list(
+        redshift=10.0, init_boxes=ic, write=False, regenerate=False
+    )
+
+    new_pt_halos = wrapper.perturb_halo_list(
+        redshift=10.0,
+        init_boxes=ic,
+        halo_field=new_halo_field,
+        write=False,
+        regenerate=False,
+    )
+
+    np.testing.assert_allclose(new_halo_field.halo_masses, halo_field.halo_masses)
+    np.testing.assert_allclose(pt_halos.halo_coords, new_pt_halos.halo_coords)
