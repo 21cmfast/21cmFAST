@@ -83,12 +83,6 @@ class GlobalParams(StructInstanceWrapper):
         overcompensates by an effective loss in resolution. **Added in 1.1.0**.
     R_smooth_density : float
         Determines the smoothing length to use if `SMOOTH_EVOLVED_DENSITY_FIELD` is True.
-    SECOND_ORDER_LPT_CORRECTIONS : bool
-        Use second-order Lagrangian perturbation theory (2LPT).
-        Set this to True if the density field or the halo positions are extrapolated to
-        low redshifts. The current implementation is very naive and adds a factor ~6 to
-        the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
-        Appendix D.
     HII_ROUND_ERR : float
         Rounding error on the ionization fraction. If the mean xHI is greater than
         ``1 - HII_ROUND_ERR``, then finding HII bubbles is skipped, and a homogeneous
@@ -335,9 +329,7 @@ class GlobalParams(StructInstanceWrapper):
 
         for k, val in kwargs.items():
             if k.upper() not in this_attr_upper:
-                raise ValueError(
-                    "{} is not a valid parameter of global_params".format(k)
-                )
+                raise ValueError(f"{k} is not a valid parameter of global_params")
             key = this_attr_upper[k.upper()]
             prev[key] = getattr(self, key)
             setattr(self, key, val)
@@ -452,6 +444,15 @@ class UserParams(StructWithDefaults):
         is considerably faster than when performing integrals explicitly.
     FAST_FCOLL_TABLES: bool, optional
         Whether to use fast Fcoll tables, as described in Sec X of JBM XX. Significant speedup for minihaloes.
+    USE_2LPT: bool, optional
+        Whether to use second-order Lagrangian perturbation theory (2LPT).
+        Set this to True if the density field or the halo positions are extrapolated to
+        low redshifts. The current implementation is very naive and adds a factor ~6 to
+        the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
+        Appendix D.
+    MINIMIZE_MEMORY: bool, optional
+        If set, the code will run in a mode that minimizes memory usage, at the expense
+        of some CPU/disk-IO. Good for large boxes / small computers.
     """
 
     _ffi = ffi
@@ -469,6 +470,8 @@ class UserParams(StructWithDefaults):
         "NO_RNG": False,
         "USE_INTERPOLATION_TABLES": False,
         "FAST_FCOLL_TABLES": False,
+        "USE_2LPT": True,
+        "MINIMIZE_MEMORY": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
@@ -539,7 +542,7 @@ class UserParams(StructWithDefaults):
 
         if not 0 <= val < len(self._hmf_models):
             raise ValueError(
-                "HMF must be an int between 0 and {}".format(len(self._hmf_models) - 1)
+                f"HMF must be an int between 0 and {len(self._hmf_models) - 1}"
             )
 
         return val
@@ -607,7 +610,7 @@ class FlagOptions(StructWithDefaults):
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations.
     USE_VELS_AUX: bool, optional
-        Auxiliar variable (not input) to check if minihaloes are being used without relative velocities and complain
+        Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain
     """
 
     _ffi = ffi

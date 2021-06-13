@@ -153,7 +153,7 @@ def coeval_sliceplot(
         cube = getattr(struct, kind)
     except AttributeError:
         raise AttributeError(
-            "The given OutputStruct does not have the quantity {kind}".format(kind=kind)
+            f"The given OutputStruct does not have the quantity {kind}"
         )
 
     if kind != "brightness_temp" and "cmap" not in kwargs:
@@ -177,8 +177,8 @@ def coeval_sliceplot(
         raise ValueError("slice_axis should be between -1 and 2")
 
     # Now put on the decorations.
-    ax.set_xlabel("{xax}-axis [Mpc]".format(xax=xax))
-    ax.set_ylabel("{yax}-axis [Mpc]".format(yax=yax))
+    ax.set_xlabel(f"{xax}-axis [Mpc]")
+    ax.set_ylabel(f"{yax}-axis [Mpc]")
 
     cbar = fig._gci().colorbar
 
@@ -240,9 +240,7 @@ def lightcone_sliceplot(
     """
     slice_axis = kwargs.pop("slice_axis", 0)
     if slice_axis <= -2 or slice_axis >= 3:
-        raise ValueError(
-            "slice_axis should be between -1 and 2 (got {})".format(slice_axis)
-        )
+        raise ValueError(f"slice_axis should be between -1 and 2 (got {slice_axis})")
 
     z_axis = ("y" if vertical else "x") if slice_axis in (0, 1) else None
 
@@ -350,14 +348,12 @@ def _set_zaxis_ticks(ax, lightcone, zticks, z_axis):
             try:
                 coords = getattr(lightcone.cosmo_params.cosmo, zticks)(lc_z)
             except AttributeError:
-                raise AttributeError(
-                    "zticks '{}' is not a cosmology function.".format(zticks)
-                )
+                raise AttributeError(f"zticks '{zticks}' is not a cosmology function.")
 
         zlabel = " ".join(z.capitalize() for z in zticks.split("_"))
         units = getattr(coords, "unit", None)
         if units:
-            zlabel += " [{}]".format(str(coords.unit))
+            zlabel += f" [{str(coords.unit)}]"
             coords = coords.value
 
         ticks = loc.tick_values(coords.min(), coords.max())
@@ -384,8 +380,8 @@ def _set_zaxis_ticks(ax, lightcone, zticks, z_axis):
             lightcone.cosmo_params.cosmo.comoving_distance(z_ticks).value
             - lightcone.lightcone_distances[0]
         )
-        getattr(ax, "set_{}ticks".format(z_axis))(d_ticks)
-        getattr(ax, "set_{}ticklabels".format(z_axis))(ticks)
+        getattr(ax, f"set_{z_axis}ticks")(d_ticks)
+        getattr(ax, f"set_{z_axis}ticklabels")(ticks)
 
     else:
         zlabel = "Line-of-Sight Distance [Mpc]"

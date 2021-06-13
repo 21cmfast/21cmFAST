@@ -14,7 +14,6 @@ struct GlobalParams{
     int EVOLVE_DENSITY_LINEARLY;
     int SMOOTH_EVOLVED_DENSITY_FIELD;
     float R_smooth_density;
-    int SECOND_ORDER_LPT_CORRECTIONS;
     float HII_ROUND_ERR;
     int FIND_BUBBLE_ALGORITHM;
     int N_POISSON;
@@ -94,7 +93,6 @@ extern struct GlobalParams global_params = {
     .EVOLVE_DENSITY_LINEARLY = 0,
     .SMOOTH_EVOLVED_DENSITY_FIELD = 0,
     .R_smooth_density = 0.2,
-    .SECOND_ORDER_LPT_CORRECTIONS = 1,
     .HII_ROUND_ERR = 1e-5,
     .FIND_BUBBLE_ALGORITHM = 2,
     .N_POISSON = 5,

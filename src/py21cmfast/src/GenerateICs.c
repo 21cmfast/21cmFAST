@@ -253,7 +253,6 @@ int ComputeInitialConditions(
         }
     }
     LOG_DEBUG("Drawn random fields.");
-    LOG_DEBUG("Last random a/b values drawn: %f %f", a, b);
 
     // *****  Adjust the complex conjugate relations for a real array  ***** //
     adj_complex_conj(HIRES_box,user_params,cosmo_params);
@@ -525,7 +524,7 @@ int ComputeInitialConditions(
     // reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
 
     // Parameter set in ANAL_PARAMS.H
-    if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+    if(user_params->USE_2LPT){
 
         // use six supplementary boxes to store the gradients of phi_1 (eq. D13b)
         // Allocating the boxes
