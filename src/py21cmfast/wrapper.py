@@ -238,7 +238,7 @@ def _verify_types(**kwargs):
         ][j]
 
         if v is not None and not isinstance(v, cls):
-            raise ValueError("%s must be an instance of %s" % (k, cls.__name__))
+            raise ValueError(f"{k} must be an instance of {cls.__name__}")
 
 
 def _call_c_simple(fnc, *args):
@@ -875,7 +875,7 @@ def initial_conditions(
                     f"Existing init_boxes found and read in (seed={boxes.random_seed})."
                 )
                 return boxes
-            except IOError:
+            except OSError:
                 pass
 
         return boxes.compute(hooks=hooks)
@@ -986,7 +986,7 @@ def perturb_field(
                     f"(seed={fields.random_seed})."
                 )
                 return fields
-            except IOError:
+            except OSError:
                 pass
 
         # Construct FFTW wisdoms. Only if required
@@ -1113,7 +1113,7 @@ def determine_halo_list(
                     f"(seed={fields.random_seed})."
                 )
                 return fields
-            except IOError:
+            except OSError:
                 pass
 
         # Construct FFTW wisdoms. Only if required
@@ -1247,7 +1247,7 @@ def perturb_halo_list(
                     % (redshift, fields.random_seed)
                 )
                 return fields
-            except IOError:
+            except OSError:
                 pass
 
         # Make sure we've got computed init boxes.
@@ -1530,7 +1530,7 @@ def ionize_box(
                     % (redshift, box.random_seed)
                 )
                 return box
-            except IOError:
+            except OSError:
                 pass
 
         # EVERYTHING PAST THIS POINT ONLY HAPPENS IF THE BOX DOESN'T ALREADY EXIST
@@ -1873,7 +1873,7 @@ def spin_temperature(
                     % (redshift, box.random_seed)
                 )
                 return box
-            except IOError:
+            except OSError:
                 pass
 
         # EVERYTHING PAST THIS POINT ONLY HAPPENS IF THE BOX DOESN'T ALREADY EXIST
@@ -2014,7 +2014,7 @@ def brightness_temperature(
                     f"Existing brightness_temp box found and read in (seed={box.random_seed})."
                 )
                 return box
-            except IOError:
+            except OSError:
                 pass
 
         return box.compute(
@@ -2176,7 +2176,7 @@ def run_coeval(
         # it is cached -- otherwise we could be losing information.
         try:
             init_box.prepare_for_perturb(flag_options=flag_options, force=always_purge)
-        except IOError:
+        except OSError:
             pass
 
         if perturb:
@@ -2237,7 +2237,7 @@ def run_coeval(
             if user_params.MINIMIZE_MEMORY:
                 try:
                     p.purge(force=always_purge)
-                except IOError:
+                except OSError:
                     pass
 
             perturb_.append(p)
@@ -2249,7 +2249,7 @@ def run_coeval(
             init_box.prepare_for_spin_temp(
                 flag_options=flag_options, force=always_purge
             )
-        except IOError:
+        except OSError:
             pass
 
         if flag_options.USE_HALO_FIELD and not pt_halos:
@@ -2365,7 +2365,7 @@ def run_coeval(
             if pf is not None:
                 try:
                     pf.purge(force=always_purge)
-                except IOError:
+                except OSError:
                     pass
 
             if z in redshift:
@@ -2652,7 +2652,7 @@ def run_lightcone(
             # TODO: should really check that the file at path actually contains a fully
             # working copy of the init_box.
             init_box.prepare_for_perturb(flag_options=flag_options, force=always_purge)
-        except IOError:
+        except OSError:
             pass
 
         if perturb is None:
@@ -2672,7 +2672,7 @@ def run_lightcone(
             if user_params.MINIMIZE_MEMORY:
                 try:
                     p.purge(force=always_purge)
-                except IOError:
+                except OSError:
                     pass
 
             perturb_.append(p)
@@ -2687,7 +2687,7 @@ def run_lightcone(
             init_box.prepare_for_spin_temp(
                 flag_options=flag_options, force=always_purge
             )
-        except IOError:
+        except OSError:
             pass
 
         if flag_options.PHOTON_CONS:
@@ -2887,7 +2887,7 @@ def run_lightcone(
             if pf is not None:
                 try:
                     pf.purge(force=always_purge)
-                except IOError:
+                except OSError:
                     pass
 
             pf = pf2

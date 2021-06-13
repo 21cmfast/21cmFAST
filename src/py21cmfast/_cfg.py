@@ -93,7 +93,7 @@ class Config(dict):
         file_name = Path(file_name).expanduser().absolute()
 
         if file_name.exists():
-            with open(file_name, "r") as fl:
+            with open(file_name) as fl:
                 cfg = yaml.load(fl)
             return cls(cfg, file_name=file_name)
         else:

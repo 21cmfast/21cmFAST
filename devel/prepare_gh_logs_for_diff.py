@@ -17,7 +17,7 @@ pids = set()
 threads = set()
 
 pid_map = {}
-with open(fname, "r") as fl:
+with open(fname) as fl:
 
     lines = fl.readlines()
 

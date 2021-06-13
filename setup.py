@@ -1,8 +1,6 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """Setup the package."""
 
-from __future__ import absolute_import, print_function
 
 from setuptools import find_packages, setup
 
@@ -15,7 +13,7 @@ from os.path import dirname, expanduser, join
 
 
 def _read(*names, **kwargs):
-    return io.open(
+    return open(
         join(dirname(__file__), *names), encoding=kwargs.get("encoding", "utf8")
     ).read()
 

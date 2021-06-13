@@ -1,5 +1,4 @@
 [flake8]
-select = A,B,C,E,F,W,T4,B9,RST,D,N,I
 ignore =
     E203
     E266
@@ -14,10 +13,12 @@ ignore =
 max-line-length = 88
 max-complexity = 40
 docstring-convention=numpy
+inline-quotes="
 ignore-decorators=click.option
 per-file-ignores =
-    tests/*:D
-    src/py21cmfast/cli.py:D
+    tests/*:D,T
+    devel/*:T
+    src/py21cmfast/cli.py:D,T
 rst-roles =
     class
     func

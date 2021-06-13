@@ -40,7 +40,7 @@ There are two main purposes you may want to write some C code:
 21cmFAST currently provides no support for external plugins/extensions. It is entirely
 possible to write your own C code to do whatever you want with the output data, but we
 don't provide any wrapping structure for you to do this, you will need to write your
-own. Internally, 21cmFAST uses the `cffi` library to aid the wrapping of the C code into
+own. Internally, 21cmFAST uses the ``cffi`` library to aid the wrapping of the C code into
 Python. You don't need to do the same, though we recommend it. If your desired
 "extension" is something that needs to operate in-between steps of 21cmFAST, we also
 provide no support for this, but it is possible, so long as the next step in the
@@ -61,7 +61,7 @@ added to it), then the corresponding class in ``py21cmfast.wrapper`` must be mod
 usually simply to add the new parameter to the ``_defaults_`` dict with a default value.
 For instance, if a new variable ``some_param`` was added to the ``user_params`` struct
 in the ``ComputeInitialConditions`` C function, then the ``UserParams`` class in
-the wrapper would be modified, adding ``some_param=<default_value>`` to its `_default_`
+the wrapper would be modified, adding ``some_param=<default_value>`` to its ``_default_``
 dict. If the default value of the parameter is dependent on another parameter, its
 default value in this dict can be set to ``None``, and you can give it a dynamic
 definition as a Python ``@property``. For example, the ``DIM`` parameter of
@@ -99,7 +99,7 @@ C Function Standards
 The C-level functions are split into two groups -- low-level "private" functions, and
 higher-level "public" or "API" functions. All API-level functions are callable from
 python (but may also be called from other C functions). All API-level functions are
-currently prototyped in `21cmFAST.h`.
+currently prototyped in ``21cmFAST.h``.
 
 To enable consistency of error-checking in Python (and a reasonable standard for any
 kind of code), we enforce that any API-level function must return an integer status.
@@ -108,7 +108,7 @@ Python to control the memory access of these variables, and also to receive prop
 error statuses (see below for how we do exception handling). We also adhere to the
 convention that "output" variables should be passed to the function as its last
 argument(s). In the case that _only_ the last argument is meant to be "output", there
-exists a simple wrapper `_call_c_simple` in `wrapper.py` that will neatly handle the
+exists a simple wrapper ``_call_c_simple`` in ``wrapper.py`` that will neatly handle the
 calling of the function in an intuitive pythonic way.
 
 Running with Valgrind
@@ -152,14 +152,14 @@ To run these::
     $ PYTHONMALLOC=malloc valgrind --tool=memcheck --track-origins=yes --leak-check=full --suppressions=devel/valgrind-suppress-all-but-c.supp pytest -v tests/<test_file>::<test_func> > valgrind.out 2>&1
 
 Note that we also routed the stderr output to a file, which is useful because it can be
-quite voluminous. There is a python script, `devel/filter_valgrind.py` which can be run
+quite voluminous. There is a python script, ``devel/filter_valgrind.py`` which can be run
 over the output (`valgrind.out` in the above command) to filter it down to only have
 stuff from 21cmfast in it.
 
 Producing Integration Test Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 There are bunch of so-called "integration tests", which rely on previously-produced
-data. To produce this data, run `python tests/produce_integration_test_data.py`.
+data. To produce this data, run ``python tests/produce_integration_test_data.py``.
 
 Furthermore, this data should only be produced with good reason -- the idea is to keep
 it static while the code changes, to have something steady to compare to. If a particular
@@ -277,7 +277,7 @@ to work together automatically. The "true" version of the package is set with
 `setuptools-scm <https://pypi.org/project/setuptools-scm/>`_. This stores the version
 in the git tag. There are many benefits to this -- one is that the version is unique
 for every single change in the code, with commits on top of a release changing the
-version. This means that versions accessed via `py21cmfast.__version__` are unique and track
+version. This means that versions accessed via ``py21cmfast.__version__`` are unique and track
 the exact code in the package (useful for reproducing results). To get the current
 version from command line, simply do ``python setup.py --version`` in the top-level
 directory.

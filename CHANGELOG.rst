@@ -21,7 +21,7 @@ Added
 
 Fixed
 ~~~~~
-* Bug in 2LPT when `USE_RELATIVE_VELOCITIES=True` [Issue #191, PR #192]
+* Bug in 2LPT when ``USE_RELATIVE_VELOCITIES=True`` [Issue #191, PR #192]
 * Error raised when redshifts are not in ascending order [Issue #176, PR #177]
 * Errors when ``USE_FFTW_WISDOM`` is used on some systems [Issue #174, PR #199]
 * Bug in ComputeIonizedBox causing negative recombination rate and ring structure in ``Gamma12_box`` [Issue #194, PR #210]
@@ -36,7 +36,7 @@ Internals
   This also means that the various boxes can be queried before they are initialized and computed.
 * More stringent integration tests that test each array, not just the final brightness temperature.
 * Ability to plot the integration test data to more easily identify where things have gone wrong (use ``--plots`` in the ``pytest`` invocation).
-* Nicer CLI interface for ``produce_integration_test_data.py``. New options to ``clean`` the `test_data/`` directory,
+* Nicer CLI interface for ``produce_integration_test_data.py``. New options to ``clean`` the ``test_data/`` directory,
   and also test data is saved by user-defined key rather than massive string of variables.
 * Nicer debug statements before calls to C, for easily comparing between versions.
 * Much nicer methods of keeping track of array state (in memory, on disk, c-controlled, etc.)

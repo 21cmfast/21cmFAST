@@ -10,7 +10,7 @@ else:
     REMOVE_LINE_NUMBERS = False
 
 
-with open(fname, "r") as fl:
+with open(fname) as fl:
     lines = fl.readlines()
     out_lines = []
     for line in lines:

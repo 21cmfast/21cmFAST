@@ -469,7 +469,7 @@ class StructWithDefaults(StructWrapper):
             try:
                 setattr(self._cstruct, key, val)
             except TypeError:
-                print("For key %s, value %s:" % (key, val))
+                logger.info(f"For key {key}, value {val}:")
                 raise
 
         return self._cstruct
@@ -673,8 +673,15 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def _init_arrays(self):
         for k, state in self._array_state.items():
-            # Don't initialize C-based pointers or already-inited stuff
-            if k in self._c_based_pointers or state.initialized:
+            if k == "lowres_density":
+                logger.debug("THINKING ABOUT INITING LOWRES_DENSITY")
+                logger.debug(state.initialized, state.computed_in_mem, state.on_disk)
+
+            # Don't initialize C-based pointers or already-inited stuff, or stuff
+            # that's computed on disk (if it's on disk, accessing the array should
+            # just give the computed version, which is what we would want, not a
+            # zero-inited array).
+            if k in self._c_based_pointers or state.initialized or state.on_disk:
                 continue
 
             params = self._array_structure[k]
@@ -795,8 +802,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             return
 
         if state.computed_in_mem and not state.on_disk and not force:
-            raise IOError(
-                f"Trying to purge array '{k}'' from memory that hasn't been stored! Use force=True if you meant to do this."
+            raise OSError(
+                f"Trying to purge array '{k}' from memory that hasn't been stored! Use force=True if you meant to do this."
             )
 
         if state.c_has_active_memory:
@@ -812,7 +819,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             raise self.__getattribute__(item)
 
         if not self._array_state[item].on_disk:
-            raise IOError(
+            raise OSError(
                 f"Cannot get {item} as it is not in memory, and this object is not cached to disk."
             )
 
@@ -948,7 +955,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             the input file already exists and has parts already written.
         """
         if not all(v.computed for v in self._array_state.values()):
-            raise IOError(
+            raise OSError(
                 "Not all boxes have been computed (or maybe some have been purged). Cannot write."
                 f"Non-computed boxes: {[k for k, v in self._array_state.items() if not v.computed]}"
             )
@@ -1063,7 +1070,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             pth = self.find_existing(direc)
 
             if pth is None:
-                raise IOError("No boxes exist for these parameters.")
+                raise OSError("No boxes exist for these parameters.")
         else:
             direc = Path(direc or config["direc"]).expanduser()
             fname = Path(fname)
@@ -1096,7 +1103,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             try:
                 boxes = f[self._name]
             except KeyError:
-                raise IOError(
+                raise OSError(
                     f"While trying to read in {self._name}, the file exists, but does not have the "
                     "correct structure."
                 )
@@ -1215,7 +1222,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                     ]
                 )
             )
-            + "; v{}".format(self.version)
+            + f"; v{self.version}"
             + ")"
         )
 
@@ -1388,9 +1395,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         # Ensure memory created in C gets mapped to numpy arrays in this struct.
         for k, state in self._array_state.items():
-            print(k)
             if state.initialized:
-                print("setting ocmputed")
                 state.computed_in_mem = True
 
         self.__memory_map()

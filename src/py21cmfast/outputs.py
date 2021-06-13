@@ -718,7 +718,7 @@ class _HighLevelOutput:
         fname = files[indx][1]
 
         if not os.path.exists(fname):
-            raise IOError(
+            raise OSError(
                 "The cached file you requested does not exist (maybe it was removed?)."
             )
 
@@ -735,10 +735,10 @@ class _HighLevelOutput:
 
     def gather(
         self,
-        fname: [str, None, Path] = None,
-        kinds: [Sequence, None] = None,
-        clean: [bool, dict] = False,
-        direc: [str, Path, None] = None,
+        fname: Union[str, None, Path] = None,
+        kinds: Union[Sequence, None] = None,
+        clean: Union[bool, dict] = False,
+        direc: Union[str, Path, None] = None,
     ) -> Path:
         """Gather the cached data associated with this object into its file."""
         kinds = kinds or [
@@ -948,7 +948,7 @@ class _HighLevelOutput:
             fname = os.path.abspath(os.path.join(direc, fname))
 
         if not os.path.exists(fname):
-            raise FileExistsError("The file {} does not exist!".format(fname))
+            raise FileExistsError(f"The file {fname} does not exist!")
 
         park, glbls = cls._read_inputs(fname)
         boxk = cls._read_particular(fname)
@@ -969,8 +969,8 @@ class Coeval(_HighLevelOutput):
         perturbed_field: PerturbedField,
         ionized_box: IonizedBox,
         brightness_temp: BrightnessTemp,
-        ts_box: [TsBox, None] = None,
-        cache_files: [dict, None] = None,
+        ts_box: Union[TsBox, None] = None,
+        cache_files: Union[dict, None] = None,
         photon_nonconservation_data=None,
         _globals=None,
     ):
@@ -1108,7 +1108,7 @@ class LightCone(_HighLevelOutput):
         node_redshifts=None,
         global_quantities=None,
         photon_nonconservation_data=None,
-        cache_files: [dict, None] = None,
+        cache_files: Union[dict, None] = None,
         _globals=None,
     ):
         self.redshift = redshift

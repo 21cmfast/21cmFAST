@@ -329,9 +329,7 @@ class GlobalParams(StructInstanceWrapper):
 
         for k, val in kwargs.items():
             if k.upper() not in this_attr_upper:
-                raise ValueError(
-                    "{} is not a valid parameter of global_params".format(k)
-                )
+                raise ValueError(f"{k} is not a valid parameter of global_params")
             key = this_attr_upper[k.upper()]
             prev[key] = getattr(self, key)
             setattr(self, key, val)
@@ -544,7 +542,7 @@ class UserParams(StructWithDefaults):
 
         if not 0 <= val < len(self._hmf_models):
             raise ValueError(
-                "HMF must be an int between 0 and {}".format(len(self._hmf_models) - 1)
+                f"HMF must be an int between 0 and {len(self._hmf_models) - 1}"
             )
 
         return val

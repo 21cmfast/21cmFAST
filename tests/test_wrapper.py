@@ -51,7 +51,7 @@ def test_ib_no_z(ic):
 
 
 def test_pf_unnamed_param():
-    "Try using an un-named parameter"
+    """Try using an un-named parameter."""
     with pytest.raises(TypeError):
         wrapper.perturb_field(7)
 
