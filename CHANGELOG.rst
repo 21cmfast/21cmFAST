@@ -1,8 +1,9 @@
 Changelog
 =========
 
-dev
----
+dev-version
+-----------
+
 Added
 ~~~~~
 * Ability to access all evolutionary Coeval components, either from the end Coeval
