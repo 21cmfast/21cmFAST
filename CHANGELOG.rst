@@ -1,8 +1,12 @@
 Changelog
 =========
 
-dev
----
+dev-version
+-----------
+
+v3.1.0 [13 Jun 2021]
+----------------------
+
 Added
 ~~~~~
 * Ability to access all evolutionary Coeval components, either from the end Coeval
