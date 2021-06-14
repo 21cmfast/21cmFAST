@@ -1,0 +1,104 @@
+name: Tests
+
+# Test on all pushes, except when the push is literally just a tag (because we
+# tag automatically via CI, and therefore there's no extra code in that push).
+# Also, only test on pull requests into master/production.
+on:
+  push:
+    tags-ignore:
+      - 'v*'
+  pull_request:
+    branches:
+      - 'master'
+      - 'production'
+
+
+jobs:
+  tests:
+    if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
+    env:
+      ENV_NAME: tests
+      PYTHON: ${{ matrix.python-version }}
+      OS: ${{ matrix.os }}
+    name: Testing
+    #    needs: [linter]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: [3.6, 3.7, 3.8]
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+      - name: Get Miniconda MacOSX
+        if: matrix.os == 'macos-latest'
+        run: |
+          wget https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -O $HOME/miniconda.sh;
+          bash $HOME/miniconda.sh -b -p $HOME/miniconda
+      - name: Get Miniconda Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O $HOME/miniconda.sh;
+          bash $HOME/miniconda.sh -b -p $HOME/miniconda
+      - name: Logging
+        run: |
+          echo ${{ github.event.commits }}
+          echo ${{ github.event.commits[0] }}
+      - name: Make it a Debug Run
+        if: "contains(github.event.payload.commits[0].message, 'ci debug')"
+        run: |
+          echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
+          echo "extra_pytest_args='-s -k test_perturb_field_data --log-level-21=DEBUG'" >> $GITHUB_ENV
+      - name: 'Log Commit Message'
+        run: echo ${{ github.event.commits[0].message }}
+      - name: Make it a Normal Run
+        if: "!contains(github.event.commits[0].message, 'ci debug')"
+        run: |
+          echo "log_level=INFO" >> $GITHUB_ENV
+          echo "extra_pytest_args=" >> $GITHUB_ENV
+      - name: Setup Environment
+        run: |
+          export PATH="$HOME/miniconda/bin:$PATH"
+          ./ci/install_conda.sh
+      - name: Install Dependencies
+        run: |
+          export PATH="$HOME/miniconda/bin:$PATH"
+          source activate ${ENV_NAME}
+          conda env update -f ci/test-env.yml
+      - name: Get C Libraries Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get install libfftw3-dev
+          sudo apt-get install libgsl0-dev
+      - name: Get C Libraries MacOSX
+        if: matrix.os == 'macos-latest'
+        run: |
+          export PATH="$HOME/miniconda/bin:$PATH"
+          source activate $ENV_NAME
+          conda install gsl
+          conda install -c conda-forge fftw
+          conda install -c conda-forge/label/cf201901 gcc
+      - name: Install 21cmFAST Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          export PATH="$HOME/miniconda/bin:$PATH"
+          source activate $ENV_NAME
+          LOG_LEVEL=${{ env.log_level }} pip install .
+      - name: Install 21cmFAST MacOS
+        if: matrix.os == 'macos-latest'
+        run: |
+          export PATH="$HOME/miniconda/bin:$PATH"
+          source activate $ENV_NAME
+          LOG_LEVEL=${{ env.log_level }} CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+      - name: Run Tests
+        run: |
+          export PATH="$HOME/miniconda/bin:$PATH"
+          source activate $ENV_NAME
+          python -m pytest -l --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 ${{ env.extra_pytest_args }}
+      - uses: codecov/codecov-action@master
+        if: matrix.os == 'ubuntu-latest' && success()
+        with:
+          token: ${{secrets.CODECOV_TOKEN}} #required
+          file: ./coverage.xml #optional
