@@ -4,6 +4,14 @@ Changelog
 dev-version
 -----------
 
+v3.1.1 [13 Jun 2021]
+----------------------
+
+Fixed
+~~~~~
+
+* Bug in deployment to PyPI.
+
 v3.1.0 [13 Jun 2021]
 ----------------------
 
