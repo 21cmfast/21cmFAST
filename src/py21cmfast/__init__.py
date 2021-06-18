@@ -47,6 +47,7 @@ from .wrapper import (
     perturb_halo_list,
     run_coeval,
     run_lightcone,
+    run_kSZ,
     spin_temperature,
 )
 

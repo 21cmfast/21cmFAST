@@ -89,9 +89,13 @@ import numpy as np
 import os
 import warnings
 from astropy import units
+from astropy import constants
 from astropy.cosmology import z_at_value
 from copy import deepcopy
 from scipy.interpolate import interp1d
+from scipy.integrate import quad
+from powerbox import get_power
+import random
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from ._cfg import config
@@ -114,6 +118,7 @@ from .outputs import (
     PerturbHaloField,
     TsBox,
     _OutputStructZ,
+    kSZ_output,
 )
 
 logger = logging.getLogger(__name__)
@@ -3219,3 +3224,207 @@ def calibrate_photon_cons(
             nf_estimate=neutral_fraction_photon_cons,
             NSpline=len(z_for_photon_cons),
         )
+
+def run_kSZ(
+    lc=None,
+    z_start = 5,
+    z_end = 15,
+    cosmo_params=None,
+    user_params=None,
+    PARALLEL_APPROX=False,
+    rotation=True,
+    random_seed=1
+):
+
+    """
+    This is the main module of the program.
+    Parameters:
+    
+        - HII_DIM: number of indices in one direction
+        - BOX_LEN: size of the simulation in Mpc
+        - folder: folder name where everything is
+        - z_start(optional): starting redshift for kSZ calculation, default is 5
+        - z_end(optional): ending redshift for kSZ calculation, default is 15
+        - cosmo_params(optinal): cosmological parameters used in the simulation, default are the one fgiven by 21cmFAST
+        - user_params(optional): user parameters used in the simulation, default are the one fgiven by 21cmFAST
+        - PARALLEL_APPROX (optional): flag for parrallel approximation, if True, parallel approximation is taken which is much quicker, but more approximate. D
+                                Default: False
+        - rotation(optional): flag for rotation of boxes, if True boxes are shifted for every HII_DIM, which is the size of the simulation. Default: True
+    Returns:
+        kSZ_output with 
+            KSZ_box: map of the kSZ effect, in Kelvins
+            taue_boxp: map of the optical depth
+        
+    Notes: 
+        The function takes the cosmological quantities used in the lightcone when applicable.
+    """
+    if lc==None:
+        if user_params==None:
+            user_params=UserParams(**UserParams._defaults_)
+        if cosmo_params==None:
+            cosmo_params=CosmoParams(**CosmoParams._defaults_)
+        lc_quantities=('brightness_temp','xH_box',"density", "velocity_z")
+        lc=run_lightcone(
+            redshift=z_start,
+            user_params=user_params,
+            cosmo_params=cosmo_params,
+            lightcone_quantities=lc_quantities,
+            random_seed=random_seed
+            )
+    HII_DIM=lc.user_params.HII_DIM
+    BOX_LEN=lc.user_params.HII_DIM
+    lc_dist=lc.lightcone_distances
+    cosmo_params=lc.cosmo_params
+    random.seed(random_seed)
+    red_dist=len(lc.lightcone_redshifts)  #red_dist is the amount of redshift slices
+    hlittle= cosmo_params.hlittle ##taking normalized Hubble parameter from the lightcone
+    OMm=cosmo_params.OMm ## taking matter density parameter from the lightcone
+    OMb=cosmo_params.OMb ##taking baryion density parameter from the lightcone
+    OMl=1-OMm
+    CMperMPC = constants.kpc.cgs.value*10**3
+    Y_He = (0.245) ##Helium fraction
+    Ho=hlittle*3.2407e-18 #/* Hubble parameter[s^-1] at z=0 */
+    RHOcrit_cgs = (3.0*Ho*Ho / (8.0*np.pi*constants.G.cgs.value)) #g pcm^-3 */ /* at z=0 */
+    He_No = (RHOcrit_cgs*OMb*Y_He/(4.0*constants.m_p.cgs.value)) #/*  current helium number density estimate */
+    No  = (RHOcrit_cgs*OMb*(1-Y_He)/constants.m_p.cgs.value) #current hydrogen number density estimate  (#/cm^3)  ~1.92e-7*/
+    N_b0 = (No+He_No)  ##present-day baryon num density, H + He */
+    Tcmb=np.zeros((HII_DIM,HII_DIM))
+    A = N_b0*constants.sigma_T.cgs.value*BOX_LEN*CMperMPC/HII_DIM   #this is the factor to get the kSZ signal
+    DA_zstart = lc_dist[0]
+    dR=BOX_LEN/HII_DIM
+    Zreion_HeII = 3 #redshift of helium reionization, for tau_e calculation
+    kSZ_consts=_kSZ_constants(A, HII_DIM, BOX_LEN, red_dist,N_b0,z_start,dR, He_No, DA_zstart, CMperMPC, Zreion_HeII)
+
+    mean_taue_curr_z = _tau_e(0, z_start, None, None, 0, cosmo_params, kSZ_consts)# mean optical depth
+
+    kSZ_consts.mean_taue_curr_z=mean_taue_curr_z
+
+    Tcmb, mean_taue_fin = _Proj_array(lc.lightcone_redshifts,lc.density, lc.velocity_z, lc.xH_box, kSZ_consts,cosmo_params,PARALLEL_APPROX=PARALLEL_APPROX, rotation=rotation)
+
+    P_k, l_s,err = get_power(Tcmb*CMperMPC/constants.c.cgs.value*10**6*cosmo_params.cosmo.Tcmb0.value/np.sqrt(2*np.pi), BOX_LEN , bins=30, log_bins=True, get_variance=True) #in microK^2
+    P_k=P_k*l_s**2
+    err=np.sqrt(err)*l_s**2
+    l_s*=lc_dist[0]
+    return kSZ_output(Tcmb*CMperMPC/constants.c.cgs.value*cosmo_params.cosmo.Tcmb0.value, mean_taue_fin, l_s=l_s[np.logical_not(np.isnan(l_s))], 
+                      kSZ_power=P_k[np.logical_not(np.isnan(l_s))], err=err[np.logical_not(np.isnan(l_s))])
+
+def _Proj_array(redshifts, density, velocity, xH, kSZ_consts,cosmo_params,PARALLEL_APPROX=False, rotation=False):
+    """
+    This function does the actual projection
+    """
+    dtau_3d=  kSZ_consts.A*(1.0+density)*(1.08-xH)  #this is used for tau_e contribution
+    if not ( PARALLEL_APPROX or rotation ):
+        # pay attention to the z order here in cumsum
+        taue_arry = np.cumsum(dtau_3d * (1+redshifts[k])**2, axis = 2) + kSZ_consts.mean_taue_curr_z
+        Tcmb = dtau_3d * velocity *(1+redshifts[k]) * np.exp(-taue_arry)
+        taue_arry = taue_arry[-1]
+    else:
+        inc = 1
+        inc_displacement = kSZ_consts.dR / kSZ_consts.DA_zstart
+        Tcmb_3d = kSZ_consts.A*velocity*(1.08-xH)*(1.0+density)   #this is used for tcmb contribution
+        taue_arry=np.full((kSZ_consts.HII_DIM,kSZ_consts.HII_DIM), kSZ_consts.mean_taue_curr_z)
+        Tcmb=np.zeros((kSZ_consts.HII_DIM,kSZ_consts.HII_DIM))
+        for k in range(kSZ_consts.red_dist):
+            dtau_new=dtau_3d[:,:,k]*(1+redshifts[k])**2 #tcmb and tau_e contribution with appropriate redshift dependecies
+            Tcmb_new=Tcmb_3d[:,:,k]*(1+redshifts[k])
+            if not PARALLEL_APPROX:
+                a=np.round(np.arange(-kSZ_consts.HII_DIM/2,kSZ_consts.HII_DIM/2)*inc+kSZ_consts.HII_DIM*3/2).astype(int) #This part assumes that the center of the field is the center of the observation
+                inc += inc_displacement  #increment for ray tracing
+                dtau_new=np.take(dtau_new, a, axis=0, mode='wrap')
+                dtau_new=np.take(dtau_new, a, axis=1, mode='wrap')
+                Tcmb_new=np.take(Tcmb_new, a, axis=0, mode='wrap')
+                Tcmb_new=np.take(Tcmb_new, a, axis=1, mode='wrap')
+            if rotation:
+                if k%kSZ_consts.HII_DIM==0:
+                    tx = int((kSZ_consts.HII_DIM*random.random()))
+                    ty = int((kSZ_consts.HII_DIM*random.random()))
+                dtau_new=np.roll(dtau_new, -tx, 0) #shifting of tcmb so there is no object repetition
+                dtau_new=np.roll(dtau_new, -ty, 1)
+                Tcmb_new=np.roll(Tcmb_new, -tx, 0) #shifting of tcmb so there is no object repetition
+                Tcmb_new=np.roll(Tcmb_new, -ty, 1)
+            taue_arry+=dtau_new  #tau_e updating
+            Tcmb+=Tcmb_new*np.exp(-taue_arry) #tcmb contribution with tau_e taken in account
+    mean_taue_fin =np.mean(taue_arry)
+    Tcmb=Tcmb-np.mean(Tcmb)
+    return Tcmb, mean_taue_fin
+
+
+class _kSZ_constants:
+    def __init__(
+    self,
+    A,
+    HII_DIM,
+    BOX_LEN,
+    red_dist,
+    N_b0,
+    redshift_start,
+    dR,
+    He_No,
+    DA_zstart,
+    CMperMPC,
+    Zreion_HeII
+#    mean_taue_curr_z
+    ):
+        self.A=A
+        self.HII_DIM=HII_DIM
+        self.BOX_LEN=BOX_LEN
+        self.red_dist=red_dist
+        self.N_b0=N_b0
+        self.redshift_start=redshift_start
+        self.dR=dR
+        self.He_No=He_No
+        self.DA_zstart=DA_zstart
+        self.CMperMPC=CMperMPC
+        self.Zreion_HeII=Zreion_HeII
+
+def _drdz(z, cosmo_params): ##/* comoving distance (in cm) per unit redshift */
+    return (1.0+z)*constants.c.cgs.value*_dtdz(z, cosmo_params)
+def _dtdz(z, cosmo_params): #/* function DTDZ returns the value of dt/dz at the redshift parameter z. */
+    OMm=cosmo_params.OMm
+    OMl=1-OMm
+    hlittle=cosmo_params.hlittle
+    Ho=hlittle*3.2407e-18 #/* Hubble parameter[s^-1] at z=0 */
+
+    x = np.sqrt( OMl/OMm ) * (1+z)**(-3.0/2.0)  
+    dxdz = np.sqrt( OMl/OMm ) *(1+z)**(-5.0/2.0) * (-3.0/2.0)
+    const1 = 2 * np.sqrt( 1 + OMm/OMl ) / (3.0 * Ho) 
+    numer = dxdz * (1 + x*( x**2 + 1)**(-0.5))
+    denom = x + np.sqrt(x**2 + 1)
+    return (const1 * numer / denom)
+
+class _tau_e_params:  #class for stuff needed in the optical depth calculation
+    def __init__(self, z, xH, length, cosmo_params):
+        self.z = z
+        self.i = xH
+        self.length=length
+        self.cosmo_params=cosmo_params
+
+def _dtau_e_dz(z_en, z, xH, length, cosmo_params): ##calculation of optical depth per redshift
+    p = _tau_e_params(z,xH,length, cosmo_params)
+    if ((p.length == 0) or not(p.z)):
+        return (1+z_en)*(1+z_en)*_drdz(z_en, cosmo_params)  
+    else:
+        if(p.z[0]> z_en):
+            return (1+z_en)*(1+z_en)*_drdz(z_en, cosmo_params)
+        if (all(np.array(p.z)<z_en)):
+            return 0
+        else:
+            i= [i for i, x in enumerate(np.array(p.z)>z_en) if x][0]
+        xH_inter = p.xH[i-1] + (p.xH[i] - p.xH[i-1])/(p.z[i] - p.z[i-1]) * (z_en - p.z[i-1])
+        xi = 1.0-xH_inter
+        if(xi<0): xi=0
+        if(xi>1): xi=1
+        return xi*(1+z_en)*(1+z_en)*_drdz(z_en, cosmo_params)
+
+def _tau_e(zstart, zend, z_array, x_array, length, cosmo_params, kSZ_consts): #integration of the previous function to get the optical depth
+    p = _tau_e_params(z_array,x_array,length, cosmo_params)
+    if (zend > kSZ_consts.Zreion_HeII and zstart < kSZ_consts.Zreion_HeII): 
+        prehelium,_=quad(_dtau_e_dz,kSZ_consts.Zreion_HeII, zstart, args=(z_array,x_array,length, cosmo_params))
+        posthelium,_ = quad(_dtau_e_dz, zend, kSZ_consts.Zreion_HeII, args=(z_array,x_array,length, cosmo_params))
+    elif (zend > consts.Zreion_HeII and zstart >= consts.Zreion_HeII):
+        prehelium=0
+        posthelium,_=quad(_dtau_e_dz, zend, zstart,args=(z_array,x_array,length, cosmo_params) )
+    else:
+        posthelium=0
+        prehelium,_=quad(_dtau_e_dz, zend,zstart, args=(z_array,x_array,length, cosmo_params))
+    return constants.sigma_T.cgs.value*( (kSZ_consts.N_b0+kSZ_consts.He_No)*prehelium + kSZ_consts.N_b0*posthelium )

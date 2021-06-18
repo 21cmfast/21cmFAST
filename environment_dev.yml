@@ -114,5 +114,6 @@ dependencies:
   - h5py
   - jupyter
   - nb_conda
+  - powerbox
   - pip:
       - pre-commit
