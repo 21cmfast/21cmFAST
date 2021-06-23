@@ -3301,7 +3301,9 @@ def run_kSZ(
 
     Tcmb, mean_taue_fin = _Proj_array(lc.lightcone_redshifts,lc.density, lc.velocity, lc.xH_box, kSZ_consts,cosmo_params,PARALLEL_APPROX=PARALLEL_APPROX, rotation=rotation)
 
-    P_k, l_s,err = get_power(Tcmb*CMperMPC/constants.c.cgs.value*10**6*cosmo_params.cosmo.Tcmb0.value/np.sqrt(2*np.pi), BOX_LEN , bins=30, log_bins=True, get_variance=True) #in microK^2
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        P_k, l_s,err = get_power(Tcmb*CMperMPC/constants.c.cgs.value*10**6*cosmo_params.cosmo.Tcmb0.value/np.sqrt(2*np.pi), BOX_LEN , bins=30, log_bins=True, get_variance=True) #in microK^2
     P_k=P_k*l_s**2
     err=np.sqrt(err)*l_s**2
     l_s*=lc_dist[0]
