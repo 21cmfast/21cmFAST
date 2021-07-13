@@ -6,6 +6,7 @@ jobs:
   build-n-publish:
     name: Deploy
     runs-on: ubuntu-18.04
+    if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
     steps:
       - uses: actions/checkout@master
       # https://github.com/ansible/pylibssh/blob/1e7b17f/.github/workflows/build-test-n-publish.yml#L146-L151
