@@ -110,7 +110,7 @@ class FatalCError(Exception):
         super().__init__(msg or self.default_message)
 
 
-class ErrorIO(FatalCError):
+class FileIOError(FatalCError):
     """An exception when an error occurs with file I/O."""
 
     default_message = "Expected file could not be found! (check the LOG for more info)"
@@ -122,7 +122,7 @@ class GSLError(ParameterError):
     default_message = "A GSL routine has errored! (check the LOG for more info)"
 
 
-class ErrorValue(FatalCError):
+class ArgumentValueError(FatalCError):
     """An exception when a function takes an unexpected input."""
 
     default_message = "An incorrect argument has been defined or passed! (check the LOG for more info)"
@@ -188,9 +188,9 @@ def _process_exitcode(exitcode, fnc, args):
         if exitcode:
             try:
                 raise {
-                    IOERROR: ErrorIO,
+                    IOERROR: FileIOError,
                     GSLERROR: GSLError,
-                    VALUEERROR: ErrorValue,
+                    VALUEERROR: ArgumentValueError,
                     PHOTONCONSERROR: PhotonConsError,
                     TABLEGENERATIONERROR: TableGenerationError,
                     TABLEEVALUATIONERROR: TableEvaluationError,
