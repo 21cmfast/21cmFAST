@@ -5,6 +5,7 @@ Unit tests for output structures
 import pytest
 
 import copy
+import numpy as np
 import pickle
 
 from py21cmfast import InitialConditions  # An example of an output struct
@@ -34,12 +35,6 @@ def test_pointer_fields(cls):
     assert new_names
     assert all(n in inst.pointer_fields for n in new_names)
 
-    # cstruct shouldn't be initialised,
-    assert not inst.arrays_initialized
-
-    inst._init_cstruct()
-    assert inst.arrays_initialized
-
 
 def test_non_existence(init, test_direc):
     assert not init.exists(direc=test_direc)
@@ -51,34 +46,21 @@ def test_writeability(init):
         init.write()
 
 
-def test_readability(test_direc, default_user_params):
-    # we update this one, so don't use the global one
-    ic_ = InitialConditions(init=True, user_params=default_user_params)
-
-    # TODO: fake it being filled (need to do both of the following to fool it.
-    # TODO: Actually, we *shouldn't* be able to fool it at all, but hey.
-    ic_.filled = True
-    ic_.random_seed  # accessing random_seed actually creates a random seed.
-
-    ic_.write(direc=test_direc)
+def test_readability(ic, tmpdirec, default_user_params):
     ic2 = InitialConditions(user_params=default_user_params)
 
     # without seeds, they are obviously exactly the same.
-    assert ic_._seedless_repr() == ic2._seedless_repr()
+    assert ic._seedless_repr() == ic2._seedless_repr()
 
-    assert ic2.exists(direc=test_direc)
+    assert ic2.exists(direc=tmpdirec)
 
-    ic2.read(direc=test_direc)
+    ic2.read(direc=tmpdirec)
 
-    assert repr(ic_) == repr(ic2)  # they should be exactly the same.
-    assert str(ic_) == str(ic2)  # their str is the same.
-    assert hash(ic_) == hash(ic2)
-    assert ic_ == ic2
-    assert ic_ is not ic2
-
-    # make sure we can't read it twice
-    with pytest.raises(IOError):
-        ic2.read(direc=test_direc)
+    assert repr(ic) == repr(ic2)  # they should be exactly the same.
+    assert str(ic) == str(ic2)  # their str is the same.
+    assert hash(ic) == hash(ic2)
+    assert ic == ic2
+    assert ic is not ic2
 
 
 def test_different_seeds(init, default_user_params):
@@ -125,21 +107,12 @@ def test_fname(default_user_params):
     assert ic1._fname_skeleton == ic2._fname_skeleton
 
 
-def test_match_seed(test_direc, default_user_params):
-    # we update this one, so don't use the global one
-    ic_ = InitialConditions(init=True, random_seed=12, user_params=default_user_params)
-
-    # fake it being filled
-    ic_.filled = True
-    ic_.random_seed
-
-    ic_.write(direc=test_direc)
-
+def test_match_seed(tmpdirec, default_user_params):
     ic2 = InitialConditions(random_seed=1, user_params=default_user_params)
 
-    # should not read in just anything if its random seed is set.
+    # This fails because we've set the seed and it's different to the existing one.
     with pytest.raises(IOError):
-        ic2.read(direc=test_direc)
+        ic2.read(direc=tmpdirec)
 
 
 def test_bad_class_definition(default_user_params):
@@ -150,29 +123,41 @@ def test_bad_class_definition(default_user_params):
         A class containing all initial conditions boxes.
         """
 
-        def _init_arrays(self):
-            super()._init_arrays()
+        def _get_box_structures(self):
+            out = super()._get_box_structures()
+            out["unknown_key"] = (1, 1, 1)
+            return out
 
-            # remove one of the arrays that needs to be defined.
-            del self.hires_density
-
-    with pytest.raises(AttributeError):
+    with pytest.raises(TypeError):
         CustomInitialConditions(init=True, user_params=default_user_params)
 
 
-def test_pre_expose(init):
-    # haven't actually tried to read in or fill the array yet.
-    with pytest.raises(Exception):
-        init._expose()
-
-
 def test_bad_write(init):
-    init.filled = True
-
     # no random seed yet so shouldn't be able to write.
-    with pytest.raises(ValueError):
+    with pytest.raises(IOError):
         init.write()
 
 
 def test_global_params_keys():
     assert "HII_FILTER" in global_params.keys()
+
+
+def test_reading_purged(ic: InitialConditions):
+    lowres_density = ic.lowres_density
+
+    # Remove it from memory
+    ic.purge()
+
+    assert "lowres_density" not in ic.__dict__
+    assert ic._array_state["lowres_density"].on_disk
+    assert not ic._array_state["lowres_density"].computed_in_mem
+
+    # But we can still get it.
+    lowres_density_2 = ic.lowres_density
+
+    assert ic._array_state["lowres_density"].on_disk
+    assert ic._array_state["lowres_density"].computed_in_mem
+
+    assert np.allclose(lowres_density_2, lowres_density)
+
+    ic.load_all()

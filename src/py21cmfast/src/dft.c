@@ -7,7 +7,7 @@ int dft_c2r_cube(bool use_wisdom, int dim, int n_threads, fftwf_complex *box){
     Try{
         if(use_wisdom) {
             // Check to see if the wisdom exists
-            sprintf(wisdom_filename,"%s/c2r_DIM%d_NTHREADS%d.",global_params.wisdoms_path, dim, n_threads);
+            sprintf(wisdom_filename,"%s/c2r_DIM%d_NTHREADS%d",global_params.wisdoms_path, dim, n_threads);
 
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
                 unsigned flag = FFTW_WISDOM_ONLY;

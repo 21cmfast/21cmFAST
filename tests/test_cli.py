@@ -108,6 +108,7 @@ def test_spin(module_direc, runner, cfg):
             cfg,
         ],
     )
+    print(result.output)
     assert result.exit_code == 0
 
 

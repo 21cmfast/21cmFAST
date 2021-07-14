@@ -6,6 +6,7 @@ import re
 
 START = re.compile(r"^==\d+== \w")
 STOP = re.compile(r"^==\d+== $")
+ANY = re.compile(r"^==\d+==")
 GOOD = [
     re.compile(r"py21cmfast\.c_21cmfast\.c:\d+"),
     re.compile(r"SUMMARY"),
@@ -17,16 +18,21 @@ def main():
     in_line = False
     current = []
     for line in fileinput.input():
+        if not ANY.search(line):
+            print(line, end="")
+            continue
+
         in_line = not STOP.search(line) if in_line else START.search(line)
         if in_line:
             current.append(line)
         else:
-            match = []
             for g in GOOD:
-                match += g.findall("".join(current))
+                match = g.findall("".join(current))
 
-            if match:
-                print("".join(current))
+                if match:
+                    print("".join(current))
+                    continue
+
             current = []
 
 

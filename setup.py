@@ -1,8 +1,6 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """Setup the package."""
 
-from __future__ import absolute_import, print_function
 
 from setuptools import find_packages, setup
 
@@ -15,7 +13,7 @@ from os.path import dirname, expanduser, join
 
 
 def _read(*names, **kwargs):
-    return io.open(
+    return open(
         join(dirname(__file__), *names), encoding=kwargs.get("encoding", "utf8")
     ).read()
 
@@ -36,6 +34,8 @@ test_req = [
     "tox",
     "pytest-remotedata>=0.3.2",
     "powerbox",
+    "pytest-plt",
+    "questionary",
 ]
 
 doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]
@@ -83,6 +83,7 @@ setup(
         "h5py>=2.8.0",
         "cached_property",
         "matplotlib",
+        "bidict",
     ],
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
     setup_requires=["cffi>=1.0", "setuptools_scm"],

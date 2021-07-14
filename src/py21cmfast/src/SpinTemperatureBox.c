@@ -94,6 +94,13 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     double const_zp_prefactor, dt_dzp, x_e_ave, growth_factor_zp, dgrowth_factor_dzp, fcoll_R_for_reduction;
     double const_zp_prefactor_MINI;
 
+    int n_pts_radii;
+    double trial_zpp_min,trial_zpp_max,trial_zpp, weight;
+    bool first_radii, first_zero;
+    first_radii = true;
+    first_zero = true;
+    n_pts_radii = 1000;
+
     float M_MIN_WDM =  M_J_WDM();
 
     double ave_fcoll, ave_fcoll_inv, dfcoll_dz_val_ave, ION_EFF_FACTOR;
@@ -1228,6 +1235,53 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                     sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
                 }
             }
+
+            // Find if we need to add a partial contribution to a radii to avoid kinks in the Lyman-alpha flux
+            // As we look at discrete radii (light-cone redshift, zpp) we can have two radii where one has a
+            // contribution and the next (larger) radii has no contribution. However, if the number of filtering
+            // steps were infinitely large, we would have contributions between these two discrete radii
+            // Thus, this aims to add a weighted contribution to the first radii where this occurs to smooth out
+            // kinks in the average Lyman-alpha flux.
+
+            // Note: We do not apply this correction to the LW background as it is unaffected by this. It is only
+            // the Lyn contribution that experiences the kink. Applying this correction to LW introduces kinks
+            // into the otherwise smooth quantity
+            if(R_ct > 1 && sum_lyn[R_ct]==0.0 && sum_lyn[R_ct-1]>0. && first_radii) {
+
+                // The current zpp for which we are getting zero contribution
+                trial_zpp_max = (prev_zpp - (R_values[R_ct] - prev_R)*CMperMPC / drdz(prev_zpp)+prev_zpp)*0.5;
+                // The zpp for the previous radius for which we had a non-zero contribution
+                trial_zpp_min = (zpp_edge[R_ct-2] - (R_values[R_ct-1] - R_values[R_ct-2])*CMperMPC / drdz(zpp_edge[R_ct-2])+zpp_edge[R_ct-2])*0.5;
+
+                // Split the previous radii and current radii into n_pts_radii smaller radii (redshift) to have fine control of where
+                // it transitions from zero to non-zero
+                // This is a coarse approximation as it assumes that the linear sampling is a good representation of the different
+                // volumes of the shells (from different radii).
+                for(ii=0;ii<n_pts_radii;ii++) {
+                    trial_zpp = trial_zpp_min + (trial_zpp_max - trial_zpp_min)*(float)ii/((float)n_pts_radii-1.);
+
+                    counter = 0;
+                    for (n_ct=NSPEC_MAX; n_ct>=2; n_ct--){
+                        if (trial_zpp > zmax(zp, n_ct))
+                            continue;
+
+                        counter += 1;
+                    }
+                    if(counter==0&&first_zero) {
+                        first_zero = false;
+                        weight = (float)ii/(float)n_pts_radii;
+                    }
+                }
+
+                // Now add a non-zero contribution to the previously zero contribution
+                // The amount is the weight, multplied by the contribution from the previous radii
+                sum_lyn[R_ct] = weight * sum_lyn[R_ct-1];
+                if (flag_options->USE_MINI_HALOS){
+                    sum_lyn_MINI[R_ct] = weight * sum_lyn_MINI[R_ct-1];
+                }
+                first_radii = false;
+            }
+
 
         } // end loop over R_ct filter steps
 

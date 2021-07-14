@@ -482,7 +482,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
                 LOG_ERROR("gsl integration error occured!");
                 LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",global_params.Zreion_HeII,zstart,rel_tol,prehelium,error);
                 LOG_ERROR("data: zstart=%e zend=%e",zstart,zend);
-                Throw GSLError;
+                GSL_ERROR(status);
             }
 
             status = gsl_integration_qag (&F, zend, global_params.Zreion_HeII, 0, rel_tol,
@@ -492,7 +492,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
                 LOG_ERROR("gsl integration error occured!");
                 LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,global_params.Zreion_HeII,rel_tol,posthelium,error);
                 LOG_ERROR("data: zstart=%e zend=%e",zstart,zend);
-                Throw GSLError;
+                GSL_ERROR(status);
             }
         }
         else{
@@ -503,7 +503,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
             if(status!=0) {
                 LOG_ERROR("gsl integration error occured!");
                 LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,zstart,rel_tol,posthelium,error);
-                Throw GSLError;
+                GSL_ERROR(status);
             }
         }
     }
@@ -515,7 +515,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
         if(status!=0) {
             LOG_ERROR("gsl integration error occured!");
             LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,zstart,rel_tol,prehelium,error);
-            Throw GSLError;
+            GSL_ERROR(status);
         }
     }
     gsl_integration_workspace_free (w);
@@ -593,6 +593,107 @@ void print_corners_real(float *x, int size){
     printf("\n");
 }
 
+void debugSummarizeBox(float *box, int size, char *indent){
+    if(LOG_LEVEL >= SUPER_DEBUG_LEVEL){
+
+        float corners[8];
+
+        int i,j,k, counter;
+        int s = size-1;
+
+        counter = 0;
+        for(i=0;i<size;i=i+s){
+            for(j=0;j<size;j=j+s){
+                for(k=0;k<size;k=k+s){
+                    corners[counter] =  box[k + size*(j + size*i)];
+                    counter++;
+                }
+            }
+        }
+
+        LOG_SUPER_DEBUG("%sCorners: %f %f %f %f %f %f %f %f",
+            indent,
+            corners[0], corners[1], corners[2], corners[3],
+            corners[4], corners[5], corners[6], corners[7]
+        );
+
+        float sum, mean, mn, mx;
+        sum=0;
+        mn=box[0];
+        mx=box[0];
+
+        for (i=0; i<size*size*size; i++){
+            sum+=box[i];
+            mn=fminf(mn, box[i]);
+            mx = fmaxf(mx, box[i]);
+        }
+        mean=sum/(size*size*size);
+
+        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %f, %f, %f, %f", indent, sum, mean, mn, mx);
+    }
+}
+
+void debugSummarizeBoxDouble(double *box, int size, char *indent){
+    if(LOG_LEVEL >= SUPER_DEBUG_LEVEL){
+
+        double corners[8];
+
+        int i,j,k, counter;
+        int s = size-1;
+
+        counter = 0;
+        for(i=0;i<size;i=i+s){
+            for(j=0;j<size;j=j+s){
+                for(k=0;k<size;k=k+s){
+                    corners[counter] =  box[k + size*(j + size*i)];
+                    counter++;
+                }
+            }
+        }
+
+        LOG_SUPER_DEBUG("%sCorners: %lf %lf %lf %lf %lf %lf %lf %lf",
+            indent,
+            corners[0], corners[1], corners[2], corners[3],
+            corners[4], corners[5], corners[6], corners[7]
+        );
+
+        double sum, mean, mn, mx;
+        sum=0;
+        mn=box[0];
+        mx=box[0];
+
+        for (i=0; i<size*size*size; i++){
+            sum+=box[i];
+            mn=fmin(mn, box[i]);
+            mx = fmax(mx, box[i]);
+        }
+        mean=sum/(size*size*size);
+
+        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %lf, %lf, %lf, %lf", indent, sum, mean, mn, mx);
+    }
+}
+
+void debugSummarizeIC(struct InitialConditions *x, int HII_DIM, int DIM){
+    LOG_SUPER_DEBUG("Summary of InitialConditions:");
+    LOG_SUPER_DEBUG("  lowres_density: ");
+    debugSummarizeBox(x->lowres_density, HII_DIM, "    ");
+    LOG_SUPER_DEBUG("  hires_density: ");
+    debugSummarizeBox(x->hires_density, DIM, "    ");
+    LOG_SUPER_DEBUG("  lowres_vx: ");
+    debugSummarizeBox(x->lowres_vx, HII_DIM, "    ");
+    LOG_SUPER_DEBUG("  lowres_vy: ");
+    debugSummarizeBox(x->lowres_vy, HII_DIM, "    ");
+    LOG_SUPER_DEBUG("  lowres_vz: ");
+    debugSummarizeBox(x->lowres_vz, HII_DIM, "    ");
+}
+
+void debugSummarizePerturbField(struct PerturbedField *x, int HII_DIM){
+    LOG_SUPER_DEBUG("Summary of PerturbedField:");
+    LOG_SUPER_DEBUG("  density: ");
+    debugSummarizeBox(x->density, HII_DIM, "    ");
+    LOG_SUPER_DEBUG("  velocity: ");
+    debugSummarizeBox(x->velocity, HII_DIM, "    ");
+}
 void inspectInitialConditions(struct InitialConditions *x, int print_pid, int print_corners, int print_first,
                               int HII_DIM){
     int i;

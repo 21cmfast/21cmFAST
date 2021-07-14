@@ -30,6 +30,7 @@ struct UserParams{
     bool NO_RNG;
     bool USE_INTERPOLATION_TABLES;
     bool FAST_FCOLL_TABLES; //jbm:Whether to use the fast Fcoll table approximation in EPS
+    bool USE_2LPT;
     bool MINIMIZE_MEMORY;
 };
 
@@ -198,6 +199,5 @@ bool interpolation_tables_allocated = false;
 int SomethingThatCatches(bool sub_func);
 int FunctionThatCatches(bool sub_func, bool pass, double* result);
 void FunctionThatThrows();
-void free_halo_field(struct HaloField *halos);
-void free_phf(struct PerturbHaloField *halos);
 int init_heat();
+void free(void *ptr);

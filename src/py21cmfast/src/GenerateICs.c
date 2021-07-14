@@ -253,7 +253,6 @@ int ComputeInitialConditions(
         }
     }
     LOG_DEBUG("Drawn random fields.");
-    LOG_DEBUG("Last random a/b values drawn: %f %f", a, b);
 
     // *****  Adjust the complex conjugate relations for a real array  ***** //
     adj_complex_conj(HIRES_box,user_params,cosmo_params);
@@ -525,7 +524,7 @@ int ComputeInitialConditions(
     // reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118 Appendix D
 
     // Parameter set in ANAL_PARAMS.H
-    if(global_params.SECOND_ORDER_LPT_CORRECTIONS){
+    if(user_params->USE_2LPT){
 
         // use six supplementary boxes to store the gradients of phi_1 (eq. D13b)
         // Allocating the boxes
@@ -570,9 +569,9 @@ int ComputeInitialConditions(
 
             i = j = phi_component;
 
-            // generate the phi_1 boxes in Fourier transform
-#pragma omp parallel shared(HIRES_box,phi_1) private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq,k) num_threads(user_params->N_THREADS)
-            {
+                // generate the phi_1 boxes in Fourier transform
+#pragma omp parallel shared(HIRES_box,phi_1,i,j) private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq,k) num_threads(user_params->N_THREADS)
+                {
 #pragma omp for
                 for (n_x=0; n_x<user_params->DIM; n_x++){
                     if (n_x>MIDDLE)
@@ -761,7 +760,7 @@ int ComputeInitialConditions(
                 memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
             }
 
-#pragma omp parallel shared(HIRES_box,ii) private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(HIRES_box,ii) private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
             // set velocities/dD/dt
