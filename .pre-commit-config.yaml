@@ -40,7 +40,7 @@ repos:
           - id: black
 
     - repo: https://github.com/pre-commit/mirrors-isort
-      rev: v5.8.0
+      rev: v5.9.2
       hooks:
       - id: isort
 
@@ -52,7 +52,7 @@ repos:
       - id: rst-inline-touching-normal
 
     - repo: https://github.com/asottile/pyupgrade
-      rev: v2.19.4
+      rev: v2.21.0
       hooks:
       - id: pyupgrade
         args: [--py36-plus]
