@@ -4,6 +4,9 @@ Changelog
 dev-version
 -----------
 
+v3.1.2 [14 Jul 2021]
+----------------------
+
 Iternals
 ~~~~~~~~
 * ``MINIMIZE_MEMORY`` flag significantly reduces memory without affecting performance much,
