@@ -4,6 +4,11 @@ Changelog
 dev-version
 -----------
 
+Iternals
+~~~~~~~~
+* ``MINIMIZE_MEMORY`` flag significantly reduces memory without affecting performance much,
+  by changing the way some arrays are allocated and accessed in C.
+
 v3.1.1 [13 Jun 2021]
 ----------------------
 
