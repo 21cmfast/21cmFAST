@@ -8,7 +8,7 @@ v3.1.2 [14 Jul 2021]
 ----------------------
 
 Internals
-~~~~~~~~
+~~~~~~~~~
 * ``MINIMIZE_MEMORY`` flag significantly reduces memory without affecting performance much,
   by changing the way some arrays are allocated and accessed in C. (#224)
 
