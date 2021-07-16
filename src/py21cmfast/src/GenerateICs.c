@@ -537,94 +537,200 @@ int ComputeInitialConditions(
         // 20 -> 2
         // 21 -> 4
 
-        fftwf_complex *phi_1[6];
+        fftwf_complex *phi_1 = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
-        for(i = 0; i < 3; ++i){
-            for(j = 0; j <= i; ++j){
-                phi_1[PHI_INDEX(i, j)] = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-            }
-        }
+        // First generate the ii,jj phi_1 boxes
 
-        for(i = 0; i < 3; ++i){
-            for(j = 0; j <= i; ++j){
+        int phi_component;
 
-                // read in the box
-                memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+        float component_ii,component_jj,component_ij;
 
-                // generate the phi_1 boxes in Fourier transform
-#pragma omp parallel shared(HIRES_box,phi_1,i,j) private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq,k) num_threads(user_params->N_THREADS)
-                {
-#pragma omp for
-                    for (n_x=0; n_x<user_params->DIM; n_x++){
-                        if (n_x>MIDDLE)
-                            k_x =(n_x-user_params->DIM) * DELTA_K;  // wrap around for FFT convention
-                        else
-                            k_x = n_x * DELTA_K;
+        // Indexing for the various phy components
+        int phi_directions[3][2] = {{0,1},{0,2},{1,2}};
 
-                        for (n_y=0; n_y<user_params->DIM; n_y++){
-                            if (n_y>MIDDLE)
-                                k_y =(n_y-user_params->DIM) * DELTA_K;
-                            else
-                                k_y = n_y * DELTA_K;
-
-                            for (n_z=0; n_z<=MIDDLE; n_z++){
-                                k_z = n_z * DELTA_K;
-
-                                k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
-
-                                float k[] = {k_x, k_y, k_z};
-                                // now set the velocities
-                                if ((n_x==0) && (n_y==0) && (n_z==0)){ // DC mode
-                                    phi_1[PHI_INDEX(i, j)][0] = 0;
-                                }
-                                else{
-                                    phi_1[PHI_INDEX(i, j)][C_INDEX(n_x,n_y,n_z)] = -k[i]*k[j]*HIRES_box[C_INDEX(n_x, n_y, n_z)]/k_sq/VOLUME;
-                                    // note the last factor of 1/VOLUME accounts for the scaling in real-space, following the FFT
-                                }
-                            }
-                        }
-                    }
-                }
-
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, phi_1[PHI_INDEX(i, j)]);
-            }
-        }
-
-        // Then we will have the laplacian of phi_2 (eq. D13b)
-        // After that we have to return in Fourier space and generate the Fourier transform of phi_2
-        int m, l;
-#pragma omp parallel shared(HIRES_box,phi_1) private(i,j,k,m,l) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(HIRES_box,phi_1) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
             for (i=0; i<user_params->DIM; i++){
                 for (j=0; j<user_params->DIM; j++){
                     for (k=0; k<user_params->DIM; k++){
-                        *( (float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                            (unsigned long long)(j),
-                                                            (unsigned long long)(k))) = 0.0;
-                        for(m = 0; m < 3; ++m){
-                            for(l = m+1; l < 3; ++l){
-                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                   (unsigned long long)(j),
-                                                                   (unsigned long long)(k)) ) += \
-                                            ( *((float *)(phi_1[PHI_INDEX(l, l)]) + R_FFT_INDEX((unsigned long long)(i),
-                                                                                                (unsigned long long)(j),
-                                                                                                (unsigned long long)(k))) ) * \
-                                            ( *((float *)(phi_1[PHI_INDEX(m, m)]) + R_FFT_INDEX((unsigned long long)(i)
-                                                                                                ,(unsigned long long)(j)
-                                                                                                ,(unsigned long long)(k))) );
+                        *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                           (unsigned long long)(j),
+                                                           (unsigned long long)(k)) ) = 0.;
+                    }
+                }
+            }
+        }
 
-                                *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
-                                                                   (unsigned long long)(j),
-                                                                   (unsigned long long)(k)) ) -= \
-                                            ( *((float *)(phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),
-                                                                                                (unsigned long long)(j),
-                                                                                                (unsigned long long)(k))) ) * \
-                                            ( *((float *)(phi_1[PHI_INDEX(l, m)]) + R_FFT_INDEX((unsigned long long)(i),
-                                                                                                (unsigned long long)(j),
-                                                                                                (unsigned long long)(k))) );
+        // First iterate over the i = j components to phi
+        // We'll also save these temporarily to the hires_vi_2LPT boxes which will get
+        // overwritten later with the correct 2LPT velocities
+        for(phi_component=0;phi_component<3;phi_component++) {
+
+            i = j = phi_component;
+
+                // generate the phi_1 boxes in Fourier transform
+#pragma omp parallel shared(HIRES_box,phi_1,i,j) private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq,k) num_threads(user_params->N_THREADS)
+                {
+#pragma omp for
+                for (n_x=0; n_x<user_params->DIM; n_x++){
+                    if (n_x>MIDDLE)
+                        k_x =(n_x-user_params->DIM) * DELTA_K;  // wrap around for FFT convention
+                    else
+                        k_x = n_x * DELTA_K;
+
+                    for (n_y=0; n_y<user_params->DIM; n_y++){
+                        if (n_y>MIDDLE)
+                            k_y =(n_y-user_params->DIM) * DELTA_K;
+                        else
+                            k_y = n_y * DELTA_K;
+
+                        for (n_z=0; n_z<=MIDDLE; n_z++){
+                            k_z = n_z * DELTA_K;
+
+                            k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
+
+                            float k[] = {k_x, k_y, k_z};
+                            // now set the velocities
+                            if ((n_x==0) && (n_y==0) && (n_z==0)){ // DC mode
+                                phi_1[0] = 0;
+                            }
+                            else{
+                                phi_1[C_INDEX(n_x,n_y,n_z)] = -k[i]*k[j]*HIRES_box_saved[C_INDEX(n_x, n_y, n_z)]/k_sq/VOLUME;
+                                // note the last factor of 1/VOLUME accounts for the scaling in real-space, following the FFT
                             }
                         }
+                    }
+                }
+            }
+
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, phi_1);
+
+            // Temporarily store in the allocated hires_vi_2LPT boxes
+#pragma omp parallel shared(boxes,phi_1,phi_component) private(i,j,k) num_threads(user_params->N_THREADS)
+            {
+#pragma omp for
+                for (i=0; i<user_params->DIM; i++){
+                    for (j=0; j<user_params->DIM; j++){
+                        for (k=0; k<user_params->DIM; k++){
+                            if(phi_component==0) {
+                                boxes->hires_vx_2LPT[R_INDEX(i,j,k)] = *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
+                                                                                                      (unsigned long long)(j),
+                                                                                                      (unsigned long long)(k)));
+                            }
+                            if(phi_component==1) {
+                                boxes->hires_vy_2LPT[R_INDEX(i,j,k)] = *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
+                                                                                                      (unsigned long long)(j),
+                                                                                                      (unsigned long long)(k)));
+                            }
+                            if(phi_component==2) {
+                                boxes->hires_vz_2LPT[R_INDEX(i,j,k)] = *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
+                                                                                                      (unsigned long long)(j),
+                                                                                                      (unsigned long long)(k)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for(phi_component=0;phi_component<3;phi_component++) {
+            // Now calculate the cross components and start evaluating the 2LPT field
+            i = phi_directions[phi_component][0];
+            j = phi_directions[phi_component][1];
+
+            // generate the phi_1 boxes in Fourier transform
+#pragma omp parallel shared(HIRES_box,phi_1) private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq,k) num_threads(user_params->N_THREADS)
+            {
+#pragma omp for
+                for (n_x=0; n_x<user_params->DIM; n_x++){
+                    if (n_x>MIDDLE)
+                        k_x =(n_x-user_params->DIM) * DELTA_K;  // wrap around for FFT convention
+                    else
+                        k_x = n_x * DELTA_K;
+
+                    for (n_y=0; n_y<user_params->DIM; n_y++){
+                        if (n_y>MIDDLE)
+                            k_y =(n_y-user_params->DIM) * DELTA_K;
+                        else
+                            k_y = n_y * DELTA_K;
+
+                        for (n_z=0; n_z<=MIDDLE; n_z++){
+                            k_z = n_z * DELTA_K;
+
+                            k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
+
+                            float k[] = {k_x, k_y, k_z};
+                            // now set the velocities
+                            if ((n_x==0) && (n_y==0) && (n_z==0)){ // DC mode
+                                phi_1[0] = 0;
+                            }
+                            else{
+                                phi_1[C_INDEX(n_x,n_y,n_z)] = -k[i]*k[j]*HIRES_box_saved[C_INDEX(n_x, n_y, n_z)]/k_sq/VOLUME;
+                                // note the last factor of 1/VOLUME accounts for the scaling in real-space, following the FFT
+                            }
+                        }
+                    }
+                }
+            }
+
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, phi_1);
+
+            // Then we will have the laplacian of phi_2 (eq. D13b)
+            // After that we have to return in Fourier space and generate the Fourier transform of phi_2
+#pragma omp parallel shared(HIRES_box,phi_1,phi_component) private(i,j,k,component_ii,component_jj,component_ij) num_threads(user_params->N_THREADS)
+            {
+#pragma omp for
+                for (i=0; i<user_params->DIM; i++){
+                    for (j=0; j<user_params->DIM; j++){
+                        for (k=0; k<user_params->DIM; k++){
+                            // Note, I have temporarily stored the components into other arrays to minimise memory usage
+                            // phi - {0, 1, 2} -> {hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT}
+                            // This may be opaque to the user, but this shouldn't need modification
+                            if(phi_component==0) {
+                                component_ii = boxes->hires_vx_2LPT[R_INDEX(i,j,k)];
+                                component_jj = boxes->hires_vy_2LPT[R_INDEX(i,j,k)];
+                                component_ij = *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
+                                                                              (unsigned long long)(j),
+                                                                              (unsigned long long)(k)));
+                            }
+                            if(phi_component==1) {
+                                component_ii = boxes->hires_vx_2LPT[R_INDEX(i,j,k)];
+                                component_jj = boxes->hires_vz_2LPT[R_INDEX(i,j,k)];
+                                component_ij = *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
+                                                                              (unsigned long long)(j),
+                                                                              (unsigned long long)(k)));
+                            }
+                            if(phi_component==2) {
+                                component_ii = boxes->hires_vy_2LPT[R_INDEX(i,j,k)];
+                                component_jj = boxes->hires_vz_2LPT[R_INDEX(i,j,k)];
+                                component_ij = *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
+                                                                              (unsigned long long)(j),
+                                                                              (unsigned long long)(k)));
+                            }
+
+                            // Kept in this form to maintain similar (possible) rounding errors
+                            *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                               (unsigned long long)(j),
+                                                               (unsigned long long)(k)) ) += \
+                            ( component_ii * component_jj );
+
+                            *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
+                                                               (unsigned long long)(j),
+                                                               (unsigned long long)(k)) ) -= \
+                            ( component_ij * component_ij );
+                        }
+                    }
+                }
+            }
+        }
+
+#pragma omp parallel shared(HIRES_box,phi_1) private(i,j,k) num_threads(user_params->N_THREADS)
+        {
+#pragma omp for
+            for (i=0; i<user_params->DIM; i++){
+                for (j=0; j<user_params->DIM; j++){
+                    for (k=0; k<user_params->DIM; k++){
                         *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k)) ) /= TOT_NUM_PIXELS;
                     }
                 }
@@ -760,12 +866,8 @@ int ComputeInitialConditions(
         }
 
         // deallocate the supplementary boxes
-        for(i = 0; i < 3; ++i){
-            for(j = 0; j <= i; ++j){
-                fftwf_free(phi_1[PHI_INDEX(i,j)]);
+        fftwf_free(phi_1);
 
-            }
-        }
     }
     LOG_DEBUG("Done 2LPT.");
 

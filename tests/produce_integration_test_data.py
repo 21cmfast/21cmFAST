@@ -120,6 +120,18 @@ OPTIONS = {
             "zprime_step_factor": 1.1,
         },
     ],
+    "minimize_mem": [
+        9,
+        {
+            "USE_MASS_DEPENDENT_ZETA": True,
+            "USE_TS_FLUCT": True,
+            "INHOMO_RECO": True,
+            "PHOTON_CONS": True,
+            "z_heat_max": 25,
+            "zprime_step_factor": 1.1,
+            "MINIMIZE_MEMORY": True,
+        },
+    ],
     "mdz_and_tsfluct_nthreads": [
         8.5,
         {
