@@ -97,7 +97,9 @@ jobs:
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
           python -m pytest -l --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 ${{ env.extra_pytest_args }}
-      - name: "Upload coverage to Codecov"
-        uses: codecov/codecov-action@v1.5.2
+      - uses: codecov/codecov-action@v1.5.2
+        if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
         with:
+          file: ./coverage.xml # optional
           fail_ci_if_error: true
+          verbose: true
