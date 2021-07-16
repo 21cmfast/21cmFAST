@@ -14,6 +14,7 @@ used throughout the computation which are very rarely varied.
 """
 import contextlib
 import logging
+import warnings
 from astropy.cosmology import Planck15
 from os import path
 from pathlib import Path
@@ -468,7 +469,7 @@ class UserParams(StructWithDefaults):
         "N_THREADS": 1,
         "PERTURB_ON_HIGH_RES": False,
         "NO_RNG": False,
-        "USE_INTERPOLATION_TABLES": False,
+        "USE_INTERPOLATION_TABLES": None,
         "FAST_FCOLL_TABLES": False,
         "USE_2LPT": True,
         "MINIMIZE_MEMORY": False,
@@ -476,6 +477,21 @@ class UserParams(StructWithDefaults):
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
     _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
+
+    @property
+    def USE_INTERPOLATION_TABLES(self):
+        """Whether to use interpolation tables for integrals, speeding things up."""
+        if self._USE_INTERPOLATION_TABLES is None:
+            warnings.warn(
+                "The USE_INTERPOLATION_TABLES setting has changed in v3.1.2 to be "
+                "default True. You can likely ignore this warning, but if you relied on"
+                "having USE_INTERPOLATION_TABLES=False by *default*, please set it "
+                "explicitly. To silence this warning, set it explicitly to True. This"
+                "warning will be removed in v4."
+            )
+            self._USE_INTERPOLATION_TABLES = True
+
+        return self._USE_INTERPOLATION_TABLES
 
     @property
     def DIM(self):

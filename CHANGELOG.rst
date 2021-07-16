@@ -4,6 +4,12 @@ Changelog
 dev-version
 -----------
 
+Change
+~~~~~~
+
+* Updated ``USE_INTERPOLATION_TABLES`` to be default True. This makes much more sense as
+  a default value. Until v4, a warning will be raised if it is not set explicitly.
+
 v3.1.1 [13 Jun 2021]
 ----------------------
 
