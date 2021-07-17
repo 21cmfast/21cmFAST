@@ -98,6 +98,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     float prev_min_density, prev_max_density;
 
     float stored_redshift, adjustment_factor;
+    float R_BUBBLE_MAX;
 
     gsl_rng * r[user_params->N_THREADS];
 
@@ -132,7 +133,7 @@ LOG_SUPER_DEBUG("defined parameters");
         }
 
      if (prev_redshift < 1) //deal with first redshift
-		 ZSTEP = (1. + redshift) * (global_params.ZPRIME_STEP_FACTOR - 1.);
+        ZSTEP = (1. + redshift) * (global_params.ZPRIME_STEP_FACTOR - 1.);
      else
         ZSTEP = prev_redshift - redshift;
 
@@ -353,6 +354,14 @@ LOG_DEBUG("first redshift, do some initialization");
         if (flag_options->INHOMO_RECO)
             previous_ionize_box->dNrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     }
+    if (astro_params->R_BUBBLE_MAX && flag_options->EVOLVING_R_BUBBLE_MAX){
+        if (redshift > 6)
+            R_BUBBLE_MAX = 3.8051340473779267 / cosmo_params->hlittle
+        else
+            R_BUBBLE_MAX = 37 * 0.7 / cosmo_params->hlittle * pow( (1.+redshift) / 5 , -5.7);
+    }
+    else
+        R_BUBBLE_MAX = astro_params->R_BUBBLE_MAX
     //set the minimum source mass
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (flag_options->USE_MINI_HALOS){
@@ -365,8 +374,8 @@ LOG_DEBUG("first redshift, do some initialization");
                 // really painful to get the length...
                 counter = 1;
                 R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
-                while ((R - fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ){
-                    if(R >= fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) {
+                while ((R - fmin(R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ){
+                    if(R >= fmin(R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) {
                         stored_R = R/(global_params.DELTA_R_HII_FACTOR);
                     }
                     R*= global_params.DELTA_R_HII_FACTOR;
@@ -742,22 +751,22 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 
         R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
 
-        while ((R - fmin(astro_params->R_BUBBLE_MAX, L_FACTOR * user_params->BOX_LEN)) <= FRACT_FLOAT_ERR) {
+        while ((R - fmin(R_BUBBLE_MAX, L_FACTOR * user_params->BOX_LEN)) <= FRACT_FLOAT_ERR) {
             R *= global_params.DELTA_R_HII_FACTOR;
-            if (R >= fmin(astro_params->R_BUBBLE_MAX, L_FACTOR * user_params->BOX_LEN)) {
+            if (R >= fmin(R_BUBBLE_MAX, L_FACTOR * user_params->BOX_LEN)) {
                 stored_R = R / (global_params.DELTA_R_HII_FACTOR);
             }
         }
 
         LOG_DEBUG("set max radius: %f", R);
 
-        R=fmin(astro_params->R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN);
+        R=fmin(R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN);
 
         LAST_FILTER_STEP = 0;
 
         first_step_R = 1;
 
-        double R_temp = (double) (astro_params->R_BUBBLE_MAX);
+        double R_temp = (double) (R_BUBBLE_MAX);
 
         counter = 0;
 

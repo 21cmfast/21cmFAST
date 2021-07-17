@@ -627,6 +627,8 @@ class FlagOptions(StructWithDefaults):
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations.
     USE_VELS_AUX: bool, optional
         Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain
+    EVOLVING_R_BUBBLE_MAX: bool, optional
+        Whether to use the redshift-dependent R_BUBBLE_MAX (37*0.7/hlittle*((1+z)/5)**-5.7; cap at z>6). This will overide R_BUBBLE_MAX set in AstroParams.
     """
 
     _ffi = ffi
@@ -641,6 +643,7 @@ class FlagOptions(StructWithDefaults):
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
         "FIX_VCB_AVG": False,
+        "EVOLVING_R_BUBBLE_MAX": False,
     }
 
     # This checks if relative velocities are off to complain if minihaloes are on
