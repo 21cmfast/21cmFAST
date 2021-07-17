@@ -624,11 +624,14 @@ class FlagOptions(StructWithDefaults):
         Whether to perform a small correction to account for the inherent
         photon non-conservation.
     FIX_VCB_AVG: bool, optional
-        Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations.
+        Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES).
+        It includes the average effect of velocities but not its fluctuations.
     USE_VELS_AUX: bool, optional
-        Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain
+        Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain.
     EVOLVING_R_BUBBLE_MAX: bool, optional
-        Whether to use the redshift-dependent R_BUBBLE_MAX (37*0.7/hlittle*((1+z)/5)**-5.7; cap at z>6). This will overide R_BUBBLE_MAX set in AstroParams.
+        Whether to use the redshift-dependent R_BUBBLE_MAX (37pMpc*0.7/hlittle*((1+z)/5)**-4.7
+        from Worseck+14 adjusted index for Becker+21; cap at z>6, i.e. ~40cMpc).
+        This will overide R_BUBBLE_MAX set in AstroParams.
     """
 
     _ffi = ffi
