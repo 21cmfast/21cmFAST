@@ -356,12 +356,12 @@ LOG_DEBUG("first redshift, do some initialization");
     }
     if (astro_params->R_BUBBLE_MAX && flag_options->EVOLVING_R_BUBBLE_MAX){
         if (redshift > 6)
-            R_BUBBLE_MAX = 26.635938331645487 / cosmo_params->hlittle
+            R_BUBBLE_MAX = 26.635938331645487 / cosmo_params->hlittle;
         else
             R_BUBBLE_MAX = 129.5 / cosmo_params->hlittle * pow( (1.+redshift) / 5. , -4.7);
     }
     else
-        R_BUBBLE_MAX = astro_params->R_BUBBLE_MAX
+        R_BUBBLE_MAX = astro_params->R_BUBBLE_MAX;
     //set the minimum source mass
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (flag_options->USE_MINI_HALOS){
