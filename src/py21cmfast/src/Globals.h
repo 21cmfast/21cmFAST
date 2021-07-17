@@ -89,7 +89,7 @@ struct GlobalParams{
 
 extern struct GlobalParams global_params = {
 
-    .ALPHA_UVB = 5.0,
+    .ALPHA_UVB = 2.0, // see https://arxiv.org/pdf/1807.09282.pdf
     .EVOLVE_DENSITY_LINEARLY = 0,
     .SMOOTH_EVOLVED_DENSITY_FIELD = 0,
     .R_smooth_density = 0.2,
@@ -152,7 +152,7 @@ extern struct GlobalParams global_params = {
     .M_MIN_INTEGRAL = 1e5,
     .M_MAX_INTEGRAL = 1e16,
 
-    .T_RE = 2e4,
+    .T_RE = 1e4,
 
     .VAVG=25.86,
 
