@@ -354,7 +354,7 @@ LOG_DEBUG("first redshift, do some initialization");
         if (flag_options->INHOMO_RECO)
             previous_ionize_box->dNrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     }
-    if (astro_params->R_BUBBLE_MAX && flag_options->EVOLVING_R_BUBBLE_MAX){
+    if (flag_options->EVOLVING_R_BUBBLE_MAX){
         if (redshift > 6)
             R_BUBBLE_MAX = 26.635938331645487 / cosmo_params->hlittle;
         else
