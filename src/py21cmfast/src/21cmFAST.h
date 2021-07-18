@@ -78,7 +78,7 @@ struct FlagOptions{
     bool M_MIN_in_Mass;
     bool PHOTON_CONS;
     bool FIX_VCB_AVG;
-    bool USE_VELS_AUEVOLVING_R_BUBBLE_MAX;
+    bool EVOLVING_R_BUBBLE_MAX;
 };
 
 
