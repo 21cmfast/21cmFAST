@@ -1348,6 +1348,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
                                     box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll + Gamma_R_prefactor_MINI * f_coll_MINI;
                                     box->MFP_box[HII_R_INDEX(x,y,z)] = R;
+                                    box->dNion_box[HII_R_INDEX(x,y,z)] = ( f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI) / t_ast;
                                 }
 
                                 // keep track of the first time this cell is ionized (earliest time)

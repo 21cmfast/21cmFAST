@@ -532,6 +532,7 @@ class IonizedBox(_AllParamsBox):
             "xH_box": {"init": np.ones, "shape": shape},
             "Gamma12_box": shape,
             "MFP_box": shape,
+            "dNion_box": shape,
             "z_re_box": shape,
             "dNrec_box": shape,
             "temp_kinetic_all_gas": shape,
