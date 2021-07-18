@@ -143,6 +143,7 @@ LOG_SUPER_DEBUG("defined parameters");
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++) {
                 box->Gamma12_box[ct] = 0.0;
                 box->MFP_box[ct] = 0.0;
+                box->dNion_box[ct] = 0.0;
             }
         }
     }
