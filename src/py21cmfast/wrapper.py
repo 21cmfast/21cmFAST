@@ -3182,6 +3182,7 @@ def calibrate_photon_cons(
                 regenerate=regenerate,
                 hooks=hooks,
                 direc=direc,
+                write=write,  # quick hack for running MultiNest
             )
 
             ib2 = ionize_box(
@@ -3196,6 +3197,7 @@ def calibrate_photon_cons(
                 regenerate=regenerate,
                 hooks=hooks,
                 direc=direc,
+                write=write,  # quick hack for running MultiNest
             )
 
             mean_nf = np.mean(ib2.xH_box)
