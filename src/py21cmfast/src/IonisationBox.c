@@ -387,6 +387,10 @@ LOG_DEBUG("first redshift, do some initialization");
                 previous_ionize_box->Fcoll_MINI  = (float *) calloc(HII_TOT_NUM_PIXELS*counter, sizeof(float));
                 previous_ionize_box->mean_f_coll = 0.0;
                 previous_ionize_box->mean_f_coll_MINI = 0.0;
+                if(flag_options->PHOTON_CONS) {
+                    previous_ionize_box->mean_f_coll_PC = 0.0;
+                    previous_ionize_box->mean_f_coll_MINI_PC = 0.0;
+                }
 
 #pragma omp parallel shared(prev_deltax_unfiltered) private(i,j,k) num_threads(user_params->N_THREADS)
                 {
@@ -571,6 +575,10 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
             if (previous_ionize_box->mean_f_coll * ION_EFF_FACTOR < 1e-4){
                 box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                                 astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                if(flag_options->PHOTON_CONS) {
+                    box->mean_f_coll_PC = Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
+                                                astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                }
             }
             else{
                 box->mean_f_coll = previous_ionize_box->mean_f_coll + \
@@ -578,11 +586,23 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
                                                  astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc) - \
                                     Nion_General(prev_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                                  astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                if(flag_options->PHOTON_CONS) {
+                    box->mean_f_coll_PC = previous_ionize_box->mean_f_coll_PC + \
+                                    Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
+                                                 astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc) - \
+                                    Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
+                                                 astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                }
             }
             if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI < 1e-4){
                 box->mean_f_coll_MINI = Nion_General_MINI(redshift,M_MIN,Mturnover_MINI,Mcrit_atom,
                                                           astro_params->ALPHA_STAR_MINI,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,
                                                           astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
+                if(flag_options->PHOTON_CONS) {
+                    box->mean_f_coll_MINI_PC = Nion_General_MINI(stored_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,
+                                                          astro_params->ALPHA_STAR_MINI,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,
+                                                          astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
+                }
             }
             else{
                 box->mean_f_coll_MINI = previous_ionize_box->mean_f_coll_MINI + \
@@ -592,6 +612,15 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
                                         Nion_General_MINI(prev_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
                                                           astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
                                                           Mlim_Fstar_MINI,Mlim_Fesc_MINI);
+                if(flag_options->PHOTON_CONS) {
+                    box->mean_f_coll_MINI_PC = previous_ionize_box->mean_f_coll_MINI_PC + \
+                                        Nion_General_MINI(stored_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
+                                                          astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI
+                                                          ,Mlim_Fstar_MINI,Mlim_Fesc_MINI) - \
+                                        Nion_General_MINI(stored_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
+                                                          astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
+                                                          Mlim_Fstar_MINI,Mlim_Fesc_MINI);
+                }
             }
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,
                                       astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
@@ -603,12 +632,20 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
             box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                             astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
             box->mean_f_coll_MINI = 0.;
+            if(flag_options->PHOTON_CONS) {
+                box->mean_f_coll_PC = Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
+                                            astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                box->mean_f_coll_MINI_PC = 0.;
+            }
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                       astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
         }
     }
     else {
         box->mean_f_coll = FgtrM_General(redshift, M_MIN);
+        if(flag_options->PHOTON_CONS) {
+        	box->mean_f_coll_PC = FgtrM_General(stored_redshift, M_MIN);
+		}
     }
 
     if(isfinite(box->mean_f_coll)==0) {

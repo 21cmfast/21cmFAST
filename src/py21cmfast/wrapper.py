@@ -2805,8 +2805,14 @@ def run_lightcone(
                 write=write,  # quick hack for running MultiNest
                 cleanup=(cleanup and iz == (len(scrollz) - 1)),
             )
-            mean_f_colls[iz] = ib2.mean_f_coll
-            mean_f_coll_MINIs[iz] = ib2.mean_f_coll_MINI
+            mean_f_colls[iz] = (
+                ib2.mean_f_coll_PC if flag_options.PHOTON_CONS else ib2.mean_f_coll
+            )
+            mean_f_coll_MINIs[iz] = (
+                ib2.mean_f_coll_MINI_PC
+                if ib2.flag_options.PHOTON_CONS
+                else ib2.mean_f_coll_MINI
+            )
 
             bt2 = brightness_temperature(
                 ionized_box=ib2,

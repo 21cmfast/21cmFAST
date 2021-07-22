@@ -127,6 +127,8 @@ struct IonizedBox{
     int first_box;
     double mean_f_coll;
     double mean_f_coll_MINI;
+    double mean_f_coll_PC;
+    double mean_f_coll_MINI_PC;
     double log10_Mturnover_ave;
     double log10_Mturnover_MINI_ave;
     float *xH_box;
