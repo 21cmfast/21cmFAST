@@ -1130,13 +1130,13 @@ class LightCone(_HighLevelOutput):
             mean_f_colls
             * astro_params.F_STAR10
             * astro_params.F_ESC10
-            * self.global_params.Pop2_ion
+            * self.global_params["Pop2_ion"]
         )
         self.Nion_mcg = (
             mean_f_coll_MINIs
             * astro_params.F_STAR7_MINI
             * astro_params.F_ESC7_MINI
-            * self.global_params.Pop3_ion
+            * self.global_params["Pop3_ion"]
         )
 
         if global_quantities:
