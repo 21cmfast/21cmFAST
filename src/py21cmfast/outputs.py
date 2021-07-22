@@ -1107,6 +1107,8 @@ class LightCone(_HighLevelOutput):
         random_seed,
         lightcones,
         node_redshifts=None,
+        mean_f_colls=None,
+        mean_f_coll_MINIs=None,
         global_quantities=None,
         photon_nonconservation_data=None,
         cache_files: Union[dict, None] = None,
@@ -1119,6 +1121,8 @@ class LightCone(_HighLevelOutput):
         self.astro_params = astro_params
         self.flag_options = flag_options
         self.node_redshifts = node_redshifts
+        self.mean_f_colls = mean_f_colls
+        self.mean_f_coll_MINIs = mean_f_coll_MINIs
         self.cache_files = cache_files
 
         # A *copy* of the current global parameters.

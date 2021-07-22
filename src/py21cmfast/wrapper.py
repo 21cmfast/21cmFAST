@@ -2734,6 +2734,8 @@ def run_lightcone(
         }
 
         global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
+        mean_f_colls = np.zeros(len(scrollz))
+        mean_f_coll_MINIs = np.zeros(len(scrollz))
         pf = None
 
         perturb_files = []
@@ -2803,6 +2805,8 @@ def run_lightcone(
                 write=write,  # quick hack for running MultiNest
                 cleanup=(cleanup and iz == (len(scrollz) - 1)),
             )
+            mean_f_colls[iz] = ib2.mean_f_coll
+            mean_f_coll_MINIs[iz] = ib2.mean_f_coll_MINI
 
             bt2 = brightness_temperature(
                 ionized_box=ib2,
@@ -2857,9 +2861,14 @@ def run_lightcone(
 
             # Save mean/global quantities
             for quantity in global_quantities:
-                global_q[quantity][iz] = np.mean(
-                    getattr(outs[_fld_names[quantity]][1], quantity)
-                )
+                if quantity == "dNion_box":
+                    global_q[quantity][iz] = np.ma.masked_equal(
+                        getattr(outs[_fld_names[quantity]][1], quantity), 0
+                    ).mean()
+                else:
+                    global_q[quantity][iz] = np.mean(
+                        getattr(outs[_fld_names[quantity]][1], quantity)
+                    )
 
             # Interpolate the lightcone
             if z < max_redshift:
@@ -2924,6 +2933,8 @@ def run_lightcone(
                 lc,
                 node_redshifts=scrollz,
                 global_quantities=global_q,
+                mean_f_colls=mean_f_colls,
+                mean_f_coll_MINIs=mean_f_coll_MINIs,
                 photon_nonconservation_data=photon_nonconservation_data,
                 _globals=dict(global_params.items()),
                 cache_files={
