@@ -1568,6 +1568,7 @@ def ionize_box(
                     regenerate=regenerate,
                     hooks=hooks,
                     direc=direc,
+                    write=write,  # quick hack for running MultiNest
                     cleanup=False,  # We *know* we're going to need the memory again.
                 )
 
@@ -1581,6 +1582,7 @@ def ionize_box(
                 regenerate=regenerate,
                 hooks=hooks,
                 direc=direc,
+                write=write,  # quick hack for running MultiNest
             )
 
         if previous_perturbed_field is None or not previous_perturbed_field.is_computed:
@@ -1596,6 +1598,7 @@ def ionize_box(
                     regenerate=regenerate,
                     hooks=hooks,
                     direc=direc,
+                    write=write,  # quick hack for running MultiNest
                 )
 
         # Dynamically produce the halo field.
@@ -1634,6 +1637,7 @@ def ionize_box(
                 hooks=hooks,
                 regenerate=regenerate,
                 cleanup=cleanup,
+                write=write,  # quick hack for running MultiNest
             )
 
         # Run the C Code
@@ -1913,6 +1917,7 @@ def spin_temperature(
                     hooks=hooks,
                     direc=direc,
                     cleanup=False,  # we know we'll need the memory again
+                    write=write,  # quick hack for running MultiNest
                 )
 
         # Dynamically produce the perturbed field.
@@ -1923,6 +1928,7 @@ def spin_temperature(
                 regenerate=regenerate,
                 hooks=hooks,
                 direc=direc,
+                write=write,  # quick hack for running MultiNest
             )
 
         # Run the C Code
@@ -2229,6 +2235,7 @@ def run_coeval(
                     regenerate=regenerate,
                     hooks=hooks,
                     direc=direc,
+                    write=write,  # quick hack for running MultiNest
                 )
                 if z not in pz
                 else perturb[pz.index(z)]
@@ -2331,6 +2338,7 @@ def run_coeval(
                     regenerate=regenerate,
                     init_boxes=init_box,
                     hooks=hooks,
+                    write=write,  # quick hack for running MultiNest
                     direc=direc,
                     cleanup=(
                         cleanup and z == redshifts[-1]
@@ -2357,6 +2365,7 @@ def run_coeval(
                 z_heat_max=global_params.Z_HEAT_MAX,
                 hooks=hooks,
                 direc=direc,
+                write=write,  # quick hack for running MultiNest
                 cleanup=(
                     cleanup and z == redshifts[-1]
                 ),  # cleanup if its the last time through
@@ -2382,6 +2391,7 @@ def run_coeval(
                     hooks=hooks,
                     direc=direc,
                     regenerate=regenerate,
+                    write=write,  # quick hack for running MultiNest
                 )
 
                 bt[redshift.index(z)] = _bt
