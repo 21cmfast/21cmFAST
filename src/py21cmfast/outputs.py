@@ -1121,12 +1121,23 @@ class LightCone(_HighLevelOutput):
         self.astro_params = astro_params
         self.flag_options = flag_options
         self.node_redshifts = node_redshifts
-        self.mean_f_colls = mean_f_colls
-        self.mean_f_coll_MINIs = mean_f_coll_MINIs
         self.cache_files = cache_files
 
         # A *copy* of the current global parameters.
         self.global_params = _globals or dict(global_params.items())
+
+        self.Nion_acg = (
+            mean_f_colls
+            * astro_params.F_STAR10
+            * astro_params.F_ESC10
+            * self.global_params.Pop2_ion
+        )
+        self.Nion_mcg = (
+            mean_f_coll_MINIs
+            * astro_params.F_STAR7_MINI
+            * astro_params.F_ESC7_MINI
+            * self.global_params.Pop3_ion
+        )
 
         if global_quantities:
             for name, data in global_quantities.items():
