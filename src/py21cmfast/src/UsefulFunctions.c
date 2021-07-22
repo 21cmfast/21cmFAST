@@ -836,9 +836,9 @@ void inspectIonizedBox(struct IonizedBox *x, int print_pid, int print_corners, i
         }
         printf("\n");
 
-        printf("%s\t\tdNrec_box : ");
+        printf("%s\t\tNrec_box : ");
         for(i=0;i<10;i++){
-            printf("%f, ", x->dNrec_box[i]);
+            printf("%f, ", x->Nrec_box[i]);
         }
         printf("\n");
     }
@@ -855,8 +855,8 @@ void inspectIonizedBox(struct IonizedBox *x, int print_pid, int print_corners, i
         printf("%s\t\tz_re_box   : ", pid);
         print_corners_real(x->z_re_box, HII_DIM);
 
-        printf("%s\t\tdNrec_box  : ", pid);
-        print_corners_real(x->dNrec_box, HII_DIM);
+        printf("%s\t\tNrec_box  : ", pid);
+        print_corners_real(x->Nrec_box, HII_DIM);
     }
 }
 

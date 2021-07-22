@@ -532,9 +532,9 @@ class IonizedBox(_AllParamsBox):
             "xH_box": {"init": np.ones, "shape": shape},
             "Gamma12_box": shape,
             "MFP_box": shape,
-            "dNion_box": shape,
+            "Nion_box": shape,
             "z_re_box": shape,
-            "dNrec_box": shape,
+            "Nrec_box": shape,
             "temp_kinetic_all_gas": shape,
             "Fcoll": filter_shape,
         }
@@ -571,7 +571,7 @@ class IonizedBox(_AllParamsBox):
             required += ["z_re_box", "Gamma12_box"]
             if self.flag_options.INHOMO_RECO:
                 required += [
-                    "dNrec_box",
+                    "Nrec_box",
                 ]
             if (
                 self.flag_options.USE_MASS_DEPENDENT_ZETA

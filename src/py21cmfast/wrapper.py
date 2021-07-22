@@ -2861,7 +2861,7 @@ def run_lightcone(
 
             # Save mean/global quantities
             for quantity in global_quantities:
-                if quantity == "dNion_box":
+                if quantity == "Nion_box":
                     global_q[quantity][iz] = np.ma.masked_equal(
                         getattr(outs[_fld_names[quantity]][1], quantity), 0
                     ).mean()

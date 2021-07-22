@@ -143,7 +143,7 @@ LOG_SUPER_DEBUG("defined parameters");
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++) {
                 box->Gamma12_box[ct] = 0.0;
                 box->MFP_box[ct] = 0.0;
-                box->dNion_box[ct] = 0.0;
+                box->Nion_box[ct] = 0.0;
             }
         }
     }
@@ -353,7 +353,7 @@ LOG_DEBUG("first redshift, do some initialization");
             }
         }
         if (flag_options->INHOMO_RECO)
-            previous_ionize_box->dNrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+            previous_ionize_box->Nrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     }
     if (flag_options->EVOLVING_R_BUBBLE_MAX){
         if (redshift > 6)
@@ -684,7 +684,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                     for (j = 0; j < user_params->HII_DIM; j++) {
                         for (k = 0; k < user_params->HII_DIM; k++) {
                             *((float *) N_rec_unfiltered +
-                              HII_R_FFT_INDEX(i, j, k)) = previous_ionize_box->dNrec_box[HII_R_INDEX(i, j, k)];
+                              HII_R_FFT_INDEX(i, j, k)) = previous_ionize_box->Nrec_box[HII_R_INDEX(i, j, k)];
                         }
                     }
                 }
@@ -1349,7 +1349,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
                                     box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll + Gamma_R_prefactor_MINI * f_coll_MINI;
                                     box->MFP_box[HII_R_INDEX(x,y,z)] = R;
-                                    box->dNion_box[HII_R_INDEX(x,y,z)] = ( f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI) / t_ast;
+                                    box->Nion_box[HII_R_INDEX(x,y,z)] = f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI;
                                 }
 
                                 // keep track of the first time this cell is ionized (earliest time)
@@ -1519,8 +1519,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 something_finite_or_infinite = 1;
                             }
 
-                            box->dNrec_box[HII_R_INDEX(x, y, z)] =
-                                    previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)] + dNrec;
+                            box->Nrec_box[HII_R_INDEX(x, y, z)] =
+                                    previous_ionize_box->Nrec_box[HII_R_INDEX(x, y, z)] + dNrec;
                         }
                     }
                 }
@@ -1610,7 +1610,7 @@ LOG_SUPER_DEBUG("freed fftw boxes");
         free(previous_ionize_box->z_re_box);
         if (flag_options->USE_MASS_DEPENDENT_ZETA && flag_options->USE_MINI_HALOS){
             free(previous_ionize_box->Gamma12_box);
-            free(previous_ionize_box->dNrec_box);
+            free(previous_ionize_box->Nrec_box);
             free(previous_ionize_box->Fcoll);
             free(previous_ionize_box->Fcoll_MINI);
         }
