@@ -55,7 +55,7 @@ As a *member*:
 
 As a *non-member*:
 
-1. First fork `21cmFAST <https://github.com/21cmFAST/21cmFAST>`_
+1. First fork ``21cmFAST <https://github.com/21cmFAST/21cmFAST>``_
    (look for the "Fork" button), then clone the fork locally::
 
     git clone git@github.com:your_name_here/21cmFAST.git
@@ -73,11 +73,11 @@ The following steps are the same for both *members* and *non-members*:
        conda create -n 21cmfast python=3
        conda activate 21cmfast
 
-3. Install the *development* requirements for the project. If using the basic `virtualenv`::
+3. Install the *development* requirements for the project. If using the basic ``virtualenv``::
 
     pip install -r requirements_dev.txt
 
-   or if using `conda` (suggested)::
+   or if using ``conda`` (suggested)::
 
     conda env update -f environment_dev.yml
 
@@ -104,8 +104,8 @@ The following steps are the same for both *members* and *non-members*:
     git push origin name-of-your-bugfix-or-feature
 
    Note that if the commit step fails due to a pre-commit hook, *most likely* the act
-   of running the hook itself has already fixed the error. Try doing the `add` and
-   `commit` again (up, up, enter). If it's still complaining, manually fix the errors
+   of running the hook itself has already fixed the error. Try doing the ``add`` and
+   ``commit`` again (up, up, enter). If it's still complaining, manually fix the errors
    and do the same again.
 
 8. Submit a pull request through the GitHub website.

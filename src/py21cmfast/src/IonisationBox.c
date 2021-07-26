@@ -158,6 +158,9 @@ LOG_SUPER_DEBUG("defined parameters");
         }
     }
 
+    LOG_SUPER_DEBUG("z_re_box init: ");
+    debugSummarizeBox(box->z_re_box, user_params->HII_DIM, "  ");
+
     fabs_dtdz = fabs(dtdz(redshift))/1e15; //reduce to have good precision
     t_ast = astro_params->t_STAR * t_hubble(redshift);
     growth_factor_dz = dicke(redshift-dz);
@@ -1402,6 +1405,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_
                     } // j
                 } // i
             }
+
+            LOG_SUPER_DEBUG("z_re_box after R=%f: ", R);
+            debugSummarizeBox(box->z_re_box, user_params->HII_DIM, "  ");
+
 
             if (first_step_R) {
                 R = stored_R;

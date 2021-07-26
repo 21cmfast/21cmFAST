@@ -95,6 +95,13 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     double const_zp_prefactor, dt_dzp, x_e_ave, growth_factor_zp, dgrowth_factor_dzp, fcoll_R_for_reduction;
     double const_zp_prefactor_MINI;
 
+    int n_pts_radii;
+    double trial_zpp_min,trial_zpp_max,trial_zpp, weight;
+    bool first_radii, first_zero;
+    first_radii = true;
+    first_zero = true;
+    n_pts_radii = 1000;
+
     float M_MIN_WDM =  M_J_WDM();
 
     double ave_fcoll, ave_fcoll_inv, dfcoll_dz_val_ave, ION_EFF_FACTOR;
@@ -193,9 +200,15 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
 
             SFR_timescale_factor = (float *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
 
-            delNL0 = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
-            for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
-                delNL0[i] = (float *)calloc((float)HII_TOT_NUM_PIXELS,sizeof(float));
+            if(user_params->MINIMIZE_MEMORY) {
+                delNL0 = (float **)calloc(1,sizeof(float *));
+                delNL0[0] = (float *)calloc((float)HII_TOT_NUM_PIXELS,sizeof(float));
+            }
+            else {
+                delNL0 = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
+                for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
+                    delNL0[i] = (float *)calloc((float)HII_TOT_NUM_PIXELS,sizeof(float));
+                }
             }
 
             xi_SFR_Xray = calloc(NGL_SFR+1,sizeof(double));
@@ -593,7 +606,9 @@ LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
                                 curr_delNL0 *= inverse_growth_factor_z;
 
                                 if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-                                    delNL0[R_ct][HII_R_INDEX(i,j,k)] = curr_delNL0;
+                                    if(!user_params->MINIMIZE_MEMORY) {
+                                        delNL0[R_ct][HII_R_INDEX(i,j,k)] = curr_delNL0;
+                                    }
                                 }
                                 else {
                                     delNL0_rev[HII_R_INDEX(i,j,k)][R_ct] = curr_delNL0;
@@ -1222,6 +1237,53 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 }
             }
 
+            // Find if we need to add a partial contribution to a radii to avoid kinks in the Lyman-alpha flux
+            // As we look at discrete radii (light-cone redshift, zpp) we can have two radii where one has a
+            // contribution and the next (larger) radii has no contribution. However, if the number of filtering
+            // steps were infinitely large, we would have contributions between these two discrete radii
+            // Thus, this aims to add a weighted contribution to the first radii where this occurs to smooth out
+            // kinks in the average Lyman-alpha flux.
+
+            // Note: We do not apply this correction to the LW background as it is unaffected by this. It is only
+            // the Lyn contribution that experiences the kink. Applying this correction to LW introduces kinks
+            // into the otherwise smooth quantity
+            if(R_ct > 1 && sum_lyn[R_ct]==0.0 && sum_lyn[R_ct-1]>0. && first_radii) {
+
+                // The current zpp for which we are getting zero contribution
+                trial_zpp_max = (prev_zpp - (R_values[R_ct] - prev_R)*CMperMPC / drdz(prev_zpp)+prev_zpp)*0.5;
+                // The zpp for the previous radius for which we had a non-zero contribution
+                trial_zpp_min = (zpp_edge[R_ct-2] - (R_values[R_ct-1] - R_values[R_ct-2])*CMperMPC / drdz(zpp_edge[R_ct-2])+zpp_edge[R_ct-2])*0.5;
+
+                // Split the previous radii and current radii into n_pts_radii smaller radii (redshift) to have fine control of where
+                // it transitions from zero to non-zero
+                // This is a coarse approximation as it assumes that the linear sampling is a good representation of the different
+                // volumes of the shells (from different radii).
+                for(ii=0;ii<n_pts_radii;ii++) {
+                    trial_zpp = trial_zpp_min + (trial_zpp_max - trial_zpp_min)*(float)ii/((float)n_pts_radii-1.);
+
+                    counter = 0;
+                    for (n_ct=NSPEC_MAX; n_ct>=2; n_ct--){
+                        if (trial_zpp > zmax(zp, n_ct))
+                            continue;
+
+                        counter += 1;
+                    }
+                    if(counter==0&&first_zero) {
+                        first_zero = false;
+                        weight = (float)ii/(float)n_pts_radii;
+                    }
+                }
+
+                // Now add a non-zero contribution to the previously zero contribution
+                // The amount is the weight, multplied by the contribution from the previous radii
+                sum_lyn[R_ct] = weight * sum_lyn[R_ct-1];
+                if (flag_options->USE_MINI_HALOS){
+                    sum_lyn_MINI[R_ct] = weight * sum_lyn_MINI[R_ct-1];
+                }
+                first_radii = false;
+            }
+
+
         } // end loop over R_ct filter steps
 
 
@@ -1522,6 +1584,54 @@ LOG_SUPER_DEBUG("looping over box...");
                 ave_fcoll = ave_fcoll_inv = 0.0;
                 ave_fcoll_MINI = ave_fcoll_inv_MINI = 0.0;
 
+                // If we are minimising memory usage, then we must smooth the box again
+                // It's slower this way, but notably more memory efficient
+                if(user_params->MINIMIZE_MEMORY) {
+
+                    // copy over unfiltered box
+                    memcpy(box, unfiltered_box, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+                    if (R_ct > 0){ // don't filter on cell size
+                        filter_box(box, 1, global_params.HEAT_FILTER, R_values[R_ct]);
+                    }
+                    // now fft back to real space
+                    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, box);
+                    LOG_ULTRA_DEBUG("Executed FFT for R=%f", R_values[R_ct]);
+
+                    // copy over the values
+#pragma omp parallel shared(box,inverse_growth_factor_z,delNL0) private(i,j,k,curr_delNL0) num_threads(user_params->N_THREADS)
+                    {
+#pragma omp for
+                        for (i=0;i<user_params->HII_DIM; i++){
+                            for (j=0;j<user_params->HII_DIM; j++){
+                                for (k=0;k<user_params->HII_DIM; k++){
+                                    curr_delNL0 = *((float *)box + HII_R_FFT_INDEX(i,j,k));
+
+                                    if (curr_delNL0 <= -1){ // correct for aliasing in the filtering step
+                                        curr_delNL0 = -1+FRACT_FLOAT_ERR;
+                                    }
+
+                                    // and linearly extrapolate to z=0
+                                    curr_delNL0 *= inverse_growth_factor_z;
+
+                                    // Because we are FFT'ing again, just be careful that any rounding errors
+                                    // don't cause the densities to exceed the bounds of the interpolation tables.
+                                    if(user_params->USE_INTERPOLATION_TABLES) {
+                                        if(curr_delNL0 > max_densities[R_ct]) {
+                                            curr_delNL0 = max_densities[R_ct];
+                                        }
+                                        if(curr_delNL0 < min_densities[R_ct]) {
+                                            curr_delNL0 = min_densities[R_ct];
+                                        }
+                                    }
+
+                                    delNL0[0][HII_R_INDEX(i,j,k)] = curr_delNL0;
+                                }
+                            }
+                        }
+                    }
+                }
+
 #pragma omp parallel shared(delNL0,zpp_growth,SFRD_z_high_table,fcoll_interp_high_min,fcoll_interp_high_bin_width_inv,log10_SFRD_z_low_table,\
                             fcoll_int_boundexceeded_threaded,log10_Mcrit_LW,SFRD_z_high_table_MINI,\
                             log10_SFRD_z_low_table_MINI,del_fcoll_Rct,del_fcoll_Rct_MINI,Mmax,sigmaMmax,Mcrit_atom_interp_table,Mlim_Fstar,Mlim_Fstar_MINI) \
@@ -1532,7 +1642,12 @@ LOG_SUPER_DEBUG("looping over box...");
 #pragma omp for reduction(+:ave_fcoll,ave_fcoll_MINI)
                     for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
 
-                        curr_dens = delNL0[R_ct][box_ct]*zpp_growth[R_ct];
+                        if(user_params->MINIMIZE_MEMORY) {
+                            curr_dens = delNL0[0][box_ct]*zpp_growth[R_ct];
+                        }
+                        else {
+                            curr_dens = delNL0[R_ct][box_ct]*zpp_growth[R_ct];
+                        }
 
                         if (flag_options->USE_MINI_HALOS && user_params->USE_INTERPOLATION_TABLES){
                             log10_Mcrit_LW_val = ( log10_Mcrit_LW[R_ct][box_ct] - LOG10_MTURN_MIN) / LOG10_MTURN_INT;
@@ -1729,7 +1844,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             dxlya_dt_box_MINI,dstarlya_dt_box_MINI,dstarlyLW_dt_box_MINI,dfcoll_dz_val_MINI,del_fcoll_Rct_MINI,\
                             dstarlya_dt_prefactor_MINI,dstarlyLW_dt_prefactor_MINI,prefactor_2_MINI,const_zp_prefactor_MINI) \
                     private(box_ct,x_e,T,dxion_sink_dt,dxe_dzp,dadia_dzp,dspec_dzp,dcomp_dzp,dxheat_dzp,J_alpha_tot,T_inv,T_inv_sq,\
-                            xc_fast,xi_power,xa_tilde_fast_arg,TS_fast,TSold_fast,xa_tilde_fast,dxheat_dzp_MINI,J_alpha_tot_MINI) \
+                            xc_fast,xi_power,xa_tilde_fast_arg,TS_fast,TSold_fast,xa_tilde_fast,dxheat_dzp_MINI,J_alpha_tot_MINI,curr_delNL0) \
                     num_threads(user_params->N_THREADS)
                 {
 #pragma omp for reduction(+:J_alpha_ave,xalpha_ave,Xheat_ave,Xion_ave,Ts_ave,Tk_ave,x_e_ave,J_alpha_ave_MINI,Xheat_ave_MINI,J_LW_ave,J_LW_ave_MINI)
@@ -1785,6 +1900,9 @@ LOG_SUPER_DEBUG("looping over box...");
                         // If R_ct == 0, as this is the final smoothing scale (i.e. it is reversed)
                         if(R_ct==0) {
 
+                            // Note here, that by construction it doesn't matter if using MINIMIZE_MEMORY as only need the R_ct = 0 box
+                            curr_delNL0 = delNL0[0][box_ct];
+
                             x_e = previous_spin_temp->x_e_box[box_ct];
                             T = previous_spin_temp->Tk_box[box_ct];
 
@@ -1792,7 +1910,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             dxheat_dt_box[box_ct] *= const_zp_prefactor;
                             dxion_source_dt_box[box_ct] *= const_zp_prefactor;
 
-                            dxlya_dt_box[box_ct] *= const_zp_prefactor*prefactor_1 * (1.+delNL0[0][box_ct]*growth_factor_zp);
+                            dxlya_dt_box[box_ct] *= const_zp_prefactor*prefactor_1 * (1.+curr_delNL0*growth_factor_zp);
                             dstarlya_dt_box[box_ct] *= prefactor_2;
 
                             if (flag_options->USE_MINI_HALOS){
@@ -1801,7 +1919,7 @@ LOG_SUPER_DEBUG("looping over box...");
                                 dxheat_dt_box_MINI[box_ct] *= const_zp_prefactor_MINI;
                                 dxion_source_dt_box_MINI[box_ct] *= const_zp_prefactor_MINI;
 
-                                dxlya_dt_box_MINI[box_ct] *= const_zp_prefactor_MINI*prefactor_1 * (1.+delNL0[0][box_ct]*growth_factor_zp);
+                                dxlya_dt_box_MINI[box_ct] *= const_zp_prefactor_MINI*prefactor_1 * (1.+curr_delNL0*growth_factor_zp);
                                 dstarlya_dt_box_MINI[box_ct] *= prefactor_2_MINI;
 
                                 dstarlyLW_dt_box_MINI[box_ct] *= prefactor_2_MINI * (hplank * 1e21);
@@ -1811,7 +1929,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                             // First let's do dxe_dzp //
                             dxion_sink_dt = alpha_A(T) * global_params.CLUMPING_FACTOR * x_e*x_e * f_H * prefactor_1 * \
-                                            (1.+delNL0[0][box_ct]*growth_factor_zp);
+                                            (1.+curr_delNL0*growth_factor_zp);
                             if (flag_options->USE_MINI_HALOS){
                                 dxe_dzp = dt_dzp*(dxion_source_dt_box[box_ct] + dxion_source_dt_box_MINI[box_ct] - dxion_sink_dt );
                             }
@@ -1822,8 +1940,8 @@ LOG_SUPER_DEBUG("looping over box...");
                             // Next, let's get the temperature components //
                             // first, adiabatic term
                             dadia_dzp = 3/(1.0+zp);
-                            if (fabs(delNL0[0][box_ct]) > FRACT_FLOAT_ERR) // add adiabatic heating/cooling from structure formation
-                                dadia_dzp += dgrowth_factor_dzp/(1.0/delNL0[0][box_ct]+growth_factor_zp);
+                            if (fabs(curr_delNL0) > FRACT_FLOAT_ERR) // add adiabatic heating/cooling from structure formation
+                                dadia_dzp += dgrowth_factor_dzp/(1.0/curr_delNL0+growth_factor_zp);
 
                             dadia_dzp *= (2.0/3.0)*T;
 
@@ -1873,10 +1991,10 @@ LOG_SUPER_DEBUG("looping over box...");
                             T_inv = expf((-1.)*logf(T));
                             T_inv_sq = expf((-2.)*logf(T));
 
-                            xc_fast = (1.0+delNL0[0][box_ct]*growth_factor_zp)*xc_inverse*\
+                            xc_fast = (1.0+curr_delNL0*growth_factor_zp)*xc_inverse*\
                                     ( (1.0-x_e)*No*kappa_10(T,0) + x_e*N_b0*kappa_10_elec(T,0) + x_e*No*kappa_10_pH(T,0) );
 
-                            xi_power = TS_prefactor * cbrt((1.0+delNL0[0][box_ct]*growth_factor_zp)*(1.0-x_e)*T_inv_sq);
+                            xi_power = TS_prefactor * cbrt((1.0+curr_delNL0*growth_factor_zp)*(1.0-x_e)*T_inv_sq);
 
                             if (flag_options->USE_MINI_HALOS){
                                 xa_tilde_fast_arg = xa_tilde_prefactor*(J_alpha_tot+J_alpha_tot_MINI)*\
@@ -2231,8 +2349,13 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         free(SFR_timescale_factor);
 
-        for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
-            free(delNL0[i]);
+        if(user_params->MINIMIZE_MEMORY) {
+            free(delNL0[0]);
+        }
+        else {
+            for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++) {
+                free(delNL0[i]);
+            }
         }
         free(delNL0);
 

@@ -64,7 +64,7 @@ def readbox(
     if not (fname or (hsh and kind)):
         raise ValueError("Either fname must be supplied, or kind and hsh")
 
-    zstr = "z{:.4f}_".format(redshift) if redshift is not None else ""
+    zstr = f"z{redshift:.4f}_" if redshift is not None else ""
     if not fname:
         if not seed:
             fname = kind + "_" + zstr + hsh + "_r*.h5"
@@ -72,7 +72,7 @@ def readbox(
             if files:
                 fname = files[0]
             else:
-                raise IOError("No files exist with that kind and hsh.")
+                raise OSError("No files exist with that kind and hsh.")
         else:
             fname = kind + "_" + zstr + hsh + "_r" + str(seed) + ".h5"
 
@@ -136,7 +136,7 @@ def list_datasets(*, direc=None, kind=None, hsh=None, seed=None, redshift=None):
 
     fname = "{}{}_{}_r{}.h5".format(
         kind or r"(?P<kind>[a-zA-Z]+)",
-        "_z{:.4f}".format(redshift) if redshift is not None else "(.*)",
+        f"_z{redshift:.4f}" if redshift is not None else "(.*)",
         hsh or r"(?P<hash>\w{32})",
         seed or r"(?P<seed>\d+)",
     )
@@ -181,7 +181,7 @@ def query_cache(
     ):
         cls = readbox(direc=direc, fname=file, load_data=False)
         if show:
-            print(file + ": " + str(cls))
+            print(file + ": " + str(cls))  # noqa: T
         yield file, cls
 
 
@@ -200,8 +200,8 @@ def clear_cache(**kwargs):
     number = 0
     for fname, cls in query_cache(show=False, **kwargs):
         if kwargs.get("show", True):
-            logger.info("Removing {}".format(fname))
+            logger.info(f"Removing {fname}")
         os.remove(path.join(direc, fname))
         number += 1
 
-    logger.info("Removed {} files from cache.".format(number))
+    logger.info(f"Removed {number} files from cache.")

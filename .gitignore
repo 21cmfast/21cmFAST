@@ -46,6 +46,9 @@ pip-wheel-metadata/py21cmfast\.dist-info/
 .nfs*
 docs/tutorials/*.h5
 valgrind*
+plots/
 
 c2r*
 r2c*
+plots/
+.vscode/

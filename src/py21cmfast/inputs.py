@@ -14,6 +14,7 @@ used throughout the computation which are very rarely varied.
 """
 import contextlib
 import logging
+import warnings
 from astropy.cosmology import Planck15
 from os import path
 from pathlib import Path
@@ -83,12 +84,6 @@ class GlobalParams(StructInstanceWrapper):
         overcompensates by an effective loss in resolution. **Added in 1.1.0**.
     R_smooth_density : float
         Determines the smoothing length to use if `SMOOTH_EVOLVED_DENSITY_FIELD` is True.
-    SECOND_ORDER_LPT_CORRECTIONS : bool
-        Use second-order Lagrangian perturbation theory (2LPT).
-        Set this to True if the density field or the halo positions are extrapolated to
-        low redshifts. The current implementation is very naive and adds a factor ~6 to
-        the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
-        Appendix D.
     HII_ROUND_ERR : float
         Rounding error on the ionization fraction. If the mean xHI is greater than
         ``1 - HII_ROUND_ERR``, then finding HII bubbles is skipped, and a homogeneous
@@ -331,9 +326,7 @@ class GlobalParams(StructInstanceWrapper):
 
         for k, val in kwargs.items():
             if k.upper() not in this_attr_upper:
-                raise ValueError(
-                    "{} is not a valid parameter of global_params".format(k)
-                )
+                raise ValueError(f"{k} is not a valid parameter of global_params")
             key = this_attr_upper[k.upper()]
             prev[key] = getattr(self, key)
             setattr(self, key, val)
@@ -448,6 +441,15 @@ class UserParams(StructWithDefaults):
         is considerably faster than when performing integrals explicitly.
     FAST_FCOLL_TABLES: bool, optional
         Whether to use fast Fcoll tables, as described in Sec X of JBM XX. Significant speedup for minihaloes.
+    USE_2LPT: bool, optional
+        Whether to use second-order Lagrangian perturbation theory (2LPT).
+        Set this to True if the density field or the halo positions are extrapolated to
+        low redshifts. The current implementation is very naive and adds a factor ~6 to
+        the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
+        Appendix D.
+    MINIMIZE_MEMORY: bool, optional
+        If set, the code will run in a mode that minimizes memory usage, at the expense
+        of some CPU/disk-IO. Good for large boxes / small computers.
     """
 
     _ffi = ffi
@@ -463,12 +465,29 @@ class UserParams(StructWithDefaults):
         "N_THREADS": 1,
         "PERTURB_ON_HIGH_RES": False,
         "NO_RNG": False,
-        "USE_INTERPOLATION_TABLES": False,
+        "USE_INTERPOLATION_TABLES": None,
         "FAST_FCOLL_TABLES": False,
+        "USE_2LPT": True,
+        "MINIMIZE_MEMORY": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
     _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
+
+    @property
+    def USE_INTERPOLATION_TABLES(self):
+        """Whether to use interpolation tables for integrals, speeding things up."""
+        if self._USE_INTERPOLATION_TABLES is None:
+            warnings.warn(
+                "The USE_INTERPOLATION_TABLES setting has changed in v3.1.2 to be "
+                "default True. You can likely ignore this warning, but if you relied on"
+                "having USE_INTERPOLATION_TABLES=False by *default*, please set it "
+                "explicitly. To silence this warning, set it explicitly to True. This"
+                "warning will be removed in v4."
+            )
+            self._USE_INTERPOLATION_TABLES = True
+
+        return self._USE_INTERPOLATION_TABLES
 
     @property
     def DIM(self):
@@ -535,7 +554,7 @@ class UserParams(StructWithDefaults):
 
         if not 0 <= val < len(self._hmf_models):
             raise ValueError(
-                "HMF must be an int between 0 and {}".format(len(self._hmf_models) - 1)
+                f"HMF must be an int between 0 and {len(self._hmf_models) - 1}"
             )
 
         return val
@@ -950,15 +969,13 @@ class AstroParams(StructWithDefaults):
     @property
     def log10_k_PEAK(self):
         """
-        Location (10^log10_k_PEAK h/Mpc-1) of the first DAO peak / WDM cut-off
+        Location (10^log10_k_PEAK h/Mpc-1) of the first DAO peak / WDM cut-off.
 
         Must be 1 < log10_k_PEAK < ~10 to avoid overflow
         """
         val = self._log10_k_PEAK
 
-        if not 1 <= val <= 10.:
-            raise ValueError(
-                "log10_k_PEAK must be 1-10 to avoid overflow."
-            )
+        if not 1 <= val <= 10.0:
+            raise ValueError("log10_k_PEAK must be 1-10 to avoid overflow.")
 
         return val
