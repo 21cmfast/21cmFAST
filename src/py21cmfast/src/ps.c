@@ -4372,10 +4372,9 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
 }
 
 double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd){
-//this function returns the ratio between the power spectrum in an ETHOS model of hpeak and kpeak and that of LCDM. Depends on h_PEAK and log10_k_PEAK which are in astro_params
-
-//nb: hpeak=astro_params_sfrd->h_PEAK
-//nb: kpeak=astro_params_sfrd->log10_k_PEAK
+// This function returns the ratio between the power spectrum in an ETHOS model of
+// hpeak and kpeak and that of LCDM. Depends on h_PEAK and log10_k_PEAK which are in astro_params
+// Reference: Mason+TODO
 
     double b, d, tau, sig, c, h2, h2_X, h2_A, h2_B, h2_C;
 
@@ -4385,7 +4384,7 @@ double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd){
     sig = 0.2;
     c = -20;
 
-    // WDM-like, P(k) turns over)
+    // WDM-like, P(k) turns over
     if (astro_params_sfrd->h_PEAK==0){
         h2 = 0.;
     }

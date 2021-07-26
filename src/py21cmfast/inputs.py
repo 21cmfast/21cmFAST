@@ -629,7 +629,7 @@ class FlagOptions(StructWithDefaults):
         1. gaussian
         2. smooth-k (also includes sharp-k)
     USE_ETHOS: bool, optional
-        Whether to include ETHOS DM models, if true it forces FILTER to be smooth-k (2).
+        Whether to include ETHOS DM models, if true it forces FILTER to be smooth-k (2). See Mason+TODO
     """
 
     _ffi = ffi
