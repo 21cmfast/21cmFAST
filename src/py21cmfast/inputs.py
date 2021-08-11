@@ -326,10 +326,16 @@ class GlobalParams(StructInstanceWrapper):
 
         for k, val in kwargs.items():
             if k.upper() not in this_attr_upper:
-                raise ValueError(f"{k} is not a valid parameter of global_params")
-            key = this_attr_upper[k.upper()]
-            prev[key] = getattr(self, key)
-            setattr(self, key, val)
+                # Workaround for old lightcones which have SECOND_ORDER_LPT_CORRECTIONS not USE_2LPT
+                if k == "SECOND_ORDER_LPT_CORRECTIONS":
+                    pass
+                else:
+                    raise ValueError(f"{k} is not a valid parameter of global_params")
+
+            else:
+                key = this_attr_upper[k.upper()]
+                prev[key] = getattr(self, key)
+                setattr(self, key, val)
 
         yield
 
