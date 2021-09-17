@@ -3879,7 +3879,7 @@ void determine_deltaz_for_photoncons() {
             // Try and find a point which can be used to smooth out any dip in delta z as a function of neutral fraction.
             // It can be flat, then drop, then increase. This smooths over this drop (removes a kink in the resultant reionisation history).
             // Choice of 75 is somewhat arbitrary
-            while(val2 < val1 && (counter < 75 || (1+(i+1)+counter) > (N_NFsamples+N_extrapolated))) {
+			while(val2 < val1 && counter < 75 && ((1+(i+1)+counter) < (N_NFsamples+N_extrapolated))) {
                 counter += 1;
                 if ((i+counter) > (N_NFsamples+N_extrapolated)){
                     LOG_ERROR("Stepping over! i=%d; counter=%d; N_NFsamples=%d; N_extrapolated=%d.", i, counter,N_NFsamples, N_extrapolated);
