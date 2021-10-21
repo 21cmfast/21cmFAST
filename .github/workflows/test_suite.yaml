@@ -21,7 +21,6 @@ jobs:
       PYTHON: ${{ matrix.python-version }}
       OS: ${{ matrix.os }}
     name: Testing
-    #    needs: [linter]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -42,7 +41,7 @@ jobs:
           # auto-update-conda: true
           miniconda-version: "latest"
           python-version: ${{ matrix.python-version }}
-          environment-file: ci/test-env.yml
+          environment-file: ci/{{ matrix.os }}-env.yml
           activate-environment: tests
           channel-priority: strict
           use-only-tar-bz2: true
@@ -80,13 +79,6 @@ jobs:
         run: |
           sudo apt-get install libfftw3-dev
           sudo apt-get install libgsl0-dev
-
-      - name: Get C Libraries MacOSX
-        if: matrix.os == 'macos-latest'
-        run: |
-          conda install gsl
-          conda install -c conda-forge fftw
-          conda install -c conda-forge/label/cf201901 gcc
 
       - name: Install 21cmFAST Linux
         if: matrix.os == 'ubuntu-latest'
