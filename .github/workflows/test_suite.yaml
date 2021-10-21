@@ -41,7 +41,7 @@ jobs:
           # auto-update-conda: true
           miniconda-version: "latest"
           python-version: ${{ matrix.python-version }}
-          environment-file: ci/{{ matrix.os }}-env.yml
+          environment-file: ci/${{ matrix.os }}-env.yml
           activate-environment: tests
           channel-priority: strict
           use-only-tar-bz2: true
