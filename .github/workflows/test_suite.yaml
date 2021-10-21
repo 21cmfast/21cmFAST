@@ -20,6 +20,7 @@ jobs:
       ENV_NAME: tests
       PYTHON: ${{ matrix.python-version }}
       OS: ${{ matrix.os }}
+      CC: gcc
     name: Testing
     runs-on: ${{ matrix.os }}
     strategy:
