@@ -44,7 +44,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           environment-file: ci/test-env.yaml
           activate-environment: tests
-          channels: conda-forge,defaults
           channel-priority: strict
           use-only-tar-bz2: true
 
@@ -52,10 +51,9 @@ jobs:
         run: |
           conda info -a
           conda list
-          PYVER=`python -c "import sys; print('{:d}.{:d}'.format(sys.version_info.major, sys.version_info.minor))"`
-          if [[ $PYVER != $PYTHON ]]; then
-            exit 1;
-          fi
+          conda config --show-sources
+          conda config --show
+          printenv | sort
 
       - name: Logging
         run: |
@@ -86,8 +84,6 @@ jobs:
       - name: Get C Libraries MacOSX
         if: matrix.os == 'macos-latest'
         run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate $ENV_NAME
           conda install gsl
           conda install -c conda-forge fftw
           conda install -c conda-forge/label/cf201901 gcc
@@ -95,26 +91,21 @@ jobs:
       - name: Install 21cmFAST Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate $ENV_NAME
           LOG_LEVEL=${{ env.log_level }} pip install .
 
       - name: Install 21cmFAST MacOS
         if: matrix.os == 'macos-latest'
         run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate $ENV_NAME
           LOG_LEVEL=${{ env.log_level }} CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
 
       - name: Run Tests
         run: |
-          export PATH="$HOME/miniconda/bin:$PATH"
-          source activate $ENV_NAME
           python -m pytest -l --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 ${{ env.extra_pytest_args }}
 
-      - uses: codecov/codecov-action@v1.5.2
+      - uses: codecov/codecov-action@v2
         if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
         with:
-          file: ./coverage.xml # optional
           fail_ci_if_error: true
           verbose: true
+
+# CC=$HOME/miniconda/envs/$ENV_NAME/bin/gcc
