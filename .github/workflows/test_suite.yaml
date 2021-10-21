@@ -91,7 +91,7 @@ jobs:
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
           source activate $ENV_NAME
-          LOG_LEVEL=${{ env.log_level }} CC=$HOME/miniconda/envs/$ENV_NAME/gcc CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+          LOG_LEVEL=${{ env.log_level }} CC=$HOME/miniconda/envs/$ENV_NAME/bin/gcc CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
       - name: Run Tests
         run: |
           export PATH="$HOME/miniconda/bin:$PATH"
