@@ -1,5 +1,4 @@
 channels:
-  - conda-forge/label/cf201901
   - conda-forge
   - defaults
 dependencies:
@@ -17,7 +16,7 @@ dependencies:
   - pip
   - gsl
   - fftw
-  - gcc
+  - conda-forge/label/cf201901::gcc
   - pip:
     - powerbox
     - cached_property
