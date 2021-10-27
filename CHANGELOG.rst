@@ -17,6 +17,7 @@ Change
 
 * Updated ``USE_INTERPOLATION_TABLES`` to be default True. This makes much more sense as
   a default value. Until v4, a warning will be raised if it is not set explicitly.
+* Fixed ``FAST_FCOLL_TABLES`` so it only affects MCGs and not ACGs. Added tests of this flag for high and low z separately.
 
 v3.1.1 [13 Jun 2021]
 ----------------------
