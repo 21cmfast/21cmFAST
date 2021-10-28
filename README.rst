@@ -171,3 +171,9 @@ Mass-dependent ionizing efficiency:
     “Inferring the astrophysics of reionization and cosmic dawn from galaxy luminosity
     functions and the 21-cm signal”, Monthly Notices of the Royal Astronomical Society,
     vol. 484, no. 1, pp. 933–949, 2019. https://doi.org/10.1093/mnras/stz032.
+
+DM-Baryon Acoustic Oscillations:
+
+    Julian B. Muñoz, Yuxiang Qin, Andrei Mesinger, Steven G. Murray, Bradley Greig and Charlotte Mason
+    "The Impact of the First Galaxies on Cosmic Dawn and Reionization",
+    http://arxiv.org/abs/2110.13919
