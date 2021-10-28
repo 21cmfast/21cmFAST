@@ -4,6 +4,9 @@ Changelog
 dev-version
 -----------
 
+v3.1.3 [27 Oct 2021]
+----------------------
+
 * Fixed ``FAST_FCOLL_TABLES`` so it only affects MCGs and not ACGs. Added tests of this
   flag for high and low z separately.
 
