@@ -160,10 +160,16 @@ these features, please cite the relevant papers.
 
 Mini-halos:
 
+    Muñoz, J.B., Qin, Y., Mesinger, A., Murray, S., Greig, B., and Mason, C.,
+    "The Impact of the First Galaxies on Cosmic Dawn and Reionization"
+    https://arxiv.org/abs/2110.13919
+    (for DM-baryon relative velocities)
+
     Qin, Y., Mesinger, A., Park, J., Greig, B., and Muñoz, J. B.,
     “A tale of two sites - I. Inferring the properties of minihalo-hosted galaxies from
     current observations”, Monthly Notices of the Royal Astronomical Society, vol. 495,
     no. 1, pp. 123–140, 2020. https://doi.org/10.1093/mnras/staa1131.
+    (for Lyman-Werner and first implementation)
 
 Mass-dependent ionizing efficiency:
 
