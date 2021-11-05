@@ -70,6 +70,12 @@ On older versions then you need to do::
 
     open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_<input version>.pkg
 
+.. note:: some versions of MacOS will also require you to point to the correct gcc
+          compiler using the ``CC`` environment variable. Overall, the point is to NOT
+          use ``clang``. If ``gcc --version`` shows that it is actually GCC, then you
+          can set ``CC=gcc``. If you use homebrew to install ``gcc``, it is likely that
+          you'll have to set ``CC=gcc-11``.
+
 For newer versions, you may need to prepend the following command to your ``pip install`` command
 when installing ``21cmFAST`` (see later instructions)::
 
@@ -129,6 +135,11 @@ the C-library in dev mode (so you can do stuff like valgrid and gdb with it),
 install with DEBUG=True. So for example::
 
     CC=/usr/bin/gcc DEBUG=True GSL_LIB=/opt/local/lib FFTW_INC=/usr/local/include pip install -e .
+
+.. note:: For MacOS a typical installation command will look like
+          ``CC=gcc CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX<input version>.sdk" pip install .``
+          (using either ``gcc`` or ``gcc-11`` depending on how you installed gcc), with
+          other compile options possible as well.
 
 In addition, the ``BOXDIR`` variable specifies the *default* directory that any
 data produced by 21cmFAST will be cached. This value can be updated at any time by
