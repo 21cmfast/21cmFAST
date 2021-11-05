@@ -205,8 +205,12 @@ OPTIONS = {
             "USE_INTERPOLATION_TABLES": False,
         },
     ],
-    "fast_fcoll": [
-        12.1,
+    "fast_fcoll_hiz": [
+        18,
+        {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True},
+    ],
+    "fast_fcoll_lowz": [
+        8,
         {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True},
     ],
     "relvel": [
