@@ -36,6 +36,11 @@ sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 # requiring it to be installed.
 out = subprocess.run(["python", "setup.py", "--version"], capture_output=True)
 
+try:
+    from py21cmfast import cache_tools
+except ImportError:
+    raise 
+    
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
