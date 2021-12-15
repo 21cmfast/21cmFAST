@@ -627,6 +627,9 @@ class FlagOptions(StructWithDefaults):
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
     USE_VELS_AUX: bool, optional
         Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain
+    HALO_STOCHASTICITY: bool, optional
+        Sample the Conditional Halo Mass Function and sum over the sample instead of integrating it.
+        This allows us to include stochasticity in other properties
     """
 
     _ffi = ffi
@@ -641,6 +644,7 @@ class FlagOptions(StructWithDefaults):
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
         "FIX_VCB_AVG": False,
+        "HALO_STOCHASTICITY": False,
     }
 
     # This checks if relative velocities are off to complain if minihaloes are on
@@ -764,6 +768,9 @@ class AstroParams(StructWithDefaults):
     ALPHA_STAR_MINI : float, optional
         Power-law index of fraction of galactic gas in stars as a function of halo mass, for MCGs.
         See Sec 2 of Muñoz+21 (2110.13919).
+    SIGMA_STAR : float, optional
+        Lognormal scatter in of the halo mass to stellar mass relation.
+        Uniform across all bins and redshifts.
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
         IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization,
@@ -831,6 +838,7 @@ class AstroParams(StructWithDefaults):
         "F_STAR7_MINI": -2.0,
         "ALPHA_STAR": 0.5,
         "ALPHA_STAR_MINI": 0.5,
+        "SIGMA_STAR": 0.0,
         "F_ESC10": -1.0,
         "F_ESC7_MINI": -2.0,
         "ALPHA_ESC": -0.5,

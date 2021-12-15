@@ -42,6 +42,7 @@ struct AstroParams{
     float F_STAR10;
     float ALPHA_STAR;
     float ALPHA_STAR_MINI;
+    float SIGMA_STAR;
     float F_ESC10;
     float ALPHA_ESC;
     float M_TURN;
@@ -78,6 +79,7 @@ struct FlagOptions{
     bool M_MIN_in_Mass;
     bool PHOTON_CONS;
     bool FIX_VCB_AVG;
+    bool HALO_STOCHASTICITY;
 };
 
 
@@ -201,3 +203,6 @@ int FunctionThatCatches(bool sub_func, bool pass, double* result);
 void FunctionThatThrows();
 int init_heat();
 void free(void *ptr);
+
+//need a python visible function to test lower level functions using the package
+int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int seed, double M, double delta, double R, double z, int type, double *result);
