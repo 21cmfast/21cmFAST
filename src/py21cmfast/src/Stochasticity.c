@@ -132,7 +132,50 @@ double EvaluatedNdMSpline(double growthf, double M1, double M2, double delta, do
     return IntegratedNdM(growthf, log(M1), log(M2), delta, n_order);
 }
 
-//single sample of the halo mass function
+//ERFC inverse approximation taken from https://stackoverflow.com/questions/27229371/inverse-error-function-in-c/40260471
+//based on approach from M.Giles https://people.maths.ox.ac.uk/gilesm/files/gems_erfinv.pdf
+//erfc-1(1-x) = erf-1(x), the approach on stackoverflow uses fmaf(xyz), which may be faster depending on hardware
+float erf_inverse(float y){
+    float p, x, t;
+    t = y * (0.0f - y) + 1.0f;
+    t = log(t);
+    if (fabsf(t) > 6.125f) { // maximum ulp error = 2.35793
+        p =          3.03697567e-10f; //  0x1.4deb44p-32 
+        p = (p * t + 2.93243101e-8f); //  0x1.f7c9aep-26 
+        p = (p * t + 1.22150334e-6f); //  0x1.47e512p-20 
+        p = (p * t + 2.84108955e-5f); //  0x1.dca7dep-16 
+        p = (p * t + 3.93552968e-4f); //  0x1.9cab92p-12 
+        p = (p * t + 3.02698812e-3f); //  0x1.8cc0dep-9 
+        p = (p * t + 4.83185798e-3f); //  0x1.3ca920p-8 
+        p = (p * t - 2.64646143e-1f); // -0x1.0eff66p-2 
+        p = (p * t + 8.40016484e-1f); //  0x1.ae16a4p-1 
+    } else { // maximum ulp error = 2.35002
+        p =          5.43877832e-9f;  //  0x1.75c000p-28 
+        p = (p * t + 1.43285448e-7f); //  0x1.33b402p-23 
+        p = (p * t + 1.22774793e-6f); //  0x1.499232p-20 
+        p = (p * t + 1.12963626e-7f); //  0x1.e52cd2p-24 
+        p = (p * t - 5.61530760e-5f); // -0x1.d70bd0p-15 
+        p = (p * t - 1.47697632e-4f); // -0x1.35be90p-13 
+        p = (p * t + 2.31468678e-3f); //  0x1.2f6400p-9 
+        p = (p * t + 1.15392581e-2f); //  0x1.7a1e50p-7 
+        p = (p * t - 2.32015476e-1f); // -0x1.db2aeep-3 
+        p = (p * t + 8.86226892e-1f); //  0x1.c5bf88p-1 
+    }
+    x = y * p;
+    return x;
+}
+
+//single sample of the HMF from inverse CDF method
+int sample_dndM_inverse(double growthf, double delta, double Mmin, double Mmax, double ymin, double ymax, double sigma, double *result){
+    double y1, fcoll_x,sigma;
+
+    y1 = gsl_rng_uniform(rng_stoc);
+    fcoll_x = erf_inverse(1.0f-y1);
+
+
+}
+
+//single sample of the halo mass function using rejection method
 int sample_dndM_rejection(double growthf, double delta, double Mmin, double Mmax, double ymin, double ymax, double sigma, double *result){
     double x1,y1, MassFunction;
     int c=0;
@@ -463,11 +506,6 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 
     //gsl_rng_set(rseed, random_seed);
 
-    /*writeUserParams(user_params_stoc);
-    writeAstroParams(flag_options_stoc,astro_params_stoc);
-    writeCosmoParams(cosmo_params_stoc);
-    writeFlagOptions(flag_options_stoc);*/
-
     double test;
     double n_order = 0.;
     int err=0;
@@ -495,8 +533,6 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         .M_max = log(Mmax),
         .sigma_max = sigma_max,
     };
-
-    //LOG_DEBUG("test integral from %e to %e = %e",Mmin,Mmax,test);
 
     if(type==0){
         //unconditional PS mass func
@@ -569,22 +605,26 @@ int build_halo_grids(struct UserParams *user_params, struct CosmoParams *cosmo_p
     double Mmax_meandens = RtoM(Rmax);
     double Mmax;
 
-    int x,y,z;
-    for (x=0; x<user_params->HII_DIM; x++){
-        for (y=0; y<user_params->HII_DIM; y++){
-            for (z=0; z<user_params->HII_DIM; z++){
-            
-            curr_dens = dens_field[HII_R_INDEX(x,y,z)];
+#pragma omp parallel shared(dens_field,nh_field,hm_field,sm_field,volume,Mmin,z) private(i,j,k,Mmax,curr_dens,nh_buf,hm_buf,sm_buf) num_threads(user_params->N_THREADS)
+    {
+#pragma omp for
+        int x,y,z;
+        for (x=0; x<user_params->HII_DIM; x++){
+            for (y=0; y<user_params->HII_DIM; y++){
+                for (z=0; z<user_params->HII_DIM; z++){
+                
+                curr_dens = dens_field[HII_R_INDEX(x,y,z)];
 
-            //adjust max mass scale
-            Mmax = Mmax_meandens * (1+curr_dens);
+                //adjust max mass scale
+                Mmax = Mmax_meandens * (1+curr_dens);
 
-            stoc_halo_cell(z,curr_dens,volume,Mmin,Mmax,&nh_buf,&hm_buf,&sm_buf);
+                stoc_halo_cell(z,curr_dens,volume,Mmin,Mmax,&nh_buf,&hm_buf,&sm_buf);
 
-            nh_field[HII_R_INDEX(x,y,z)] = nh_buf;
-            hm_field[HII_R_INDEX(x,y,z)] = hm_buf;
-            sm_field[HII_R_INDEX(x,y,z)] = sm_buf;
+                nh_field[HII_R_INDEX(x,y,z)] = nh_buf;
+                hm_field[HII_R_INDEX(x,y,z)] = hm_buf;
+                sm_field[HII_R_INDEX(x,y,z)] = sm_buf;
 
+                }
             }
         }
     }
