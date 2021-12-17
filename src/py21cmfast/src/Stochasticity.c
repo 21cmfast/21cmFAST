@@ -165,14 +165,70 @@ float erf_inverse(float y){
     return x;
 }
 
-//single sample of the HMF from inverse CDF method
-int sample_dndM_inverse(double growthf, double delta, double Mmin, double Mmax, double ymin, double ymax, double sigma, double *result){
-    double y1, fcoll_x,sigma;
+//sigma_z0 but used in the root finder to find M from sigma
+double sigma_z0_rf(double M, void *sigma){
+    int MassBin;
+    float MassBinLow;
+    double val;
+
+    if(user_params_stoc->USE_INTERPOLATION_TABLES){
+        MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
+        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+
+        val = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    }
+    else{
+        val = sigma_z0(M);
+    }
+    return val - *(double*)sigma;
+}
+
+//single sample of the HMF from inverse CDF method WIP
+int sample_dndM_inverse(double growthf, double delta, double Mmin, double Mmax, double ymin, double ymax, double sigma2, double *result){
+    double y1, fcoll_x, sigma_M;
 
     y1 = gsl_rng_uniform(rng_stoc);
-    fcoll_x = erf_inverse(1.0f-y1);
+    fcoll_x = (double)erf_inverse(1.0f-y1);
 
+    sigma_M = sqrt(1/2*(delta-Deltac)*(delta-Deltac)/fcoll_x/fcoll_x + sigma2*sigma2);
 
+    //find M from sigma(M) using gsl root finder
+    //dummy params for the root finder
+    //TODO: consider using the "polishing" algorithms which require dF, but are faster.
+
+    gsl_root_fsolver_type *T = gsl_root_fsolver_bisection;
+    gsl_root_fsolver *s = gsl_root_fsolver_alloc(T);
+    double x_lo = Mmin;
+    double x_hi = Mmax;
+    double r;
+    int status;
+
+    gsl_function F;
+    F.function = sigma_z0_rf;
+    F.params = &sigma_M;
+
+    int iter = 0;
+    do
+    {
+      iter++;
+      status = gsl_root_fsolver_iterate(s);
+      r = gsl_root_fsolver_root(s);
+      x_lo = gsl_root_fsolver_x_lower(s);
+      x_hi = gsl_root_fsolver_x_upper(s);
+      status = gsl_root_test_interval(x_lo, x_hi, 0, 0.001);
+    }
+    while (status == GSL_CONTINUE && iter < MAX_ITERATIONS);
+
+    if(status != GSL_SUCCESS){
+        LOG_ERROR("root finder failed to converge %d",status);
+        return 1;
+    }
+
+    gsl_root_fsolver_free(s);
+
+    *result = r;
+
+    return 0;
 }
 
 //single sample of the halo mass function using rejection method
@@ -212,7 +268,7 @@ int sample_dndM_rejection(double growthf, double delta, double Mmin, double Mmax
 
 /* Calculates the stochasticity of halo properties by sampling the halo mass function and 
  * conditional property PDFs, summing the resulting halo properties within a cell */
-int stoc_halo_cell(double z, double delta, double volume, double M1, double M2,double *n_halo_out, double *hm_out, double *sm_out){
+int stoc_halo_cell(double z, double delta, double volume, double M1, double M2, int sampler, double *n_halo_out, double *hm_out, double *sm_out){
     int n_halo,err;
     double nh_buf,mu_lognorm;
 
@@ -236,13 +292,7 @@ int stoc_halo_cell(double z, double delta, double volume, double M1, double M2,d
     nh_buf *= volume;
 
     //sample poisson for stochastic halo number
-    if(flag_options_stoc->HALO_STOCHASTICITY){
-        n_halo = gsl_ran_poisson(rng_stoc,nh_buf);
-    }
-    //otherwise floor (I don't think the rounding method will matter...)
-    else{
-        n_halo = (int)nh_buf;
-    }
+    n_halo = gsl_ran_poisson(rng_stoc,nh_buf);
     
     *n_halo_out = n_halo;
 
@@ -257,13 +307,20 @@ int stoc_halo_cell(double z, double delta, double volume, double M1, double M2,d
     ymax = dNdM_conditional(growthf,log(M1),log(M2),Deltac,delta,sigma_max);
     //ymax = ymax * (RHOcrit * (1+delta) * sqrt(2/PI) / 2 * growthf * cosmo_params_stoc->OMm);
 
-    for(int ii=0;ii<n_halo;ii++){
+    int ii;
+    for(ii=0;ii<n_halo;ii++){
         //sample from the cHMF
         /* TODO: figure out the best method for this
          * either build an x = iCDF(delta,M) table and interpolate
          * or use rejection sampling on the existing mass function table */
+        if (sampler==1){
+            err = sample_dndM_rejection(growthf,delta,log(M1),log(M2),ymin,ymax,sigma_max,&hm_sample);
         
-        err = sample_dndM_rejection(growthf,delta,log(M1),log(M2),ymin,ymax,sigma_max,&hm_sample);
+        }
+        else if(sampler==2){
+            err = sample_dndM_inverse(growthf,delta,log(M1),log(M2),ymin,ymax,sigma_max,&hm_sample);
+        }
+        else return 1;
         if(err!=0){
             return 1;
         }
@@ -315,13 +372,7 @@ int stoc_halo_cat(double z, double delta, double volume, double M1, double M2, i
     nh_buf *= volume;
 
     //sample poisson for stochastic halo number
-    if(flag_options_stoc->HALO_STOCHASTICITY){
-        n_halo = gsl_ran_poisson(rng_stoc,nh_buf);
-    }
-    //otherwise floor (I don't think the rounding method will matter...)
-    else{
-        n_halo = (int)nh_buf;
-    }
+    n_halo = gsl_ran_poisson(rng_stoc,nh_buf);
 
     *n_halo_out = n_halo;
 
@@ -345,8 +396,9 @@ int stoc_halo_cat(double z, double delta, double volume, double M1, double M2, i
     //LOG_DEBUG("adjusted ymax = %.3e",ymax*(RHOcrit * (1+delta) * sqrt(2/PI) / 2 * growthf * cosmo_params_stoc->OMm));
     
     //LOG_DEBUG("Mmax = %.3e | delta = %.3e | nhalo = %d",M2,delta,n_halo);
-    
-    for(int ii=0;ii<n_halo;ii++){
+
+    int ii;
+    for(ii=0;ii<n_halo;ii++){
         //sample from the HMF
         /* TODO: figure out the best method for this
          * either build an x = iCDF(delta,M) table and interpolate
@@ -387,7 +439,10 @@ int stoc_halo_cat(double z, double delta, double volume, double M1, double M2, i
 /* The hope here is that we can evaluate the integrals over everything apart from dNdM analytically,
  * Which we can in the case of power-law scalings and lognormal scatter 
  * this also assumes that the number of halos in each cell (or region) is large
- * I'll look into this apporach more if sampling directly is too slow*/
+ * I'll look into this apporach more if sampling directly is too slow 
+ * WARNING: I've stopped working on this for now since it would de-correlate halo properties, i.e 
+ * if a cell has halo mas above mean it doesn't make it more likely that the stellar mass is below mean 
+ * I can either find a way to correlate them or only use this when we need one property (seems rare)*/
 /* Each integral of variance then has three components:
  * 1: product of constants from each power law
  * 2: product of scatter terms from each (lognormal) distribution
@@ -439,18 +494,20 @@ double stoc_constants(int type,double n_order){
 /* more approximate method where we assume the number of halos per cell is large enough such that
  * the PDF of summed properties (eg: emissivity in a cell) will be gaussian, we find the variance
  * of the desired quantities and sample these per cell, adding to the interpolation table quantities */
-double halo_stoc_variance(double growthf, double M1, double M2, double delta, double n_order, double volume){
+double stoc_halo_variance(double z, double delta, double volume, double M1, double M2, double *out){
     double var_mstar, cell_mstar;
 
     /* the expectation of x^2 has an outer integral over M_h and an inner (or few)
      * over (probably lognormal) distributions, The inner integrals are 
-     * calculated analytically and we can use the interpolation tables can be used
+     * calculated analytically and we can use the interpolation tables
      * for the outer */
 
     //The halomass independent part of second moment of a lognormal distribution
     double moment_Mstar_0;
     double moment_Mstar_1;
     double moment_Mstar_2;
+
+    double growthf = dicke(z);
 
     //get the moments
     /* As we add more sources of stochasticity, we will likely also need higher order
@@ -469,14 +526,8 @@ double halo_stoc_variance(double growthf, double M1, double M2, double delta, do
     }
 
     //Poisson noise in halo number
-    if(flag_options_stoc->HALO_STOCHASTICITY){
-        var_mstar = volume * delta * moment_Mstar_0 * moment_Mstar_2;
-    }
-    //no Poisson noise
-    else{
-        var_mstar = volume * delta * moment_Mstar_0 * (moment_Mstar_2 - moment_Mstar_1*moment_Mstar_1);
-    }
-
+    var_mstar = volume * (1+delta) * moment_Mstar_0 * moment_Mstar_2;
+    
     //draw a sample
     double var_sample;
     var_sample = gsl_ran_gaussian(rng_stoc,sqrt(var_mstar));
@@ -570,7 +621,14 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
     else if(type==4){
         //sample mass func but only output sums in cell 
         double n_halo,out_hm,out_sm;
-        err = stoc_halo_cell(z,delta,volume,Mmin,Mmax,&n_halo,&out_hm,&out_sm);
+        int sampler;
+        if(M>0){
+            sampler == 1;
+        }
+        else{
+            sampler == 2;
+        }
+        err = stoc_halo_cell(z,delta,volume,Mmin,Mmax,sampler,&n_halo,&out_hm,&out_sm);
         result[0] = n_halo;
         result[1] = out_hm;
         result[2] = out_sm;
@@ -605,10 +663,11 @@ int build_halo_grids(struct UserParams *user_params, struct CosmoParams *cosmo_p
     double Mmax_meandens = RtoM(Rmax);
     double Mmax;
 
-#pragma omp parallel shared(dens_field,nh_field,hm_field,sm_field,volume,Mmin,z) private(i,j,k,Mmax,curr_dens,nh_buf,hm_buf,sm_buf) num_threads(user_params->N_THREADS)
+    int x,y,z;
+
+#pragma omp parallel shared(dens_field,nh_field,hm_field,sm_field,volume,Mmin,redshift) private(x,y,z,Mmax,curr_dens,nh_buf,hm_buf,sm_buf) num_threads(user_params->N_THREADS)
     {
 #pragma omp for
-        int x,y,z;
         for (x=0; x<user_params->HII_DIM; x++){
             for (y=0; y<user_params->HII_DIM; y++){
                 for (z=0; z<user_params->HII_DIM; z++){
@@ -618,12 +677,11 @@ int build_halo_grids(struct UserParams *user_params, struct CosmoParams *cosmo_p
                 //adjust max mass scale
                 Mmax = Mmax_meandens * (1+curr_dens);
 
-                stoc_halo_cell(z,curr_dens,volume,Mmin,Mmax,&nh_buf,&hm_buf,&sm_buf);
+                stoc_halo_cell(redshift,curr_dens,volume,Mmin,Mmax,2,&nh_buf,&hm_buf,&sm_buf);
 
                 nh_field[HII_R_INDEX(x,y,z)] = nh_buf;
                 hm_field[HII_R_INDEX(x,y,z)] = hm_buf;
                 sm_field[HII_R_INDEX(x,y,z)] = sm_buf;
-
                 }
             }
         }
