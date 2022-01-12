@@ -188,12 +188,12 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                     }
                 }
             }
-            // *****************  END OPTIMIZATION ************ll -l***** //
+            // *****************  END OPTIMIZATION ***************** //
 
             // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
             dn=0;
             
-#pragma omp parallel shared(boxes,density_field) private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(boxes,density_field,in_halo,forbidden,halo_field) private(i,j,k) num_threads(user_params->N_THREADS) reduction(+: dn,n,total_halo_num)
             {
 #pragma omp for
                 for (x=0; x<user_params->DIM; x++){
@@ -273,7 +273,7 @@ LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.")
         // reuse counter as its no longer needed
         counter = 0;
 
-#pragma omp parallel shared(halos,halo_masses,halo_coords,halo_field) private(x,y,z) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(halos,halo_field) private(x,y,z) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
             for (x=0; x<user_params->DIM; x++){
@@ -380,6 +380,8 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
                     if (!in_halo[R_INDEX(x_index, y_index, z_index)]){
                         if(pixel_in_halo(user_params,x,x_index,y,y_index,z,z_index,Rsq_curr_index)) {
                             // we are within the sphere defined by R, so change flag in in_halo array
+//does the race condition matter here? if any thread marks the pixel it should be 1
+#pragma omp atomic write
                             in_halo[R_INDEX(x_index, y_index, z_index)] = 1;
                         }
                     }
