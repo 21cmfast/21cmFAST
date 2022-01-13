@@ -193,7 +193,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
             dn=0;
             
-#pragma omp parallel shared(boxes,density_field,in_halo,forbidden,halo_field) private(i,j,k) num_threads(user_params->N_THREADS) reduction(+: dn,n,total_halo_num)
+#pragma omp parallel shared(boxes,density_field,in_halo,forbidden,halo_field,growth_factor,M,delta_crit) private(x,y,z,delta_m) num_threads(user_params->N_THREADS) reduction(+: dn,n,total_halo_num)
             {
 #pragma omp for
                 for (x=0; x<user_params->DIM; x++){
@@ -235,7 +235,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                 }
             }
 
-LOG_ULTRA_DEBUG("n_halo = %d, total = %d", dn, n);
+LOG_ULTRA_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", dn, n, growth_factor, delta_crit);
 
             if (dn > 0){
                 // now lets keep the mass functions (FgrtR)
@@ -273,9 +273,10 @@ LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.")
         // reuse counter as its no longer needed
         counter = 0;
 
-#pragma omp parallel shared(halos,halo_field) private(x,y,z) num_threads(user_params->N_THREADS)
+//TODO: find a way to parallelise this loop
+//#pragma omp parallel shared(halos,halo_field) private(x,y,z) num_threads(user_params->N_THREADS)
         {
-#pragma omp for
+//#pragma omp for
             for (x=0; x<user_params->DIM; x++){
                 for (y=0; y<user_params->DIM; y++){
                     for (z=0; z<user_params->DIM; z++){
