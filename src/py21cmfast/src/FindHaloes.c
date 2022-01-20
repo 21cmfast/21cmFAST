@@ -193,13 +193,18 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
             dn=0;
             
+//TODO: Fix the race condition: it doesn't matter which thread finds the halo first, but if two threads find a halo in the same region
+//simultaneously (before the first one updates in_halo) some halos could double-up
+//putting the conditional in a critical part would undo most of the threading benefit, think of something else
+//checking for overlaps in new halos after this loop could work
 #pragma omp parallel shared(boxes,density_field,in_halo,forbidden,halo_field,growth_factor,M,delta_crit) private(x,y,z,delta_m) num_threads(user_params->N_THREADS) reduction(+: dn,n,total_halo_num)
             {
 #pragma omp for
                 for (x=0; x<user_params->DIM; x++){
                     for (y=0; y<user_params->DIM; y++){
                         for (z=0; z<user_params->DIM; z++){
-                            delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / VOLUME;       // don't forget the factor of 1/VOLUME!
+                            delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / TOT_NUM_PIXELS;       // FFT and iFFT leaves 1/N factor!
+
                             // if not within a larger halo, and radii don't overlap, update in_halo box
                             // *****************  BEGIN OPTIMIZATION ***************** //
                             if(global_params.OPTIMIZE) {

@@ -205,4 +205,4 @@ int init_heat();
 void free(void *ptr);
 
 //need a python visible function to test lower level functions using the package
-int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int seed, double M, double delta, double R, double z, int type, double *result);
+int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int seed, double M, double delta, double R, double z, int type, int nbins, double *result);
