@@ -1,4 +1,6 @@
 """Simple plotting functions for 21cmFAST objects."""
+from __future__ import annotations
+
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as un
@@ -113,9 +115,9 @@ def _imshow_slice(
 
 
 def coeval_sliceplot(
-    struct: Union[outputs._OutputStruct, Coeval],
-    kind: Optional[str] = None,
-    cbar_label: Optional[str] = None,
+    struct: outputs._OutputStruct | Coeval,
+    kind: str | None = None,
+    cbar_label: str | None = None,
     **kwargs,
 ):
     """
@@ -202,12 +204,12 @@ def lightcone_sliceplot(
     kind: str = "brightness_temp",
     lightcone2: LightCone = None,
     vertical: bool = False,
-    xlabel: Optional[str] = None,
-    ylabel: Optional[str] = None,
-    cbar_label: Optional[str] = None,
+    xlabel: str | None = None,
+    ylabel: str | None = None,
+    cbar_label: str | None = None,
     zticks: str = "redshift",
-    fig: Optional[plt.Figure] = None,
-    ax: Optional[plt.Axes] = None,
+    fig: plt.Figure | None = None,
+    ax: plt.Axes | None = None,
     **kwargs,
 ):
     """Create a 2D plot of a slice through a lightcone.
@@ -392,11 +394,11 @@ def _set_zaxis_ticks(ax, lightcone, zticks, z_axis):
 
 
 def plot_global_history(
-    lightcone: [LightCone],
-    kind: [str, None] = None,
-    ylabel: [str, None] = None,
-    ylog: [bool] = False,
-    ax: [plt.Axes, None] = None,
+    lightcone: LightCone,
+    kind: str | None = None,
+    ylabel: str | None = None,
+    ylog: bool = False,
+    ax: plt.Axes | None = None,
 ):
     """
     Plot the global history of a given quantity from a lightcone.
