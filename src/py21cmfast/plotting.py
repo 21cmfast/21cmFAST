@@ -97,8 +97,10 @@ def _imshow_slice(
         imshow_kw["vmin"] = -150
         imshow_kw["vmax"] = 30
 
-    norm_kw = {k: imshow_kw.pop(k) for k in ['vmin', 'vmax'] if k in imshow_kw}
-    norm = imshow_kw.get("norm", colors.LogNorm(**norm_kw) if log else colors.Normalize(**norm_kw))
+    norm_kw = {k: imshow_kw.pop(k) for k in ["vmin", "vmax"] if k in imshow_kw}
+    norm = imshow_kw.get(
+        "norm", colors.LogNorm(**norm_kw) if log else colors.Normalize(**norm_kw)
+    )
     plt.imshow(slc, origin="lower", cmap=cmap, norm=norm, **imshow_kw)
 
     if cbar:
