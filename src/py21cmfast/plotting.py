@@ -5,7 +5,7 @@ from astropy import units as un
 from astropy.cosmology import z_at_value
 from matplotlib import colors
 from matplotlib.ticker import AutoLocator
-from typing import Optional
+from typing import Optional, Union
 
 from . import outputs
 from .outputs import Coeval, LightCone
@@ -97,7 +97,8 @@ def _imshow_slice(
         imshow_kw["vmin"] = -150
         imshow_kw["vmax"] = 30
 
-    norm = imshow_kw.get("norm", colors.LogNorm() if log else colors.Normalize())
+    norm_kw = {k: imshow_kw.pop(k) for k in ['vmin', 'vmax'] if k in imshow_kw}
+    norm = imshow_kw.get("norm", colors.LogNorm(**norm_kw) if log else colors.Normalize(**norm_kw))
     plt.imshow(slc, origin="lower", cmap=cmap, norm=norm, **imshow_kw)
 
     if cbar:
@@ -110,9 +111,9 @@ def _imshow_slice(
 
 
 def coeval_sliceplot(
-    struct: [outputs._OutputStruct, Coeval],
-    kind: [str, None] = None,
-    cbar_label: [str, None] = None,
+    struct: Union[outputs._OutputStruct, Coeval],
+    kind: Optional[str] = None,
+    cbar_label: Optional[str] = None,
     **kwargs,
 ):
     """

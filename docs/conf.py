@@ -27,6 +27,7 @@ MOCK_MODULES = [
     "pyyaml",
     "scipy",
     "scipy.interpolate",
+    "scipy.integrate",
     "h5py",
     "cached_property",
 ]
