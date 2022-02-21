@@ -191,7 +191,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             for (x=0; x<user_params->DIM; x++){
                 for (y=0; y<user_params->DIM; y++){
                     for (z=0; z<user_params->DIM; z++){
-                        delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / VOLUME;       // don't forget the factor of 1/VOLUME!
+                        delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / (float)TOT_NUM_PIXELS;       //since we didn't multiply k-space cube by V/N, we divide by 1/N here
                         // if not within a larger halo, and radii don't overlap, update in_halo box
                         // *****************  BEGIN OPTIMIZATION ***************** //
                         if(global_params.OPTIMIZE) {

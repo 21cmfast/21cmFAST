@@ -4,6 +4,17 @@ Changelog
 dev-version
 -----------
 
+v3.1.4 [10 Feb 2022]
+----------------------
+
+Fixed
+-----
+
+* error in FFT normalization in FindHaloes
+* docs not compiling on RTD due to missing ``scipy.integrate`` mock module
+* Updated matplotlib removed support for setting vmin/vmax and norm. Now passes vmin/vmax
+  to the norm() constructor.
+
 v3.1.3 [27 Oct 2021]
 ----------------------
 
