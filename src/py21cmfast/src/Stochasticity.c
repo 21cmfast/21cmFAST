@@ -2,18 +2,20 @@
  * i.e sampling the halo mass function and
  * other halo relations.*/
 
+//BIG TODO: sort out single/double precision all the way through
+
 //max guesses for rejection sampling
 #define MAX_ITERATIONS 1e5
+
 //max halos in memory for test functions
-#define MAX_HALO (int)1e8
+//buffer size (per cell of arbitrary size) in the sampling function
+//this is big enough for a ~20Mpc mean density cell
+#define MAX_HALO_CELL (int)1e8
 
 struct AstroParams *astro_params_stoc;
 struct CosmoParams *cosmo_params_stoc;
 struct UserParams *user_params_stoc;
 struct FlagOptions *flag_options_stoc;
-
-gsl_rng * rng_stoc; //global rng
-//gsl_rng * rng_stoc[user_params->N_THREADS];
 
 struct parameters_gsl_MF_con_int_{
     double growthf;
@@ -38,7 +40,7 @@ double MnMassfunction(double M, void *param_struct){
     double growthf = params.growthf;
     double delta = params.delta;
     double n_order = params.n_order;
-    double sigma = params.sigma_max; //M2 and sigma2 are degenerate, remove one
+    double sigma2 = params.sigma_max; //M2 and sigma2 are degenerate, remove one
     double M_filter = params.M_max;
 
     if (M_filter < M) return 0.;
@@ -46,7 +48,7 @@ double MnMassfunction(double M, void *param_struct){
     //M1 is the mass of interest, M2 doesn't seem to be used (input as max mass),
     // delta1 is critical, delta2 is current, sigma is sigma(Mmax,z=0)
     //dNdlnM = dfcoll/dM * M / M * constants
-    mf = dNdM_conditional(growthf,M,M_filter,Deltac,delta,sigma);
+    mf = dNdM_conditional(growthf,M,M_filter,Deltac,delta,sigma2);
 
     //norder for expectation values of M^n
     return exp(M * (n_order)) * mf;
@@ -68,6 +70,7 @@ double FcollConditional(double delta1, double delta2, double M1, double M2){
 
 //copied mostly from the Nion functions
 //I might be missing something like this that already exists somewhere in the code
+//TODO: rename since its now an integral of M * dfcoll/dm = dNdM / [(RHOcrit * (1+delta) / sqrt(2.*PI) * cosmo_params_stoc->OMm)]
 double IntegratedNdM(double growthf, double M1, double M2, double M_filter, double delta, double n_order){
     double result, error, lower_limit, upper_limit;
     gsl_function F;
@@ -106,17 +109,9 @@ double IntegratedNdM(double growthf, double M1, double M2, double M_filter, doub
 
     gsl_integration_workspace_free (w);
 
-    //what is this? if the region density is greater than critical then set the result, AFTER the integration?
-    //ask someone about this
-    if(delta > Deltac) {
-        result = 1.;
-        return result;
-    }
-    else {
-        //turn dfcoll to dNdlnm
-        result = result * (RHOcrit * (1+delta) / sqrt(2.*PI) * cosmo_params_stoc->OMm);
-        return result;
-        }
+    //constants for dfcoll -> dNdlnm
+    result = result;
+    return result;
 }
 
 // Calculate the Nth moment of the lognormal distribution, integrated over the halo mass distribution
@@ -184,10 +179,10 @@ double sigma_z0_rf(double M, void *sigma){
 }
 
 //single sample of the HMF from inverse CDF method WIP
-int sample_dndM_inverse(double growthf, double delta, double Mmin, double Mmax, double ymin, double ymax, double sigma2, double *result){
+int sample_dndM_inverse(double growthf, double delta, double Mmin, double Mmax, double ymin, double ymax, double sigma2, gsl_rng * rng, double *result){
     double y1, fcoll_x, sigma_M;
 
-    y1 = gsl_rng_uniform(rng_stoc);
+    y1 = gsl_rng_uniform(rng);
     //erf vs erfc doesn't matter here because 1-U(x) == U(x) for uniform (0,1)
     //also the CDF f(<M) = f(>M) - 1
     fcoll_x = (double)erf_inverse(y1);
@@ -232,8 +227,8 @@ int sample_dndM_inverse(double growthf, double delta, double Mmin, double Mmax, 
         return 1;
     }
 
-    LOG_DEBUG("root M=%.2e (s = %.2e) iter %d | lo=%.2e hi=%.2e",exp(r),sigma_M,iter,x_lo,x_hi);
-    LOG_DEBUG("min=%.2e max=%.2e fcoll_x = %.2e, sample y = %.2e, s2 = %.2e",exp(Mmin),exp(Mmax),fcoll_x,y1,sigma2);
+    LOG_ULTRA_DEBUG("root M=%.2e (s = %.2e) iter %d | lo=%.2e hi=%.2e",exp(r),sigma_M,iter,x_lo,x_hi);
+    LOG_ULTRA_DEBUG("min=%.2e max=%.2e fcoll_x = %.2e, sample y = %.2e, s2 = %.2e",exp(Mmin),exp(Mmax),fcoll_x,y1,sigma2);
 
     gsl_root_fsolver_free(s);
 
@@ -248,7 +243,7 @@ int sample_dndM_inverse(double growthf, double delta, double Mmin, double Mmax, 
 }
 
 //single sample of the halo mass function using rejection method
-int sample_dndM_rejection(double growthf, double delta, double Mmin, double Mmax, double M_filter, double ymin, double ymax, double sigma, double *result){
+int sample_dndM_rejection(double growthf, double delta, double Mmin, double Mmax, double M_filter, double ymin, double ymax, double sigma, gsl_rng * rng, double *result){
     double x1,y1, MassFunction;
     int c=0;
 
@@ -256,8 +251,8 @@ int sample_dndM_rejection(double growthf, double delta, double Mmin, double Mmax
     //inverse CDF sampling is probably better but requires an extra root find that isn't there yet
     while(c < MAX_ITERATIONS){
         //uniform sampling of logM between given limits
-        x1 = Mmin + (Mmax-Mmin)*gsl_rng_uniform(rng_stoc);
-        y1 = ymin + (ymax-ymin)*gsl_rng_uniform(rng_stoc);
+        x1 = Mmin + (Mmax-Mmin)*gsl_rng_uniform(rng);
+        y1 = ymin + (ymax-ymin)*gsl_rng_uniform(rng);
 
         //for halo abundances (dNdlogM) from dfcoll/dM, *M for dlogm and / M for dfcolldN
         MassFunction = dNdM_conditional(growthf,x1,M_filter,Deltac,delta,sigma);
@@ -284,7 +279,13 @@ int sample_dndM_rejection(double growthf, double delta, double Mmin, double Mmax
 
 /* Calculates the stochasticity of halo properties by sampling the halo mass function and 
  * conditional property PDFs, summing the resulting halo properties within a cell */
-int stoc_halo_sample(double z, double delta, double volume, double M_min, double M_max, int nbins, int sampler, int outtype, int *n_halo_out, double *hm_out, double *sm_out){
+int stoc_halo_sample(double z, double delta, double delta_vol, double volume, double M_min, double M_max, int nbins, int sampler, int outtype, gsl_rng * rng, int *n_halo_out, double *hm_out, double *sm_out){
+    //delta check, I could also make this output 1 halo with the mass of the cell for large delta (assuming we aren't getting big haloes from FindHaloes.c)
+    if(delta > Deltac || delta < -1){
+        *n_halo_out = 0;
+        return 1;
+    }
+    
     int err;
     double nh_buf,mu_lognorm;
 
@@ -301,7 +302,7 @@ int stoc_halo_sample(double z, double delta, double volume, double M_min, double
     double hm_min = 1e20, hm_max = 0;
 
     double lnM_lo, lnM_cen, lnM_hi;
-    //these are the same at the end, n_halo incremented by poisson, halo_cound incremented by updating halo list
+    //these are the same at the end, n_halo incremented by poisson, halo_count incremented by updating halo list
     int n_halo = 0, halo_count = 0, nh;
     int jj,ii;
     for (jj=0;jj<nbins;jj++){
@@ -317,12 +318,13 @@ int stoc_halo_sample(double z, double delta, double volume, double M_min, double
         else{
             nh_buf = IntegratedNdM(growthf, lnM_lo, lnM_hi, log(M_max), delta, 0);
         }
-        nh_buf *= volume;
+        //constants to go from integral(1/M dFcol/dlogM) dlogM to integral(dNdlogM) dlogM
+        nh_buf = nh_buf * volume * (RHOcrit * (1+delta_vol) / sqrt(2.*PI) * cosmo_params_stoc->OMm);
 
         //LOG_ERROR("nhalo = %.3e",nh_buf);
 
         //sample poisson for stochastic halo number
-        nh = gsl_ran_poisson(rng_stoc,nh_buf);
+        nh = gsl_ran_poisson(rng,nh_buf);
         n_halo += nh;
 
         /* to save memory we calulate properties and sample within the loop
@@ -343,7 +345,7 @@ int stoc_halo_sample(double z, double delta, double volume, double M_min, double
             * either build an x = iCDF(delta,M) table and interpolate
             * or use rejection sampling on the existing mass function table */
             if (sampler==1){
-                err = sample_dndM_rejection(growthf,delta,lnM_lo,lnM_hi,log(M_max),ymin,ymax,sigma_max,&hm_sample);
+                err = sample_dndM_rejection(growthf,delta,lnM_lo,lnM_hi,log(M_max),ymin,ymax,sigma_max,rng,&hm_sample);
             }
             else if(sampler==2){
                 //err = sample_dndM_inverse(growthf,delta,lnM_lo,lnM_hi,ymin,ymax,sigma_max,&hm_sample);
@@ -367,7 +369,7 @@ int stoc_halo_sample(double z, double delta, double volume, double M_min, double
             /* STELLAR MASS SAMPLING */
             if(sigma_star > 0){
                 //sample stellar masses from each halo mass assuming lognormal scatter
-                sm_sample = gsl_ran_ugaussian(rng_stoc);
+                sm_sample = gsl_ran_ugaussian(rng);
 
                 /* Simply adding lognormal scatter to a delta increases the mean (2* is as likely as 0.5*)
                 * so mu (exp(mu) is the median) is set so that X = exp(u + N(0,1)*sigma) has the desired mean */
@@ -380,6 +382,7 @@ int stoc_halo_sample(double z, double delta, double volume, double M_min, double
             if(outtype==0){
                 hm_cell += hm_sample;
                 sm_cell += sm_sample;
+                halo_count++;
             }
             else if(outtype==1){
                 hm_out[halo_count] = hm_sample;
@@ -391,7 +394,7 @@ int stoc_halo_sample(double z, double delta, double volume, double M_min, double
                 return 1;
             }
         }
-        LOG_SUPER_DEBUG("bin %d done | log10M = [%.3f,%.3f] | M_filt = %.3e ||  nhalo = %d (p: %d m: %.3e)", jj,lnM_lo/log(10),lnM_hi/log(10),M_max,n_halo,nh,nh_buf);
+        LOG_ULTRA_DEBUG("bin %d done | log10M = [%.3f,%.3f] | M_filt = %.3e ||  nhalo = %d (p: %d m: %.3e)", jj,lnM_lo/log(10),lnM_hi/log(10),M_max,n_halo,nh,nh_buf);
 
     }
     *n_halo_out = n_halo;
@@ -400,112 +403,8 @@ int stoc_halo_sample(double z, double delta, double volume, double M_min, double
         *sm_out = sm_cell;
     }
 
-    LOG_DEBUG("sampled %d (%d) halos between masses %.3e and %.3e",n_halo,halo_count,hm_min,hm_max);
+    LOG_ULTRA_DEBUG("sampled %d (%d) halos between masses %.3e and %.3e",n_halo,halo_count,hm_min,hm_max);
     return 0;
-}
-
-
-/* BELOW THIS LINE VARIANCE CALCULATION*/
-/* The hope here is that we can evaluate the integrals over everything apart from dNdM analytically,
- * Which we can in the case of power-law scalings and lognormal scatter 
- * this also assumes that the number of halos in each cell (or region) is large
- * I'll look into this apporach more if sampling directly is too slow 
- * WARNING: I've stopped working on this for now since it would de-correlate halo properties, i.e 
- * if a cell has halo mas above mean it doesn't make it more likely that the stellar mass is below mean 
- * I can either find a way to correlate them or only use this when we need one property (seems rare)*/
-/* Each integral of variance then has three components:
- * 1: product of constants from each power law
- * 2: product of scatter terms from each (lognormal) distribution
- * 3: nth moment of the halo mass function */
-
-
-/* moments of the lognormal distribution for mean/median==0
- * multiply by (mean or median)^n for the full moment
- * These make up the parts of term 2 from above */
-double lognormal_moment_over_mean(double sigma, double n_order){
-    return exp(n_order*(n_order-1)*sigma*sigma/2);
-}
-
-double lognormal_moment_over_median(double sigma, double n_order){
-    return exp(n_order*n_order*sigma*sigma/2);
-}
-
-
-/* The constants in front of the integral will be made up of each previous scaling relation
- * this function will calculate the product of the required parameters including the scatter terms
- * product(A_i^n_i moment_n_i), n_i = product_j>i(m_j) from scaling relations */
-double stoc_constants(int type,double n_order){
-    //definitions
-    double F_STAR10 = astro_params_stoc->F_STAR10;
-    double ALPHA_STAR = astro_params_stoc->ALPHA_STAR;
-    double SIGMA_STAR = astro_params_stoc->SIGMA_STAR;
-    double F_ESC10 = astro_params_stoc->F_ESC10;
-    double ALPHA_ESC = astro_params_stoc->ALPHA_ESC;
-    //double SIGMA_ESC = astro_params_stoc->SIGMA_ESC;
-    //double SIGMA_SFR = astro_params_stoc->SIGMA_SFR;
-
-    //Stellar mass
-    if(type==0){
-        return pow(F_STAR10,n_order) * lognormal_moment_over_mean(SIGMA_STAR,n_order);
-    }
-    //SFR, at the moment SFR ~ Stellar mass, stochasticity from t*, so m_sfr = 1
-    /*if(type==1){
-        return pow(F_STAR10 / T_STAR,n_order) * lognormal_moment_over_mean(SIGMA_STAR,n_order) * lognormal_moment_over_mean(SIGMA_SFR,n_order);
-    }*/
-    //ionising emissivity, m_esc = alpha_esc
-    /*if(type==2){
-        return pow(F_STAR10,n_order*ALPHA_ESC) * pow(F_ESC10,n_order) * lognormal_moment_over_mean(SIGMA_STAR,n_order*ALPHA_ESC) * lognormal_moment_over_mean(SIGMA_ESC,n_order);
-    }*/
-    //TODO: and so on...
-
-    return 0.;
-}
-
-/* more approximate method where we assume the number of halos per cell is large enough such that
- * the PDF of summed properties (eg: emissivity in a cell) will be gaussian, we find the variance
- * of the desired quantities and sample these per cell, adding to the interpolation table quantities */
-double stoc_halo_variance(double z, double delta, double volume, double M1, double M2, double *out){
-    double var_mstar, cell_mstar;
-
-    /* the expectation of x^2 has an outer integral over M_h and an inner (or few)
-     * over (probably lognormal) distributions, The inner integrals are 
-     * calculated analytically and we can use the interpolation tables
-     * for the outer */
-
-    //The halomass independent part of second moment of a lognormal distribution
-    double moment_Mstar_0;
-    double moment_Mstar_1;
-    double moment_Mstar_2;
-
-    double growthf = dicke(z);
-
-    //get the moments
-    /* As we add more sources of stochasticity, we will likely also need higher order
-     * moments as they will collapse down to M^n dNdM terms, assuming each has a
-     * power law mean and lognormal scatter */
-
-    if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        moment_Mstar_0 = EvaluatedNdMSpline(growthf,M1,M2,M2,delta,0);
-        moment_Mstar_1 = EvaluatedNdMSpline(growthf,M1,M2,M2,delta,1);
-        moment_Mstar_2 = EvaluatedNdMSpline(growthf,M1,M2,M2,delta,2);
-    }
-    else{
-        moment_Mstar_0 = IntegratedNdM(growthf,M1,M2,M2,delta,0);
-        moment_Mstar_1 = IntegratedNdM(growthf,M1,M2,M2,delta,1);
-        moment_Mstar_2 = IntegratedNdM(growthf,M1,M2,M2,delta,2);
-    }
-
-    //Poisson noise in halo number
-    var_mstar = volume * (1+delta) * moment_Mstar_0 * moment_Mstar_2;
-    
-    //draw a sample
-    double var_sample;
-    var_sample = gsl_ran_gaussian(rng_stoc,sqrt(var_mstar));
-
-    // add to the mean mass
-    cell_mstar = var_sample + (moment_Mstar_0*moment_Mstar_1);
-    
-    return cell_mstar;
 }
 
 //testing function to print stuff out from python
@@ -514,12 +413,13 @@ double stoc_halo_variance(double z, double delta, double volume, double M1, doub
  * type==2: n_halo
  * type==3: sampled HM catalogue*/
 int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
-                        , int seed, double M, double delta, double R, double z, int nbins, int type, double *result){
+                        , int seed, double M, bool eulerian, double delta, double R, double z, int nbins, int type, double *result){
     //make the global structs
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
 
+    gsl_rng * rng_stoc;
     rng_stoc = gsl_rng_alloc(gsl_rng_default);
     gsl_rng_set(rng_stoc, seed);
 
@@ -527,15 +427,50 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 
     //gsl_rng_set(rseed, random_seed);
     double test;
-    double n_order = 0.;
     int err=0;
 
     double growthf = dicke(z);
-    double Mmin = global_params.M_MIN_INTEGRAL;
+    double Mmin;
     double Mmax = RtoM(R);
     double volume = 4. / 3. * PI * R * R * R;
+    double delta_l;
     //Euler to Lagrange conversion, a certain Eulerian scale R relates to mass prop. R^3 rho (1+delta)
-    Mmax *= 1+delta;
+    if(eulerian){
+        //Mo & White 1996 TODO:put in function
+        //convert Eulerian Pertubed overdensity to Lagrangian overdensity
+        //the mass in the cell (and hence R) is scaled by the eulerian density, the CMF uses lagrangian
+        Mmax *= 1+delta;
+        //volume *= 1+delta;
+        delta_l = -1.35*pow(1+delta,-2./3.) + 0.78785*pow(1+delta,-0.58661) - 1.12431*pow(1+delta,-0.5) + 1.68647;
+    }
+    else{
+        delta = delta * growthf;
+        delta_l = delta * growthf;
+    }
+    //don't do anything for delta outside range               
+    if(delta > Deltac || delta < -1){
+        return 0;
+    }
+
+    //set the minimum source mass
+    //TODO: include smaller halos, apply duty cycle in HM -> SM part
+    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+        Mmin = astro_params->M_TURN;
+    }
+    else {
+        if(flag_options->M_MIN_in_Mass) {
+            Mmin = (astro_params->M_TURN);
+        }
+        else {
+            //set the minimum source mass
+            if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
+                Mmin = TtoM(z, astro_params->ION_Tvir_MIN, 1.22);
+            }
+            else { // ionized IGM
+                Mmin = TtoM(z, astro_params->ION_Tvir_MIN, 0.6);
+            }
+        }
+    }
 
     init_ps();
     if(user_params->USE_INTERPOLATION_TABLES){
@@ -550,17 +485,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         sampler = 2;
     }
     
-    LOG_DEBUG("z = %f, growth = %f, Mmin = %e, Mmax = %e, R = %f, delta = %f, M=%e",z,growthf,Mmin,Mmax,R,delta,M);
-    
-    double sigma_max = sigma_z0(Mmax);
-
-    struct parameters_gsl_MF_con_int_ parameters_gsl_MF_con = {
-        .growthf = growthf,
-        .delta = delta,
-        .n_order = n_order,
-        .M_max = log(Mmax),
-        .sigma_max = sigma_max,
-    };
+    LOG_SUPER_DEBUG("z = %f, growth = %f, Mmin = %e, Mmax = %e, R = %f, delta = %f, M=%e",z,growthf,Mmin,Mmax,R,delta,M);
 
     if(type==0){
         //unconditional mass func
@@ -586,24 +511,31 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
     }
     else if(type==1){
         //conditional ps mass func * pow(M,n_order)
-        //MnMassFunction gives dFcoll/dM
+        struct parameters_gsl_MF_con_int_ parameters_gsl_MF_con = {
+            .growthf = growthf,
+            .delta = delta_l,
+            .n_order = seed, //no rnadomness here
+            .M_max = log(Mmax),
+            .sigma_max = sigma_z0(Mmax),
+        };
         test = MnMassfunction(log(M),(void*)&parameters_gsl_MF_con);
-        test *= (RHOcrit * (1+delta) / sqrt(2*PI) * cosmo_params_stoc->OMm);
+        test *= (RHOcrit * (1+delta) / sqrt(2.*PI) * cosmo_params_stoc->OMm);
         *result = test;
     }
     else if(type==2){
         //intregrate conditional mass func
         //re-using the seed for n-order since this isn't random
-        test = IntegratedNdM(growthf,log(Mmin),log(Mmax),log(Mmax),delta,seed);
+        test = IntegratedNdM(growthf,log(Mmin),log(Mmax),log(Mmax),delta_l,seed);
+        test *= volume * (RHOcrit * (1+delta) / sqrt(2.*PI) * cosmo_params_stoc->OMm);
         *result = test;
     }
     else if(type==3){
         //sample mass func and output properties (n_halo, halomass, stellarmass)
-        double *out_hm = calloc(MAX_HALO,sizeof(double));
-        double *out_sm = calloc(MAX_HALO,sizeof(double));
+        double *out_hm = calloc(MAX_HALO_CELL,sizeof(double));
+        double *out_sm = calloc(MAX_HALO_CELL,sizeof(double));
         int n_halo;
 
-        err = stoc_halo_sample(z,delta,volume,Mmin,Mmax,nbins,sampler,1,&n_halo,out_hm,out_sm);
+        err = stoc_halo_sample(z,delta_l,delta,volume,Mmin,Mmax,nbins,sampler,1,rng_stoc,&n_halo,out_hm,out_sm);
         //fill output array N_halo, Halomass, Stellar mass ...
         //LOG_ERROR("nhalo = %d | first hm = %.3e | first sm = %.3e",n_halo,out_hm[0],out_sm[0]);
         result[0] = (double)n_halo;
@@ -620,7 +552,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         double out_hm,out_sm;
         int n_halo;
 
-        err = stoc_halo_sample(z,delta,volume,Mmin,Mmax,nbins,sampler,0,&n_halo,&out_hm,&out_sm);
+        err = stoc_halo_sample(z,delta_l,delta,volume,Mmin,Mmax,nbins,sampler,0,rng_stoc,&n_halo,&out_hm,&out_sm);
         result[0] = (double)n_halo;
         result[1] = out_hm;
         result[2] = out_sm;
@@ -633,56 +565,376 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
     return err;
 }
 
+/* TODO list: 
+ * add 'forbidden' cell mask (or input masked density array) for big halos 
+ * think about how to sample over mass rather than number of halos*/
 int build_halo_grids(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int seed, double redshift
-                    , float *dens_field, float *nh_field, float *hm_field, float *sm_field){
+                    ,bool eulerian, float *dens_field, int *nh_field, float *hm_field, float *sm_field){
     //make the global structs
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
-
-    rng_stoc = gsl_rng_alloc(gsl_rng_default);
-    gsl_rng_set(rng_stoc, seed);
     
-    double nh_buf,hm_buf,sm_buf;
+    // setting tbe random seeds (copied from GenerateICs.c)
+    gsl_rng * rng_stoc[user_params->N_THREADS];
+    gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
+
+    gsl_rng_set(rseed, seed);
+
+    omp_set_num_threads(user_params->N_THREADS);
+
+    unsigned int seeds[user_params->N_THREADS];
+
+    // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
+    int num_int = INT_MAX/16;
+    int i, thread_num;
+    unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int*sizeof(unsigned int))); // Some large number of possible integers
+    for (i=0; i<num_int; i++) {
+        many_ints[i] = i;
+    }
+
+    gsl_ran_choose(rseed, seeds, user_params->N_THREADS, many_ints, num_int, sizeof(unsigned int)); // Populate the seeds array from the large list of integers
+    gsl_ran_shuffle(rseed, seeds, user_params->N_THREADS, sizeof(unsigned int)); // Shuffle the randomly selected integers
+
+    int checker;
+
+    checker = 0;
+    // seed the random number generators
+    // TODO: this should probably be in UsefulFunctions.c
+    for (thread_num = 0; thread_num < user_params->N_THREADS; thread_num++){
+        switch (checker){
+            case 0:
+                rng_stoc[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
+                gsl_rng_set(rng_stoc[thread_num], seeds[thread_num]);
+                break;
+            case 1:
+                rng_stoc[thread_num] = gsl_rng_alloc(gsl_rng_gfsr4);
+                gsl_rng_set(rng_stoc[thread_num], seeds[thread_num]);
+                break;
+            case 2:
+                rng_stoc[thread_num] = gsl_rng_alloc(gsl_rng_cmrg);
+                gsl_rng_set(rng_stoc[thread_num], seeds[thread_num]);
+                break;
+            case 3:
+                rng_stoc[thread_num] = gsl_rng_alloc(gsl_rng_mrg);
+                gsl_rng_set(rng_stoc[thread_num], seeds[thread_num]);
+                break;
+            case 4:
+                rng_stoc[thread_num] = gsl_rng_alloc(gsl_rng_taus2);
+                gsl_rng_set(rng_stoc[thread_num], seeds[thread_num]);
+                break;
+        } // end switch
+
+        checker += 1;
+
+        if(checker==5) {
+            checker = 0;
+        }
+    }
+
+    free(many_ints);
+    double hm_total=0.,sm_total=0.;
+    int nh_total=0;
     double curr_dens;
-    double cell_size = user_params->BOX_LEN / user_params->HII_DIM * L_FACTOR;
+    //cell size for smoothing / CMF calculation
+    double cell_size_R = user_params->BOX_LEN / user_params->HII_DIM * L_FACTOR;
+    //cell size for volume calculation
+    double cell_size_L = user_params->BOX_LEN / user_params->HII_DIM;
 
-    //double volume = 4./3. * PI * cell_size * cell_size * cell_size / 8;
-    double volume = cell_size * cell_size * cell_size;
+    double volume_meandens = cell_size_L * cell_size_L * cell_size_L; // ~~ 4/3 pi cell_size_R^3
 
-    double Mmin = global_params.M_MIN_INTEGRAL;
-    double Mmax_meandens = RtoM(cell_size);
+    double Mmax_meandens = RtoM(cell_size_R);
     double Mmax;
+    double volume;
+    double Mmin;
+    double delta_l;
 
     int x,y,z;
     int nbins = 1;
-    int sampler = 1; //rejection
-    int outtype = 0; //cell
+    int sampler = 1; //rejection sampling
+    int outtype = 0; //cell outputs (not keeping catalogues in every cell)
+    int error;
+    int bad_cells=0;
 
-    LOG_DEBUG('Beginning stochastic halo sampling on %d ^3 grid',user_params->HII_DIM);
+    //set the minimum source mass
+    //TODO: include smaller halos, apply duty cycle in HM -> SM part
+    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+        Mmin = astro_params->M_TURN;
+    }
+    else {
+        if(flag_options->M_MIN_in_Mass) {
+            Mmin = (astro_params->M_TURN);
+        }
+        else {
+            //set the minimum source mass
+            if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
+                Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
+            }
+            else { // ionized IGM
+                Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
+            }
+        }
+    }
 
-#pragma omp parallel shared(dens_field,nh_field,hm_field,sm_field,volume,Mmin,redshift) private(x,y,z,Mmax,curr_dens,nh_buf,hm_buf,sm_buf) num_threads(user_params->N_THREADS)
+    init_ps();
+    if(user_params->USE_INTERPOLATION_TABLES){
+        initialiseSigmaMInterpTable(Mmin,1e20);
+    }
+    double hm_buf;
+    double sm_buf;
+    int nh_buf;
+    LOG_DEBUG("Beginning stochastic halo sampling on %d ^3 grid",user_params->HII_DIM);
+    LOG_DEBUG("z = %f, Mmin = %e, Mmax = %e,volume = %.3e, cell length = %.3e R = %.3e",redshift,Mmin,Mmax_meandens,volume_meandens,cell_size_L,cell_size_R);
+
+#pragma omp parallel shared(dens_field,nh_field,hm_field,sm_field,volume_meandens,Mmin,redshift,rng_stoc) private(x,y,z,Mmax,volume,curr_dens,nh_buf,hm_buf,sm_buf,error) num_threads(user_params->N_THREADS) reduction(+:bad_cells,nh_total,hm_total,sm_total)
     {
+        int print_counter = 0;
 #pragma omp for
         for (x=0; x<user_params->HII_DIM; x++){
             for (y=0; y<user_params->HII_DIM; y++){
                 for (z=0; z<user_params->HII_DIM; z++){
                 
-                curr_dens = dens_field[HII_R_INDEX(x,y,z)];
+                    curr_dens = (double)dens_field[HII_R_INDEX(x,y,z)];
 
-                //adjust max mass scale
-                Mmax = Mmax_meandens * (1+curr_dens);
+                    //adjust for lagrangian/eulerian
+                    //volume * delta = total mass
+                    if(eulerian){
+                        Mmax = Mmax_meandens * (1+curr_dens);
+                        //volume = volume_meandens * (1+curr_dens);
+                        volume = volume_meandens;
+                        delta_l = -1.35*pow(1+curr_dens,-2./3.) + 0.78785*pow(1+curr_dens,-0.58661) - 1.12431*pow(1+curr_dens,-0.5) + 1.68647;
+                    }
+                    else{
+                        Mmax = Mmax_meandens;
+                        curr_dens = curr_dens * dicke(redshift);
+                        delta_l = curr_dens;
+                        volume = volume_meandens;
+                    }
+                    error = stoc_halo_sample(redshift,delta_l,curr_dens,volume,Mmin,Mmax,nbins,sampler,outtype,rng_stoc[omp_get_thread_num()],&nh_buf,&hm_buf,&sm_buf);
 
-                stoc_halo_sample(redshift,curr_dens,volume,Mmin,Mmax,nbins,sampler,outtype,&nh_buf,&hm_buf,&sm_buf);
-
-                nh_field[HII_R_INDEX(x,y,z)] = nh_buf;
-                hm_field[HII_R_INDEX(x,y,z)] = hm_buf;
-                sm_field[HII_R_INDEX(x,y,z)] = sm_buf;
+                    //output grids of summed n_halo, halo mass, stellar mass
+                    if(error==0){
+                        nh_field[HII_R_INDEX(x,y,z)] = nh_buf;
+                        hm_field[HII_R_INDEX(x,y,z)] = (float)hm_buf;
+                        sm_field[HII_R_INDEX(x,y,z)] = (float)sm_buf;
+                        if(nh_buf > 0){
+                            if(print_counter < 20){
+                                LOG_SUPER_DEBUG("(%d,%d,%d) d = %.2f: nh = %d | hm = %.3e | sm = %.3e",x,y,z,curr_dens,nh_buf,
+                                                hm_buf,sm_buf);
+                            }
+                            nh_total += nh_buf;
+                            hm_total += hm_buf;
+                            sm_total += sm_buf;
+                            print_counter++;
+                        }
+                    }
+                    else{
+                        //current behaviour for delta > Deltac, delta < -1 or other errors
+                        nh_field[HII_R_INDEX(x,y,z)] = 0;
+                        hm_field[HII_R_INDEX(x,y,z)] = 0;
+                        sm_field[HII_R_INDEX(x,y,z)] = 0;
+                        bad_cells++;
+                    }
                 }
             }
         }
     }
+
+    LOG_DEBUG("Finished halo sampling, %d bad cells. Totals (NH,HM,SM) = (%d,%.3e,%.3e)",bad_cells,nh_total,hm_total,sm_total);
+    return 0;
+}
+
+int build_halo_cats(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int seed, double redshift
+                    ,bool eulerian, float *dens_field, int * n_halo_out, int *halo_coords, float *halo_masses, float * stellar_masses){
+    //make the global structs
+    Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_PS(user_params,cosmo_params);
+    Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
     
-    LOG_DEBUG('Finished halo sampling.');
+    // setting tbe random seeds (copied from GenerateICs.c)
+    gsl_rng * rng_stoc[user_params->N_THREADS];
+    gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
+
+    gsl_rng_set(rseed, seed);
+
+    omp_set_num_threads(user_params->N_THREADS);
+
+    unsigned int seeds[user_params->N_THREADS];
+
+    // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
+    int num_int = INT_MAX/16;
+    int i, thread_num;
+    unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int*sizeof(unsigned int))); // Some large number of possible integers
+    for (i=0; i<num_int; i++) {
+        many_ints[i] = i;
+    }
+
+    gsl_ran_choose(rseed, seeds, user_params->N_THREADS, many_ints, num_int, sizeof(unsigned int)); // Populate the seeds array from the large list of integers
+    gsl_ran_shuffle(rseed, seeds, user_params->N_THREADS, sizeof(unsigned int)); // Shuffle the randomly selected integers
+
+    int checker;
+
+    checker = 0;
+    // seed the random number generators
+    // TODO: this should probably be in UsefulFunctions.c
+    for (thread_num = 0; thread_num < user_params->N_THREADS; thread_num++){
+        switch (checker){
+            case 0:
+                rng_stoc[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
+                gsl_rng_set(rng_stoc[thread_num], seeds[thread_num]);
+                break;
+            case 1:
+                rng_stoc[thread_num] = gsl_rng_alloc(gsl_rng_gfsr4);
+                gsl_rng_set(rng_stoc[thread_num], seeds[thread_num]);
+                break;
+            case 2:
+                rng_stoc[thread_num] = gsl_rng_alloc(gsl_rng_cmrg);
+                gsl_rng_set(rng_stoc[thread_num], seeds[thread_num]);
+                break;
+            case 3:
+                rng_stoc[thread_num] = gsl_rng_alloc(gsl_rng_mrg);
+                gsl_rng_set(rng_stoc[thread_num], seeds[thread_num]);
+                break;
+            case 4:
+                rng_stoc[thread_num] = gsl_rng_alloc(gsl_rng_taus2);
+                gsl_rng_set(rng_stoc[thread_num], seeds[thread_num]);
+                break;
+        } // end switch
+
+        checker += 1;
+
+        if(checker==5) {
+            checker = 0;
+        }
+    }
+
+    free(many_ints);
+    double hm_total=0.,sm_total=0.;
+    int nh_total=0;
+    double curr_dens;
+    //cell size for smoothing / CMF calculation
+    double cell_size_R = user_params->BOX_LEN / user_params->HII_DIM * L_FACTOR;
+    //cell size for volume calculation
+    double cell_size_L = user_params->BOX_LEN / user_params->HII_DIM;
+
+    double volume_meandens = cell_size_L * cell_size_L * cell_size_L;
+
+    double Mmax_meandens = RtoM(cell_size_R);
+    double Mmax;
+    double volume;
+    double Mmin;
+    double delta_l;
+
+    int x,y,z;
+    int nbins = 1;
+    int sampler = 1; //rejection sampling
+    int outtype = 1; //halo catalogues
+    int error;
+    int bad_cells=0;
+
+    //set the minimum source mass
+    //TODO: include smaller halos, apply duty cycle in HM -> SM part
+    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+        Mmin = astro_params->M_TURN;
+    }
+    else {
+        if(flag_options->M_MIN_in_Mass) {
+            Mmin = (astro_params->M_TURN);
+        }
+        else {
+            //set the minimum source mass
+            if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
+                Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
+            }
+            else { // ionized IGM
+                Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
+            }
+        }
+    }
+
+    init_ps();
+    if(user_params->USE_INTERPOLATION_TABLES){
+        initialiseSigmaMInterpTable(Mmin,1e20);
+    }
+    LOG_DEBUG("Beginning stochastic halo sampling on %d ^3 grid",user_params->HII_DIM);
+    LOG_DEBUG("z = %f, Mmin = %e, Mmax = %e,volume = %.3e (%.3e), cell length = %.3e R = %.3e D = %.3e",redshift,Mmin,Mmax_meandens,volume_meandens,Mmax_meandens/RHOcrit/cosmo_params->OMm,cell_size_L,cell_size_R,dicke(redshift));
+
+    int total_n_halo = 0;
+    double total_halomass = 0.;
+    double total_starmass = 0.;
+
+//BIG TODO: find a way to parallelise, (this can also apply to FindHalos.c)
+//I will need to allocate buffers for the catalogues on each thread, then concatenate to the output
+//the only issue is allocating a buffer of a reasonable size based on the box size
+//#pragma omp parallel shared(dens_field,halo_masses,halo_coords,volume_meandens,Mmin,redshift,rng_stoc,total_n_halo) private(x,y,z,Mmax,volume,curr_dens,nh_buf,hm_buf,sm_buf,error) num_threads(user_params->N_THREADS) reduction(+:bad_cells,nh_total,hm_total,sm_total)
+    {
+        //buffers per cell
+        double * hm_buf = calloc(MAX_HALO_CELL,sizeof(double));
+        double * sm_buf = calloc(MAX_HALO_CELL,sizeof(double));
+        int nh_buf;
+        int print_counter = 0;
+        double cell_hm = 0, cell_sm = 0;
+//#pragma omp for
+        for (x=0; x<user_params->HII_DIM; x++){
+            for (y=0; y<user_params->HII_DIM; y++){
+                for (z=0; z<user_params->HII_DIM; z++){
+                
+                    cell_hm = 0;
+                    cell_sm = 0;
+                    curr_dens = (double)dens_field[HII_R_INDEX(x,y,z)];
+
+                    //adjust for lagrangian/eulerian
+                    if(eulerian){
+                        Mmax = Mmax_meandens * (1+curr_dens);
+                        //volume = volume_meandens * (1+curr_dens);
+                        volume = volume_meandens;
+                        delta_l = -1.35*pow(1+curr_dens,-2./3.) + 0.78785*pow(1+curr_dens,-0.58661) - 1.12431*pow(1+curr_dens,-0.5) + 1.68647;
+                    }
+                    else{
+                        Mmax = Mmax_meandens;
+                        curr_dens = curr_dens * dicke(redshift);
+                        delta_l = curr_dens;
+                        volume = volume_meandens;
+                    }
+
+                    error = stoc_halo_sample(redshift,delta_l,curr_dens,volume,Mmin,Mmax,nbins,sampler,outtype,rng_stoc[omp_get_thread_num()],&nh_buf,hm_buf,sm_buf);
+
+                    //output total halo number, catalogues of masses and positions
+                    if(error==0){
+                        for(i=0;i<nh_buf;i++){
+                            halo_masses[total_n_halo] = hm_buf[i];
+                            stellar_masses[total_n_halo] = sm_buf[i];
+                            halo_coords[0 + 3*total_n_halo] = x;
+                            halo_coords[1 + 3*total_n_halo] = y;
+                            halo_coords[2 + 3*total_n_halo] = z;
+                            //update totals & debug
+                            total_n_halo++;
+                            total_halomass += hm_buf[i];
+                            total_starmass += sm_buf[i];
+                            cell_hm += hm_buf[i];
+                            cell_sm += sm_buf[i];
+                        }
+                    }
+                    else{
+                        //current behaviour for delta > Deltac, delta < -1 or other errors
+                        //no new halos, record bad cell
+                        bad_cells++;
+                    }
+                    if(nh_buf > 0 && print_counter < 20){
+                        
+                        LOG_SUPER_DEBUG("(%d,%d,%d) d = %.2f: nh = %d | hm = %.3e | sm = %.3e",x,y,z,curr_dens,nh_buf,
+                                        cell_hm,cell_sm);
+                        print_counter++;
+                    }
+                }
+            }
+        }    
+        free(hm_buf);
+        free(sm_buf);
+        *n_halo_out = total_n_halo;
+    }
+    LOG_DEBUG("Finished halo sampling %d bad cells || nh = %d | hm = (%.3e, %.3e, %.3e) total= %.3e | sm = (%.3e, %.3e, %.e) total = %.3e",bad_cells,total_n_halo
+                                    ,halo_masses[0],halo_masses[1],halo_masses[2],total_halomass
+                                    ,stellar_masses[0],stellar_masses[1],stellar_masses[2],total_starmass);
     return 0;
 }
