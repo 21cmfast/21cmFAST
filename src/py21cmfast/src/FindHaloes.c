@@ -54,7 +54,7 @@ LOG_DEBUG("Begin Initialisation");
 
         counter = 0;
 
-        // ***************** END INITIALIZATION ***************** //
+        // ***************** BEGIN INITIALIZATION ***************** //
         init_ps();
 
         growth_factor = dicke(redshift); // normalized to 1 at z=0
@@ -138,7 +138,7 @@ LOG_DEBUG("Prepare to filter to find halos");
 
         while ((R > 0.5*Delta_R) && (RtoM(R) >= M_MIN)){ // filter until we get to half the pixel size or M_MIN
 
-LOG_ULTRA_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%f M_MIN=%f", R, 0.5*Delta_R, RtoM(R), M_MIN);
+LOG_ULTRA_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%e M_MIN=%e", R, 0.5*Delta_R, RtoM(R), M_MIN);
 
             M = RtoM(R);
             if(global_params.DELTA_CRIT_MODE == 1 && (user_params->HMF>0 && user_params->HMF<4)){
@@ -172,12 +172,16 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                     memset(forbidden, 0, sizeof(char)*TOT_NUM_PIXELS);
                     // now go through the list of existing halos and paint on the no-go region onto <forbidden>
 
-                    for (x=0; x<user_params->DIM; x++){
-                        for (y=0; y<user_params->DIM; y++){
-                            for (z=0; z<user_params->DIM; z++){
-                                if(halo_field[R_INDEX(x,y,z)] > 0.) {
-                                    R_temp = MtoR(halo_field[R_INDEX(x,y,z)]);
-                                    check_halo(forbidden, user_params, R_temp+global_params.R_OVERLAP_FACTOR*R, x,y,z,2);
+#pragma omp parallel shared(forbidden,R) private(x,y,z,R_temp) num_threads(user_params->N_THREADS)
+                    {
+#pragma omp for
+                        for (x=0; x<user_params->DIM; x++){
+                            for (y=0; y<user_params->DIM; y++){
+                                for (z=0; z<user_params->DIM; z++){
+                                    if(halo_field[R_INDEX(x,y,z)] > 0.) {
+                                        R_temp = MtoR(halo_field[R_INDEX(x,y,z)]);
+                                        check_halo(forbidden, user_params, R_temp+global_params.R_OVERLAP_FACTOR*R, x,y,z,2);
+                                    }
                                 }
                             }
                         }
@@ -188,18 +192,41 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
 
             // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
             dn=0;
-            for (x=0; x<user_params->DIM; x++){
-                for (y=0; y<user_params->DIM; y++){
-                    for (z=0; z<user_params->DIM; z++){
-                        delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / (float)TOT_NUM_PIXELS;       //since we didn't multiply k-space cube by V/N, we divide by 1/N here
-                        // if not within a larger halo, and radii don't overlap, update in_halo box
-                        // *****************  BEGIN OPTIMIZATION ***************** //
-                        if(global_params.OPTIMIZE) {
-                            if(M > global_params.OPTIMIZE_MIN_MASS) {
-                                if ( (delta_m > delta_crit) && !forbidden[R_INDEX(x,y,z)]){
+            
+//TODO: Fix the race condition: it doesn't matter which thread finds the halo first, but if two threads find a halo in the same region
+//simultaneously (before the first one updates in_halo) some halos could double-up
+//putting the conditional in a critical part would undo most of the threading benefit, think of something else
+//checking for overlaps in new halos after this loop could work
+//#pragma omp parallel shared(boxes,density_field,in_halo,forbidden,halo_field,growth_factor,M,delta_crit) private(x,y,z,delta_m) num_threads(user_params->N_THREADS) reduction(+: dn,n,total_halo_num)
+//            {
+//#pragma omp for
+                for (x=0; x<user_params->DIM; x++){
+                    for (y=0; y<user_params->DIM; y++){
+                        for (z=0; z<user_params->DIM; z++){
+                            delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / TOT_NUM_PIXELS;       // FFT and iFFT leaves 1/N factor!
+
+                            // if not within a larger halo, and radii don't overlap, update in_halo box
+                            // *****************  BEGIN OPTIMIZATION ***************** //
+                            if(global_params.OPTIMIZE) {
+                                if(M > global_params.OPTIMIZE_MIN_MASS) {
+                                    if ( (delta_m > delta_crit) && !forbidden[R_INDEX(x,y,z)]){
+
+                                        check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
+                                        check_halo(forbidden, user_params, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
+
+                                        halo_field[R_INDEX(x,y,z)] = M;
+
+                                        dn++; // keep track of the number of halos
+                                        n++;
+                                        total_halo_num++;
+                                    }
+                                }
+                            }
+                            // *****************  END OPTIMIZATION ***************** //
+                            else {
+                                if ((delta_m > delta_crit) && !in_halo[R_INDEX(x,y,z)] && !check_halo(in_halo, user_params, R, x,y,z,1)){ // we found us a "new" halo!
 
                                     check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
-                                    check_halo(forbidden, user_params, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
 
                                     halo_field[R_INDEX(x,y,z)] = M;
 
@@ -209,22 +236,11 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                                 }
                             }
                         }
-                        // *****************  END OPTIMIZATION ***************** //
-                        else {
-                            if ((delta_m > delta_crit) && !in_halo[R_INDEX(x,y,z)] && !check_halo(in_halo, user_params, R, x,y,z,1)){ // we found us a "new" halo!
-
-                                check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
-
-                                halo_field[R_INDEX(x,y,z)] = M;
-
-                                dn++; // keep track of the number of halos
-                                n++;
-                                total_halo_num++;
-                            }
-                        }
                     }
                 }
-            }
+            //}
+
+LOG_ULTRA_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", dn, n, growth_factor, delta_crit);
 
             if (dn > 0){
                 // now lets keep the mass functions (FgrtR)
@@ -259,21 +275,51 @@ LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.")
         // Initialize the halo co-ordinate and mass arrays.
         init_halo_coords(halos, total_halo_num);
 
-        // reuse counter as its no longer needed
-        counter = 0;
-
-        for (x=0; x<user_params->DIM; x++){
-            for (y=0; y<user_params->DIM; y++){
-                for (z=0; z<user_params->DIM; z++){
-                    if(halo_field[R_INDEX(x,y,z)] > 0.) {
-                        halos->halo_masses[counter] = halo_field[R_INDEX(x,y,z)];
-                        halos->halo_coords[0 + counter*3] = x;
-                        halos->halo_coords[1 + counter*3] = y;
-                        halos->halo_coords[2 + counter*3] = z;
-                        counter++;
+        int istart_local[user_params->N_THREADS];
+        float * local_masses;
+        int * local_coords;
+        int threadnum;
+//I would expect the number of halos to be much less than the number of cells so defining local arrays here
+//and then concatenating shouldn't increase memory too much
+#pragma omp parallel shared(halos,halo_field,istart_local) private(x,y,z,counter,local_coords,local_masses,threadnum) num_threads(user_params->N_THREADS)
+        {
+            //TODO: find a way to allocate less, based on the number of halos in a thread region
+            //this can be done in the previous loop if we can guarantee the scheduler allocates the same chunks
+            threadnum = omp_get_thread_num();
+            local_masses = calloc(total_halo_num,sizeof(float));
+            local_coords = calloc(total_halo_num*3,sizeof(int));
+            // reuse counter as its no longer needed
+            counter = 0;
+#pragma omp for
+            for (x=0; x<user_params->DIM; x++){
+                for (y=0; y<user_params->DIM; y++){
+                    for (z=0; z<user_params->DIM; z++){
+                        if(halo_field[R_INDEX(x,y,z)] > 0.) {
+                            local_masses[counter] = halo_field[R_INDEX(x,y,z)];
+                            local_coords[0 + counter*3] = x;
+                            local_coords[1 + counter*3] = y;
+                            local_coords[2 + counter*3] = z;
+                            counter++;
+                        }
                     }
                 }
             }
+
+//this loop exectuted on all threads, we need the start index of each local array
+//i[0] == 0, i[1] == n_0, i[2] == n_0 + n_1 etc...
+            for(i=user_params->N_THREADS;i>threadnum;i--){
+#pragma omp atomic update
+                istart_local[i] += counter;
+            }
+//we need each thread to be done here before copying the data
+#pragma omp barrier
+            
+            //copy each local array into the struct
+            memcpy(halos->halo_masses + istart_local[threadnum],local_masses,counter*sizeof(float));
+            memcpy(halos->halo_coords + istart_local[threadnum]*3,local_coords,counter*sizeof(float)*3);
+
+            free(local_coords);
+            free(local_masses);
         }
 
 LOG_DEBUG("Finished halo processing.");
@@ -365,6 +411,8 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
                     if (!in_halo[R_INDEX(x_index, y_index, z_index)]){
                         if(pixel_in_halo(user_params,x,x_index,y,y_index,z,z_index,Rsq_curr_index)) {
                             // we are within the sphere defined by R, so change flag in in_halo array
+//does the race condition matter here? if any thread marks the pixel it should be 1
+#pragma omp atomic write
                             in_halo[R_INDEX(x_index, y_index, z_index)] = 1;
                         }
                     }
