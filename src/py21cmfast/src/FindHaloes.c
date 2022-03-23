@@ -207,19 +207,16 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
 
                             // if not within a larger halo, and radii don't overlap, update in_halo box
                             // *****************  BEGIN OPTIMIZATION ***************** //
-                            if(global_params.OPTIMIZE) {
-                                if(M > global_params.OPTIMIZE_MIN_MASS) {
-                                    if ( (delta_m > delta_crit) && !forbidden[R_INDEX(x,y,z)]){
+                            if(global_params.OPTIMIZE && (M > global_params.OPTIMIZE_MIN_MASS)) {
+                                if ( (delta_m > delta_crit) && !forbidden[R_INDEX(x,y,z)]){
+                                    check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
+                                    check_halo(forbidden, user_params, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
 
-                                        check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
-                                        check_halo(forbidden, user_params, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
+                                    halo_field[R_INDEX(x,y,z)] = M;
 
-                                        halo_field[R_INDEX(x,y,z)] = M;
-
-                                        dn++; // keep track of the number of halos
-                                        n++;
-                                        total_halo_num++;
-                                    }
+                                    dn++; // keep track of the number of halos
+                                    n++;
+                                    total_halo_num++;
                                 }
                             }
                             // *****************  END OPTIMIZATION ***************** //
