@@ -10,7 +10,10 @@
 //max halos in memory for test functions
 //buffer size (per cell of arbitrary size) in the sampling function
 //this is big enough for a ~20Mpc mean density cell
-#define MAX_HALO_CELL (int)1e8
+//TODO: both of these should be set depending on size, resolution & min mass
+#define MAX_HALO_CELL (int)1e4
+//per thread in entire box
+#define MAX_HALO (int)1e8
 
 struct AstroParams *astro_params_stoc;
 struct CosmoParams *cosmo_params_stoc;
@@ -481,7 +484,7 @@ int stoc_halo_sample(double growthf, double delta, double delta_vol, double volu
                 return 1;
             }
         }
-        LOG_ULTRA_DEBUG("bin %d done | log10M = [%.3f,%.3f] | M_filt = %.3e ||  nhalo = %d (p: %d m: %.3e)", jj,lnM_lo/log(10),lnM_hi/log(10),M_max,n_halo,nh,nh_buf);
+        //LOG_ULTRA_DEBUG("bin %d done | log10M = [%.3f,%.3f] | M_filt = %.3e ||  nhalo = %d (p: %d m: %.3e)", jj,lnM_lo/log(10),lnM_hi/log(10),M_max,n_halo,nh,nh_buf);
 
     }
     *n_halo_out = n_halo;
@@ -490,7 +493,7 @@ int stoc_halo_sample(double growthf, double delta, double delta_vol, double volu
         *sm_out = sm_cell;
     }
 
-    LOG_ULTRA_DEBUG("sampled %d (%d) halos between masses %.3e and %.3e",n_halo,halo_count,hm_min,hm_max);
+    LOG_ULTRA_DEBUG("sampled %d (%d) halos between masses %.3e and %.3e| Mfilt = %.3e | delta_l = %.2f | delta_v = %.2f | V = %.2f",n_halo,halo_count,hm_min,hm_max,M_max,delta,delta_vol,volume);
     return 0;
 }
 
@@ -740,6 +743,7 @@ int build_halo_grids(struct UserParams *user_params, struct CosmoParams *cosmo_p
     LOG_DEBUG("z = %f, Mmin = %e, Mmax = %e,volume = %.3e, cell length = %.3e R = %.3e",redshift,Mmin,Mmax_meandens,volume,cell_size_L,cell_size_R);
 
     //Since the conditional MF is press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
+    ps_ratio = 1;
     if(user_params->HMF!=0){
         ps_ratio = (IntegratedNdM(growthf,log(Mmin),log(Mmax_meandens),log(Mmax_meandens),0,1,0) 
                     / IntegratedNdM(growthf,log(Mmin),log(Mmax_meandens),log(Mmax_meandens),0,1,user_params->HMF));
@@ -818,8 +822,6 @@ int build_halo_cats(struct UserParams *user_params, struct CosmoParams *cosmo_pa
     seed_rng_threads(rng_stoc,seed);
     
     double growthf = dicke(redshift);
-    double hm_total=0.,sm_total=0.;
-    int nh_total=0;
     double curr_dens;
     //cell size for smoothing / CMF calculation
     double cell_size_R = user_params->BOX_LEN / user_params->HII_DIM * L_FACTOR;
@@ -834,7 +836,7 @@ int build_halo_cats(struct UserParams *user_params, struct CosmoParams *cosmo_pa
     double Mmin;
     double delta_l;
 
-    int x,y,z;
+    int x,y,z,i;
     int nbins = 1;
     int sampler = 1; //rejection sampling
     int outtype = 1; //halo catalogues
@@ -875,22 +877,35 @@ int build_halo_cats(struct UserParams *user_params, struct CosmoParams *cosmo_pa
     LOG_DEBUG("Beginning stochastic halo sampling on %d ^3 grid",user_params->HII_DIM);
     LOG_DEBUG("z = %f, Mmin = %e, Mmax = %e,volume = %.3e (%.3e), cell length = %.3e R = %.3e D = %.3e",redshift,Mmin,Mmax_meandens,volume,Mmax_meandens/RHOcrit/cosmo_params->OMm,cell_size_L,cell_size_R,dicke(redshift));
 
-    int total_n_halo = 0;
-    double total_halomass = 0.;
-    double total_starmass = 0.;
+    int nh_total = 0;
+    double hm_total = 0;
+    double sm_total = 0;
 
-//BIG TODO: find a way to parallelise, (this can also apply to FindHalos.c)
-//I will need to allocate buffers for the catalogues on each thread, then concatenate to the output
-//the only issue is allocating a buffer of a reasonable size based on the box size
-//#pragma omp parallel shared(dens_field,halo_masses,halo_coords,Mmin,redshift,rng_stoc,total_n_halo) private(x,y,z,Mmax,volume,curr_dens,nh_buf,hm_buf,sm_buf,error) num_threads(user_params->N_THREADS) reduction(+:bad_cells,nh_total,hm_total,sm_total)
+    double * hm_buf; 
+    double * sm_buf;
+    int nh_buf=0;
+
+    int istart_local[user_params->N_THREADS];
+    memset(istart_local,0,sizeof(int)*user_params->N_THREADS);
+
+#pragma omp parallel shared(dens_field,halo_masses,halo_coords,Mmin,redshift,rng_stoc,volume) private(x,y,z,i,delta_l,Mmax,curr_dens,nh_buf,hm_buf,sm_buf,error) num_threads(user_params->N_THREADS) reduction(+:bad_cells,nh_total,hm_total,sm_total)
     {
+        //buffers per thread
+        float * local_hm = calloc(MAX_HALO,sizeof(float));
+        float * local_sm = calloc(MAX_HALO,sizeof(float));
+        int * local_coords = calloc(MAX_HALO,sizeof(int));
         //buffers per cell
-        double * hm_buf = calloc(MAX_HALO_CELL,sizeof(double));
-        double * sm_buf = calloc(MAX_HALO_CELL,sizeof(double));
-        int nh_buf;
+        hm_buf = calloc(MAX_HALO_CELL,sizeof(double));
+        sm_buf = calloc(MAX_HALO_CELL,sizeof(double));
+        int threadnum = omp_get_thread_num();
+        int counter;
+
         int print_counter = 0;
         double cell_hm = 0, cell_sm = 0;
-//#pragma omp for
+
+        //local halo index
+        counter = 0;
+#pragma omp for
         for (x=0; x<user_params->HII_DIM; x++){
             for (y=0; y<user_params->HII_DIM; y++){
                 for (z=0; z<user_params->HII_DIM; z++){
@@ -910,20 +925,21 @@ int build_halo_cats(struct UserParams *user_params, struct CosmoParams *cosmo_pa
                     }
 
                     error = stoc_halo_sample(growthf,delta_l,curr_dens,volume,Mmin,Mmax,nbins,sampler,outtype,rng_stoc[omp_get_thread_num()],&nh_buf,hm_buf,sm_buf);
-                    
-                    int i;
+                    nh_total += nh_buf;
+
                     //output total halo number, catalogues of masses and positions
                     if(error==0){
                         for(i=0;i<nh_buf;i++){
-                            halo_masses[total_n_halo] = hm_buf[i];
-                            stellar_masses[total_n_halo] = sm_buf[i];
-                            halo_coords[0 + 3*total_n_halo] = x;
-                            halo_coords[1 + 3*total_n_halo] = y;
-                            halo_coords[2 + 3*total_n_halo] = z;
+                            local_hm[counter] = hm_buf[i];
+                            local_sm[counter] = sm_buf[i];
+                            local_coords[0 + 3*counter] = x;
+                            local_coords[1 + 3*counter] = y;
+                            local_coords[2 + 3*counter] = z;
+                            
                             //update totals & debug
-                            total_n_halo++;
-                            total_halomass += hm_buf[i];
-                            total_starmass += sm_buf[i];
+                            counter++;
+                            hm_total += hm_buf[i];
+                            sm_total += sm_buf[i];
                             cell_hm += hm_buf[i];
                             cell_sm += sm_buf[i];
                         }
@@ -942,13 +958,34 @@ int build_halo_cats(struct UserParams *user_params, struct CosmoParams *cosmo_pa
                 }
             }
         }
-        free_rng_threads(rng_stoc);
+        //at this point nh_total == counter == thread number of halos
+        //this loop exectuted on all threads, we need the start index of each local array
+        //i[0] == 0, i[1] == n_0, i[2] == n_0 + n_1 etc...
+        for(i=user_params->N_THREADS-1;i>threadnum;i--){
+#pragma omp atomic update
+            istart_local[i] += counter;
+        }
+//we need each thread to be done here before copying the data
+#pragma omp barrier
+
+        LOG_DEBUG("Thread %d has %d halos, concatenating (starting at %d)...",threadnum,counter,istart_local[threadnum]);
+            
+        //copy each local array into the outputs
+        memcpy(halo_masses + istart_local[threadnum],local_hm,counter*sizeof(float));
+        memcpy(stellar_masses + istart_local[threadnum],local_sm,counter*sizeof(float));
+        memcpy(halo_coords + istart_local[threadnum]*3,local_coords,counter*sizeof(int)*3);
+
+        //free local thread buffers
         free(hm_buf);
         free(sm_buf);
-        *n_halo_out = total_n_halo;
+        free(local_coords);
+        free(local_hm);
+        free(local_sm);
     }
-    LOG_DEBUG("Finished halo sampling %d bad cells || nh = %d | hm = (%.3e, %.3e, %.3e) total= %.3e | sm = (%.3e, %.3e, %.e) total = %.3e",bad_cells,total_n_halo
-                                    ,halo_masses[0],halo_masses[1],halo_masses[2],total_halomass
-                                    ,stellar_masses[0],stellar_masses[1],stellar_masses[2],total_starmass);
+    *n_halo_out = nh_total;
+    free_rng_threads(rng_stoc);
+    LOG_DEBUG("Finished halo sampling %d bad cells || nh = %d | hm = (%.3e, %.3e, %.3e) total= %.3e | sm = (%.3e, %.3e, %.e) total = %.3e",bad_cells,nh_total
+                                    ,halo_masses[0],halo_masses[1],halo_masses[2],hm_total
+                                    ,stellar_masses[0],stellar_masses[1],stellar_masses[2],sm_total);
     return 0;
 }
