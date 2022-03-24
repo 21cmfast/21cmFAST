@@ -151,7 +151,7 @@ LOG_ULTRA_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%
             // first let's check if virialized halos of this size are rare enough
             // that we don't have to worry about them (let's define 7 sigma away, as in Mesinger et al 05)
             if ((sigma_z0(M)*growth_factor*7.) < delta_crit){
-LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
+LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                 R /= global_params.DELTA_R_FACTOR;
                 continue;
             }
@@ -196,10 +196,11 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
 //TODO: Fix the race condition: it doesn't matter which thread finds the halo first, but if two threads find a halo in the same region
 //simultaneously (before the first one updates in_halo) some halos could double-up
 //putting the conditional in a critical part would undo most of the threading benefit, think of something else
-//checking for overlaps in new halos after this loop could work
-//#pragma omp parallel shared(boxes,density_field,in_halo,forbidden,halo_field,growth_factor,M,delta_crit) private(x,y,z,delta_m) num_threads(user_params->N_THREADS) reduction(+: dn,n,total_halo_num)
-//            {
-//#pragma omp for
+//checking for overlaps in new halos after this loop could work, but I would have to calculate distances between all new halos which sounds slow
+//for now, I think it's good enough to set the static schedule so that the race condition only matters for large halos in low-res grids and small boxes.
+#pragma omp parallel shared(boxes,density_field,in_halo,forbidden,halo_field,growth_factor,M,delta_crit) private(x,y,z,delta_m) num_threads(user_params->N_THREADS) reduction(+: dn,n,total_halo_num)
+            {
+#pragma omp for schedule(static)
                 for (x=0; x<user_params->DIM; x++){
                     for (y=0; y<user_params->DIM; y++){
                         for (z=0; z<user_params->DIM; z++){
@@ -235,9 +236,9 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                         }
                     }
                 }
-            //}
+            }
 
-LOG_ULTRA_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", dn, n, growth_factor, delta_crit);
+            LOG_ULTRA_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", dn, n, growth_factor, delta_crit);
 
             if (dn > 0){
                 // now lets keep the mass functions (FgrtR)
@@ -264,7 +265,7 @@ LOG_ULTRA_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", dn, n, gro
             R /= global_params.DELTA_R_FACTOR;
         }
 
-LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.");
+        LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.");
 
         // Trim the mass function entries
         trim_hmf(halos);
@@ -273,9 +274,11 @@ LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.")
         init_halo_coords(halos, total_halo_num);
 
         int istart_local[user_params->N_THREADS];
+        memset(istart_local,0,sizeof(int)*user_params->N_THREADS);
         float * local_masses;
         int * local_coords;
         int threadnum;
+
 //I would expect the number of halos to be much less than the number of cells so defining local arrays here
 //and then concatenating shouldn't increase memory too much
 #pragma omp parallel shared(halos,halo_field,istart_local) private(x,y,z,counter,local_coords,local_masses,threadnum) num_threads(user_params->N_THREADS)
@@ -304,16 +307,18 @@ LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.")
 
 //this loop exectuted on all threads, we need the start index of each local array
 //i[0] == 0, i[1] == n_0, i[2] == n_0 + n_1 etc...
-            for(i=user_params->N_THREADS;i>threadnum;i--){
+            for(i=user_params->N_THREADS-1;i>threadnum;i--){
 #pragma omp atomic update
                 istart_local[i] += counter;
             }
 //we need each thread to be done here before copying the data
 #pragma omp barrier
+
+            LOG_DEBUG("Thread %d has %d of %d halos, concatenating (starting at %d)...",threadnum,counter,total_halo_num,istart_local[threadnum]);
             
             //copy each local array into the struct
             memcpy(halos->halo_masses + istart_local[threadnum],local_masses,counter*sizeof(float));
-            memcpy(halos->halo_coords + istart_local[threadnum]*3,local_coords,counter*sizeof(float)*3);
+            memcpy(halos->halo_coords + istart_local[threadnum]*3,local_coords,counter*sizeof(int)*3);
 
             free(local_coords);
             free(local_masses);
