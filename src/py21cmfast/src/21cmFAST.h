@@ -113,6 +113,9 @@ struct PerturbHaloField{
     int n_halos;
     float *halo_masses;
     int *halo_coords;
+
+    //Halo properties for stochastic model
+    float *stellar_masses;
 };
 
 
@@ -210,5 +213,5 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 int build_halo_grids(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int seed, double redshift
                     ,bool eulerian, float *dens_field, int *nh_field, float *hm_field, float *sm_field);
 int build_halo_cats(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int seed, double redshift
-                    ,bool eulerian, float *dens_field, int * n_halo_out, int *halo_coords, float *halo_masses, float * stellar_masses);
+                    ,bool eulerian, float *dens_field, int * n_halo_out, int *halo_coords, float *halo_masses);
                     

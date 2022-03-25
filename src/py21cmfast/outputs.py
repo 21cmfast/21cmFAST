@@ -338,7 +338,8 @@ class PerturbHaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
     _c_compute_function = lib.ComputePerturbHaloField
-    _c_based_pointers = ("halo_masses", "halo_coords")
+    _c_based_pointers = ("halo_masses", "halo_coords",
+        "stellar_masses")
 
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         return {}
@@ -347,6 +348,7 @@ class PerturbHaloField(_AllParamsBox):
         return {
             "halo_masses": (cstruct.n_halos,),
             "halo_coords": (cstruct.n_halos, 3),
+            "stellar_masses": (cstruct.n_halos,),
         }
 
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
