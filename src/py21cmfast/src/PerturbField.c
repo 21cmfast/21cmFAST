@@ -87,7 +87,7 @@ int ComputePerturbField(
 #pragma omp for
             for (i=0; i<dimension; i++){
                 for (j=0; j<dimension; j++){
-                    for (k=0; k<dimension; k++){
+                    for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
                         if(user_params->PERTURB_ON_HIGH_RES) {
                             *((float *)HIRES_density_perturb + R_FFT_INDEX(i,j,k)) = growth_factor*boxes->hires_density[R_INDEX(i,j,k)];
                         }
@@ -108,7 +108,7 @@ int ComputePerturbField(
 #pragma omp for
             for (i=0; i<dimension; i++){
                 for (j=0; j<dimension; j++){
-                    for (k=0; k<dimension; k++){
+                    for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
                         if(user_params->PERTURB_ON_HIGH_RES) {
                             *((float *)HIRES_density_perturb + R_FFT_INDEX(i,j,k)) = 0.;
                         }
@@ -129,16 +129,16 @@ int ComputePerturbField(
 #pragma omp for
             for (i=0; i<dimension; i++){
                 for (j=0; j<dimension; j++){
-                    for (k=0; k<dimension; k++){
+                    for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
                         if(user_params->PERTURB_ON_HIGH_RES) {
                             boxes->hires_vx[R_INDEX(i,j,k)] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
                             boxes->hires_vy[R_INDEX(i,j,k)] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
-                            boxes->hires_vz[R_INDEX(i,j,k)] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
+                            boxes->hires_vz[R_INDEX(i,j,k)] *= (velocity_displacement_factor/user_params->NON_CUBIC_FACTOR); // this is now comoving displacement in units of box size
                         }
                         else {
                             boxes->lowres_vx[HII_R_INDEX(i,j,k)] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
                             boxes->lowres_vy[HII_R_INDEX(i,j,k)] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
-                            boxes->lowres_vz[HII_R_INDEX(i,j,k)] *= velocity_displacement_factor; // this is now comoving displacement in units of box size
+                            boxes->lowres_vz[HII_R_INDEX(i,j,k)] *= (velocity_displacement_factor/user_params->NON_CUBIC_FACTOR); // this is now comoving displacement in units of box size
                         }
                     }
                 }
@@ -161,16 +161,16 @@ int ComputePerturbField(
 #pragma omp for
                 for (i=0; i<dimension; i++){
                     for (j=0; j<dimension; j++){
-                        for (k=0; k<dimension; k++){
+                        for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
                             if(user_params->PERTURB_ON_HIGH_RES) {
                                 boxes->hires_vx_2LPT[R_INDEX(i,j,k)] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
                                 boxes->hires_vy_2LPT[R_INDEX(i,j,k)] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
-                                boxes->hires_vz_2LPT[R_INDEX(i,j,k)] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
+                                boxes->hires_vz_2LPT[R_INDEX(i,j,k)] *= (velocity_displacement_factor_2LPT/user_params->NON_CUBIC_FACTOR); // this is now comoving displacement in units of box size
                             }
                             else {
                                 boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
                                 boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
-                                boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] *= velocity_displacement_factor_2LPT; // this is now comoving displacement in units of box size
+                                boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] *= (velocity_displacement_factor_2LPT/user_params->NON_CUBIC_FACTOR); // this is now comoving displacement in units of box size
                             }
                         }
                     }
@@ -201,12 +201,12 @@ int ComputePerturbField(
 #pragma omp for
             for (i=0; i<user_params->DIM;i++){
                 for (j=0; j<user_params->DIM;j++){
-                    for (k=0; k<user_params->DIM;k++){
+                    for (k=0; k<D_PARA;k++){
 
                         // map indeces to locations in units of box size
                         xf = (i+0.5)/((user_params->DIM)+0.0);
                         yf = (j+0.5)/((user_params->DIM)+0.0);
-                        zf = (k+0.5)/((user_params->DIM)+0.0);
+                        zf = (k+0.5)/((D_PARA)+0.0);
 
                         // update locations
                         if(user_params->PERTURB_ON_HIGH_RES) {
@@ -240,13 +240,13 @@ int ComputePerturbField(
 
                         xf *= (float)(dimension);
                         yf *= (float)(dimension);
-                        zf *= (float)(dimension);
+                        zf *= (float)((unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension));
                         while (xf >= (float)(dimension)){ xf -= (dimension);}
                         while (xf < 0){ xf += (dimension);}
                         while (yf >= (float)(dimension)){ yf -= (dimension);}
                         while (yf < 0){ yf += (dimension);}
-                        while (zf >= (float)(dimension)){ zf -= (dimension);}
-                        while (zf < 0){ zf += (dimension);}
+                        while (zf >= (float)((unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension))){ zf -= ((unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension));}
+                        while (zf < 0){ zf += ((unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension));}
                         xi = xf;
                         yi = yf;
                         zi = zf;
@@ -254,8 +254,8 @@ int ComputePerturbField(
                         if (xi < 0) {xi += (dimension);}
                         if (yi >= (dimension)){ yi -= (dimension);}
                         if (yi < 0) {yi += (dimension);}
-                        if (zi >= (dimension)){ zi -= (dimension);}
-                        if (zi < 0) {zi += (dimension);}
+                        if (zi >= ((unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension))){ zi -= ((unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension));}
+                        if (zi < 0) {zi += ((unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension));}
 
                         if(user_params->PERTURB_ON_HIGH_RES) {
 #pragma omp atomic
@@ -280,7 +280,7 @@ int ComputePerturbField(
 #pragma omp for
             for (i=0; i<dimension; i++){
                 for (j=0; j<dimension; j++){
-                    for (k=0; k<dimension; k++){
+                    for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
                         if(user_params->PERTURB_ON_HIGH_RES) {
                             *( (float *)HIRES_density_perturb + R_FFT_INDEX(i,j,k) ) = (float)resampled_box[R_INDEX(i,j,k)];
                         }
@@ -307,16 +307,16 @@ int ComputePerturbField(
 #pragma omp for
             for (i=0; i<dimension; i++){
                 for (j=0; j<dimension; j++){
-                    for (k=0; k<dimension; k++){
+                    for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
                         if(user_params->PERTURB_ON_HIGH_RES) {
                             boxes->hires_vx[R_INDEX(i,j,k)] /= velocity_displacement_factor; // convert back to z = 0 quantity
                             boxes->hires_vy[R_INDEX(i,j,k)] /= velocity_displacement_factor; // convert back to z = 0 quantity
-                            boxes->hires_vz[R_INDEX(i,j,k)] /= velocity_displacement_factor; // convert back to z = 0 quantity
+                            boxes->hires_vz[R_INDEX(i,j,k)] /= (velocity_displacement_factor/user_params->NON_CUBIC_FACTOR); // convert back to z = 0 quantity
                         }
                         else {
                             boxes->lowres_vx[HII_R_INDEX(i,j,k)] /= velocity_displacement_factor; // convert back to z = 0 quantity
                             boxes->lowres_vy[HII_R_INDEX(i,j,k)] /= velocity_displacement_factor; // convert back to z = 0 quantity
-                            boxes->lowres_vz[HII_R_INDEX(i,j,k)] /= velocity_displacement_factor; // convert back to z = 0 quantity
+                            boxes->lowres_vz[HII_R_INDEX(i,j,k)] /= (velocity_displacement_factor/user_params->NON_CUBIC_FACTOR); // convert back to z = 0 quantity
                         }
                     }
                 }
@@ -329,16 +329,16 @@ int ComputePerturbField(
 #pragma omp for
                 for (i=0; i<dimension; i++){
                     for (j=0; j<dimension; j++){
-                        for (k=0; k<dimension; k++){
+                        for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
                             if(user_params->PERTURB_ON_HIGH_RES) {
                                 boxes->hires_vx_2LPT[R_INDEX(i,j,k)] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
                                 boxes->hires_vy_2LPT[R_INDEX(i,j,k)] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
-                                boxes->hires_vz_2LPT[R_INDEX(i,j,k)] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
+                                boxes->hires_vz_2LPT[R_INDEX(i,j,k)] /= (velocity_displacement_factor_2LPT/user_params->NON_CUBIC_FACTOR); // convert back to z = 0 quantity
                             }
                             else {
                                 boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
                                 boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
-                                boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] /= velocity_displacement_factor_2LPT; // convert back to z = 0 quantity
+                                boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] /= (velocity_displacement_factor_2LPT/user_params->NON_CUBIC_FACTOR); // convert back to z = 0 quantity
                             }
                         }
                     }
@@ -354,7 +354,7 @@ int ComputePerturbField(
         LOG_DEBUG("Downsample the high-res perturbed density");
 
         // Transform to Fourier space to sample (filter) the box
-        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_density_perturb);
+        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_density_perturb);
 
         // Need to save a copy of the high-resolution unfiltered density field for the velocities
         memcpy(HIRES_density_perturb_saved, HIRES_density_perturb, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
@@ -365,7 +365,7 @@ int ComputePerturbField(
         }
 
         // FFT back to real space
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_density_perturb);
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_density_perturb);
 
         // Renormalise the FFT'd box
 #pragma omp parallel shared(HIRES_density_perturb,LOWRES_density_perturb,f_pixel_factor,mass_factor) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -373,7 +373,7 @@ int ComputePerturbField(
 #pragma omp for
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<user_params->HII_DIM; k++){
+                    for (k=0; k<HII_D_PARA; k++){
                         *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) =
                         *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
                                                            (unsigned long long)(j*f_pixel_factor+0.5),
@@ -398,7 +398,7 @@ int ComputePerturbField(
 #pragma omp for
                 for (i=0; i<user_params->HII_DIM; i++){
                     for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
+                        for (k=0; k<HII_D_PARA; k++){
                             *( (float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k) ) /= mass_factor;
                             *( (float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k) ) -= 1.;
                         }
@@ -412,7 +412,7 @@ int ComputePerturbField(
     debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, "  ");
 
     // transform to k-space
-    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, LOWRES_density_perturb);
+    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, LOWRES_density_perturb);
 
     //smooth the field
     if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
@@ -425,7 +425,7 @@ int ComputePerturbField(
     // save a copy of the k-space density field
     memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
-    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, LOWRES_density_perturb);
+    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, LOWRES_density_perturb);
 
     LOG_SUPER_DEBUG("LOWRES_density_perturb back in real space: ");
     debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, "  ");
@@ -437,7 +437,7 @@ int ComputePerturbField(
 #pragma omp for
         for(i=0; i<user_params->HII_DIM; i++){
             for(j=0; j<user_params->HII_DIM; j++){
-                for(k=0; k<user_params->HII_DIM; k++){
+                for(k=0; k<HII_D_PARA; k++){
                     *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) /= (float)HII_TOT_NUM_PIXELS;
 
                     if (*((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k)) < -1.0) { // shouldn't happen
@@ -461,7 +461,7 @@ int ComputePerturbField(
 #pragma omp for
         for (i=0; i<user_params->HII_DIM; i++){
             for (j=0; j<user_params->HII_DIM; j++){
-                for (k=0; k<user_params->HII_DIM; k++){
+                for (k=0; k<HII_D_PARA; k++){
                     *((float *)perturbed_field->density + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
                 }
             }
@@ -501,8 +501,8 @@ int ComputePerturbField(
                 else
                     k_y = n_y * DELTA_K;
 
-                for (n_z=0; n_z<=switch_mid; n_z++){
-                    k_z = n_z * DELTA_K;
+                for (n_z=0; n_z<=(unsigned long long)(user_params->NON_CUBIC_FACTOR*switch_mid); n_z++){
+                    k_z = n_z * DELTA_K_PARA;
 
                     k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
 
@@ -535,14 +535,14 @@ int ComputePerturbField(
         if (user_params->DIM != user_params->HII_DIM)
             filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
 
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_density_perturb);
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_density_perturb);
 
 #pragma omp parallel shared(perturbed_field,HIRES_density_perturb,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<user_params->HII_DIM; k++){
+                    for (k=0; k<HII_D_PARA; k++){
                         *((float *)perturbed_field->velocity + HII_R_INDEX(i,j,k)) = *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5), (unsigned long long)(j*f_pixel_factor+0.5), (unsigned long long)(k*f_pixel_factor+0.5)));
                     }
                 }
@@ -550,14 +550,14 @@ int ComputePerturbField(
         }
     }
     else {
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, LOWRES_density_perturb);
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, LOWRES_density_perturb);
 
 #pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<user_params->HII_DIM; k++){
+                    for (k=0; k<HII_D_PARA; k++){
                         *((float *)perturbed_field->velocity + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
                     }
                 }
