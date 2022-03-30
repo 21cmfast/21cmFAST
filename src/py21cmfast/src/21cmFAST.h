@@ -21,6 +21,7 @@ struct UserParams{
     int HII_DIM;
     int DIM;
     float BOX_LEN;
+    float NON_CUBIC_FACTOR;
     bool USE_FFTW_WISDOM;
     int HMF;
     int USE_RELATIVE_VELOCITIES;

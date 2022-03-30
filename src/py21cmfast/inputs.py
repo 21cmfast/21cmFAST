@@ -506,7 +506,7 @@ class UserParams(StructWithDefaults):
     def NON_CUBIC_FACTOR(self):
         """Factor to shorten/lengthen the line-of-sight dimension (non-cubic boxes)."""
         if (
-            self._DIM * self._NON_CUBIC_FACTOR % int(self._DIM * self._NON_CUBIC_FACTOR)
+            self.DIM * self._NON_CUBIC_FACTOR % int(self.DIM * self._NON_CUBIC_FACTOR)
             or self.HII_DIM
             * self._NON_CUBIC_FACTOR
             % int(self.HII_DIM * self._NON_CUBIC_FACTOR)
