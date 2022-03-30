@@ -307,7 +307,7 @@ LOG_SUPER_DEBUG("erfc interpolation done");
 #pragma omp for
         for (i=0; i<user_params->HII_DIM; i++){
             for (j=0; j<user_params->HII_DIM; j++){
-                for (k=0; k<user_params->HII_DIM; k++){
+                for (k=0; k<HII_D_PARA; k++){
                     *((float *)deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = (perturbed_field->density[HII_R_INDEX(i,j,k)])*adjustment_factor;
                 }
             }
@@ -344,7 +344,7 @@ LOG_DEBUG("first redshift, do some initialization");
 #pragma omp for
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<user_params->HII_DIM; k++){
+                    for (k=0; k<HII_D_PARA; k++){
                         previous_ionize_box->z_re_box[HII_R_INDEX(i, j, k)] = -1.0;
                     }
                 }
@@ -383,7 +383,7 @@ LOG_DEBUG("first redshift, do some initialization");
 #pragma omp for
                     for (i=0; i<user_params->HII_DIM; i++){
                         for (j=0; j<user_params->HII_DIM; j++){
-                            for (k=0; k<user_params->HII_DIM; k++){
+                            for (k=0; k<HII_D_PARA; k++){
                                 *((float *)prev_deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = -1.5;
                             }
                         }
@@ -396,7 +396,7 @@ LOG_DEBUG("first redshift, do some initialization");
 #pragma omp for
                     for (i=0; i<user_params->HII_DIM; i++){
                         for (j=0; j<user_params->HII_DIM; j++){
-                            for (k=0; k<user_params->HII_DIM; k++){
+                            for (k=0; k<HII_D_PARA; k++){
                                 *((float *)prev_deltax_unfiltered + HII_R_FFT_INDEX(i,j,k)) = previous_perturbed_field->density[HII_R_INDEX(i,j,k)];
                             }
                         }
@@ -427,7 +427,7 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
 #pragma omp for reduction(+:ave_log10_Mturnover,ave_log10_Mturnover_MINI)
                 for (x=0; x<user_params->HII_DIM; x++){
                     for (y=0; y<user_params->HII_DIM; y++){
-                        for (z=0; z<user_params->HII_DIM; z++){
+                        for (z=0; z<HII_D_PARA; z++){
 
                             Mcrit_RE = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[HII_R_INDEX(x, y, z)], previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)]);
                             if (flag_options->FIX_VCB_AVG){ //with this flag we ignore reading vcb box
@@ -656,7 +656,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 #pragma omp for
                 for (i = 0; i < user_params->HII_DIM; i++) {
                     for (j = 0; j < user_params->HII_DIM; j++) {
-                        for (k = 0; k < user_params->HII_DIM; k++) {
+                        for (k = 0; k < HII_D_PARA; k++) {
                             *((float *) xe_unfiltered + HII_R_FFT_INDEX(i, j, k)) = spin_temp->x_e_box[HII_R_INDEX(i, j, k)];
                         }
                     }
@@ -672,7 +672,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 #pragma omp for
                 for (i = 0; i < user_params->HII_DIM; i++) {
                     for (j = 0; j < user_params->HII_DIM; j++) {
-                        for (k = 0; k < user_params->HII_DIM; k++) {
+                        for (k = 0; k < HII_D_PARA; k++) {
                             *((float *) N_rec_unfiltered +
                               HII_R_FFT_INDEX(i, j, k)) = previous_ionize_box->dNrec_box[HII_R_INDEX(i, j, k)];
                         }
@@ -681,30 +681,30 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             }
         }
 
-        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, deltax_unfiltered);
+        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, deltax_unfiltered);
 
         LOG_SUPER_DEBUG("FFTs performed");
 
         if(flag_options->USE_MINI_HALOS){
-            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, prev_deltax_unfiltered);
-            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mturnover_MINI_unfiltered);
-            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mturnover_unfiltered);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, prev_deltax_unfiltered);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, log10_Mturnover_MINI_unfiltered);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, log10_Mturnover_unfiltered);
             LOG_SUPER_DEBUG("MINI HALO ffts performed");
         }
 
         if (flag_options->USE_HALO_FIELD){
-            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, M_coll_unfiltered);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, M_coll_unfiltered);
             LOG_SUPER_DEBUG("HALO_FIELD ffts performed");
         }
 
         if(flag_options->USE_TS_FLUCT) {
-            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, xe_unfiltered);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, xe_unfiltered);
             LOG_SUPER_DEBUG("Ts ffts performed");
         }
 
 
         if (flag_options->INHOMO_RECO) {
-            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, N_rec_unfiltered);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, N_rec_unfiltered);
         }
 
         // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from
@@ -811,24 +811,24 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
 
             // Perform FFTs
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, deltax_filtered);
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, deltax_filtered);
 
             if(flag_options->USE_MINI_HALOS){
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, prev_deltax_filtered);
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mturnover_MINI_filtered);
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mturnover_filtered);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, prev_deltax_filtered);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, log10_Mturnover_MINI_filtered);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, log10_Mturnover_filtered);
             }
 
             if (flag_options->USE_HALO_FIELD) {
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, M_coll_filtered);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, M_coll_filtered);
             }
 
             if (flag_options->USE_TS_FLUCT) {
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, xe_filtered);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, xe_filtered);
             }
 
             if (flag_options->INHOMO_RECO) {
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, N_rec_filtered);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, N_rec_filtered);
             }
 
             // Check if this is the last filtering scale.  If so, we don't need deltax_unfiltered anymore.
@@ -853,7 +853,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 #pragma omp for reduction(max:max_density) reduction(min:min_density)
                         for (x = 0; x < user_params->HII_DIM; x++) {
                             for (y = 0; y < user_params->HII_DIM; y++) {
-                                for (z = 0; z < user_params->HII_DIM; z++) {
+                                for (z = 0; z < HII_D_PARA; z++) {
                                     // delta cannot be less than -1
                                     *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(
                                                 *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
@@ -883,7 +883,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 #pragma omp for reduction(max:prev_max_density) reduction(min:prev_min_density)
                             for (x=0; x<user_params->HII_DIM; x++){
                                 for (y=0; y<user_params->HII_DIM; y++){
-                                    for (z=0; z<user_params->HII_DIM; z++){
+                                    for (z=0; z<HII_D_PARA; z++){
                                         // delta cannot be less than -1
                                         *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) = \
                                                         fmaxf(*((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z)) , -1.+FRACT_FLOAT_ERR);
@@ -914,7 +914,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 #pragma omp for reduction(max:log10Mturn_max,log10Mturn_max_MINI) reduction(min:log10Mturn_min,log10Mturn_min_MINI)
                             for (x=0; x<user_params->HII_DIM; x++){
                                 for (y=0; y<user_params->HII_DIM; y++){
-                                    for (z=0; z<user_params->HII_DIM; z++){
+                                    for (z=0; z<HII_D_PARA; z++){
                                         if (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) < log10_Mcrit_atom)
                                             *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) = log10_Mcrit_atom;
                                         if (*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)) > LOG10_MTURN_MAX)
@@ -1015,7 +1015,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 #pragma omp for reduction(+:f_coll,f_coll_MINI)
                 for (x = 0; x < user_params->HII_DIM; x++) {
                     for (y = 0; y < user_params->HII_DIM; y++) {
-                        for (z = 0; z < user_params->HII_DIM; z++) {
+                        for (z = 0; z < HII_D_PARA; z++) {
 
                             // delta cannot be less than -1
                             *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(
@@ -1282,7 +1282,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 #pragma omp for
                 for (x = 0; x < user_params->HII_DIM; x++) {
                     for (y = 0; y < user_params->HII_DIM; y++) {
-                        for (z = 0; z < user_params->HII_DIM; z++) {
+                        for (z = 0; z < HII_D_PARA; z++) {
 
                             curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
@@ -1353,7 +1353,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     box->xH_box[HII_R_INDEX(x,y,z)] = 0;
                                 if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
                                     update_in_sphere(box->xH_box, user_params->HII_DIM, R/(user_params->BOX_LEN), \
-                                                     x/(user_params->HII_DIM+0.0), y/(user_params->HII_DIM+0.0), z/(user_params->HII_DIM+0.0));
+                                                     x/(user_params->HII_DIM+0.0), y/(user_params->HII_DIM+0.0), z/(user_params->HII_DIM+0.0)); //TODO: Update for asymmetric box
                             } // end ionized
                                 // If not fully ionized, then assign partial ionizations
                             else if (LAST_FILTER_STEP && (box->xH_box[HII_R_INDEX(x, y, z)] > TINY)) {
@@ -1425,7 +1425,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 #pragma omp for
             for (x=0; x<user_params->HII_DIM; x++){
                 for (y=0; y<user_params->HII_DIM; y++){
-                    for (z=0; z<user_params->HII_DIM; z++){
+                    for (z=0; z<HII_D_PARA; z++){
                         if ((box->z_re_box[HII_R_INDEX(x,y,z)]>0) && (box->xH_box[HII_R_INDEX(x,y,z)] < TINY)){
                             box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], \
                                                                         redshift, *((float *)deltax_unfiltered_original + HII_R_FFT_INDEX(x,y,z)));
@@ -1446,7 +1446,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
         for (x=0; x<user_params->HII_DIM; x++){
             for (y=0; y<user_params->HII_DIM; y++){
-                for (z=0; z<user_params->HII_DIM; z++){
+                for (z=0; z<HII_D_PARA; z++){
                     if(isfinite(box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)])==0){
                         LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong "\
                                   "in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
@@ -1488,7 +1488,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 #pragma omp for
                 for (x = 0; x < user_params->HII_DIM; x++) {
                     for (y = 0; y < user_params->HII_DIM; y++) {
-                        for (z = 0; z < user_params->HII_DIM; z++) {
+                        for (z = 0; z < HII_D_PARA; z++) {
 
                             // use the original density and redshift for the snapshot (not the adjusted redshift)
                             // Only want to use the adjusted redshift for the ionisation field

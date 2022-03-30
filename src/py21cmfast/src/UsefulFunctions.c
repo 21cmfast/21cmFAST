@@ -82,8 +82,8 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
                 else {k_y = n_y * DELTA_K;}
 
 //                for (n_z=(midpoint+1); n_z--;){
-                for (n_z=0; n_z<=midpoint; n_z++){
-                    k_z = n_z * DELTA_K;
+                for (n_z=0; n_z<=(unsigned long long)(user_params_ufunc->NON_CUBIC_FACTOR*midpoint); n_z++){
+                    k_z = n_z * DELTA_K_PARA;
 
                     if (filter_type == 0){ // real space top-hat
 
@@ -537,8 +537,8 @@ float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_param
 
 
 void writeUserParams(struct UserParams *p){
-    LOG_INFO("UserParams: [HII_DIM=%d, DIM=%d, BOX_LEN=%f, HMF=%d, POWER_SPECTRUM=%d, USE_RELATIVE_VELOCITIES=%d, N_THREADS=%d, PERTURB_ON_HIGH_RES=%d, NO_RNG=%d, USE_FFTW_WISDOM=%d, USE_INTERPOLATION_TABLES=%d, FAST_FCOLL_TABLES=%d]",
-             p->HII_DIM, p->DIM, p->BOX_LEN, p->HMF, p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->N_THREADS, p->PERTURB_ON_HIGH_RES, p->NO_RNG, p->USE_FFTW_WISDOM, p->USE_INTERPOLATION_TABLES, p->FAST_FCOLL_TABLES);
+    LOG_INFO("UserParams: [HII_DIM=%d, DIM=%d, BOX_LEN=%f, NON_CUBIC_FACTOR=%f, HMF=%d, POWER_SPECTRUM=%d, USE_RELATIVE_VELOCITIES=%d, N_THREADS=%d, PERTURB_ON_HIGH_RES=%d, NO_RNG=%d, USE_FFTW_WISDOM=%d, USE_INTERPOLATION_TABLES=%d, FAST_FCOLL_TABLES=%d]",
+             p->HII_DIM, p->DIM, p->BOX_LEN, p->NON_CUBIC_FACTOR, p->HMF, p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->N_THREADS, p->PERTURB_ON_HIGH_RES, p->NO_RNG, p->USE_FFTW_WISDOM, p->USE_INTERPOLATION_TABLES, p->FAST_FCOLL_TABLES);
 }
 
 void writeCosmoParams(struct CosmoParams *p){
