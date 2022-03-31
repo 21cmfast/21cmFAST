@@ -321,7 +321,7 @@ class HaloField(_AllParamsBox):
                 f"{type(input_box)} is not an input required for HaloField!"
             )
 
-    def compute(self, *, ics: InitialConditions, hooks: dict):
+    def compute(self, *, ics: InitialConditions, random_seed: int, hooks: dict):
         """Compute the function."""
         return self._compute(
             self.redshift,
@@ -330,6 +330,7 @@ class HaloField(_AllParamsBox):
             self.astro_params,
             self.flag_options,
             ics,
+            random_seed,
             hooks=hooks,
         )
 
@@ -338,8 +339,7 @@ class PerturbHaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
     _c_compute_function = lib.ComputePerturbHaloField
-    _c_based_pointers = ("halo_masses", "halo_coords",
-        "stellar_masses")
+    _c_based_pointers = ("halo_masses", "halo_coords","stellar_masses")
 
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         return {}
@@ -371,7 +371,7 @@ class PerturbHaloField(_AllParamsBox):
 
         return required
 
-    def compute(self, *, ics: InitialConditions, halo_field: HaloField, hooks: dict):
+    def compute(self, *, ics: InitialConditions, halo_field: HaloField, random_seed: int, hooks: dict):
         """Compute the function."""
         return self._compute(
             self.redshift,
@@ -381,6 +381,7 @@ class PerturbHaloField(_AllParamsBox):
             self.flag_options,
             ics,
             halo_field,
+            random_seed,
             hooks=hooks,
         )
 

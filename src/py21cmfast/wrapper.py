@@ -1134,7 +1134,7 @@ def determine_halo_list(
             fields._random_seed = init_boxes.random_seed
 
         # Run the C Code
-        return fields.compute(ics=init_boxes, hooks=hooks)
+        return fields.compute(ics=init_boxes, hooks=hooks, random_seed=random_seed)
 
 
 def perturb_halo_list(
@@ -1277,7 +1277,7 @@ def perturb_halo_list(
             )
 
         # Run the C Code
-        return fields.compute(ics=init_boxes, halo_field=halo_field, hooks=hooks)
+        return fields.compute(ics=init_boxes, halo_field=halo_field, hooks=hooks, random_seed=random_seed)
 
 
 def ionize_box(

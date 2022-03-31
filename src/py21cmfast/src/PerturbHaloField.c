@@ -6,7 +6,7 @@
 
 int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                             struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                            struct InitialConditions *boxes, struct HaloField *halos, struct PerturbHaloField *halos_perturbed) {
+                            struct InitialConditions *boxes, struct HaloField *halos, int random_seed, struct PerturbHaloField *halos_perturbed) {
 
     int status;
 
@@ -245,6 +245,10 @@ LOG_DEBUG("Begin Initialisation");
         fftwf_forget_wisdom();
         LOG_DEBUG("Perturbed positions of %d Halos", halos_perturbed->n_halos);
 
+        //THIS ADDS PROPERTIES TO ALL HALOS, which will be useless if we want DexM Halos without sampled properties
+        //which should be rare, if I want to keep that possibility I'll need to find a way to make the property
+        //fields in the output struct optional
+        add_properties_cat(user_params, cosmo_params, astro_params, flag_options, random_seed, halos_perturbed);
     } // End of Try()
     Catch(status){
         return(status);
@@ -256,6 +260,7 @@ void free_phf(struct PerturbHaloField* halos){
     LOG_DEBUG("Freeing PerturbHaloField");
     free(halos->halo_masses);
     free(halos->halo_coords);
+    free(halos->stellar_masses);
     LOG_DEBUG("Done Freeing PerturbHaloField");
     halos->n_halos = 0;
 }

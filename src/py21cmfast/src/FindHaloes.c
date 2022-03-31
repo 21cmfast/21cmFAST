@@ -18,9 +18,17 @@ void trim_hmf(struct HaloField *halos);
 
 int ComputeHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                      struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                     struct InitialConditions *boxes, struct HaloField *halos) {
+                     struct InitialConditions *boxes, int random_seed, struct HaloField *halos) {
 
     int status;
+
+    //TODO: this probably should be in the wrapper but it's hard with each class only having one compute function
+    //TODO: move later on so its possible to get halos above HII_DIM with DexM then sample below HII_DIM
+    if(flag_options->HALO_STOCHASTICITY){
+        LOG_DEBUG("Halo sampling switched on, bypassing halo finder...");
+        status = stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift, false, false, boxes->lowres_density, halos);
+        return status;
+    }
 
     Try{ // This Try brackets the whole function, so we don't indent.
 
