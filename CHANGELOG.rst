@@ -4,6 +4,23 @@ Changelog
 dev-version
 -----------
 
+v3.1.4 [10 Feb 2022]
+----------------------
+
+Fixed
+-----
+
+* error in FFT normalization in FindHaloes
+* docs not compiling on RTD due to missing ``scipy.integrate`` mock module
+* Updated matplotlib removed support for setting vmin/vmax and norm. Now passes vmin/vmax
+  to the norm() constructor.
+
+v3.1.3 [27 Oct 2021]
+----------------------
+
+* Fixed ``FAST_FCOLL_TABLES`` so it only affects MCGs and not ACGs. Added tests of this
+  flag for high and low z separately.
+
 v3.1.2 [14 Jul 2021]
 ----------------------
 
@@ -17,6 +34,7 @@ Change
 
 * Updated ``USE_INTERPOLATION_TABLES`` to be default True. This makes much more sense as
   a default value. Until v4, a warning will be raised if it is not set explicitly.
+
 
 v3.1.1 [13 Jun 2021]
 ----------------------

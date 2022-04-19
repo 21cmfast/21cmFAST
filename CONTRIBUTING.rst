@@ -42,9 +42,9 @@ The difference between members and non-members only applies to the first step
 of the development process.
 
 Note that it is highly recommended to work in an isolated python environment with
-all requirements installed from ``requirements_dev.txt``. This will also ensure that
+all requirements installed from ``environment_dev.txt``. This will also ensure that
 pre-commit hooks will run that enforce the ``black`` coding style. If you do not
-install these requirements, you must manually run black before committing your changes,
+install these requirements, you must manually run ``black`` before committing your changes,
 otherwise your changes will likely fail continuous integration.
 
 As a *member*:
@@ -62,24 +62,18 @@ As a *non-member*:
 
 The following steps are the same for both *members* and *non-members*:
 
-2. Install a fresh new isolated environment. This can be either a basic ``virtualenv``
-   or a ``conda`` env (suggested). So either::
-
-       virtualenv ~/21cmfast
-       source ~/21cmfast/bin/activate
-
-   or::
+2. Install a fresh new isolated environment::
 
        conda create -n 21cmfast python=3
        conda activate 21cmfast
 
-3. Install the *development* requirements for the project. If using the basic ``virtualenv``::
-
-    pip install -r requirements_dev.txt
-
-   or if using ``conda`` (suggested)::
+3. Install the *development* requirements for the project::
 
     conda env update -f environment_dev.yml
+
+4. Install 21cmFAST. See `Installation <./installation.html>`_ for more details.::
+
+    pip install -e .
 
 4. Install pre-commit hooks::
 
@@ -92,10 +86,10 @@ The following steps are the same for both *members* and *non-members*:
    Now you can make your changes locally. **Note: as a member, you _must_ do step 5. If you
    make changes on master, you will _not_ be able to push them**.
 
-6. When you're done making changes, run all the checks, doc builder and spell checker
-   with `tox <http://tox.readthedocs.io/en/latest/install.html>`_ one command::
+6. When you're done making changes, run ``pytest`` to check that your changes didn't
+   break things. You can run a single test or subset of tests as well (see pytest docs)::
 
-    tox
+    pytest
 
 7. Commit your changes and push your branch to GitHub::
 
@@ -115,14 +109,3 @@ Pull Request Guidelines
 
 If you need some code review or feedback while you're developing the code just make the
 pull request. You can mark the PR as a draft until you are happy for it to be merged.
-
-Tips
-----
-
-To run a subset of tests::
-
-    tox -e envname -- py.test -k test_myfeature
-
-To run all the test environments in *parallel* (you need to ``pip install detox``)::
-
-    detox

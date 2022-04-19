@@ -14,10 +14,3 @@ formats: all
 
 conda:
   environment: docs/environment.yaml
-
-# Optionally set the version of Python and requirements required to build the docs
-# We don't install 21cmFAST -- we just load it into the path in conf.py, and mock
-# out the C stuff.
-python:
-  version: 3.7
-  system_packages: true
