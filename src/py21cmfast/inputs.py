@@ -635,7 +635,7 @@ class FlagOptions(StructWithDefaults):
         1. gaussian
         2. smooth-k (also includes sharp-k)
     USE_ETHOS: bool, optional
-        Whether to include ETHOS DM models, if true it forces FILTER to be smooth-k (2). See Mason+TODO
+        Whether to include ETHOS DM models, if true it forces FILTER to be smooth-k (2) and FAST_FCOLL_TABLES=False. See Mason+TODO
     """
 
     _ffi = ffi
@@ -655,10 +655,12 @@ class FlagOptions(StructWithDefaults):
     }
 
     # This checks if relative velocities are off to complain if minihaloes are on
+    # and if FAST_FCOLL_TABLES are on to complain if ETHOS is True (FAST_FCOLL_TABLES only works for top-hat window function)
     def __init__(
         self,
         *args,
         USE_VELS_AUX=UserParams._defaults_["USE_RELATIVE_VELOCITIES"],
+        USE_FAST_FCOLL_TABLES=UserParams._defaults_["FAST_FCOLL_TABLES"],
         **kwargs,
     ):
         # TODO: same as with inhomo_reco. USE_VELS_AUX used to check that relvels are on if MCGs are too
@@ -668,6 +670,15 @@ class FlagOptions(StructWithDefaults):
             logger.warning(
                 "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
             )
+
+        # If USE_ETHOS is True, FAST_FCOLL_TABLE must be False (approximation does not work with non top-hat window functions)
+        self.USE_FAST_FCOLL_TABLES = USE_FAST_FCOLL_TABLES
+        if self.USE_ETHOS and self.USE_FAST_FCOLL_TABLES:
+            raise ValueError(
+                "USE_ETHOS does not work with FAST_FCOLL_TABLES = True! "
+                "The approximation is only valid for top-hat window functions."
+            )
+            # TODO can we change FAST_FCOLL_TABLES to False here?
 
     @property
     def USE_HALO_FIELD(self):
@@ -752,7 +763,7 @@ class FlagOptions(StructWithDefaults):
     @property
     def FILTER(self):
         """The filter to use for the HMF calculations."""
-        if self.USE_ETHOS:
+        if self.USE_ETHOS and self._FILTER != 2:
             return 2
             logger.warning(
                 "Automatically setting filter to 2 (smooth-k) as you are using ETHOS models"
