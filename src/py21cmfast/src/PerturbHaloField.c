@@ -248,7 +248,7 @@ LOG_DEBUG("Begin Initialisation");
         //THIS ADDS PROPERTIES TO ALL HALOS, which will be useless if we want DexM Halos without sampled properties
         //which should be rare, if I want to keep that possibility I'll need to find a way to make the property
         //fields in the output struct optional
-        add_properties_cat(user_params, cosmo_params, astro_params, flag_options, random_seed, halos_perturbed);
+        add_properties_cat(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift, halos_perturbed);
     } // End of Try()
     Catch(status){
         return(status);
@@ -261,6 +261,7 @@ void free_phf(struct PerturbHaloField* halos){
     free(halos->halo_masses);
     free(halos->halo_coords);
     free(halos->stellar_masses);
+    free(halos->halo_sfr);
     LOG_DEBUG("Done Freeing PerturbHaloField");
     halos->n_halos = 0;
 }

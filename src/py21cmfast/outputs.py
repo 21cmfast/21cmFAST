@@ -315,7 +315,11 @@ class HaloField(_AllParamsBox):
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
         """Return all input arrays required to compute this object."""
         if isinstance(input_box, InitialConditions):
-            return ["hires_density"]
+            #TODO: once the concatenation option is added I might need both
+            if self.flag_options.HALO_STOCHASTICITY:
+                return ["lowres_density"]
+            else:
+                return ["hires_density"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for HaloField!"
@@ -339,7 +343,7 @@ class PerturbHaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
     _c_compute_function = lib.ComputePerturbHaloField
-    _c_based_pointers = ("halo_masses", "halo_coords","stellar_masses")
+    _c_based_pointers = ("halo_masses", "halo_coords","stellar_masses","halo_sfr")
 
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         return {}
@@ -349,6 +353,7 @@ class PerturbHaloField(_AllParamsBox):
             "halo_masses": (cstruct.n_halos,),
             "halo_coords": (cstruct.n_halos, 3),
             "stellar_masses": (cstruct.n_halos,),
+            "halo_sfr": (cstruct.n_halos,),
         }
 
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
@@ -581,7 +586,7 @@ class IonizedBox(_AllParamsBox):
             ):
                 required += ["Fcoll", "Fcoll_MINI"]
         elif isinstance(input_box, PerturbHaloField):
-            required += ["halo_coords", "halo_masses"]
+            required += ["halo_coords", "halo_masses", "stellar_masses"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for IonizedBox!"

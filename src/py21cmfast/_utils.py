@@ -19,7 +19,7 @@ from .c_21cmfast import lib
 
 _ffi = FFI()
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("21cmFAST")
 
 
 class ArrayStateError(ValueError):
@@ -675,7 +675,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         for k, state in self._array_state.items():
             if k == "lowres_density":
                 logger.debug("THINKING ABOUT INITING LOWRES_DENSITY")
-                logger.debug(state.initialized, state.computed_in_mem, state.on_disk)
+                logger.debug(f"initialised {state.initialized}, computed_in_mem {state.computed_in_mem}, on disk {state.on_disk}")
 
             # Don't initialize C-based pointers or already-inited stuff, or stuff
             # that's computed on disk (if it's on disk, accessing the array should

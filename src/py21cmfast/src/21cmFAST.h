@@ -43,6 +43,7 @@ struct AstroParams{
     float ALPHA_STAR;
     float ALPHA_STAR_MINI;
     float SIGMA_STAR;
+    float SIGMA_SFR;
     float F_ESC10;
     float ALPHA_ESC;
     float M_TURN;
@@ -116,6 +117,7 @@ struct PerturbHaloField{
 
     //Halo properties for stochastic model
     float *stellar_masses;
+    float *halo_sfr;
 };
 
 
@@ -217,5 +219,5 @@ int build_halo_cats(struct UserParams *user_params, struct CosmoParams *cosmo_pa
 int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int seed, float redshift
                     , bool eulerian, bool concatenate, float *dens_field, struct HaloField *halos);
 int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
-                        , int seed, struct PerturbHaloField *halos);
+                        , int seed, float redshift, struct PerturbHaloField *halos);
                     

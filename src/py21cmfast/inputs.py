@@ -769,8 +769,11 @@ class AstroParams(StructWithDefaults):
         Power-law index of fraction of galactic gas in stars as a function of halo mass, for MCGs.
         See Sec 2 of Muñoz+21 (2110.13919).
     SIGMA_STAR : float, optional
-        Lognormal scatter in of the halo mass to stellar mass relation.
-        Uniform across all bins and redshifts.
+        Lognormal scatter of the halo mass to stellar mass relation.
+        Uniform across all masses and redshifts.
+    SIGMA_SFR : float, optional
+        Lognormal scatter of the stellar mass to SFR relation.
+        Uniform across all masses and redshifts.
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
         IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization,
@@ -839,6 +842,7 @@ class AstroParams(StructWithDefaults):
         "ALPHA_STAR": 0.5,
         "ALPHA_STAR_MINI": 0.5,
         "SIGMA_STAR": 0.0,
+        "SIGMA_SFR": 0.0,
         "F_ESC10": -1.0,
         "F_ESC7_MINI": -2.0,
         "ALPHA_ESC": -0.5,
