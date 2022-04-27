@@ -100,7 +100,7 @@ For Users
 
 Then, at the command line::
 
-    pip install git+git://github.com/21cmFAST/21cmFAST.git
+    pip install git+https://github.com/21cmFAST/21cmFAST.git
 
 If developing, from the top-level directory do::
 
