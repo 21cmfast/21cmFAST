@@ -6,7 +6,7 @@ except ImportError:
 
 try:
     from ._version import version as __version__
-except ModuleNotFoundError:
+except ModuleNotFoundError:  # pragma: no cover
     try:
         __version__ = version("21cmFAST")
     except PackageNotFoundError:
