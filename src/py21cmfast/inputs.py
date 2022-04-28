@@ -29,8 +29,8 @@ logger = logging.getLogger("21cmFAST")
 # Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
 # Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
 Planck18 = Planck15.clone(
-    Om0=(0.02242 + 0.11933) / 0.6766 ** 2,
-    Ob0=0.02242 / 0.6766 ** 2,
+    Om0=(0.02242 + 0.11933) / 0.6766**2,
+    Ob0=0.02242 / 0.6766**2,
     H0=67.66,
 )
 
@@ -501,12 +501,12 @@ class UserParams(StructWithDefaults):
     @property
     def tot_fft_num_pixels(self):
         """Total number of pixels in the high-res box."""
-        return self.DIM ** 3
+        return self.DIM**3
 
     @property
     def HII_tot_num_pixels(self):
         """Total number of pixels in the low-res box."""
-        return self.HII_DIM ** 3
+        return self.HII_DIM**3
 
     @property
     def POWER_SPECTRUM(self):
@@ -872,7 +872,7 @@ class AstroParams(StructWithDefaults):
             "L_X_MINI",
             "X_RAY_Tvir_MIN",
         ]:
-            return 10 ** val
+            return 10**val
         else:
             return val
 

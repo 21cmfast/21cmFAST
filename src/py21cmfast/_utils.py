@@ -208,8 +208,8 @@ ctype2dtype = {}
 # Integer types
 for prefix in ("int", "uint"):
     for log_bytes in range(4):
-        ctype = "%s%d_t" % (prefix, 8 * (2 ** log_bytes))
-        dtype = "%s%d" % (prefix[0], 2 ** log_bytes)
+        ctype = "%s%d_t" % (prefix, 8 * (2**log_bytes))
+        dtype = "%s%d" % (prefix[0], 2**log_bytes)
         ctype2dtype[ctype] = np.dtype(dtype)
 
 # Floating point types
