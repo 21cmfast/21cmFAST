@@ -16,8 +16,8 @@ repos:
           - id: requirements-txt-fixer
           - id: mixed-line-ending
             args: ['--fix=no']
-    - repo: https://gitlab.com/pycqa/flake8
-      rev: 3.9.2  # pick a git hash / tag to point to
+    - repo: https://github.com/PyCQA/flake8
+      rev: 4.0.1  # pick a git hash / tag to point to
       hooks:
         - id: flake8
           additional_dependencies:
@@ -39,8 +39,8 @@ repos:
       hooks:
           - id: black
 
-    - repo: https://github.com/pre-commit/mirrors-isort
-      rev: v5.10.1
+    - repo: https://github.com/PyCQA/isort
+      rev: 5.10.1
       hooks:
       - id: isort
 
@@ -52,7 +52,7 @@ repos:
       - id: rst-inline-touching-normal
 
     - repo: https://github.com/asottile/pyupgrade
-      rev: v2.32.0
+      rev: v2.32.1
       hooks:
       - id: pyupgrade
         args: [--py36-plus]
