@@ -90,5 +90,9 @@ setup(
     setup_requires=["cffi>=1.0", "setuptools_scm"],
     entry_points={"console_scripts": ["21cmfast = py21cmfast.cli:main"]},
     cffi_modules=[f"{pkgdir}/build_cffi.py:ffi"],
-    use_scm_version={"write_to": "src/py21cmfast/_version.py"},
+    use_scm_version={
+        "write_to": "src/py21cmfast/_version.py",
+        "parentdir_prefix_version": "21cmFAST-",
+        "fallback_version": "0.0.0",
+    },
 )
