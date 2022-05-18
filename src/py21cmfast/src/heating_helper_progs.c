@@ -1334,12 +1334,12 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
     if (flag == 1) {
         //Read in the Lya heating data
         sprintf(filename,"%s/%s",global_params.external_table_path,LYA_HEATING_FILENAME);
-		
+
         if ( !(F=fopen(filename, "r")) ){
             LOG_ERROR("Energy_Lya_heating: Unable to open file: %s for reading.", filename);
             Throw(IOError);
         }
-		
+
         for (ii=0;ii<nT;ii++){
       		for (jj=0;jj<nT;jj++){
       			for (kk=0;kk<ngp;kk++){
@@ -1369,7 +1369,7 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
 	tk = log10(tk);
 	ts = log10(ts);
 	taugp = log10(taugp);
-	
+
 	//find the nearest value
 	int find_nearest_point(double min, double max, int n, double value){
 	int pos=0;
@@ -1378,10 +1378,10 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
 	if (value<min) pos=0;
 	else if (value>=max) pos = n-2;
 	else pos = (int) ((value - min)/dn);
-	
+
 	return pos;
 	}
-	
+
 	//find x-y-z position in an 1D array
 	//x=Tk, y=Ts, z=Tau_GP
 	int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr){
