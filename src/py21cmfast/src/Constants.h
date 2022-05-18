@@ -161,10 +161,10 @@
 #define Tk_min (double) -1.0 //log10 (Tk_min)
 #define Ts_max (double) 3.0 //log10 (Ts_max)
 #define Ts_min (double) -1.0 //log10 (Ts_min)
-#define nT (int) 100
+#define nT (int) 101
 #define taugp_max (double) 7.0 //log10 (taugp_max)
 #define taugp_min (double) 1.0 //log10 (taugp_min)
-#define ngp (int) 150
+#define ngp (int) 151
 // ----------------------------------------------------------------------------------------- //
 
 // Taken from elec_interp.c
