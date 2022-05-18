@@ -1373,10 +1373,10 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
 	//find the nearest value
 	int find_nearest_point(double min, double max, int n, double value){
 	int pos=0;
-	double dn = (max - min)/n;
+	double dn = (max - min)/(n-1);
 
 	if (value<min) pos=0;
-	else if (value>=max) pos = n-1;
+	else if (value>=max) pos = n-2;
 	else pos = (int) ((value - min)/dn);
 	
 	return pos;
