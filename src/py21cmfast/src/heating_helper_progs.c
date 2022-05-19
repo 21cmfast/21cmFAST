@@ -214,9 +214,7 @@ double T_RECFAST(float z, int flag)
 
     if (flag == 1) {
         // Read in the recfast data
-		//Energy_Lya_heating(100, 100, 100, 1);
         sprintf(filename,"%s/%s",global_params.external_table_path,RECFAST_FILENAME);
-		//printf("********* \n *********** \n *********** %s \n *************\n",global_params.external_table_path);
         if ( !(F=fopen(filename, "r")) ){
             LOG_ERROR("T_RECFAST: Unable to open file: %s for reading.", filename);
             Throw(IOError);
