@@ -33,7 +33,8 @@
 #define STELLAR_SPECTRA_FILENAME (const char *) "stellar_spectra.dat"
 #define KAPPA_EH_FILENAME (const char *) "kappa_eH_table.dat"
 #define KAPPA_PH_FILENAME (const char *) "kappa_pH_table.dat"
-
+//Interpolation table for Lya heating efficiencies
+#define LYA_HEATING_FILENAME (const char *) "Lyman_alpha_heating_table.dat"
 
 
 // ----------------------------------------------------------------------------------------- //
@@ -131,6 +132,9 @@
 #define T21 (double) 0.0628 // temperature corresponding to the 21cm photon
 #define A10_HYPERFINE (double) 2.85e-15 // spontaneous emission coefficient in s^-1
 
+#define Lambda_21 (double) 21.106114054160 //Wavelength of 21cm Radiation in cm
+#define A21_Lya (double) 6.24e8 //Spontaneous emission coefficient for Lyman-Alpha line in s^-1
+
 
 // ----------------------------------------------------------------------------------------- //
 
@@ -152,6 +156,16 @@
 
 #define zpp_interp_points_SFR (int) (400)                  /* Number of interpolation points for the interpolation table for z'' */
 #define dens_Ninterp (int) (400)                       /* Number of interpolation points for the interpolation table for the value of the density field */
+
+//Variables needed to read the Lyman-Alpha heating table
+#define Tk_max (double) 3.0 //log10 (Tk_max)
+#define Tk_min (double) -1.0 //log10 (Tk_min)
+#define Ts_max (double) 3.0 //log10 (Ts_max)
+#define Ts_min (double) -1.0 //log10 (Ts_min)
+#define nT (int) 101
+#define taugp_max (double) 7.0 //log10 (taugp_max)
+#define taugp_min (double) 1.0 //log10 (taugp_min)
+#define ngp (int) 151
 
 // ----------------------------------------------------------------------------------------- //
 
