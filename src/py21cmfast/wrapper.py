@@ -123,7 +123,7 @@ def _configure_inputs(
     defaults: list,
     *datasets,
     ignore: list = ["redshift"],
-    flag_none: [list, None] = None,
+    flag_none: Union[list, None] = None,
 ):
     """Configure a set of input parameter structs.
 
@@ -261,17 +261,19 @@ def _get_config_options(
 ) -> Tuple[str, bool, Dict[Callable, Dict[str, Any]]]:
 
     direc = str(os.path.expanduser(config["direc"] if direc is None else direc))
-    hooks = hooks or {}
 
-    if callable(write) and write not in hooks:
-        hooks[write] = {"direc": direc}
+    if hooks is None or len(hooks) > 0:
+        hooks = hooks or {}
 
-    if not hooks:
-        if write is None:
-            write = config["write"]
+        if callable(write) and write not in hooks:
+            hooks[write] = {"direc": direc}
 
-        if not callable(write) and write:
-            hooks["write"] = {"direc": direc}
+        if not hooks:
+            if write is None:
+                write = config["write"]
+
+            if not callable(write) and write:
+                hooks["write"] = {"direc": direc}
 
     return (
         direc,
