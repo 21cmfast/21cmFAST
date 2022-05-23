@@ -123,7 +123,7 @@ def _configure_inputs(
     defaults: list,
     *datasets,
     ignore: list = ["redshift"],
-    flag_none: list | None = None,
+    flag_none: Union[list, None] = None,
 ):
     """Configure a set of input parameter structs.
 
