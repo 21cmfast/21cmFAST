@@ -91,7 +91,7 @@ int init_heat()
     kappa_10(1.0,1);
     kappa_10_elec(1.0,1);
     kappa_10_pH(1.0,1);
-	
+
     if (T_RECFAST(100, 1) < 0)
         return -4;
     if (xion_RECFAST(100, 1) < 0)
@@ -106,7 +106,7 @@ int init_heat()
     //Initialize interpolation array for Lya heating
     if (Energy_Lya_heating(1.0, 1.0, 3.0, 1)<0)
     	return -7;
-	
+
 	LOG_SUPER_DEBUG("About to initialize interp arrays");
     initialize_interp_arrays();
 
@@ -1335,12 +1335,12 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
     if (flag == 1) {
         //Read in the Lya heating table
         sprintf(filename,"%s/%s",global_params.external_table_path,LYA_HEATING_FILENAME);
-		
+
         if ( !(F=fopen(filename, "r")) ){
             LOG_ERROR("Energy_Lya_heating: Unable to open file: %s for reading.", filename);
             Throw(IOError);
         }
-		
+
         for (ii=0;ii<nT;ii++){
       		for (jj=0;jj<nT;jj++){
       			for (kk=0;kk<ngp;kk++){
