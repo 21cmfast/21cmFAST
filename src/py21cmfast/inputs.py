@@ -634,7 +634,7 @@ class FlagOptions(StructWithDefaults):
     _defaults_ = {
         "USE_HALO_FIELD": False,
         "USE_MINI_HALOS": False,
-        "USE_CMB_HEATING": True, 
+        "USE_CMB_HEATING": True,
         "USE_Lya_HEATING": True,
         "USE_MASS_DEPENDENT_ZETA": False,
         "SUBCELL_RSD": False,

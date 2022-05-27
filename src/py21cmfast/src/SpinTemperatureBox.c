@@ -2085,7 +2085,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             // next, Compton heating
                             //                dcomp_dzp = dT_comp(zp, T, x_e);
                             dcomp_dzp = dcomp_dzp_prefactor*(x_e/(1.0+x_e))*( Trad_fast - T );//removed f_He
-							
+
 
                             // lastly, X-ray heating
                             dxheat_dzp = dxheat_dt_box[box_ct] * dt_dzp * 2.0 / 3.0 / k_B / (1.0+x_e);
