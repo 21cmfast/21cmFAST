@@ -16,7 +16,12 @@ class ConfigurationError(Exception):
 class Config(dict):
     """Simple over-ride of dict that adds a context manager."""
 
-    _defaults = {"direc": "~/21cmFAST-cache", "regenerate": False, "write": True}
+    _defaults = {
+        "direc": "~/21cmFAST-cache",
+        "regenerate": False,
+        "write": True,
+        "cache_significant_figures": 4,
+    }
 
     _aliases = {"direc": ("boxdir",)}
 
@@ -73,7 +78,7 @@ class Config(dict):
         for k in kwargs:
             self[k] = backup[k]
 
-    def write(self, fname: [str, Path, None] = None):
+    def write(self, fname: str | Path | None = None):
         """Write current configuration to file to make it permanent."""
         fname = Path(fname or self.file_name)
         if fname:
@@ -88,7 +93,7 @@ class Config(dict):
         return {k: str(Path) if isinstance(v, Path) else v for k, v in self.items()}
 
     @classmethod
-    def load(cls, file_name: [str, Path]):
+    def load(cls, file_name: str | Path):
         """Create a Config object from a config file."""
         file_name = Path(file_name).expanduser().absolute()
 

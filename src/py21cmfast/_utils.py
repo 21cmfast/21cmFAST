@@ -516,7 +516,18 @@ class StructWithDefaults(StructWrapper):
         return (
             self.__class__.__name__
             + "("
-            + ", ".join(sorted(k + ":" + str(v) for k, v in self.defining_dict.items()))
+            + ", ".join(
+                sorted(
+                    k
+                    + ":"
+                    + (
+                        float_to_string_precision(v)
+                        if isinstance(v, (float, np.float32))
+                        else str(v)
+                    )
+                    for k, v in self.defining_dict.items()
+                )
+            )
             + ")"
         )
 
@@ -554,6 +565,14 @@ def camel_to_snake(word: str, depublicize: bool = False):
         word = word.lstrip("_")
 
     return word
+
+
+def float_to_string_precision(x, n=config["cache_significant_figures"]):
+    """Prints out a standard float number at a given number of significant digits.
+
+    Code here: https://stackoverflow.com/a/48812729
+    """
+    return f'{float(f"{x:.{int(n)}g}"):g}'
 
 
 def get_all_subclasses(cls):
@@ -1213,7 +1232,13 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                     else (
                         v.filtered_repr(self._filter_params)
                         if isinstance(v, StructInstanceWrapper)
-                        else k.lstrip("_") + ":" + repr(v)
+                        else k.lstrip("_")
+                        + ":"
+                        + (
+                            float_to_string_precision(v, 4)
+                            if isinstance(v, (float, np.float32))
+                            else repr(v)
+                        )
                     )
                     for k, v in [
                         (k, getattr(self, k))
