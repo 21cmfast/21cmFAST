@@ -939,7 +939,13 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         """
         return self.find_existing(direc) is not None
 
-    def write(self, direc=None, fname=None, write_inputs=True, mode="w"):
+    def write(
+        self,
+        direc=None,
+        fname=str | Path | None | h5py.File | h5py.Group,
+        write_inputs=True,
+        mode="w",
+    ):
         """
         Write the struct in standard HDF5 format.
 
@@ -970,16 +976,21 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             mode = "a"
 
         try:
-            direc = path.expanduser(direc or config["direc"])
+            if not isinstance(fname, (h5py.File, h5py.Group)):
+                direc = path.expanduser(direc or config["direc"])
 
-            if not path.exists(direc):
-                makedirs(direc)
+                if not path.exists(direc):
+                    makedirs(direc)
 
-            fname = fname or self._get_fname(direc)
-            if not path.isabs(fname):
-                fname = path.abspath(path.join(direc, fname))
+                fname = fname or self._get_fname(direc)
+                if not path.isabs(fname):
+                    fname = path.abspath(path.join(direc, fname))
 
-            with h5py.File(fname, mode) as f:
+                fl = h5py.File(fname, mode)
+            else:
+                fl = fname
+
+            try:
                 # Save input parameters to the file
                 if write_inputs:
                     for k in self._inputs + ("_global_params",):
@@ -988,7 +999,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                         kfile = k.lstrip("_")
 
                         if isinstance(q, (StructWithDefaults, StructInstanceWrapper)):
-                            grp = f.create_group(kfile)
+                            grp = fl.create_group(kfile)
                             dct = q.self if isinstance(q, StructWithDefaults) else q
                             for kk, v in dct.items():
                                 if kk not in self._filter_params:
@@ -999,17 +1010,20 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                                             f"key {kk} with value {v} is not able to be written to HDF5 attrs!"
                                         )
                         else:
-                            f.attrs[kfile] = q
+                            fl.attrs[kfile] = q
 
                     # Write 21cmFAST version to the file
-                    f.attrs["version"] = __version__
+                    fl.attrs["version"] = __version__
 
                 # Save the boxes to the file
-                boxes = f.create_group(self._name)
+                boxes = fl.create_group(self._name)
 
                 self.write_data_to_hdf5_group(boxes)
 
-                self._paths.insert(0, Path(fname))
+            finally:
+                if not isinstance(fname, (h5py.file, h5py.Gorup)):
+                    fl.close()
+                    self._paths.insert(0, Path(fname))
 
         except OSError as e:
             logger.warning(
@@ -1035,7 +1049,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         for k in self.primitive_fields:
             group.attrs[k] = getattr(self, k)
 
-    def save(self, fname=None, direc="."):
+    def save(self, fname=None, direc=".", h5_path=None):
         """Save the box to disk.
 
         In detail, this just calls write, but changes the default directory to the
@@ -1058,7 +1072,19 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             direc = path.dirname(fname)
             fname = path.basename(fname)
 
-        self.write(direc, fname)
+        if h5_path is not None:
+            if not path.isabs(fname):
+                fname = path.abspath(path.join(direc, fname))
+
+            fl = h5py.File(fname, "a")
+
+            try:
+                grp = fl.create_group(h5_path)
+                self.write(direc, grp)
+            finally:
+                fl.close()
+        else:
+            self.write(direc, fname)
 
     def _get_path(
         self, direc: Union[str, Path, None] = None, fname: Union[str, Path, None] = None
@@ -1080,7 +1106,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
     def read(
         self,
         direc: Union[str, Path, None] = None,
-        fname: Union[str, Path, None] = None,
+        fname: Union[str, Path, None, h5py.File, h5py.Group] = None,
         keys: Optional[Sequence[str]] = None,
     ):
         """
@@ -1093,15 +1119,19 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
         fname
             The filename to read. By default, use the filename associated with this
-            object.
+            object. Can be an open h5py File or Group, which will be directly written to.
         keys
             The names of boxes to read in (can be a subset). By default, read everything.
         """
-        pth = self._get_path(direc, fname)
+        if not isinstance(fname, (h5py.File, h5py.Group)):
+            pth = self._get_path(direc, fname)
+            fl = h5py.File(pth, "r")
+        else:
+            fl = fname
 
-        with h5py.File(pth, "r") as f:
+        try:
             try:
-                boxes = f[self._name]
+                boxes = fl[self._name]
             except KeyError:
                 raise OSError(
                     f"While trying to read in {self._name}, the file exists, but does not have the "
@@ -1138,11 +1168,14 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                     pass
 
             # Need to make sure that the seed is set to the one that's read in.
-            seed = f.attrs["random_seed"]
+            seed = fl.attrs["random_seed"]
             self._random_seed = seed
+        finally:
+            self.__expose()
+            self._paths.insert(0, Path(fl.filename))
 
-        self.__expose()
-        self._paths.insert(0, Path(pth))
+            if not isinstance(fname, (h5py.File, h5py.Group)):
+                fl.close()
 
     @classmethod
     def from_file(cls, fname, direc=None, load_data=True):

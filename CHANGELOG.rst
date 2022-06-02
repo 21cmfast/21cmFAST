@@ -4,6 +4,11 @@ Changelog
 dev-version
 -----------
 
+Added
+-----
+
+* Ability to save/read directly from an open HDF5 File (#170)
+
 v3.1.5 [27 Apr 2022]
 ----------------------
 
