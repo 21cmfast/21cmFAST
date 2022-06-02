@@ -1,8 +1,8 @@
 exclude: '(^docs/conf.py|^src/py21cmfast/_data/|changethelog.py)'
 
 repos:
-    - repo: git://github.com/pre-commit/pre-commit-hooks
-      rev: v4.0.1
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v4.2.0
       hooks:
           - id: trailing-whitespace
           - id: check-added-large-files
@@ -35,12 +35,12 @@ repos:
             - flake8-print
 
     - repo: https://github.com/psf/black
-      rev: 21.6b0
+      rev: 22.3.0
       hooks:
           - id: black
 
     - repo: https://github.com/pre-commit/mirrors-isort
-      rev: v5.9.2
+      rev: v5.10.1
       hooks:
       - id: isort
 
@@ -52,7 +52,7 @@ repos:
       - id: rst-inline-touching-normal
 
     - repo: https://github.com/asottile/pyupgrade
-      rev: v2.21.0
+      rev: v2.32.0
       hooks:
       - id: pyupgrade
         args: [--py36-plus]
