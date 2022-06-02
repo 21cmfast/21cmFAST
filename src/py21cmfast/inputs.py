@@ -643,21 +643,6 @@ class FlagOptions(StructWithDefaults):
         "FIX_VCB_AVG": False,
     }
 
-    # This checks if relative velocities are off to complain if minihaloes are on
-    def __init__(
-        self,
-        *args,
-        USE_VELS_AUX=UserParams._defaults_["USE_RELATIVE_VELOCITIES"],
-        **kwargs,
-    ):
-        # TODO: same as with inhomo_reco. USE_VELS_AUX used to check that relvels are on if MCGs are too
-        self.USE_VELS_AUX = USE_VELS_AUX
-        super().__init__(*args, **kwargs)
-        if self.USE_MINI_HALOS and not self.USE_VELS_AUX and not self.FIX_VCB_AVG:
-            logger.warning(
-                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
-            )
-
     @property
     def USE_HALO_FIELD(self):
         """Automatically setting USE_MASS_DEPENDENT_ZETA to False if USE_MINI_HALOS."""
@@ -931,3 +916,47 @@ class AstroParams(StructWithDefaults):
             raise ValueError("t_STAR must be above zero and less than or equal to one")
         else:
             return self._t_STAR
+
+
+class InputCrossValidationError(ValueError):
+    """Error when two parameters from different structs aren't consistent."""
+
+    pass
+
+
+def validate_all_inputs(
+    user_params: UserParams,
+    cosmo_params: CosmoParams,
+    astro_params: AstroParams | None = None,
+    flag_options: FlagOptions | None = None,
+):
+    """Cross-validate input parameters from different structs.
+
+    The input params may be modified in-place in this function, but if so, a warning
+    should be emitted.
+    """
+    if astro_params is not None:
+        if astro_params.R_BUBBLE_MAX > user_params.BOX_LEN:
+            astro_params.update(R_BUBBLE_MAX=user_params.BOX_LEN)
+            warnings.warn(
+                f"Setting R_BUBBLE_MAX to BOX_LEN (={user_params.BOX_LEN} as it doesn't make sense for it to be larger."
+            )
+
+        if (
+            global_params.HII_FILTER == 1
+            and astro_params.R_BUBBLE_MAX == user_params.BOX_LEN / 3
+        ):
+            astro_params.update(R_BUBBLE_MAX=user_params.BOX_LEN / 3)
+            warnings.warn(
+                f"Setting R_BUBBLE_MAX to BOX_LEN/3 (={user_params.BOX_LEN/3}), as it doesn't make sense for it to be smaller."
+            )
+
+    if flag_options is not None:
+        if (
+            flag_options.USE_MINI_HALOS
+            and not user_params.USE_RELATIVE_VELOCITIES
+            and not flag_options.FIX_VCB_AVG
+        ):
+            logger.warning(
+                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
+            )
