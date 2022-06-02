@@ -94,15 +94,10 @@ from astropy import units
 from astropy.cosmology import z_at_value
 from copy import deepcopy
 from scipy.interpolate import interp1d
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Sequence
 
 from ._cfg import config
-from ._utils import (
-    OutputStruct,
-    StructWrapper,
-    _check_compatible_inputs,
-    _process_exitcode,
-)
+from ._utils import OutputStruct, _check_compatible_inputs, _process_exitcode
 from .c_21cmfast import ffi, lib
 from .inputs import (
     AstroParams,
