@@ -12,6 +12,8 @@ Along with these, the module exposes ``global_params``, a singleton object of ty
 :class:`GlobalParams`, which is a simple class providing read/write access to a number of parameters
 used throughout the computation which are very rarely varied.
 """
+from __future__ import annotations
+
 import contextlib
 import logging
 import warnings

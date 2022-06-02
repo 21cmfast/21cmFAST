@@ -84,6 +84,8 @@ interpolated onto the lightcone cells):
 
 >>> lightcone = p21.run_lightcone(redshift=z2, max_redshift=z2, z_step_factor=1.03)
 """
+from __future__ import annotations
+
 import logging
 import numpy as np
 import os
@@ -130,7 +132,7 @@ def _configure_inputs(
     defaults: list,
     *datasets,
     ignore: list = ["redshift"],
-    flag_none: Union[list, None] = None,
+    flag_none: list | None = None,
 ):
     """Configure a set of input parameter structs.
 
@@ -341,7 +343,7 @@ def _call_c_simple(fnc, *args):
 
 def _get_config_options(
     direc, regenerate, write, hooks
-) -> Tuple[str, bool, Dict[Callable, Dict[str, Any]]]:
+) -> tuple[str, bool, dict[Callable, dict[str, Any]]]:
 
     direc = str(os.path.expanduser(config["direc"] if direc is None else direc))
 
@@ -367,7 +369,7 @@ def _get_config_options(
 
 def get_all_fieldnames(
     arrays_only=True, lightcone_only=False, as_dict=False
-) -> Union[Dict[str, str], Set[str]]:
+) -> dict[str, str] | set[str]:
     """Return all possible fieldnames in output structs.
 
     Parameters
@@ -903,7 +905,7 @@ def initial_conditions(
     regenerate=None,
     write=None,
     direc=None,
-    hooks: Optional[Dict[Callable, Dict[str, Any]]] = None,
+    hooks: dict[Callable, dict[str, Any]] | None = None,
     **global_kwargs,
 ) -> InitialConditions:
     r"""
@@ -980,7 +982,7 @@ def perturb_field(
     regenerate=None,
     write=None,
     direc=None,
-    hooks: Optional[Dict[Callable, Dict[str, Any]]] = None,
+    hooks: dict[Callable, dict[str, Any]] | None = None,
     **global_kwargs,
 ) -> PerturbedField:
     r"""
@@ -2977,8 +2979,8 @@ def run_lightcone(
 
 
 def _get_coeval_callbacks(
-    scrollz: List[float], coeval_callback, coeval_callback_redshifts
-) -> List[bool]:
+    scrollz: list[float], coeval_callback, coeval_callback_redshifts
+) -> list[bool]:
 
     compute_coeval_callback = [False for i in range(len(scrollz))]
     if coeval_callback is not None:
@@ -3008,7 +3010,7 @@ def _get_interpolation_outputs(
     lightcone_quantities: Sequence,
     global_quantities: Sequence,
     flag_options: FlagOptions,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     _fld_names = get_all_fieldnames(arrays_only=True, lightcone_only=True, as_dict=True)
 
     incorrect_lc = [q for q in lightcone_quantities if q not in _fld_names.keys()]
