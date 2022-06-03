@@ -308,11 +308,11 @@ def _setup_inputs(
             params["astro_params"], INHOMO_RECO=params["flag_options"].INHOMO_RECO
         )
 
-    # Sort the params back into input order.
-    params = [params[k] for k in input_params]
-
     # Perform validation between different sets of inputs.
     validate_all_inputs(**{k: v for k, v in params.items() if k != "random_seed"})
+
+    # Sort the params back into input order.
+    params = [params[k] for k in input_params]
 
     out = params
     if redshift != -1:
