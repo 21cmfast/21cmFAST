@@ -289,7 +289,12 @@ def _setup_inputs(
 
     if redshift != -1:
         redshift = configure_redshift(
-            redshift, *[v for v in input_boxes.values() if hasattr(v, "redshift")]
+            redshift,
+            *[
+                v
+                for k, v in input_boxes.items()
+                if hasattr(v, "redshift") and "prev" not in k
+            ],
         )
 
     # This turns params into a dict with all the input parameters in it.
@@ -2193,7 +2198,6 @@ def run_coeval(
                 "astro_params": astro_params,
                 "flag_options": flag_options,
             },
-            {"perturb": perturb, "pt_halos": pt_halos},
         )
 
         if use_interp_perturb_field and flag_options.USE_MINI_HALOS:
