@@ -1,4 +1,6 @@
 """Open and read the configuration file."""
+from __future__ import annotations
+
 import contextlib
 import copy
 import warnings
