@@ -22,7 +22,8 @@ class Config(dict):
         "direc": "~/21cmFAST-cache",
         "regenerate": False,
         "write": True,
-        "cache_significant_figures": 4,
+        "cache_param_sigfigs": 6,
+        "cache_redshift_sigfigs": 4,
     }
 
     _aliases = {"direc": ("boxdir",)}

@@ -9,11 +9,13 @@ Changed
 
 * Floats are now represented to a specific number of significant digits in the hash of
   an output object. This fixes problems with very close redshifts not being read from
-  cache (#80). Note that this means that ver close astro/cosmo params will now be read
+  cache (#80). Note that this means that very close astro/cosmo params will now be read
   from cache. This could cause issues when creating large databases with many random
   parameters. The behaviour can modified in the configuration by setting the
-  ``cache_significant_figures`` parameter. **NOTE**: updating to this version will cause
-  your previous cached files to become unusable. Remove them before updating.
+  ``cache_param_sigfigs`` and ``cache_redshift_sigfigs`` parameters (these are 6 and
+  4 by default, respectively).
+  **NOTE**: updating to this version will cause your previous cached files to become
+  unusable. Remove them before updating.
 
 v3.1.5 [27 Apr 2022]
 ----------------------

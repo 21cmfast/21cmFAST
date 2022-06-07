@@ -521,7 +521,7 @@ class StructWithDefaults(StructWrapper):
                     k
                     + ":"
                     + (
-                        float_to_string_precision(v)
+                        float_to_string_precision(v, config["cache_redshift_sigfigs"])
                         if isinstance(v, (float, np.float32))
                         else str(v)
                     )
@@ -567,7 +567,7 @@ def camel_to_snake(word: str, depublicize: bool = False):
     return word
 
 
-def float_to_string_precision(x, n=config["cache_significant_figures"]):
+def float_to_string_precision(x, n):
     """Prints out a standard float number at a given number of significant digits.
 
     Code here: https://stackoverflow.com/a/48812729
@@ -1235,7 +1235,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                         else k.lstrip("_")
                         + ":"
                         + (
-                            float_to_string_precision(v, 4)
+                            float_to_string_precision(v, config["cache_param_sigfigs"])
                             if isinstance(v, (float, np.float32))
                             else repr(v)
                         )
