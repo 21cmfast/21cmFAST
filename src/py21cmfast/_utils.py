@@ -961,7 +961,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
     def write(
         self,
         direc=None,
-        fname=str | Path | None | h5py.File | h5py.Group,
+        fname: Union[str, Path, None, h5py.File, h5py.Group] = None,
         write_inputs=True,
         mode="w",
     ):
