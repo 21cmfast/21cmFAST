@@ -1040,7 +1040,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 self.write_data_to_hdf5_group(boxes)
 
             finally:
-                if not isinstance(fname, (h5py.file, h5py.Gorup)):
+                if not isinstance(fname, (h5py.File, h5py.Group)):
                     fl.close()
                     self._paths.insert(0, Path(fname))
 
