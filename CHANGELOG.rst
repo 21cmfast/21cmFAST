@@ -5,7 +5,7 @@ dev-version
 -----------
 
 Changed
--------
+~~~~~~~
 
 * Floats are now represented to a specific number of significant digits in the hash of
   an output object. This fixes problems with very close redshifts not being read from
@@ -17,6 +17,11 @@ Changed
   **NOTE**: updating to this version will cause your previous cached files to become
   unusable. Remove them before updating.
 
+Fixed
+~~~~~
+
+* Added a missing C-based error to the known errors in Python.
+
 v3.1.5 [27 Apr 2022]
 ----------------------
 
@@ -24,7 +29,7 @@ v3.1.4 [10 Feb 2022]
 ----------------------
 
 Fixed
------
+~~~~~
 
 * error in FFT normalization in FindHaloes
 * docs not compiling on RTD due to missing ``scipy.integrate`` mock module
