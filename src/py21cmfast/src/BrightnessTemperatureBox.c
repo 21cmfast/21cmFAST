@@ -13,6 +13,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_SFRD(user_params,cosmo_params,astro_params,flag_options);
 
     char wisdom_filename[500];
     int i, ii, j, k, n_x, n_y, n_z;

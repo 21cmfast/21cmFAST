@@ -265,10 +265,6 @@ class GlobalParams(StructInstanceWrapper):
         Sheth-Tormen parameter for ellipsoidal collapse (for HMF). See notes for `SHETH_b`.
     Zreion_HeII : float
         Redshift of helium reionization, currently only used for tau_e
-    FILTER : int, {0, 1}
-        Filter to use for smoothing.
-        0. tophat
-        1. gaussian
     external_table_path : str
         The system path to find external tables for calculation speedups. DO NOT MODIFY.
     R_BUBBLE_MIN : float
@@ -330,10 +326,16 @@ class GlobalParams(StructInstanceWrapper):
 
         for k, val in kwargs.items():
             if k.upper() not in this_attr_upper:
-                raise ValueError(f"{k} is not a valid parameter of global_params")
-            key = this_attr_upper[k.upper()]
-            prev[key] = getattr(self, key)
-            setattr(self, key, val)
+                # Workaround for old lightcones which have SECOND_ORDER_LPT_CORRECTIONS not USE_2LPT
+                if k == "SECOND_ORDER_LPT_CORRECTIONS":
+                    pass
+                else:
+                    raise ValueError(f"{k} is not a valid parameter of global_params")
+
+            else:
+                key = this_attr_upper[k.upper()]
+                prev[key] = getattr(self, key)
+                setattr(self, key, val)
 
         yield
 
@@ -626,7 +628,14 @@ class FlagOptions(StructWithDefaults):
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
     USE_VELS_AUX: bool, optional
-        Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain
+        Auxiliar variable (not input) to check if minihaloes are being used without relative velocities and complain
+    FILTER : int, {0, 1, 2}
+        Filter to use for smoothing for the HMF.
+        0. tophat (DEFAULT)
+        1. gaussian
+        2. smooth-k (also includes sharp-k)
+    USE_ETHOS: bool, optional
+        Whether to include ETHOS DM models, if true it forces FILTER to be smooth-k (2) and FAST_FCOLL_TABLES=False. See Mason+TODO
     """
 
     _ffi = ffi
@@ -641,13 +650,17 @@ class FlagOptions(StructWithDefaults):
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
         "FIX_VCB_AVG": False,
+        "FILTER": 0,
+        "USE_ETHOS": False,
     }
 
     # This checks if relative velocities are off to complain if minihaloes are on
+    # and if FAST_FCOLL_TABLES are on to complain if ETHOS is True (FAST_FCOLL_TABLES only works for top-hat window function)
     def __init__(
         self,
         *args,
         USE_VELS_AUX=UserParams._defaults_["USE_RELATIVE_VELOCITIES"],
+        USE_FAST_FCOLL_TABLES=UserParams._defaults_["FAST_FCOLL_TABLES"],
         **kwargs,
     ):
         # TODO: same as with inhomo_reco. USE_VELS_AUX used to check that relvels are on if MCGs are too
@@ -658,12 +671,27 @@ class FlagOptions(StructWithDefaults):
                 "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
             )
 
+        # If USE_ETHOS is True, FAST_FCOLL_TABLE must be False (approximation does not work with non top-hat window functions)
+        self.USE_FAST_FCOLL_TABLES = USE_FAST_FCOLL_TABLES
+        if self.USE_ETHOS and self.USE_FAST_FCOLL_TABLES:
+            raise ValueError(
+                "USE_ETHOS does not work with FAST_FCOLL_TABLES = True! "
+                "The approximation is only valid for top-hat window functions."
+            )
+            # TODO can we change FAST_FCOLL_TABLES to False here?
+
     @property
     def USE_HALO_FIELD(self):
         """Automatically setting USE_MASS_DEPENDENT_ZETA to False if USE_MINI_HALOS."""
         if self.USE_MINI_HALOS and self._USE_HALO_FIELD:
             logger.warning(
                 "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
+                "Automatically setting USE_HALO_FIELD to False."
+            )
+            return False
+        if self.USE_ETHOS and self._USE_HALO_FIELD:
+            logger.warning(
+                "You have set USE_ETHOS to True but USE_HALO_FIELD is also True! Code not equipped. "
                 "Automatically setting USE_HALO_FIELD to False."
             )
             return False
@@ -726,6 +754,22 @@ class FlagOptions(StructWithDefaults):
             return False
         else:
             return self._PHOTON_CONS
+
+    @property
+    def FIX_VCB_AVG(self):
+        """FIX_VCB_AVG docstring TODO."""
+        return self._FIX_VCB_AVG
+
+    @property
+    def FILTER(self):
+        """The filter to use for the HMF calculations."""
+        if self.USE_ETHOS and self._FILTER != 2:
+            return 2
+            logger.warning(
+                "Automatically setting filter to 2 (smooth-k) as you are using ETHOS models"
+            )
+        else:
+            return self._FILTER
 
 
 class AstroParams(StructWithDefaults):
@@ -821,6 +865,10 @@ class AstroParams(StructWithDefaults):
         Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Sec 2 of Muñoz+21 (2110.13919).
     A_VCB, BETA_VCB: float, optional
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Sec 2 of Muñoz+21 (2110.13919).
+    h_PEAK, log10_k_PEAK: double, optional
+        ETHOS parameters for dark acoustic oscillations (DAOs) in the matter power spectrum.
+        Location (10^log10_k_PEAK h/Mpc-1) and height (h_PEAK from 0 to 1) of the first DAO peak.
+        Warm dark matter (WDM) corresponds to h_PEAK=0, and log10_k_PEAK changes its mass. See Ref.~YY. (TODO!)
     """
 
     _ffi = ffi
@@ -849,6 +897,8 @@ class AstroParams(StructWithDefaults):
         "BETA_LW": 0.6,
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
+        "log10_k_PEAK": 2.0,
+        "h_PEAK": 0.0,
     }
 
     def __init__(
@@ -871,6 +921,7 @@ class AstroParams(StructWithDefaults):
             "L_X",
             "L_X_MINI",
             "X_RAY_Tvir_MIN",
+            "log10_k_PEAK",
         ]:
             return 10**val
         else:
@@ -931,3 +982,17 @@ class AstroParams(StructWithDefaults):
             raise ValueError("t_STAR must be above zero and less than or equal to one")
         else:
             return self._t_STAR
+
+    @property
+    def log10_k_PEAK(self):
+        """
+        Location (10^log10_k_PEAK h/Mpc-1) of the first DAO peak / WDM cut-off.
+
+        Must be 1 < log10_k_PEAK < ~10 to avoid overflow
+        """
+        val = self._log10_k_PEAK
+
+        if not 1 <= val <= 10.0:
+            raise ValueError("log10_k_PEAK must be 1-10 to avoid overflow.")
+
+        return val

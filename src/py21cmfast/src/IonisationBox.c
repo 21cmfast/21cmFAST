@@ -44,6 +44,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_SFRD(user_params,cosmo_params,astro_params,flag_options);
 
     omp_set_num_threads(user_params->N_THREADS);
 
@@ -329,7 +330,7 @@ LOG_SUPER_DEBUG("density field calculated");
         gsl_rng_set(r[thread_num], thread_num);
     }
 
-    pixel_mass = RtoM(L_FACTOR*user_params->BOX_LEN/(float)(user_params->HII_DIM));
+    pixel_mass = RtoM(L_FACTOR*user_params->BOX_LEN/(float)(user_params->HII_DIM),flag_options);
     cell_length_factor = L_FACTOR;
 
     if(flag_options->USE_HALO_FIELD && (global_params.FIND_BUBBLE_ALGORITHM == 2) && ((user_params->BOX_LEN/(float)(user_params->HII_DIM) < 1))) {
@@ -761,8 +762,8 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 
         counter = 0;
 
-        while (!LAST_FILTER_STEP && (M_MIN < RtoM(R)) ){
-LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_MIN);
+        while (!LAST_FILTER_STEP && (M_MIN < RtoM(R,flag_options)) ){
+LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R,flag_options), M_MIN);
 
             // Check if we are the last filter step
             if ( ((R/(global_params.DELTA_R_HII_FACTOR) - cell_length_factor*(user_params->BOX_LEN)/(float)(user_params->HII_DIM)) <= FRACT_FLOAT_ERR) || \
@@ -837,7 +838,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             ST_over_PS_MINI = 0;
             f_coll = 0;
             f_coll_MINI = 0;
-            massofscaleR = RtoM(R);
+            massofscaleR = RtoM(R,flag_options);
 
             if(!user_params->USE_INTERPOLATION_TABLES) {
                 sigmaMmax = sigma_z0(massofscaleR);

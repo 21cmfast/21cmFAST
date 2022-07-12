@@ -60,6 +60,11 @@ struct CosmoParams *cosmo_params_ps;
 struct UserParams *user_params_ps;
 struct FlagOptions *flag_options_ps;
 
+struct CosmoParams *cosmo_params_sfrd;
+struct UserParams *user_params_sfrd;
+struct AstroParams *astro_params_sfrd;
+struct FlagOptions *flag_options_sfrd;
+
 //double sigma_norm, R, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_nu, f_baryon, beta_c, d2fact, R_CUTOFF, DEL_CURR, SIG_CURR;
 double sigma_norm, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_nu, f_baryon, beta_c, d2fact, R_CUTOFF, DEL_CURR, SIG_CURR;
 
@@ -113,6 +118,7 @@ float GaussLegendreQuad_Nion_MINI(int Type, int n, float growthf, float M2, floa
 //JBM: Exact integral for power-law indices non zero (for zero it's erfc)
 double Fcollapprox (double numin, double beta);
 
+double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd);
 
 
 int n_redshifts_1DTable;
@@ -146,6 +152,11 @@ double FinalNF_Estimate, FirstNF_Estimate;
 struct parameters_gsl_FgtrM_int_{
     double z_obs;
     double gf_obs;
+};
+
+struct parameters_gsl_dsigmak_{
+    double Radius;
+    int FLAG_sigma8;
 };
 
 struct parameters_gsl_SFR_General_int_{
@@ -218,7 +229,14 @@ void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoPara
     user_params_ps = user_params;
 }
 
+void Broadcast_struct_global_SFRD(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options){
+//this structure will broadcast just like _PS above, but also astro parameters. Used for the SFRD and other calculations in ps.c that have power spectra but are not in the ICs.
 
+    cosmo_params_sfrd = cosmo_params;
+    user_params_sfrd = user_params;
+    astro_params_sfrd = astro_params;
+    flag_options_sfrd = flag_options;
+}
 
 /*
   this function reads the z=0 matter (CDM+baryons)  and relative velocity transfer functions from CLASS (from a file)
@@ -386,23 +404,38 @@ double dsigma_dk(double k, void *params){
         LOG_ERROR("No such power spectrum defined: %i. Output is bogus.", user_params_ps->POWER_SPECTRUM);
         Throw(ValueError);
     }
-    double Radius;
 
-    Radius = *(double *)params;
+    struct parameters_gsl_dsigmak_ vals = *(struct parameters_gsl_dsigmak_ *)params;
+
+    double Radius = vals.Radius;
+    int FLAG_sigma8 = vals.FLAG_sigma8;
+
+    //Radius = *(double *)params;
 
     kR = k*Radius;
 
-    if ( (global_params.FILTER == 0) || (sigma_norm < 0) ){ // top hat
+    if ( FLAG_sigma8 || (flag_options_sfrd->FILTER == 0) || (sigma_norm < 0) ){ // top hat
         if ( (kR) < 1.0e-4 ){ w = 1.0;} // w converges to 1 as (kR) -> 0
         else { w = 3.0 * (sin(kR)/pow(kR, 3) - cos(kR)/pow(kR, 2));}
     }
-    else if (global_params.FILTER == 1){ // gaussian of width 1/R
+    else if (flag_options_sfrd->FILTER == 1){ // gaussian of width 1/R
         w = pow(E, -kR*kR/2.0);
     }
+    else if (flag_options_sfrd->FILTER == 2){ //smooth-k filter, pls use for ETHOS models
+        double c_wnd_smooth = (astro_params_sfrd->h_PEAK > 0.) ? c_SMOOTH : c_SMOOTH_0; //for hpeak=0 different parameters to make it a sharp-k
+        double beta_wnd_smooth = (astro_params_sfrd->h_PEAK > 0.) ? beta_SMOOTH : beta_SMOOTH_0;
+        w = 1.0/(1.0 + pow(kR/c_wnd_smooth,beta_wnd_smooth) );
+    }
     else {
-        LOG_ERROR("No such filter: %i. Output is bogus.", global_params.FILTER);
+        LOG_ERROR("No such filter: %i. Output is bogus.", flag_options_sfrd->FILTER);
         Throw(ValueError);
     }
+
+    if ((!FLAG_sigma8) && flag_options_sfrd->USE_ETHOS == 1){
+      //add the suppression and DAOs due to ETHOS DM-DR interactions. Only use in SFRD not in sigma8 calculation (to avoid messing up ICs)
+      p*=ETHOS_DAOs(k, astro_params_sfrd);
+    }
+
     return k*k*p*w*w;
 }
 double sigma_z0(double M){
@@ -416,7 +449,7 @@ double sigma_z0(double M){
     double Radius;
 //    R = MtoR(M);
 
-    Radius = MtoR(M);
+    Radius = MtoR(M, flag_options_sfrd);
     // now lets do the integral for sigma and scale it with sigma_norm
 
     if(user_params_ps->POWER_SPECTRUM == 5){
@@ -432,7 +465,12 @@ double sigma_z0(double M){
     upper_limit = kend;//log(kend);
 
     F.function = &dsigma_dk;
-    F.params = &Radius;
+    int FLAG_sigma8 = 0; //whether we are calculating sigma8 or not.
+    struct parameters_gsl_dsigmak_ parameters_gsl_dsigmak = {
+        .Radius = Radius,
+        .FLAG_sigma8 = FLAG_sigma8,
+    };
+    F.params = &parameters_gsl_dsigmak;
 
     int status;
 
@@ -631,7 +669,15 @@ double init_ps(){
     LOG_DEBUG("Initializing Power Spectrum with lower_limit=%e, upper_limit=%e, rel_tol=%e, radius_8=%g", lower_limit,upper_limit, rel_tol, Radius_8);
 
     F.function = &dsigma_dk;
-    F.params = &Radius_8;
+
+    int FLAG_sigma8 = 1; //whether we are calculating sigma8 or not.
+    struct parameters_gsl_dsigmak_ parameters_gsl_dsigmak = {
+        .Radius = Radius_8,
+        .FLAG_sigma8 = FLAG_sigma8,
+    };
+    F.params = &parameters_gsl_dsigmak;
+
+    // F.params = &Radius_8;
 
     int status;
 
@@ -729,7 +775,7 @@ double dsigmasq_dm(double k, void *params){
 
     // now get the value of the window function
     kR = k * Radius;
-    if (global_params.FILTER == 0){ // top hat
+    if (flag_options_sfrd->FILTER == 0){ // top hat
         if ( (kR) < 1.0e-4 ){ w = 1.0; }// w converges to 1 as (kR) -> 0
         else { w = 3.0 * (sin(kR)/pow(kR, 3) - cos(kR)/pow(kR, 2));}
 
@@ -740,17 +786,32 @@ double dsigmasq_dm(double k, void *params){
         //     dwdr = -1e8 * k / (R*1e3);
         drdm = 1.0 / (4.0*PI * cosmo_params_ps->OMm*RHOcrit * Radius*Radius);
     }
-    else if (global_params.FILTER == 1){ // gaussian of width 1/R
+    else if (flag_options_sfrd->FILTER == 1){ // gaussian of width 1/R
         w = pow(E, -kR*kR/2.0);
         dwdr = - k*kR * w;
         drdm = 1.0 / (pow(2*PI, 1.5) * cosmo_params_ps->OMm*RHOcrit * 3*Radius*Radius);
     }
+    else if (flag_options_sfrd->FILTER == 2){ //smooth-k filter, pls use for ETHOS models
+        double c_wnd_smooth = (astro_params_sfrd->h_PEAK > 0.) ? c_SMOOTH : c_SMOOTH_0;
+        double beta_wnd_smooth = (astro_params_sfrd->h_PEAK > 0.) ? beta_SMOOTH : beta_SMOOTH_0;
+
+        w = 1.0/(1.0 + pow(kR/c_wnd_smooth,beta_wnd_smooth) );
+        dwdr = -beta_wnd_smooth/Radius * w*w * pow(kR/c_wnd_smooth,beta_wnd_smooth);
+        drdm = 1.0 / (4.0*PI * cosmo_params_ps->OMm*RHOcrit * Radius*Radius);
+        //TODO: Check mass definition for drdm
+    }
     else {
-        LOG_ERROR("No such filter: %i. Output is bogus.", global_params.FILTER);
+        LOG_ERROR("No such filter: %i. Output is bogus.", flag_options_sfrd->FILTER);
         Throw(ValueError);
     }
 
-//    return k*k*p*2*w*dwdr*drdm * d2fact;
+    if (flag_options_sfrd->USE_ETHOS == 1){
+      //add the suppression and DAOs due to ETHOS DM-DR interactions
+      // TODO: add debugging
+        // LOG_DEBUG("T=%e",ETHOS_DAOs(k, astro_params_sfrd));
+        p*=ETHOS_DAOs(k, astro_params_sfrd);
+    }
+    //    return k*k*p*2*w*dwdr*drdm * d2fact;
     return k*k*p*2*w*dwdr*drdm;
 }
 double dsigmasqdm_z0(double M){
@@ -763,7 +824,7 @@ double dsigmasqdm_z0(double M){
 
     double Radius;
 //    R = MtoR(M);
-    Radius = MtoR(M);
+    Radius = MtoR(M, flag_options_sfrd);
 
     // now lets do the integral for sigma and scale it with sigma_norm
     if(user_params_ps->POWER_SPECTRUM == 5){
@@ -789,6 +850,7 @@ double dsigmasqdm_z0(double M){
 
     F.function = &dsigmasq_dm;
     F.params = &Radius;
+
 
     int status;
 
@@ -850,9 +912,22 @@ double dNdM_st(double growthf, double M){
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
 
-    nuhat = sqrt(SHETH_a) * Deltac / sigma;
 
-    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * sqrt(2./PI)*SHETH_A * (1+ pow(nuhat, -2*SHETH_p)) * nuhat * pow(E, -nuhat*nuhat/2.0);
+    double ST_A, ST_p, ST_a;
+
+    if (flag_options_sfrd->FILTER == 2){ //if using smooth-k window function use different fit.
+      ST_A=SHETH_A_SMOOTH;
+      ST_p=SHETH_p_SMOOTH;
+      ST_a=SHETH_a_SMOOTH;
+    }
+    else{ //otherwise, the usual
+      ST_A=SHETH_A;
+      ST_p=SHETH_p;
+      ST_a=SHETH_a;
+    }
+    nuhat = sqrt(ST_a) * Deltac / sigma;
+
+    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * sqrt(2./PI)*ST_A * (1+ pow(nuhat, -2*ST_p)) * nuhat * pow(E, -nuhat*nuhat/2.0);
 }
 
 /*
@@ -1478,6 +1553,7 @@ void initialiseSigmaMInterpTable(float M_Min, float M_Max)
 
     for(i=0;i<NMass;i++) {
         if(isfinite(Mass_InterpTable[i]) == 0 || isfinite(Sigma_InterpTable[i]) == 0 || isfinite(dSigmadm_InterpTable[i])==0) {
+            LOG_ERROR("%e, %e, %e", Mass_InterpTable[i], Sigma_InterpTable[i], dSigmadm_InterpTable[i]);
             LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
 //            Throw(ParameterError);
             Throw(TableGenerationError);
@@ -1754,6 +1830,7 @@ int initialise_ComputeLF(int nbins, struct UserParams *user_params, struct Cosmo
 
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_SFRD(user_params,cosmo_params,astro_params,flag_options);
 
     lnMhalo_param = calloc(nbins,sizeof(double));
     Muv_param = calloc(nbins,sizeof(double));
@@ -3129,7 +3206,7 @@ void initialise_SFRD_Conditional_table(
     ln_10 = log(10);
 
     Mmin = MassTurnover/50.;
-    Mmax = RtoM(R[Nfilter-1]);
+    Mmax = RtoM(R[Nfilter-1], flag_options_sfrd);
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
 
     Mmin = log(Mmin);
@@ -3143,7 +3220,7 @@ void initialise_SFRD_Conditional_table(
 
     for (j=0; j < Nfilter; j++) {
 
-        Mmax = RtoM(R[j]);
+        Mmax = RtoM(R[j], flag_options_sfrd);
 
         initialiseGL_Nion_Xray(NGL_SFR, MassTurnover/50., Mmax);
 
@@ -3233,7 +3310,7 @@ void initialise_SFRD_Conditional_table_MINI(
     ln_10 = log(10);
 
     Mmin = global_params.M_MIN_INTEGRAL;
-    Mmax = RtoM(R[Nfilter-1]);
+    Mmax = RtoM(R[Nfilter-1], flag_options_sfrd);
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
 
@@ -3253,7 +3330,7 @@ void initialise_SFRD_Conditional_table_MINI(
 
     for (j=0; j < Nfilter; j++) {
 
-        Mmax = RtoM(R[j]);
+        Mmax = RtoM(R[j], flag_options_sfrd);
 
         initialiseGL_Nion_Xray(NGL_SFR, global_params.M_MIN_INTEGRAL, Mmax);
 
@@ -3396,6 +3473,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     Try{  // this try wraps the whole function.
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_SFRD(user_params,cosmo_params,astro_params,flag_options);
     init_ps();
     //     To solve differentail equation, uses Euler's method.
     //     NOTE:
@@ -4291,4 +4369,52 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
 
     LOG_DEBUG("Done Freeing interpolation table memory.");
 	interpolation_tables_allocated = false;
+}
+
+double ETHOS_DAOs(double k, struct AstroParams *astro_params_sfrd){
+// This function returns the ratio between the power spectrum in an ETHOS model of
+// hpeak and kpeak and that of LCDM. Depends on h_PEAK and log10_k_PEAK which are in astro_params
+// Reference: Mason+TODO
+
+    double b, d, tau, sig, c, h2, h2_X, h2_A, h2_B, h2_C;
+
+    b = -2.1*exp(-3.7*astro_params_sfrd->h_PEAK) + 4.1;
+    d = 1.8*exp(-6.7*astro_params_sfrd->h_PEAK) + 2.5;
+    tau = 0.03*exp(2.6*astro_params_sfrd->h_PEAK) + 0.27;
+    sig = 0.2;
+    c = -20;
+
+    // WDM-like, P(k) turns over
+    if (astro_params_sfrd->h_PEAK==0){
+        h2 = 0.;
+    }
+    // Height of 2nd peak in P(k)
+    else {
+        h2_X = (astro_params_sfrd->h_PEAK - 0.7)/0.2;
+        h2_A = 0.17/sqrt(2.*PI)/0.2 * exp(-0.5*pow(h2_X,2.)) * (1 + 1 - erfcc(-3*h2_X/sqrt(2.)));
+        h2_B = 1.*(tanh(3.*(astro_params_sfrd->h_PEAK+0.32))-1.);
+        h2_C = 0.54*(tanh(8.*(astro_params_sfrd->h_PEAK-0.7))+1.);
+        h2 = h2_A*exp(h2_B*astro_params_sfrd->log10_k_PEAK) + h2_C;
+    }
+
+    double alpha = d/astro_params_sfrd->log10_k_PEAK * pow(1./pow(sqrt(2),1./c)-1,1./b);
+    double T_noncdm = pow(1. + pow(alpha*k, b),c); // General non-CDM transfer function following Muriga+17
+
+    double peak2_ratio = 1.805;
+    double x_peak1 = (k - astro_params_sfrd->log10_k_PEAK)/astro_params_sfrd->log10_k_PEAK;
+    double x_peak2 = (k - peak2_ratio*astro_params_sfrd->log10_k_PEAK)/astro_params_sfrd->log10_k_PEAK;
+
+    // ETHOS T(k) following Bohr+2020
+    double T_ETHOS = fabs(T_noncdm - sqrt(astro_params_sfrd->h_PEAK) * exp(-0.5*pow(x_peak1/sig, 2))
+              + sqrt(h2)/4. * erfcc(x_peak2/tau - 2) * erfcc(-x_peak2/sig - 2) * cos(1.1083*PI*k/astro_params_sfrd->log10_k_PEAK));
+
+    if (T_ETHOS < 0.){
+        LOG_DEBUG("In function ETHOS_DAOs: T_ETHOS is < 0 for some reason..!\nT=%e, k=%e, h_peak=%e, k_peak=%e, Setting T=0...\n",
+                  T_ETHOS, k, astro_params_sfrd->h_PEAK, astro_params_sfrd->log10_k_PEAK);
+        // Throw(ValueError);
+        T_ETHOS = 0.;
+    }
+
+    return T_ETHOS;
+
 }
