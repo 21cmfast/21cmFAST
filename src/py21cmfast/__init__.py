@@ -39,6 +39,7 @@ from .wrapper import (
     UserParams,
     brightness_temperature,
     compute_luminosity_function,
+    compute_SFRD,
     compute_tau,
     construct_fftw_wisdoms,
     determine_halo_list,

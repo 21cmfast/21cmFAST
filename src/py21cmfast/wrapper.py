@@ -317,6 +317,43 @@ def get_all_fieldnames(
 # ======================================================================================
 # WRAPPING FUNCTIONS
 # ======================================================================================
+def compute_SFRD(*, redshifts, user_params=None, cosmo_params=None, astro_params=None):
+    """Compute the Star-formation rate density.
+
+    Parameters
+    ----------
+    user_params : :class:`~inputs.UserParams`
+        Parameters defining the simulation run.
+    cosmo_params : :class:`~inputs.CosmoParams`
+        Cosmological parameters.
+    astro_params : :class:`~inputs.AstroParams`
+        The astrophysical parameters defining the course of reionization.
+
+    Returns
+    -------
+    SFRD_vals : np.ndarray
+        Star-formation rate density array. Shape [nbins]
+
+    """
+    user_params = UserParams(user_params)
+    cosmo_params = CosmoParams(cosmo_params)
+    astro_params = AstroParams(astro_params)
+
+    num_z = len(redshifts)
+
+    SFRD_vals = np.zeros(num_z)
+
+    redshifts = np.array(redshifts, dtype="float32")
+    SFRD_vals = np.array(SFRD_vals, dtype="float32")
+
+    z = ffi.cast("float *", ffi.from_buffer(redshifts))
+    SFRD = ffi.cast("float *", ffi.from_buffer(SFRD_vals))
+
+    lib.mean_SFRD(user_params(), cosmo_params(), astro_params(), num_z, z, SFRD)
+
+    return SFRD
+
+
 def construct_fftw_wisdoms(*, user_params=None, cosmo_params=None):
     """Construct all necessary FFTW wisdoms.
 

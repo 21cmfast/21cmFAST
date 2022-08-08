@@ -161,6 +161,14 @@ struct parameters_gsl_SFR_General_int_{
     double LimitMass_Fesc;
 };
 
+struct parameters_gsl_SFRD_int_{
+    double z_obs;
+    double gf_obs;
+    double m_turn;
+    double fstar10;
+    double alpha_star;
+};
+
 struct parameters_gsl_SFR_con_int_{
     double gf_obs;
     double Mval;
@@ -176,6 +184,8 @@ struct parameters_gsl_SFR_con_int_{
     double LimitMass_Fstar;
     double LimitMass_Fesc;
 };
+
+double mean_SFRD_dlnMhalo(double lnM, void *params);
 
 unsigned long *lvector(long nl, long nh);
 void free_lvector(unsigned long *v, long nl, long nh);
@@ -1169,6 +1179,95 @@ double FgtrM_General(double z, double M){
         LOG_ERROR("Incorrect HMF selected: %i (should be between 0 and 3).", user_params_ps->HMF);
         Throw(ValueError);
     }
+}
+
+/* returns the mean star formation rate density at z in M_sun yr^-1 Mpc^-3 */
+double mean_SFRD_dlnMhalo(double lnM, void *params){
+
+    struct parameters_gsl_SFRD_int_ vals = *(struct parameters_gsl_SFRD_int_ *)params;
+
+    double z = vals.z_obs;
+    double growthf = vals.gf_obs;
+    double M = exp(lnM);
+    double f_ast = (vals.fstar10) * pow(M/1.0e10, (vals.alpha_star));
+    double MassFunction;
+
+    if(user_params_ps->HMF==0) {
+        MassFunction = dNdM(z, M);
+    }
+    if(user_params_ps->HMF==1) {
+        MassFunction = dNdM_st(growthf,M);
+    }
+    if(user_params_ps->HMF==2) {
+        MassFunction = dNdM_WatsonFOF(growthf, M);
+    }
+    if(user_params_ps->HMF==3) {
+        MassFunction = dNdM_WatsonFOF_z(z, growthf, M);
+    }
+
+    if (f_ast > 1)
+        f_ast = 1;
+
+    return MassFunction * f_ast * exp(-vals.m_turn/M) * M * M * cosmo_params_ps->OMb/cosmo_params_ps->OMm; //extra M for the dlnM
+}
+
+float mean_SFRD(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, int num_redshifts, float *redshifts, float *SFRD_mean){
+
+    int status;
+
+    Broadcast_struct_global_PS(user_params,cosmo_params);
+    Broadcast_struct_global_UF(user_params,cosmo_params);
+
+    init_ps();
+
+    initialiseSigmaMInterpTable(0.999*astro_params->M_TURN/50.,1e20);
+
+    double growthf;
+
+    int i;
+
+    double result, error, lower_limit, upper_limit;
+    gsl_function F;
+    double timescale, rel_tol  = 0.001; //<- relative tolerance
+    gsl_integration_workspace * w
+    = gsl_integration_workspace_alloc (1000);
+
+    for(i=0;i<num_redshifts;i++) {
+
+        growthf = dicke(redshifts[i]);
+
+        struct parameters_gsl_SFRD_int_ parameters_gsl_SFRD = {
+            .z_obs = redshifts[i],
+            .gf_obs = growthf,
+            .m_turn = astro_params->M_TURN,
+            .fstar10 = astro_params->F_STAR10,
+            .alpha_star = astro_params->ALPHA_STAR,
+        };
+
+        if(user_params_ps->HMF<4 && user_params_ps->HMF>-1) {
+
+            F.function = &mean_SFRD_dlnMhalo;
+            F.params = &parameters_gsl_SFRD;
+
+            lower_limit = log(astro_params->M_TURN/50.);
+            upper_limit = log(FMAX(global_params.M_MAX_INTEGRAL, astro_params->M_TURN*100));
+
+            gsl_set_error_handler_off();
+
+            status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
+            if(status!=0) {
+                LOG_ERROR("gsl integration error occured!");
+                LOG_ERROR("lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
+                LOG_ERROR("data: z=%e growthf=%e M_Turn=%e Alpha_star=%e F_Star10=%e t_star=%e\n",redshifts[i],growthf,astro_params->M_TURN,astro_params->ALPHA_STAR,astro_params->F_STAR10,astro_params->t_STAR);
+                GSL_ERROR(status);
+            }
+            timescale = astro_params->t_STAR/hubble(redshifts[i])/SperYR;
+
+            SFRD_mean[i] = result / timescale;
+        }
+    }
+    freeSigmaMInterpTable();
+    gsl_integration_workspace_free (w);
 }
 
 double dNion_General(double lnM, void *params){
