@@ -267,7 +267,7 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
             dxlya_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
             dstarlya_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
             //Allocate memory for Lya heating arrays
-            if (flag_options->USE_Lya_HEATING){
+            if (flag_options->USE_LYA_HEATING){
                 dstarlya_cont_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
                 dstarlya_inj_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
                 dstarlya_cont_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
@@ -1245,7 +1245,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
             // and create the sum over Lya transitions from direct Lyn flux
             sum_lyn[R_ct] = 0;
             //Lya flux for Lya heating
-            if (flag_options->USE_Lya_HEATING){
+            if (flag_options->USE_LYA_HEATING){
                 sum_ly2[R_ct] = 0;
                 sum_lynto2[R_ct] = 0;
                 if (flag_options->USE_MINI_HALOS) {
@@ -1275,11 +1275,11 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                     sum_lyLWn_MINI[R_ct] += (1. - astro_params->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 3);
 
                     //Separate out the continuum and injected flux contributions
-                    if (flag_options->USE_Lya_HEATING && n_ct==2){
+                    if (flag_options->USE_LYA_HEATING && n_ct==2){
                         sum_ly2[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0,2);
                         sum_ly2_MINI[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0,3);
                     }
-                    if (flag_options->USE_Lya_HEATING && n_ct>=3){
+                    if (flag_options->USE_LYA_HEATING && n_ct>=3){
                         sum_lynto2[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0,2);
                         sum_lynto2_MINI[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0,3);
                     }
@@ -1288,10 +1288,10 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                     sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
 
                     //If use Lyman alpha heating
-                    if (flag_options->USE_Lya_HEATING && n_ct==2){
+                    if (flag_options->USE_LYA_HEATING && n_ct==2){
                         sum_ly2[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0,global_params.Pop);
                     }
-                    if (flag_options->USE_Lya_HEATING && n_ct>=3){
+                    if (flag_options->USE_LYA_HEATING && n_ct>=3){
                         sum_lynto2[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0,global_params.Pop);
                     }
                 }
@@ -1338,7 +1338,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 // The amount is the weight, multplied by the contribution from the previous radii
                 sum_lyn[R_ct] = weight * sum_lyn[R_ct-1];
                 //Apply same weight for sum_ly2 and sum_lynto2
-                if (flag_options->USE_Lya_HEATING){
+                if (flag_options->USE_LYA_HEATING){
                     sum_ly2[R_ct] = weight * sum_ly2[R_ct-1];
                     sum_lynto2[R_ct] = weight * sum_lynto2[R_ct-1];
                     if (flag_options->USE_MINI_HALOS){
@@ -1541,7 +1541,7 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
             zpp_integrand = ( pow(1+zp,2)*(1+zpp_for_evolve_list[R_ct]) )/( pow(1+zpp_for_evolve_list[R_ct], -(astro_params->X_RAY_SPEC_INDEX)) );
             dstarlya_dt_prefactor[R_ct]  = zpp_integrand * sum_lyn[R_ct];
             //Lya flux prefactors for Lya heating
-            if (flag_options->USE_Lya_HEATING){
+            if (flag_options->USE_LYA_HEATING){
                 dstarlya_cont_dt_prefactor[R_ct]  = zpp_integrand * sum_ly2[R_ct];
                 dstarlya_inj_dt_prefactor[R_ct]  = zpp_integrand * sum_lynto2[R_ct];
                 if (flag_options->USE_MINI_HALOS){
@@ -1614,7 +1614,7 @@ LOG_SUPER_DEBUG("looping over box...");
                     dstarlya_dt_box[box_ct] = 0.;
 
                     //Initialize Lya flux for Lya heating
-                    if (flag_options->USE_Lya_HEATING){
+                    if (flag_options->USE_LYA_HEATING){
                         dstarlya_cont_dt_box[box_ct] = 0.;
                         dstarlya_inj_dt_box[box_ct] = 0.;
                         if (flag_options->USE_MINI_HALOS){
@@ -1919,7 +1919,7 @@ LOG_SUPER_DEBUG("looping over box...");
                 dstarlya_dt_prefactor[R_ct] *= dfcoll_dz_val;
 
                 //Calculate Lya flux for Lya heating
-                if (flag_options->USE_Lya_HEATING){
+                if (flag_options->USE_LYA_HEATING){
                     dstarlya_cont_dt_prefactor[R_ct] *= dfcoll_dz_val;
                     dstarlya_inj_dt_prefactor[R_ct] *= dfcoll_dz_val;
                     if (flag_options->USE_MINI_HALOS){
@@ -1970,7 +1970,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             dstarlya_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_dt_prefactor[R_ct];
 
                             //Add Lya flux
-                            if (flag_options->USE_Lya_HEATING){
+                            if (flag_options->USE_LYA_HEATING){
                                 dstarlya_cont_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_cont_dt_prefactor[R_ct];
                                 dstarlya_inj_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_inj_dt_prefactor[R_ct];
                                 if (flag_options->USE_MINI_HALOS){
@@ -1991,7 +1991,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             dstarlya_dt_box[box_ct] += 0.;
 
                             //Add Lya flux
-                            if (flag_options->USE_Lya_HEATING){
+                            if (flag_options->USE_LYA_HEATING){
                                 dstarlya_cont_dt_box[box_ct] += 0.;
                                 dstarlya_inj_dt_box[box_ct] += 0.;
                                 if (flag_options->USE_MINI_HALOS){
@@ -2038,7 +2038,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             dstarlya_dt_box[box_ct] *= prefactor_2;
 
                             //Include pre-factors in Lya flux for Lya heating
-                            if (flag_options->USE_Lya_HEATING){
+                            if (flag_options->USE_LYA_HEATING){
                                 dstarlya_cont_dt_box[box_ct] *= prefactor_2;
                                 dstarlya_inj_dt_box[box_ct] *= prefactor_2;
                                 if (flag_options->USE_MINI_HALOS){
@@ -2105,7 +2105,7 @@ LOG_SUPER_DEBUG("looping over box...");
 							eps_Lya_inj = 0.;
 							eps_Lya_cont_MINI = 0.;
 							eps_Lya_inj_MINI = 0.;
-                            if (flag_options->USE_Lya_HEATING) {
+                            if (flag_options->USE_LYA_HEATING) {
                                 E_continuum = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delNL0*growth_factor_zp,x_e), 2);
                                 E_injected = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delNL0*growth_factor_zp,x_e), 3);
                                 Ndot_alpha_cont = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_cont_dt_box[box_ct];
@@ -2296,7 +2296,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             dstarlya_dt += dfcoll_dz_val*dstarlya_dt_prefactor[R_ct];
 
                             //Ly-alpha Heating
-                            if (flag_options->USE_Lya_HEATING){
+                            if (flag_options->USE_LYA_HEATING){
                               dstarlya_cont_dt += dfcoll_dz_val*dstarlya_cont_dt_prefactor[R_ct];
                               dstarlya_inj_dt += dfcoll_dz_val*dstarlya_inj_dt_prefactor[R_ct];
                             }
@@ -2311,7 +2311,7 @@ LOG_SUPER_DEBUG("looping over box...");
                     dstarlya_dt *= prefactor_2;
 
                     //Ly-alpha Heating
-                    if (flag_options->USE_Lya_HEATING){
+                    if (flag_options->USE_LYA_HEATING){
                       dstarlya_cont_dt *= prefactor_2;
                       dstarlya_inj_dt *= prefactor_2;
                     }
@@ -2352,7 +2352,7 @@ LOG_SUPER_DEBUG("looping over box...");
                     //Ly-alpha heating rate
 					eps_Lya_cont = 0.;
 					eps_Lya_inj = 0.;
-                    if (flag_options->USE_Lya_HEATING) {
+                    if (flag_options->USE_LYA_HEATING) {
                         E_continuum = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delNL0*growth_factor_zp,x_e), 2);
                         E_injected = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delNL0*growth_factor_zp,x_e), 3);
                         Ndot_alpha_cont = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_cont_dt;
@@ -2593,7 +2593,7 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
         free(inverse_val_box);
 
         //Free arrays used for Ly-alpha heating
-        if (flag_options->USE_Lya_HEATING){
+        if (flag_options->USE_LYA_HEATING){
             free(dstarlya_cont_dt_box);
             free(dstarlya_inj_dt_box);
             free(dstarlya_cont_dt_prefactor);
