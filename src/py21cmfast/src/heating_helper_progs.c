@@ -1345,7 +1345,8 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
       		for (jj=0;jj<nT;jj++){
       			for (kk=0;kk<ngp;kk++){
       			index = ii*nT*ngp + jj*ngp + kk;
-      			fscanf(F,"%lf %lf %lf %lf %lf",&dummy_heat,&dummy_heat,&dummy_heat,&dEC[index],&dEI[index]);
+      			//fscanf(F,"%lf %lf %lf %lf %lf",&dummy_heat,&dummy_heat,&dummy_heat,&dEC[index],&dEI[index]);
+				fscanf(F,"%lf %lf",&dEC[index],&dEI[index]);
       			}
       		}
       	}

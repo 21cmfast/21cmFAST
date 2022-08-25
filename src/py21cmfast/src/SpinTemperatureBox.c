@@ -1923,8 +1923,9 @@ LOG_SUPER_DEBUG("looping over box...");
                     dstarlya_cont_dt_prefactor[R_ct] *= dfcoll_dz_val;
                     dstarlya_inj_dt_prefactor[R_ct] *= dfcoll_dz_val;
                     if (flag_options->USE_MINI_HALOS){
-                        dstarlya_cont_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val;
-                        dstarlya_inj_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val;
+						dfcoll_dz_val_MINI = (ave_fcoll_inv_MINI/pow(10.,10.))*ST_over_PS_MINI[R_ct]*SFR_timescale_factor[R_ct]/astro_params->t_STAR;
+                        dstarlya_cont_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
+                        dstarlya_inj_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
                     }
                 }
 
@@ -1974,8 +1975,8 @@ LOG_SUPER_DEBUG("looping over box...");
                                 dstarlya_cont_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_cont_dt_prefactor[R_ct];
                                 dstarlya_inj_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_inj_dt_prefactor[R_ct];
                                 if (flag_options->USE_MINI_HALOS){
-                                    dstarlya_cont_dt_box_MINI[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_cont_dt_prefactor_MINI[R_ct];
-                                    dstarlya_inj_dt_box_MINI[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_inj_dt_prefactor_MINI[R_ct];
+                                    dstarlya_cont_dt_box_MINI[box_ct] += (double)del_fcoll_Rct_MINI[box_ct]*dstarlya_cont_dt_prefactor_MINI[R_ct];
+                                    dstarlya_inj_dt_box_MINI[box_ct] += (double)del_fcoll_Rct_MINI[box_ct]*dstarlya_inj_dt_prefactor_MINI[R_ct];
                                 }
                             }
 
@@ -2042,8 +2043,8 @@ LOG_SUPER_DEBUG("looping over box...");
                                 dstarlya_cont_dt_box[box_ct] *= prefactor_2;
                                 dstarlya_inj_dt_box[box_ct] *= prefactor_2;
                                 if (flag_options->USE_MINI_HALOS){
-                                    dstarlya_cont_dt_box_MINI[box_ct] *= prefactor_2;
-                                    dstarlya_inj_dt_box_MINI[box_ct] *= prefactor_2;
+                                    dstarlya_cont_dt_box_MINI[box_ct] *= prefactor_2_MINI;
+                                    dstarlya_inj_dt_box_MINI[box_ct] *= prefactor_2_MINI;
                                 }
                             }
 
@@ -2087,20 +2088,20 @@ LOG_SUPER_DEBUG("looping over box...");
                             dcomp_dzp = dcomp_dzp_prefactor*(x_e/(1.0+x_e))*( Trad_fast - T );//removed f_He
 
 
-                            // lastly, X-ray heating
+                            // next, X-ray heating
                             dxheat_dzp = dxheat_dt_box[box_ct] * dt_dzp * 2.0 / 3.0 / k_B / (1.0+x_e);
                             if (flag_options->USE_MINI_HALOS){
                                 dxheat_dzp_MINI = dxheat_dt_box_MINI[box_ct] * dt_dzp * 2.0 / 3.0 / k_B / (1.0+x_e);
                             }
 
-                            //CMB heating rate
+                            //next, CMB heating rate
 							dCMBheat_dzp = 0.;
                             if (flag_options->USE_CMB_HEATING) {
 								//Meiksin et al. 2021
 								eps_CMB = (3./4.) * (T_cmb*(1.+zp)/T21) * A10_HYPERFINE * f_H * (hplank*hplank/Lambda_21/Lambda_21/m_p) * (1.+2.*T/T21);
 								dCMBheat_dzp = 	-eps_CMB * (2./3./k_B/(1.+x_e))/hubble(zp)/(1.+zp);
                             }
-                            //Ly-alpha heating rate
+                            //lastly, Ly-alpha heating rate
 							eps_Lya_cont = 0.;
 							eps_Lya_inj = 0.;
 							eps_Lya_cont_MINI = 0.;
@@ -2219,7 +2220,8 @@ LOG_SUPER_DEBUG("looping over box...");
                     }
                 }
             }
-        }}
+        }
+	}//Have to check this part :DS
         else {
 //Added variables to calculate the continuum and injected flux
 #pragma omp parallel shared(previous_spin_temp,x_int_XHII,inverse_diff,delNL0_rev,dens_grid_int_vals,ST_over_PS,zpp_growth,dfcoll_interp1,\
