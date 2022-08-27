@@ -272,7 +272,7 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
                 dstarlya_inj_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
                 sum_ly2 = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
                 sum_lynto2 = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-                
+
             }
             if (flag_options->USE_MINI_HALOS){
                 del_fcoll_Rct_MINI = (float *) calloc(HII_TOT_NUM_PIXELS,sizeof(float));
@@ -283,7 +283,7 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
                 dxlya_dt_box_MINI = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
                 dstarlya_dt_box_MINI = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
                 dstarlyLW_dt_box_MINI = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
-				
+
                 if (flag_options->USE_LYA_HEATING){
                     dstarlya_cont_dt_box_MINI = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
                     dstarlya_inj_dt_box_MINI = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
@@ -363,7 +363,7 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
             dstarlya_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
             dstarlyLW_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
             dstarlyLW_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-			
+
             if (flag_options->USE_LYA_HEATING){
                 dstarlya_cont_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
                 dstarlya_inj_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
@@ -1254,14 +1254,14 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
             //Lya flux for Lya heating
             if (flag_options->USE_LYA_HEATING){
                 sum_ly2[R_ct] = 0;
-                sum_lynto2[R_ct] = 0;   
+                sum_lynto2[R_ct] = 0;
             }
 
             if (flag_options->USE_MINI_HALOS){
                 sum_lyn_MINI[R_ct] = 0;
                 sum_lyLWn[R_ct] = 0;
                 sum_lyLWn_MINI[R_ct] = 0;
-				
+
                 if (flag_options->USE_LYA_HEATING) {
                     sum_ly2_MINI[R_ct] = 0;
                     sum_lynto2_MINI[R_ct] = 0;
@@ -1352,7 +1352,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 }
                 if (flag_options->USE_MINI_HALOS){
                     sum_lyn_MINI[R_ct] = weight * sum_lyn_MINI[R_ct-1];
-					
+
                     if (flag_options->USE_LYA_HEATING){
                         sum_ly2_MINI[R_ct] = weight * sum_ly2_MINI[R_ct-1];
                         sum_lynto2_MINI[R_ct] = weight * sum_lynto2_MINI[R_ct-1];
@@ -1558,7 +1558,7 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
                 dstarlya_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyn_MINI[R_ct];
                 dstarlyLW_dt_prefactor[R_ct]  = zpp_integrand * sum_lyLWn[R_ct];
                 dstarlyLW_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyLWn_MINI[R_ct];
-				
+
                 if (flag_options->USE_LYA_HEATING){
                     dstarlya_cont_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_ly2_MINI[R_ct];
                     dstarlya_inj_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lynto2_MINI[R_ct];
@@ -1636,7 +1636,7 @@ LOG_SUPER_DEBUG("looping over box...");
                         dxion_source_dt_box_MINI[box_ct] = 0.;
                         dxlya_dt_box_MINI[box_ct] = 0.;
                         dstarlya_dt_box_MINI[box_ct] = 0.;
-						
+
                         if (flag_options->USE_LYA_HEATING){
                           dstarlya_cont_dt_box_MINI[box_ct] = 0.;
                           dstarlya_inj_dt_box_MINI[box_ct] = 0.;
@@ -1941,7 +1941,7 @@ LOG_SUPER_DEBUG("looping over box...");
                     dstarlya_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
                     dstarlyLW_dt_prefactor[R_ct] *= dfcoll_dz_val;
                     dstarlyLW_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
-					
+
                     if (flag_options->USE_LYA_HEATING){
                         dstarlya_cont_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
                         dstarlya_inj_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
@@ -1986,12 +1986,12 @@ LOG_SUPER_DEBUG("looping over box...");
                             if (flag_options->USE_LYA_HEATING){
                                 dstarlya_cont_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_cont_dt_prefactor[R_ct];
                                 dstarlya_inj_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_inj_dt_prefactor[R_ct];
-              
+
                             }
 
                             if (flag_options->USE_MINI_HALOS){
                                 dstarlyLW_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlyLW_dt_prefactor[R_ct];
-								
+
                                 if (flag_options->USE_LYA_HEATING){
                                     dstarlya_cont_dt_box_MINI[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_cont_dt_prefactor_MINI[R_ct];
                                     dstarlya_inj_dt_box_MINI[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_inj_dt_prefactor_MINI[R_ct];
@@ -2009,12 +2009,12 @@ LOG_SUPER_DEBUG("looping over box...");
                             if (flag_options->USE_LYA_HEATING){
                                 dstarlya_cont_dt_box[box_ct] += 0.;
                                 dstarlya_inj_dt_box[box_ct] += 0.;
-                                
+
                             }
 
                             if (flag_options->USE_MINI_HALOS){
                                 dstarlyLW_dt_box[box_ct] += 0.;
-								
+
                                 if (flag_options->USE_LYA_HEATING){
                                     dstarlya_cont_dt_box_MINI[box_ct] += 0.;
                                     dstarlya_inj_dt_box_MINI[box_ct] += 0.;
@@ -2057,7 +2057,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             //Include pre-factors in Lya flux for Lya heating
                             if (flag_options->USE_LYA_HEATING){
                                 dstarlya_cont_dt_box[box_ct] *= prefactor_2;
-                                dstarlya_inj_dt_box[box_ct] *= prefactor_2; 
+                                dstarlya_inj_dt_box[box_ct] *= prefactor_2;
                             }
 
                             if (flag_options->USE_MINI_HALOS){
@@ -2070,7 +2070,7 @@ LOG_SUPER_DEBUG("looping over box...");
                                 dstarlya_dt_box_MINI[box_ct] *= prefactor_2_MINI;
 
                                 dstarlyLW_dt_box_MINI[box_ct] *= prefactor_2_MINI * (hplank * 1e21);
-								
+
                                 if (flag_options->USE_LYA_HEATING){
                                     dstarlya_cont_dt_box_MINI[box_ct] *= prefactor_2_MINI;
                                     dstarlya_inj_dt_box_MINI[box_ct] *= prefactor_2_MINI;
@@ -2640,7 +2640,7 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
             free(dxlya_dt_box_MINI);
             free(dstarlya_dt_box_MINI);
             free(dstarlyLW_dt_box_MINI);
-			
+
             if (flag_options->USE_LYA_HEATING){
               free(dstarlya_cont_dt_box_MINI);
               free(dstarlya_inj_dt_box_MINI);
