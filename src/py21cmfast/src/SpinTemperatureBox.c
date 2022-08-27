@@ -1267,66 +1267,66 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
                 nuprime = nu_n(n_ct)*(1+zpp)/(1.0+zp);
                 if (flag_options->USE_MINI_HALOS){
-                    
+
                     //Separate out the continuum and injected flux contributions
                     if (flag_options->USE_LYA_HEATING){
 						ly2_store = 0.;
 						ly2_store_MINI = 0.;
 						lynto2_store = 0.;
 						lynto2_store_MINI = 0.;
-						
+
 						if (n_ct==2){
 							ly2_store = frecycle(n_ct) * spectral_emissivity(nuprime, 0,2);
 	                        sum_ly2[R_ct] += ly2_store;
-							
+
 							ly2_store_MINI = frecycle(n_ct) * spectral_emissivity(nuprime, 0,3);
 	                        sum_ly2_MINI[R_ct] += ly2_store_MINI;
 						}
-						
+
 						if (n_ct>=3){
 							lynto2_store = frecycle(n_ct) * spectral_emissivity(nuprime, 0,2);
 	                        sum_lynto2[R_ct] += lynto2_store;
-							
+
 							lynto2_store_MINI = frecycle(n_ct) * spectral_emissivity(nuprime, 0,3);
-	                        sum_lynto2_MINI[R_ct] += lynto2_store_MINI;		
+	                        sum_lynto2_MINI[R_ct] += lynto2_store_MINI;
 						}
-						
+
 						sum_lyn[R_ct] += (ly2_store + lynto2_store);
 						sum_lyn_MINI[R_ct] += (ly2_store_MINI + lynto2_store_MINI);
-	
+
                     }
 					else{
 	                    sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
 	                    sum_lyn_MINI[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
 					}
-					
+
                     if (nuprime < NU_LW_THRESH / NUIONIZATION)
                         nuprime = NU_LW_THRESH / NUIONIZATION;
                     if (nuprime >= nu_n(n_ct + 1))
                         continue;
                     sum_lyLWn[R_ct]  += (1. - astro_params->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
                     sum_lyLWn_MINI[R_ct] += (1. - astro_params->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 3);
-	
-					
+
+
                 }
                 else{
                     //Separate out the continuum and injected flux contributions
                     if (flag_options->USE_LYA_HEATING){
 						ly2_store = 0.;
 						lynto2_store = 0.;
-						
+
 						if (n_ct==2){
 							ly2_store = frecycle(n_ct) * spectral_emissivity(nuprime, 0,2);
 	                        sum_ly2[R_ct] += ly2_store;
 						}
-						
+
 						if (n_ct>=3){
 							lynto2_store = frecycle(n_ct) * spectral_emissivity(nuprime, 0,2);
-	                        sum_lynto2[R_ct] += lynto2_store;	
+	                        sum_lynto2[R_ct] += lynto2_store;
 						}
-						
+
 						sum_lyn[R_ct] += (ly2_store + lynto2_store);
-	
+
                     }
 					else{
 	                    sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
@@ -2398,8 +2398,8 @@ LOG_SUPER_DEBUG("looping over box...");
                     eps_CMB = (3./4.) * (T_cmb*(1.+zp)/T21) * A10_HYPERFINE * f_H * (hplank*hplank/Lambda_21/Lambda_21/m_p) * (1.+2.*T/T21);
                     dCMBheat_dzp = 	-eps_CMB * (2./3./k_B/(1.+x_e))/hubble(zp)/(1.+zp);
                     }*/
-					
-					
+
+
                     //lastly, Ly-alpha heating rate
 					eps_Lya_cont = 0.;
 					eps_Lya_inj = 0.;
