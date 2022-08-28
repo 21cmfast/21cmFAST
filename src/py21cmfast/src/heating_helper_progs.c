@@ -104,8 +104,12 @@ int init_heat()
         return -3;
 
     //Initialize interpolation array for Lya heating
-    if (Energy_Lya_heating(1.0, 1.0, 3.0, 1)<0)
-    	return -7;
+	if (flag_options_hf->USE_LYA_HEATING){
+		LOG_DEBUG("Reading Lyman-alpha Heating File");
+    	if (Energy_Lya_heating(1.0, 1.0, 3.0, 1)<0){
+    		return -7;
+		}
+	}
 
 	LOG_SUPER_DEBUG("About to initialize interp arrays");
     initialize_interp_arrays();
