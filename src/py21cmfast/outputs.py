@@ -286,9 +286,20 @@ class _AllParamsBox(_OutputStructZ):
 
 class HaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
+    _inputs = _AllParamsBox._inputs + ("prev_redshift",)
+    def __init__(
+        self,
+        *,
+        prev_redshift: Optional[float] = None,
+        **kwargs,
+    ):
+        self.prev_redshift = prev_redshift
+        super().__init__(**kwargs)
 
     _c_based_pointers = (
         "halo_masses",
+        "stellar_masses",
+        "halo_sfr",
         "halo_coords",
         "mass_bins",
         "fgtrm",
@@ -304,6 +315,8 @@ class HaloField(_AllParamsBox):
     def _c_shape(self, cstruct):
         return {
             "halo_masses": (cstruct.n_halos,),
+            "stellar_masses": (cstruct.n_halos,),
+            "halo_sfr": (cstruct.n_halos,),
             "halo_coords": (cstruct.n_halos, 3),
             "mass_bins": (cstruct.n_mass_bins,),
             "fgtrm": (cstruct.n_mass_bins,),
@@ -314,20 +327,27 @@ class HaloField(_AllParamsBox):
 
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
         """Return all input arrays required to compute this object."""
+        required = []
         if isinstance(input_box, InitialConditions):
             #TODO: once the concatenation option is added I might need both
             if self.flag_options.HALO_STOCHASTICITY:
-                return ["lowres_density"]
+                required += ["lowres_density"]
             else:
-                return ["hires_density"]
+                required += ["hires_density"]
+        elif isinstance(input_box, HaloField):
+            if self.flag_options.HALO_STOCHASTICITY and not self.first_box:
+                    required += ["halo_masses","halo_coords","stellar_masses","halo_sfr"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for HaloField!"
             )
+        return required
 
-    def compute(self, *, ics: InitialConditions, random_seed: int, hooks: dict):
+    #TODO, it doesn't like when I specify the HaloField type here for the previous field (seems similar in the Ts box)
+    def compute(self, *, halos_prev, ics: InitialConditions, random_seed: int, hooks: dict):
         """Compute the function."""
         return self._compute(
+            self.prev_redshift,
             self.redshift,
             self.user_params,
             self.cosmo_params,
@@ -335,6 +355,7 @@ class HaloField(_AllParamsBox):
             self.flag_options,
             ics,
             random_seed,
+            halos_prev,
             hooks=hooks,
         )
 

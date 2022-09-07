@@ -32,6 +32,8 @@ struct UserParams{
     bool FAST_FCOLL_TABLES; //Whether to use the fast Fcoll table approximation in EPS
     bool USE_2LPT;
     bool MINIMIZE_MEMORY;
+    bool STOC_INVERSE;
+    bool STOC_MASS_SAMPLING;
 };
 
 struct AstroParams{
@@ -95,10 +97,15 @@ struct PerturbedField{
 };
 
 struct HaloField{
+    int first_box; //first generated (lowest redshift)
 
     int n_halos;
     float *halo_masses;
     int *halo_coords;
+
+    //Halo properties for stochastic model
+    float *stellar_masses;
+    float *halo_sfr;
 
     int n_mass_bins;
     int max_n_mass_bins;
@@ -153,13 +160,13 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
 int ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field);
 
-int ComputeHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+int ComputeHaloField(float redshift_prev, float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                      struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                     struct InitialConditions *boxes, int random_seed, struct HaloField *halos);
+                     struct InitialConditions *boxes, int random_seed, struct HaloField * halos_prev, struct HaloField *halos);
 
 int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                      struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                     struct InitialConditions *boxes, struct HaloField *halos, int random_seed, struct PerturbHaloField *halos_perturbed);
+                     struct InitialConditions *boxes, int random_seed, struct HaloField *halos, struct PerturbHaloField *halos_perturbed);
 
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,
@@ -210,14 +217,12 @@ int init_heat();
 void free(void *ptr);
 
 //need a python visible function to test lower level functions using the package
-int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int seed, double M, bool eulerian,double delta, double R, double z, int type, int nbins, double *result);
-//function to build halo grids from density field
-int build_halo_grids(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int seed, double redshift
-                    ,bool eulerian, float *dens_field, int *nh_field, float *hm_field, float *sm_field);
-int build_halo_cats(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int seed, double redshift
-                    ,bool eulerian, float *dens_field, int * n_halo_out, int *halo_coords, float *halo_masses);
-int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, int seed, float redshift
-                    , bool eulerian, bool concatenate, float *dens_field, struct HaloField *halos);
-int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
-                        , int seed, float redshift, struct PerturbHaloField *halos);
+int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
+                        , int seed, int n_mass, float *M, bool update, double condition, double z_out, double z_in, int type, double *result);
+
+//int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options,
+//                        int seed, float redshift, float redshift_prev, bool eulerian, float *dens_field, struct HaloField *halos_prev, struct HaloField *halos);
+
+//int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options,
+//                        int seed, float redshift, struct PerturbHaloField *halos);
                     

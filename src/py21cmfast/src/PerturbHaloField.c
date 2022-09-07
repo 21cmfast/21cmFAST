@@ -6,7 +6,7 @@
 
 int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                             struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                            struct InitialConditions *boxes, struct HaloField *halos, int random_seed, struct PerturbHaloField *halos_perturbed) {
+                            struct InitialConditions *boxes, int random_seed, struct HaloField *halos, struct PerturbHaloField *halos_perturbed) {
 
     int status;
 
@@ -201,7 +201,10 @@ LOG_DEBUG("Begin Initialisation");
                 halos_perturbed->halo_coords[i_halo*3+2] = zf;
 
                 halos_perturbed->halo_masses[i_halo] = halos->halo_masses[i_halo];
-
+                if(flag_options->HALO_STOCHASTICITY){
+                    halos_perturbed->stellar_masses[i_halo] = halos->stellar_masses[i_halo];
+                    halos_perturbed->halo_sfr[i_halo] = halos->halo_sfr[i_halo];
+                }
             }
         }
 
@@ -245,10 +248,6 @@ LOG_DEBUG("Begin Initialisation");
         fftwf_forget_wisdom();
         LOG_DEBUG("Perturbed positions of %d Halos", halos_perturbed->n_halos);
 
-        //THIS ADDS PROPERTIES TO ALL HALOS, which will be useless if we want DexM Halos without sampled properties
-        //which should be rare, if I want to keep that possibility I'll need to find a way to make the property
-        //fields in the output struct optional
-        add_properties_cat(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift, halos_perturbed);
     } // End of Try()
     Catch(status){
         return(status);

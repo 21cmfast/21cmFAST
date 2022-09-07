@@ -1013,6 +1013,7 @@ def perturb_field(
 def determine_halo_list(
     *,
     redshift,
+    halos_prev=None,
     init_boxes=None,
     user_params=None,
     cosmo_params=None,
@@ -1092,11 +1093,22 @@ def determine_halo_list(
         )
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
-        if user_params.HMF != 1:
-            raise ValueError("USE_HALO_FIELD is only valid for HMF = 1")
+        if user_params.HMF != 1 and not flag_options.HALO_STOCHASTICITY:
+            raise ValueError("USE_HALO_FIELD with DexM is only valid for HMF = 1")
 
+        if not isinstance(halos_prev, HaloField) or not halos_prev.is_computed:
+            first_box = True
+            prev_redshift = -1
+            #declare dummy halofield to use
+            halos_prev = HaloField(redshift=redshift,dummy=True)
+        else:
+            prev_redshift = halos_prev.redshift
+            first_box = False
+        
         # Initialize halo list boxes.
         fields = HaloField(
+            first_box=first_box,
+            prev_redshift=prev_redshift,
             redshift=redshift,
             user_params=user_params,
             cosmo_params=cosmo_params,
@@ -1104,6 +1116,7 @@ def determine_halo_list(
             flag_options=flag_options,
             random_seed=random_seed,
         )
+
         # Check whether the boxes already exist
         if not regenerate:
             try:
@@ -1134,7 +1147,7 @@ def determine_halo_list(
             fields._random_seed = init_boxes.random_seed
 
         # Run the C Code
-        return fields.compute(ics=init_boxes, hooks=hooks, random_seed=random_seed)
+        return fields.compute(ics=init_boxes, hooks=hooks, halos_prev=halos_prev, random_seed=random_seed)
 
 
 def perturb_halo_list(

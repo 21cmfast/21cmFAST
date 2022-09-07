@@ -16,21 +16,21 @@ void init_hmf(struct HaloField *halos);
 void trim_hmf(struct HaloField *halos);
 
 
-int ComputeHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+int ComputeHaloField(float redshift_prev, float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                      struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                     struct InitialConditions *boxes, int random_seed, struct HaloField *halos) {
+                     struct InitialConditions *boxes, int random_seed, struct HaloField * halos_prev, struct HaloField *halos) {
 
     int status;
+
+    Try{ // This Try brackets the whole function, so we don't indent.
 
     //TODO: this probably should be in the wrapper but it's hard with each class only having one compute function
     //TODO: move later on so its possible to get halos above HII_DIM with DexM then sample below HII_DIM
     if(flag_options->HALO_STOCHASTICITY){
         LOG_DEBUG("Halo sampling switched on, bypassing halo finder...");
-        status = stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift, false, false, boxes->lowres_density, halos);
-        return status;
+        stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_prev, redshift, false, boxes->lowres_density, halos_prev, halos);
+        return 0;
     }
-
-    Try{ // This Try brackets the whole function, so we don't indent.
 
 LOG_DEBUG("input value:");
 LOG_DEBUG("redshift=%f", redshift);
@@ -330,6 +330,8 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             free(local_coords);
             free(local_masses);
         }
+        //add halo properties for ionisation TODO: add a flag
+        add_properties_cat(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift, halos);
 
 LOG_DEBUG("Finished halo processing.");
 
@@ -450,6 +452,8 @@ void free_halo_field(struct HaloField *halos){
     LOG_DEBUG("Freeing HaloField instance.");
     free(halos->halo_masses);
     free(halos->halo_coords);
+    free(halos->stellar_masses);
+    free(halos->halo_sfr);
     halos->n_halos = 0;
 
     free(halos->mass_bins);

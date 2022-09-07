@@ -454,6 +454,13 @@ class UserParams(StructWithDefaults):
     MINIMIZE_MEMORY: bool, optional
         If set, the code will run in a mode that minimizes memory usage, at the expense
         of some CPU/disk-IO. Good for large boxes / small computers.
+    STOC_INVERSE: bool, optional
+        Sets the halo mass sampling to the inverse CMF sampling, as opposed to rejection sampling
+        this should be better in every way, but is only usable with interpolation tables since the
+        integral would otherwise take too long.
+    STOC_MASS_SAMPLING: bool, optional
+        Sample over the mass of each condition (halo/cell) when sampling the CMF, rather than Poisson sampling
+        of the total number of halos in the condition.
     """
 
     _ffi = ffi
@@ -473,6 +480,8 @@ class UserParams(StructWithDefaults):
         "FAST_FCOLL_TABLES": False,
         "USE_2LPT": True,
         "MINIMIZE_MEMORY": False,
+        "STOC_INVERSE": True,
+        "STOC_MASS_SAMPLING": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
@@ -583,6 +592,17 @@ class UserParams(StructWithDefaults):
             return False
         else:
             return self._FAST_FCOLL_TABLES
+
+    @property
+    def STOC_INVERSE(self):
+        """Check that USE_INTERPOLATION_TABLES is True."""
+        if self._STOC_INVERSE and not self.USE_INTERPOLATION_TABLES:
+            logger.warning(
+                "You cannot turn on STOC_INVERSE without USE_INTERPOLATION_TABLES. Switching to rejection sampling..."
+            )
+            return False
+        else:
+            return self._STOC_INVERSE
 
 
 class FlagOptions(StructWithDefaults):

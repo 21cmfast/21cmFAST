@@ -17,6 +17,7 @@
 #include <gsl/gsl_roots.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_spline.h>
+#include <gsl/gsl_spline2d.h>
 
 #include "21cmFAST.h"
 #include "exceptions.h"
@@ -35,9 +36,9 @@
 #include "IonisationBox.c"
 #include "SpinTemperatureBox.c"
 #include "BrightnessTemperatureBox.c"
+#include "Stochasticity.c"
 #include "FindHaloes.c"
 #include "PerturbHaloField.c"
-#include "Stochasticity.c"
 
 void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, struct CosmoParams *cosmo_params){
     /*****  Adjust the complex conjugate relations for a real array  *****/
