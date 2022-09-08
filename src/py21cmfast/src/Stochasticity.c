@@ -1163,6 +1163,48 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
     return 0;
 }
 
+//This, for the moment, grids the PERTURBED halo catalogue.
+//TODO: make a way to output both types by making 2 wrappers to this function that pass in arrays rather than structs
+int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct PerturbHaloField *halos, struct HaloBox *grids){
+    LOG_DEBUG("Gridding %d halos...",halos->n_halos);
+    Broadcast_struct_global_UF(user_params,cosmo_params);
+    int status;
+    Try{
+#pragma omp parallel num_threads(user_params->N_THREADS)
+        {
+            int i_halo,idx,x,y,z;
+#pragma omp for
+            for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
+                grids->halo_mass[idx] = 0.0;
+                grids->star_mass[idx] = 0.0;
+                grids->halo_sfr[idx] = 0.0;
+            }
+
+#pragma omp barrier
+
+#pragma omp for
+            for(i_halo=0; i_halo<halos->n_halos; i_halo++){
+                x = halos->halo_coords[0+3*i_halo];
+                y = halos->halo_coords[1+3*i_halo];
+                z = halos->halo_coords[2+3*i_halo];
+
+#pragma omp atomic update
+                grids->halo_mass[HII_R_INDEX(x, y, z)] += halos->halo_masses[i_halo];
+#pragma omp atomic update
+                grids->star_mass[HII_R_INDEX(x, y, z)] += halos->stellar_masses[i_halo];
+#pragma omp atomic update
+                grids->halo_sfr[HII_R_INDEX(x, y, z)] += halos->halo_sfr[i_halo];
+            }
+        }
+    }
+    Catch(status){
+        return(status);
+    }
+    LOG_DEBUG("Done.");
+    return(0);
+
+}
+
 //testing function to print stuff out from python
 /* type==0: UMF/CMF
  * type==1: Integrated CMF in a single condition at multiple masses N(>M)
@@ -1319,16 +1361,17 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         else if(type==2){
             //intregrate CMF -> N_halos in many condidions
             //TODO: make it possible to integrate UMFs
+            //quick hack: condition gives n_order, seed ignores tables
             for(i=0;i<n_mass;i++){
                 if(update){
                     R = MtoR(M[i]);
                     volume = 4. / 3. * PI * R * R * R;     
-                    if(user_params_stoc->USE_INTERPOLATION_TABLES) test = EvaluatedNdMSpline(log(M[i]));
-                    else test = IntegratedNdM(growth_out,lnMmin,log(M[i]),log(M[i]),delta_l,0,-1);
+                    if(user_params_stoc->USE_INTERPOLATION_TABLES && seed == 0) test = EvaluatedNdMSpline(log(M[i]));
+                    else test = IntegratedNdM(growth_out,lnMmin,log(M[i]),log(M[i]),delta_l,condition,-1);
                 }
                 else{
-                    if(user_params_stoc->USE_INTERPOLATION_TABLES) test = EvaluatedNdMSpline(M[i]);
-                    else test = IntegratedNdM(growth_out,lnMmin,lnMmax,lnMmax,M[i],0,-1);
+                    if(user_params_stoc->USE_INTERPOLATION_TABLES && seed == 0) test = EvaluatedNdMSpline(M[i]*growth_out);
+                    else test = IntegratedNdM(growth_out,lnMmin,lnMmax,lnMmax,M[i]*growth_out,condition,-1);
                 }
                 //conditional MF multiplied by a few factors
                 result[i] = test * volume * (1+delta_v) * (RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm);

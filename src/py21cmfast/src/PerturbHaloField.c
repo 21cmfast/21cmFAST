@@ -6,7 +6,7 @@
 
 int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                             struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                            struct InitialConditions *boxes, int random_seed, struct HaloField *halos, struct PerturbHaloField *halos_perturbed) {
+                            struct InitialConditions *boxes, struct HaloField *halos, struct PerturbHaloField *halos_perturbed) {
 
     int status;
 
@@ -117,6 +117,8 @@ LOG_DEBUG("Begin Initialisation");
 
         halos_perturbed->n_halos = halos->n_halos;
         halos_perturbed->halo_masses = malloc(sizeof(float) * halos->n_halos);
+        halos_perturbed->stellar_masses = malloc(sizeof(float) * halos->n_halos);
+        halos_perturbed->halo_sfr = malloc(sizeof(float) * halos->n_halos);
         halos_perturbed->halo_coords = malloc(sizeof(int) * halos->n_halos * 3);
 
 

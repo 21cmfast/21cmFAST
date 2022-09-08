@@ -397,7 +397,7 @@ class PerturbHaloField(_AllParamsBox):
 
         return required
 
-    def compute(self, *, ics: InitialConditions, halo_field: HaloField, random_seed: int, hooks: dict):
+    def compute(self, *, ics: InitialConditions, halo_field: HaloField, hooks: dict):
         """Compute the function."""
         return self._compute(
             self.redshift,
@@ -407,7 +407,6 @@ class PerturbHaloField(_AllParamsBox):
             self.flag_options,
             ics,
             halo_field,
-            random_seed,
             hooks=hooks,
         )
 
@@ -640,6 +639,54 @@ class IonizedBox(_AllParamsBox):
             spin_temp,
             pt_halos,
             ics,
+            hooks=hooks,
+        )
+
+class HaloBox(_AllParamsBox):
+    """A class containing all gridded halo properties"""
+
+    _meta = False
+    _c_compute_function = lib.ComputeHaloBox
+    _inputs = _AllParamsBox._inputs
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        shape = (self.user_params.HII_DIM,) * 3
+
+        out = {
+            "halo_mass": shape,
+            "star_mass": shape,
+            "halo_sfr": shape,
+        }
+
+        return out
+
+
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, PerturbHaloField):
+            required += ["halo_coords", "halo_masses", "stellar_masses","halo_sfr"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for HaloBox!"
+            )
+
+        return required
+
+    def compute(
+        self,
+        *,
+        pt_halos: PerturbHaloField,
+        hooks: dict,
+    ):
+        """Compute the function."""
+        return self._compute(
+            self.user_params,
+            self.cosmo_params,
+            pt_halos,
             hooks=hooks,
         )
 

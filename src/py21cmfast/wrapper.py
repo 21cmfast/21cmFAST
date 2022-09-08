@@ -109,6 +109,7 @@ from .outputs import (
     HaloField,
     InitialConditions,
     IonizedBox,
+    HaloBox,
     LightCone,
     PerturbedField,
     PerturbHaloField,
@@ -1238,8 +1239,8 @@ def perturb_halo_list(
         )
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
-        if user_params.HMF != 1:
-            raise ValueError("USE_HALO_FIELD is only valid for HMF = 1")
+        if user_params.HMF != 1 and not flag_options.HALO_STOCHASTICITY:
+            raise ValueError("USE_HALO_FIELD (with DexM) is only valid for HMF = 1")
 
         # Initialize halo list boxes.
         fields = PerturbHaloField(
@@ -1290,8 +1291,148 @@ def perturb_halo_list(
             )
 
         # Run the C Code
-        return fields.compute(ics=init_boxes, halo_field=halo_field, hooks=hooks, random_seed=random_seed)
+        return fields.compute(ics=init_boxes, halo_field=halo_field, hooks=hooks)
 
+def halo_box(
+    *,
+    redshift,
+    astro_params=None,
+    flag_options=None,
+    cosmo_params=None,
+    user_params=None,
+    init_boxes=None,
+    pt_halos=None,
+    write=None,
+    direc=None,
+    regenerate=None,
+    random_seed=None,
+    hooks=None,
+    **global_kwargs,
+) -> HaloBox:
+    r"""
+    Compute grids of halo properties from a catalogue.
+
+    At the moment this simply produces halo masses, stellar masses and SFR on a grid of HII_DIM,
+    in the future this will compute properties such as emissivities which will be passed directly into ionize_box etc
+    instead of the catalogue.
+
+    Parameters
+    ----------
+    astro_params: :class:`~AstroParams` instance, optional
+        The astrophysical parameters defining the course of reionization.
+    flag_options: :class:`~FlagOptions` instance, optional
+        Some options passed to the reionization routine.
+    user_params : :class:`~UserParams`, optional
+        Defines the overall options and parameters of the run.
+    cosmo_params : :class:`~CosmoParams`, optional
+        Defines the cosmological parameters used to compute initial conditions.
+    pt_halos: :class:`~PerturbHaloField` or None, optional
+        If passed, this contains all the dark matter haloes obtained if using the USE_HALO_FIELD.
+        This is a list of halo masses and coords for the dark matter haloes.
+    \*\*global_kwargs :
+        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
+        *temporarily* set global attributes for the duration of the function. Note that
+        arguments will be treated as case-insensitive.
+
+    Returns
+    -------
+    :class:`~HaloBox` :
+        An object containing the halo box data.
+
+    Other Parameters
+    ----------------
+    regenerate, write, direc :
+        See docs of :func:`initial_conditions` for more information.
+    
+    """
+
+    direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
+    with global_params.use(**global_kwargs):
+        _verify_types(
+            pt_halos=pt_halos,
+        )
+
+        # Configure and check input/output parameters/structs
+        (
+            user_params,
+            cosmo_params,
+            astro_params,
+            flag_options,
+        ) = _configure_inputs(
+            [
+                ("user_params", user_params),
+                ("cosmo_params", cosmo_params),
+                ("astro_params", astro_params),
+                ("flag_options", flag_options),
+            ],
+            pt_halos,
+        )
+        
+        redshift = configure_redshift(redshift, pt_halos)
+
+        # Verify input parameter structs (need to do this after configure_inputs).
+        user_params = UserParams(user_params)
+        cosmo_params = CosmoParams(cosmo_params)
+        flag_options = FlagOptions(flag_options)
+        astro_params = AstroParams(astro_params)
+
+        # Initialize halo list boxes.
+        box = HaloBox(
+            redshift=redshift,
+            random_seed=random_seed,
+            user_params=user_params,
+            cosmo_params=cosmo_params,
+            astro_params=astro_params,
+            flag_options=flag_options,
+        )
+
+        # Check whether the boxes already exist
+        if not regenerate:
+            try:
+                box.read(direc)
+                logger.info(
+                    "Existing z=%s halo_box boxes found and read in (seed=%s)."
+                    % (redshift, box.random_seed)
+                )
+                return box
+            except OSError:
+                pass
+
+        # Make sure we've got computed init boxes.
+        if init_boxes is None or not init_boxes.is_computed:
+            init_boxes = initial_conditions(
+                user_params=user_params,
+                cosmo_params=cosmo_params,
+                regenerate=regenerate,
+                hooks=hooks,
+                direc=direc,
+                random_seed=random_seed,
+            )
+
+        # Dynamically produce the halo list.
+        if pt_halos is None or not pt_halos.is_computed:
+            pt_halos = perturb_halo_list(
+                redshift=redshift,
+                init_boxes=init_boxes,
+                halo_field=determine_halo_list(
+                    redshift=redshift,
+                    init_boxes=init_boxes,
+                    astro_params=astro_params,
+                    flag_options=flag_options,
+                    regenerate=regenerate,
+                    random_seed=random_seed,
+                    hooks=hooks,
+                    direc=direc,
+                ),
+                astro_params=astro_params,
+                flag_options=flag_options,
+                regenerate=regenerate,
+                random_seed=random_seed,
+                hooks=hooks,
+                direc=direc,
+            )
+
+    return box.compute(pt_halos=pt_halos,hooks=hooks)
 
 def ionize_box(
     *,
