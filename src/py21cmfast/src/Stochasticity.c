@@ -7,7 +7,8 @@
 //so it makes sense and make a map of the call trees to look for modularisation
 
 //max guesses for rejection sampling / root finding
-#define MAX_ITERATIONS 1e4
+//it should be low because both should take <20 attempts
+#define MAX_ITERATIONS 1e3
 
 //max halos in memory for test functions
 //buffer size (per cell of arbitrary size) in the sampling function
@@ -29,7 +30,7 @@
 #define N_DELTA_INTERP (int)100
 #define N_PROB (int)200
 #define MIN_LOGPROB (double)-20. //exp(-20) ~ 2e-9, minimum probability P(>M) for tables
-#define RF_CONV 1e-4 //Convergence for root finder, units of ln(prob), MUST BE LESS THAN -MIN_LOGPROB/N_PROB
+#define RF_CONV 1e-3 //Convergence for root finder, units of ln(prob), MUST BE LESS THAN -MIN_LOGPROB/N_PROB
 
 struct AstroParams *astro_params_stoc;
 struct CosmoParams *cosmo_params_stoc;
@@ -328,13 +329,11 @@ gsl_interp_accel *inv_NgtrM_prob_acc;
 #pragma omp threadprivate(inv_NgtrM_prob_acc)
 
 void initialise_inverse_table(double xmin, double xmax, double zmin, double growth1, double growth2, bool update){
-    double x, y, z;
+    
     double lnMfilt=0.,delta_in=0.;
     int nx, ny;
-    double buf, sigma, Mfilt, norm, f;
-
+    double sigma, Mfilt;
     int i,j,k;
-    double z_init,z_low,z_high;
 
     ny = N_PROB;
     if(update){
@@ -363,71 +362,95 @@ void initialise_inverse_table(double xmin, double xmax, double zmin, double grow
 
     //We need a table that goes from (condition,prob) -> Mass, we do this by root finding the integrated CMF to the desired probability
     //we can't simply transpose the (Mass,condition) -> prob table since the probabilities need to be a grid (same for all conditions)
-#pragma omp parallel for private(x,y,z,z_init,z_low,z_high) firstprivate(sigma,Mfilt,lnMfilt,delta_in)
-    for(i=0;i<nx;i++){
-        //set limits
-        x = xa[i];
-        
-        if(update){
-            lnMfilt = x;
-            sigma = EvaluateSigma(x);
-        }
-        else{
-            delta_in = x;
-        }
-        z_init = (lnMfilt + zmin)/2; // 1/2 way point for initial guess
+#pragma omp parallel private(i,j,k) firstprivate(sigma,lnMfilt,delta_in)
+    {
+        double x, y, z;
+        double z_init,z_low,z_high;
+        double f_low,f_high;
+        double buf,norm,f;
 
-        gsl_interp2d_set(inv_NgtrM_spline,za,i,0,zmin);
-        
-        //LOG_ULTRA_DEBUG("Integrating D=%.2f from %.3e, x=%.2e filt %.2e delta %.2e",growth1,zmin,x,lnMfilt,delta_in);
-        norm = IntegratedNdM(growth1, zmin, lnMfilt, lnMfilt, delta_in, 0, -1);
-        for(j=1;j<ny;j++){
-            y = ya[j];
+#pragma omp for
+        for(i=0;i<nx;i++){
+            //set limits
+            x = xa[i];
             
-            if(norm == 0){
-                gsl_interp2d_set(inv_NgtrM_spline,za,i,j,zmin);
-                continue;
+            if(update){
+                lnMfilt = x;
+                sigma = EvaluateSigma(x);
             }
-            //find the mass which makes y% of the halos
-            z = z_init;
-            z_low = zmin;
-            z_high = lnMfilt;
-            //Simple bisection root finding, dNdM has high curvature at higher masses so derivative methods are shaky
-            //I should use GSL for this for consistency but that requires copypasting some functions
-            for(k=0;k<MAX_ITERATIONS;k++){
-                //fraction of halos in condition
-                //LOG_ULTRA_DEBUG("Integrating D=%.2f from %.3e (%.3e) to %.3e delta %.2e filt %.2e.",growth1,exp(z),exp(z_init),exp(lnMfilt),delta_in,exp(lnMfilt));
-                buf = IntegratedNdM(growth1, z, lnMfilt, lnMfilt, delta_in, 0, -1);
+            else{
+                delta_in = x;
+            }
+            z_init = (lnMfilt + zmin)/2; // 1/2 way point for initial guess
 
-                //check if root found
-                f = log((buf/norm)) - y;
+            gsl_interp2d_set(inv_NgtrM_spline,za,i,0,zmin);
+            
+            //LOG_ULTRA_DEBUG("Integrating D=%.2f from %.3e, x=%.2e filt %.2e delta %.2e",growth1,zmin,x,lnMfilt,delta_in);
+            norm = IntegratedNdM(growth1, zmin, lnMfilt, lnMfilt, delta_in, 0, -1);
+            for(j=1;j<ny;j++){
+                y = ya[j];
+                
+                //if the condition is too small to host halos at the required redshift, we set to the minimum mass
+                if(norm == 0){
+                    gsl_interp2d_set(inv_NgtrM_spline,za,i,j,zmin);
+                    continue;
+                }
+                //find the mass which makes y% of the halos
+                z = z_init;
+                z_low = zmin;
+                z_high = lnMfilt;
+                f_low = -y; //p <= 1
+                f_high = 2*MIN_LOGPROB; //p > exp(MIN_LOGPROB), the filter mass will really be at -inf but setting this is reasonable
+                //Simple linear guess root finding, dNdM has high curvature at higher masses so derivative methods are shaky
+                //I should use GSL for this for consistency but that requires copypasting some functions
+                for(k=0;k<MAX_ITERATIONS;k++){
+                    //fraction of halos in condition
+                    //LOG_ULTRA_DEBUG("Integrating D=%.2f from %.3e (%.3e) to %.3e delta %.2e filt %.2e.",growth1,exp(z),exp(z_init),exp(lnMfilt),delta_in,exp(lnMfilt));
+                    buf = IntegratedNdM(growth1, z, lnMfilt, lnMfilt, delta_in, 0, -1) / norm;
+                    
+                    //sometimes close to the filter mass the probability goes to zero.
+                    //Let's pretend the function flattens shortly after our minimum P, this shouldn't affect the root
+                    //it will make the next guess an overestimate, but should still be faster than a bisection
+                    if(buf < exp(2*MIN_LOGPROB)){
+                        buf = exp(2*MIN_LOGPROB);
+                    }
 
-                if(f!=f){
-                    LOG_ERROR("Nan reached in table construction x=%.6e y=%.6e z=%.6e f=%.3e, p=%.3e, lnp=%.3e",update ? exp(x) : x,y,exp(z),f,buf/norm,log((buf/norm)));
+                    //check if root found
+                    f = log(buf) - y;
+
+                    if(f!=f){
+                        LOG_ERROR("Nan reached in table construction x=%.6e y=%.6e z=%.6e f=%.3e, p=%.3e, lnp=%.3e",update ? exp(x) : x,y,exp(z),f,buf,log(buf));
+                        Throw(TableGenerationError);
+                    }
+
+                    if(f>0){
+                        z_low = z; //logp > y, mass too low
+                        f_low = f; //note: not the low probability but the probability of the lower mass limit
+                    }
+                    if(f<0){
+                        z_high = z; //logp < y, mass too high
+                        f_high = f;
+                    }
+
+                    //LOG_ULTRA_DEBUG("Attempt %d || x=%.6e y=%.6e z=%.6e f=%.3e, p=%.3e, lnp=%.3e nextz %.3e",k,update ? exp(x) : x,y,exp(z),f,buf,log(buf), exp(z_low - f_low*(z_high - z_low)/(f_high - f_low)));
+                    //LOG_ULTRA_DEBUG("z_low %.6e z_high %.6e f_low %.6e f_high %.6e",exp(z_low),exp(z_high),f_low,f_high);
+
+                    z = z_low - f_low*(z_high - z_low)/(f_high - f_low); //draw line between your two limits and guess where 0 is
+                    
+                    if(fabs(f) < RF_CONV || z == z_low || z == z_high){
+                        gsl_interp2d_set(inv_NgtrM_spline,za,i,j,z);
+                        z_init = z; //the next mass will be close to this one
+                        //LOG_ULTRA_DEBUG("found x=%.6e y=%.6e (%.6e) z=%.6e in %d attempts",update ? exp(x) : x,y,exp(y),exp(z),k+1);
+                        break;
+                    }
+                }
+                if(k==MAX_ITERATIONS){
+                    LOG_ERROR("max iterations reached in table construction x=%.6e y=%.6e z=%.6e",update ? exp(x) : x,y,exp(z));
                     Throw(TableGenerationError);
                 }
-
-                if(f>0 && z > z_low) z_low = z; //logp > y, mass too low
-                if(f<0 && z < z_high) z_high = z; //logp < y, mass too high
-
-                z = (z_low + z_high)/2;
-                
-                if(z_high - z_low < RF_CONV){
-                    gsl_interp2d_set(inv_NgtrM_spline,za,i,j,z);
-                    z_init = z; //the next mass will be close to this one
-                    //LOG_ULTRA_DEBUG("found x=%.6e y=%.6e (%.6e) z=%.6e in %d attempts",update ? exp(x) : x,y,exp(y),exp(z),k+1);
-                    break;
-                }
-            }
-            if(k==MAX_ITERATIONS){
-                LOG_ERROR("max iterations reached in table construction x=%.6e y=%.6e z=%.6e",update ? exp(x) : x,y,exp(z));
-                Throw(TableGenerationError);
             }
         }
-    }
 
-    #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
-    {
         inv_NgtrM_arg_acc = gsl_interp_accel_alloc();
         inv_NgtrM_prob_acc = gsl_interp_accel_alloc();
     }
@@ -785,7 +808,7 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
 
     double M_remaining = M_max*(FgtrM_bias(z_out,M_min_s,delta_lin/growth_out,sigma_max));
 
-    LOG_ULTRA_DEBUG("Condition M = %.2e, sigma = %.2e, Mmin = %.2e,%.2e, delta = %.2f, ymax = %.2e %.2e",M_max,sigma_max,M_min,M_min_s,delta_lin);
+    LOG_ULTRA_DEBUG("Condition M = %.2e, sigma = %.2e, Mmin = %.2e,%.2e, delta = %.2f",M_max,sigma_max,M_min,M_min_s,delta_lin);
 
     int attempts = 0;
     double M_prog = 0.;
@@ -809,7 +832,7 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
         //above Mmin, essentially we throw out progenitors below our minimum to make up the mass
         M_sample = M_sample > (M_max - M_prog) ? (M_max - M_prog) : M_sample; 
         
-        //LOG_ULTRA_DEBUG("sampled a progenitor %.3e, %.3e y=%.3e",M_sample,M_remaining,dNdM_conditional(growth_1,log(M_sample),log(M_2),Deltac,delta_lin,sigma_max));
+        LOG_ULTRA_DEBUG("sampled a progenitor %.3e, %.3e y=%.3e",M_sample,M_remaining,dNdM_conditional(growth_out,log(M_sample),lnMmax,Deltac,delta_lin,sigma_max));
         attempts++;
 
         //attempts is total progenitors here, including those under the mass limit
