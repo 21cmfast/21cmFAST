@@ -22,7 +22,7 @@
 
 // minimum mass for the mass-based sampler, TODO: set to something unlikely / irrelevent if sampled
 // look into it and set it such that M_min_sampler * (expected number at + n sigma) << M_min
-#define MMIN_FACTOR 5
+#define MMIN_FACTOR 100
 #define MMAX_TABLES 1e16
 #define MANY_HALOS 100 //enough halos that we don't care about stochasticity, for future acceleration
 
@@ -65,6 +65,28 @@ double EvaluateSigma(double lnM){
     }
 
     return sigma;
+}
+
+/*
+ copied from ps.c but with interpolation
+ TODO: put this and EvaluateSigma in ps.c
+ */
+double EvaluateFgtrM(double z, double M, double del_bias, double sig_bias){
+    double del, sig, sigsmallR;
+
+    sigsmallR = EvaluateSigma(log(M));
+
+
+    del = Deltac/dicke(z) - del_bias;
+
+    if (!(sig_bias < sigsmallR) || (del < 0))
+        Throw(ValueError);
+
+    sig = sqrt(sigsmallR*sigsmallR - sig_bias*sig_bias);
+
+    //LOG_ULTRA_DEBUG("FgtrM: z=%.2f M=%.3e d=%.3e s=%.3e arg=%.3e",z,M,del_bias,sig_bias,del/(sqrt(2)*sig));
+
+    return splined_erfc(del / (sqrt(2)*sig));
 }
 
 void Broadcast_struct_global_STOC(struct UserParams *user_params, struct CosmoParams *cosmo_params,struct AstroParams *astro_params, struct FlagOption *flag_options){
@@ -257,7 +279,7 @@ void initialise_dNdM_table(double xmin, double xmax, double growth1, double para
     int i;
 
     //set up coordinate grids
-    for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*(i)/nx;
+    for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*(i)/(nx-1);
 
     if(update)
         LOG_DEBUG("Initialising dNdM Table from %.2e to %.2e, D_out %.2e D_in %.2e min %.2e up %d",exp(xmin),exp(xmax),growth1,param_2,exp(M_min),update);
@@ -276,8 +298,8 @@ void initialise_dNdM_table(double xmin, double xmax, double growth1, double para
             buf = IntegratedNdM(growth1, M_min, x, x, Deltac*growth1/param_2, 0, -1);
         }
         else{
-            if(x > Deltac){
-                buf = 0; //TODO: should be such that y*volume*meandens == 1
+            if(x >= Deltac || x <= -1){
+                buf = 0; //TODO: should be such that y*volume*meandens == 1 for >Deltac
                 continue;
             }
             buf = IntegratedNdM(growth1, M_min, param_2, param_2, x, 0, -1);
@@ -354,8 +376,8 @@ void initialise_inverse_table(double xmin, double xmax, double zmin, double grow
                 ,update ? exp(xmax) : xmax, exp(zmin), growth1, growth2, Mfilt, update);
 
     //set up coordinate grids
-    for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*(i)/nx;
-    for(j=0;j<ny;j++)  ya[ny-j-1] = MIN_LOGPROB*(double)j/(ny-1); //y = log(prob > M)
+    for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*i/(nx-1);
+    for(j=0;j<ny;j++) ya[ny-j-1] = MIN_LOGPROB*(double)j/(ny-1); //y = log(prob > M)
 
     //set up the spline object
     inv_NgtrM_spline = gsl_spline2d_alloc(gsl_interp2d_bilinear,nx,ny);
@@ -371,7 +393,7 @@ void initialise_inverse_table(double xmin, double xmax, double zmin, double grow
 
 #pragma omp for
         for(i=0;i<nx;i++){
-            //set limits
+            
             x = xa[i];
             
             if(update){
@@ -383,12 +405,19 @@ void initialise_inverse_table(double xmin, double xmax, double zmin, double grow
             }
             z_init = (lnMfilt + zmin)/2; // 1/2 way point for initial guess
 
+            //set minimum mass limits
             gsl_interp2d_set(inv_NgtrM_spline,za,i,0,zmin);
             
             //LOG_ULTRA_DEBUG("Integrating D=%.2f from %.3e, x=%.2e filt %.2e delta %.2e",growth1,zmin,x,lnMfilt,delta_in);
             norm = IntegratedNdM(growth1, zmin, lnMfilt, lnMfilt, delta_in, 0, -1);
             for(j=1;j<ny;j++){
                 y = ya[j];
+
+                //to prevent delta ~ Deltac issues
+                if(!update && x>=Deltac){
+                    gsl_interp2d_set(inv_NgtrM_spline,za,i,j,lnMfilt);
+                    continue;
+                }
                 
                 //if the condition is too small to host halos at the required redshift, we set to the minimum mass
                 if(norm == 0){
@@ -753,7 +782,7 @@ int stoc_halo_sample(double growthf, double delta_lin, double delta_vol, double 
 /* Creates a realisation of halo properties by sampling the halo mass function and 
  * conditional property PDFs, Sampling is done until there is no more mass in the condition
  * Stochasticity is ignored below a certain mass threshold*/
-int stoc_mass_sample(double z_out, double growth_out, double param, double M_max, double M_min, int update, gsl_rng * rng, double *M_out, int *n_halo_out){
+int stoc_mass_sample(double z_out, double growth_out, double param, double M_max, double M_min, int update, gsl_rng * rng, float *M_out, int *n_halo_out){
     int n_halo=0;
     double delta_lin;
 
@@ -768,7 +797,7 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
 
     //delta check, if delta > deltacrit, make one big halo, if <-1 make no halos
     //both of these are possible with Lagrangian linear evolution
-    if(delta_lin > Deltac){
+    if(delta_lin >= Deltac){
         *n_halo_out = 1;
         M_out[0] = M_max;
         return 0;
@@ -778,7 +807,6 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
         return 0;
     }
     
-
     //TODO: make this a proper threshold
     double M_min_s = M_min / MMIN_FACTOR;
     double lnMmin = log(M_min_s); //this is somewhat confusingly named
@@ -799,16 +827,25 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
         M_min_s /= 2;
     }
     */
+    //Set the minimum mass we care about for this condition
+    //TODO, define maximum mass fraction
+    double frac = EvaluateFgtrM(z_out,M_min_s,delta_lin/growth_out,sigma_max);
+    //while(frac > 0.99 && M_min_s < M_min){
+    //    M_min_s *= 2;
+    //    frac = EvaluateFgtrM(z_out,M_min_s,delta_lin/growth_out,sigma_max);
+    //}
+    //M_min_s /= 2;
+    double M_remaining = M_max*frac;
 
     //BEWARE: assuming max(dNdM) == dNdM(Mmin) for the rejection sampler
     //This is not true for very high deltas, where there is a spike near the condition mass
-    double ymin,ymax,ymax2;
-    ymin = 0;
-    ymax = dNdM_conditional(growth_out,lnMmin,lnMmax,Deltac,delta_lin,sigma_max);
+    double ymin,ymax;
+    if(!user_params_stoc->STOC_INVERSE){
+        ymin = 0;
+        ymax = dNdM_conditional(growth_out,lnMmin,lnMmax,Deltac,delta_lin,sigma_max);
+    }
 
-    double M_remaining = M_max*(FgtrM_bias(z_out,M_min_s,delta_lin/growth_out,sigma_max));
-
-    LOG_ULTRA_DEBUG("Condition M = %.2e, sigma = %.2e, Mmin = %.2e,%.2e, delta = %.2f",M_max,sigma_max,M_min,M_min_s,delta_lin);
+    LOG_ULTRA_DEBUG("Condition M = %.2e (%.2e), sigma = %.2e, Mmin = %.2e,%.2e, delta = %.2f",M_max,M_remaining,sigma_max,M_min,M_min_s,delta_lin);
 
     int attempts = 0;
     double M_prog = 0.;
@@ -832,13 +869,13 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
         //above Mmin, essentially we throw out progenitors below our minimum to make up the mass
         M_sample = M_sample > (M_max - M_prog) ? (M_max - M_prog) : M_sample; 
         
-        LOG_ULTRA_DEBUG("sampled a progenitor %.3e, %.3e y=%.3e",M_sample,M_remaining,dNdM_conditional(growth_out,log(M_sample),lnMmax,Deltac,delta_lin,sigma_max));
+        //LOG_ULTRA_DEBUG("sampled a progenitor %.3e, %.3e",M_sample,M_remaining);
         attempts++;
 
         //attempts is total progenitors here, including those under the mass limit
         //if we've sampled more than the max number of possible halos, something went wrong
         if(attempts >= M_max / M_min_s){
-            LOG_ERROR("sampler hit max number %d of progenitors, Mmin = %.3e,%.3e, Mmax = %.3e",MAX_HALO_UPDATE,M_min,M_min_s,M_max);
+            LOG_ERROR("sampler hit max number %.1f of progenitors, Mmin = %.3e,%.3e, Mmax = %.3e",M_max/M_min_s,M_min,M_min_s,M_max);
             Throw(ValueError);
         }
 
@@ -979,14 +1016,7 @@ int build_halo_cats(gsl_rng **rng_stoc, double redshift, bool eulerian, float *d
                             counter++;
                         }
                     }
-                    /*
-                    if(nh_buf > 0 && print_counter < 30){
-                        LOG_ULTRA_DEBUG("nonzero cell %d (%d,%d,%d) d = %.2f (%.2f): nh = %d | hm = %.3e"
-                                        ,print_counter,x,y,z,delta_v,delta_l,nh_buf,cell_hm);
-                                        print_counter++;
-                        print_counter++;
-                    }
-                    */
+                    LOG_ULTRA_DEBUG("First few Masses %.3e %.3e %.3e",hm_buf[0],hm_buf[1],hm_buf[2]);
                 }
             }
         }
@@ -1043,7 +1073,7 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
     {
         //allocate halo buffer, one halo splitting into >1000 in one step would be crazy I think
-        float * halo_buf = calloc(MAX_HALO_UPDATE,sizeof(double));
+        float * halo_buf = calloc(MAX_HALO_CELL,sizeof(double));
         int n_prog;
         
         float propbuf_in[2];
