@@ -4,6 +4,15 @@ Changelog
 dev-version
 -----------
 
+v3.2.1 [13 Sep 2022]
+----------------------
+
+Changed
+~~~~~~~
+
+* Included log10_mturnovers(_mini) in lightcone class. Only useful when USE_MINI_HALOS
+
+
 v3.2.0 [11 Jul 2022]
 ----------------------
 
