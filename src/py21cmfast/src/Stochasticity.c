@@ -1044,6 +1044,11 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
         LOG_ERROR("halo update must go backwards in time!!! z_in = %.1f, z_out = %.1f",z_in,z_out);
         Throw(ValueError);
     }
+    if(nhalo_in == 0){
+        LOG_DEBUG("No halos to update, continuing...");
+        *nhalo_out = 0;
+        return 0;
+    }
     double growth_in = dicke(z_in);
     double growth_out = dicke(z_out);
 
@@ -1056,7 +1061,6 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
     double delta_lin = Deltac * growth_out / growth_in;
     double delta_vol = 0;
 
-    LOG_DEBUG("Updating halo cat: z_in = %f, z_out = %f (d = %f), n_in = %d  Mmin = %e",z_in,z_out,delta_lin,nhalo_in,Mmin);
     //LOG_DEBUG("first few masses: %.2e %.2e %.2e", halomass_in[0], halomass_in[1], halomass_in[2]);
 
     init_ps();
@@ -1067,6 +1071,8 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
             initialise_inverse_table(log(Mmin), log(MMAX_TABLES), log(Mmin_s), growth_out, growth_in, true);
         }
     }
+
+    LOG_DEBUG("Updating halo cat: z_in = %f, z_out = %f (d = %f), n_in = %d  Mmin = %e",z_in,z_out,delta_lin,nhalo_in,Mmin);
 
     int count = 0;
 
@@ -1190,10 +1196,19 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
     }
 
     //trim buffers to the correct number of halos
-    halo_coords = (int*) realloc(halo_coords,sizeof(int)*3*n_halo_stoc);
-    halo_masses = (float*) realloc(halo_masses,sizeof(float)*n_halo_stoc);
-    stellar_masses = (float*) realloc(stellar_masses,sizeof(float)*n_halo_stoc);
-    halo_sfr = (float*) realloc(halo_sfr,sizeof(float)*n_halo_stoc);
+    if(n_halo_stoc > 0){
+        halo_coords = (int*) realloc(halo_coords,sizeof(int)*3*n_halo_stoc);
+        halo_masses = (float*) realloc(halo_masses,sizeof(float)*n_halo_stoc);
+        stellar_masses = (float*) realloc(stellar_masses,sizeof(float)*n_halo_stoc);
+        halo_sfr = (float*) realloc(halo_sfr,sizeof(float)*n_halo_stoc);
+    }
+    else{
+        //one dummy entry for saving
+        halo_coords = (int*) realloc(halo_coords,sizeof(int)*3);
+        halo_masses = (float*) realloc(halo_masses,sizeof(float));
+        stellar_masses = (float*) realloc(stellar_masses,sizeof(float));
+        halo_sfr = (float*) realloc(halo_sfr,sizeof(float));
+    }
 
     //assign the pointers to the structs
     halos->n_halos = n_halo_stoc;

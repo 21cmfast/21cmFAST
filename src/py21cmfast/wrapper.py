@@ -1316,6 +1316,8 @@ def halo_box(
     in the future this will compute properties such as emissivities which will be passed directly into ionize_box etc
     instead of the catalogue.
 
+    If no halo field is passed one is calculated at the desired redshift as if it is the first box
+
     Parameters
     ----------
     astro_params: :class:`~AstroParams` instance, optional
@@ -1410,6 +1412,8 @@ def halo_box(
             )
 
         # Dynamically produce the halo list.
+        # NOTE: does not generate from previous catalog,
+        # if we want updated halos we should provide the catalog
         if pt_halos is None or not pt_halos.is_computed:
             pt_halos = perturb_halo_list(
                 redshift=redshift,
@@ -2888,6 +2892,61 @@ def run_lightcone(
         global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
         pf = None
 
+        #populate the halo field from the lowest redshift
+        #this replaces the previous behaviour where the halo fields are generated with the boxes
+        #if caching is used it shouldn't affect the case without stochastic halos
+        #but this will allow the conditional halo sampling to work
+        #TODO: allow input of halo fields and check that they are a chain
+        #halo field currently only checks for the previous redshift so that may cause issues
+        if flag_options.USE_HALO_FIELD:
+            hbox_files = []
+            phalo_files = []
+            halos_prev = None
+            for z in scrollz[::-1]:
+                halo_field = determine_halo_list(
+                    redshift=z,
+                    init_boxes=init_box,
+                    astro_params=astro_params,
+                    flag_options=flag_options,
+                    regenerate=regenerate,
+                    hooks=hooks,
+                    halos_prev=halos_prev,
+                    direc=direc,
+                )
+
+                pt_halos = perturb_halo_list(
+                    redshift=z,
+                    init_boxes=init_box,
+                    astro_params=astro_params,
+                    flag_options=flag_options,
+                    halo_field=halo_field,
+                    regenerate=regenerate,
+                    hooks=hooks,
+                    direc=direc,
+                )
+
+                hbox = halo_box(redshift=z,
+                        astro_params=astro_params,
+                        flag_options=flag_options,
+                        cosmo_params=cosmo_params,
+                        user_params=user_params,
+                        random_seed=random_seed,
+                        regenerate=regenerate,
+                        pt_halos=pt_halos,
+                )
+
+                #TODO: Purge here (See MINIMIZE_MEMORY PARTS), this should always happen
+                #since we are calculating the halo field beforehand. Check how much is done automatically
+                #and if there's some leak involved with reusing the variable names here
+
+                halos_prev = halo_field
+                hbox_files.append(hbox.filename)
+                phalo_files.append(pt_halos.filename)
+
+        #reverse the halo lists to be in line with the redshift lists
+        hbox_files = hbox_files[::-1]
+        phalo_files = phalo_files[::-1]
+
         perturb_files = []
         spin_temp_files = []
         ionize_files = []
@@ -2900,27 +2959,12 @@ def run_lightcone(
             # in case we dumped them from memory into file.
             pf2.load_all()
 
+            #We load pt_halos from file to calculate the ion box, and the halobox to make lightcones
+            #In the future Halobox should contain the fields we need to calculate the ion box
             if flag_options.USE_HALO_FIELD:
-
-                halo_field = determine_halo_list(
-                    redshift=z,
-                    init_boxes=init_box,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    regenerate=regenerate,
-                    hooks=hooks,
-                    direc=direc,
-                )
-                pt_halos = perturb_halo_list(
-                    redshift=z,
-                    init_boxes=init_box,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    halo_field=halo_field,
-                    regenerate=regenerate,
-                    hooks=hooks,
-                    direc=direc,
-                )
+                pt_halos = PerturbHaloField.from_file(fname=phalo_files[iz])
+                hbox2 = HaloBox.from_file(fname=hbox_files[iz])
+                hbox = HaloBox.from_file(fname=hbox_files[iz-1])
 
             if flag_options.USE_TS_FLUCT:
                 st2 = spin_temperature(
@@ -3000,7 +3044,7 @@ def run_lightcone(
             if flag_options.USE_TS_FLUCT:
                 outs["TsBox"] = (st, st2)
             if flag_options.USE_HALO_FIELD:
-                outs["PerturbHaloes"] = pt_halos
+                outs["HaloBox"] = (hbox,hbox2)
 
             # Save mean/global quantities
             for quantity in global_quantities:
@@ -3079,6 +3123,7 @@ def run_lightcone(
                     "ionized_box": ionize_files,
                     "brightness_temp": brightness_files,
                     "spin_temp": spin_temp_files,
+                    "halo_box": hbox_files,
                 },
             ),
             coeval_callback_output,

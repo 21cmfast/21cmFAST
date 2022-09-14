@@ -751,6 +751,18 @@ class FlagOptions(StructWithDefaults):
         else:
             return self._PHOTON_CONS
 
+    @property
+    def HALO_STOCHASTICITY(self):
+        """Automatically setting HALO_STOCHASTICITY to False if not USE_HALO_FIELD."""
+        if not self.USE_HALO_FIELD and self._HALO_STOCHASTICITY:
+            logger.warning(
+                "HALO_STOCHASTICITY must be used with USE_HALO_FIELD"
+                "Turning off Stochastic Halos..."
+            )
+            return False
+        else:
+            return self._HALO_STOCHASTICITY
+
 
 class AstroParams(StructWithDefaults):
     """
