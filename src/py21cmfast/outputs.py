@@ -1112,6 +1112,8 @@ class LightCone(_HighLevelOutput):
         photon_nonconservation_data=None,
         cache_files: dict | None = None,
         _globals=None,
+        log10_mturnovers=None,
+        log10_mturnovers_mini=None,
     ):
         self.redshift = redshift
         self.random_seed = random_seed
@@ -1121,6 +1123,8 @@ class LightCone(_HighLevelOutput):
         self.flag_options = flag_options
         self.node_redshifts = node_redshifts
         self.cache_files = cache_files
+        self.log10_mturnovers = log10_mturnovers
+        self.log10_mturnovers_mini = log10_mturnovers_mini
 
         # A *copy* of the current global parameters.
         self.global_params = _globals or dict(global_params.items())

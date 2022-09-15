@@ -550,7 +550,7 @@ def compute_luminosity_function(
                 )
                 return None, None, None
 
-            mturnovers_mini = np.array(mturnovers, dtype="float32")
+            mturnovers_mini = np.array(mturnovers_mini, dtype="float32")
             if len(mturnovers_mini) != len(redshifts):
                 logger.warning(
                     "mturnovers_MINI(%d) does not match the length of redshifts (%d)"
@@ -2780,6 +2780,8 @@ def run_lightcone(
         spin_temp_files = []
         ionize_files = []
         brightness_files = []
+        log10_mturnovers = np.zeros(len(scrollz))
+        log10_mturnovers_mini = np.zeros(len(scrollz))
         for iz, z in enumerate(scrollz):
             # Best to get a perturb for this redshift, to pass to brightness_temperature
             pf2 = perturb[iz]
@@ -2839,6 +2841,8 @@ def run_lightcone(
                 direc=direc,
                 cleanup=(cleanup and iz == (len(scrollz) - 1)),
             )
+            log10_mturnovers[iz] = ib2.log10_Mturnover_ave
+            log10_mturnovers_mini[iz] = ib2.log10_Mturnover_MINI_ave
 
             bt2 = brightness_temperature(
                 ionized_box=ib2,
@@ -2968,6 +2972,8 @@ def run_lightcone(
                     "brightness_temp": brightness_files,
                     "spin_temp": spin_temp_files,
                 },
+                log10_mturnovers=log10_mturnovers,
+                log10_mturnovers_mini=log10_mturnovers_mini,
             ),
             coeval_callback_output,
         )

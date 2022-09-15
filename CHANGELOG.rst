@@ -21,8 +21,20 @@ Added
 * New ``validate_all_inputs`` function that cross-references the four main input structs
   and ensures all the parameters make sense together. Mostly for internal use.
 
+v3.2.1 [13 Sep 2022]
+----------------------
+
 Changed
--------
+~~~~~~~
+
+* Included log10_mturnovers(_mini) in lightcone class. Only useful when USE_MINI_HALOS
+
+
+v3.2.0 [11 Jul 2022]
+----------------------
+
+Changed
+~~~~~~~
 
 * Floats are now represented to a specific number of significant digits in the hash of
   an output object. This fixes problems with very close redshifts not being read from
@@ -34,6 +46,11 @@ Changed
   **NOTE**: updating to this version will cause your previous cached files to become
   unusable. Remove them before updating.
 
+Fixed
+~~~~~
+
+* Added a missing C-based error to the known errors in Python.
+
 v3.1.5 [27 Apr 2022]
 ----------------------
 
@@ -41,7 +58,7 @@ v3.1.4 [10 Feb 2022]
 ----------------------
 
 Fixed
------
+~~~~~
 
 * error in FFT normalization in FindHaloes
 * docs not compiling on RTD due to missing ``scipy.integrate`` mock module
