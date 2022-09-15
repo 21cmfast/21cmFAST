@@ -94,15 +94,17 @@ def _imshow_slice(
         slc = slc.T
 
     if cmap == "EoR":
-        imshow_kw["vmin"] = -150
-        imshow_kw["vmax"] = 30
+        imshow_kw["norm"] = colors.Normalize(vmin=-150,vmax=30)
 
-    norm = imshow_kw.get("norm", colors.LogNorm() if log else colors.Normalize())
+    vmin = imshow_kw.pop("vmin",cube[cube>0].min() if log else cube.min())
+    vmax = imshow_kw.pop("vmax",np.abs(cube.max()))
+
+    norm = imshow_kw.pop("norm", colors.LogNorm(vmin=vmin,vmax=vmax) if log else colors.Normalize(vmin=vmin,vmax=vmax))
     plt.imshow(slc, origin="lower", cmap=cmap, norm=norm, **imshow_kw)
 
     if cbar:
         cb = plt.colorbar(
-            orientation="horizontal" if cbar_horizontal else "vertical", aspect=40
+            orientation="horizontal" if cbar_horizontal else "vertical", aspect=40 if cbar_horizontal else 10, ax=ax
         )
         cb.outline.set_edgecolor(None)
 
@@ -282,14 +284,16 @@ def lightcone_sliceplot(
         lightcone.lightcone_dimensions[axis_dct["y"]],
     )
 
+    cmap = kwargs.pop("cmap", "EoR" if kind == "brightness_temp" else "viridis")
+    cbar_horizontal = kwargs.pop("cbar_horizontal", not vertical)
     if lightcone2 is None:
         fig, ax = _imshow_slice(
             getattr(lightcone, kind),
             extent=extent,
             slice_axis=slice_axis,
             rotate=not vertical,
-            cbar_horizontal=not vertical,
-            cmap=kwargs.get("cmap", "EoR" if kind == "brightness_temp" else "viridis"),
+            cbar_horizontal=cbar_horizontal,
+            cmap=cmap,
             fig=fig,
             ax=ax,
             **kwargs,
@@ -301,10 +305,8 @@ def lightcone_sliceplot(
             extent=extent,
             slice_axis=slice_axis,
             rotate=not vertical,
-            cbar_horizontal=not vertical,
+            cbar_horizontal=cbar_horizontal,
             cmap=kwargs.pop("cmap", "bwr"),
-            vmin=-np.abs(d.max()),
-            vmax=np.abs(d.max()),
             fig=fig,
             ax=ax,
             **kwargs,
@@ -323,13 +325,15 @@ def lightcone_sliceplot(
     if cbar_label is None:
         if kind == "brightness_temp":
             cbar_label = r"Brightness Temperature, $\delta T_B$ [mK]"
-        elif kind == "xH":
+        elif kind == "xH_box":
             cbar_label = r"Neutral fraction"
+        else:
+            cbar_label = kind
 
-    if vertical:
-        cbar.ax.set_ylabel(cbar_label)
-    else:
+    if cbar_horizontal:
         cbar.ax.set_xlabel(cbar_label)
+    else:
+        cbar.ax.set_ylabel(cbar_label)
 
     return fig, ax
 
