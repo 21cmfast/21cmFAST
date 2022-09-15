@@ -191,7 +191,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             for (x=0; x<user_params->DIM; x++){
                 for (y=0; y<user_params->DIM; y++){
                     for (z=0; z<user_params->DIM; z++){
-                        delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / VOLUME;       // don't forget the factor of 1/VOLUME!
+                        delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / (float)TOT_NUM_PIXELS;       //since we didn't multiply k-space cube by V/N, we divide by 1/N here
                         // if not within a larger halo, and radii don't overlap, update in_halo box
                         // *****************  BEGIN OPTIMIZATION ***************** //
                         if(global_params.OPTIMIZE) {
@@ -294,7 +294,8 @@ LOG_DEBUG("Finished halo processing.");
 
 LOG_DEBUG("Finished halo cleanup.");
 LOG_DEBUG("Found %d Halos", halos->n_halos);
-LOG_DEBUG("Halo Masses: %e %e %e %e", halos->halo_masses[0], halos->halo_masses[1], halos->halo_masses[2], halos->halo_masses[3]);
+if (halos->n_halos > 3)
+    LOG_DEBUG("Halo Masses: %e %e %e %e", halos->halo_masses[0], halos->halo_masses[1], halos->halo_masses[2], halos->halo_masses[3]);
 
     } // End of Try()
     Catch(status){
@@ -389,7 +390,7 @@ void init_halo_coords(struct HaloField *halos, int n_halos){
 }
 
 void free_halo_field(struct HaloField *halos){
-LOG_SUPER_DEBUG("Freeing HaloField instance.");
+    LOG_DEBUG("Freeing HaloField instance.");
     free(halos->halo_masses);
     free(halos->halo_coords);
     halos->n_halos = 0;
@@ -400,11 +401,6 @@ LOG_SUPER_DEBUG("Freeing HaloField instance.");
     free(halos->dndlm);
     free(halos->sqrtdn_dlm);
     halos->n_mass_bins = 0;
-LOG_SUPER_DEBUG("Freed!");
-
-
-
-
 }
 void init_hmf(struct HaloField *halos){
     // Initalize mass function array with an abitrary large number of elements.

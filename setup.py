@@ -1,8 +1,6 @@
 #!/usr/bin/env python
-# -*- encoding: utf-8 -*-
 """Setup the package."""
 
-from __future__ import absolute_import, print_function
 
 from setuptools import find_packages, setup
 
@@ -15,7 +13,7 @@ from os.path import dirname, expanduser, join
 
 
 def _read(*names, **kwargs):
-    return io.open(
+    return open(
         join(dirname(__file__), *names), encoding=kwargs.get("encoding", "utf8")
     ).read()
 
@@ -36,6 +34,8 @@ test_req = [
     "tox",
     "pytest-remotedata>=0.3.2",
     "powerbox",
+    "pytest-plt",
+    "questionary",
 ]
 
 doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "sphinx-rtd-theme"]
@@ -67,9 +67,10 @@ setup(
         "Operating System :: POSIX",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.5",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: Implementation :: CPython",
     ],
     keywords=["Epoch of Reionization", "Cosmology"],
@@ -83,10 +84,15 @@ setup(
         "h5py>=2.8.0",
         "cached_property",
         "matplotlib",
+        "bidict",
     ],
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
     setup_requires=["cffi>=1.0", "setuptools_scm"],
     entry_points={"console_scripts": ["21cmfast = py21cmfast.cli:main"]},
     cffi_modules=[f"{pkgdir}/build_cffi.py:ffi"],
-    use_scm_version=True,
+    use_scm_version={
+        "write_to": "src/py21cmfast/_version.py",
+        "parentdir_prefix_version": "21cmFAST-",
+        "fallback_version": "0.0.0",
+    },
 )

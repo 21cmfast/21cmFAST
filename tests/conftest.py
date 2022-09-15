@@ -1,9 +1,14 @@
 import pytest
 
+import logging
 import os
 
 from py21cmfast import UserParams, config, global_params, run_lightcone, wrapper
 from py21cmfast.cache_tools import clear_cache
+
+
+def pytest_addoption(parser):
+    parser.addoption("--log-level-21", action="store", default="WARNING")
 
 
 @pytest.fixture(scope="session")
@@ -69,7 +74,7 @@ def test_direc(tmp_path_factory):
 
 
 @pytest.fixture(autouse=True, scope="session")
-def setup_and_teardown_package(tmpdirec):
+def setup_and_teardown_package(tmpdirec, request):
     # Set nice global defaults for testing purposes, to make runs faster
     # (can always be over-ridden per-test).
     original_zprime = global_params.ZPRIME_STEP_FACTOR
@@ -81,6 +86,9 @@ def setup_and_teardown_package(tmpdirec):
     config["direc"] = str(tmpdirec)
     config["regenerate"] = True
     config["write"] = False
+
+    log_level = request.config.getoption("--log-level-21") or logging.INFO
+    logging.getLogger("py21cmfast").setLevel(log_level)
 
     yield
 
@@ -103,7 +111,7 @@ def default_user_params():
 @pytest.fixture(scope="session")
 def ic(default_user_params, tmpdirec):
     return wrapper.initial_conditions(
-        user_params=default_user_params, write=True, direc=str(tmpdirec), random_seed=12
+        user_params=default_user_params, write=True, direc=tmpdirec, random_seed=12
     )
 
 

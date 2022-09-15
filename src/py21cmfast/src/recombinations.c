@@ -176,7 +176,7 @@ double recombination_rate(double z, double gamma12_bg, double T4, int usecaseB){
       LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
       LOG_ERROR("data: z=%e gamma12_bg=%e T4=%e A_MHR(z)=%e",z,gamma12_bg,T4,A_MHR(z));
       LOG_ERROR("data: C_MHR(z)=%e beta_MHR(z)=%e nH=%e usecaseB=%d\n",C_MHR(z),beta_MHR(z),No*pow( 1+z, 3),usecaseB);
-      Throw GSLError;
+      GSL_ERROR(status);
   }
 
   gsl_integration_workspace_free (w);
@@ -215,7 +215,7 @@ double A_aux_integral(double z){
       LOG_ERROR("gsl integration error occured!");
       LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
       LOG_ERROR("data: z=%e",z);
-      Throw GSLError;
+      GSL_ERROR(status);
   }
 
   gsl_integration_workspace_free (w);

@@ -20,7 +20,7 @@ from astropy.cosmology import z_at_value
 from cached_property import cached_property
 from hashlib import md5
 from pathlib import Path
-from typing import List, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 from . import __version__
 from . import _utils as _ut
@@ -35,18 +35,17 @@ class _OutputStruct(_BaseOutputStruct):
     _global_params = global_params
 
     def __init__(self, *, user_params=None, cosmo_params=None, **kwargs):
-        if cosmo_params is None:
-            cosmo_params = CosmoParams()
-        if user_params is None:
-            user_params = UserParams()
 
-        super().__init__(user_params=user_params, cosmo_params=cosmo_params, **kwargs)
+        self.cosmo_params = cosmo_params or CosmoParams()
+        self.user_params = user_params or UserParams()
+
+        super().__init__(**kwargs)
 
     _ffi = ffi
 
 
 class _OutputStructZ(_OutputStruct):
-    _inputs = _OutputStruct._inputs + ["redshift"]
+    _inputs = _OutputStruct._inputs + ("redshift",)
 
 
 class InitialConditions(_OutputStruct):
@@ -87,70 +86,89 @@ class InitialConditions(_OutputStruct):
         "NU_X_MAX",  # ib
     ]
 
-    def _init_arrays(self):
-        self.lowres_density = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-        self.lowres_vx = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.lowres_vy = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.lowres_vz = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+    def prepare_for_perturb(self, flag_options: FlagOptions, force: bool = False):
+        """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
+        keep = ["hires_density"]
 
-        self.hires_vx = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
-        self.hires_vy = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
-        self.hires_vz = np.zeros(self.user_params.tot_fft_num_pixels, dtype=np.float32)
+        if not self.user_params.PERTURB_ON_HIGH_RES:
+            keep.append("lowres_density")
+            keep.append("lowres_vx")
+            keep.append("lowres_vy")
+            keep.append("lowres_vz")
 
-        self.lowres_vx_2LPT = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-        self.lowres_vy_2LPT = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-        self.lowres_vz_2LPT = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
+            if self.user_params.USE_2LPT:
+                keep.append("lowres_vx_2LPT")
+                keep.append("lowres_vy_2LPT")
+                keep.append("lowres_vz_2LPT")
 
-        self.hires_vx_2LPT = np.zeros(
-            self.user_params.tot_fft_num_pixels, dtype=np.float32
-        )
-        self.hires_vy_2LPT = np.zeros(
-            self.user_params.tot_fft_num_pixels, dtype=np.float32
-        )
-        self.hires_vz_2LPT = np.zeros(
-            self.user_params.tot_fft_num_pixels, dtype=np.float32
-        )
+            if flag_options.USE_HALO_FIELD:
+                keep.append("hires_density")
+        else:
+            keep.append("hires_vx")
+            keep.append("hires_vy")
+            keep.append("hires_vz")
 
-        self.hires_density = np.zeros(
-            self.user_params.tot_fft_num_pixels, dtype=np.float32
+            if self.user_params.USE_2LPT:
+                keep.append("hires_vx_2LPT")
+                keep.append("hires_vy_2LPT")
+                keep.append("hires_vz_2LPT")
+
+        if self.user_params.USE_RELATIVE_VELOCITIES:
+            keep.append("lowres_vcb")
+
+        self.prepare(keep=keep, force=force)
+
+    def prepare_for_spin_temp(self, flag_options: FlagOptions, force: bool = False):
+        """Ensure ICs have all boxes required for spin_temp, and no more."""
+        keep = []
+        if self.user_params.USE_RELATIVE_VELOCITIES:
+            keep.append("lowres_vcb")
+        self.prepare(keep=keep, force=force)
+
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        shape = (self.user_params.HII_DIM,) * 3
+        hires_shape = (self.user_params.DIM,) * 3
+
+        out = {
+            "lowres_density": shape,
+            "lowres_vx": shape,
+            "lowres_vy": shape,
+            "lowres_vz": shape,
+            "hires_density": hires_shape,
+            "hires_vx": hires_shape,
+            "hires_vy": hires_shape,
+            "hires_vz": hires_shape,
+        }
+
+        if self.user_params.USE_2LPT:
+            out.update(
+                {
+                    "lowres_vx_2LPT": shape,
+                    "lowres_vy_2LPT": shape,
+                    "lowres_vz_2LPT": shape,
+                    "hires_vx_2LPT": hires_shape,
+                    "hires_vy_2LPT": hires_shape,
+                    "hires_vz_2LPT": hires_shape,
+                }
+            )
+
+        if self.user_params.USE_RELATIVE_VELOCITIES:
+            out.update({"lowres_vcb": shape})
+
+        return out
+
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        return []
+
+    def compute(self, hooks: dict):
+        """Compute the function."""
+        return self._compute(
+            self.random_seed,
+            self.user_params,
+            self.cosmo_params,
+            hooks=hooks,
         )
-
-        self.lowres_vcb = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-
-        shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-        hires_shape = (self.user_params.DIM, self.user_params.DIM, self.user_params.DIM)
-
-        self.lowres_density.shape = shape
-        self.lowres_vx.shape = shape
-        self.lowres_vy.shape = shape
-        self.lowres_vz.shape = shape
-        self.lowres_vx_2LPT.shape = shape
-        self.lowres_vy_2LPT.shape = shape
-        self.lowres_vz_2LPT.shape = shape
-
-        self.hires_density.shape = hires_shape
-        self.hires_vx.shape = hires_shape
-        self.hires_vy.shape = hires_shape
-        self.hires_vz.shape = hires_shape
-        self.hires_vx_2LPT.shape = hires_shape
-        self.hires_vy_2LPT.shape = hires_shape
-        self.hires_vz_2LPT.shape = hires_shape
-
-        self.lowres_vcb.shape = shape
 
 
 class PerturbedField(_OutputStructZ):
@@ -183,37 +201,77 @@ class PerturbedField(_OutputStructZ):
         "NU_X_MAX",  # ib
     ]
 
-    def _init_arrays(self):
-        self.density = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.velocity = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        return {
+            "density": (self.user_params.HII_DIM,) * 3,
+            "velocity": (self.user_params.HII_DIM,) * 3,
+        }
 
-        self.density.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-        self.velocity.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+
+        if not isinstance(input_box, InitialConditions):
+            raise ValueError(
+                f"{type(input_box)} is not an input required for PerturbedField!"
+            )
+
+        # Always require hires_density
+        required += ["hires_density"]
+
+        if self.user_params.PERTURB_ON_HIGH_RES:
+            required += ["hires_vx", "hires_vy", "hires_vz"]
+
+            if self.user_params.USE_2LPT:
+                required += ["hires_vx_2LPT", "hires_vy_2LPT", "hires_vz_2LPT"]
+
+        else:
+            required += ["lowres_density", "lowres_vx", "lowres_vy", "lowres_vz"]
+
+            if self.user_params.USE_2LPT:
+                required += [
+                    "lowres_vx_2LPT",
+                    "lowres_vy_2LPT",
+                    "lowres_vz_2LPT",
+                ]
+
+        if self.user_params.USE_RELATIVE_VELOCITIES:
+            required.append("lowres_vcb")
+
+        return required
+
+    def compute(self, *, ics: InitialConditions, hooks: dict):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.user_params,
+            self.cosmo_params,
+            ics,
+            hooks=hooks,
         )
 
 
 class _AllParamsBox(_OutputStructZ):
     _meta = True
-    _inputs = _OutputStructZ._inputs + ["flag_options", "astro_params"]
+    _inputs = _OutputStructZ._inputs + ("flag_options", "astro_params")
 
     _filter_params = _OutputStruct._filter_params + [
         "T_USE_VELOCITIES",  # bt
         "MAX_DVDR",  # bt
     ]
 
-    def __init__(self, astro_params=None, flag_options=None, first_box=False, **kwargs):
-        if flag_options is None:
-            flag_options = FlagOptions()
-
-        if astro_params is None:
-            astro_params = AstroParams(INHOMO_RECO=flag_options.INHOMO_RECO)
+    def __init__(
+        self,
+        *,
+        astro_params: Optional[AstroParams] = None,
+        flag_options: Optional[FlagOptions] = None,
+        first_box: bool = False,
+        **kwargs,
+    ):
+        self.flag_options = flag_options or FlagOptions()
+        self.astro_params = astro_params or AstroParams(
+            INHOMO_RECO=self.flag_options.INHOMO_RECO
+        )
 
         self.log10_Mturnover_ave = 0.0
         self.log10_Mturnover_MINI_ave = 0.0
@@ -223,7 +281,7 @@ class _AllParamsBox(_OutputStructZ):
             self.mean_f_coll = 0.0
             self.mean_f_coll_MINI = 0.0
 
-        super().__init__(astro_params=astro_params, flag_options=flag_options, **kwargs)
+        super().__init__(**kwargs)
 
 
 class HaloField(_AllParamsBox):
@@ -239,18 +297,9 @@ class HaloField(_AllParamsBox):
         "sqrtdn_dlm",
     )
     _c_compute_function = lib.ComputeHaloField
-    _c_free_function = lib.free_halo_field
 
-    def _init_arrays(self):
-        self.halo_field = np.zeros(
-            self.user_params.tot_fft_num_pixels, dtype=np.float32
-        )
-
-        self.halo_field.shape = (
-            self.user_params.DIM,
-            self.user_params.DIM,
-            self.user_params.DIM,
-        )
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        return {}
 
     def _c_shape(self, cstruct):
         return {
@@ -263,13 +312,36 @@ class HaloField(_AllParamsBox):
             "sqrtdn_dlm": (cstruct.n_mass_bins,),
         }
 
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        if isinstance(input_box, InitialConditions):
+            return ["hires_density"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for HaloField!"
+            )
+
+    def compute(self, *, ics: InitialConditions, hooks: dict):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            ics,
+            hooks=hooks,
+        )
+
 
 class PerturbHaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
     _c_compute_function = lib.ComputePerturbHaloField
     _c_based_pointers = ("halo_masses", "halo_coords")
-    _c_free_function = lib.free_phf
+
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        return {}
 
     def _c_shape(self, cstruct):
         return {
@@ -277,16 +349,162 @@ class PerturbHaloField(_AllParamsBox):
             "halo_coords": (cstruct.n_halos, 3),
         }
 
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, InitialConditions):
+            if self.user_params.PERTURB_ON_HIGH_RES:
+                required += ["hires_vx", "hires_vy", "hires_vz"]
+            else:
+                required += ["lowres_vx", "lowres_vy", "lowres_vz"]
+
+            if self.user_params.USE_2LPT:
+                required += [k + "_2LPT" for k in required]
+        elif isinstance(input_box, HaloField):
+            required += ["halo_coords", "halo_masses"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for PerturbHaloField!"
+            )
+
+        return required
+
+    def compute(self, *, ics: InitialConditions, halo_field: HaloField, hooks: dict):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            ics,
+            halo_field,
+            hooks=hooks,
+        )
+
+
+class TsBox(_AllParamsBox):
+    """A class containing all spin temperature boxes."""
+
+    _c_compute_function = lib.ComputeTsBox
+    _meta = False
+    _inputs = _AllParamsBox._inputs + ("prev_spin_redshift", "perturbed_field_redshift")
+
+    def __init__(
+        self,
+        *,
+        prev_spin_redshift: Optional[float] = None,
+        perturbed_field_redshift: Optional[float] = None,
+        **kwargs,
+    ):
+        self.prev_spin_redshift = prev_spin_redshift
+        self.perturbed_field_redshift = perturbed_field_redshift
+        super().__init__(**kwargs)
+
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        shape = (self.user_params.HII_DIM,) * 3
+        return {
+            "Ts_box": shape,
+            "x_e_box": shape,
+            "Tk_box": shape,
+            "J_21_LW_box": shape,
+        }
+
+    @cached_property
+    def global_Ts(self):
+        """Global (mean) spin temperature."""
+        if "Ts_box" not in self._computed_arrays:
+            raise AttributeError(
+                "global_Ts is not defined until the ionization calculation has been performed"
+            )
+        else:
+            return np.mean(self.Ts_box)
+
+    @cached_property
+    def global_Tk(self):
+        """Global (mean) Tk."""
+        if "Tk_box" not in self._computed_arrays:
+            raise AttributeError(
+                "global_Tk is not defined until the ionization calculation has been performed"
+            )
+        else:
+            return np.mean(self.Tk_box)
+
+    @cached_property
+    def global_x_e(self):
+        """Global (mean) x_e."""
+        if "x_e_box" not in self._computed_arrays:
+            raise AttributeError(
+                "global_x_e is not defined until the ionization calculation has been performed"
+            )
+        else:
+            return np.mean(self.x_e_box)
+
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, InitialConditions):
+            if (
+                self.user_params.USE_RELATIVE_VELOCITIES
+                and self.flag_options.USE_MINI_HALOS
+            ):
+                required += ["lowres_vcb"]
+        elif isinstance(input_box, PerturbedField):
+            required += ["density"]
+        elif isinstance(input_box, TsBox):
+            required += [
+                "Tk_box",
+                "x_e_box",
+            ]
+            if self.flag_options.USE_MINI_HALOS:
+                required += ["J_21_LW_box"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for PerturbHaloField!"
+            )
+
+        return required
+
+    def compute(
+        self,
+        *,
+        cleanup: bool,
+        perturbed_field: PerturbedField,
+        prev_spin_temp,
+        ics: InitialConditions,
+        hooks: dict,
+    ):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.prev_spin_redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            self.perturbed_field_redshift,
+            cleanup,
+            perturbed_field,
+            prev_spin_temp,
+            ics,
+            hooks=hooks,
+        )
+
 
 class IonizedBox(_AllParamsBox):
     """A class containing all ionized boxes."""
 
     _meta = False
     _c_compute_function = lib.ComputeIonizedBox
+    _inputs = _AllParamsBox._inputs + ("prev_ionize_redshift",)
 
-    def _init_arrays(self):
+    def __init__(self, *, prev_ionize_redshift: Optional[float] = None, **kwargs):
+        self.prev_ionize_redshift = prev_ionize_redshift
+        super().__init__(**kwargs)
+
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         if self.flag_options.USE_MINI_HALOS:
-            Nfiltering = (
+            n_filtering = (
                 int(
                     np.log(
                         min(
@@ -305,50 +523,25 @@ class IonizedBox(_AllParamsBox):
                 + 1
             )
         else:
-            Nfiltering = 1
+            n_filtering = 1
 
-        # ionized_box is always initialised to be neutral for excursion set algorithm.
-        # Hence np.ones instead of np.zeros
-        self.xH_box = np.ones(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.Gamma12_box = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-        self.MFP_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.z_re_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.dNrec_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.temp_kinetic_all_gas = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-        self.Fcoll = np.zeros(
-            Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
+        shape = (self.user_params.HII_DIM,) * 3
+        filter_shape = (n_filtering,) + shape
 
-        shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-        filter_shape = (
-            Nfiltering,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-        self.xH_box.shape = shape
-        self.Gamma12_box.shape = shape
-        self.MFP_box.shape = shape
-        self.z_re_box.shape = shape
-        self.dNrec_box.shape = shape
-        self.temp_kinetic_all_gas.shape = shape
-        self.Fcoll.shape = filter_shape
+        out = {
+            "xH_box": {"init": np.ones, "shape": shape},
+            "Gamma12_box": shape,
+            "MFP_box": shape,
+            "z_re_box": shape,
+            "dNrec_box": shape,
+            "temp_kinetic_all_gas": shape,
+            "Fcoll": filter_shape,
+        }
 
         if self.flag_options.USE_MINI_HALOS:
-            self.Fcoll_MINI = np.zeros(
-                Nfiltering * self.user_params.HII_tot_num_pixels, dtype=np.float32
-            )
-            self.Fcoll_MINI.shape = filter_shape
-        else:
-            self.Fcoll_MINI = np.array([], dtype=np.float32)
+            out["Fcoll_MINI"] = filter_shape
+
+        return out
 
     @cached_property
     def global_xH(self):
@@ -360,60 +553,66 @@ class IonizedBox(_AllParamsBox):
         else:
             return np.mean(self.xH_box)
 
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, InitialConditions):
+            if (
+                self.user_params.USE_RELATIVE_VELOCITIES
+                and self.flag_options.USE_MASS_DEPENDENT_ZETA
+            ):
+                required += ["lowres_vcb"]
+        elif isinstance(input_box, PerturbedField):
+            required += ["density"]
+        elif isinstance(input_box, TsBox):
+            required += ["J_21_LW_box", "x_e_box", "Tk_box"]
+        elif isinstance(input_box, IonizedBox):
+            required += ["z_re_box", "Gamma12_box"]
+            if self.flag_options.INHOMO_RECO:
+                required += [
+                    "dNrec_box",
+                ]
+            if (
+                self.flag_options.USE_MASS_DEPENDENT_ZETA
+                and self.flag_options.USE_MINI_HALOS
+            ):
+                required += ["Fcoll", "Fcoll_MINI"]
+        elif isinstance(input_box, PerturbHaloField):
+            required += ["halo_coords", "halo_masses"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for IonizedBox!"
+            )
 
-class TsBox(_AllParamsBox):
-    """A class containing all spin temperature boxes."""
+        return required
 
-    _c_compute_function = lib.ComputeTsBox
-    _meta = False
-
-    def _init_arrays(self):
-        self.Ts_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.x_e_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.Tk_box = np.zeros(self.user_params.HII_tot_num_pixels, dtype=np.float32)
-        self.J_21_LW_box = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
+    def compute(
+        self,
+        *,
+        perturbed_field: PerturbedField,
+        prev_perturbed_field: PerturbedField,
+        prev_ionize_box,
+        spin_temp: TsBox,
+        pt_halos: PerturbHaloField,
+        ics: InitialConditions,
+        hooks: dict,
+    ):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.prev_ionize_redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            perturbed_field,
+            prev_perturbed_field,
+            prev_ionize_box,
+            spin_temp,
+            pt_halos,
+            ics,
+            hooks=hooks,
         )
-        shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
-
-        self.Ts_box.shape = shape
-        self.x_e_box.shape = shape
-        self.Tk_box.shape = shape
-        self.J_21_LW_box.shape = shape
-
-    @cached_property
-    def global_Ts(self):
-        """Global (mean) spin temperature."""
-        if not self.filled:
-            raise AttributeError(
-                "global_Ts is not defined until the ionization calculation has been performed"
-            )
-        else:
-            return np.mean(self.Ts_box)
-
-    @cached_property
-    def global_Tk(self):
-        """Global (mean) Tk."""
-        if not self.filled:
-            raise AttributeError(
-                "global_Tk is not defined until the ionization calculation has been performed"
-            )
-        else:
-            return np.mean(self.Tk_box)
-
-    @cached_property
-    def global_x_e(self):
-        """Global (mean) x_e."""
-        if not self.filled:
-            raise AttributeError(
-                "global_x_e is not defined until the ionization calculation has been performed"
-            )
-        else:
-            return np.mean(self.x_e_box)
 
 
 class BrightnessTemp(_AllParamsBox):
@@ -424,26 +623,55 @@ class BrightnessTemp(_AllParamsBox):
     _meta = False
     _filter_params = _OutputStructZ._filter_params
 
-    def _init_arrays(self):
-        self.brightness_temp = np.zeros(
-            self.user_params.HII_tot_num_pixels, dtype=np.float32
-        )
-
-        self.brightness_temp.shape = (
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-            self.user_params.HII_DIM,
-        )
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        return {"brightness_temp": (self.user_params.HII_DIM,) * 3}
 
     @cached_property
     def global_Tb(self):
         """Global (mean) brightness temperature."""
-        if not self.filled:
+        if not self.is_computed:
             raise AttributeError(
                 "global_Tb is not defined until the ionization calculation has been performed"
             )
         else:
             return np.mean(self.brightness_temp)
+
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, PerturbedField):
+            required += ["velocity"]
+        elif isinstance(input_box, TsBox):
+            required += ["Ts_box"]
+        elif isinstance(input_box, IonizedBox):
+            required += ["xH_box"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for BrightnessTemp!"
+            )
+
+        return required
+
+    def compute(
+        self,
+        *,
+        spin_temp: TsBox,
+        ionized_box: IonizedBox,
+        perturbed_field: PerturbedField,
+        hooks: dict,
+    ):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            spin_temp,
+            ionized_box,
+            perturbed_field,
+            hooks=hooks,
+        )
 
 
 class _HighLevelOutput:
@@ -490,7 +718,7 @@ class _HighLevelOutput:
         fname = files[indx][1]
 
         if not os.path.exists(fname):
-            raise IOError(
+            raise OSError(
                 "The cached file you requested does not exist (maybe it was removed?)."
             )
 
@@ -507,10 +735,10 @@ class _HighLevelOutput:
 
     def gather(
         self,
-        fname: [str, None, Path] = None,
-        kinds: [Sequence, None] = None,
-        clean: [bool, dict] = False,
-        direc: [str, Path, None] = None,
+        fname: Union[str, None, Path] = None,
+        kinds: Union[Sequence, None] = None,
+        clean: Union[bool, dict] = False,
+        direc: Union[str, Path, None] = None,
     ) -> Path:
         """Gather the cached data associated with this object into its file."""
         kinds = kinds or [
@@ -521,7 +749,7 @@ class _HighLevelOutput:
             "brightness_temp",
         ]
 
-        clean = kinds if clean and not hasattr(clean, "__len__") else []
+        clean = kinds if clean and not hasattr(clean, "__len__") else clean or []
         if any(c not in kinds for c in clean):
             raise ValueError(
                 "You are trying to clean cached items that you will not be gathering."
@@ -720,7 +948,7 @@ class _HighLevelOutput:
             fname = os.path.abspath(os.path.join(direc, fname))
 
         if not os.path.exists(fname):
-            raise FileExistsError("The file {} does not exist!".format(fname))
+            raise FileExistsError(f"The file {fname} does not exist!")
 
         park, glbls = cls._read_inputs(fname)
         boxk = cls._read_particular(fname)
@@ -741,8 +969,8 @@ class Coeval(_HighLevelOutput):
         perturbed_field: PerturbedField,
         ionized_box: IonizedBox,
         brightness_temp: BrightnessTemp,
-        ts_box: [TsBox, None] = None,
-        cache_files: [dict, None] = None,
+        ts_box: Union[TsBox, None] = None,
+        cache_files: Union[dict, None] = None,
         photon_nonconservation_data=None,
         _globals=None,
     ):
@@ -778,7 +1006,7 @@ class Coeval(_HighLevelOutput):
         ]:
             if box is None:
                 continue
-            for field in box.fieldnames:
+            for field in box._get_box_structures():
                 setattr(self, field, getattr(box, field))
 
     @classmethod
@@ -827,6 +1055,19 @@ class Coeval(_HighLevelOutput):
             if struct is not None:
                 struct.write(fname=fname, write_inputs=False)
 
+                # Also write any other inputs to any of the constituent boxes
+                # to the overarching attrs.
+                with h5py.File(fname, "a") as fl:
+                    for inp in struct._inputs:
+                        if inp not in fl.attrs and inp not in [
+                            "user_params",
+                            "cosmo_params",
+                            "flag_options",
+                            "astro_params",
+                            "global_params",
+                        ]:
+                            fl.attrs[inp] = getattr(struct, inp)
+
     @classmethod
     def _read_particular(cls, fname):
         kwargs = {}
@@ -867,8 +1108,10 @@ class LightCone(_HighLevelOutput):
         node_redshifts=None,
         global_quantities=None,
         photon_nonconservation_data=None,
-        cache_files: [dict, None] = None,
+        cache_files: Union[dict, None] = None,
         _globals=None,
+        log10_mturnovers=None,
+        log10_mturnovers_mini=None,
     ):
         self.redshift = redshift
         self.random_seed = random_seed
@@ -878,6 +1121,8 @@ class LightCone(_HighLevelOutput):
         self.flag_options = flag_options
         self.node_redshifts = node_redshifts
         self.cache_files = cache_files
+        self.log10_mturnovers = log10_mturnovers
+        self.log10_mturnovers_mini = log10_mturnovers_mini
 
         # A *copy* of the current global parameters.
         self.global_params = _globals or dict(global_params.items())

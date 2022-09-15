@@ -19,14 +19,14 @@ You can directly edit this file to change how ``21cmFAST`` behaves for you acros
 sessions.
 For any particular function call, any of the options may be overwritten by supplying
 arguments to the function itself.
-To set the configuration for a particular session, you can also set the global `config`
+To set the configuration for a particular session, you can also set the global ``config``
 instance, for example::
 
     >>> import py21cmfast as p21
     >>> p21.config['regenerate'] = True
     >>> p21.run_lightcone(...)
 
-All functions that use the `regenerate` keyword will now use the value you've set in the
+All functions that use the ``regenerate`` keyword will now use the value you've set in the
 config. Sometimes, you may want to be a little more careful -- perhaps you want to change
 the configuration for a set of calls, but have it change back to the defaults after that.
 We provide a context manager to do this::

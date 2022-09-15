@@ -2,7 +2,7 @@ name: Tag-Release
 
 on:
   push:
-    branches: [master]
+    branches: [production]
 
 jobs:
   tag-release:
@@ -14,4 +14,4 @@ jobs:
       uses: tvdias/github-tagger@v0.0.2
       with:
         repo-token: "${{ secrets.BUMP_VERSION }}"
-        tag: "${{ version }}"
+        tag: "${{ env.version }}"

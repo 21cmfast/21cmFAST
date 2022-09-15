@@ -7,7 +7,7 @@ import pytest
 import pickle
 
 from py21cmfast import AstroParams  # An example of a struct with defaults
-from py21cmfast import CosmoParams, FlagOptions, UserParams, global_params
+from py21cmfast import CosmoParams, FlagOptions, UserParams, __version__, global_params
 
 
 @pytest.fixture(scope="module")
@@ -163,3 +163,15 @@ def test_fcoll_on(caplog):
         "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES"
         in caplog.text
     )
+
+
+@pytest.mark.xfail(
+    __version__ >= "4.0.0", reason="the warning can be removed in v4", strict=True
+)
+def test_interpolation_table_warning():
+    with pytest.warns(UserWarning, match="setting has changed in v3.1.2"):
+        UserParams().USE_INTERPOLATION_TABLES
+
+    with pytest.warns(None) as record:
+        UserParams(USE_INTERPOLATION_TABLES=True).USE_INTERPOLATION_TABLES
+    assert not record

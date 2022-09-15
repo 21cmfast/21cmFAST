@@ -14,6 +14,7 @@ used throughout the computation which are very rarely varied.
 """
 import contextlib
 import logging
+import warnings
 from astropy.cosmology import Planck15
 from os import path
 from pathlib import Path
@@ -28,8 +29,8 @@ logger = logging.getLogger("21cmFAST")
 # Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
 # Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
 Planck18 = Planck15.clone(
-    Om0=(0.02242 + 0.11933) / 0.6766 ** 2,
-    Ob0=0.02242 / 0.6766 ** 2,
+    Om0=(0.02242 + 0.11933) / 0.6766**2,
+    Ob0=0.02242 / 0.6766**2,
     H0=67.66,
 )
 
@@ -83,12 +84,6 @@ class GlobalParams(StructInstanceWrapper):
         overcompensates by an effective loss in resolution. **Added in 1.1.0**.
     R_smooth_density : float
         Determines the smoothing length to use if `SMOOTH_EVOLVED_DENSITY_FIELD` is True.
-    SECOND_ORDER_LPT_CORRECTIONS : bool
-        Use second-order Lagrangian perturbation theory (2LPT).
-        Set this to True if the density field or the halo positions are extrapolated to
-        low redshifts. The current implementation is very naive and adds a factor ~6 to
-        the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
-        Appendix D.
     HII_ROUND_ERR : float
         Rounding error on the ionization fraction. If the mean xHI is greater than
         ``1 - HII_ROUND_ERR``, then finding HII bubbles is skipped, and a homogeneous
@@ -335,9 +330,7 @@ class GlobalParams(StructInstanceWrapper):
 
         for k, val in kwargs.items():
             if k.upper() not in this_attr_upper:
-                raise ValueError(
-                    "{} is not a valid parameter of global_params".format(k)
-                )
+                raise ValueError(f"{k} is not a valid parameter of global_params")
             key = this_attr_upper[k.upper()]
             prev[key] = getattr(self, key)
             setattr(self, key, val)
@@ -451,7 +444,16 @@ class UserParams(StructWithDefaults):
         If True, calculates and evaluates quantites using interpolation tables, which
         is considerably faster than when performing integrals explicitly.
     FAST_FCOLL_TABLES: bool, optional
-        Whether to use fast Fcoll tables, as described in Sec X of JBM XX. Significant speedup for minihaloes.
+        Whether to use fast Fcoll tables, as described in Appendix of Muñoz+21 (2110.13919). Significant speedup for minihaloes.
+    USE_2LPT: bool, optional
+        Whether to use second-order Lagrangian perturbation theory (2LPT).
+        Set this to True if the density field or the halo positions are extrapolated to
+        low redshifts. The current implementation is very naive and adds a factor ~6 to
+        the memory requirements. Reference: Scoccimarro R., 1998, MNRAS, 299, 1097-1118
+        Appendix D.
+    MINIMIZE_MEMORY: bool, optional
+        If set, the code will run in a mode that minimizes memory usage, at the expense
+        of some CPU/disk-IO. Good for large boxes / small computers.
     """
 
     _ffi = ffi
@@ -467,12 +469,29 @@ class UserParams(StructWithDefaults):
         "N_THREADS": 1,
         "PERTURB_ON_HIGH_RES": False,
         "NO_RNG": False,
-        "USE_INTERPOLATION_TABLES": False,
+        "USE_INTERPOLATION_TABLES": None,
         "FAST_FCOLL_TABLES": False,
+        "USE_2LPT": True,
+        "MINIMIZE_MEMORY": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
     _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
+
+    @property
+    def USE_INTERPOLATION_TABLES(self):
+        """Whether to use interpolation tables for integrals, speeding things up."""
+        if self._USE_INTERPOLATION_TABLES is None:
+            warnings.warn(
+                "The USE_INTERPOLATION_TABLES setting has changed in v3.1.2 to be "
+                "default True. You can likely ignore this warning, but if you relied on"
+                "having USE_INTERPOLATION_TABLES=False by *default*, please set it "
+                "explicitly. To silence this warning, set it explicitly to True. This"
+                "warning will be removed in v4."
+            )
+            self._USE_INTERPOLATION_TABLES = True
+
+        return self._USE_INTERPOLATION_TABLES
 
     @property
     def DIM(self):
@@ -482,12 +501,12 @@ class UserParams(StructWithDefaults):
     @property
     def tot_fft_num_pixels(self):
         """Total number of pixels in the high-res box."""
-        return self.DIM ** 3
+        return self.DIM**3
 
     @property
     def HII_tot_num_pixels(self):
         """Total number of pixels in the low-res box."""
-        return self.HII_DIM ** 3
+        return self.HII_DIM**3
 
     @property
     def POWER_SPECTRUM(self):
@@ -539,7 +558,7 @@ class UserParams(StructWithDefaults):
 
         if not 0 <= val < len(self._hmf_models):
             raise ValueError(
-                "HMF must be an int between 0 and {}".format(len(self._hmf_models) - 1)
+                f"HMF must be an int between 0 and {len(self._hmf_models) - 1}"
             )
 
         return val
@@ -605,9 +624,9 @@ class FlagOptions(StructWithDefaults):
         Whether to perform a small correction to account for the inherent
         photon non-conservation.
     FIX_VCB_AVG: bool, optional
-        Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations.
+        Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
     USE_VELS_AUX: bool, optional
-        Auxiliar variable (not input) to check if minihaloes are being used without relative velocities and complain
+        Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain
     """
 
     _ffi = ffi
@@ -744,7 +763,7 @@ class AstroParams(StructWithDefaults):
         See Sec 2.1 of Park+2018.
     ALPHA_STAR_MINI : float, optional
         Power-law index of fraction of galactic gas in stars as a function of halo mass, for MCGs.
-        See XXX (JBM to fill out later).
+        See Sec 2 of Muñoz+21 (2110.13919).
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
         IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization,
@@ -799,9 +818,9 @@ class AstroParams(StructWithDefaults):
         Number of steps used in redshift-space-distortion algorithm. NOT A PHYSICAL
         PARAMETER.
     A_LW, BETA_LW: float, optional
-        Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Eq. XX.
+        Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Sec 2 of Muñoz+21 (2110.13919).
     A_VCB, BETA_VCB: float, optional
-        Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Eq. XX.
+        Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Sec 2 of Muñoz+21 (2110.13919).
     """
 
     _ffi = ffi
@@ -853,7 +872,7 @@ class AstroParams(StructWithDefaults):
             "L_X_MINI",
             "X_RAY_Tvir_MIN",
         ]:
-            return 10 ** val
+            return 10**val
         else:
             return val
 

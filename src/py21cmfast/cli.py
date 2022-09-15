@@ -18,7 +18,7 @@ def _get_config(config=None):
     if config is None:
         config = path.expanduser(path.join("~", ".21cmfast", "runconfig_example.yml"))
 
-    with open(config, "r") as f:
+    with open(config) as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
 
     return cfg
@@ -787,10 +787,10 @@ def pr_feature(
             )
             ax[2].set_title("Difference")
 
-            plt.savefig("pr_feature_lighcone_2d_{}.pdf".format(field))
+            plt.savefig(f"pr_feature_lighcone_2d_{field}.pdf")
 
         def rms(x, axis=None):
-            return np.sqrt(np.mean(x ** 2, axis=axis))
+            return np.sqrt(np.mean(x**2, axis=axis))
 
         print("Plotting lightcone history...")
         fig, ax = plt.subplots(4, 1, sharex=True, gridspec_kw={"hspace": 0.05})
@@ -872,11 +872,9 @@ def pr_feature(
         for i, (pdef, pnew, kk) in enumerate(
             zip(p_default[inds], p_new[inds], k[inds])
         ):
-            ax[0].plot(
-                z, pdef, ls="--", label="k={:.2f}".format(kk), color="C{}".format(i)
-            )
-            ax[0].plot(z, pnew, ls="-", color="C{}".format(i))
-            ax[1].plot(z, np.log10(pdef / pnew), ls="-", color="C{}".format(i))
+            ax[0].plot(z, pdef, ls="--", label=f"k={kk:.2f}", color=f"C{i}")
+            ax[0].plot(z, pnew, ls="-", color=f"C{i}")
+            ax[1].plot(z, np.log10(pdef / pnew), ls="-", color=f"C{i}")
         ax[1].set_xlabel("z")
         ax[0].set_ylabel(r"$\Delta^2 [{\rm mK}^2]$")
         ax[1].set_ylabel(r"log ratio of $\Delta^2 [{\rm mK}^2]$")

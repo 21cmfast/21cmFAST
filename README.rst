@@ -25,7 +25,7 @@
     :target: http://homepage.sns.it/mesinger/Media/lightcones_minihalo.png
 
 
-This is the official repository for `21cmFAST`: a semi-numerical code that is able to
+This is the official repository for ``21cmFAST``: a semi-numerical code that is able to
 produce 3D cosmological realisations of many physical fields in the early Universe.
 It is super-fast, combining the excursion set formalism with perturbation theory to
 efficiently generate density, velocity, halo, ionization, spin temperature, 21-cm, and
@@ -33,13 +33,13 @@ even ionizing flux fields (see the above lightcones!).
 It has been tested extensively against numerical simulations, with excellent agreement
 at the relevant scales.
 
-`21cmFAST` has been widely used, for example, by the Murchison Widefield Array (MWA),
+``21cmFAST`` has been widely used, for example, by the Murchison Widefield Array (MWA),
 LOw-Frequency ARray (LOFAR) and Hydrogen Epoch of Reionization Array (HERA), to model the
-large-scale cosmological 21-cm signal. In particular, the speed of `21cmFAST` is important
+large-scale cosmological 21-cm signal. In particular, the speed of ``21cmFAST`` is important
 to produce simulations that are large enough (several Gpc across) to represent modern
 low-frequency observations.
 
-As of `v3.0.0`, `21cmFAST` is conveniently wrapped in Python to enable more dynamic code.
+As of ``v3.0.0``, ``21cmFAST`` is conveniently wrapped in Python to enable more dynamic code.
 
 
 New Features in 3.0.0+
@@ -58,14 +58,14 @@ New Features in 3.0.0+
 Installation
 ============
 We support Linux and MacOS (please let us know if you are successful in installing on
-Windows!). On these systems, the simplest way to get `21cmFAST` is by using
+Windows!). On these systems, the simplest way to get ``21cmFAST`` is by using
 `conda <https://www.anaconda.com/>`_::
 
     conda install -c conda-forge 21cmFAST
 
-`21cmFAST` is also available on PyPI, so that `pip install 21cmFAST` also works. However,
+``21cmFAST`` is also available on PyPI, so that ``pip install 21cmFAST`` also works. However,
 it depends on some external (non-python) libraries that may not be present, and so this
-method is discouraged unless absolutely necessary. If using `pip` to install `21cmFAST`
+method is discouraged unless absolutely necessary. If using ``pip`` to install ``21cmFAST``
 (especially on MacOS), we thoroughly recommend reading the detailed
 `installation instructions <https://21cmfast.readthedocs.io/en/latest/installation.html>`_.
 
@@ -144,7 +144,7 @@ found at https://21cmfast.readthedocs.org.
 
 Acknowledging
 =============
-If you use `21cmFAST v3+` in your research please cite both of:
+If you use ``21cmFAST v3+`` in your research please cite both of:
 
     Murray et al., (2020). 21cmFAST v3: A Python-integrated C code for generating 3D
     realizations of the cosmic 21cm signal. Journal of Open Source Software, 5(54),
@@ -155,15 +155,21 @@ If you use `21cmFAST v3+` in your research please cite both of:
     Astronomical Society, Volume 411, Issue 2, pp. 955-972 (2011),
     https://ui.adsabs.harvard.edu/link_gateway/2011MNRAS.411..955M/doi:10.1111/j.1365-2966.2010.17731.x
 
-In addition, the following papers introduce various features into `21cmFAST`. If you use
+In addition, the following papers introduce various features into ``21cmFAST``. If you use
 these features, please cite the relevant papers.
 
 Mini-halos:
+
+    Muñoz, J.B., Qin, Y., Mesinger, A., Murray, S., Greig, B., and Mason, C.,
+    "The Impact of the First Galaxies on Cosmic Dawn and Reionization"
+    https://arxiv.org/abs/2110.13919
+    (for DM-baryon relative velocities)
 
     Qin, Y., Mesinger, A., Park, J., Greig, B., and Muñoz, J. B.,
     “A tale of two sites - I. Inferring the properties of minihalo-hosted galaxies from
     current observations”, Monthly Notices of the Royal Astronomical Society, vol. 495,
     no. 1, pp. 123–140, 2020. https://doi.org/10.1093/mnras/staa1131.
+    (for Lyman-Werner and first implementation)
 
 Mass-dependent ionizing efficiency:
 

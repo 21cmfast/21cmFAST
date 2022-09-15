@@ -1,8 +1,85 @@
 Changelog
 =========
 
-dev
----
+dev-version
+-----------
+
+v3.2.1 [13 Sep 2022]
+----------------------
+
+Changed
+~~~~~~~
+
+* Included log10_mturnovers(_mini) in lightcone class. Only useful when USE_MINI_HALOS
+
+
+v3.2.0 [11 Jul 2022]
+----------------------
+
+Changed
+~~~~~~~
+
+* Floats are now represented to a specific number of significant digits in the hash of
+  an output object. This fixes problems with very close redshifts not being read from
+  cache (#80). Note that this means that very close astro/cosmo params will now be read
+  from cache. This could cause issues when creating large databases with many random
+  parameters. The behaviour can modified in the configuration by setting the
+  ``cache_param_sigfigs`` and ``cache_redshift_sigfigs`` parameters (these are 6 and
+  4 by default, respectively).
+  **NOTE**: updating to this version will cause your previous cached files to become
+  unusable. Remove them before updating.
+
+Fixed
+~~~~~
+
+* Added a missing C-based error to the known errors in Python.
+
+v3.1.5 [27 Apr 2022]
+----------------------
+
+v3.1.4 [10 Feb 2022]
+----------------------
+
+Fixed
+~~~~~
+
+* error in FFT normalization in FindHaloes
+* docs not compiling on RTD due to missing ``scipy.integrate`` mock module
+* Updated matplotlib removed support for setting vmin/vmax and norm. Now passes vmin/vmax
+  to the norm() constructor.
+
+v3.1.3 [27 Oct 2021]
+----------------------
+
+* Fixed ``FAST_FCOLL_TABLES`` so it only affects MCGs and not ACGs. Added tests of this
+  flag for high and low z separately.
+
+v3.1.2 [14 Jul 2021]
+----------------------
+
+Internals
+~~~~~~~~~
+* ``MINIMIZE_MEMORY`` flag significantly reduces memory without affecting performance much,
+  by changing the way some arrays are allocated and accessed in C. (#224)
+
+Change
+~~~~~~
+
+* Updated ``USE_INTERPOLATION_TABLES`` to be default True. This makes much more sense as
+  a default value. Until v4, a warning will be raised if it is not set explicitly.
+
+
+v3.1.1 [13 Jun 2021]
+----------------------
+
+Fixed
+~~~~~
+
+* Bug in deployment to PyPI.
+
+v3.1.0 [13 Jun 2021]
+----------------------
+
 Added
 ~~~~~
 * Ability to access all evolutionary Coeval components, either from the end Coeval
@@ -14,19 +91,33 @@ Added
 * Fast and low-memory generation of relative-velocity (vcb) initial conditions. Eliminated hi-res vcb boxes, as they are never needed.
 * Also output the mean free path (i.e. MFP_box in IonizedBox).
 * Added the effect of DM-baryon relative velocities on PopIII-forming minihaloes. This now provides the correct background evolution jointly with LW feedback. It gives rise to velocity-induced acoustic oscillations (VAOs) from the relative-velocity fluctuations. We also follow a more flexible parametrization for LW feedback in minihaloes, following new simulation results, and add a new index ALPHA_STAR_MINI for minihaloes, now independent of regular ACGs.
+* New ``hooks`` keyword to high-level functions, that are run on the completion of each computational step, and can
+  be used to more generically write parts of the data to file.
+* Ability to pass a function to ``write=`` to write more specific aspects of the data (internally, this will be put into the ``hooks`` dictionary).
+* ``run_lightcone`` and ``run_coeval`` use significantly less memory by offloading initial conditions and perturb_field instances to disk if possible.
 
 Fixed
 ~~~~~
-* Bug in 2LPT when `USE_RELATIVE_VELOCITIES=True` [Issue #191, PR #192]
+* Bug in 2LPT when ``USE_RELATIVE_VELOCITIES=True`` [Issue #191, PR #192]
 * Error raised when redshifts are not in ascending order [Issue #176, PR #177]
 * Errors when ``USE_FFTW_WISDOM`` is used on some systems [Issue #174, PR #199]
-* Bug in ComputeIonizedBox causing negative recombination rate and ring structure in Gamma12_box [Issue #194, PR #210]
+* Bug in ComputeIonizedBox causing negative recombination rate and ring structure in ``Gamma12_box`` [Issue #194, PR #210]
 * Error in determining the wisdom file name [Issue #209, PR#210]
+* Bug in which cached C-based memory would be read in and free'd twice.
 
 Internals
 ~~~~~~~~~
 
 * Added ``dft.c``, which makes doing all the cubic FFTs a lot easier and more consistent. [PR #199]
+* More generic way of keeping track of arrays to be passed between C and Python, and their shape in Python, using ``_get_box_structures``.
+  This also means that the various boxes can be queried before they are initialized and computed.
+* More stringent integration tests that test each array, not just the final brightness temperature.
+* Ability to plot the integration test data to more easily identify where things have gone wrong (use ``--plots`` in the ``pytest`` invocation).
+* Nicer CLI interface for ``produce_integration_test_data.py``. New options to ``clean`` the ``test_data/`` directory,
+  and also test data is saved by user-defined key rather than massive string of variables.
+* Nicer debug statements before calls to C, for easily comparing between versions.
+* Much nicer methods of keeping track of array state (in memory, on disk, c-controlled, etc.)
+* Ability to free C-based pointers in a more granular way.
 
 v3.0.3
 ------
