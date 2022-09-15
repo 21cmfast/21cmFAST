@@ -260,7 +260,7 @@ def estimate_memory_coeval(
     # I have been finding that remaining memory (variables etc.) consistently appear
     # to contribute about 0.1 Gb. So I'll add this amount. Only important for small
     # box sizes.
-    peak_memory += 0.1 * 1024 ** 3
+    peak_memory += 0.1 * 1024**3
 
     memory_data.update({"peak_memory": peak_memory})
 
@@ -544,7 +544,7 @@ def estimate_memory_lightcone(
     # I have been finding that remaining memory (variables etc.) consistently appear
     # to contribute about 0.1 Gb. So I'll add this amount. Only important for small
     # box sizes.
-    peak_memory += 0.1 * 1024 ** 3
+    peak_memory += 0.1 * 1024**3
 
     memory_data.update({"peak_memory": peak_memory})
 
@@ -590,7 +590,7 @@ def estimate_memory_ics(
     # I have been finding that remaining memory (variables etc.) consistently appear
     # to contribute about 0.1 Gb. So I'll add this amount. Only important for small
     # box sizes.
-    peak_memory += 0.1 * 1024 ** 3
+    peak_memory += 0.1 * 1024**3
 
     memory_data.update({"peak_memory": peak_memory})
 
@@ -648,7 +648,7 @@ def estimate_memory_perturb(
     # I have been finding that remaining memory (variables etc.) consistently appear
     # to contribute about 0.1 Gb. So I'll add this amount. Only important for small
     # box sizes.
-    peak_memory += 0.1 * 1024 ** 3
+    peak_memory += 0.1 * 1024**3
 
     memory_data.update({"peak_memory": peak_memory})
 
@@ -1048,12 +1048,12 @@ def mem_spin_temperature(
     # These are all fftwf complex arrays (thus 2 * size)
     size_c = (2.0 * (np.float32(1.0).nbytes)) * num_c_boxes * hii_kspace_num_pixels
 
-    size_c += (np.float32(1.0).nbytes) * num_c_boxes_alt * (user_params.HII_DIM ** 3.0)
+    size_c += (np.float32(1.0).nbytes) * num_c_boxes_alt * (user_params.HII_DIM**3.0)
 
     size_c_init = (
         (np.float32(1.0).nbytes)
         * num_c_boxes_initialised
-        * (user_params.HII_DIM ** 3.0)
+        * (user_params.HII_DIM**3.0)
     )
 
     # Now, add all the table data (which are kept throughout the calculation)
@@ -1162,7 +1162,7 @@ def print_memory_estimate(
     flag_options=None,
 ):
     """Function to output information in a manageable format."""
-    bytes_in_gb = 1024 ** 3
+    bytes_in_gb = 1024**3
 
     print("")
     if "python_lc" in memory_data.keys():
