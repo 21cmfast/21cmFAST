@@ -535,9 +535,7 @@ class UserParams(StructWithDefaults):
 
             if not 0 <= val < len(self._power_models):
                 raise ValueError(
-                    "Power spectrum must be between 0 and {}".format(
-                        len(self._power_models) - 1
-                    )
+                    f"Power spectrum must be between 0 and {len(self._power_models) - 1}"
                 )
 
             return val
@@ -555,8 +553,8 @@ class UserParams(StructWithDefaults):
 
         try:
             val = int(val)
-        except (ValueError, TypeError):
-            raise ValueError("Invalid value for HMF")
+        except (ValueError, TypeError) as e:
+            raise ValueError("Invalid value for HMF") from e
 
         if not 0 <= val < len(self._hmf_models):
             raise ValueError(
@@ -578,13 +576,12 @@ class UserParams(StructWithDefaults):
     @property
     def FAST_FCOLL_TABLES(self):
         """Check that USE_INTERPOLATION_TABLES is True."""
-        if self._FAST_FCOLL_TABLES and not self.USE_INTERPOLATION_TABLES:
-            logger.warning(
-                "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES."
-            )
-            return False
-        else:
+        if not self._FAST_FCOLL_TABLES or self.USE_INTERPOLATION_TABLES:
             return self._FAST_FCOLL_TABLES
+        logger.warning(
+            "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES."
+        )
+        return False
 
 
 class FlagOptions(StructWithDefaults):
@@ -648,71 +645,62 @@ class FlagOptions(StructWithDefaults):
     @property
     def USE_HALO_FIELD(self):
         """Automatically setting USE_MASS_DEPENDENT_ZETA to False if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and self._USE_HALO_FIELD:
-            logger.warning(
-                "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
-                "Automatically setting USE_HALO_FIELD to False."
-            )
-            return False
-        else:
+        if not self.USE_MINI_HALOS or not self._USE_HALO_FIELD:
             return self._USE_HALO_FIELD
+        logger.warning(
+            "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
+            "Automatically setting USE_HALO_FIELD to False."
+        )
+        return False
 
     @property
     def M_MIN_in_Mass(self):
         """Whether minimum halo mass is defined in mass or virial temperature."""
-        if self.USE_MASS_DEPENDENT_ZETA:
-            return True
-
-        else:
-            return self._M_MIN_in_Mass
+        return True if self.USE_MASS_DEPENDENT_ZETA else self._M_MIN_in_Mass
 
     @property
     def USE_MASS_DEPENDENT_ZETA(self):
         """Automatically setting USE_MASS_DEPENDENT_ZETA to True if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and not self._USE_MASS_DEPENDENT_ZETA:
-            logger.warning(
-                "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA to False! "
-                "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
-            )
-            return True
-        else:
+        if not self.USE_MINI_HALOS or self._USE_MASS_DEPENDENT_ZETA:
             return self._USE_MASS_DEPENDENT_ZETA
+        logger.warning(
+            "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA to False! "
+            "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
+        )
+        return True
 
     @property
     def INHOMO_RECO(self):
         """Automatically setting INHOMO_RECO to True if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and not self._INHOMO_RECO:
-            logger.warning(
-                "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
-                "Automatically setting INHOMO_RECO to True."
-            )
-            return True
-        else:
+        if not self.USE_MINI_HALOS or self._INHOMO_RECO:
             return self._INHOMO_RECO
+        logger.warning(
+            "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
+            "Automatically setting INHOMO_RECO to True."
+        )
+        return True
 
     @property
     def USE_TS_FLUCT(self):
         """Automatically setting USE_TS_FLUCT to True if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and not self._USE_TS_FLUCT:
-            logger.warning(
-                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
-                "Automatically setting USE_TS_FLUCT to True."
-            )
-            return True
-        else:
+        if not self.USE_MINI_HALOS or self._USE_TS_FLUCT:
             return self._USE_TS_FLUCT
+        logger.warning(
+            "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
+            "Automatically setting USE_TS_FLUCT to True."
+        )
+        return True
 
     @property
     def PHOTON_CONS(self):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and self._PHOTON_CONS:
-            logger.warning(
-                "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
-                "Automatically setting PHOTON_CONS to False."
-            )
-            return False
-        else:
+        if not self.USE_MINI_HALOS or not self._PHOTON_CONS:
             return self._PHOTON_CONS
+        logger.warning(
+            "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
+            "Automatically setting PHOTON_CONS to False."
+        )
+        return False
 
 
 class AstroParams(StructWithDefaults):
@@ -868,19 +856,18 @@ class AstroParams(StructWithDefaults):
         """Maximum radius of bubbles to be searched. Set dynamically."""
         if not self._R_BUBBLE_MAX:
             return 50.0 if self.INHOMO_RECO else 15.0
-        else:
-            if self.INHOMO_RECO and self._R_BUBBLE_MAX != 50:
-                logger.warning(
-                    "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
-                    "This is non-standard (but allowed), and usually occurs upon manual "
-                    "update of INHOMO_RECO"
-                )
-            return self._R_BUBBLE_MAX
+        if self.INHOMO_RECO and self._R_BUBBLE_MAX != 50:
+            logger.warning(
+                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
+                "This is non-standard (but allowed), and usually occurs upon manual "
+                "update of INHOMO_RECO"
+            )
+        return self._R_BUBBLE_MAX
 
     @property
     def X_RAY_Tvir_MIN(self):
         """Minimum virial temperature of X-ray emitting sources (unlogged and set dynamically)."""
-        return self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
+        return self._X_RAY_Tvir_MIN or self.ION_Tvir_MIN
 
     @property
     def NU_X_THRESH(self):
@@ -948,18 +935,21 @@ def validate_all_inputs(
             global_params.HII_FILTER == 1
             and astro_params.R_BUBBLE_MAX > user_params.BOX_LEN / 3
         ):
-            raise ValueError(
+            msg = (
                 "Your R_BUBBLE_MAX is > BOX_LEN/3 "
-                f"({astro_params.R_BUBBLE_MAX} > {user_params.BOX_LEN/3}). "
-                "This will fail."
+                f"({astro_params.R_BUBBLE_MAX} > {user_params.BOX_LEN/3})."
             )
 
-    if flag_options is not None:
-        if (
-            flag_options.USE_MINI_HALOS
-            and not user_params.USE_RELATIVE_VELOCITIES
-            and not flag_options.FIX_VCB_AVG
-        ):
-            logger.warning(
-                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
-            )
+            if config["ignore_R_BUBBLE_MAX_error"]:
+                warnings.warn(msg)
+            else:
+                raise ValueError(msg)
+
+    if flag_options is not None and (
+        flag_options.USE_MINI_HALOS
+        and not user_params.USE_RELATIVE_VELOCITIES
+        and not flag_options.FIX_VCB_AVG
+    ):
+        logger.warning(
+            "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
+        )
