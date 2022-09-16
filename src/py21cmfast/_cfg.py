@@ -24,6 +24,7 @@ class Config(dict):
         "write": True,
         "cache_param_sigfigs": 6,
         "cache_redshift_sigfigs": 4,
+        "ignore_R_BUBBLE_MAX_error": False,
     }
 
     _aliases = {"direc": ("boxdir",)}
