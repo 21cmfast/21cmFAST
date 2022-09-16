@@ -946,12 +946,12 @@ def validate_all_inputs(
 
         if (
             global_params.HII_FILTER == 1
-            and astro_params.R_BUBBLE_MAX < user_params.BOX_LEN / 3
+            and astro_params.R_BUBBLE_MAX > user_params.BOX_LEN / 3
         ):
-            warnings.warn(
-                "Your R_BUBBLE_MAX is <BOX_LEN/3 "
-                f"({astro_params.R_BUBBLE_MAX}<{user_params.BOX_LEN/3}). "
-                "This may lead to erroneous results."
+            raise ValueError(
+                "Your R_BUBBLE_MAX is > BOX_LEN/3 "
+                f"({astro_params.R_BUBBLE_MAX} > {user_params.BOX_LEN/3}). "
+                "This will fail."
             )
 
     if flag_options is not None:

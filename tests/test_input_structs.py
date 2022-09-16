@@ -184,17 +184,18 @@ def test_validation():
     f = FlagOptions()
     u = UserParams(BOX_LEN=50)
 
-    with pytest.warns(UserWarning, match="Setting R_BUBBLE_MAX to BOX_LEN"):
-        validate_all_inputs(
-            cosmo_params=c, astro_params=a, flag_options=f, user_params=u
-        )
+    with global_params.use(HII_FILTER=2):
+        with pytest.warns(UserWarning, match="Setting R_BUBBLE_MAX to BOX_LEN"):
+            validate_all_inputs(
+                cosmo_params=c, astro_params=a, flag_options=f, user_params=u
+            )
 
-    assert a.R_BUBBLE_MAX == u.BOX_LEN
+        assert a.R_BUBBLE_MAX == u.BOX_LEN
 
-    a.update(R_BUBBLE_MAX=10)
+    a.update(R_BUBBLE_MAX=20)
 
     with global_params.use(HII_FILTER=1):
-        with pytest.warns(UserWarning, match="Your R_BUBBLE_MAX is <BOX_LEN/3"):
+        with pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"):
             validate_all_inputs(
                 cosmo_params=c, astro_params=a, flag_options=f, user_params=u
             )
