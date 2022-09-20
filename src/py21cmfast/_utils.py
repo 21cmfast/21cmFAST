@@ -194,6 +194,7 @@ def _process_exitcode(exitcode, fnc, args):
                     PHOTONCONSERROR: PhotonConsError,
                     TABLEGENERATIONERROR: TableGenerationError,
                     TABLEEVALUATIONERROR: TableEvaluationError,
+                    INFINITYORNANERROR: InfinityorNaNError,
                     MASSDEPZETAERROR: MassDepZetaError,
                     MEMORYALLOCERROR: MemoryAllocError,
                 }[exitcode]
