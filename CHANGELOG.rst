@@ -20,6 +20,7 @@ Added
 
 * New ``validate_all_inputs`` function that cross-references the four main input structs
   and ensures all the parameters make sense together. Mostly for internal use.
+* Ability to save/read directly from an open HDF5 File (#170)
 
 v3.2.1 [13 Sep 2022]
 ----------------------
