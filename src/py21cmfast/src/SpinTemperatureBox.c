@@ -1972,6 +1972,13 @@ LOG_SUPER_DEBUG("looping over box...");
 
                             }
 
+                            if (isfinite(T) == 0) {
+                                LOG_ERROR(
+                                    "For box_ct=%d, got infinite value for Tk. dxheat_dzp=%g, dcomp_dzp=%g, dspec_dzp=%g, dadia_dzp=%g, dzp=%g, dxheat_dt_box=%g, dt_dzp=%g, dxe_dzp=%g, ",
+                                    box_ct, dxheat_dzp, dcomp_dzp, dspec_dzp, dadia_dzp, dzp, dxheat_dt_box[box_ct], dt_dzp, dxe_dzp);
+                                Throw(InfinityorNaNError);
+                            }
+
                             if (T<0){ // spurious bahaviour of the trapazoidalintegrator. generally overcooling in underdensities
                                 T = T_cmb*(1+zp);
                             }
