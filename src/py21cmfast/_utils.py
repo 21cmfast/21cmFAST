@@ -1069,7 +1069,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         for k in self.primitive_fields:
             group.attrs[k] = getattr(self, k)
 
-    def save(self, fname=None, direc=".", h5_path=None):
+    def save(self, fname=None, direc=".", h5_group=None):
         """Save the box to disk.
 
         In detail, this just calls write, but changes the default directory to the
@@ -1092,14 +1092,14 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             direc = path.dirname(fname)
             fname = path.basename(fname)
 
-        if h5_path is not None:
+        if h5_group is not None:
             if not path.isabs(fname):
                 fname = path.abspath(path.join(direc, fname))
 
             fl = h5py.File(fname, "a")
 
             try:
-                grp = fl.create_group(h5_path)
+                grp = fl.create_group(h5_group)
                 self.write(direc, grp)
             finally:
                 fl.close()
@@ -1192,13 +1192,18 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             self._random_seed = seed
         finally:
             self.__expose()
-            self._paths.insert(0, Path(fl.filename))
+            if isinstance(fl, h5py.File):
+                self._paths.insert(0, Path(fl.filename))
+            else:
+                self._paths.insert(0, Path(fl.file.filename))
 
             if not isinstance(fname, (h5py.File, h5py.Group)):
                 fl.close()
 
     @classmethod
-    def from_file(cls, fname, direc=None, load_data=True):
+    def from_file(
+        cls, fname, direc=None, load_data=True, h5_group: Union[str, None] = None
+    ):
         """Create an instance from a file on disk.
 
         Parameters
@@ -1212,39 +1217,51 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             Whether to read in the data when creating the instance. If False, a bare
             instance is created with input parameters -- the instance can read data
             with the :func:`read` method.
+        h5_group
+            The path to the group within the file in which the object is stored.
         """
         direc = path.expanduser(direc or config["direc"])
 
         if not path.exists(fname):
             fname = path.join(direc, fname)
 
-        self = cls(**cls._read_inputs(fname))
+        with h5py.File(fname, "r") as fl:
+
+            if h5_group is not None:
+                self = cls(**cls._read_inputs(fl[h5_group]))
+            else:
+                self = cls(**cls._read_inputs(fl))
 
         if load_data:
-            self.read(fname=fname)
+            if h5_group is not None:
+                with h5py.File(fname, "r") as fl:
+                    assert h5_group in fl
+                    self.read(fname=fl[h5_group])
+            else:
+                self.read(fname=fname)
+
         return self
 
     @classmethod
-    def _read_inputs(cls, fname):
+    def _read_inputs(cls, grp: Union[h5py.File, h5py.Group]):
         input_classes = [c.__name__ for c in StructWithDefaults.__subclasses__()]
 
         # Read the input parameter dictionaries from file.
         kwargs = {}
-        with h5py.File(fname, "r") as fl:
-            for k in cls._inputs:
-                kfile = k.lstrip("_")
-                input_class_name = snake_to_camel(kfile)
+        for k in cls._inputs:
+            kfile = k.lstrip("_")
+            input_class_name = snake_to_camel(kfile)
 
-                if input_class_name in input_classes:
-                    input_class = StructWithDefaults.__subclasses__()[
-                        input_classes.index(input_class_name)
-                    ]
-                    grp = fl[kfile]
-                    kwargs[k] = input_class(
-                        {k: v for k, v in dict(grp.attrs).items() if v != "none"}
-                    )
-                else:
-                    kwargs[kfile] = fl.attrs[kfile]
+            if input_class_name in input_classes:
+                input_class = StructWithDefaults.__subclasses__()[
+                    input_classes.index(input_class_name)
+                ]
+                subgrp = grp[kfile]
+                kwargs[k] = input_class(
+                    {k: v for k, v in dict(subgrp.attrs).items() if v != "none"}
+                )
+            else:
+                kwargs[kfile] = grp.attrs[kfile]
         return kwargs
 
     def __repr__(self):

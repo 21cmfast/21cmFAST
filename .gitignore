@@ -52,3 +52,4 @@ c2r*
 r2c*
 plots/
 .vscode/
+src/21cmfast/_version.py
