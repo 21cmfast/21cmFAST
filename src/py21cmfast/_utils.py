@@ -1235,7 +1235,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         if load_data:
             if h5_group is not None:
                 with h5py.File(fname, "r") as fl:
-                    assert h5_group in fl
                     self.read(fname=fl[h5_group])
             else:
                 self.read(fname=fname)
