@@ -310,7 +310,6 @@ def _setup_inputs(
     if "flag_options" in params:
         params["flag_options"] = FlagOptions(
             params["flag_options"],
-            USE_VELS_AUX=params["user_params"].USE_RELATIVE_VELOCITIES,
         )
     if "astro_params" in params:
         params["astro_params"] = AstroParams(
@@ -794,9 +793,7 @@ def _init_photon_conservation_correction(
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     astro_params = AstroParams(astro_params)
-    flag_options = FlagOptions(
-        flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
-    )
+    flag_options = FlagOptions(flag_options)
 
     return lib.InitialisePhotonCons(
         user_params(), cosmo_params(), astro_params(), flag_options()
@@ -3193,7 +3190,6 @@ def calibrate_photon_cons(
         flag_options_photoncons = FlagOptions(
             USE_MASS_DEPENDENT_ZETA=flag_options.USE_MASS_DEPENDENT_ZETA,
             M_MIN_in_Mass=flag_options.M_MIN_in_Mass,
-            USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES,
         )
 
         ib = None
