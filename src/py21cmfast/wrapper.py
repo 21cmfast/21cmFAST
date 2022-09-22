@@ -209,7 +209,11 @@ def configure_redshift(redshift, *structs):
         If both `redshift` and *all* structs have a value of `None`, **or** if any of them
         are different from each other (and not `None`).
     """
-    zs = {s.redshift for s in structs if s is not None and hasattr(s, "redshift")}
+    zs = {
+        np.round(s.redshift, 4)
+        for s in structs
+        if s is not None and hasattr(s, "redshift")
+    }
     zs = list(zs)
 
     if len(zs) > 1 or (len(zs) == 1 and redshift is not None and zs[0] != redshift):
