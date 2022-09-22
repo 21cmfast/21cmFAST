@@ -812,6 +812,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         # Accessing the array loads it into memory.
         for k in keep:
+            logger.debug(f"Loading {k} into memory for {self.__class__.__name__}")
             getattr(self, k)
 
     def _remove_array(self, k, force=False):
@@ -1374,6 +1375,10 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         if input_box.dummy:
             return True
 
+        logger.debug(
+            "Ensuring all required boxes are computed on "
+            f"{input_box.__class__.__name__} for computing {self.__class__.__name__}"
+        )
         arrays = self.get_required_input_arrays(input_box)
 
         if input_box.initial:
@@ -1443,11 +1448,13 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         # Check that all required inputs are really computed, and load them into memory
         # if they're not already.
+        logger.debug("Ensuring that all required inputs are computed, and loading...")
         self._ensure_arguments_exist(*args)
 
         # Construct the args. All StructWrapper objects need to actually pass their
         # underlying cstruct, rather than themselves. OutputStructs also pass the
         # class in that's calling this.
+        logger.debug("Construct c-based inputs...")
         inputs = [arg() if isinstance(arg, StructWrapper) else arg for arg in args]
 
         # Ensure we haven't already tried to compute this instance.
@@ -1456,6 +1463,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 f"You are trying to compute {self.__class__.__name__}, but it has already been computed."
             )
 
+        logger.debug(f"Computing {self.__class__.__name__} using C function...")
         # Perform the C computation
         try:
             exitcode = self._c_compute_function(*inputs, self())

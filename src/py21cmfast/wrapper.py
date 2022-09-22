@@ -215,8 +215,9 @@ def configure_redshift(redshift, *structs):
         if s is not None and hasattr(s, "redshift")
     }
     zs = list(zs)
-
-    if len(zs) > 1 or (len(zs) == 1 and redshift is not None and zs[0] != redshift):
+    if len(zs) > 1 or (
+        len(zs) == 1 and redshift is not None and zs[0] != np.round(redshift, 4)
+    ):
         raise ValueError("Incompatible redshifts in inputs")
     elif len(zs) == 1:
         return zs[0]
@@ -1494,6 +1495,7 @@ def ionize_box(
     around in memory for longer than they need to be (only two at a time are required).
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
+    logger.debug("Got config options for ionize_box")
 
     with global_params.use(**global_kwargs):
         _verify_types(
@@ -1504,6 +1506,7 @@ def ionize_box(
             spin_temp=spin_temp,
             pt_halos=pt_halos,
         )
+        logger.debug("Types verified.")
 
         # Configure and check input/output parameters/structs
         (
@@ -1531,6 +1534,7 @@ def ionize_box(
             },
             redshift=redshift,
         )
+        logger.debug("Inputs configured.")
 
         if spin_temp is not None and not flag_options.USE_TS_FLUCT:
             logger.warning(
@@ -1574,6 +1578,7 @@ def ionize_box(
 
         # Construct FFTW wisdoms. Only if required
         construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+        logger.debug("FFTW wisdoms constructed.")
 
         # Check whether the boxes already exist
         if not regenerate:
@@ -1603,6 +1608,7 @@ def ionize_box(
 
             # Need to update random seed
             box._random_seed = init_boxes.random_seed
+            logger.debug("Computed Initial Conditions.")
 
         # Get appropriate previous ionization box
         if previous_ionize_box is None or not previous_ionize_box.is_computed:
@@ -1625,6 +1631,8 @@ def ionize_box(
                     cleanup=False,  # We *know* we're going to need the memory again.
                 )
 
+            logger.debug("Computed Previous ionize_box")
+
         # Dynamically produce the perturbed field.
         if perturbed_field is None or not perturbed_field.is_computed:
             perturbed_field = perturb_field(
@@ -1636,6 +1644,7 @@ def ionize_box(
                 hooks=hooks,
                 direc=direc,
             )
+            logger.debug("Computed perturb_field")
 
         if previous_perturbed_field is None or not previous_perturbed_field.is_computed:
             # If we are beyond Z_HEAT_MAX, just make an empty box
@@ -1651,6 +1660,7 @@ def ionize_box(
                     hooks=hooks,
                     direc=direc,
                 )
+            logger.debug("Computed previous_perturbed_field.")
 
         # Dynamically produce the halo field.
         if not flag_options.USE_HALO_FIELD:
@@ -1689,8 +1699,10 @@ def ionize_box(
                 regenerate=regenerate,
                 cleanup=cleanup,
             )
+            logger.debug("Computed TsBox")
 
         # Run the C Code
+        logger.debug("Running IonisationBox...")
         return box.compute(
             perturbed_field=perturbed_field,
             prev_perturbed_field=previous_perturbed_field,
