@@ -420,13 +420,11 @@ LOG_SUPER_DEBUG("About to initialise heat");
 LOG_SUPER_DEBUG("Initialised heat");
 
     // Initialize some interpolation tables
-    if(this_spin_temp->first_box || (fabs(initialised_redshift - perturbed_field_redshift) > 0.0001) ) {
-
-        if(user_params->USE_INTERPOLATION_TABLES) {
-          if(user_params->FAST_FCOLL_TABLES){
+    if(user_params->USE_INTERPOLATION_TABLES) {
+        if(user_params->FAST_FCOLL_TABLES){
             initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
-          }
-          else{
+        }
+        else{
             if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
                 if (flag_options->USE_MINI_HALOS){
                     initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e20);
@@ -435,8 +433,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                     initialiseSigmaMInterpTable(M_MIN,1e20);
                 }
             }
-            LOG_SUPER_DEBUG("Initialised sigmaM interp table");
-          }
+        LOG_SUPER_DEBUG("Initialised sigmaM interp table");
         }
     }
 

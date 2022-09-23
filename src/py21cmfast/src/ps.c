@@ -138,6 +138,12 @@ void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSp
 void z_at_NFHist(double xHI_Hist, double *splined_value);
 void NFHist_at_z(double z, double *splined_value);
 
+// Parameters that indicate the Mmin/Mmax to which the SigmaM interpolation table
+// has been initialized. Allows the initialization to be cached.
+float SigmaM_init_Mmin = 0.0;
+float SigmaM_init_Mmax = 0.0;
+
+
 //int nbin;
 //double *z_Q, *Q_value, *Q_z, *z_value;
 
@@ -1460,11 +1466,18 @@ void initialiseSigmaMInterpTable(float M_Min, float M_Max)
     int i;
     float Mass;
 
+    if (fabs(SigmaM_init_Mmax - M_Max) < 1e-3 && fabs(SigmaM_init_Mmin - M_Min) < 1e-3){
+        // Then we've already initialized, so just return.
+        // We check the input mass parameters are "equal" up to a 1e-3 difference.
+        return;
+    }
+
     if (Mass_InterpTable == NULL){
       Mass_InterpTable = calloc(NMass,sizeof(float));
       Sigma_InterpTable = calloc(NMass,sizeof(float));
       dSigmadm_InterpTable = calloc(NMass,sizeof(float));
     }
+    LOG_DEBUG("Initializinng sigma(m) interpolation table with Mmin=%f, Mmax=%f", M_Min, M_Max);
 
 #pragma omp parallel shared(Mass_InterpTable,Sigma_InterpTable,dSigmadm_InterpTable) private(i) num_threads(user_params_ps->N_THREADS)
     {
@@ -1487,6 +1500,10 @@ void initialiseSigmaMInterpTable(float M_Min, float M_Max)
     MinMass = log(M_Min);
     mass_bin_width = 1./(NMass-1)*( log(M_Max) - log(M_Min) );
     inv_mass_bin_width = 1./mass_bin_width;
+
+    SigmaM_init_Mmin = M_Min;
+    SigmaM_init_Mmax = M_Max;
+
 }
 
 void freeSigmaMInterpTable()

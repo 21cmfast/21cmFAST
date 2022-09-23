@@ -91,6 +91,17 @@ class ArrayState:
         """Whether C currently has initialized memory for this array."""
         return self.c_memory and self.initialized
 
+    def __str__(self):
+        """Returns a string representation of the ArrayState."""
+        if self.computed_in_mem:
+            return "computed (in mem)"
+        elif self.on_disk:
+            return "computed (on disk)"
+        elif self.initialized:
+            return "memory initialized (not computed)"
+        else:
+            return "uncomputed and uninitialized"
+
 
 class ParameterError(RuntimeError):
     """An exception representing a bad choice of parameters."""
@@ -693,9 +704,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def _init_arrays(self):
         for k, state in self._array_state.items():
-            if k == "lowres_density":
-                logger.debug("THINKING ABOUT INITING LOWRES_DENSITY")
-                logger.debug(state.initialized, state.computed_in_mem, state.on_disk)
 
             # Don't initialize C-based pointers or already-inited stuff, or stuff
             # that's computed on disk (if it's on disk, accessing the array should
@@ -1161,9 +1169,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
             # Set our arrays.
             for k in boxes.keys():
+                self._array_state[k].on_disk = True
                 if keys is None or k in keys:
                     setattr(self, k, boxes[k][...])
-                    self._array_state[k].on_disk = True
                     self._array_state[k].computed_in_mem = True
                     setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
@@ -1203,7 +1211,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     @classmethod
     def from_file(
-        cls, fname, direc=None, load_data=True, h5_group: Union[str, None] = None
+        cls,
+        fname,
+        direc=None,
+        load_data=True,
+        h5_group: Union[str, None] = None,
+        arrays_to_load=None,
     ):
         """Create an instance from a file on disk.
 
@@ -1233,12 +1246,14 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             else:
                 self = cls(**cls._read_inputs(fl))
 
-        if load_data:
-            if h5_group is not None:
-                with h5py.File(fname, "r") as fl:
-                    self.read(fname=fl[h5_group])
-            else:
-                self.read(fname=fname)
+        if not load_data:
+            arrays_to_load = []
+
+        if h5_group is not None:
+            with h5py.File(fname, "r") as fl:
+                self.read(fname=fl[h5_group], keys=arrays_to_load)
+        else:
+            self.read(fname=fname, keys=arrays_to_load)
 
         return self
 
@@ -1262,12 +1277,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 )
             else:
                 kwargs[kfile] = grp.attrs[kfile]
+
         return kwargs
 
     def __repr__(self):
         """Return a fully unique representation of the instance."""
         # This is the class name and all parameters which belong to C-based input structs,
-        # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
         # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
         return f"{self._seedless_repr()}_random_seed={self._random_seed}"
 
@@ -1434,8 +1449,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 and not self.ensure_input_computed(arg, load=True)
             ):
                 raise ValueError(
-                    f"Trying to use {arg} to compute {self}, but some required arrays "
-                    f"are not computed!"
+                    f"Trying to use {arg.__class__.__name__} to compute {self.__class__.__name__}, but some required arrays "
+                    f"are not computed!\nArrays required: {self.get_required_input_arrays(arg)}\nCurrent State: {[(k, str(v)) for k, v in self._array_state.items()]}"
                 )
 
     def _compute(
