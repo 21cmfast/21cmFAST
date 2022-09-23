@@ -4,6 +4,7 @@ import h5py
 import logging
 import os
 import re
+import warnings
 from os import path
 
 from . import outputs, wrapper
@@ -179,7 +180,12 @@ def query_cache(
     for file in list_datasets(
         direc=direc, kind=kind, hsh=hsh, seed=seed, redshift=redshift
     ):
-        cls = readbox(direc=direc, fname=file, load_data=False)
+        try:
+            cls = readbox(direc=direc, fname=file, load_data=False)
+        except OSError:
+            warnings.warn(f"Failed to read {file}")
+            pass
+
         if show:
             print(file + ": " + str(cls))  # noqa: T
         yield file, cls
