@@ -1,6 +1,8 @@
 """
 Input parameter classes.
 
+Test MSG by JSC: testing 
+
 There are four input parameter/option classes, not all of which are required for any
 given function. They are :class:`UserParams`, :class:`CosmoParams`, :class:`AstroParams`
 and :class:`FlagOptions`. Each of them defines a number of variables, and all of these
