@@ -4,18 +4,18 @@
     requires access.
 */
 
-struct CosmoParams{
-
+struct CosmoParams
+{
     float SIGMA_8;
     float hlittle;
     float OMm;
     float OMl;
     float OMb;
     float POWER_INDEX;
-
 };
 
-struct UserParams{
+struct UserParams
+{
 
     // Parameters taken from INIT_PARAMS.H
     int HII_DIM;
@@ -29,13 +29,13 @@ struct UserParams{
     bool PERTURB_ON_HIGH_RES;
     bool NO_RNG;
     bool USE_INTERPOLATION_TABLES;
-    bool FAST_FCOLL_TABLES; //Whether to use the fast Fcoll table approximation in EPS
+    bool FAST_FCOLL_TABLES; // Whether to use the fast Fcoll table approximation in EPS
     bool USE_2LPT;
     bool MINIMIZE_MEMORY;
 };
 
-struct AstroParams{
-
+struct AstroParams
+{
     // Parameters taken from INIT_PARAMS.H
     float HII_EFF_FACTOR;
 
@@ -64,9 +64,27 @@ struct AstroParams{
     float t_STAR;
 
     int N_RSD_STEPS;
+
+    // Parameters for Radio Background and PBH
+    // Added by Junsong Cang
+    float fR; // Radio efficiency 
+    float aR; // Radio SED power index
+    float fR_mini; // Radio efficiency for mini halo
+    float aR_mini; // Radio SED power index for minihalo
+    float log10_mbh; // log10 of PBH mass in msun
+    float log10_fbh; // log10 of PBH fraction,i.e. rho_bh/rho_dm
+    float bh_aR; // PBH radio SED power index
+    float bh_fX; // PBH x-ray efficiency
+    float bh_fR; // PBH radio efficiency
+    float bh_lambda; // PBH accretion efficiency
+    float bh_Eta; // PBH emission efficiency, this is degenerate with lambda so might as well remove this
+    float bh_spin; // Reduced initial Kerr spin for PBHs, in range [0,1), see 2108.13256
+    float Radio_Zmin; // Kill radio emmisivity below this redshift, a phenomenological param motivated by ARCADE2 upper limit
+
 };
 
-struct FlagOptions{
+struct FlagOptions
+{
 
     // Parameters taken from INIT_PARAMS.H
     bool USE_HALO_FIELD;
@@ -80,18 +98,20 @@ struct FlagOptions{
     bool FIX_VCB_AVG;
 };
 
-
-struct InitialConditions{
+struct InitialConditions
+{
     float *lowres_density, *lowres_vx, *lowres_vy, *lowres_vz, *lowres_vx_2LPT, *lowres_vy_2LPT, *lowres_vz_2LPT;
-    float *hires_density, *hires_vx, *hires_vy, *hires_vz, *hires_vx_2LPT, *hires_vy_2LPT, *hires_vz_2LPT; //cw addition
+    float *hires_density, *hires_vx, *hires_vy, *hires_vz, *hires_vx_2LPT, *hires_vy_2LPT, *hires_vz_2LPT; // cw addition
     float *lowres_vcb;
 };
 
-struct PerturbedField{
+struct PerturbedField
+{
     float *density, *velocity;
 };
 
-struct HaloField{
+struct HaloField
+{
 
     int n_halos;
     float *halo_masses;
@@ -107,22 +127,31 @@ struct HaloField{
     float *sqrtdn_dlm;
 };
 
-struct PerturbHaloField{
+struct PerturbHaloField
+{
     int n_halos;
     float *halo_masses;
     int *halo_coords;
 };
 
-
-struct TsBox{
+struct TsBox
+{
     int first_box;
     float *Ts_box;
     float *x_e_box;
     float *Tk_box;
     float *J_21_LW_box;
+    // For Inhomogeneous Radio Background, added by jsc
+    float *Trad_box;
+    // For averaged quantities from previous boxes, to be updated at every z step
+    // SFRD_box[0] specifies box length
+    // Data structure: [z, SFRD, Tk, f4, f5]
+    // [f4 - f5] are redundency memory, just in case we need to store other stuff
+    float *SFRD_box;
 };
 
-struct IonizedBox{
+struct IonizedBox
+{
     int first_box;
     double mean_f_coll;
     double mean_f_coll_MINI;
@@ -138,7 +167,8 @@ struct IonizedBox{
     float *Fcoll_MINI;
 };
 
-struct BrightnessTemp{
+struct BrightnessTemp
+{
     float *brightness_temp;
 };
 
@@ -151,25 +181,25 @@ int ComputeHaloField(float redshift, struct UserParams *user_params, struct Cosm
                      struct InitialConditions *boxes, struct HaloField *halos);
 
 int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                     struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                     struct InitialConditions *boxes, struct HaloField *halos, struct PerturbHaloField *halos_perturbed);
+                            struct AstroParams *astro_params, struct FlagOptions *flag_options,
+                            struct InitialConditions *boxes, struct HaloField *halos, struct PerturbHaloField *halos_perturbed);
 
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                  struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,
-                  short cleanup,
-                  struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct InitialConditions *ini_boxes,
-                  struct TsBox *this_spin_temp);
+                 struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,
+                 short cleanup,
+                 struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct InitialConditions *ini_boxes,
+                 struct TsBox *this_spin_temp);
 
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                       struct AstroParams *astro_params, struct FlagOptions *flag_options, struct PerturbedField *perturbed_field,
-                       struct PerturbedField *previous_perturbed_field, struct IonizedBox *previous_ionize_box,
-                       struct TsBox *spin_temp, struct PerturbHaloField *halo, struct InitialConditions *ini_boxes,
-                       struct IonizedBox *box);
+                      struct AstroParams *astro_params, struct FlagOptions *flag_options, struct PerturbedField *perturbed_field,
+                      struct PerturbedField *previous_perturbed_field, struct IonizedBox *previous_ionize_box,
+                      struct TsBox *spin_temp, struct PerturbHaloField *halo, struct InitialConditions *ini_boxes,
+                      struct IonizedBox *box);
 
 int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                           struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                           struct TsBox *spin_temp, struct IonizedBox *ionized_box,
-                           struct PerturbedField *perturb_field, struct BrightnessTemp *box);
+                          struct AstroParams *astro_params, struct FlagOptions *flag_options,
+                          struct TsBox *spin_temp, struct IonizedBox *ionized_box,
+                          struct PerturbedField *perturb_field, struct BrightnessTemp *box);
 
 int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cosmo_params,
                          struct AstroParams *astro_params, struct FlagOptions *flag_options);
@@ -181,7 +211,7 @@ int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analyti
                          double *PhotonCons_NFdata, double *PhotonCons_deltaz, int *Ndata_PhotonCons);
 
 int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
-               struct FlagOptions *flag_options, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, float *M_TURNs, double *M_uv_z, double *M_h_z, double *log10phi);
+              struct FlagOptions *flag_options, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, float *M_TURNs, double *M_uv_z, double *M_h_z, double *log10phi);
 
 float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_params, int Npoints, float *redshifts, float *global_xHI);
 
@@ -197,7 +227,7 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options);
 bool photon_cons_allocated = false;
 bool interpolation_tables_allocated = false;
 int SomethingThatCatches(bool sub_func);
-int FunctionThatCatches(bool sub_func, bool pass, double* result);
+int FunctionThatCatches(bool sub_func, bool pass, double *result);
 void FunctionThatThrows();
 int init_heat();
 void free(void *ptr);
