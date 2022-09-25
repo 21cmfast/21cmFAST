@@ -14,8 +14,6 @@ Along with these, the module exposes ``global_params``, a singleton object of ty
 :class:`GlobalParams`, which is a simple class providing read/write access to a number of parameters
 used throughout the computation which are very rarely varied.
 """
-from __future__ import annotations
-
 import contextlib
 import logging
 import warnings
@@ -33,8 +31,8 @@ logger = logging.getLogger("21cmFAST")
 # Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
 # Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
 Planck18 = Planck15.clone(
-    Om0=(0.02242 + 0.11933) / 0.6766**2,
-    Ob0=0.02242 / 0.6766**2,
+    Om0=(0.02242 + 0.11933) / 0.6766 ** 2,
+    Ob0=0.02242 / 0.6766 ** 2,
     H0=67.66,
 )
 
@@ -505,12 +503,12 @@ class UserParams(StructWithDefaults):
     @property
     def tot_fft_num_pixels(self):
         """Total number of pixels in the high-res box."""
-        return self.DIM**3
+        return self.DIM ** 3
 
     @property
     def HII_tot_num_pixels(self):
         """Total number of pixels in the low-res box."""
-        return self.HII_DIM**3
+        return self.HII_DIM ** 3
 
     @property
     def POWER_SPECTRUM(self):
@@ -524,11 +522,12 @@ class UserParams(StructWithDefaults):
                 isinstance(self._POWER_SPECTRUM, str)
                 and self._POWER_SPECTRUM.upper() != "CLASS"
             ):
-                logger.warning(
-                    "Automatically setting POWER_SPECTRUM to 5 (CLASS) as you are using "
-                    "relative velocities"
-                )
-            return 5
+                # JSC debug note: this is flooding my outputs so I am turning this off for the moment
+                # logger.warning(
+                #     "Automatically setting POWER_SPECTRUM to 5 (CLASS) as you are using "
+                #     "relative velocities"
+                # )
+                return 5
         else:
             if isinstance(self._POWER_SPECTRUM, str):
                 val = self._power_models.index(self._POWER_SPECTRUM.upper())
@@ -537,7 +536,9 @@ class UserParams(StructWithDefaults):
 
             if not 0 <= val < len(self._power_models):
                 raise ValueError(
-                    f"Power spectrum must be between 0 and {len(self._power_models) - 1}"
+                    "Power spectrum must be between 0 and {}".format(
+                        len(self._power_models) - 1
+                    )
                 )
 
             return val
@@ -555,8 +556,8 @@ class UserParams(StructWithDefaults):
 
         try:
             val = int(val)
-        except (ValueError, TypeError) as e:
-            raise ValueError("Invalid value for HMF") from e
+        except (ValueError, TypeError):
+            raise ValueError("Invalid value for HMF")
 
         if not 0 <= val < len(self._hmf_models):
             raise ValueError(
@@ -578,12 +579,13 @@ class UserParams(StructWithDefaults):
     @property
     def FAST_FCOLL_TABLES(self):
         """Check that USE_INTERPOLATION_TABLES is True."""
-        if not self._FAST_FCOLL_TABLES or self.USE_INTERPOLATION_TABLES:
+        if self._FAST_FCOLL_TABLES and not self.USE_INTERPOLATION_TABLES:
+            logger.warning(
+                "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES."
+            )
+            return False
+        else:
             return self._FAST_FCOLL_TABLES
-        logger.warning(
-            "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES."
-        )
-        return False
 
 
 class FlagOptions(StructWithDefaults):
@@ -644,65 +646,89 @@ class FlagOptions(StructWithDefaults):
         "FIX_VCB_AVG": False,
     }
 
+    # This checks if relative velocities are off to complain if minihaloes are on
+    def __init__(
+        self,
+        *args,
+        USE_VELS_AUX=UserParams._defaults_["USE_RELATIVE_VELOCITIES"],
+        **kwargs,
+    ):
+        # TODO: same as with inhomo_reco. USE_VELS_AUX used to check that relvels are on if MCGs are too
+        self.USE_VELS_AUX = USE_VELS_AUX
+        super().__init__(*args, **kwargs)
+        if self.USE_MINI_HALOS and not self.USE_VELS_AUX and not self.FIX_VCB_AVG:
+            logger.warning(
+                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
+            )
+
     @property
     def USE_HALO_FIELD(self):
         """Automatically setting USE_MASS_DEPENDENT_ZETA to False if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or not self._USE_HALO_FIELD:
+        if self.USE_MINI_HALOS and self._USE_HALO_FIELD:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
+                "Automatically setting USE_HALO_FIELD to False."
+            )
+            return False
+        else:
             return self._USE_HALO_FIELD
-        logger.warning(
-            "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
-            "Automatically setting USE_HALO_FIELD to False."
-        )
-        return False
 
     @property
     def M_MIN_in_Mass(self):
         """Whether minimum halo mass is defined in mass or virial temperature."""
-        return True if self.USE_MASS_DEPENDENT_ZETA else self._M_MIN_in_Mass
+        if self.USE_MASS_DEPENDENT_ZETA:
+            return True
+
+        else:
+            return self._M_MIN_in_Mass
 
     @property
     def USE_MASS_DEPENDENT_ZETA(self):
         """Automatically setting USE_MASS_DEPENDENT_ZETA to True if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or self._USE_MASS_DEPENDENT_ZETA:
+        if self.USE_MINI_HALOS and not self._USE_MASS_DEPENDENT_ZETA:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA to False! "
+                "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
+            )
+            return True
+        else:
             return self._USE_MASS_DEPENDENT_ZETA
-        logger.warning(
-            "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA to False! "
-            "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
-        )
-        return True
 
     @property
     def INHOMO_RECO(self):
         """Automatically setting INHOMO_RECO to True if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or self._INHOMO_RECO:
+        if self.USE_MINI_HALOS and not self._INHOMO_RECO:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
+                "Automatically setting INHOMO_RECO to True."
+            )
+            return True
+        else:
             return self._INHOMO_RECO
-        logger.warning(
-            "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
-            "Automatically setting INHOMO_RECO to True."
-        )
-        return True
 
     @property
     def USE_TS_FLUCT(self):
         """Automatically setting USE_TS_FLUCT to True if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or self._USE_TS_FLUCT:
+        if self.USE_MINI_HALOS and not self._USE_TS_FLUCT:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
+                "Automatically setting USE_TS_FLUCT to True."
+            )
+            return True
+        else:
             return self._USE_TS_FLUCT
-        logger.warning(
-            "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
-            "Automatically setting USE_TS_FLUCT to True."
-        )
-        return True
 
     @property
     def PHOTON_CONS(self):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or not self._PHOTON_CONS:
+        if self.USE_MINI_HALOS and self._PHOTON_CONS:
+            logger.warning(
+                "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
+                "Automatically setting PHOTON_CONS to False."
+            )
+            return False
+        else:
             return self._PHOTON_CONS
-        logger.warning(
-            "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
-            "Automatically setting PHOTON_CONS to False."
-        )
-        return False
 
 
 class AstroParams(StructWithDefaults):
@@ -798,6 +824,37 @@ class AstroParams(StructWithDefaults):
         Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Sec 2 of Muñoz+21 (2110.13919).
     A_VCB, BETA_VCB: float, optional
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Sec 2 of Muñoz+21 (2110.13919).
+    fR: float, optional
+        Radio efficiency for galaxies, normalised to 1 for modern day galaxies,
+        Set fR<0.1 (can be negative) to turn off radio emission
+    aR: float, optional
+        Power-law energy spectra index
+    fR_mini: float, optional
+        Radio efficiency for molecularly cooling galaxies (MCG) in mini-halos, normalised to 1 for modern day galaxies,
+        Requires USE_MINI_HALOS=T, set fR_mini<0.1 (can be negative) to turn off radio emission
+    aR_mini: float, optional
+        Power-law energy spectra index for mini-halos
+    log10_mbh: float, optional
+        log10 of PBH birth mass in msun
+        Set to [-20, -15.3] automatically turns on Hawking radiation following 2108.13256
+    log10_fbh: float, optional
+        log10 of PBH fraction, i.e. rho_PBH/rho_dm
+        Allowed range: [-Inf, 0]. Set to below -100 to turn off PBH (both radio and Hawking), log10_fbh > 0.01 triggers error
+    bh_aR: float, optional
+        Radio power-law spectra index
+    bh_fX: float, optional
+        PBH X-ray emission efficiency
+    bh_fR: float, optional
+        PBH radio emission efficiency, typical value is 1
+    bh_lambda: float, optional
+        PBH accretion efficiency
+    bh_Eta: float, optional
+        PBH emission efficiency, i.e. fraction of accreted mass that ends up being emitted
+    bh_spin: float, optional
+        Reduced initial Kerr spin for PBHs, see 2108.13256
+        Allowed range: [0,1)
+    Radio_Zmin: float, optional
+        Kill radio emmisivity below this redshift, a phenomenological param motivated by ARCADE2 upper limit
     """
 
     _ffi = ffi
@@ -826,6 +883,20 @@ class AstroParams(StructWithDefaults):
         "BETA_LW": 0.6,
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
+        # Radio excess and PBH params
+        "fR":0.0,
+        "aR":0.7,
+        "fR_mini":0.0,
+        "aR_mini":0.7,
+        "log10_mbh":1,
+        "log10_fbh":-120,
+        "bh_aR":0.6,
+        "bh_fX":0.1,
+        "bh_fR":1,
+        "bh_lambda":0.1,
+        "bh_Eta":0.1,
+        "bh_spin":0.0,
+        "Radio_Zmin":0,
     }
 
     def __init__(
@@ -849,7 +920,7 @@ class AstroParams(StructWithDefaults):
             "L_X_MINI",
             "X_RAY_Tvir_MIN",
         ]:
-            return 10**val
+            return 10 ** val
         else:
             return val
 
@@ -858,18 +929,19 @@ class AstroParams(StructWithDefaults):
         """Maximum radius of bubbles to be searched. Set dynamically."""
         if not self._R_BUBBLE_MAX:
             return 50.0 if self.INHOMO_RECO else 15.0
-        if self.INHOMO_RECO and self._R_BUBBLE_MAX != 50:
-            logger.warning(
-                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of INHOMO_RECO"
-            )
-        return self._R_BUBBLE_MAX
+        else:
+            if self.INHOMO_RECO and self._R_BUBBLE_MAX != 50:
+                logger.warning(
+                    "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
+                    "This is non-standard (but allowed), and usually occurs upon manual "
+                    "update of INHOMO_RECO"
+                )
+            return self._R_BUBBLE_MAX
 
     @property
     def X_RAY_Tvir_MIN(self):
         """Minimum virial temperature of X-ray emitting sources (unlogged and set dynamically)."""
-        return self._X_RAY_Tvir_MIN or self.ION_Tvir_MIN
+        return self._X_RAY_Tvir_MIN if self._X_RAY_Tvir_MIN else self.ION_Tvir_MIN
 
     @property
     def NU_X_THRESH(self):
@@ -907,51 +979,3 @@ class AstroParams(StructWithDefaults):
             raise ValueError("t_STAR must be above zero and less than or equal to one")
         else:
             return self._t_STAR
-
-
-class InputCrossValidationError(ValueError):
-    """Error when two parameters from different structs aren't consistent."""
-
-    pass
-
-
-def validate_all_inputs(
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    astro_params: AstroParams | None = None,
-    flag_options: FlagOptions | None = None,
-):
-    """Cross-validate input parameters from different structs.
-
-    The input params may be modified in-place in this function, but if so, a warning
-    should be emitted.
-    """
-    if astro_params is not None:
-        if astro_params.R_BUBBLE_MAX > user_params.BOX_LEN:
-            astro_params.update(R_BUBBLE_MAX=user_params.BOX_LEN)
-            warnings.warn(
-                f"Setting R_BUBBLE_MAX to BOX_LEN (={user_params.BOX_LEN} as it doesn't make sense for it to be larger."
-            )
-
-        if (
-            global_params.HII_FILTER == 1
-            and astro_params.R_BUBBLE_MAX > user_params.BOX_LEN / 3
-        ):
-            msg = (
-                "Your R_BUBBLE_MAX is > BOX_LEN/3 "
-                f"({astro_params.R_BUBBLE_MAX} > {user_params.BOX_LEN/3})."
-            )
-
-            if config["ignore_R_BUBBLE_MAX_error"]:
-                warnings.warn(msg)
-            else:
-                raise ValueError(msg)
-
-    if flag_options is not None and (
-        flag_options.USE_MINI_HALOS
-        and not user_params.USE_RELATIVE_VELOCITIES
-        and not flag_options.FIX_VCB_AVG
-    ):
-        logger.warning(
-            "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
-        )
