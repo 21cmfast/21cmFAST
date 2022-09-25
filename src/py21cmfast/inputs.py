@@ -1,6 +1,5 @@
 """
 Input parameter classes.
-note MSG from JSC: testing
 
 There are four input parameter/option classes, not all of which are required for any
 given function. They are :class:`UserParams`, :class:`CosmoParams`, :class:`AstroParams`
@@ -797,6 +796,37 @@ class AstroParams(StructWithDefaults):
         Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Sec 2 of Muñoz+21 (2110.13919).
     A_VCB, BETA_VCB: float, optional
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Sec 2 of Muñoz+21 (2110.13919).
+    fR: float, optional
+        Radio efficiency for galaxies, normalised to 1 for modern day galaxies,
+        Set fR<0.1 (can be negative) to turn off radio emission
+    aR: float, optional
+        Power-law energy spectra index
+    fR_mini: float, optional
+        Radio efficiency for molecularly cooling galaxies (MCG) in mini-halos, normalised to 1 for modern day galaxies,
+        Requires USE_MINI_HALOS=T, set fR_mini<0.1 (can be negative) to turn off radio emission
+    aR_mini: float, optional
+        Power-law energy spectra index for mini-halos
+    log10_mbh: float, optional
+        log10 of PBH birth mass in msun
+        Set to [-20, -15.3] automatically turns on Hawking radiation following 2108.13256
+    log10_fbh: float, optional
+        log10 of PBH fraction, i.e. rho_PBH/rho_dm
+        Allowed range: [-Inf, 0]. Set to below -100 to turn off PBH (both radio and Hawking), log10_fbh > 0.01 triggers error
+    bh_aR: float, optional
+        Radio power-law spectra index
+    bh_fX: float, optional
+        PBH X-ray emission efficiency
+    bh_fR: float, optional
+        PBH radio emission efficiency, typical value is 1
+    bh_lambda: float, optional
+        PBH accretion efficiency
+    bh_Eta: float, optional
+        PBH emission efficiency, i.e. fraction of accreted mass that ends up being emitted
+    bh_spin: float, optional
+        Reduced initial Kerr spin for PBHs, see 2108.13256
+        Allowed range: [0,1)
+    Radio_Zmin: float, optional
+        Turn off radio emmisivity below this redshift, a phenomenological param motivated by ARCADE2 upper limit
     """
 
     _ffi = ffi
@@ -825,6 +855,20 @@ class AstroParams(StructWithDefaults):
         "BETA_LW": 0.6,
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
+        # Radio excess and PBH params
+        "fR":0.0,
+        "aR":0.7,
+        "fR_mini":0.0,
+        "aR_mini":0.7,
+        "log10_mbh":1,
+        "log10_fbh":-120,
+        "bh_aR":0.6,
+        "bh_fX":0.1,
+        "bh_fR":1,
+        "bh_lambda":0.1,
+        "bh_Eta":0.1,
+        "bh_spin":0.0,
+        "Radio_Zmin":0,
     }
 
     def __init__(
