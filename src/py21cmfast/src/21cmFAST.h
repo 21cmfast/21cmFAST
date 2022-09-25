@@ -67,7 +67,7 @@ struct AstroParams
 
     // Parameters for Radio Background and PBH
     // Added by Junsong Cang
-    float fR; // Radio efficiency 
+    float fR; // Radio efficiency
     float aR; // Radio SED power index
     float fR_mini; // Radio efficiency for mini halo
     float aR_mini; // Radio SED power index for minihalo

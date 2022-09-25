@@ -2071,7 +2071,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     Delta_Max = 0.0;
                     // Some numbers for Radio_PBH_Fid_EMS_Halo function
                     if (Use_Radio_PBH)
-                    {   
+                    {
                         // Radio_PBH_Fid_EMS_Halo integration upper limit
                         Maximum_Mh = RtoM(R_values[R_ct]);
                         // Maximum sigma for Conditional_HMF function in Radio_PBH_Fid_EMS_Halo
@@ -2596,7 +2596,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                         {
                                             Radio_dzpp = 0.0;
                                         }
-                                        
+
                                         // Frequency scaling factor
                                         nu_factor = pow((1 + zpp_for_evolve_list[R_ct]) / (1 + redshift), - astro_params->bh_aR);
                                         // I want the EMS at this frequency

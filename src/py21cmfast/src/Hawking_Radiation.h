@@ -279,4 +279,3 @@ double Set_ICs_z35(double mbh, double fbh, int Type)
 	}
 	return r;
 }
-

@@ -14,7 +14,7 @@
 #define debug_mode 1
 
 // Some numerical settings for the radio BKG table
-#define Integration_TimeStep 2000 
+#define Integration_TimeStep 2000
 #define PBH_Table_Size 100
 #define RadioTab_Zmin 0
 #define RadioTab_Zmax 60

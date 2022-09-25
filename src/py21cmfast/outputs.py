@@ -411,7 +411,7 @@ class TsBox(_AllParamsBox):
             "Tk_box": shape,
             "J_21_LW_box": shape,
             "Trad_box": shape,
-            "SFRD_box":shape,
+            "SFRD_box": shape,
         }
 
     @cached_property
@@ -428,9 +428,7 @@ class TsBox(_AllParamsBox):
     def global_Trad(self):
         """Global Radio Temp"""
         if "Trad_box" not in self._computed_arrays:
-            raise AttributeError(
-                "Something went wrong, maybe Trad not computed?"
-            )
+            raise AttributeError("Something went wrong, maybe Trad not computed?")
         else:
             return np.mean(self.Trad_box)
 
