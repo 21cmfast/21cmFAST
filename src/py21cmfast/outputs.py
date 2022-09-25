@@ -11,6 +11,8 @@ parameter objects necessary to define it.
              as output objects from the various functions contained here. Only the data
              within the objects should be accessed.
 """
+from __future__ import annotations
+
 import h5py
 import numpy as np
 import os
@@ -125,7 +127,7 @@ class InitialConditions(_OutputStruct):
             keep.append("lowres_vcb")
         self.prepare(keep=keep, force=force)
 
-    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         shape = (self.user_params.HII_DIM,) * 3
         hires_shape = (self.user_params.DIM,) * 3
 
@@ -157,7 +159,7 @@ class InitialConditions(_OutputStruct):
 
         return out
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         return []
 
@@ -201,13 +203,13 @@ class PerturbedField(_OutputStructZ):
         "NU_X_MAX",  # ib
     ]
 
-    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         return {
             "density": (self.user_params.HII_DIM,) * 3,
             "velocity": (self.user_params.HII_DIM,) * 3,
         }
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
 
@@ -263,8 +265,8 @@ class _AllParamsBox(_OutputStructZ):
     def __init__(
         self,
         *,
-        astro_params: Optional[AstroParams] = None,
-        flag_options: Optional[FlagOptions] = None,
+        astro_params: AstroParams | None = None,
+        flag_options: FlagOptions | None = None,
         first_box: bool = False,
         **kwargs,
     ):
@@ -298,7 +300,7 @@ class HaloField(_AllParamsBox):
     )
     _c_compute_function = lib.ComputeHaloField
 
-    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         return {}
 
     def _c_shape(self, cstruct):
@@ -312,7 +314,7 @@ class HaloField(_AllParamsBox):
             "sqrtdn_dlm": (cstruct.n_mass_bins,),
         }
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         if isinstance(input_box, InitialConditions):
             return ["hires_density"]
@@ -340,7 +342,7 @@ class PerturbHaloField(_AllParamsBox):
     _c_compute_function = lib.ComputePerturbHaloField
     _c_based_pointers = ("halo_masses", "halo_coords")
 
-    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         return {}
 
     def _c_shape(self, cstruct):
@@ -349,7 +351,7 @@ class PerturbHaloField(_AllParamsBox):
             "halo_coords": (cstruct.n_halos, 3),
         }
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
@@ -393,15 +395,15 @@ class TsBox(_AllParamsBox):
     def __init__(
         self,
         *,
-        prev_spin_redshift: Optional[float] = None,
-        perturbed_field_redshift: Optional[float] = None,
+        prev_spin_redshift: float | None = None,
+        perturbed_field_redshift: float | None = None,
         **kwargs,
     ):
         self.prev_spin_redshift = prev_spin_redshift
         self.perturbed_field_redshift = perturbed_field_redshift
         super().__init__(**kwargs)
 
-    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         shape = (self.user_params.HII_DIM,) * 3
         return {
             "Ts_box": shape,
@@ -409,7 +411,6 @@ class TsBox(_AllParamsBox):
             "Tk_box": shape,
             "J_21_LW_box": shape,
             "Trad_box": shape,
-            # Warning: a very inefficient way of caching SFRD array
             "SFRD_box":shape,
         }
 
@@ -453,7 +454,7 @@ class TsBox(_AllParamsBox):
         else:
             return np.mean(self.x_e_box)
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
@@ -513,11 +514,11 @@ class IonizedBox(_AllParamsBox):
     _c_compute_function = lib.ComputeIonizedBox
     _inputs = _AllParamsBox._inputs + ("prev_ionize_redshift",)
 
-    def __init__(self, *, prev_ionize_redshift: Optional[float] = None, **kwargs):
+    def __init__(self, *, prev_ionize_redshift: float | None = None, **kwargs):
         self.prev_ionize_redshift = prev_ionize_redshift
         super().__init__(**kwargs)
 
-    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         if self.flag_options.USE_MINI_HALOS:
             n_filtering = (
                 int(
@@ -568,7 +569,7 @@ class IonizedBox(_AllParamsBox):
         else:
             return np.mean(self.xH_box)
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
@@ -580,7 +581,7 @@ class IonizedBox(_AllParamsBox):
         elif isinstance(input_box, PerturbedField):
             required += ["density"]
         elif isinstance(input_box, TsBox):
-            required += ["J_21_LW_box", "x_e_box", "Tk_box","Trad_box","SFRD_box"]
+            required += ["J_21_LW_box", "x_e_box", "Tk_box", "Trad_box", "SFRD_box"]
         elif isinstance(input_box, IonizedBox):
             required += ["z_re_box", "Gamma12_box"]
             if self.flag_options.INHOMO_RECO:
@@ -638,7 +639,7 @@ class BrightnessTemp(_AllParamsBox):
     _meta = False
     _filter_params = _OutputStructZ._filter_params
 
-    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         return {"brightness_temp": (self.user_params.HII_DIM,) * 3}
 
     @cached_property
@@ -651,7 +652,7 @@ class BrightnessTemp(_AllParamsBox):
         else:
             return np.mean(self.brightness_temp)
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, PerturbedField):
@@ -750,10 +751,10 @@ class _HighLevelOutput:
 
     def gather(
         self,
-        fname: Union[str, None, Path] = None,
-        kinds: Union[Sequence, None] = None,
-        clean: Union[bool, dict] = False,
-        direc: Union[str, Path, None] = None,
+        fname: str | None | Path = None,
+        kinds: Sequence | None = None,
+        clean: bool | dict = False,
+        direc: str | Path | None = None,
     ) -> Path:
         """Gather the cached data associated with this object into its file."""
         kinds = kinds or [
@@ -984,8 +985,8 @@ class Coeval(_HighLevelOutput):
         perturbed_field: PerturbedField,
         ionized_box: IonizedBox,
         brightness_temp: BrightnessTemp,
-        ts_box: Union[TsBox, None] = None,
-        cache_files: Union[dict, None] = None,
+        ts_box: TsBox | None = None,
+        cache_files: dict | None = None,
         photon_nonconservation_data=None,
         _globals=None,
     ):
@@ -1025,7 +1026,7 @@ class Coeval(_HighLevelOutput):
                 setattr(self, field, getattr(box, field))
 
     @classmethod
-    def get_fields(cls, spin_temp: bool = True) -> List[str]:
+    def get_fields(cls, spin_temp: bool = True) -> list[str]:
         """Obtain a list of name of simulation boxes saved in the Coeval object."""
         pointer_fields = []
         for cls in [InitialConditions, PerturbedField, IonizedBox, BrightnessTemp]:
@@ -1123,8 +1124,10 @@ class LightCone(_HighLevelOutput):
         node_redshifts=None,
         global_quantities=None,
         photon_nonconservation_data=None,
-        cache_files: Union[dict, None] = None,
+        cache_files: dict | None = None,
         _globals=None,
+        log10_mturnovers=None,
+        log10_mturnovers_mini=None,
     ):
         self.redshift = redshift
         self.random_seed = random_seed
@@ -1134,6 +1137,8 @@ class LightCone(_HighLevelOutput):
         self.flag_options = flag_options
         self.node_redshifts = node_redshifts
         self.cache_files = cache_files
+        self.log10_mturnovers = log10_mturnovers
+        self.log10_mturnovers_mini = log10_mturnovers_mini
 
         # A *copy* of the current global parameters.
         self.global_params = _globals or dict(global_params.items())
