@@ -2837,6 +2837,8 @@ def run_lightcone(
             lightcone.save(lightcone_filename)
 
         for iz, z in enumerate(scrollz):
+            logger.info(f"Computing Redshift {z} ({iz+1}/{len(scrollz)}) iterations.")
+
             # Best to get a perturb for this redshift, to pass to brightness_temperature
             pf2 = perturb[iz]
 

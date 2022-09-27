@@ -810,7 +810,11 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         if flush is not None and keep is None:
             keep = [k for k in self._array_state if k not in flush]
         elif keep is not None and flush is None:
-            flush = [k for k in self._array_state if k not in keep]
+            flush = [
+                k
+                for k in self._array_state
+                if k not in keep and self._array_state[k].initialized
+            ]
 
         flush = flush or []
         keep = keep or []
@@ -1154,7 +1158,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         """
         if not isinstance(fname, (h5py.File, h5py.Group)):
             pth = self._get_path(direc, fname)
-            logger.info(f"{pth} {Path(pth).exists()}")
             fl = h5py.File(pth, "r")
         else:
             fl = fname

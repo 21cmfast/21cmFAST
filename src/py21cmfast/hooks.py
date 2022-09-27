@@ -20,15 +20,15 @@ from .outputs import BrightnessTemp, _OutputStruct
 
 
 def rolling_cache(
-    box: _OutputStruct, cache_dir: Union[str, Path] = None, keep: tuple[str] = ()
+    box: _OutputStruct, direc: Union[str, Path] = None, keep: tuple[str] = ()
 ):
     """A cache in which only required boxes for checkpoint restarts are kept."""
-    cache_dir = Path(cache_dir or config["direc"])
-    box.write(direc=cache_dir)
+    direc = Path(direc or config["direc"])
+    box.write(direc=direc)
 
     if isinstance(box, BrightnessTemp):
         boxes = get_boxes_at_redshift(
-            direc=cache_dir,
+            direc=direc,
             redshift=(box.redshift, np.inf),
             user_params=box.user_params,
             cosmo_params=box.cosmo_params,
@@ -49,4 +49,4 @@ def rolling_cache(
                 continue
 
             for bx in bxs[2:]:
-                (cache_dir / bx.filename).unlink()
+                (direc / bx.filename).unlink()
