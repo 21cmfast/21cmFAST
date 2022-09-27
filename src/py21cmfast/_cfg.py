@@ -39,7 +39,10 @@ class Config(dict):
         for k, v in self._defaults.items():
             if k not in self:
                 if k not in self._aliases:
-                    warnings.warn("Your configuration file is out of date. Updating...")
+                    if self.file_name:
+                        warnings.warn(
+                            "Your configuration file is out of date. Updating..."
+                        )
                     do_write = True
                     self[k] = v
 
@@ -55,9 +58,10 @@ class Config(dict):
                             del self[alias]
                             break
                     else:
-                        warnings.warn(
-                            "Your configuration file is out of date. Updating..."
-                        )
+                        if self.file_name:
+                            warnings.warn(
+                                "Your configuration file is out of date. Updating..."
+                            )
                         do_write = True
                         self[k] = v
 
@@ -70,7 +74,10 @@ class Config(dict):
         self["direc"] = Path(self["direc"]).expanduser().absolute()
 
         if do_write and write and self.file_name:
-            self.write()
+            try:
+                self.write()
+            except Exception:
+                pass  # sometimes you don't have permission to write to the default.
 
     @contextlib.contextmanager
     def use(self, **kwargs):
@@ -84,8 +91,7 @@ class Config(dict):
 
     def write(self, fname: str | Path | None = None):
         """Write current configuration to file to make it permanent."""
-        fname = Path(fname or self.file_name)
-        if fname:
+        if fname := Path(fname or self.file_name):
             if not fname.parent.exists():
                 fname.parent.mkdir(parents=True)
 
@@ -106,7 +112,7 @@ class Config(dict):
                 cfg = yaml.load(fl)
             return cls(cfg, file_name=file_name)
         else:
-            return cls(write=False)
+            return cls(write=True)
 
 
 config = Config.load(Path("~/.21cmfast/config.yml"))

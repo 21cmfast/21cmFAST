@@ -1134,7 +1134,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                     zpp_gridpoint2_int = zpp_gridpoint1_int + 1;
 
                     if(zpp_gridpoint1_int < 0 || (zpp_gridpoint1_int + 1) > (zpp_interp_points_SFR - 1)) {
-                        LOG_ERROR("I have overstepped my allocated memory for the interpolation table fcoll_R_grid");
+                        LOG_ERROR("I have overstepped my allocated memory for the interpolation table fcoll_R_grid. Have zpp_gridpoint=%d, and Npoints=%d", zpp_gridpoint1_int, zpp_interp_points_SFR);
 //                        Throw(ParameterError);
                         Throw(TableEvaluationError);
                     }

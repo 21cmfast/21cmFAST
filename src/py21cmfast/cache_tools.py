@@ -5,11 +5,12 @@ import logging
 import os
 import re
 import warnings
+from collections import defaultdict
 from os import path
+from typing import Union
 
-from . import outputs, wrapper
+from . import outputs
 from ._cfg import config
-from .wrapper import global_params
 
 logger = logging.getLogger("21cmFAST")
 
@@ -189,6 +190,56 @@ def query_cache(
         if show:
             print(file + ": " + str(cls))  # noqa: T
         yield file, cls
+
+
+def get_boxes_at_redshift(
+    redshift: Union[float, tuple[float, float]],
+    seed=None,
+    direc=None,
+    user_params=None,
+    cosmo_params=None,
+    astro_params=None,
+    flag_options=None,
+) -> defaultdict[str, outputs._OutputStruct]:
+    """Retrieve objects for each file in cache within given redshift bounds."""
+    if not hasattr(redshift, "__len__"):
+        redshift = (redshift / 1.001, redshift * 1.001)
+
+    out = defaultdict(list)
+    for file in list_datasets(direc=direc, seed=seed):
+        try:
+            obj = readbox(direc=direc, fname=file, load_data=False)
+        except OSError:
+            warnings.warn(f"Failed to read {file}")
+            pass
+
+        if (
+            hasattr(obj, "redshift")
+            and (redshift[0] <= obj.redshift < redshift[1])
+            and (
+                user_params is None
+                or not hasattr(obj, "user_params")
+                or user_params == obj.user_params
+            )
+            and (
+                cosmo_params is None
+                or not hasattr(obj, "cosmo_params")
+                or cosmo_params == obj.cosmo_params
+            )
+            and (
+                astro_params is None
+                or not hasattr(obj, "astro_params")
+                or astro_params == obj.astro_params
+            )
+            and (
+                flag_options is None
+                or not hasattr(obj, "flag_options")
+                or flag_options == obj.flag_options
+            )
+        ):
+            out[obj.__class__.__name__].append(obj)
+
+    return out
 
 
 def clear_cache(**kwargs):

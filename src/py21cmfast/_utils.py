@@ -672,7 +672,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             if pth.exists():
                 return pth
 
-        logger.info("All paths that defined {self} have been deleted on disk.")
+        logger.info(f"All paths that defined {self} have been deleted on disk.")
         return None
 
     @abstractmethod
@@ -827,7 +827,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         state = self._array_state[k]
 
         if not state.initialized:
-            warnings.warn(f"Trying to remove array that isn't yet created: {k}")
+            if k in self._array_structure:  # Don't warn if array isn't even needed.
+                warnings.warn(f"Trying to remove array that isn't yet created: {k}")
             return
 
         if state.computed_in_mem and not state.on_disk and not force:
@@ -1123,7 +1124,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         if fname is None:
             pth = self.find_existing(direc)
-
             if pth is None:
                 raise OSError("No boxes exist for these parameters.")
         else:
@@ -1154,6 +1154,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         """
         if not isinstance(fname, (h5py.File, h5py.Group)):
             pth = self._get_path(direc, fname)
+            logger.info(f"{pth} {Path(pth).exists()}")
             fl = h5py.File(pth, "r")
         else:
             fl = fname
