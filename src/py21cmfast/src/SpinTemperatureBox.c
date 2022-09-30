@@ -1,6 +1,5 @@
-#include "JSC.h"
+#include "RadioExcess.h"
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
-// Note for JSC: Anything that begins with Radio or Hawking are my modules
 
 // Grids/arrays that only need to be initialised once (i.e. the lowest redshift density cube to be sampled)
 double ***fcoll_R_grid, ***dfcoll_dz_grid;

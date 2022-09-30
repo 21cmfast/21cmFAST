@@ -141,7 +141,7 @@ struct TsBox
     float *x_e_box;
     float *Tk_box;
     float *J_21_LW_box;
-    // For Inhomogeneous Radio Background, added by jsc
+    // Boxes for Inhomogeneous Radio Background
     float *Trad_box;
     // For averaged quantities from previous boxes, to be updated at every z step
     // SFRD_box[0] specifies box length
