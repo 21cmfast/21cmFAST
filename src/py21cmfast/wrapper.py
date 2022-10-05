@@ -2803,6 +2803,9 @@ def run_lightcone(
 
         # Iterate through redshift from top to bottom
         if lightcone.redshift != lightcone._current_redshift:
+            logger.info(
+                f"Finding boxes at z={lightcone._current_redshift} with seed {lightcone.random_seed} and direc={direc}"
+            )
             cached_boxes = get_boxes_at_redshift(
                 redshift=lightcone._current_redshift,
                 seed=lightcone.random_seed,
