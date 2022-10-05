@@ -165,6 +165,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     }
 
     // Initialise arrays to be used for the Ts.c computation //
+    // TODO_HALOS: Need another FFT box here for the SFR halo boxes
     fftwf_complex *box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     fftwf_complex *log10_Mcrit_LW_unfiltered, *log10_Mcrit_LW_filtered;

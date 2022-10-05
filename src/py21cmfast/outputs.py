@@ -410,6 +410,55 @@ class PerturbHaloField(_AllParamsBox):
             hooks=hooks,
         )
 
+class HaloBox(_AllParamsBox):
+    """A class containing all gridded halo properties"""
+
+    _meta = False
+    _c_compute_function = lib.ComputeHaloBox
+    _inputs = _AllParamsBox._inputs
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        shape = (self.user_params.HII_DIM,) * 3
+
+        out = {
+            "halo_mass": shape,
+            "wstar_mass": shape,
+            "whalo_sfr": shape,
+        }
+
+        return out
+
+
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, PerturbHaloField):
+            required += ["halo_coords", "halo_masses", "stellar_masses","halo_sfr"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for HaloBox!"
+            )
+
+        return required
+
+    def compute(
+        self,
+        *,
+        pt_halos: PerturbHaloField,
+        hooks: dict,
+    ):
+        """Compute the function."""
+        return self._compute(
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            pt_halos,
+            hooks=hooks,
+        )
+
 
 class TsBox(_AllParamsBox):
     """A class containing all spin temperature boxes."""
@@ -605,8 +654,8 @@ class IonizedBox(_AllParamsBox):
                 and self.flag_options.USE_MINI_HALOS
             ):
                 required += ["Fcoll", "Fcoll_MINI"]
-        elif isinstance(input_box, PerturbHaloField):
-            required += ["halo_coords", "halo_masses", "stellar_masses"]
+        elif isinstance(input_box, HaloBox):
+            required += ["halo_mass", "wstar_mass"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for IonizedBox!"
@@ -621,7 +670,7 @@ class IonizedBox(_AllParamsBox):
         prev_perturbed_field: PerturbedField,
         prev_ionize_box,
         spin_temp: TsBox,
-        pt_halos: PerturbHaloField,
+        halobox: HaloBox,
         ics: InitialConditions,
         hooks: dict,
     ):
@@ -637,56 +686,8 @@ class IonizedBox(_AllParamsBox):
             prev_perturbed_field,
             prev_ionize_box,
             spin_temp,
-            pt_halos,
+            halobox,
             ics,
-            hooks=hooks,
-        )
-
-class HaloBox(_AllParamsBox):
-    """A class containing all gridded halo properties"""
-
-    _meta = False
-    _c_compute_function = lib.ComputeHaloBox
-    _inputs = _AllParamsBox._inputs
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
-        shape = (self.user_params.HII_DIM,) * 3
-
-        out = {
-            "halo_mass": shape,
-            "star_mass": shape,
-            "halo_sfr": shape,
-        }
-
-        return out
-
-
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
-        """Return all input arrays required to compute this object."""
-        required = []
-        if isinstance(input_box, PerturbHaloField):
-            required += ["halo_coords", "halo_masses", "stellar_masses","halo_sfr"]
-        else:
-            raise ValueError(
-                f"{type(input_box)} is not an input required for HaloBox!"
-            )
-
-        return required
-
-    def compute(
-        self,
-        *,
-        pt_halos: PerturbHaloField,
-        hooks: dict,
-    ):
-        """Compute the function."""
-        return self._compute(
-            self.user_params,
-            self.cosmo_params,
-            pt_halos,
             hooks=hooks,
         )
 
@@ -801,6 +802,7 @@ class _HighLevelOutput:
         kinds = {
             "init": InitialConditions,
             "perturb_field": PerturbedField,
+            "halobox": HaloBox,
             "ionized_box": IonizedBox,
             "spin_temp": TsBox,
             "brightness_temp": BrightnessTemp,
@@ -820,6 +822,7 @@ class _HighLevelOutput:
         kinds = kinds or [
             "init",
             "perturb_field",
+            "halobox",
             "ionized_box",
             "spin_temp",
             "brightness_temp",
@@ -1045,6 +1048,7 @@ class Coeval(_HighLevelOutput):
         perturbed_field: PerturbedField,
         ionized_box: IonizedBox,
         brightness_temp: BrightnessTemp,
+        halobox: Union[HaloBox, None] = None,
         ts_box: Union[TsBox, None] = None,
         cache_files: Union[dict, None] = None,
         photon_nonconservation_data=None,
@@ -1053,6 +1057,7 @@ class Coeval(_HighLevelOutput):
         _check_compatible_inputs(
             initial_conditions,
             perturbed_field,
+            halobox,
             ionized_box,
             brightness_temp,
             ts_box,
@@ -1064,6 +1069,7 @@ class Coeval(_HighLevelOutput):
         self.perturb_struct = perturbed_field
         self.ionization_struct = ionized_box
         self.brightness_temp_struct = brightness_temp
+        self.halobox_struct = halobox
         self.spin_temp_struct = ts_box
 
         self.cache_files = cache_files
@@ -1076,6 +1082,7 @@ class Coeval(_HighLevelOutput):
         for box in [
             initial_conditions,
             perturbed_field,
+            halobox,
             ionized_box,
             brightness_temp,
             ts_box,
@@ -1086,7 +1093,7 @@ class Coeval(_HighLevelOutput):
                 setattr(self, field, getattr(box, field))
 
     @classmethod
-    def get_fields(cls, spin_temp: bool = True) -> List[str]:
+    def get_fields(cls, spin_temp: bool = True, hbox: bool = True) -> List[str]:
         """Obtain a list of name of simulation boxes saved in the Coeval object."""
         pointer_fields = []
         for cls in [InitialConditions, PerturbedField, IonizedBox, BrightnessTemp]:
@@ -1094,6 +1101,9 @@ class Coeval(_HighLevelOutput):
 
         if spin_temp:
             pointer_fields += TsBox.get_pointer_fields()
+
+        if hbox:
+            pointer_fields += HaloBox.get_pointer_fields()
 
         return pointer_fields
 

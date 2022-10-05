@@ -2069,6 +2069,7 @@ double dNion_ConditionallnM_MINI(double lnM, void *params) {
 
     double Fstar,Fesc;
 
+    //Since this only has the Mass-scaling of Fesc, to set it to one we need the inverse here
     if (Alpha_star > 0. && M > Mlim_Fstar)
         Fstar = 1./Fstar7_MINI;
     else if (Alpha_star < 0. && M < Mlim_Fstar)
@@ -2104,6 +2105,7 @@ double dNion_ConditionallnM(double lnM, void *params) {
 
     double Fstar,Fesc;
 
+    //Since this only has the Mass-scaling of Fesc, to set it to one we need the inverse here
     if (Alpha_star > 0. && M > Mlim_Fstar)
         Fstar = 1./Fstar10;
     else if (Alpha_star < 0. && M < Mlim_Fstar)

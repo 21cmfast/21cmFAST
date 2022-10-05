@@ -24,7 +24,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                        struct PerturbedField *previous_perturbed_field,
                        struct IonizedBox *previous_ionize_box,
                        struct TsBox *spin_temp,
-                       struct PerturbHaloField *halos,
+                       struct HaloBox *halos,
                        struct InitialConditions *ini_boxes,
                        struct IonizedBox *box) {
 
@@ -528,44 +528,23 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
     if(flag_options->USE_HALO_FIELD) {
         stars_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         stars_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        //TODO:sfr needed later for Gamma12 and recomb
         //sfr_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         //sfr_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
-#pragma omp parallel shared(stars_unfiltered,sfr_unfiltered) private(ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(stars_unfiltered,sfr_unfiltered,halos) private(i,j,k) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
-            for (ct=0; ct<HII_TOT_FFT_NUM_PIXELS; ct++){
-                *((float *)stars_unfiltered + ct) = 0;
-                //*((float *)sfr_unfiltered + ct) = 0;
-            }
-        }
-
-#pragma omp parallel shared(stars_unfiltered,sfr_unfiltered,halos) \
-                    private(i_halo,x,y,z) num_threads(user_params->N_THREADS)
-        {
-            float halo_wstar,halo_wsfr;
-#pragma omp for
-            for (i_halo=0; i_halo<halos->n_halos; i_halo++){
-                x = halos->halo_coords[0+3*i_halo];
-                y = halos->halo_coords[1+3*i_halo];
-                z = halos->halo_coords[2+3*i_halo];
-
-                //weight by the f_esc scaling
-                //NOTE: to use the above ION_EFF_FACTOR we need to (redundantly) divide by the stellar fraction normalisation
-                halo_wstar = halos->stellar_masses[i_halo] / astro_params->F_STAR10 * pow(halos->halo_masses[i_halo]/1e10,astro_params->ALPHA_ESC);
-                halo_wsfr = halos->halo_sfr[i_halo] / astro_params->F_STAR10 * pow(halos->halo_masses[i_halo]/1e10,astro_params->ALPHA_ESC);
-
-                //build the grids
-#pragma omp atomic update
-                *((float *)stars_unfiltered + HII_R_FFT_INDEX(x, y, z)) += halo_wstar;
-//#pragma omp atomic update
-                //*((float *)sfr_unfiltered + HII_R_FFT_INDEX(x, y, z)) += halo_wsfr;
+            for (i=0; i<user_params->HII_DIM; i++){
+                for (j=0; j<user_params->HII_DIM; j++){
+                    for (k=0; k<user_params->HII_DIM; k++){
+                        *((float *)stars_unfiltered + HII_R_FFT_INDEX(i,j,k)) = halos->wstar_mass[HII_R_INDEX(i,j,k)];
+                        //*((float *)sfr_unfiltered + HII_R_FFT_INDEX(i,j,k)) = halos->whalo_sfr[HII_R_INDEX(i,j,k)];
+                    }
+                }
             }
         }
     } // end of the USE_HALO_FIELD option
-
-
-
 
     // lets check if we are going to bother with computing the inhmogeneous field at all...
     global_xH = 0.0;

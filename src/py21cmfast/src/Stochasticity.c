@@ -1233,19 +1233,25 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
 
 //This, for the moment, grids the PERTURBED halo catalogue.
 //TODO: make a way to output both types by making 2 wrappers to this function that pass in arrays rather than structs
-int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct PerturbHaloField *halos, struct HaloBox *grids){
-    LOG_DEBUG("Gridding %d halos...",halos->n_halos);
-    Broadcast_struct_global_UF(user_params,cosmo_params);
+int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct PerturbHaloField *halos, struct HaloBox *grids){
     int status;
     Try{
+        LOG_DEBUG("Gridding %d halos...",halos->n_halos);
+
+        //get parameters
+        Broadcast_struct_global_UF(user_params,cosmo_params);
+        double alpha_esc = astro_params->ALPHA_ESC;
+        double norm_esc = astro_params->F_ESC10;
+
 #pragma omp parallel num_threads(user_params->N_THREADS)
         {
             int i_halo,idx,x,y,z;
+            double m,wstar,wsfr,fesc;
 #pragma omp for
             for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
                 grids->halo_mass[idx] = 0.0;
-                grids->star_mass[idx] = 0.0;
-                grids->halo_sfr[idx] = 0.0;
+                grids->wstar_mass[idx] = 0.0;
+                grids->whalo_sfr[idx] = 0.0;
             }
 
 #pragma omp barrier
@@ -1256,12 +1262,23 @@ int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_par
                 y = halos->halo_coords[1+3*i_halo];
                 z = halos->halo_coords[2+3*i_halo];
 
+                m = halos->halo_masses[i_halo];
+
+                fesc = pow(m/1e10,alpha_esc);
+                
+                //This is normally done with the mass_limit_bisection root find. I have no idea why
+                //So I'm just checking directly here, ION_EFF_FACTOR in the other functions has the normalisation
+                if(fesc * norm_esc > 1.) fesc = 1/norm_esc;
+
+                wstar = halos->stellar_masses[i_halo]*fesc;
+                wsfr = halos->halo_sfr[i_halo]*fesc;
+
 #pragma omp atomic update
-                grids->halo_mass[HII_R_INDEX(x, y, z)] += halos->halo_masses[i_halo];
+                grids->halo_mass[HII_R_INDEX(x, y, z)] += m;
 #pragma omp atomic update
-                grids->star_mass[HII_R_INDEX(x, y, z)] += halos->stellar_masses[i_halo];
+                grids->wstar_mass[HII_R_INDEX(x, y, z)] += wstar;
 #pragma omp atomic update
-                grids->halo_sfr[HII_R_INDEX(x, y, z)] += halos->halo_sfr[i_halo];
+                grids->whalo_sfr[HII_R_INDEX(x, y, z)] += wsfr;
             }
         }
     }

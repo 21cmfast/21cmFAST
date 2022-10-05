@@ -295,7 +295,7 @@ class StructWrapper:
     @classmethod
     def get_pointer_fields(cls, cstruct=None) -> List[str]:
         """Obtain all pointer fields of the struct (typically simulation boxes)."""
-        return [f for f, t in cls.get_fields(cstruct) if t.type.kind == "pointer"]
+        return [f for f, t in cls.get_fields(cstruct).items() if t.type.kind == "pointer"]
 
     @property
     def fields(self) -> Dict[str, Any]:
