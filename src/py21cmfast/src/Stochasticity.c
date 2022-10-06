@@ -525,8 +525,7 @@ double minimum_source_mass(double redshift,struct AstroParams *astro_params, str
 }
 
 //This function adds stochastic halo properties to an existing halo
-/* For the grid output, this is called within the threaded grid loop, and for the catalogue output this is called after masses are calculated
- * In order to be able to thread both cases, this returns an array of properties for a single halo */
+//TODO: this needs to be updated to handle MINI_HALOS and not USE_MASS_DEPENDENT_ZETA flags
 int add_halo_properties(gsl_rng *rng, float halo_mass, float redshift, float * output){
     //for now, we just have stellar mass
     double f10 = astro_params_stoc->F_STAR10;
@@ -537,6 +536,13 @@ int add_halo_properties(gsl_rng *rng, float halo_mass, float redshift, float * o
     double sm_mean, sm_sample, mu_lognorm;
     double sfr_mean, sfr_sample;
 
+    //duty cycle
+    if(gsl_rng_uniform(rng) < exp(-astro_params_stoc->M_TURN/halo_mass)){
+        output[0] = 0.;
+        output[1] = 0.;
+        return 0;
+    }
+
     sm_mean = fmax(fmin(f10 * pow(halo_mass/1e10,fa),1),0) * halo_mass * (cosmo_params_stoc->OMb / cosmo_params_stoc->OMm); //f_star is galactic GAS/star fraction, so OMb is needed
     if(sigma_star > 0){
         //sample stellar masses from each halo mass assuming lognormal scatter
@@ -544,7 +550,7 @@ int add_halo_properties(gsl_rng *rng, float halo_mass, float redshift, float * o
 
         /* Simply adding lognormal scatter to a delta increases the mean (2* is as likely as 0.5*)
         * so mu (exp(mu) is the median) is set so that X = exp(u + N(0,1)*sigma) has the desired mean */
-        mu_lognorm = sm_mean * exp(-sigma_star*sigma_star/2);    
+        mu_lognorm = sm_mean * exp(-sigma_star*sigma_star/2);
         sm_sample = mu_lognorm * exp(sm_sample*sigma_star);
     }
     else{
