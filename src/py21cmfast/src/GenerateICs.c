@@ -825,21 +825,18 @@ int ComputeInitialConditions(
                                     *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
                                                                        (unsigned long long)(j),
                                                                       (unsigned long long)(k)));
-                                    // boxes->hires_vx[R_INDEX(i,j,k)] - (1./7.)*( boxes->hires_vx[R_INDEX(i,j,k)]*boxes->hires_vx[R_INDEX(i,j,k)] );
                                 }
                                 if(ii==1) {
                                     boxes->hires_vy_2LPT[R_INDEX(i,j,k)] =
                                     *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
                                                                        (unsigned long long)(j),
                                                                        (unsigned long long)(k)));
-                                    // boxes->hires_vy[R_INDEX(i,j,k)] - (1./7.)*( boxes->hires_vy[R_INDEX(i,j,k)]*boxes->hires_vy[R_INDEX(i,j,k)] );
                                 }
                                 if(ii==2) {
                                     boxes->hires_vz_2LPT[R_INDEX(i,j,k)] =
                                     *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
                                                                        (unsigned long long)(j),
                                                                        (unsigned long long)(k)));
-                                    // boxes->hires_vz[R_INDEX(i,j,k)] - (1./7.)*( boxes->hires_vz[R_INDEX(i,j,k)]*boxes->hires_vz[R_INDEX(i,j,k)] );
                                 }
                             }
                             else {
