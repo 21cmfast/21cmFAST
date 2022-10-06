@@ -155,6 +155,8 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
 
     int NO_LIGHT = 0;
 
+    int table_flag = flag_options->USE_INTERPOLATION_TABLES && !flag_options->USE_HALO_FIELD;
+
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
         ION_EFF_FACTOR_MINI = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
@@ -530,6 +532,7 @@ LOG_SUPER_DEBUG("Treating as the first box");
         }
 
         /////////////// Create the z=0 non-linear density fields smoothed on scale R to be used in computing fcoll //////////////
+        //TODO: add the halo box filtering here
         R = L_FACTOR*user_params->BOX_LEN/(float)user_params->HII_DIM;
         R_factor = pow(global_params.R_XLy_MAX/R, 1/((float)global_params.NUM_FILTER_STEPS_FOR_Ts));
         //      R_factor = pow(E, log(HII_DIM)/(float)NUM_FILTER_STEPS_FOR_Ts);

@@ -501,15 +501,15 @@ void free_inverse_table(){
 }
 
 //set the minimum source mass
-//TODO: include smaller halos, apply duty cycle in HM -> SM part
+//TODO: include MINI_HALOS
 double minimum_source_mass(double redshift,struct AstroParams *astro_params, struct FlagOptions * flag_options){
     double Mmin;
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-        Mmin = astro_params->M_TURN;
+        Mmin = astro_params->M_TURN / 50;
     }
     else {
         if(flag_options->M_MIN_in_Mass) {
-            Mmin = (astro_params->M_TURN);
+            Mmin = astro_params->M_TURN / 50;
         }
         else {
             //set the minimum source mass
@@ -536,13 +536,16 @@ int add_halo_properties(gsl_rng *rng, float halo_mass, float redshift, float * o
     double sm_mean, sm_sample, mu_lognorm;
     double sfr_mean, sfr_sample;
 
-    //duty cycle
-    if(gsl_rng_uniform(rng) < exp(-astro_params_stoc->M_TURN/halo_mass)){
+    //duty cycle, TODO: think about the updates, currently if a halo trips this condition at ANY snapshot,
+    //ALL of its progenitors will have no stars. This will cause the loss of stellar mass over more snapshots
+    /*if(gsl_rng_uniform(rng) < exp(-astro_params_stoc->M_TURN/halo_mass)){
         output[0] = 0.;
         output[1] = 0.;
         return 0;
-    }
+    }*/
 
+    //This clipping is normally done with the mass_limit_bisection root find. 
+    //TODO: It could save some `pow` calls if I compute a mass limit outside the loop and check with if
     sm_mean = fmax(fmin(f10 * pow(halo_mass/1e10,fa),1),0) * halo_mass * (cosmo_params_stoc->OMb / cosmo_params_stoc->OMm); //f_star is galactic GAS/star fraction, so OMb is needed
     if(sigma_star > 0){
         //sample stellar masses from each halo mass assuming lognormal scatter
@@ -1270,11 +1273,9 @@ int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_par
 
                 m = halos->halo_masses[i_halo];
 
-                fesc = pow(m/1e10,alpha_esc);
-                
-                //This is normally done with the mass_limit_bisection root find. I have no idea why
-                //So I'm just checking directly here, ION_EFF_FACTOR in the other functions has the normalisation
-                if(fesc * norm_esc > 1.) fesc = 1/norm_esc;
+                //This clipping is normally done with the mass_limit_bisection root find. 
+                //TODO: It could save some `pow` calls if I compute a mass limit outside the loop and check with if
+                fesc = fmin(fmax(pow(m/1e10,alpha_esc),0),1/norm_esc); //the scaling part of F_esc
 
                 wstar = halos->stellar_masses[i_halo]*fesc;
                 wsfr = halos->halo_sfr[i_halo]*fesc;
