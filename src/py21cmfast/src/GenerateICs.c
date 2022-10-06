@@ -824,7 +824,7 @@ int ComputeInitialConditions(
                                     boxes->hires_vx_2LPT[R_INDEX(i,j,k)] =
                                     *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
                                                                        (unsigned long long)(j),
-                                                                      (unsigned long long)(k)));
+                                                                       (unsigned long long)(k)));
                                 }
                                 if(ii==1) {
                                     boxes->hires_vy_2LPT[R_INDEX(i,j,k)] =
