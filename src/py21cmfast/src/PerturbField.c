@@ -27,8 +27,72 @@ int ComputePerturbField(
     float growth_factor, displacement_factor_2LPT, init_growth_factor, init_displacement_factor_2LPT, xf, yf, zf;
     float mass_factor, dDdt, f_pixel_factor, velocity_displacement_factor, velocity_displacement_factor_2LPT;
     unsigned long long ct, HII_i, HII_j, HII_k;
-    int i,j,k, xi, yi, zi, dimension, switch_mid;
+    int i,j,k, ii,jj,kk,xi, yi, zi, dimension, switch_mid;
     double ave_delta, new_ave_delta;
+
+    // Variables to perform cloud in cell re-distribution of mass for the perturbed field
+    int xp1,yp1,zp1;
+    float d_x,d_y,d_z,t_x,t_y,t_z;
+
+    int thread_num;
+    // Adding in random number generation for the sampling of the displacement field
+    gsl_rng * r[user_params->N_THREADS];
+    gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
+
+    gsl_rng_set(rseed, 123456);
+
+    unsigned int seeds[user_params->N_THREADS];
+
+    // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
+    int num_int = INT_MAX/16;
+    unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int*sizeof(unsigned int))); // Some large number of possible integers
+    for (i=0; i<num_int; i++) {
+        many_ints[i] = i;
+    }
+
+    gsl_ran_choose(rseed, seeds, user_params->N_THREADS, many_ints, num_int, sizeof(unsigned int)); // Populate the seeds array from the large list of integers
+    gsl_ran_shuffle(rseed, seeds, user_params->N_THREADS, sizeof(unsigned int)); // Shuffle the randomly selected integers
+
+    int checker;
+
+    checker = 0;
+    // seed the random number generators
+    for (thread_num = 0; thread_num < user_params->N_THREADS; thread_num++){
+        switch (checker){
+            case 0:
+                r[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
+                gsl_rng_set(r[thread_num], seeds[thread_num]);
+                break;
+            case 1:
+                r[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
+                // r[thread_num] = gsl_rng_alloc(gsl_rng_gfsr4);
+                gsl_rng_set(r[thread_num], seeds[thread_num]);
+                break;
+            case 2:
+                r[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
+                // r[thread_num] = gsl_rng_alloc(gsl_rng_cmrg);
+                gsl_rng_set(r[thread_num], seeds[thread_num]);
+                break;
+            case 3:
+                r[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
+                // r[thread_num] = gsl_rng_alloc(gsl_rng_mrg);
+                gsl_rng_set(r[thread_num], seeds[thread_num]);
+                break;
+            case 4:
+                r[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
+                // r[thread_num] = gsl_rng_alloc(gsl_rng_taus2);
+                gsl_rng_set(r[thread_num], seeds[thread_num]);
+                break;
+        } // end switch
+
+        checker += 1;
+
+        if(checker==5) {
+            checker = 0;
+        }
+    }
+
+    free(many_ints);
 
     // Function for deciding the dimensions of loops when we could
     // use either the low or high resolution grids.
@@ -195,8 +259,8 @@ int ComputePerturbField(
 
         // go through the high-res box, mapping the mass onto the low-res (updated) box
         LOG_DEBUG("Perturb the density field");
-#pragma omp parallel shared(init_growth_factor,boxes,f_pixel_factor,resampled_box,dimension) \
-                        private(i,j,k,xi,xf,yi,yf,zi,zf,HII_i,HII_j,HII_k) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(init_growth_factor,boxes,f_pixel_factor,resampled_box,dimension,r) \
+                        private(i,j,k,ii,jj,kk,xi,xf,yi,yf,zi,zf,HII_i,HII_j,HII_k,d_x,d_y,d_z,t_x,t_y,t_z,xp1,yp1,zp1) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
             for (i=0; i<user_params->DIM;i++){
@@ -237,7 +301,6 @@ int ComputePerturbField(
                                 zf -= (boxes->lowres_vz_2LPT)[HII_R_INDEX(HII_i,HII_j,HII_k)];
                             }
                         }
-
                         xf *= (float)(dimension);
                         yf *= (float)(dimension);
                         zf *= (float)(dimension);
@@ -256,14 +319,47 @@ int ComputePerturbField(
                         if (yi < 0) {yi += (dimension);}
                         if (zi >= (dimension)){ zi -= (dimension);}
                         if (zi < 0) {zi += (dimension);}
+                        
+                        // Determine the fraction of the perturbed cell which overlaps with the 8 nearest grid cells,
+                        // based on the grid cell which contains the centre of the perturbed cell 
+                        d_x = xf - (float)(xi);
+                        d_y = yf - (float)(yi);
+                        d_z = zf - (float)(zi);
+                        t_x = 1. - d_x;
+                        t_y = 1. - d_y;
+                        t_z = 1. - d_z;
+
+                        // Determine the grid coordinates of the 8 neighbouring cells
+                        xp1 = xi + 1;
+                        if(xp1 >= dimension) { xp1 -= (dimension);}
+                        yp1 = yi + 1;
+                        if(yp1 >= dimension) { yp1 -= (dimension);}
+                        zp1 = zi + 1;
+                        if(zp1 >= dimension) { zp1 -= (dimension);}
 
                         if(user_params->PERTURB_ON_HIGH_RES) {
 #pragma omp atomic
-                            resampled_box[R_INDEX(xi,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)]);
+                            // Redistribute the mass over the 8 neighbouring cells according to cloud in cell
+                            resampled_box[R_INDEX(xi,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*t_y*t_z);
+                            resampled_box[R_INDEX(xp1,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*t_y*t_z);
+                            resampled_box[R_INDEX(xi,yp1,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*d_y*t_z);
+                            resampled_box[R_INDEX(xp1,yp1,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*d_y*t_z);
+                            resampled_box[R_INDEX(xi,yi,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*t_y*d_z);
+                            resampled_box[R_INDEX(xp1,yi,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*t_y*d_z);
+                            resampled_box[R_INDEX(xi,yp1,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*d_y*d_z);                             
+                            resampled_box[R_INDEX(xp1,yp1,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*d_y*d_z);
                         }
                         else {
 #pragma omp atomic
-                            resampled_box[HII_R_INDEX(xi,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)]);
+                            // Redistribute the mass over the 8 neighbouring cells according to cloud in cell
+                            resampled_box[HII_R_INDEX(xi,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*t_y*t_z);
+                            resampled_box[HII_R_INDEX(xp1,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*t_y*t_z);
+                            resampled_box[HII_R_INDEX(xi,yp1,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*d_y*t_z);
+                            resampled_box[HII_R_INDEX(xp1,yp1,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*d_y*t_z);
+                            resampled_box[HII_R_INDEX(xi,yi,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*t_y*d_z);
+                            resampled_box[HII_R_INDEX(xp1,yi,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*t_y*d_z);
+                            resampled_box[HII_R_INDEX(xi,yp1,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*d_y*d_z);                             
+                            resampled_box[HII_R_INDEX(xp1,yp1,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*d_y*d_z);
                         }
                     }
                 }
@@ -399,7 +495,7 @@ int ComputePerturbField(
                 for (i=0; i<user_params->HII_DIM; i++){
                     for (j=0; j<user_params->HII_DIM; j++){
                         for (k=0; k<user_params->HII_DIM; k++){
-                            *( (float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k) ) /= mass_factor;
+                            *( (float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k) ) /= (mass_factor);
                             *( (float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k) ) -= 1.;
                         }
                     }
@@ -518,6 +614,8 @@ int ComputePerturbField(
                     else{
                         if(user_params->PERTURB_ON_HIGH_RES) {
                             HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_z*I/k_sq/(TOT_NUM_PIXELS+0.0);
+                            // HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_x*I/k_sq/(TOT_NUM_PIXELS+0.0);
+                            // HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_y*I/k_sq/(TOT_NUM_PIXELS+0.0);
                         }
                         else {
                             LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_z*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
@@ -542,7 +640,7 @@ int ComputePerturbField(
 #pragma omp for
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<user_params->HII_DIM; k++){
+                    for (k=0; k<user_params->HII_DIM; k++){                        
                         *((float *)perturbed_field->velocity + HII_R_INDEX(i,j,k)) = *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5), (unsigned long long)(j*f_pixel_factor+0.5), (unsigned long long)(k*f_pixel_factor+0.5)));
                     }
                 }
