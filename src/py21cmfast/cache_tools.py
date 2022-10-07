@@ -193,13 +193,7 @@ def query_cache(
 
 
 def get_boxes_at_redshift(
-    redshift: Union[float, tuple[float, float]],
-    seed=None,
-    direc=None,
-    user_params=None,
-    cosmo_params=None,
-    astro_params=None,
-    flag_options=None,
+    redshift: Union[float, tuple[float, float]], seed=None, direc=None, **params
 ) -> defaultdict[str, outputs._OutputStruct]:
     """Retrieve objects for each file in cache within given redshift bounds."""
     if not hasattr(redshift, "__len__"):
@@ -213,31 +207,20 @@ def get_boxes_at_redshift(
             warnings.warn(f"Failed to read {file}")
             pass
 
-        if (
-            hasattr(obj, "redshift")
-            and (redshift[0] <= obj.redshift < redshift[1])
-            and (
-                user_params is None
-                or not hasattr(obj, "user_params")
-                or user_params == obj.user_params
-            )
-            and (
-                cosmo_params is None
-                or not hasattr(obj, "cosmo_params")
-                or cosmo_params == obj.cosmo_params
-            )
-            and (
-                astro_params is None
-                or not hasattr(obj, "astro_params")
-                or astro_params == obj.astro_params
-            )
-            and (
-                flag_options is None
-                or not hasattr(obj, "flag_options")
-                or flag_options == obj.flag_options
-            )
-        ):
-            out[obj.__class__.__name__].append(obj)
+        if not hasattr(obj, "redshift"):
+            logger.debug(f"{file} has no redshift")
+            continue
+        if not (redshift[0] <= obj.redshift < redshift[1]):
+            logger.debug(f"{file} redshift out of range: {obj.redshift}, {redshift}")
+            continue
+        for paramtype, paramobj in params.items():
+            if hasattr(obj, paramtype) and paramobj != getattr(obj, paramtype):
+                logger.debug(
+                    f"{file} {paramtype} don't match: {getattr(obj, paramtype)} vs. {paramobj}"
+                )
+                continue
+
+        out[obj.__class__.__name__].append(obj)
 
     return out
 
