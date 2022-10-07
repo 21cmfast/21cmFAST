@@ -19,7 +19,7 @@ from .c_21cmfast import lib
 
 _ffi = FFI()
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("21cmFAST")
 
 
 class ArrayStateError(ValueError):

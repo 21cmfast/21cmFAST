@@ -122,7 +122,7 @@ from .outputs import (
     _OutputStructZ,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("21cmFAST")
 
 
 def _configure_inputs(
