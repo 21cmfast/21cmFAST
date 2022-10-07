@@ -9,16 +9,17 @@ the ``_defaults_`` class attribute of each class. The available parameters for e
 listed in the documentation for each class below.
 
 Along with these, the module exposes ``global_params``, a singleton object of type
-:class:`GlobalParams`, which is a simple class providing read/write access to a number of parameters
-used throughout the computation which are very rarely varied.
+:class:`GlobalParams`, which is a simple class providing read/write access to a number
+of parameters used throughout the computation which are very rarely varied.
 """
 from __future__ import annotations
 
 import contextlib
 import logging
 import warnings
+import yaml
 from astropy.cosmology import Planck15
-from os import path
+from importlib.abc import Loader
 from pathlib import Path
 
 from ._cfg import config
@@ -953,3 +954,59 @@ def validate_all_inputs(
         logger.warning(
             "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
         )
+
+
+def save_parameter_set(
+    name: str,
+    cosmo_params: CosmoParams = CosmoParams(),
+    user_params: UserParams = UserParams(),
+    astro_params: AstroParams = AstroParams(),
+    flag_options: FlagOptions = FlagOptions(),
+    force: bool = False,
+):
+    """Save a parameter set to disk."""
+    fname = Path(config.file_name).parent / f"{name}.yml"
+
+    if fname.exists() and not force:
+        warnings.warn(
+            f"The parameter set {fname} already exists. Use force to overwrite."
+        )
+
+    validate_all_inputs(
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+    )
+
+    with open(fname, "w") as fl:
+        yaml.dump(
+            {
+                "user_params": user_params.self,
+                "cosmo_params": cosmo_params.self,
+                "astro_params": astro_params.self,
+                "flag_options": flag_options.self,
+            },
+            fl,
+        )
+
+
+def read_parameter_set(name: str):
+    """Read the parameter set for a given name."""
+    if (DATA_PATH / "param_sets" / f"{name}.yml").exists():
+        # First check built-in parameter sets.
+        p = yaml.load(DATA_PATH / "param_sets" / f"{name}.yml", Loader=yaml.SafeLoader)
+    elif (Path(config.file_name).parent / f"{name}.yml").exists():
+        # Now user-defined ones.
+        p = yaml.load(
+            Path(config.file_name).parent / f"{name}.yml", Loader=yaml.SafeLoader
+        )
+    else:
+        raise FileNotFoundError(f"No parameter set with the name '{name}' was found.")
+
+    return {
+        "user_params": UserParams(p["user_params"]),
+        "cosmo_params": CosmoParams(p["cosmo_params"]),
+        "astro_params": AstroParams(p["astro_params"]),
+        "flag_options": FlagOptions(p["flag_options"]),
+    }
