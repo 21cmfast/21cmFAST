@@ -2820,16 +2820,15 @@ def run_lightcone(
             bt = cached_boxes["BrightnessTemp"][0]
             ib = cached_boxes["IonizedBox"][0]
             lc_index = box_index = lightcone._current_index
-
+            pf = prev_perturb
         else:
 
             st, ib, bt, prev_perturb = None, None, None, None
             lc_index = 0
             box_index = 0
+            pf = None
 
         interp_functions = {"z_re_box": "mean_max"}
-
-        pf = None
 
         perturb_files = []
         spin_temp_files = []
