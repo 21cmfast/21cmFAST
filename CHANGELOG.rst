@@ -4,6 +4,33 @@ Changelog
 dev-version
 -----------
 
+Internals
+---------
+
+* Refactored setting up of inputs to high-level functions so that there is less code
+  repetition.
+
+Fixed
+-----
+
+* Running with ``R_BUBBLE_MAX`` too large auto-fixes it to be ``BOX_LEN`` (#112)
+
+Added
+-----
+
+* New ``validate_all_inputs`` function that cross-references the four main input structs
+  and ensures all the parameters make sense together. Mostly for internal use.
+* Ability to save/read directly from an open HDF5 File (#170)
+
+v3.2.1 [13 Sep 2022]
+----------------------
+
+Changed
+~~~~~~~
+
+* Included log10_mturnovers(_mini) in lightcone class. Only useful when USE_MINI_HALOS
+
+
 v3.2.0 [11 Jul 2022]
 ----------------------
 

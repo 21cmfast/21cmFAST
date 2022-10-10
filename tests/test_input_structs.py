@@ -8,6 +8,7 @@ import pickle
 
 from py21cmfast import AstroParams  # An example of a struct with defaults
 from py21cmfast import CosmoParams, FlagOptions, UserParams, __version__, global_params
+from py21cmfast.inputs import validate_all_inputs
 
 
 @pytest.fixture(scope="module")
@@ -175,3 +176,26 @@ def test_interpolation_table_warning():
     with pytest.warns(None) as record:
         UserParams(USE_INTERPOLATION_TABLES=True).USE_INTERPOLATION_TABLES
     assert not record
+
+
+def test_validation():
+    c = CosmoParams()
+    a = AstroParams(R_BUBBLE_MAX=100)
+    f = FlagOptions()
+    u = UserParams(BOX_LEN=50)
+
+    with global_params.use(HII_FILTER=2):
+        with pytest.warns(UserWarning, match="Setting R_BUBBLE_MAX to BOX_LEN"):
+            validate_all_inputs(
+                cosmo_params=c, astro_params=a, flag_options=f, user_params=u
+            )
+
+        assert a.R_BUBBLE_MAX == u.BOX_LEN
+
+    a.update(R_BUBBLE_MAX=20)
+
+    with global_params.use(HII_FILTER=1):
+        with pytest.raises(ValueError, match="Your R_BUBBLE_MAX is > BOX_LEN/3"):
+            validate_all_inputs(
+                cosmo_params=c, astro_params=a, flag_options=f, user_params=u
+            )
