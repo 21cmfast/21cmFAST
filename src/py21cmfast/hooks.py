@@ -36,17 +36,13 @@ def rolling_cache(
             flag_options=box.flag_options,
         )
 
-        if not boxes:
-            raise ValueError("Got not boxes!")
         for kind, bxs in boxes.items():
             if kind in keep:
                 continue
 
             bxs = sorted(bxs, key=lambda x: x.redshift)
             if len(bxs) <= 2:
-                if box.redshift < 33:
-                    raise ValueError("Should have found more boxes.")
                 continue
 
             for bx in bxs[2:]:
-                (direc / bx.filename).unlink()
+                bx.path.unlink()
