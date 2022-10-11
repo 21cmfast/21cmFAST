@@ -267,7 +267,7 @@ int ComputePerturbField(
                         d_z = fabs(zf - (float)(zi+0.5));
                         if(xf < (float)(xi+0.5)) {
                             // If perturbed cell centre is less than the mid-point then update fraction
-                            // of mass in the cell and determine the cell centre of neighbour to be the 
+                            // of mass in the cell and determine the cell centre of neighbour to be the
                             // lowest grid point index
                             d_x = 1. - d_x;
                             xi -= 1;
@@ -282,7 +282,7 @@ int ComputePerturbField(
                             d_z = 1. - d_z;
                             zi -= 1;
                             if (zi < 0) {zi += (dimension);}
-                        }                        
+                        }
                         t_x = 1. - d_x;
                         t_y = 1. - d_y;
                         t_z = 1. - d_z;
@@ -298,40 +298,40 @@ int ComputePerturbField(
 
                         if(user_params->PERTURB_ON_HIGH_RES) {
                             // Redistribute the mass over the 8 neighbouring cells according to cloud in cell
-#pragma omp atomic                                                            
+#pragma omp atomic
                                 resampled_box[R_INDEX(xi,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*t_y*t_z);
-#pragma omp atomic                                              
+#pragma omp atomic
                                 resampled_box[R_INDEX(xp1,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*t_y*t_z);
-#pragma omp atomic                                              
+#pragma omp atomic
                                 resampled_box[R_INDEX(xi,yp1,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*d_y*t_z);
-#pragma omp atomic                                              
+#pragma omp atomic
                                 resampled_box[R_INDEX(xp1,yp1,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*d_y*t_z);
-#pragma omp atomic              
+#pragma omp atomic
                                 resampled_box[R_INDEX(xi,yi,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*t_y*d_z);
-#pragma omp atomic              
+#pragma omp atomic
                                 resampled_box[R_INDEX(xp1,yi,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*t_y*d_z);
-#pragma omp atomic                                              
+#pragma omp atomic
                                 resampled_box[R_INDEX(xi,yp1,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*d_y*d_z);
-#pragma omp atomic                                              
+#pragma omp atomic
                                 resampled_box[R_INDEX(xp1,yp1,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*d_y*d_z);
                         }
                         else {
                             // Redistribute the mass over the 8 neighbouring cells according to cloud in cell
-#pragma omp atomic                                                    
+#pragma omp atomic
                                 resampled_box[HII_R_INDEX(xi,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*t_y*t_z);
-#pragma omp atomic                                                                      
+#pragma omp atomic
                                 resampled_box[HII_R_INDEX(xp1,yi,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*t_y*t_z);
-#pragma omp atomic                                                    
+#pragma omp atomic
                                 resampled_box[HII_R_INDEX(xi,yp1,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*d_y*t_z);
-#pragma omp atomic                                                                                    
+#pragma omp atomic
                                 resampled_box[HII_R_INDEX(xp1,yp1,zi)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*d_y*t_z);
-#pragma omp atomic                                                                                    
+#pragma omp atomic
                                 resampled_box[HII_R_INDEX(xi,yi,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*t_y*d_z);
-#pragma omp atomic                                                                                    
+#pragma omp atomic
                                 resampled_box[HII_R_INDEX(xp1,yi,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*t_y*d_z);
-#pragma omp atomic                                                                                    
+#pragma omp atomic
                                 resampled_box[HII_R_INDEX(xi,yp1,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(t_x*d_y*d_z);
-#pragma omp atomic                                                                                    
+#pragma omp atomic
                                 resampled_box[HII_R_INDEX(xp1,yp1,zp1)] += (double)(1. + init_growth_factor*(boxes->hires_density)[R_INDEX(i,j,k)])*(d_x*d_y*d_z);
                         }
                     }
