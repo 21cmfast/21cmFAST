@@ -24,7 +24,8 @@ int ComputePerturbField(
     fftwf_complex *HIRES_density_perturb, *HIRES_density_perturb_saved;
     fftwf_complex *LOWRES_density_perturb, *LOWRES_density_perturb_saved;
 
-    float growth_factor, displacement_factor_2LPT, init_growth_factor, init_displacement_factor_2LPT, xf, yf, zf;
+    float growth_factor, displacement_factor_2LPT, init_growth_factor, init_displacement_factor_2LPT;
+    double xf, yf, zf;
     float mass_factor, dDdt, f_pixel_factor, velocity_displacement_factor, velocity_displacement_factor_2LPT;
     unsigned long long ct, HII_i, HII_j, HII_k;
     int i,j,k,xi, yi, zi, dimension, switch_mid;
@@ -241,14 +242,14 @@ int ComputePerturbField(
                                 zf -= (boxes->lowres_vz_2LPT)[HII_R_INDEX(HII_i,HII_j,HII_k)];
                             }
                         }
-                        xf *= (float)(dimension);
-                        yf *= (float)(dimension);
-                        zf *= (float)(dimension);
-                        while (xf >= (float)(dimension)){ xf -= (dimension);}
+                        xf *= (double)(dimension);
+                        yf *= (double)(dimension);
+                        zf *= (double)(dimension);
+                        while (xf >= (double)(dimension)){ xf -= (dimension);}
                         while (xf < 0){ xf += (dimension);}
-                        while (yf >= (float)(dimension)){ yf -= (dimension);}
+                        while (yf >= (double)(dimension)){ yf -= (dimension);}
                         while (yf < 0){ yf += (dimension);}
-                        while (zf >= (float)(dimension)){ zf -= (dimension);}
+                        while (zf >= (double)(dimension)){ zf -= (dimension);}
                         while (zf < 0){ zf += (dimension);}
                         xi = xf;
                         yi = yf;
@@ -262,10 +263,10 @@ int ComputePerturbField(
 
                         // Determine the fraction of the perturbed cell which overlaps with the 8 nearest grid cells,
                         // based on the grid cell which contains the centre of the perturbed cell
-                        d_x = fabs(xf - (float)(xi+0.5));
-                        d_y = fabs(yf - (float)(yi+0.5));
-                        d_z = fabs(zf - (float)(zi+0.5));
-                        if(xf < (float)(xi+0.5)) {
+                        d_x = fabs(xf - (double)(xi+0.5));
+                        d_y = fabs(yf - (double)(yi+0.5));
+                        d_z = fabs(zf - (double)(zi+0.5));
+                        if(xf < (double)(xi+0.5)) {
                             // If perturbed cell centre is less than the mid-point then update fraction
                             // of mass in the cell and determine the cell centre of neighbour to be the 
                             // lowest grid point index
@@ -273,12 +274,12 @@ int ComputePerturbField(
                             xi -= 1;
                             if (xi < 0) {xi += (dimension);} // Only this critera is possible as iterate back by one (we cannot exceed DIM)
                         }
-                        if(yf < (float)(yi+0.5)) {
+                        if(yf < (double)(yi+0.5)) {
                             d_y = 1. - d_y;
                             yi -= 1;
                             if (yi < 0) {yi += (dimension);}
                         }
-                        if(zf < (float)(zi+0.5)) {
+                        if(zf < (double)(zi+0.5)) {
                             d_z = 1. - d_z;
                             zi -= 1;
                             if (zi < 0) {zi += (dimension);}
