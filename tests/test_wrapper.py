@@ -405,9 +405,9 @@ def test_coeval_vs_low_level(ic):
         write=False,
     )
 
-    assert np.allclose(coeval.Tk_box, st.Tk_box,rtol=1e-4)
-    assert np.allclose(coeval.Ts_box, st.Ts_box,rtol=1e-4)
-    assert np.allclose(coeval.x_e_box, st.x_e_box,rtol=1e-4)
+    assert np.allclose(coeval.Tk_box, st.Tk_box, rtol=1e-4)
+    assert np.allclose(coeval.Ts_box, st.Ts_box, rtol=1e-4)
+    assert np.allclose(coeval.x_e_box, st.x_e_box, rtol=1e-4)
 
 
 def test_using_cached_halo_field(ic, test_direc):
