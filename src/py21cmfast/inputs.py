@@ -626,6 +626,19 @@ class FlagOptions(StructWithDefaults):
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
     USE_VELS_AUX: bool, optional
         Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain
+    USE_Radio_ACG: bool, optional
+        Determines whether to use radio excess background from ACG, set this to True and AstroParams.fR > 0 to activate
+    USE_Radio_MCG: bool, optional
+        Determines whether to use radio excess background from MCG, set this to True and AstroParams.fR_mini > 0 to activate
+    USE_Radio_PBH: bool, optional
+        Determines whether to use radio excess background from PBH, set this to True and AstroParams.log10_fbh > -200 to activate
+    USE_Hawking_Radiation: bool, optional, see 2108.13256
+        Determines whether to use heating and ionisation from Hawking radiation , to use this feature you must have:
+        1: USE_Hawking_Radiation = True
+        2: -20 <= AstroParams.log10_mbh <= -15.3
+        3: AstroParams.log10_fbh > -120
+        Technically you must also specify correct AstroParams.bh_spin but current version only support Schwarzschild PBH
+        Future version will add support for Kerr PBH (just need to set the initial condition right) and extended distribution
     """
 
     _ffi = ffi
@@ -640,6 +653,11 @@ class FlagOptions(StructWithDefaults):
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
         "FIX_VCB_AVG": False,
+        # Features for Radio Excess and Hawking Radiation
+        "USE_Radio_ACG": False,
+        "USE_Radio_MCG": False,
+        "USE_Radio_PBH": False,
+        "USE_Hawking_Radiation": False,
     }
 
     @property
