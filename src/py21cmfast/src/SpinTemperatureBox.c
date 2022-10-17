@@ -188,7 +188,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // Make sure SFRD_Box is large enough
         // Brightness temp is handled differently if SUBCELL_RSD=T, see BrightnessTemperatureBox.c"
 
-        if (astro_params->fR < 1.0E-15)
+        if (astro_params->fR < 1.0E-10)
         {
             Use_Radio_ACG = false;
             Radio_Prefix_ACG = 0.0;
@@ -233,6 +233,15 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         else
         {
             Use_Hawking_Radiation = false;
+        }
+
+        // Re-setting, the FlagOptions overrides them all
+        // A question: should I complain (raise warning and proceed with FlagOptions) or abort (raise error) when numerical inputs are inconsistent with FlagOptions?
+        if ((!flag_options->USE_Radio_ACG) && (Use_Radio_ACG))
+        {
+            Use_Radio_ACG=false;
+            LOG_ERROR("Mission aborted due to conflicting params: you have fR>0 but FlagOptions->USE_Radio_ACG=F, you need to set FlagOptions->USE_Radio_ACG=T to use Radio ACG.");
+            Throw(ValueError);
         }
 
         if (Use_Radio_PBH || (Use_Radio_ACG || Use_Radio_MCG))
