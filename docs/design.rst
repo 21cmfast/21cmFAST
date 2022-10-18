@@ -62,18 +62,12 @@ changing the parameters, and can use the outputs in whatever way the user desire
 To maintain continuity with previous versions, a CLI interface is provided (see below)
 that acts in a similar fashion to previous versions.
 
-When ``21cmFAST`` is installed, it automatically creates a configuration directory in
-the user's home: ``~/.21cmfast``. This houses a number of important configuration
-options; usually default values of parameters. At this stage, the location of this
-directory is not itself configurable. The config directory contains example
-configuration files for the CLI interface (see below), which can also be copied anywhere
-on disk and modified. Importantly, the ``config.yml`` file in this directory specifies
-some of the more important options for how ``21cmFAST`` behaves by default.
-One such option is ``boxdir``, which specifies the directory in which ``21cmFAST`` will
-cache results (see below for details). Finally, the config directory houses several data
-tables which are used to accelerate several calculations. In principle
-these files are over-writeable, but they should only be touched if one knows very well
-what they are doing.
+High-level configuration of ``21cmFAST`` can be set using the ``py21cmfast.config``
+object. It is essentially a dictionary with its key/values the parameters. To make any
+changes in the object permanent, use the ``py21cmfast.config.write()`` method.
+One global configuration option is ``direc``, which specifies the directory in which
+``21cmFAST`` will cache results by default (this can be overriden directly in any
+function, see below for details).
 
 Finally, ``21cmFAST`` contains a more robust cataloguing/caching method. Instead of
 saving data with a selection of the dependent parameters written into the filename --
@@ -102,8 +96,7 @@ To get help on any subcommand, simply use::
     $ 21cmfast <subcommand> --help
 
 Any subcommand which runs some aspect of ``21cmFAST`` will have a ``--config`` option,
-which specifies a configuration file (by default this is
-``~/.21cmfast/runconfig_example.yml``). This config file specifies the parameters of the
+which specifies a configuration file. This config file specifies the parameters of the
 run. Furthermore, any particular parameter that can be specified in the config file can
 be alternatively specified on the command line by appending the command with the
 parameter name, eg.::
