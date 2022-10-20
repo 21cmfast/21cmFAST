@@ -96,6 +96,7 @@ void Broadcast_struct_global_STOC(struct UserParams *user_params, struct CosmoPa
     flag_options_stoc = flag_options;
 }
 
+// TODO: this should probably be in UsefulFunctions.c
 void seed_rng_threads(gsl_rng * rng_arr[], int seed){
     // setting tbe random seeds (copied from GenerateICs.c)
     gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
@@ -119,7 +120,6 @@ void seed_rng_threads(gsl_rng * rng_arr[], int seed){
 
     checker = 0;
     // seed the random number generators
-    // TODO: this should probably be in UsefulFunctions.c
     for (thread_num = 0; thread_num < user_params_stoc->N_THREADS; thread_num++){
         switch (checker){
             case 0:
@@ -299,7 +299,7 @@ void initialise_dNdM_table(double xmin, double xmax, double growth1, double para
         }
         else{
             if(x >= Deltac || x <= -1){
-                buf = 0; //TODO: should be such that y*volume*meandens == 1 for >Deltac
+                buf = 0; //>Deltac is handled outside the tables
                 continue;
             }
             buf = IntegratedNdM(growth1, M_min, param_2, param_2, x, 0, -1);
@@ -820,11 +820,11 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
     double sigma_max = EvaluateSigma(lnMmax);
 
     //Set the minimum mass we care about for this condition
-    //TODO, define maximum mass fraction
     double frac = EvaluateFgtrM(z_out,M_min_s,delta_lin/growth_out,sigma_max);
 
     //we apply the ps ratio here, since it won't effect the CMF, and should just scale everything
     //we still allow the final sample to go beyond M_remaining, but not beyond M_max which stops Fcoll > 1
+    //TODO: This would be more efficient if I used FgtrM straight from the desired HMF
     double M_remaining = M_max*frac * ps_ratio;
     M_remaining = M_remaining > M_max ? M_Max : M_remaining
 
@@ -882,7 +882,6 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
     return 0;
 }
 
-//TODO: combine with the grid function with a different output type
 // will have to add properties here and output grids, instead of in perturbed
 int build_halo_cats(gsl_rng **rng_stoc, double redshift, bool eulerian, float *dens_field, int *n_halo_out, int *halo_coords, float *halo_masses, float *stellar_masses, float *halo_sfr){    
     double growthf = dicke(redshift);
@@ -929,13 +928,14 @@ int build_halo_cats(gsl_rng **rng_stoc, double redshift, bool eulerian, float *d
     
     //shared halo count
     int counter = 0;
+    float *hm_buf;
 
-#pragma omp parallel private(x,y,z,i) num_threads(user_params_stoc->N_THREADS)
+#pragma omp parallel private(x,y,z,i,hm_buf) num_threads(user_params_stoc->N_THREADS)
     {
         //PRIVATE VARIABLES
         int threadnum = omp_get_thread_num();
         //buffers per cell
-        float * hm_buf = (float *)calloc(MAX_HALO_CELL,sizeof(float));
+        hm_buf = (float *)calloc(MAX_HALO_CELL,sizeof(float));
         int nh_buf=0;
         double cell_hm;        
         double delta_v;
@@ -1013,6 +1013,8 @@ int build_halo_cats(gsl_rng **rng_stoc, double redshift, bool eulerian, float *d
             }
         }
 
+    //need barrier before free
+    #pragma omp barrier
     free(hm_buf);
     }
     *n_halo_out = counter;
@@ -1067,11 +1069,12 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
     LOG_DEBUG("Updating halo cat: z_in = %f, z_out = %f (d = %f), n_in = %d  Mmin = %e",z_in,z_out,delta_lin,nhalo_in,Mmin);
 
     int count = 0;
+    float *halo_buf;
 
-#pragma omp parallel num_threads(user_params_stoc->N_THREADS)
+#pragma omp parallel private(halo_buf) num_threads(user_params_stoc->N_THREADS)
     {
         //allocate halo buffer, one halo splitting into >1000 in one step would be crazy I think
-        float * halo_buf = calloc(MAX_HALO_CELL,sizeof(double));
+        halo_buf = (float *)calloc(MAX_HALO_CELL,sizeof(double));
         int n_prog;
         
         float propbuf_in[2];
@@ -1136,6 +1139,8 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
                 }
             }
         }
+        //don't want to free before all threads are done
+        #pragma omp barrier
         free(halo_buf);
     }
 
@@ -1238,12 +1243,12 @@ int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_par
 #pragma omp parallel num_threads(user_params->N_THREADS)
         {
             int i_halo,idx,x,y,z;
-            double m,wstar,wsfr,fesc;
+            double m,wstar,sfr,fesc;
 #pragma omp for
             for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
                 grids->halo_mass[idx] = 0.0;
                 grids->wstar_mass[idx] = 0.0;
-                grids->whalo_sfr[idx] = 0.0;
+                grids->halo_sfr[idx] = 0.0;
             }
 
 #pragma omp barrier
@@ -1261,14 +1266,16 @@ int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_par
                 fesc = fmin(fmax(pow(m/1e10,alpha_esc),0),1/norm_esc); //the scaling part of F_esc
 
                 wstar = halos->stellar_masses[i_halo]*fesc;
-                wsfr = halos->halo_sfr[i_halo]*fesc;
+                sfr = halos->halo_sfr[i_halo];
+                //will probably need weighted SFR, unweighted Stellar later on
+                //Lx as well when that scatter is included
 
 #pragma omp atomic update
                 grids->halo_mass[HII_R_INDEX(x, y, z)] += m;
 #pragma omp atomic update
                 grids->wstar_mass[HII_R_INDEX(x, y, z)] += wstar;
 #pragma omp atomic update
-                grids->whalo_sfr[HII_R_INDEX(x, y, z)] += wsfr;
+                grids->halo_sfr[HII_R_INDEX(x, y, z)] += sfr;
             }
         }
     }
@@ -1315,7 +1322,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         double Mmin = minimum_source_mass(z_out,astro_params,flag_options);
 
         double Mmax, volume, R, delta_l, delta_v;
-        bool eulerian = false; //TODO:proper option
+        bool eulerian = false; //TODO:proper option even though I don't use eulerian much
         double ps_ratio;
 
 

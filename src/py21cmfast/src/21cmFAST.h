@@ -124,7 +124,7 @@ struct HaloBox{
     //It may be useful to output unweighted stellar masses etc,
     //but for IonisationBox.c and SpinTemperatureBox.c we don't need them
     float *wstar_mass; //weighted by F_ESC
-    float *whalo_sfr;
+    float *halo_sfr;
 
     //generated from a perturbed field
     //Not 100% sure If I want to add the option for these grids
