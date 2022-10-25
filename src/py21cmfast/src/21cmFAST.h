@@ -2,7 +2,6 @@
     This is the header file for the wrappable version of 21cmFAST, or 21cmMC.
     It contains function signatures, struct definitions and globals to which the Python wrapper code
     requires access.
-    A test string for jsc
 */
 
 struct CosmoParams
