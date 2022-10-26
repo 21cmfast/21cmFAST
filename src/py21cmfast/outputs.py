@@ -426,7 +426,7 @@ class TsBox(_AllParamsBox):
 
     @cached_property
     def global_Trad(self):
-        """Global Radio Temp"""
+        """Global Radio Temp."""
         if "Trad_box" not in self._computed_arrays:
             raise AttributeError("Something went wrong, maybe Trad not computed?")
         else:
