@@ -61,3 +61,64 @@ run), it is encouraged to use the context manager, eg.::
 
     >>> with global_params.use(Z_HEAT_MAX=10):
     >>>    run_lightcone(...)
+
+How can I read a Coeval object from disk?
+-----------------------------------------
+
+The simplest way to read a :class:`py21cmfast.outputs.Coeval` object that has been
+written to disk is by doing::
+
+    import py21cmfast as p21c
+    coeval = p21c.Coeval.read("my_coeval.h5")
+
+However, you may want to read parts of the data, or read the data using a different
+language or environment. You can do this as long as you have the HDF5 library (i.e.
+h5py for Python). HDF5 is self-documenting, so you should be able to determine the
+structure of the file yourself interactively. But here is an example using h5py::
+
+    import h5py
+
+    fl = h5py.File("my_coeval.h5", "r")
+
+    # print a dict of all the UserParams
+    # the CosmoParams, FlagOptions and AstroParams are accessed the same way.
+    print(dict(fl['user_params'].attrs))
+
+    # print a dict of all globals used for the coeval
+    print(dict(fl['_globals'].attrs))
+
+    # Get the redshift and random seed of the coeval box
+    redshift = fl.attrs['redshift']
+    seed = fl.attrs['random_seed']
+
+    # Get the Initial Conditions:
+    print(np.max(fl['InitialConditions']['hires_density'][:]))
+
+    # Or brightness temperature
+    print(np.max(fl['BrightnessTemp']['brightness_temperature'][:]))
+
+    # Basically, the different stages of computation are groups in the file, and all
+    # their consituent boxes are datasets in that group.
+    # Print out the keys of the group to see what is available:
+    print(fl['TsBox'].keys())
+
+How can I read a LightCone object from file?
+--------------------------------------------
+Just like the :class:`py21cmfast.outputs.Coeval` object documented above, the
+:class:`py21cmfast.outputs.LightCone` object is most easily read via its ``.read()`` method.
+Similarly, it is written using HDF5. Again, the input parameters are stored in their
+own sub-objects. However, the lightcone boxes themselves are in the "lightcones" group,
+while the globally averaged quantities are in the ``global_quantities`` group::
+
+    import h5py
+    import matplotlib.pyplot as plt
+
+    fl = h5py.File("my_lightcone.h5", "r")
+
+    Tb = fl['lightcones']['brightness_temp'][:]
+    assert Tb.ndim==3
+
+    global_Tb = fl['global_quantities']['brightness_temp'][:]
+    redshifts = fl['node_redshifts']
+
+    plt.plot(redshifts, global_Tb)
