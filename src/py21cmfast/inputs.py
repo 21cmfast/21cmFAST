@@ -626,7 +626,7 @@ class FlagOptions(StructWithDefaults):
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
     USE_VELS_AUX: bool, optional
         Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain
-    USE_Radio_ACG: bool, optional
+    USE_RADIO_ACG: bool, optional
         Determines whether to use radio excess background from ACG, set this to True and AstroParams.fR > 0 to activate
     USE_Radio_MCG: bool, optional
         Determines whether to use radio excess background from MCG, set this to True and AstroParams.fR_mini > 0 to activate
@@ -654,7 +654,7 @@ class FlagOptions(StructWithDefaults):
         "PHOTON_CONS": False,
         "FIX_VCB_AVG": False,
         # Features for Radio Excess and Hawking Radiation
-        "USE_Radio_ACG": False,
+        "USE_RADIO_ACG": False,
         "USE_Radio_MCG": False,
         "USE_Radio_PBH": False,
         "USE_Hawking_Radiation": False,

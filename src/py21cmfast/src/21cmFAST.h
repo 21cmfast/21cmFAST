@@ -97,7 +97,7 @@ struct FlagOptions
     bool PHOTON_CONS;
     bool FIX_VCB_AVG;
     // Settings for Radio Excess and Hawking Radiation
-    bool USE_Radio_ACG;
+    bool USE_RADIO_ACG;
     bool USE_Radio_MCG;
     bool USE_Radio_PBH;
     bool USE_Hawking_Radiation;

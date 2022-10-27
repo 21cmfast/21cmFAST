@@ -237,10 +237,10 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
         // Re-setting, the FlagOptions overrides them all
         // A question: should I complain (raise warning and proceed with FlagOptions) or abort (raise error) when numerical inputs are inconsistent with FlagOptions?
-        if ((!flag_options->USE_Radio_ACG) && (Use_Radio_ACG))
+        if ((!flag_options->USE_RADIO_ACG) && (Use_Radio_ACG))
         {
             Use_Radio_ACG=false;
-            LOG_ERROR("Mission aborted due to conflicting params: you have fR>0 but FlagOptions->USE_Radio_ACG=F, you need to set FlagOptions->USE_Radio_ACG=T to use Radio ACG.");
+            LOG_ERROR("Mission aborted due to conflicting params: you have fR>0 but FlagOptions->USE_RADIO_ACG=F, you need to set FlagOptions->USE_RADIO_ACG=T to use Radio ACG.");
             Throw(ValueError);
         }
         if ((!flag_options->USE_Radio_MCG) && (Use_Radio_MCG))
