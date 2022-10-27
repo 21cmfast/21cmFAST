@@ -186,7 +186,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // Use_Radio_PBH requires USE_INTERPOLATION_TABLES
         // NUM_FILTER_STEPS_FOR_Ts must be 40 if using PBH Radio BKG
         // Make sure SFRD_Box is large enough
-        // Brightness temp is handled differently if SUBCELL_RSD=T, see BrightnessTemperatureBox.c"
+        // Brightness temp is handled differently if SUBCELL_RSD=T, see BrightnessTemperatureBox.c
 
         if (astro_params->fR < 1.0E-10)
         {
@@ -243,10 +243,10 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             LOG_ERROR("Mission aborted due to conflicting params: you have fR>0 but FlagOptions->USE_RADIO_ACG=F, you need to set FlagOptions->USE_RADIO_ACG=T to use Radio ACG.");
             Throw(ValueError);
         }
-        if ((!flag_options->USE_Radio_MCG) && (Use_Radio_MCG))
+        if ((!flag_options->USE_RADIO_MCG) && (Use_Radio_MCG))
         {
             Use_Radio_MCG=false;
-            LOG_ERROR("Mission aborted due to conflicting params: you have fR_mini>0 but FlagOptions->USE_Radio_MCG=F, you need to set FlagOptions->USE_Radio_MCG=T to use Radio MCG.");
+            LOG_ERROR("Mission aborted due to conflicting params: you have fR_mini>0 but FlagOptions->USE_RADIO_MCG=F, you need to set FlagOptions->USE_RADIO_MCG=T to use Radio MCG.");
             Throw(ValueError);
         }
         if ((!flag_options->USE_Radio_PBH) && (Use_Radio_PBH))

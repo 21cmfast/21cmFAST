@@ -628,7 +628,7 @@ class FlagOptions(StructWithDefaults):
         Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain
     USE_RADIO_ACG: bool, optional
         Determines whether to use radio excess background from ACG, set this to True and AstroParams.fR > 0 to activate
-    USE_Radio_MCG: bool, optional
+    USE_RADIO_MCG: bool, optional
         Determines whether to use radio excess background from MCG, set this to True and AstroParams.fR_mini > 0 to activate
     USE_Radio_PBH: bool, optional
         Determines whether to use radio excess background from PBH, set this to True and AstroParams.log10_fbh > -200 to activate
@@ -655,7 +655,7 @@ class FlagOptions(StructWithDefaults):
         "FIX_VCB_AVG": False,
         # Features for Radio Excess and Hawking Radiation
         "USE_RADIO_ACG": False,
-        "USE_Radio_MCG": False,
+        "USE_RADIO_MCG": False,
         "USE_Radio_PBH": False,
         "USE_Hawking_Radiation": False,
     }
