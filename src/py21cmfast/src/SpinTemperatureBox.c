@@ -255,10 +255,10 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             LOG_ERROR("Mission aborted due to conflicting params: numerical params says Use_Radio_PBH but FlagOptions->USE_RADIO_PBH=F, you need to set FlagOptions->USE_RADIO_PBH=T to use Radio PBH.");
             Throw(ValueError);
         }
-        if ((!flag_options->USE_Hawking_Radiation) && (Use_Hawking_Radiation))
+        if ((!flag_options->USE_HAWKING_RADIATION) && (Use_Hawking_Radiation))
         {
             Use_Hawking_Radiation=false;
-            LOG_ERROR("Mission aborted due to conflicting params: numerical params says Use_Hawking_Radiation but FlagOptions->Use_Hawking_Radiation=F, you need to set FlagOptions->Use_Hawking_Radiation=T to use Hawking Radiation.");
+            LOG_ERROR("Mission aborted due to conflicting params: numerical params says Use_Hawking_Radiation but FlagOptions->USE_HAWKING_RADIATION=F, you need to set FlagOptions->USE_HAWKING_RADIATION=T to use Hawking Radiation.");
             Throw(ValueError);
         }
 

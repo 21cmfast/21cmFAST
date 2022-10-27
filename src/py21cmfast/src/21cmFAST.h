@@ -100,7 +100,7 @@ struct FlagOptions
     bool USE_RADIO_ACG;
     bool USE_RADIO_MCG;
     bool USE_RADIO_PBH;
-    bool USE_Hawking_Radiation;
+    bool USE_HAWKING_RADIATION;
 };
 
 struct InitialConditions

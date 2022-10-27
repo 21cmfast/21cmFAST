@@ -632,9 +632,9 @@ class FlagOptions(StructWithDefaults):
         Determines whether to use radio excess background from MCG, set this to True and AstroParams.fR_mini > 0 to activate
     USE_RADIO_PBH: bool, optional
         Determines whether to use radio excess background from PBH, set this to True and AstroParams.log10_fbh > -200 to activate
-    USE_Hawking_Radiation: bool, optional, see 2108.13256
+    USE_HAWKING_RADIATION: bool, optional, see 2108.13256
         Determines whether to use heating and ionisation from Hawking radiation , to use this feature you must have:
-        1: USE_Hawking_Radiation = True
+        1: USE_HAWKING_RADIATION = True
         2: -20 <= AstroParams.log10_mbh <= -15.3
         3: AstroParams.log10_fbh > -120
         Technically you must also specify correct AstroParams.bh_spin but current version only support Schwarzschild PBH
@@ -657,7 +657,7 @@ class FlagOptions(StructWithDefaults):
         "USE_RADIO_ACG": False,
         "USE_RADIO_MCG": False,
         "USE_RADIO_PBH": False,
-        "USE_Hawking_Radiation": False,
+        "USE_HAWKING_RADIATION": False,
     }
 
     @property
