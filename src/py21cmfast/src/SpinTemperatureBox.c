@@ -249,10 +249,10 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             LOG_ERROR("Mission aborted due to conflicting params: you have fR_mini>0 but FlagOptions->USE_RADIO_MCG=F, you need to set FlagOptions->USE_RADIO_MCG=T to use Radio MCG.");
             Throw(ValueError);
         }
-        if ((!flag_options->USE_Radio_PBH) && (Use_Radio_PBH))
+        if ((!flag_options->USE_RADIO_PBH) && (Use_Radio_PBH))
         {
             Use_Radio_PBH=false;
-            LOG_ERROR("Mission aborted due to conflicting params: numerical params says Use_Radio_PBH but FlagOptions->USE_Radio_PBH=F, you need to set FlagOptions->USE_Radio_PBH=T to use Radio PBH.");
+            LOG_ERROR("Mission aborted due to conflicting params: numerical params says Use_Radio_PBH but FlagOptions->USE_RADIO_PBH=F, you need to set FlagOptions->USE_RADIO_PBH=T to use Radio PBH.");
             Throw(ValueError);
         }
         if ((!flag_options->USE_Hawking_Radiation) && (Use_Hawking_Radiation))

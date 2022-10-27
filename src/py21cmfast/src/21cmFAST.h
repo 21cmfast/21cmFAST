@@ -99,7 +99,7 @@ struct FlagOptions
     // Settings for Radio Excess and Hawking Radiation
     bool USE_RADIO_ACG;
     bool USE_RADIO_MCG;
-    bool USE_Radio_PBH;
+    bool USE_RADIO_PBH;
     bool USE_Hawking_Radiation;
 };
 
