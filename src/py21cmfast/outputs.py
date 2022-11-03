@@ -426,7 +426,7 @@ class HaloBox(_AllParamsBox):
         out = {
             "halo_mass": shape,
             "wstar_mass": shape,
-            "whalo_sfr": shape,
+            "halo_sfr": shape,
         }
 
         return out
@@ -535,6 +535,12 @@ class TsBox(_AllParamsBox):
             ]
             if self.flag_options.USE_MINI_HALOS:
                 required += ["J_21_LW_box"]
+        elif isinstance(input_box, HaloBox):
+            if self.flag_options.USE_HALO_FIELD:
+                required += [
+                    "wstar_mass",
+                    "halo_sfr",
+                ]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for PerturbHaloField!"
@@ -547,6 +553,7 @@ class TsBox(_AllParamsBox):
         *,
         cleanup: bool,
         perturbed_field: PerturbedField,
+        halobox: HaloBox,
         prev_spin_temp,
         ics: InitialConditions,
         hooks: dict,
@@ -562,6 +569,7 @@ class TsBox(_AllParamsBox):
             self.perturbed_field_redshift,
             cleanup,
             perturbed_field,
+            halobox,
             prev_spin_temp,
             ics,
             hooks=hooks,

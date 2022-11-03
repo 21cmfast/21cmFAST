@@ -1801,6 +1801,7 @@ def ionize_box(
         elif spin_temp is None:
             spin_temp = spin_temperature(
                 perturbed_field=perturbed_field,
+                halobox=halobox,
                 flag_options=flag_options,
                 init_boxes=init_boxes,
                 direc=direc,
@@ -1827,6 +1828,7 @@ def spin_temperature(
     flag_options=None,
     redshift=None,
     perturbed_field=None,
+    halobox=None,
     previous_spin_temp=None,
     init_boxes=None,
     cosmo_params=None,
@@ -2088,6 +2090,22 @@ def spin_temperature(
                     cleanup=False,  # we know we'll need the memory again
                 )
 
+        #Since no halo box is provided, the halo box will not have z-correlations
+        #this is a strange behaviour we can't avoid unless we calculate the z-list
+        #beforehand (avoid by calling lightcone instead)
+        if flag_options.USE_HALO_FIELD:
+            if halobox is None or not halobox.is_computed:
+                halobox = halo_box(redshift=redshift,
+                    astro_params=astro_params,
+                    flag_options=flag_options,
+                    cosmo_params=cosmo_params,
+                    user_params=user_params,
+                    regenerate=regenerate,
+                    random_seed=random_seed,
+                )
+        else:
+            halobox = HaloBox(redshift=0,dummy=True)
+
         # Dynamically produce the perturbed field.
         if perturbed_field is None or not perturbed_field.is_computed:
             perturbed_field = perturb_field(
@@ -2102,6 +2120,7 @@ def spin_temperature(
         return box.compute(
             cleanup=cleanup,
             perturbed_field=perturbed_field,
+            halobox=halobox,
             prev_spin_temp=previous_spin_temp,
             ics=init_boxes,
             hooks=hooks,
@@ -2516,6 +2535,7 @@ def run_coeval(
                     previous_spin_temp=st,
                     perturbed_field=perturb_min if use_interp_perturb_field else pf2,
                     # remember that perturb field is interpolated, so no need to provide exact one.
+                    halobox=halobox if flag_options.USE_HALO_FIELD else None,
                     astro_params=astro_params,
                     flag_options=flag_options,
                     regenerate=regenerate,
@@ -2932,8 +2952,8 @@ def run_lightcone(
         #but this will allow the conditional halo sampling to work
         #TODO: allow input of halo fields and check that they are a chain
         #halo field currently only checks for the previous redshift so that may cause issues
+        hbox_files = []
         if flag_options.USE_HALO_FIELD:
-            hbox_files = []
             halos_prev = None
             for z in scrollz[::-1]:
                 halo_field = determine_halo_list(
@@ -3000,6 +3020,7 @@ def run_lightcone(
                     astro_params=astro_params,
                     flag_options=flag_options,
                     perturbed_field=perturb_min if use_interp_perturb_field else pf2,
+                    halobox=hbox2 if flag_options.USE_HALO_FIELD else None,
                     regenerate=regenerate,
                     init_boxes=init_box,
                     hooks=hooks,

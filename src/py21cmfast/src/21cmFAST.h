@@ -192,7 +192,7 @@ int ComputePerturbHaloField(float redshift, struct UserParams *user_params, stru
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,
                   short cleanup,
-                  struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp, struct InitialConditions *ini_boxes,
+                  struct PerturbedField *perturbed_field, struct HaloBox * halo_box, struct TsBox *previous_spin_temp, struct InitialConditions *ini_boxes,
                   struct TsBox *this_spin_temp);
 
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,

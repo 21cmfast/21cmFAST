@@ -503,6 +503,8 @@ LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
         initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
       }
       else{
+        //if the TS code is called, the table should already be initialised
+        //NOTE: if TS is loaded from file, this breaks
         if(!flag_options->USE_TS_FLUCT) {
             initialiseSigmaMInterpTable(M_MIN,1e20);
         }

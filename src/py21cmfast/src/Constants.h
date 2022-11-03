@@ -100,7 +100,7 @@
 #define hplank (double) 6.62606896e-27 // erg s
 #define TINY (double) 1e-30
 #define FRACT_FLOAT_ERR (double) 1e-7 // fractional floating point error
-#define f_alpha (float) 0.4162 / oscillator strength of Lya
+#define f_alpha (float) 0.4162 // oscillator strength of Lya
 #define Ly_alpha_HZ  (double ) 2.46606727e15  // frequency of Lyalpha
 #define C  (double) 29979245800.0  //  speed of light  (cm/s)
 #define C_KMS (double) C/1e5  /* speed of light in km/s  */

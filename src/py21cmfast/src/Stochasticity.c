@@ -16,13 +16,13 @@
 //TODO: both of these should be set depending on size, resolution & min mass
 #define MAX_HALO_CELL (int)1e5
 //Max halo in entire box
-#define MAX_HALO (int)1e8
+#define MAX_HALO (int)1e9
 //per halo in update
 #define MAX_HALO_UPDATE 1024
 
 // minimum mass for the mass-based sampler, TODO: set to something unlikely / irrelevent if sampled
 // look into it and set it such that M_min_sampler * (expected number at + n sigma) << M_min, OR USE M_MIN_INTEGRAL
-#define MMIN_FACTOR 100
+#define MMIN_FACTOR 2
 #define MMAX_TABLES 1e16
 #define MANY_HALOS 100 //enough halos that we don't care about stochasticity, for future acceleration
 
@@ -543,7 +543,7 @@ int add_halo_properties(gsl_rng *rng, float halo_mass, float redshift, float * o
 
     //This clipping is normally done with the mass_limit_bisection root find.
     //I can't do that here with the stochasticity, since the f_star clipping happens AFTER the sampling
-    fstar_mean = f10 * pow(halo_mass/1e10,fa) * dutycycle_term ; //f_star is galactic GAS/star fraction, so OMb is needed
+    fstar_mean = f10 * pow(halo_mass/1e10,fa) * dutycycle_term;
     if(sigma_star > 0){
         //sample stellar masses from each halo mass assuming lognormal scatter
         f_sample = gsl_ran_ugaussian(rng);
@@ -552,10 +552,10 @@ int add_halo_properties(gsl_rng *rng, float halo_mass, float redshift, float * o
         * We multiply by exp(-sigma^2/2) so that X = exp(mu + N(0,1)*sigma) has the desired mean */
         f_sample = fmax(fmin(fstar_mean * exp(-sigma_star*sigma_star/2 + f_sample*sigma_star),1),0);
 
-        sm_sample = halo_mass * (cosmo_params_stoc->OMb / cosmo_params_stoc->OMm) * f_sample;
+        sm_sample = halo_mass * (cosmo_params_stoc->OMb / cosmo_params_stoc->OMm) * f_sample; //f_star is galactic GAS/star fraction, so OMb is needed
     }
     else{
-        sm_sample = sm_mean;
+        sm_sample = halo_mass * (cosmo_params_stoc->OMb / cosmo_params_stoc->OMm) * fmax(fmin(fstar_mean,1),0);
     }
 
     sfr_mean = sm_sample / (astro_params_stoc->t_STAR * t_hubble(redshift));
@@ -568,6 +568,8 @@ int add_halo_properties(gsl_rng *rng, float halo_mass, float redshift, float * o
     else{
         sfr_sample = sfr_mean;
     }
+
+    //LOG_ULTRA_DEBUG("HM %.3e | SM %.3e | SFR %.3e (%.3e) | F* %.3e (%.3e) | duty %.3e",halo_mass,sm_sample,sfr_sample,sfr_mean,f_sample,fstar_mean,dutycycle_term);
 
     output[0] = sm_sample;
     output[1] = sfr_sample;
@@ -822,11 +824,11 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
     //Set the minimum mass we care about for this condition
     double frac = EvaluateFgtrM(z_out,M_min_s,delta_lin/growth_out,sigma_max);
 
-    //we apply the ps ratio here, since it won't effect the CMF, and should just scale everything
+    //we apply the ps ratio here, since it won't effect the CMF, and should just scale everything (capped at Fcoll > 1)
     //we still allow the final sample to go beyond M_remaining, but not beyond M_max which stops Fcoll > 1
     //TODO: This would be more efficient if I used FgtrM straight from the desired HMF
-    double M_remaining = M_max*frac * ps_ratio;
-    M_remaining = M_remaining > M_max ? M_Max : M_remaining
+    double M_remaining = M_max * frac / ps_ratio;
+    M_remaining = M_remaining > M_max ? M_max : M_remaining;
 
     //BEWARE: assuming max(dNdM) == dNdM(Mmin) for the rejection sampler
     //This is not true for very high deltas, where there is a spike near the condition mass
@@ -841,7 +843,6 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
     int attempts = 0;
     double M_prog = 0.;
     double M_sample;
-    //we need both conditions since ps_ratio is often < 1, meaning we need the second check for Fcoll > 1
     while(M_remaining > M_min){
         if(!user_params_stoc->STOC_INVERSE){
             sample_dndM_rejection(growth_out,delta_lin,lnMmin,lnMmax,lnMmax,ymin,ymax,sigma_max,rng,&M_sample);
@@ -859,7 +860,7 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
         //sometimes we sample more than the remaining mass from dndM, if we re-draw or cap at remaining mass this gives too many small halos
         //and if we just keep it there's a possibility for spontaneous mass creation. This is the maximum cap without having to change previous samples
         //above Mmin, essentially we throw out progenitors below our minimum to make up the mass
-        M_sample = M_sample > (M_max - M_prog) ? (M_max - M_prog) : M_sample; 
+        M_sample = M_sample > (M_max - M_prog) ? (M_max - M_prog) : M_sample;
         
         //LOG_ULTRA_DEBUG("sampled a progenitor %.3e, %.3e",M_sample,M_remaining);
         attempts++;
@@ -894,7 +895,7 @@ int build_halo_cats(gsl_rng **rng_stoc, double redshift, bool eulerian, float *d
     double cell_size_L = boxlen / lo_dim;
 
     double volume = cell_size_L * cell_size_L * cell_size_L;
-    double ps_ratio;
+    double ps_ratio = 1.;
 
     double Mmax_meandens = RtoM(cell_size_R);
     double Mmin, Mmin_s;
@@ -972,7 +973,7 @@ int build_halo_cats(gsl_rng **rng_stoc, double redshift, bool eulerian, float *d
                     LOG_ULTRA_DEBUG("Starting sample %d (%d) with delta (l,v) = (%.2f %.2f) cell (V=%.2e), from %.2e to %.2e"
                                     ,x*lo_dim*lo_dim + y*lo_dim + z,lo_dim*lo_dim*lo_dim,delta_l,delta_v,volume,Mmin,Mmax);
                     if(user_params_stoc->STOC_MASS_SAMPLING)
-                        stoc_mass_sample(redshift, growthf, delta_l, Mmax, Mmin, ps_ratio,0, rng_stoc[threadnum], hm_buf, &nh_buf);
+                        stoc_mass_sample(redshift, growthf, delta_l, Mmax, Mmin, ps_ratio, 0, rng_stoc[threadnum], hm_buf, &nh_buf);
                     else
                         stoc_halo_sample(growthf,delta_l,delta_v,volume,Mmin,Mmax,0,rng_stoc[threadnum],&nh_buf,hm_buf);
 
@@ -1008,7 +1009,7 @@ int build_halo_cats(gsl_rng **rng_stoc, double redshift, bool eulerian, float *d
                             counter++;
                         }
                     }
-                    LOG_ULTRA_DEBUG("First few Masses %.3e %.3e %.3e",hm_buf[0],hm_buf[1],hm_buf[2]);
+                    LOG_ULTRA_DEBUG("First few Masses of %d %.3e %.3e %.3e",nh_buf,hm_buf[0],hm_buf[1],hm_buf[2]);
                 }
             }
         }
@@ -1084,6 +1085,7 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
         int ii,jj,x,y,z;
         double volume,R;
         double M_sum;
+        double ps_ratio = 1.;
 
 #pragma omp for
         for(ii=0;ii<nhalo_in;ii++){
@@ -1099,8 +1101,8 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
             volume = M2 / RHOcrit / cosmo_params_stoc->OMm;
             
             if(user_params_stoc->HMF!=0){
-                ps_ratio = (IntegratedNdM(growthf,log(Mmin),log(Mmax_meandens),log(Mmax_meandens),0,1,0) 
-                   / IntegratedNdM(growthf,log(Mmin),log(Mmax_meandens),log(Mmax_meandens),0,1,user_params_stoc->HMF));
+                ps_ratio = (IntegratedNdM(growth_out,log(Mmin),log(M2),log(M2),0,1,0) 
+                   / IntegratedNdM(growth_out,log(Mmin),log(M2),log(M2),0,1,user_params_stoc->HMF));
                 volume = volume / ps_ratio;
             }
 
@@ -1120,7 +1122,8 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
                 update_halo_properties(rng[threadnum], z_out, z_in, halo_buf[jj], M2, propbuf_in, propbuf_out);
 
                 M_sum += halo_buf[jj];
-                if(M_sum>M2){
+                //TODO: proper checks
+                if(M_sum > (M2)*(1+1e-5)){
                     LOG_SUPER_DEBUG("halo_in %d (%d), progenitor mass %.2e (%.2e) > descendant mass %.2e",ii,jj,M_sum,halo_buf[jj],M2);
                 }
                 
@@ -1467,7 +1470,8 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 
             if(user_params_stoc->STOC_MASS_SAMPLING){
                 param = update ? growth_in : delta_l;
-                stoc_mass_sample(z_out, growth_out, param, Mmax, Mmin, update, rng_stoc[0], out_hm, &n_halo);
+                //double z_out, double growth_out, double param, double M_max, double M_min, double ps_ratio, int update, gsl_rng * rng, float *M_out, int *n_halo_out
+                stoc_mass_sample(z_out, growth_out, param, Mmax, Mmin, ps_ratio, update, rng_stoc[0], out_hm, &n_halo);
             }
             else{
                 stoc_halo_sample(growth_out,delta_l,delta_v,volume,Mmin,Mmax,update,rng_stoc[0],&n_halo,out_hm);

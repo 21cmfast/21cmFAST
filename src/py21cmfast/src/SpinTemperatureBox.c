@@ -1,6 +1,11 @@
 
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
 
+void ts_halos(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                  struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift, short cleanup,
+                  struct PerturbedField *perturbed_field, struct HaloBox *halo_box, struct TsBox *previous_spin_temp,
+                  struct InitialConditions *ini_boxes, struct TsBox *this_spin_temp);
+
 // Grids/arrays that only need to be initialised once (i.e. the lowest redshift density cube to be sampled)
 double ***fcoll_R_grid, ***dfcoll_dz_grid;
 double **grid_dens, **density_gridpoints;
@@ -28,6 +33,8 @@ int *m_xHII_low_box;
 double **fcoll_interp1, **fcoll_interp2, **dfcoll_interp1, **dfcoll_interp2;
 double *fcoll_R_array, *sigma_Tmin, *ST_over_PS, *sum_lyn;
 float *inverse_diff, *zpp_growth, *zpp_for_evolve_list,*Mcrit_atom_interp_table;
+float *dzpp_list;
+double *dtdz_list;
 double *ST_over_PS_MINI,*sum_lyn_MINI,*sum_lyLWn,*sum_lyLWn_MINI;
 
 // interpolation tables for the heating/ionisation integrals
@@ -40,7 +47,7 @@ float initialised_redshift = 0.0;
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options,
                   float perturbed_field_redshift, short cleanup,
-                  struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp,
+                  struct PerturbedField *perturbed_field, struct HaloBox * halo_box, struct TsBox *previous_spin_temp,
                   struct InitialConditions *ini_boxes, struct TsBox *this_spin_temp) {
     int status;
     Try{ // This Try{} wraps the whole function.
@@ -56,8 +63,12 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_HF(user_params,cosmo_params,astro_params, flag_options);
 
+    init_heat();
+
     if(flag_options->USE_HALO_FIELD){
-        ts_halos(args);
+        ts_halos(redshift,prev_redshift,user_params,cosmo_params,astro_params,flag_options,perturbed_field_redshift,
+                cleanup,perturbed_field,halo_box,previous_spin_temp,ini_boxes,this_spin_temp);
+        destruct_heat();
         return 0;
     }
 
@@ -1214,6 +1225,10 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                         Throw(TableGenerationError);
                     }
                 }
+                /*LOG_DEBUG("heat: %.3e %.3e %.3e ion: %.3e %.3e %.3e lya: %.3e %.3e %.3e lower %.3e"
+                    ,freq_int_heat_tbl[0][R_ct],freq_int_heat_tbl[x_int_NXHII/2][R_ct],freq_int_heat_tbl[x_int_NXHII-1][R_ct]
+                    ,freq_int_ion_tbl[0][R_ct],freq_int_ion_tbl[x_int_NXHII/2][R_ct],freq_int_ion_tbl[x_int_NXHII-1][R_ct]
+                    ,freq_int_lya_tbl[0][R_ct],freq_int_lya_tbl[x_int_NXHII/2][R_ct],freq_int_lya_tbl[x_int_NXHII-1][R_ct], lower_int_limit);*/
             }
 
             // and create the sum over Lya transitions from direct Lyn flux
@@ -1482,6 +1497,9 @@ LOG_SUPER_DEBUG("finished looping over R_ct filter steps");
                 dstarlyLW_dt_prefactor[R_ct]  = zpp_integrand * sum_lyLWn[R_ct];
                 dstarlyLW_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyLWn_MINI[R_ct];
             }
+            
+            /*LOG_DEBUG("edge: R: %.3e D: %.3e z: %.3e (%.3e) dt: %.3e lyastar %.3e"
+                ,R_values[R_ct],zpp_growth[R_ct],zpp_for_evolve_list[R_ct],zpp_edge[R_ct],dtdz(zpp_for_evolve_list[R_ct]), dstarlya_dt_prefactor[R_ct]);*/
         }
 
         // Required quantities for calculating the IGM spin temperature
@@ -1853,6 +1871,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             xc_fast,xi_power,xa_tilde_fast_arg,TS_fast,TSold_fast,xa_tilde_fast,dxheat_dzp_MINI,J_alpha_tot_MINI,curr_delNL0) \
                     num_threads(user_params->N_THREADS)
                 {
+                    int print_count=0;
 #pragma omp for reduction(+:J_alpha_ave,xalpha_ave,Xheat_ave,Xion_ave,Ts_ave,Tk_ave,x_e_ave,J_alpha_ave_MINI,Xheat_ave_MINI,J_LW_ave,J_LW_ave_MINI)
                     for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
 
@@ -1918,6 +1937,12 @@ LOG_SUPER_DEBUG("looping over box...");
 
                             dxlya_dt_box[box_ct] *= const_zp_prefactor*prefactor_1 * (1.+curr_delNL0*growth_factor_zp);
                             dstarlya_dt_box[box_ct] *= prefactor_2;
+                            
+                            if (print_count<5){
+                                LOG_DEBUG("delNL0: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e || dfcoll_0: %.3e | del: %.3e (%.3e)",curr_delNL0
+                                    ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct],dfcoll_dz_val,del_fcoll_Rct[box_ct],dfcoll_dz_val*del_fcoll_Rct[box_ct]);
+                                print_count++;
+                            }
 
                             if (flag_options->USE_MINI_HALOS){
                                 dstarlyLW_dt_box[box_ct] *= prefactor_2 * (hplank * 1e21);
@@ -2327,13 +2352,40 @@ LOG_SUPER_DEBUG("finished loop");
 //  I can have a separate setup/free functions for the case with MINIMIZE_MEMORY
 //Assuming that the same redshift (or within 0.0001) isn't called twice in a row (which it shouldn't be because caching), the global tables (Nion,SFRD)
 //  are initialised and used once. I'm not including those tables for now since it seems inefficient but I may be wrong here
+//I rely on the default behaviour of OpenMP scoping (everything shared unless its a stack variable defined in the parallel region)
+//  so I can avoid making massive directives, this breaks from the style of the remainder of the code but I find it much more readable
+//  the only downside is when there are a lot of re-used private variables which is rarely the case and can be specially placed in a private clause
+//The perturbed density field can be at a different redshift, it is linearly extrapolated to zp
+//z-INTEPROLATIONS: perturb field is linearly extrapolated to zp or zpp, local Nion calculations are based on this
+//  globals are simply linearly interpolated to zpp
+//  This also means that because we are using ONE HALO FIELD at the moment, we don't evolve the halos between shells,
+//  I should setup an interpolation between halo boxes.
+//Tau integrals are based on global Nion estimates. I want to change this to depend on the source field
+//Think about how the shells/geometry work in the halo mode, we are still filtering a whole sphere and dividing by shell volume
+//When calculating the heating terms, we multiply by dtdzpp in the zpp integral (dM*/dt -> dM*/dz''), but also by dtdzp
+//  I'm not sure where the other dt comes from
+
+struct AstroParams *astro_params_ts;
+struct CosmoParams *cosmo_params_ts;
+struct UserParams *user_params_ts;
+struct FlagOptions *flag_options_ts;
 
 //allocate the arrays that are always needed and defined globally, including frequency integrals, zp edges, etc
+void Broadcast_struct_global_TS(struct UserParams *user_params, struct CosmoParams *cosmo_params,struct AstroParams *astro_params, struct FlagOption *flag_options){
+    cosmo_params_ts = cosmo_params;
+    user_params_ts = user_params;
+    astro_params_ts = astro_params;
+    flag_options_ts = flag_options;
+}
+
 void alloc_global_arrays(){
+    int i;
     //these should probably be the same dtype
     zpp_for_evolve_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
     zpp_growth = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
     zpp_edge = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+    dzpp_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
+    dtdz_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
     R_values = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
     
     freq_int_heat_tbl = (double **)calloc(x_int_NXHII,sizeof(double *));
@@ -2350,6 +2402,8 @@ void alloc_global_arrays(){
         freq_int_ion_tbl_diff[i] = (double *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
         freq_int_lya_tbl_diff[i] = (double *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
     }
+    inverse_diff = (float *)calloc(x_int_NXHII,sizeof(float));
+    dstarlya_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
 
     del_fcoll_Rct = (float *) calloc(HII_TOT_NUM_PIXELS,sizeof(float));
 
@@ -2357,10 +2411,14 @@ void alloc_global_arrays(){
     dxion_source_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
     dxlya_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
     dstarlya_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
+    sum_lyn = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+    
+    m_xHII_low_box = (int *)calloc(HII_TOT_NUM_PIXELS,sizeof(int));
+    inverse_val_box = (float *)calloc(HII_TOT_NUM_PIXELS,sizeof(float));
 }
 
 void free_global_arrays(){
-    
+    int i;
     for(i=0;i<x_int_NXHII;i++) {
         free(freq_int_heat_tbl[i]);
         free(freq_int_ion_tbl[i]);
@@ -2375,6 +2433,8 @@ void free_global_arrays(){
     free(freq_int_heat_tbl_diff);
     free(freq_int_ion_tbl_diff);
     free(freq_int_lya_tbl_diff);
+    free(dstarlya_dt_prefactor);
+    free(inverse_diff);
 
     free(zpp_growth);
     free(zpp_edge);
@@ -2385,14 +2445,21 @@ void free_global_arrays(){
     free(dxion_source_dt_box);
     free(dxlya_dt_box);
     free(dstarlya_dt_box);
-
+    free(sum_lyn);
+    free(m_xHII_low_box);
+    free(inverse_val_box);
 }
 
-void setup_z_edges(){
+//construct the [R_ct] tables
+void setup_z_edges(double zp, double z_pt){
     double R, R_factor;
-    double zp, zpp, prev_zpp, prev_R;
+    double zpp, prev_zpp, prev_R;
+    double zpp_integrand, dzpp_for_evolve;
+    double determine_zpp_max; //this is not global like the minimum
+    int R_ct, n_ct;
+    double nuprime;
 
-    R = L_FACTOR*user_params->BOX_LEN/(float)user_params->HII_DIM;
+    R = L_FACTOR*user_params_ts->BOX_LEN/(float)user_params_ts->HII_DIM;
     R_factor = pow(global_params.R_XLy_MAX/R, 1/((float)global_params.NUM_FILTER_STEPS_FOR_Ts));
 
     for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
@@ -2417,8 +2484,66 @@ void setup_z_edges(){
             dzpp_for_evolve = zpp_edge[R_ct-1] - zpp_edge[R_ct];
         }
         zpp_growth[R_ct] = dicke(zpp);
+        dzpp_list[R_ct] = dzpp_for_evolve;
+        dtdz_list[R_ct] = dtdz(zpp);
         R *= R_factor;
+        
+        // and create the sum over Lya transitions from direct Lyn flux
+        sum_lyn[R_ct] = 0.;
+        for (n_ct=NSPEC_MAX; n_ct>=2; n_ct--){
+            if (zpp > zmax(zp, n_ct))
+                continue;
+
+            nuprime = nu_n(n_ct)*(1+zpp)/(1.0+zp);
+            sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
+        }
+
+        //NOTE: originally this had a (1+zpp)^-a factor to cancel ST_OVER_PS (it was convenient to put that factor there but I will split it)
+        //TODO: compared to Mesinger+2011, which has (1+zpp)^3, same as const_zp_prefactor, figure out why
+        zpp_integrand = ( pow(1+zp,2)*(1+zpp) );
+        dstarlya_dt_prefactor[R_ct] = zpp_integrand * sum_lyn[R_ct];
+
+        /*LOG_DEBUG("edge: R: %.3e D: %.3e z: %.3e (%.3e) dt: %.3e lyastar %.3e"
+            ,R_values[R_ct],zpp_growth[R_ct],zpp,zpp_edge[R_ct],dtdz_list[R_ct], dstarlya_dt_prefactor[R_ct]);*/
     }
+    
+    //For a lot of global evolution, this code uses Nion_general. We can replace this with the halo field
+    //at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1 barrier
+    //so it needs the QHII in a range [zp,zpp]. I want to replace this whole thing with a global history struct but
+    //that will be more work.
+    //These tables for global filling factor have the same z range, but a different cadence
+    //we initialise sigmaM here also because it's needed for the Nion tables.
+    double M_MIN;
+    if(user_params_ts->USE_INTERPOLATION_TABLES){
+        init_ps();
+        if(flag_options_ts->USE_MINI_HALOS)
+            M_MIN = astro_params_ts->M_TURN/50.;
+        else
+            M_MIN = (global_params.M_MIN_INTEGRAL/50.);
+
+        if(user_params_ts->FAST_FCOLL_TABLES)
+            M_MIN = fmin(MMIN_FAST,M_MIN);
+        
+        initialiseSigmaMInterpTable(M_MIN,1e20);
+        determine_zpp_min = z_pt*0.999;
+        determine_zpp_max = zpp*1.001;
+        zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0);
+        initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
+                            astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_ESC,
+                            astro_params_ts->F_STAR10, astro_params_ts->F_ESC10);
+    }
+}
+
+//TODO: MINIHALOS
+double EvaluateNionTsTable(double z){
+        double zmax = z_val[zpp_interp_points_SFR-1];
+        double zmin = z_val[0];
+        double zwid = (zmax - zmin)/zpp_interp_points_SFR;
+
+        int redshift_int_fcollz = (int)floor((z - zmin)/zwid);
+        double redshift_table_fcollz = zmin + zwid*(float)redshift_int_fcollz;
+
+        return Nion_z_val[redshift_int_fcollz] + (z - redshift_table_fcollz)*(Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zwid);
 }
 
 //fill a box[R_ct][box_ct] array for use in TS by filtering on different scales and storing results
@@ -2427,19 +2552,18 @@ void fill_Rbox_table(float **result, float *input, float min_val, float const_fa
         //allocate table/grid memory
         //NOTE: if we aren't using minimize memory (in which case we don't call this function)
         //we can just allocate and free here.
-
-        init_heat();
-        int i,j,k,ct;
+        int i,j,k,ct,R_ct;
+        double R;
 
         fftwf_complex *box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
-#pragma omp parallel private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel private(i,j,k) num_threads(user_params_ts->N_THREADS)
             {
 #pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
+                for (i=0; i<user_params_ts->HII_DIM; i++){
+                    for (j=0; j<user_params_ts->HII_DIM; j++){
+                        for (k=0; k<user_params_ts->HII_DIM; k++){
                             *((float *)unfiltered_box + HII_R_FFT_INDEX(i,j,k)) = input[HII_R_INDEX(i,j,k)];
                         }
                     }
@@ -2448,12 +2572,12 @@ void fill_Rbox_table(float **result, float *input, float min_val, float const_fa
 LOG_SUPER_DEBUG("Allocated unfiltered box");
 
             ////////////////// Transform unfiltered box to k-space to prepare for filtering /////////////////
-            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, unfiltered_box);
+            dft_r2c_cube(user_params_ts->USE_FFTW_WISDOM, user_params_ts->HII_DIM, user_params_ts->N_THREADS, unfiltered_box);
 LOG_SUPER_DEBUG("Done FFT on unfiltered box");
 
             // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
             // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
-#pragma omp parallel num_threads(user_params->N_THREADS)
+#pragma omp parallel num_threads(user_params_ts->N_THREADS)
             {
 #pragma omp for
                 for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
@@ -2465,6 +2589,7 @@ LOG_SUPER_DEBUG("normalised unfiltered box");
 
             // Smooth the density field, at the same time store the minimum and maximum densities for their usage in the interpolation tables
             for(R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
+                R = R_values[R_ct];
                 // copy over unfiltered box
                 memcpy(box, unfiltered_box, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
@@ -2473,25 +2598,26 @@ LOG_SUPER_DEBUG("normalised unfiltered box");
                 }
 
                 // now fft back to real space
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, box);
+                dft_c2r_cube(user_params_ts->USE_FFTW_WISDOM, user_params_ts->HII_DIM, user_params_ts->N_THREADS, box);
 LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
                 // copy over the values
-#pragma omp parallel private(i,j,k) num_threads(user_params->N_THREADS)
+#pragma omp parallel private(i,j,k) num_threads(user_params_ts->N_THREADS)
                 {
                     float curr;
-#pragma omp for reduction(max:max_density) reduction(min:min_density)
-                    for (i=0;i<user_params->HII_DIM; i++){
-                        for (j=0;j<user_params->HII_DIM; j++){
-                            for (k=0;k<user_params->HII_DIM; k++){
-                                curr = *((float *)delta + HII_R_FFT_INDEX(i,j,k));
+#pragma omp for
+                    for (i=0;i<user_params_ts->HII_DIM; i++){
+                        for (j=0;j<user_params_ts->HII_DIM; j++){
+                            for (k=0;k<user_params_ts->HII_DIM; k++){
+                                curr = *((float *)box + HII_R_FFT_INDEX(i,j,k));
+
+                                //constant factors (i.e linear extrapolation to z=0 for dens.)
+                                curr = curr * const_factor;
 
                                 if (curr <= min_val){ // correct for aliasing in the filtering step
                                     curr = min_val;
                                 }
-                                // and linearly extrapolate to z=0
-                                curr_delta0 *= const_factor;
-
-                                output[R_ct][HII_R_INDEX(i,j,k)] = curr;
+                                
+                                result[R_ct][HII_R_INDEX(i,j,k)] = curr;
                             }
                         }
                     }
@@ -2501,29 +2627,44 @@ LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
         fftwf_free(unfiltered_box);
 }
 
+//construct the [x_e][R_ct] tables
 void fill_freqint_tables(float zp, double x_e_ave, double filling_factor_of_HI_zp){
     double lower_int_limit;
-#pragma omp parallel private(R_ct,x_e_ct,lower_int_limit) num_threads(user_params->N_THREADS)
+    int x_e_ct,R_ct;
+    double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
+#pragma omp parallel private(R_ct,x_e_ct,lower_int_limit) num_threads(user_params_ts->N_THREADS)
     {
 #pragma omp for
         for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
-
-            if(flag_options->USE_MINI_HALOS){
+            if(flag_options_ts->USE_MINI_HALOS){
                 lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
-                                                        log10_Mcrit_LW_ave_list[R_ct],LOG10_MTURN_INT), (astro_params->NU_X_THRESH)*NU_over_EV);
+                                                        log10_Mcrit_LW_ave_list[R_ct],LOG10_MTURN_INT), (astro_params_ts->NU_X_THRESH)*NU_over_EV);
             }
             else{
-                lower_int_limit = fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
+                lower_int_limit = fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp), (astro_params_ts->NU_X_THRESH)*NU_over_EV);
             }
-
-            if (filling_factor_of_HI_zp < 0) filling_factor_of_HI_zp = 0; // for global evol; nu_tau_one above treats negative (post_reionization) inferred filling factors properly
-
             // set up frequency integral table for later interpolation for the cell's x_e value
             for (x_e_ct = 0; x_e_ct < x_int_NXHII; x_e_ct++){
                 freq_int_heat_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 0);
                 freq_int_ion_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 1);
                 freq_int_lya_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 2);
+        
+                //we store these to avoid calculating them in the box_ct loop
+                if(x_e_ct > 0){
+                    freq_int_heat_tbl_diff[x_e_ct-1][R_ct] = freq_int_heat_tbl[x_e_ct][R_ct] - freq_int_heat_tbl[x_e_ct-1][R_ct];
+                    freq_int_ion_tbl_diff[x_e_ct-1][R_ct] = freq_int_ion_tbl[x_e_ct][R_ct] - freq_int_ion_tbl[x_e_ct-1][R_ct];
+                    freq_int_lya_tbl_diff[x_e_ct-1][R_ct] = freq_int_lya_tbl[x_e_ct][R_ct] - freq_int_lya_tbl[x_e_ct-1][R_ct];
+                }
             }
+            /*LOG_DEBUG("heat: %.3e %.3e %.3e ion: %.3e %.3e %.3e lya: %.3e %.3e %.3e lower %.3e"
+                ,freq_int_heat_tbl[0][R_ct],freq_int_heat_tbl[x_int_NXHII/2][R_ct],freq_int_heat_tbl[x_int_NXHII-1][R_ct]
+                ,freq_int_ion_tbl[0][R_ct],freq_int_ion_tbl[x_int_NXHII/2][R_ct],freq_int_ion_tbl[x_int_NXHII-1][R_ct]
+                ,freq_int_lya_tbl[0][R_ct],freq_int_lya_tbl[x_int_NXHII/2][R_ct],freq_int_lya_tbl[x_int_NXHII-1][R_ct], lower_int_limit);*/
+        }
+//separating the inverse diff loop to prevent a race on different R_ct (shouldn't matter)
+#pragma omp for
+        for(x_e_ct=0;x_e_ct<x_int_NXHII-1;x_e_ct++){
+            inverse_diff[x_e_ct] = 1./(x_int_XHII[x_e_ct+1] - x_int_XHII[x_e_ct]);
         }
     }
 
@@ -2539,8 +2680,9 @@ void fill_freqint_tables(float zp, double x_e_ave, double filling_factor_of_HI_z
     
 }
 
-
-void init_first_Ts(TsBox * box, float z, float zp, double *x_e_ave, double *Tk_ave, bool prev_box){
+//construct a Ts table above Z_HEAT_MAX, this can happen if we are computing the first box or if we
+//request a redshift above Z_HEAT_MAX
+void init_first_Ts(struct TsBox * box, float *dens, float z, float zp, double *x_e_ave, double *Tk_ave, bool prev_box){
     int box_ct;
     //zp is the requested redshift, z is the perturbed field redshift
     float growth_factor_zp;
@@ -2549,13 +2691,13 @@ void init_first_Ts(TsBox * box, float z, float zp, double *x_e_ave, double *Tk_a
 
     //TODO: its probably a good idea to force zp == Z_HEAT_MAX if prev_box
     //prev_box means we enable the user options for xe and Tk, and don't calculate Ts
-    if(prev_box && user_params->XION_at_Z_HEAT_MAX > 0)
-        xe = user_params->XION_at_Z_HEAT_MAX;
+    if(prev_box && global_params.XION_at_Z_HEAT_MAX > 0)
+        xe = global_params.XION_at_Z_HEAT_MAX;
     else
         xe = xion_RECFAST(zp,0);
         
-    if(prev_box && user_params->TK_at_Z_HEAT_MAX > 0)
-        TK = user_params->TK_at_Z_HEAT_MAX;
+    if(prev_box && global_params.TK_at_Z_HEAT_MAX > 0)
+        TK = global_params.TK_at_Z_HEAT_MAX;
     else
         TK = T_RECFAST(zp,0);
 
@@ -2567,9 +2709,7 @@ void init_first_Ts(TsBox * box, float z, float zp, double *x_e_ave, double *Tk_a
     *x_e_ave = xe;
     *Tk_ave = TK;
 
-    LOG_SUPER_DEBUG("growth factor zp = %f", growth_factor_zp);
-
-#pragma omp parallel private(box_ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel private(box_ct) num_threads(user_params_ts->N_THREADS)
     {
         double curr_xalpha;
 #pragma omp for
@@ -2579,9 +2719,8 @@ void init_first_Ts(TsBox * box, float z, float zp, double *x_e_ave, double *Tk_a
             box->x_e_box[box_ct] = xe;
             // compute the spin temperature
             if(!prev_box){
-                box->Ts_box[box_ct] = get_Ts(redshift,
-                                                    perturbed_field->density[box_ct]*inverse_growth_factor_z*growth_factor_zp,
-                                                    TK, xe, 0, &curr_xalpha);
+                box->Ts_box[box_ct] = get_Ts(z,dens[box_ct]*inverse_growth_factor_z*growth_factor_zp,
+                                            TK, xe, 0, &curr_xalpha);
             }
         }
     }
@@ -2592,143 +2731,428 @@ void init_first_Ts(TsBox * box, float z, float zp, double *x_e_ave, double *Tk_a
 //TODO: add minihalo to haloboxes and this
 int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
     int box_ct;
-    double sum_wstar=0,Nion;
+    double sum_wstar=0,sum_Nion;
     double Q;
 
     //is defined above, could move to a struct
-    double ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
-    double tot_mass = RHOcrit * cosmo_params->OMm * user_params->BOX_LEN * user_params->BOX_LEN * user_params->BOX_LEN;
+    double eff = global_params.Pop2_ion * astro_params_ts->F_STAR10 * astro_params_ts->F_ESC10;
+    double tot_mass = RHOcrit * cosmo_params_ts->OMm * user_params_ts->BOX_LEN * user_params_ts->BOX_LEN * user_params_ts->BOX_LEN;
 
-    if(flag_options->USE_HALO_FIELD){
-#pragma omp parallel for num_threads(user_params->N_THREADS)
+    if(flag_options_ts->USE_HALO_FIELD){
+#pragma omp parallel for num_threads(user_params_ts->N_THREADS)
         for(box_ct=0;box_ct<HII_TOT_NUM_PIXELS;box_ct++){
-            sum_wstar += halo_box->wstar_mass;
+            sum_wstar += halo_box->wstar_mass[box_ct];
         }
     }
-    sum_Nion = sum_wstar * ION_EFF_FACTOR;
+    sum_Nion = sum_wstar * eff;
     Q = 1 - sum_Nion/tot_mass;
     *Q_HI = Q;
+
+    if(LOG_LEVEL>=DEBUG_LEVEL && user_params_ts->USE_INTERPOLATION_TABLES){
+        sum_Nion = EvaluateNionTsTable(zp);
+        LOG_DEBUG("Q(halo) = %.3e | Q(global) = %.3e",Q,1 - sum_Nion/tot_mass);
+    }
 
     return sum_wstar > 1e-15 ? 0 : 1; //NO_LIGHT returned
     
 }
 
+//the faster get_Ts put here for abstraction
+//TODO: finish (need to put some constants in a global static struct)
+double get_Ts_fast(float z, float delta, float TK, float xe, float Jalpha, float * curr_xalpha){
+
+    return 0.;
+}
+
 //outer-level function for calculating Ts based on the Halo boxes
 //TODO: make sure redshift (zp), perturbed_field_redshift, zpp all consistent
-void ts_halos(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
+//TODO: add Minihalos (which includes LW)
+void ts_halos(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                  struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift, short cleanup,
                   struct PerturbedField *perturbed_field, struct HaloBox *halo_box, struct TsBox *previous_spin_temp,
-                  struct InitialConditions *ini_boxes, struct TsBox *this_spin_temp) {
-
-    //define variables
+                  struct InitialConditions *ini_boxes, struct TsBox *this_spin_temp){
     int box_ct, R_ct, i, j, k;
-    double x_e_ave, Tk_ave;
+    double x_e_ave_p, Tk_ave_p;
+    double growth_factor_z, growth_factor_zp, dgrowth_factor_dzp, dt_dzp;
+    double inverse_growth_factor_z;
+    double zp, dzp, prev_zp;
+
+    LOG_DEBUG("starting halo spintemp");
+    LOG_DEBUG("input values:");
+    LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift, prev_redshift, perturbed_field_redshift);
+
+    Broadcast_struct_global_TS(user_params,cosmo_params,astro_params,flag_options);
+    //Broadcast_struct_global_PS(user_params,cosmo_params);
+    Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_HF(user_params,cosmo_params,astro_params, flag_options);
 
     //TODO: z ~> zmax case and first_box setting should be done in wrapper initialisation
-    if (redshift > global_params.Z_HEAT_MAX){
-        LOG_SUPER_DEBUG("redshift greater than Z_HEAT_MAX");
-        init_first_Ts(this_spin_temp,perturbed_field_redshift,redshift,&x_e_ave,&Tk_ave,false);
-        //return here for cleanup or have the HUGE else clause in?
-        return 0;
+    if(redshift > global_params.Z_HEAT_MAX){
+        LOG_DEBUG("redshift greater than Z_HEAT_MAX");
+        init_first_Ts(this_spin_temp,perturbed_field->density,perturbed_field_redshift,redshift,&x_e_ave_p,&Tk_ave_p,false);
+        //TODO: return here & cleanup or have the HUGE else clause in?
+            double M_MIN;
+        //TODO: IoniseBox expects this to be initialised, make a cleaner way.
+        if(user_params_ts->USE_INTERPOLATION_TABLES){
+            init_ps();
+            if(flag_options_ts->USE_MINI_HALOS)
+                M_MIN = astro_params_ts->M_TURN/50.;
+            else
+                M_MIN = (global_params.M_MIN_INTEGRAL/50.);
+
+            if(user_params_ts->FAST_FCOLL_TABLES)
+                M_MIN = fmin(MMIN_FAST,M_MIN);
+            
+            initialiseSigmaMInterpTable(M_MIN,1e20);
+        }
+        return;
     }
 
     growth_factor_z = dicke(perturbed_field_redshift);
     inverse_growth_factor_z = 1./growth_factor_z;
+    
+    growth_factor_zp = dicke(redshift);
+    dgrowth_factor_dzp = ddicke_dz(redshift);
+    dt_dzp = dtdz(redshift);
+
+    //setup dzp for the rate equations (T is added onto prev_spin_temp)
+    //TODO: find out why perturbed field is used for dzp instead of zp
+    //and what the first box case behaviour is for
+    //we are reusing zp as z here
+    zp = perturbed_field_redshift*1.0001; //higher for rounding
+    if(this_spin_temp->first_box) {
+        //this happens when zp < MAX, z_pt > MAX
+        if(zp > global_params.Z_HEAT_MAX) {
+            prev_zp = ((1+zp)/ global_params.ZPRIME_STEP_FACTOR - 1);
+        }
+        //perturbed field is below MAX, step up z until its <1 step from MAX
+        //dzp is then the difference between z and zmax
+        //since zp is overwritten, are we setting the right dzp?
+        else {
+            while (zp < global_params.Z_HEAT_MAX)
+                zp = ((1+zp)*global_params.ZPRIME_STEP_FACTOR - 1);
+            prev_zp = global_params.Z_HEAT_MAX;
+            zp = ((1+zp)/ global_params.ZPRIME_STEP_FACTOR - 1);
+        }
+        dzp = zp - prev_zp;
+        }
+    else {
+        dzp = redshift - prev_redshift;
+    }
+
+    zp = redshift;
+    prev_zp = prev_redshift;
+
+    //As far as I can tell, the only thing used from this is the X_e array
+    init_heat();
 
     //allocate the global arrays we always use
-    alloc_global_arrays();
+    if(!TsInterpArraysInitialised){
+        alloc_global_arrays();
+        TsInterpArraysInitialised = true;
+    }
+
     //setup the R_ct 1D arrays
-    setup_z_edges();
+    setup_z_edges(zp,perturbed_field_redshift);
 
     //read prev box, set it if this is the first
     if(this_spin_temp->first_box) {
-        LOG_SUPER_DEBUG("Treating as the first box");
-        init_first_Ts(previous_spin_temp,perturbed_field_redshift,global_params.Z_HEAT_MAX,&x_e_ave,&Tk_ave,true);
+        LOG_DEBUG("Treating as the first box");
+        init_first_Ts(previous_spin_temp,perturbed_field->density,perturbed_field_redshift,global_params.Z_HEAT_MAX,&x_e_ave_p,&Tk_ave_p,true);
     }
     else{
-        x_e_ave = Tk_ave = 0.0;
+        x_e_ave_p = Tk_ave_p = 0.0;
 #pragma omp parallel num_threads(user_params->N_THREADS)
         {
-#pragma omp for reduction(+:x_e_ave,Tk_ave)
+#pragma omp for reduction(+:x_e_ave_p,Tk_ave_p)
             for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
-                x_e_ave += previous_spin_temp->x_e_box[box_ct];
-                Tk_ave += previous_spin_temp->Tk_box[box_ct];
+                x_e_ave_p += previous_spin_temp->x_e_box[box_ct];
+                Tk_ave_p += previous_spin_temp->Tk_box[box_ct];
             }
         }
-        x_e_ave /= (float)HII_TOT_NUM_PIXELS;
-        Tk_ave /= (float)HII_TOT_NUM_PIXELS;
+        x_e_ave_p /= (float)HII_TOT_NUM_PIXELS;
+        Tk_ave_p /= (float)HII_TOT_NUM_PIXELS; // not used?
+        LOG_DEBUG("Prev Box: x_e_ave %.3e | TK_ave %.3e",x_e_ave_p,Tk_ave_p);
     }
         
     //2D arrays needed for storing all the filter scales
-    delta0_r = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
+    /*delta0_r = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
     for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++) {
         delta0_r[R_ct] = (float *)calloc((float)HII_TOT_NUM_PIXELS,sizeof(float));
-    }
-    sfr_r = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
+    }*/
+    float **sfr_r = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
     for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++) {
         sfr_r[R_ct] = (float *)calloc((float)HII_TOT_NUM_PIXELS,sizeof(float));
     }
 
-    fill_Rbox_table(delta0_r, perturbed_field->density, -1 + FRACT_FLOAT_ERR, inverse_growth_factor_z);
     fill_Rbox_table(sfr_r, halo_box->halo_sfr, 0., 1.);
 
+    int NO_LIGHT;
+    double filling_factor_of_HI_zp;
     NO_LIGHT = global_reion_properties(redshift,halo_box,&filling_factor_of_HI_zp);
 
-    //Initialise freq tables & prefactors
-    fill_freqint_tables(zp);
+    //Initialise freq tables & prefactors (x_e by R tables)
+    fill_freqint_tables(zp,x_e_ave_p,filling_factor_of_HI_zp);
 
-    //calculate del_fcoll_Rct,ave_fcoll, and all heating terms (+diffs)
+    //constant prefactors for the R_ct==0 part
+    double Luminosity_converstion_factor;
+    if(fabs(astro_params->X_RAY_SPEC_INDEX - 1.0) < 0.000001) {
+        Luminosity_converstion_factor = (astro_params->NU_X_THRESH)*NU_over_EV * log( global_params.NU_X_BAND_MAX/(astro_params->NU_X_THRESH) );
+        Luminosity_converstion_factor = 1./Luminosity_converstion_factor;
+    }
+    else {
+        Luminosity_converstion_factor = pow( (global_params.NU_X_BAND_MAX)*NU_over_EV , 1. - (astro_params->X_RAY_SPEC_INDEX) ) - \
+                                        pow( (astro_params->NU_X_THRESH)*NU_over_EV , 1. - (astro_params->X_RAY_SPEC_INDEX) ) ;
+        Luminosity_converstion_factor = 1./Luminosity_converstion_factor;
+        Luminosity_converstion_factor *= pow( (astro_params->NU_X_THRESH)*NU_over_EV, - (astro_params->X_RAY_SPEC_INDEX) )*\
+                                        (1 - (astro_params->X_RAY_SPEC_INDEX));
+    }
+    // Finally, convert to the correct units. NU_over_EV*hplank as only want to divide by eV -> erg (owing to the definition of Luminosity)
+    Luminosity_converstion_factor *= (3.1556226e7)/(hplank);
+
+    //for halos, we just want the SFR -> X-ray part
+    //Note compared to Mesinger+11: (1+zpp)^2 (1+zp) -> (1+zp)^3
+    double const_zp_prefactor = ( (astro_params->L_X) * Luminosity_converstion_factor ) / ((astro_params->NU_X_THRESH)*NU_over_EV) \
+                            * C * pow(1+zp, astro_params->X_RAY_SPEC_INDEX);
+
+    // Required quantities for calculating the IGM spin temperature
+    // Note: These used to be determined in evolveInt (and other functions). But I moved them all here, into a single location.
+    double Trad_fast = T_cmb*(1.0+zp);
+    double Trad_fast_inv = 1.0/Trad_fast;
+    double TS_prefactor = pow(1.0e-7*(1.342881e-7 / hubble(zp))*No*pow(1+zp,3),1./3.);
+    double xa_tilde_prefactor = 1.66e11/(1.0+zp);
+
+    double xc_inverse =  pow(1.0+zp,3.0)*T21/( Trad_fast*A10_HYPERFINE );
+
+    double dcomp_dzp_prefactor = (-1.51e-4)/(hubble(zp)/Ho)/(cosmo_params->hlittle)*pow(Trad_fast,4.0)/(1.0+zp);
+
+    double Nb_zp = N_b0 * (1+zp)*(1+zp)*(1+zp); //used for lya_X and sinks
+    double lya_star_prefactor = C / FOURPI * Msun / m_p * (1 - 0.75*global_params.Y_He); //converts SFR density -> stellar baryon density + prefactors
+    //TODO: volume depends on R? seems like something to do when I add the halobox interpolation
+    double cellvol_inv = HII_TOT_NUM_PIXELS / pow(user_params_ts->BOX_LEN,3) / pow(CMperMPC,3) * pow(1+zp,3);
+
+    //boxes that are independent of R (for interpolation of the nu integrals)
+    //NOTE: Frequency integrals are based on PREVIOUS XHII
+#pragma omp parallel private(box_ct) num_threads(user_params->N_THREADS)
+    {
+        double xHII_call;
+#pragma omp for
+        for(box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
+            xHII_call = previous_spin_temp->x_e_box[box_ct];
+            // Check if ionized fraction is within boundaries; if not, adjust to be within
+            if (xHII_call > x_int_XHII[x_int_NXHII-1]*0.999) {
+                xHII_call = x_int_XHII[x_int_NXHII-1]*0.999;
+            }
+            else if (xHII_call < x_int_XHII[0]) {
+                xHII_call = 1.001*x_int_XHII[0];
+            }
+            //these are the index and interpolation term, moved outside the R loop and stored to not calculate them R times
+            m_xHII_low_box[box_ct] = locate_xHII_index(xHII_call);
+            inverse_val_box[box_ct] = (xHII_call - x_int_XHII[m_xHII_low_box[box_ct]])*inverse_diff[m_xHII_low_box[box_ct]];
+
+            //initialise += boxes (memory sometimes re-used)
+            dxheat_dt_box[box_ct] = 0.;
+            dxion_source_dt_box[box_ct] = 0.;
+            dxlya_dt_box[box_ct] = 0.;
+            dstarlya_dt_box[box_ct] = 0.;
+        }
+    }
 
     //MAIN LOOP: SFR -> heating terms with freq integrals
+    double z_edge_factor, dzpp_for_evolve, zpp, xray_R_factor;
+    double J_alpha_ave,xalpha_ave,xheat_ave,xion_ave,Ts_ave,Tk_ave,x_e_ave;
+    J_alpha_ave=xalpha_ave=xheat_ave=xion_ave=Ts_ave=Tk_ave=x_e_ave=0;
+
     for(R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
+        dzpp_for_evolve = dzpp_list[R_ct];
+        zpp = zpp_for_evolve_list[R_ct];
+        z_edge_factor = fabs(dzpp_for_evolve) * fabs(dtdz_list[R_ct]); //dtdz dz for dM/dt -> (dM/dz'')dz''
+        xray_R_factor = pow(1+zpp,-(astro_params->X_RAY_SPEC_INDEX));
 
-        Mmax = RtoM(R_values[R_ct]);
-        sigmaMmax = sigma_z0(Mmax);
+        //in ComputeTS, there are prefactors which depend on the sum of stellar mass (to do the ST_OVER_PS part) so they have to be computed and stored separately
+        //I don't need those here (although ST_OVER_PS hides some R-dependent factors which I define above)
+#pragma omp parallel private(box_ct) num_threads(user_params->N_THREADS)
+        {
+            //private variables
+            int xidx;
+            double ival, sfr_term, curr_delta, x_e, T;
+            double dxion_sink_dt, dxe_dzp, dadia_dzp, dspec_dzp;
+            double dcomp_dzp, dxheat_dzp, J_alpha_tot, T_inv, T_inv_sq;
+            double xc_fast, xi_power, xa_tilde_fast_arg;
+            double TS_fast, TSold_fast, xa_tilde_fast;
 
-        for(box_ct=HII_TOT_NUM_PIXELS; box_ct--;){
-            if(R_ct==0){
-                if (J_alpha_tot > 1.0e-20) { // Must use WF effect
-                    TS_fast = Trad_fast;
-                    TSold_fast = 0.0;
-                    while (fabs(TS_fast-TSold_fast)/TS_fast > 1.0e-3) {
+            int print_count = 0;
 
-                        TSold_fast = TS_fast;
+#pragma omp for
+            for(box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
+                //sum each R contribution together
+                //Since the Halo option doesn't differentiate between the global Fcoll (NO_LIGHT) and conditional (ave_fcoll), this is consistent
+                if(!NO_LIGHT) {
+                    //TODO: double check this is the right volume (combined with dzpp) and not something using R
+                    sfr_term = sfr_r[R_ct][box_ct] * z_edge_factor * cellvol_inv; //SFR(t) to SFR density(z)
+                    xidx = m_xHII_low_box[box_ct];
+                    ival = inverse_val_box[box_ct];
+                    dxheat_dt_box[box_ct] += sfr_term * xray_R_factor * (freq_int_heat_tbl_diff[xidx][R_ct] * ival + freq_int_heat_tbl[xidx][R_ct]);
+                    dxion_source_dt_box[box_ct] += sfr_term * xray_R_factor * (freq_int_ion_tbl_diff[xidx][R_ct] * ival + freq_int_ion_tbl[xidx][R_ct]);
+                    dxlya_dt_box[box_ct] += sfr_term * xray_R_factor * (freq_int_lya_tbl_diff[xidx][R_ct] * ival + freq_int_lya_tbl[xidx][R_ct]);
+                    dstarlya_dt_box[box_ct] += sfr_term * dstarlya_dt_prefactor[R_ct]; //TODO: closely double check this one
+                }
+                //Why is this part even in the R loop?
+                if(R_ct==0){
+                    curr_delta = perturbed_field->density[box_ct];
+                    x_e = previous_spin_temp->x_e_box[box_ct];
+                    T = previous_spin_temp->Tk_box[box_ct];
 
-                        xa_tilde_fast = ( 1.0 - 0.0631789*T_inv + 0.115995*T_inv_sq - \
-                                        0.401403*T_inv*pow(TS_fast,-1.) + 0.336463*T_inv_sq*pow(TS_fast,-1.) )*xa_tilde_fast_arg;
+                    // add prefactors
+                    dxheat_dt_box[box_ct] *= const_zp_prefactor;
+                    dxion_source_dt_box[box_ct] *= const_zp_prefactor;
 
-                        TS_fast = (1.0+xa_tilde_fast+xc_fast)*pow(Trad_fast_inv+xa_tilde_fast*\
-                                            ( T_inv + 0.405535*T_inv*pow(TS_fast,-1.) - 0.405535*T_inv_sq ) + xc_fast*T_inv,-1.);
+                    dxlya_dt_box[box_ct] *= const_zp_prefactor * Nb_zp;
+                    dstarlya_dt_box[box_ct] *= lya_star_prefactor;
+
+                    if (print_count<5){
+                        LOG_DEBUG("delNL0: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e || sfr: %.3e",curr_delta * inverse_growth_factor_z
+                            ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct],sfr_r[R_ct][box_ct]*z_edge_factor);
+                        print_count++;
                     }
-                } else { // Collisions only
-                    TS_fast = (1.0 + xc_fast)/(Trad_fast_inv + xc_fast*T_inv);
-                    xa_tilde_fast = 0.0;
-                }
 
-                if(TS_fast < 0.) {
-                    // It can very rarely result in a negative spin temperature. If negative, it is a very small number.
-                    // Take the absolute value, the optical depth can deal with very large numbers, so ok to be small
-                    TS_fast = fabs(TS_fast);
-                }
+                    // Now we can solve the evolution equations  //
 
-                this_spin_temp->Ts_box[box_ct] = TS_fast;
-        
+                    // First let's do dxe_dzp //
+                    dxion_sink_dt = alpha_A(T) * global_params.CLUMPING_FACTOR * x_e*x_e * f_H * Nb_zp * \
+                                    (1.+curr_delta);
+                                    
+                    dxe_dzp = dt_dzp*(dxion_source_dt_box[box_ct] - dxion_sink_dt);
+
+                    // Next, let's get the temperature components //
+                    // first, adiabatic term
+                    dadia_dzp = 3/(1.0+zp);
+                    if (fabs(curr_delta) > FRACT_FLOAT_ERR) // add adiabatic heating/cooling from structure formation
+                        dadia_dzp += dgrowth_factor_dzp/(growth_factor_zp * (1.0/curr_delta+1.0));
+
+                    dadia_dzp *= (2.0/3.0)*T;
+
+                    // next heating due to the changing species
+                    dspec_dzp = - dxe_dzp * T / (1+x_e);
+
+                    // next, Compton heating
+                    //                dcomp_dzp = dT_comp(zp, T, x_e);
+                    dcomp_dzp = dcomp_dzp_prefactor*(x_e/(1.0+x_e+f_He))*( Trad_fast - T );
+
+                    // lastly, X-ray heating
+                    dxheat_dzp = dxheat_dt_box[box_ct] * dt_dzp * 2.0 / 3.0 / k_B / (1.0+x_e);
+
+                    //update quantities
+                    x_e += ( dxe_dzp ) * dzp; // remember dzp is negative
+                    if (x_e > 1) // can do this late in evolution if dzp is too large
+                        x_e = 1 - FRACT_FLOAT_ERR;
+                    else if (x_e < 0)
+                        x_e = 0;
+                    if (T < MAX_TK) {
+                            T += ( dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp ) * dzp;
+                    }
+
+                    if (T<0){ // spurious bahaviour of the trapazoidalintegrator. generally overcooling in underdensities
+                        T = T_cmb*(1+zp);
+                    }
+
+                    this_spin_temp->x_e_box[box_ct] = x_e;
+                    this_spin_temp->Tk_box[box_ct] = T;
+
+                    J_alpha_tot = ( dxlya_dt_box[box_ct] + dstarlya_dt_box[box_ct] ); //not really d/dz, but the lya flux
+
+                    // Note: to make the code run faster, the get_Ts function call to evaluate the spin temperature was replaced with the code below.
+                    // Algorithm is the same, but written to be more computationally efficient
+                    T_inv = expf((-1.)*logf(T));
+                    T_inv_sq = expf((-2.)*logf(T));
+
+                    xc_fast = (1.0+curr_delta)*xc_inverse*\
+                            ( (1.0-x_e)*No*kappa_10(T,0) + x_e*N_b0*kappa_10_elec(T,0) + x_e*No*kappa_10_pH(T,0) );
+
+                    xi_power = TS_prefactor * cbrt((1.0+curr_delta)*(1.0-x_e)*T_inv_sq);
+
+                    xa_tilde_fast_arg = xa_tilde_prefactor*J_alpha_tot*pow( 1.0 + 2.98394*xi_power + 1.53583*xi_power*xi_power + 3.85289*xi_power*xi_power*xi_power, -1. );
+                    
+                    if (J_alpha_tot > 1.0e-20) { // Must use WF effect
+                        TS_fast = Trad_fast;
+                        TSold_fast = 0.0;
+                        while (fabs(TS_fast-TSold_fast)/TS_fast > 1.0e-3) {
+                            TSold_fast = TS_fast;
+
+                            xa_tilde_fast = ( 1.0 - 0.0631789*T_inv + 0.115995*T_inv_sq - \
+                                            0.401403*T_inv*pow(TS_fast,-1.) + 0.336463*T_inv_sq*pow(TS_fast,-1.) )*xa_tilde_fast_arg;
+
+                            TS_fast = (1.0+xa_tilde_fast+xc_fast)*pow(Trad_fast_inv+xa_tilde_fast*\
+                                                ( T_inv + 0.405535*T_inv*pow(TS_fast,-1.) - 0.405535*T_inv_sq ) + xc_fast*T_inv,-1.);
+                        }
+                    } else { // Collisions only
+                        TS_fast = (1.0 + xc_fast)/(Trad_fast_inv + xc_fast*T_inv);
+                        xa_tilde_fast = 0.0;
+                    }
+
+                    if(TS_fast < 0.) {
+                        // It can very rarely result in a negative spin temperature. If negative, it is a very small number.
+                        // Take the absolute value, the optical depth can deal with very large numbers, so ok to be small
+                        TS_fast = fabs(TS_fast);
+                    }
+
+                    this_spin_temp->Ts_box[box_ct] = TS_fast;
+                    
+                    if(LOG_LEVEL >= DEBUG_LEVEL){
+                        J_alpha_ave += J_alpha_tot;
+                        xalpha_ave += xa_tilde_fast;
+                        xheat_ave += ( dxheat_dzp );
+                        xion_ave += ( dt_dzp*dxion_source_dt_box[box_ct] );
+                        Ts_ave += TS_fast;
+                        Tk_ave += T;
+                    }
+                    x_e_ave += x_e;
+                }
             }
         }
 
     }
 
+    for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
+        if(isfinite(this_spin_temp->Ts_box[box_ct])==0) {
+            LOG_ERROR("Estimated spin temperature is either infinite of NaN!");
+//                Throw(ParameterError);
+            Throw(InfinityorNaNError);
+        }
+    }
+
+
+LOG_SUPER_DEBUG("finished loop");
+
+    if(LOG_LEVEL >= DEBUG_LEVEL){
+        x_e_ave /= (double)HII_TOT_NUM_PIXELS;
+
+        Ts_ave /= (double)HII_TOT_NUM_PIXELS;
+        Tk_ave /= (double)HII_TOT_NUM_PIXELS;
+        J_alpha_ave /= (double)HII_TOT_NUM_PIXELS;
+        xalpha_ave /= (double)HII_TOT_NUM_PIXELS;
+        xheat_ave /= (double)HII_TOT_NUM_PIXELS;
+        xion_ave /= (double)HII_TOT_NUM_PIXELS;
+            LOG_DEBUG("zp = %e Ts_ave = %e x_e_ave = %e Tk_ave = %e J_alpha_ave = %e xalpha_ave = %e \
+                        xheat_ave = %e xion_ave = %e",zp,Ts_ave,x_e_ave,Tk_ave,J_alpha_ave,xalpha_ave,xheat_ave,xion_ave);
+    }
+
     //free the R x HII_DIM^3 arrays
+    /*
     for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++) {
         free(delta_r[R_ct]);
     }
-    free(delta_r);
+    free(delta_r);*/
     
     for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++) {
         free(sfr_r[R_ct]);
     }
     free(sfr_r);
 
-    free_global_arrays();
+    if(cleanup){
+        free_global_arrays();
+        TsInterpArraysInitialised = false;
+    }
 
     return;
 }
