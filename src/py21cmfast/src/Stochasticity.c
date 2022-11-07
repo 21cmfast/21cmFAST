@@ -21,8 +21,7 @@
 #define MAX_HALO_UPDATE 1024
 
 // minimum mass for the mass-based sampler, TODO: set to something unlikely / irrelevent if sampled
-// look into it and set it such that M_min_sampler * (expected number at + n sigma) << M_min, OR USE M_MIN_INTEGRAL
-#define MMIN_FACTOR 2
+#define MMIN_FACTOR 1
 #define MMAX_TABLES 1e16
 #define MANY_HALOS 100 //enough halos that we don't care about stochasticity, for future acceleration
 
@@ -1266,7 +1265,7 @@ int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_par
 
                 //This clipping is normally done with the mass_limit_bisection root find. 
                 //TODO: It could save some `pow` calls if I compute a mass limit outside the loop and check with if
-                fesc = fmin(fmax(pow(m/1e10,alpha_esc),0),1/norm_esc); //the scaling part of F_esc
+                fesc = fmin(fmax(norm_esc*pow(m/1e10,alpha_esc),0),1);
 
                 wstar = halos->stellar_masses[i_halo]*fesc;
                 sfr = halos->halo_sfr[i_halo];

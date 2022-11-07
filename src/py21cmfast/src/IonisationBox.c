@@ -112,9 +112,13 @@ LOG_SUPER_DEBUG("inited heat");
 LOG_SUPER_DEBUG("defined parameters");
 
     pixel_volume = pow(user_params->BOX_LEN/((float)(user_params->HII_DIM)), 3);
-
-
-    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
+    
+    //escape fractions taken into account in halo field
+    if(flag_options->USE_HALO_FIELD){
+        ION_EFF_FACTOR = global_params.Pop2_ion;
+        ION_EFF_FACTOR_MINI = global_params.Pop3_ion;
+    }
+    else if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
         ION_EFF_FACTOR_MINI = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
     }
@@ -1255,8 +1259,14 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 if (f_coll <= FRACT_FLOAT_ERR) f_coll = FRACT_FLOAT_ERR;
             }
 
-            ST_over_PS = box->mean_f_coll/f_coll;
-            ST_over_PS_MINI = box->mean_f_coll_MINI/f_coll_MINI;
+            if(flag_options->USE_HALO_FIELD){
+                ST_over_PS = 1.;
+                ST_over_PS_MINI = 1.;
+            }
+            else{
+                ST_over_PS = box->mean_f_coll/f_coll;
+                ST_over_PS_MINI = box->mean_f_coll_MINI/f_coll_MINI;
+            }
 
             //////////////////////////////  MAIN LOOP THROUGH THE BOX ///////////////////////////////////
             // now lets scroll through the filtered box

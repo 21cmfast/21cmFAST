@@ -103,8 +103,23 @@ def _imshow_slice(
     plt.imshow(slc, origin="lower", cmap=cmap, norm=norm, **imshow_kw)
 
     if cbar:
+        ax_long = np.amax(slc.shape)
+        ax_short = np.amin(slc.shape)
+        asp = 40 if cbar_horizontal == rotate else 10
+        if cbar_horizontal == rotate:
+            #long edge colorbar
+            frac = ax_long/(asp*ax_short + ax_long)
+            pad = 0.10
+        else:
+            #short edge colorbar
+            frac = ax_short/(asp*ax_long + ax_short)
+            pad = 0.03
+
+        print(cbar_horizontal,rotate,asp,frac)
+
         cb = plt.colorbar(
-            orientation="horizontal" if cbar_horizontal else "vertical", aspect=40 if cbar_horizontal else 10, ax=ax
+            orientation="horizontal" if cbar_horizontal else "vertical",
+            aspect=asp, ax=ax, fraction=frac, pad=pad
         )
         cb.outline.set_edgecolor(None)
 
@@ -339,6 +354,11 @@ def lightcone_sliceplot(
 
 
 def _set_zaxis_ticks(ax, lightcone, zticks, z_axis):
+    if zticks == "none":
+        getattr(ax, f"set_{z_axis}ticks")([])
+        getattr(ax, f"set_{z_axis}ticklabels")([])
+        return ""
+
     if zticks != "distance":
         loc = AutoLocator()
         # Get redshift ticks.

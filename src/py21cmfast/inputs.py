@@ -457,10 +457,10 @@ class UserParams(StructWithDefaults):
     STOC_INVERSE: bool, optional
         Sets the halo mass sampling to the inverse CMF sampling, as opposed to rejection sampling
         this should be better in every way, but is only usable with interpolation tables since the
-        integral would otherwise take too long.
+        integral would otherwise take too long. (THIS FLAG WILL SOON BE REMOVED AND REPLACED WITH USE_INTERPOLATION_TABLES)
     STOC_MASS_SAMPLING: bool, optional
         Sample over the mass of each condition (halo/cell) when sampling the CMF, rather than Poisson sampling
-        of the total number of halos in the condition.
+        of the total number of halos in the condition. (THIS WILL SOON BE THE ONLY OPTION)
     """
 
     _ffi = ffi

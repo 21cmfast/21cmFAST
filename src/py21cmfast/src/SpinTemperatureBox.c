@@ -1939,8 +1939,8 @@ LOG_SUPER_DEBUG("looping over box...");
                             dstarlya_dt_box[box_ct] *= prefactor_2;
                             
                             if (print_count<5){
-                                LOG_DEBUG("delNL0: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e || dfcoll_0: %.3e | del: %.3e (%.3e)",curr_delNL0
-                                    ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct],dfcoll_dz_val,del_fcoll_Rct[box_ct],dfcoll_dz_val*del_fcoll_Rct[box_ct]);
+                                LOG_DEBUG("delNL0: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delNL0
+                                    ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct]);
                                 print_count++;
                             }
 
@@ -2362,8 +2362,7 @@ LOG_SUPER_DEBUG("finished loop");
 //  I should setup an interpolation between halo boxes.
 //Tau integrals are based on global Nion estimates. I want to change this to depend on the source field
 //Think about how the shells/geometry work in the halo mode, we are still filtering a whole sphere and dividing by shell volume
-//When calculating the heating terms, we multiply by dtdzpp in the zpp integral (dM*/dt -> dM*/dz''), but also by dtdzp
-//  I'm not sure where the other dt comes from
+
 
 struct AstroParams *astro_params_ts;
 struct CosmoParams *cosmo_params_ts;
@@ -2451,7 +2450,7 @@ void free_global_arrays(){
 }
 
 //construct the [R_ct] tables
-void setup_z_edges(double zp, double z_pt){
+void setup_z_edges(double zp){
     double R, R_factor;
     double zpp, prev_zpp, prev_R;
     double zpp_integrand, dzpp_for_evolve;
@@ -2525,7 +2524,7 @@ void setup_z_edges(double zp, double z_pt){
             M_MIN = fmin(MMIN_FAST,M_MIN);
         
         initialiseSigmaMInterpTable(M_MIN,1e20);
-        determine_zpp_min = z_pt*0.999;
+        determine_zpp_min = zp*0.999;
         determine_zpp_max = zpp*1.001;
         zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0);
         initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
@@ -2536,14 +2535,14 @@ void setup_z_edges(double zp, double z_pt){
 
 //TODO: MINIHALOS
 double EvaluateNionTsTable(double z){
-        double zmax = z_val[zpp_interp_points_SFR-1];
-        double zmin = z_val[0];
-        double zwid = (zmax - zmin)/zpp_interp_points_SFR;
+    double zmax = z_val[zpp_interp_points_SFR-1];
+    double zmin = z_val[0];
+    double zwid = (zmax - zmin)/zpp_interp_points_SFR;
 
-        int redshift_int_fcollz = (int)floor((z - zmin)/zwid);
-        double redshift_table_fcollz = zmin + zwid*(float)redshift_int_fcollz;
+    int redshift_int_fcollz = (int)floor((z - zmin)/zwid);
+    double redshift_table_fcollz = zmin + zwid*(float)redshift_int_fcollz;
 
-        return Nion_z_val[redshift_int_fcollz] + (z - redshift_table_fcollz)*(Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zwid);
+    return Nion_z_val[redshift_int_fcollz] + (z - redshift_table_fcollz)*(Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zwid);
 }
 
 //fill a box[R_ct][box_ct] array for use in TS by filtering on different scales and storing results
@@ -2731,26 +2730,45 @@ void init_first_Ts(struct TsBox * box, float *dens, float z, float zp, double *x
 //TODO: add minihalo to haloboxes and this
 int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
     int box_ct;
-    double sum_wstar=0,sum_Nion;
+    double sum_wstar=0,sum_sfr=0;
+    double sfr_global, eff_global, wstar_global;
+    double sum_Nion;
+    double Nion_global;
     double Q;
 
-    //is defined above, could move to a struct
-    double eff = global_params.Pop2_ion * astro_params_ts->F_STAR10 * astro_params_ts->F_ESC10;
-    double tot_mass = RHOcrit * cosmo_params_ts->OMm * user_params_ts->BOX_LEN * user_params_ts->BOX_LEN * user_params_ts->BOX_LEN;
+    double eff = global_params.Pop2_ion;
+    double tot_mass =  RHOcrit * (cosmo_params_ts->OMb * user_params_ts->BOX_LEN * user_params_ts->BOX_LEN * user_params_ts->BOX_LEN);
 
     if(flag_options_ts->USE_HALO_FIELD){
 #pragma omp parallel for num_threads(user_params_ts->N_THREADS)
         for(box_ct=0;box_ct<HII_TOT_NUM_PIXELS;box_ct++){
             sum_wstar += halo_box->wstar_mass[box_ct];
+            if(LOG_LEVEL>=DEBUG_LEVEL){
+                sum_sfr += halo_box->halo_sfr[box_ct];
+            }
         }
     }
     sum_Nion = sum_wstar * eff;
     Q = 1 - sum_Nion/tot_mass;
     *Q_HI = Q;
 
-    if(LOG_LEVEL>=DEBUG_LEVEL && user_params_ts->USE_INTERPOLATION_TABLES){
-        sum_Nion = EvaluateNionTsTable(zp);
-        LOG_DEBUG("Q(halo) = %.3e | Q(global) = %.3e",Q,1 - sum_Nion/tot_mass);
+    if(LOG_LEVEL>=DEBUG_LEVEL){
+        double Mlim_Fstar, Mlim_Fesc;
+        
+        double Mmin = astro_params_ts->M_TURN / 50; //TODO: proper minimum
+        Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
+        Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_ESC, astro_params_ts->F_ESC10);
+        wstar_global = Nion_General(zp, Mmin, astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_ESC,
+                            astro_params_ts->F_STAR10, astro_params_ts->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+    
+        eff_global = global_params.Pop2_ion * astro_params_ts->F_STAR10 * astro_params_ts->F_ESC10;
+
+        //1 - Nion / Mass
+        LOG_DEBUG("Q(halo) = %.3e | Q(global) = %.3e",Q,1 - eff_global*wstar_global);
+
+        //SFR / Mass
+        sfr_global = astro_params_ts->F_STAR10 * Nion_General(zp, Mmin, astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, 0., astro_params_ts->F_STAR10, 1.,Mlim_Fstar,0.) * hubble(zp) / astro_params_ts->t_STAR;
+        LOG_DEBUG("SFR(halo) = %.3e | SFR(global) = %.3e",sum_sfr/tot_mass,sfr_global);
     }
 
     return sum_wstar > 1e-15 ? 0 : 1; //NO_LIGHT returned
@@ -2818,7 +2836,10 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     //setup dzp for the rate equations (T is added onto prev_spin_temp)
     //TODO: find out why perturbed field is used for dzp instead of zp
     //and what the first box case behaviour is for
-    //we are reusing zp as z here
+    //we are reusing zp as z_pt here
+    //if it's the first box, the PERTUBED redshift is stepped up to Z_HEAT_MAX
+    //and one step below this gives dzp. This loop also calculates the z minimum
+    //and maximum for the GLOBAL tables, where the LOCAL talbes use the edges based on zp
     zp = perturbed_field_redshift*1.0001; //higher for rounding
     if(this_spin_temp->first_box) {
         //this happens when zp < MAX, z_pt > MAX
@@ -2837,7 +2858,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         dzp = zp - prev_zp;
         }
     else {
-        dzp = redshift - prev_redshift;
+        dzp = redshift - prev_redshift; //why is this one based on zp and first is based on z_pt?
     }
 
     zp = redshift;
@@ -2853,7 +2874,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     }
 
     //setup the R_ct 1D arrays
-    setup_z_edges(zp,perturbed_field_redshift);
+    setup_z_edges(zp);
 
     //read prev box, set it if this is the first
     if(this_spin_temp->first_box) {
@@ -2913,7 +2934,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     //for halos, we just want the SFR -> X-ray part
     //Note compared to Mesinger+11: (1+zpp)^2 (1+zp) -> (1+zp)^3
     double const_zp_prefactor = ( (astro_params->L_X) * Luminosity_converstion_factor ) / ((astro_params->NU_X_THRESH)*NU_over_EV) \
-                            * C * pow(1+zp, astro_params->X_RAY_SPEC_INDEX);
+                            * C * pow(1+zp, astro_params->X_RAY_SPEC_INDEX + 3); //(1+z)^3 is here because we don't want it in the star lya (already in zpp integrand)
 
     // Required quantities for calculating the IGM spin temperature
     // Note: These used to be determined in evolveInt (and other functions). But I moved them all here, into a single location.
@@ -2926,10 +2947,11 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 
     double dcomp_dzp_prefactor = (-1.51e-4)/(hubble(zp)/Ho)/(cosmo_params->hlittle)*pow(Trad_fast,4.0)/(1.0+zp);
 
-    double Nb_zp = N_b0 * (1+zp)*(1+zp)*(1+zp); //used for lya_X and sinks
+    double Nb_zp = N_b0 * (1+zp)*(1+zp)*(1+zp); //used for lya_X and sinks TODO: figure out why there are 2 density terms in x-ray lya
     double lya_star_prefactor = C / FOURPI * Msun / m_p * (1 - 0.75*global_params.Y_He); //converts SFR density -> stellar baryon density + prefactors
     //TODO: volume depends on R? seems like something to do when I add the halobox interpolation
-    double cellvol_inv = HII_TOT_NUM_PIXELS / pow(user_params_ts->BOX_LEN,3) / pow(CMperMPC,3) * pow(1+zp,3);
+    //We use zp here instead of zpp because the sources are at zp (change with interpolation?)
+    double cellvol_inv = HII_TOT_NUM_PIXELS / pow(user_params_ts->BOX_LEN,3) * pow(CMperMPC,-3);
 
     //boxes that are independent of R (for interpolation of the nu integrals)
     //NOTE: Frequency integrals are based on PREVIOUS XHII
@@ -2989,7 +3011,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                 //Since the Halo option doesn't differentiate between the global Fcoll (NO_LIGHT) and conditional (ave_fcoll), this is consistent
                 if(!NO_LIGHT) {
                     //TODO: double check this is the right volume (combined with dzpp) and not something using R
-                    sfr_term = sfr_r[R_ct][box_ct] * z_edge_factor * cellvol_inv; //SFR(t) to SFR density(z)
+                    sfr_term = sfr_r[R_ct][box_ct] * z_edge_factor; //SFR(t) to SFR density(z)
                     xidx = m_xHII_low_box[box_ct];
                     ival = inverse_val_box[box_ct];
                     dxheat_dt_box[box_ct] += sfr_term * xray_R_factor * (freq_int_heat_tbl_diff[xidx][R_ct] * ival + freq_int_heat_tbl[xidx][R_ct]);
@@ -2999,20 +3021,26 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                 }
                 //Why is this part even in the R loop?
                 if(R_ct==0){
-                    curr_delta = perturbed_field->density[box_ct];
+                    curr_delta = perturbed_field->density[box_ct] * growth_factor_zp * inverse_growth_factor_z;
                     x_e = previous_spin_temp->x_e_box[box_ct];
                     T = previous_spin_temp->Tk_box[box_ct];
 
-                    // add prefactors
-                    dxheat_dt_box[box_ct] *= const_zp_prefactor;
-                    dxion_source_dt_box[box_ct] *= const_zp_prefactor;
+                    //this corrected for aliasing before, but sometimes there are still some delta==-1 cells
+                    //which breaks the adiabatic part, TODO: check out the perturbed field calculations to find out why
+                    if (curr_delta <= -1){
+                        curr_delta = -1+FRACT_FLOAT_ERR;
+                    }
 
-                    dxlya_dt_box[box_ct] *= const_zp_prefactor * Nb_zp;
-                    dstarlya_dt_box[box_ct] *= lya_star_prefactor;
+                    // add prefactors
+                    dxheat_dt_box[box_ct] *= const_zp_prefactor * cellvol_inv;
+                    dxion_source_dt_box[box_ct] *= const_zp_prefactor * cellvol_inv;
+
+                    dxlya_dt_box[box_ct] *= const_zp_prefactor * Nb_zp * cellvol_inv;
+                    dstarlya_dt_box[box_ct] *= lya_star_prefactor * cellvol_inv;
 
                     if (print_count<5){
-                        LOG_DEBUG("delNL0: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e || sfr: %.3e",curr_delta * inverse_growth_factor_z
-                            ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct],sfr_r[R_ct][box_ct]*z_edge_factor);
+                        LOG_DEBUG("delNL0: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delta
+                            ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct]);
                         print_count++;
                     }
 
@@ -3113,17 +3141,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 
     }
 
-    for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
-        if(isfinite(this_spin_temp->Ts_box[box_ct])==0) {
-            LOG_ERROR("Estimated spin temperature is either infinite of NaN!");
-//                Throw(ParameterError);
-            Throw(InfinityorNaNError);
-        }
-    }
-
-
-LOG_SUPER_DEBUG("finished loop");
-
     if(LOG_LEVEL >= DEBUG_LEVEL){
         x_e_ave /= (double)HII_TOT_NUM_PIXELS;
 
@@ -3133,9 +3150,24 @@ LOG_SUPER_DEBUG("finished loop");
         xalpha_ave /= (double)HII_TOT_NUM_PIXELS;
         xheat_ave /= (double)HII_TOT_NUM_PIXELS;
         xion_ave /= (double)HII_TOT_NUM_PIXELS;
-            LOG_DEBUG("zp = %e Ts_ave = %e x_e_ave = %e Tk_ave = %e J_alpha_ave = %e xalpha_ave = %e \
-                        xheat_ave = %e xion_ave = %e",zp,Ts_ave,x_e_ave,Tk_ave,J_alpha_ave,xalpha_ave,xheat_ave,xion_ave);
+            LOG_DEBUG("zp = %e Ts_ave = %e x_e_ave = %e Tk_ave = %e J_alpha_ave = %e xalpha_ave = %e xheat_ave = %e xion_ave = %e"
+                ,zp,Ts_ave,x_e_ave,Tk_ave,J_alpha_ave,xalpha_ave,xheat_ave,xion_ave);
     }
+
+    for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
+        if(isfinite(this_spin_temp->Ts_box[box_ct])==0) {
+            LOG_ERROR("Estimated spin temperature is either infinite of NaN! \n"
+                "idx %d delta %.3e dxheat %.3e dxion %.3e dxlya %.3e dstarlya %.3e",box_ct,perturbed_field->density[box_ct]
+                            ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct]);
+//                Throw(ParameterError);
+            Throw(InfinityorNaNError);
+        }
+    }
+
+
+LOG_SUPER_DEBUG("finished loop");
+
+
 
     //free the R x HII_DIM^3 arrays
     /*
