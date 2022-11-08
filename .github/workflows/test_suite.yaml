@@ -100,5 +100,6 @@ jobs:
         with:
           fail_ci_if_error: true
           verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
 
 # CC=$HOME/miniconda/envs/$ENV_NAME/bin/gcc
