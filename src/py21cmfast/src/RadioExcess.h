@@ -386,7 +386,7 @@ void Test_SFRD_box_Interp(struct TsBox *previous_spin_temp, double z1, double z2
 	fclose(OutputFile);
 }
 
-double Get_Radio_Temp_HMG_Astro(struct TsBox *previous_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, double zpp_max, double redshift)
+double Get_Radio_Temp_HMG_Astro(struct TsBox *previous_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, struct FlagOptions *flag_options, double zpp_max, double redshift)
 {
 
 	// Find Radio Temp from sources in redshifts [zpp_max, Z_Heat_max]
@@ -402,24 +402,10 @@ double Get_Radio_Temp_HMG_Astro(struct TsBox *previous_spin_temp, struct AstroPa
 	z1 = zpp_max;
 	dz = (z2 - z1) / (((double)nz) - 1);
 
-	if (astro_params->fR < 1.0E-15)
-	{
-		Radio_Prefix_ACG = 0.0;
-	}
-	else
-	{
-		Radio_Prefix_ACG = 113.6161 * astro_params->fR * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR10) * pow(astro_nu0 / 1.4276, astro_params->aR) * pow(1 + redshift, 3 + astro_params->aR);
-	}
-	if (astro_params->fR_mini < 1.0E-15)
-	{
-		Radio_Prefix_MCG = 0.0;
-	}
-	else
-	{
-		Radio_Prefix_MCG = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR7_MINI) * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3 + astro_params->aR_mini);
-	}
+	Radio_Prefix_ACG = 113.6161 * astro_params->fR * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR10) * pow(astro_nu0 / 1.4276, astro_params->aR) * pow(1 + redshift, 3 + astro_params->aR);
+	Radio_Prefix_MCG = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR7_MINI) * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3 + astro_params->aR_mini);
 
-	if (z1 > z2)
+	if ((z1 > z2) || ((!flag_options->USE_RADIO_ACG) || (!flag_options->USE_RADIO_MCG)))
 	{
 		return 0.0;
 	}

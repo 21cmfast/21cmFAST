@@ -59,7 +59,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         double Delta_Min, Delta_Max, Maximum_Mh, PBH_sigmaMmax, Delta_Width, Grid_Delta, Mininum_Mh, Grid_Fcoll, Grid_Fid_EMS, PBH_Radio_EMS_Halo, nu_factor, HubbleFactor, Delta_Min_tmp, Delta_Max_tmp;
         double Radio_dzpp, PBH_Fcoll_ave, PBH_FidEMS_ave, PBH_Fcoll_User, PBH_EMS_User, Radio_Prefix_ACG, Radio_Prefix_MCG, mbh_msun, mbh_kg, mbh_gram, Reset_MinM, fbh, Fill_Fraction, Radio_Temp_ave;
         int idx, ArchiveSize, zid, fid, tid, sid, xid, zpp_idx, Radio_Silent, R_values_ready;
-        bool Use_Radio_ACG, Use_Radio_MCG, Use_Radio_PBH, Use_Hawking_Radiation;
+        bool Use_Radio_MCG, Use_Radio_PBH, Use_Hawking_Radiation;
         FILE *OutputFile;
         double Rct_Tk_Table[40], PBH_Fcoll_Table[PBH_Table_Size], PBH_FidEMS_Table[PBH_Table_Size], debug_tmp;
 
@@ -184,19 +184,10 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // fbh > 1 is not allowed
         // Use_Radio_PBH requires USE_MASS_DEPENDENT_ZETA
         // Use_Radio_PBH requires USE_INTERPOLATION_TABLES
-        // NUM_FILTER_STEPS_FOR_Ts must be 40 if using PBH Radio BKG
+        // NUM_FILTER_STEPS_FOR_Ts must be 40 if using PBH Radio BKG, to be updated in next version
         // Make sure SFRD_Box is large enough
         // Brightness temp is handled differently if SUBCELL_RSD=T, see BrightnessTemperatureBox.c
 
-        if (astro_params->fR < 1.0E-10)
-        {
-            Use_Radio_ACG = false;
-            Radio_Prefix_ACG = 0.0;
-        }
-        else
-        {
-            Use_Radio_ACG = true;
-        }
         if (astro_params->fR_mini < 1.0E-15)
         {
             Use_Radio_MCG = false;
@@ -237,12 +228,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
         // Re-setting, the FlagOptions overrides them all
         // A question: should I complain (raise warning and proceed with FlagOptions) or abort (raise error) when numerical inputs are inconsistent with FlagOptions?
-        if ((!flag_options->USE_RADIO_ACG) && (Use_Radio_ACG))
-        {
-            Use_Radio_ACG=false;
-            LOG_ERROR("Mission aborted due to conflicting params: you have fR>0 but FlagOptions->USE_RADIO_ACG=F, you need to set FlagOptions->USE_RADIO_ACG=T to use Radio ACG.");
-            Throw(ValueError);
-        }
+        // I will leave the user to decide, or do it in oython
+
         if ((!flag_options->USE_RADIO_MCG) && (Use_Radio_MCG))
         {
             Use_Radio_MCG=false;
@@ -262,7 +249,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             Throw(ValueError);
         }
 
-        if (Use_Radio_PBH || (Use_Radio_ACG || Use_Radio_MCG))
+        // Determine whether to use radio excess
+        if (flag_options->USE_RADIO_PBH || (flag_options->USE_RADIO_ACG || flag_options->USE_RADIO_MCG))
         {
             Radio_Silent = 0;
         }
@@ -2017,11 +2005,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             }
 
             // Correcting for the radio temp from sources > R_XLy_MAX
-            Radio_Temp_HMG = 0.0;
-            if (Use_Radio_ACG || Use_Radio_MCG)
-            {
-                Radio_Temp_HMG = Get_Radio_Temp_HMG_Astro(previous_spin_temp, astro_params, cosmo_params, zpp_max, redshift);
-            }
+            Radio_Temp_HMG = Get_Radio_Temp_HMG_Astro(previous_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift);
             if (Use_Radio_PBH)
             {
                 // I am gonna allow the existence of both astro&PBH radio background
