@@ -627,16 +627,17 @@ class FlagOptions(StructWithDefaults):
     USE_VELS_AUX: bool, optional
         Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain
     USE_RADIO_ACG: bool, optional
-        Determines whether to use radio excess background from ACG, set this to True and AstroParams.fR > 0 to activate
+        Determines whether to use radio excess background from ACG, if True then AstroParams.fR is used
     USE_RADIO_MCG: bool, optional
-        Determines whether to use radio excess background from MCG, set this to True and AstroParams.fR_mini > 0 to activate
+        Determines whether to use radio excess background from MCG, if True then AstroParams.fR_mini is used
     USE_RADIO_PBH: bool, optional
-        Determines whether to use radio excess background from PBH, set this to True and AstroParams.log10_fbh > -200 to activate
+        Determines whether to use radio excess background from PBH, if True then AstroParams.log10_fbh is used
     USE_HAWKING_RADIATION: bool, optional, see 2108.13256
         Determines whether to use heating and ionisation from Hawking radiation , to use this feature you must have:
         1: USE_HAWKING_RADIATION = True
         2: -20 <= AstroParams.log10_mbh <= -15.3
         3: AstroParams.log10_fbh > -120
+        This feature will be automatically turned off if requirement 2&3 are not met
         Technically you must also specify correct AstroParams.bh_spin but current version only support Schwarzschild PBH
         Future version will add support for Kerr PBH (just need to set the initial condition right) and extended distribution
     """
