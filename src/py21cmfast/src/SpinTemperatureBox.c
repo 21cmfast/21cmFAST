@@ -2576,7 +2576,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                     }
 
                                     // Radio Galaxy model
-                                    if (Use_Radio_ACG)
+                                    if (flag_options->USE_RADIO_ACG)
                                     {
                                         Radio_Fun += Radio_Prefix_ACG * dfcoll_dz_val * (double)del_fcoll_Rct[box_ct] * (pow(1 + zpp_for_evolve_list[R_ct], astro_params->X_RAY_SPEC_INDEX - astro_params->aR));
                                     }
