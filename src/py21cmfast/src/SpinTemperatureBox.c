@@ -182,11 +182,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // ---------------- Pre-flight checks ----------------
         // Use_Radio_MCG requires USE_MINI_HALOS
         // fbh > 1 is not allowed
-        // Use_Radio_PBH requires USE_MASS_DEPENDENT_ZETA
-        // Use_Radio_PBH requires USE_INTERPOLATION_TABLES
+        // Use_Radio_PBH requires USE_MASS_DEPENDENT_ZETA and USE_INTERPOLATION_TABLES
         // NUM_FILTER_STEPS_FOR_Ts must be 40 if using PBH Radio BKG, to be updated in next version
         // Make sure SFRD_Box is large enough
-        // Brightness temp is handled differently if SUBCELL_RSD=T, see BrightnessTemperatureBox.c
 
         if (astro_params->fR_mini < 1.0E-15)
         {
