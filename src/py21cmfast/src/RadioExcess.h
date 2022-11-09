@@ -573,6 +573,23 @@ void SFRD_box_Printer(struct TsBox *previous_spin_temp)
 
 double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, struct FlagOptions *flag_options, struct UserParams *user_params, double zpp_max, double redshift)
 {
+
 	double Radio_Temp_HMG;
 	Radio_Temp_HMG = Get_Radio_Temp_HMG_Astro(previous_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift);
+	if (flag_options->USE_RADIO_PBH)
+	{
+		Radio_Temp_HMG += Get_Radio_Temp_HMG_PBH(previous_spin_temp, redshift, zpp_max, cosmo_params, astro_params, user_params->HMF);
+	}
+	if (Radio_Temp_HMG < -1.0E-8)
+	{
+		LOG_ERROR("Negative Radio Temp? Radio_Temp_HMG = %E\n", Radio_Temp_HMG);
+		Throw(ValueError);
+	}
+	// If for some reason you don't want to correct Radio_Temp_HMG (e.g debug)
+	if (Reset_Radio_Temp_HMG == 1)
+	{
+		Radio_Temp_HMG = 0.0;
+	}
+	return Radio_Temp_HMG;
+
 }

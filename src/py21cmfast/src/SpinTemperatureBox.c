@@ -1946,24 +1946,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             }
 
             // Correcting for the radio temp from sources > R_XLy_MAX
-            // Note: do all these in another file
-            Radio_Temp_HMG = Get_Radio_Temp_HMG_Astro(previous_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift);
-            if (flag_options->USE_RADIO_PBH)
-            {
-                // I am gonna allow the existence of both astro&PBH radio background
-                Radio_Temp_HMG += Get_Radio_Temp_HMG_PBH(previous_spin_temp, redshift, zpp_max, cosmo_params, astro_params, user_params->HMF);
-            }
-
-            if (Radio_Temp_HMG < -1.0E-8)
-            {
-                LOG_ERROR("Negative Radio Temp? Radio_Temp_HMG = %E\n", Radio_Temp_HMG);
-                Throw(ValueError);
-            }
-            // If for some reason you don't want to correct Radio_Temp_HMG (e.g debug)
-            if (Reset_Radio_Temp_HMG == 1)
-            {
-                Radio_Temp_HMG = 0.0;
-            }
+            Radio_Temp_HMG = Get_Radio_Temp_HMG(previous_spin_temp, astro_params, cosmo_params, flag_options, user_params, zpp_max, redshift);
 
             // Main loop over the entire box for the IGM spin temperature and relevant quantities.
             if (flag_options->USE_MASS_DEPENDENT_ZETA)
