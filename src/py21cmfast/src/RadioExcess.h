@@ -25,7 +25,7 @@ double PBH_Radio_EMS_IGM(double z, double nu, struct CosmoParams *cosmo_params, 
 {
 	// Get comoving radio emissivity from accreting PBH in IGM
 	// ---- inputs ----
-	// z: you guessed it, it's the redshift
+	// z: Redshift
 	// nu: Frequency
 	// Tk: Gas kinetic temp
 	// Fcoll: Collapsed fraction
@@ -402,10 +402,25 @@ double Get_Radio_Temp_HMG_Astro(struct TsBox *previous_spin_temp, struct AstroPa
 	z1 = zpp_max;
 	dz = (z2 - z1) / (((double)nz) - 1);
 
-	Radio_Prefix_ACG = 113.6161 * astro_params->fR * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR10) * pow(astro_nu0 / 1.4276, astro_params->aR) * pow(1 + redshift, 3 + astro_params->aR);
-	Radio_Prefix_MCG = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR7_MINI) * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3 + astro_params->aR_mini);
+	if (flag_options->USE_RADIO_ACG)
+	{
+		Radio_Prefix_ACG = 113.6161 * astro_params->fR * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR10) * pow(astro_nu0 / 1.4276, astro_params->aR) * pow(1 + redshift, 3 + astro_params->aR);
+	}
+	else
+	{
+		Radio_Prefix_ACG = 0.0;
+	}
 
-	if ((z1 > z2) || ((!flag_options->USE_RADIO_ACG) || (!flag_options->USE_RADIO_MCG)))
+	if (flag_options->USE_RADIO_MCG)
+	{
+		Radio_Prefix_MCG = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR7_MINI) * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3 + astro_params->aR_mini);
+	}
+	else
+	{
+		Radio_Prefix_MCG = 0.0;
+	}
+
+	if (z1 > z2)
 	{
 		return 0.0;
 	}
@@ -517,7 +532,7 @@ double Get_Radio_Temp_HMG_PBH(struct TsBox *previous_spin_temp, double z, double
 		Tk = Find_Tk(previous_spin_temp, zp);
 		growthf = dicke(zp);
 		MinM = 1.3E3 * pow(10 / (1 + zp), 1.5) * pow(Tk, 1.5);
-		nu_factor = pow((1 + zp) / (1 + z), - astro_params->bh_aR);
+		nu_factor = pow((1 + zp) / (1 + z), -astro_params->bh_aR);
 		new_nu = 1.42E9 * (1 + zp) / (1 + z);
 
 		Fcoll = FgtrM_General(zp, MinM);
@@ -554,4 +569,10 @@ void SFRD_box_Printer(struct TsBox *previous_spin_temp)
 		fprintf(OutputFile, "%E\n", previous_spin_temp->SFRD_box[idx]);
 	}
 	fclose(OutputFile);
+}
+
+double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, struct FlagOptions *flag_options, struct UserParams *user_params, double zpp_max, double redshift)
+{
+	double Radio_Temp_HMG;
+	Radio_Temp_HMG = Get_Radio_Temp_HMG_Astro(previous_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift);
 }

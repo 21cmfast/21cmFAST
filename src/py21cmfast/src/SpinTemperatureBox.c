@@ -56,7 +56,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // All these are variables for PBH&Radio Background
         double Radio_Temp, Radio_Temp_HMG, Radio_Fun, Trad_inv, zpp_max, z1, z2, Phi, Radio_zpp, new_nu, Phi_mini, Phi_ave, Phi_ave_mini, T_IGM_ave;
         double Hawking_dEdVdt_HIon, Hawking_dEdVdt_LyA, Hawking_dEdVdt_Heat, nH_ave, PeeblesFactor, Hawking_dxedt, Hawking_dTdt, Hawking_dxedz, Hawking_dTdz, Tk1, Tk2, Radio_EMS_IGM, dzpp_Rct0;
-        double Delta_Min, Delta_Max, Maximum_Mh, PBH_sigmaMmax, Delta_Width, Grid_Delta, Mininum_Mh, Grid_Fcoll, Grid_Fid_EMS, PBH_Radio_EMS_Halo, nu_factor, HubbleFactor, Delta_Min_tmp, Delta_Max_tmp;
+        double Delta_Min, Delta_Max, Maximum_Mh, PBH_sigmaMmax, Delta_Width, Grid_Delta, Mininum_Mh, Grid_Fcoll, Grid_Fid_EMS, PBH_Radio_EMS_Halo, nu_factor, HubbleFactor;
         double Radio_dzpp, PBH_Fcoll_ave, PBH_FidEMS_ave, PBH_Fcoll_User, PBH_EMS_User, Radio_Prefix_ACG, Radio_Prefix_MCG, mbh_msun, mbh_kg, mbh_gram, Reset_MinM, fbh, Fill_Fraction, Radio_Temp_ave;
         int idx, ArchiveSize, zid, fid, tid, sid, xid, zpp_idx, Radio_Silent, R_values_ready;
         FILE *OutputFile;
@@ -67,8 +67,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         mbh_msun = pow(10, astro_params->log10_mbh);
         mbh_gram = mbh_msun * Msun;
         mbh_kg = mbh_gram / 1000.0;
-        Delta_Min_tmp = 0.0;
-        Delta_Max_tmp = 0.0;
         Phi_ave = 0.0;
         Phi_ave_mini = 0.0;
         T_IGM_ave = 0.0;
@@ -263,7 +261,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         if (flag_options->USE_HAWKING_RADIATION)
         {
             // Some global vars needed for PBH heating/ionization module (see 2108.13256)
-            // averaged number density for H nuclei, in m^-3, assuming Y=0.245. Time this by (1 + delta) to get nH on grid
+            // nH_ave: averaged number density for H nuclei, in m^-3, assuming Y=0.245. Time this by (1 + delta) to get nH on grid
             nH_ave = 8.4816 * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * pow(1 + redshift, 3);
             Hawking_dEdVdt_HIon = dEdVdt_PBH_dep(redshift, astro_params, cosmo_params, 1);
             Hawking_dEdVdt_LyA = dEdVdt_PBH_dep(redshift, astro_params, cosmo_params, 3);
@@ -512,7 +510,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         inverse_growth_factor_z = 1. / growth_factor_z;
 
         // set the minimum ionizing source mass
-        //  In v1.4 the miinimum ionizing source mass does not depend on redshift.
+        //  In v1.4 the minimum ionizing source mass does not depend on redshift.
         //  For the constant ionizing efficiency parameter, M_MIN is set to be M_TURN which is a sharp cut-off.
         //  For the new parametrization, the number of halos hosting active galaxies (i.e. the duty cycle) is assumed to
         //  exponentially decrease below M_TURNOVER Msun, : fduty \propto e^(- M_TURNOVER / M)
@@ -1948,6 +1946,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             }
 
             // Correcting for the radio temp from sources > R_XLy_MAX
+            // Note: do all these in another file
             Radio_Temp_HMG = Get_Radio_Temp_HMG_Astro(previous_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift);
             if (flag_options->USE_RADIO_PBH)
             {
@@ -2529,18 +2528,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                         Radio_Fun += Radio_Prefix_MCG * dfcoll_dz_val_MINI * (double)del_fcoll_Rct_MINI[box_ct] * (pow(1 + zpp_for_evolve_list[R_ct], astro_params->X_RAY_SPEC_INDEX - astro_params->aR_mini));
                                     }
 
-                                    if (flag_options->USE_RADIO_PBH)
+                                    if (flag_options->USE_RADIO_PBH) // Accreting PBH
                                     {
-                                        // Accreting PBH Model
-                                        // Might need this for debugging
-                                        if (Grid_Delta < Delta_Min_tmp)
-                                        {
-                                            Delta_Min_tmp = Grid_Delta;
-                                        }
-                                        if (Grid_Delta > Delta_Max_tmp)
-                                        {
-                                            Delta_Max_tmp = Grid_Delta;
-                                        }
                                         if (R_ct < global_params.NUM_FILTER_STEPS_FOR_Ts - 1)
                                         {
                                             Radio_dzpp = zpp_for_evolve_list[R_ct + 1] - zpp_for_evolve_list[R_ct];
