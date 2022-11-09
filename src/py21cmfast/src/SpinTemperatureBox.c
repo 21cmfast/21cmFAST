@@ -59,7 +59,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         double Delta_Min, Delta_Max, Maximum_Mh, PBH_sigmaMmax, Delta_Width, Grid_Delta, Mininum_Mh, Grid_Fcoll, Grid_Fid_EMS, PBH_Radio_EMS_Halo, nu_factor, HubbleFactor, Delta_Min_tmp, Delta_Max_tmp;
         double Radio_dzpp, PBH_Fcoll_ave, PBH_FidEMS_ave, PBH_Fcoll_User, PBH_EMS_User, Radio_Prefix_ACG, Radio_Prefix_MCG, mbh_msun, mbh_kg, mbh_gram, Reset_MinM, fbh, Fill_Fraction, Radio_Temp_ave;
         int idx, ArchiveSize, zid, fid, tid, sid, xid, zpp_idx, Radio_Silent, R_values_ready;
-        bool Use_Radio_MCG, Use_Radio_PBH, Use_Hawking_Radiation;
+        bool Use_Radio_PBH, Use_Hawking_Radiation;
         FILE *OutputFile;
         double Rct_Tk_Table[40], PBH_Fcoll_Table[PBH_Table_Size], PBH_FidEMS_Table[PBH_Table_Size], debug_tmp;
 
@@ -186,20 +186,13 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // NUM_FILTER_STEPS_FOR_Ts must be 40 if using PBH Radio BKG, to be updated in next version
         // Make sure SFRD_Box is large enough
 
-        if (astro_params->fR_mini < 1.0E-15)
+        if ( (flag_options->USE_RADIO_MCG) && (!flag_options->USE_MINI_HALOS) )
         {
-            Use_Radio_MCG = false;
-            Radio_Prefix_MCG = 0.0;
+            // Move this to python in next version
+            LOG_ERROR("USE_RADIO_MCG requires USE_MINI_HALOS");
+            Throw(ValueError);
         }
-        else
-        {
-            Use_Radio_MCG = true;
-            if (!flag_options->USE_MINI_HALOS)
-            {
-                LOG_ERROR("Use_Radio_MCG requires USE_MINI_HALOS");
-                Throw(ValueError);
-            }
-        }
+
         if (astro_params->log10_fbh < -100.0)
         {
             Use_Radio_PBH = false;
@@ -226,23 +219,16 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
         // Re-setting, the FlagOptions overrides them all
         // A question: should I complain (raise warning and proceed with FlagOptions) or abort (raise error) when numerical inputs are inconsistent with FlagOptions?
-        // I will leave the user to decide, or do it in oython
 
-        if ((!flag_options->USE_RADIO_MCG) && (Use_Radio_MCG))
-        {
-            Use_Radio_MCG=false;
-            LOG_ERROR("Mission aborted due to conflicting params: you have fR_mini>0 but FlagOptions->USE_RADIO_MCG=F, you need to set FlagOptions->USE_RADIO_MCG=T to use Radio MCG.");
-            Throw(ValueError);
-        }
         if ((!flag_options->USE_RADIO_PBH) && (Use_Radio_PBH))
         {
-            Use_Radio_PBH=false;
+            Use_Radio_PBH = false;
             LOG_ERROR("Mission aborted due to conflicting params: numerical params says Use_Radio_PBH but FlagOptions->USE_RADIO_PBH=F, you need to set FlagOptions->USE_RADIO_PBH=T to use Radio PBH.");
             Throw(ValueError);
         }
         if ((!flag_options->USE_HAWKING_RADIATION) && (Use_Hawking_Radiation))
         {
-            Use_Hawking_Radiation=false;
+            Use_Hawking_Radiation = false;
             LOG_ERROR("Mission aborted due to conflicting params: numerical params says Use_Hawking_Radiation but FlagOptions->USE_HAWKING_RADIATION=F, you need to set FlagOptions->USE_HAWKING_RADIATION=T to use Hawking Radiation.");
             Throw(ValueError);
         }
@@ -2525,12 +2511,12 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                 if (PBH_Fcoll_Table[idx] < -1.0E-6)
                                 {
                                     LOG_ERROR("Negative fcoll detected, fcoll = %E", PBH_Fcoll_Table[idx]);
-			                        Throw(ValueError);
+                                    Throw(ValueError);
                                 }
                                 if (PBH_FidEMS_Table[idx] < -1.0E-6)
                                 {
                                     LOG_ERROR("Negative EMS detected, fcoll = %E", PBH_FidEMS_Table[idx]);
-			                        Throw(ValueError);
+                                    Throw(ValueError);
                                 }
                             }
                         }
@@ -2573,13 +2559,13 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                         Grid_Delta = delNL0[R_ct][box_ct] * zpp_growth[R_ct];
                                     }
 
-                                    // Radio Galaxy model
-                                    if (flag_options->USE_RADIO_ACG)
+                                    // Radio Galaxy models
+                                    if (flag_options->USE_RADIO_ACG) // Pop II
                                     {
                                         Radio_Fun += Radio_Prefix_ACG * dfcoll_dz_val * (double)del_fcoll_Rct[box_ct] * (pow(1 + zpp_for_evolve_list[R_ct], astro_params->X_RAY_SPEC_INDEX - astro_params->aR));
                                     }
 
-                                    if (Use_Radio_MCG)
+                                    if (flag_options->USE_RADIO_MCG) // Pop III
                                     {
                                         Radio_Fun += Radio_Prefix_MCG * dfcoll_dz_val_MINI * (double)del_fcoll_Rct_MINI[box_ct] * (pow(1 + zpp_for_evolve_list[R_ct], astro_params->X_RAY_SPEC_INDEX - astro_params->aR_mini));
                                     }
@@ -2606,7 +2592,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                         }
 
                                         // Frequency scaling factor
-                                        nu_factor = pow((1 + zpp_for_evolve_list[R_ct]) / (1 + redshift), - astro_params->bh_aR);
+                                        nu_factor = pow((1 + zpp_for_evolve_list[R_ct]) / (1 + redshift), -astro_params->bh_aR);
                                         // I want the EMS at this frequency
                                         new_nu = 1.43E9 * (1 + zpp_for_evolve_list[R_ct]) / (1 + redshift);
                                         // Fcoll
@@ -2614,7 +2600,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                                         // Comoving radio emissivity for our fiducial model params
                                         Grid_Fid_EMS = Interp_Fast(PBH_FidEMS_Table, Delta_Min, Delta_Max, PBH_Table_Size, Grid_Delta);
-                                        PBH_Radio_EMS_Halo = astro_params->bh_fR*nu_factor * Grid_Fid_EMS * fbh * pow(mbh_msun / 10, 0.82) * pow(astro_params->bh_fX * astro_params->bh_Eta * astro_params->bh_lambda / 1E-4, 0.85);
+                                        PBH_Radio_EMS_Halo = astro_params->bh_fR * nu_factor * Grid_Fid_EMS * fbh * pow(mbh_msun / 10, 0.82) * pow(astro_params->bh_fX * astro_params->bh_Eta * astro_params->bh_lambda / 1E-4, 0.85);
                                         Radio_EMS_IGM = PBH_Radio_EMS_IGM(zpp_for_evolve_list[R_ct], new_nu, cosmo_params, astro_params, Rct_Tk_Table[R_ct], Grid_Fcoll, Grid_Delta);
                                         // 3.8509E28 is c^3/(8 pi kB nu21^2) in SI unit
                                         Radio_Fun += fabs(Radio_dzpp * (PBH_Radio_EMS_Halo + Radio_EMS_IGM) * pow(1 + redshift, 3.0) * 3.8509E28 / (HubbleFactor * (1 + zpp_for_evolve_list[R_ct])));
