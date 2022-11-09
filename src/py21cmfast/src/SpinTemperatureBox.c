@@ -190,7 +190,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
         if ((flag_options->USE_RADIO_MCG) && (!flag_options->USE_MINI_HALOS))
         {
-            // Move this to python in next version
             LOG_ERROR("USE_RADIO_MCG requires USE_MINI_HALOS");
             Throw(ValueError);
         }
@@ -242,12 +241,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         if (Fill_Fraction > 0.8)
         {
             LOG_ERROR("SFRD_Box not large enough to record previous coevals, consider the following: increse HII_DIM, reduce z_prime_factor");
-            Throw(ValueError);
-        }
-
-        if ((flag_options->SUBCELL_RSD) && (Radio_Silent == 0))
-        {
-            LOG_ERROR("Brightness temp is handled differently if SUBCELL_RSD=T, see BrightnessTemperatureBox.c");
             Throw(ValueError);
         }
 
