@@ -59,7 +59,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         double Delta_Min, Delta_Max, Maximum_Mh, PBH_sigmaMmax, Delta_Width, Grid_Delta, Mininum_Mh, Grid_Fcoll, Grid_Fid_EMS, PBH_Radio_EMS_Halo, nu_factor, HubbleFactor, Delta_Min_tmp, Delta_Max_tmp;
         double Radio_dzpp, PBH_Fcoll_ave, PBH_FidEMS_ave, PBH_Fcoll_User, PBH_EMS_User, Radio_Prefix_ACG, Radio_Prefix_MCG, mbh_msun, mbh_kg, mbh_gram, Reset_MinM, fbh, Fill_Fraction, Radio_Temp_ave;
         int idx, ArchiveSize, zid, fid, tid, sid, xid, zpp_idx, Radio_Silent, R_values_ready;
-        bool Use_Hawking_Radiation;
         FILE *OutputFile;
         double Rct_Tk_Table[40], PBH_Fcoll_Table[PBH_Table_Size], PBH_FidEMS_Table[PBH_Table_Size], debug_tmp;
 
@@ -223,24 +222,9 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             // Don't reset if not using radio PBH
             Reset_MinM = -10.0;
         }
-
-        if ((mbh_gram < 1.0001E18) && (mbh_gram > 1.999E13))
+        if (((mbh_gram > 1.0001E18) || (mbh_gram < 1.999E13)) && flag_options->USE_HAWKING_RADIATION)
         {
-            // Automatically use Hawking radiation if (initial) PBH mass is in correct range
-            Use_Hawking_Radiation = true;
-        }
-        else
-        {
-            Use_Hawking_Radiation = false;
-        }
-
-        // Re-setting, the FlagOptions overrides them all
-        // A question: should I complain (raise warning and proceed with FlagOptions) or abort (raise error) when numerical inputs are inconsistent with FlagOptions?
-
-        if ((!flag_options->USE_HAWKING_RADIATION) && (Use_Hawking_Radiation))
-        {
-            Use_Hawking_Radiation = false;
-            LOG_ERROR("Mission aborted due to conflicting params: numerical params says Use_Hawking_Radiation but FlagOptions->USE_HAWKING_RADIATION=F, you need to set FlagOptions->USE_HAWKING_RADIATION=T to use Hawking Radiation.");
+            LOG_ERROR("PBH mass must be in [2E13 1E18] g range if USE_HAWKING_RADIATION");
             Throw(ValueError);
         }
 
@@ -283,7 +267,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             ION_EFF_FACTOR_MINI = 0.;
         }
 
-        if (Use_Hawking_Radiation)
+        if (flag_options->USE_HAWKING_RADIATION)
         {
             // Some global vars needed for PBH heating/ionization module (see 2108.13256)
             // averaged number density for H nuclei, in m^-3, assuming Y=0.245. Time this by (1 + delta) to get nH on grid
@@ -726,7 +710,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 else
                     Tk_BC = T_RECFAST(global_params.Z_HEAT_MAX, 0);
 
-                if (Use_Hawking_Radiation)
+                if (flag_options->USE_HAWKING_RADIATION)
                 {
                     // Must set initial condition, do it right in later versions
                     xe_BC = xe_BC + Set_ICs_z35(mbh_gram, fbh, 0);
