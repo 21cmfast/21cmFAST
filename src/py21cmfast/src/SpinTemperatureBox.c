@@ -59,7 +59,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         double Delta_Min, Delta_Max, Maximum_Mh, PBH_sigmaMmax, Delta_Width, Grid_Delta, Mininum_Mh, Grid_Fcoll, Grid_Fid_EMS, PBH_Radio_EMS_Halo, nu_factor, HubbleFactor, Delta_Min_tmp, Delta_Max_tmp;
         double Radio_dzpp, PBH_Fcoll_ave, PBH_FidEMS_ave, PBH_Fcoll_User, PBH_EMS_User, Radio_Prefix_ACG, Radio_Prefix_MCG, mbh_msun, mbh_kg, mbh_gram, Reset_MinM, fbh, Fill_Fraction, Radio_Temp_ave;
         int idx, ArchiveSize, zid, fid, tid, sid, xid, zpp_idx, Radio_Silent, R_values_ready;
-        bool Use_Radio_PBH, Use_Hawking_Radiation;
+        bool Use_Hawking_Radiation;
         FILE *OutputFile;
         double Rct_Tk_Table[40], PBH_Fcoll_Table[PBH_Table_Size], PBH_FidEMS_Table[PBH_Table_Size], debug_tmp;
 
@@ -180,26 +180,48 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         }
 
         // ---------------- Pre-flight checks ----------------
+        // Most of these need to be done in python in next version
         // Use_Radio_MCG requires USE_MINI_HALOS
-        // fbh > 1 is not allowed
-        // Use_Radio_PBH requires USE_MASS_DEPENDENT_ZETA and USE_INTERPOLATION_TABLES
-        // NUM_FILTER_STEPS_FOR_Ts must be 40 if using PBH Radio BKG, to be updated in next version
         // Make sure SFRD_Box is large enough
+        // USE_RADIO_PBH requires the following:
+        // 1. USE_MASS_DEPENDENT_ZETA
+        // 2. USE_INTERPOLATION_TABLES
+        // 3. NUM_FILTER_STEPS_FOR_Ts = 40, to be improved in next version
+        // 4. HMF Interpolation lower boundary need to be reset to around 100 msun
 
-        if ( (flag_options->USE_RADIO_MCG) && (!flag_options->USE_MINI_HALOS) )
+        if ((flag_options->USE_RADIO_MCG) && (!flag_options->USE_MINI_HALOS))
         {
             // Move this to python in next version
             LOG_ERROR("USE_RADIO_MCG requires USE_MINI_HALOS");
             Throw(ValueError);
         }
 
-        if (astro_params->log10_fbh < -100.0)
+        if (flag_options->USE_RADIO_PBH)
         {
-            Use_Radio_PBH = false;
+            // Reset HMF interpolation table mass range for radio PBH, 100 is usually enough
+            Reset_MinM = 100.0;
+
+            // Check params
+            if (!flag_options->USE_MASS_DEPENDENT_ZETA)
+            {
+                LOG_ERROR("USE_RADIO_PBH requires USE_MASS_DEPENDENT_ZETA");
+                Throw(ValueError);
+            }
+            if (!user_params->USE_INTERPOLATION_TABLES)
+            {
+                LOG_ERROR("USE_RADIO_PBH requires USE_INTERPOLATION_TABLES");
+                Throw(ValueError);
+            }
+            if (global_params.NUM_FILTER_STEPS_FOR_Ts != 40)
+            {
+                LOG_ERROR("USE_RADIO_PBH requires NUM_FILTER_STEPS_FOR_Ts = 40.");
+                Throw(ValueError);
+            }
         }
         else
         {
-            Use_Radio_PBH = true;
+            // Don't reset if not using radio PBH
+            Reset_MinM = -10.0;
         }
 
         if ((mbh_gram < 1.0001E18) && (mbh_gram > 1.999E13))
@@ -215,12 +237,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // Re-setting, the FlagOptions overrides them all
         // A question: should I complain (raise warning and proceed with FlagOptions) or abort (raise error) when numerical inputs are inconsistent with FlagOptions?
 
-        if ((!flag_options->USE_RADIO_PBH) && (Use_Radio_PBH))
-        {
-            Use_Radio_PBH = false;
-            LOG_ERROR("Mission aborted due to conflicting params: numerical params says Use_Radio_PBH but FlagOptions->USE_RADIO_PBH=F, you need to set FlagOptions->USE_RADIO_PBH=T to use Radio PBH.");
-            Throw(ValueError);
-        }
         if ((!flag_options->USE_HAWKING_RADIATION) && (Use_Hawking_Radiation))
         {
             Use_Hawking_Radiation = false;
@@ -236,35 +252,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         else
         {
             Radio_Silent = 1;
-        }
-
-        if (Use_Radio_PBH)
-        {
-            // Reset HMF interpolation table mass range for radio PBH, 100 is usually enough
-            Reset_MinM = 100.0;
-            // Check params
-            if (!flag_options->USE_MASS_DEPENDENT_ZETA)
-            {
-                LOG_ERROR("Use_Radio_PBH requires USE_MASS_DEPENDENT_ZETA");
-                Throw(ValueError);
-            }
-            if (!user_params->USE_INTERPOLATION_TABLES)
-            {
-                LOG_ERROR("Use_Radio_PBH requires USE_INTERPOLATION_TABLES");
-                Throw(ValueError);
-            }
-        }
-        else
-        {
-            // Don't reset if not using radio PBH
-            Reset_MinM = -10.0;
-        }
-
-        // Make sure params and switched are properly set, can also do this in python wrapper
-        if ((global_params.NUM_FILTER_STEPS_FOR_Ts != 40) && (Use_Radio_PBH))
-        {
-            LOG_ERROR("NUM_FILTER_STEPS_FOR_Ts must be 40 if using PBH Radio BKG");
-            Throw(ValueError);
         }
 
         Fill_Fraction = (double)previous_spin_temp->SFRD_box[0] * 5 / ((double)HII_TOT_NUM_PIXELS);
@@ -1946,7 +1933,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             ArchiveSize = (int)round(previous_spin_temp->SFRD_box[0]);
 
             // Prepare global Tk array for R_ct loop
-            if (Use_Radio_PBH)
+            if (flag_options->USE_RADIO_PBH)
             {
                 for (R_ct = 0; R_ct < global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++)
                 {
@@ -1985,7 +1972,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
             // Correcting for the radio temp from sources > R_XLy_MAX
             Radio_Temp_HMG = Get_Radio_Temp_HMG_Astro(previous_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift);
-            if (Use_Radio_PBH)
+            if (flag_options->USE_RADIO_PBH)
             {
                 // I am gonna allow the existence of both astro&PBH radio background
                 Radio_Temp_HMG += Get_Radio_Temp_HMG_PBH(previous_spin_temp, redshift, zpp_max, cosmo_params, astro_params, user_params->HMF);
@@ -2059,7 +2046,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     Delta_Min = 0.0;
                     Delta_Max = 0.0;
                     // Some numbers for Radio_PBH_Fid_EMS_Halo function
-                    if (Use_Radio_PBH)
+                    if (flag_options->USE_RADIO_PBH)
                     {
                         // Radio_PBH_Fid_EMS_Halo integration upper limit
                         Maximum_Mh = RtoM(R_values[R_ct]);
@@ -2399,7 +2386,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     }
 
                     // Preparing EMS and Fcoll interpolation tables (PBH_FidEMS_Table and PBH_Fcoll_Table)for Radio PBH
-                    if (Use_Radio_PBH)
+                    if (flag_options->USE_RADIO_PBH)
                     {
 
                         // Minimum halo mass in the integration, in Msun
@@ -2565,7 +2552,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                         Radio_Fun += Radio_Prefix_MCG * dfcoll_dz_val_MINI * (double)del_fcoll_Rct_MINI[box_ct] * (pow(1 + zpp_for_evolve_list[R_ct], astro_params->X_RAY_SPEC_INDEX - astro_params->aR_mini));
                                     }
 
-                                    if (Use_Radio_PBH)
+                                    if (flag_options->USE_RADIO_PBH)
                                     {
                                         // Accreting PBH Model
                                         // Might need this for debugging
