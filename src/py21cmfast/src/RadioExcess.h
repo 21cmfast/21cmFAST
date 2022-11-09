@@ -306,7 +306,7 @@ double SFRD_box_Interp(struct TsBox *previous_spin_temp, double z, int Type)
 		}
 	}
 
-	if (bingo == 0)
+	if (bingo == 0) // z not in range?
 	{
 		if (Type != 3)
 		{
