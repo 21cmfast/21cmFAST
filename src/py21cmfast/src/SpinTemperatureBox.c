@@ -201,11 +201,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         {
             Use_Radio_PBH = true;
         }
-        if (astro_params->log10_fbh > 0.001)
-        {
-            LOG_ERROR("fbh > 1 is not allowed");
-            Throw(ValueError);
-        }
 
         if ((mbh_gram < 1.0001E18) && (mbh_gram > 1.999E13))
         {
