@@ -2485,7 +2485,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                             {
                                 dxheat_dt_box[box_ct] += (dfcoll_dz_val * (double)del_fcoll_Rct[box_ct] * ((freq_int_heat_tbl_diff[m_xHII_low_box[box_ct]][R_ct]) * inverse_val_box[box_ct] + freq_int_heat_tbl[m_xHII_low_box[box_ct]][R_ct]));
 
-                                //  Phi_dzp= dfcoll_dz_val * (double)del_fcoll_Rct[box_ct];
+                                // Note: dfcoll_dz_val * (double)del_fcoll_Rct[box_ct] = Phi * dzp
                                 if ((zpp_for_evolve_list[R_ct] > astro_params->Radio_Zmin) && (Radio_Silent == 0))
                                 {
                                     // Radio_Fun: sum this up to get T_Radio
