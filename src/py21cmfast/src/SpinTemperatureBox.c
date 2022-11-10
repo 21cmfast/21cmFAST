@@ -2100,6 +2100,34 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                         }
                     }
 
+                    // Determine overdensity boundary
+                    // This should not be done in omp parallel loop otherwise result could be wrong if using multiple threads
+                    // There might also be existing module for overdensity boundary, check again
+                    if (flag_options->USE_RADIO_PBH)
+                    {
+                        for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
+                        {
+                            if (user_params->MINIMIZE_MEMORY)
+                            {
+                                curr_dens = delNL0[0][box_ct] * zpp_growth[R_ct];
+                            }
+                            else
+                            {
+                                curr_dens = delNL0[R_ct][box_ct] * zpp_growth[R_ct];
+                            }
+
+                            if (curr_dens > Delta_Max)
+                            {
+                                Delta_Max = curr_dens;
+                            }
+
+                            if (curr_dens < Delta_Min)
+                            {
+                                Delta_Min = curr_dens;
+                            }
+                        }
+                    }
+
 #pragma omp parallel shared(delNL0, zpp_growth, SFRD_z_high_table, fcoll_interp_high_min, fcoll_interp_high_bin_width_inv, log10_SFRD_z_low_table,                                                                                                                                     \
                             fcoll_int_boundexceeded_threaded, log10_Mcrit_LW, SFRD_z_high_table_MINI,                                                                                                                                                                                  \
                             log10_SFRD_z_low_table_MINI, del_fcoll_Rct, del_fcoll_Rct_MINI, Mmax, sigmaMmax, Mcrit_atom_interp_table, Mlim_Fstar, Mlim_Fstar_MINI) private(box_ct, curr_dens, fcoll, dens_val, fcoll_int, log10_Mcrit_LW_val, log10_Mcrit_LW_int, log10_Mcrit_LW_diff, \
@@ -2119,16 +2147,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                             else
                             {
                                 curr_dens = delNL0[R_ct][box_ct] * zpp_growth[R_ct];
-                            }
-
-                            if (curr_dens > Delta_Max)
-                            {
-                                Delta_Max = curr_dens;
-                            }
-
-                            if (curr_dens < Delta_Min)
-                            {
-                                Delta_Min = curr_dens;
                             }
 
                             if (flag_options->USE_MINI_HALOS && user_params->USE_INTERPOLATION_TABLES)
@@ -2403,12 +2421,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                         }
                         PBH_FidEMS_ave = PBH_FidEMS_ave / ((double)HII_TOT_NUM_PIXELS);
                         PBH_Fcoll_ave = PBH_Fcoll_ave / ((double)HII_TOT_NUM_PIXELS);
-
-                        LOG_ULTRA_DEBUG("---- zp ---- %E", zpp_for_evolve_list[R_ct]);
-                        LOG_ULTRA_DEBUG("PBH_FidEMS_ave: %E", PBH_FidEMS_ave);
-                        LOG_ULTRA_DEBUG("PBH_EMS_User: %E", PBH_EMS_User);
-                        LOG_ULTRA_DEBUG("PBH_Fcoll_ave: %E", PBH_Fcoll_ave);
-                        LOG_ULTRA_DEBUG("PBH_Fcoll_User: %E", PBH_Fcoll_User);
 
                         if ((isfinite(PBH_EMS_User) == 0) || (isfinite(PBH_Fcoll_User) == 0))
                         {
