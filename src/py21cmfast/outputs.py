@@ -286,14 +286,14 @@ class _AllParamsBox(_OutputStructZ):
 
 class HaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
-    _inputs = _AllParamsBox._inputs + ("prev_redshift",)
+    _inputs = _AllParamsBox._inputs + ("desc_redshift",)
     def __init__(
         self,
         *,
-        prev_redshift: Optional[float] = None,
+        desc_redshift: Optional[float] = None,
         **kwargs,
     ):
-        self.prev_redshift = prev_redshift
+        self.desc_redshift = desc_redshift
         super().__init__(**kwargs)
 
     _c_based_pointers = (
@@ -344,10 +344,10 @@ class HaloField(_AllParamsBox):
         return required
 
     #TODO, it doesn't like when I specify the HaloField type here for the previous field (seems similar in the Ts box)
-    def compute(self, *, halos_prev, ics: InitialConditions, random_seed: int, hooks: dict):
+    def compute(self, *, halos_desc, ics: InitialConditions, random_seed: int, hooks: dict):
         """Compute the function."""
         return self._compute(
-            self.prev_redshift,
+            self.desc_redshift,
             self.redshift,
             self.user_params,
             self.cosmo_params,
@@ -355,7 +355,7 @@ class HaloField(_AllParamsBox):
             self.flag_options,
             ics,
             random_seed,
-            halos_prev,
+            halos_desc,
             hooks=hooks,
         )
 
@@ -455,6 +455,7 @@ class HaloBox(_AllParamsBox):
             self.user_params,
             self.cosmo_params,
             self.astro_params,
+            self.flag_options,
             pt_halos,
             hooks=hooks,
         )

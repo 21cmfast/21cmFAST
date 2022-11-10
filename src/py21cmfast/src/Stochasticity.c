@@ -20,8 +20,6 @@
 //per halo in update
 #define MAX_HALO_UPDATE 1024
 
-// minimum mass for the mass-based sampler, TODO: set to something unlikely / irrelevent if sampled
-#define MMIN_FACTOR 1
 #define MMAX_TABLES 1e16
 #define MANY_HALOS 100 //enough halos that we don't care about stochasticity, for future acceleration
 
@@ -52,6 +50,7 @@ double EvaluateSigma(double lnM){
     double sigma;
     float MassBinLow;
     int MassBin;
+
     //all this stuff is defined in ps.c and initialised with InitialiseSigmaInterpTable
     if(user_params_ps->USE_INTERPOLATION_TABLES) {
         MassBin = (int)floor( (lnM - MinMass )*inv_mass_bin_width );
@@ -814,14 +813,12 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
         return 0;
     }
     
-    //TODO: make this a proper threshold
-    double M_min_s = M_min / MMIN_FACTOR;
-    double lnMmin = log(M_min_s); //this is somewhat confusingly named
+    double lnMmin = log(M_min);
     double lnMmax = log(M_max);
     double sigma_max = EvaluateSigma(lnMmax);
 
     //Set the minimum mass we care about for this condition
-    double frac = EvaluateFgtrM(z_out,M_min_s,delta_lin/growth_out,sigma_max);
+    double frac = EvaluateFgtrM(z_out,M_min,delta_lin/growth_out,sigma_max);
 
     //we apply the ps ratio here, since it won't effect the CMF, and should just scale everything (capped at Fcoll > 1)
     //we still allow the final sample to go beyond M_remaining, but not beyond M_max which stops Fcoll > 1
@@ -837,7 +834,7 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
         ymax = dNdM_conditional(growth_out,lnMmin,lnMmax,Deltac,delta_lin,sigma_max);
     }
 
-    LOG_ULTRA_DEBUG("Condition M = %.2e (%.2e), sigma = %.2e, Mmin = %.2e,%.2e, delta = %.2f",M_max,M_remaining,sigma_max,M_min,M_min_s,delta_lin);
+    LOG_ULTRA_DEBUG("Condition M = %.2e (%.2e), sigma = %.2e, Mmin = %.2e, delta = %.2f",M_max,M_remaining,sigma_max,M_min,M_min,delta_lin);
 
     int attempts = 0;
     double M_prog = 0.;
@@ -866,8 +863,8 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
 
         //attempts is total progenitors here, including those under the mass limit
         //if we've sampled more than the max number of possible halos, something went wrong
-        if(attempts >= M_max / M_min_s){
-            LOG_ERROR("sampler hit max number %.1f of progenitors, Mmin = %.3e,%.3e, Mmax = %.3e",M_max/M_min_s,M_min,M_min_s,M_max);
+        if(attempts >= M_max / M_min){
+            LOG_ERROR("sampler hit max number %.1f of progenitors, Mmin = %.3e, Mmax = %.3e",M_max/M_min,M_min,M_max);
             Throw(ValueError);
         }
 
@@ -902,17 +899,13 @@ int build_halo_cats(gsl_rng **rng_stoc, double redshift, bool eulerian, float *d
     int x,y,z,i;
 
     Mmin = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc);
-    //If we are inverse number sampling, these need to be the same,
-    //if we are inverse mass sampling, we apply the factor,
-    //for rejection sampling it doesn't matter
-    Mmin_s = user_params_stoc->STOC_MASS_SAMPLING ? Mmin/MMIN_FACTOR : Mmin;
 
     init_ps();
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        initialiseSigmaMInterpTable(Mmin_s,MMAX_TABLES);
+        initialiseSigmaMInterpTable(Mmin*0.99,MMAX_TABLES);
         initialise_dNdM_table(-1, Deltac, growthf, log(Mmax_meandens), log(Mmin), false); //WONT WORK WITH EULERIAN
         if(user_params_stoc->STOC_INVERSE){
-            initialise_inverse_table(-1, Deltac, log(Mmin_s), growthf, 0., false);
+            initialise_inverse_table(-1, Deltac, log(Mmin), growthf, 0., false);
         }
     }
 
@@ -1050,7 +1043,6 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
     //If we are inverse number sampling, these need to be the same,
     //if we are inverse mass sampling, we apply the factor
     //for rejection sampling it doesn't matter
-    double Mmin_s = user_params_stoc->STOC_MASS_SAMPLING ? Mmin/MMIN_FACTOR : Mmin;
 
     double delta_lin = Deltac * growth_out / growth_in;
     double delta_vol = 0;
@@ -1059,10 +1051,10 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
 
     init_ps();
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        initialiseSigmaMInterpTable(Mmin_s,MMAX_TABLES);
+        initialiseSigmaMInterpTable(Mmin*0.99,MMAX_TABLES);
         initialise_dNdM_table(log(Mmin), log(MMAX_TABLES), growth_out, growth_in, log(Mmin), true);
         if(user_params_stoc->STOC_INVERSE){
-            initialise_inverse_table(log(Mmin), log(MMAX_TABLES), log(Mmin_s), growth_out, growth_in, true);
+            initialise_inverse_table(log(Mmin), log(MMAX_TABLES), log(Mmin), growth_out, growth_in, true);
         }
     }
 
@@ -1232,7 +1224,7 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
 
 //This, for the moment, grids the PERTURBED halo catalogue.
 //TODO: make a way to output both types by making 2 wrappers to this function that pass in arrays rather than structs
-int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct PerturbHaloField *halos, struct HaloBox *grids){
+int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions * flag_options, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos, struct HaloBox *grids){
     int status;
     Try{
         LOG_DEBUG("Gridding %d halos...",halos->n_halos);
@@ -1241,6 +1233,10 @@ int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_par
         Broadcast_struct_global_UF(user_params,cosmo_params);
         double alpha_esc = astro_params->ALPHA_ESC;
         double norm_esc = astro_params->F_ESC10;
+
+        if(!flag_options->HALO_STOCHASTICITY){
+            //do the mean HMF box
+        }
 
 #pragma omp parallel num_threads(user_params->N_THREADS)
         {
@@ -1361,9 +1357,6 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 
         double lnMmin = log(Mmin);
         double lnMmax = log(Mmax);
-        //if we are doing mass sampling, the inverse tables need to go below
-        double Mmin_s = user_params_stoc->STOC_MASS_SAMPLING ? Mmin/MMIN_FACTOR : Mmin;
-        double lnMmin_s = log(Mmin_s);
 
         LOG_DEBUG("TEST FUNCTION: type = %d up %d, z = (%.2f,%.2f), Mmin = %e, Mmax = %e, R = %.2e (%.2e), delta(l,v) = (%.2f,%.2f), M(%d)=[%.2e,%.2e,%.2e...]",type,update,z_out,z_in,Mmin,Mmax,R,volume,delta_l,delta_v,n_mass,M[0],M[1],M[2]);
 
@@ -1376,14 +1369,14 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         if(type != 4 && type !=5){
             init_ps();
             if(user_params_stoc->USE_INTERPOLATION_TABLES){
-                initialiseSigmaMInterpTable(Mmin_s,MMAX_TABLES);
+                initialiseSigmaMInterpTable(Mmin*0.99,MMAX_TABLES);
                 if(update){
                     initialise_dNdM_table(lnMmin, log(MMAX_TABLES), growth_out, growth_in, lnMmin, true); //WONT WORK WITH EULERIAN
-                    initialise_inverse_table(lnMmin, log(MMAX_TABLES), lnMmin_s, growth_out, growth_in, true);
+                    initialise_inverse_table(lnMmin, log(MMAX_TABLES), lnMmin, growth_out, growth_in, true);
                 }
                 else{
                     initialise_dNdM_table(-1, Deltac, growth_out, lnMmax, lnMmin, false); //WONT WORK WITH EULERIAN
-                    initialise_inverse_table(-1, Deltac, lnMmin_s, growth_out, 0., false);
+                    initialise_inverse_table(-1, Deltac, lnMmin, growth_out, 0., false);
                 }
             }
         }

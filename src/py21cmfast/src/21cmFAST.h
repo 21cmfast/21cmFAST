@@ -241,7 +241,7 @@ void free(void *ptr);
 int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
                         , int seed, int n_mass, float *M, bool update, double condition, double z_out, double z_in, int type, double *result);
 
-int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct PerturbHaloField *halos, struct HaloBox *grids);
+int ComputeHaloBox(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options, struct PerturbedField *perturbed_field, struct PerturbHaloField *halos, struct HaloBox *grids);
 
 //int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options,
 //                        int seed, float redshift, float redshift_prev, bool eulerian, float *dens_field, struct HaloField *halos_prev, struct HaloField *halos);

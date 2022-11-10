@@ -461,6 +461,15 @@ class UserParams(StructWithDefaults):
     STOC_MASS_SAMPLING: bool, optional
         Sample over the mass of each condition (halo/cell) when sampling the CMF, rather than Poisson sampling
         of the total number of halos in the condition. (THIS WILL SOON BE THE ONLY OPTION)
+    STOC_MINIMUM_Z: float, optional
+        The minimum (first) redshift at which to calculate the halo boxes, will behave as follows:
+        If STOC_MINIMUM_Z is set, we step DOWN from the requested redshift by ZPRIME_STEP_FACTOR
+        until we get to STOC_MINIMUM_Z, where the last z-step will be shorter to be exactly at
+        STOC_MINIMUM_Z, we then build the halo boxes from low to high redshift.
+        If STOC_MINIMUM_Z is not provided, we simply sample at the given redshift, unless
+        USE_TS_FLUCT is given or we want a lightcone, in which case the minimum redshift is set
+        to the minimum redshift of those fields. If this is not provided, all halo fields are generated
+        WITHOUT time-correlation.
     """
 
     _ffi = ffi
@@ -482,6 +491,7 @@ class UserParams(StructWithDefaults):
         "MINIMIZE_MEMORY": False,
         "STOC_INVERSE": True,
         "STOC_MASS_SAMPLING": False,
+        "STOC_MINIMUM_Z": None,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]

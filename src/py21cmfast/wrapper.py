@@ -117,7 +117,7 @@ from .outputs import (
     _OutputStructZ,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("21cmFAST")
 
 
 def _configure_inputs(
@@ -1015,7 +1015,8 @@ def perturb_field(
 def determine_halo_list(
     *,
     redshift,
-    halos_prev=None,
+    halos_desc=None,
+    desc_z=None,
     init_boxes=None,
     user_params=None,
     cosmo_params=None,
@@ -1067,7 +1068,7 @@ def determine_halo_list(
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
     with global_params.use(**global_kwargs):
-        _verify_types(init_boxes=init_boxes)
+        _verify_types(init_boxes=init_boxes,halo_field=halos_desc)
 
         # Configure and check input/output parameters/structs
         (
@@ -1085,6 +1086,7 @@ def determine_halo_list(
                 ("flag_options", flag_options),
             ],
             init_boxes,
+            halos_desc,
         )
 
         # Verify input parameter structs (need to do this after configure_inputs).
@@ -1095,44 +1097,9 @@ def determine_halo_list(
         )
         astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
 
+        #NOTE: this will not happen if we make mean HMF boxes, since we don't call this function in that case
         if user_params.HMF != 1 and not flag_options.HALO_STOCHASTICITY:
             raise ValueError("USE_HALO_FIELD with DexM is only valid for HMF = 1")
-
-        if not isinstance(halos_prev, HaloField) or not halos_prev.is_computed:
-            first_box = True
-            prev_redshift = -1
-            #declare dummy halofield to use
-            halos_prev = HaloField(redshift=redshift,dummy=True)
-        else:
-            prev_redshift = halos_prev.redshift
-            first_box = False
-        
-        # Initialize halo list boxes.
-        fields = HaloField(
-            first_box=first_box,
-            prev_redshift=prev_redshift,
-            redshift=redshift,
-            user_params=user_params,
-            cosmo_params=cosmo_params,
-            astro_params=astro_params,
-            flag_options=flag_options,
-            random_seed=random_seed,
-        )
-
-        # Check whether the boxes already exist
-        if not regenerate:
-            try:
-                fields.read(direc)
-                logger.info(
-                    f"Existing z={redshift} determine_halo_list boxes found and read in "
-                    f"(seed={fields.random_seed})."
-                )
-                return fields
-            except OSError:
-                pass
-
-        # Construct FFTW wisdoms. Only if required
-        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
 
         # Make sure we've got computed init boxes.
         if init_boxes is None or not init_boxes.is_computed:
@@ -1148,8 +1115,77 @@ def determine_halo_list(
             # Need to update fields to have the same seed as init_boxes
             fields._random_seed = init_boxes.random_seed
 
+        #if the minimum is not provided, we treat this as the first box (or second if desc_halos provided)
+        min_z = user_params.STOC_MINIMUM_Z
+
+        if redshift < min_z:
+            raise ValueError(f"Minimum halo redshift {min_z} must be <= field redshift {redshift}")
+
+        need_desc_box = False
+        first_box = False
+        #if a descendant z is not given, try stepping down
+        if desc_z is None:
+                    desc_z = (1+redshift) / global_params.ZPRIME_STEP_FACTOR - 1
+        #If a descendant field is not provided, we step back to the minimum z
+        if not isinstance(halos_desc, HaloField) or not halos_desc.is_computed:
+            #We are at the minimum redshift and no descendant z is given so this is the first box
+            if desc_z <= min_z or min_z is None:
+                first_box = True
+                desc_z = -1 #TODO: why is this -1 and not None?
+            #we aren't at the minimum redshift and no previous field has been given
+            else:
+                #we don't calculate the descendant yet in case we have a current box on file
+                need_desc_box = True
+                #use ZPRIME_STEP_FACTOR if a descendant redshift not given
+                
+        #providing the previous halos ignores the minimum z and doesn't recurse
+        else:
+            desc_z = halos_desc.redshift
+
+        # Initialize halo list boxes.
+        fields = HaloField(
+            first_box=first_box,
+            desc_redshift=desc_z,
+            redshift=redshift,
+            user_params=user_params,
+            cosmo_params=cosmo_params,
+            astro_params=astro_params,
+            flag_options=flag_options,
+            random_seed=random_seed,
+        )
+
+        # Check whether the boxes already exist
+        logger.debug(f"z:{redshift:.2f} regen {regenerate}")
+        if not regenerate:
+            try:
+                fields.read(direc)
+                logger.info(
+                    f"Existing z={redshift} determine_halo_list boxes found and read in "
+                    f"(seed={fields.random_seed})."
+                )
+                return fields
+            except OSError:
+                pass
+
+        #THIS IS PRETTY BROKEN, THE REDSHIFTS DON'T ALWAYS MATCH UP  WITH THE REVERSE RECURSION AND IT REGENERATES TOO MUCH
+        if need_desc_box:
+            halos_desc = determine_halo_list(
+                redshift=desc_z,
+                init_boxes=init_boxes,
+                user_params=user_params,
+                cosmo_params=cosmo_params,
+                astro_params=astro_params,
+                flag_options=flag_options,
+                regenerate=regenerate,
+            )
+        else:
+            halos_desc = HaloField(redshift=0,dummy=True)
+
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # Run the C Code
-        return fields.compute(ics=init_boxes, hooks=hooks, halos_prev=halos_prev, random_seed=random_seed)
+        return fields.compute(ics=init_boxes, hooks=hooks, halos_desc=halos_desc, random_seed=random_seed)
 
 
 def perturb_halo_list(
@@ -1352,6 +1388,7 @@ def halo_box(
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
     with global_params.use(**global_kwargs):
         _verify_types(
+            init_boxes=init_boxes,
             pt_halos=pt_halos,
         )
 
@@ -1370,6 +1407,7 @@ def halo_box(
                 ("astro_params", astro_params),
                 ("flag_options", flag_options),
             ],
+            init_boxes,
             pt_halos,
         )
         
@@ -1415,13 +1453,10 @@ def halo_box(
             )
 
         # Dynamically produce the halo list.
-        # NOTE: does not generate from previous catalog,
-        # if we want updated halos we should provide the catalog
-        if pt_halos is None or not pt_halos.is_computed:
-            pt_halos = perturb_halo_list(
-                redshift=redshift,
-                init_boxes=init_boxes,
-                halo_field=determine_halo_list(
+        # This uses default descendant behaviour, stepping from STOC_MINIMUM_Z to redshift
+        if flag_options.HALO_STOCHASTICITY:
+            if pt_halos is None or not pt_halos.is_computed:
+                pt_halos = perturb_halo_list(
                     redshift=redshift,
                     init_boxes=init_boxes,
                     astro_params=astro_params,
@@ -1430,14 +1465,9 @@ def halo_box(
                     random_seed=random_seed,
                     hooks=hooks,
                     direc=direc,
-                ),
-                astro_params=astro_params,
-                flag_options=flag_options,
-                regenerate=regenerate,
-                random_seed=random_seed,
-                hooks=hooks,
-                direc=direc,
-            )
+                )
+        else:
+            pt_halos = PerturbHaloField(redshift=0,dummy=True)
 
     return box.compute(pt_halos=pt_halos,hooks=hooks)
 
@@ -1763,36 +1793,42 @@ def ionize_box(
         if not flag_options.USE_HALO_FIELD:
             # Construct an empty halo field to pass in to the function.
             halobox = HaloBox(redshift=0, dummy=True)
-        elif halobox is None or not halobox.is_computed:
-            halos = determine_halo_list(
-                redshift=redshift,
+        elif not isinstance(halobox,HaloBox) or not halobox.is_computed:
+            logger.warning('Auto generation of halo fields for Ts is WIP')
+            regen_halos = regenerate and (isinstance(previous_ionize_box,IonizedBox) or prev_z==0)
+            #we call all three functions instead of just halo_box because of the specific regeneration behaviour
+            #where we generate the whole halo field at the highest redshift
+            if flag_options.HALO_STOCHASTICITY:
+                halo_field = determine_halo_list(
+                    redshift=redshift,
+                    init_boxes=init_boxes,
+                    astro_params=astro_params,
+                    flag_options=flag_options,
+                    regenerate=regen_halos,
+                    hooks=hooks,
+                    direc=direc,
+                )
+                pt_halos = perturb_halo_list(
+                    redshift=redshift,
+                    init_boxes=init_boxes,
+                    astro_params=astro_params,
+                    flag_options=flag_options,
+                    halo_field=halo_field,
+                    regenerate=regenerate,
+                    hooks=hooks,
+                    direc=direc,
+                )
+            else:
+                pt_halos = PerturbHaloField(redshift=0,dummy=True)
+
+            halobox = halo_box(redshift=redshift,
                 init_boxes=init_boxes,
-                astro_params=astro_params,
-                flag_options=flag_options,
-                regenerate=regenerate,
-                hooks=hooks,
-                direc=direc,
-            )
-            pt_halos = perturb_halo_list(
-                redshift=redshift,
-                init_boxes=init_boxes,
-                halo_field=halos,
-                astro_params=astro_params,
-                flag_options=flag_options,
-                regenerate=regenerate,
-                hooks=hooks,
-                direc=direc,
-            )
-            halobox = halo_box(
-                redshift=redshift,
                 astro_params=astro_params,
                 flag_options=flag_options,
                 cosmo_params=cosmo_params,
                 user_params=user_params,
                 regenerate=regenerate,
                 pt_halos=pt_halos,
-                hooks=hooks,
-                direc=direc,
             )
 
         # Set empty spin temp box if necessary.
@@ -1975,6 +2011,7 @@ def spin_temperature(
             previous_spin_temp,
             init_boxes,
             perturbed_field,
+            halobox,
         )
 
         # Try to determine redshift from other inputs, if required.
@@ -2016,14 +2053,12 @@ def spin_temperature(
                 "that being evaluated."
             )
 
-        # TODO: why is the below checking for IonizedBox??
+        # NOTE: This previously checked for IonizedBox, not Tsbox, which seems to be a mistake
+        first_box = (((1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1) > global_params.Z_HEAT_MAX 
+                    and (not isinstance(previous_spin_temp, TsBox) or not previous_spin_temp.is_computed))                        
+
         box = TsBox(
-            first_box=((1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1)
-            > global_params.Z_HEAT_MAX
-            and (
-                not isinstance(previous_spin_temp, IonizedBox)
-                or not previous_spin_temp.is_computed
-            ),
+            first_box=first_box,
             user_params=user_params,
             cosmo_params=cosmo_params,
             redshift=redshift,
@@ -2067,7 +2102,11 @@ def spin_temperature(
             # Need to update random seed
             box._random_seed = init_boxes.random_seed
 
-        # Create appropriate previous_spin_temp
+        #we only want to regenerate the halos on the first recursion, either at Z_HEAT_MAX or when we find a cached box
+        regen_halos = regenerate and (isinstance(previous_spin_temp,TsBox) or ((1 + redshift) *
+                                        global_params.ZPRIME_STEP_FACTOR - 1) > global_params.Z_HEAT_MAX)
+
+        # Create appropriate previous_spin_temp (NOTE: don't pass fields here)
         if not isinstance(previous_spin_temp, TsBox):
             if prev_z >= global_params.Z_HEAT_MAX:
                 previous_spin_temp = TsBox(
@@ -2090,18 +2129,44 @@ def spin_temperature(
                     cleanup=False,  # we know we'll need the memory again
                 )
 
-        #Since no halo box is provided, the halo box will not have z-correlations
-        #this is a strange behaviour we can't avoid unless we calculate the z-list
-        #beforehand (avoid by calling lightcone instead)
+        #Generate halos if needed    
         if flag_options.USE_HALO_FIELD:
-            if halobox is None or not halobox.is_computed:
+            #The entire halo history is generated via similar (but backwards) recursion to the spintemp
+            logger.debug(f'z: {redshift} | regen {regenerate} | regen_halos {regen_halos}')
+            if not isinstance(halobox,HaloBox) or not halobox.is_computed:
+                logger.warning('Auto generation of halo fields for Ts is WIP')
+                #we call all three functions instead of just halo_box because of the specific regeneration behaviour
+                #where we generate the whole halo field at the first redshift touched by spin_temperature
+                if flag_options.HALO_STOCHASTICITY:
+                    halo_field = determine_halo_list(
+                        redshift=redshift,
+                        init_boxes=init_boxes,
+                        astro_params=astro_params,
+                        flag_options=flag_options,
+                        regenerate=regen_halos,
+                        hooks=hooks,
+                        direc=direc,
+                    )
+                    pt_halos = perturb_halo_list(
+                        redshift=redshift,
+                        init_boxes=init_boxes,
+                        astro_params=astro_params,
+                        flag_options=flag_options,
+                        halo_field=halo_field,
+                        regenerate=regenerate,
+                        hooks=hooks,
+                        direc=direc,
+                    )
+                else:
+                    pt_halos = PerturbHaloField(redshift=0,dummy=True)
+
                 halobox = halo_box(redshift=redshift,
                     astro_params=astro_params,
                     flag_options=flag_options,
                     cosmo_params=cosmo_params,
                     user_params=user_params,
                     regenerate=regenerate,
-                    random_seed=random_seed,
+                    pt_halos=pt_halos,
                 )
         else:
             halobox = HaloBox(redshift=0,dummy=True)
@@ -2446,28 +2511,32 @@ def run_coeval(
 
         #get the halos (reverse redshift order)
         if flag_options.USE_HALO_FIELD and not halobox:
-            halos_prev = None
+            halos_desc = None
             for z in redshifts[::-1]:
-                halos = determine_halo_list(
-                    redshift=z,
-                    init_boxes=init_box,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    regenerate=regenerate,
-                    halos_prev=halos_prev,
-                    hooks=hooks,
-                    direc=direc,
-                )
-                pt_halos = perturb_halo_list(
-                    redshift=z,
-                    init_boxes=init_box,
-                    halo_field=halos,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    regenerate=regenerate,
-                    hooks=hooks,
-                    direc=direc,
-                )
+                if flag_options.HALO_STOCHASTICITY:
+                    halos = determine_halo_list(
+                        redshift=z,
+                        init_boxes=init_box,
+                        astro_params=astro_params,
+                        flag_options=flag_options,
+                        regenerate=regenerate,
+                        halos_desc=halos_desc,
+                        hooks=hooks,
+                        direc=direc,
+                    )
+                    pt_halos = perturb_halo_list(
+                        redshift=z,
+                        init_boxes=init_box,
+                        halo_field=halos,
+                        astro_params=astro_params,
+                        flag_options=flag_options,
+                        regenerate=regenerate,
+                        hooks=hooks,
+                        direc=direc,
+                    )
+                else:
+                    pt_halos = PerturbHaloField(redshift=0,dummy=True)
+
                 halobox += [halo_box(
                     redshift=z,
                     astro_params=astro_params,
@@ -2479,6 +2548,7 @@ def run_coeval(
                     hooks=hooks,
                     direc=direc,
                 )]
+                prev_halos.purge(force=always_purge)
                 prev_halos = halos
 
             #reverse to get the right redshift order
@@ -2946,36 +3016,36 @@ def run_lightcone(
         global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
         pf = None
 
-        #populate the halo field from the lowest redshift
-        #this replaces the previous behaviour where the halo fields are generated with the boxes
-        #if caching is used it shouldn't affect the case without stochastic halos
-        #but this will allow the conditional halo sampling to work
-        #TODO: allow input of halo fields and check that they are a chain
-        #halo field currently only checks for the previous redshift so that may cause issues
+        #we explicitly pass the descendant halos here since we have a redshift list prior
+        #this will generate the extra fields if STOC_MINIMUM_Z is given
         hbox_files = []
         if flag_options.USE_HALO_FIELD:
-            halos_prev = None
+            halos_desc = None
             for z in scrollz[::-1]:
-                halo_field = determine_halo_list(
-                    redshift=z,
-                    init_boxes=init_box,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    regenerate=regenerate,
-                    hooks=hooks,
-                    halos_prev=halos_prev,
-                    direc=direc,
-                )
-                pt_halos = perturb_halo_list(
-                    redshift=z,
-                    init_boxes=init_box,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    halo_field=halo_field,
-                    regenerate=regenerate,
-                    hooks=hooks,
-                    direc=direc,
-                )
+                if flag_options.HALO_STOCHASTICITY:
+                    halo_field = determine_halo_list(
+                        redshift=z,
+                        init_boxes=init_box,
+                        astro_params=astro_params,
+                        flag_options=flag_options,
+                        regenerate=regenerate,
+                        hooks=hooks,
+                        halos_desc=halos_desc,
+                        direc=direc,
+                    )
+                    pt_halos = perturb_halo_list(
+                        redshift=z,
+                        init_boxes=init_box,
+                        astro_params=astro_params,
+                        flag_options=flag_options,
+                        halo_field=halo_field,
+                        regenerate=regenerate,
+                        hooks=hooks,
+                        direc=direc,
+                    )
+                else:
+                    pt_halos = PerturbHaloField(redshift=0,dummy=True)
+
                 hbox = halo_box(redshift=z,
                         astro_params=astro_params,
                         flag_options=flag_options,
@@ -2988,8 +3058,9 @@ def run_lightcone(
                 #TODO: Purge here (See MINIMIZE_MEMORY PARTS), this should always happen
                 #since we are calculating the halo field beforehand. Check how much is done automatically
                 #and if there's some leak involved with reusing the variable names here
+                halos_desc.purge(force=always_purge)
 
-                halos_prev = halo_field
+                halos_desc = halo_field
                 hbox_files.append(hbox.filename)
 
             #reverse the halo lists to be in line with the redshift lists
