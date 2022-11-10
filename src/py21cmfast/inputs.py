@@ -1017,5 +1017,3 @@ def validate_all_inputs(
         logger.warning(
             "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
         )
-    if flag_options is not None and (flag_options.USE_RADIO_ACG is True):
-        raise ValueError("Testing error module, ACG not used")
