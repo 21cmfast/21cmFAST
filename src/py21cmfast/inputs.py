@@ -1017,5 +1017,5 @@ def validate_all_inputs(
         logger.warning(
             "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
         )
-
-    raise ValueError("Testing error module")
+    if flag_options.USE_RADIO_MCG is False:
+        raise ValueError("Testing error module, MCG not used")
