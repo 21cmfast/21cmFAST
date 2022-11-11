@@ -186,11 +186,11 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // 3. NUM_FILTER_STEPS_FOR_Ts = 40, to be improved in next version
         // 4. HMF Interpolation lower boundary need to be reset to around 100 msun
 
-        if ((flag_options->USE_RADIO_MCG) && (!flag_options->USE_MINI_HALOS))
-        {
-            LOG_ERROR("USE_RADIO_MCG requires USE_MINI_HALOS");
-            Throw(ValueError);
-        }
+        // if ((flag_options->USE_RADIO_MCG) && (!flag_options->USE_MINI_HALOS))
+        // {
+        //     LOG_ERROR("USE_RADIO_MCG requires USE_MINI_HALOS");
+        //     Throw(ValueError);
+        // }
 
         if (flag_options->USE_RADIO_PBH)
         {
