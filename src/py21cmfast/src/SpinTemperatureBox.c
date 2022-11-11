@@ -1905,7 +1905,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     }
                 }
 
-                if (debug_mode == 1)
+                if (Debug_Printer == 1)
                 {
                     remove("Tk_Table_Rct_tmp.txt");
                     OutputFile = fopen("Tk_Table_Rct_tmp.txt", "a");
@@ -3035,7 +3035,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             else
             {
 
-                if (print_SFRD_box == 1)
+                if (Debug_Printer == 1)
                 {
                     remove("SFRD_box_tmp.txt");
                     OutputFile = fopen("SFRD_box_tmp.txt", "a");
@@ -3060,7 +3060,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     this_spin_temp->SFRD_box[sid] = previous_spin_temp->SFRD_box[sid];
                     this_spin_temp->SFRD_box[xid] = previous_spin_temp->SFRD_box[xid];
 
-                    if (print_SFRD_box == 1)
+                    if (Debug_Printer == 1)
                     {
                         fprintf(OutputFile, "%f   ", this_spin_temp->SFRD_box[zid]);
                         fprintf(OutputFile, "%E   ", this_spin_temp->SFRD_box[fid]);
@@ -3070,7 +3070,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     }
                 }
 
-                if (print_SFRD_box == 1)
+                if (Debug_Printer == 1)
                 {
                     fclose(OutputFile);
                 }

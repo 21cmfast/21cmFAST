@@ -8,10 +8,9 @@
 // nu0 is degenerate with fR so no reason to leave this as a param
 #define astro_nu0 0.15 // in GHz
 
-// Debuging options, print out gas temp and SFRD box, I am gonna keep these
-#define print_SFRD_box 1
+// Print debug info array to a file, info contains: SFRD_box, Gas Temp
+#define Debug_Printer 1
 #define Reset_Radio_Temp_HMG 0
-#define debug_mode 1
 
 // Some numerical settings for the radio BKG table
 #define Integration_TimeStep 2000
