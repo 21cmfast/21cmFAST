@@ -633,11 +633,8 @@ class FlagOptions(StructWithDefaults):
     USE_RADIO_PBH: bool, optional
         Determines whether to use radio excess background from PBH, if True then AstroParams.log10_fbh is used
     USE_HAWKING_RADIATION: bool, optional, see 2108.13256
-        Determines whether to use heating and ionisation from Hawking radiation , to use this feature you must have:
-        1: USE_HAWKING_RADIATION = True
-        2: -20 <= AstroParams.log10_mbh <= -15.3
-        3: AstroParams.log10_fbh > -120
-        This feature will be automatically turned off if requirement 2&3 are not met
+        Determines whether to use heating and ionisation from Hawking radiation , since small PBH won't servive long enough to impact EoR and that heavy PBHs are not active enough, thus to use this feature you must also have:
+        -20 <= AstroParams.log10_mbh <= -15.3
         Technically you must also specify correct AstroParams.bh_spin but current version only support Schwarzschild PBH
         Future version will add support for Kerr PBH (just need to set the initial condition right) and extended distribution
     """
@@ -827,7 +824,6 @@ class AstroParams(StructWithDefaults):
         Power-law energy spectra index for mini-halos
     log10_mbh: float, optional
         log10 of PBH birth mass in msun
-        Set to [-20, -15.3] automatically turns on Hawking radiation following 2108.13256
     log10_fbh: float, optional
         log10 of PBH fraction, i.e. rho_PBH/rho_dm
         Allowed range: [-Inf, 0]. Set to below -100 to turn off PBH (both radio and Hawking), log10_fbh > 0.01 triggers error
@@ -1019,5 +1015,15 @@ def validate_all_inputs(
         )
 
     if flag_options is not None:
+        # Some requirements for excess radio background and Hawking radiation
         if flag_options.USE_RADIO_MCG and not flag_options.USE_MINI_HALOS:
             raise ValueError("USE_RADIO_MCG requires USE_MINI_HALOS!")
+        if flag_options.USE_RADIO_PBH:
+            if not flag_options.USE_MASS_DEPENDENT_ZETA:
+                raise ValueError("USE_RADIO_PBH requires USE_MASS_DEPENDENT_ZETA!")
+            if not flag_options.USE_INTERPOLATION_TABLES:
+                raise ValueError("USE_RADIO_PBH requires USE_INTERPOLATION_TABLES!")
+        if flag_options.USE_HAWKING_RADIATION and (
+            (astro_params.log10_mbh < -20.001) or (astro_params.log10_mbh > -15.299)
+        ):
+            raise ValueError("USE_HAWKING_RADIATION")

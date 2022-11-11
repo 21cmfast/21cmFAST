@@ -60,7 +60,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         double Radio_dzpp, PBH_Fcoll_ave, PBH_FidEMS_ave, PBH_Fcoll_User, PBH_EMS_User, Radio_Prefix_ACG, Radio_Prefix_MCG, mbh_msun, mbh_kg, mbh_gram, Reset_MinM, fbh, Fill_Fraction, Radio_Temp_ave;
         int idx, ArchiveSize, zid, fid, tid, sid, xid, zpp_idx, Radio_Silent, R_values_ready;
         FILE *OutputFile;
-        double Rct_Tk_Table[40], PBH_Fcoll_Table[PBH_Table_Size], PBH_FidEMS_Table[PBH_Table_Size], debug_tmp;
+        double Rct_Tk_Table[40], PBH_Fcoll_Table[PBH_Table_Size], PBH_FidEMS_Table[PBH_Table_Size];
 
         // Initialising some variables
         fbh = pow(10, astro_params->log10_fbh);
@@ -178,36 +178,13 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
         // ---------------- Pre-flight checks ----------------
         // Most of these need to be done in python in next version
-        // Use_Radio_MCG requires USE_MINI_HALOS
         // Make sure SFRD_Box is large enough
-        // USE_RADIO_PBH requires the following:
-        // 1. USE_MASS_DEPENDENT_ZETA
-        // 2. USE_INTERPOLATION_TABLES
-        // 3. NUM_FILTER_STEPS_FOR_Ts = 40, to be improved in next version
-        // 4. HMF Interpolation lower boundary need to be reset to around 100 msun
-
-        // if ((flag_options->USE_RADIO_MCG) && (!flag_options->USE_MINI_HALOS))
-        // {
-        //     LOG_ERROR("USE_RADIO_MCG requires USE_MINI_HALOS");
-        //     Throw(ValueError);
-        // }
+        // USE_RADIO_PBH requires NUM_FILTER_STEPS_FOR_Ts = 40, to be improved in next version
 
         if (flag_options->USE_RADIO_PBH)
         {
             // Reset HMF interpolation table mass range for radio PBH, 100 is usually enough
             Reset_MinM = 100.0;
-
-            // Check params
-            if (!flag_options->USE_MASS_DEPENDENT_ZETA)
-            {
-                LOG_ERROR("USE_RADIO_PBH requires USE_MASS_DEPENDENT_ZETA");
-                Throw(ValueError);
-            }
-            if (!user_params->USE_INTERPOLATION_TABLES)
-            {
-                LOG_ERROR("USE_RADIO_PBH requires USE_INTERPOLATION_TABLES");
-                Throw(ValueError);
-            }
             if (global_params.NUM_FILTER_STEPS_FOR_Ts != 40)
             {
                 LOG_ERROR("USE_RADIO_PBH requires NUM_FILTER_STEPS_FOR_Ts = 40.");
@@ -218,11 +195,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         {
             // Don't reset if not using radio PBH
             Reset_MinM = -10.0;
-        }
-        if (((mbh_gram > 1.0001E18) || (mbh_gram < 1.999E13)) && flag_options->USE_HAWKING_RADIATION)
-        {
-            LOG_ERROR("PBH mass must be in [2E13 1E18] g range if USE_HAWKING_RADIATION");
-            Throw(ValueError);
         }
 
         // Determine whether to use radio excess
