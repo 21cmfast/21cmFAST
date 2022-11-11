@@ -1019,7 +1019,5 @@ def validate_all_inputs(
         )
 
     if flag_options is not None:
-        if (flag_options.USE_RADIO_MCG is True) and (
-            flag_options.USE_MINI_HALOS is False
-        ):
+        if flag_options.USE_RADIO_MCG and not flag_options.USE_MINI_HALOS:
             raise ValueError("USE_RADIO_MCG requires USE_MINI_HALOS!")
