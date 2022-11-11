@@ -1021,7 +1021,7 @@ def validate_all_inputs(
         if flag_options.USE_RADIO_PBH:
             if not flag_options.USE_MASS_DEPENDENT_ZETA:
                 raise ValueError("USE_RADIO_PBH requires USE_MASS_DEPENDENT_ZETA!")
-            if not flag_options.USE_INTERPOLATION_TABLES:
+            if not user_params.USE_INTERPOLATION_TABLES:
                 raise ValueError("USE_RADIO_PBH requires USE_INTERPOLATION_TABLES!")
         if flag_options.USE_HAWKING_RADIATION and (
             (astro_params.log10_mbh < -20.001) or (astro_params.log10_mbh > -15.299)

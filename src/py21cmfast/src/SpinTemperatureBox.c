@@ -54,13 +54,13 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         }
 
         // All these are variables for PBH&Radio Background
-        double Radio_Temp, Radio_Temp_HMG, Radio_Fun, Trad_inv, zpp_max, z1, z2, Phi, Radio_zpp, new_nu, Phi_mini, Phi_ave, Phi_ave_mini, T_IGM_ave;
+        double Radio_Temp, Radio_Temp_HMG, Radio_Fun, Trad_inv, zpp_max, z1, z2, Phi, Radio_zpp, new_nu, Phi_mini, Phi_ave, Phi_ave_mini, T_IGM_ave, PBH_Fcoll_Table[PBH_Table_Size], PBH_FidEMS_Table[PBH_Table_Size];
         double Hawking_dEdVdt_HIon, Hawking_dEdVdt_LyA, Hawking_dEdVdt_Heat, nH_ave, PeeblesFactor, Hawking_dxedt, Hawking_dTdt, Hawking_dxedz, Hawking_dTdz, Tk1, Tk2, Radio_EMS_IGM, dzpp_Rct0;
         double Delta_Min, Delta_Max, Maximum_Mh, PBH_sigmaMmax, Delta_Width, Grid_Delta, Mininum_Mh, Grid_Fcoll, Grid_Fid_EMS, PBH_Radio_EMS_Halo, nu_factor, HubbleFactor;
         double Radio_dzpp, PBH_Fcoll_ave, PBH_FidEMS_ave, PBH_Fcoll_User, PBH_EMS_User, Radio_Prefix_ACG, Radio_Prefix_MCG, mbh_msun, mbh_kg, mbh_gram, Reset_MinM, fbh, Fill_Fraction, Radio_Temp_ave;
         int idx, ArchiveSize, zid, fid, tid, sid, xid, zpp_idx, Radio_Silent, R_values_ready;
         FILE *OutputFile;
-        double Rct_Tk_Table[40], PBH_Fcoll_Table[PBH_Table_Size], PBH_FidEMS_Table[PBH_Table_Size];
+        double Rct_Tk_Table[10000]; // Gas temp for all Rct steps, only the first NUM_FILTER_STEPS_FOR_Ts elements are used
 
         // Initialising some variables
         fbh = pow(10, astro_params->log10_fbh);
@@ -185,9 +185,10 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         {
             // Reset HMF interpolation table mass range for radio PBH, 100 is usually enough
             Reset_MinM = 100.0;
-            if (global_params.NUM_FILTER_STEPS_FOR_Ts != 40)
+            if (global_params.NUM_FILTER_STEPS_FOR_Ts > 10000)
             {
-                LOG_ERROR("USE_RADIO_PBH requires NUM_FILTER_STEPS_FOR_Ts = 40.");
+                // Probably no one will set such high NUM_FILTER_STEPS_FOR_Ts but just in case someone does
+                LOG_ERROR(" Rct_Tk_Table not large enough, reduce NUM_FILTER_STEPS_FOR_Ts to below 10000!");
                 Throw(ValueError);
             }
         }
