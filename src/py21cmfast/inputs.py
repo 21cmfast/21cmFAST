@@ -1026,4 +1026,4 @@ def validate_all_inputs(
         if flag_options.USE_HAWKING_RADIATION and (
             (astro_params.log10_mbh < -20.001) or (astro_params.log10_mbh > -15.299)
         ):
-            raise ValueError("USE_HAWKING_RADIATION")
+            raise ValueError("USE_HAWKING_RADIATION log10_mbh >= -20!")
