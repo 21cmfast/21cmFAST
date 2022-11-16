@@ -420,13 +420,11 @@ LOG_SUPER_DEBUG("About to initialise heat");
 LOG_SUPER_DEBUG("Initialised heat");
 
     // Initialize some interpolation tables
-    if(this_spin_temp->first_box || (fabs(initialised_redshift - perturbed_field_redshift) > 0.0001) ) {
-
-        if(user_params->USE_INTERPOLATION_TABLES) {
-          if(user_params->FAST_FCOLL_TABLES){
+    if(user_params->USE_INTERPOLATION_TABLES) {
+        if(user_params->FAST_FCOLL_TABLES){
             initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
-          }
-          else{
+        }
+        else{
             if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
                 if (flag_options->USE_MINI_HALOS){
                     initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e20);
@@ -435,8 +433,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                     initialiseSigmaMInterpTable(M_MIN,1e20);
                 }
             }
-            LOG_SUPER_DEBUG("Initialised sigmaM interp table");
-          }
+        LOG_SUPER_DEBUG("Initialised sigmaM interp table");
         }
     }
 
@@ -1137,7 +1134,7 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                     zpp_gridpoint2_int = zpp_gridpoint1_int + 1;
 
                     if(zpp_gridpoint1_int < 0 || (zpp_gridpoint1_int + 1) > (zpp_interp_points_SFR - 1)) {
-                        LOG_ERROR("I have overstepped my allocated memory for the interpolation table fcoll_R_grid");
+                        LOG_ERROR("I have overstepped my allocated memory for the interpolation table fcoll_R_grid. Have zpp_gridpoint=%d, and Npoints=%d", zpp_gridpoint1_int, zpp_interp_points_SFR);
 //                        Throw(ParameterError);
                         Throw(TableEvaluationError);
                     }
@@ -1970,6 +1967,13 @@ LOG_SUPER_DEBUG("looping over box...");
                                     T += ( dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp ) * dzp;
                                 }
 
+                            }
+
+                            if (isfinite(T) == 0) {
+                                LOG_ERROR(
+                                    "For box_ct=%d, got infinite value for Tk. dxheat_dzp=%g, dcomp_dzp=%g, dspec_dzp=%g, dadia_dzp=%g, dzp=%g, dxheat_dt_box=%g, dt_dzp=%g, dxe_dzp=%g, ",
+                                    box_ct, dxheat_dzp, dcomp_dzp, dspec_dzp, dadia_dzp, dzp, dxheat_dt_box[box_ct], dt_dzp, dxe_dzp);
+                                Throw(InfinityorNaNError);
                             }
 
                             if (T<0){ // spurious bahaviour of the trapazoidalintegrator. generally overcooling in underdensities

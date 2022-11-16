@@ -274,14 +274,7 @@ class _AllParamsBox(_OutputStructZ):
         self.astro_params = astro_params or AstroParams(
             INHOMO_RECO=self.flag_options.INHOMO_RECO
         )
-
-        self.log10_Mturnover_ave = 0.0
-        self.log10_Mturnover_MINI_ave = 0.0
-
         self.first_box = first_box
-        if first_box:
-            self.mean_f_coll = 0.0
-            self.mean_f_coll_MINI = 0.0
 
         super().__init__(**kwargs)
 
@@ -502,7 +495,15 @@ class IonizedBox(_AllParamsBox):
 
     def __init__(self, *, prev_ionize_redshift: float | None = None, **kwargs):
         self.prev_ionize_redshift = prev_ionize_redshift
+
         super().__init__(**kwargs)
+
+        self.log10_Mturnover_ave = 0.0
+        self.log10_Mturnover_MINI_ave = 0.0
+
+        if self.first_box:
+            self.mean_f_coll = 0.0
+            self.mean_f_coll_MINI = 0.0
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         if self.flag_options.USE_MINI_HALOS:
@@ -571,9 +572,7 @@ class IonizedBox(_AllParamsBox):
         elif isinstance(input_box, IonizedBox):
             required += ["z_re_box", "Gamma12_box"]
             if self.flag_options.INHOMO_RECO:
-                required += [
-                    "dNrec_box",
-                ]
+                required += ["dNrec_box"]
             if (
                 self.flag_options.USE_MASS_DEPENDENT_ZETA
                 and self.flag_options.USE_MINI_HALOS
@@ -1114,6 +1113,8 @@ class LightCone(_HighLevelOutput):
         _globals=None,
         log10_mturnovers=None,
         log10_mturnovers_mini=None,
+        current_redshift=None,
+        current_index=None,
     ):
         self.redshift = redshift
         self.random_seed = random_seed
@@ -1125,6 +1126,7 @@ class LightCone(_HighLevelOutput):
         self.cache_files = cache_files
         self.log10_mturnovers = log10_mturnovers
         self.log10_mturnovers_mini = log10_mturnovers_mini
+        self._current_redshift = current_redshift or redshift
 
         # A *copy* of the current global parameters.
         self.global_params = _globals or dict(global_params.items())
@@ -1145,6 +1147,8 @@ class LightCone(_HighLevelOutput):
         # Hold a reference to the global/lightcones in a dict form for easy reference.
         self.global_quantities = global_quantities
         self.lightcones = lightcones
+
+        self._current_index = current_index or self.shape[-1] - 1
 
     @property
     def global_xHI(self):
@@ -1223,6 +1227,27 @@ class LightCone(_HighLevelOutput):
 
             f["node_redshifts"] = self.node_redshifts
 
+    def make_checkpoint(self, fname, index: int, redshift: float):
+        """Write updated lightcone data to file."""
+        with h5py.File(fname, "a") as fl:
+            current_index = fl.attrs.get("current_index", 0)
+
+            for k, v in self.lightcones.items():
+                fl["lightcones"][k][..., -index : v.shape[-1] - current_index] = v[
+                    ..., -index : v.shape[-1] - current_index
+                ]
+
+            global_q = fl["global_quantities"]
+            for k, v in self.global_quantities.items():
+                global_q[k][-index : v.shape[-1] - current_index] = v[
+                    -index : v.shape[-1] - current_index
+                ]
+
+            fl.attrs["current_index"] = index
+            fl.attrs["current_redshift"] = redshift
+            self._current_redshift = redshift
+            self._current_index = index
+
     @classmethod
     def _read_inputs(cls, fname):
         kwargs = {}
@@ -1236,9 +1261,12 @@ class LightCone(_HighLevelOutput):
                 grp = fl[k]
                 kwargs[k] = kls(dict(grp.attrs))
             kwargs["random_seed"] = fl.attrs["random_seed"]
+            kwargs["current_redshift"] = fl.attrs.get("current_redshift", None)
+            kwargs["current_index"] = fl.attrs.get("current_index", None)
 
         # Get the standard inputs.
         kw, glbls = _HighLevelOutput._read_inputs(fname)
+
         return {**kw, **kwargs}, glbls
 
     @classmethod

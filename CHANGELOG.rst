@@ -14,6 +14,10 @@ Fixed
 -----
 
 * Running with ``R_BUBBLE_MAX`` too large auto-fixes it to be ``BOX_LEN`` (#112)
+* Segfault when sigma(m) interpolation table wasn't initialized running ionize_box
+  with provided TsBox from file.
+* When reading object from file, tell the object that data arrays exist even if they
+  are not actually read in.
 
 Added
 -----

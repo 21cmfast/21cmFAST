@@ -93,12 +93,14 @@ import warnings
 from astropy import units
 from astropy.cosmology import z_at_value
 from copy import deepcopy
+from pathlib import Path
 from scipy.interpolate import interp1d
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Sequence, Union
 
 from ._cfg import config
 from ._utils import OutputStruct, _check_compatible_inputs, _process_exitcode
 from .c_21cmfast import ffi, lib
+from .cache_tools import get_boxes_at_redshift
 from .inputs import (
     AstroParams,
     CosmoParams,
@@ -120,7 +122,7 @@ from .outputs import (
     _OutputStructZ,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("21cmFAST")
 
 
 def _configure_inputs(
@@ -211,7 +213,6 @@ def configure_redshift(redshift, *structs):
     """
     zs = {s.redshift for s in structs if s is not None and hasattr(s, "redshift")}
     zs = list(zs)
-
     if len(zs) > 1 or (len(zs) == 1 and redshift is not None and zs[0] != redshift):
         raise ValueError("Incompatible redshifts in inputs")
     elif len(zs) == 1:
@@ -306,7 +307,6 @@ def _setup_inputs(
     if "flag_options" in params:
         params["flag_options"] = FlagOptions(
             params["flag_options"],
-            USE_VELS_AUX=params["user_params"].USE_RELATIVE_VELOCITIES,
         )
     if "astro_params" in params:
         params["astro_params"] = AstroParams(
@@ -790,9 +790,7 @@ def _init_photon_conservation_correction(
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     astro_params = AstroParams(astro_params)
-    flag_options = FlagOptions(
-        flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
-    )
+    flag_options = FlagOptions(flag_options)
 
     return lib.InitialisePhotonCons(
         user_params(), cosmo_params(), astro_params(), flag_options()
@@ -961,7 +959,7 @@ def initial_conditions(
         # First check whether the boxes already exist.
         if not regenerate:
             try:
-                boxes.read(direc)
+                boxes.read(direc, keys=())
                 logger.info(
                     f"Existing init_boxes found and read in (seed={boxes.random_seed})."
                 )
@@ -1065,7 +1063,7 @@ def perturb_field(
         # Check whether the boxes already exist
         if not regenerate:
             try:
-                fields.read(direc)
+                fields.read(direc, keys=[])
                 logger.info(
                     f"Existing z={redshift} perturb_field boxes found and read in "
                     f"(seed={fields.random_seed})."
@@ -1184,7 +1182,7 @@ def determine_halo_list(
         # Check whether the boxes already exist
         if not regenerate:
             try:
-                fields.read(direc)
+                fields.read(direc, keys=())
                 logger.info(
                     f"Existing z={redshift} determine_halo_list boxes found and read in "
                     f"(seed={fields.random_seed})."
@@ -1305,7 +1303,7 @@ def perturb_halo_list(
         # Check whether the boxes already exist
         if not regenerate:
             try:
-                fields.read(direc)
+                fields.read(direc, keys=())
                 logger.info(
                     "Existing z=%s perturb_halo_list boxes found and read in (seed=%s)."
                     % (redshift, fields.random_seed)
@@ -1493,6 +1491,7 @@ def ionize_box(
     around in memory for longer than they need to be (only two at a time are required).
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
+    logger.debug("Got config options for ionize_box")
 
     with global_params.use(**global_kwargs):
         _verify_types(
@@ -1503,6 +1502,7 @@ def ionize_box(
             spin_temp=spin_temp,
             pt_halos=pt_halos,
         )
+        logger.debug("Types verified.")
 
         # Configure and check input/output parameters/structs
         (
@@ -1530,6 +1530,7 @@ def ionize_box(
             },
             redshift=redshift,
         )
+        logger.debug("Inputs configured.")
 
         if spin_temp is not None and not flag_options.USE_TS_FLUCT:
             logger.warning(
@@ -1573,11 +1574,12 @@ def ionize_box(
 
         # Construct FFTW wisdoms. Only if required
         construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+        logger.debug("FFTW wisdoms constructed.")
 
         # Check whether the boxes already exist
         if not regenerate:
             try:
-                box.read(direc)
+                box.read(direc, keys=())
                 logger.info(
                     "Existing z=%s ionized boxes found and read in (seed=%s)."
                     % (redshift, box.random_seed)
@@ -1602,6 +1604,7 @@ def ionize_box(
 
             # Need to update random seed
             box._random_seed = init_boxes.random_seed
+            logger.debug("Computed Initial Conditions.")
 
         # Get appropriate previous ionization box
         if previous_ionize_box is None or not previous_ionize_box.is_computed:
@@ -1624,6 +1627,8 @@ def ionize_box(
                     cleanup=False,  # We *know* we're going to need the memory again.
                 )
 
+            logger.debug("Computed Previous ionize_box")
+
         # Dynamically produce the perturbed field.
         if perturbed_field is None or not perturbed_field.is_computed:
             perturbed_field = perturb_field(
@@ -1635,6 +1640,7 @@ def ionize_box(
                 hooks=hooks,
                 direc=direc,
             )
+            logger.debug("Computed perturb_field")
 
         if previous_perturbed_field is None or not previous_perturbed_field.is_computed:
             # If we are beyond Z_HEAT_MAX, just make an empty box
@@ -1650,6 +1656,7 @@ def ionize_box(
                     hooks=hooks,
                     direc=direc,
                 )
+            logger.debug("Computed previous_perturbed_field.")
 
         # Dynamically produce the halo field.
         if not flag_options.USE_HALO_FIELD:
@@ -1688,8 +1695,10 @@ def ionize_box(
                 regenerate=regenerate,
                 cleanup=cleanup,
             )
+            logger.debug("Computed TsBox")
 
         # Run the C Code
+        logger.debug("Running IonisationBox...")
         return box.compute(
             perturbed_field=perturbed_field,
             prev_perturbed_field=previous_perturbed_field,
@@ -1909,7 +1918,7 @@ def spin_temperature(
         # Check whether the boxes already exist on disk.
         if not regenerate:
             try:
-                box.read(direc)
+                box.read(direc, keys=())
                 logger.info(
                     "Existing z=%s spin_temp boxes found and read in (seed=%s)."
                     % (redshift, box.random_seed)
@@ -2051,7 +2060,7 @@ def brightness_temperature(
         # Check whether the boxes already exist on disk.
         if not regenerate:
             try:
-                box.read(direc)
+                box.read(direc, keys=())
                 logger.info(
                     f"Existing brightness_temp box found and read in (seed={box.random_seed})."
                 )
@@ -2071,7 +2080,7 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
     redshifts = [min_redshift]
     while redshifts[-1] < zmax:
         redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
-    return redshifts[::-1]
+    return np.array(redshifts[::-1])
 
 
 def run_coeval(
@@ -2522,6 +2531,7 @@ def run_lightcone(
     cleanup=True,
     hooks=None,
     always_purge: bool = False,
+    lightcone_filename: str | Path = None,
     **global_kwargs,
 ):
     r"""
@@ -2594,6 +2604,10 @@ def run_lightcone(
         If switched on, the routine will do all it can to minimize peak memory usage.
         This will be at the cost of disk I/O and CPU time. Recommended to only set this
         if you are running particularly large boxes, or have low RAM.
+    lightcone_filename
+        The filename to which to save the lightcone. The lightcone is returned in
+        memory, and can be saved manually later, but including this filename will
+        save the lightcone on each iteration, which can be helpful for checkpointing.
     \*\*global_kwargs :
         Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
         *temporarily* set global attributes for the duration of the function. Note that
@@ -2697,6 +2711,45 @@ def run_lightcone(
         except OSError:
             pass
 
+        d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(
+            cosmo_params,
+            max_redshift,
+            redshift,
+            scrollz,
+            user_params,
+            global_params.ZPRIME_STEP_FACTOR,
+        )
+
+        if lightcone_filename and Path(lightcone_filename).exists():
+            lightcone = LightCone.read(lightcone_filename)
+            scrollz = scrollz[np.array(scrollz) < lightcone._current_redshift]
+            global_q = lightcone.global_quantities
+            lc = lightcone.lightcones
+        else:
+            global_q = {
+                quantity: np.zeros(len(scrollz)) for quantity in global_quantities
+            }
+            lc = {
+                quantity: np.zeros(
+                    (user_params.HII_DIM, user_params.HII_DIM, n_lightcone),
+                    dtype=np.float32,
+                )
+                for quantity in lightcone_quantities
+            }
+
+            lightcone = LightCone(
+                redshift,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                init_box.random_seed,
+                lc,
+                node_redshifts=scrollz,
+                global_quantities=global_q,
+                _globals=dict(global_params.items()),
+            )
+
         if perturb is None:
             zz = scrollz
         else:
@@ -2744,45 +2797,50 @@ def run_lightcone(
                 direc,
             )
 
-        d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(
-            cosmo_params,
-            max_redshift,
-            redshift,
-            scrollz,
-            user_params,
-            global_params.ZPRIME_STEP_FACTOR,
-        )
-
         scroll_distances = (
             cosmo_params.cosmo.comoving_distance(scrollz).value - d_at_redshift
         )
 
         # Iterate through redshift from top to bottom
-        st, ib, bt, prev_perturb = None, None, None, None
-        lc_index = 0
-        box_index = 0
-        lc = {
-            quantity: np.zeros(
-                (user_params.HII_DIM, user_params.HII_DIM, n_lightcone),
-                dtype=np.float32,
+        if lightcone.redshift != lightcone._current_redshift:
+            logger.info(
+                f"Finding boxes at z={lightcone._current_redshift} with seed {lightcone.random_seed} and direc={direc}"
             )
-            for quantity in lightcone_quantities
-        }
+            cached_boxes = get_boxes_at_redshift(
+                redshift=lightcone._current_redshift,
+                seed=lightcone.random_seed,
+                direc=direc,
+                user_params=user_params,
+                cosmo_params=cosmo_params,
+                flag_options=flag_options,
+                astro_params=astro_params,
+            )
+            st = cached_boxes["TsBox"][0]
+            prev_perturb = cached_boxes["PerturbedField"][0]
+            bt = cached_boxes["BrightnessTemp"][0]
+            ib = cached_boxes["IonizedBox"][0]
+            lc_index = box_index = lightcone._current_index
+            pf = prev_perturb
+        else:
 
-        interp_functions = {
-            "z_re_box": "mean_max",
-        }
+            st, ib, bt, prev_perturb = None, None, None, None
+            lc_index = 0
+            box_index = 0
+            pf = None
 
-        global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
-        pf = None
+        interp_functions = {"z_re_box": "mean_max"}
 
         perturb_files = []
         spin_temp_files = []
         ionize_files = []
         brightness_files = []
-        log10_mturnovers = np.zeros(len(scrollz))
-        log10_mturnovers_mini = np.zeros(len(scrollz))
+
+        if lightcone_filename and not Path(lightcone_filename).exists():
+            lightcone.save(lightcone_filename)
+
         for iz, z in enumerate(scrollz):
+            logger.info(f"Computing Redshift {z} ({iz+1}/{len(scrollz)}) iterations.")
+
             # Best to get a perturb for this redshift, to pass to brightness_temperature
             pf2 = perturb[iz]
 
@@ -2841,8 +2899,6 @@ def run_lightcone(
                 direc=direc,
                 cleanup=(cleanup and iz == (len(scrollz) - 1)),
             )
-            log10_mturnovers[iz] = ib2.log10_Mturnover_ave
-            log10_mturnovers_mini[iz] = ib2.log10_Mturnover_MINI_ave
 
             bt2 = brightness_temperature(
                 ionized_box=ib2,
@@ -2938,6 +2994,12 @@ def run_lightcone(
 
             pf = pf2
 
+            # Write out the lightcone if desired.
+            if lightcone_filename:
+                lightcone.make_checkpoint(
+                    lightcone_filename, redshift=z, index=lc_index
+                )
+
         if flag_options.PHOTON_CONS:
             photon_nonconservation_data = _get_photon_nonconservation_data()
             if photon_nonconservation_data:
@@ -2952,35 +3014,20 @@ def run_lightcone(
         ):
             lib.FreeTsInterpolationTables(flag_options())
 
-        out = (
-            LightCone(
-                redshift,
-                user_params,
-                cosmo_params,
-                astro_params,
-                flag_options,
-                init_box.random_seed,
-                lc,
-                node_redshifts=scrollz,
-                global_quantities=global_q,
-                photon_nonconservation_data=photon_nonconservation_data,
-                _globals=dict(global_params.items()),
-                cache_files={
-                    "init": [(0, os.path.join(direc, init_box.filename))],
-                    "perturb_field": perturb_files,
-                    "ionized_box": ionize_files,
-                    "brightness_temp": brightness_files,
-                    "spin_temp": spin_temp_files,
-                },
-                log10_mturnovers=log10_mturnovers,
-                log10_mturnovers_mini=log10_mturnovers_mini,
-            ),
-            coeval_callback_output,
-        )
+        # Append some info to the lightcone before we return
+        lightcone.photon_nonconservation_data = photon_nonconservation_data
+        lightcone.cache_files = {
+            "init": [(0, os.path.join(direc, init_box.filename))],
+            "perturb_field": perturb_files,
+            "ionized_box": ionize_files,
+            "brightness_temp": brightness_files,
+            "spin_temp": spin_temp_files,
+        }
+
         if coeval_callback is None:
-            return out[0]
+            return lightcone
         else:
-            return out
+            return lightcone, coeval_callback_output
 
 
 def _get_coeval_callbacks(
@@ -3024,6 +3071,9 @@ def _get_interpolation_outputs(
             f"The following lightcone_quantities are not available: {incorrect_lc}"
         )
 
+    _fld_names = get_all_fieldnames(
+        arrays_only=False, lightcone_only=True, as_dict=True
+    )
     incorrect_gl = [q for q in global_quantities if q not in _fld_names.keys()]
     if incorrect_gl:
         raise ValueError(
@@ -3189,7 +3239,6 @@ def calibrate_photon_cons(
         flag_options_photoncons = FlagOptions(
             USE_MASS_DEPENDENT_ZETA=flag_options.USE_MASS_DEPENDENT_ZETA,
             M_MIN_in_Mass=flag_options.M_MIN_in_Mass,
-            USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES,
         )
 
         ib = None

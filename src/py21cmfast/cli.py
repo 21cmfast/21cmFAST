@@ -591,22 +591,41 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed):
         print(f"Saved Lightcone to {fname}.")
 
 
-def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
-    cls = list(
+def _query(
+    direc=None,
+    kind=None,
+    md5=None,
+    seed=None,
+    clear=False,
+    sort_by=("kind", "redshift"),
+    show=None,
+):
+    objects = list(
         cache_tools.query_cache(direc=direc, kind=kind, hsh=md5, seed=seed, show=False)
     )
 
     if not clear:
-        print("%s Data Sets Found:" % len(cls))
+        print(f"{len(objects)} Data Sets Found:")
         print("------------------")
     else:
-        print("Removing %s data sets..." % len(cls))
+        print(f"Removing {len(objects)} data sets...")
 
-    for file, c in cls:
+    for sorter in sort_by[::-1]:
+        if sorter == "kind":
+            objects = sorted(objects, key=lambda x: x[1].__class__.__name__)
+        elif sorter == "filename":
+            objects = sorted(objects, key=lambda x: x[0])
+        else:
+            objects = sorted(objects, key=lambda x: getattr(x[1], sorter, 0.0))
+
+    for file, c in objects:
         if not clear:
-            print("  @ {%s}:" % file)
-            print("  %s" % str(c))
-
+            print(f"  @ {file}:")
+            if not show:
+                print(f"  {c}")
+            else:
+                for s in show:
+                    print(f"  {s}: {getattr(c, s, None)}")
             print()
 
         else:
@@ -630,7 +649,9 @@ def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
     default=False,
     help="remove all data sets returned by this query.",
 )
-def query(direc, kind, md5, seed, clear):
+@click.option("--fields", type=str, multiple=True, default=None)
+@click.option("--sort", type=str, multiple=True, default=["kind", "redshift"])
+def query(direc, kind, md5, seed, clear, fields, sort):
     """Query the cache database.
 
     Parameters
@@ -646,7 +667,7 @@ def query(direc, kind, md5, seed, clear):
     clear : bool
         Remove all data sets returned by the query.
     """
-    _query(direc, kind, md5, seed, clear)
+    _query(direc, kind, md5, seed, clear, show=fields, sort_by=tuple(sort))
 
 
 @main.command()

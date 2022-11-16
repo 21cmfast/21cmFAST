@@ -19,7 +19,7 @@ from .c_21cmfast import lib
 
 _ffi = FFI()
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("21cmFAST")
 
 
 class ArrayStateError(ValueError):
@@ -90,6 +90,17 @@ class ArrayState:
     def c_has_active_memory(self):
         """Whether C currently has initialized memory for this array."""
         return self.c_memory and self.initialized
+
+    def __str__(self):
+        """Returns a string representation of the ArrayState."""
+        if self.computed_in_mem:
+            return "computed (in mem)"
+        elif self.on_disk:
+            return "computed (on disk)"
+        elif self.initialized:
+            return "memory initialized (not computed)"
+        else:
+            return "uncomputed and uninitialized"
 
 
 class ParameterError(RuntimeError):
@@ -661,7 +672,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             if pth.exists():
                 return pth
 
-        logger.info("All paths that defined {self} have been deleted on disk.")
+        logger.info(f"All paths that defined {self} have been deleted on disk.")
         return None
 
     @abstractmethod
@@ -693,9 +704,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def _init_arrays(self):
         for k, state in self._array_state.items():
-            if k == "lowres_density":
-                logger.debug("THINKING ABOUT INITING LOWRES_DENSITY")
-                logger.debug(state.initialized, state.computed_in_mem, state.on_disk)
 
             # Don't initialize C-based pointers or already-inited stuff, or stuff
             # that's computed on disk (if it's on disk, accessing the array should
@@ -802,7 +810,11 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         if flush is not None and keep is None:
             keep = [k for k in self._array_state if k not in flush]
         elif keep is not None and flush is None:
-            flush = [k for k in self._array_state if k not in keep]
+            flush = [
+                k
+                for k in self._array_state
+                if k not in keep and self._array_state[k].initialized
+            ]
 
         flush = flush or []
         keep = keep or []
@@ -812,13 +824,15 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         # Accessing the array loads it into memory.
         for k in keep:
+            logger.debug(f"Loading {k} into memory for {self.__class__.__name__}")
             getattr(self, k)
 
     def _remove_array(self, k, force=False):
         state = self._array_state[k]
 
         if not state.initialized:
-            warnings.warn(f"Trying to remove array that isn't yet created: {k}")
+            if k in self._array_structure:  # Don't warn if array isn't even needed.
+                warnings.warn(f"Trying to remove array that isn't yet created: {k}")
             return
 
         if state.computed_in_mem and not state.on_disk and not force:
@@ -1114,7 +1128,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         if fname is None:
             pth = self.find_existing(direc)
-
             if pth is None:
                 raise OSError("No boxes exist for these parameters.")
         else:
@@ -1160,9 +1173,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
             # Set our arrays.
             for k in boxes.keys():
+                self._array_state[k].on_disk = True
                 if keys is None or k in keys:
                     setattr(self, k, boxes[k][...])
-                    self._array_state[k].on_disk = True
                     self._array_state[k].computed_in_mem = True
                     setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
@@ -1202,7 +1215,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     @classmethod
     def from_file(
-        cls, fname, direc=None, load_data=True, h5_group: Union[str, None] = None
+        cls,
+        fname,
+        direc=None,
+        load_data=True,
+        h5_group: Union[str, None] = None,
+        arrays_to_load=None,
     ):
         """Create an instance from a file on disk.
 
@@ -1232,12 +1250,14 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             else:
                 self = cls(**cls._read_inputs(fl))
 
-        if load_data:
-            if h5_group is not None:
-                with h5py.File(fname, "r") as fl:
-                    self.read(fname=fl[h5_group])
-            else:
-                self.read(fname=fname)
+        if not load_data:
+            arrays_to_load = []
+
+        if h5_group is not None:
+            with h5py.File(fname, "r") as fl:
+                self.read(fname=fl[h5_group], keys=arrays_to_load)
+        else:
+            self.read(fname=fname, keys=arrays_to_load)
 
         return self
 
@@ -1261,12 +1281,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 )
             else:
                 kwargs[kfile] = grp.attrs[kfile]
+
         return kwargs
 
     def __repr__(self):
         """Return a fully unique representation of the instance."""
         # This is the class name and all parameters which belong to C-based input structs,
-        # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
         # eg. InitialConditions(HII_DIM:100,SIGMA_8:0.8,...)
         return f"{self._seedless_repr()}_random_seed={self._random_seed}"
 
@@ -1374,6 +1394,10 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         if input_box.dummy:
             return True
 
+        logger.debug(
+            "Ensuring all required boxes are computed on "
+            f"{input_box.__class__.__name__} for computing {self.__class__.__name__}"
+        )
         arrays = self.get_required_input_arrays(input_box)
 
         if input_box.initial:
@@ -1429,8 +1453,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 and not self.ensure_input_computed(arg, load=True)
             ):
                 raise ValueError(
-                    f"Trying to use {arg} to compute {self}, but some required arrays "
-                    f"are not computed!"
+                    f"Trying to use {arg.__class__.__name__} to compute {self.__class__.__name__}, but some required arrays "
+                    f"are not computed!\nArrays required: {self.get_required_input_arrays(arg)}\nCurrent State: {[(k, str(v)) for k, v in self._array_state.items()]}"
                 )
 
     def _compute(
@@ -1443,11 +1467,13 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         # Check that all required inputs are really computed, and load them into memory
         # if they're not already.
+        logger.debug("Ensuring that all required inputs are computed, and loading...")
         self._ensure_arguments_exist(*args)
 
         # Construct the args. All StructWrapper objects need to actually pass their
         # underlying cstruct, rather than themselves. OutputStructs also pass the
         # class in that's calling this.
+        logger.debug("Construct c-based inputs...")
         inputs = [arg() if isinstance(arg, StructWrapper) else arg for arg in args]
 
         # Ensure we haven't already tried to compute this instance.
@@ -1456,6 +1482,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 f"You are trying to compute {self.__class__.__name__}, but it has already been computed."
             )
 
+        logger.debug(f"Computing {self.__class__.__name__} using C function...")
         # Perform the C computation
         try:
             exitcode = self._c_compute_function(*inputs, self())
