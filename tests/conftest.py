@@ -5,6 +5,7 @@ import os
 
 from py21cmfast import UserParams, config, global_params, run_lightcone, wrapper
 from py21cmfast.cache_tools import clear_cache
+from py21cmfast.lightcones import RectilinearLightconer
 
 
 def pytest_addoption(parser):
@@ -140,5 +141,15 @@ def perturb_field(ic, redshift):
 
 
 @pytest.fixture(scope="session")
-def lc(perturb_field, max_redshift):
-    return run_lightcone(perturb=perturb_field, max_redshift=max_redshift)
+def rectlcn(perturb_field, max_redshift) -> RectilinearLightconer:
+    return RectilinearLightconer.with_equal_cdist_slices(
+        min_redshift=perturb_field.redshift,
+        max_redshift=max_redshift,
+        user_params=perturb_field.user_params,
+        cosmo=perturb_field.cosmo_params.cosmo,
+    )
+
+
+@pytest.fixture(scope="session")
+def lc(perturb_field, rectlcn):
+    return run_lightcone(lightconer=rectlcn, perturb=perturb_field)

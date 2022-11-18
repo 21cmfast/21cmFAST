@@ -13,6 +13,7 @@ from py21cmfast import (
     run_coeval,
     run_lightcone,
 )
+from py21cmfast.lightcones import RectilinearLightconer
 
 
 @pytest.fixture(scope="module")
@@ -24,9 +25,14 @@ def coeval(ic):
 
 @pytest.fixture(scope="module")
 def lightcone(ic):
+    lcn = RectilinearLightconer.with_equal_cdist_slices(
+        min_redshift=25.0,
+        max_redshift=35.0,
+        user_params=ic.user_params,
+    )
+
     return run_lightcone(
-        max_redshift=35,
-        redshift=25.0,
+        lightconer=lcn,
         init_box=ic,
         write=True,
         flag_options={"USE_TS_FLUCT": True},

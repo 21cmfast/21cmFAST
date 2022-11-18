@@ -19,6 +19,7 @@ import os
 import warnings
 from astropy import units
 from astropy.cosmology import z_at_value
+from astropy_healpix import HEALPix
 from cached_property import cached_property
 from hashlib import md5
 from pathlib import Path
@@ -1114,6 +1115,8 @@ class LightCone(_HighLevelOutput):
         _globals=None,
         log10_mturnovers=None,
         log10_mturnovers_mini=None,
+        current_redshift=None,
+        current_index=None,
     ):
         self.redshift = redshift
         self.random_seed = random_seed
@@ -1125,6 +1128,7 @@ class LightCone(_HighLevelOutput):
         self.cache_files = cache_files
         self.log10_mturnovers = log10_mturnovers
         self.log10_mturnovers_mini = log10_mturnovers_mini
+        self._current_redshift = current_redshift or redshift
 
         # A *copy* of the current global parameters.
         self.global_params = _globals or dict(global_params.items())
@@ -1133,9 +1137,9 @@ class LightCone(_HighLevelOutput):
             for name, data in global_quantities.items():
                 if name.endswith("_box"):
                     # Remove the _box because it looks dumb.
-                    setattr(self, "global_" + name[:-4], data)
+                    setattr(self, f"global_{name[:-4]}", data)
                 else:
-                    setattr(self, "global_" + name, data)
+                    setattr(self, f"global_{name}", data)
 
         self.photon_nonconservation_data = photon_nonconservation_data
 
@@ -1145,6 +1149,7 @@ class LightCone(_HighLevelOutput):
         # Hold a reference to the global/lightcones in a dict form for easy reference.
         self.global_quantities = global_quantities
         self.lightcones = lightcones
+        self._current_index = current_index or self.shape[-1] - 1
 
     @property
     def global_xHI(self):
@@ -1223,6 +1228,27 @@ class LightCone(_HighLevelOutput):
 
             f["node_redshifts"] = self.node_redshifts
 
+    def make_checkpoint(self, fname, index: int, redshift: float):
+        """Write updated lightcone data to file."""
+        with h5py.File(fname, "a") as fl:
+            current_index = fl.attrs.get("current_index", 0)
+
+            for k, v in self.lightcones.items():
+                fl["lightcones"][k][..., -index : v.shape[-1] - current_index] = v[
+                    ..., -index : v.shape[-1] - current_index
+                ]
+
+            global_q = fl["global_quantities"]
+            for k, v in self.global_quantities.items():
+                global_q[k][-index : v.shape[-1] - current_index] = v[
+                    -index : v.shape[-1] - current_index
+                ]
+
+            fl.attrs["current_index"] = index
+            fl.attrs["current_redshift"] = redshift
+            self._current_redshift = redshift
+            self._current_index = index
+
     @classmethod
     def _read_inputs(cls, fname):
         kwargs = {}
@@ -1236,6 +1262,8 @@ class LightCone(_HighLevelOutput):
                 grp = fl[k]
                 kwargs[k] = kls(dict(grp.attrs))
             kwargs["random_seed"] = fl.attrs["random_seed"]
+            kwargs["current_redshift"] = fl.attrs.get("current_redshift", None)
+            kwargs["current_index"] = fl.attrs.get("current_index", None)
 
         # Get the standard inputs.
         kw, glbls = _HighLevelOutput._read_inputs(fname)
@@ -1267,4 +1295,71 @@ class LightCone(_HighLevelOutput):
             and self.astro_params == other.astro_params
             and self.global_quantities.keys() == other.global_quantities.keys()
             and self.lightcones.keys() == other.lightcones.keys()
+        )
+
+
+class AngularLightcone(LightCone):
+    """An angular lightcone."""
+
+    def __init__(self, healpix: HEALPix, **kwargs):
+        super().__init__(**kwargs)
+        self.healpix = healpix
+
+    @property
+    def cell_size(self):
+        """Cell size [Mpc] of the lightcone voxels."""
+        raise AttributeError("This is not an attribute of an AngularLightcone")
+
+    @property
+    def lightcone_dimensions(self):
+        """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
+        raise AttributeError("This is not an attribute of an AngularLightcone")
+
+    @property
+    def shape(self):
+        """Shape of the lightcone as a 3-tuple."""
+        return self.brightness_temp.shape
+
+    @property
+    def n_slices(self):
+        """Number of redshift slices in the lightcone."""
+        return self.shape[-1]
+
+    @property
+    def lightcone_coords(self):
+        """Co-ordinates [Mpc] of each cell along the redshift axis."""
+        n = self.n_slices * self.user_params.BOX_LEN / self.user_params.HII_DIM
+        return np.linspace(0, n, self.n_slices)
+
+    @property
+    def lightcone_distances(self):
+        """Comoving distance to each cell along the redshift axis, from z=0."""
+        return (
+            self.cosmo_params.cosmo.comoving_distance(self.redshift).value
+            + self.lightcone_coords
+        )
+
+    @property
+    def lightcone_redshifts(self):
+        """Redshift of each cell along the redshift axis."""
+        return np.array(
+            [
+                z_at_value(self.cosmo_params.cosmo.comoving_distance, d * units.Mpc)
+                for d in self.lightcone_distances
+            ]
+        )
+
+    def __eq__(self, other):
+        """Determine if this is equal to another object."""
+        return (
+            isinstance(other, self.__class__)
+            and other.redshift == self.redshift
+            and np.all(np.isclose(other.node_redshifts, self.node_redshifts, atol=1e-3))
+            and self.user_params == other.user_params
+            and self.cosmo_params == other.cosmo_params
+            and self.flag_options == other.flag_options
+            and self.astro_params == other.astro_params
+            and self.global_quantities.keys() == other.global_quantities.keys()
+            and self.lightcones.keys() == other.lightcones.keys()
+            and self.healpix == other.healpix
         )
