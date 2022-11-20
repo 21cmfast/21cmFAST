@@ -2741,7 +2741,7 @@ def run_lightcone(
             lc_index = lightcone._current_index
             pf = prev_perturb
         else:
-            st, ib, prev_perturb = None, None, None, None
+            st, ib, prev_perturb = None, None, None
             pf = None
 
         n_lightcone = len(lightconer.lc_distances)

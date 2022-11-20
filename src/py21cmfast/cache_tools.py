@@ -6,7 +6,7 @@ import re
 import warnings
 from collections import defaultdict
 from os import path
-from typing import Union
+from typing import Tuple, Union
 
 from . import outputs
 from ._cfg import config
@@ -187,8 +187,8 @@ def query_cache(
 
 
 def get_boxes_at_redshift(
-    redshift: Union[float, tuple[float, float]], seed=None, direc=None, **params
-) -> defaultdict[str, outputs._OutputStruct]:
+    redshift: Union[float, Tuple[float, float]], seed=None, direc=None, **params
+):
     """Retrieve objects for each file in cache within given redshift bounds."""
     if not hasattr(redshift, "__len__"):
         redshift = (redshift / 1.001, redshift * 1.001)

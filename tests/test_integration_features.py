@@ -30,6 +30,7 @@ import matplotlib as mpl
 import numpy as np
 
 from py21cmfast import config, global_params
+from py21cmfast.lightcones import RectilinearLightconer
 
 from . import produce_integration_test_data as prd
 
@@ -81,6 +82,7 @@ def test_power_spectra_lightcone(name, module_direc, plt):
     with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
         true_powers = {}
         true_global = {}
+        true_k = fl["lightcone"]["k"][...]
         for key in fl["lightcone"].keys():
             if key.startswith("power_"):
                 true_powers["_".join(key.split("_")[1:])] = fl["lightcone"][key][...]
@@ -97,6 +99,8 @@ def test_power_spectra_lightcone(name, module_direc, plt):
         make_lightcone_comparison_plot(
             test_k, lc.node_redshifts, true_powers, true_global, test_powers, lc, plt
         )
+
+    assert np.allclose(true_k, test_k)
 
     for key, value in true_powers.items():
         print(f"Testing {key}")

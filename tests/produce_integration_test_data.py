@@ -33,6 +33,7 @@ from py21cmfast import (
     run_coeval,
     run_lightcone,
 )
+from py21cmfast.lightcones import RectilinearLightconer
 
 logger = logging.getLogger("py21cmfast")
 logging.basicConfig()
@@ -329,17 +330,23 @@ def produce_coeval_power_spectra(redshift, **kwargs):
 
 def produce_lc_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
+    lcn = RectilinearLightconer.with_equal_cdist_slices(
+        min_redshift=redshift,
+        max_redshift=options.pop("redshift") + 2,
+        quantities=[
+            k
+            for k in LIGHTCONE_FIELDS
+            if (
+                options["flag_options"].get("USE_TS_FLUCT", False)
+                or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
+            )
+        ],
+        user_params=UserParams(options["user_params"]),
+    )
+
     with config.use(ignore_R_BUBBLE_MAX_error=True):
         lightcone = run_lightcone(
-            max_redshift=options["redshift"] + 2,
-            lightcone_quantities=[
-                k
-                for k in LIGHTCONE_FIELDS
-                if (
-                    options["flag_options"].get("USE_TS_FLUCT", False)
-                    or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
-                )
-            ],
+            lightconer=lcn,
             write=write_ics_only_hook,
             **options,
         )
