@@ -322,7 +322,8 @@ def get_all_options_halo(redshift, **kwargs):
 def produce_coeval_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
 
-    coeval = run_coeval(write=write_ics_only_hook, **options)
+    with config.use(ignore_R_BUBBLE_MAX_error=True):
+        coeval = run_coeval(write=write_ics_only_hook, **options)
     p = {}
 
     for field in COEVAL_FIELDS:
@@ -336,19 +337,20 @@ def produce_coeval_power_spectra(redshift, **kwargs):
 
 def produce_lc_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
-    lightcone = run_lightcone(
-        max_redshift=options["redshift"] + 2,
-        lightcone_quantities=[
-            k
-            for k in LIGHTCONE_FIELDS
-            if (
-                options["flag_options"].get("USE_TS_FLUCT", False)
-                or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
-            )
-        ],
-        write=write_ics_only_hook,
-        **options,
-    )
+    with config.use(ignore_R_BUBBLE_MAX_error=True):
+        lightcone = run_lightcone(
+            max_redshift=options["redshift"] + 2,
+            lightcone_quantities=[
+                k
+                for k in LIGHTCONE_FIELDS
+                if (
+                    options["flag_options"].get("USE_TS_FLUCT", False)
+                    or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
+                )
+            ],
+            write=write_ics_only_hook,
+            **options,
+        )
 
     p = {}
     for field in LIGHTCONE_FIELDS:
