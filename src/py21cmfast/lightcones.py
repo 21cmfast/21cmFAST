@@ -131,7 +131,7 @@ class Lightconer(ABC):
 
         lcidx = (self.lc_distances >= dcmin) & (self.lc_distances <= dcmax)
 
-        # Return early if no lightcone indicesare between the coeval distances.
+        # Return early if no lightcone indices are between the coeval distances.
         if not np.any(lcidx):
             return None
 
@@ -206,6 +206,14 @@ class Lightconer(ABC):
 class RectilinearLightconer(Lightconer):
     """The class rectilinear lightconer."""
 
+    index_offset: int = attr.field()
+
+    @index_offset.default
+    def _index_offset_default(self) -> int:
+        # While it probably makes more sense to use zero as the default offset,
+        # we use n_lightcone to maintain default backwards compatibility.
+        return len(self.lc_distances)
+
     def construct_lightcone(
         self,
         lc_distances: np.ndarray,
@@ -219,8 +227,8 @@ class RectilinearLightconer(Lightconer):
         """Construct slices of the lightcone between two coevals."""
         # Do linear interpolation only.
         lcidxs = ((self.lc_distances.max() - lc_distances) // box_res + 1).astype(int)
-        box1 = box1.take(-lcidxs, axis=2, mode="wrap")
-        box2 = box2.take(-lcidxs, axis=2, mode="wrap")
+        box1 = box1.take(-lcidxs + self.index_offset, axis=2, mode="wrap")
+        box2 = box2.take(-lcidxs + self.index_offset, axis=2, mode="wrap")
 
         return self.redshift_interpolation(
             lc_distances, box1, box2, dc1, dc2, kind=interp_kind
