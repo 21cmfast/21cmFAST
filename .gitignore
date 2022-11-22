@@ -53,5 +53,3 @@ r2c*
 plots/
 .vscode/
 src/py21cmfast/_version\.py
-_cache_rt
-_cache
