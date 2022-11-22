@@ -38,7 +38,7 @@ def _imshow_slice(
     cbar_horizontal=False,
     rotate=False,
     cmap="EoR",
-    log: [bool] = False,
+    log: bool = False,
     **imshow_kw,
 ):
     """
