@@ -17,7 +17,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import warnings
-from astropy.cosmology import Planck15
+from astropy.cosmology import FLRW, Planck15
 from os import path
 from pathlib import Path
 
@@ -34,6 +34,7 @@ Planck18 = Planck15.clone(
     Om0=(0.02242 + 0.11933) / 0.6766**2,
     Ob0=0.02242 / 0.6766**2,
     H0=67.66,
+    name="Planck18",
 )
 
 
@@ -372,6 +373,10 @@ class CosmoParams(StructWithDefaults):
         Spectral index of the power spectrum.
     """
 
+    def __init__(self, *args, _base_cosmo=Planck18, **kwargs):
+        self._base_cosmo = _base_cosmo
+        super().__init__(*args, **kwargs)
+
     _ffi = ffi
 
     _defaults_ = {
@@ -390,7 +395,23 @@ class CosmoParams(StructWithDefaults):
     @property
     def cosmo(self):
         """Return an astropy cosmology object for this cosmology."""
-        return Planck15.clone(H0=self.hlittle * 100, Om0=self.OMm, Ob0=self.OMb)
+        return self._base_cosmo.clone(
+            name=self._base_cosmo.name,
+            H0=self.hlittle * 100,
+            Om0=self.OMm,
+            Ob0=self.OMb,
+        )
+
+    @classmethod
+    def from_astropy(cls, cosmo: FLRW, **kwargs):
+        """Create a CosmoParams object from an astropy cosmology object.
+
+        Pass SIGMA_8 and POWER_INDEX as kwargs if you want to override the default
+        values.
+        """
+        return cls(
+            hlittle=cosmo.h, OMm=cosmo.Om0, OMb=cosmo.Ob0, _base_cosmo=cosmo, **kwargs
+        )
 
 
 class UserParams(StructWithDefaults):

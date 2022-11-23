@@ -308,10 +308,8 @@ def _setup_inputs(
     params["cosmo_params"] = CosmoParams(params["cosmo_params"])
 
     if "flag_options" in params:
-        params["flag_options"] = FlagOptions(
-            params["flag_options"],
-            USE_VELS_AUX=params["user_params"].USE_RELATIVE_VELOCITIES,
-        )
+        params["flag_options"] = FlagOptions(params["flag_options"])
+
     if "astro_params" in params:
         params["astro_params"] = AstroParams(
             params["astro_params"], INHOMO_RECO=params["flag_options"].INHOMO_RECO
@@ -794,9 +792,7 @@ def _init_photon_conservation_correction(
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     astro_params = AstroParams(astro_params)
-    flag_options = FlagOptions(
-        flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
-    )
+    flag_options = FlagOptions(flag_options)
 
     return lib.InitialisePhotonCons(
         user_params(), cosmo_params(), astro_params(), flag_options()
@@ -2575,6 +2571,9 @@ def run_lightcone(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
     redshift = lightconer.lc_redshifts.min()
+    if cosmo_params is None:
+        cosmo_params = CosmoParams.from_astropy(lightconer.cosmo)
+
     with global_params.use(**global_kwargs):
 
         (
@@ -2595,6 +2594,11 @@ def run_lightcone(
             {"init_box": init_box, "perturb": perturb},
             redshift=redshift,
         )
+
+        if cosmo_params.cosmo != lightconer.cosmo:
+            raise ValueError(
+                "The cosmology in the lightconer must be the same as in cosmo_params"
+            )
 
         if user_params.MINIMIZE_MEMORY and not write:
             raise ValueError(
@@ -2654,12 +2658,8 @@ def run_lightcone(
         if lightcone_filename and Path(lightcone_filename).exists():
             lightcone = LightCone.read(lightcone_filename)
             scrollz = scrollz[np.array(scrollz) < lightcone._current_redshift]
-            global_q = lightcone.global_quantities
             lc = lightcone.lightcones
         else:
-            global_q = {
-                quantity: np.zeros(len(scrollz)) for quantity in global_quantities
-            }
             lc = {
                 quantity: np.zeros(
                     (user_params.HII_DIM, user_params.HII_DIM, n_lightcone),
@@ -2677,7 +2677,9 @@ def run_lightcone(
                 init_box.random_seed,
                 lc,
                 node_redshifts=scrollz,
-                global_quantities=global_q,
+                global_quantities={
+                    quantity: np.zeros(len(scrollz)) for quantity in global_quantities
+                },
                 _globals=dict(global_params.items()),
             )
 
@@ -2744,16 +2746,6 @@ def run_lightcone(
             st, ib, prev_perturb = None, None, None
             pf = None
 
-        n_lightcone = len(lightconer.lc_distances)
-        lc = {
-            quantity: np.zeros(
-                (user_params.HII_DIM, user_params.HII_DIM, n_lightcone),
-                dtype=np.float32,
-            )
-            for quantity in lightconer.quantities
-        }
-
-        global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
         pf = None
 
         perturb_files = []
@@ -2847,13 +2839,16 @@ def run_lightcone(
 
             # Save mean/global quantities
             for quantity in global_quantities:
-                global_q[quantity][iz] = np.mean(getattr(coeval, quantity))
+                lightcone.global_quantities[quantity][iz] = np.mean(
+                    getattr(coeval, quantity)
+                )
 
             # Get lightcone slices
             if prev_coeval is not None:
                 this_lc, idx = lightconer.make_lightcone_slices(coeval, prev_coeval)
-                for k, v in this_lc.items():
-                    lightcone.lightcones[k][..., idx] = v
+                if this_lc is not None:
+                    for k, v in this_lc.items():
+                        lightcone.lightcones[k][..., idx] = v
 
             # Save current ones as old ones.
             if flag_options.USE_TS_FLUCT:
@@ -3031,7 +3026,6 @@ def calibrate_photon_cons(
         flag_options_photoncons = FlagOptions(
             USE_MASS_DEPENDENT_ZETA=flag_options.USE_MASS_DEPENDENT_ZETA,
             M_MIN_in_Mass=flag_options.M_MIN_in_Mass,
-            USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES,
         )
 
         ib = None

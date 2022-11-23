@@ -272,9 +272,7 @@ def spin(ctx, redshift, prev_z, config, regen, direc, seed):
     # Set user/cosmo params from config.
     user_params = lib.UserParams(**cfg.get("user_params", {}))
     cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-    flag_options = lib.FlagOptions(
-        **cfg.get("flag_options", {}), USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
-    )
+    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
     astro_params = lib.AstroParams(
         **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
     )
@@ -359,7 +357,7 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     user_params = lib.UserParams(**cfg.get("user_params", {}))
     cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
     flag_options = lib.FlagOptions(
-        **cfg.get("flag_options", {}), USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
+        **cfg.get("flag_options", {}),
     )
     astro_params = lib.AstroParams(
         **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
@@ -453,9 +451,7 @@ def coeval(ctx, redshift, config, out, regen, direc, seed):
     # Set user/cosmo params from config.
     user_params = lib.UserParams(**cfg.get("user_params", {}))
     cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-    flag_options = lib.FlagOptions(
-        **cfg.get("flag_options", {}), USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
-    )
+    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
     astro_params = lib.AstroParams(
         **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
     )

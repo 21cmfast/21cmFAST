@@ -1186,7 +1186,11 @@ class LightCone(_HighLevelOutput):
     @property
     def lightcone_coords(self):
         """Co-ordinates [Mpc] of each cell along the redshift axis."""
-        return np.linspace(0, self.lightcone_dimensions[-1], self.n_slices)
+        return (
+            np.arange(0, self.n_slices)
+            * self.user_params.BOX_LEN
+            / self.user_params.HII_DIM
+        )
 
     @property
     def lightcone_distances(self):

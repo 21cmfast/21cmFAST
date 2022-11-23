@@ -95,19 +95,19 @@ def test_power_spectra_lightcone(name, module_direc, plt):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
             test_k, test_powers, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
+    assert np.allclose(true_k, test_k)
+
     if plt == mpl.pyplot:
         make_lightcone_comparison_plot(
             test_k, lc.node_redshifts, true_powers, true_global, test_powers, lc, plt
         )
 
-    assert np.allclose(true_k, test_k)
-
     for key, value in true_powers.items():
-        print(f"Testing {key}")
-        # Ensure all but 10 of the values is within 1%, and none of the values
-        # is outside 10%
-        assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=1e-2)) < 10
-        assert np.allclose(value, test_powers[key], atol=0, rtol=1e-1)
+        if value[0] > 0:
+            print(f"Testing {key}")
+            # Ensure all but 10 of the values is within 1%, and none of the values
+            # is outside 10%
+            assert np.all(np.abs(value - test_powers[key]) / value[0] < 1e-6)
 
     for key, value in true_global.items():
         print(f"Testing Global {key}")
@@ -118,7 +118,9 @@ def make_lightcone_comparison_plot(
     k, z, true_powers, true_global, test_powers, lc, plt
 ):
     n = len(true_global) + len(true_powers)
-    fig, ax = plt.subplots(2, n, figsize=(3 * n, 5))
+    fig, ax = plt.subplots(
+        2, n, figsize=(3 * n, 5), constrained_layout=True, sharex="col"
+    )
 
     for i, (key, val) in enumerate(true_powers.items()):
         make_comparison_plot(
@@ -133,7 +135,11 @@ def make_lightcone_comparison_plot(
 
 def make_coeval_comparison_plot(k, true_powers, test_powers, plt):
     fig, ax = plt.subplots(
-        2, len(true_powers), figsize=(3 * len(true_powers), 6), sharex=True
+        2,
+        len(true_powers),
+        figsize=(3 * len(true_powers), 6),
+        sharex=True,
+        constrained_layout=True,
     )
 
     for i, (key, val) in enumerate(true_powers.items()):
@@ -157,7 +163,7 @@ def make_comparison_plot(x, true, test, ax, logx=True, logy=True, xlab=None, yla
 
     ax[0].legend()
 
-    ax[1].plot(x, (test - true) / true)
+    ax[1].plot(x, (test - true) / true[0])
     ax[1].set_ylabel("Fractional Difference")
 
 

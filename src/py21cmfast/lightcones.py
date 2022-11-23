@@ -5,12 +5,13 @@ from __future__ import annotations
 import attr
 import numpy as np
 from abc import ABC, abstractmethod
-from astropy.cosmology import FLRW, Planck18, z_at_value
+from astropy.cosmology import FLRW, z_at_value
 from astropy.units import MHz, Mpc, Quantity
 from cosmotile import make_lightcone_slice
 from functools import cached_property
 from scipy.spatial.transform import Rotation
 
+from .inputs import Planck18  # Not *quite* the same as astropy's Planck18
 from .inputs import UserParams
 from .outputs import Coeval
 
@@ -21,7 +22,8 @@ _LIGHTCONERS = {}
 class Lightconer(ABC):
     """A class that creates lightcone slices from Coeval objects."""
 
-    lc_distances: np.ndarray = attr.field(eq=attr.cmp_using(np.allclose))
+    _lc_distances: np.ndarray = attr.field(default=None, eq=attr.cmp_using(np.allclose))
+    _lc_redshifts: np.ndarray = attr.field(default=None, eq=attr.cmp_using(np.allclose))
     cosmo: FLRW = attr.field(
         default=Planck18, validator=attr.validators.instance_of(FLRW)
     )
@@ -32,19 +34,39 @@ class Lightconer(ABC):
     )
     interp_kinds: dict[str, str] = attr.field()
 
+    @_lc_redshifts.validator
+    def _lcz_vld(self, att, val):
+        if val is not None and self._lc_distances is not None:
+            assert np.allclose(
+                self._lc_distances, self.cosmo.comoving_distance(val).val, atol=1e-4
+            )
+        if val is None and self._lc_distances is None:
+            raise ValueError("Must set either lc_distances or lc_redshifts")
+
     @interp_kinds.default
     def _interp_kinds_def(self):
         return {"z_re_box": "mean_max"}
 
     @cached_property
+    def lc_distances(self) -> np.ndarray:
+        """The comoving distances of the lightcone slices."""
+        if self._lc_distances is not None:
+            return self._lc_distances
+        else:
+            return self.cosmo.comoving_distance(self._lc_redshifts).value
+
+    @cached_property
     def lc_redshifts(self):
         """The redshifts of all the lightcone slices."""
-        return np.array(
-            [
-                z_at_value(self.cosmo.comoving_distance, d * Mpc)
-                for d in self.lc_distances
-            ]
-        )
+        if self._lc_redshifts is not None:
+            return self._lc_redshifts
+        else:
+            return np.array(
+                [
+                    z_at_value(self.cosmo.comoving_distance, d * Mpc)
+                    for d in self.lc_distances
+                ]
+            )
 
     @classmethod
     def with_equal_cdist_slices(
@@ -69,7 +91,10 @@ class Lightconer(ABC):
         lc_distances = np.arange(d_at_redshift, dmax + resolution, resolution)
         if np.isclose(lc_distances.max() + resolution, dmax):
             lc_distances = np.append(lc_distances, dmax)
-
+        lcz = np.array(
+            [z_at_value(cosmo.comoving_distance, d * Mpc) for d in lc_distances]
+        )
+        lcz[0] = min_redshift  # Get it a bit more exact.
         return cls(cosmo=cosmo, lc_distances=lc_distances, **kw)
 
     @classmethod
@@ -93,16 +118,13 @@ class Lightconer(ABC):
             dz = zdash - min_redshift
 
         zs = np.arange(min_redshift, max_redshift + dz, dz)
-
-        lc_distances = cosmo.comoving_distance(zs).value
-        return cls(cosmo=cosmo, lc_distances=lc_distances, **kw)
+        return cls(cosmo=cosmo, lc_redshifts=zs, **kw)
 
     @classmethod
     def from_frequencies(cls, freqs: Quantity[MHz], cosmo=Planck18, **kw):
         """Construct a Lightconer with slices corresponding to given frequencies."""
         zs = (1420 * MHz / freqs - 1).to_value("")
-        lc = cosmo.comoving_distance(zs).value
-        return cls(cosmo=cosmo, lc_distances=lc, **kw)
+        return cls(cosmo=cosmo, lc_redshifts=zs, **kw)
 
     def make_lightcone_slices(
         self, c1: Coeval, c2: Coeval
@@ -129,11 +151,15 @@ class Lightconer(ABC):
         dcmin = min(dc1, dc2)
         dcmax = max(dc1, dc2)
 
-        lcidx = (self.lc_distances >= dcmin) & (self.lc_distances <= dcmax)
+        # At the lower redshift, we include some tolerance. This is because the very
+        # last slice (lowest redshift) may correspond *exactly* to the lowest coeval
+        # box, and due to rounding error in the `z_at_value` call, they might be
+        # slightly off.
+        lcidx = (self.lc_distances >= dcmin * 0.9999) & (self.lc_distances < dcmax)
 
         # Return early if no lightcone indices are between the coeval distances.
         if not np.any(lcidx):
-            return None
+            return None, lcidx
 
         lc_distances = self.lc_distances[lcidx]
         res = c1.user_params.BOX_LEN / c1.user_params.HII_DIM
@@ -226,6 +252,9 @@ class RectilinearLightconer(Lightconer):
     ) -> tuple[np.ndarray, np.ndarray]:
         """Construct slices of the lightcone between two coevals."""
         # Do linear interpolation only.
+        # This makes the back of the lightcone exactly line up with the back of the
+        # coeval box at that redshift, modulo the index_offset.
+
         lcidxs = ((self.lc_distances.max() - lc_distances) // box_res + 1).astype(int)
         box1 = box1.take(-lcidxs + self.index_offset, axis=2, mode="wrap")
         box2 = box2.take(-lcidxs + self.index_offset, axis=2, mode="wrap")
