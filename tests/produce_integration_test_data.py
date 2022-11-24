@@ -330,9 +330,21 @@ def produce_coeval_power_spectra(redshift, **kwargs):
 
 def produce_lc_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
+
+    # NOTE: this is here only so that we get the same answer as previous versions,
+    #       which have a bug where the max_redshift gets set higher than it needs to be.
+    if (
+        options["flag_options"]["INHOMO_RECO"]
+        or options["flag_options"]["USE_TS_FLUCT"]
+    ):
+        max_redshift = options.get("z_heat_max", global_params.Z_HEAT_MAX)
+        del options["redshift"]
+    else:
+        max_redshift = options.pop("redshift") + 2
+
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,
-        max_redshift=options.pop("redshift") + 2,
+        max_redshift=max_redshift,
         quantities=[
             k
             for k in LIGHTCONE_FIELDS

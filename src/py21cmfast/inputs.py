@@ -547,6 +547,7 @@ class UserParams(StructWithDefaults):
                     "Automatically setting POWER_SPECTRUM to 5 (CLASS) as you are using "
                     "relative velocities"
                 )
+                self._POWER_SPECTRUM = 5
             return 5
         else:
             if isinstance(self._POWER_SPECTRUM, str):
@@ -665,14 +666,15 @@ class FlagOptions(StructWithDefaults):
 
     @property
     def USE_HALO_FIELD(self):
-        """Automatically setting USE_MASS_DEPENDENT_ZETA to False if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or not self._USE_HALO_FIELD:
-            return self._USE_HALO_FIELD
-        logger.warning(
-            "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
-            "Automatically setting USE_HALO_FIELD to False."
-        )
-        return False
+        """Automatically setting USE_HALO_FIELD to False if USE_MINI_HALOS."""
+        if self._USE_HALO_FIELD and self.USE_MINI_HALOS:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
+                "Automatically setting USE_HALO_FIELD to False."
+            )
+            self._USE_HALO_FIELD = False
+
+        return self._USE_HALO_FIELD
 
     @property
     def M_MIN_in_Mass(self):
@@ -682,46 +684,46 @@ class FlagOptions(StructWithDefaults):
     @property
     def USE_MASS_DEPENDENT_ZETA(self):
         """Automatically setting USE_MASS_DEPENDENT_ZETA to True if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or self._USE_MASS_DEPENDENT_ZETA:
-            return self._USE_MASS_DEPENDENT_ZETA
-        logger.warning(
-            "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA to False! "
-            "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
-        )
-        return True
+        if self.USE_MINI_HALOS and not self._USE_MASS_DEPENDENT_ZETA:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False! "
+                "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
+            )
+            self._USE_MASS_DEPENDENT_ZETA = True
+        return self._USE_MASS_DEPENDENT_ZETA
 
     @property
     def INHOMO_RECO(self):
         """Automatically setting INHOMO_RECO to True if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or self._INHOMO_RECO:
-            return self._INHOMO_RECO
-        logger.warning(
-            "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
-            "Automatically setting INHOMO_RECO to True."
-        )
-        return True
+        if self.USE_MINI_HALOS and not self._INHOMO_RECO:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
+                "Automatically setting INHOMO_RECO to True."
+            )
+            self._INHOMO_RECO = True
+        return self._INHOMO_RECO
 
     @property
     def USE_TS_FLUCT(self):
         """Automatically setting USE_TS_FLUCT to True if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or self._USE_TS_FLUCT:
-            return self._USE_TS_FLUCT
-        logger.warning(
-            "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
-            "Automatically setting USE_TS_FLUCT to True."
-        )
-        return True
+        if self.USE_MINI_HALOS and not self._USE_TS_FLUCT:
+            logger.warning(
+                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
+                "Automatically setting USE_TS_FLUCT to True."
+            )
+            self._USE_TS_FLUCT = True
+        return self._USE_TS_FLUCT
 
     @property
     def PHOTON_CONS(self):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or not self._PHOTON_CONS:
-            return self._PHOTON_CONS
-        logger.warning(
-            "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
-            "Automatically setting PHOTON_CONS to False."
-        )
-        return False
+        if self.USE_MINI_HALOS and self._PHOTON_CONS:
+            logger.warning(
+                "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
+                "Automatically setting PHOTON_CONS to False."
+            )
+            self._PHOTON_CONS = False
+        return self._PHOTON_CONS
 
 
 class AstroParams(StructWithDefaults):

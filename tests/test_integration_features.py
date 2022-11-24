@@ -107,7 +107,7 @@ def test_power_spectra_lightcone(name, module_direc, plt):
             print(f"Testing {key}")
             # Ensure all but 10 of the values is within 1%, and none of the values
             # is outside 10%
-            assert np.all(np.abs(value - test_powers[key]) / value[0] < 1e-6)
+            assert np.all(np.abs(value - test_powers[key]) / value[0] < 1e-3)
 
     for key, value in true_global.items():
         print(f"Testing Global {key}")
