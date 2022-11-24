@@ -106,7 +106,7 @@ from .inputs import (
     global_params,
     validate_all_inputs,
 )
-from .lightcones import Lightconer
+from .lightcones import Lightconer, RectilinearLightconer
 from .outputs import (
     BrightnessTemp,
     Coeval,
@@ -2457,7 +2457,10 @@ def _get_redshifts(flag_options, redshift):
 
 def run_lightcone(
     *,
-    lightconer: Lightconer,
+    redshift: float = None,
+    max_redshift: float = None,
+    lightcone_quantities=("brightness_temp",),
+    lightconer: Lightconer | None = None,
     user_params=None,
     cosmo_params=None,
     astro_params=None,
@@ -2570,9 +2573,12 @@ def run_lightcone(
         See docs of :func:`initial_conditions` for more information.
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
-    redshift = lightconer.lc_redshifts.min()
-    if cosmo_params is None:
+
+    if cosmo_params is None and lightconer is not None:
         cosmo_params = CosmoParams.from_astropy(lightconer.cosmo)
+
+    if lightconer is not None and redshift is None and perturb is None:
+        redshift = lightconer.lc_redshifts.min()
 
     with global_params.use(**global_kwargs):
 
@@ -2595,9 +2601,9 @@ def run_lightcone(
             redshift=redshift,
         )
 
-        if cosmo_params.cosmo != lightconer.cosmo:
+        if lightconer is not None and lightconer.lc_redshifts.min() > redshift:
             raise ValueError(
-                "The cosmology in the lightconer must be the same as in cosmo_params"
+                "The lightcone redshifts are not compatible with the given redshift."
             )
 
         if user_params.MINIMIZE_MEMORY and not write:
@@ -2608,8 +2614,26 @@ def run_lightcone(
         max_redshift = (
             global_params.Z_HEAT_MAX
             if (flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT)
-            else lightconer.lc_redshifts.max()
+            else (
+                max_redshift
+                if max_redshift is not None
+                else lightconer.lc_redshifts.max()
+            )
         )
+
+        if lightconer is None:
+            lightconer = RectilinearLightconer.with_equal_cdist_slices(
+                min_redshift=redshift,
+                max_redshift=max_redshift,
+                user_params=user_params,
+                cosmo=cosmo_params.cosmo,
+                quantities=lightcone_quantities,
+            )
+
+        if cosmo_params.cosmo != lightconer.cosmo:
+            raise ValueError(
+                "The cosmology in the lightconer must be the same as in cosmo_params"
+            )
 
         # Get the redshift through which we scroll and evaluate the ionization field.
         scrollz = _logscroll_redshifts(

@@ -333,10 +333,8 @@ def produce_lc_power_spectra(redshift, **kwargs):
 
     # NOTE: this is here only so that we get the same answer as previous versions,
     #       which have a bug where the max_redshift gets set higher than it needs to be.
-    if (
-        options["flag_options"]["INHOMO_RECO"]
-        or options["flag_options"]["USE_TS_FLUCT"]
-    ):
+    flag_options = FlagOptions(options.pop("flag_options"))
+    if flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
         max_redshift = options.get("z_heat_max", global_params.Z_HEAT_MAX)
         del options["redshift"]
     else:
@@ -349,7 +347,7 @@ def produce_lc_power_spectra(redshift, **kwargs):
             k
             for k in LIGHTCONE_FIELDS
             if (
-                options["flag_options"].get("USE_TS_FLUCT", False)
+                flag_options.USE_TS_FLUCT
                 or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
             )
         ],
@@ -360,6 +358,7 @@ def produce_lc_power_spectra(redshift, **kwargs):
         lightcone = run_lightcone(
             lightconer=lcn,
             write=write_ics_only_hook,
+            flag_options=flag_options,
             **options,
         )
 

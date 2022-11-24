@@ -263,7 +263,7 @@ def test_lightcone_quantities(ic, max_redshift, perturb_field):
     assert lc.density.min() != lc.brightness_temp.min() != lc.brightness_temp.max()
 
     # Raise an error since we're not doing spin temp.
-    with pytest.raises(ValueError):
+    with pytest.raises(AttributeError):
         wrapper.run_lightcone(
             init_box=ic,
             perturb=perturb_field,
@@ -272,7 +272,7 @@ def test_lightcone_quantities(ic, max_redshift, perturb_field):
         )
 
     # And also raise an error for global quantities.
-    with pytest.raises(ValueError):
+    with pytest.raises(AttributeError):
         wrapper.run_lightcone(
             init_box=ic,
             perturb=perturb_field,

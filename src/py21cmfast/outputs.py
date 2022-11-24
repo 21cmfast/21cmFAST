@@ -1176,7 +1176,7 @@ class LightCone(_HighLevelOutput):
     @property
     def shape(self):
         """Shape of the lightcone as a 3-tuple."""
-        return self.brightness_temp.shape
+        return self.lightcones[list(self.lightcones.keys())[0]].shape
 
     @property
     def n_slices(self):
