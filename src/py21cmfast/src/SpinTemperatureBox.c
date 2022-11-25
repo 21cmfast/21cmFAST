@@ -34,7 +34,7 @@ double **fcoll_interp1, **fcoll_interp2, **dfcoll_interp1, **dfcoll_interp2;
 double *fcoll_R_array, *sigma_Tmin, *ST_over_PS, *sum_lyn;
 float *inverse_diff, *zpp_growth, *zpp_for_evolve_list,*Mcrit_atom_interp_table;
 float *dzpp_list;
-double *dtdz_list;
+double *dtdz_list,*sfr_ratio;
 double *ST_over_PS_MINI,*sum_lyn_MINI,*sum_lyLWn,*sum_lyLWn_MINI;
 
 // interpolation tables for the heating/ionisation integrals
@@ -1939,7 +1939,7 @@ LOG_SUPER_DEBUG("looping over box...");
                             dstarlya_dt_box[box_ct] *= prefactor_2;
                             
                             if (print_count<5){
-                                LOG_DEBUG("delNL0: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delNL0
+                                LOG_DEBUG("delta: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delNL0*growth_factor_zp
                                     ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct]);
                                 print_count++;
                             }
@@ -2386,6 +2386,7 @@ void alloc_global_arrays(){
     dzpp_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
     dtdz_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
     R_values = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
+    sfr_ratio = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
     
     freq_int_heat_tbl = (double **)calloc(x_int_NXHII,sizeof(double *));
     freq_int_ion_tbl = (double **)calloc(x_int_NXHII,sizeof(double *));
@@ -2438,6 +2439,10 @@ void free_global_arrays(){
     free(zpp_growth);
     free(zpp_edge);
     free(zpp_for_evolve_list);
+    free(dzpp_list);
+    free(dtdz_list);
+    free(R_values);
+    free(sfr_ratio);
 
     free(del_fcoll_Rct);
     free(dxheat_dt_box);
@@ -2457,10 +2462,51 @@ void setup_z_edges(double zp){
     double determine_zpp_max; //this is not global like the minimum
     int R_ct, n_ct;
     double nuprime;
+    bool first_radii=true, first_zero=true;
+    double trial_zpp_max,trial_zpp_min,trial_zpp;
+    int counter,ii;
+    int n_pts_radii=1000;
+    double weight;
+    double sfr_zp,sfr_zpp;
+    
+    //For a lot of global evolution, this code uses Nion_general. We can replace this with the halo field
+    //at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1 barrier
+    //so it needs the QHII in a range [zp,zpp]. I want to replace this whole thing with a global history struct but
+    //that will be more work.
+    //These tables for global filling factor have the same z range, but a different cadence
+    //we initialise sigmaM here also because it's needed for the Nion tables.
+    double M_MIN;
+    if(user_params_ts->USE_INTERPOLATION_TABLES){
+        init_ps();
+        if(flag_options_ts->USE_MINI_HALOS)
+            M_MIN = astro_params_ts->M_TURN/50.;
+        else
+            M_MIN = (global_params.M_MIN_INTEGRAL/50.);
+
+        if(user_params_ts->FAST_FCOLL_TABLES)
+            M_MIN = fmin(MMIN_FAST,M_MIN);
+        
+        initialiseSigmaMInterpTable(M_MIN,1e20);
+        determine_zpp_min = zp*0.999;
+        determine_zpp_max = zpp*1.001;
+        zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0);
+        initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
+                            astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_ESC,
+                            astro_params_ts->F_STAR10, astro_params_ts->F_ESC10);
+    }
 
     R = L_FACTOR*user_params_ts->BOX_LEN/(float)user_params_ts->HII_DIM;
     R_factor = pow(global_params.R_XLy_MAX/R, 1/((float)global_params.NUM_FILTER_STEPS_FOR_Ts));
 
+    //It would be nice to use the whole halo history to generate Ts, but I don't know a great way of doing that now
+    //As a quick implementation, I am fixing the mean at zpp, while using the halo field from zp
+    //Since this is a ratio I get rid of all the constants
+    //TODO: Interpolation tables
+    double Mlim_Fstar;    
+    Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
+        
+    sfr_zp = Nion_General(zp, M_MIN, astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, 0., astro_params_ts->F_STAR10, 1., Mlim_Fstar, 0.) / t_hubble(zp);
+    
     for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
         R_values[R_ct] = R;
         if(R_ct==0){
@@ -2497,40 +2543,55 @@ void setup_z_edges(double zp){
             sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
         }
 
+        //correction for kinks (see similar part in ComputeSpinTemperature) TODO: move comments and flag options here
+        if(R_ct > 1 && sum_lyn[R_ct]==0.0 && sum_lyn[R_ct-1]>0. && first_radii) {
+
+            // The current zpp for which we are getting zero contribution
+            trial_zpp_max = (prev_zpp - (R_values[R_ct] - prev_R)*CMperMPC / drdz(prev_zpp)+prev_zpp)*0.5;
+            // The zpp for the previous radius for which we had a non-zero contribution
+            trial_zpp_min = (zpp_edge[R_ct-2] - (R_values[R_ct-1] - R_values[R_ct-2])*CMperMPC / drdz(zpp_edge[R_ct-2])+zpp_edge[R_ct-2])*0.5;
+
+            // Split the previous radii and current radii into n_pts_radii smaller radii (redshift) to have fine control of where
+            // it transitions from zero to non-zero
+            // This is a coarse approximation as it assumes that the linear sampling is a good representation of the different
+            // volumes of the shells (from different radii).
+            for(ii=0;ii<n_pts_radii;ii++) {
+                trial_zpp = trial_zpp_min + (trial_zpp_max - trial_zpp_min)*(float)ii/((float)n_pts_radii-1.);
+
+                counter = 0;
+                for (n_ct=NSPEC_MAX; n_ct>=2; n_ct--){
+                    if (trial_zpp > zmax(zp, n_ct))
+                        continue;
+
+                    counter += 1;
+                }
+                if(counter==0&&first_zero) {
+                    first_zero = false;
+                    weight = (float)ii/(float)n_pts_radii;
+                }
+            }
+
+            // Now add a non-zero contribution to the previously zero contribution
+            // The amount is the weight, multplied by the contribution from the previous radii
+            sum_lyn[R_ct] = weight * sum_lyn[R_ct-1];
+            first_radii = false;
+        }
+
         //NOTE: originally this had a (1+zpp)^-a factor to cancel ST_OVER_PS (it was convenient to put that factor there but I will split it)
         //TODO: compared to Mesinger+2011, which has (1+zpp)^3, same as const_zp_prefactor, figure out why
         zpp_integrand = ( pow(1+zp,2)*(1+zpp) );
         dstarlya_dt_prefactor[R_ct] = zpp_integrand * sum_lyn[R_ct];
 
-        /*LOG_DEBUG("edge: R: %.3e D: %.3e z: %.3e (%.3e) dt: %.3e lyastar %.3e"
-            ,R_values[R_ct],zpp_growth[R_ct],zpp,zpp_edge[R_ct],dtdz_list[R_ct], dstarlya_dt_prefactor[R_ct]);*/
-    }
-    
-    //For a lot of global evolution, this code uses Nion_general. We can replace this with the halo field
-    //at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1 barrier
-    //so it needs the QHII in a range [zp,zpp]. I want to replace this whole thing with a global history struct but
-    //that will be more work.
-    //These tables for global filling factor have the same z range, but a different cadence
-    //we initialise sigmaM here also because it's needed for the Nion tables.
-    double M_MIN;
-    if(user_params_ts->USE_INTERPOLATION_TABLES){
-        init_ps();
-        if(flag_options_ts->USE_MINI_HALOS)
-            M_MIN = astro_params_ts->M_TURN/50.;
-        else
-            M_MIN = (global_params.M_MIN_INTEGRAL/50.);
+        //Since I expect to have the correct mean SFR at a particular redshift, I shouldn't need the rest of the mean fixing
+        //e.g ST_over_PS
+        sfr_zpp = Nion_General(zpp, M_MIN, astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, 0., astro_params_ts->F_STAR10, 1., Mlim_Fstar, 0.) / t_hubble(zpp);
+        sfr_ratio[R_ct] = sfr_zpp/sfr_zp;
 
-        if(user_params_ts->FAST_FCOLL_TABLES)
-            M_MIN = fmin(MMIN_FAST,M_MIN);
-        
-        initialiseSigmaMInterpTable(M_MIN,1e20);
-        determine_zpp_min = zp*0.999;
-        determine_zpp_max = zpp*1.001;
-        zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0);
-        initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                            astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_ESC,
-                            astro_params_ts->F_STAR10, astro_params_ts->F_ESC10);
+        //LOG_DEBUG("edge: R: %.3e D: %.3e z: %.3e (%.3e) dt: %.3e lyastar %.3e"
+        //    ,R_values[R_ct],zpp_growth[R_ct],zpp,zpp_edge[R_ct],dtdz_list[R_ct], dstarlya_dt_prefactor[R_ct]);
     }
+    LOG_DEBUG("%d steps R range [%.2e,%.2e] z range [%.2f,%.2f]",R_ct,R_values[0],R_values[R_ct-1],zpp_edge[0],zpp_edge[R_ct-1]);
+    
 }
 
 //TODO: MINIHALOS
@@ -2947,7 +3008,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 
     double dcomp_dzp_prefactor = (-1.51e-4)/(hubble(zp)/Ho)/(cosmo_params->hlittle)*pow(Trad_fast,4.0)/(1.0+zp);
 
-    double Nb_zp = N_b0 * (1+zp)*(1+zp)*(1+zp); //used for lya_X and sinks TODO: figure out why there are 2 density terms in x-ray lya
+    double Nb_zp = N_b0 * (1+zp)*(1+zp)*(1+zp); //used for lya_X and sinks NOTE: the 2 density factors are from source & absorber since its downscattered x-ray
     double lya_star_prefactor = C / FOURPI * Msun / m_p * (1 - 0.75*global_params.Y_He); //converts SFR density -> stellar baryon density + prefactors
     //TODO: volume depends on R? seems like something to do when I add the halobox interpolation
     //We use zp here instead of zpp because the sources are at zp (change with interpolation?)
@@ -3011,7 +3072,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                 //Since the Halo option doesn't differentiate between the global Fcoll (NO_LIGHT) and conditional (ave_fcoll), this is consistent
                 if(!NO_LIGHT) {
                     //TODO: double check this is the right volume (combined with dzpp) and not something using R
-                    sfr_term = sfr_r[R_ct][box_ct] * z_edge_factor; //SFR(t) to SFR density(z)
+                    sfr_term = sfr_r[R_ct][box_ct] * z_edge_factor * sfr_ratio[R_ct]; //SFR(t) to SFR density(z)
                     xidx = m_xHII_low_box[box_ct];
                     ival = inverse_val_box[box_ct];
                     dxheat_dt_box[box_ct] += sfr_term * xray_R_factor * (freq_int_heat_tbl_diff[xidx][R_ct] * ival + freq_int_heat_tbl[xidx][R_ct]);
@@ -3035,11 +3096,11 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     dxheat_dt_box[box_ct] *= const_zp_prefactor * cellvol_inv;
                     dxion_source_dt_box[box_ct] *= const_zp_prefactor * cellvol_inv;
 
-                    dxlya_dt_box[box_ct] *= const_zp_prefactor * Nb_zp * cellvol_inv;
+                    dxlya_dt_box[box_ct] *= const_zp_prefactor * Nb_zp * cellvol_inv * (1+curr_delta); //1+delta from downscattering absorbers
                     dstarlya_dt_box[box_ct] *= lya_star_prefactor * cellvol_inv;
 
                     if (print_count<5){
-                        LOG_DEBUG("delNL0: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delta
+                        LOG_DEBUG("delta: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delta
                             ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct]);
                         print_count++;
                     }

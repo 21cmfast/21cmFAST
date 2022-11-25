@@ -436,7 +436,12 @@ class HaloBox(_AllParamsBox):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, PerturbHaloField):
-            required += ["halo_coords", "halo_masses", "stellar_masses","halo_sfr"]
+            if self.flag_options.HALO_STOCHASTICITY:
+                required += ["halo_coords", "halo_masses", "stellar_masses","halo_sfr"]
+            
+        elif isinstance(input_box, PerturbedField):
+            if not self.flag_options.HALO_STOCHASTICITY:
+                required += ["density"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for HaloBox!"
@@ -448,14 +453,17 @@ class HaloBox(_AllParamsBox):
         self,
         *,
         pt_halos: PerturbHaloField,
+        perturbed_field: PerturbedField,
         hooks: dict,
     ):
         """Compute the function."""
         return self._compute(
+            self.redshift,
             self.user_params,
             self.cosmo_params,
             self.astro_params,
             self.flag_options,
+            perturbed_field,
             pt_halos,
             hooks=hooks,
         )
@@ -1260,7 +1268,7 @@ class LightCone(_HighLevelOutput):
     @property
     def shape(self):
         """Shape of the lightcone as a 3-tuple."""
-        return self.brightness_temp.shape
+        return list(self.lightcones.values())[0].shape
 
     @property
     def n_slices(self):
