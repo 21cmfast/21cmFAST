@@ -25,6 +25,8 @@ Added
   across all neighbouring cells instead of the previous nearest cell approach
 * Changed PhotonConsEndCalibz from z = 5 -> z = 3.5 to handle later reionisation
   scenarios in line with current observations (#305)
+* Add in an initialisation check for the photon conservation to address some issues
+  arising for early EOR histories (#311)
 
 v3.2.1 [13 Sep 2022]
 ----------------------
