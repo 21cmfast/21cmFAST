@@ -3010,9 +3010,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 
     double Nb_zp = N_b0 * (1+zp)*(1+zp)*(1+zp); //used for lya_X and sinks NOTE: the 2 density factors are from source & absorber since its downscattered x-ray
     double lya_star_prefactor = C / FOURPI * Msun / m_p * (1 - 0.75*global_params.Y_He); //converts SFR density -> stellar baryon density + prefactors
-    //TODO: volume depends on R? seems like something to do when I add the halobox interpolation
-    //We use zp here instead of zpp because the sources are at zp (change with interpolation?)
-    double cellvol_inv = HII_TOT_NUM_PIXELS / pow(user_params_ts->BOX_LEN,3) * pow(CMperMPC,-3);
+    double cellvol_inv = HII_TOT_NUM_PIXELS / pow(user_params_ts->BOX_LEN,3) * pow(CMperMPC,-3); //TODO: check if the cm length unit here is comoving
 
     //boxes that are independent of R (for interpolation of the nu integrals)
     //NOTE: Frequency integrals are based on PREVIOUS XHII
