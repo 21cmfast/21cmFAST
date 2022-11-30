@@ -28,7 +28,7 @@ int ComputeHaloField(float redshift_prev, float redshift, struct UserParams *use
     //TODO: move later on so its possible to get halos above HII_DIM with DexM then sample below HII_DIM
     if(flag_options->HALO_STOCHASTICITY){
         LOG_DEBUG("Halo sampling switched on, bypassing halo finder...");
-        stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_prev, redshift, false, boxes->lowres_density, halos_prev, halos);
+        stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_prev, redshift, boxes->lowres_density, halos_prev, halos);
         return 0;
     }
 
