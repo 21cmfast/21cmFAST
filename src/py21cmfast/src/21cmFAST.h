@@ -33,7 +33,6 @@ struct UserParams{
     bool USE_2LPT;
     bool MINIMIZE_MEMORY;
     bool STOC_INVERSE;
-    bool STOC_MASS_SAMPLING;
 };
 
 struct AstroParams{

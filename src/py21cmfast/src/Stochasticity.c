@@ -16,12 +16,12 @@
 //TODO: both of these should be set depending on size, resolution & min mass
 #define MAX_HALO_CELL (int)1e5
 //Max halo in entire box
+//100 Mpc^3 box should have ~80,000,000 halos at M_min=1e7 so this should cover up to ~250 Mpc^3
 #define MAX_HALO (int)1e9
 //per halo in update
 #define MAX_HALO_UPDATE 1024
 
 #define MMAX_TABLES 1e20
-#define MANY_HALOS 100 //enough halos that we don't care about stochasticity, for future acceleration
 
 #define N_MASS_INTERP (int)100
 #define N_DELTA_INTERP (int)100
@@ -653,7 +653,7 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
 
 //single sample of the HMF from inverse CDF method WIP
 int sample_dndM_inverse(double x_in, gsl_rng * rng, double *result){
-    //TODO: move this up the chain
+    //TODO: This should never happen but I've left it in just in case
     if(!user_params_stoc->USE_INTERPOLATION_TABLES){
         LOG_ERROR("Dont use inverse sampler without interpolation tables");
         Throw(ValueError);
@@ -701,90 +701,6 @@ int sample_dndM_rejection(double growthf, double delta, double Mmin, double Mmax
     }
     LOG_ERROR("passed max iterations for rejection sampling, box(x1,x2,y1,y2) (%.3e,%.3e,%.3e,%.3e)",exp(Mmin),exp(Mmax),ymin,ymax);
     Throw(ValueError);
-    return 0;
-}
-
-/* Creates a realisation of halo properties by sampling the halo mass function and 
- * conditional property PDFs, the number of halos is poisson sampled from the integrated CMF*/
-int stoc_halo_sample(double growthf, double delta, double volume, double M_min, double M_max, int update, gsl_rng * rng, int *n_halo_out, float *hm_out){
-    //delta check, if delta > deltacrit, make one big halo, if <-1 make no halos
-    //both of these are possible with Lagrangian linear evolution
-    if(delta > Deltac){
-        *n_halo_out = 1;
-        hm_out[0] = M_max;
-        return 0;
-    }
-    if(delta < -1){
-        *n_halo_out = 0;
-        return 0;
-    }
-    
-    double nh_buf,mu_lognorm;
-    double hm_sample, sm_sample, sm_mean;
-    double lnM_lo = log(M_min);
-    double lnM_hi = log(M_max);
-    double sigma_max = EvaluateSigma(lnM_hi);
-    
-    //these are the same at the end, n_halo incremented by poisson, halo_count incremented by updating halo list
-    int n_halo = 0, halo_count = 0, nh;
-    int ii;
-
-    //TODO: set up mass distribution for sampling here
-    //BEWARE: assuming max(dNdM) == dNdM(Mmin)
-    double ymin,ymax;
-    ymin = 0;
-    ymax = dNdM_conditional(growthf,lnM_lo,lnM_hi,Deltac,delta,sigma_max);
-
-    double n_factor = volume * (RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm);
-
-    //halo is too close to minimum to have progenitors or delta is too low to have halos
-    if(ymax==0){
-        *n_halo_out = 0;
-        return 0;
-    }
-
-    //get average number of halos in cell n_order=0
-    if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        if(update)
-            nh_buf = EvaluatedNdMSpline(lnM_hi); //MMax set to cell size, delta given by redshift
-        else
-            nh_buf = EvaluatedNdMSpline(delta); //delta set to Deltac, Mmax given by grid size
-    }
-    else{
-        nh_buf = IntegratedNdM(growthf, lnM_lo, lnM_hi, lnM_hi, delta, 0, -1);
-    }
-    
-    //constants to go from integral(1/M dFcol/dlogM) dlogM to integral(dNdlogM) dlogM
-    nh_buf = nh_buf * n_factor;
-
-    //sample poisson for stochastic halo number
-    nh = gsl_ran_poisson(rng,nh_buf);
-    n_halo += nh;
-    
-    for(ii=0;ii<nh;ii++){
-        //sample from the cHMF
-        if(!user_params_stoc->STOC_INVERSE){
-            sample_dndM_rejection(growthf,delta,lnM_lo,lnM_hi,lnM_hi,ymin,ymax,sigma_max,rng,&hm_sample);
-        }
-        else{
-            if(update){
-                sample_dndM_inverse(lnM_hi,rng,&hm_sample);
-            }
-            else{
-                sample_dndM_inverse(delta,rng,&hm_sample);
-            }
-        }
-
-        hm_sample = exp(hm_sample);
-
-        hm_out[halo_count] = hm_sample;
-        halo_count++;
-    }
-
-    *n_halo_out = n_halo;
-
-    LOG_ULTRA_DEBUG("sampled (%d) halos from %.2f | Mfilt = %.3e | delta = %.2f | V = %.2f",n_halo,nh_buf,M_max,delta,volume);
-    LOG_ULTRA_DEBUG("first few masses %.2e %.2e %.2e",hm_out[0],hm_out[1],hm_out[2]);
     return 0;
 }
 
@@ -960,11 +876,10 @@ int build_halo_cats(gsl_rng **rng_stoc, double redshift, float *dens_field, int 
 
                     LOG_ULTRA_DEBUG("Starting sample %d (%d) with delta = %.2f cell (V=%.2e), from %.2e to %.2e"
                                     ,x*lo_dim*lo_dim + y*lo_dim + z,lo_dim*lo_dim*lo_dim,delta,volume,Mmin,Mmax);
-                    if(user_params_stoc->STOC_MASS_SAMPLING)
-                        stoc_mass_sample(redshift, growthf, delta, Mmax, Mmin, ps_ratio, 0, rng_stoc[threadnum], hm_buf, &nh_buf);
-                    else
-                        stoc_halo_sample(growthf,delta,volume,Mmin,Mmax,0,rng_stoc[threadnum],&nh_buf,hm_buf);
-
+                    
+                    //sample the cell CMF
+                    stoc_mass_sample(redshift, growthf, delta, Mmax, Mmin, ps_ratio, 0, rng_stoc[threadnum], hm_buf, &nh_buf);
+                    
                     //output total halo number, catalogues of masses and positions
                     for(i=0;i<nh_buf;i++){
                         if(hm_buf[i]==0){
@@ -1086,12 +1001,10 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
                 volume = volume / ps_ratio;
             }
 
-            //find progenitor halos
+            //find progenitor halos by sampling halo CMF
             LOG_ULTRA_DEBUG("halo %d of %d, M=%.2e M*=%.2e, sfr = %.2e",ii,nhalo_in,M2,sm2,sfr2);
-            if(user_params_stoc->STOC_MASS_SAMPLING)
-                stoc_mass_sample(z_out,growth_out,growth_in,M2,Mmin,ps_ratio,1,rng[threadnum],halo_buf,&n_prog);
-            else
-                stoc_halo_sample(growth_out, delta, volume, Mmin, M2, 1, rng[threadnum], &n_prog, halo_buf);
+
+            stoc_mass_sample(z_out,growth_out,growth_in,M2,Mmin,ps_ratio,1,rng[threadnum],halo_buf,&n_prog);
             
             LOG_ULTRA_DEBUG("Found %d progenitors first few masses %.2e %.2e %.2e",n_prog,halo_buf[0],halo_buf[1],halo_buf[2]);
 
@@ -1572,14 +1485,10 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             int n_halo;
             double param;
 
-            if(user_params_stoc->STOC_MASS_SAMPLING){
-                param = update ? growth_in : delta;
-                //double z_out, double growth_out, double param, double M_max, double M_min, double ps_ratio, int update, gsl_rng * rng, float *M_out, int *n_halo_out
-                stoc_mass_sample(z_out, growth_out, param, Mmax, Mmin, ps_ratio, update, rng_stoc[0], out_hm, &n_halo);
-            }
-            else{
-                stoc_halo_sample(growth_out,delta,volume,Mmin,Mmax,update,rng_stoc[0],&n_halo,out_hm);
-            }
+            param = update ? growth_in : delta;
+            //double z_out, double growth_out, double param, double M_max, double M_min, double ps_ratio, int update, gsl_rng * rng, float *M_out, int *n_halo_out
+            stoc_mass_sample(z_out, growth_out, param, Mmax, Mmin, ps_ratio, update, rng_stoc[0], out_hm, &n_halo);
+
             //fill output array N_halo, Halomass, Stellar mass ...
             result[0] = (double)n_halo;
             int idx;
