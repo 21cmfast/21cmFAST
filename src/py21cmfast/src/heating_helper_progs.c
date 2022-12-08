@@ -122,7 +122,7 @@ int init_heat()
 ||||||| parent of bb9cbc9 (modified heating_helper_progs.c)
 	}
 =======
-		
+
 >>>>>>> bb9cbc9 (modified heating_helper_progs.c)
 
 	LOG_SUPER_DEBUG("About to initialize interp arrays");
