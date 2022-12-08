@@ -108,7 +108,7 @@ int init_heat()
     	if (Energy_Lya_heating(1.0, 1.0, 3.0, 1)<0){
     		return -7;
 		}
-	
+
 
 	LOG_SUPER_DEBUG("About to initialize interp arrays");
     initialize_interp_arrays();
