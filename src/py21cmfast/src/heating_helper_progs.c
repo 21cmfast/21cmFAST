@@ -122,7 +122,7 @@ int init_heat()
 ||||||| parent of bb9cbc9 (modified heating_helper_progs.c)
 	}
 =======
-		
+
 >>>>>>> bb9cbc9 (modified heating_helper_progs.c)
 =======
 >>>>>>> 1a75499 (Modified the corrupted file src/py21cmfast/src/heating_helper_progs.c)
