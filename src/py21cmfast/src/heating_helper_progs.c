@@ -104,11 +104,26 @@ int init_heat()
         return -3;
 
     //Initialize interpolation array for Lya heating
+<<<<<<< HEAD
 	LOG_DEBUG("Reading Lyman-alpha Heating File");
     	if (Energy_Lya_heating(1.0, 1.0, 3.0, 1)<0){
+||||||| parent of bb9cbc9 (modified heating_helper_progs.c)
+	if (flag_options_hf->USE_LYA_HEATING){
+		LOG_DEBUG("Reading Lyman-alpha Heating File");
+    	if (Energy_Lya_heating(1.0, 1.0, 3.0, 1)<0){
+=======
+	LOG_DEBUG("Reading Lyman-alpha Heating File");
+    if (Energy_Lya_heating(1.0, 1.0, 3.0, 1)<0){
+>>>>>>> bb9cbc9 (modified heating_helper_progs.c)
     		return -7;
 		}
+<<<<<<< HEAD
 
+||||||| parent of bb9cbc9 (modified heating_helper_progs.c)
+	}
+=======
+		
+>>>>>>> bb9cbc9 (modified heating_helper_progs.c)
 
 	LOG_SUPER_DEBUG("About to initialize interp arrays");
     initialize_interp_arrays();
