@@ -228,7 +228,7 @@ OPTIONS = {
     ],
     "lyman_alpha_heating": [
         8,
-        {"N_THREADS": 4, "USE_Lya_HEATING": True},
+        {"N_THREADS": 4, "USE_LYA_HEATING": True},
     ],
     "cmb_heating": [
         8,
