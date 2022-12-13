@@ -19,11 +19,10 @@ import os
 import warnings
 from astropy import units
 from astropy.cosmology import z_at_value
-from astropy_healpix import HEALPix
 from cached_property import cached_property
 from hashlib import md5
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Sequence
 
 from . import __version__
 from . import _utils as _ut
