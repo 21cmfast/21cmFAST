@@ -68,6 +68,10 @@ class Lightconer(ABC):
                 ]
             )
 
+    def get_shape(self, user_params: UserParams) -> tuple[int, int, int]:
+        """The shape of the lightcone slices."""
+        raise NotImplementedError
+
     @classmethod
     def with_equal_cdist_slices(
         cls,
@@ -263,6 +267,10 @@ class RectilinearLightconer(Lightconer):
             lc_distances, box1, box2, dc1, dc2, kind=interp_kind
         )
 
+    def get_shape(self, user_params: UserParams) -> tuple[int, int, int]:
+        """Get the shape of the lightcone."""
+        return (user_params.HII_DIM, user_params.HII_DIM, len(self.lc_redshifts))
+
 
 @attr.define(kw_only=True, slots=False)
 class AngularLightconer(Lightconer):
@@ -285,7 +293,7 @@ class AngularLightconer(Lightconer):
         interp_kind: str = "mean",
     ) -> tuple[np.ndarray, np.ndarray]:
         """Construct the lightcone slices from bracketing coevals."""
-        slices = np.zeros((len(self.longitude), len(self.lc_distances)))
+        slices = np.zeros((len(self.longitude), len(lc_distances)))
 
         for i, dc in enumerate(lc_distances):
             interp = self.redshift_interpolation(
@@ -304,3 +312,7 @@ class AngularLightconer(Lightconer):
             )
 
         return slices
+
+    def get_shape(self, user_params: UserParams) -> tuple[int, int]:
+        """The shape of the lightcone slices."""
+        return (len(self.longitude), len(self.lc_redshifts))

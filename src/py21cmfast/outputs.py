@@ -1102,6 +1102,7 @@ class LightCone(_HighLevelOutput):
     def __init__(
         self,
         redshift,
+        distances,
         user_params,
         cosmo_params,
         astro_params,
@@ -1129,6 +1130,7 @@ class LightCone(_HighLevelOutput):
         self.log10_mturnovers = log10_mturnovers
         self.log10_mturnovers_mini = log10_mturnovers_mini
         self._current_redshift = current_redshift or redshift
+        self.lightcone_distances = distances
 
         # A *copy* of the current global parameters.
         self.global_params = _globals or dict(global_params.items())
@@ -1185,20 +1187,8 @@ class LightCone(_HighLevelOutput):
 
     @property
     def lightcone_coords(self):
-        """Co-ordinates [Mpc] of each cell along the redshift axis."""
-        return (
-            np.arange(0, self.n_slices)
-            * self.user_params.BOX_LEN
-            / self.user_params.HII_DIM
-        )
-
-    @property
-    def lightcone_distances(self):
-        """Comoving distance to each cell along the redshift axis, from z=0."""
-        return (
-            self.cosmo_params.cosmo.comoving_distance(self.redshift).value
-            + self.lightcone_coords
-        )
+        """Co-ordinates [Mpc] of each slice along the redshift axis."""
+        return self.lightcone_distances - self.lightcone_distances[0]
 
     @property
     def lightcone_redshifts(self):
@@ -1305,10 +1295,6 @@ class LightCone(_HighLevelOutput):
 class AngularLightcone(LightCone):
     """An angular lightcone."""
 
-    def __init__(self, healpix: HEALPix, **kwargs):
-        super().__init__(**kwargs)
-        self.healpix = healpix
-
     @property
     def cell_size(self):
         """Cell size [Mpc] of the lightcone voxels."""
@@ -1318,52 +1304,3 @@ class AngularLightcone(LightCone):
     def lightcone_dimensions(self):
         """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
         raise AttributeError("This is not an attribute of an AngularLightcone")
-
-    @property
-    def shape(self):
-        """Shape of the lightcone as a 3-tuple."""
-        return self.brightness_temp.shape
-
-    @property
-    def n_slices(self):
-        """Number of redshift slices in the lightcone."""
-        return self.shape[-1]
-
-    @property
-    def lightcone_coords(self):
-        """Co-ordinates [Mpc] of each cell along the redshift axis."""
-        n = self.n_slices * self.user_params.BOX_LEN / self.user_params.HII_DIM
-        return np.linspace(0, n, self.n_slices)
-
-    @property
-    def lightcone_distances(self):
-        """Comoving distance to each cell along the redshift axis, from z=0."""
-        return (
-            self.cosmo_params.cosmo.comoving_distance(self.redshift).value
-            + self.lightcone_coords
-        )
-
-    @property
-    def lightcone_redshifts(self):
-        """Redshift of each cell along the redshift axis."""
-        return np.array(
-            [
-                z_at_value(self.cosmo_params.cosmo.comoving_distance, d * units.Mpc)
-                for d in self.lightcone_distances
-            ]
-        )
-
-    def __eq__(self, other):
-        """Determine if this is equal to another object."""
-        return (
-            isinstance(other, self.__class__)
-            and other.redshift == self.redshift
-            and np.all(np.isclose(other.node_redshifts, self.node_redshifts, atol=1e-3))
-            and self.user_params == other.user_params
-            and self.cosmo_params == other.cosmo_params
-            and self.flag_options == other.flag_options
-            and self.astro_params == other.astro_params
-            and self.global_quantities.keys() == other.global_quantities.keys()
-            and self.lightcones.keys() == other.lightcones.keys()
-            and self.healpix == other.healpix
-        )

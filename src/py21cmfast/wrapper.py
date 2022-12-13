@@ -108,6 +108,7 @@ from .inputs import (
 )
 from .lightcones import Lightconer, RectilinearLightconer
 from .outputs import (
+    AngularLightcone,
     BrightnessTemp,
     Coeval,
     HaloField,
@@ -2678,22 +2679,27 @@ def run_lightcone(
         except OSError:
             pass
 
-        n_lightcone = len(lightconer.lc_distances)
         if lightcone_filename and Path(lightcone_filename).exists():
             lightcone = LightCone.read(lightcone_filename)
             scrollz = scrollz[np.array(scrollz) < lightcone._current_redshift]
             lc = lightcone.lightcones
         else:
+            lcn_cls = (
+                LightCone
+                if isinstance(lightconer, RectilinearLightconer)
+                else AngularLightcone
+            )
             lc = {
                 quantity: np.zeros(
-                    (user_params.HII_DIM, user_params.HII_DIM, n_lightcone),
+                    lightconer.get_shape(user_params),
                     dtype=np.float32,
                 )
                 for quantity in lightconer.quantities
             }
 
-            lightcone = LightCone(
+            lightcone = lcn_cls(
                 redshift,
+                lightconer.lc_distances,
                 user_params,
                 cosmo_params,
                 astro_params,
