@@ -631,7 +631,7 @@ class FlagOptions(StructWithDefaults):
     USE_RADIO_MCG: bool, optional
         Determines whether to use radio excess background from MCG, if True then AstroParams.fR_mini is used
     USE_RADIO_PBH: bool, optional
-        Determines whether to use radio excess background from PBH, if True then AstroParams.log10_fbh is used
+        Determines whether to use radio excess background from PBH, if True then AstroParams.fbh is used
     USE_HAWKING_RADIATION: bool, optional, see 2108.13256
         Determines whether to use heating and ionisation from Hawking radiation , since small PBH won't servive long enough to impact EoR and that heavy PBHs are not active enough, thus to use this feature you must also have:
         -20 <= AstroParams.log10_mbh <= -15.3
@@ -822,9 +822,8 @@ class AstroParams(StructWithDefaults):
         Power-law energy spectra index for mini-halos
     log10_mbh: float, optional
         log10 of PBH birth mass in msun
-    log10_fbh: float, optional
-        log10 of PBH fraction, i.e. rho_PBH/rho_dm
-        Allowed range: [-Inf, 0]. Set to below -100 to turn off PBH (both radio and Hawking), log10_fbh > 0.01 triggers error
+    fbh: float, optional
+        PBH fraction, i.e. rho_PBH/rho_dm, allowed range: [0, 1]. Given in log10 units.
     bh_aR: float, optional
         Radio power-law spectra index
     bh_fX: float, optional
@@ -874,7 +873,7 @@ class AstroParams(StructWithDefaults):
         "fR_mini": -10.0,
         "aR_mini": 0.7,
         "log10_mbh": 1,
-        "log10_fbh": -120,
+        "fbh": -120,
         "bh_aR": 0.6,
         "bh_fX": 0.1,
         "bh_fR": 1,
@@ -906,6 +905,7 @@ class AstroParams(StructWithDefaults):
             "X_RAY_Tvir_MIN",
             "fR",
             "fR_mini",
+            "fbh",
         ]:
             return 10**val
         else:

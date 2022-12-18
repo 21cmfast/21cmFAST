@@ -204,11 +204,10 @@ double dEdVdt_PBH_dep(double z, struct AstroParams *astro_params, struct CosmoPa
   //      Channel: deposition channel
 	double c = 2.99792458E8;
 	double M = 1.98E33 * (pow(10,astro_params->log10_mbh));
-	double fbh = pow(10,astro_params->log10_fbh);
 	double OmegaC = (cosmo_params->OMm - cosmo_params->OMb);
 	double h = cosmo_params->hlittle;
 	double RhoDM = OmegaC * pow(h, 2) * 1.879E-26;																			// Current DM density in kg/m^3
-	double dEdVdt_inj = 5.34E25 * pow(c, 2) * pow(M, -3) * fbh * RhoDM * pow(1 + z, 3); // in SI unit
+	double dEdVdt_inj = 5.34E25 * pow(c, 2) * pow(M, -3) * astro_params->fbh * RhoDM * pow(1 + z, 3); // in SI unit
 	double lm = log10(M);
 	double fc = GetEFF(lm, z, astro_params->bh_spin, Channel);
 	return fc * dEdVdt_inj;
