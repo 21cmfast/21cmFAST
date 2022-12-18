@@ -203,7 +203,7 @@ double dEdVdt_PBH_dep(double z, struct AstroParams *astro_params, struct CosmoPa
   // ---- inputs ----
   //      Channel: deposition channel
 	double c = 2.99792458E8;
-	double M = 1.98E33 * (pow(10,astro_params->log10_mbh));
+	double M = 1.98E33 * astro_params->mbh;
 	double OmegaC = (cosmo_params->OMm - cosmo_params->OMb);
 	double h = cosmo_params->hlittle;
 	double RhoDM = OmegaC * pow(h, 2) * 1.879E-26;																			// Current DM density in kg/m^3

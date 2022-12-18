@@ -57,14 +57,13 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         double Radio_Temp, Radio_Temp_HMG, Radio_Fun, Trad_inv, zpp_max, z1, z2, Phi, Radio_zpp, new_nu, Phi_mini, Phi_ave, Phi_ave_mini, T_IGM_ave, PBH_Fcoll_Table[PBH_Table_Size], PBH_FidEMS_Table[PBH_Table_Size];
         double Hawking_dEdVdt_HIon, Hawking_dEdVdt_LyA, Hawking_dEdVdt_Heat, nH_ave, PeeblesFactor, Hawking_dxedt, Hawking_dTdt, Hawking_dxedz, Hawking_dTdz, Tk1, Tk2, Radio_EMS_IGM, dzpp_Rct0;
         double Delta_Min, Delta_Max, Maximum_Mh, PBH_sigmaMmax, Delta_Width, Grid_Delta, Mininum_Mh, Grid_Fcoll, Grid_Fid_EMS, PBH_Radio_EMS_Halo, nu_factor, HubbleFactor;
-        double Radio_dzpp, PBH_Fcoll_ave, PBH_FidEMS_ave, PBH_Fcoll_User, PBH_EMS_User, Radio_Prefix_ACG, Radio_Prefix_MCG, mbh_msun, mbh_kg, mbh_gram, Reset_MinM, Fill_Fraction, Radio_Temp_ave;
+        double Radio_dzpp, PBH_Fcoll_ave, PBH_FidEMS_ave, PBH_Fcoll_User, PBH_EMS_User, Radio_Prefix_ACG, Radio_Prefix_MCG, mbh_kg, mbh_gram, Reset_MinM, Fill_Fraction, Radio_Temp_ave;
         int idx, ArchiveSize, zid, fid, tid, sid, xid, zpp_idx, Radio_Silent, R_values_ready;
         FILE *OutputFile;
         double Rct_Tk_Table[10000]; // Gas temp for all Rct steps, only the first NUM_FILTER_STEPS_FOR_Ts elements are used
 
         // Initialising some variables
-        mbh_msun = pow(10, astro_params->log10_mbh);
-        mbh_gram = mbh_msun * Msun;
+        mbh_gram = astro_params->mbh * Msun;
         mbh_kg = mbh_gram / 1000.0;
         Phi_ave = 0.0;
         Phi_ave_mini = 0.0;
@@ -91,8 +90,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         {
             remove("Params.txt");
             OutputFile = fopen("Params.txt", "a");
-            fprintf(OutputFile, "fR    fR_mini    fbh\n");
-            fprintf(OutputFile, "%f     %f      %f\n", astro_params->fR, astro_params->fR_mini, astro_params->fbh);
+            fprintf(OutputFile, "fR    fR_mini    fbh   mbh\n");
+            fprintf(OutputFile, "%f     %f      %f      %f\n", astro_params->fR, astro_params->fR_mini, astro_params->fbh, astro_params->mbh);
             fclose(OutputFile);
         }
 
@@ -2526,7 +2525,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                                         // Comoving radio emissivity for our fiducial model params
                                         Grid_Fid_EMS = Interp_Fast(PBH_FidEMS_Table, Delta_Min, Delta_Max, PBH_Table_Size, Grid_Delta);
-                                        PBH_Radio_EMS_Halo = astro_params->bh_fR * nu_factor * Grid_Fid_EMS * astro_params->fbh * pow(mbh_msun / 10, 0.82) * pow(astro_params->bh_fX * astro_params->bh_Eta * astro_params->bh_lambda / 1E-4, 0.85);
+                                        PBH_Radio_EMS_Halo = astro_params->bh_fR * nu_factor * Grid_Fid_EMS * astro_params->fbh * pow(astro_params->mbh / 10, 0.82) * pow(astro_params->bh_fX * astro_params->bh_Eta * astro_params->bh_lambda / 1E-4, 0.85);
                                         Radio_EMS_IGM = PBH_Radio_EMS_IGM(zpp_for_evolve_list[R_ct], new_nu, cosmo_params, astro_params, Rct_Tk_Table[R_ct], Grid_Fcoll, Grid_Delta);
                                         // 3.8509E28 is c^3/(8 pi kB nu21^2) in SI unit
                                         Radio_Fun += fabs(Radio_dzpp * (PBH_Radio_EMS_Halo + Radio_EMS_IGM) * pow(1 + redshift, 3.0) * 3.8509E28 / (HubbleFactor * (1 + zpp_for_evolve_list[R_ct])));

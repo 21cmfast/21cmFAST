@@ -633,8 +633,8 @@ class FlagOptions(StructWithDefaults):
     USE_RADIO_PBH: bool, optional
         Determines whether to use radio excess background from PBH, if True then AstroParams.fbh is used
     USE_HAWKING_RADIATION: bool, optional, see 2108.13256
-        Determines whether to use heating and ionisation from Hawking radiation , since small PBH won't servive long enough to impact EoR and that heavy PBHs are not active enough, thus to use this feature you must also have:
-        -20 <= AstroParams.log10_mbh <= -15.3
+        Determines whether to use heating and ionisation from Hawking radiation , since small PBH won't survive long enough to impact EoR and that heavy PBHs are not active enough, thus to use this feature you must also have:
+        -20 <= AstroParams.mbh <= -15.3
         Technically you must also specify correct AstroParams.bh_spin but current version only support Schwarzschild PBH
         Future version will add support for Kerr PBH (just need to set the initial condition right) and extended distribution
     """
@@ -820,8 +820,8 @@ class AstroParams(StructWithDefaults):
         Radio efficiency for molecularly cooling galaxies (MCG) in mini-halos, normalised to 1 for modern day galaxies. Given in log10 units.
     aR_mini: float, optional
         Power-law energy spectra index for mini-halos
-    log10_mbh: float, optional
-        log10 of PBH birth mass in msun
+    mbh: float, optional
+        PBH birth mass in msun. Given in log10 units.
     fbh: float, optional
         PBH fraction, i.e. rho_PBH/rho_dm, allowed range: [0, 1]. Given in log10 units.
     bh_aR: float, optional
@@ -872,7 +872,7 @@ class AstroParams(StructWithDefaults):
         "aR": 0.7,
         "fR_mini": -10.0,
         "aR_mini": 0.7,
-        "log10_mbh": 1,
+        "mbh": 1,
         "fbh": -120,
         "bh_aR": 0.6,
         "bh_fX": 0.1,
@@ -906,6 +906,7 @@ class AstroParams(StructWithDefaults):
             "fR",
             "fR_mini",
             "fbh",
+            "mbh",
         ]:
             return 10**val
         else:
@@ -1024,6 +1025,6 @@ def validate_all_inputs(
             if not user_params.USE_INTERPOLATION_TABLES:
                 raise ValueError("USE_RADIO_PBH requires USE_INTERPOLATION_TABLES!")
         if flag_options.USE_HAWKING_RADIATION and (
-            (astro_params.log10_mbh < -20.001) or (astro_params.log10_mbh > -15.299)
+            (astro_params.mbh < -20.001) or (astro_params.mbh > -15.299)
         ):
-            raise ValueError("set log10_mbh to [-20, -15.3] to USE_HAWKING_RADIATION!")
+            raise ValueError("set mbh to [-20, -15.3] to USE_HAWKING_RADIATION!")

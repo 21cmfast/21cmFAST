@@ -34,22 +34,21 @@ double PBH_Radio_EMS_IGM(double z, double nu, struct CosmoParams *cosmo_params, 
 	double GSI = 6.67259e-11;	 // Newtonian Grav const
 	double CSI = 2.99792458E8; // Speed of light
 	double nu21 = 1.42E9;			 // 21cm frequency in Hz
-	double mbh_msun = pow(10, astro_params->log10_mbh);
-	double mbh = mbh_msun * 1.989E30; // pbh mass
+	double mbh_SI = astro_params->mbh * 1.989E30; // pbh mass
 	double h = cosmo_params->hlittle;
 	double OmegaC = (cosmo_params->OMm - cosmo_params->OMb);
 	double RhoDM_avg = OmegaC * pow(h, 2) * 1.879E-26;													 // DM Density today (avg)
 	double RhoB_avg = cosmo_params->OMb * pow(h, 2) * 1.879E-26 * pow(1 + z, 3); // Average Baryon density
 	// ---- Part I: PBH in IGM ----
 	double RhoIGM = RhoB_avg * (1 + delta) * (1 - Fcoll);								// IGM gas density
-	double nbh_IGM = astro_params->fbh * RhoDM_avg * (1 + delta) * (1 - Fcoll) / mbh; // Comoving PBH number density
+	double nbh_IGM = astro_params->fbh * RhoDM_avg * (1 + delta) * (1 - Fcoll) / mbh_SI; // Comoving PBH number density
 	double cs = 8.3E3 * pow(Tk / 10000, 0.5);														// IGM Sound Speed
 	double vrel = 30.0 * (1.0 + z);																			// We don't really need to account for accretion from z>1000 (or do we)
 	double cs2 = pow(cs, 2);
 	double vrel2 = pow(vrel, 2);
 	// Bolometric x-ray luminosity
-	double LX = astro_params->bh_fX * astro_params->bh_Eta * astro_params->bh_lambda * 4 * PI * RhoIGM * pow(GSI * CSI * mbh, 2.0) / (pow(cs2 + vrel2, 1.5));
-	double LR = astro_params->bh_fR * 1.0E33 * pow(LX / 1E37, 0.85) * pow(mbh_msun / 1.0E8, 0.12); // Radio luminosity at nu21
+	double LX = astro_params->bh_fX * astro_params->bh_Eta * astro_params->bh_lambda * 4 * PI * RhoIGM * pow(GSI * CSI * mbh_SI, 2.0) / (pow(cs2 + vrel2, 1.5));
+	double LR = astro_params->bh_fR * 1.0E33 * pow(LX / 1E37, 0.85) * pow(astro_params->mbh / 1.0E8, 0.12); // Radio luminosity at nu21
 	double EMS = LR * pow(nu / nu21, -astro_params->bh_aR) * nbh_IGM / nu21;
 
 	return EMS;
@@ -511,7 +510,6 @@ double Get_Radio_Temp_HMG_PBH(struct TsBox *previous_spin_temp, double z, double
 
 	double dz, zp, EMS_Halo, EMS_IGM, growthf, Tk, MinM, Fcoll, nu_factor, new_nu, EMS_tot, Integrand;
 	int idx;
-	double mbh_msun = pow(10, astro_params->log10_mbh);
 
 	dz = (RadioTab_Zmax - zpp_max) / ((double)PBH_Table_Size - 1);
 	zp = zpp_max;
@@ -537,7 +535,7 @@ double Get_Radio_Temp_HMG_PBH(struct TsBox *previous_spin_temp, double z, double
 		// Comoving fiducial emissivity at rest-frame 21 frequency
 		EMS_Halo = Radio_PBH_Fid_EMS_Halo(MinM, RadioTab_Mmax, growthf, zp, 0.0, 0.0, cosmo_params, hmf_model);
 		// Revert to our model params and frequency
-		EMS_Halo = fabs(astro_params->bh_fR * nu_factor * EMS_Halo * astro_params->fbh * pow(mbh_msun / 10, 0.82) * pow(astro_params->bh_fX * astro_params->bh_Eta * astro_params->bh_lambda / 1E-4, 0.85));
+		EMS_Halo = fabs(astro_params->bh_fR * nu_factor * EMS_Halo * astro_params->fbh * pow(astro_params->mbh / 10, 0.82) * pow(astro_params->bh_fX * astro_params->bh_Eta * astro_params->bh_lambda / 1E-4, 0.85));
 
 		EMS_IGM = PBH_Radio_EMS_IGM(zp, new_nu, cosmo_params, astro_params, Tk, Fcoll, 0.0);
 

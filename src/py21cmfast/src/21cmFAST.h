@@ -71,7 +71,7 @@ struct AstroParams
     float aR; // Radio SED power index
     float fR_mini; // Radio efficiency for mini halo
     float aR_mini; // Radio SED power index for minihalo
-    float log10_mbh; // log10 of PBH mass in msun
+    float mbh; // PBH mass in msun
     float fbh; // PBH fraction,i.e. rho_bh/rho_dm
     float bh_aR; // PBH radio SED power index
     float bh_fX; // PBH x-ray efficiency
