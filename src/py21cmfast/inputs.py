@@ -813,8 +813,7 @@ class AstroParams(StructWithDefaults):
     A_VCB, BETA_VCB: float, optional
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Sec 2 of Muñoz+21 (2110.13919).
     fR: float, optional
-        Radio efficiency for galaxies, normalised to 1 for modern day galaxies,
-        Set fR<0.1 (can be negative) to turn off radio emission
+        Radio efficiency for galaxies, normalised to 1 for modern day galaxies. Given in log10 units.
     aR: float, optional
         Power-law energy spectra index
     fR_mini: float, optional
@@ -871,7 +870,7 @@ class AstroParams(StructWithDefaults):
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
         # Radio excess and PBH params
-        "fR": 0.0,
+        "fR": -10.0,
         "aR": 0.7,
         "fR_mini": 0.0,
         "aR_mini": 0.7,
@@ -906,6 +905,7 @@ class AstroParams(StructWithDefaults):
             "L_X",
             "L_X_MINI",
             "X_RAY_Tvir_MIN",
+            "fR",
         ]:
             return 10**val
         else:

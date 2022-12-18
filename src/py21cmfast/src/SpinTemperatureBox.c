@@ -86,6 +86,17 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
         /////////////////// Defining variables for the computation of Ts.c //////////////
 
+        //JSC debugging section: print param values
+        // Will be removed later
+        if (Debug_Printer == 1)
+        {
+            remove("Params.txt");
+            OutputFile = fopen("Params.txt", "a");
+            fprintf(OutputFile, "fR    fR_mini\n");
+            fprintf(OutputFile, "%f     %f\n", astro_params->fR, astro_params->fR_mini);
+            fclose(OutputFile);
+        }
+
         FILE *F, *OUT;
 
         unsigned long long ct, FCOLL_SHORT_FACTOR, box_ct;
