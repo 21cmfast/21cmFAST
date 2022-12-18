@@ -817,8 +817,7 @@ class AstroParams(StructWithDefaults):
     aR: float, optional
         Power-law energy spectra index
     fR_mini: float, optional
-        Radio efficiency for molecularly cooling galaxies (MCG) in mini-halos, normalised to 1 for modern day galaxies,
-        Requires USE_MINI_HALOS=T, set fR_mini<0.1 (can be negative) to turn off radio emission
+        Radio efficiency for molecularly cooling galaxies (MCG) in mini-halos, normalised to 1 for modern day galaxies. Given in log10 units.
     aR_mini: float, optional
         Power-law energy spectra index for mini-halos
     log10_mbh: float, optional
@@ -872,7 +871,7 @@ class AstroParams(StructWithDefaults):
         # Radio excess and PBH params
         "fR": -10.0,
         "aR": 0.7,
-        "fR_mini": 0.0,
+        "fR_mini": -10.0,
         "aR_mini": 0.7,
         "log10_mbh": 1,
         "log10_fbh": -120,
@@ -906,6 +905,7 @@ class AstroParams(StructWithDefaults):
             "L_X_MINI",
             "X_RAY_Tvir_MIN",
             "fR",
+            "fR_mini",
         ]:
             return 10**val
         else:
