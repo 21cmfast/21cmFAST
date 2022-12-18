@@ -91,7 +91,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             remove("Params.txt");
             OutputFile = fopen("Params.txt", "a");
             fprintf(OutputFile, "fR    fR_mini    fbh   mbh\n");
-            fprintf(OutputFile, "%f     %f      %f      %f\n", astro_params->fR, astro_params->fR_mini, astro_params->fbh, astro_params->mbh);
+            fprintf(OutputFile, "%E     %E      %E      %E\n", astro_params->fR, astro_params->fR_mini, astro_params->fbh, astro_params->mbh);
             fclose(OutputFile);
         }
 
