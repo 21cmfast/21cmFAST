@@ -76,6 +76,10 @@ In your ``21cmfast`` environment, now install the ``21cmFAST`` package using::
 If there is an issue during installation, add ``DEBUG=all`` or ``--DEBUG`` which may provide additional
 information.
 
+.. note:: You may choose to install ``gsl`` as an anaconda package as well, however, in that case, 
+          you need to add the path to the gsl header in the environment e.g. 
+          ``INC=/usr/include /path/to/conda/env/include/``
+
 MacOSX
 ~~~~~~
 On MacOSX, obtaining ``gsl`` and ``fftw`` is typically more difficult, and in addition,
