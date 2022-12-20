@@ -61,7 +61,7 @@ Make sure you can locate the header files as well, usually in
 ``/usr/include/``. Check this by running::
     cd /usr/include/
     find fftw3.h
-    
+
 or::
 
     locate fftw3.h
@@ -69,7 +69,7 @@ or::
 Lastly, locate your ``gcc`` installation using ``which gcc``.
 
 In your ``21cmfast`` environment, now install the ``21cmFAST`` package using::
-   
+
     cd /path/to/21cmFAST/
     CC=/path/to/gcc LIB=/path/to/lib/ INC=/path/to/headers/include/ pip install
 
