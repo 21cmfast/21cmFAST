@@ -58,15 +58,23 @@ Once these are successfully installed, check where the ``fftw3`` library is actu
 using ``locate libfftw3.so``. For example, it may be located in ``/usr/lib/x86_64-linux-gnu/``.
 
 Make sure you can locate the header files as well, usually in
-``/usr/include/``. Check this by running ``cd /usr/include/`` and ``find fftw3.h`` or ``locate fftw3.h``.
+``/usr/include/``. Check this by running::
+    cd /usr/include/
+    find fftw3.h
+    
+or::
+
+    locate fftw3.h
 
 Lastly, locate your ``gcc`` installation using ``which gcc``.
 
-In your ``21cmfast`` environment, now install the ``21cmFAST`` package using ``cd /path/to/21cmFAST/``,
-followed by ``CC=/path/to/gcc LIB=/path/to/lib/ INC=/path/to/headers/include/ pip install .``.
+In your ``21cmfast`` environment, now install the ``21cmFAST`` package using::
+   
+    cd /path/to/21cmFAST/
+    CC=/path/to/gcc LIB=/path/to/lib/ INC=/path/to/headers/include/ pip install
+
 If there is an issue during installation, add ``DEBUG=all`` or ``--DEBUG`` which may provide additional
 information.
-
 
 MacOSX
 ~~~~~~
