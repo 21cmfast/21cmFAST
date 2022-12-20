@@ -47,6 +47,27 @@ must use the compilation options (see below) to specify where they are.
           This is discussed below in the context of MacOSX, where it is often the
           easiest way to get the dependencies, but it is equally applicable to linux.
 
+Ubuntu
+^^^^^^
+It is best to use a system-wide installation of ``gcc, gsl,`` and ``fftw3`` rather than installing 
+them in a conda environment. ``gcc`` is by default available in Ubuntu. 
+To check if ``gcc`` is installed, run ``gcc --version`` in your terminal.
+Install ``fftw3`` and ``gsl`` on your system with  ``sudo apt-get install libfftw3-dev libgsl-dev``.
+
+Once these are successfully installed, check where the ``fftw3`` library is actually located 
+using ``locate libfftw3.so``. For example, it may be located in ``/usr/lib/x86_64-linux-gnu/``.
+
+Make sure you can locate the header files as well, usually in 
+``/usr/include/``. Check this by running ``cd /usr/include/`` and ``find fftw3.h`` or ``locate fftw3.h``.
+
+Lastly, locate your ``gcc`` installation using ``which gcc``.
+
+In your ``21cmfast`` environment, now install the ``21cmFAST`` package using ``cd /path/to/21cmFAST/``,
+followed by ``CC=/path/to/gcc LIB=/path/to/lib/ INC=/path/to/headers/include/ pip install .``.
+If there is an issue during installation, add ``DEBUG=all`` or ``--DEBUG`` which may provide additional
+information.
+
+
 MacOSX
 ~~~~~~
 On MacOSX, obtaining ``gsl`` and ``fftw`` is typically more difficult, and in addition,
