@@ -41,24 +41,10 @@ Most linux distros come with packages for the requirements, and also ``gcc`` by 
 which supports ``-fopenmp``. As long as these packages install into the standard location,
 a standard installation of ``21cmFAST`` will be automatically possible (see below).
 If they are installed to a place not on the ``LD_LIBRARY``/``INCLUDE`` paths, then you
-must use the compilation options (see below) to specify where they are.
+must use the compilation options (see below) to specify where they are. 
+For example, you can check if the header file for ``fftw3`` is 
+in its default location ``/usr/include/`` by running::
 
-.. note:: there exists the option of installing ``gsl``, ``fftw`` and ``gcc`` using ``conda``.
-          This is discussed below in the context of MacOSX, where it is often the
-          easiest way to get the dependencies, but it is equally applicable to linux.
-
-Ubuntu
-^^^^^^
-It is best to use a system-wide installation of ``gcc, gsl,`` and ``fftw3`` rather than installing
-them in a conda environment. ``gcc`` is by default available in Ubuntu.
-To check if ``gcc`` is installed, run ``gcc --version`` in your terminal.
-Install ``fftw3`` and ``gsl`` on your system with  ``sudo apt-get install libfftw3-dev libgsl-dev``.
-
-Once these are successfully installed, check where the ``fftw3`` library is actually located
-using ``locate libfftw3.so``. For example, it may be located in ``/usr/lib/x86_64-linux-gnu/``.
-
-Make sure you can locate the header files as well, usually in
-``/usr/include/``. Check this by running::
     cd /usr/include/
     find fftw3.h
 
@@ -66,19 +52,41 @@ or::
 
     locate fftw3.h
 
-Lastly, locate your ``gcc`` installation using ``which gcc``.
+.. note:: there exists the option of installing ``gsl``, ``fftw`` and ``gcc`` using ``conda``.
+          This is discussed below in the context of MacOSX, where it is often the
+          easiest way to get the dependencies, but it is equally applicable to linux.
+
+Ubuntu
+^^^^^^
+If you are installing 21cmFAST just as a user, the very simplest method is ``conda`` 
+-- with this method you simply need ``conda install -c conda-forge 21cmFAST``, and all 
+dependencies will be automatically installed. However, if you are going to use
+``pip`` to install the package directly from the repository, there is
+a [bug in pip](https://stackoverflow.com/questions/71340058/conda-does-not-look-for-libpthread-and-libpthread-nonshared-at-the-right-place-w)
+that means it cannot find conda-installed shared libraries properly. In that case, it is much 
+easier to install the basic dependencies (``gcc``, ``gsl`` and ``fftw3``) with your 
+system's package manager. ``gcc`` is by default available in Ubuntu.
+To check if ``gcc`` is installed, run ``gcc --version`` in your terminal.
+Install ``fftw3`` and ``gsl`` on your system with  ``sudo apt-get install libfftw3-dev libgsl-dev``.
+
 
 In your ``21cmfast`` environment, now install the ``21cmFAST`` package using::
 
     cd /path/to/21cmFAST/
-    CC=/path/to/gcc LIB=/path/to/lib/ INC=/path/to/headers/include/ pip install
+    pip install .
 
 If there is an issue during installation, add ``DEBUG=all`` or ``--DEBUG`` which may provide additional
 information.
 
+.. note:: If there is an error during compilation that the ``fftw3`` library cannot be found,
+          check where the ``fftw3`` library is actually located using ``locate libfftw3.so``. 
+          For example, it may be located in ``/usr/lib/x86_64-linux-gnu/``. Then, provide this path
+          to the installation command with the ``LIB`` flag. For more details see the note in the 
+          MacOSX section below.
+
 .. note:: You may choose to install ``gsl`` as an anaconda package as well, however, in that case,
-          you need to add the path to the gsl header in the environment e.g.
-          ``INC=/usr/include /path/to/conda/env/include/``
+          you need to add both ``INC`` paths in the installation command e.g.:
+          ``GSL_INC=/path/to/conda/env/include FFTW_INC=/usr/include``
 
 MacOSX
 ~~~~~~
