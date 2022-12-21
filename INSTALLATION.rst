@@ -41,8 +41,8 @@ Most linux distros come with packages for the requirements, and also ``gcc`` by 
 which supports ``-fopenmp``. As long as these packages install into the standard location,
 a standard installation of ``21cmFAST`` will be automatically possible (see below).
 If they are installed to a place not on the ``LD_LIBRARY``/``INCLUDE`` paths, then you
-must use the compilation options (see below) to specify where they are. 
-For example, you can check if the header file for ``fftw3`` is 
+must use the compilation options (see below) to specify where they are.
+For example, you can check if the header file for ``fftw3`` is
 in its default location ``/usr/include/`` by running::
 
     cd /usr/include/
@@ -58,13 +58,13 @@ or::
 
 Ubuntu
 ^^^^^^
-If you are installing 21cmFAST just as a user, the very simplest method is ``conda`` 
--- with this method you simply need ``conda install -c conda-forge 21cmFAST``, and all 
+If you are installing 21cmFAST just as a user, the very simplest method is ``conda``
+-- with this method you simply need ``conda install -c conda-forge 21cmFAST``, and all
 dependencies will be automatically installed. However, if you are going to use
 ``pip`` to install the package directly from the repository, there is
 a [bug in pip](https://stackoverflow.com/questions/71340058/conda-does-not-look-for-libpthread-and-libpthread-nonshared-at-the-right-place-w)
-that means it cannot find conda-installed shared libraries properly. In that case, it is much 
-easier to install the basic dependencies (``gcc``, ``gsl`` and ``fftw3``) with your 
+that means it cannot find conda-installed shared libraries properly. In that case, it is much
+easier to install the basic dependencies (``gcc``, ``gsl`` and ``fftw3``) with your
 system's package manager. ``gcc`` is by default available in Ubuntu.
 To check if ``gcc`` is installed, run ``gcc --version`` in your terminal.
 Install ``fftw3`` and ``gsl`` on your system with  ``sudo apt-get install libfftw3-dev libgsl-dev``.
@@ -79,9 +79,9 @@ If there is an issue during installation, add ``DEBUG=all`` or ``--DEBUG`` which
 information.
 
 .. note:: If there is an error during compilation that the ``fftw3`` library cannot be found,
-          check where the ``fftw3`` library is actually located using ``locate libfftw3.so``. 
+          check where the ``fftw3`` library is actually located using ``locate libfftw3.so``.
           For example, it may be located in ``/usr/lib/x86_64-linux-gnu/``. Then, provide this path
-          to the installation command with the ``LIB`` flag. For more details see the note in the 
+          to the installation command with the ``LIB`` flag. For more details see the note in the
           MacOSX section below.
 
 .. note:: You may choose to install ``gsl`` as an anaconda package as well, however, in that case,
