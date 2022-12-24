@@ -2687,6 +2687,80 @@ LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
         fftwf_free(unfiltered_box);
 }
 
+//fill a box[R_ct][box_ct] array for use in TS by filtering on different scales and storing results
+//input,box, and unfiltered should be 
+void update_source_grids(XraySourceBox *source_box, float *field, double R_inner, double R_outer, double zp, double zpp){
+        int i,j,k;
+
+        double R_mean = (R_outer - R_inner)*0.5;
+        
+
+        fftwf_complex *box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+#pragma omp parallel private(i,j,k) num_threads(user_params_ts->N_THREADS)
+            {
+#pragma omp for
+                for (i=0; i<user_params_ts->HII_DIM; i++){
+                    for (j=0; j<user_params_ts->HII_DIM; j++){
+                        for (k=0; k<user_params_ts->HII_DIM; k++){
+                            *((float *)unfiltered_box + HII_R_FFT_INDEX(i,j,k)) = field[HII_R_INDEX(i,j,k)];
+                        }
+                    }
+                }
+            }
+LOG_SUPER_DEBUG("Allocated unfiltered box");
+
+            ////////////////// Transform unfiltered box to k-space to prepare for filtering /////////////////
+            //this would normally only be done once but we're using a different redshift for each R now
+            dft_r2c_cube(user_params_ts->USE_FFTW_WISDOM, user_params_ts->HII_DIM, user_params_ts->N_THREADS, unfiltered_box);
+LOG_SUPER_DEBUG("Done FFT on unfiltered box");
+
+            // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
+            // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
+#pragma omp parallel num_threads(user_params_ts->N_THREADS)
+            {
+#pragma omp for
+                for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
+                    unfiltered_box[ct] /= (float)HII_TOT_NUM_PIXELS;
+                }
+            }
+
+LOG_SUPER_DEBUG("normalised unfiltered box");
+
+            // Smooth the density field, at the same time store the minimum and maximum densities for their usage in the interpolation tables
+            // copy over unfiltered box
+            memcpy(box, unfiltered_box, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+            filter_box_annulus(box, 1, global_params.HEAT_FILTER, R_inner, R_outer);
+
+            // now fft back to real space
+            dft_c2r_cube(user_params_ts->USE_FFTW_WISDOM, user_params_ts->HII_DIM, user_params_ts->N_THREADS, box);
+LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
+            // copy over the values
+#pragma omp parallel private(i,j,k) num_threads(user_params_ts->N_THREADS)
+            {
+                float curr;
+#pragma omp for
+                for (i=0;i<user_params_ts->HII_DIM; i++){
+                    for (j=0;j<user_params_ts->HII_DIM; j++){
+                        for (k=0;k<user_params_ts->HII_DIM; k++){
+                            curr = *((float *)box + HII_R_FFT_INDEX(i,j,k));
+
+                            if (curr < 0.){ // correct for aliasing in the filtering step
+                                curr = 0.;
+                            }
+                            
+                            box[HII_R_INDEX(i,j,k)] += curr;
+                        }
+                    }
+                }
+            }
+        
+        fftwf_free(box);
+        fftwf_free(unfiltered_box);
+}
+
 //construct the [x_e][R_ct] tables
 void fill_freqint_tables(float zp, double x_e_ave, double filling_factor_of_HI_zp){
     double lower_int_limit;

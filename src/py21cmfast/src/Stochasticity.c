@@ -16,7 +16,7 @@
 //TODO: both of these should be set depending on size, resolution & min mass
 #define MAX_HALO_CELL (int)1e5
 //Max halo in entire box
-//100 Mpc^3 box should have ~80,000,000 halos at M_min=1e7 so this should cover up to ~250 Mpc^3
+//100 Mpc^3 box should have ~80,000,000 halos at M_min=1e7, z=6 so this should cover up to ~250 Mpc^3
 #define MAX_HALO (int)1e9
 //per halo in update
 #define MAX_HALO_UPDATE 1024
@@ -588,12 +588,25 @@ int update_halo_properties(gsl_rng * rng, float redshift, float redshift_prev, f
     double fa = astro_params_stoc->ALPHA_STAR;
     double sigma_star = astro_params_stoc->SIGMA_STAR;
     double sigma_sfr = astro_params_stoc->SIGMA_SFR;
-    
+    double corr_star = astro_params_stoc->CORR_STAR;
+    double corr_sfr = astro_params_stoc->CORR_SFR;
+    double interp_star, interp_sfr;
+
     //sample new properties (uncorrelated)
     add_halo_properties(rng, halo_mass, redshift, output);
 
-    //TODO; add correlation coeff + dependencies
-    float corr = 0;
+    if(corr_star > 0){
+        interp_star = exp(-(redshift - redshift_prev)/corr_star);
+    }
+    else{
+        interp_star = 0;
+    }
+    if(corr_sfr > 0){
+        interp_sfr = exp(-(redshift - redshift_prev)/corr_sfr);
+    }
+    else{
+        interp_sfr = 0;
+    }
     float x1,x2,mu1,mu2;
 
     //STELLAR MASS: get median from mean + lognormal scatter (we leave off a bunch of constants and use the mean because we only need the ratio)
@@ -603,7 +616,7 @@ int update_halo_properties(gsl_rng * rng, float redshift, float redshift_prev, f
     x1 = props_in[0];
     x2 = mu2/mu1*x1;
     //interpolate between uncorrelated and matched properties.
-    output[0] = output[0]*(1 - corr*x2/output[0]);
+    output[0] = output[0]*(1 - interp_star*x2/output[0]);
 
     //repeat for all other properties
     //SFR: get median (TODO: if I add z-M dependent scatters I will need to re-add the constants)
@@ -613,7 +626,7 @@ int update_halo_properties(gsl_rng * rng, float redshift, float redshift_prev, f
     x1 = props_in[1];
     x2 = mu2/mu1*x1;
     //interpolate between uncorrelated and matched properties.
-    output[1] = output[1]*(1 - corr*x2/output[1]);
+    output[1] = output[1]*(1 - interp_sfr*x2/output[1]);
 
     //repeat for all other properties
 

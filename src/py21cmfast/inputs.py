@@ -465,8 +465,7 @@ class UserParams(StructWithDefaults):
         STOC_MINIMUM_Z, we then build the halo boxes from low to high redshift.
         If STOC_MINIMUM_Z is not provided, we simply sample at the given redshift, unless
         USE_TS_FLUCT is given or we want a lightcone, in which case the minimum redshift is set
-        to the minimum redshift of those fields. If this is not provided, all halo fields are generated
-        WITHOUT time-correlation.
+        to the minimum redshift of those fields.
     """
 
     _ffi = ffi
@@ -819,9 +818,17 @@ class AstroParams(StructWithDefaults):
     SIGMA_STAR : float, optional
         Lognormal scatter of the halo mass to stellar mass relation.
         Uniform across all masses and redshifts.
+    CORR_STAR : float, optional
+        Self-correlation length used for updating halo properties. Properties are interpolated between
+        a random sample at the current halo mass and one matching the point in the PDF of the
+        previous sample, the interpolation point in [0,1] is given by exp(-dz/CORR_STAR)      
     SIGMA_SFR : float, optional
         Lognormal scatter of the stellar mass to SFR relation.
         Uniform across all masses and redshifts.
+    CORR_SFR : float, optional
+        Self-correlation length used for updating halo properties. Properties are interpolated between
+        a random sample at the current halo mass and one matching the point in the PDF of the
+        previous sample, the interpolation point in [0,1] is given by exp(-dz/CORR_STAR)
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
         IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization,
@@ -890,7 +897,9 @@ class AstroParams(StructWithDefaults):
         "ALPHA_STAR": 0.5,
         "ALPHA_STAR_MINI": 0.5,
         "SIGMA_STAR": 0.0,
+        "CORR_STAR" : 0.5,
         "SIGMA_SFR": 0.0,
+        "CORR_SFR": 0.2,
         "F_ESC10": -1.0,
         "F_ESC7_MINI": -2.0,
         "ALPHA_ESC": -0.5,

@@ -51,6 +51,58 @@ float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
     return T_HI * res_xH + global_params.T_RE * (1. - res_xH);
 }
 
+void filter_box_annulus(fftwf_complex *box, int RES, int filter_type, float R_inner, float R_outer){
+    int n_x, n_z, n_y, dimension,midpoint;
+    float k_x, k_y, k_z, k_mag, kRinner, kRouter;
+
+    switch(RES) {
+        case 0:
+            dimension = user_params_ufunc->DIM;
+            midpoint = MIDDLE;
+            break;
+        case 1:
+            dimension = user_params_ufunc->HII_DIM;
+            midpoint = HII_MIDDLE;
+            break;
+    }
+    // loop through k-box
+
+#pragma omp parallel shared(box) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,kRinner,kRouter) num_threads(user_params_ufunc->N_THREADS)
+    {
+#pragma omp for
+        for (n_x=0; n_x<dimension; n_x++){
+//        for (n_x=dimension; n_x--;){
+            if (n_x>midpoint) {k_x =(n_x-dimension) * DELTA_K;}
+            else {k_x = n_x * DELTA_K;}
+
+            for (n_y=0; n_y<dimension; n_y++){
+//            for (n_y=dimension; n_y--;){
+                if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
+                else {k_y = n_y * DELTA_K;}
+
+//                for (n_z=(midpoint+1); n_z--;){
+                for (n_z=0; n_z<=midpoint; n_z++){
+                    k_z = n_z * DELTA_K;
+
+                    k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
+
+                    kRinner = k_mag*R_inner; // real space top-hat
+                    kRouter = k_mag*R_outer;
+
+                    if (kRinner > 1e-4){
+                        f_inner = 3.0*pow(kRinner, -3) * (sin(kRinner) - cos(kRinner)*kRinner);
+                        f_outer = 3.0*pow(kRouter, -3) * (sin(kRouter) - cos(kRouter)*kRouter);
+                        if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= (f_outer - f_inner); }
+                        if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= (f_outer - f_inner); }
+                    }
+                    
+                }
+            }
+        } // end looping through k box
+    }
+    return;
+}
+
 void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
     int n_x, n_z, n_y, dimension,midpoint;
     float k_x, k_y, k_z, k_mag, kR;

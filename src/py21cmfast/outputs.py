@@ -468,6 +468,54 @@ class HaloBox(_AllParamsBox):
             hooks=hooks,
         )
 
+class XraySourceBox(_AllParamsBox):
+    """A class containing all gridded halo properties"""
+
+    _meta = False
+    _c_compute_function = lib.UpdateXraySourceBox
+    _inputs = _AllParamsBox._inputs
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+        shape =  (global_params.NUM_FILTER_STEPS_FOR_Ts) + (self.user_params.HII_DIM,) * 3
+
+        out = {
+            "filtered_sfr": shape,
+        }
+
+        return out
+
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, HaloBox):
+                required += ["halo_sfr"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for HaloBox!"
+            )
+
+        return required
+
+    def compute(
+        self,
+        *,
+        halobox: HaloBox,
+        hooks: dict,
+    ):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            halo_box,
+            hooks=hooks,
+        )
+
 
 class TsBox(_AllParamsBox):
     """A class containing all spin temperature boxes."""

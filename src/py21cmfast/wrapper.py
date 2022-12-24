@@ -1487,6 +1487,64 @@ def halo_box(
 
     return box.compute(pt_halos=pt_halos,perturbed_field=perturbed_field,hooks=hooks)
 
+def make_xray_source_box(
+    *,
+    redshift,
+    astro_params=None,
+    flag_options=None,
+    cosmo_params=None,
+    user_params=None,
+    init_boxes=None,
+    halobox=None,
+    write=None,
+    direc=None,
+    regenerate=None,
+    random_seed=None,
+    hooks=None,
+    **global_kwargs,
+
+) -> XraySourceBox:
+    r"""
+    Compute filtered grid of SFR for use in spin temperature calculation
+
+    This will filter over the halo history in annuli, computing the contribution to the sfr density
+
+    If no halo field is passed one is calculated at the desired redshift as if it is the first box
+
+    Parameters
+    ----------
+    astro_params: :class:`~AstroParams` instance, optional
+        The astrophysical parameters defining the course of reionization.
+    flag_options: :class:`~FlagOptions` instance, optional
+        Some options passed to the reionization routine.
+    user_params : :class:`~UserParams`, optional
+        Defines the overall options and parameters of the run.
+    cosmo_params : :class:`~CosmoParams`, optional
+        Defines the cosmological parameters used to compute initial conditions.
+    halobox: :class:`~HaloBox` or None, optional
+        If passed, this contains the gridded halo SFR which this function uses to
+        create the filtered source field
+    \*\*global_kwargs :
+        Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
+        *temporarily* set global attributes for the duration of the function. Note that
+        arguments will be treated as case-insensitive.
+
+    Returns
+    -------
+    :class:`~HaloBox` :
+        An object containing the halo box data.
+
+    Other Parameters
+    ----------------
+    regenerate, write, direc :
+        See docs of :func:`initial_conditions` for more information.
+    
+    """
+
+    box = XraySourceBox()
+
+    return box
+
 def ionize_box(
     *,
     astro_params=None,
