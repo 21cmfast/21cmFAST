@@ -3,7 +3,7 @@
 
 void ts_halos(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift, short cleanup,
-                  struct PerturbedField *perturbed_field, struct HaloBox *halo_box, struct TsBox *previous_spin_temp,
+                  struct PerturbedField *perturbed_field, struct HaloBox *halo_box, struct XraySourceBox *source_box, struct TsBox *previous_spin_temp,
                   struct InitialConditions *ini_boxes, struct TsBox *this_spin_temp);
 
 // Grids/arrays that only need to be initialised once (i.e. the lowest redshift density cube to be sampled)
@@ -47,7 +47,7 @@ float initialised_redshift = 0.0;
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options,
                   float perturbed_field_redshift, short cleanup,
-                  struct PerturbedField *perturbed_field, struct HaloBox * halo_box, struct TsBox *previous_spin_temp,
+                  struct PerturbedField *perturbed_field, struct HaloBox * halo_box, struct XraySourceBox *source_box, struct TsBox *previous_spin_temp,
                   struct InitialConditions *ini_boxes, struct TsBox *this_spin_temp) {
     int status;
     Try{ // This Try{} wraps the whole function.
@@ -67,7 +67,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
 
     if(flag_options->USE_HALO_FIELD){
         ts_halos(redshift,prev_redshift,user_params,cosmo_params,astro_params,flag_options,perturbed_field_redshift,
-                cleanup,perturbed_field,halo_box,previous_spin_temp,ini_boxes,this_spin_temp);
+                cleanup,perturbed_field,halo_box,source_box,previous_spin_temp,ini_boxes,this_spin_temp);
         destruct_heat();
         return 0;
     }
@@ -2689,11 +2689,11 @@ LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
 
 //fill a box[R_ct][box_ct] array for use in TS by filtering on different scales and storing results
 //input,box, and unfiltered should be 
-void update_source_grids(XraySourceBox *source_box, float *field, double R_inner, double R_outer, double zp, double zpp){
-        int i,j,k;
-
-        double R_mean = (R_outer - R_inner)*0.5;
-        
+int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                  struct AstroParams *astro_params, struct FlagOptions *flag_options, struct HaloBox *halobox,
+                  double R_inner, double R_outer, int R_ct, struct XraySourceBox *source_box){
+        int i,j,k,ct;
+        short NO_LIGHT;
 
         fftwf_complex *box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -2704,7 +2704,7 @@ void update_source_grids(XraySourceBox *source_box, float *field, double R_inner
                 for (i=0; i<user_params_ts->HII_DIM; i++){
                     for (j=0; j<user_params_ts->HII_DIM; j++){
                         for (k=0; k<user_params_ts->HII_DIM; k++){
-                            *((float *)unfiltered_box + HII_R_FFT_INDEX(i,j,k)) = field[HII_R_INDEX(i,j,k)];
+                            *((float *)unfiltered_box + HII_R_FFT_INDEX(i,j,k)) = halobox->halo_sfr[HII_R_INDEX(i,j,k)];
                         }
                     }
                 }
@@ -2714,7 +2714,7 @@ LOG_SUPER_DEBUG("Allocated unfiltered box");
             ////////////////// Transform unfiltered box to k-space to prepare for filtering /////////////////
             //this would normally only be done once but we're using a different redshift for each R now
             dft_r2c_cube(user_params_ts->USE_FFTW_WISDOM, user_params_ts->HII_DIM, user_params_ts->N_THREADS, unfiltered_box);
-LOG_SUPER_DEBUG("Done FFT on unfiltered box");
+            LOG_SUPER_DEBUG("Done FFT on unfiltered box");
 
             // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
             // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
@@ -2726,17 +2726,18 @@ LOG_SUPER_DEBUG("Done FFT on unfiltered box");
                 }
             }
 
-LOG_SUPER_DEBUG("normalised unfiltered box");
+            LOG_SUPER_DEBUG("normalised unfiltered box");
 
             // Smooth the density field, at the same time store the minimum and maximum densities for their usage in the interpolation tables
             // copy over unfiltered box
             memcpy(box, unfiltered_box, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
-            filter_box_annulus(box, 1, global_params.HEAT_FILTER, R_inner, R_outer);
+            filter_box_annulus(box, 1, R_inner, R_outer);
 
             // now fft back to real space
             dft_c2r_cube(user_params_ts->USE_FFTW_WISDOM, user_params_ts->HII_DIM, user_params_ts->N_THREADS, box);
-LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
+            LOG_ULTRA_DEBUG("Executed FFT for R=(%.3f,%.3f)", R_inner,R_outer);
+
             // copy over the values
 #pragma omp parallel private(i,j,k) num_threads(user_params_ts->N_THREADS)
             {
@@ -2750,8 +2751,7 @@ LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
                             if (curr < 0.){ // correct for aliasing in the filtering step
                                 curr = 0.;
                             }
-                            
-                            box[HII_R_INDEX(i,j,k)] += curr;
+                            source_box->filtered_sfr[R_ct * HII_TOT_NUM_PIXELS + HII_R_INDEX(i,j,k)] = curr;
                         }
                     }
                 }
@@ -2920,9 +2920,10 @@ double get_Ts_fast(float z, float delta, float TK, float xe, float Jalpha, float
 //outer-level function for calculating Ts based on the Halo boxes
 //TODO: make sure redshift (zp), perturbed_field_redshift, zpp all consistent
 //TODO: add Minihalos (which includes LW)
+
 void ts_halos(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift, short cleanup,
-                  struct PerturbedField *perturbed_field, struct HaloBox *halo_box, struct TsBox *previous_spin_temp,
+                  struct PerturbedField *perturbed_field, struct HaloBox *halo_box, struct XraySourceBox *source_box, struct TsBox *previous_spin_temp,
                   struct InitialConditions *ini_boxes, struct TsBox *this_spin_temp){
     int box_ct, R_ct, i, j, k;
     double x_e_ave_p, Tk_ave_p;
@@ -2944,7 +2945,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         LOG_DEBUG("redshift greater than Z_HEAT_MAX");
         init_first_Ts(this_spin_temp,perturbed_field->density,perturbed_field_redshift,redshift,&x_e_ave_p,&Tk_ave_p,false);
         //TODO: return here & cleanup or have the HUGE else clause in?
-            double M_MIN;
+        double M_MIN;
         //TODO: IoniseBox expects this to be initialised, make a cleaner way.
         if(user_params_ts->USE_INTERPOLATION_TABLES){
             init_ps();
@@ -3030,18 +3031,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         Tk_ave_p /= (float)HII_TOT_NUM_PIXELS; // not used?
         LOG_DEBUG("Prev Box: x_e_ave %.3e | TK_ave %.3e",x_e_ave_p,Tk_ave_p);
     }
-        
-    //2D arrays needed for storing all the filter scales
-    /*delta0_r = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
-    for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++) {
-        delta0_r[R_ct] = (float *)calloc((float)HII_TOT_NUM_PIXELS,sizeof(float));
-    }*/
-    float **sfr_r = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
-    for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++) {
-        sfr_r[R_ct] = (float *)calloc((float)HII_TOT_NUM_PIXELS,sizeof(float));
-    }
-
-    fill_Rbox_table(sfr_r, halo_box->halo_sfr, 0., 1.);
 
     int NO_LIGHT;
     double filling_factor_of_HI_zp;
@@ -3119,10 +3108,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     J_alpha_ave=xalpha_ave=xheat_ave=xion_ave=Ts_ave=Tk_ave=x_e_ave=0;
 
     for(R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
-        dzpp_for_evolve = dzpp_list[R_ct];
-        zpp = zpp_for_evolve_list[R_ct];
-        z_edge_factor = fabs(dzpp_for_evolve) * fabs(dtdz_list[R_ct]); //dtdz dz for dM/dt -> (dM/dz'')dz''
-        xray_R_factor = pow(1+zpp,-(astro_params->X_RAY_SPEC_INDEX));
+        xray_R_factor = pow(1+zpp_for_evolve_list[R_ct],-(astro_params->X_RAY_SPEC_INDEX));
 
         //in ComputeTS, there are prefactors which depend on the sum of stellar mass (to do the ST_OVER_PS part) so they have to be computed and stored separately
         //I don't need those here (although ST_OVER_PS hides some R-dependent factors which I define above)
@@ -3143,8 +3129,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                 //sum each R contribution together
                 //Since the Halo option doesn't differentiate between the global Fcoll (NO_LIGHT) and conditional (ave_fcoll), this is consistent
                 if(!NO_LIGHT) {
-                    //TODO: double check this is the right volume (combined with dzpp) and not something using R
-                    sfr_term = sfr_r[R_ct][box_ct] * z_edge_factor * sfr_ratio[R_ct]; //SFR(t) to SFR density(z)
+                    sfr_term = source_box->filtered_sfr[R_ct*HII_TOT_NUM_PIXELS + box_ct] * dtdz_list[R_ct]; //SFR(t) to SFR density(z)
                     xidx = m_xHII_low_box[box_ct];
                     ival = inverse_val_box[box_ct];
                     dxheat_dt_box[box_ct] += sfr_term * xray_R_factor * (freq_int_heat_tbl_diff[xidx][R_ct] * ival + freq_int_heat_tbl[xidx][R_ct]);
@@ -3309,10 +3294,10 @@ LOG_SUPER_DEBUG("finished loop");
     }
     free(delta_r);*/
     
-    for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++) {
-        free(sfr_r[R_ct]);
-    }
-    free(sfr_r);
+    //for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++) {
+    //    free(sfr_r[R_ct]);
+    //}
+    //free(sfr_r);
 
     if(cleanup){
         free_global_arrays();

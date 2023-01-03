@@ -51,9 +51,10 @@ float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
     return T_HI * res_xH + global_params.T_RE * (1. - res_xH);
 }
 
-void filter_box_annulus(fftwf_complex *box, int RES, int filter_type, float R_inner, float R_outer){
+void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_outer){
     int n_x, n_z, n_y, dimension,midpoint;
     float k_x, k_y, k_z, k_mag, kRinner, kRouter;
+    float f_inner, f_outer;
 
     switch(RES) {
         case 0:

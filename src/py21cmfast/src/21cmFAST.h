@@ -45,6 +45,8 @@ struct AstroParams{
     float ALPHA_STAR_MINI;
     float SIGMA_STAR;
     float SIGMA_SFR;
+    float CORR_STAR;
+    float CORR_SFR;
     float F_ESC10;
     float ALPHA_ESC;
     float M_TURN;
@@ -156,6 +158,10 @@ struct TsBox{
     float *J_21_LW_box;
 };
 
+struct XraySourceBox{
+    float *filtered_sfr;
+};
+
 struct IonizedBox{
     int first_box;
     double mean_f_coll;
@@ -191,7 +197,7 @@ int ComputePerturbHaloField(float redshift, struct UserParams *user_params, stru
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,
                   short cleanup,
-                  struct PerturbedField *perturbed_field, struct HaloBox * halo_box, struct TsBox *previous_spin_temp, struct InitialConditions *ini_boxes,
+                  struct PerturbedField *perturbed_field, struct HaloBox * halo_box, struct XraySourceBox * souce_box, struct TsBox *previous_spin_temp, struct InitialConditions *ini_boxes,
                   struct TsBox *this_spin_temp);
 
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
@@ -243,6 +249,10 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 int ComputeHaloBox(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params
                     , struct FlagOptions * flag_options, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos
                     , struct HaloBox *grids);
+
+int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosmo_params,
+                  struct AstroParams *astro_params, struct FlagOptions *flag_options, struct HaloBox *halobox,
+                  double R_inner, double R_outer, int R_ct, struct XraySourceBox *source_box);
 
 //int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options,
 //                        int seed, float redshift, float redshift_prev, bool eulerian, float *dens_field, struct HaloField *halos_prev, struct HaloField *halos);

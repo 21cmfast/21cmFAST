@@ -479,7 +479,7 @@ class XraySourceBox(_AllParamsBox):
         super().__init__(**kwargs)
 
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
-        shape =  (global_params.NUM_FILTER_STEPS_FOR_Ts) + (self.user_params.HII_DIM,) * 3
+        shape =  (global_params.NUM_FILTER_STEPS_FOR_Ts,) + (self.user_params.HII_DIM,) * 3
 
         out = {
             "filtered_sfr": shape,
@@ -503,16 +503,21 @@ class XraySourceBox(_AllParamsBox):
         self,
         *,
         halobox: HaloBox,
+        R_inner,
+        R_outer,
+        R_ct,
         hooks: dict,
     ):
         """Compute the function."""
         return self._compute(
-            self.redshift,
             self.user_params,
             self.cosmo_params,
             self.astro_params,
             self.flag_options,
-            halo_box,
+            halobox,
+            R_inner,
+            R_outer,
+            R_ct,
             hooks=hooks,
         )
 
@@ -598,6 +603,9 @@ class TsBox(_AllParamsBox):
                     "wstar_mass",
                     "halo_sfr",
                 ]
+        elif isinstance(input_box, XraySourceBox):
+            if self.flag_options.USE_HALO_FIELD:
+                required += ["filtered_sfr"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for PerturbHaloField!"
@@ -611,6 +619,7 @@ class TsBox(_AllParamsBox):
         cleanup: bool,
         perturbed_field: PerturbedField,
         halobox: HaloBox,
+        sourcebox: XraySourceBox,
         prev_spin_temp,
         ics: InitialConditions,
         hooks: dict,
@@ -627,6 +636,7 @@ class TsBox(_AllParamsBox):
             cleanup,
             perturbed_field,
             halobox,
+            sourcebox,
             prev_spin_temp,
             ics,
             hooks=hooks,
