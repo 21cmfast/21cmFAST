@@ -1377,7 +1377,7 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
 	int pos=0;
 	double dn = (max - min)/(n-1);
 	if (value<min) pos=0;
-	else if (value>=max) pos = n-2; 
+	else if (value>=max) pos = n-2;
 	else pos = (int) ((value - min)/dn-1);
 	return pos;
 	}
