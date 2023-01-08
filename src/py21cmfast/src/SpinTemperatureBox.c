@@ -2161,7 +2161,13 @@ LOG_SUPER_DEBUG("looping over box...");
                             if (flag_options->USE_LYA_HEATING) {
                                 E_continuum = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delNL0*growth_factor_zp,x_e), 2);
                                 E_injected = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delNL0*growth_factor_zp,x_e), 3);
-                                Ndot_alpha_cont = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_cont_dt_box[box_ct];
+								if (isnan(E_continuum) || isinf(E_continuum)){
+									E_continuum = 0.;
+								}
+								if (isnan(E_injected) || isinf(E_injected)){
+									E_injected = 0.;
+								}
+								Ndot_alpha_cont = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_cont_dt_box[box_ct];
                                 Ndot_alpha_inj = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_inj_dt_box[box_ct];
                                 eps_Lya_cont = - Ndot_alpha_cont * E_continuum * (2. / 3. /k_B/ (1.+x_e));
                                 eps_Lya_inj = - Ndot_alpha_inj * E_injected * (2. / 3. /k_B/ (1.+x_e));
@@ -2412,7 +2418,13 @@ LOG_SUPER_DEBUG("looping over box...");
                     if (flag_options->USE_LYA_HEATING) {
                         E_continuum = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delNL0*growth_factor_zp,x_e), 2);
                         E_injected = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delNL0*growth_factor_zp,x_e), 3);
-                        Ndot_alpha_cont = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_cont_dt;
+						if (isnan(E_continuum) || isinf(E_continuum)){
+							E_continuum = 0.;
+						}
+						if (isnan(E_injected) || isinf(E_injected)){
+							E_injected = 0.;
+						}
+						Ndot_alpha_cont = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_cont_dt;
                         Ndot_alpha_inj = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_inj_dt;
                         eps_Lya_cont = - Ndot_alpha_cont * E_continuum * (2. / 3. /k_B/ (1.+x_e));
                         eps_Lya_inj = - Ndot_alpha_inj * E_injected * (2. / 3. /k_B/ (1.+x_e));
