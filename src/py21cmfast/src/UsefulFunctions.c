@@ -68,7 +68,7 @@ void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_oute
     }
     // loop through k-box
 
-#pragma omp parallel shared(box) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,kRinner,kRouter) num_threads(user_params_ufunc->N_THREADS)
+#pragma omp parallel shared(box) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,kRinner,kRouter,f_inner,f_outer) num_threads(user_params_ufunc->N_THREADS)
     {
 #pragma omp for
         for (n_x=0; n_x<dimension; n_x++){
@@ -87,7 +87,7 @@ void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_oute
 
                     k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
 
-                    kRinner = k_mag*R_inner; // real space top-hat
+                    kRinner = k_mag*R_inner;
                     kRouter = k_mag*R_outer;
 
                     if (kRinner > 1e-4){

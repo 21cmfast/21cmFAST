@@ -34,9 +34,9 @@
 #include "heating_helper_progs.c"
 #include "recombinations.c"
 #include "IonisationBox.c"
+#include "Stochasticity.c"
 #include "SpinTemperatureBox.c"
 #include "BrightnessTemperatureBox.c"
-#include "Stochasticity.c"
 #include "FindHaloes.c"
 #include "PerturbHaloField.c"
 

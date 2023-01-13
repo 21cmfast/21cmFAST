@@ -21,12 +21,13 @@
 //per halo in update
 #define MAX_HALO_UPDATE 1024
 
-#define MMAX_TABLES 1e20
+#define MMAX_TABLES 1e14
+#define MMIN_FACTOR 1 //sample below the minimum mass by this factor
 
-#define N_MASS_INTERP (int)100
-#define N_DELTA_INTERP (int)100
-#define N_PROB (int)200
-#define MIN_LOGPROB (double)-20. //exp(-20) ~ 2e-9, minimum probability P(>M) for tables
+#define N_MASS_INTERP (int)100 // number of log-spaced mass bins in interpolation tables
+#define N_DELTA_INTERP (int)100 // number of log-spaced overdensity bins in interpolation tables
+#define N_PROB (int)1000 // number of log-spaced probability bins in the inverse mass CDF table
+#define MIN_LOGPROB (double)-10. //minimum log-probability P(>M) for inverse mass CDF table NOTE: exp(-10) ~ 4e-5, 
 #define RF_CONV 1e-3 //Convergence for root finder, units of ln(prob), MUST BE LESS THAN -MIN_LOGPROB/N_PROB
 
 struct AstroParams *astro_params_stoc;
@@ -616,7 +617,7 @@ int update_halo_properties(gsl_rng * rng, float redshift, float redshift_prev, f
     x1 = props_in[0];
     x2 = mu2/mu1*x1;
     //interpolate between uncorrelated and matched properties.
-    output[0] = output[0]*(1 - interp_star*x2/output[0]);
+    output[0] = (1-interp_star)*output[0] + interp_star*x2;
 
     //repeat for all other properties
     //SFR: get median (TODO: if I add z-M dependent scatters I will need to re-add the constants)
@@ -626,7 +627,7 @@ int update_halo_properties(gsl_rng * rng, float redshift, float redshift_prev, f
     x1 = props_in[1];
     x2 = mu2/mu1*x1;
     //interpolate between uncorrelated and matched properties.
-    output[1] = output[1]*(1 - interp_sfr*x2/output[1]);
+    output[1] = (1-interp_sfr)*output[1] + interp_sfr*x2;
 
     //repeat for all other properties
 
@@ -665,13 +666,7 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
 }
 
 //single sample of the HMF from inverse CDF method WIP
-int sample_dndM_inverse(double x_in, gsl_rng * rng, double *result){
-    //TODO: This should never happen but I've left it in just in case
-    if(!user_params_stoc->USE_INTERPOLATION_TABLES){
-        LOG_ERROR("Dont use inverse sampler without interpolation tables");
-        Throw(ValueError);
-    }
-    
+int sample_dndM_inverse(double x_in, gsl_rng * rng, double *result){    
     double y_in;
     do{
        y_in = log(gsl_rng_uniform(rng)); 
@@ -722,15 +717,22 @@ int sample_dndM_rejection(double growthf, double delta, double Mmin, double Mmax
  * Stochasticity is ignored below a certain mass threshold*/
 int stoc_mass_sample(double z_out, double growth_out, double param, double M_max, double M_min, double ps_ratio, int update, gsl_rng * rng, float *M_out, int *n_halo_out){
     int n_halo=0;
-    double delta;
+    double delta, inv_arg;
+
+    //lnMmin only used for sampling, apply factor here
+    double lnMmin = log(M_min/MMIN_FACTOR);
+    double lnMmax = log(M_max);
+    double sigma_max = EvaluateSigma(lnMmax);
 
     //dNdM sampling currently does (delta_in - Deltac)/growth_1
     //for update: param = growth_in, for cells param = delta
     if(update){
         delta = Deltac * growth_out / param;
+        inv_arg = lnMmax;
     }
     else{
         delta = param;
+        inv_arg = delta;
     }
 
     //delta check, if delta > deltacrit, make one big halo, if <-1 make no halos
@@ -745,18 +747,7 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
         return 0;
     }
     
-    double lnMmin = log(M_min);
-    double lnMmax = log(M_max);
-    double sigma_max = EvaluateSigma(lnMmax);
-
     double frac = EvaluateFgtrM(z_out,lnMmin,delta/growth_out,sigma_max);
-
-    //Set the minimum mass we care about for this condition
-    /*while(frac < 0.01){
-        lnMmin = lnMmin + 0.5; //* exp(0.5)
-        frac = EvaluateFgtrM(z_out,lnMmin,delta/growth_out,sigma_max);
-    }
-    Mmin = exp(lnMmin);*/
 
     //we apply the ps ratio here, since it won't effect the CMF, and should just scale everything (capped at Fcoll > 1)
     //we still allow the final sample to go beyond M_remaining, but not beyond M_max which stops Fcoll > 1
@@ -772,36 +763,29 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
         ymax = dNdM_conditional(growth_out,lnMmin,lnMmax,Deltac,delta,sigma_max);
     }
 
-    LOG_ULTRA_DEBUG("Condition M = %.2e (%.2e), sigma = %.2e, Mmin = %.2e, delta = %.2f",M_max,M_remaining,sigma_max,M_min,M_min,delta);
+    LOG_ULTRA_DEBUG("Condition M = %.2e (%.2e), sigma = %.2e, Mmin = %.2e, delta = %.2f",M_max,M_remaining,sigma_max,M_min,delta);
 
     int attempts = 0;
     double M_prog = 0.;
     double M_sample;
+    //generate initial halo list
     while(M_remaining > M_min){
         if(!user_params_stoc->STOC_INVERSE){
             sample_dndM_rejection(growth_out,delta,lnMmin,lnMmax,lnMmax,ymin,ymax,sigma_max,rng,&M_sample);
         }
         else{
-            if(update){
-                sample_dndM_inverse(lnMmax,rng,&M_sample);
-            }
-            else{
-                sample_dndM_inverse(delta,rng,&M_sample);
-            }
+            sample_dndM_inverse(inv_arg,rng,&M_sample);
         }
         M_sample = exp(M_sample);
 
-        //sometimes we sample more than the remaining mass from dndM, if we re-draw or cap at remaining mass this gives too many small halos
-        //and if we just keep it there's a possibility for spontaneous mass creation. This is the maximum cap without having to change previous samples
-        //above Mmin, essentially we throw out progenitors below our minimum to make up the mass
         M_sample = M_sample > (M_max - M_prog) ? (M_max - M_prog) : M_sample;
-        
+
         //LOG_ULTRA_DEBUG("sampled a progenitor %.3e, %.3e",M_sample,M_remaining);
         attempts++;
 
         //attempts is total progenitors here, including those under the mass limit
         //if we've sampled more than the max number of possible halos, something went wrong
-        if(attempts >= M_max / M_min){
+        if(attempts >= M_max / M_min * MMIN_FACTOR){
             LOG_ERROR("sampler hit max number %.1f of progenitors, Mmin = %.3e, Mmax = %.3e",M_max/M_min,M_min,M_max);
             Throw(ValueError);
         }
@@ -813,6 +797,11 @@ int stoc_mass_sample(double z_out, double growth_out, double param, double M_max
             M_prog += M_sample;
         }
     }
+
+    //sometimes we sample more than the remaining mass from dndM, if we re-draw or cap at remaining mass this gives too many small halos
+    //and if we just keep it there's a possibility for spontaneous mass creation.
+    
+        
     *n_halo_out = n_halo;
     return 0;
 }
@@ -838,11 +827,11 @@ int build_halo_cats(gsl_rng **rng_stoc, double redshift, float *dens_field, int 
     int x,y,z,i;
 
     Mmin = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc);
-    double lnMmin = log(Mmin);
+    double lnMmin = log(Mmin/MMIN_FACTOR);
 
     init_ps();
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        initialiseSigmaMInterpTable(Mmin,MMAX_TABLES);
+        initialiseSigmaMInterpTable(Mmin/MMIN_FACTOR,MMAX_TABLES);
         initialise_dNdM_table(-1, Deltac, growthf, lnMmax, lnMmin, false);
         if(user_params_stoc->STOC_INVERSE){
             initialise_inverse_table(-1, Deltac, lnMmin, growthf, 0., false);
@@ -932,8 +921,6 @@ int build_halo_cats(gsl_rng **rng_stoc, double redshift, float *dens_field, int 
     free(hm_buf);
     }
     *n_halo_out = counter;
-    //LOG_DEBUG("first few halo masses of %d %.3e %.3e %.3e",counter,halo_masses[0],halo_masses[1],halo_masses[2]);
-    //LOG_DEBUG("first few stellar masses %.3e %.3e %.3e",stellar_masses[0],stellar_masses[1],stellar_masses[2]);
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
         freeSigmaMInterpTable();
         free_dNdM_table();
@@ -964,14 +951,12 @@ int halo_update(gsl_rng ** rng, double z_in, double z_out, int nhalo_in, int *ha
     
     double delta = Deltac * growth_out / growth_in;
 
-    //LOG_DEBUG("first few masses: %.2e %.2e %.2e", halomass_in[0], halomass_in[1], halomass_in[2]);
-
     init_ps();
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        initialiseSigmaMInterpTable(Mmin,MMAX_TABLES);
-        initialise_dNdM_table(log(Mmin), log(MMAX_TABLES), growth_out, growth_in, log(Mmin), true);
+        initialiseSigmaMInterpTable(Mmin/MMIN_FACTOR,MMAX_TABLES);
+        initialise_dNdM_table(log(Mmin/MMIN_FACTOR), log(MMAX_TABLES), growth_out, growth_in, log(Mmin), true);
         if(user_params_stoc->STOC_INVERSE){
-            initialise_inverse_table(log(Mmin), log(MMAX_TABLES), log(Mmin), growth_out, growth_in, true);
+            initialise_inverse_table(log(Mmin), log(MMAX_TABLES), log(Mmin/MMIN_FACTOR), growth_out, growth_in, true);
         }
     }
 
@@ -1124,9 +1109,9 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
     halos->stellar_masses = stellar_masses;
     halos->halo_sfr = halo_sfr;
 
-    LOG_DEBUG("First few Masses:  %03d %11.3e %11.3e %11.3e",n_halo_stoc,halo_masses[0],halo_masses[1],halo_masses[2]);
-    LOG_DEBUG("First few Stellar: %03d %11.3e %11.3e %11.3e",n_halo_stoc,stellar_masses[0],stellar_masses[1],stellar_masses[2]);
-    LOG_DEBUG("First few SFR:     %03d %11.3e %11.3e %11.3e",n_halo_stoc,halo_sfr[0],halo_sfr[1],halo_sfr[2]);
+    LOG_DEBUG("First few Masses:  %11.3e %11.3e %11.3e",halo_masses[0],halo_masses[1],halo_masses[2]);
+    LOG_DEBUG("First few Stellar: %11.3e %11.3e %11.3e",stellar_masses[0],stellar_masses[1],stellar_masses[2]);
+    LOG_DEBUG("First few SFR:     %11.3e %11.3e %11.3e",halo_sfr[0],halo_sfr[1],halo_sfr[2]);
 
     free_rng_threads(rng_stoc);
     return 0;
@@ -1164,8 +1149,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             
             M_min = minimum_source_mass(redshift,astro_params,flag_options);
             if(user_params->USE_INTERPOLATION_TABLES){
-                initialiseSigmaMInterpTable(M_min,MMAX_TABLES);
-                //More Stuff Here SFRD AND NION TABLES FROM TS.C BUT BE CAREFUL
+                initialiseSigmaMInterpTable(M_min,global_params.M_MAX_INTEGRAL);
             }
 
             growth_z = dicke(redshift);
@@ -1187,7 +1171,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             Mlim_Fstar = Mass_limit_bisection(M_min, global_params.M_MAX_INTEGRAL, alpha_star, norm_star);
             Mlim_Fesc = Mass_limit_bisection(M_min, global_params.M_MAX_INTEGRAL, alpha_esc, norm_esc);
 
-            hm_expected = IntegratedNdM(growth_z, lnMmin, log(global_params.M_MAX_INTEGRAL),log(global_params.M_MAX_INTEGRAL),0,1,user_params->HMF);
+            hm_expected = IntegratedNdM(growth_z, lnMmin, log(global_params.M_MAX_INTEGRAL), log(global_params.M_MAX_INTEGRAL), 0, 1, user_params->HMF);
             sm_expected = Nion_General(redshift, M_min, astro_params->M_TURN, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc);
             sfr_expected = Nion_General(redshift, M_min, astro_params->M_TURN, alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.);
 
@@ -1446,6 +1430,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 prefactor = 1.;
                 ps_ratio = 1.;
             }
+            #pragma omp parallel for private(test)
             for(i=0;i<n_mass;i++){
                 //conditional ps mass func * pow(M,n_order)
                 if(M[i] < Mmin && seed != 0){
@@ -1466,6 +1451,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             //integrate CMF -> N(>M) in one condition
             //TODO: make it possible to integrate UMFs
             double M_in;
+            #pragma omp parallel for private(test,M_in)
             for(i=0;i<n_mass;i++){
                 M_in = M[i] < Mmin ? Mmin : M[i];
                 test = IntegratedNdM(growth_out,log(M_in),lnMmax,lnMmax,delta,0,-1);
@@ -1477,6 +1463,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             //intregrate CMF -> N_halos in many condidions
             //TODO: make it possible to integrate UMFs
             //quick hack: condition gives n_order, seed ignores tables
+            #pragma omp parallel for private(test,R,volume)
             for(i=0;i<n_mass;i++){
                 if(update){
                     R = MtoR(M[i]);
@@ -1565,6 +1552,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         //return inverse table result for M at a bunch of probabilities
         else if(type==6){
             double y_in,x_in;
+            #pragma omp parallel for private(test,x_in,y_in)
             for(i=0;i<n_mass;i++){
                 y_in = log(M[i]); //M are probablities here
                 x_in = update ? lnMmax : delta;

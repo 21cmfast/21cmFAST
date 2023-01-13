@@ -1123,7 +1123,7 @@ def determine_halo_list(
             raise ValueError(f"Minimum halo redshift {min_z} must be <= field redshift {redshift}")
 
         need_desc_box = False
-        first_box = True
+        first_box = False
         #Three cases: descendant given, recursion to min_z, and first box
         if not isinstance(halos_desc, HaloField) or not halos_desc.is_computed:
             #If a descendant field is not provided, we step back toward the minimum z
@@ -1455,6 +1455,7 @@ def halo_box(
                 direc=direc,
                 random_seed=random_seed,
             )
+            box._random_seed = init_boxes.random_seed
 
         # Dynamically produce the halo list.
         # This uses default descendant behaviour, stepping from STOC_MINIMUM_Z to redshift
@@ -1578,6 +1579,9 @@ def xray_source(
             flag_options=flag_options,
         )
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
         # Check whether the boxes already exist
         if not regenerate:
             try:
@@ -1590,67 +1594,90 @@ def xray_source(
             except OSError:
                 pass
 
-    #now we need to find the closest halo box to the redshift of the shell
-    cosmo_ap = cosmo_params.cosmo
-    cmd_zp = cosmo_ap.comoving_distance(redshift)
-    R_range = np.linspace(0,global_params.R_XLy_MAX,num=global_params.NUM_FILTER_STEPS_FOR_Ts) * units.Mpc
-    cmd_edges = cmd_zp + R_range #comoving distance edges
-    zpp_edges = cosmo_ap.z_at_value(cosmo_ap.comoving_distance,dist_arr)
-    #the `average` redshift of the shell is the average of the 
-    #inner and outer redshifts (following the C code)
-    zpp_avg = zpp_edges[1:] - np.diff(zpp_edges)
+        #set minimum R at cell size
+        l_factor = (4*np.pi/3.)**(-1/3)
+        R_min = user_params.BOX_LEN/user_params.HII_DIM * l_factor
+        z_max = min(max(z_halos),global_params.Z_HEAT_MAX)
 
-    #find the redshift of the closest halobox that we have
-    #NOTE: you should pass the reversed (z-increasing) halo boxes
-    idx_halobox = np.searchsorted(z_halos,zpp_avg,side='left')
+        #now we need to find the closest halo box to the redshift of the shell
+        cosmo_ap = cosmo_params.cosmo
+        cmd_zp = cosmo_ap.comoving_distance(redshift)
+        R_range = np.linspace(R_min,global_params.R_XLy_MAX,num=global_params.NUM_FILTER_STEPS_FOR_Ts) * units.Mpc
+        cmd_edges = cmd_zp + R_range #comoving distance edges
+        zpp_edges = [z_at_value(cosmo_ap.comoving_distance,d) for d in cmd_edges] 
+        #the `average` redshift of the shell is the average of the 
+        #inner and outer redshifts (following the C code)
+        zpp_avg = zpp_edges - np.diff(np.insert(zpp_edges,0,redshift))/2
 
-    for i in range(global_params.NUM_FILTER_STEPS_FOR_Ts):
-        R_inner = R_range[i-1] if i>0 else 0
-        R_outer = R_range[i]
+        #find the redshift of the closest halobox that we have
+        #NOTE: you should pass the reversed (z-increasing) halo boxes
+        idx_halobox = np.searchsorted(z_halos,zpp_avg,side='left')
+        
+        #call the box the initialize the memory
+        box()
 
-        #we don't want to calculate the filtered box above the redshift limit
-        if zpp_edges[i] > global_params.Z_HEAT_MAX:
-            box.filtered_sfr[i,...] = 0
-            continue
+        for i in range(global_params.NUM_FILTER_STEPS_FOR_Ts):
+            R_inner = R_range[i-1].to('Mpc').value if i > 0 else 0
+            R_outer = R_range[i].to('Mpc').value
 
-        #interpolate halo boxes in gridded SFR
-        #TODO: I could take the closest and scale to the expected global average
-        #but I wanted to avoid this fixing wherever possible
-        idx = idx_halobox[i]
-        z_desc = z_halos[idx]
-        hbox = HaloBox.from_file(hbox_file[idx])
+            #we don't want to calculate the filtered box above the redshift limit
+            
+            if zpp_avg[i] >= z_max:
+                box.filtered_sfr[i,...] = 0
+                continue
 
-        #if the higher redshift has no halos we ignore the whole shell
-        #TODO: similar subdivision as in Ts.c?
-        if hbox.halo_mass.max() < (10 ** astro_params.M_TURN) / 50:
-            box.filtered_sfr[i,...] = 0
-            continue
+            #interpolate halo boxes in gridded SFR
+            #NOTE: I could take the closest and scale to the expected global average
+            #but I wanted to avoid this fixing wherever possible
+            idx = idx_halobox[i]
+            
+            z_prog = z_halos[idx]
+            hbox = HaloBox.from_file(hbox_files[idx])
 
-        if idx!=0:
-            z_prog = z_halos[idx-1]
-            halobox_prog = HaloBox.from_file(hbox_files[idx-1])
+            #if the higher redshift has no halos we ignore the whole shell
+            if hbox.halo_mass.max() < (10 ** astro_params.M_TURN) / 50:
+                box.filtered_sfr[i,...] = 0
+                continue
 
-            interp_param = (zpp_avg - z_desc) - (z_desc - z_prog)*zpp_avg
-            hbox.halo_mass = (interp_param*hbox.halo_mass + (1-interp_param)*halobox_prog.halo_mass)
-            hbox.star_mass = (interp_param*hbox.star_mass + (1-interp_param)*halobox_prog.star_mass)
-            hbox.halo_sfr = (interp_param*hbox.halo_sfr + (1-interp_param)*halobox_prog.halo_sfr)
+            #idx == 0  happens when zpp == zp at the lowest redshift, which should never happen
+            #but I guard against it anyway
+            if idx > 0:
+                z_desc = z_halos[idx-1]
+                interp_param = (zpp_avg[i] - z_prog)/(z_desc - z_prog)
 
-        #quick hack so that I can compute in the loop multiple times
-        #TODO: in future I should separate compute() into three parts:
-        # initialize(memory), update (calculate on R), finalize (save&hooks)
-        box.is_computed = False
+                if interp_param > 1e-5:
+                    hbox_desc = HaloBox.from_file(hbox_files[idx-1])
 
-        #we only want to call hooks at the end so we set a dummy hook here
-        #TODO: this is very silly try another way to get around the default save
-        dummy_hook = {do_nothing: {}}
-        box = box.compute(hbox,R_inner,R_outer,i,hooks=dummy_hook)
+                    hbox.halo_mass = (interp_param*hbox_desc.halo_mass + (1-interp_param)*hbox.halo_mass)
+                    hbox.wstar_mass = (interp_param*hbox_desc.wstar_mass + (1-interp_param)*hbox.wstar_mass)
+                    hbox.halo_sfr = (interp_param*hbox_desc.halo_sfr + (1-interp_param)*hbox.halo_sfr)
+                    #logger.info(f'interp {interp_param}')
 
-    #call hooks here since I circumvented it before
-    box._call_hooks(hooks)
-    return box
+            #HACK: so that I can compute in the loop multiple times
+            #since the array state is initialized already it shouldn't re-initialise
+            #TODO: in future I should separate compute() into three parts:
+            # initialize(memory), update (calculate on R), finalize (save&hooks)
+            for k, state in box._array_state.items():
+                if state.initialized:
+                    state.computed_in_mem = False
 
-#TODO: find a better way to not call hooks without messing with the default (writing)
-def do_nothing(**kwargs):
+            #we only want to call hooks at the end so we set a dummy hook here
+            #TODO: this is very silly try another way to get around the default save
+            dummy_hook = {do_nothing: {"param" : None}}
+            hooks_in = hooks if i == global_params.NUM_FILTER_STEPS_FOR_Ts - 1 else dummy_hook
+            #logger.info(f'starting R = ({R_inner},{R_outer})')
+            box = box.compute(halobox=hbox,R_inner=R_inner,R_outer=R_outer,R_ct=i,hooks=hooks_in)
+
+        #HACK: sometimes we don't compute (if the first zpp > z_max or there are no halos)
+        #in which case the array is not marked as computed, TODO: force a compute on cell scale
+        for k, state in box._array_state.items():
+            if state.initialized:
+                state.computed_in_mem = True
+
+        return box
+
+#TODO (see above dummy hook): find a better way to not call hooks without messing with the default (writing)
+def do_nothing(box, **kwargs):
     return
 
 def ionize_box(
@@ -2363,11 +2390,13 @@ def spin_temperature(
                     pt_halos=pt_halos,
                     perturbed_field=perturbed_field,
                 )
-        else:
-            halobox = HaloBox(redshift=0,dummy=True)
+            #TODO: this doesn't work with the recursion at all, move to a list of needed snapshots like the lightcone
+            if not isinstance(sourcebox,XraySourceBox) or not sourcebox.is_computed:
+                raise ValueError("Cannot yet calculate xray source box")
 
-        #TODO: this doesn't work with the recursion at all, move to a list of needed snapshots like the lightcone
-        sourcebox = XraySourceBox(redshift=4,dummy=True)
+        else:
+            sourcebox = XraySourceBox(redshift=0,dummy=True)
+            halobox = HaloBox(redshift=0,dummy=True)
 
         # Dynamically produce the perturbed field.
         if perturbed_field is None or not perturbed_field.is_computed:
@@ -2815,6 +2844,7 @@ def run_coeval(
                         flag_options=flag_options,
                         cosmo_params=cosmo_params,
                         user_params=user_params,
+                        random_seed=random_seed, #needed since no boxes in memory
                         z_halos=redshifts[::-1],
                         hbox_files=halobox[::-1])
                 logger.debug(f"Doing spin temp for z={z}.")
@@ -3318,6 +3348,7 @@ def run_lightcone(
                         flag_options=flag_options,
                         cosmo_params=cosmo_params,
                         user_params=user_params,
+                        random_seed=random_seed, #needed since no boxes in memory
                         z_halos=scrollz[::-1],
                         hbox_files=hbox_files[::-1])
 
