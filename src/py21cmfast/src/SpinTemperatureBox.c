@@ -3097,7 +3097,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     for(R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
         dzpp_for_evolve = dzpp_list[R_ct];
         zpp = zpp_for_evolve_list[R_ct];
-        z_edge_factor = fabs(dzpp_for_evolve) * fabs(dtdz_list[R_ct]); //dtdz dz for dM/dt -> (dM/dz'')dz''
+        z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]); //dtdz dz for dM/dt -> (dM/dz'')dz''
         xray_R_factor = pow(1+zpp,-(astro_params->X_RAY_SPEC_INDEX));
 
         //in ComputeTS, there are prefactors which depend on the sum of stellar mass (to do the ST_OVER_PS part) so they have to be computed and stored separately
