@@ -22,15 +22,15 @@ repos:
         - id: flake8
           additional_dependencies:
             - flake8-quotes
-            - flake8-comprehensions
+#            - flake8-comprehensions  # no support for flake8 v6
             - flake8-builtins
-            - flake8-eradicate
+            # - flake8-eradicate  # no support for flake8 v6
             - pep8-naming
             - flake8-pytest
             - flake8-docstrings
             - flake8-rst-docstrings
             - flake8-rst
-            - flake8-copyright
+            # - flake8-copyright  # no support flor flake8 v6
             - flake8-print
 
     - repo: https://github.com/psf/black
