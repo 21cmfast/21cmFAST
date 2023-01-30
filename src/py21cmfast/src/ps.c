@@ -3984,6 +3984,14 @@ float adjust_redshifts_for_photoncons(
             adjusted_redshift = *redshift;
         }
         else {
+            // Initialise the photon non-conservation correction curve
+            // It is possible that for certain parameter choices that we can get here without initialisation happening.
+            // Thus check and initialise if not already done so
+            if(!photon_cons_allocated) {
+                determine_deltaz_for_photoncons();
+                photon_cons_allocated = true;
+            }
+
             // We have crossed the NF threshold for the photon conservation correction so now set to the delta z at the threshold
             if(required_NF < global_params.PhotonConsAsymptoteTo) {
 
