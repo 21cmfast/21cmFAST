@@ -543,7 +543,15 @@ double Get_Radio_Temp_HMG_PBH(struct TsBox *previous_spin_temp, double z, double
 		EMS_IGM = PBH_Radio_EMS_IGM(zp, new_nu, cosmo_params, astro_params, Tk, Fcoll, 0.0);
 
 		// Total comoving emissivity in SI unit, at redshifted 21cm frequency, from zp
-		EMS_tot = EMS_Halo + EMS_IGM;
+		if (zp > astro_params->Radio_Zmin)
+		{
+			EMS_tot = EMS_Halo + EMS_IGM;
+		}
+		else
+		{
+			EMS_tot = 0.0;
+		}
+
 
 		// 3.81E28 is [ c^3 /(8 pi kb v21^2) ]
 		Integrand += pow(1 + z, 3) * 3.8101E28 * EMS_tot / (1 + zp) / hubble(zp);
