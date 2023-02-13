@@ -433,8 +433,11 @@ double Get_Radio_Temp_HMG_Astro(struct TsBox *previous_spin_temp, struct AstroPa
 			Phi_mini = SFRD_box_Interp(previous_spin_temp, z, 2);
 			fun_ACG = Radio_Prefix_ACG * Phi * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR) * dz;
 			fun_MCG = Radio_Prefix_MCG * Phi_mini * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR_mini) * dz;
+			if (z > astro_params->Radio_Zmin)
+			{
+				Radio_Temp += fun_ACG + fun_MCG;
+			}
 			z += dz;
-			Radio_Temp += fun_ACG + fun_MCG;
 		}
 		return Radio_Temp;
 	}
