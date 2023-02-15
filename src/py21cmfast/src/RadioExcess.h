@@ -9,7 +9,7 @@
 #define astro_nu0 0.15 // in GHz
 
 // Print debug info array to a file, info contains: SFRD_box, Gas Temp
-#define Debug_Printer 1
+#define Debug_Printer 0
 #define Reset_Radio_Temp_HMG 0
 
 // Some numerical settings for the radio BKG table
