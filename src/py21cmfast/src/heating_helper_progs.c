@@ -300,7 +300,7 @@ double xion_RECFAST(float z, int flag)
     return ans;
 }
 
-// approximation for the adiabatic index at z=6-50 from 2302.08506. Linear only, used to initialize the Tk box at high z so it's not homogeneous. Otherwise half of the adiabatic fluctuations are missing
+// approximation for the adiabatic index at z=6-50 from 2302.08506. Linear only, used to initialize the Tk box at high z so it's not homogeneous. Otherwise half of the adiabatic fluctuations are missing. Definition is \delta Tk = Tk * cT * \delta (at each z).
 double cT_approx(float z){
   c0T=0.58;
   c1T=0.006;

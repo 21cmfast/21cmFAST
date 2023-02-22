@@ -80,7 +80,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
 
     float growth_factor_z, inverse_growth_factor_z, R, R_factor, zp, mu_for_Ts, filling_factor_of_HI_zp;
     float dzp, prev_zp, zpp, prev_zpp, prev_R, Tk_BC, xe_BC;
-    float xHII_call, curr_xalpha, TK, TS, xe, deltax_highz;
+    float xHII_call, curr_xalpha, TK, TS, xe, deltax_highz, cT_ad;
     float zpp_for_evolve,dzpp_for_evolve, M_MIN;
 
     float determine_zpp_max, zpp_grid, zpp_gridpoint1, zpp_gridpoint2,zpp_evolve_gridpoint1;
@@ -444,6 +444,7 @@ LOG_SUPER_DEBUG("Initialised heat");
 LOG_SUPER_DEBUG("redshift greater than Z_HEAT_MAX");
         xe = xion_RECFAST(redshift,0);
         TK = T_RECFAST(redshift,0);
+        cT_ad = cT_approx(redshift);
 
         growth_factor_zp = dicke(redshift);
 
@@ -456,7 +457,7 @@ LOG_SUPER_DEBUG("growth factor zp = %f", growth_factor_zp);
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
                     for (k=0; k<user_params->HII_DIM; k++){
-                        this_spin_temp->Tk_box[HII_R_INDEX(i,j,k)] = TK;
+                        this_spin_temp->Tk_box[HII_R_INDEX(i,j,k)] = TK * (1.0 + cT_ad * perturbed_field->density[HII_R_INDEX(i,j,k)]*inverse_growth_factor_z*growth_factor_zp);
                         this_spin_temp->x_e_box[HII_R_INDEX(i,j,k)] = xe;
                         // compute the spin temperature
                         this_spin_temp->Ts_box[HII_R_INDEX(i,j,k)] = get_Ts(redshift,
@@ -506,7 +507,7 @@ LOG_SUPER_DEBUG("Treating as the first box");
             {
 #pragma omp for
                 for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
-                    previous_spin_temp->Tk_box[ct] = Tk_BC;
+                    previous_spin_temp->Tk_box[ct] = Tk_BC; //JBM QUESTION: do we change this one too?
                     previous_spin_temp->x_e_box[ct] = xe_BC;
                 }
             }
