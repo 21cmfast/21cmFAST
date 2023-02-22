@@ -105,6 +105,8 @@ LOG_SUPER_DEBUG("initing heat");
     init_heat();
     float TK;
     TK = T_RECFAST(redshift,0);
+    float cT_ad;
+    cT_ad = cT_approx(redshift);
 LOG_SUPER_DEBUG("inited heat");
 
     init_ps();
@@ -642,7 +644,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 #pragma omp for
                 for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                     box->xH_box[ct] = global_xH;
-                    box->temp_kinetic_all_gas[ct] = TK;
+                    box->temp_kinetic_all_gas[ct] = TK * (1.0 + cT_ad * perturbed_field->density[HII_R_INDEX(i,j,k)]); // Is perturbed_field defined already here? we need it for cT. I'm also assuming we don't need to multiply by other z here.
                 }
             }
         }

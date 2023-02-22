@@ -507,7 +507,7 @@ LOG_SUPER_DEBUG("Treating as the first box");
             {
 #pragma omp for
                 for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
-                    previous_spin_temp->Tk_box[ct] = Tk_BC; //JBM QUESTION: do we change this one too?
+                    previous_spin_temp->Tk_box[ct] = Tk_BC * (1.0 + cT_ad * perturbed_field->density[HII_R_INDEX(i,j,k)]*inverse_growth_factor_z*growth_factor_zp); //JBM QUESTION: is this properly defined here too?
                     previous_spin_temp->x_e_box[ct] = xe_BC;
                 }
             }
