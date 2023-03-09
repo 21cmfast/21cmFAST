@@ -1602,7 +1602,9 @@ def xray_source(
         #now we need to find the closest halo box to the redshift of the shell
         cosmo_ap = cosmo_params.cosmo
         cmd_zp = cosmo_ap.comoving_distance(redshift)
-        R_range = np.linspace(R_min,global_params.R_XLy_MAX,num=global_params.NUM_FILTER_STEPS_FOR_Ts) * units.Mpc
+        R_steps = np.arange(0,global_params.NUM_FILTER_STEPS_FOR_Ts)
+        R_factor = (global_params.R_XLy_MAX/R_min)**(R_steps/global_params.NUM_FILTER_STEPS_FOR_Ts)
+        R_range = units.Mpc * R_min * R_factor
         cmd_edges = cmd_zp + R_range #comoving distance edges
         zpp_edges = [z_at_value(cosmo_ap.comoving_distance,d) for d in cmd_edges] 
         #the `average` redshift of the shell is the average of the 
@@ -3281,7 +3283,7 @@ def run_lightcone(
                         flag_options=flag_options,
                         regenerate=regenerate,
                         hooks=hooks,
-                        halos_desc=halos_desc,
+                        halos_desc=None, #TODO: turned off halo updates for the lightcones, make sure to remove
                         direc=direc,
                     )
                     pt_halos = perturb_halo_list(

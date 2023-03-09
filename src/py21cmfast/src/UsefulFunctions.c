@@ -91,8 +91,8 @@ void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_oute
                     kRouter = k_mag*R_outer;
 
                     if (kRinner > 1e-4){
-                        f_inner = 3.0*pow(kRinner, -3) * (sin(kRinner) - cos(kRinner)*kRinner);
-                        f_outer = 3.0*pow(kRouter, -3) * (sin(kRouter) - cos(kRouter)*kRouter);
+                        f_inner = 3.0/(pow(kRouter, 3) - pow(kRinner, 3)) * (sin(kRinner) - cos(kRinner)*kRinner);
+                        f_outer = 3.0/(pow(kRouter, 3) - pow(kRinner, 3)) * (sin(kRouter) - cos(kRouter)*kRouter);
                         if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= (f_outer - f_inner); }
                         if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= (f_outer - f_inner); }
                     }
