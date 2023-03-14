@@ -726,12 +726,22 @@ class FlagOptions(StructWithDefaults):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
         if self.USE_MINI_HALOS and self._PHOTON_CONS:
             logger.warning(
-                "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
-                "Automatically setting PHOTON_CONS to False."
+                "USE_MINI_HALOS has never been tested with PHOTON_CONS! "
+                "Use at your own risk!"
+            )
+        return self._PHOTON_CONS
+
+    @property
+    def EVOLVING_R_BUBBLE_MAX(self):
+        """Automatically setting EVOLVING_R_BUBBLE_MAX to False if USE_MINI_HALOS."""
+        if self.USE_MINI_HALOS and self._EVOLVING_R_BUBBLE_MAX:
+            logger.warning(
+                "USE_MINI_HALOS is not compatible with EVOLVING_R_BUBBLE_MAX as filtering radii change! "
+                "Automatically setting EVOLVING_R_BUBBLE_MAX to False."
             )
             return False
         else:
-            return self._PHOTON_CONS
+            return self._EVOLVING_R_BUBBLE_MAX
 
 
 class AstroParams(StructWithDefaults):
@@ -793,7 +803,8 @@ class AstroParams(StructWithDefaults):
         See Sec 2.1 of Park+2018.
     R_BUBBLE_MAX : float, optional
         Mean free path in Mpc of ionizing photons within ionizing regions (Sec. 2.1.2 of
-        Greig+2015). Default is 50 if `INHOMO_RECO` is True, or 15.0 if not.
+        Greig+2015). Default is 50 if `INHOMO_RECO` is True, or 15.0 if not. But if
+        EVOLVING_R_BUBBLE_MAX, then R_BUBBLE_MAX follows a fitting function that evolves with z.
     ION_Tvir_MIN : float, optional
         Minimum virial temperature of star-forming haloes (Sec 2.1.3 of Greig+2015).
         Given in log10 units.
