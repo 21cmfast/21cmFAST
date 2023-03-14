@@ -27,7 +27,7 @@ def trace_print():
     )
 
     if snapshot is not None:
-        thismem = PROCESS.memory_info().rss / 1024 ** 2
+        thismem = PROCESS.memory_info().rss / 1024**2
         diff = thismem - oldmem
         print(
             "===================== Begin Trace (TOTAL MEM={:1.4e} MB... [{:+1.4e} MB]):".format(

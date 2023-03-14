@@ -790,7 +790,7 @@ def pr_feature(
             plt.savefig(f"pr_feature_lighcone_2d_{field}.pdf")
 
         def rms(x, axis=None):
-            return np.sqrt(np.mean(x ** 2, axis=axis))
+            return np.sqrt(np.mean(x**2, axis=axis))
 
         print("Plotting lightcone history...")
         fig, ax = plt.subplots(4, 1, sharex=True, gridspec_kw={"hspace": 0.05})

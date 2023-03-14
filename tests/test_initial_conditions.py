@@ -55,7 +55,7 @@ def test_transfer_function(ic, default_user_params):
         user_params=user_params,
     )
 
-    rmsnew = np.sqrt(np.mean(ic2.hires_density ** 2))
+    rmsnew = np.sqrt(np.mean(ic2.hires_density**2))
     rmsdelta = np.sqrt(np.mean((ic2.hires_density - ic.hires_density) ** 2))
     assert rmsdelta < rmsnew
     assert rmsnew > 0.0
@@ -76,7 +76,7 @@ def test_relvels():
         ),
     )
 
-    vcbrms_lowres = np.sqrt(np.mean(ic.lowres_vcb ** 2))
+    vcbrms_lowres = np.sqrt(np.mean(ic.lowres_vcb**2))
     vcbavg_lowres = np.mean(ic.lowres_vcb)
 
     # we test the lowres box
