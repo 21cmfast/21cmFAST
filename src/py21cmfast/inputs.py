@@ -623,12 +623,8 @@ class FlagOptions(StructWithDefaults):
         Whether to perform a small correction to account for the inherent
         photon non-conservation.
     FIX_VCB_AVG: bool, optional
-<<<<<<< HEAD
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES).
-        It includes the average effect of velocities but not its fluctuations.
-=======
-        Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
->>>>>>> master
+        It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
     USE_VELS_AUX: bool, optional
         Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain.
     EVOLVING_R_BUBBLE_MAX: bool, optional

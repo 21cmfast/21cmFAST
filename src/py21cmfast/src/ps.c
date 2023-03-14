@@ -3988,12 +3988,9 @@ float adjust_redshifts_for_photoncons(
             adjusted_redshift = *redshift;
         }
         else {
-<<<<<<< HEAD
-=======
             // Initialise the photon non-conservation correction curve
             // It is possible that for certain parameter choices that we can get here without initialisation happening.
             // Thus check and initialise if not already done so
->>>>>>> master
             if(!photon_cons_allocated) {
                 determine_deltaz_for_photoncons();
                 photon_cons_allocated = true;
