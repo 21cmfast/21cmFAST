@@ -20,6 +20,7 @@ import warnings
 from astropy import units
 from astropy.cosmology import z_at_value
 from cached_property import cached_property
+from cosmotile import apply_rsds
 from hashlib import md5
 from pathlib import Path
 from typing import Sequence
@@ -204,10 +205,15 @@ class PerturbedField(_OutputStructZ):
     ]
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        return {
+        out = {
             "density": (self.user_params.HII_DIM,) * 3,
-            "velocity": (self.user_params.HII_DIM,) * 3,
+            "velocity_z": (self.user_params.HII_DIM,) * 3,
         }
+        if self.user_params.KEEP_3D_VELOCITIES:
+            out["velocity_x"] = (self.user_params.HII_DIM,) * 3
+            out["velocity_y"] = (self.user_params.HII_DIM,) * 3
+
+        return out
 
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -251,6 +257,11 @@ class PerturbedField(_OutputStructZ):
             ics,
             hooks=hooks,
         )
+
+    @property
+    def velocity(self):
+        """The velocity of the box in the 3rd dimension (for backwards compat)."""
+        return self.velocity_z  # for backwards compatibility
 
 
 class _AllParamsBox(_OutputStructZ):
@@ -641,8 +652,8 @@ class BrightnessTemp(_AllParamsBox):
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
-        if isinstance(input_box, PerturbedField):
-            required += ["velocity"]
+        if isinstance(input_box, PerturbedField) and self.flag_options.APPLY_RSDS:
+            required += ["velocity_z"]
         elif isinstance(input_box, TsBox):
             required += ["Ts_box"]
         elif isinstance(input_box, IonizedBox):
@@ -1011,6 +1022,10 @@ class Coeval(_HighLevelOutput):
             for field in box._get_box_structures():
                 setattr(self, field, getattr(box, field))
 
+        # For backwards compatibility
+        if hasattr(self, "velocity_z"):
+            self.velocity = self.velocity_z
+
     @classmethod
     def get_fields(cls, spin_temp: bool = True) -> list[str]:
         """Obtain a list of name of simulation boxes saved in the Coeval object."""
@@ -1194,7 +1209,7 @@ class LightCone(_HighLevelOutput):
         """Redshift of each cell along the redshift axis."""
         return np.array(
             [
-                z_at_value(self.cosmo_params.cosmo.comoving_distance, d * units.Mpc)
+                z_at_value(self.cosmo_params.cosmo.comoving_distance, d)
                 for d in self.lightcone_distances
             ]
         )
@@ -1220,6 +1235,7 @@ class LightCone(_HighLevelOutput):
                 global_q[k] = v
 
             f["node_redshifts"] = self.node_redshifts
+            f["distances"] = self.lightcone_distances
 
     def make_checkpoint(self, fname, index: int, redshift: float):
         """Write updated lightcone data to file."""
@@ -1273,6 +1289,7 @@ class LightCone(_HighLevelOutput):
             kwargs["global_quantities"] = {k: glb[k][...] for k in glb.keys()}
 
             kwargs["node_redshifts"] = fl["node_redshifts"][...]
+            kwargs["distances"] = fl["distances"][...]
 
         return kwargs
 
@@ -1303,3 +1320,44 @@ class AngularLightcone(LightCone):
     def lightcone_dimensions(self):
         """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
         raise AttributeError("This is not an attribute of an AngularLightcone")
+
+    def compute_rsds(self, n_subcells: int = 4, fname: str | Path = None):
+        """Compute redshift-space distortions from the los_velocity lightcone.
+
+        Parameters
+        ----------
+        n_subcells
+            The number of sub-cells to interpolate onto, to make the RSDs more accurate.
+        fname
+            An output path to write the new RSD-corrected brightness temperature to.
+        """
+        if "los_velocity" not in self.lightcones:
+            raise ValueError(
+                "Lightcone does not contain los velocity field, cannot compute_rsds"
+            )
+        if "brightness_temp_with_rsds" in self.lightcones:
+            warnings.warn(
+                "Lightcone already contains brightness_temp_with_rsds, returning"
+            )
+            return self.lightcones["brightness_temp_with_rsds"]
+
+        H0 = self.cosmo_params.cosmo.H0(self.lightcone_redshifts)
+        los_displacement = self.lightcones["los_velocity"] / H0
+        equiv = units.pixel_scale(self.cell_size / units.pixel)
+        los_displacement = los_displacement.to(units.pixel, equivalencies=equiv)
+
+        # Compute the RSDs
+        tb_with_rsds = apply_rsds(
+            field=self.lightcones["brightness_temp"],
+            los_displacement=los_displacement,
+            distance=self.lightcone_distances.to(units.pixel, equiv),
+            n_subcells=n_subcells,
+        )
+
+        self.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
+
+        if Path(fname).exists():
+            with h5py.File(fname, "a") as fl:
+                fl["lightcones"]["brightness_temp_with_rsds"] = tb_with_rsds
+        else:
+            self.save(fname)

@@ -2,6 +2,7 @@
 
 import pytest
 
+import attr
 import numpy as np
 from astropy import units as un
 from astropy_healpix import HEALPix
@@ -10,6 +11,7 @@ from dataclasses import dataclass
 from py21cmfast import (
     BrightnessTemp,
     Coeval,
+    CosmoParams,
     InitialConditions,
     IonizedBox,
     PerturbedField,
@@ -23,7 +25,7 @@ def equal_cdist():
     return lcn.RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=6.0,
         max_redshift=7.0,
-        resolution=2.0,  # Mpc
+        resolution=2.0 * un.Mpc,  # Mpc
         quantities=("brightness_temp",),
     )
 
@@ -33,7 +35,7 @@ def equal_z():
     return lcn.RectilinearLightconer.with_equal_redshift_slices(
         min_redshift=6.0,
         max_redshift=7.0,
-        user_params=UserParams(BOX_LEN=100, HII_DIM=50),
+        resolution=2 * un.Mpc,
         quantities=("brightness_temp",),
     )
 
@@ -47,7 +49,7 @@ def equal_z_angle():
         longitude=lon.radian,
         min_redshift=6.0,
         max_redshift=7.0,
-        user_params=UserParams(BOX_LEN=100, HII_DIM=50),
+        resolution=2 * un.Mpc,
         quantities=("brightness_temp",),
     )
 
@@ -55,7 +57,7 @@ def equal_z_angle():
 @pytest.fixture(scope="module")
 def freqbased(equal_cdist):
     return lcn.RectilinearLightconer.from_frequencies(
-        freqs=1420 * un.MHz / (1 + equal_cdist.lc_redshifts),
+        freqs=1420.4 * un.MHz / (1 + equal_cdist.lc_redshifts),
         quantities=("brightness_temp",),
     )
 
@@ -65,6 +67,7 @@ class MockCoeval:
     redshift: float
     brightness_temp: np.ndarray
     user_params: UserParams
+    cosmo_params: CosmoParams
 
 
 def get_uniform_coeval(redshift, fill=1.0, BOX_LEN=100, HII_DIM=50):
@@ -74,6 +77,7 @@ def get_uniform_coeval(redshift, fill=1.0, BOX_LEN=100, HII_DIM=50):
         redshift=redshift,
         brightness_temp=fill * np.ones((up.HII_DIM, up.HII_DIM, up.HII_DIM)),
         user_params=up,
+        cosmo_params=CosmoParams(),
     )
 
 
@@ -90,9 +94,8 @@ def test_uniform_coevals(request, lc):
     z6 = get_uniform_coeval(redshift=6.0, fill=0)
     z7 = get_uniform_coeval(redshift=7.0, fill=1.0)
 
-    out, idx = lc.make_lightcone_slices(z6, z7)
+    q, idx, out = next(lc.make_lightcone_slices(z6, z7))
 
-    assert np.all(idx[:-1])  # there's a chance that we miss out the last lc_redshift
-    assert np.all(out["brightness_temp"] >= 0)
-    assert np.all(out["brightness_temp"] <= 1)
-    assert np.all(out["brightness_temp"][..., 0] == 0)
+    assert np.all(out >= 0)
+    assert np.all(out <= 1)
+    assert np.all(out[..., 0] == 0)

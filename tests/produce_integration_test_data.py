@@ -351,7 +351,7 @@ def produce_lc_power_spectra(redshift, **kwargs):
                 or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
             )
         ],
-        user_params=UserParams(options["user_params"]),
+        resolution=UserParams(options["user_params"]).cell_size,
     )
 
     with config.use(ignore_R_BUBBLE_MAX_error=True):

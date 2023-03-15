@@ -40,7 +40,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
         for (i=0; i<user_params->HII_DIM; i++){
             for (j=0; j<user_params->HII_DIM; j++){
                 for (k=0; k<user_params->HII_DIM; k++){
-                    *((float *)v + HII_R_FFT_INDEX(i,j,k)) = perturb_field->velocity[HII_R_INDEX(i,j,k)];
+                    *((float *)v + HII_R_FFT_INDEX(i,j,k)) = perturb_field->velocity_z[HII_R_INDEX(i,j,k)];
                 }
             }
         }
@@ -98,7 +98,6 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
     if(isfinite(ave)==0) {
         LOG_ERROR("Average brightness temperature is infinite or NaN!");
-//        Throw(ParameterError);
         Throw(InfinityorNaNError);
     }
 
@@ -432,16 +431,18 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                     for (j=0; j<user_params->HII_DIM; j++){
                         for (k=0; k<user_params->HII_DIM; k++){
 
-                            dvdx = vel_gradient[HII_R_FFT_INDEX(i,j,k)];
+                             if (flag_options->APPLY_RSDS){
+                                dvdx = vel_gradient[HII_R_FFT_INDEX(i,j,k)];
 
-                            // set maximum allowed gradient for this linear approximation
-                            if (fabs(dvdx) > max_v_deriv){
-                                if (dvdx < 0) dvdx = -max_v_deriv;
-                                else dvdx = max_v_deriv;
-                                //                               nonlin_ct++;
-                            }
+                                // set maximum allowed gradient for this linear approximation
+                                if (fabs(dvdx) > max_v_deriv){
+                                    if (dvdx < 0) dvdx = -max_v_deriv;
+                                    else dvdx = max_v_deriv;
+                                    //                               nonlin_ct++;
+                                }
 
-                            box->brightness_temp[HII_R_INDEX(i,j,k)] /= (dvdx/H + 1.0);
+                                box->brightness_temp[HII_R_INDEX(i,j,k)] /= (dvdx/H + 1.0);
+                             }
 
                             ave += box->brightness_temp[HII_R_INDEX(i,j,k)];
                         }

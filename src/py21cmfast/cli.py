@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 import yaml
+from astropy import units as un
 from os import path, remove
 from pathlib import Path
 
@@ -577,7 +578,7 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=redshift,
         max_redshift=max_z,
-        user_params=user_params,
+        resolution=user_params.cell_size,
         cosmo=cosmo_params.cosmo,
         quantities=lq,
     )

@@ -382,10 +382,10 @@ def _set_zaxis_ticks(ax, lightcone, zticks, z_axis):
             ]
 
         d_ticks = (
-            lightcone.cosmo_params.cosmo.comoving_distance(z_ticks).value
+            lightcone.cosmo_params.cosmo.comoving_distance(z_ticks)
             - lightcone.lightcone_distances[0]
         )
-        getattr(ax, f"set_{z_axis}ticks")(d_ticks)
+        getattr(ax, f"set_{z_axis}ticks")(d_ticks.to_value("Mpc"))
         getattr(ax, f"set_{z_axis}ticklabels")(ticks)
 
     else:

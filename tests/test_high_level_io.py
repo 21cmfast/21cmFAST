@@ -28,7 +28,7 @@ def lightcone(ic):
     lcn = RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=25.0,
         max_redshift=35.0,
-        user_params=ic.user_params,
+        resolution=ic.user_params.cell_size,
     )
 
     return run_lightcone(

@@ -2,6 +2,7 @@ import pytest
 
 import logging
 import os
+from astropy import units as un
 
 from py21cmfast import UserParams, config, global_params, run_lightcone, wrapper
 from py21cmfast.cache_tools import clear_cache
@@ -145,7 +146,7 @@ def rectlcn(perturb_field, max_redshift) -> RectilinearLightconer:
     return RectilinearLightconer.with_equal_cdist_slices(
         min_redshift=perturb_field.redshift,
         max_redshift=max_redshift,
-        user_params=perturb_field.user_params,
+        resolution=perturb_field.user_params.cell_size,
         cosmo=perturb_field.cosmo_params.cosmo,
     )
 

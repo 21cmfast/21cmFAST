@@ -32,6 +32,7 @@ struct UserParams{
     bool FAST_FCOLL_TABLES; //Whether to use the fast Fcoll table approximation in EPS
     bool USE_2LPT;
     bool MINIMIZE_MEMORY;
+    bool KEEP_3D_VELOCITIES;
 };
 
 struct AstroParams{
@@ -73,6 +74,7 @@ struct FlagOptions{
     bool USE_MINI_HALOS;
     bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
+    bool APPLY_RSDS;
     bool INHOMO_RECO;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
@@ -88,7 +90,7 @@ struct InitialConditions{
 };
 
 struct PerturbedField{
-    float *density, *velocity;
+    float *density, *velocity_x, *velocity_y, *velocity_z;
 };
 
 struct HaloField{

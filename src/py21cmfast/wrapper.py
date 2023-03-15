@@ -89,6 +89,8 @@ from __future__ import annotations
 import logging
 import numpy as np
 import os
+import warnings
+from astropy import units as un
 from copy import deepcopy
 from pathlib import Path
 from scipy.interpolate import interp1d
@@ -2578,18 +2580,14 @@ def run_lightcone(
     if cosmo_params is None and lightconer is not None:
         cosmo_params = CosmoParams.from_astropy(lightconer.cosmo)
 
-    if lightconer is not None and redshift is None and perturb is None:
-        redshift = lightconer.lc_redshifts.min()
-
     with global_params.use(**global_kwargs):
-
+        # First, get the parameters OTHER than redshift...
         (
             random_seed,
             user_params,
             cosmo_params,
             flag_options,
             astro_params,
-            redshift,
         ) = _setup_inputs(
             {
                 "random_seed": random_seed,
@@ -2599,12 +2597,22 @@ def run_lightcone(
                 "astro_params": astro_params,
             },
             {"init_box": init_box, "perturb": perturb},
-            redshift=redshift,
         )
 
-        if lightconer is not None and lightconer.lc_redshifts.min() > redshift:
-            raise ValueError(
-                "The lightcone redshifts are not compatible with the given redshift."
+        if redshift is None and perturb is None:
+            if lightconer is None:
+                raise ValueError(
+                    "You must provide either redshift, perturb or lightconer"
+                )
+            else:
+                redshift = lightconer.lc_redshifts.min()
+
+        elif redshift is None:
+            redshift = perturb.redshift
+        elif redshift is not None:
+            warnings.warn(
+                DeprecationWarning,
+                "passing redshift directly is deprecated, please use the Lightconer interface instead",
             )
 
         if user_params.MINIMIZE_MEMORY and not write:
@@ -2626,20 +2634,27 @@ def run_lightcone(
             lightconer = RectilinearLightconer.with_equal_cdist_slices(
                 min_redshift=redshift,
                 max_redshift=max_redshift,
-                user_params=user_params,
+                resolution=user_params.cell_size,
                 cosmo=cosmo_params.cosmo,
                 quantities=lightcone_quantities,
+                get_los_velocity=not flag_options.APPLY_RSDS,
             )
-
-        if cosmo_params.cosmo != lightconer.cosmo:
-            raise ValueError(
-                "The cosmology in the lightconer must be the same as in cosmo_params"
-            )
+        lightconer.validate_options(user_params, flag_options)
 
         # Get the redshift through which we scroll and evaluate the ionization field.
         scrollz = _logscroll_redshifts(
             redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift
         )
+
+        lcz = lightconer.lc_redshifts
+        if not np.all(min(scrollz) * 0.99 < lcz) and np.all(lcz < max(scrollz) * 1.01):
+            # We have a 1% tolerance on the redshifts, because the lightcone redshifts are
+            # computed via inverse fitting the comoving_distance.
+            raise ValueError(
+                "The lightcone redshifts are not compatible with the given redshift."
+                f"The range of computed redshifts is {min(scrollz)} to {max(scrollz)}, "
+                f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}."
+            )
 
         if (
             flag_options.PHOTON_CONS
@@ -2875,10 +2890,11 @@ def run_lightcone(
 
             # Get lightcone slices
             if prev_coeval is not None:
-                this_lc, idx = lightconer.make_lightcone_slices(coeval, prev_coeval)
-                if this_lc is not None:
-                    for k, v in this_lc.items():
-                        lightcone.lightcones[k][..., idx] = v
+                for quantity, idx, this_lc in lightconer.make_lightcone_slices(
+                    coeval, prev_coeval
+                ):
+                    if this_lc is not None:
+                        lightcone.lightcones[quantity][..., idx] = this_lc
 
             # Save current ones as old ones.
             if flag_options.USE_TS_FLUCT:
@@ -2914,6 +2930,11 @@ def run_lightcone(
             and lib.interpolation_tables_allocated
         ):
             lib.FreeTsInterpolationTables(flag_options())
+
+        if isinstance(lightcone, AngularLightcone) and lightconer.get_los_velocity:
+            lightcone.compute_rsds(
+                fname=lightcone_filename, n_subcells=astro_params.N_RSD_STEPS
+            )
 
         # Append some info to the lightcone before we return
         lightcone.photon_nonconservation_data = photon_nonconservation_data

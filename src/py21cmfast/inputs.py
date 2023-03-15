@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import warnings
+from astropy import units as un
 from astropy.cosmology import FLRW, Planck15
 from os import path
 from pathlib import Path
@@ -496,6 +497,7 @@ class UserParams(StructWithDefaults):
         "FAST_FCOLL_TABLES": False,
         "USE_2LPT": True,
         "MINIMIZE_MEMORY": False,
+        "KEEP_3D_VELOCITIES": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
@@ -605,6 +607,16 @@ class UserParams(StructWithDefaults):
         )
         return False
 
+    @property
+    def cell_size(self) -> un.Quantity[un.Mpc]:
+        """The resolution of a low-res cell."""
+        return (self.BOX_LEN / self.HII_DIM) * un.Mpc
+
+    @property
+    def cell_size_hires(self) -> un.Quantity[un.Mpc]:
+        """The resolution of a hi-res cell."""
+        return (self.BOX_LEN / self.DIM) * un.Mpc
+
 
 class FlagOptions(StructWithDefaults):
     """
@@ -657,12 +669,18 @@ class FlagOptions(StructWithDefaults):
         "USE_MINI_HALOS": False,
         "USE_MASS_DEPENDENT_ZETA": False,
         "SUBCELL_RSD": False,
+        "APPLY_RSDS": True,
         "INHOMO_RECO": False,
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
         "FIX_VCB_AVG": False,
     }
+
+    @property
+    def SUBCELL_RSD(self):
+        """The SUBCELL_RSD flag is only effective if APPLY_RSDS is True."""
+        return self._SUBCELL_RSD and self.APPLY_RSDS
 
     @property
     def USE_HALO_FIELD(self):

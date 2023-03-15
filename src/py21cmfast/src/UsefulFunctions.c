@@ -691,8 +691,13 @@ void debugSummarizePerturbField(struct PerturbedField *x, int HII_DIM){
     LOG_SUPER_DEBUG("Summary of PerturbedField:");
     LOG_SUPER_DEBUG("  density: ");
     debugSummarizeBox(x->density, HII_DIM, "    ");
-    LOG_SUPER_DEBUG("  velocity: ");
-    debugSummarizeBox(x->velocity, HII_DIM, "    ");
+    LOG_SUPER_DEBUG("  velocity_x: ");
+    debugSummarizeBox(x->velocity_x, HII_DIM, "    ");
+    LOG_SUPER_DEBUG("  velocity_y: ");
+    debugSummarizeBox(x->velocity_y, HII_DIM, "    ");
+    LOG_SUPER_DEBUG("  velocity_z: ");
+    debugSummarizeBox(x->velocity_z, HII_DIM, "    ");
+
 }
 void inspectInitialConditions(struct InitialConditions *x, int print_pid, int print_corners, int print_first,
                               int HII_DIM){
@@ -752,7 +757,19 @@ void inspectPerturbedField(struct PerturbedField *x, int print_pid, int print_co
 
         printf("%s\t\tvelocity: ", pid);
         for(i=0;i<10;i++){
-            printf("%f, ", x->velocity[i]);
+            printf("%f, ", x->velocity_x[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tvelocity: ", pid);
+        for(i=0;i<10;i++){
+            printf("%f, ", x->velocity_y[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tvelocity: ", pid);
+        for(i=0;i<10;i++){
+            printf("%f, ", x->velocity_z[i]);
         }
         printf("\n");
 
@@ -765,7 +782,14 @@ void inspectPerturbedField(struct PerturbedField *x, int print_pid, int print_co
         print_corners_real(x->density, HII_DIM);
 
         printf("%s\t\tvelocity: ", pid);
-        print_corners_real(x->velocity, HII_DIM);
+        print_corners_real(x->velocity_x, HII_DIM);
+
+        printf("%s\t\tvelocity: ", pid);
+        print_corners_real(x->velocity_y, HII_DIM);
+
+        printf("%s\t\tvelocity: ", pid);
+        print_corners_real(x->velocity_z, HII_DIM);
+
     }
 
 }
