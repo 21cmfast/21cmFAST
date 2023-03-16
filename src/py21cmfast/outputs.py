@@ -1343,7 +1343,7 @@ class AngularLightcone(LightCone):
             return self.lightcones["brightness_temp_with_rsds"]
 
         H0 = self.cosmo_params.cosmo.H(self.lightcone_redshifts)
-        los_displacement = self.lightcones["los_velocity"] * units.km / units.s / H0
+        los_displacement = self.lightcones["los_velocity"] * units.Mpc / units.s / H0
         equiv = units.pixel_scale(self.user_params.cell_size / units.pixel)
         los_displacement = los_displacement.to(units.pixel, equivalencies=equiv)
 
