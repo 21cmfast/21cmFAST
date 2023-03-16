@@ -13,7 +13,7 @@ from py21cmfast import (
     run_coeval,
     run_lightcone,
 )
-from py21cmfast.lightcones import RectilinearLightconer
+from py21cmfast.lightcones import AngularLightconer, RectilinearLightconer
 
 
 @pytest.fixture(scope="module")
@@ -36,6 +36,23 @@ def lightcone(ic):
         init_box=ic,
         write=True,
         flag_options={"USE_TS_FLUCT": True},
+    )
+
+
+@pytest.fixture(scope="module")
+def ang_lightcone(ic):
+    lcn = AngularLightconer.like_rectilinear(
+        match_at_z=25.0,
+        max_redshift=35.0,
+        user_params=ic.user_params,
+        get_los_velocity=True,
+    )
+
+    return run_lightcone(
+        lightconer=lcn,
+        init_box=ic,
+        write=True,
+        flag_options={"USE_TS_FLUCT": True, "APPLY_RSDS": False},
     )
 
 
@@ -128,6 +145,15 @@ def test_lightcone_cache(lightcone):
 
     with pytest.raises(IOError):
         lightcone.get_cached_data(kind="brightness_temp", redshift=25.1)
+
+
+def test_ang_lightcone(lightcone, ang_lightcone):
+    assert np.allclose(
+        lightcone.brightness_temp[:, :, 0],
+        ang_lightcone.brightness_temp[:, 0].reshape(
+            lightcone.brightness_temp.shape[:2]
+        ),
+    )
 
 
 def test_write_to_group(ic, test_direc):

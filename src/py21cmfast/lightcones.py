@@ -357,15 +357,29 @@ class RectilinearLightconer(Lightconer):
         return (user_params.HII_DIM, user_params.HII_DIM, len(self.lc_distances))
 
 
+def _rotation_eq(x, y):
+    """Compare two rotations."""
+    if x is None and y is None:
+        return True
+
+    return np.allclose(x.as_matrix(), y.as_matrix())
+
+
 @attr.define(kw_only=True, slots=False)
 class AngularLightconer(Lightconer):
     """Angular lightcone slices constructed from rectlinear coevals."""
 
-    latitude: np.ndarray = attr.field()
-    longitude: np.ndarray = attr.field()
-    interpolation_order: int = attr.field(default=1)
-    origin: tuple[float, float, float] = attr.field(default=(0, 0, 0))
-    rotation: Rotation = attr.field(default=None)
+    latitude: np.ndarray = attr.field(eq=attr.cmp_using(eq=np.allclose))
+    longitude: np.ndarray = attr.field(eq=attr.cmp_using(eq=np.allclose))
+    interpolation_order: int = attr.field(
+        default=1, converter=int, validator=attr.validators.in_([0, 1, 3, 5])
+    )
+    origin: Quantity[pixel, (3,), float] = attr.field(eq=attr.cmp_using(eq=np.allclose))
+    rotation: Rotation = attr.field(
+        default=None,
+        eq=attr.cmp_using(eq=_rotation_eq),
+        validator=attr.validators.optional(attr.validators.instance_of(Rotation)),
+    )
 
     def __attrs_post_init__(self) -> None:
         """Post-init."""
@@ -373,6 +387,74 @@ class AngularLightconer(Lightconer):
             "lcd": None,
             "interpolator": None,
         }
+
+    @longitude.validator
+    def _longitude_validator(self, attribute, value):
+        if value.ndim != 1:
+            raise ValueError("longitude must be 1-dimensional")
+        if np.any(value < 0) or np.any(value > 2 * np.pi):
+            raise ValueError("longitude must be in the range [0, 2pi]")
+        if value.shape != self.latitude.shape:
+            raise ValueError("longitude and latitude must have the same shape")
+
+    @origin.default
+    def _origin_default(self):
+        return np.zeros(3) * pixel
+
+    @classmethod
+    def like_rectilinear(
+        cls, user_params: UserParams, match_at_z: float, cosmo: FLRW = Planck18, **kw
+    ):
+        """Create an angular lightconer with the same pixel size as a rectilinear one.
+
+        This is useful for comparing the two lightconer types.
+
+        Parameters
+        ----------
+        user_params
+            The user parameters.
+        match_at_z
+            The redshift at which the angular lightconer should match the rectilinear
+            one.
+        cosmo
+            The cosmology to use.
+
+        Other Parameters
+        ----------------
+        All other parameters passed through to the constructor.
+
+        Returns
+        -------
+        AngularLightconer
+            The angular lightconer.
+        """
+        box_size_radians = (
+            user_params.BOX_LEN / cosmo.comoving_distance(match_at_z).value
+        )
+
+        lon = np.linspace(0, box_size_radians, user_params.HII_DIM)
+        # This makes the X-values increasing from 0.
+        lat = np.linspace(0, box_size_radians, user_params.HII_DIM)[::-1]
+
+        LON, LAT = np.meshgrid(lon, lat)
+        LON = LON.flatten()
+        LAT = LAT.flatten()
+
+        origin_offset = -cosmo.comoving_distance(match_at_z).to(
+            pixel, pixel_scale(user_params.cell_size / pixel)
+        )
+        origin = np.array([0, 0, origin_offset.value]) * origin_offset.unit
+        rot = Rotation.from_euler("Y", -np.pi / 2)
+
+        return cls.with_equal_cdist_slices(
+            min_redshift=match_at_z,
+            resolution=user_params.cell_size,
+            latitude=LAT,
+            longitude=LON,
+            origin=origin,
+            rotation=rot,
+            **kw,
+        )
 
     def construct_lightcone(
         self,
@@ -396,7 +478,7 @@ class AngularLightconer(Lightconer):
             interpolator = self._cache["interpolator"]
         else:
             interpolator = self._refresh_cache(lcd)
-        return make_lightcone_slice_vector_field(velocities, interpolator)
+        return next(make_lightcone_slice_vector_field([velocities], interpolator))
 
     def _refresh_cache(self, lcd):
         result = make_lightcone_slice_interpolator(
@@ -427,4 +509,9 @@ class AngularLightconer(Lightconer):
             raise ValueError(
                 "APPLY_RSDs must be False for angular lightcones, as the RSDs are "
                 "applied in the lightcone construction."
+            )
+        if self.get_los_velocity and not user_params.KEEP_3D_VELOCITIES:
+            raise ValueError(
+                "To get the LoS velocity, you need to set "
+                "user_params.KEEP_3D_VELOCITIES=True"
             )

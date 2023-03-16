@@ -652,8 +652,9 @@ class BrightnessTemp(_AllParamsBox):
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
-        if isinstance(input_box, PerturbedField) and self.flag_options.APPLY_RSDS:
-            required += ["velocity_z"]
+        if isinstance(input_box, PerturbedField):
+            if self.flag_options.APPLY_RSDS:
+                required += ["velocity_z"]
         elif isinstance(input_box, TsBox):
             required += ["Ts_box"]
         elif isinstance(input_box, IonizedBox):
@@ -1321,7 +1322,7 @@ class AngularLightcone(LightCone):
         """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
         raise AttributeError("This is not an attribute of an AngularLightcone")
 
-    def compute_rsds(self, n_subcells: int = 4, fname: str | Path = None):
+    def compute_rsds(self, n_subcells: int = 4, fname: str | Path | None = None):
         """Compute redshift-space distortions from the los_velocity lightcone.
 
         Parameters
@@ -1341,23 +1342,24 @@ class AngularLightcone(LightCone):
             )
             return self.lightcones["brightness_temp_with_rsds"]
 
-        H0 = self.cosmo_params.cosmo.H0(self.lightcone_redshifts)
-        los_displacement = self.lightcones["los_velocity"] / H0
-        equiv = units.pixel_scale(self.cell_size / units.pixel)
+        H0 = self.cosmo_params.cosmo.H(self.lightcone_redshifts)
+        los_displacement = self.lightcones["los_velocity"] * units.km / units.s / H0
+        equiv = units.pixel_scale(self.user_params.cell_size / units.pixel)
         los_displacement = los_displacement.to(units.pixel, equivalencies=equiv)
 
         # Compute the RSDs
         tb_with_rsds = apply_rsds(
-            field=self.lightcones["brightness_temp"],
-            los_displacement=los_displacement,
+            field=self.lightcones["brightness_temp"].T,
+            los_displacement=los_displacement.T,
             distance=self.lightcone_distances.to(units.pixel, equiv),
             n_subcells=n_subcells,
         )
 
-        self.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
+        self.lightcones["brightness_temp_with_rsds"] = tb_with_rsds.T
 
-        if Path(fname).exists():
-            with h5py.File(fname, "a") as fl:
-                fl["lightcones"]["brightness_temp_with_rsds"] = tb_with_rsds
-        else:
-            self.save(fname)
+        if fname:
+            if Path(fname).exists():
+                with h5py.File(fname, "a") as fl:
+                    fl["lightcones"]["brightness_temp_with_rsds"] = tb_with_rsds
+            else:
+                self.save(fname)

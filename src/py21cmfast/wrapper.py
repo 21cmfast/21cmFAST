@@ -2712,6 +2712,12 @@ def run_lightcone(
                 for quantity in lightconer.quantities
             }
 
+            # Special case: AngularLightconer can also save los_velocity
+            if getattr(lightconer, "get_los_velocity", False):
+                lc["los_velocity"] = np.zeros(
+                    lightconer.get_shape(user_params), dtype=np.float32
+                )
+
             lightcone = lcn_cls(
                 redshift,
                 lightconer.lc_distances,
