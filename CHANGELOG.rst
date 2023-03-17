@@ -14,6 +14,7 @@ Fixed
 -----
 
 * Running with ``R_BUBBLE_MAX`` too large auto-fixes it to be ``BOX_LEN`` (#112)
+* Bug in calling ``clear_cache``.
 
 Added
 -----
