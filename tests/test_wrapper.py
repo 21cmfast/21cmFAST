@@ -146,7 +146,6 @@ def test_st_new_seed(spin_temp, perturb_field, tmpdirec):
 
 
 def test_st_from_z(perturb_field_lowz, spin_temp):
-
     # This one has all the same parameters as the nominal spin_temp, but is evaluated
     # with an interpolated perturb_field
     st = wrapper.spin_temperature(
@@ -386,7 +385,6 @@ def test_coeval_callback_exceptions(ic, redshift, max_redshift, perturb_field):
 
 
 def test_coeval_vs_low_level(ic):
-
     coeval = wrapper.run_coeval(
         redshift=20,
         init_box=ic,
