@@ -603,6 +603,10 @@ class FlagOptions(StructWithDefaults):
     USE_MINI_HALOS : bool, optional
         Set to True if using mini-halos parameterization.
         If True, USE_MASS_DEPENDENT_ZETA and INHOMO_RECO must be True.
+    USE_CMB_HEATING : bool, optional
+        Whether to include CMB Heating. (cf Eq.4 of Meiksin 2021, arxiv.org/abs/2105.14516)
+    USE_LYA_HEATING : bool, optional
+        Whether to use Lyman-alpha heating. (cf Sec. 3 of Reis+2021, doi.org/10.1093/mnras/stab2089)
     USE_MASS_DEPENDENT_ZETA : bool, optional
         Set to True if using new parameterization. Setting to True will automatically
         set `M_MIN_in_Mass` to True.
@@ -633,6 +637,8 @@ class FlagOptions(StructWithDefaults):
     _defaults_ = {
         "USE_HALO_FIELD": False,
         "USE_MINI_HALOS": False,
+        "USE_CMB_HEATING": True,
+        "USE_LYA_HEATING": True,
         "USE_MASS_DEPENDENT_ZETA": False,
         "SUBCELL_RSD": False,
         "INHOMO_RECO": False,
