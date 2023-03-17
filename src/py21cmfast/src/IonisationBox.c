@@ -13,7 +13,7 @@ float prev_overdense_small_min, prev_overdense_small_bin_width, prev_overdense_s
 float prev_overdense_large_min, prev_overdense_large_bin_width, prev_overdense_large_bin_width_inv;
 float log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
 float log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
-
+float thistk;
 
 int EvaluateSplineTable(bool MINI_HALOS, int dens_type, float curr_dens, float filtered_Mturn, float filtered_Mturn_MINI, float *Splined_Fcoll, float *Splined_Fcoll_MINI);
 void InterpolationRange(int dens_type, float R, float L, float *min_density, float *max_density);
@@ -1389,7 +1389,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH);
                                 }
                                 else{
-                                    box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(TK, res_xH);
+                                    box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(TK*(1 + cT_ad*perturbed_field->density[HII_R_INDEX(x,y,z)]), res_xH);
                                 }
                                 res_xH -= xHII_from_xrays;
 
@@ -1437,8 +1437,9 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = spin_temp->Tk_box[HII_R_INDEX(x,y,z)];
                                 }
                             else{
-                                if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < TK)
-                                    box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = TK;
+                                thistk = TK*(1. + cT_ad*perturbed_field->density[HII_R_INDEX(x,y,z)]);
+                                if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < thistk)
+                                    box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = thistk;
                             }
                         }
                     }

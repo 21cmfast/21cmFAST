@@ -82,6 +82,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     float dzp, prev_zp, zpp, prev_zpp, prev_R, Tk_BC, xe_BC;
     float xHII_call, curr_xalpha, TK, TS, xe, deltax_highz, cT_ad;
     float zpp_for_evolve,dzpp_for_evolve, M_MIN;
+    float gdens, growthfac;
 
     float determine_zpp_max, zpp_grid, zpp_gridpoint1, zpp_gridpoint2,zpp_evolve_gridpoint1;
     float zpp_evolve_gridpoint2, grad1, grad2, grad3, grad4, delNL0_bw_val;
@@ -450,21 +451,17 @@ LOG_SUPER_DEBUG("redshift greater than Z_HEAT_MAX");
 
 LOG_SUPER_DEBUG("growth factor zp = %f", growth_factor_zp);
 
+        growthfac = growth_factor_zp * inverse_growth_factor_z;
         // read file
 #pragma omp parallel shared(this_spin_temp,xe,TK,redshift,perturbed_field,inverse_growth_factor_z,growth_factor_zp) private(i,j,k,curr_xalpha) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
-            for (i=0; i<user_params->HII_DIM; i++){
-                for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<user_params->HII_DIM; k++){
-                        this_spin_temp->Tk_box[HII_R_INDEX(i,j,k)] = TK * (1.0 + cT_ad * perturbed_field->density[HII_R_INDEX(i,j,k)]*inverse_growth_factor_z*growth_factor_zp);
-                        this_spin_temp->x_e_box[HII_R_INDEX(i,j,k)] = xe;
-                        // compute the spin temperature
-                        this_spin_temp->Ts_box[HII_R_INDEX(i,j,k)] = get_Ts(redshift,
-                                                            perturbed_field->density[HII_R_INDEX(i,j,k)]*inverse_growth_factor_z*growth_factor_zp,
-                                                            TK, xe, 0, &curr_xalpha);
-                    }
-                }
+            for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
+                gdens = growthfac * perturbed_field->density[ct];
+                this_spin_temp->Tk_box[ct] = TK * (1.0 + cT_ad * gdens);
+                this_spin_temp->x_e_box[ct] = xe;
+                // compute the spin temperature
+                this_spin_temp->Ts_box[ct] = get_Ts(redshift, gdens, TK, xe, 0, &curr_xalpha);
             }
         }
 
@@ -507,7 +504,7 @@ LOG_SUPER_DEBUG("Treating as the first box");
             {
 #pragma omp for
                 for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
-                    previous_spin_temp->Tk_box[ct] = Tk_BC * (1.0 + cT_ad * perturbed_field->density[HII_R_INDEX(i,j,k)]*inverse_growth_factor_z*growth_factor_zp); //JBM QUESTION: is this properly defined here too?
+                    previous_spin_temp->Tk_box[ct] = Tk_BC * (1.0 + cT_ad * perturbed_field->density[ct]*inverse_growth_factor_z*global_params.Z_HEAT_MAX); //JBM QUESTION: is this properly defined here too?
                     previous_spin_temp->x_e_box[ct] = xe_BC;
                 }
             }
