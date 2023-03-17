@@ -1347,13 +1347,40 @@ class AngularLightcone(LightCone):
         equiv = units.pixel_scale(self.user_params.cell_size / units.pixel)
         los_displacement = los_displacement.to(units.pixel, equivalencies=equiv)
 
-        # Compute the RSDs
-        tb_with_rsds = apply_rsds(
-            field=self.lightcones["brightness_temp"].T,
-            los_displacement=los_displacement.T,
-            distance=self.lightcone_distances.to(units.pixel, equiv),
-            n_subcells=n_subcells,
-        )
+        lcd = self.lightcone_distances.to(units.pixel, equiv)
+        dvdx_on_h = np.gradient(los_displacement, lcd, axis=1)
+
+        if not (self.flag_options.USE_TS_FLUCT and self.flag_options.SUBCELL_RSD):
+            # Now, clip dvdx...
+            dvdx_on_h = np.clip(
+                dvdx_on_h,
+                -global_params.MAX_DVDR,
+                global_params.MAX_DVDR,
+                out=dvdx_on_h,
+            )
+
+            tb_with_rsds = self.brightness_temp / (1 + dvdx_on_h)
+        else:
+            gradient_component = 1 + dvdx_on_h  # not clipped!
+            Tcmb = 2.728
+            Trad = Tcmb * (1 + self.lightcone_redshifts)
+            tb_with_rsds = np.where(
+                gradient_component < 1e-7,
+                1000.0 * (self.Ts_box - Trad) / (1.0 + self.lightcone_redshifts),
+                (1.0 - np.exp(self.brightness_temp / gradient_component))
+                * 1000.0
+                * (self.Ts_box - Trad)
+                / (1.0 + self.lightcone_redshifts),
+            )
+
+        # Compute the local RSDs
+        if n_subcells > 0:
+            tb_with_rsds = apply_rsds(
+                field=tb_with_rsds,
+                los_displacement=los_displacement.T,
+                distance=self.lightcone_distances.to(units.pixel, equiv),
+                n_subcells=n_subcells,
+            )
 
         self.lightcones["brightness_temp_with_rsds"] = tb_with_rsds.T
 
@@ -1363,3 +1390,5 @@ class AngularLightcone(LightCone):
                     fl["lightcones"]["brightness_temp_with_rsds"] = tb_with_rsds
             else:
                 self.save(fname)
+
+        return tb_with_rsds

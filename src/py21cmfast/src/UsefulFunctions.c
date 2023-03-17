@@ -972,3 +972,9 @@ int FunctionThatCatches(bool sub_func, bool pass, double *result){
     *result = 5.0;
     return 0;
 }
+
+float clip(float x, float min, float max){
+    if(x<min) return min;
+    if(x>max) return max;
+    return x;
+}
