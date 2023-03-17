@@ -30,7 +30,6 @@ class Config(dict):
     _aliases = {"direc": ("boxdir",)}
 
     def __init__(self, *args, write=True, file_name=None, **kwargs):
-
         super().__init__(*args, **kwargs)
         self.file_name = file_name
 

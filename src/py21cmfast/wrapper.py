@@ -344,7 +344,6 @@ def _call_c_simple(fnc, *args):
 def _get_config_options(
     direc, regenerate, write, hooks
 ) -> tuple[str, bool, dict[Callable, dict[str, Any]]]:
-
     direc = str(os.path.expanduser(config["direc"] if direc is None else direc))
 
     if hooks is None or len(hooks) > 0:
@@ -2614,7 +2613,6 @@ def run_lightcone(
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
     with global_params.use(**global_kwargs):
-
         (
             random_seed,
             user_params,
@@ -2791,7 +2789,6 @@ def run_lightcone(
             pf2.load_all()
 
             if flag_options.USE_HALO_FIELD:
-
                 halo_field = determine_halo_list(
                     redshift=z,
                     init_boxes=init_box,
@@ -2986,7 +2983,6 @@ def run_lightcone(
 def _get_coeval_callbacks(
     scrollz: list[float], coeval_callback, coeval_callback_redshifts
 ) -> list[bool]:
-
     compute_coeval_callback = [False for i in range(len(scrollz))]
     if coeval_callback is not None:
         if isinstance(coeval_callback_redshifts, (list, np.ndarray)):
@@ -3214,7 +3210,6 @@ def calibrate_photon_cons(
         z = _calc_zstart_photon_cons()
 
         while z > global_params.PhotonConsEndCalibz:
-
             # Determine the ionisation box with recombinations, spin temperature etc.
             # turned off.
             this_perturb = perturb_field(

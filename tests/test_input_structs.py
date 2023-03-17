@@ -157,7 +157,6 @@ def test_globals():
 
 
 def test_fcoll_on(caplog):
-
     f = UserParams(FAST_FCOLL_TABLES=True, USE_INTERPOLATION_TABLES=False)
     assert not f.FAST_FCOLL_TABLES
     assert (
