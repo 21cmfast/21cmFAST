@@ -470,7 +470,7 @@ class AngularLightconer(Lightconer):
 
     def construct_los_velocity_lightcone(
         self,
-        lcd: np.ndarray,
+        lcd: Quantity[pixel],
         velocities: Sequence[np.ndarray],
     ):
         """Construct the LoS velocity lightcone from 3D velocities."""

@@ -1348,7 +1348,7 @@ class AngularLightcone(LightCone):
         los_displacement = los_displacement.to(units.pixel, equivalencies=equiv)
 
         lcd = self.lightcone_distances.to(units.pixel, equiv)
-        dvdx_on_h = np.gradient(los_displacement, lcd, axis=1)
+        dvdx_on_h = np.gradient(-los_displacement, lcd, axis=1)
 
         if not (self.flag_options.USE_TS_FLUCT and self.flag_options.SUBCELL_RSD):
             # Now, clip dvdx...
