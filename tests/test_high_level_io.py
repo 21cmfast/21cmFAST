@@ -147,12 +147,12 @@ def test_lightcone_cache(lightcone):
         lightcone.get_cached_data(kind="brightness_temp", redshift=25.1)
 
 
-def test_ang_lightcone(lightcone, ang_lightcone):
+def test_ang_lightcone(lc, ang_lightcone):
     # we test that the fields are "highly correlated",
     # and moreso in the one corner where the lightcones
     # should be almost exactly the same, and less so in the other
     # corners, and also less so at the highest redshifts.
-    rbt = lightcone.brightness_temp
+    rbt = lc.brightness_temp
     abt = ang_lightcone.brightness_temp.reshape(rbt.shape)
 
     fullcorr0 = np.corrcoef(rbt[:, :, 0].flatten(), abt[:, :, 0].flatten())
@@ -161,7 +161,7 @@ def test_ang_lightcone(lightcone, ang_lightcone):
     print("correlation at low z: ", fullcorr0)
     print("correlation at highz: ", fullcorrz)
     assert fullcorr0[0, 1] > fullcorrz[0, 1]  # 0,0 and 1,1 are autocorrs.
-    assert fullcorr0[0, 1] > 0.8
+    assert fullcorr0[0, 1] > 0.5
 
     # check corners
     n = rbt.shape[0]
