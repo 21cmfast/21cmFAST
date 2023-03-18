@@ -201,7 +201,6 @@ class Lightconer(ABC):
 
         for idx, lcd in zip(lcidx, lc_distances):
             for q in self.quantities:
-
                 box1 = self.coeval_subselect(
                     lcd, getattr(c1, q), c1.user_params.cell_size
                 )
