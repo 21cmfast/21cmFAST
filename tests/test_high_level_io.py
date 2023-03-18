@@ -40,10 +40,10 @@ def lightcone(ic):
 
 
 @pytest.fixture(scope="module")
-def ang_lightcone(ic):
+def ang_lightcone(ic, lc):
     lcn = AngularLightconer.like_rectilinear(
-        match_at_z=25.0,
-        max_redshift=35.0,
+        match_at_z=lc.lightcone_redshifts.min(),
+        max_redshift=lc.lightcone_redshifts.max(),
         user_params=ic.user_params,
         get_los_velocity=True,
     )
@@ -52,7 +52,7 @@ def ang_lightcone(ic):
         lightconer=lcn,
         init_box=ic,
         write=True,
-        flag_options={"USE_TS_FLUCT": True, "APPLY_RSDS": False},
+        flag_options={"APPLY_RSDS": False},
     )
 
 
