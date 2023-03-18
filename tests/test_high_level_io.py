@@ -148,12 +148,30 @@ def test_lightcone_cache(lightcone):
 
 
 def test_ang_lightcone(lightcone, ang_lightcone):
-    assert np.allclose(
-        lightcone.brightness_temp[:, :, 0],
-        ang_lightcone.brightness_temp[:, 0].reshape(
-            lightcone.brightness_temp.shape[:2]
-        ),
+    # we test that the fields are "highly correlated",
+    # and moreso in the one corner where the lightcones
+    # should be almost exactly the same, and less so in the other
+    # corners, and also less so at the highest redshifts.
+    rbt = lightcone.brightness_temp
+    abt = ang_lightcone.brightness_temp.reshape(rbt.shape)
+
+    fullcorr0 = np.corrcoef(rbt[:, :, 0].flatten(), abt[:, :, 0].flatten())
+    fullcorrz = np.corrcoef(rbt[:, :, -1].flatten(), abt[:, :, -1].flatten())
+
+    print("correlation at low z: ", fullcorr0)
+    print("correlation at highz: ", fullcorrz)
+    assert fullcorr0[0, 1] > fullcorrz[0, 1]  # 0,0 and 1,1 are autocorrs.
+    assert fullcorr0[0, 1] > 0.8
+
+    # check corners
+    n = rbt.shape[0]
+    topcorner = np.corrcoef(
+        rbt[: n // 2, : n // 2, 0].flatten(), abt[: n // 2, : n // 2, 0].flatten()
     )
+    bottomcorner = np.corrcoef(
+        rbt[n // 2 :, n // 2 :, 0].flatten(), abt[n // 2 :, n // 2 :, 0].flatten()
+    )
+    assert topcorner[0, 1] > bottomcorner[0, 1]
 
 
 def test_write_to_group(ic, test_direc):

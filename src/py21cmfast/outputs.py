@@ -1376,13 +1376,13 @@ class AngularLightcone(LightCone):
         # Compute the local RSDs
         if n_subcells > 0:
             tb_with_rsds = apply_rsds(
-                field=tb_with_rsds,
+                field=tb_with_rsds.T,
                 los_displacement=los_displacement.T,
                 distance=self.lightcone_distances.to(units.pixel, equiv),
                 n_subcells=n_subcells,
-            )
+            ).T
 
-        self.lightcones["brightness_temp_with_rsds"] = tb_with_rsds.T
+        self.lightcones["brightness_temp_with_rsds"] = tb_with_rsds
 
         if fname:
             if Path(fname).exists():
