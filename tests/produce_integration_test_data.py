@@ -540,7 +540,6 @@ def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
 
 
 def produce_data_for_halo_field_tests(name, redshift, force, **kwargs):
-
     pt_halos = produce_halo_field_data(redshift, **kwargs)
 
     fname = get_filename("halo_field_data", name)

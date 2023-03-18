@@ -38,7 +38,6 @@ class _OutputStruct(_BaseOutputStruct):
     _global_params = global_params
 
     def __init__(self, *, user_params=None, cosmo_params=None, **kwargs):
-
         self.cosmo_params = cosmo_params or CosmoParams()
         self.user_params = user_params or UserParams()
 
@@ -1263,7 +1262,7 @@ class LightCone(_HighLevelOutput):
     def _read_inputs(cls, fname):
         kwargs = {}
         with h5py.File(fname, "r") as fl:
-            for (k, kls) in [
+            for k, kls in [
                 ("user_params", UserParams),
                 ("cosmo_params", CosmoParams),
                 ("flag_options", FlagOptions),

@@ -349,7 +349,6 @@ def _call_c_simple(fnc, *args):
 def _get_config_options(
     direc, regenerate, write, hooks
 ) -> tuple[str, bool, dict[Callable, dict[str, Any]]]:
-
     direc = str(os.path.expanduser(config["direc"] if direc is None else direc))
 
     if hooks is None or len(hooks) > 0:
@@ -2582,6 +2581,7 @@ def run_lightcone(
 
     with global_params.use(**global_kwargs):
         # First, get the parameters OTHER than redshift...
+
         (
             random_seed,
             user_params,
@@ -2961,8 +2961,8 @@ def run_lightcone(
 def _get_coeval_callbacks(
     scrollz: list[float], coeval_callback, coeval_callback_redshifts
 ) -> list[bool]:
-
     compute_coeval_callback = [False] * len(scrollz)
+
     if coeval_callback is not None:
         if isinstance(coeval_callback_redshifts, (list, np.ndarray)):
             for coeval_z in coeval_callback_redshifts:
@@ -3107,7 +3107,6 @@ def calibrate_photon_cons(
         z = _calc_zstart_photon_cons()
 
         while z > global_params.PhotonConsEndCalibz:
-
             # Determine the ionisation box with recombinations, spin temperature etc.
             # turned off.
             this_perturb = perturb_field(

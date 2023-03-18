@@ -8,7 +8,6 @@ from py21cmfast import plotting
 
 
 def test_coeval_sliceplot(ic):
-
     fig, ax = plotting.coeval_sliceplot(ic)
 
     assert ax.xaxis.get_label().get_text() == "x-axis [Mpc]"
@@ -43,7 +42,6 @@ def test_coeval_sliceplot(ic):
 
 
 def test_lightcone_sliceplot_default(lc):
-
     fig, ax = plotting.lightcone_sliceplot(lc)
 
     assert ax.yaxis.get_label().get_text() == "y-axis [Mpc]"

@@ -6,10 +6,14 @@ ignore =
     W503
     F403
     F401
-    N803  # Naming upper/lowercase -- too hard right now.
-    N806  # Naming upper/lowercase -- too hard right now.
-    N802  # Naming upper/lowercase -- too hard right now.
-    D401  # Docstring in imperative mood. This should *not* be the case for @property's, but can't ignore them atm.
+    # Naming upper/lowercase -- too hard right now.
+    N803
+    # Naming upper/lowercase -- too hard right now.
+    N806
+    # Naming upper/lowercase -- too hard right now.
+    N802
+    # Docstring in imperative mood. This should *not* be the case for @property's, but can't ignore them atm.
+    D401
 max-line-length = 88
 max-complexity = 50
 docstring-convention=numpy
