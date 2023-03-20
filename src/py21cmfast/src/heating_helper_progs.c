@@ -50,7 +50,7 @@ double xion_RECFAST(float z, int flag);
 double T_RECFAST(float z, int flag);
 
 // approximation for the adiabatic index at z=6-50 from 2302.08506
-double cT_approx(float z);
+float cT_approx(float z);
 
 
 // * returns the spin temperature * //
@@ -300,8 +300,8 @@ double xion_RECFAST(float z, int flag)
     return ans;
 }
 
-// approximation for the adiabatic index at z=6-50 from 2302.08506. Linear only, used to initialize the Tk box at high z so it's not homogeneous. Otherwise half of the adiabatic fluctuations are missing. Definition is \delta Tk = Tk * cT * \delta (at each z).
-double cT_approx(float z){
+// approximation for the adiabatic index at z=6-50 from 2302.08506 (also 1506.04152). Linear only, used to initialize the Tk box at high z so it's not homogeneous. Otherwise half of the adiabatic fluctuations are missing. Definition is \delta Tk = Tk * cT * \delta (at each z).
+float cT_approx(float z){
   return 0.58 + 0.006*(z - 10.0);
 }
 

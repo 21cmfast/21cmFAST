@@ -445,8 +445,7 @@ LOG_SUPER_DEBUG("Initialised heat");
 LOG_SUPER_DEBUG("redshift greater than Z_HEAT_MAX");
         xe = xion_RECFAST(redshift,0);
         TK = T_RECFAST(redshift,0);
-        cT_ad = cT_approx(redshift);
-
+        cT_ad = cT_approx(redshift); //finding the adiabatic index at the initial redshift from 2302.08506 to fix adiabatic fluctuations.
         growth_factor_zp = dicke(redshift);
 
 LOG_SUPER_DEBUG("growth factor zp = %f", growth_factor_zp);
@@ -504,7 +503,7 @@ LOG_SUPER_DEBUG("Treating as the first box");
             {
 #pragma omp for
                 for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
-                    previous_spin_temp->Tk_box[ct] = Tk_BC * (1.0 + cT_ad * perturbed_field->density[ct]*inverse_growth_factor_z*global_params.Z_HEAT_MAX); //JBM QUESTION: is this properly defined here too?
+                    previous_spin_temp->Tk_box[ct] = Tk_BC * (1.0 + cT_ad * perturbed_field->density[ct]*inverse_growth_factor_z*global_params.Z_HEAT_MAX);
                     previous_spin_temp->x_e_box[ct] = xe_BC;
                 }
             }

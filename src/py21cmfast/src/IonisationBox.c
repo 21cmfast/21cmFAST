@@ -105,7 +105,7 @@ LOG_SUPER_DEBUG("initing heat");
     init_heat();
     float TK;
     TK = T_RECFAST(redshift,0);
-    float cT_ad;
+    float cT_ad; //finding the adiabatic index at the initial redshift from 2302.08506 to fix adiabatic fluctuations.
     cT_ad = cT_approx(redshift);
 LOG_SUPER_DEBUG("inited heat");
 
