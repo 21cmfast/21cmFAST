@@ -1400,7 +1400,7 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
     double c000, c100, c001, c101, c010, c110,c011,c111;
     double c00,c01,c10,c11,c0,c1,c;
 
-    x0 =  Tk_min + itk*(Tk_max - Tk_min)/nT;
+    x0 =  Tk_min + itk*(Tk_max - Tk_min)/nT;  // BG: I think these should also be divided by (nT - 1) rather than nT otherwise it is impossible for x1,y1 and z1 to equal their maximum value
     x1 =  Tk_min + (itk+1)*(Tk_max - Tk_min)/nT;
 
     y0 =  Ts_min + its*(Ts_max - Ts_min)/nT;
@@ -1409,7 +1409,7 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
     z0 = taugp_min + itaugp*(taugp_max - taugp_min)/ngp;
     z1 = taugp_min + (itaugp+1)*(taugp_max - taugp_min)/ngp;
 
-    xd = (tk - x0)/(x1 - x0);
+    xd = (tk - x0)/(x1 - x0);  // BG: This will be unstable any time tk, ts or taugp exceeds their min/max values (maybe the condition is never reached?) as it doesn't properly deal with instances occuring outside the table of provided data (not suitable for extrapolation)
     yd = (ts - y0)/(y1 - y0);
     zd = (taugp - z0)/(z1 - z0);
 
