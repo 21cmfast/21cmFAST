@@ -2607,6 +2607,12 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
     free(ST_over_PS);
     free(sum_lyn);
     free(zpp_for_evolve_list);
+    if (flag_options->USE_LYA_HEATING){
+        free(dstarlya_cont_dt_prefactor);
+        free(dstarlya_inj_dt_prefactor);
+        free(sum_ly2);
+        free(sum_lynto2);
+    }
     if (flag_options->USE_MINI_HALOS){
         free(Mcrit_atom_interp_table);
         free(dstarlya_dt_prefactor_MINI);
@@ -2616,8 +2622,13 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
         free(sum_lyn_MINI);
         free(sum_lyLWn);
         free(sum_lyLWn_MINI);
+        if (flag_options->USE_LYA_HEATING){
+            free(dstarlya_cont_dt_prefactor_MINI);
+            free(dstarlya_inj_dt_prefactor_MINI);
+            free(sum_ly2_MINI);
+            free(sum_lynto2_MINI);
+        }
     }
-
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         free(SFR_timescale_factor);
@@ -2657,6 +2668,11 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
         free(m_xHII_low_box);
         free(inverse_val_box);
 
+        if (flag_options->USE_LYA_HEATING){
+            free(dstarlya_cont_dt_box);
+            free(dstarlya_inj_dt_box);
+        }
+
         if(flag_options->USE_MINI_HALOS){
             if(user_params->USE_INTERPOLATION_TABLES) {
                 for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
@@ -2677,6 +2693,11 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
             free(dxlya_dt_box_MINI);
             free(dstarlya_dt_box_MINI);
             free(dstarlyLW_dt_box_MINI);
+
+            if (flag_options->USE_LYA_HEATING){
+                free(dstarlya_cont_dt_box_MINI);
+                free(dstarlya_inj_dt_box_MINI);
+            }
         }
     }
     else {
