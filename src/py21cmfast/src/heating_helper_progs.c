@@ -1370,15 +1370,37 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
 //Tri-linear interpolation function for Lyman-alpha heating efficiencies
 double interpolate_heating_efficiencies(double tk, double ts, double taugp, double *arrE) {
     tk = log10(tk);
+    // Check that the value doesn't exceed the bound of the table. If it does, set it to the edge value (do not interpolate)
+    if(tk < Tk_min) {
+        tk = Tk_min;
+    }
+    if(tk > Tk_max) {
+        tk = Tk_max;
+    }
+
     ts = log10(ts);
+    if(ts < Ts_min) {
+        ts = Ts_min;
+    }
+    if(ts > Ts_max) {
+        ts = Ts_max;
+    }
+
     taugp = log10(taugp);
+    if(taugp < taugp_min) {
+        taugp = taugp_min;
+    }
+    if(taugp > taugp_max) {
+        taugp = taugp_max;
+    }
+
     //find the nearest value
     int find_nearest_point(double min, double max, int n, double value){
         int pos=0;
         double dn = (max - min)/(n-1);
-        if (value<min) pos=0;
-        else if (value>=max) pos = n-2;
-        else pos = (int) ((value - min)/dn-1); // BG: I don't think this makes sense. If value<(min + dn), then this sets pos = -1 which incorrectly evaluates the table
+        if (value<=(min+dn)) pos=0;              // ensures we are in the first point
+        else if (value>=max) pos = n-2;          // ensures we cannot exceed the maximum point
+        else pos = (int)floor((value - min)/dn); // round it down to ensure we are always either side of the cell boundary
         return pos;
 	}
 
@@ -1400,16 +1422,16 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
     double c000, c100, c001, c101, c010, c110,c011,c111;
     double c00,c01,c10,c11,c0,c1,c;
 
-    x0 =  Tk_min + itk*(Tk_max - Tk_min)/nT;  // BG: I think these should also be divided by (nT - 1) rather than nT otherwise it is impossible for x1,y1 and z1 to equal their maximum value
-    x1 =  Tk_min + (itk+1)*(Tk_max - Tk_min)/nT;
+    x0 =  Tk_min + itk*(Tk_max - Tk_min)/(nT-1);        // Making these (nT-1) ensures we reach the correct edge value
+    x1 =  Tk_min + (itk+1)*(Tk_max - Tk_min)/(nT-1);
 
-    y0 =  Ts_min + its*(Ts_max - Ts_min)/nT;
-    y1 =  Ts_min + (its+1)*(Ts_max - Ts_min)/nT;
+    y0 =  Ts_min + its*(Ts_max - Ts_min)/(nT-1);
+    y1 =  Ts_min + (its+1)*(Ts_max - Ts_min)/(nT-1);
 
-    z0 = taugp_min + itaugp*(taugp_max - taugp_min)/ngp;
-    z1 = taugp_min + (itaugp+1)*(taugp_max - taugp_min)/ngp;
+    z0 = taugp_min + itaugp*(taugp_max - taugp_min)/(ngp-1);
+    z1 = taugp_min + (itaugp+1)*(taugp_max - taugp_min)/(ngp-1);
 
-    xd = (tk - x0)/(x1 - x0);  // BG: This will be unstable any time tk, ts or taugp exceeds their min/max values (maybe the condition is never reached?) as it doesn't properly deal with instances occuring outside the table of provided data (not suitable for extrapolation)
+    xd = (tk - x0)/(x1 - x0);       // Above corrections ensure this remains in [0,1]
     yd = (ts - y0)/(y1 - y0);
     zd = (taugp - z0)/(z1 - z0);
 
