@@ -1378,7 +1378,7 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
         double dn = (max - min)/(n-1);
         if (value<min) pos=0;
         else if (value>=max) pos = n-2;
-        else pos = (int) ((value - min)/dn-1);
+        else pos = (int) ((value - min)/dn-1); // BG: I don't think this makes sense. If value<(min + dn), then this sets pos = -1 which incorrectly evaluates the table
         return pos;
 	}
 
