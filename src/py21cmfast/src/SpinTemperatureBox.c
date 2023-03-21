@@ -342,11 +342,11 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
         }
 
         dstarlya_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-		//Allocate memory for Lya heating arrays
-		if (flag_options->USE_LYA_HEATING){
+        //Allocate memory for Lya heating arrays
+        if (flag_options->USE_LYA_HEATING){
             dstarlya_cont_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
             dstarlya_inj_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-		}
+        }
         if (flag_options->USE_MINI_HALOS){
             dstarlya_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
             dstarlyLW_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
@@ -386,7 +386,6 @@ LOG_SUPER_DEBUG("initalising Ts Interp Arrays");
         if (flag_options->USE_LYA_HEATING){
             sum_ly2 = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
             sum_lynto2 = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-
         }
         if (flag_options->USE_MINI_HALOS){
             Mcrit_atom_interp_table = (float *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
@@ -1276,35 +1275,34 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
 
                     //Separate out the continuum and injected flux contributions
                     if (flag_options->USE_LYA_HEATING){
-						ly2_store = 0.;
-						ly2_store_MINI = 0.;
-						lynto2_store = 0.;
-						lynto2_store_MINI = 0.;
+                        ly2_store = 0.;
+                        ly2_store_MINI = 0.;
+                        lynto2_store = 0.;
+                        lynto2_store_MINI = 0.;
 
-						if (n_ct==2){
-							ly2_store = frecycle(n_ct) * spectral_emissivity(nuprime, 0,2);
-	                        sum_ly2[R_ct] += ly2_store;
+                        if (n_ct==2){
+                            ly2_store = frecycle(n_ct) * spectral_emissivity(nuprime, 0,2);
+                            sum_ly2[R_ct] += ly2_store;
 
-							ly2_store_MINI = frecycle(n_ct) * spectral_emissivity(nuprime, 0,3);
-	                        sum_ly2_MINI[R_ct] += ly2_store_MINI;
-						}
+                            ly2_store_MINI = frecycle(n_ct) * spectral_emissivity(nuprime, 0,3);
+                            sum_ly2_MINI[R_ct] += ly2_store_MINI;
+                        }
 
-						if (n_ct>=3){
-							lynto2_store = frecycle(n_ct) * spectral_emissivity(nuprime, 0,2);
-	                        sum_lynto2[R_ct] += lynto2_store;
+                        if (n_ct>=3){
+                            lynto2_store = frecycle(n_ct) * spectral_emissivity(nuprime, 0,2);
+                            sum_lynto2[R_ct] += lynto2_store;
 
-							lynto2_store_MINI = frecycle(n_ct) * spectral_emissivity(nuprime, 0,3);
-	                        sum_lynto2_MINI[R_ct] += lynto2_store_MINI;
-						}
+                            lynto2_store_MINI = frecycle(n_ct) * spectral_emissivity(nuprime, 0,3);
+                            sum_lynto2_MINI[R_ct] += lynto2_store_MINI;
+                        }
 
-						sum_lyn[R_ct] += (ly2_store + lynto2_store);
-						sum_lyn_MINI[R_ct] += (ly2_store_MINI + lynto2_store_MINI);
-
+                        sum_lyn[R_ct] += (ly2_store + lynto2_store);
+                        sum_lyn_MINI[R_ct] += (ly2_store_MINI + lynto2_store_MINI);
                     }
-					else{
-	                    sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
-	                    sum_lyn_MINI[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
-					}
+                    else{
+                        sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
+                        sum_lyn_MINI[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
+                    }
 
                     if (nuprime < NU_LW_THRESH / NUIONIZATION)
                         nuprime = NU_LW_THRESH / NUIONIZATION;
@@ -1316,25 +1314,24 @@ LOG_SUPER_DEBUG("beginning loop over R_ct");
                 else{
                     //Separate out the continuum and injected flux contributions
                     if (flag_options->USE_LYA_HEATING){
-						ly2_store = 0.;
-						lynto2_store = 0.;
+                        ly2_store = 0.;
+                        lynto2_store = 0.;
 
-						if (n_ct==2){
-							ly2_store = frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
-	                        sum_ly2[R_ct] += ly2_store;
-						}
+                        if (n_ct==2){
+                            ly2_store = frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
+                            sum_ly2[R_ct] += ly2_store;
+                        }
+                        if (n_ct>=3){
+                            lynto2_store = frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
+                            sum_lynto2[R_ct] += lynto2_store;
+                        }
 
-						if (n_ct>=3){
-							lynto2_store = frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
-	                        sum_lynto2[R_ct] += lynto2_store;
-						}
-
-						sum_lyn[R_ct] += (ly2_store + lynto2_store);
+                        sum_lyn[R_ct] += (ly2_store + lynto2_store);
 
                     }
-					else{
-	                    sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
-					}
+                    else{
+                        sum_lyn[R_ct] += frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
+                    }
                 }
             }
 
@@ -1642,7 +1639,7 @@ LOG_SUPER_DEBUG("looping over box...");
 #pragma omp parallel shared(del_fcoll_Rct,dxheat_dt_box,dxion_source_dt_box,dxlya_dt_box,dstarlya_dt_box,previous_spin_temp,\
                             x_int_XHII,m_xHII_low_box,inverse_val_box,inverse_diff,dstarlyLW_dt_box,dstarlyLW_dt_box_MINI,\
                             dxheat_dt_box_MINI,dxion_source_dt_box_MINI,dxlya_dt_box_MINI,dstarlya_dt_box_MINI,\
-							dstarlya_cont_dt_box,dstarlya_inj_dt_box,dstarlya_cont_dt_box_MINI,dstarlya_inj_dt_box_MINI) \
+                            dstarlya_cont_dt_box,dstarlya_inj_dt_box,dstarlya_cont_dt_box_MINI,dstarlya_inj_dt_box_MINI) \
                     private(box_ct,xHII_call) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
@@ -1672,7 +1669,7 @@ LOG_SUPER_DEBUG("looping over box...");
                         if (flag_options->USE_LYA_HEATING){
                           dstarlya_cont_dt_box_MINI[box_ct] = 0.;
                           dstarlya_inj_dt_box_MINI[box_ct] = 0.;
-					  }
+                        }
                     }
 
                     xHII_call = previous_spin_temp->x_e_box[box_ct];
@@ -1987,11 +1984,11 @@ LOG_SUPER_DEBUG("looping over box...");
                             xc_inverse,Trad_fast_inv,dstarlyLW_dt_box,dstarlyLW_dt_prefactor,dxheat_dt_box_MINI,dxion_source_dt_box_MINI,\
                             dxlya_dt_box_MINI,dstarlya_dt_box_MINI,dstarlyLW_dt_box_MINI,dfcoll_dz_val_MINI,del_fcoll_Rct_MINI,\
                             dstarlya_dt_prefactor_MINI,dstarlyLW_dt_prefactor_MINI,prefactor_2_MINI,const_zp_prefactor_MINI,\
-	                        dstarlya_cont_dt_box,dstarlya_inj_dt_box,dstarlya_cont_dt_prefactor,dstarlya_inj_dt_prefactor,\
-	                        dstarlya_cont_dt_box_MINI,dstarlya_inj_dt_box_MINI,dstarlya_cont_dt_prefactor_MINI,dstarlya_inj_dt_prefactor_MINI) \
+                            dstarlya_cont_dt_box,dstarlya_inj_dt_box,dstarlya_cont_dt_prefactor,dstarlya_inj_dt_prefactor,\
+                            dstarlya_cont_dt_box_MINI,dstarlya_inj_dt_box_MINI,dstarlya_cont_dt_prefactor_MINI,dstarlya_inj_dt_prefactor_MINI) \
                     private(box_ct,x_e,T,dxion_sink_dt,dxe_dzp,dadia_dzp,dspec_dzp,dcomp_dzp,dxheat_dzp,J_alpha_tot,T_inv,T_inv_sq,\
-	                        eps_CMB,dCMBheat_dzp,E_continuum,E_injected,Ndot_alpha_cont,Ndot_alpha_inj,eps_Lya_cont,eps_Lya_inj,\
-	                        Ndot_alpha_cont_MINI,Ndot_alpha_inj_MINI,eps_Lya_cont_MINI,eps_Lya_inj_MINI,\
+                            eps_CMB,dCMBheat_dzp,E_continuum,E_injected,Ndot_alpha_cont,Ndot_alpha_inj,eps_Lya_cont,eps_Lya_inj,\
+                            Ndot_alpha_cont_MINI,Ndot_alpha_inj_MINI,eps_Lya_cont_MINI,eps_Lya_inj_MINI,\
                             xc_fast,xi_power,xa_tilde_fast_arg,TS_fast,TSold_fast,xa_tilde_fast,dxheat_dzp_MINI,J_alpha_tot_MINI,curr_delNL0) \
                     num_threads(user_params->N_THREADS)
                 {
@@ -2017,7 +2014,6 @@ LOG_SUPER_DEBUG("looping over box...");
                             if (flag_options->USE_LYA_HEATING){
                                 dstarlya_cont_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_cont_dt_prefactor[R_ct];
                                 dstarlya_inj_dt_box[box_ct] += (double)del_fcoll_Rct[box_ct]*dstarlya_inj_dt_prefactor[R_ct];
-
                             }
 
                             if (flag_options->USE_MINI_HALOS){
@@ -2040,7 +2036,6 @@ LOG_SUPER_DEBUG("looping over box...");
                             if (flag_options->USE_LYA_HEATING){
                                 dstarlya_cont_dt_box[box_ct] += 0.;
                                 dstarlya_inj_dt_box[box_ct] += 0.;
-
                             }
 
                             if (flag_options->USE_MINI_HALOS){
@@ -2108,7 +2103,7 @@ LOG_SUPER_DEBUG("looping over box...");
                                 }
                             }
 
-							//Added calculations of xCMB and tau_21 [eq. (2) and (4) of Reis et al. 2021]
+                            //Added calculations of xCMB and tau_21 [eq. (2) and (4) of Reis et al. 2021]
                             prev_Ts = previous_spin_temp->Ts_box[box_ct];
                             tau21 = (3*hplank*A10_HYPERFINE*C*Lambda_21*Lambda_21/32./PI/k_B) * ((1-x_e)*No*pow(1.+zp,3.)) /prev_Ts/hubble(zp);
                             xCMB = (1. - exp(-tau21))/tau21;
@@ -2147,27 +2142,27 @@ LOG_SUPER_DEBUG("looping over box...");
                             }
 
                             //next, CMB heating rate
-							dCMBheat_dzp = 0.;
+                            dCMBheat_dzp = 0.;
                             if (flag_options->USE_CMB_HEATING) {
-								//Meiksin et al. 2021
-								eps_CMB = (3./4.) * (T_cmb*(1.+zp)/T21) * A10_HYPERFINE * f_H * (hplank*hplank/Lambda_21/Lambda_21/m_p) * (1.+2.*T/T21);
-								dCMBheat_dzp = 	-eps_CMB * (2./3./k_B/(1.+x_e))/hubble(zp)/(1.+zp);
+                                //Meiksin et al. 2021
+                                eps_CMB = (3./4.) * (T_cmb*(1.+zp)/T21) * A10_HYPERFINE * f_H * (hplank*hplank/Lambda_21/Lambda_21/m_p) * (1.+2.*T/T21);
+                                dCMBheat_dzp = 	-eps_CMB * (2./3./k_B/(1.+x_e))/hubble(zp)/(1.+zp);
                             }
                             //lastly, Ly-alpha heating rate
-							eps_Lya_cont = 0.;
-							eps_Lya_inj = 0.;
-							eps_Lya_cont_MINI = 0.;
-							eps_Lya_inj_MINI = 0.;
+                            eps_Lya_cont = 0.;
+                            eps_Lya_inj = 0.;
+                            eps_Lya_cont_MINI = 0.;
+                            eps_Lya_inj_MINI = 0.;
                             if (flag_options->USE_LYA_HEATING) {
                                 E_continuum = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delNL0*growth_factor_zp,x_e), 2);
                                 E_injected = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delNL0*growth_factor_zp,x_e), 3);
-								if (isnan(E_continuum) || isinf(E_continuum)){
-									E_continuum = 0.;
-								}
-								if (isnan(E_injected) || isinf(E_injected)){
-									E_injected = 0.;
-								}
-								Ndot_alpha_cont = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_cont_dt_box[box_ct];
+                                if (isnan(E_continuum) || isinf(E_continuum)){
+                                    E_continuum = 0.;
+                                }
+                                if (isnan(E_injected) || isinf(E_injected)){
+                                    E_injected = 0.;
+                                }
+                                Ndot_alpha_cont = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_cont_dt_box[box_ct];
                                 Ndot_alpha_inj = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_inj_dt_box[box_ct];
                                 eps_Lya_cont = - Ndot_alpha_cont * E_continuum * (2. / 3. /k_B/ (1.+x_e));
                                 eps_Lya_inj = - Ndot_alpha_inj * E_injected * (2. / 3. /k_B/ (1.+x_e));
@@ -2211,7 +2206,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                             // Note: to make the code run faster, the get_Ts function call to evaluate the spin temperature was replaced with the code below.
                             // Algorithm is the same, but written to be more computationally efficient
-							// Added corrections from xCMB [eq. (3) of Reis et al. 2021]
+                            // Added corrections from xCMB [eq. (3) of Reis et al. 2021]
                             T_inv = expf((-1.)*logf(T));
                             T_inv_sq = expf((-2.)*logf(T));
 
@@ -2284,11 +2279,11 @@ LOG_SUPER_DEBUG("looping over box...");
                             density_gridpoints,dfcoll_interp2,freq_int_heat_tbl_diff,freq_int_heat_tbl,freq_int_ion_tbl_diff,freq_int_ion_tbl,\
                             freq_int_lya_tbl_diff,freq_int_lya_tbl,dstarlya_dt_prefactor,const_zp_prefactor,prefactor_1,growth_factor_zp,dzp,\
                             dstarlya_cont_dt_prefactor, dstarlya_inj_dt_prefactor,\
-							dt_dzp,dgrowth_factor_dzp,dcomp_dzp_prefactor,this_spin_temp,xc_inverse,TS_prefactor,xa_tilde_prefactor,Trad_fast_inv) \
+                            dt_dzp,dgrowth_factor_dzp,dcomp_dzp_prefactor,this_spin_temp,xc_inverse,TS_prefactor,xa_tilde_prefactor,Trad_fast_inv) \
                     private(box_ct,x_e,T,xHII_call,m_xHII_low,inverse_val,dxheat_dt,dxion_source_dt,dxlya_dt,dstarlya_dt,curr_delNL0,R_ct,\
-	                        dstarlya_cont_dt,dstarlya_inj_dt,\
-	                        eps_CMB, dCMBheat_dzp, E_continuum, E_injected, Ndot_alpha_cont, Ndot_alpha_inj, eps_Lya_cont, eps_Lya_inj,\
-							dfcoll_dz_val,dxion_sink_dt,dxe_dzp,dadia_dzp,dspec_dzp,dcomp_dzp,J_alpha_tot,T_inv,T_inv_sq,xc_fast,xi_power,\
+                            dstarlya_cont_dt,dstarlya_inj_dt,\
+                            eps_CMB, dCMBheat_dzp, E_continuum, E_injected, Ndot_alpha_cont, Ndot_alpha_inj, eps_Lya_cont, eps_Lya_inj,\
+                            dfcoll_dz_val,dxion_sink_dt,dxe_dzp,dadia_dzp,dspec_dzp,dcomp_dzp,J_alpha_tot,T_inv,T_inv_sq,xc_fast,xi_power,\
                             xa_tilde_fast_arg,TS_fast,TSold_fast,xa_tilde_fast) \
                     num_threads(user_params->N_THREADS)
             {
@@ -2373,7 +2368,7 @@ LOG_SUPER_DEBUG("looping over box...");
                       dstarlya_inj_dt *= prefactor_2;
                     }
 
-					//Added calculations of xCMB and tau_21 [eq. (2) and (4) of Reis et al. 2021]
+                    //Added calculations of xCMB and tau_21 [eq. (2) and (4) of Reis et al. 2021]
                     prev_Ts = previous_spin_temp->Ts_box[box_ct];
                     tau21 = (3*hplank*A10_HYPERFINE*C*Lambda_21*Lambda_21/32./PI/k_B) * ((1-x_e)*No*pow(1.+zp,3.)) /prev_Ts/hubble(zp);
                     xCMB = (1. - exp(-tau21))/tau21;
@@ -2403,7 +2398,7 @@ LOG_SUPER_DEBUG("looping over box...");
                     dxheat_dzp = dxheat_dt * dt_dzp * 2.0 / 3.0 / k_B / (1.0+x_e);
 
                     //next, CMB heating rate
-					dCMBheat_dzp = 0.;
+                    dCMBheat_dzp = 0.;
 
                     if (flag_options->USE_CMB_HEATING) {
                     eps_CMB = (3./4.) * (T_cmb*(1.+zp)/T21) * A10_HYPERFINE * f_H * (hplank*hplank/Lambda_21/Lambda_21/m_p) * (1.+2.*T/T21);
@@ -2412,19 +2407,19 @@ LOG_SUPER_DEBUG("looping over box...");
 
 
                     //lastly, Ly-alpha heating rate
-					eps_Lya_cont = 0.;
-					eps_Lya_inj = 0.;
+                    eps_Lya_cont = 0.;
+                    eps_Lya_inj = 0.;
 
                     if (flag_options->USE_LYA_HEATING) {
                         E_continuum = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delNL0*growth_factor_zp,x_e), 2);
                         E_injected = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delNL0*growth_factor_zp,x_e), 3);
-						if (isnan(E_continuum) || isinf(E_continuum)){
-							E_continuum = 0.;
-						}
-						if (isnan(E_injected) || isinf(E_injected)){
-							E_injected = 0.;
-						}
-						Ndot_alpha_cont = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_cont_dt;
+                        if (isnan(E_continuum) || isinf(E_continuum)){
+                            E_continuum = 0.;
+                        }
+                        if (isnan(E_injected) || isinf(E_injected)){
+                            E_injected = 0.;
+                        }
+                        Ndot_alpha_cont = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_cont_dt;
                         Ndot_alpha_inj = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delNL0*growth_factor_zp))/(1.+zp)/C * dstarlya_inj_dt;
                         eps_Lya_cont = - Ndot_alpha_cont * E_continuum * (2. / 3. /k_B/ (1.+x_e));
                         eps_Lya_inj = - Ndot_alpha_inj * E_injected * (2. / 3. /k_B/ (1.+x_e));
@@ -2437,7 +2432,7 @@ LOG_SUPER_DEBUG("looping over box...");
                         x_e = 1 - FRACT_FLOAT_ERR;
                     else if (x_e < 0)
                         x_e = 0;
-					//Add CMB and Lya heating rates, and evolve
+                    //Add CMB and Lya heating rates, and evolve
                     if (T < MAX_TK) {
                         T += ( dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp + dCMBheat_dzp + eps_Lya_cont + eps_Lya_inj) * dzp;
                     }
@@ -2453,7 +2448,7 @@ LOG_SUPER_DEBUG("looping over box...");
 
                     // Note: to make the code run faster, the get_Ts function call to evaluate the spin temperature was replaced with the code below.
                     // Algorithm is the same, but written to be more computationally efficient
-					// Added corrections from xCMB [eq. (3) of Reis et al. 2021]
+                    // Added corrections from xCMB [eq. (3) of Reis et al. 2021]
                     T_inv = pow(T,-1.);
                     T_inv_sq = pow(T,-2.);
 
