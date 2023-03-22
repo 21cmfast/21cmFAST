@@ -398,7 +398,7 @@ class StructWithDefaults(StructWrapper):
                 setattr(self, "_" + k, v)
 
         if kwargs:
-            logger.warning(
+            warnings.warn(
                 "The following parameters to {thisclass} are not supported: {lst}".format(
                     thisclass=self.__class__.__name__, lst=list(kwargs.keys())
                 )

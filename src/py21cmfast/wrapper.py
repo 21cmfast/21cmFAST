@@ -1887,7 +1887,7 @@ def spin_temperature(
             first_box=((1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1)
             > global_params.Z_HEAT_MAX
             and (
-                not isinstance(previous_spin_temp, IonizedBox)
+                not isinstance(previous_spin_temp, TsBox)
                 or not previous_spin_temp.is_computed
             ),
             user_params=user_params,
@@ -1967,13 +1967,15 @@ def spin_temperature(
             )
 
         # Run the C Code
-        return box.compute(
+        stuff = box.compute(
             cleanup=cleanup,
             perturbed_field=perturbed_field,
             prev_spin_temp=previous_spin_temp,
             ics=init_boxes,
             hooks=hooks,
         )
+
+        return stuff
 
 
 def brightness_temperature(

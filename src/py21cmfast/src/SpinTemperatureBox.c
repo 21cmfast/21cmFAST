@@ -457,12 +457,16 @@ LOG_SUPER_DEBUG("growth factor zp = %f", growth_factor_zp);
 #pragma omp for
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                 gdens = growthfac * perturbed_field->density[ct];
+                if (ct<5){
+                    LOG_INFO("z=%f gdens = %e, ct_ad=%e", redshift, gdens, cT_ad);
+                }
                 this_spin_temp->Tk_box[ct] = TK * (1.0 + cT_ad * gdens);
                 this_spin_temp->x_e_box[ct] = xe;
                 // compute the spin temperature
                 this_spin_temp->Ts_box[ct] = get_Ts(redshift, gdens, TK, xe, 0, &curr_xalpha);
             }
         }
+        LOG_INFO("This spin temp: %e", this_spin_temp->Ts_box[0]);
 
 LOG_SUPER_DEBUG("read in file");
 
@@ -487,7 +491,7 @@ LOG_SUPER_DEBUG("redshift less than Z_HEAT_MAX");
         // Flag is set for previous spin temperature box as a previous spin temperature box must be passed, which makes it the initial condition
         if(this_spin_temp->first_box) {
 LOG_SUPER_DEBUG("Treating as the first box");
-
+            LOG_INFO("Treating z=%f as the first box", redshift);
             // set boundary conditions for the evolution equations->  values of Tk and x_e at Z_HEAT_MAX
             if (global_params.XION_at_Z_HEAT_MAX > 0) // user has opted to use his/her own value
                 xe_BC = global_params.XION_at_Z_HEAT_MAX;
@@ -511,6 +515,7 @@ LOG_SUPER_DEBUG("Treating as the first box");
             Tk_ave = Tk_BC;
         }
         else {
+            LOG_INFO("Not the first box at z=%e. Tk-box[0]=%e", redshift, previous_spin_temp->Tk_box[0]);
             x_e_ave = Tk_ave = 0.0;
 
 #pragma omp parallel shared(previous_spin_temp) private(ct) num_threads(user_params->N_THREADS)
@@ -524,6 +529,8 @@ LOG_SUPER_DEBUG("Treating as the first box");
             x_e_ave /= (float)HII_TOT_NUM_PIXELS;
             Tk_ave /= (float)HII_TOT_NUM_PIXELS;
         }
+
+        LOG_INFO("previous_spin_temp: %e", previous_spin_temp->Tk_box[0]);
 
         /////////////// Create the z=0 non-linear density fields smoothed on scale R to be used in computing fcoll //////////////
         R = L_FACTOR*user_params->BOX_LEN/(float)user_params->HII_DIM;
