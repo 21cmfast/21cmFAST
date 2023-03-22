@@ -149,7 +149,6 @@ def make_coeval_comparison_plot(k, true_powers, test_powers, plt):
 
 
 def make_comparison_plot(x, true, test, ax, logx=True, logy=True, xlab=None, ylab=None):
-
     ax[0].plot(x, true, label="True")
     ax[0].plot(x, test, label="Test")
     if logx:

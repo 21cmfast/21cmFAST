@@ -40,7 +40,6 @@ def printdir(direc):
 
 @pytest.fixture(scope="module")
 def module_direc(tmp_path_factory):
-
     original = config["direc"]
     direc = tmp_path_factory.mktemp("modtmp")
 
@@ -59,7 +58,6 @@ def module_direc(tmp_path_factory):
 
 @pytest.fixture(scope="function")
 def test_direc(tmp_path_factory):
-
     original = config["direc"]
     direc = tmp_path_factory.mktemp("testtmp")
 
