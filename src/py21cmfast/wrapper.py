@@ -3283,7 +3283,7 @@ def run_lightcone(
                         flag_options=flag_options,
                         regenerate=regenerate,
                         hooks=hooks,
-                        halos_desc=None, #TODO: turned off halo updates for the lightcones, make sure to remove
+                        halos_desc=halos_desc,
                         direc=direc,
                     )
                     pt_halos = perturb_halo_list(
