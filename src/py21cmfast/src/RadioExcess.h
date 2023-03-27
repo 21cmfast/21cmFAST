@@ -392,7 +392,6 @@ double Get_Radio_Temp_HMG_Astro(struct TsBox *previous_spin_temp, struct AstroPa
 
 	double z1, z2, dz, Phi, Phi_mini, z, fun_ACG, fun_MCG, Radio_Temp, Radio_Prefix_ACG, Radio_Prefix_MCG;
 	int nz, zid;
-	FILE *OutputFile;
 
 	nz = 1000;
 	z2 = previous_spin_temp->SFRD_box[5] - 0.01;
