@@ -2067,9 +2067,7 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
     redshifts = [min_redshift]
     while redshifts[-1] < zmax:
         redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
-    # Set the highest redshift to exactly Z_HEAT_MAX. This makes the coeval run
-    # at exactly the same redshift as the spin temperature box.
-    redshifts[-1] = zmax
+
     return redshifts[::-1]
 
 
@@ -2253,7 +2251,7 @@ def run_coeval(
             redshift = [redshift]
 
         # Get the list of redshift we need to scroll through.
-        redshifts = _get_redshifts(flag_options, redshift)
+        redshifts = _get_required_redshifts_coeval(flag_options, redshift)
 
         # Get all the perturb boxes early. We need to get the perturb at every
         # redshift, even if we are interpolating the perturb field, because the
@@ -2482,13 +2480,22 @@ def run_coeval(
         return coevals
 
 
-def _get_redshifts(flag_options, redshift):
-    if flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
+def _get_required_redshifts_coeval(flag_options, redshift):
+    if min(redshift) < global_params.Z_HEAT_MAX and (
+        flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT
+    ):
         redshifts = _logscroll_redshifts(
             min(redshift),
             global_params.ZPRIME_STEP_FACTOR,
             global_params.Z_HEAT_MAX,
         )
+        # Set the highest redshift to exactly Z_HEAT_MAX. This makes the coeval run
+        # at exactly the same redshift as the spin temperature box. There's literally
+        # no point going higher for a coeval, since the user is only interested in
+        # the final "redshift" (if they've specified a z in redshift that is higher
+        # that Z_HEAT_MAX, we add it back in below, and so they'll still get it).
+        np.clip(redshifts, a_max=global_params.Z_HEAT_MAX, out=redshifts)
+
     else:
         redshifts = [min(redshift)]
     # Add in the redshift defined by the user, and sort in order
