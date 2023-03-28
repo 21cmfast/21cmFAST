@@ -1555,12 +1555,6 @@ def ionize_box(
             prev_z = 0
 
         box = IonizedBox(
-            first_box=((1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1)
-            > global_params.Z_HEAT_MAX
-            and (
-                not isinstance(previous_ionize_box, IonizedBox)
-                or not previous_ionize_box.is_computed
-            ),
             user_params=user_params,
             cosmo_params=cosmo_params,
             redshift=redshift,
@@ -1870,26 +1864,27 @@ def spin_temperature(
         if previous_spin_temp is not None:
             prev_z = previous_spin_temp.redshift
         else:
-            prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
-            prev_z = min(global_params.Z_HEAT_MAX, prev_z)
+            if redshift < global_params.Z_HEAT_MAX:
+                # In general runs, we only compute the spin temperature *below* Z_HEAT_MAX.
+                # Above this, we don't need a prev_z at all, because we can calculate
+                # directly at whatever redshift it is.
+                prev_z = min(
+                    global_params.Z_HEAT_MAX,
+                    (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1,
+                )
+            else:
+                # Set prev_z to anything, since we don't need it.
+                prev_z = np.inf
 
         # Ensure the previous spin temperature has a higher redshift than this one.
-        # TODO: there's a bit of a weird thing here where prev_z may be set to z_HEAT_MAX
-        #       but `redshift` may be higher than Z_HEAT_MAX. Might need to fix this later.
-        if prev_z <= redshift and prev_z < global_params.Z_HEAT_MAX:
+        if prev_z <= redshift:
             raise ValueError(
                 "Previous spin temperature box must have a higher redshift than "
                 "that being evaluated."
             )
 
-        # TODO: why is the below checking for IonizedBox??
+        # Set up the box without computing anything.
         box = TsBox(
-            first_box=((1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1)
-            > global_params.Z_HEAT_MAX
-            and (
-                not isinstance(previous_spin_temp, TsBox)
-                or not previous_spin_temp.is_computed
-            ),
             user_params=user_params,
             cosmo_params=cosmo_params,
             redshift=redshift,
@@ -1910,8 +1905,8 @@ def spin_temperature(
             try:
                 box.read(direc)
                 logger.info(
-                    "Existing z=%s spin_temp boxes found and read in (seed=%s)."
-                    % (redshift, box.random_seed)
+                    f"Existing z={redshift} spin_temp boxes found and read in "
+                    f"(seed={box.random_seed})."
                 )
                 return box
             except OSError:
@@ -1934,15 +1929,17 @@ def spin_temperature(
             box._random_seed = init_boxes.random_seed
 
         # Create appropriate previous_spin_temp
-        if not isinstance(previous_spin_temp, TsBox):
-            if prev_z >= global_params.Z_HEAT_MAX:
+        if previous_spin_temp is None:
+            if redshift >= global_params.Z_HEAT_MAX:
+                # We end up never even using this box, just need to define it
+                # unallocated to be able to send into the C code.
                 previous_spin_temp = TsBox(
-                    redshift=global_params.Z_HEAT_MAX,
+                    redshift=prev_z,  # redshift here is ignored
                     user_params=init_boxes.user_params,
                     cosmo_params=init_boxes.cosmo_params,
                     astro_params=astro_params,
                     flag_options=flag_options,
-                    initial=True,
+                    dummy=True,
                 )
             else:
                 previous_spin_temp = spin_temperature(
@@ -1967,15 +1964,13 @@ def spin_temperature(
             )
 
         # Run the C Code
-        stuff = box.compute(
+        return box.compute(
             cleanup=cleanup,
             perturbed_field=perturbed_field,
             prev_spin_temp=previous_spin_temp,
             ics=init_boxes,
             hooks=hooks,
         )
-
-        return stuff
 
 
 def brightness_temperature(
@@ -2072,6 +2067,9 @@ def _logscroll_redshifts(min_redshift, z_step_factor, zmax):
     redshifts = [min_redshift]
     while redshifts[-1] < zmax:
         redshifts.append((redshifts[-1] + 1.0) * z_step_factor - 1.0)
+    # Set the highest redshift to exactly Z_HEAT_MAX. This makes the coeval run
+    # at exactly the same redshift as the spin temperature box.
+    redshifts[-1] = zmax
     return redshifts[::-1]
 
 
