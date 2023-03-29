@@ -93,7 +93,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          python -m pytest -l --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 ${{ env.extra_pytest_args }}
+          python -m pytest -n 2 -l --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 ${{ env.extra_pytest_args }}
 
       - uses: codecov/codecov-action@v2
         if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')

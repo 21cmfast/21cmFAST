@@ -5,6 +5,7 @@ dependencies:
   - pytest>=5.0
   - pytest-cov
   - pytest-remotedata>=0.3.2
+  - pytest-xdist
   - click
   - numpy
   - pyyaml
