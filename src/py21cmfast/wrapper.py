@@ -2480,7 +2480,7 @@ def run_coeval(
         return coevals
 
 
-def _get_required_redshifts_coeval(flag_options, redshift):
+def _get_required_redshifts_coeval(flag_options, redshift) -> list[float]:
     if min(redshift) < global_params.Z_HEAT_MAX and (
         flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT
     ):
@@ -2494,16 +2494,16 @@ def _get_required_redshifts_coeval(flag_options, redshift):
         # no point going higher for a coeval, since the user is only interested in
         # the final "redshift" (if they've specified a z in redshift that is higher
         # that Z_HEAT_MAX, we add it back in below, and so they'll still get it).
-        np.clip(redshifts, a_max=global_params.Z_HEAT_MAX, out=redshifts)
+        redshifts = np.clip(redshifts, None, global_params.Z_HEAT_MAX)
 
     else:
         redshifts = [min(redshift)]
     # Add in the redshift defined by the user, and sort in order
     # Turn into a set so that exact matching user-set redshift
     # don't double-up with scrolling ones.
-    redshifts += redshift
-    redshifts = sorted(set(redshifts), reverse=True)
-    return redshifts
+    redshifts = np.concatenate((redshifts, redshift))
+    redshifts = np.sort(np.unique(redshifts))[::-1]
+    return redshifts.tolist()
 
 
 def run_lightcone(

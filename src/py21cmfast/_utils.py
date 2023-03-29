@@ -365,7 +365,6 @@ class StructWithDefaults(StructWrapper):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-
         if args:
             if len(args) > 1:
                 raise TypeError(
