@@ -423,7 +423,7 @@ LOG_SUPER_DEBUG("About to initialise heat");
 LOG_SUPER_DEBUG("Initialised heat");
 
     // Initialize some interpolation tables
-    if(initialization_required) {
+    // if(initialization_required) {
 
         if(user_params->USE_INTERPOLATION_TABLES) {
           if(user_params->FAST_FCOLL_TABLES){
@@ -441,7 +441,7 @@ LOG_SUPER_DEBUG("Initialised heat");
             LOG_SUPER_DEBUG("Initialised sigmaM interp table");
           }
         }
-    }
+    // }
 
     if (redshift >= global_params.Z_HEAT_MAX){
         LOG_SUPER_DEBUG("redshift %f >= Z_HEAT_MAX. Doing fast initial heating.", redshift);
