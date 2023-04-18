@@ -17,7 +17,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     char wisdom_filename[500];
     int i, ii, j, k, n_x, n_y, n_z;
     float k_x, k_y, k_z;
-    double ave;
+    double ave, Trad_tot;
 
     ave = 0.;
 
@@ -76,6 +76,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
                     box->brightness_temp[HII_R_INDEX(i,j,k)] = const_factor*pixel_x_HI*(1+pixel_deltax);
 
+
                     if (flag_options->USE_TS_FLUCT) {
 
                         if(flag_options->SUBCELL_RSD) {
@@ -83,7 +84,10 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                             box->brightness_temp[HII_R_INDEX(i,j,k)] *= (1. + redshift)/(1000.*spin_temp->Ts_box[HII_R_INDEX(i,j,k)]);
                         }
                         else {
-                            pixel_Ts_factor = (1 - T_rad / spin_temp->Ts_box[HII_R_INDEX(i,j,k)]);
+                            //pixel_Ts_factor = (1 - T_rad / spin_temp->Ts_box[HII_R_INDEX(i,j,k)]);
+                            //Adding Excess Radio Background
+                            Trad_tot= T_rad + spin_temp->Trad_box[HII_R_INDEX(i, j, k)];
+                            pixel_Ts_factor = (1 - Trad_tot / spin_temp->Ts_box[HII_R_INDEX(i,j,k)]);
                             box->brightness_temp[HII_R_INDEX(i,j,k)] *= pixel_Ts_factor;
                         }
                     }
@@ -169,11 +173,12 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                                     // Gradient component goes to zero, optical depth diverges.
                                     // But, since we take exp(-tau), this goes to zero and (1 - exp(-tau)) goes to unity.
                                     // Again, factors of 1000. are conversions from K to mK
-                                    box->brightness_temp[HII_R_INDEX(i,j,k)] = 1000.*(spin_temp->Ts_box[HII_R_INDEX(i,j,k)] - T_rad)/(1. + redshift);
+                                    // Trad_box: added contribution from excess radio background
+                                    box->brightness_temp[HII_R_INDEX(i,j,k)] = 1000.*(spin_temp->Ts_box[HII_R_INDEX(i,j,k)] - T_rad - spin_temp->Trad_box[HII_R_INDEX(i,j,k)])/(1. + redshift);
                                 }
                                 else {
                                     box->brightness_temp[HII_R_INDEX(i,j,k)] = (1. - exp(- box->brightness_temp[HII_R_INDEX(i,j,k)]/gradient_component ))*\
-                                                                                1000.*(spin_temp->Ts_box[HII_R_INDEX(i,j,k)] - T_rad)/(1. + redshift);
+                                                                                1000.*(spin_temp->Ts_box[HII_R_INDEX(i,j,k)] - T_rad - spin_temp->Trad_box[HII_R_INDEX(i,j,k)])/(1. + redshift);
                                 }
                             }
                             else {
