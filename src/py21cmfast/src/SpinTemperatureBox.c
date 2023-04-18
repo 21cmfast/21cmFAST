@@ -65,8 +65,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // Initialising some variables
         mbh_gram = astro_params->mbh * Msun;
         mbh_kg = mbh_gram / 1000.0;
-        Phi_ave = 0.0;
-        Phi_ave_mini = 0.0;
         T_IGM_ave = 0.0;
         R_values_ready = 0;
         Radio_Temp_ave = 0.0;
@@ -2565,13 +2563,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                             // If R_ct == 0, as this is the final smoothing scale (i.e. it is reversed)
                             if (R_ct == 0)
                             {
-                                Phi_ave += dfcoll_dz_val * (double)del_fcoll_Rct[box_ct] / ((double)HII_TOT_NUM_PIXELS) / dzpp_Rct0;
                                 Radio_Temp = this_spin_temp->Trad_box[box_ct];
-                                if (Phi_ave < 0.0)
-                                {
-                                    LOG_ERROR("Radio BKG Module: Negative SFRD?");
-                                    Throw(InfinityorNaNError);
-                                }
 
                                 // Note here, that by construction it doesn't matter if using MINIMIZE_MEMORY as only need the R_ct = 0 box
                                 curr_delNL0 = delNL0[0][box_ct];
@@ -2606,12 +2598,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                                     dstarlyLW_dt_box_MINI[box_ct] *= prefactor_2_MINI * (hplank * 1e21);
 
-                                    Phi_ave_mini += dfcoll_dz_val_MINI * (double)del_fcoll_Rct_MINI[box_ct] / ((double)HII_TOT_NUM_PIXELS) / dzpp_Rct0;
-                                    if (Phi_ave_mini < 0.0)
-                                    {
-                                        LOG_ERROR("Radio BKG Module (mini-halo): Negative SFRD?");
-                                        Throw(InfinityorNaNError);
-                                    }
                                 }
 
                                 // Now we can solve the evolution equations  //
@@ -2868,11 +2854,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                             ((freq_int_lya_tbl_diff[m_xHII_low][R_ct]) * inverse_val + freq_int_lya_tbl[m_xHII_low][R_ct]);
                                 dstarlya_dt += dfcoll_dz_val * dstarlya_dt_prefactor[R_ct];
 
-                                if (R_ct == 0)
-                                {
-                                    // Remember that dfcoll_dz_val is negative and dzpp_Rct0 is positive
-                                    Phi_ave += fabs(dfcoll_dz_val / dzpp_Rct0 / ((double)HII_TOT_NUM_PIXELS));
-                                }
                             }
 
                             // Add PBH heating/ionisation module
@@ -3005,19 +2986,37 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 }
             }
 
+            // ---- Computing averaged quantities ----
             T_IGM_ave = 0.0;
+            Phi_ave = 0.0;
+            Phi_ave_mini = 0.0;
+
             for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
             {
+                // #1: Gas temperature
                 if (isfinite(this_spin_temp->Ts_box[box_ct]) == 0)
                 {
                     LOG_ERROR("Estimated spin temperature is either infinite of NaN!");
                     //                Throw(ParameterError);
                     Throw(InfinityorNaNError);
                 }
-                T_IGM_ave += this_spin_temp->Tk_box[box_ct];
-            }
+                T_IGM_ave += this_spin_temp->Tk_box[box_ct]/((double)HII_TOT_NUM_PIXELS);
 
-            T_IGM_ave = T_IGM_ave / ((double)HII_TOT_NUM_PIXELS);
+                // #2: Phi and Phi_mini (absolute values)
+                // at this stage R_ct woube be 0 anyway
+                if (flag_options->USE_MASS_DEPENDENT_ZETA)
+                {
+                    Phi_ave += dfcoll_dz_val * (double)del_fcoll_Rct[box_ct] / ((double)HII_TOT_NUM_PIXELS) / dzpp_Rct0;
+                    if (flag_options->USE_MINI_HALOS)
+                    {
+                        Phi_ave_mini += dfcoll_dz_val_MINI * (double)del_fcoll_Rct_MINI[box_ct] / ((double)HII_TOT_NUM_PIXELS) / dzpp_Rct0;
+                    }
+                }
+                else
+                {
+                    Phi_ave += fabs(dfcoll_dz_val / dzpp_Rct0 / ((double)HII_TOT_NUM_PIXELS));
+                }
+            }
 
             // Caching averaged quantities
             if (this_spin_temp->first_box)
