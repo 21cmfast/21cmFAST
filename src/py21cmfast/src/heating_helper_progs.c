@@ -954,6 +954,7 @@ double tauX_integrand(double zhat, void *params){
         if(user_params_hf->USE_INTERPOLATION_TABLES) {
             redshift_int_fcollz = (int)floor( ( zhat - determine_zpp_min )/zpp_bin_width );
             redshift_table_fcollz = determine_zpp_min + zpp_bin_width*(float)redshift_int_fcollz;
+            //LOG_ULTRA_DEBUG("tau int %d table %e %e %e",redshift_int_fcollz,redshift_table_fcollz,determine_zpp_min,zpp_bin_width);
 
             fcoll = Nion_z_val[redshift_int_fcollz] + ( zhat - redshift_table_fcollz )*( Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zpp_bin_width);
         }

@@ -119,7 +119,7 @@ def _imshow_slice(
             orientation="horizontal" if cbar_horizontal else "vertical",
             aspect=asp, ax=ax, fraction=frac, pad=pad
         )
-        cb.outline.set_edgecolor(None)
+        #cb.outline.set_edgecolor(None)
 
     return fig, ax
 

@@ -2759,7 +2759,6 @@ void fill_freqint_tables(float zp, double x_e_ave, double filling_factor_of_HI_z
                                                         log10_Mcrit_LW_ave_list[R_ct],LOG10_MTURN_INT), (astro_params_ts->NU_X_THRESH)*NU_over_EV);
             }
             else{
-                //LOG_DEBUG("Calculating nu from %.2f to %.2f | x_e = %.2e Q = %.2e",zp,zpp_for_evolve_list[R_ct],x_e_ave,filling_factor_of_HI_zp);
                 lower_int_limit = fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp), (astro_params_ts->NU_X_THRESH)*NU_over_EV);
             }
             // set up frequency integral table for later interpolation for the cell's x_e value
@@ -2872,7 +2871,8 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
     //at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1 barrier
     //so it needs the QHII in a range [zp,zpp]. I want to replace this whole thing with a global history struct but
     //that will be more work as I will need to change the Tau function.
-    double M_MIN, determine_zpp_min, determine_zpp_max;
+    //double determine_zpp_min;
+    double M_MIN, determine_zpp_max;
     if(user_params_ts->USE_INTERPOLATION_TABLES){
         init_ps();
         //TODO: finish the minimum source mass function and put it in ps.c
@@ -2880,9 +2880,11 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
         M_MIN = (astro_params_ts->M_TURN)/50;
         
         initialiseSigmaMInterpTable(M_MIN,1e20);
-        determine_zpp_min = zp*0.999;
+        determine_zpp_min = zp*0.999; //global
         //NOTE: must be called after setup_z_edges for this line
         determine_zpp_max = zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts-1]*1.001;
+        zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0); //global
+
         LOG_DEBUG("initing Nion spline from %.2f to %.2f",determine_zpp_min,determine_zpp_max);
         initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                             astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_ESC,

@@ -172,8 +172,8 @@ def _configure_inputs(
         # If both data and default have values
         if not (val is None or data_val is None or data_val == val):
             raise ValueError(
-                "%s has an inconsistent value with %s"
-                % (key, dataset.__class__.__name__)
+                "%s has an inconsistent (%s,%s) value with %s"
+                % (key, val, data_val, dataset.__class__.__name__)
             )
         else:
             if val is not None:
@@ -1102,20 +1102,6 @@ def determine_halo_list(
         if user_params.HMF != 1 and not flag_options.HALO_STOCHASTICITY:
             raise ValueError("USE_HALO_FIELD with DexM is only valid for HMF = 1")
 
-        # Make sure we've got computed init boxes.
-        if init_boxes is None or not init_boxes.is_computed:
-            init_boxes = initial_conditions(
-                user_params=user_params,
-                cosmo_params=cosmo_params,
-                regenerate=regenerate,
-                hooks=hooks,
-                direc=direc,
-                random_seed=random_seed,
-            )
-
-            # Need to update fields to have the same seed as init_boxes
-            fields._random_seed = init_boxes.random_seed
-
         #if the minimum is not provided, we treat this as the first box (or second if desc_halos provided)
         min_z = user_params.STOC_MINIMUM_Z if user_params.STOC_MINIMUM_Z is not None else -1
 
@@ -1157,6 +1143,23 @@ def determine_halo_list(
             random_seed=random_seed,
         )
 
+        # Construct FFTW wisdoms. Only if required
+        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+
+        # Make sure we've got computed init boxes.
+        if init_boxes is None or not init_boxes.is_computed:
+            init_boxes = initial_conditions(
+                user_params=user_params,
+                cosmo_params=cosmo_params,
+                regenerate=regenerate,
+                hooks=hooks,
+                direc=direc,
+                random_seed=random_seed,
+            )
+
+            # Need to update fields to have the same seed as init_boxes
+            fields._random_seed = init_boxes.random_seed
+
         # Check whether the boxes already exist
         logger.debug(f"z:{redshift:.2f} regen {regenerate}")
         if not regenerate:
@@ -1182,9 +1185,6 @@ def determine_halo_list(
             )
         elif first_box:
             halos_desc = HaloField(redshift=0,dummy=True)
-
-        # Construct FFTW wisdoms. Only if required
-        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
 
         # Run the C Code
         return fields.compute(ics=init_boxes, hooks=hooks, halos_desc=halos_desc, random_seed=random_seed)

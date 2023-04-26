@@ -9,7 +9,8 @@
 //max number of attempts for mass tolerance before failure
 #define MAX_ITERATIONS 1e4
 #define MAX_ITER_N 1 //for stoc_halo_sample, how many tries for one N
-#define MASS_TOL 0.25 //mass tolerance for sampling
+#define MASS_TOL 0.1 //mass tolerance for sampling
+#define MMAX_TABLES 1e14
 
 //max halos in memory for test functions
 //buffer size (per cell of arbitrary size) in the sampling function
@@ -19,14 +20,14 @@
 #define MAX_HALO_CELL (int)1e5
 //Max halo in entire box
 //100 Mpc^3 box should have ~80,000,000 halos at M_min=1e7, z=6 so this should cover up to ~250 Mpc^3
-#define MAX_HALO (int)3e8
+#define MAX_HALO (int)1e9
 
 #define MAX_DELTAC_FRAC (float)0.995
 
 //do not save halos below this number * minimum sampled halo mass (given by below and M_TURN)
 #define HALO_SAMPLE_FACTOR 2
 //minimum halo mass to sample below M_TURN
-#define HALO_MTURN_FACTOR 32
+#define HALO_MTURN_FACTOR 16
 
 //NOTE: increasing interptable dimensions has a HUGE impact on performance
 #define N_MASS_INTERP (int)500 // number of log-spaced mass bins in interpolation tables
@@ -295,7 +296,7 @@ double IntegratedNdM(double growthf, double M1, double M2, double M_filter, doub
 
     if(status!=0) {
         LOG_ERROR("gsl integration error occured!");
-        LOG_ERROR("(function argument): lower_limit=%.3e upper_limit=%.3e rel_tol=%.3e result=%.3e error=%.3e",lower_limit,upper_limit,rel_tol,result,error);
+        LOG_ERROR("(function argument): lower_limit=%.3e upper_limit=%.3e (%.3e) rel_tol=%.3e result=%.3e error=%.3e",lower_limit,upper_limit,exp(upper_limit),rel_tol,result,error);
         LOG_ERROR("data: growthf=%.3e M2=%.3e delta=%.3e sigma2=%.3e HMF=%.3d order=%.3e",growthf,exp(M_filter),delta,sigma,HMF,n_order);
         //LOG_ERROR("data: growthf=%e M2=%e delta=%e,sigma2=%e",parameters_gsl_MF_con.growthf,parameters_gsl_MF_con.M_max,parameters_gsl_MF_con.delta,parameters_gsl_MF_con.sigma_max);
         GSL_ERROR(status);
@@ -507,23 +508,6 @@ void free_dNdM_tables(){
     }
 }
 
-//since threads are cell-based, each thread should get a spline
-gsl_spline *combined_spline;
-#pragma omp threadprivate(combined_spline)
-gsl_interp_accel *combined_acc;
-#pragma omp threadprivate(combined_acc)
-
-//Cell alloc/free should be called in a parallel region
-void alloc_cell_cdf(){
-    combined_spline = gsl_spline_alloc(gsl_interp_linear, N_MASS_INTERP);
-    combined_acc = gsl_interp_accel_alloc();
-}
-
-void free_cell_cdf(){
-    gsl_spline_free(combined_spline);
-    gsl_interp_accel_free(combined_acc);
-}
-
 double sample_dndM_inverse(double condition, gsl_rng * rng){
     double p_in;
     // do{
@@ -535,14 +519,6 @@ double sample_dndM_inverse(double condition, gsl_rng * rng){
     // if(res > condition){
     //     LOG_WARNING("sampled %.2e from %.2e, p = %.2e",exp(res),exp(condition),p_in);
     // }
-
-    return res;
-}
-
-double sample_dndM_inverse_cell(gsl_rng * rng){
-    double p_in = gsl_rng_uniform(rng);
-    double res = gsl_spline_eval(combined_spline,p_in,combined_acc);
-    //LOG_ULTRA_DEBUG("p = %.3e ==> %.3e",p_in,exp(res));
 
     return res;
 }
@@ -565,141 +541,9 @@ void get_halo_avg(double growth_out, double delta, double lnMmin, double lnMmax,
 
     N = n_exp * M_in / sqrt(2.*PI);
     M = frac * M_in;
-    //LOG_ULTRA_DEBUG("Averages D %.2e d %.2f Min %.2e Max %.2e, t %.2e M %.2e",growth_out,delta,exp(lnMmin),exp(lnMmax),tbl_arg, M_in);
-    //LOG_ULTRA_DEBUG("Exp. N = %.3e M = %.3e",N,M);
 
     *exp_N = N;
     *exp_M = M;
-}
-
-//Makes a composite halo CDF from a list of halo masses at a certain delta
-//returns the total amount of mass in these halos expected to be in progenitors above Mmin
-double make_cell_cmf(double growth_out, double delta, double lnMmin, double lnMmax, float * M_in, int n_desc, bool update, double * exp_N, double * exp_M){
-    //OPTION 1:
-        //for each halo in the input:
-            //Evauluate CDF(M_out | M_in) for a range of M_out
-                //Since I can't do an integral for each halo, I need a 2D CDF table pre-calculated for the snapshot
-            //add the results to a 1D interpolation table, weighted by mass
-        //Normalise to max==1
-        //this approach is probably slower, and involves the construction of another table
-
-    double cell_cdf[N_MASS_INTERP];
-    double mass_ax[N_MASS_INTERP];
-    double M_coll=0, N_coll=0;
-    double dummy;
-    int i,j;
-    int gsl_status;
-
-    for(j=0;j<N_MASS_INTERP;j++){
-        cell_cdf[j] = 0.;
-        mass_ax[j] = lnMmin + (lnMmax - lnMmin)*(j)/(N_MASS_INTERP-1);
-    }
-
-    LOG_ULTRA_DEBUG("Making cell cmf for D %.2e d %.2e M [%.2e %.2e] n %d u %d, M %.2e",growth_out,delta,exp(lnMmin),exp(lnMmax),n_desc,update, M_in[0]);
-
-    double nh_buf, frac, lnM_desc, sigma_max, tbl_arg, M_coll_d, norm, N_exp;
-    //reuse the same spline here but with one descendant of the whole cell
-    if(!update){
-        n_desc = 1;
-        //this overwrites the input array, be careful not to reuse M_in afterwards
-        //This is only done on the initial grid sample so it shouldn't ever matter
-        M_in[0] = exp(lnMmax);
-        tbl_arg = delta;
-    }
-
-    for(i=0;i<n_desc;i++){
-        lnM_desc = log(M_in[i]);
-        //sometimes descendants of >deltac cells go above the max by float errors
-        if(lnM_desc > lnMmax)lnM_desc = lnMmax;
-        sigma_max = EvaluateSigma(lnM_desc,&dummy);
-        //TODO: does this need the ps_ratio?
-        //we also return the total collapsed mass to pass to the sampler
-        if(update) tbl_arg = lnM_desc;
-        //find expected progenitor number & mass
-        frac = EvaluateFgtrM(growth_out,lnMmin,delta,sigma_max);
-        M_coll_d = M_in[i] * frac;
-
-        //This happens at the end of a cell's history where some small halos go to none
-        //It will be ignored in the sampling
-        /*if (M_coll_d < exp(lnMmin)){
-            continue;
-        }*/
-
-        //add to total expectation values
-        M_coll += M_coll_d;
-        N_exp = EvaluatedNdMSpline(tbl_arg,lnMmax) * M_in[i]; //M = volume * rhocrit * omega
-        N_coll += N_exp;
-
-        for(j=1;j<N_MASS_INTERP;j++){
-            nh_buf = EvaluatedNdMSpline(tbl_arg,mass_ax[j]);
-            //Since the dNdM table gives the number DENSITY between Mmin and M, we weight by
-            //the Lagrangian volume (equal to mass * constant)
-            cell_cdf[j] += nh_buf * M_in[i]; //THE NORMALISATION IS ON N(<M) NOT FCOLL, NOT N(M)
-            //LOG_ULTRA_DEBUG("C %.2e M %.2e nh %.8e",tbl_arg,exp(mass_ax[j]),nh_buf);
-        }
-    }
-
-    if(M_coll < exp(lnMmin)){
-        *exp_M = 0;
-        *exp_N = 0;
-        return 0;
-    }
-
-    //normalise to 1 and deal with floating point errors which break monotonicity
-    cell_cdf[0] = 0.;
-    int above_one = 0;
-    norm = N_coll;
-    for(j=0;j<N_MASS_INTERP;j++){
-        cell_cdf[j] /= norm;
-        //there is a plateau at 1 usually where we hit float precision errors
-        //setting each value to ALMOST 1, above 1, while still retaining the monotonicity
-        //effectively ignores masses above the first occurrence (which should be the condition), since p ALWAYS <=1
-        if((above_one || cell_cdf[j] > 1 - FRACT_FLOAT_ERR*32)){
-            cell_cdf[j] = 1. + above_one*j*FRACT_FLOAT_ERR;
-            above_one = 1;
-        }
-        //LOG_ULTRA_DEBUG("p %.12e M %.2e j %d n %.2e",cell_cdf[j],exp(mass_ax[j]),j,norm);
-    }
-    //reverse x and y for the inverse CDF
-    gsl_status = gsl_spline_init(combined_spline, cell_cdf, mass_ax, N_MASS_INTERP);
-    
-    if(gsl_status!=0) {
-        LOG_ERROR("gsl spline error occured! M_coll %.3e N %.3e M_desc %.3e",M_coll, N_coll/sqrt(2.*PI),M_in[0]);
-        #pragma omp critical
-        {
-            for(j=1;j<N_MASS_INTERP;j++){
-                LOG_ERROR("p %.8f d %8.3e M %.2e j %d A %.2e N = %.2e",cell_cdf[j],cell_cdf[j] - cell_cdf[j-1],exp(mass_ax[j]),j,exp(tbl_arg),EvaluatedNdMSpline(tbl_arg,mass_ax[j]));
-            }
-        }
-        GSL_ERROR(gsl_status);
-    }
-    //Throw(ValueError);
-    //LOG_ULTRA_DEBUG("Done.");
-
-    //OPTION 2:
-        //for each halo in the input:
-            //Evaluate dNdM(M_out | M_in) for a range of M_out
-            //add + weight results
-        //integrate the TOTAL CDF
-        //normalise to max==1
-        //This approach may be faster If i can figure out a way to avoid the actual integral
-        //also might have issues with high-delta spikes not being added correctly
-
-    //OPTION 3:
-        //bin by mass, construct by N_in_bin * PDF_row
-        //This will eventually allow mini-halo addition, be fast and memory efficient
-        //but the binning by mass makes high-delta sampling strange due to the narrow spike
-        //this might be okay now since we are summing PDFs in a cell
-        //but smooth accretion will be difficult without fine binning
-
-        //There also might be a way to define the dNdM table to integrate over the bins N(Mp) = INT dMp INT dMd N(Mp|Md) N(Md)
-
-    N_coll = N_coll / sqrt(2.*PI);
-    LOG_ULTRA_DEBUG("Exp. N = %.3e M = %.3e",N_coll,M_coll);
-    *exp_N = N_coll;
-    *exp_M = M_coll;
-
-    return 0.;
 }
 
 void place_on_hires_grid(int x, int y, int z, int *crd_hi, gsl_rng * rng){
@@ -858,7 +702,7 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
 
     //set up the rng
     gsl_rng * rng_stoc[user_params->N_THREADS];
-    seed_rng_threads(rng_stoc,seed); 
+    seed_rng_threads(rng_stoc,seed);
 
     LOG_DEBUG("adding stars to %d halos",nhalos);
 
@@ -906,21 +750,11 @@ int stoc_halo_sample(double growth_out, double M_min, double M_max, double delta
     else
         tbl_arg = delta;
 
-    //exp_N = IntegratedNdM(growth_out, lnMmin, lnMmax, lnMmax, delta, 0, -1) * M_max / sqrt(2.*PI);
-    //sample poisson for stochastic halo number
-    // nh = gsl_ran_poisson(rng,exp_N);
-    // if(nh==0) nh = 1;
-    // while(M_min*nh > exp_M){
-    //     nh--;
-    // }
-    //LOG_ULTRA_DEBUG("Full integral NH %.2e",IntegratedNdM(growth_out, lnMmin, lnMmax, lnMmax, delta, 0, -1) * M_max / sqrt(2.*PI));
-
     for(n_failures=0;n_failures<MAX_ITERATIONS;n_failures++){
         n_attempts = 0;
-        nh = gsl_ran_poisson(rng,exp_N);
-        if(nh==0) nh = 1;
-        while(M_min*nh > exp_M){
-            nh--;
+        nh = 0;
+        while(nh==0 || M_min*nh > exp_M){
+            nh = gsl_ran_poisson(rng,exp_N);
         }
         for(n_attempts=0;n_attempts<MAX_ITER_N;n_attempts++){
             M_prog = 0;
@@ -946,14 +780,6 @@ int stoc_halo_sample(double growth_out, double M_min, double M_max, double delta
         LOG_ERROR("passed max iter in sample");
         Throw(ValueError);
     }
-
-    // M_prog = 0;
-    // for(ii=0;ii<nh;ii++){
-    //     hm_sample = sample_dndM_inverse(lnMmax,rng);
-    //     hm_sample = exp(hm_sample);
-    //     M_out[ii] = hm_sample;
-    //     M_prog += hm_sample;
-    // }
 
     found_halo_sample: *n_halo_out = halo_count;
     LOG_ULTRA_DEBUG("Got %d (exp. %.2e) halos mass %.2e (exp. %.2e) %.2f | (%d,%d) att.",
@@ -996,7 +822,7 @@ int stoc_mass_sample(double growth_out, double M_min, double M_max, double delta
             M_prog += M_sample;
             if(M_sample > HALO_SAMPLE_FACTOR * M_min)
                 M_out[n_halo_sampled++] = M_sample;
-            LOG_ULTRA_DEBUG("Sampled %.3e | %.3e",M_sample,M_prog);
+            //LOG_ULTRA_DEBUG("Sampled %.3e | %.3e",M_sample,M_prog);
         }
         //if the sample without the last halo is closer to the available mass take it instead
         if(-(M_prog - M_sample - exp_M) < M_prog - exp_M){
@@ -1004,7 +830,7 @@ int stoc_mass_sample(double growth_out, double M_min, double M_max, double delta
             M_prog -= M_sample;
         }
         
-        LOG_ULTRA_DEBUG("attempt %d M=%.3e [%.3e, %.3e]",n_failures,M_prog,exp_M*(1-MASS_TOL),exp_M*(1+MASS_TOL));
+        //LOG_ULTRA_DEBUG("attempt %d M=%.3e [%.3e, %.3e]",n_failures,M_prog,exp_M*(1-MASS_TOL),exp_M*(1+MASS_TOL));
         //enforce some level of mass conservation
         if((M_prog < exp_M*(1+MASS_TOL)) && (M_prog > exp_M*(1-MASS_TOL))){
                 //using goto to break double loop
@@ -1014,18 +840,9 @@ int stoc_mass_sample(double growth_out, double M_min, double M_max, double delta
 
     //technically I don't need the if statement but it might be confusing otherwise
     if(n_failures >= MAX_ITERATIONS){
-        LOG_ERROR("passed max iter in sample");
+        LOG_ERROR("passed max iter in sample, last attempt M=%.3e [%.3e, %.3e] Me %.3e Mt %.3e ln %.3e",M_prog,exp_M*(1-MASS_TOL),exp_M*(1+MASS_TOL),exp_M,M_max,lnMmax);
         Throw(ValueError);
     }
-    //cap last halo
-    //double p_trunc = gsl_rng_uniform(rng);
-    // p_trunc = 0.;
-    //if(M_sample*p_trunc < M_prog - exp_M)
-    //M_out[n_halo_sampled - 1] -= M_prog - exp_M;
-    // if(M_out[n_halo_sampled - 1] < M_min){
-    //     //This is so the other functions don't read the halo for property addition etc
-    //     n_halo_sampled--;
-    // }
     
     found_halo_sample: *n_halo_out = n_halo_sampled;
     LOG_ULTRA_DEBUG("Got %d (exp. %.2e) halos mass %.2e (exp. %.2e) %.2f | %d att",
@@ -1035,8 +852,8 @@ int stoc_mass_sample(double growth_out, double M_min, double M_max, double delta
 
 int stoc_sample(double growth_out, double M_min, double M_max, double delta, double exp_N, double exp_M, bool update, gsl_rng * rng, int *n_halo_out, float *M_out){
     LOG_ULTRA_DEBUG("Condition M = %.2e (%.2e), Mmin = %.2e, delta = %.2f",M_max,exp_M,M_min,delta);
-    return stoc_mass_sample(growth_out, M_min, M_max, delta, exp_N, exp_M, update, rng, n_halo_out, M_out);
-    //return stoc_halo_sample(growth_out, M_min, M_max, delta, exp_N, exp_M, update, rng, n_halo_out, M_out);
+    //return stoc_mass_sample(growth_out, M_min, M_max, delta, exp_N, exp_M, update, rng, n_halo_out, M_out);
+    return stoc_halo_sample(growth_out, M_min, M_max, delta, exp_N, exp_M, update, rng, n_halo_out, M_out);
 }
 
 // will have to add properties here and output grids, instead of in perturbed
@@ -1051,6 +868,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, int *
 
     double Mmax = RtoM(cell_size_R);
     double lnMmax = log(Mmax);
+    double lnMMax_tb = log(MMAX_TABLES); //wiggle room for tables
     double Mmin;
 
     Mmin = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc);
@@ -1058,9 +876,9 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, int *
 
     init_ps();
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        initialiseSigmaMInterpTable(Mmin,Mmax);
+        initialiseSigmaMInterpTable(Mmin,MMAX_TABLES);
     }
-    initialise_dNdM_tables(-1, Deltac, lnMmin, lnMmax, growthf, lnMmax, false);
+    initialise_dNdM_tables(-1, Deltac, lnMmin, lnMMax_tb, growthf, lnMmax, false);
 
 
     //Since the conditional MF is extended press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
@@ -1146,158 +964,6 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, int *
 
     return 0;
 }
-//updates halo masses (going increasing redshift, z_prev > z)
-//TODO: I don't think I need ps_ratio here since it's done in the first sample, but double check
-int halo_update_cell(gsl_rng ** rng_arr, double z_in, double z_out, int nhalo_in, int *coords_in, float *halo_in, float *stellar_in, float *sfr_in,
-                 int *nhalo_out, int *coords_out, float *halo_out, float *stellar_out, float *sfr_out){
-
-    if(z_in >= z_out){
-        LOG_ERROR("halo update must go backwards in time!!! z_in = %.1f, z_out = %.1f",z_in,z_out);
-        Throw(ValueError);
-    }
-    if(nhalo_in == 0){
-        LOG_DEBUG("No halos to update, continuing...");
-        *nhalo_out = 0;
-        return 0;
-    }
-    double growth_in = dicke(z_in);
-    double growth_out = dicke(z_out);
-    int lo_dim = user_params_stoc->HII_DIM;
-    int hi_dim = user_params_stoc->DIM;
-    double boxlen = user_params_stoc->BOX_LEN;
-    //cell size for smoothing / CMF calculation
-    double cell_size_R = boxlen / lo_dim * L_FACTOR;
-    double ps_ratio = 1.;
-
-    double Mmax = RtoM(cell_size_R);
-    double lnMmax = log(Mmax);
-
-    double Mmin = minimum_source_mass(z_out,astro_params_stoc,flag_options_stoc);
-    double lnMmin = log(Mmin);
-
-    double delta = Deltac * growth_out / growth_in; //crit density at z_in evolved to z_out
-
-    init_ps();
-    if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        initialiseSigmaMInterpTable(Mmin,Mmax);
-    }
-    initialise_dNdM_tables(lnMmin, lnMmax, lnMmin, lnMmax, growth_out, growth_in, true);
-
-    LOG_DEBUG("Updating halo cat: z_in = %f, z_out = %f (d = %f), n_in = %d  Mmin = %e",z_in,z_out,delta,nhalo_in,Mmin);
-
-    int count = 0;
-    int nohalo_count=0;
-
-#pragma omp parallel num_threads(user_params_stoc->N_THREADS)
-    {
-        float prog_buf[MAX_HALO_CELL];
-        float halo_cell[MAX_HALO_CELL];
-        float sm_cell[MAX_HALO_CELL];
-        float sfr_cell[MAX_HALO_CELL];
-        int n_prog, n_desc;
-        double exp_M, exp_N;
-        double M_cell_desc;
-        
-        float propbuf_in[2];
-        float propbuf_out[2];
-
-        int crd_hi[3];
-        int threadnum = omp_get_thread_num();
-        int desc_idx;
-        //float M2,sm2,sfr2;
-        int ii,jj,x,y,z;
-
-        alloc_cell_cdf();
-
-#pragma omp for
-        for (x=0; x<lo_dim; x++){
-            for (y=0; y<lo_dim; y++){
-                for (z=0; z<lo_dim; z++){
-                    n_desc = 0;
-                    M_cell_desc = 0;
-                    
-                    //LOG_ULTRA_DEBUG("Cell %d of %d",x*lo_dim*lo_dim + y*lo_dim + z,lo_dim*lo_dim*lo_dim);
-                    for(ii=0;ii<nhalo_in;ii++){
-                        //get halo information for the cell
-                        if((int)((double)coords_in[3*ii+0] * (double)lo_dim / (double)hi_dim) == x &&
-                            (int)((double)coords_in[3*ii+1] * (double)lo_dim / (double)hi_dim) == y &&
-                            (int)((double)coords_in[3*ii+2] * (double)lo_dim / (double)hi_dim) == z){
-                            sm_cell[n_desc] = stellar_in[ii];
-                            sfr_cell[n_desc] = sfr_in[ii];
-                            halo_cell[n_desc] = halo_in[ii];
-                            M_cell_desc += halo_in[ii];
-                            //LOG_ULTRA_DEBUG("Halo %d [%.3e %.3e %.3e]",n_desc,halo_in[ii],stellar_in[ii],sfr_in[ii]);
-                            n_desc++;
-                        }
-                    }
-
-                    if(n_desc==0){
-                        nohalo_count++;
-                        continue;
-                    }
-
-                    //NOTE:MAXIMUM HERE (TO BUILD TABLES) IS THE CELL MASS
-                    make_cell_cmf(growth_out,delta,lnMmin,lnMmax,halo_cell,n_desc,true,&exp_N,&exp_M);
-                    if(exp_M < Mmin) continue;
-
-                    //sort descendant list
-                    qsort(halo_cell,n_desc,sizeof(float),compare_float);
-                    
-                    //find progenitor halos by sampling halo CMF                    
-                    //NOTE: MAXIMUM HERE (TO LIMIT PROGENITOR MASS) IS THE DESCENDANT MASS
-                    //The assumption is that the expected fraction of the progenitor
-                    stoc_sample(growth_out,Mmin,Mmax,delta,exp_N,exp_M,true,rng_arr[threadnum],&n_prog,prog_buf);
-
-                    //sort progenitor list
-                    qsort(prog_buf,n_prog,sizeof(float),compare_float);
-
-                    //place progenitors in local list
-                    for(jj=0;jj<n_prog;jj++){
-                        propbuf_in[0] = sm_cell[jj];
-                        propbuf_in[1] = sfr_cell[jj];
-
-                        //on the rare occasion that n_prog > n_desc, we wrap around the desc list
-                        desc_idx = jj % n_desc;
-                        update_halo_properties(rng_arr[threadnum], z_out, z_in, prog_buf[jj], halo_cell[desc_idx], propbuf_in, propbuf_out);        
-
-                        place_on_hires_grid(x,y,z,crd_hi,rng_arr[threadnum]);              
-                        
-                        #pragma omp critical
-                        {
-                            halo_out[count] = prog_buf[jj];
-
-                            // TODO: ASSIGNING COORDS OPTIONS:
-                            //      1: find a way to keep track of unsorted halo indices
-                            //      2: (current) randomly place halos within HII_DIM each snap
-                            //      3: just do the updates on DIM (could affect the discretisation)
-                            coords_out[3*count + 0] = crd_hi[0];
-                            coords_out[3*count + 1] = crd_hi[1];
-                            coords_out[3*count + 2] = crd_hi[2];
-                            
-                            stellar_out[count] = propbuf_out[0];
-                            sfr_out[count] = propbuf_out[1];
-                            count++;
-                        }
-                    }
-                }
-            }
-        }
-        free_cell_cdf();
-    }
-
-    if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        freeSigmaMInterpTable();
-    }
-
-    free_dNdM_tables();
-
-    if(nohalo_count > 0){
-        LOG_DEBUG("%d Cells had no halos",nohalo_count);
-    }
-
-    *nhalo_out = count;
-    return 0;
-}
 
 int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, int nhalo_in, int *coords_in, float *halo_in, float *stellar_in, float *sfr_in,
                  int *nhalo_out, int *coords_out, float *halo_out, float *stellar_out, float *sfr_out){
@@ -1311,6 +977,7 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, int nhalo_in, int
         *nhalo_out = 0;
         return 0;
     }
+    
     double growth_in = dicke(z_in);
     double growth_out = dicke(z_out);
     int lo_dim = user_params_stoc->HII_DIM;
@@ -1322,6 +989,7 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, int nhalo_in, int
 
     double Mmax = RtoM(cell_size_R);
     double lnMmax = log(Mmax);
+    double lnMMax_tb = log(MMAX_TABLES); //wiggle room for tables
 
     double Mmin = minimum_source_mass(z_out,astro_params_stoc,flag_options_stoc);
     double lnMmin = log(Mmin);
@@ -1330,9 +998,9 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, int nhalo_in, int
 
     init_ps();
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        initialiseSigmaMInterpTable(Mmin,Mmax);
+        initialiseSigmaMInterpTable(Mmin,MMAX_TABLES);
     }
-    initialise_dNdM_tables(lnMmin, lnMmax, lnMmin, lnMmax, growth_out, growth_in, true);
+    initialise_dNdM_tables(lnMmin, lnMMax_tb, lnMmin, lnMMax_tb, growth_out, growth_in, true);
     LOG_DEBUG("Updating halo cat: z_in = %f, z_out = %f (d = %f), n_in = %d  Mmin = %e",z_in,z_out,delta,nhalo_in,Mmin);
 
     int count = 0;
@@ -1727,6 +1395,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 
         double lnMmin = log(Mmin);
         double lnMmax = log(Mmax);
+        double lnMMax_tb = log(MMAX_TABLES); //wiggle room for tables
 
         LOG_DEBUG("TEST FUNCTION: type = %d up %d, z = (%.2f,%.2f), Mmin = %e, Mmax = %e, R = %.2e (%.2e), delta = %.2f, M(%d)=[%.2e,%.2e,%.2e...]",type,update,z_out,z_in,Mmin,Mmax,R,volume,delta,n_mass,M[0],M[1],M[2]);
 
@@ -1739,14 +1408,14 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         if(type != 5){
             init_ps();
             if(user_params_stoc->USE_INTERPOLATION_TABLES){
-                initialiseSigmaMInterpTable(Mmin,Mmax);
+                initialiseSigmaMInterpTable(Mmin,MMAX_TABLES);
             }
             //we use these tables only for some functions
             if(update){
-                initialise_dNdM_tables(lnMmin, lnMmax, lnMmin, lnMmax, growth_out, growth_in, true);
+                initialise_dNdM_tables(lnMmin, lnMMax_tb, lnMmin, lnMMax_tb, growth_out, growth_in, true);
             }
             else{
-                initialise_dNdM_tables(-1, Deltac, lnMmin, lnMmax, growth_out, lnMmax, false);
+                initialise_dNdM_tables(-1, Deltac, lnMmin, lnMMax_tb, growth_out, lnMmax, false);
             }
         }
         //Since the conditional MF is press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
@@ -1894,47 +1563,49 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             }
         }
 
-        //halo catalogues + cell sums from multiple identical cells, given M as cell descendant halos
+        //halo catalogues + cell sums from multiple conditions, given M as cell descendant halos/cells
         else if(type==4){
             int n_halo_tot=0;
             int n_cond = n_mass;
+            double test_M, test_N;
             
             #pragma omp parallel num_threads(user_params->N_THREADS) private(i,j)
             {
                 float out_hm[MAX_HALO_CELL];
-                double exp_M,exp_N;
+                double exp_M,exp_N,M_prog;
                 int n_halo;
                 double test_M_low, test_M_mid, test_M_hi;
                 //alloc_cell_cdf();
                 //if !update, the masses are ignored, and the cell will have the given delta
                 #pragma omp for
                 for(j=0;j<n_cond;j++){
-                    result[1+j] = 0.;
+                    M_prog = 0;
                     //make_cell_cmf(growth_out,delta,lnMmin,lnMmax,M,n_mass,update,&exp_N,&exp_M);
                     get_halo_avg(growth_out,delta,lnMmin,lnMmax,M[j],update,&exp_N,&exp_M);
                     stoc_sample(growth_out, Mmin, M[j], delta, exp_N, exp_M, update, rng_stoc[omp_get_thread_num()], &n_halo, out_hm);
-                    result[1+j] = (double)n_halo;
                     for(i=0;i<n_halo;i++){
-                        result[1+n_cond+j] += out_hm[i];
                         if(out_hm[i]>M[j]){
                             test_M_low = gsl_spline2d_eval(Nhalo_inv_spline,log(M[j]),0.999,Nhalo_inv_cond_acc,Nhalo_inv_prob_acc);
                             test_M_mid = gsl_spline2d_eval(Nhalo_inv_spline,log(M[j]),0.9999,Nhalo_inv_cond_acc,Nhalo_inv_prob_acc);
                             test_M_hi = gsl_spline2d_eval(Nhalo_inv_spline,log(M[j]),0.99999,Nhalo_inv_cond_acc,Nhalo_inv_prob_acc);
                             LOG_WARNING("Found mass %.2e > %.2e, test interp (%.2e,%.2e,%.2e)",out_hm[i],M[j],exp(test_M_low),exp(test_M_mid),exp(test_M_hi));
                         }
+                        M_prog += out_hm[i];
                         
                         #pragma omp critical
                         {
-                            result[1+2*n_cond+(n_halo_tot++)] = out_hm[i];
+                            result[1+n_cond+(n_halo_tot++)] = out_hm[i];
                         }
                     }
                     //LOG_ULTRA_DEBUG("Cell %d %d got %.2e Mass (exp %.2e) %.2f",j,n_halo,result[1+j],exp_M,result[1+j]/(exp_M) - 1);
-                    result[1+n_cond+j] = result[1+n_cond+j] - exp_M; //excess mass in the cell
+                    result[1+j] = M_prog - exp_M; //excess mass in the cell
                 }
                 
                 result[0] = (double)n_halo_tot;
                 //free_cell_cdf();
             }
+            get_halo_avg(growth_out,delta,lnMmin,lnMmax,M[0],update,&test_N,&test_M);
+            LOG_DEBUG("%d --> %d Halos, first exp N %.3e M %.3e M=[%.3e,%.3e,%.3e...]",n_cond,n_halo_tot,test_N,test_M,result[1+n_cond+0],result[1+n_cond+1],result[1+n_cond+2]);
         }
         
         //halo catalogue from list of conditions (Mass for update, delta for !update)
