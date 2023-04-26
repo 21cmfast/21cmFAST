@@ -32,7 +32,7 @@
 //NOTE: increasing interptable dimensions has a HUGE impact on performance
 #define N_MASS_INTERP (int)500 // number of log-spaced mass bins in interpolation tables
 #define N_DELTA_INTERP (int)500 // number of log-spaced overdensity bins in interpolation tables
-#define N_PROB_INTERP (int)500
+#define N_PROB_INTERP (int)500 // number of log-spaced probability bins in interpolation tables
 #define MIN_LOGPROB -12 //minimum log probability value in interptables, -12 --> 6e-6 (almost always after the turnover)
 
 struct AstroParams *astro_params_stoc;
@@ -761,7 +761,6 @@ int stoc_halo_sample(double growth_out, double M_min, double M_max, double delta
             halo_count = 0;
             for(ii=0;ii<nh;ii++){
                 hm_sample = sample_dndM_inverse(tbl_arg,rng);
-                //hm_sample = sample_dndM_inverse_cell(rng);
                 hm_sample = exp(hm_sample);
                 M_prog += hm_sample;
                 if(hm_sample > HALO_SAMPLE_FACTOR*M_min)
@@ -816,7 +815,6 @@ int stoc_mass_sample(double growth_out, double M_min, double M_max, double delta
         M_prog = 0;
         while(M_prog < exp_M){
             M_sample = sample_dndM_inverse(tbl_arg,rng);
-            //M_sample = sample_dndM_inverse_cell(rng);
             M_sample = exp(M_sample);
 
             M_prog += M_sample;
@@ -902,11 +900,8 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, int *
         float hm_buf[MAX_HALO_CELL];
         int nh_buf=0;
         double delta;
-        double M_coll;
         float prop_buf[2];
-        double cell_exp[2];
         double exp_M, exp_N;
-        float dummy_M[1];
         int crd_hi[3];
 
         //debug printing
@@ -930,7 +925,6 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, int *
                         hm_buf[0] = Mmax;
                     }
                     else{
-                        //make_cell_cmf(growthf, delta, lnMmin, lnMmax, dummy_M, 1, false, &exp_N, &exp_M);
                         get_halo_avg(growthf, delta, lnMmin, lnMmax, Mmax, false, &exp_N, &exp_M);
                         stoc_sample(growthf, Mmin, Mmax, delta, exp_N/ps_ratio, exp_M/ps_ratio, 0, rng_arr[threadnum], &nh_buf, hm_buf);
                     }
@@ -977,7 +971,7 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, int nhalo_in, int
         *nhalo_out = 0;
         return 0;
     }
-    
+
     double growth_in = dicke(z_in);
     double growth_out = dicke(z_out);
     int lo_dim = user_params_stoc->HII_DIM;
@@ -1022,7 +1016,6 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, int nhalo_in, int
 #pragma omp for
         for(ii=0;ii<nhalo_in;ii++){
             M2 = halo_in[ii];
-            //make_cell_cmf(growth_out,delta,lnMmin,lnMmax,&M2,1,true,&exp_N,&exp_M);
             get_halo_avg(growth_out,delta,lnMmin,lnMmax,M2,true,&exp_N,&exp_M);
 
             if(exp_M < Mmin) continue;
@@ -1575,12 +1568,10 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 double exp_M,exp_N,M_prog;
                 int n_halo;
                 double test_M_low, test_M_mid, test_M_hi;
-                //alloc_cell_cdf();
                 //if !update, the masses are ignored, and the cell will have the given delta
                 #pragma omp for
                 for(j=0;j<n_cond;j++){
                     M_prog = 0;
-                    //make_cell_cmf(growth_out,delta,lnMmin,lnMmax,M,n_mass,update,&exp_N,&exp_M);
                     get_halo_avg(growth_out,delta,lnMmin,lnMmax,M[j],update,&exp_N,&exp_M);
                     stoc_sample(growth_out, Mmin, M[j], delta, exp_N, exp_M, update, rng_stoc[omp_get_thread_num()], &n_halo, out_hm);
                     for(i=0;i<n_halo;i++){
@@ -1602,7 +1593,6 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 }
                 
                 result[0] = (double)n_halo_tot;
-                //free_cell_cdf();
             }
             get_halo_avg(growth_out,delta,lnMmin,lnMmax,M[0],update,&test_N,&test_M);
             LOG_DEBUG("%d --> %d Halos, first exp N %.3e M %.3e M=[%.3e,%.3e,%.3e...]",n_cond,n_halo_tot,test_N,test_M,result[1+n_cond+0],result[1+n_cond+1],result[1+n_cond+2]);
@@ -1702,35 +1692,6 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             }
         }
         
-        //Cell CDF/masses from one cell, given M as cell descendant halos
-        //uses a constant mass binning since we use the input for descendants
-        else if(type==7){
-            double out_mass[100];
-            double out_prob[100];
-            int n_bins = 100;
-            double prefactor = RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm;
-            double exp_N,exp_M;
-
-            #pragma omp parallel num_threads(user_params->N_THREADS) private(j)
-            {
-                alloc_cell_cdf();
-                //here, each thread makes an identical CMF and splits the probabilities
-                make_cell_cmf(growth_out,delta,lnMmin,log(M[0]),M,n_mass,true,&exp_N,&exp_M);
-                #pragma omp for
-                for(i=0;i<n_bins;i++){
-                    out_prob[i] = ((double)i/((double)n_bins-1));
-                    out_mass[i] = gsl_spline_eval(combined_spline,out_prob[i],combined_acc);
-                }
-                free_cell_cdf();
-            }
-            result[0] = n_bins;
-            result[1] = exp_N;
-            result[2] = exp_M;
-            for(i=0;i<n_bins;i++){
-                result[3+i] = out_mass[i];
-                result[3+i+n_bins] = out_prob[i]; //assuming here you pass all the halos in the box
-            }
-        }
         else{
             LOG_ERROR("Unkown output type");
             Throw(ValueError);
