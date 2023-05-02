@@ -101,7 +101,7 @@
 #define hplank (double) 6.62606896e-27 // erg s
 #define TINY (double) 1e-30
 #define FRACT_FLOAT_ERR (double) 1e-7 // fractional floating point error
-#define f_alpha (float) 0.4162 / oscillator strength of Lya
+#define f_alpha (float) 0.4162 // oscillator strength of Lya
 #define Ly_alpha_HZ  (double ) 2.46606727e15  // frequency of Lyalpha
 #define C  (double) 29979245800.0  //  speed of light  (cm/s)
 #define C_KMS (double) C/1e5  /* speed of light in km/s  */
@@ -121,7 +121,7 @@
 #define k_B (double) 1.380658e-16 // erg / K
 #define m_p (double) 1.6726231e-24 // proton mass (g)
 #define m_e (double) 9.10938188e-28 // electron mass (g)
-#define e_charge (double) 4.8033e-10 // elemetary charge (esu=g^1/2 cm^3/2 s^-1
+#define e_charge (double) 4.80320467e-10 // elemetary charge (esu=g^1/2 cm^3/2 s^-1
 #define SQDEG_ALLSKY (double) ((360.0*360.0)/PI) // Square degrees in all sky
 #define G_AB_Jy (double) 3631.0 // AB mag constant in Jy
 #define NU_over_EV (double) (1.60217646e-12 / hplank)
@@ -129,11 +129,13 @@
 #define NUIONIZATION (double) (13.60*NU_over_EV)  // ionization frequency of H
 #define HeII_NUIONIZATION (double) (NUIONIZATION*4) // ionization frequency of HeII
 #define HeI_NUIONIZATION (double) (24.59*NU_over_EV) // ionization frequency of HeI
-#define T21 (double) 0.0628 // temperature corresponding to the 21cm photon
+#define T21 (double) 0.0682 // temperature corresponding to the 21cm photon
 #define A10_HYPERFINE (double) 2.85e-15 // spontaneous emission coefficient in s^-1
 
 #define Lambda_21 (double) 21.106114054160 //Wavelength of 21cm Radiation in cm
 #define A21_Lya (double) 6.24e8 //Spontaneous emission coefficient for Lyman-Alpha line in s^-1
+
+#define vac_perm (double) 8.8541878128e-12 // vacuum permittivity in farads m^-1
 
 
 // ----------------------------------------------------------------------------------------- //
