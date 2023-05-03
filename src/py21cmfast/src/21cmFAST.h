@@ -94,7 +94,6 @@ struct PerturbedField{
 };
 
 struct HaloField{
-
     int n_halos;
     float *halo_masses;
     int *halo_coords;
@@ -111,7 +110,6 @@ struct HaloField{
 
 struct PerturbHaloField{
     int n_halos;
-
     float *halo_masses;
     int *halo_coords;
 };
