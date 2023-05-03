@@ -427,6 +427,7 @@ class HaloBox(_AllParamsBox):
             "halo_mass": shape,
             "wstar_mass": shape,
             "halo_sfr": shape,
+            "count": shape,
         }
 
         return out

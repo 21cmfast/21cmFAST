@@ -1390,6 +1390,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->halo_mass[idx] = 0.0;
                     grids->wstar_mass[idx] = 0.0;
                     grids->halo_sfr[idx] = 0.0;
+                    grids->count[idx] = 0;
                 }
 
 #pragma omp barrier
@@ -1417,6 +1418,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->wstar_mass[HII_R_INDEX(x, y, z)] += wstar;
     #pragma omp atomic update
                     grids->halo_sfr[HII_R_INDEX(x, y, z)] += sfr;
+    #pragma omp atomic update
+                    grids->count[HII_R_INDEX(x, y, z)] += 1;
 
                     if(LOG_LEVEL >= DEBUG_LEVEL){
                         hm_avg += m;
