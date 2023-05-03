@@ -316,7 +316,7 @@ def test_coeval_st(ic, perturb_field):
 
 def _global_Tb(coeval_box):
     assert isinstance(coeval_box, wrapper.Coeval)
-    global_Tb = coeval_box.brightness_temp.mean(dtype=np.float128).astype(np.float32)
+    global_Tb = coeval_box.brightness_temp.mean(dtype=np.float64).astype(np.float32)
     assert np.isclose(global_Tb, coeval_box.brightness_temp_struct.global_Tb)
     return global_Tb
 

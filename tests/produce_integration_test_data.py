@@ -226,6 +226,14 @@ OPTIONS = {
             "USE_RELATIVE_VELOCITIES": True,
         },
     ],
+    "lyman_alpha_heating": [
+        8,
+        {"N_THREADS": 4, "USE_CMB_HEATING": False},
+    ],
+    "cmb_heating": [
+        8,
+        {"N_THREADS": 4, "USE_LYA_HEATING": False},
+    ],
 }
 
 if len(set(OPTIONS.keys())) != len(list(OPTIONS.keys())):
