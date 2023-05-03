@@ -15,6 +15,8 @@ Fixed
 
 * Running with ``R_BUBBLE_MAX`` too large auto-fixes it to be ``BOX_LEN`` (#112)
 * Bug in calling ``clear_cache``.
+* Slight inconsistency in the way lightcone scrolling was done compared to coeval
+  scrolling (#320)
 
 Added
 -----
@@ -28,6 +30,9 @@ Added
   scenarios in line with current observations (#305)
 * Add in an initialisation check for the photon conservation to address some issues
   arising for early EOR histories (#311)
+* Spin temperature fluctuations at high redshift (#320)
+* More physical heating model (#322)
+
 
 v3.2.1 [13 Sep 2022]
 ----------------------
