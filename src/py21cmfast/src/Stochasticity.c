@@ -1067,7 +1067,13 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
     }
     if(nhalo_in == 0){
         LOG_DEBUG("No halos to update, continuing...");
+
+        //allocate dummy arrays so we don't get a Bus Error by freeing unallocated pointers
         halofield_out->n_halos = 0;
+        halofield_out->halo_coords = (int*)calloc(0,sizeof(int));
+        halofield_out->halo_masses = (float*)calloc(0,sizeof(float));
+        halofield_out->stellar_masses = (float*)calloc(0,sizeof(float));
+        halofield_out->halo_sfr = (float*)calloc(0,sizeof(float));
         return 0;
     }
 
@@ -1240,9 +1246,11 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
 
     LOG_DEBUG("Found %d Halos", halos->n_halos);
 
-    LOG_DEBUG("First few Masses:  %11.3e %11.3e %11.3e",halos->halo_masses[0],halos->halo_masses[1],halos->halo_masses[2]);
-    LOG_DEBUG("First few Stellar: %11.3e %11.3e %11.3e",halos->stellar_masses[0],halos->stellar_masses[1],halos->stellar_masses[2]);
-    LOG_DEBUG("First few SFR:     %11.3e %11.3e %11.3e",halos->halo_sfr[0],halos->halo_sfr[1],halos->halo_sfr[2]);
+    if(halos->n_halos > 3){
+        LOG_DEBUG("First few Masses:  %11.3e %11.3e %11.3e",halos->halo_masses[0],halos->halo_masses[1],halos->halo_masses[2]);
+        LOG_DEBUG("First few Stellar: %11.3e %11.3e %11.3e",halos->stellar_masses[0],halos->stellar_masses[1],halos->stellar_masses[2]);
+        LOG_DEBUG("First few SFR:     %11.3e %11.3e %11.3e",halos->halo_sfr[0],halos->halo_sfr[1],halos->halo_sfr[2]);
+    }
 
     free_rng_threads(rng_stoc);
     return 0;
@@ -1322,7 +1330,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             {
                 int i;
                 double dens;
-                double mass, wstar, sfr;
+                double mass, wstar, sfr, h_count;
 #pragma omp for reduction(+:hm_avg,sm_avg,sfr_avg)
                 for(i=0;i<HII_TOT_NUM_PIXELS;i++){
                     dens = perturbed_field->density[i];
@@ -1332,18 +1340,21 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                         mass = 0.;
                         wstar = 0.;
                         sfr = 0.;
+                        h_count = 0;
                     }
                     //turn into one large halo if we exceed the critical
                     //Since these are perturbed (Eulerian) grids, I use the total cell mass (1+dens)
-                    else if(dens>=0.99*Deltac){                  
+                    else if(dens>=MAX_DELTAC_FRAC*Deltac){
                         mass = M_max * (1+dens);
                         wstar = M_max * (1+dens) * cosmo_params->OMb / cosmo_params->OMm * norm_star * pow(M_max*(1+dens)/1e10,alpha_star) * norm_esc * pow(M_max*(1+dens)/1e10,alpha_esc);
                         sfr = M_max * (1+dens) * cosmo_params->OMb / cosmo_params->OMm * norm_star * pow(M_max*(1+dens)/1e10,alpha_star) / t_star / t_hubble(redshift);
+                        h_count = 1;
                     }
                     else{
                         //calling IntegratedNdM with star and SFR need special care for the f*/fesc clipping, and calling NionConditionalM for mass includes duty cycle
                         //neither of which I want
                         mass = IntegratedNdM(growth_z,lnMmin,lnMmax,lnMmax,dens,1,-1) * prefactor_mass * (1+dens);
+                        h_count = IntegratedNdM(growth_z,lnMmin,lnMmax,lnMmax,dens,0,-1) * prefactor_mass * (1+dens);
 
                         wstar = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, Deltac, dens, astro_params->M_TURN
                                                 , astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10
@@ -1357,6 +1368,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->halo_mass[i] = mass;
                     grids->wstar_mass[i] = wstar;
                     grids->halo_sfr[i] = sfr;
+                    grids->count[i] = (int)h_count;
                     
                     hm_avg += mass;
                     sm_avg += wstar;

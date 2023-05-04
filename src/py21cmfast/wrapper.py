@@ -3297,15 +3297,10 @@ def run_lightcone(
                         regenerate=regenerate,
                         hooks=hooks,
                         direc=direc,
-                    )                    
-                    #TODO: Purge here (See MINIMIZE_MEMORY PARTS), this should always happen
-                    #since we are calculating the halo field beforehand. Check how much is done automatically
-                    #and if there's some leak involved with reusing the variable names here
-                    if isinstance(halos_desc,HaloField) and user_params.MINIMIZE_MEMORY:
-                        try:
-                            halos_desc.purge(force=always_purge)
-                        except OSError:
-                            pass
+                    )
+                    #TODO: Purge here, Currently the halo field has to be freed in C since
+                    #   box_structure is not defined (unknown size at runtime)
+                    #   find a way to purge in python properly
 
                     halos_desc = halo_field
                 else:

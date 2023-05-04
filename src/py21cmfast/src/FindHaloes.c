@@ -28,6 +28,10 @@ int ComputeHaloField(float redshift_prev, float redshift, struct UserParams *use
     if(flag_options->HALO_STOCHASTICITY && !(halos->first_box)){
         LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %d halos...",halos_prev->n_halos);
         stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_prev, redshift, boxes->lowres_density, halos_prev, halos);
+        //unfortunately we cannot yet free a HaloField in python
+        //TODO: implement proper allocation / freeing that guarantees halos_prev is allocated here
+        //  Currently it is a dummy for non-first boxes
+        free_halo_field(halos_prev);
         return 0;
     }
 
@@ -134,6 +138,8 @@ LOG_DEBUG("Prepare to filter to find halos");
 
 
         // This uses more memory than absolutely necessary, but is fastest.
+        //TODO: I could just use halos_prev? which would make it exist in the wrapper
+        //  but would take some tinkering
         struct HaloField *halos_large = malloc(sizeof(struct HaloField));
         halos_large->n_halos = 0;
         init_hmf(halos_large);
@@ -353,7 +359,6 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_prev, redshift, boxes->lowres_density, halos_large, halos);
             //stochastic_halofield allocates new memory for all the halos so we can free everything
             free_halo_field(halos_large);
-            free(halos_large);
         }
         else{
             //assign to output struct
@@ -371,10 +376,6 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             halos->halo_masses = halos_large->halo_masses;
             halos->stellar_masses = halos_large->stellar_masses;
             halos->halo_sfr = halos_large->halo_sfr;
-
-            //we don't free the internal poniters since the pointers are now used in the output struct
-            //  however we don't need the first HaloField pointer anymore
-            free(halos_large);
         }
 
 LOG_DEBUG("Finished halo processing.");
