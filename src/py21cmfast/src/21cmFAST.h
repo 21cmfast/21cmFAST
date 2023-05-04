@@ -125,7 +125,7 @@ struct HaloBox{
     //but for IonisationBox.c and SpinTemperatureBox.c we don't need them
     float *wstar_mass; //weighted by F_ESC
     float *halo_sfr;
-    int count;
+    int *count;
 
     //generated from a perturbed field
     //Not 100% sure If I want to add the option for these grids

@@ -10,6 +10,7 @@
 
 int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, float R, int x, int y, int z, int check_type);
 void init_halo_coords(struct HaloField *halos, int n_halos);
+int pixel_in_halo(int grid_dim, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index );
 void free_halo_field(struct HaloField *halos);
 void init_hmf(struct HaloField *halos);
 void trim_hmf(struct HaloField *halos);
