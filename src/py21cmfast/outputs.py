@@ -309,6 +309,9 @@ class HaloField(_AllParamsBox):
     )
     _c_compute_function = lib.ComputeHaloField
 
+    #TODO: Having no Array state makes allocation/memory management awkward for this object
+    #   I would like to properly manage it in some other way, currently you should declare in python,
+    #   allocate in C and NEVER deallocate it, since it should be GC'd in python somewhere (I think????)
     def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
         return {}
 

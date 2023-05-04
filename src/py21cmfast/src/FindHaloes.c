@@ -28,10 +28,6 @@ int ComputeHaloField(float redshift_prev, float redshift, struct UserParams *use
     if(flag_options->HALO_STOCHASTICITY && !(halos->first_box)){
         LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %d halos...",halos_prev->n_halos);
         stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_prev, redshift, boxes->lowres_density, halos_prev, halos);
-        //unfortunately we cannot yet free a HaloField in python
-        //TODO: implement proper allocation / freeing that guarantees halos_prev is allocated here
-        //  Currently it is a dummy for non-first boxes
-        free_halo_field(halos_prev);
         return 0;
     }
 
@@ -377,6 +373,9 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             halos->stellar_masses = halos_large->stellar_masses;
             halos->halo_sfr = halos_large->halo_sfr;
         }
+        //either way we don't need the pointer to the temp struct
+        //TODO: make sure this doesn't break the DexM only case
+        free(halos_large);
 
 LOG_DEBUG("Finished halo processing.");
 

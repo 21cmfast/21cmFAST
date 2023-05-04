@@ -2760,6 +2760,7 @@ def run_coeval(
                         hooks=hooks,
                         direc=direc,
                     )
+                    halos_desc = halos
                     pt_halos = perturb_halo_list(
                         redshift=z,
                         init_boxes=init_box,
@@ -2772,9 +2773,6 @@ def run_coeval(
                         hooks=hooks,
                         direc=direc,
                     )
-                    if isinstance(halos_desc,HaloField):
-                        halos_desc.purge(force=always_purge)
-                    halos_desc = halos
 
                 else:
                     pt_halos = None
@@ -3268,7 +3266,7 @@ def run_lightcone(
         pf = None
 
         #we explicitly pass the descendant halos here since we have a redshift list prior
-        #this will generate the extra fields if STOC_MINIMUM_Z is given
+        #   this will generate the extra fields if STOC_MINIMUM_Z is given
         hbox_files = []
         if flag_options.USE_HALO_FIELD:
             halos_desc = None
@@ -3286,6 +3284,9 @@ def run_lightcone(
                         halos_desc=halos_desc,
                         direc=direc,
                     )
+                    #NOTE: I'm assuming this calls the __del__ method of the object (since it completely breaks
+                    #   when I free it otherwise) So this shouldn't be a memory leak
+                    halos_desc = halo_field
                     pt_halos = perturb_halo_list(
                         redshift=z,
                         init_boxes=init_box,
@@ -3298,14 +3299,9 @@ def run_lightcone(
                         hooks=hooks,
                         direc=direc,
                     )
-                    #TODO: Purge here, Currently the halo field has to be freed in C since
-                    #   box_structure is not defined (unknown size at runtime)
-                    #   find a way to purge in python properly
-
-                    halos_desc = halo_field
                 else:
                     pt_halos = None
-                #logger.info('starting halobox with pt_halos %s perturbed_field %s',pt_halos,perturb[::-1][iz])
+                # logger.info('starting halobox with pt_halos %s perturbed_field %s',pt_halos,perturb[::-1][iz])
                 hbox = halo_box(redshift=z,
                         init_boxes=init_box,
                         astro_params=astro_params,
