@@ -499,7 +499,7 @@ LOG_SUPER_DEBUG("Initialised heat");
 #pragma omp for
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<user_params->HII_D_PARA; k++){
+                    for (k=0; k<HII_D_PARA; k++){
                         ct=HII_R_INDEX(i,j,k);
                         gdens = perturbed_field->density[ct]*growthfac;
                         this_spin_temp->Tk_box[ct] = TK *(1.0 + cT_ad * gdens);
