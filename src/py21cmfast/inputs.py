@@ -507,15 +507,11 @@ class UserParams(StructWithDefaults):
     @property
     def NON_CUBIC_FACTOR(self):
         """Factor to shorten/lengthen the line-of-sight dimension (non-cubic boxes)."""
-        if (
-            self.DIM * self._NON_CUBIC_FACTOR % int(self.DIM * self._NON_CUBIC_FACTOR)
-            or self.HII_DIM
-            * self._NON_CUBIC_FACTOR
-            % int(self.HII_DIM * self._NON_CUBIC_FACTOR)
-            > 0
-        ):
+        dcf = self.DIM * self._NON_CUBIC_FACTOR
+        hdcf = self.HII_DIM * self._NON_CUBIC_FACTOR
+        if dcf % int(dcf) or hdcf % int(hdcf):
             raise ValueError(
-                "NON_CUBIC_FACTOR * DIM and NON_CUBIC_FACTOR * HII_DIM must be an integer"
+                "NON_CUBIC_FACTOR * DIM and NON_CUBIC_FACTOR * HII_DIM must be integers"
             )
         else:
             return self._NON_CUBIC_FACTOR
