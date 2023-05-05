@@ -266,7 +266,6 @@ class _AllParamsBox(_OutputStructZ):
         *,
         astro_params: AstroParams | None = None,
         flag_options: FlagOptions | None = None,
-        first_box: bool = False,
         **kwargs,
     ):
         self.flag_options = flag_options or FlagOptions()
@@ -276,11 +275,6 @@ class _AllParamsBox(_OutputStructZ):
 
         self.log10_Mturnover_ave = 0.0
         self.log10_Mturnover_MINI_ave = 0.0
-
-        self.first_box = first_box
-        if first_box:
-            self.mean_f_coll = 0.0
-            self.mean_f_coll_MINI = 0.0
 
         super().__init__(**kwargs)
 

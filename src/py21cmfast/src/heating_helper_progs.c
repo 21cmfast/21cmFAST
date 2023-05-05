@@ -49,6 +49,9 @@ double xion_RECFAST(float z, int flag);
 // * IGM temperature from RECFAST; includes Compton heating and adiabatic expansion only. * //
 double T_RECFAST(float z, int flag);
 
+// approximation for the adiabatic index at z=6-50 from 2302.08506
+float cT_approx(float z);
+
 // * returns the spin temperature * //
 float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float * curr_xalpha);
 
@@ -307,6 +310,14 @@ double xion_RECFAST(float z, int flag)
     return ans;
 }
 
+// approximation for the adiabatic index at z=6-50 from 2302.08506 (also 1506.04152). Linear only, used to initialize the Tk box at high z so it's not homogeneous. Otherwise half of the adiabatic fluctuations are missing. Definition is \delta Tk = Tk * cT * \delta (at each z).
+float cT_approx(float z)
+{
+    if (global_params.USE_ADIABATIC_FLUCTUATIONS)
+        return 0.58 + 0.006*(z - 10.0);
+    else
+        return 0.0;
+}
 
 
 //* Returns recycling fraction (=fraction of photons converted into Lyalpha for Ly-n resonance * //

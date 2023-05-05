@@ -13,7 +13,7 @@ float prev_overdense_small_min, prev_overdense_small_bin_width, prev_overdense_s
 float prev_overdense_large_min, prev_overdense_large_bin_width, prev_overdense_large_bin_width_inv;
 float log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
 float log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
-
+float thistk;
 
 int EvaluateSplineTable(bool MINI_HALOS, int dens_type, float curr_dens, float filtered_Mturn, float filtered_Mturn_MINI, float *Splined_Fcoll, float *Splined_Fcoll_MINI);
 void InterpolationRange(int dens_type, float R, float L, float *min_density, float *max_density);
@@ -105,6 +105,8 @@ LOG_SUPER_DEBUG("initing heat");
     init_heat();
     float TK;
     TK = T_RECFAST(redshift,0);
+    float cT_ad; //finding the adiabatic index at the initial redshift from 2302.08506 to fix adiabatic fluctuations.
+    cT_ad = cT_approx(redshift);
 LOG_SUPER_DEBUG("inited heat");
 
     init_ps();
@@ -637,12 +639,12 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
         else {
             global_xH = 1. - xion_RECFAST(redshift, 0);
 
-#pragma omp parallel shared(box,global_xH,TK) private(ct) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(box,global_xH,TK,perturbed_field,cT_ad) private(ct) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
                 for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
                     box->xH_box[ct] = global_xH;
-                    box->temp_kinetic_all_gas[ct] = TK;
+                    box->temp_kinetic_all_gas[ct] = TK * (1.0 + cT_ad * perturbed_field->density[ct]); // Is perturbed_field defined already here? we need it for cT. I'm also assuming we don't need to multiply by other z here.
                 }
             }
         }
@@ -1274,9 +1276,9 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
 
 #pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,box,ST_over_PS,pixel_mass,M_MIN,r,f_coll_min,Gamma_R_prefactor,\
-                            ION_EFF_FACTOR,ION_EFF_FACTOR_MINI,LAST_FILTER_STEP,counter,ST_over_PS_MINI,f_coll_min_MINI,Gamma_R_prefactor_MINI,TK) \
-                    private(x,y,z,curr_dens,Splined_Fcoll,f_coll,ave_M_coll_cell,ave_N_min_cell,N_halos_in_cell,rec,xHII_from_xrays,res_xH,\
-                            Splined_Fcoll_MINI,f_coll_MINI) \
+                            ION_EFF_FACTOR,ION_EFF_FACTOR_MINI,LAST_FILTER_STEP,counter,ST_over_PS_MINI,f_coll_min_MINI,Gamma_R_prefactor_MINI,TK,cT_ad,perturbed_field) \
+                    private(x,y,z,curr_dens,Splined_Fcoll,f_coll,ave_M_coll_cell,ave_N_min_cell,N_halos_in_cell,rec,xHII_from_xrays,\
+                            Splined_Fcoll_MINI,f_coll_MINI, res_xH) \
                     num_threads(user_params->N_THREADS)
             {
 #pragma omp for
@@ -1387,7 +1389,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH);
                                 }
                                 else{
-                                    box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(TK, res_xH);
+                                    box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(TK*(1 + cT_ad*perturbed_field->density[HII_R_INDEX(x,y,z)]), res_xH);
                                 }
                                 res_xH -= xHII_from_xrays;
 
@@ -1420,7 +1422,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
         }
 
 
-#pragma omp parallel shared(box,spin_temp,redshift,deltax_unfiltered_original,TK) private(x,y,z) num_threads(user_params->N_THREADS)
+#pragma omp parallel shared(box,spin_temp,redshift,deltax_unfiltered_original,TK) private(x,y,z,thistk) num_threads(user_params->N_THREADS)
         {
 #pragma omp for
             for (x=0; x<user_params->HII_DIM; x++){
@@ -1435,8 +1437,9 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                     box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = spin_temp->Tk_box[HII_R_INDEX(x,y,z)];
                                 }
                             else{
-                                if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < TK)
-                                    box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = TK;
+                                thistk = TK*(1. + cT_ad*perturbed_field->density[HII_R_INDEX(x,y,z)]);
+                                if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < thistk)
+                                    box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = thistk;
                             }
                         }
                     }

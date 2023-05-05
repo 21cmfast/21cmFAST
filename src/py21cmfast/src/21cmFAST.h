@@ -94,7 +94,6 @@ struct PerturbedField{
 };
 
 struct HaloField{
-
     int n_halos;
     float *halo_masses;
     int *halo_coords;
@@ -117,7 +116,6 @@ struct PerturbHaloField{
 
 
 struct TsBox{
-    int first_box;
     float *Ts_box;
     float *x_e_box;
     float *Tk_box;
@@ -125,7 +123,6 @@ struct TsBox{
 };
 
 struct IonizedBox{
-    int first_box;
     double mean_f_coll;
     double mean_f_coll_MINI;
     double log10_Mturnover_ave;
