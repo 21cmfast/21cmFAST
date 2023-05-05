@@ -146,7 +146,6 @@ def test_st_new_seed(spin_temp, perturb_field, tmpdirec):
 
 
 def test_st_from_z(perturb_field_lowz, spin_temp):
-
     # This one has all the same parameters as the nominal spin_temp, but is evaluated
     # with an interpolated perturb_field
     st = wrapper.spin_temperature(
@@ -317,7 +316,7 @@ def test_coeval_st(ic, perturb_field):
 
 def _global_Tb(coeval_box):
     assert isinstance(coeval_box, wrapper.Coeval)
-    global_Tb = coeval_box.brightness_temp.mean(dtype=np.float128).astype(np.float32)
+    global_Tb = coeval_box.brightness_temp.mean(dtype=np.float64).astype(np.float32)
     assert np.isclose(global_Tb, coeval_box.brightness_temp_struct.global_Tb)
     return global_Tb
 
@@ -386,7 +385,6 @@ def test_coeval_callback_exceptions(ic, redshift, max_redshift, perturb_field):
 
 
 def test_coeval_vs_low_level(ic):
-
     coeval = wrapper.run_coeval(
         redshift=20,
         init_box=ic,
@@ -405,9 +403,9 @@ def test_coeval_vs_low_level(ic):
         write=False,
     )
 
-    assert np.allclose(coeval.Tk_box, st.Tk_box)
-    assert np.allclose(coeval.Ts_box, st.Ts_box)
-    assert np.allclose(coeval.x_e_box, st.x_e_box)
+    np.testing.assert_allclose(coeval.Tk_box, st.Tk_box, rtol=1e-5)
+    np.testing.assert_allclose(coeval.Ts_box, st.Ts_box, rtol=1e-5)
+    np.testing.assert_allclose(coeval.x_e_box, st.x_e_box, rtol=1e-5)
 
 
 def test_using_cached_halo_field(ic, test_direc):

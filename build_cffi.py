@@ -11,9 +11,9 @@ include_dirs = [CLOC]
 # Set compilation arguments dependent on environment... a bit buggy
 # =================================================================
 if "DEBUG" in os.environ:
-    extra_compile_args = ["-fopenmp", "-w", "-g", "-O0"]
+    extra_compile_args = ["-fopenmp", "-w", "-g", "-O0", "--verbose"]
 else:
-    extra_compile_args = ["-fopenmp", "-Ofast", "-w"]
+    extra_compile_args = ["-fopenmp", "-Ofast", "-w", "--verbose"]
 
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,

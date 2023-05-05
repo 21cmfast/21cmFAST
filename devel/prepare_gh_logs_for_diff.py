@@ -18,7 +18,6 @@ threads = set()
 
 pid_map = {}
 with open(fname) as fl:
-
     lines = fl.readlines()
 
     # Get to the start of the testing

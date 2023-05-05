@@ -6,6 +6,7 @@ import numpy as np
 from py21cmfast import (
     BrightnessTemp,
     Coeval,
+    InitialConditions,
     LightCone,
     TsBox,
     global_params,
@@ -121,3 +122,17 @@ def test_lightcone_cache(lightcone):
 
     with pytest.raises(IOError):
         lightcone.get_cached_data(kind="brightness_temp", redshift=25.1)
+
+
+def test_write_to_group(ic, test_direc):
+    ic.save(test_direc / "a_new_file.h5", h5_group="new_group")
+
+    with h5py.File(test_direc / "a_new_file.h5", "r") as fl:
+        assert "new_group" in fl
+        assert "global_params" in fl["new_group"]
+
+    ic2 = InitialConditions.from_file(
+        test_direc / "a_new_file.h5", h5_group="new_group"
+    )
+
+    assert ic2 == ic
