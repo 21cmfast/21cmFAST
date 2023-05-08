@@ -119,19 +119,19 @@ LOG_DEBUG("Finalised Initialisation");
 
         // lets filter it now
         // set initial R value
-        R = MtoR(M_MIN*1.01); // one percent higher for rounding
-
-LOG_DEBUG("Prepare to filter to find halos");
-
-        while (R < L_FACTOR*user_params->BOX_LEN)
-            R*=global_params.DELTA_R_FACTOR;
 
         fgtrm=dfgtrm=0;
         n=0;
         Delta_R = L_FACTOR*2.*user_params->BOX_LEN/(grid_dim+0.0);
 
         total_halo_num = 0;
+        if(res_flag) R = 0.5*Delta_R*1.01; //on lowres we want to end roughly on the cell scale
+        else R = MtoR(M_MIN*1.01); // one percent higher for rounding
 
+LOG_DEBUG("Prepare to filter to find halos");
+
+        while (R < L_FACTOR*user_params->BOX_LEN)
+            R*=global_params.DELTA_R_FACTOR;
 
         // This uses more memory than absolutely necessary, but is fastest.
         //TODO: I could just use halos_prev? which would make it exist in the wrapper

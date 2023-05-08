@@ -20,7 +20,7 @@
 #define MAX_HALO_CELL (int)1e5
 //Max halo in entire box
 //100 Mpc^3 box should have ~80,000,000 halos at M_min=1e7, z=6 so this should cover up to ~250 Mpc^3
-#define MAXHALO_FACTOR 2 //safety factor in halo arrays (accounts for imbalance and oversampling)
+#define MAXHALO_FACTOR 4 //safety factor in halo arrays (accounts for imbalance and oversampling)
 #define MAX_DELTAC_FRAC (float)0.995 //max delta/deltac for interpolation tables / integrals
 
 //do not save halos below this number * minimum sampled halo mass (given by below and M_TURN)
@@ -889,13 +889,8 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
     int count_total = 0;
     int istart_local[user_params_stoc->N_THREADS];
     memset(istart_local,0,sizeof(istart_local));
-    //by default heap allocations are shared
-    float *local_hm;
-    float *local_sm;
-    float *local_sfr;
-    int *local_crd;
 
-#pragma omp parallel num_threads(user_params_stoc->N_THREADS) private(local_hm,local_sm,local_sfr,local_crd)
+#pragma omp parallel num_threads(user_params_stoc->N_THREADS)
     {
         //PRIVATE VARIABLES
         int x,y,z,i,j;
@@ -916,10 +911,17 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
         int print_counter = 0;
         
         int count=0;
+
+        float *local_hm;
+        float *local_sm;
+        float *local_sfr;
+        int *local_crd;
         local_hm = calloc(localarray_size,sizeof(float));
         local_sm = calloc(localarray_size,sizeof(float));
         local_sfr = calloc(localarray_size,sizeof(float));
         local_crd = calloc(localarray_size*3,sizeof(int));
+
+        // LOG_DEBUG("HM,SM,SFR,CRD pointers (%p,%p,%p,%p)",local_hm,local_sm,local_sfr,local_crd);
 
         //assign big halos into list first (split amongst ranks)
 #pragma omp for
@@ -1043,10 +1045,10 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
         memcpy(halofield_out->halo_coords + istart*3,local_crd,count*sizeof(int)*3);
         
         //free local arrays
-        free(local_hm);
-        free(local_sm);
-        free(local_sfr);
         free(local_crd);
+        free(local_sfr);
+        free(local_sm);
+        free(local_hm);
         
     }
     halofield_out->n_halos = count_total;
@@ -1111,12 +1113,8 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
     int count_total = 0;
     int istart_local[user_params_stoc->N_THREADS];
     memset(istart_local,0,sizeof(istart_local));
-    float *local_hm;
-    float *local_sm;
-    float *local_sfr;
-    int *local_crd;
 
-#pragma omp parallel num_threads(user_params_stoc->N_THREADS) private(local_hm,local_sm,local_sfr,local_crd)
+#pragma omp parallel num_threads(user_params_stoc->N_THREADS)
     {
         float prog_buf[MAX_HALO_CELL];
         int n_prog;
@@ -1130,10 +1128,17 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
         int ii,jj;
         int count=0;
 
+        float *local_hm;
+        float *local_sm;
+        float *local_sfr;
+        int *local_crd;
+
         local_hm = calloc(localarray_size,sizeof(float));
         local_sm = calloc(localarray_size,sizeof(float));
         local_sfr = calloc(localarray_size,sizeof(float));
         local_crd = calloc(3*localarray_size,sizeof(int));
+
+        // LOG_DEBUG("HM,SM,SFR,CRD pointers (%p,%p,%p,%p)",local_hm,local_sm,local_sfr,local_crd);
 
 #pragma omp for
         for(ii=0;ii<nhalo_in;ii++){
@@ -1196,10 +1201,9 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
         memcpy(halofield_out->stellar_masses + istart_local[threadnum],local_sm,count*sizeof(float));
         memcpy(halofield_out->halo_sfr + istart_local[threadnum],local_sfr,count*sizeof(float));
         memcpy(halofield_out->halo_coords + istart_local[threadnum]*3,local_crd,count*sizeof(int)*3);
-
+        free(local_crd);
         free(local_sfr);
         free(local_sm);
-        free(local_crd);
         free(local_hm);
     }
     halofield_out->n_halos = count_total;
@@ -1700,29 +1704,27 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         else if(type==4){
             int n_halo_tot=0;
             int n_cond = n_mass;
-            double test_M, test_N;
-            
+
             #pragma omp parallel num_threads(user_params->N_THREADS) private(i,j)
             {
                 float out_hm[MAX_HALO_CELL];
                 double exp_M,exp_N,M_prog;
                 int n_halo;
-                double test_M_low, test_M_mid, test_M_hi;
                 //if !update, the masses are ignored, and the cell will have the given delta
                 #pragma omp for
                 for(j=0;j<n_cond;j++){
                     M_prog = 0;
-                    get_halo_avg(growth_out,delta,lnMmin,lnMmax,M[j],update,&exp_N,&exp_M);
-                    stoc_sample(growth_out, Mmin, M[j], delta, exp_N, exp_M, update, rng_stoc[omp_get_thread_num()], &n_halo, out_hm);
+                    if(update){
+                        get_halo_avg(growth_out,delta,lnMmin,lnMmax,M[j],update,&exp_N,&exp_M);
+                        stoc_sample(growth_out, Mmin, M[j], delta, exp_N, exp_M, update, rng_stoc[omp_get_thread_num()], &n_halo, out_hm);
+                    }
+                    else{
+                        get_halo_avg(growth_out,M[j],lnMmin,lnMmax,lnMmax,update,&exp_N,&exp_M);
+                        stoc_sample(growth_out, Mmin, Mmax, M[j], exp_N, exp_M, update, rng_stoc[omp_get_thread_num()], &n_halo, out_hm);
+                    }
                     for(i=0;i<n_halo;i++){
-                        if(out_hm[i]>M[j]){
-                            test_M_low = gsl_spline2d_eval(Nhalo_inv_spline,log(M[j]),0.999,Nhalo_inv_cond_acc,Nhalo_inv_prob_acc);
-                            test_M_mid = gsl_spline2d_eval(Nhalo_inv_spline,log(M[j]),0.9999,Nhalo_inv_cond_acc,Nhalo_inv_prob_acc);
-                            test_M_hi = gsl_spline2d_eval(Nhalo_inv_spline,log(M[j]),0.99999,Nhalo_inv_cond_acc,Nhalo_inv_prob_acc);
-                            LOG_WARNING("Found mass %.2e > %.2e, test interp (%.2e,%.2e,%.2e)",out_hm[i],M[j],exp(test_M_low),exp(test_M_mid),exp(test_M_hi));
-                        }
                         M_prog += out_hm[i];
-                        
+
                         #pragma omp critical
                         {
                             result[1+n_cond+(n_halo_tot++)] = out_hm[i];
@@ -1734,8 +1736,6 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 
                 result[0] = (double)n_halo_tot;
             }
-            get_halo_avg(growth_out,delta,lnMmin,lnMmax,M[0],update,&test_N,&test_M);
-            LOG_DEBUG("%d --> %d Halos, first exp N %.3e M %.3e M=[%.3e,%.3e,%.3e...]",n_cond,n_halo_tot,test_N,test_M,result[1+n_cond+0],result[1+n_cond+1],result[1+n_cond+2]);
         }
         
         //halo catalogue from list of conditions (Mass for update, delta for !update)
@@ -1766,7 +1766,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             else{
                 //NOTE: halomass_in is linear delta at z = redshift_out
                 for(i=0;i<n_mass;i++){
-                    dens_field[i] = M[i] / growth_out;
+                    dens_field[i] = M[i] / growth_out; //theres a redundant *D(z) / D(z) here but its better than redoing the real functions
                 }
                 //no large halos
                 halos_in->n_halos=0;
