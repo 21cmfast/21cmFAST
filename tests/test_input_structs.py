@@ -204,10 +204,11 @@ def test_user_params():
     up_non_cubic = UserParams(NON_CUBIC_FACTOR=1.5)
 
     assert up_non_cubic.tot_fft_num_pixels == 1.5 * up.tot_fft_num_pixels
-    assert up_non_cubic.HII_tot_num_pixels == up_non_cubic.HII_tot_num_pixels * 1.5
+    assert up_non_cubic.HII_tot_num_pixels == up.HII_tot_num_pixels * 1.5
 
     with pytest.raises(
         ValueError,
-        match="NON_CUBIC_FACTOR * DIM and NON_CUBIC_FACTOR * HII_DIM must be integers",
+        match="NON_CUBIC_FACTOR \\* DIM and NON_CUBIC_FACTOR \\* HII_DIM must be integers",
     ):
-        UserParams(NON_CUBIC_FACTOR=1.1047642)
+        up = UserParams(NON_CUBIC_FACTOR=1.1047642)
+        up.NON_CUBIC_FACTOR
