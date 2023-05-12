@@ -217,7 +217,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                     for (j=0; j<user_params->HII_DIM; j++){
 
                         // Generate the optical-depth for the specific line-of-sight with R.S.D
-                        for(k=0;k<user_params->HII_DIM;k++) {
+                        for(k=0;k<HII_D_PARA;k++) {
                             delta_T_RSD_LOS[omp_get_thread_num()][k] = 0.0;
                         }
 
