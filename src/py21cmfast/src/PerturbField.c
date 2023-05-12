@@ -282,7 +282,7 @@ int ComputePerturbField(
                         if(zf < (double)(zi+0.5)) {
                             d_z = 1. - d_z;
                             zi -= 1;
-                            if (zi < 0) {zi += (dimension);}
+                            if (zi < 0) {zi += ((unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension));}
                         }
                         t_x = 1. - d_x;
                         t_y = 1. - d_y;
@@ -295,7 +295,7 @@ int ComputePerturbField(
                         yp1 = yi + 1;
                         if(yp1 >= dimension) { yp1 -= (dimension);}
                         zp1 = zi + 1;
-                        if(zp1 >= dimension) { zp1 -= (dimension);}
+                        if(zp1 >= ((unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension))) { zp1 -= ((unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension));}
 
                         if(user_params->PERTURB_ON_HIGH_RES) {
                             // Redistribute the mass over the 8 neighbouring cells according to cloud in cell
