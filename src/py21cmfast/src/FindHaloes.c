@@ -177,7 +177,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                             for (z=0; z<D_PARA; z++){
                                 if(halo_field[R_INDEX(x,y,z)] > 0.) {
                                     R_temp = MtoR(halo_field[R_INDEX(x,y,z)]);
-                                    check_halo(forbidden, user_params, R_temp+global_params.R_OVERLAP_FACTOR*R, x,y,z,2); // TODO: Need to update this function for dealing with non-cubic boxes
+                                    check_halo(forbidden, user_params, R_temp+global_params.R_OVERLAP_FACTOR*R, x,y,z,2);
                                 }
                             }
                         }
@@ -350,8 +350,8 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
                 else if (x_index>=user_params->DIM) {x_index -= user_params->DIM;}
                 if (y_index<0) {y_index += user_params->DIM;}
                 else if (y_index>=user_params->DIM) {y_index -= user_params->DIM;}
-                if (z_index<0) {z_index += user_params->DIM;}
-                else if (z_index>=user_params->DIM) {z_index -= user_params->DIM;}
+                if (z_index<0) {z_index += D_PARA;}
+                else if (z_index>=D_PARA) {z_index -= D_PARA;}
 
                 if(check_type==1) {
                     if ( in_halo[R_INDEX(x_index, y_index, z_index)] &&
@@ -435,10 +435,10 @@ int pixel_in_halo(struct UserParams *user_params, int x, int x_index, int y, int
     zsq = pow(z-z_index, 2);
     xplussq = pow(x-x_index+user_params->DIM, 2);
     yplussq = pow(y-y_index+user_params->DIM, 2);
-    zplussq = pow(z-z_index+user_params->DIM, 2);
+    zplussq = pow(z-z_index+D_PARA, 2);
     xminsq = pow(x-x_index-user_params->DIM, 2);
     yminsq = pow(y-y_index-user_params->DIM, 2);
-    zminsq = pow(z-z_index-user_params->DIM, 2);
+    zminsq = pow(z-z_index-D_PARA, 2);
 
     if(
        ( (Rsq_curr_index > (xsq + ysq + zsq)) || // AND pixel is within this halo
