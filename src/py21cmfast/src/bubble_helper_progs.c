@@ -233,79 +233,77 @@ float distance(float x1, float y1, float z1, float x2, float y2, float z2){
 
 
 // helper function for update in sphere below
-void check_region(float * box, int dimensions, float Rsq_curr_index, int x, int y, int z, int x_min, int x_max, int y_min, int y_max, int z_min, int z_max){
+void check_region(float * box, int dimensions, int dimensions_ncf, float Rsq_curr_index, int x, int y, int z, int x_min, int x_max, int y_min, int y_max, int z_min, int z_max){
   int x_curr, y_curr, z_curr, x_index, y_index, z_index;
   float xsq, xplussq, xminsq, ysq, yplussq, yminsq, zsq, zplussq, zminsq;
 
   for (x_curr=x_min; x_curr<=x_max; x_curr++){
     for (y_curr=y_min; y_curr<=y_max; y_curr++){
       for (z_curr=z_min; z_curr<=z_max; z_curr++){
-	x_index = x_curr;
-	y_index = y_curr;
-	z_index = z_curr;
-	// adjust if we are outside of the box
-	if (x_index<0) {x_index += dimensions;}
-	else if (x_index>=dimensions) {x_index -= dimensions;}
-	if (y_index<0) {y_index += dimensions;}
-	else if (y_index>=dimensions) {y_index -= dimensions;}
-	if (z_index<0) {z_index += dimensions;}
-	else if (z_index>=dimensions) {z_index -= dimensions;}
+        x_index = x_curr;
+        y_index = y_curr;
+        z_index = z_curr;
+        // adjust if we are outside of the box
+        if (x_index<0) {x_index += dimensions;}
+        else if (x_index>=dimensions) {x_index -= dimensions;}
+        if (y_index<0) {y_index += dimensions;}
+        else if (y_index>=dimensions) {y_index -= dimensions;}
+        if (z_index<0) {z_index += dimensions_ncf;}
+        else if (z_index>=dimensions_ncf) {z_index -= dimensions_ncf;}
 
-	// now check
-	if (box[HII_R_INDEX(x_index, y_index, z_index)]){ // untaken pixel (not part of other halo)
-	  // remember to check all reflections
-	  xsq = pow(x-x_index, 2);
-	  ysq = pow(y-y_index, 2);
-	  zsq = pow(z-z_index, 2);
-	  xplussq = pow(x-x_index+dimensions, 2);
-	  yplussq = pow(y-y_index+dimensions, 2);
-	  zplussq = pow(z-z_index+dimensions, 2);
-	  xminsq = pow(x-x_index-dimensions, 2);
-	  yminsq = pow(y-y_index-dimensions, 2);
-	  zminsq = pow(z-z_index-dimensions, 2);
-	  if ( (Rsq_curr_index > (xsq + ysq + zsq)) ||
-	       (Rsq_curr_index > (xsq + ysq + zplussq)) ||
-	       (Rsq_curr_index > (xsq + ysq + zminsq)) ||
+        // now check
+        if (box[HII_R_INDEX(x_index, y_index, z_index)]){ // untaken pixel (not part of other halo)
+        // remember to check all reflections
+          xsq = pow(x-x_index, 2);
+          ysq = pow(y-y_index, 2);
+          zsq = pow(z-z_index, 2);
+          xplussq = pow(x-x_index+dimensions, 2);
+          yplussq = pow(y-y_index+dimensions, 2);
+          zplussq = pow(z-z_index+dimensions_ncf, 2);
+          xminsq = pow(x-x_index-dimensions, 2);
+          yminsq = pow(y-y_index-dimensions, 2);
+          zminsq = pow(z-z_index-dimensions_ncf, 2);
+          if ( (Rsq_curr_index > (xsq + ysq + zsq)) ||
+            (Rsq_curr_index > (xsq + ysq + zplussq)) ||
+            (Rsq_curr_index > (xsq + ysq + zminsq)) ||
 
-	       (Rsq_curr_index > (xsq + yplussq + zsq)) ||
-	       (Rsq_curr_index > (xsq + yplussq + zplussq)) ||
-	       (Rsq_curr_index > (xsq + yplussq + zminsq)) ||
+            (Rsq_curr_index > (xsq + yplussq + zsq)) ||
+            (Rsq_curr_index > (xsq + yplussq + zplussq)) ||
+            (Rsq_curr_index > (xsq + yplussq + zminsq)) ||
 
-	       (Rsq_curr_index > (xsq + yminsq + zsq)) ||
-	       (Rsq_curr_index > (xsq + yminsq + zplussq)) ||
-	       (Rsq_curr_index > (xsq + yminsq + zminsq)) ||
+            (Rsq_curr_index > (xsq + yminsq + zsq)) ||
+            (Rsq_curr_index > (xsq + yminsq + zplussq)) ||
+            (Rsq_curr_index > (xsq + yminsq + zminsq)) ||
 
+            (Rsq_curr_index > (xplussq + ysq + zsq)) ||
+            (Rsq_curr_index > (xplussq + ysq + zplussq)) ||
+            (Rsq_curr_index > (xplussq + ysq + zminsq)) ||
 
-	       (Rsq_curr_index > (xplussq + ysq + zsq)) ||
-	       (Rsq_curr_index > (xplussq + ysq + zplussq)) ||
-	       (Rsq_curr_index > (xplussq + ysq + zminsq)) ||
+            (Rsq_curr_index > (xplussq + yplussq + zsq)) ||
+            (Rsq_curr_index > (xplussq + yplussq + zplussq)) ||
+            (Rsq_curr_index > (xplussq + yplussq + zminsq)) ||
 
-	       (Rsq_curr_index > (xplussq + yplussq + zsq)) ||
-	       (Rsq_curr_index > (xplussq + yplussq + zplussq)) ||
-	       (Rsq_curr_index > (xplussq + yplussq + zminsq)) ||
+            (Rsq_curr_index > (xplussq + yminsq + zsq)) ||
+            (Rsq_curr_index > (xplussq + yminsq + zplussq)) ||
+            (Rsq_curr_index > (xplussq + yminsq + zminsq)) ||
 
-	       (Rsq_curr_index > (xplussq + yminsq + zsq)) ||
-	       (Rsq_curr_index > (xplussq + yminsq + zplussq)) ||
-	       (Rsq_curr_index > (xplussq + yminsq + zminsq)) ||
+            (Rsq_curr_index > (xminsq + ysq + zsq)) ||
+            (Rsq_curr_index > (xminsq + ysq + zplussq)) ||
+            (Rsq_curr_index > (xminsq + ysq + zminsq)) ||
 
+            (Rsq_curr_index > (xminsq + yplussq + zsq)) ||
+            (Rsq_curr_index > (xminsq + yplussq + zplussq)) ||
+            (Rsq_curr_index > (xminsq + yplussq + zminsq)) ||
 
-	       (Rsq_curr_index > (xminsq + ysq + zsq)) ||
-	       (Rsq_curr_index > (xminsq + ysq + zplussq)) ||
-	       (Rsq_curr_index > (xminsq + ysq + zminsq)) ||
+            (Rsq_curr_index > (xminsq + yminsq + zsq)) ||
+            (Rsq_curr_index > (xminsq + yminsq + zplussq)) ||
+            (Rsq_curr_index > (xminsq + yminsq + zminsq))
+          ){
 
-	       (Rsq_curr_index > (xminsq + yplussq + zsq)) ||
-	       (Rsq_curr_index > (xminsq + yplussq + zplussq)) ||
-	       (Rsq_curr_index > (xminsq + yplussq + zminsq)) ||
-
-	       (Rsq_curr_index > (xminsq + yminsq + zsq)) ||
-	       (Rsq_curr_index > (xminsq + yminsq + zplussq)) ||
-	       (Rsq_curr_index > (xminsq + yminsq + zminsq))
-	     ){
-
-	    // we are within the sphere defined by R, so change flag in box array
-	    box[HII_R_INDEX(x_index, y_index, z_index)] = 0;
-	  }
-	}
+            // we are within the sphere defined by R, so change flag in box array
+            box[HII_R_INDEX(x_index, y_index, z_index)] = 0;
+          }
+        }
       }
     }
   }
@@ -317,7 +315,7 @@ void check_region(float * box, int dimensions, float Rsq_curr_index, int x, int 
   which fall within radius R of (x,y,z).
   all lengths are in units of box size.
 */
-void update_in_sphere(float * box, int dimensions, float R, float xf, float yf, float zf){
+void update_in_sphere(float * box, int dimensions, int dimensions_ncf, float R, float xf, float yf, float zf){
   int x_curr, y_curr, z_curr, xb_min, xb_max, yb_min, yb_max, zb_min, zb_max, R_index;
   int xl_min, xl_max, yl_min, yl_max, zl_min, zl_max;
   float Rsq_curr_index;
@@ -327,7 +325,7 @@ void update_in_sphere(float * box, int dimensions, float R, float xf, float yf, 
   // convert distances to index units
   x = (int) (xf * dimensions + 0.5); // +0.5 for rounding
   y = (int) (yf * dimensions + 0.5);
-  z = (int) (zf * dimensions + 0.5);
+  z = (int) (zf * dimensions_ncf + 0.5);
 
 
   /*****  first, just automatically fill in the inner cube whose diagonal is R, side is 2R/sqrt(3) *****/
@@ -343,20 +341,20 @@ void update_in_sphere(float * box, int dimensions, float R, float xf, float yf, 
   for (x_curr=xl_min; x_curr<=xl_max; x_curr++){
     for (y_curr=yl_min; y_curr<=yl_max; y_curr++){
       for (z_curr=zl_min; z_curr<=zl_max; z_curr++){
-	x_index = x_curr;
-	y_index = y_curr;
-	z_index = z_curr;
-	// adjust if we are outside of the box
-	if (x_index<0) {x_index += dimensions;}
-	else if (x_index>=dimensions) {x_index -= dimensions;}
-	if (y_index<0) {y_index += dimensions;}
-	else if (y_index>=dimensions) {y_index -= dimensions;}
-	if (z_index<0) {z_index += dimensions;}
-	else if (z_index>=dimensions) {z_index -= dimensions;}
+        x_index = x_curr;
+        y_index = y_curr;
+        z_index = z_curr;
+        // adjust if we are outside of the box
+        if (x_index<0) {x_index += dimensions;}
+        else if (x_index>=dimensions) {x_index -= dimensions;}
+        if (y_index<0) {y_index += dimensions;}
+        else if (y_index>=dimensions) {y_index -= dimensions;}
+        if (z_index<0) {z_index += dimensions_ncf;}
+        else if (z_index>=dimensions_ncf) {z_index -= dimensions_ncf;}
 
-	// now just paint it
-	//box[HII_R_INDEX(x_index, y_index, z_index)] = 15;
-	       	box[HII_R_INDEX(x_index, y_index, z_index)] = 0;
+        // now just paint it
+        //box[HII_R_INDEX(x_index, y_index, z_index)] = 15;
+        box[HII_R_INDEX(x_index, y_index, z_index)] = 0;
       }
     }
   }
@@ -375,14 +373,14 @@ void update_in_sphere(float * box, int dimensions, float R, float xf, float yf, 
 
   //    check_region(box, dimensions, Rsq_curr_index, x,y,z, xb_min, xb_max, yb_min, yb_max, zb_min, zb_max);
 
-  check_region(box, dimensions, Rsq_curr_index, x,y,z, xb_min, xl_min, yb_min, yb_max, zb_min, zb_max);
-  check_region(box, dimensions, Rsq_curr_index, x,y,z, xl_max, xb_max, yb_min, yb_max, zb_min, zb_max);
+  check_region(box, dimensions, dimensions_ncf, Rsq_curr_index, x,y,z, xb_min, xl_min, yb_min, yb_max, zb_min, zb_max);
+  check_region(box, dimensions, dimensions_ncf, Rsq_curr_index, x,y,z, xl_max, xb_max, yb_min, yb_max, zb_min, zb_max);
 
-  check_region(box, dimensions, Rsq_curr_index, x,y,z, xb_min, xb_max, yb_min, yl_min, zb_min, zb_max);
-  check_region(box, dimensions, Rsq_curr_index, x,y,z, xb_min, xb_max, yl_max, yb_max, zb_min, zb_max);
+  check_region(box, dimensions, dimensions_ncf, Rsq_curr_index, x,y,z, xb_min, xb_max, yb_min, yl_min, zb_min, zb_max);
+  check_region(box, dimensions, dimensions_ncf, Rsq_curr_index, x,y,z, xb_min, xb_max, yl_max, yb_max, zb_min, zb_max);
 
-  check_region(box, dimensions, Rsq_curr_index, x,y,z, xb_min, xb_max, yb_min, yb_max, zb_min, zl_min);
-  check_region(box, dimensions, Rsq_curr_index, x,y,z, xb_min, xb_max, yb_min, yb_max, zl_max, zb_max);
+  check_region(box, dimensions, dimensions_ncf, Rsq_curr_index, x,y,z, xb_min, xb_max, yb_min, yb_max, zb_min, zl_min);
+  check_region(box, dimensions, dimensions_ncf, Rsq_curr_index, x,y,z, xb_min, xb_max, yb_min, yb_max, zl_max, zb_max);
 }
 
 

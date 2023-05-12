@@ -1354,8 +1354,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 if (global_params.FIND_BUBBLE_ALGORITHM == 2) // center method
                                     box->xH_box[HII_R_INDEX(x,y,z)] = 0;
                                 if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
-                                    update_in_sphere(box->xH_box, user_params->HII_DIM, R/(user_params->BOX_LEN), \
-                                                     x/(user_params->HII_DIM+0.0), y/(user_params->HII_DIM+0.0), z/(user_params->HII_DIM+0.0)); //TODO: Update for asymmetric box
+                                    update_in_sphere(box->xH_box, user_params->HII_DIM, HII_D_PARA, R/(user_params->BOX_LEN), \
+                                                     x/(user_params->HII_DIM+0.0), y/(user_params->HII_DIM+0.0), z/(HII_D_PARA+0.0));
                             } // end ionized
                                 // If not fully ionized, then assign partial ionizations
                             else if (LAST_FILTER_STEP && (box->xH_box[HII_R_INDEX(x, y, z)] > TINY)) {
