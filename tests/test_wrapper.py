@@ -316,7 +316,7 @@ def test_coeval_st(ic, perturb_field):
 
 def _global_Tb(coeval_box):
     assert isinstance(coeval_box, wrapper.Coeval)
-    global_Tb = coeval_box.brightness_temp.mean(dtype=np.float128).astype(np.float32)
+    global_Tb = coeval_box.brightness_temp.mean(dtype=np.float64).astype(np.float32)
     assert np.isclose(global_Tb, coeval_box.brightness_temp_struct.global_Tb)
     return global_Tb
 
@@ -403,9 +403,9 @@ def test_coeval_vs_low_level(ic):
         write=False,
     )
 
-    np.testing.assert_allclose(coeval.Tk_box, st.Tk_box, rtol=2e-4)
-    np.testing.assert_allclose(coeval.Ts_box, st.Ts_box, rtol=2e-4)
-    np.testing.assert_allclose(coeval.x_e_box, st.x_e_box, rtol=2e-4)
+    np.testing.assert_allclose(coeval.Tk_box, st.Tk_box, rtol=1e-5)
+    np.testing.assert_allclose(coeval.Ts_box, st.Ts_box, rtol=1e-5)
+    np.testing.assert_allclose(coeval.x_e_box, st.x_e_box, rtol=1e-5)
 
 
 def test_using_cached_halo_field(ic, test_direc):

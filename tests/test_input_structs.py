@@ -44,12 +44,11 @@ def test_bad_construction(c):
         CosmoParams(1)
 
 
-def test_warning_bad_params(caplog):
-    CosmoParams(bad_param=1)
-    assert (
-        "The following parameters to CosmoParams are not supported: ['bad_param']"
-        in caplog.text
-    )
+def test_warning_bad_params():
+    with pytest.warns(
+        UserWarning, match="The following parameters to CosmoParams are not supported"
+    ):
+        CosmoParams(SIGMA_8=0.8, bad_param=1)
 
 
 def test_constructed_from_itself(c):

@@ -72,6 +72,8 @@ struct FlagOptions{
     // Parameters taken from INIT_PARAMS.H
     bool USE_HALO_FIELD;
     bool USE_MINI_HALOS;
+    bool USE_CMB_HEATING; //CMB Heating Flag
+    bool USE_LYA_HEATING; //Lya Heating Flag
     bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
     bool APPLY_RSDS;
@@ -94,7 +96,6 @@ struct PerturbedField{
 };
 
 struct HaloField{
-
     int n_halos;
     float *halo_masses;
     int *halo_coords;
@@ -117,7 +118,6 @@ struct PerturbHaloField{
 
 
 struct TsBox{
-    int first_box;
     float *Ts_box;
     float *x_e_box;
     float *Tk_box;
@@ -125,7 +125,6 @@ struct TsBox{
 };
 
 struct IonizedBox{
-    int first_box;
     double mean_f_coll;
     double mean_f_coll_MINI;
     double log10_Mturnover_ave;
