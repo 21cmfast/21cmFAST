@@ -31,12 +31,12 @@
 // -------------------------------------------------------------------------------------
 // Convenience Macros for hi-resolution boxes
 // -------------------------------------------------------------------------------------
-#define D (unsigned long long)user_params_ufunc->DIM // the unsigned long long dimension
-#define D_PARA (unsigned long long)(user_params_ufunc->NON_CUBIC_FACTOR*user_params_ufunc->DIM) // the unsigned long long dimension
+#define D (long long)user_params_ufunc->DIM // the long long dimension
+#define D_PARA (long long)(user_params_ufunc->NON_CUBIC_FACTOR*user_params_ufunc->DIM) // the long long dimension
 #define MIDDLE (user_params_ufunc->DIM/2)
 #define MIDDLE_PARA (user_params_ufunc->NON_CUBIC_FACTOR*user_params_ufunc->DIM/2)
-#define MID ((unsigned long long)MIDDLE)
-#define MID_PARA ((unsigned long long)MIDDLE_PARA)
+#define MID ((long long)MIDDLE)
+#define MID_PARA ((long long)MIDDLE_PARA)
 #define TOT_NUM_PIXELS ((unsigned long long)(D*D*D_PARA)) // no padding
 
 // Fourier-Transform numbers
@@ -55,12 +55,12 @@
 // -------------------------------------------------------------------------------------
 // Convenience Macros for low-resolution boxes
 // -------------------------------------------------------------------------------------
-#define HII_D (unsigned long long) (user_params_ufunc->HII_DIM)
-#define HII_D_PARA (unsigned long long) (user_params_ufunc->NON_CUBIC_FACTOR*user_params_ufunc->HII_DIM)
+#define HII_D (long long) (user_params_ufunc->HII_DIM)
+#define HII_D_PARA (long long) (user_params_ufunc->NON_CUBIC_FACTOR*user_params_ufunc->HII_DIM)
 #define HII_MIDDLE (user_params_ufunc->HII_DIM/2)
 #define HII_MIDDLE_PARA (user_params_ufunc->NON_CUBIC_FACTOR*user_params_ufunc->HII_DIM/2)
-#define HII_MID ((unsigned long long)HII_MIDDLE)
-#define HII_MID_PARA ((unsigned long long)HII_MIDDLE_PARA)
+#define HII_MID ((long long)HII_MIDDLE)
+#define HII_MID_PARA ((long long)HII_MIDDLE_PARA)
 #define HII_TOT_NUM_PIXELS (unsigned long long)(HII_D*HII_D*HII_D_PARA)
 
 // Fourier-Transform numbers

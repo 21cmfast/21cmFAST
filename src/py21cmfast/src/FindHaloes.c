@@ -352,7 +352,6 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
                 else if (y_index>=user_params->DIM) {y_index -= user_params->DIM;}
                 if (z_index<0) {z_index += D_PARA;}
                 else if (z_index>=D_PARA) {z_index -= D_PARA;}
-
                 if(check_type==1) {
                     if ( in_halo[R_INDEX(x_index, y_index, z_index)] &&
                         pixel_in_halo(user_params,x,x_index,y,y_index,z,z_index,Rsq_curr_index) ) {
