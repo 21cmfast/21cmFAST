@@ -9,7 +9,7 @@
 //max number of attempts for mass tolerance before failure
 #define MAX_ITERATIONS 1e4
 #define MAX_ITER_N 1 //for stoc_halo_sample (select N halos) how many tries for one N
-#define MASS_TOL 0.4 //mass tolerance for sampling
+#define MASS_TOL 0.5 //mass tolerance for sampling
 #define MMAX_TABLES 1e14
 
 //max halos in memory for test functions
@@ -20,11 +20,11 @@
 #define MAX_HALO_CELL (int)1e5
 //Max halo in entire box
 //100 Mpc^3 box should have ~80,000,000 halos at M_min=1e7, z=6 so this should cover up to ~250 Mpc^3
-#define MAXHALO_FACTOR 4 //safety factor in halo arrays (accounts for imbalance and oversampling)
+#define MAXHALO_FACTOR 2 //safety factor in halo arrays (accounts for imbalance and oversampling)
 #define MAX_DELTAC_FRAC (float)0.995 //max delta/deltac for interpolation tables / integrals
 
 //do not save halos below this number * minimum sampled halo mass (given by below and M_TURN)
-#define HALO_SAMPLE_FACTOR 2
+#define HALO_SAMPLE_FACTOR 4
 //minimum halo mass to sample below M_TURN
 #define HALO_MTURN_FACTOR 16
 
@@ -437,6 +437,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 prob = buf / norm; //get log-probability
                 //catch some norm errors
                 if(prob != prob){
+                    LOG_ERROR("Normalisation error in table generation");
                     Throw(ValueError);
                 }
                 for(k=1;k<np-1;k++){
@@ -873,11 +874,12 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
     
     double prefactor = boxlen * boxlen * boxlen;
     double expected_nhalo = prefactor * IntegratedNdM(growthf,log(Mmin*HALO_SAMPLE_FACTOR),lnMmax_tb,lnMmax_tb,0,0,user_params_stoc->HMF);
-    int localarray_size = MAXHALO_FACTOR * (int)expected_nhalo / user_params_stoc->N_THREADS; //integer division should be fine here
+    unsigned long long int localarray_size = MAXHALO_FACTOR * (unsigned long long int)expected_nhalo / user_params_stoc->N_THREADS; //integer division should be fine here
+    localarray_size = localarray_size < MAX_HALO_CELL ? MAX_HALO_CELL : localarray_size; //set a minimum number so the end doesn't segfault
 
     LOG_DEBUG("Beginning stochastic halo sampling on %d ^3 grid",lo_dim);
     LOG_DEBUG("z = %f, Mmin = %e, Mmax = %e,volume = %.3e, R = %.3e D = %.3e",redshift,Mmin,Mmax,Mmax/RHOcrit/cosmo_params_stoc->OMm,cell_size_R,growthf);
-    LOG_DEBUG("Expected N_halo: %.3e, array size per thread %d (~%.3e GB total)",expected_nhalo,localarray_size,6.*localarray_size*sizeof(int)*user_params_stoc->N_THREADS/1e9);
+    LOG_DEBUG("Expected N_halo: %.3e, array size per thread %llu (~%.3e GB total)",expected_nhalo,localarray_size,6.*localarray_size*sizeof(int)*user_params_stoc->N_THREADS/1e9);
 
     //Since the conditional MF is extended press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
     if(user_params_stoc->HMF!=0){
@@ -886,8 +888,8 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
     }
 
     //shared halo count (start at the number of big halos)
-    int count_total = 0;
-    int istart_local[user_params_stoc->N_THREADS];
+    unsigned long long int count_total = 0;
+    unsigned long long int istart_local[user_params_stoc->N_THREADS];
     memset(istart_local,0,sizeof(istart_local));
 
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
@@ -909,8 +911,8 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
 
         //debug printing
         int print_counter = 0;
-        
-        int count=0;
+        unsigned long long int istart;
+        unsigned long long int count=0;
 
         float *local_hm;
         float *local_sm;
@@ -991,7 +993,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                         stoc_sample(growthf, Mmin, Mmax, delta, exp_N/ps_ratio*mass_defc, exp_M/ps_ratio*mass_defc, 0, rng_arr[threadnum], &nh_buf, hm_buf);
                     }
                     if(count + nh_buf > localarray_size){
-                        LOG_ERROR("ran out of memory (%d halos vs %d array size)",count+nh_buf,localarray_size);
+                        LOG_ERROR("ran out of memory (%llu halos vs %llu array size)",count+nh_buf,localarray_size);
                         Throw(ValueError);
                     }
                     //output total halo number, catalogues of masses and positions
@@ -1035,8 +1037,8 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
         //we need each thread to be done here before copying the data (total count, indexing, allocation)
 #pragma omp barrier
 
-        int istart = istart_local[threadnum];
-        LOG_SUPER_DEBUG("Thread %d has %d of %d halos, concatenating (starting at %d)...",threadnum,count,count_total,istart);
+        istart = istart_local[threadnum];
+        LOG_DEBUG("Thread %d has %llu of %llu halos, concatenating (starting at %llu)...",threadnum,count,count_total,istart);
                 
         //copy each local array into the struct
         memcpy(halofield_out->halo_masses + istart,local_hm,count*sizeof(float));
@@ -1103,15 +1105,16 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
 
     double prefactor = boxlen * boxlen * boxlen;
     double expected_nhalo = prefactor * IntegratedNdM(growth_out,log(Mmin*HALO_SAMPLE_FACTOR),lnMmax_tb,lnMmax_tb,0,0,user_params_stoc->HMF);
-    int localarray_size = MAXHALO_FACTOR * (int)expected_nhalo / user_params_stoc->N_THREADS; //integer division should be fine here
+    unsigned long long int localarray_size = MAXHALO_FACTOR * (unsigned long long int)expected_nhalo / user_params_stoc->N_THREADS; //integer division should be fine here
     double delta = Deltac * growth_out / growth_in; //crit density at z_in evolved to z_out
+    localarray_size = localarray_size < MAX_HALO_CELL ? MAX_HALO_CELL : localarray_size; //set a minimum number so the end doesn't segfault
 
     LOG_DEBUG("Beginning stochastic halo sampling (update) on %d halos",nhalo_in);
     LOG_DEBUG("z = %f, Mmin = %e, Mmax = %e, d = %.3e",z_out,Mmin,Mmax,delta);
-    LOG_DEBUG("Expected N_halo: %.3e, array size per thread %d (~%.3e GB total)",expected_nhalo,localarray_size,6.*localarray_size*sizeof(int)*user_params_stoc->N_THREADS/1e9);
+    LOG_DEBUG("Expected N_halo: %.3e, array size per thread %llu (~%.3e GB total)",expected_nhalo,localarray_size,6.*localarray_size*sizeof(int)*user_params_stoc->N_THREADS/1e9);
 
-    int count_total = 0;
-    int istart_local[user_params_stoc->N_THREADS];
+    unsigned long long int count_total = 0;
+    unsigned long long int istart_local[user_params_stoc->N_THREADS];
     memset(istart_local,0,sizeof(istart_local));
 
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
@@ -1126,7 +1129,8 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
         int threadnum = omp_get_thread_num();
         float M2,sm2,sfr2;
         int ii,jj;
-        int count=0;
+        unsigned long long int count=0;
+        unsigned long long int istart;
 
         float *local_hm;
         float *local_sm;
@@ -1191,16 +1195,17 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
             halofield_out->stellar_masses = (float*)calloc(count_total,sizeof(float));
             halofield_out->halo_sfr = (float*)calloc(count_total,sizeof(float));
         }
-        LOG_SUPER_DEBUG("Thread %d has %d of %d halos, concatenating (starting at %d)...",threadnum,count,count_total,istart_local[threadnum]);
+        LOG_DEBUG("Thread %d has %llu of %llu halos, concatenating (starting at %llu)...",threadnum,count,count_total,istart_local[threadnum]);
 
 //we need each thread to be done here before copying the data
 #pragma omp barrier
         
+        istart = istart_local[threadnum];
         //copy each local array into the struct
-        memcpy(halofield_out->halo_masses + istart_local[threadnum],local_hm,count*sizeof(float));
-        memcpy(halofield_out->stellar_masses + istart_local[threadnum],local_sm,count*sizeof(float));
-        memcpy(halofield_out->halo_sfr + istart_local[threadnum],local_sfr,count*sizeof(float));
-        memcpy(halofield_out->halo_coords + istart_local[threadnum]*3,local_crd,count*sizeof(int)*3);
+        memcpy(halofield_out->halo_masses + istart,local_hm,count*sizeof(float));
+        memcpy(halofield_out->stellar_masses + istart,local_sm,count*sizeof(float));
+        memcpy(halofield_out->halo_sfr + istart,local_sfr,count*sizeof(float));
+        memcpy(halofield_out->halo_coords + istart*3,local_crd,count*sizeof(int)*3);
         free(local_crd);
         free(local_sfr);
         free(local_sm);
@@ -1496,9 +1501,10 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         gsl_rng * rng_stoc[user_params->N_THREADS];
         seed_rng_threads(rng_stoc,seed);
 
-        if(update && z_out >= z_in)
+        if(update && (z_out <= z_in)){
+            LOG_DEBUG("update must go back in time z_out=%.2f z_in=%.2f",z_out,z_in);
             Throw(ValueError);
-
+        }
         //gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
 
         //gsl_rng_set(rseed, random_seed);
@@ -1719,7 +1725,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                         stoc_sample(growth_out, Mmin, M[j], delta, exp_N, exp_M, update, rng_stoc[omp_get_thread_num()], &n_halo, out_hm);
                     }
                     else{
-                        get_halo_avg(growth_out,M[j],lnMmin,lnMmax,lnMmax,update,&exp_N,&exp_M);
+                        get_halo_avg(growth_out,M[j],lnMmin,lnMmax,Mmax,update,&exp_N,&exp_M);
                         stoc_sample(growth_out, Mmin, Mmax, M[j], exp_N, exp_M, update, rng_stoc[omp_get_thread_num()], &n_halo, out_hm);
                     }
                     for(i=0;i<n_halo;i++){
@@ -1730,7 +1736,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                             result[1+n_cond+(n_halo_tot++)] = out_hm[i];
                         }
                     }
-                    //LOG_ULTRA_DEBUG("Cell %d %d got %.2e Mass (exp %.2e) %.2f",j,n_halo,result[1+j],exp_M,result[1+j]/(exp_M) - 1);
+                    LOG_ULTRA_DEBUG("Cell %d %d got %.2e Mass (exp %.2e) %.2f",j,n_halo,result[1+j],exp_M,result[1+j]/(exp_M) - 1);
                     result[1+j] = M_prog - exp_M; //excess mass in the cell
                 }
                 
@@ -1750,6 +1756,11 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 //NOTE: using n_mass for n_conditions
                 //a single coordinate is provided for each halo
                 LOG_ULTRA_DEBUG("assigning input arrays w %d halos",n_mass);
+                halos_in->n_halos = n_mass;
+                halos_in->halo_coords = (int*)calloc(n_mass*3,sizeof(int));
+                halos_in->halo_masses = (float*)calloc(n_mass,sizeof(float));
+                halos_in->stellar_masses = (float*)calloc(n_mass,sizeof(float));
+                halos_in->halo_sfr = (float*)calloc(n_mass,sizeof(float));
                 for(i=0;i<n_mass;i++){
                     // LOG_ULTRA_DEBUG("Reading %d (%d %d %d)...",i,n_mass + 3*i,n_mass + 3*i + 1,n_mass + 3*i + 2);
                     // LOG_ULTRA_DEBUG("M[%d] = %.3e",i,M[i]);
@@ -1765,6 +1776,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             }
             else{
                 //NOTE: halomass_in is linear delta at z = redshift_out
+                halos_in->n_halos = 0;
                 for(i=0;i<n_mass;i++){
                     dens_field[i] = M[i] / growth_out; //theres a redundant *D(z) / D(z) here but its better than redoing the real functions
                 }
@@ -1779,14 +1791,20 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                             halos_out->halo_masses[1],halos_out->halo_masses[2]);
             }
 
-            result[0] = nhalo_out;
+            result[0] = nhalo_out + 0.0;
             for(i=0;i<nhalo_out;i++){
-                result[1+i] = halos_out->halo_masses[i];
-                result[nhalo_out+1+3*i] = halos_in->halo_coords[3*i];
-                result[nhalo_out+2+3*i] = halos_in->halo_coords[3*i+1];
-                result[nhalo_out+3+3*i] = halos_in->halo_coords[3*i+2];
+                result[1+i] = (double)halos_out->halo_masses[i];
+                result[nhalo_out+1+3*i] = (double)halos_out->halo_coords[3*i];
+                result[nhalo_out+2+3*i] = (double)halos_out->halo_coords[3*i+1];
+                result[nhalo_out+3+3*i] = (double)halos_out->halo_coords[3*i+2];
             }
             free(dens_field);
+            if(update){
+                free(halos_in->halo_masses);
+                free(halos_in->halo_coords);
+                free(halos_in->halo_sfr);
+                free(halos_in->stellar_masses);
+            }
         }
 
         //return inverse dNdM table result for M at a bunch of masses

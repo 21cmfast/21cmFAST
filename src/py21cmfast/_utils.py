@@ -1070,7 +1070,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             pth = self.find_existing(direc)
 
             if pth is None:
-                raise OSError("No boxes exist for these parameters.")
+                raise OSError(f"No boxes exist for these parameters. {path} {direc}")
         else:
             direc = Path(direc or config["direc"]).expanduser()
             fname = Path(fname)
