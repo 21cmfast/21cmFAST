@@ -5,7 +5,7 @@ import numpy as np
 from copy import deepcopy
 
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
-from .outputs import InitialConditions, PerturbedField
+from .outputs import InitialConditions, IonizedBox, PerturbedField
 from .wrapper import _logscroll_redshifts, _setup_lightcone
 
 logger = logging.getLogger("21cmFAST")
@@ -767,52 +767,37 @@ def mem_perturb_field(
 def mem_ionize_box(
     *,
     user_params=None,
+    cosmo_params=None,
     astro_params=None,
     flag_options=None,
 ):
     """A function to estimate total memory usage of an ionize_box call."""
-    # Implicitly have dealt with INHOMO_RECO earlier
-    # determine number of filtering scales (for USE_MINI_HALOS)
-    if flag_options.USE_MINI_HALOS:
-        n_filtering = (
-            int(
-                np.log(
-                    min(astro_params.R_BUBBLE_MAX, 0.620350491 * user_params.BOX_LEN)
-                    / max(
-                        global_params.R_BUBBLE_MIN,
-                        0.620350491
-                        * user_params.BOX_LEN
-                        / np.float64(user_params.HII_DIM),
-                    )
-                )
-                / np.log(global_params.DELTA_R_HII_FACTOR)
-            )
-        ) + 1
-    else:
-        n_filtering = 1
-
     # Memory usage of Python IonizedBox class.
-
-    # All declared HII_DIM boxes
-    # xH_box, Gamma12_box, MFP_box, z_re_box, dNrec_box, temp_kinetic_all_gas
-    num_py_boxes = 6.0
-
-    # Fcoll
-    num_py_boxes += n_filtering
-
-    # Fcoll_MINI
-    if flag_options.USE_MINI_HALOS:
-        num_py_boxes += n_filtering
-
-    size_py = num_py_boxes * (user_params.HII_DIM) ** 3
+    ibox = IonizedBox(
+        redshift=9.0,
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+    )
+    size_py = 0
+    for key in ibox._array_structure:
+        if isinstance(
+            ibox._array_structure[key], dict
+        ):  # It can have embedded dictionaries
+            for alt_key in ibox._array_structure[key]:
+                if "shape" in alt_key:
+                    size_py += np.prod(ibox._array_structure[key][alt_key])
+        else:
+            size_py += np.prod(ibox._array_structure[key])
 
     # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
 
     # Memory usage within IonisationBox.c
-    hii_kspace_num_pixels = (float(user_params.HII_DIM) / 2.0 + 1.0) * (
-        user_params.HII_DIM
-    ) ** 2
+    hii_kspace_num_pixels = (
+        float(user_params.HII_DIM) * user_params.NON_CUBIC_FACTOR / 2.0 + 1.0
+    ) * (user_params.HII_DIM) ** 2
 
     # deltax_unfiltered, delta_unfiltered_original, deltax_filtered
     num_c_boxes = 3.0
@@ -829,8 +814,6 @@ def mem_ionize_box(
         # N_rec_unfiltered, N_rec_filtered
         num_c_boxes += 2.0
 
-    # There are a bunch of 1 and 2D interpolation tables, but ignore those as they are small relative to 3D grids
-
     if flag_options.USE_MASS_DEPENDENT_ZETA and flag_options.USE_MINI_HALOS:
         # log10_Mturnover_unfiltered, log10_Mturnover_filtered, log10_Mturnover_MINI_unfiltered, log10_Mturnover_MINI_filtered
         num_c_boxes += 4.0
@@ -839,13 +822,16 @@ def mem_ionize_box(
         # M_coll_unfiltered, M_coll_filtered
         num_c_boxes += 2.0
 
+    # Various interpolation tables
     tables_float = tables_double = 0.0
     if flag_options.USE_MASS_DEPENDENT_ZETA:
         tables_float += 2.0 * (ngl_sfr + 1)  # xi_SFR, wi_SFR
 
         if user_params.USE_INTERPOLATION_TABLES:
-            tables_double += nsfr_low  # log10_overdense_spline_SFR
-            tables_float += nsfr_high  # Overdense_spline_SFR
+            tables_double += nsfr_low  # log10_overdense_spline_SFR,
+            tables_float += (
+                2.0 * nsfr_high + nsfr_low
+            )  # Overdense_spline_SFR, Nion_spline, log10_Nion_spline
 
             if flag_options.USE_MINI_HALOS:
                 tables_double += nsfr_low  # prev_log10_overdense_spline_SFR
@@ -856,8 +842,6 @@ def mem_ionize_box(
                 tables_float += (
                     4.0 * nsfr_high * nmturn
                 )  # Nion_spline, Nion_spline_MINI, prev_Nion_spline, prev_Nion_spline_MINI
-            else:
-                tables_float += nsfr_high + nsfr_low  # log10_Nion_spline, Nion_spline
 
         if flag_options.USE_MINI_HALOS:
             tables_float += 2.0 * nmturn  # Mturns, Mturns_MINI
