@@ -5,7 +5,7 @@ import numpy as np
 from copy import deepcopy
 
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
-from .outputs import InitialConditions
+from .outputs import InitialConditions, PerturbedField
 from .wrapper import _logscroll_redshifts, _setup_lightcone
 
 logger = logging.getLogger("21cmFAST")
@@ -706,26 +706,38 @@ def mem_initial_conditions(
 def mem_perturb_field(
     *,
     user_params=None,
+    cosmo_params=None,
 ):
     """A function to estimate total memory usage of a perturb_field call."""
-    # Memory usage of Python PerturbedField class.
-    # All declared HII_DIM boxes"""
-    # density, velocity
-    num_py_boxes_HII_DIM = 2.0
-
-    size_py = num_py_boxes_HII_DIM * (user_params.HII_DIM) ** 3
+    # Memory usage of Python InitialConditions class. (assume single redshift)
+    pt_box = PerturbedField(
+        redshift=9.0, user_params=user_params, cosmo_params=cosmo_params
+    )
+    size_py = 0
+    for key in pt_box._array_structure:
+        size_py += np.prod(pt_box._array_structure[key])
 
     # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
 
     # Memory usage within PerturbField.c
-    kspace_num_pixels = (float(user_params.DIM) / 2.0 + 1.0) * (user_params.DIM) ** 2
-    hii_kspace_num_pixels = (float(user_params.HII_DIM) / 2.0 + 1.0) * (
-        user_params.HII_DIM
-    ) ** 2
+    kspace_num_pixels = (
+        float(user_params.DIM) * user_params.NON_CUBIC_FACTOR / 2.0 + 1.0
+    ) * (user_params.DIM) ** 2
+    hii_kspace_num_pixels = (
+        float(user_params.HII_DIM) * user_params.NON_CUBIC_FACTOR / 2.0 + 1.0
+    ) * (user_params.HII_DIM) ** 2
 
-    tot_num_pixels = float(user_params.DIM) ** 3
-    hii_tot_num_pixels = float(user_params.HII_DIM) ** 3
+    tot_num_pixels = (
+        float(user_params.DIM)
+        * user_params.NON_CUBIC_FACTOR
+        * float(user_params.DIM) ** 2
+    )
+    hii_tot_num_pixels = (
+        float(user_params.HII_DIM)
+        * user_params.NON_CUBIC_FACTOR
+        * float(user_params.HII_DIM) ** 2
+    )
 
     # LOWRES_density_perturb, LOWRES_density_perturb_saved
     num_c_boxes_HII_DIM = 2
