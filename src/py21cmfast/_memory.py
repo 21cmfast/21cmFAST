@@ -5,7 +5,7 @@ import numpy as np
 from copy import deepcopy
 
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
-from .outputs import InitialConditions, IonizedBox, PerturbedField
+from .outputs import InitialConditions, IonizedBox, PerturbedField, TsBox
 from .wrapper import _logscroll_redshifts, _setup_lightcone
 
 logger = logging.getLogger("21cmFAST")
@@ -767,7 +767,6 @@ def mem_perturb_field(
 def mem_ionize_box(
     *,
     user_params=None,
-    cosmo_params=None,
     astro_params=None,
     flag_options=None,
 ):
@@ -776,7 +775,6 @@ def mem_ionize_box(
     ibox = IonizedBox(
         redshift=9.0,
         user_params=user_params,
-        cosmo_params=cosmo_params,
         astro_params=astro_params,
         flag_options=flag_options,
     )
@@ -877,21 +875,24 @@ def mem_spin_temperature(
     flag_options=None,
 ):
     """A function to estimate total memory usage of a spin_temperature call."""
-    # Memory usage of Python IonizedBox class.
-
-    # All declared HII_DIM boxes
-    # Ts_bx, x_e_box, Tk_box, J_21_LW_box
-    num_py_boxes = 4.0
-
-    size_py = num_py_boxes * (user_params.HII_DIM) ** 3
+    # Memory usage of Python TsBox class.
+    ts_box = TsBox(
+        redshift=9.0,
+        user_params=user_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+    )
+    size_py = 0
+    for key in ts_box._array_structure:
+        size_py += np.prod(ts_box._array_structure[key])
 
     # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
 
     # Memory usage within SpinTemperatureBox.c
-    hii_kspace_num_pixels = (float(user_params.HII_DIM) / 2.0 + 1.0) * (
-        user_params.HII_DIM
-    ) ** 2
+    hii_kspace_num_pixels = (
+        float(user_params.HII_DIM) * user_params.NON_CUBIC_FACTOR / 2.0 + 1.0
+    ) * (user_params.HII_DIM) ** 2
 
     # box, unfiltered_box
     num_c_boxes = 2.0
@@ -919,7 +920,10 @@ def mem_spin_temperature(
 
     if flag_options.USE_MASS_DEPENDENT_ZETA:
         # delNL0
-        num_c_boxes_initialised += global_params.NUM_FILTER_STEPS_FOR_Ts
+        if user_params.MINIMIZE_MEMORY:
+            num_c_boxes_initialised += 1.0
+        else:
+            num_c_boxes_initialised += global_params.NUM_FILTER_STEPS_FOR_Ts
 
         # del_fcoll_Rct, m_xHII_low_box, inverse_val_box
         num_c_boxes_initialised += (
@@ -928,6 +932,10 @@ def mem_spin_temperature(
 
         # dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box
         num_c_boxes_initialised += 2.0 * 4.0  # factor of 2. as these are doubles
+        if flag_options.USE_LYA_HEATING:
+            num_c_boxes_initialised += (
+                2.0 * 2.0
+            )  # dstarlya_cont_dt_box, dstarlya_inj_dt_box
 
         tables_float += global_params.NUM_FILTER_STEPS_FOR_Ts  # SFR_timescale_factor
         tables_double += 2.0 * (ngl_sfr + 1.0)  # xi_SFR_Xray, wi_SFR_Xray
@@ -950,6 +958,10 @@ def mem_spin_temperature(
             num_c_boxes_initialised += (
                 2.0 * 6.0
             )  # factor of 2. taking into account that these are doubles
+            if flag_options.USE_LYA_HEATING:
+                num_c_boxes_initialised += (
+                    2.0 * 2.0
+                )  # dstarlya_cont_dt_box_MINI, dstarlya_inj_dt_box_MINI
 
             tables_double += (
                 global_params.NUM_FILTER_STEPS_FOR_Ts
@@ -987,17 +999,27 @@ def mem_spin_temperature(
             )  # delNL0_bw, delNL0_Offset, delNL0_LL, delNL0_UL, delNL0_ibw, log10delNL0_diff, log10delNL0_diff_UL
 
             # dens_grid_int_vals
-            num_c_boxes_initialised += 0.5  # 0.5 as it is a short
+            num_c_boxes_initialised += (
+                0.5 * global_params.NUM_FILTER_STEPS_FOR_Ts
+            )  # 0.5 as it is a short
 
-    tables_double += global_params.NUM_FILTER_STEPS_FOR_Ts  # dstarlya_dt_prefactor
-    if flag_options.USE_MINI_HALOS:
-        tables_double += (
-            3.0 * global_params.NUM_FILTER_STEPS_FOR_Ts
-        )  # dstarlya_dt_prefactor_MINI, dstarlyLW_dt_prefactor, dstarlyLW_dt_prefactor_MINI
-
+    # dstarlya_dt_prefactor, fcoll_R_array, sigma_Tmin, ST_over_PS, sum_lyn
+    tables_double += 5.0 * global_params.NUM_FILTER_STEPS_FOR_Ts
+    if flag_options.USE_LYA_HEATING:
         tables_double += (
             4.0 * global_params.NUM_FILTER_STEPS_FOR_Ts
-        )  # ST_over_PS_MINI, sum_lyn_MINI, sum_lyLWn, sum_lyLWn_MINI,
+        )  # dstarlya_cont_dt_prefactor,dstarlya_inj_dt_prefactor, sum_ly2, sum_lynto2
+
+    if flag_options.USE_MINI_HALOS:
+        tables_double += (
+            7.0 * global_params.NUM_FILTER_STEPS_FOR_Ts
+        )  # dstarlya_dt_prefactor_MINI, dstarlyLW_dt_prefactor, dstarlyLW_dt_prefactor_MINI
+        # ST_over_PS_MINI, sum_lyn_MINI, sum_lyLWn, sum_lyLWn_MINI,
+        if flag_options.USE_LYA_HEATING:
+            tables_double += (
+                4.0 * global_params.NUM_FILTER_STEPS_FOR_Ts
+            )  # dstarlya_cont_dt_prefactor_MINI,dstarlya_inj_dt_prefactor_MINI,sum_ly2_MINI,sum_lynto2_MINI
+
         tables_float += global_params.NUM_FILTER_STEPS_FOR_Ts  # Mcrit_atom_interp_table
 
     tables_float += (
@@ -1008,9 +1030,6 @@ def mem_spin_temperature(
         6.0 * x_int_nxhii * global_params.NUM_FILTER_STEPS_FOR_Ts
     )  # freq_int_heat_tbl, freq_int_ion_tbl, freq_int_lya_tbl, freq_int_heat_tbl_diff, freq_int_ion_tbl_diff, freq_int_lya_tbl_diff
 
-    tables_double += (
-        4.0 * global_params.NUM_FILTER_STEPS_FOR_Ts
-    )  # fcoll_R_array, sigma_Tmin, ST_over_PS, sum_lyn
     tables_float += (
         x_int_nxhii + global_params.NUM_FILTER_STEPS_FOR_Ts
     )  # inverse_diff, zpp_growth
