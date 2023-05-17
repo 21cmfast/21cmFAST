@@ -5,6 +5,7 @@ import numpy as np
 from copy import deepcopy
 
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+from .outputs import InitialConditions
 from .wrapper import _logscroll_redshifts, _setup_lightcone
 
 logger = logging.getLogger("21cmFAST")
@@ -666,33 +667,26 @@ def mem_initial_conditions(
 ):
     """A function to estimate total memory usage of an initial_conditions call."""
     # Memory usage of Python InitialConditions class.
-    # All declared HII_DIM boxes
-    # lowres_density, lowres_vx, lowres_vy, lowres_vz, lowres_vcb
-    # lowres_vx_2LPT, lowres_vy_2LPT, lowres_vz_2LPT
-    num_py_boxes_HII_DIM = 8.0
-
-    # All declared DIM boxes
-    # hires_density, hires_vx, hires_vy, hires_vz
-    # hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT
-    num_py_boxes_DIM = 7.0
-
-    size_py = num_py_boxes_DIM * (user_params.DIM) ** 3
-    size_py += num_py_boxes_HII_DIM * (user_params.HII_DIM) ** 3
+    init = InitialConditions(user_params=user_params)
+    size_py = 0
+    for key in init._array_structure:
+        size_py += np.prod(init._array_structure[key])
 
     # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
 
     # Memory usage within GenerateICs
-    kspace_num_pixels = (float(user_params.DIM) / 2.0 + 1.0) * (user_params.DIM) ** 2
+    kspace_num_pixels = (
+        float(user_params.DIM) * user_params.NON_CUBIC_FACTOR / 2.0 + 1.0
+    ) * (user_params.DIM) ** 2
 
     # All declared DIM boxes
     # HIRES_box, HIRES_box_saved
     num_c_boxes = 2
 
     # All declared 2LPT boxes (DIM)
-    # phi_1 (6 components)
-    if global_params.SECOND_ORDER_LPT_CORRECTIONS:
-        num_c_boxes += 6
+    if user_params.USE_2LPT:
+        num_c_boxes += 1
 
     # These are all fftwf complex arrays (thus 2 * size)
     size_c = (2.0 * (np.float32(1.0).nbytes)) * num_c_boxes * kspace_num_pixels
@@ -1162,86 +1156,86 @@ def print_memory_estimate(
     flag_options=None,
 ):
     """Function to output information in a manageable format."""
-    bytes_in_gb = 1024**3
+    # bytes_in_gb = 1024**3
 
-    print("")
-    if "python_lc" in memory_data.keys():
-        print("Memory info for run_lightcone")
-    elif len(memory_data) == 3:
-        print("Memory info for initial_conditions")
-    elif len(memory_data) == 5:
-        print("Memory info for perturb_field")
-    else:
-        print("Memory info for run_coeval")
-    print("")
-    print("%s" % (user_params))
-    if astro_params is not None:
-        print("%s" % (astro_params))
-    if flag_options is not None:
-        print("%s" % (flag_options))
-    print("")
-    print("Peak memory usage: %g (GB)" % (memory_data["peak_memory"] / bytes_in_gb))
-    print("")
-    if "python_lc" in memory_data.keys():
-        print(
-            "Memory for stored lightcones: %g (GB)"
-            % (memory_data["python_lc"] / bytes_in_gb)
-        )
-    """logger.info("Peak memory usage: %g (GB)"%(memory_data['peak_memory']/bytes_in_gb))"""
-    print(
-        "Memory for ICs: %g (GB; Python) %g (GB; C)"
-        % (memory_data["ics_python"] / bytes_in_gb, memory_data["ics_c"] / bytes_in_gb)
-    )
-    if "pf_python" in memory_data.keys():
-        print(
-            "Memory for single perturbed field: %g (GB; Python) %g (GB; C)"
-            % (
-                memory_data["pf_python"] / bytes_in_gb,
-                memory_data["pf_c"] / bytes_in_gb,
-            )
-        )
-    if "hf_python" in memory_data.keys() and flag_options.USE_HALO_FIELD:
-        print(
-            "Note these are approximations as we don't know a priori how many haloes there are (assume 10 per cent of volume)"
-        )
-        print(
-            "Memory for generating halo list: %g (GB; Python) %g (GB; C)"
-            % (
-                memory_data["hf_python"] / bytes_in_gb,
-                memory_data["hf_c"] / bytes_in_gb,
-            )
-        )
-        print(
-            "Memory for perturbing halo list: %g (GB; Python) %g (GB; C)"
-            % (
-                memory_data["phf_python"] / bytes_in_gb,
-                memory_data["phf_c"] / bytes_in_gb,
-            )
-        )
-    if "ib_python" in memory_data.keys():
-        print(
-            "Memory for single ionized box: %g (GB; Python) %g (GB; C)"
-            % (
-                memory_data["ib_python"] / bytes_in_gb,
-                memory_data["ib_c"] / bytes_in_gb,
-            )
-        )
+    # print("")
+    # if "python_lc" in memory_data.keys():
+    #     print("Memory info for run_lightcone")
+    # elif len(memory_data) == 3:
+    #     print("Memory info for initial_conditions")
+    # elif len(memory_data) == 5:
+    #     print("Memory info for perturb_field")
+    # else:
+    #     print("Memory info for run_coeval")
+    # print("")
+    # print("%s" % (user_params))
+    # if astro_params is not None:
+    #     print("%s" % (astro_params))
+    # if flag_options is not None:
+    #     print("%s" % (flag_options))
+    # print("")
+    # print("Peak memory usage: %g (GB)" % (memory_data["peak_memory"] / bytes_in_gb))
+    # print("")
+    # if "python_lc" in memory_data.keys():
+    #     print(
+    #         "Memory for stored lightcones: %g (GB)"
+    #         % (memory_data["python_lc"] / bytes_in_gb)
+    #     )
+    # """logger.info("Peak memory usage: %g (GB)"%(memory_data['peak_memory']/bytes_in_gb))"""
+    # print(
+    #     "Memory for ICs: %g (GB; Python) %g (GB; C)"
+    #     % (memory_data["ics_python"] / bytes_in_gb, memory_data["ics_c"] / bytes_in_gb)
+    # )
+    # if "pf_python" in memory_data.keys():
+    #     print(
+    #         "Memory for single perturbed field: %g (GB; Python) %g (GB; C)"
+    #         % (
+    #             memory_data["pf_python"] / bytes_in_gb,
+    #             memory_data["pf_c"] / bytes_in_gb,
+    #         )
+    #     )
+    # if "hf_python" in memory_data.keys() and flag_options.USE_HALO_FIELD:
+    #     print(
+    #         "Note these are approximations as we don't know a priori how many haloes there are (assume 10 per cent of volume)"
+    #     )
+    #     print(
+    #         "Memory for generating halo list: %g (GB; Python) %g (GB; C)"
+    #         % (
+    #             memory_data["hf_python"] / bytes_in_gb,
+    #             memory_data["hf_c"] / bytes_in_gb,
+    #         )
+    #     )
+    #     print(
+    #         "Memory for perturbing halo list: %g (GB; Python) %g (GB; C)"
+    #         % (
+    #             memory_data["phf_python"] / bytes_in_gb,
+    #             memory_data["phf_c"] / bytes_in_gb,
+    #         )
+    #     )
+    # if "ib_python" in memory_data.keys():
+    #     print(
+    #         "Memory for single ionized box: %g (GB; Python) %g (GB; C)"
+    #         % (
+    #             memory_data["ib_python"] / bytes_in_gb,
+    #             memory_data["ib_c"] / bytes_in_gb,
+    #         )
+    #     )
 
-    if "st_python" in memory_data.keys() and flag_options.USE_TS_FLUCT:
-        print(
-            "Memory for single spin temperature box: %g (GB; Python) %g (GB; C per z) %g (GB; C retained)"
-            % (
-                memory_data["st_python"] / bytes_in_gb,
-                memory_data["st_c_per_z"] / bytes_in_gb,
-                memory_data["st_c_init"] / bytes_in_gb,
-            )
-        )
-    if "bt_python" in memory_data.keys():
-        print(
-            "Memory for single brightness temperature box: %g (GB; Python) %g (GB; C)"
-            % (
-                memory_data["bt_python"] / bytes_in_gb,
-                memory_data["bt_c"] / bytes_in_gb,
-            )
-        )
-    print("")
+    # if "st_python" in memory_data.keys() and flag_options.USE_TS_FLUCT:
+    #     print(
+    #         "Memory for single spin temperature box: %g (GB; Python) %g (GB; C per z) %g (GB; C retained)"
+    #         % (
+    #             memory_data["st_python"] / bytes_in_gb,
+    #             memory_data["st_c_per_z"] / bytes_in_gb,
+    #             memory_data["st_c_init"] / bytes_in_gb,
+    #         )
+    #     )
+    # if "bt_python" in memory_data.keys():
+    #     print(
+    #         "Memory for single brightness temperature box: %g (GB; Python) %g (GB; C)"
+    #         % (
+    #             memory_data["bt_python"] / bytes_in_gb,
+    #             memory_data["bt_c"] / bytes_in_gb,
+    #         )
+    #     )
+    # print("")
