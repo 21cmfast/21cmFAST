@@ -47,13 +47,13 @@ void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, 
 
     // corners
     HIRES_box[C_INDEX(0,0,0)] = 0;
-    HIRES_box[C_INDEX(0,0,MIDDLE)] = crealf(HIRES_box[C_INDEX(0,0,MIDDLE)]);
+    HIRES_box[C_INDEX(0,0,MIDDLE_PARA)] = crealf(HIRES_box[C_INDEX(0,0,MIDDLE_PARA)]);
     HIRES_box[C_INDEX(0,MIDDLE,0)] = crealf(HIRES_box[C_INDEX(0,MIDDLE,0)]);
-    HIRES_box[C_INDEX(0,MIDDLE,MIDDLE)] = crealf(HIRES_box[C_INDEX(0,MIDDLE,MIDDLE)]);
+    HIRES_box[C_INDEX(0,MIDDLE,MIDDLE_PARA)] = crealf(HIRES_box[C_INDEX(0,MIDDLE,MIDDLE_PARA)]);
     HIRES_box[C_INDEX(MIDDLE,0,0)] = crealf(HIRES_box[C_INDEX(MIDDLE,0,0)]);
-    HIRES_box[C_INDEX(MIDDLE,0,MIDDLE)] = crealf(HIRES_box[C_INDEX(MIDDLE,0,MIDDLE)]);
+    HIRES_box[C_INDEX(MIDDLE,0,MIDDLE_PARA)] = crealf(HIRES_box[C_INDEX(MIDDLE,0,MIDDLE_PARA)]);
     HIRES_box[C_INDEX(MIDDLE,MIDDLE,0)] = crealf(HIRES_box[C_INDEX(MIDDLE,MIDDLE,0)]);
-    HIRES_box[C_INDEX(MIDDLE,MIDDLE,MIDDLE)] = crealf(HIRES_box[C_INDEX(MIDDLE,MIDDLE,MIDDLE)]);
+    HIRES_box[C_INDEX(MIDDLE,MIDDLE,MIDDLE_PARA)] = crealf(HIRES_box[C_INDEX(MIDDLE,MIDDLE,MIDDLE_PARA)]);
 
     // do entire i except corners
 #pragma omp parallel shared(HIRES_box) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -62,14 +62,14 @@ void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, 
         for (i=1; i<MIDDLE; i++){
             // just j corners
             for (j=0; j<=MIDDLE; j+=MIDDLE){
-                for (k=0; k<=MIDDLE; k+=MIDDLE){
+                for (k=0; k<=MIDDLE_PARA; k+=MIDDLE_PARA){
                     HIRES_box[C_INDEX(i,j,k)] = conjf(HIRES_box[C_INDEX((user_params->DIM)-i,j,k)]);
                 }
             }
 
             // all of j
             for (j=1; j<MIDDLE; j++){
-                for (k=0; k<=MIDDLE; k+=MIDDLE){
+                for (k=0; k<=MIDDLE_PARA; k+=MIDDLE_PARA){
                     HIRES_box[C_INDEX(i,j,k)] = conjf(HIRES_box[C_INDEX((user_params->DIM)-i,(user_params->DIM)-j,k)]);
                     HIRES_box[C_INDEX(i,(user_params->DIM)-j,k)] = conjf(HIRES_box[C_INDEX((user_params->DIM)-i,j,k)]);
                 }
@@ -83,7 +83,7 @@ void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, 
 #pragma omp for
         for (i=0; i<=MIDDLE; i+=MIDDLE){
             for (j=1; j<MIDDLE; j++){
-                for (k=0; k<=MIDDLE; k+=MIDDLE){
+                for (k=0; k<=MIDDLE_PARA; k+=MIDDLE_PARA){
                     HIRES_box[C_INDEX(i,j,k)] = conjf(HIRES_box[C_INDEX(i,(user_params->DIM)-j,k)]);
                 }
             }
@@ -226,9 +226,9 @@ int ComputeInitialConditions(
                     k_y = n_y * DELTA_K;
 
                 // since physical space field is real, only half contains independent modes
-                for (n_z=0; n_z<=MIDDLE; n_z++){
+                for (n_z=0; n_z<=MIDDLE_PARA; n_z++){
                     // convert index to numerical value for this component of the k-mode: k = (2*pi/L) * n
-                    k_z = n_z * DELTA_K;
+                    k_z = n_z * DELTA_K_PARA;
 
                     // now get the power spectrum; remember, only the magnitude of k counts (due to issotropy)
                     // this could be used to speed-up later maybe
@@ -260,7 +260,7 @@ int ComputeInitialConditions(
     memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
     // FFT back to real space
-    int stat = dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box);
+    int stat = dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_box);
     if(stat>0) Throw(stat);
     LOG_DEBUG("FFT'd hires boxes.");
 
@@ -269,7 +269,7 @@ int ComputeInitialConditions(
 #pragma omp for
         for (i=0; i<user_params->DIM; i++){
             for (j=0; j<user_params->DIM; j++){
-                for (k=0; k<user_params->DIM; k++){
+                for (k=0; k<D_PARA; k++){
                     *((float *)boxes->hires_density + R_INDEX(i,j,k)) = *((float *)HIRES_box + R_FFT_INDEX(i,j,k))/VOLUME;
                 }
             }
@@ -287,7 +287,7 @@ int ComputeInitialConditions(
         }
 
         // FFT back to real space
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box);
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_box);
 
         // Renormalise the FFT'd box (sample the high-res box if we are perturbing on the low-res grid)
 #pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -295,7 +295,7 @@ int ComputeInitialConditions(
 #pragma omp for
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<user_params->HII_DIM; k++){
+                    for (k=0; k<HII_D_PARA; k++){
                         boxes->lowres_density[HII_R_INDEX(i,j,k)] =
                         *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
                                                            (unsigned long long)(j*f_pixel_factor+0.5),
@@ -330,8 +330,8 @@ int ComputeInitialConditions(
                     else
                         k_y = n_y * DELTA_K;
 
-                    for (n_z=0; n_z<=MIDDLE; n_z++){
-                        k_z = n_z * DELTA_K;
+                    for (n_z=0; n_z<=MIDDLE_PARA; n_z++){
+                        k_z = n_z * DELTA_K_PARA;
 
                         k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
                         p = power_in_k(k_mag);
@@ -365,7 +365,7 @@ int ComputeInitialConditions(
       }
 
 //fft each velocity component back to real space
-      dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box);
+      dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_box);
 
 
 
@@ -374,7 +374,7 @@ int ComputeInitialConditions(
       #pragma omp for
                   for (i=0; i<user_params->HII_DIM; i++){
                       for (j=0; j<user_params->HII_DIM; j++){
-                          for (k=0; k<user_params->HII_DIM; k++){
+                          for (k=0; k<HII_D_PARA; k++){
                             vcb_i = *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
                                                              (unsigned long long)(j*f_pixel_factor+0.5),
                                                              (unsigned long long)(k*f_pixel_factor+0.5)));
@@ -391,7 +391,7 @@ int ComputeInitialConditions(
 //now we take the sqrt of that and normalize the FFT
     for (i=0; i<user_params->HII_DIM; i++){
         for (j=0; j<user_params->HII_DIM; j++){
-            for (k=0; k<user_params->HII_DIM; k++){
+            for (k=0; k<HII_D_PARA; k++){
               boxes->lowres_vcb[HII_R_INDEX(i,j,k)] = sqrt(boxes->lowres_vcb[HII_R_INDEX(i,j,k)])/VOLUME;
             }
         }
@@ -426,8 +426,8 @@ int ComputeInitialConditions(
                     else
                         k_y = n_y * DELTA_K;
 
-                    for (n_z=0; n_z<=MIDDLE; n_z++){
-                        k_z = n_z * DELTA_K;
+                    for (n_z=0; n_z<=MIDDLE_PARA; n_z++){
+                        k_z = n_z * DELTA_K_PARA;
 
                         k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
 
@@ -458,7 +458,7 @@ int ComputeInitialConditions(
             }
         }
 
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box);
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_box);
 
         // now sample to lower res
         // now sample the filtered box
@@ -467,7 +467,7 @@ int ComputeInitialConditions(
 #pragma omp for
             for (i=0; i<dimension; i++){
                 for (j=0; j<dimension; j++){
-                    for (k=0; k<dimension; k++){
+                    for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
                         if(user_params->PERTURB_ON_HIGH_RES) {
                             if(ii==0) {
                                 boxes->hires_vx[R_INDEX(i,j,k)] =
@@ -553,7 +553,7 @@ int ComputeInitialConditions(
 #pragma omp for
             for (i=0; i<user_params->DIM; i++){
                 for (j=0; j<user_params->DIM; j++){
-                    for (k=0; k<user_params->DIM; k++){
+                    for (k=0; k<D_PARA; k++){
                         *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),
                                                            (unsigned long long)(j),
                                                            (unsigned long long)(k)) ) = 0.;
@@ -571,7 +571,7 @@ int ComputeInitialConditions(
 
                 // generate the phi_1 boxes in Fourier transform
 #pragma omp parallel shared(HIRES_box,phi_1,i,j) private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq,k) num_threads(user_params->N_THREADS)
-                {
+            {
 #pragma omp for
                 for (n_x=0; n_x<user_params->DIM; n_x++){
                     if (n_x>MIDDLE)
@@ -585,8 +585,8 @@ int ComputeInitialConditions(
                         else
                             k_y = n_y * DELTA_K;
 
-                        for (n_z=0; n_z<=MIDDLE; n_z++){
-                            k_z = n_z * DELTA_K;
+                        for (n_z=0; n_z<=MIDDLE_PARA; n_z++){
+                            k_z = n_z * DELTA_K_PARA;
 
                             k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
 
@@ -604,7 +604,7 @@ int ComputeInitialConditions(
                 }
             }
 
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, phi_1);
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, phi_1);
 
             // Temporarily store in the allocated hires_vi_2LPT boxes
 #pragma omp parallel shared(boxes,phi_1,phi_component) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -612,7 +612,7 @@ int ComputeInitialConditions(
 #pragma omp for
                 for (i=0; i<user_params->DIM; i++){
                     for (j=0; j<user_params->DIM; j++){
-                        for (k=0; k<user_params->DIM; k++){
+                        for (k=0; k<D_PARA; k++){
                             if(phi_component==0) {
                                 boxes->hires_vx_2LPT[R_INDEX(i,j,k)] = *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
                                                                                                       (unsigned long long)(j),
@@ -655,8 +655,8 @@ int ComputeInitialConditions(
                         else
                             k_y = n_y * DELTA_K;
 
-                        for (n_z=0; n_z<=MIDDLE; n_z++){
-                            k_z = n_z * DELTA_K;
+                        for (n_z=0; n_z<=MIDDLE_PARA; n_z++){
+                            k_z = n_z * DELTA_K_PARA;
 
                             k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
 
@@ -674,7 +674,7 @@ int ComputeInitialConditions(
                 }
             }
 
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, phi_1);
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, phi_1);
 
             // Then we will have the laplacian of phi_2 (eq. D13b)
             // After that we have to return in Fourier space and generate the Fourier transform of phi_2
@@ -683,7 +683,7 @@ int ComputeInitialConditions(
 #pragma omp for
                 for (i=0; i<user_params->DIM; i++){
                     for (j=0; j<user_params->DIM; j++){
-                        for (k=0; k<user_params->DIM; k++){
+                        for (k=0; k<D_PARA; k++){
                             // Note, I have temporarily stored the components into other arrays to minimise memory usage
                             // phi - {0, 1, 2} -> {hires_vx_2LPT, hires_vy_2LPT, hires_vz_2LPT}
                             // This may be opaque to the user, but this shouldn't need modification
@@ -730,7 +730,7 @@ int ComputeInitialConditions(
 #pragma omp for
             for (i=0; i<user_params->DIM; i++){
                 for (j=0; j<user_params->DIM; j++){
-                    for (k=0; k<user_params->DIM; k++){
+                    for (k=0; k<D_PARA; k++){
                         *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i),(unsigned long long)(j),(unsigned long long)(k)) ) /= TOT_NUM_PIXELS;
                     }
                 }
@@ -738,7 +738,7 @@ int ComputeInitialConditions(
         }
 
         // Perform FFTs
-        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box);
+        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_box);
 
         memcpy(HIRES_box_saved, HIRES_box, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
@@ -776,8 +776,8 @@ int ComputeInitialConditions(
                         else
                             k_y = n_y * DELTA_K;
 
-                        for (n_z=0; n_z<=MIDDLE; n_z++){
-                            k_z = n_z * DELTA_K;
+                        for (n_z=0; n_z<=MIDDLE_PARA; n_z++){
+                            k_z = n_z * DELTA_K_PARA;
 
                             k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
 
@@ -809,7 +809,7 @@ int ComputeInitialConditions(
                 }
             }
 
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_box);
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_box);
 
             // now sample to lower res
             // now sample the filtered box
@@ -818,7 +818,7 @@ int ComputeInitialConditions(
 #pragma omp for
                 for (i=0; i<dimension; i++){
                     for (j=0; j<dimension; j++){
-                        for (k=0; k<dimension; k++){
+                        for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
                             if(user_params->PERTURB_ON_HIGH_RES) {
                                 if(ii==0) {
                                     boxes->hires_vx_2LPT[R_INDEX(i,j,k)] =

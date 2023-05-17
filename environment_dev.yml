@@ -2,7 +2,7 @@ name: 21cmfast
 channels:
   - defaults
 dependencies:
-  - python=3.7
+  - python=3.9
   - sphinxcontrib-htmlhelp
   - zlib
   - pip
@@ -10,7 +10,6 @@ dependencies:
   - libffi
   - zipp
   - click
-  - libgcc-ng
   - scipy
   - expat
   - pytest
@@ -95,7 +94,7 @@ dependencies:
   - wheel
   - astropy
   - dbus
-  - jinja2
+  - jinja2=3.0.3
   - sphinxcontrib-applehelp
   - libxcb
   - pcre

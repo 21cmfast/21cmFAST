@@ -60,16 +60,16 @@ LOG_DEBUG("Begin Initialisation");
 #pragma omp for
             for (i=0; i<dimension; i++){
                 for (j=0; j<dimension; j++){
-                    for (k=0; k<dimension; k++){
+                    for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
                         if(user_params->PERTURB_ON_HIGH_RES) {
                             boxes->hires_vx[R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
                             boxes->hires_vy[R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
-                            boxes->hires_vz[R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+                            boxes->hires_vz[R_INDEX(i,j,k)] *= (growth_factor_over_BOX_LEN/user_params->NON_CUBIC_FACTOR);
                         }
                         else {
                             boxes->lowres_vx[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
                             boxes->lowres_vy[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
-                            boxes->lowres_vz[HII_R_INDEX(i,j,k)] *= growth_factor_over_BOX_LEN;
+                            boxes->lowres_vz[HII_R_INDEX(i,j,k)] *= (growth_factor_over_BOX_LEN/user_params->NON_CUBIC_FACTOR);
                         }
                         // this is now comoving displacement in units of box size
                     }
@@ -91,16 +91,16 @@ LOG_DEBUG("Begin Initialisation");
 #pragma omp for
                 for (i=0; i<dimension; i++){
                     for (j=0; j<dimension; j++){
-                        for (k=0; k<dimension; k++){
+                        for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
                             if(user_params->PERTURB_ON_HIGH_RES) {
                                 boxes->hires_vx_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
                                 boxes->hires_vy_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
-                                boxes->hires_vz_2LPT[R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+                                boxes->hires_vz_2LPT[R_INDEX(i,j,k)] *= (displacement_factor_2LPT_over_BOX_LEN/user_params->NON_CUBIC_FACTOR);
                             }
                             else {
                                 boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
                                 boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
-                                boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] *= displacement_factor_2LPT_over_BOX_LEN;
+                                boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] *= (displacement_factor_2LPT_over_BOX_LEN/user_params->NON_CUBIC_FACTOR);
                             }
                             // this is now comoving displacement in units of box size
                         }
@@ -136,7 +136,7 @@ LOG_DEBUG("Begin Initialisation");
                 // convert location to fractional value
                 xf = halos->halo_coords[i_halo*3+0]/(user_params->DIM + 0.);
                 yf = halos->halo_coords[i_halo*3+1]/(user_params->DIM + 0.);
-                zf = halos->halo_coords[i_halo*3+2]/(user_params->DIM + 0.);
+                zf = halos->halo_coords[i_halo*3+2]/(D_PARA + 0.);
 
                 // determine halo position (downsampled if required)
                 if(user_params->PERTURB_ON_HIGH_RES) {
@@ -147,7 +147,7 @@ LOG_DEBUG("Begin Initialisation");
                 else {
                     i = xf * user_params->HII_DIM;
                     j = yf * user_params->HII_DIM;
-                    k = zf * user_params->HII_DIM;
+                    k = zf * HII_D_PARA;
                 }
 
                 // get new positions using linear velocity displacement from z=INITIAL
@@ -194,7 +194,7 @@ LOG_DEBUG("Begin Initialisation");
 
                 xf *= user_params->HII_DIM;
                 yf *= user_params->HII_DIM;
-                zf *= user_params->HII_DIM;
+                zf *= HII_D_PARA;
 
                 halos_perturbed->halo_coords[i_halo*3+0] = xf;
                 halos_perturbed->halo_coords[i_halo*3+1] = yf;
@@ -211,27 +211,27 @@ LOG_DEBUG("Begin Initialisation");
 #pragma omp for
             for (i=0; i<dimension; i++){
                 for (j=0; j<dimension; j++){
-                    for (k=0; k<dimension; k++){
+                    for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){
                         if(user_params->PERTURB_ON_HIGH_RES) {
                             boxes->hires_vx[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
                             boxes->hires_vy[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
-                            boxes->hires_vz[R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+                            boxes->hires_vz[R_INDEX(i,j,k)] /= (growth_factor_over_BOX_LEN/user_params->NON_CUBIC_FACTOR);
 
                             if(user_params->USE_2LPT){
                                 boxes->hires_vx_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
                                 boxes->hires_vy_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
-                                boxes->hires_vz_2LPT[R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+                                boxes->hires_vz_2LPT[R_INDEX(i,j,k)] /= (displacement_factor_2LPT_over_BOX_LEN/user_params->NON_CUBIC_FACTOR);
                             }
                         }
                         else {
                             boxes->lowres_vx[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
                             boxes->lowres_vy[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
-                            boxes->lowres_vz[HII_R_INDEX(i,j,k)] /= growth_factor_over_BOX_LEN;
+                            boxes->lowres_vz[HII_R_INDEX(i,j,k)] /= (growth_factor_over_BOX_LEN/user_params->NON_CUBIC_FACTOR);
 
                             if(user_params->USE_2LPT){
                                 boxes->lowres_vx_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
                                 boxes->lowres_vy_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
-                                boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] /= displacement_factor_2LPT_over_BOX_LEN;
+                                boxes->lowres_vz_2LPT[HII_R_INDEX(i,j,k)] /= (displacement_factor_2LPT_over_BOX_LEN/user_params->NON_CUBIC_FACTOR);
                             }
                         }
                         // this is now comoving displacement in units of box size
