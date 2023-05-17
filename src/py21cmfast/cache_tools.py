@@ -196,9 +196,12 @@ def clear_cache(**kwargs):
     kwargs :
         All options passed through to :func:`query_cache`.
     """
+    if "show" not in kwargs:
+        kwargs["show"] = False
+
     direc = kwargs.get("direc", path.expanduser(config["direc"]))
     number = 0
-    for fname, cls in query_cache(show=False, **kwargs):
+    for fname, _ in query_cache(**kwargs):
         if kwargs.get("show", True):
             logger.info(f"Removing {fname}")
         os.remove(path.join(direc, fname))

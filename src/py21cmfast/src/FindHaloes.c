@@ -98,14 +98,14 @@ LOG_DEBUG("Begin Initialisation");
 #pragma omp for
             for (i=0; i<user_params->DIM; i++){
                 for (j=0; j<user_params->DIM; j++){
-                    for (k=0; k<user_params->DIM; k++){
+                    for (k=0; k<D_PARA; k++){
                         *((float *)density_field + R_FFT_INDEX(i,j,k)) = *((float *)boxes->hires_density + R_INDEX(i,j,k));
                     }
                 }
             }
         }
 
-        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, density_field);
+        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, density_field);
 
         // save a copy of the k-space density field
         memcpy(density_field_saved, density_field, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
@@ -163,7 +163,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             filter_box(density_field, 0, global_params.HALO_FILTER, R);
 
             // do the FFT to get delta_m box
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, density_field);
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, density_field);
 
             // *****************  BEGIN OPTIMIZATION ***************** //
             // to optimize speed, if the filter size is large (switch to collapse fraction criteria later)
@@ -174,7 +174,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
 
                     for (x=0; x<user_params->DIM; x++){
                         for (y=0; y<user_params->DIM; y++){
-                            for (z=0; z<user_params->DIM; z++){
+                            for (z=0; z<D_PARA; z++){
                                 if(halo_field[R_INDEX(x,y,z)] > 0.) {
                                     R_temp = MtoR(halo_field[R_INDEX(x,y,z)]);
                                     check_halo(forbidden, user_params, R_temp+global_params.R_OVERLAP_FACTOR*R, x,y,z,2);
@@ -190,7 +190,7 @@ LOG_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             dn=0;
             for (x=0; x<user_params->DIM; x++){
                 for (y=0; y<user_params->DIM; y++){
-                    for (z=0; z<user_params->DIM; z++){
+                    for (z=0; z<D_PARA; z++){
                         delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / (float)TOT_NUM_PIXELS;       //since we didn't multiply k-space cube by V/N, we divide by 1/N here
                         // if not within a larger halo, and radii don't overlap, update in_halo box
                         // *****************  BEGIN OPTIMIZATION ***************** //
@@ -264,7 +264,7 @@ LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.")
 
         for (x=0; x<user_params->DIM; x++){
             for (y=0; y<user_params->DIM; y++){
-                for (z=0; z<user_params->DIM; z++){
+                for (z=0; z<D_PARA; z++){
                     if(halo_field[R_INDEX(x,y,z)] > 0.) {
                         halos->halo_masses[counter] = halo_field[R_INDEX(x,y,z)];
                         halos->halo_coords[0 + counter*3] = x;
@@ -350,9 +350,8 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
                 else if (x_index>=user_params->DIM) {x_index -= user_params->DIM;}
                 if (y_index<0) {y_index += user_params->DIM;}
                 else if (y_index>=user_params->DIM) {y_index -= user_params->DIM;}
-                if (z_index<0) {z_index += user_params->DIM;}
-                else if (z_index>=user_params->DIM) {z_index -= user_params->DIM;}
-
+                if (z_index<0) {z_index += D_PARA;}
+                else if (z_index>=D_PARA) {z_index -= D_PARA;}
                 if(check_type==1) {
                     if ( in_halo[R_INDEX(x_index, y_index, z_index)] &&
                         pixel_in_halo(user_params,x,x_index,y,y_index,z,z_index,Rsq_curr_index) ) {
@@ -435,10 +434,10 @@ int pixel_in_halo(struct UserParams *user_params, int x, int x_index, int y, int
     zsq = pow(z-z_index, 2);
     xplussq = pow(x-x_index+user_params->DIM, 2);
     yplussq = pow(y-y_index+user_params->DIM, 2);
-    zplussq = pow(z-z_index+user_params->DIM, 2);
+    zplussq = pow(z-z_index+D_PARA, 2);
     xminsq = pow(x-x_index-user_params->DIM, 2);
     yminsq = pow(y-y_index-user_params->DIM, 2);
-    zminsq = pow(z-z_index-user_params->DIM, 2);
+    zminsq = pow(z-z_index-D_PARA, 2);
 
     if(
        ( (Rsq_curr_index > (xsq + ysq + zsq)) || // AND pixel is within this halo

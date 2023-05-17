@@ -24,47 +24,53 @@
 // -------------------------------------------------------------------------------------
 // Convenience Constants
 // -------------------------------------------------------------------------------------
-#define VOLUME (user_params_ufunc->BOX_LEN*user_params_ufunc->BOX_LEN*user_params_ufunc->BOX_LEN) // in Mpc^3
+#define VOLUME (user_params_ufunc->BOX_LEN*user_params_ufunc->BOX_LEN*user_params_ufunc->NON_CUBIC_FACTOR*user_params_ufunc->BOX_LEN) // in Mpc^3
 #define DELTA_K (TWOPI/user_params_ufunc->BOX_LEN)
-
+#define DELTA_K_PARA (TWOPI/(user_params_ufunc->NON_CUBIC_FACTOR*user_params_ufunc->BOX_LEN))
 
 // -------------------------------------------------------------------------------------
 // Convenience Macros for hi-resolution boxes
 // -------------------------------------------------------------------------------------
-#define D (unsigned long long)user_params_ufunc->DIM // the unsigned long long dimension
+#define D (long long)user_params_ufunc->DIM // the long long dimension
+#define D_PARA (long long)(user_params_ufunc->NON_CUBIC_FACTOR*user_params_ufunc->DIM) // the long long dimension
 #define MIDDLE (user_params_ufunc->DIM/2)
-#define MID ((unsigned long long)MIDDLE)
-#define TOT_NUM_PIXELS ((unsigned long long)(D*D*D)) // no padding
+#define MIDDLE_PARA (user_params_ufunc->NON_CUBIC_FACTOR*user_params_ufunc->DIM/2)
+#define MID ((long long)MIDDLE)
+#define MID_PARA ((long long)MIDDLE_PARA)
+#define TOT_NUM_PIXELS ((unsigned long long)(D*D*D_PARA)) // no padding
 
 // Fourier-Transform numbers
-#define TOT_FFT_NUM_PIXELS ((unsigned long long)(D*D*2llu*(MID+1llu)))
-#define KSPACE_NUM_PIXELS ((unsigned long long)(D*D*(MID+1llu)))
+#define TOT_FFT_NUM_PIXELS ((unsigned long long)(D*D*2llu*(MID_PARA+1llu)))
+#define KSPACE_NUM_PIXELS ((unsigned long long)(D*D*(MID_PARA+1llu)))
 
 // INDEXING MACROS
 // for 3D complex array
-#define C_INDEX(x,y,z)((unsigned long long)((z)+(MID+1llu)*((y)+D*(x))))
+#define C_INDEX(x,y,z)((unsigned long long)((z)+(MID_PARA+1llu)*((y)+D*(x))))
 // for 3D real array with the FFT padding
-#define R_FFT_INDEX(x,y,z)((unsigned long long)((z)+2llu*(MID+1llu)*((y)+D*(x))))
+#define R_FFT_INDEX(x,y,z)((unsigned long long)((z)+2llu*(MID_PARA+1llu)*((y)+D*(x))))
 // for 3D real array with no padding
-#define R_INDEX(x,y,z)((unsigned long long)((z)+D*((y)+D*(x))))
+#define R_INDEX(x,y,z)((unsigned long long)((z)+D_PARA*((y)+D*(x))))
 
 
 // -------------------------------------------------------------------------------------
 // Convenience Macros for low-resolution boxes
 // -------------------------------------------------------------------------------------
-#define HII_D (unsigned long long) (user_params_ufunc->HII_DIM)
+#define HII_D (long long) (user_params_ufunc->HII_DIM)
+#define HII_D_PARA (long long) (user_params_ufunc->NON_CUBIC_FACTOR*user_params_ufunc->HII_DIM)
 #define HII_MIDDLE (user_params_ufunc->HII_DIM/2)
-#define HII_MID ((unsigned long long)HII_MIDDLE)
-#define HII_TOT_NUM_PIXELS (unsigned long long)(HII_D*HII_D*HII_D)
+#define HII_MIDDLE_PARA (user_params_ufunc->NON_CUBIC_FACTOR*user_params_ufunc->HII_DIM/2)
+#define HII_MID ((long long)HII_MIDDLE)
+#define HII_MID_PARA ((long long)HII_MIDDLE_PARA)
+#define HII_TOT_NUM_PIXELS (unsigned long long)(HII_D*HII_D*HII_D_PARA)
 
 // Fourier-Transform numbers
-#define HII_TOT_FFT_NUM_PIXELS ((unsigned long long)(HII_D*HII_D*2llu*(HII_MID+1llu)))
-#define HII_KSPACE_NUM_PIXELS ((unsigned long long)(HII_D*HII_D*(HII_MID+1llu)))
+#define HII_TOT_FFT_NUM_PIXELS ((unsigned long long)(HII_D*HII_D*2llu*(HII_MID_PARA+1llu)))
+#define HII_KSPACE_NUM_PIXELS ((unsigned long long)(HII_D*HII_D*(HII_MID_PARA+1llu)))
 
 // INDEXING MACROS
 // for 3D complex array
-#define HII_C_INDEX(x,y,z)((unsigned long long)((z)+(HII_MID+1llu)*((y)+HII_D*(x))))
+#define HII_C_INDEX(x,y,z)((unsigned long long)((z)+(HII_MID_PARA+1llu)*((y)+HII_D*(x))))
 // for 3D real array with the FFT padding
-#define HII_R_FFT_INDEX(x,y,z)((unsigned long long)((z)+2llu*(HII_MID+1llu)*((y)+HII_D*(x))))
+#define HII_R_FFT_INDEX(x,y,z)((unsigned long long)((z)+2llu*(HII_MID_PARA+1llu)*((y)+HII_D*(x))))
 // for 3D real array with no padding
-#define HII_R_INDEX(x,y,z)((unsigned long long)((z)+HII_D*((y)+HII_D*(x))))
+#define HII_R_INDEX(x,y,z)((unsigned long long)((z)+HII_D_PARA*((y)+HII_D*(x))))
