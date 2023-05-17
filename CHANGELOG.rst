@@ -4,6 +4,9 @@ Changelog
 dev-version
 -----------
 
+v3.3.0 [17 May 2023]
+----------------------
+
 Internals
 ---------
 
