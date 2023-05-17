@@ -4,6 +4,9 @@ Changelog
 dev-version
 -----------
 
+v3.3.0 [17 May 2023]
+----------------------
+
 Internals
 ---------
 
@@ -15,6 +18,9 @@ Fixed
 
 * Running with ``R_BUBBLE_MAX`` too large auto-fixes it to be ``BOX_LEN`` (#112)
 * Bug in calling ``clear_cache``.
+* Inconsistency in the way that the very highest redshift of an evolution is handled
+  between low-level code (eg. ``spin_temperature()``) and high-level code (eg. ``run_coeval()``).
+
 
 Added
 -----
@@ -28,6 +34,7 @@ Added
   scenarios in line with current observations (#305)
 * Add in an initialisation check for the photon conservation to address some issues
   arising for early EOR histories (#311)
+* Added ``NON_CUBIC_FACTOR`` to ``UserParams`` to allow for non-cubic coeval boxes (#289)
 
 v3.2.1 [13 Sep 2022]
 ----------------------
