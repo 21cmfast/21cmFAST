@@ -5,7 +5,13 @@ import numpy as np
 from copy import deepcopy
 
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
-from .outputs import InitialConditions, IonizedBox, PerturbedField, TsBox
+from .outputs import (
+    BrightnessTemp,
+    InitialConditions,
+    IonizedBox,
+    PerturbedField,
+    TsBox,
+)
 from .wrapper import _logscroll_redshifts, _setup_lightcone
 
 logger = logging.getLogger("21cmFAST")
@@ -1057,12 +1063,20 @@ def mem_spin_temperature(
     # These are all fftwf complex arrays (thus 2 * size)
     size_c = (2.0 * (np.float32(1.0).nbytes)) * num_c_boxes * hii_kspace_num_pixels
 
-    size_c += (np.float32(1.0).nbytes) * num_c_boxes_alt * (user_params.HII_DIM**3.0)
+    size_c += (
+        (np.float32(1.0).nbytes)
+        * num_c_boxes_alt
+        * (user_params.HII_DIM)
+        * user_params.NON_CUBIC_FACTOR
+        * (user_params.HII_DIM) ** 2
+    )
 
     size_c_init = (
         (np.float32(1.0).nbytes)
         * num_c_boxes_initialised
-        * (user_params.HII_DIM**3.0)
+        * (user_params.HII_DIM)
+        * user_params.NON_CUBIC_FACTOR
+        * (user_params.HII_DIM) ** 2
     )
 
     # Now, add all the table data (which are kept throughout the calculation)
@@ -1076,28 +1090,43 @@ def mem_spin_temperature(
 def mem_brightness_temperature(
     *,
     user_params=None,
+    astro_params=None,
+    flag_options=None,
 ):
     """A function to estimate total memory usage of a brightness_temperature call."""
     # Memory usage of Python BrightnessTemp class.
-
-    # All declared HII_DIM boxes
-    # brightness_temp
-    num_py_boxes = 1.0
-
-    size_py = num_py_boxes * (user_params.HII_DIM) ** 3
+    ts_box = BrightnessTemp(
+        redshift=9.0,
+        user_params=user_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+    )
+    size_py = 0
+    for key in ts_box._array_structure:
+        size_py += np.prod(ts_box._array_structure[key])
 
     # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
 
     # Memory usage within BrightnessTemperatureBox.c
     hii_tot_fft_num_pixels = (
-        2.0 * (float(user_params.HII_DIM) / 2.0 + 1.0) * (user_params.HII_DIM) ** 2
+        2.0
+        * (float(user_params.HII_DIM) * user_params.NON_CUBIC_FACTOR / 2.0 + 1.0)
+        * (user_params.HII_DIM) ** 2
     )
 
-    # box, unfiltered_box
+    # v, vel_gradient
     num_c_boxes = 2.0
 
     size_c = (np.float32(1.0).nbytes) * num_c_boxes * hii_tot_fft_num_pixels
+
+    # For x_pos, x_pos_offset, delta_T_RSD_LOS as part of the RSDs
+    size_c += (np.float32(1.0).nbytes) * (
+        2.0 * global_params.NUM_FILTER_STEPS_FOR_Ts
+        + user_params.N_THREADS
+        * float(user_params.HII_DIM)
+        * user_params.NON_CUBIC_FACTOR
+    )
 
     return {"python": size_py, "c": size_c}
 
@@ -1107,19 +1136,10 @@ def mem_halo_field(
     user_params=None,
 ):
     """A function to estimate total memory usage of a determine_halo_list call."""
-    # Memory usage of Python HaloField class.
-
-    # All declared DIM boxes
-    # halo_field
-    num_py_boxes = 1.0
-
-    size_py = num_py_boxes * (user_params.DIM) ** 3
-
-    # These are all float arrays
-    size_py = (np.float32(1.0).nbytes) * size_py
-
     # Memory usage within FindHaloes.c
-    kspace_num_pixels = (float(user_params.DIM) / 2.0 + 1.0) * (user_params.DIM) ** 2
+    kspace_num_pixels = (
+        float(user_params.DIM) * user_params.NON_CUBIC_FACTOR / 2.0 + 1.0
+    ) * (user_params.DIM) ** 2
 
     # density_field, density_field_saved
     num_c_boxes = 2.0
@@ -1136,13 +1156,34 @@ def mem_halo_field(
     # These are fftwf complex arrays (thus 2 * size)
     size_c = (2.0 * np.float32(1.0).nbytes) * num_c_boxes * kspace_num_pixels
 
-    size_c += (np.float32(1.0).nbytes) * num_c_boxes_alt * (user_params.DIM) ** 3
+    size_c += (
+        (np.float32(1.0).nbytes)
+        * num_c_boxes_alt
+        * (user_params.DIM)
+        * user_params.NON_CUBIC_FACTOR
+        * (user_params.DIM) ** 2
+    )
 
     # We don't know a priori how many haloes that will be found, but we'll estimate the memory usage
     # at 10 per cent of the total number of pixels (HII_DIM, likely an over estimate)
     # Below the factor of 4 corresponds to the mass and three spatial locations. It is defined as an
     # int but I'll leave it as 4 bytes in case
-    size_c += 0.1 * 4.0 * (np.float32(1.0).nbytes) * (user_params.HII_DIM) ** 3
+    size_c += (
+        0.1
+        * 4.0
+        * (np.float32(1.0).nbytes)
+        * (user_params.HII_DIM)
+        * user_params.NON_CUBIC_FACTOR
+        * (user_params.HII_DIM) ** 2
+    )
+    size_py = (
+        0.1
+        * 4.0
+        * (np.float32(1.0).nbytes)
+        * (user_params.HII_DIM)
+        * user_params.NON_CUBIC_FACTOR
+        * (user_params.HII_DIM) ** 2
+    )
 
     return {"python": size_py, "c": size_c}
 
@@ -1158,7 +1199,14 @@ def mem_perturb_halo(
     # at 10 per cent of the total number of pixels (HII_DIM, likely an over estimate)
     # Below the factor of 4 corresponds to the mass and three spatial locations. It is defined as an
     # int but I'll leave it as 4 bytes in case
-    size_c = 0.1 * 4.0 * (np.float32(1.0).nbytes) * (user_params.HII_DIM) ** 3
+    size_c = (
+        0.1
+        * 4.0
+        * (np.float32(1.0).nbytes)
+        * (user_params.HII_DIM)
+        * user_params.NON_CUBIC_FACTOR
+        * (user_params.HII_DIM) ** 2
+    )
 
     return {"python": 0.0, "c": size_c}
 
