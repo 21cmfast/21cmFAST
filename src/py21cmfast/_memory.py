@@ -12,9 +12,14 @@ from .outputs import (
     PerturbedField,
     TsBox,
 )
-from .wrapper import _logscroll_redshifts, _setup_lightcone
+from .wrapper import (
+    _get_required_redshifts_coeval,
+    _logscroll_redshifts,
+    _setup_lightcone,
+)
 
 logger = logging.getLogger("21cmFAST")
+logger.setLevel(logging.INFO)
 
 # Constants defining interpolation table lengths (from C side)
 # Not ideal to be here, but unlikely to ever change (names in lower case)
@@ -40,6 +45,7 @@ def estimate_memory_coeval(
     cosmo_params=None,
     astro_params=None,
     flag_options=None,
+    write=False,
 ):
     r"""
     Compute an estimate of the requisite memory needed by the user for a run_coeval call.
@@ -95,6 +101,9 @@ def estimate_memory_coeval(
     peak_memory = memory_ics["c"] + memory_ics["python"]
 
     # Now the perturb field
+    # First we purge the ICs memory for boxes we no longer need
+    memory_ics_purged = mem_initial_conditions(user_params=user_params, purge_memory=1)
+
     memory_pf = mem_perturb_field(user_params=user_params)
 
     memory_data.update({"pf_%s" % k: memory_pf[k] for k in memory_pf.keys()})
@@ -123,7 +132,7 @@ def estimate_memory_coeval(
         # As we iterate through we storing the python memory of two
         # perturb_field and ionize_boxes plus the C memory of either
         # of the ionize_box or perturb field as it is being calculated
-        peak_memory_photoncons = memory_ics[
+        peak_memory_photoncons = memory_ics_purged[
             "python"
         ]  # We have the initial conditions in memory
         peak_memory_photoncons += 2 * (
@@ -147,7 +156,9 @@ def estimate_memory_coeval(
 
     n_redshifts = len(redshift)
 
-    current_memory = memory_ics["python"]  # We have the initial conditions in memory
+    current_memory = memory_ics_purged[
+        "python"
+    ]  # We have the initial conditions in memory
     current_memory += (
         n_redshifts * memory_pf["python"]
     )  # Python memory for all perturb fields
@@ -157,6 +168,18 @@ def estimate_memory_coeval(
     peak_memory = peak_memory if peak_memory > current_memory else current_memory
 
     # Now start generating estimates for all other data products
+    # First, we purge the ICs memory further (only if they exist on disk)
+    if write is True and user_params.MINIMIZE_MEMORY:
+        memory_ics_purged = mem_initial_conditions(
+            user_params=user_params, purge_memory=2
+        )
+    else:
+        # Because if we don't store it, we keep it
+        if flag_options.USE_TS_FLUCT:
+            scrollz = _get_required_redshifts_coeval(flag_options, redshift)
+            memory_pf["python"] *= len(scrollz)
+        else:
+            memory_pf["python"] *= n_redshifts
 
     # Calculate the memory for a determine_halo_list call
     memory_hf = mem_halo_field(user_params=user_params)
@@ -180,7 +203,6 @@ def estimate_memory_coeval(
     # Calculate the memory for a spin_temperature call
     memory_st = mem_spin_temperature(
         user_params=user_params,
-        astro_params=astro_params,
         flag_options=flag_options,
     )
 
@@ -192,7 +214,9 @@ def estimate_memory_coeval(
     memory_data.update({"bt_%s" % k: memory_bt[k] for k in memory_bt.keys()})
 
     # All the data kept in memory at this point in Python
-    stored_memory = memory_ics["python"]  # We have the initial conditions in memory
+    stored_memory = memory_ics_purged[
+        "python"
+    ]  # We have the initial conditions in memory
     stored_memory += (
         n_redshifts * memory_pf["python"]
     )  # Python memory for all perturb fields
@@ -290,6 +314,7 @@ def estimate_memory_lightcone(
     astro_params=None,
     flag_options=None,
     lightcone_quantities=("brightness_temp",),
+    write=False,
 ):
     r"""
     Compute an estimate of the requisite memory needed by the user for a run_lightcone call.
@@ -360,12 +385,51 @@ def estimate_memory_lightcone(
     peak_memory = memory_ics["c"] + memory_ics["python"]
 
     # Now the perturb field
+    # First we purge the ICs memory for boxes we no longer need
+    memory_ics_purged = mem_initial_conditions(user_params=user_params, purge_memory=1)
+
     memory_pf = mem_perturb_field(user_params=user_params)
 
     memory_data.update({"pf_%s" % k: memory_pf[k] for k in memory_pf.keys()})
 
     # Stored ICs in python + allocated C and Python memory for perturb_field
-    current_memory = memory_ics["python"] + memory_pf["python"] + memory_pf["c"]
+    current_memory = memory_ics_purged["python"] + memory_pf["python"] + memory_pf["c"]
+
+    # Now need to determine the size of the light-cone and how many types are to be stored in memory.
+    # Below are taken from the run_lightcone function.
+    # Determine the maximum redshift (starting point) for the light-cone.
+    max_redshift = (
+        global_params.Z_HEAT_MAX
+        if (
+            flag_options.INHOMO_RECO
+            or flag_options.USE_TS_FLUCT
+            or max_redshift is None
+        )
+        else max_redshift
+    )
+
+    # Get the redshift through which we scroll and evaluate the ionization field.
+    scrollz = _logscroll_redshifts(
+        redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift
+    )
+
+    # Obtain the size of the light-cone object (n_lightcone)
+    d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(
+        cosmo_params,
+        max_redshift,
+        redshift,
+        scrollz,
+        user_params,
+        global_params.ZPRIME_STEP_FACTOR,
+    )
+
+    # First, we purge the ICs memory further (only if they exist on disk)
+    if write is True and user_params.MINIMIZE_MEMORY:
+        memory_ics_purged = mem_initial_conditions(
+            user_params=user_params, purge_memory=2
+        )
+    else:
+        memory_pf["python"] *= len(scrollz)  # Because if we don't store it, we keep it
 
     # Check if running perturb_field requires more memory than generating ICs
     peak_memory = peak_memory if peak_memory > current_memory else current_memory
@@ -412,34 +476,6 @@ def estimate_memory_lightcone(
             else peak_memory_photoncons
         )
 
-    # Now need to determine the size of the light-cone and how many types are to be stored in memory.
-    # Below are taken from the run_lightcone function.
-    # Determine the maximum redshift (starting point) for the light-cone.
-    max_redshift = (
-        global_params.Z_HEAT_MAX
-        if (
-            flag_options.INHOMO_RECO
-            or flag_options.USE_TS_FLUCT
-            or max_redshift is None
-        )
-        else max_redshift
-    )
-
-    # Get the redshift through which we scroll and evaluate the ionization field.
-    scrollz = _logscroll_redshifts(
-        redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift
-    )
-
-    # Obtain the size of the light-cone object (n_lightcone)
-    d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(
-        cosmo_params,
-        max_redshift,
-        redshift,
-        scrollz,
-        user_params,
-        global_params.ZPRIME_STEP_FACTOR,
-    )
-
     # Total number of light-cones to be stored in memory
     num_lightcones = len(lightcone_quantities)
 
@@ -450,7 +486,7 @@ def estimate_memory_lightcone(
     memory_data.update({"python_lc": size_lightcones})
 
     # All the data kept in memory at this point in Python
-    current_memory = memory_ics["python"] + memory_pf["python"] + size_lightcones
+    current_memory = memory_ics_purged["python"] + memory_pf["python"] + size_lightcones
 
     # Check if we now exceed the peak memory usage thus far
     peak_memory = peak_memory if peak_memory > current_memory else current_memory
@@ -479,7 +515,6 @@ def estimate_memory_lightcone(
     # Calculate the memory for a spin_temperature call
     memory_st = mem_spin_temperature(
         user_params=user_params,
-        astro_params=astro_params,
         flag_options=flag_options,
     )
 
@@ -568,6 +603,7 @@ def estimate_memory_lightcone(
 def estimate_memory_ics(
     *,
     user_params=None,
+    purge_memory=0,
 ):
     r"""
     Compute an estimate of the requisite memory needed just for the initial conditions.
@@ -587,7 +623,9 @@ def estimate_memory_ics(
         peak_memory: As estimate of the peak memory usage for running a lightcone (generating all data) (in Bytes)
     """
     # Calculate the memory usage for the initial conditions
-    memory_ics = mem_initial_conditions(user_params=user_params)
+    memory_ics = mem_initial_conditions(
+        user_params=user_params, purge_memory=purge_memory
+    )
 
     memory_data = {"ics_%s" % k: memory_ics[k] for k in memory_ics.keys()}
 
@@ -670,13 +708,26 @@ def estimate_memory_perturb(
 def mem_initial_conditions(
     *,
     user_params=None,
+    purge_memory=0,
 ):
     """A function to estimate total memory usage of an initial_conditions call."""
     # Memory usage of Python InitialConditions class.
     init = InitialConditions(user_params=user_params)
     size_py = 0
-    for key in init._array_structure:
-        size_py += np.prod(init._array_structure[key])
+    if purge_memory > 0:
+        for key in init._array_structure:
+            if purge_memory == 1:  # prepare for perturb
+                if user_params.PERTURB_ON_HIGH_RES:
+                    if "hires" in key or "lowres_vcb" in key:
+                        size_py += np.prod(init._array_structure[key])
+                else:
+                    if "lowres" in key or "hires_density" in key:
+                        size_py += np.prod(init._array_structure[key])
+            if purge_memory == 2 and "lowres_vcb" in key:  # prepare for spin temp
+                size_py += np.prod(init._array_structure[key])
+    else:
+        for key in init._array_structure:
+            size_py += np.prod(init._array_structure[key])
 
     # These are all float arrays
     size_py = (np.float32(1.0).nbytes) * size_py
@@ -712,13 +763,10 @@ def mem_initial_conditions(
 def mem_perturb_field(
     *,
     user_params=None,
-    cosmo_params=None,
 ):
     """A function to estimate total memory usage of a perturb_field call."""
     # Memory usage of Python InitialConditions class. (assume single redshift)
-    pt_box = PerturbedField(
-        redshift=9.0, user_params=user_params, cosmo_params=cosmo_params
-    )
+    pt_box = PerturbedField(redshift=0.0, user_params=user_params)
     size_py = 0
     for key in pt_box._array_structure:
         size_py += np.prod(pt_box._array_structure[key])
@@ -779,7 +827,7 @@ def mem_ionize_box(
     """A function to estimate total memory usage of an ionize_box call."""
     # Memory usage of Python IonizedBox class.
     ibox = IonizedBox(
-        redshift=9.0,
+        redshift=0.0,
         user_params=user_params,
         astro_params=astro_params,
         flag_options=flag_options,
@@ -877,16 +925,13 @@ def mem_ionize_box(
 def mem_spin_temperature(
     *,
     user_params=None,
-    astro_params=None,
     flag_options=None,
 ):
     """A function to estimate total memory usage of a spin_temperature call."""
     # Memory usage of Python TsBox class.
     ts_box = TsBox(
-        redshift=9.0,
+        redshift=0.0,
         user_params=user_params,
-        astro_params=astro_params,
-        flag_options=flag_options,
     )
     size_py = 0
     for key in ts_box._array_structure:
@@ -1090,16 +1135,12 @@ def mem_spin_temperature(
 def mem_brightness_temperature(
     *,
     user_params=None,
-    astro_params=None,
-    flag_options=None,
 ):
     """A function to estimate total memory usage of a brightness_temperature call."""
     # Memory usage of Python BrightnessTemp class.
     ts_box = BrightnessTemp(
         redshift=9.0,
         user_params=user_params,
-        astro_params=astro_params,
-        flag_options=flag_options,
     )
     size_py = 0
     for key in ts_box._array_structure:
@@ -1219,86 +1260,91 @@ def print_memory_estimate(
     flag_options=None,
 ):
     """Function to output information in a manageable format."""
-    # bytes_in_gb = 1024**3
+    bytes_in_gb = 1024**3
 
-    # print("")
-    # if "python_lc" in memory_data.keys():
-    #     print("Memory info for run_lightcone")
-    # elif len(memory_data) == 3:
-    #     print("Memory info for initial_conditions")
-    # elif len(memory_data) == 5:
-    #     print("Memory info for perturb_field")
-    # else:
-    #     print("Memory info for run_coeval")
-    # print("")
-    # print("%s" % (user_params))
-    # if astro_params is not None:
-    #     print("%s" % (astro_params))
-    # if flag_options is not None:
-    #     print("%s" % (flag_options))
-    # print("")
-    # print("Peak memory usage: %g (GB)" % (memory_data["peak_memory"] / bytes_in_gb))
-    # print("")
-    # if "python_lc" in memory_data.keys():
-    #     print(
-    #         "Memory for stored lightcones: %g (GB)"
-    #         % (memory_data["python_lc"] / bytes_in_gb)
-    #     )
-    # """logger.info("Peak memory usage: %g (GB)"%(memory_data['peak_memory']/bytes_in_gb))"""
-    # print(
-    #     "Memory for ICs: %g (GB; Python) %g (GB; C)"
-    #     % (memory_data["ics_python"] / bytes_in_gb, memory_data["ics_c"] / bytes_in_gb)
-    # )
-    # if "pf_python" in memory_data.keys():
-    #     print(
-    #         "Memory for single perturbed field: %g (GB; Python) %g (GB; C)"
-    #         % (
-    #             memory_data["pf_python"] / bytes_in_gb,
-    #             memory_data["pf_c"] / bytes_in_gb,
-    #         )
-    #     )
-    # if "hf_python" in memory_data.keys() and flag_options.USE_HALO_FIELD:
-    #     print(
-    #         "Note these are approximations as we don't know a priori how many haloes there are (assume 10 per cent of volume)"
-    #     )
-    #     print(
-    #         "Memory for generating halo list: %g (GB; Python) %g (GB; C)"
-    #         % (
-    #             memory_data["hf_python"] / bytes_in_gb,
-    #             memory_data["hf_c"] / bytes_in_gb,
-    #         )
-    #     )
-    #     print(
-    #         "Memory for perturbing halo list: %g (GB; Python) %g (GB; C)"
-    #         % (
-    #             memory_data["phf_python"] / bytes_in_gb,
-    #             memory_data["phf_c"] / bytes_in_gb,
-    #         )
-    #     )
-    # if "ib_python" in memory_data.keys():
-    #     print(
-    #         "Memory for single ionized box: %g (GB; Python) %g (GB; C)"
-    #         % (
-    #             memory_data["ib_python"] / bytes_in_gb,
-    #             memory_data["ib_c"] / bytes_in_gb,
-    #         )
-    #     )
+    logger.info("")
+    if "python_lc" in memory_data.keys():
+        logger.info("Memory info for run_lightcone")
+    elif len(memory_data) == 3:
+        logger.info("Memory info for initial_conditions")
+    elif len(memory_data) == 5:
+        logger.info("Memory info for perturb_field")
+    else:
+        logger.info("Memory info for run_coeval")
+    logger.info("")
+    logger.info("%s" % (user_params))
+    if astro_params is not None:
+        logger.info("%s" % (astro_params))
+    if flag_options is not None:
+        logger.info("%s" % (flag_options))
+    logger.info("")
+    logger.info(
+        "Peak memory usage: %g (GB)" % (memory_data["peak_memory"] / bytes_in_gb)
+    )
+    logger.info(
+        "(Note these are purely indicative and may differ from actual performance)"
+    )
+    logger.info("")
+    if "python_lc" in memory_data.keys():
+        logger.info(
+            "Memory for stored lightcones: %g (GB)"
+            % (memory_data["python_lc"] / bytes_in_gb)
+        )
+    """logger.info("Peak memory usage: %g (GB)"%(memory_data['peak_memory']/bytes_in_gb))"""
+    logger.info(
+        "Memory for ICs: %g (GB; Python) %g (GB; C)"
+        % (memory_data["ics_python"] / bytes_in_gb, memory_data["ics_c"] / bytes_in_gb)
+    )
+    if "pf_python" in memory_data.keys():
+        logger.info(
+            "Memory for single perturbed field: %g (GB; Python) %g (GB; C)"
+            % (
+                memory_data["pf_python"] / bytes_in_gb,
+                memory_data["pf_c"] / bytes_in_gb,
+            )
+        )
+    if "hf_python" in memory_data.keys() and flag_options.USE_HALO_FIELD:
+        logger.info(
+            "Note these are approximations as we don't know a priori how many haloes there are (assume 10 per cent of volume)"
+        )
+        logger.info(
+            "Memory for generating halo list: %g (GB; Python) %g (GB; C)"
+            % (
+                memory_data["hf_python"] / bytes_in_gb,
+                memory_data["hf_c"] / bytes_in_gb,
+            )
+        )
+        logger.info(
+            "Memory for perturbing halo list: %g (GB; Python) %g (GB; C)"
+            % (
+                memory_data["phf_python"] / bytes_in_gb,
+                memory_data["phf_c"] / bytes_in_gb,
+            )
+        )
+    if "ib_python" in memory_data.keys():
+        logger.info(
+            "Memory for single ionized box: %g (GB; Python) %g (GB; C)"
+            % (
+                memory_data["ib_python"] / bytes_in_gb,
+                memory_data["ib_c"] / bytes_in_gb,
+            )
+        )
 
-    # if "st_python" in memory_data.keys() and flag_options.USE_TS_FLUCT:
-    #     print(
-    #         "Memory for single spin temperature box: %g (GB; Python) %g (GB; C per z) %g (GB; C retained)"
-    #         % (
-    #             memory_data["st_python"] / bytes_in_gb,
-    #             memory_data["st_c_per_z"] / bytes_in_gb,
-    #             memory_data["st_c_init"] / bytes_in_gb,
-    #         )
-    #     )
-    # if "bt_python" in memory_data.keys():
-    #     print(
-    #         "Memory for single brightness temperature box: %g (GB; Python) %g (GB; C)"
-    #         % (
-    #             memory_data["bt_python"] / bytes_in_gb,
-    #             memory_data["bt_c"] / bytes_in_gb,
-    #         )
-    #     )
-    # print("")
+    if "st_python" in memory_data.keys() and flag_options.USE_TS_FLUCT:
+        logger.info(
+            "Memory for single spin temperature box: %g (GB; Python) %g (GB; C per z) %g (GB; C retained)"
+            % (
+                memory_data["st_python"] / bytes_in_gb,
+                memory_data["st_c_per_z"] / bytes_in_gb,
+                memory_data["st_c_init"] / bytes_in_gb,
+            )
+        )
+    if "bt_python" in memory_data.keys():
+        logger.info(
+            "Memory for single brightness temperature box: %g (GB; Python) %g (GB; C)"
+            % (
+                memory_data["bt_python"] / bytes_in_gb,
+                memory_data["bt_c"] / bytes_in_gb,
+            )
+        )
+    logger.info("")
