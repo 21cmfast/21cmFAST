@@ -4,17 +4,22 @@ Changelog
 dev-version
 -----------
 
+Fixed
+~~~~~
+
+* Compilation of C code for some compilers (#330)
+
 v3.3.0 [17 May 2023]
 ----------------------
 
 Internals
----------
+~~~~~~~~~
 
 * Refactored setting up of inputs to high-level functions so that there is less code
   repetition.
 
 Fixed
------
+~~~~~
 
 * Running with ``R_BUBBLE_MAX`` too large auto-fixes it to be ``BOX_LEN`` (#112)
 * Bug in calling ``clear_cache``.
@@ -23,7 +28,7 @@ Fixed
 
 
 Added
------
+~~~~~
 
 * New ``validate_all_inputs`` function that cross-references the four main input structs
   and ensures all the parameters make sense together. Mostly for internal use.
