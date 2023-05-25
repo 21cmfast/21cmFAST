@@ -283,6 +283,24 @@ class GlobalParams(StructInstanceWrapper):
         The peak gas temperatures behind the supersonic ionization fronts during reionization.
     VAVG:
         Avg value of the DM-b relative velocity [im km/s], ~0.9*SIGMAVCB (=25.86 km/s) normally.
+    STOC_MASS_TOL:
+        Mass tolerance for the stochastic halo sampling, a sample will be rejected if its mass sum falls
+        outside of the expected mass * (1 +- STOC_MASS_TOL)
+    HALO_MTURN_FACTOR:
+        Sets the lower mass limit for interpolation tables, integration and sampling of the halo mass functions
+        The lower limit will be M_TURN / HALO_MTURN_FACTOR
+    HALO_SAMPLE_FACTOR:
+        Sets the lower mass limit for saving sampled halos, The lower limit is M_TURN / HALO_MTURN_FACTOR * HALO_SAMPLE_FACTOR
+    MAXHALO_FACTOR:
+        Safety factor to multiply halo array sizes, total (all threads) array size will be UMF integral * MAXHALO_FACTOR
+    N_MASS_INTERP:
+        Number of mass bins for the sampler interpolation tables.
+    N_DELTA_INTERP:
+        Number of delta bins for the sampler interpolation tables.
+    N_PROB_INTERP:
+        Number of probability bins for the sampler interpolation tables.
+    MIN_LOGPROB:
+        Lower limit (in log probability) of the inverse CDF table.
     """
 
     def __init__(self, wrapped, ffi):

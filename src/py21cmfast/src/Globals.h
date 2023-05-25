@@ -82,6 +82,14 @@ struct GlobalParams{
 
     bool USE_FAST_ATOMIC; //whether to apply the fast fcoll tables for atomic cooling haloes, usually turned off as it's not a big computational cost and those can deviate ~5-10% at z<10.
 
+    float STOC_MASS_TOL;
+    float HALO_MTURN_FACTOR;
+    float HALO_SAMPLE_FACTOR;
+    int MAXHALO_FACTOR; //safety factor in halo arrays (accounts for imbalance and oversampling)
+    int N_MASS_INTERP;
+    int N_DELTA_INTERP;
+    int N_PROB_INTERP;
+    double MIN_LOGPROB;
 
 
 
@@ -157,4 +165,13 @@ extern struct GlobalParams global_params = {
     .VAVG=25.86,
 
     .USE_FAST_ATOMIC = 0,
+
+    .STOC_MASS_TOL = 0.5,
+    .HALO_SAMPLE_FACTOR = 1,
+    .HALO_MTURN_FACTOR = 16,
+    .MAXHALO_FACTOR = 2,
+    .N_MASS_INTERP = 500,
+    .N_DELTA_INTERP = 500,
+    .N_PROB_INTERP = 500,
+    .MIN_LOGPROB = -12,
 };

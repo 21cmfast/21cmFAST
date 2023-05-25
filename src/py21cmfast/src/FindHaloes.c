@@ -496,7 +496,6 @@ int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, flo
 
 void init_halo_coords(struct HaloField *halos, int n_halos){
     // Minimise memory usage by only storing the halo mass and positions
-    int i;
     halos->n_halos = n_halos;
     halos->halo_masses = (float *)calloc(n_halos,sizeof(float));
     halos->halo_coords = (int *)calloc(3*n_halos,sizeof(int));
