@@ -1323,6 +1323,8 @@ def perturb_halo_list(
                 init_boxes=init_boxes,
                 # NOTE: this is required, rather than using cosmo_ and user_,
                 # since init may have a set seed.
+                astro_params=astro_params,
+                flag_options=flag_options,
                 redshift=redshift,
                 regenerate=regenerate,
                 hooks=hooks,

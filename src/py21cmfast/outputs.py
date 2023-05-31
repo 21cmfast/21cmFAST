@@ -430,6 +430,7 @@ class HaloBox(_AllParamsBox):
             "halo_mass": shape,
             "wstar_mass": shape,
             "halo_sfr": shape,
+            "whalo_sfr": shape,
             "count": shape,
         }
 
@@ -734,7 +735,7 @@ class IonizedBox(_AllParamsBox):
             ):
                 required += ["Fcoll", "Fcoll_MINI"]
         elif isinstance(input_box, HaloBox):
-            required += ["halo_mass", "wstar_mass"]
+            required += ["halo_mass", "wstar_mass","whalo_sfr"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for IonizedBox!"

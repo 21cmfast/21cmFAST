@@ -3164,11 +3164,11 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     }
 
                     // add prefactors
-                    dxheat_dt_box[box_ct] *= const_zp_prefactor * cellvol_inv;
-                    dxion_source_dt_box[box_ct] *= const_zp_prefactor * cellvol_inv;
+                    dxheat_dt_box[box_ct] *= const_zp_prefactor;
+                    dxion_source_dt_box[box_ct] *= const_zp_prefactor;
 
-                    dxlya_dt_box[box_ct] *= const_zp_prefactor * Nb_zp * cellvol_inv * (1+curr_delta); //1+delta from downscattering absorbers
-                    dstarlya_dt_box[box_ct] *= lya_star_prefactor * cellvol_inv;
+                    dxlya_dt_box[box_ct] *= const_zp_prefactor * Nb_zp * (1+curr_delta); //1+delta from downscattering absorbers
+                    dstarlya_dt_box[box_ct] *= lya_star_prefactor;
 
                     /*if(print_count<5){
                         LOG_DEBUG("delta: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delta

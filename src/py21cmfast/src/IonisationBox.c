@@ -535,8 +535,8 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
         stars_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         stars_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         //TODO:sfr needed later for Gamma12 and recomb
-        //sfr_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        //sfr_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        sfr_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        sfr_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
 #pragma omp parallel shared(stars_unfiltered,sfr_unfiltered,halos) private(i,j,k) num_threads(user_params->N_THREADS)
         {
@@ -545,7 +545,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
                 for (j=0; j<user_params->HII_DIM; j++){
                     for (k=0; k<user_params->HII_DIM; k++){
                         *((float *)stars_unfiltered + HII_R_FFT_INDEX(i,j,k)) = halos->wstar_mass[HII_R_INDEX(i,j,k)];
-                        //*((float *)sfr_unfiltered + HII_R_FFT_INDEX(i,j,k)) = halos->whalo_sfr[HII_R_INDEX(i,j,k)];
+                        *((float *)sfr_unfiltered + HII_R_FFT_INDEX(i,j,k)) = halos->halo_sfr[HII_R_INDEX(i,j,k)];
                     }
                 }
             }
@@ -694,7 +694,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 
         if (flag_options->USE_HALO_FIELD){
             dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, stars_unfiltered);
-            //dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, sfr_unfiltered);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, sfr_unfiltered);
             LOG_SUPER_DEBUG("HALO_FIELD ffts performed");
         }
 
@@ -722,7 +722,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                 if (flag_options->INHOMO_RECO){ N_rec_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS; }
                 if(flag_options->USE_HALO_FIELD) {
                     stars_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS;
-                    //sfr_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS;
+                    sfr_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS;
                 }
                 if(flag_options->USE_MINI_HALOS){
                     prev_deltax_unfiltered[ct]          /= (HII_TOT_NUM_PIXELS+0.0);
@@ -784,7 +784,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             }
             if (flag_options->USE_HALO_FIELD) {
                 memcpy(stars_filtered, stars_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-                //memcpy(sfr_filtered, sfr_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+                memcpy(sfr_filtered, sfr_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
             }
 
             memcpy(deltax_filtered, deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -806,7 +806,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 }
                 if (flag_options->USE_HALO_FIELD) {
                     filter_box(stars_filtered, 1, global_params.HII_FILTER, R);
-                    //filter_box(sfr_filtered, 1, global_params.HII_FILTER, R);
+                    filter_box(sfr_filtered, 1, global_params.HII_FILTER, R);
                 }
                 filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
                 if(flag_options->USE_MINI_HALOS){
@@ -827,7 +827,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
             if (flag_options->USE_HALO_FIELD) {
                 dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, stars_filtered);
-                //dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, sfr_filtered);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, sfr_filtered);
             }
 
             if (flag_options->USE_TS_FLUCT) {
@@ -1044,8 +1044,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 // stellar mass & sfr cannot be less than zero
                                 *((float *)stars_filtered + HII_R_FFT_INDEX(x,y,z)) = fmaxf(
                                         *((float *)stars_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
-                                //*((float *)sfr_filtered + HII_R_FFT_INDEX(x,y,z)) = fmaxf(
-                                //        *((float *)sfr_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
+                                *((float *)sfr_filtered + HII_R_FFT_INDEX(x,y,z)) = fmaxf(
+                                       *((float *)sfr_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
 
                                 density_over_mean = 1.0 + *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
@@ -1053,10 +1053,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 // == filtered stellar density / sphere (baryon) density
                                 //Should give photons / H atom when multiplied by ION_EFF_FACTOR
                                 Splined_Fcoll = *((float *)stars_filtered + HII_R_FFT_INDEX(x,y,z)) / (massofscaleR*density_over_mean);
-                                Splined_Fcoll *= (4/3.0)*PI*pow(R,3) / pixel_volume / (cosmo_params->OMb / cosmo_params->OMm);
-
-                                //TODO: make the sfr grid: i.e the thing that when multiplied by the gamma prefactor gives gamma12 so I can use Inhomog. rec.
-                                //requires a new Fcoll grid to be constructed here and used below in the "main" loop
+                                Splined_Fcoll *= (4/3.0)*PI*pow(R,3) / (cosmo_params->OMb / cosmo_params->OMm);
                             }
                             else {
 
@@ -1282,8 +1279,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 Gamma_R_prefactor_MINI *= pow(1+redshift, 2);
             }
 
-            Gamma_R_prefactor /= t_ast;
-            Gamma_R_prefactor_MINI /= t_ast;
+            if(!flag_options->USE_HALO_FIELD){
+                Gamma_R_prefactor /= t_ast;
+                Gamma_R_prefactor_MINI /= t_ast;
+            }
 
             if (global_params.FIND_BUBBLE_ALGORITHM != 2 && global_params.FIND_BUBBLE_ALGORITHM != 1) { // center method
                 LOG_ERROR("Incorrect choice of find bubble algorithm: %i",
@@ -1356,7 +1355,12 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
                                 // this assumes photon-starved growth of HII regions...  breaks down post EoR
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
-                                    box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll + Gamma_R_prefactor_MINI * f_coll_MINI;
+                                    if(flag_options->USE_HALO_FIELD){
+                                        box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * (*((float *)sfr_filtered + HII_R_FFT_INDEX(i,j,k)));
+                                    }
+                                    else{
+                                        box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll + Gamma_R_prefactor_MINI * f_coll_MINI;
+                                    }
                                     box->MFP_box[HII_R_INDEX(x,y,z)] = R;
                                 }
 
@@ -1573,8 +1577,8 @@ LOG_DEBUG("global_xH = %e",global_xH);
     if(flag_options->USE_HALO_FIELD) {
         fftwf_free(stars_unfiltered);
         fftwf_free(stars_filtered);
-        //fftwf_free(sfr_unfiltered);
-        //fftwf_free(sfr_filtered);
+        fftwf_free(sfr_unfiltered);
+        fftwf_free(sfr_filtered);
     }
 
 
