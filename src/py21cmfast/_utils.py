@@ -888,6 +888,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             f = self._get_fname(direc)
             if path.exists(f) and self._check_parameters(f):
                 return f
+        logger.info(f"filename {f} exists: {path.exists(f)}")
+        logger.info(f"paramcheck: {self._check_parameters(f)}")
         return None
 
     def _check_parameters(self, fname):
@@ -1070,7 +1072,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             pth = self.find_existing(direc)
 
             if pth is None:
-                raise OSError(f"No boxes exist for these parameters. {path} {direc}")
+                raise OSError(f"No boxes exist for these parameters. {pth} {direc}")
         else:
             direc = Path(direc or config["direc"]).expanduser()
             fname = Path(fname)

@@ -166,7 +166,7 @@ extern struct GlobalParams global_params = {
 
     .USE_FAST_ATOMIC = 0,
 
-    .STOC_MASS_TOL = 0.5,
+    .STOC_MASS_TOL = 1.0,
     .HALO_SAMPLE_FACTOR = 1,
     .HALO_MTURN_FACTOR = 16,
     .MAXHALO_FACTOR = 2,

@@ -10,8 +10,8 @@
 //NOTE: for the future discrete tables this does make sense
 
 //max number of attempts for mass tolerance before failure
-#define MAX_ITERATIONS 1e4
-#define MAX_ITER_N 10 //for stoc_halo_sample (select N halos) how many tries for one N
+#define MAX_ITERATIONS 1e6
+#define MAX_ITER_N 1 //for stoc_halo_sample (select N halos) how many tries for one N
 #define MMAX_TABLES 1e14
 
 //buffer size (per cell of arbitrary size) in the sampling function
@@ -743,7 +743,7 @@ int stoc_halo_sample(double growth_out, double M_min, double M_max, double delta
 
     //technically I don't need the if statement but it might be confusing otherwise
     if(n_failures >= MAX_ITERATIONS){
-        LOG_ERROR("passed max iter in sample");
+        LOG_ERROR("passed max iter in sample, last attempt M=%.3e [%.3e, %.3e] Me %.3e Mt %.3e d %.3e",M_prog,exp_M*(1-mass_tol),exp_M*(1+mass_tol),exp_M,M_max,delta);
         Throw(ValueError);
     }
 
@@ -798,15 +798,17 @@ int stoc_mass_sample(double growth_out, double M_min, double M_max, double delta
             //LOG_ULTRA_DEBUG("Sampled %.3e | %.3e %d",M_sample,M_prog,n_halo_sampled);
         }
         
-        //There is a bias introduced in the above, where the last halo sampled is more likely to be large,
-        //this causes a bias when (possibly) subtracting the last sampled halo.
-        //we introduce the opposite bias in half our samples here
-
-        //As a result, half of each descendant will subtract the last sampled halo if that brings the total
-        // mass closer to the expected.
-        //The other half will randomly subtract halos until we are below the expected mass, then keep the last
-        // subtracted halo if that brings the total mass closer to the expected
+        //The above sample is above the expected mass, by up to 100% I wish to make the average mass equal to exp_M
+        //  so half the time I keep/throw away the last halo. However this introduces a bias, where large halos are
+        //  sometimes thrown away. So the other half the time, I throw away random halos until we are again below exp_M
+        //  and keep/throw the last removed halo.
         if(gsl_rng_uniform(rng) < 0.5){
+            if(fabs(M_prog - M_sample - exp_M) < fabs(M_prog - exp_M)){
+                n_halo_sampled--;
+                M_prog -= M_sample;
+            }
+        }
+        else{
             //RANDOM SUBTRACTION
             int random_idx;
             double last_M_del;
@@ -826,12 +828,6 @@ int stoc_mass_sample(double growth_out, double M_min, double M_max, double delta
                 // M_prog -= M_sample;
                 M_out[random_idx] = last_M_del;
                 M_prog += last_M_del;
-            }
-        }
-        else{
-            if(fabs(M_prog - M_sample - exp_M) < fabs(M_prog - exp_M)){
-                n_halo_sampled--;
-                M_prog -= M_sample;
             }
         }
         
@@ -1681,12 +1677,12 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 }
                 else{
                     mass_arg = Mmax;
-                    delta_arg = M[i]*growth_out;
+                    delta_arg = M[i];
                 }
-                test = IntegratedNdM(growth_out,lnMmin,log(mass_arg),log(mass_arg),delta_arg,seed,-1) * mass_arg;
+                test = IntegratedNdM(growth_out,lnMmin,log(mass_arg),log(mass_arg),delta_arg,seed,-1);
                 LOG_ULTRA_DEBUG("==> %.8e",test);
                 //conditional MF multiplied by a few factors
-                result[i] = test / sqrt(2.*PI);
+                result[i] = test  * mass_arg / sqrt(2.*PI);
                 if(seed == 1){
                     sigma_max = EvaluateSigma(log(mass_arg),&dummy);
                     test = EvaluateFgtrM(growth_out,lnMmin,delta_arg,sigma_max) * mass_arg;
