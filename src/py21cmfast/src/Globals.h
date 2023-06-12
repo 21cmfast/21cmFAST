@@ -91,8 +91,7 @@ struct GlobalParams{
     int N_PROB_INTERP;
     double MIN_LOGPROB;
 
-
-
+    bool USE_ADIABATIC_FLUCTUATIONS;
 };
 
 extern struct GlobalParams global_params = {
@@ -124,7 +123,7 @@ extern struct GlobalParams global_params = {
     .PhotonConsStart = 0.995,
     .PhotonConsEnd = 0.3,
     .PhotonConsAsymptoteTo = 0.01,
-    .PhotonConsEndCalibz = 5.0,
+    .PhotonConsEndCalibz = 3.5,
 
     .HEAT_FILTER = 0,
     .CLUMPING_FACTOR = 2.,
@@ -167,11 +166,13 @@ extern struct GlobalParams global_params = {
     .USE_FAST_ATOMIC = 0,
 
     .STOC_MASS_TOL = 1.0,
-    .HALO_SAMPLE_FACTOR = 1,
-    .HALO_MTURN_FACTOR = 16,
+    .HALO_SAMPLE_FACTOR = 2,
+    .HALO_MTURN_FACTOR = 32,
     .MAXHALO_FACTOR = 2,
     .N_MASS_INTERP = 500,
     .N_DELTA_INTERP = 500,
     .N_PROB_INTERP = 500,
     .MIN_LOGPROB = -12,
+    
+    .USE_ADIABATIC_FLUCTUATIONS = 1,
 };

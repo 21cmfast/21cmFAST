@@ -1,11 +1,13 @@
 """Simple plotting functions for 21cmFAST objects."""
+from __future__ import annotations
+
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as un
 from astropy.cosmology import z_at_value
 from matplotlib import colors
 from matplotlib.ticker import AutoLocator
-from typing import Optional
+from typing import Optional, Union
 
 from . import outputs
 from .outputs import Coeval, LightCone
@@ -96,10 +98,10 @@ def _imshow_slice(
     if cmap == "EoR":
         imshow_kw["norm"] = colors.Normalize(vmin=-150,vmax=30)
 
-    vmin = imshow_kw.pop("vmin",cube[cube>0].min() if log else cube.min())
-    vmax = imshow_kw.pop("vmax",np.abs(cube.max()))
-
-    norm = imshow_kw.pop("norm", colors.LogNorm(vmin=vmin,vmax=vmax) if log else colors.Normalize(vmin=vmin,vmax=vmax))
+    norm_kw = {k: imshow_kw.pop(k) for k in ["vmin", "vmax"] if k in imshow_kw}
+    norm = imshow_kw.pop(
+        "norm", colors.LogNorm(**norm_kw) if log else colors.Normalize(**norm_kw)
+    )
     plt.imshow(slc, origin="lower", cmap=cmap, norm=norm, **imshow_kw)
 
     if cbar:
@@ -125,9 +127,9 @@ def _imshow_slice(
 
 
 def coeval_sliceplot(
-    struct: [outputs._OutputStruct, Coeval],
-    kind: [str, None] = None,
-    cbar_label: [str, None] = None,
+    struct: outputs._OutputStruct | Coeval,
+    kind: str | None = None,
+    cbar_label: str | None = None,
     **kwargs,
 ):
     """
@@ -214,12 +216,12 @@ def lightcone_sliceplot(
     kind: str = "brightness_temp",
     lightcone2: LightCone = None,
     vertical: bool = False,
-    xlabel: Optional[str] = None,
-    ylabel: Optional[str] = None,
-    cbar_label: Optional[str] = None,
+    xlabel: str | None = None,
+    ylabel: str | None = None,
+    cbar_label: str | None = None,
     zticks: str = "redshift",
-    fig: Optional[plt.Figure] = None,
-    ax: Optional[plt.Axes] = None,
+    fig: plt.Figure | None = None,
+    ax: plt.Axes | None = None,
     z_max = None,
     **kwargs,
 ):
@@ -421,14 +423,13 @@ def _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_max):
 
 
 def plot_global_history(
-    lightcone: [LightCone],
-    kind: [str, None] = None,
-    ylabel: [str, None] = None,
-    ylog: [bool] = False,
-    fmt: [str,None] = None,
-    zmax: [float,None] = None,
-    ax: [plt.Axes, None] = None,
-    **kwargs,
+    lightcone: LightCone,
+    kind: str | None = None,
+    ylabel: str | None = None,
+    ylog: bool = False,
+    ax: plt.Axes | None = None,
+    fmt: str | None = None,
+    zmax: float | None = None,
 ):
     """
     Plot the global history of a given quantity from a lightcone.

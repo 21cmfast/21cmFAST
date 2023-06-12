@@ -1260,6 +1260,11 @@ double Nion_General(double z, double M_Min, double MassTurnover, double Alpha_st
             LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
             LOG_ERROR("data: z=%e growthf=%e MassTurnover=%e Alpha_star=%e Alpha_esc=%e",z,growthf,MassTurnover,Alpha_star,Alpha_esc);
             LOG_ERROR("data: Fstar10=%e Fesc10=%e Mlim_Fstar=%e Mlim_Fesc=%e",Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc);
+            LOG_ERROR("Function evaluated at lower-limit: %e",dNion_General(lower_limit,&parameters_gsl_SFR));
+            LOG_ERROR("Function evaluated at upper-limit: %e",dNion_General(upper_limit,&parameters_gsl_SFR));
+            LOG_ERROR("Mass Function Choice: %d",user_params_ps->HMF);
+            LOG_ERROR("Mass Function at min: %e",dNdM(growthf, exp(lower_limit)));
+            LOG_ERROR("Mass Function at max: %e",dNdM(growthf, exp(upper_limit)));
             GSL_ERROR(status);
         }
         gsl_integration_workspace_free (w);
@@ -3986,6 +3991,14 @@ float adjust_redshifts_for_photoncons(
             adjusted_redshift = *redshift;
         }
         else {
+            // Initialise the photon non-conservation correction curve
+            // It is possible that for certain parameter choices that we can get here without initialisation happening.
+            // Thus check and initialise if not already done so
+            if(!photon_cons_allocated) {
+                determine_deltaz_for_photoncons();
+                photon_cons_allocated = true;
+            }
+
             // We have crossed the NF threshold for the photon conservation correction so now set to the delta z at the threshold
             if(required_NF < global_params.PhotonConsAsymptoteTo) {
 

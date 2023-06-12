@@ -67,9 +67,10 @@ setup(
         "Operating System :: POSIX",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.5",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: Implementation :: CPython",
     ],
     keywords=["Epoch of Reionization", "Cosmology"],
@@ -89,5 +90,9 @@ setup(
     setup_requires=["cffi>=1.0", "setuptools_scm"],
     entry_points={"console_scripts": ["21cmfast = py21cmfast.cli:main"]},
     cffi_modules=[f"{pkgdir}/build_cffi.py:ffi"],
-    use_scm_version=True,
+    use_scm_version={
+        "write_to": "src/py21cmfast/_version.py",
+        "parentdir_prefix_version": "21cmFAST-",
+        "fallback_version": "0.0.0",
+    },
 )

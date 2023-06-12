@@ -10,7 +10,7 @@
 
 int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, float R, int x, int y, int z, int check_type);
 void init_halo_coords(struct HaloField *halos, int n_halos);
-int pixel_in_halo(int grid_dim, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index );
+int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index );
 void free_halo_field(struct HaloField *halos);
 void init_hmf(struct HaloField *halos);
 void trim_hmf(struct HaloField *halos);
@@ -25,7 +25,7 @@ int ComputeHaloField(float redshift_prev, float redshift, struct UserParams *use
     Try{ // This Try brackets the whole function, so we don't indent.
 
     //This happens if we are updating a halo field (no need to redo big halos)
-    if(flag_options->HALO_STOCHASTICITY && !(halos->first_box)){
+    if(flag_options->HALO_STOCHASTICITY && redshift_prev > 0){
         LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %d halos...",halos_prev->n_halos);
         stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_prev, redshift, boxes->lowres_density, halos_prev, halos);
         return 0;
@@ -72,6 +72,7 @@ LOG_DEBUG("Begin Initialisation");
         //I rename the flag here for clarity and in case we want some other conditions later
         int res_flag = flag_options->HALO_STOCHASTICITY ? 1 : 0;
         int grid_dim = res_flag ? user_params->HII_DIM : user_params->DIM;
+        int z_dim = res_flag ? HII_D_PARA : D_PARA;
         int num_pixels = res_flag ? HII_TOT_NUM_PIXELS : TOT_NUM_PIXELS;
         int k_num_pixels = res_flag ? HII_KSPACE_NUM_PIXELS : KSPACE_NUM_PIXELS;
 
@@ -97,7 +98,7 @@ LOG_DEBUG("Begin Initialisation");
 #pragma omp for
             for (i=0; i<grid_dim; i++){
                 for (j=0; j<grid_dim; j++){
-                    for (k=0; k<grid_dim; k++){
+                    for (k=0; k<z_dim; k++){
                         //TODO: I want a cleaner way to approach the indexing with high/low res options
                         if(res_flag)
                             *((float *)density_field + HII_R_FFT_INDEX(i,j,k)) = *((float *)boxes->lowres_density + HII_R_INDEX(i,j,k));
@@ -108,7 +109,7 @@ LOG_DEBUG("Begin Initialisation");
             }
         }
 
-        dft_r2c_cube(user_params->USE_FFTW_WISDOM, grid_dim, user_params->N_THREADS, density_field);
+        dft_r2c_cube(user_params->USE_FFTW_WISDOM, grid_dim, z_dim, user_params->N_THREADS, density_field);
 
         // save a copy of the k-space density field
         memcpy(density_field_saved, density_field, sizeof(fftwf_complex)*k_num_pixels);
@@ -168,7 +169,7 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             filter_box(density_field, res_flag, global_params.HALO_FILTER, R);
 
             // do the FFT to get delta_m box
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, grid_dim, user_params->N_THREADS, density_field);
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, grid_dim, z_dim, user_params->N_THREADS, density_field);
 
             // *****************  BEGIN OPTIMIZATION ***************** //
             // to optimize speed, if the filter size is large (switch to collapse fraction criteria later)
@@ -183,7 +184,7 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
 #pragma omp for
                         for (x=0; x<grid_dim; x++){
                             for (y=0; y<grid_dim; y++){
-                                for (z=0; z<grid_dim; z++){
+                                for (z=0; z<z_dim; z++){
                                     if(res_flag)
                                         halo_buf = halo_field[HII_R_INDEX(x,y,z)];
                                     else
@@ -214,7 +215,7 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
 #pragma omp for schedule(static)
                 for (x=0; x<grid_dim; x++){
                     for (y=0; y<grid_dim; y++){
-                        for (z=0; z<grid_dim; z++){
+                        for (z=0; z<z_dim; z++){
                             if(res_flag)
                                 index = HII_R_FFT_INDEX(x,y,z);
                             else
@@ -227,6 +228,7 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                             if(global_params.OPTIMIZE && (M > global_params.OPTIMIZE_MIN_MASS)) {
                                 if ( (delta_m > delta_crit) && !forbidden[index]){
                                     check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
+                                    check_halo(forbidden, user_params, res_flag, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
 
                                     halo_field[index] = M;
 
@@ -309,7 +311,7 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
 #pragma omp for
             for (x=0; x<grid_dim; x++){
                 for (y=0; y<grid_dim; y++){
-                    for (z=0; z<grid_dim; z++){
+                    for (z=0; z<z_dim; z++){
                         if(res_flag)
                             halo_buf = halo_field[HII_R_INDEX(x,y,z)];
                         else
@@ -430,6 +432,7 @@ int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, flo
     }
 
     int grid_dim = res_flag ? user_params->HII_DIM : user_params->DIM;
+    int z_dim = res_flag ? HII_D_PARA : D_PARA;
     int num_pixels = res_flag ? HII_TOT_NUM_PIXELS : TOT_NUM_PIXELS;
     int k_num_pixels = res_flag ? HII_KSPACE_NUM_PIXELS : KSPACE_NUM_PIXELS;
 
@@ -456,8 +459,8 @@ int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, flo
                 else if (x_index>=grid_dim) {x_index -= grid_dim;}
                 if (y_index<0) {y_index += grid_dim;}
                 else if (y_index>=grid_dim) {y_index -= grid_dim;}
-                if (z_index<0) {z_index += grid_dim;}
-                else if (z_index>=grid_dim) {z_index -= grid_dim;}
+                if (z_index<0) {z_index += z_dim;}
+                else if (z_index>=z_dim) {z_index -= z_dim;}
 
                 if(res_flag)
                     curr_index = HII_R_INDEX(x_index,y_index,z_index);
@@ -466,7 +469,7 @@ int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, flo
 
                 if(check_type==1) {
                     if ( in_halo[curr_index] &&
-                        pixel_in_halo(grid_dim,x,x_index,y,y_index,z,z_index,Rsq_curr_index) ) {
+                        pixel_in_halo(grid_dim,z_dim,x,x_index,y,y_index,z,z_index,Rsq_curr_index) ) {
                             // this pixel already belongs to a halo, and would want to become part of this halo as well
                             return 1;
                     }
@@ -474,7 +477,7 @@ int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, flo
                 else if(check_type==2) {
                     // now check
                     if (!in_halo[curr_index]){
-                        if(pixel_in_halo(grid_dim,x,x_index,y,y_index,z,z_index,Rsq_curr_index)) {
+                        if(pixel_in_halo(grid_dim,z_dim,x,x_index,y,y_index,z,z_index,Rsq_curr_index)) {
                             // we are within the sphere defined by R, so change flag in in_halo array
 //does the race condition matter here? if any thread marks the pixel it should be 1
 #pragma omp atomic write
@@ -542,7 +545,7 @@ void trim_hmf(struct HaloField *halos){
     }
 }
 
-int pixel_in_halo(int grid_dim, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index ) {
+int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index ) {
 
     float xsq, xplussq, xminsq, ysq, yplussq, yminsq, zsq, zplussq, zminsq;
 
@@ -552,10 +555,10 @@ int pixel_in_halo(int grid_dim, int x, int x_index, int y, int y_index, int z, i
     zsq = pow(z-z_index, 2);
     xplussq = pow(x-x_index+grid_dim, 2);
     yplussq = pow(y-y_index+grid_dim, 2);
-    zplussq = pow(z-z_index+grid_dim, 2);
+    zplussq = pow(z-z_index+z_dim, 2);
     xminsq = pow(x-x_index-grid_dim, 2);
     yminsq = pow(y-y_index-grid_dim, 2);
-    zminsq = pow(z-z_index-grid_dim, 2);
+    zminsq = pow(z-z_index-z_dim, 2);
 
     if(
        ( (Rsq_curr_index > (xsq + ysq + zsq)) || // AND pixel is within this halo

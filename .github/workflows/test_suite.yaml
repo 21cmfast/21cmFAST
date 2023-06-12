@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: [3.6, 3.7, 3.8, 3.9]
+        python-version: [3.7, 3.8, 3.9, "3.10"]
     defaults:
      run:
        # Adding -l {0} ensures conda can be found properly in each step
@@ -93,12 +93,13 @@ jobs:
 
       - name: Run Tests
         run: |
-          python -m pytest -l --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 ${{ env.extra_pytest_args }}
+          python -m pytest -n 2 -l --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 ${{ env.extra_pytest_args }}
 
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v3
         if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
         with:
           fail_ci_if_error: true
           verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
 
 # CC=$HOME/miniconda/envs/$ENV_NAME/bin/gcc

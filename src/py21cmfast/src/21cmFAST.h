@@ -21,6 +21,7 @@ struct UserParams{
     int HII_DIM;
     int DIM;
     float BOX_LEN;
+    float NON_CUBIC_FACTOR;
     bool USE_FFTW_WISDOM;
     int HMF;
     int USE_RELATIVE_VELOCITIES;
@@ -75,6 +76,8 @@ struct FlagOptions{
     // Parameters taken from INIT_PARAMS.H
     bool USE_HALO_FIELD;
     bool USE_MINI_HALOS;
+    bool USE_CMB_HEATING; //CMB Heating Flag
+    bool USE_LYA_HEATING; //Lya Heating Flag
     bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
     bool INHOMO_RECO;
@@ -97,8 +100,6 @@ struct PerturbedField{
 };
 
 struct HaloField{
-    int first_box; //first generated (lowest redshift)
-
     int n_halos;
     float *halo_masses;
     int *halo_coords;
@@ -152,7 +153,6 @@ struct PerturbHaloField{
 
 
 struct TsBox{
-    int first_box;
     float *Ts_box;
     float *x_e_box;
     float *Tk_box;
@@ -164,7 +164,6 @@ struct XraySourceBox{
 };
 
 struct IonizedBox{
-    int first_box;
     double mean_f_coll;
     double mean_f_coll_MINI;
     double log10_Mturnover_ave;
