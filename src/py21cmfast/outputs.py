@@ -1369,9 +1369,11 @@ class LightCone(_HighLevelOutput):
     @property
     def lightcone_redshifts(self):
         """Redshift of each cell along the redshift axis."""
+        #NOTE(jdavies) added the 'bounded' method since it seems there are some compatibility issues with astropy and scipy
+        #where astropy gives default bounds to a function with default unbounded minimization
         return np.array(
             [
-                z_at_value(self.cosmo_params.cosmo.comoving_distance, d * units.Mpc)
+                z_at_value(self.cosmo_params.cosmo.comoving_distance, d * units.Mpc,method='bounded')
                 for d in self.lightcone_distances
             ]
         )

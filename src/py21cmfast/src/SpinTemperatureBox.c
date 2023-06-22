@@ -3318,7 +3318,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 
     double Nb_zp = N_b0 * (1+zp)*(1+zp)*(1+zp); //used for lya_X and sinks NOTE: the 2 density factors are from source & absorber since its downscattered x-ray
     double lya_star_prefactor = C / FOURPI * Msun / m_p * (1 - 0.75*global_params.Y_He); //converts SFR density -> stellar baryon density + prefactors
-    double cellvol_inv = HII_TOT_NUM_PIXELS / pow(user_params_ts->BOX_LEN,3) * pow(CMperMPC,-3); //TODO: check if the cm length unit here is comoving
+    double volunit_inv = pow(CMperMPC,-3); //TODO: check if the cm length unit here is comoving
 
     //boxes that are independent of R (for interpolation of the nu integrals)
     //NOTE: Frequency integrals are based on PREVIOUS XHII
@@ -3398,11 +3398,11 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     }
 
                     // add prefactors
-                    dxheat_dt_box[box_ct] *= const_zp_prefactor;
-                    dxion_source_dt_box[box_ct] *= const_zp_prefactor;
+                    dxheat_dt_box[box_ct] *= const_zp_prefactor * volunit_inv;
+                    dxion_source_dt_box[box_ct] *= const_zp_prefactor * volunit_inv;
 
-                    dxlya_dt_box[box_ct] *= const_zp_prefactor * Nb_zp * (1+curr_delta); //1+delta from downscattering absorbers
-                    dstarlya_dt_box[box_ct] *= lya_star_prefactor;
+                    dxlya_dt_box[box_ct] *= const_zp_prefactor * volunit_inv * Nb_zp * (1+curr_delta); //1+delta from downscattering absorbers
+                    dstarlya_dt_box[box_ct] *= lya_star_prefactor * volunit_inv;
 
                     /*if(print_count<5){
                         LOG_DEBUG("delta: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delta
@@ -3522,7 +3522,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 
     for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
         if(isfinite(this_spin_temp->Ts_box[box_ct])==0) {
-            LOG_ERROR("Estimated spin temperature is either infinite of NaN! \n"
+            LOG_ERROR("Estimated spin temperature is either infinite of NaN!"
                 "idx %d delta %.3e dxheat %.3e dxion %.3e dxlya %.3e dstarlya %.3e",box_ct,perturbed_field->density[box_ct]
                             ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct]);
 //                Throw(ParameterError);

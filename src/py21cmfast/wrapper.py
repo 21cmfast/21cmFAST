@@ -1187,6 +1187,9 @@ def determine_halo_list(
         need_desc_box = False
         first_box = False
         #Three cases: descendant given, recursion to min_z, and first box
+        #precedence is as follows: If the descendant field is given, use that no matter what.
+        #   otherwise, if STOC_MINIMUM_Z == -1 *OR* we would jump over STOC_MINIMUM_Z, calculate this as the first box
+        #   if neither of the above are true, step back ZPRIME_STEP_FACTOR and calculate that box
         if not isinstance(halos_desc, HaloField) or not halos_desc.is_computed:
             #If a descendant field is not provided, we step back toward the minimum z
             if desc_z is None:
@@ -1260,7 +1263,11 @@ def determine_halo_list(
                 regenerate=regenerate,
             )
         elif first_box:
-            halos_desc = HaloField(redshift=0,dummy=True)
+            halos_desc = HaloField(redshift=0,
+                        user_params=user_params,
+                        cosmo_params=cosmo_params,
+                        astro_params=astro_params,
+                        flag_options=flag_options,dummy=True)
 
         # Run the C Code
         return fields.compute(ics=init_boxes, hooks=hooks, halos_desc=halos_desc, random_seed=random_seed)
@@ -1306,7 +1313,7 @@ def perturb_halo_list(
 
     Returns
     -------
-    :class:`~PerturbHaloField`
+    :class:`~XraySourceBox`
 
     Other Parameters
     ----------------
@@ -1476,14 +1483,6 @@ def halo_box(
              "perturbed_field": perturbed_field},
             redshift=redshift,
         )
-        
-        redshift = configure_redshift(redshift, pt_halos)
-
-        # Verify input parameter structs (need to do this after configure_inputs).
-        user_params = UserParams(user_params)
-        cosmo_params = CosmoParams(cosmo_params)
-        flag_options = FlagOptions(flag_options)
-        astro_params = AstroParams(astro_params)
 
         # Initialize halo list boxes.
         box = HaloBox(
@@ -1523,7 +1522,11 @@ def halo_box(
         # This uses default descendant behaviour, stepping from STOC_MINIMUM_Z to redshift
         if flag_options.HALO_STOCHASTICITY:
             if not isinstance(perturbed_field,PerturbedField) or not perturbed_field.is_computed:
-                perturbed_field = PerturbedField(redshift=0,dummy=True)
+                perturbed_field = PerturbedField(redshift=0,
+                        user_params=user_params,
+                        cosmo_params=cosmo_params,
+                        astro_params=astro_params,
+                        flag_options=flag_options,dummy=True)
             if not isinstance(pt_halos,PerturbHaloField) or not pt_halos.is_computed:
                 pt_halos = perturb_halo_list(
                     redshift=redshift,
@@ -1539,9 +1542,15 @@ def halo_box(
                 )
         else:
             if not isinstance(pt_halos,PerturbHaloField) or not pt_halos.is_computed:
-                pt_halos = PerturbHaloField(redshift=0,dummy=True)
+                pt_halos = PerturbHaloField(redshift=0,
+                        user_params=user_params,
+                        cosmo_params=cosmo_params,
+                        astro_params=astro_params,
+                        flag_options=flag_options,dummy=True)
             if not isinstance(perturbed_field,PerturbedField) or not perturbed_field.is_computed:
                 perturbed_field = perturb_field(
+                    user_params=user_params,
+                    cosmo_params=cosmo_params,
                     init_boxes=init_boxes,
                     redshift=redshift,
                     regenerate=regenerate,
@@ -1560,7 +1569,7 @@ def xray_source(
     user_params=None,
     init_boxes=None,
     z_halos=None,
-    hbox_files=None,
+    hboxes=None,
     write=None,
     direc=None,
     regenerate=None,
@@ -1608,7 +1617,7 @@ def xray_source(
 
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
     with global_params.use(**global_kwargs):
-    # Configure and check input/output parameters/structs
+        # Configure and check input/output parameters/structs
         (
             random_seed,
             user_params,
@@ -1665,7 +1674,9 @@ def xray_source(
         R_factor = (global_params.R_XLy_MAX/R_min)**(R_steps/global_params.NUM_FILTER_STEPS_FOR_Ts)
         R_range = units.Mpc * R_min * R_factor
         cmd_edges = cmd_zp + R_range #comoving distance edges
-        zpp_edges = [z_at_value(cosmo_ap.comoving_distance,d) for d in cmd_edges] 
+        #NOTE(jdavies) added the 'bounded' method since it seems there are some compatibility issues with astropy and scipy
+        #where astropy gives default bounds to a function with default unbounded minimization
+        zpp_edges = [z_at_value(cosmo_ap.comoving_distance,d,method='bounded') for d in cmd_edges] 
         #the `average` redshift of the shell is the average of the 
         #inner and outer redshifts (following the C code)
         zpp_avg = zpp_edges - np.diff(np.insert(zpp_edges,0,redshift))/2
@@ -1682,18 +1693,15 @@ def xray_source(
             R_outer = R_range[i].to('Mpc').value
 
             #we don't want to calculate the filtered box above the redshift limit
-            
+            idx = idx_halobox[i]
+            #logger.info(f'Starting zp={redshift}, R=[{R_inner},{R_outer}] zpp=[{zpp_avg[i]},{zpp_edges[i]}], idx={idx}')
+
             if zpp_avg[i] >= z_max:
                 box.filtered_sfr[i,...] = 0
                 continue
-
-            #interpolate halo boxes in gridded SFR
-            #NOTE: I could take the closest and scale to the expected global average
-            #but I wanted to avoid this fixing wherever possible
-            idx = idx_halobox[i]
             
             z_prog = z_halos[idx]
-            hbox = HaloBox.from_file(hbox_files[idx])
+            hbox = hboxes[idx]
 
             #if the higher redshift has no halos we ignore the whole shell
             if hbox.halo_mass.max() < (10 ** astro_params.M_TURN) / 50:
@@ -1706,8 +1714,11 @@ def xray_source(
                 z_desc = z_halos[idx-1]
                 interp_param = (zpp_avg[i] - z_prog)/(z_desc - z_prog)
 
+                #interpolate halo boxes in gridded SFR
+                #NOTE: I could take the closest and scale to the expected global average
+                #but I wanted to avoid this fixing wherever possible
                 if interp_param > 1e-5:
-                    hbox_desc = HaloBox.from_file(hbox_files[idx-1])
+                    hbox_desc = hboxes[idx-1]
 
                     hbox.halo_mass = (interp_param*hbox_desc.halo_mass + (1-interp_param)*hbox.halo_mass)
                     hbox.wstar_mass = (interp_param*hbox_desc.wstar_mass + (1-interp_param)*hbox.wstar_mass)
@@ -2048,13 +2059,18 @@ def ionize_box(
         # Dynamically produce the halo field.
         if not flag_options.USE_HALO_FIELD:
             # Construct an empty halo field to pass in to the function.
-            halobox = HaloBox(redshift=0, dummy=True)
-        elif not halobox is None or not halobox.is_computed:
+            halobox = HaloBox(redshift=0,
+                        user_params=user_params,
+                        cosmo_params=cosmo_params,
+                        astro_params=astro_params,
+                        flag_options=flag_options, dummy=True)
+        elif halobox is None or not halobox.is_computed:
             #CURRENT ISSUES (ALSO FOR spin_temperature):
             #sometimes redshifts don't exactly match and we regenerate too much
             #we ONLY want to regenerate the halo field on the highest redshift
-            regen_halos = regenerate and previous_ionize_box.dummy
-            logger.warning('Auto generation of halo fields for Ts is WIP')
+            regen_halos = regenerate and prev_z == 0
+            logger.info(f'z: {redshift} | regen {regenerate} | regen_halos {regen_halos}')
+            raise NotImplementedError('Auto generation of halo fields for Ts is WIP')
             if flag_options.HALO_STOCHASTICITY:
                 #determine_halo_list will generate the descendant fields
                 #perturb and box only generate the current redshift
@@ -2082,7 +2098,11 @@ def ionize_box(
                     direc=direc,
                 )
             else:
-                pt_halos = PerturbHaloField(redshift=0,dummy=True)
+                pt_halos = PerturbHaloField(redshift=0,
+                        user_params=user_params,
+                        cosmo_params=cosmo_params,
+                        astro_params=astro_params,
+                        flag_options=flag_options,dummy=True)
 
             halobox = halo_box(redshift=redshift,
                 init_boxes=init_boxes,
@@ -2097,7 +2117,11 @@ def ionize_box(
 
         # Set empty spin temp box if necessary.
         if not flag_options.USE_TS_FLUCT:
-            spin_temp = TsBox(redshift=0, dummy=True)
+            spin_temp = TsBox(redshift=0,
+                        user_params=user_params,
+                        cosmo_params=cosmo_params,
+                        astro_params=astro_params,
+                        flag_options=flag_options, dummy=True)
         elif spin_temp is None:
             spin_temp = spin_temperature(
                 perturbed_field=perturbed_field,
@@ -2388,15 +2412,15 @@ def spin_temperature(
         #Generate halos if needed    
         if flag_options.USE_HALO_FIELD:
             #TODO: this doesn't work with the recursion at all, move to a list of needed snapshots like the lightcone
-            if not XraySourceBox is None or not sourcebox.is_computed:
-                raise ValueError("Automatic generation of Xray source box from halos not yet implemented")
-            #The entire halo history is generated via similar (but backwards) recursion to the spintemp
-            logger.debug(f'z: {redshift} | regen {regenerate} | regen_halos {regen_halos}')
-            if not halobox is None or not halobox.is_computed:
-                logger.warning('Auto generation of halo fields for Ts is WIP')
+            if sourcebox is None or not sourcebox.is_computed:
+                raise NotImplementedError("Automatic generation of Xray source box from halos not yet implemented")
+            #The entire halo history is generated via similar (but backwards) recursion to the spintemp            
+            if halobox is None or not halobox.is_computed:
+                regen_halos = regenerate and previous_spin_temp.dummy
+                logger.info(f'z: {redshift} | regen {regenerate} | regen_halos {regen_halos}')
+                raise NotImplementedError('Auto generation of halo fields for Ts is WIP')
                 #we only want to regenerate the halos on the first recursion, either at Z_HEAT_MAX or when we find a cached box
                 #in either case previous_spin_temp should be None
-                regen_halos = regenerate and previous_spin_temp.dummy
                 #SEE ISSUES & COMMENTS IN ionize_box!!!!!!!!!!!!!
                 if flag_options.HALO_STOCHASTICITY:
                     halo_field = determine_halo_list(
@@ -2423,7 +2447,11 @@ def spin_temperature(
                         direc=direc,
                     )
                 else:
-                    pt_halos = PerturbHaloField(redshift=0,dummy=True)
+                    pt_halos = PerturbHaloField(redshift=0,
+                        user_params=user_params,
+                        cosmo_params=cosmo_params,
+                        astro_params=astro_params,
+                        flag_options=flag_options,dummy=True)
 
                 halobox = halo_box(redshift=redshift,
                     astro_params=astro_params,
@@ -2436,8 +2464,16 @@ def spin_temperature(
                 )
 
         else:
-            sourcebox = XraySourceBox(redshift=0,dummy=True)
-            halobox = HaloBox(redshift=0,dummy=True)
+            sourcebox = XraySourceBox(redshift=0,
+                                user_params=user_params,
+                                cosmo_params=cosmo_params,
+                                astro_params=astro_params,
+                                flag_options=flag_options,dummy=True)
+            halobox = HaloBox(redshift=0,
+                                user_params=user_params,
+                                cosmo_params=cosmo_params,
+                                astro_params=astro_params,
+                                flag_options=flag_options,dummy=True)
 
         # Dynamically produce the perturbed field.
         if perturbed_field is None or not perturbed_field.is_computed:
@@ -2876,7 +2912,8 @@ def run_coeval(
             pf2.load_all()
 
             if flag_options.USE_TS_FLUCT:
-                sourcebox = xray_source(
+                if flag_options.USE_HALO_FIELD:
+                    sourcebox = xray_source(
                         redshift=z,
                         astro_params=astro_params,
                         flag_options=flag_options,
@@ -2884,7 +2921,7 @@ def run_coeval(
                         user_params=user_params,
                         random_seed=random_seed, #needed since no boxes in memory
                         z_halos=redshifts[::-1],
-                        hbox_files=halobox[::-1])
+                        hboxes=halobox[::-1])
 
                 st2 = spin_temperature(
                     redshift=z,
@@ -2979,7 +3016,7 @@ def run_coeval(
             and lib.interpolation_tables_allocated
         ):
             lib.FreeTsInterpolationTables(flag_options())
-
+        #logger.info(f"{redshifts},{redshift} {redshifts.index(redshift[0])} {perturb}")
         coevals = [
             Coeval(
                 redshift=z,
@@ -2988,7 +3025,7 @@ def run_coeval(
                 ionized_box=ib,
                 brightness_temp=_bt,
                 ts_box=st,
-                halobox=halobox[redshifts.index(z)],
+                halobox=halobox[redshifts.index(z)] if flag_options.USE_HALO_FIELD else None,
                 photon_nonconservation_data=photon_nonconservation_data,
                 cache_files={
                     "init": [(0, os.path.join(direc, init_box.filename))],
@@ -3314,7 +3351,7 @@ def run_lightcone(
 
         #we explicitly pass the descendant halos here since we have a redshift list prior
         #   this will generate the extra fields if STOC_MINIMUM_Z is given
-        hbox_files = []
+        hboxes = []
         if flag_options.USE_HALO_FIELD:
             halos_desc = None
             for iz,z in enumerate(scrollz[::-1]):
@@ -3359,16 +3396,26 @@ def run_lightcone(
                         pt_halos=pt_halos,
                         perturbed_field=perturb[scrollz.index(z)],
                 )
+                #same purging as pf
+                if user_params.MINIMIZE_MEMORY:
+                    try:
+                        hbox.purge(force=always_purge)
+                    except OSError:
+                        pass
                 
-                hbox_files.append(hbox.filename)
+                hboxes.append(hbox)
+                #TODO: purge here maybe
 
             #reverse the halo lists to be in line with the redshift lists
-            hbox_files = hbox_files[::-1]
+            hboxes = hboxes[::-1]
+
+        hbox = None
 
         perturb_files = []
         spin_temp_files = []
         ionize_files = []
         brightness_files = []
+        hbox_files = []
         log10_mturnovers = np.zeros(len(scrollz))
         log10_mturnovers_mini = np.zeros(len(scrollz))
         for iz, z in enumerate(scrollz):
@@ -3380,17 +3427,18 @@ def run_lightcone(
             pf2.load_all()
 
             if flag_options.USE_HALO_FIELD:
-                hbox2 = HaloBox.from_file(fname=hbox_files[iz])
-                hbox = HaloBox.from_file(fname=hbox_files[iz-1])
-                sourcebox = xray_source(
-                        redshift=z,
-                        astro_params=astro_params,
-                        flag_options=flag_options,
-                        cosmo_params=cosmo_params,
-                        user_params=user_params,
-                        random_seed=random_seed, #needed since no boxes in memory
-                        z_halos=scrollz[::-1],
-                        hbox_files=hbox_files[::-1])
+                hbox2 = hboxes[iz]
+                hbox2.load_all()
+                if flag_options.USE_TS_FLUCT:
+                    sourcebox = xray_source(
+                            redshift=z,
+                            astro_params=astro_params,
+                            flag_options=flag_options,
+                            cosmo_params=cosmo_params,
+                            user_params=user_params,
+                            random_seed=random_seed, #needed since no boxes in memory
+                            z_halos=scrollz[::-1],
+                            hboxes=hboxes[::-1])
 
             if flag_options.USE_TS_FLUCT:
                 st2 = spin_temperature(
@@ -3407,13 +3455,16 @@ def run_lightcone(
                     direc=direc,
                     cleanup=(cleanup and iz == (len(scrollz) - 1)),
                 )
-
+            #NOTE (jdavies): I see no difference here between pf(used in LC interpolation) and prev_perturb(passed to ionize_box)
+            #   I have replaced with pf since the latter was only updated (see below) with MINI_HALOS, but checked
+            #   and regenerated for all flags. It's probably best later to only check for the previous fields in ionize_box
+            #   if MINI_HALOS is true
             ib2 = ionize_box(
                 redshift=z,
                 previous_ionize_box=ib,
                 init_boxes=init_box,
                 perturbed_field=pf2,
-                previous_perturbed_field=prev_perturb,
+                previous_perturbed_field=pf,
                 astro_params=astro_params,
                 flag_options=flag_options,
                 spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
@@ -3440,6 +3491,7 @@ def run_lightcone(
                     redshift=z,
                     initial_conditions=init_box,
                     perturbed_field=pf2,
+                    halobox=hbox2 if flag_options.USE_HALO_FIELD else None,
                     ionized_box=ib2,
                     brightness_temp=bt2,
                     ts_box=st2 if flag_options.USE_TS_FLUCT else None,
@@ -3461,6 +3513,8 @@ def run_lightcone(
                         )
 
             perturb_files.append((z, os.path.join(direc, pf2.filename)))
+            if flag_options.USE_HALO_FIELD:
+                hbox_files.append((z,os.path.join(direc,hbox2.filename)))
             if flag_options.USE_TS_FLUCT:
                 spin_temp_files.append((z, os.path.join(direc, st2.filename)))
             ionize_files.append((z, os.path.join(direc, ib2.filename)))
@@ -3509,8 +3563,8 @@ def run_lightcone(
                 st = st2
             ib = ib2
             bt = bt2
-            if flag_options.USE_MINI_HALOS:
-                prev_perturb = pf2
+            # if flag_options.USE_MINI_HALOS:
+            #     prev_perturb = pf2
 
             if pf is not None:
                 try:
@@ -3519,6 +3573,13 @@ def run_lightcone(
                     pass
 
             pf = pf2
+            if flag_options.USE_HALO_FIELD:
+                if hbox is not None:
+                    try:
+                        hbox.purge(force=always_purge)
+                    except OSError:
+                        pass
+                hbox = hbox2
 
         if flag_options.PHOTON_CONS:
             photon_nonconservation_data = _get_photon_nonconservation_data()

@@ -15,6 +15,12 @@ if "DEBUG" in os.environ:
 else:
     extra_compile_args = ["-fopenmp", "-Ofast", "-w", "--verbose"]
 
+libraries = ["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"]
+
+#stuff for gperftools
+if "PROFILE" in os.environ:
+    libraries += ["profiler","tcmalloc"]
+
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,
 # we set it to the level just above no logging at all.
@@ -64,7 +70,7 @@ ffi.set_source(
     ),
     include_dirs=include_dirs,
     library_dirs=library_dirs,
-    libraries=["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"],
+    libraries=libraries,
     extra_compile_args=extra_compile_args,
 )
 

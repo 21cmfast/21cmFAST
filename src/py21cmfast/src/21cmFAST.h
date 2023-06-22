@@ -244,19 +244,13 @@ void free(void *ptr);
 
 //need a python visible function to test lower level functions using the package
 int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
-                        , int seed, int n_mass, float *M, bool update, double condition, double z_out, double z_in, int type, double *result);
+                        , int seed, int n_mass, float *M, double condition, double z_out, double z_in, int type, double *result);
 
+//these two functions compute the new classes HaloBox and XraySourceBox, and need to be visible
 int ComputeHaloBox(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params
                     , struct FlagOptions * flag_options, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos
                     , struct HaloBox *grids);
 
 int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, struct HaloBox *halobox,
-                  double R_inner, double R_outer, int R_ct, struct XraySourceBox *source_box);
-
-//int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options,
-//                        int seed, float redshift, float redshift_prev, bool eulerian, float *dens_field, struct HaloField *halos_prev, struct HaloField *halos);
-
-//int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options,
-//                        int seed, float redshift, struct PerturbHaloField *halos);
-                    
+                  double R_inner, double R_outer, int R_ct, struct XraySourceBox *source_box);                 

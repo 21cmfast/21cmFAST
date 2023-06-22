@@ -48,6 +48,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     omp_set_num_threads(user_params->N_THREADS);
 
     // Other parameters used in the code
+    //TODO: using both i,j,k and x,y,z allows very sneaky bugs to happen
     int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R, short_completely_ionised,i_halo;
     int counter, N_halos_in_cell;
     unsigned long long ct;
@@ -774,6 +775,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             if ( ((R/(global_params.DELTA_R_HII_FACTOR) - cell_length_factor*(user_params->BOX_LEN)/(float)(user_params->HII_DIM)) <= FRACT_FLOAT_ERR) || \
                     ((R/(global_params.DELTA_R_HII_FACTOR) - global_params.R_BUBBLE_MIN) <= FRACT_FLOAT_ERR) ) {
                 LAST_FILTER_STEP = 1;
+                LOG_ULTRA_DEBUG("debug777");
                 R = fmax(cell_length_factor*user_params->BOX_LEN/(double)(user_params->HII_DIM), global_params.R_BUBBLE_MIN);
             }
 
@@ -847,6 +849,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             f_coll = 0;
             f_coll_MINI = 0;
             massofscaleR = RtoM(R);
+            
+            LOG_ULTRA_DEBUG("checking densities: N_b0 sim %.5e | mass/vol %.5e | rhocrit %.5e",N_b0*(CMperMPC*CMperMPC*CMperMPC)/Msun * m_p
+                        ,(massofscaleR) / (4/3.0)*PI*pow(R,3) * (cosmo_params->OMb / cosmo_params->OMm)
+                        ,RHOcrit * cosmo_params->OMb);
 
             if(!user_params->USE_INTERPOLATION_TABLES) {
                 sigmaMmax = sigma_z0(massofscaleR);
@@ -1041,9 +1047,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 *((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)) = fminf(*((float *) xe_filtered + HII_R_FFT_INDEX(x, y, z)), 0.999);
                             }
 
+                            // stellar mass & sfr cannot be less than zero
                             if(flag_options->USE_HALO_FIELD) {
-
-                                // stellar mass & sfr cannot be less than zero
                                 *((float *)stars_filtered + HII_R_FFT_INDEX(x,y,z)) = fmaxf(
                                         *((float *)stars_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
                                 *((float *)sfr_filtered + HII_R_FFT_INDEX(x,y,z)) = fmaxf(
@@ -1051,11 +1056,9 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                                 density_over_mean = 1.0 + *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
-                                //Now this is F_esc weighted stellar mass / total mass in the sphere * Volume of sphere / pixel volume
-                                // == filtered stellar density / sphere (baryon) density
+                                //Now this is F_esc weighted stellar mass density / baryon density == f_esc weighted fraction of stars
                                 //Should give photons / H atom when multiplied by ION_EFF_FACTOR
-                                Splined_Fcoll = *((float *)stars_filtered + HII_R_FFT_INDEX(x,y,z)) / (massofscaleR*density_over_mean);
-                                Splined_Fcoll *= (4/3.0)*PI*pow(R,3) / (cosmo_params->OMb / cosmo_params->OMm);
+                                Splined_Fcoll = *((float *)stars_filtered + HII_R_FFT_INDEX(x,y,z)) / (RHOcrit*cosmo_params->OMb*density_over_mean);
                             }
                             else {
 
@@ -1267,10 +1270,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 ST_over_PS_MINI = box->mean_f_coll_MINI/f_coll_MINI;
             }
 
-            //////////////////////////////  MAIN LOOP THROUGH THE BOX ///////////////////////////////////
-            // now lets scroll through the filtered box
-            Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
-            Gamma_R_prefactor_MINI = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR_MINI / 1.0e-12;
+            Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * ION_EFF_FACTOR / 1.0e-12;
+            Gamma_R_prefactor_MINI = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * ION_EFF_FACTOR_MINI / 1.0e-12;
             if(flag_options->PHOTON_CONS) {
                 // Used for recombinations, which means we want to use the original redshift not the adjusted redshift
                 Gamma_R_prefactor *= pow(1+stored_redshift, 2);
@@ -1281,9 +1282,16 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 Gamma_R_prefactor_MINI *= pow(1+redshift, 2);
             }
 
+            //With the halo field, we use the filtered, f_esc weighted star formation rate, which should be equivalent to
+            // `Fcoll` * OMb * RHOcrit * (1+delta) in the no halo field case. we also need a factor of 1/(1+delta) later on
+            // to match that in the recombination (`Fcoll` is effectively fesc*star per baryon, whereas the filtered grids are fesc*SFRD)
             if(!flag_options->USE_HALO_FIELD){
-                Gamma_R_prefactor /= t_ast;
-                Gamma_R_prefactor_MINI /= t_ast;
+                Gamma_R_prefactor *= N_b0 / t_ast;
+                Gamma_R_prefactor_MINI *= N_b0 / t_ast;
+            }
+            else{
+                Gamma_R_prefactor *= Msun/(CMperMPC*CMperMPC*CMperMPC) / m_p;
+                Gamma_R_prefactor_MINI *= Msun/(CMperMPC*CMperMPC*CMperMPC) / m_p;
             }
 
             if (global_params.FIND_BUBBLE_ALGORITHM != 2 && global_params.FIND_BUBBLE_ALGORITHM != 1) { // center method
@@ -1358,7 +1366,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 // this assumes photon-starved growth of HII regions...  breaks down post EoR
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
                                     if(flag_options->USE_HALO_FIELD){
-                                        box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * (*((float *)sfr_filtered + HII_R_FFT_INDEX(i,j,k)));
+                                        box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor / (1+curr_dens) * (*((float *)sfr_filtered + HII_R_FFT_INDEX(x,y,z)));
                                     }
                                     else{
                                         box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll + Gamma_R_prefactor_MINI * f_coll_MINI;
