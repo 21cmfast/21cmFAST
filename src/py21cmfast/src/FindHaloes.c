@@ -211,26 +211,31 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
 //for now, I think it's good enough to set the static schedule so that the race condition only matters for large halos in low-res grids and small boxes.
 #pragma omp parallel shared(boxes,density_field,in_halo,forbidden,halo_field,growth_factor,M,delta_crit) private(x,y,z,delta_m) num_threads(user_params->N_THREADS) reduction(+: dn,n,total_halo_num)
             {
-                unsigned long long index;
+                unsigned long long index_c;
+                unsigned long long index_r;
 #pragma omp for schedule(static)
                 for (x=0; x<grid_dim; x++){
                     for (y=0; y<grid_dim; y++){
                         for (z=0; z<z_dim; z++){
-                            if(res_flag)
-                                index = HII_R_FFT_INDEX(x,y,z);
-                            else
-                                index = R_FFT_INDEX(x,y,z);
+                            if(res_flag){
+                                index_c = HII_R_FFT_INDEX(x,y,z);
+                                index_r = HII_R_INDEX(x,y,z);
+                            }
+                            else{
+                                index_c = R_FFT_INDEX(x,y,z);
+                                index_r = R_INDEX(x,y,z);
+                            }
                             
-                            delta_m = *((float *)density_field + index) * growth_factor / num_pixels;
+                            delta_m = *((float *)density_field + index_c) * growth_factor / num_pixels;
 
                             // if not within a larger halo, and radii don't overlap, update in_halo box
                             // *****************  BEGIN OPTIMIZATION ***************** //
                             if(global_params.OPTIMIZE && (M > global_params.OPTIMIZE_MIN_MASS)) {
-                                if ( (delta_m > delta_crit) && !forbidden[index]){
+                                if ( (delta_m > delta_crit) && !forbidden[index_r]){
                                     check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
                                     check_halo(forbidden, user_params, res_flag, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
 
-                                    halo_field[index] = M;
+                                    halo_field[index_r] = M;
 
                                     dn++; // keep track of the number of halos
                                     n++;
@@ -239,11 +244,11 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                             }
                             // *****************  END OPTIMIZATION ***************** //
                             else {
-                                if ((delta_m > delta_crit) && !in_halo[index] && !check_halo(in_halo, user_params, res_flag, R, x,y,z,1)){ // we found us a "new" halo!
+                                if ((delta_m > delta_crit) && !in_halo[index_r] && !check_halo(in_halo, user_params, res_flag, R, x,y,z,1)){ // we found us a "new" halo!
 
                                     check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
 
-                                    halo_field[index] = M;
+                                    halo_field[index_r] = M;
 
                                     dn++; // keep track of the number of halos
                                     n++;

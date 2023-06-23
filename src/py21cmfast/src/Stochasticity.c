@@ -645,9 +645,18 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
         const_struct->cond_val = cond_val;
     }
 
+    //the splines don't work well for cells above Deltac, but there CAN be cells above deltac, since this calculation happens
+    //before the overlap, and since the smallest dexm mass is M_cell*(1.01^3) there *could* be a cell above Deltac not in a halo
+    if(!const_struct->update && cond_val > Deltac){
+        //these values won't actually do anything they just prevent the spline calls
+        const_struct->expected_M = const_struct->M_cond;
+        const_struct->expected_N = 1;
+        return;
+    }
+
     //TODO: reorganize the below code with get_halo_avg, EvaluateFgtrM and EvaluatedNdMSpline
     //Get expected N from interptable
-    n_exp = EvaluatedNdMSpline(const_struct->cond_val,const_struct->lnM_cond); //should be the same as < lnM_cond, but that can hide some interp errors
+    n_exp = EvaluatedNdMSpline(const_struct->cond_val,const_struct->lnM_max_tb); //should be the same as < lnM_cond, but that can hide some interp errors
     
     //Get expected M from erfc
     //sometimes condition mass is close enough to minimum mass such that the sigmas are the same to float precision
@@ -658,8 +667,7 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     else{
         del = (Deltac - const_struct->delta)/const_struct->growth_out;
         if(del < 0){
-            LOG_ERROR("delta error %.8f > deltacrit ",const_struct->delta);
-            Throw(ValueError);
+            //LOG_SUPER_DEBUG("delta > deltacrit %.8f > %.8f ",const_struct->delta,Deltac);
         }
         sig = sqrt(const_struct->sigma_min*const_struct->sigma_min - const_struct->sigma_cond*const_struct->sigma_cond);
         frac = splined_erfc(del / (sqrt(2)*sig));
@@ -824,12 +832,11 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
     //loop through the halos and assign properties
     int i;
     float buf[2];
-    LOG_DEBUG("starting loop.");
 #pragma omp parallel for private(buf)
     for(i=0;i<nhalos;i++){
-        LOG_DEBUG("halo %d hm %.2e",i,halos->halo_masses[i]);
+        LOG_ULTRA_DEBUG("halo %d hm %.2e crd %d %d %d",i,halos->halo_masses[i],halos->halo_coords[3*i+0],halos->halo_coords[3*i+1],halos->halo_coords[3*i+2]);
         add_halo_properties(rng_stoc[omp_get_thread_num()], halos->halo_masses[i], &hs_constants, buf);
-        LOG_DEBUG("stars %.2e sfr %.2e",buf[0],buf[1]);
+        LOG_ULTRA_DEBUG("stars %.2e sfr %.2e",buf[0],buf[1]);
         halos->stellar_masses[i] = buf[0];
         halos->halo_sfr[i] = buf[1];
     }
@@ -898,7 +905,7 @@ double remove_random_halo(gsl_rng * rng, int n_halo, int *idx, double *M_prog, f
     int random_idx;
     do {
         random_idx = gsl_rng_uniform_int(rng,n_halo);
-        LOG_ULTRA_DEBUG("Want to remove halo %d of %d Mass %.3e",random_idx,M_out[random_idx],n_halo);
+        //LOG_ULTRA_DEBUG("Want to remove halo %d of %d Mass %.3e",random_idx,M_out[random_idx],n_halo);
     } while(M_out[random_idx] == 0);
     last_M_del = M_out[random_idx];
     *M_prog -= last_M_del;
@@ -912,16 +919,17 @@ double remove_random_halo(gsl_rng * rng, int n_halo, int *idx, double *M_prog, f
 //CURRENT IMPLEMENTATION: half the time I keep/throw away the last halo based on which sample is closer to the expected mass.
 // However this introduces a bias since the last halo is likely larger than average So the other half the time,
 // I throw away random halos until we are again below exp_M, effectively the same process in reverse. which has the (exact?) opposite bias
-void fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_pt, float *M_out){
+int fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_pt, float *M_out){
     //Keep the last halo if it brings us closer to the expected mass
     //This is done by addition or subtraction over the limit to balance
     //the bias of the last halo being larger
     int random_idx;
+    int n_removed = 0;
     double last_M_del;
     if(gsl_rng_uniform_int(rng,2)){
-        LOG_ULTRA_DEBUG("Deciding to keep last halo M %.3e tot %.3e exp %.3e",M_out[*n_halo_pt-1],*M_tot_pt,exp_M);
+        //LOG_ULTRA_DEBUG("Deciding to keep last halo M %.3e tot %.3e exp %.3e",M_out[*n_halo_pt-1],*M_tot_pt,exp_M);
         if(fabs(*M_tot_pt - M_out[*n_halo_pt-1] - exp_M) < fabs(*M_tot_pt - exp_M)){
-            LOG_ULTRA_DEBUG("removed");
+            //LOG_ULTRA_DEBUG("removed");
             *M_tot_pt -= M_out[*n_halo_pt-1];
             (*n_halo_pt)--; //increment has preference over dereference
         }
@@ -929,17 +937,21 @@ void fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_
     else{
         while(*M_tot_pt > exp_M){
             last_M_del = remove_random_halo(rng,*n_halo_pt,&random_idx,M_tot_pt,M_out);
-            LOG_ULTRA_DEBUG("Removed halo %d M %.3e tot %.3e",random_idx,last_M_del,*M_tot_pt);
+            //LOG_ULTRA_DEBUG("Removed halo %d M %.3e tot %.3e",random_idx,last_M_del,*M_tot_pt);
+            n_removed++;
         }
 
         // if the sample with the last subtracted halo is closer to the expected mass, keep it
+        
+        //LOG_ULTRA_DEBUG("Deciding to keep last halo M %.3e tot %.3e exp %.3e",last_M_del,*M_tot_pt,exp_M);
         if(fabs(*M_tot_pt + last_M_del - exp_M) < fabs(*M_tot_pt - exp_M)){
-            LOG_ULTRA_DEBUG("Deciding to keep last halo M %.3e tot %.3e exp %.3e",last_M_del,*M_tot_pt,exp_M);
             M_out[random_idx] = last_M_del;
+            //LOG_ULTRA_DEBUG("kept.");
             *M_tot_pt += last_M_del;
+            n_removed--;
         }
     }
-    return;
+    return n_removed;
     //FUTURE "fixes"
     //TODO: try different target / trigger, which could overcome the M > exp_M issues better than a delta
     //  e.g: set trigger for the check at exp_M - (M_Max - exp_M), target at exp_M
@@ -959,6 +971,7 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
     int n_halo_sampled, n_failures=0;
     double M_prog=0;
     double M_sample;
+    int n_removed;
 
     double tbl_arg = hs_constants->cond_val;
 
@@ -978,13 +991,13 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
 
             M_prog += M_sample;
             M_out[n_halo_sampled++] = M_sample;
-            LOG_ULTRA_DEBUG("Sampled %.3e | %.3e %d",M_sample,M_prog,n_halo_sampled);
+            //LOG_ULTRA_DEBUG("Sampled %.3e | %.3e %d",M_sample,M_prog,n_halo_sampled);
         }
 
         //The above sample is above the expected mass, by up to 100%. I wish to make the average mass equal to exp_M
-        LOG_ULTRA_DEBUG("Before fix: %d %.3e",n_halo_sampled,M_prog);
-        fix_mass_sample(rng,exp_M,&n_halo_sampled,&M_prog,M_out);
-        LOG_ULTRA_DEBUG("After fix: %d %.3e",n_halo_sampled,M_prog);
+        // LOG_ULTRA_DEBUG("Before fix: %d %.3e",n_halo_sampled,M_prog);
+        n_removed = fix_mass_sample(rng,exp_M,&n_halo_sampled,&M_prog,M_out);
+        // LOG_ULTRA_DEBUG("After fix: %d (-%d) %.3e",n_halo_sampled,n_removed,M_prog);
 
         //LOG_ULTRA_DEBUG("attempt %d M=%.3e [%.3e, %.3e]",n_failures,M_prog,exp_M*(1-mass_tol),exp_M*(1+mass_tol));
         // //enforce some level of mass conservation
@@ -1024,14 +1037,24 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     //  and excluding larger halos (e.g if exp_M is 0.1*M_max we can effectively never sample the large halos)
     //i.e there is some case for a delta cut between these two methods however I have no intuition for the exact levels
     //TODO: try something like if(exp_N > 10 && exp_M < 0.9*M_cond) stoc_halo_sample();
-    if(hs_constants->update || 1){
-        //LOG_ULTRA_DEBUG("Mass");
-        return stoc_mass_sample(hs_constants, rng, n_halo_out, M_out);
-    } 
-    else{
-        //LOG_ULTRA_DEBUG("Halo");
-        return stoc_halo_sample(hs_constants, rng, n_halo_out, M_out);
+
+    //If the expected mass is below our minimum saved mass, don't bother calculating
+    if(hs_constants->delta <= -1 || hs_constants->expected_M < hs_constants->M_min*global_params.HALO_SAMPLE_FACTOR){
+        *n_halo_out = 0;
+        return 0;
     }
+    //if delta is above critical, form one big halo
+    if(hs_constants->delta > MAX_DELTAC_FRAC*Deltac){
+        *n_halo_out = 1;
+        
+        //using expected instead of overlap here, since the expected fraction approaches 100% for delta -> Detlac
+        // the only time this matters is when the cell has overlap with a DexM halo
+        //hm_buf[0] = hs_constants->M_cond;
+        M_out[0] = hs_constants->expected_M;
+        return 0;
+    }
+    return stoc_mass_sample(hs_constants, rng, n_halo_out, M_out);
+    //return stoc_halo_sample(hs_constants, rng, n_halo_out, M_out);
 }
 
 // will have to add properties here and output grids, instead of in perturbed
@@ -1081,7 +1104,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
         int nh_buf=0;
         double delta;
         float prop_buf[2];
-        int crd_hi[3];
+        int crd_hi[3], crd_large[3];
         double halo_dist,halo_r,intersect_vol;
         double mass_defc=1;
 
@@ -1128,56 +1151,49 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
             for (y=0; y<lo_dim; y++){
                 for (z=0; z<HII_D_PARA; z++){
                     delta = (double)dens_field[HII_R_INDEX(x,y,z)] * growthf;
-                    //delta limit cases
-                    if(delta <= -1) nh_buf = 0;              
-                    else if(delta > MAX_DELTAC_FRAC*Deltac){
-                        nh_buf = 1;
-                        hm_buf[0] = Mcell;
-                    }
 
-                    else{
-                        stoc_set_consts_cond(&hs_constants_priv,delta);
-                        //Subtract mass from cells near big halos
-                        mass_defc = 1;
-                        for (j=0;j<nhalo_in;j++){
-                            //reusing the crd_hi array here
-                            crd_hi[0] = halofield_large->halo_coords[0 + 3*j];
-                            crd_hi[1] = halofield_large->halo_coords[1 + 3*j];
-                            crd_hi[2] = halofield_large->halo_coords[2 + 3*j];
-                            //mass subtraction from cell, PRETENDING THEY ARE SPHERES OF RADIUS L_FACTOR
-                            halo_r = MtoR(halofield_large->halo_masses[j]) / lo_dim * boxlen; //units of cell width
-                            halo_dist = sqrt((crd_hi[0] - x)*(crd_hi[0] - x) +
-                                                (crd_hi[1] - y)*(crd_hi[1] - y) +
-                                                (crd_hi[2] - z)*(crd_hi[2] - z)); //dist between sphere centres
+                    stoc_set_consts_cond(&hs_constants_priv,delta);
+                    //Subtract mass from cells near big halos
+                    mass_defc = 1;
+                    for (j=0;j<nhalo_in;j++){
+                        //NOTE: this is actually low res!!!!!
+                        crd_large[0] = halofield_large->halo_coords[0 + 3*j];
+                        crd_large[1] = halofield_large->halo_coords[1 + 3*j];
+                        crd_large[2] = halofield_large->halo_coords[2 + 3*j];
+                        //mass subtraction from cell, PRETENDING THEY ARE SPHERES OF RADIUS L_FACTOR
+                        halo_r = MtoR(halofield_large->halo_masses[j]) / lo_dim * boxlen; //units of cell width
+                        halo_dist = sqrt((crd_large[0] - x)*(crd_large[0] - x) +
+                                            (crd_large[1] - y)*(crd_large[1] - y) +
+                                            (crd_large[2] - z)*(crd_large[2] - z)); //dist between sphere centres
 
-                            //entirely outside of halo
-                            if(halo_dist - L_FACTOR > halo_r){
-                                continue;
-                            }
-                            //entirely within halo
-                            else if(halo_dist + L_FACTOR < halo_r){
-                                mass_defc = 0;
-                                break;
-                            }
-                            //partially inside halo
-                            else{
-                                intersect_vol = halo_dist*halo_dist + 2*halo_dist*L_FACTOR - 3*L_FACTOR*L_FACTOR;
-                                intersect_vol += 2*halo_dist*halo_r + 6*halo_r*L_FACTOR - 3*halo_r*halo_r;
-                                intersect_vol *= PI*(halo_r + L_FACTOR - halo_dist) / 12*halo_dist; //volume in cell_width^3
-
-                                mass_defc = 1 - intersect_vol; //since cell volume == 1, M*mass_defc should adjust the mass correctly
-                                //due to the nature of DexM it is impossible to be partially in two halos so we break here
-                                break;
-                            }
+                        //entirely outside of halo
+                        if(halo_dist - L_FACTOR > halo_r){
+                            continue;
                         }
-                        //LOG_ULTRA_DEBUG("Cell delta %.2f -> (N,M) (%.2f,%.2e) overlap defc %.2f ps_ratio %.2f");
-                        hs_constants_priv.expected_M *= mass_defc/ps_ratio;
-                        hs_constants_priv.expected_N *= mass_defc/ps_ratio;
-                        // LOG_ULTRA_DEBUG("Starting sample %d (%d) with delta = %.2f cell, from %.2e to %.2e | %d"
-                        //                  ,x*lo_dim*lo_dim + y*lo_dim + z,lo_dim*lo_dim*lo_dim,delta,Mmin,Mmax,count);
-                        if(hs_constants_priv.expected_M < Mmin*global_params.HALO_SAMPLE_FACTOR) continue;
-                        stoc_sample(&hs_constants_priv, rng_arr[threadnum], &nh_buf, hm_buf);
+                        //entirely within halo
+                        else if(halo_dist + L_FACTOR < halo_r){
+                            mass_defc = 0;
+                            break;
+                        }
+                        //partially inside halo, pretend cells are spheres to do the calculation much faster without too much error
+                        else{
+                            intersect_vol = halo_dist*halo_dist + 2*halo_dist*L_FACTOR - 3*L_FACTOR*L_FACTOR;
+                            intersect_vol += 2*halo_dist*halo_r + 6*halo_r*L_FACTOR - 3*halo_r*halo_r;
+                            intersect_vol *= PI*(halo_r + L_FACTOR - halo_dist) / 12*halo_dist; //volume in cell_width^3
+
+                            mass_defc = 1 - intersect_vol; //since cell volume == 1, M*mass_defc should adjust the mass correctly
+                            //due to the nature of DexM it is impossible to be partially in two halos so we break here
+                            break;
+                        }
                     }
+                    //LOG_ULTRA_DEBUG("Cell delta %.2f -> (N,M) (%.2f,%.2e) overlap defc %.2f ps_ratio %.2f");
+                    hs_constants_priv.expected_M *= mass_defc/ps_ratio;
+                    hs_constants_priv.expected_N *= mass_defc/ps_ratio;
+                    // LOG_ULTRA_DEBUG("Starting sample %d (%d) with delta = %.2f cell, from %.2e to %.2e | %d"
+                    //                  ,x*lo_dim*lo_dim + y*lo_dim + z,lo_dim*lo_dim*lo_dim,delta,Mmin,Mmax,count);
+
+                    stoc_sample(&hs_constants_priv, rng_arr[threadnum], &nh_buf, hm_buf);
+
                     if(count + nh_buf > localarray_size){
                         LOG_ERROR("ran out of memory (%llu halos vs %llu array size)",count+nh_buf,localarray_size);
                         Throw(ValueError);
@@ -1203,15 +1219,15 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                         local_crd[2 + 3*count] = crd_hi[2];
                         count++;
                         M_cell += hm_buf[i];
-                        // if(!print_counter && threadnum==0){
-                        //     LOG_ULTRA_DEBUG("Halo %d Mass %.2e Stellar %.2e SFR %.2e",i,hm_buf[i],prop_buf[0],prop_buf[1]);
-                        // }
-                        LOG_ULTRA_DEBUG("Halo %d Mass %.2e Stellar %.2e SFR %.2e",i,hm_buf[i],prop_buf[0],prop_buf[1]);
+                        if(!print_counter && threadnum==0){
+                            LOG_ULTRA_DEBUG("Halo %d Mass %.2e Stellar %.2e SFR %.2e",i,hm_buf[i],prop_buf[0],prop_buf[1]);
+                        }
+                        //LOG_ULTRA_DEBUG("Halo %d Mass %.2e Stellar %.2e SFR %.2e",i,hm_buf[i],prop_buf[0],prop_buf[1]);
                     }
                     if(!print_counter && threadnum==0){
                         LOG_ULTRA_DEBUG("Total N %d Total M %.2e",nh_buf,M_cell);
                         print_counter = 1;
-                        //print_hs_consts(&hs_constants_priv);
+                        print_hs_consts(&hs_constants_priv);
                     }
                     //LOG_ULTRA_DEBUG("cell (%d,%d,%d) Done, %d (%.2f) halos, %.2e (%.2e) Mass",x,y,z,nh_buf,hs_constants_priv.expected_N,M_cell,hs_constants_priv.expected_M);
                 }
@@ -1334,12 +1350,9 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
 #pragma omp for
         for(ii=0;ii<nhalo_in;ii++){
             M2 = halofield_in->halo_masses[ii];
-            LOG_ULTRA_DEBUG("Setting consts for M = %.3e",M2);
+            //LOG_ULTRA_DEBUG("Setting consts for M = %.3e",M2);
             stoc_set_consts_cond(&hs_constants_priv,M2);
-
             //print_hs_consts(&hs_constants_priv);
-
-            if(hs_constants_priv.expected_M < Mmin*global_params.HALO_SAMPLE_FACTOR) continue;
             
             //find progenitor halos by sampling halo CMF                    
             //NOTE: MAXIMUM HERE (TO LIMIT PROGENITOR MASS) IS THE DESCENDANT MASS
@@ -1358,7 +1371,9 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
             for(jj=0;jj<n_prog;jj++){
                 if(prog_buf[jj] < Mmin*global_params.HALO_SAMPLE_FACTOR) continue; //save only halos some factor above minimum
 
-                update_halo_properties(rng_arr[threadnum], prog_buf[jj], &hs_constants_priv, propbuf_in, propbuf_out);    
+                //LOG_ULTRA_DEBUG("updating props");
+                update_halo_properties(rng_arr[threadnum], prog_buf[jj], &hs_constants_priv, propbuf_in, propbuf_out);
+                //LOG_ULTRA_DEBUG("Assigning");
 
                 local_hm[count] = prog_buf[jj];
                 local_crd[3*count + 0] = halofield_in->halo_coords[3*ii+0];
