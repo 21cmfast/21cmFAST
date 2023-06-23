@@ -30,7 +30,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     float *x_pos_offset = calloc(astro_params->N_RSD_STEPS,sizeof(float));
     float **delta_T_RSD_LOS = (float **)calloc(user_params->N_THREADS,sizeof(float *));
     for(i=0;i<user_params->N_THREADS;i++) {
-        delta_T_RSD_LOS[i] = (float *)calloc(user_params->HII_DIM,sizeof(float));
+        delta_T_RSD_LOS[i] = (float *)calloc(HII_D_PARA,sizeof(float));
     }
 
 
@@ -39,6 +39,8 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 #pragma omp for
         for (i=0; i<user_params->HII_DIM; i++){
             for (j=0; j<user_params->HII_DIM; j++){
+                for (k=0; k<HII_D_PARA; k++){
+                    *((float *)v + HII_R_FFT_INDEX(i,j,k)) = perturb_field->velocity[HII_R_INDEX(i,j,k)];
                 for (k=0; k<user_params->HII_DIM; k++){
                     *((float *)v + HII_R_FFT_INDEX(i,j,k)) = perturb_field->velocity_z[HII_R_INDEX(i,j,k)];
                 }
@@ -69,7 +71,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 #pragma omp for reduction(+:ave)
         for (i=0; i<user_params->HII_DIM; i++){
             for (j=0; j<user_params->HII_DIM; j++){
-                for (k=0; k<user_params->HII_DIM; k++){
+                for (k=0; k<HII_D_PARA; k++){
 
                     pixel_deltax = perturb_field->density[HII_R_INDEX(i,j,k)];
                     pixel_x_HI = ionized_box->xH_box[HII_R_INDEX(i,j,k)];
@@ -142,7 +144,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                 #pragma omp for
                 for (i=0; i<user_params->HII_DIM; i++){
                     for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
+                        for (k=0; k<HII_D_PARA; k++){
 
                             gradient_component = fabs(vel_gradient[HII_R_FFT_INDEX(i,j,k)]/H + 1.0);
                             real_index = HII_R_INDEX(i,j,k);

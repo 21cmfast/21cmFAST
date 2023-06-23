@@ -86,6 +86,8 @@ double species_weighted_x_ray_cross_section(double nu, double x_e);
 float zmax(float z, int n);
 
 //Lyman-Alpha heating functions
+int find_nearest_point(double min, double max, int n, double value);
+int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr);
 double interpolate_heating_efficiencies(double tk, double ts, double taugp, double *arrE);
 double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag);
 
@@ -1377,6 +1379,24 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
     return ans;
 }
 
+// Useful functions for effeciently navigating through the heating interpolation tables
+//find the nearest value
+int find_nearest_point(double min, double max, int n, double value){
+    int pos=0;
+    double dn = (max - min)/(n-1);
+    if (value<=(min+dn)) pos=0;              // ensures we are in the first point
+    else if (value>=max) pos = n-2;          // ensures we cannot exceed the maximum point
+    else pos = (int)floor((value - min)/dn); // round it down to ensure we are always either side of the cell boundary
+    return pos;
+}
+
+//find x-y-z position in an 1D array
+//x=Tk, y=Ts, z=Tau_GP
+int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr){
+    int pxyz = xpos*len_yarr*len_zarr + ypos*len_zarr + zpos;
+    return pxyz;
+}
+
 
 //Tri-linear interpolation function for Lyman-alpha heating efficiencies
 double interpolate_heating_efficiencies(double tk, double ts, double taugp, double *arrE) {
@@ -1403,23 +1423,6 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
     }
     if(taugp > taugp_max) {
         taugp = taugp_max;
-    }
-
-    //find the nearest value
-    int find_nearest_point(double min, double max, int n, double value){
-        int pos=0;
-        double dn = (max - min)/(n-1);
-        if (value<=(min+dn)) pos=0;              // ensures we are in the first point
-        else if (value>=max) pos = n-2;          // ensures we cannot exceed the maximum point
-        else pos = (int)floor((value - min)/dn); // round it down to ensure we are always either side of the cell boundary
-        return pos;
-	}
-
-    //find x-y-z position in an 1D array
-    //x=Tk, y=Ts, z=Tau_GP
-    int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr){
-        int pxyz = xpos*len_yarr*len_zarr + ypos*len_zarr + zpos;
-        return pxyz;
     }
 
     int itk, its, itaugp, idec;

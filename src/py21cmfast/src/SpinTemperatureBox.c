@@ -493,16 +493,21 @@ LOG_SUPER_DEBUG("Initialised heat");
         // read file
         #pragma omp parallel shared(this_spin_temp,xe,TK,redshift,perturbed_field, \
                                     inverse_growth_factor_z,growth_factor_zp,cT_ad) \
-                             private(i,j,k,curr_xalpha,gdens) \
+                             private(i,j,k,ct,curr_xalpha,gdens) \
                              num_threads(user_params->N_THREADS)
         {
-            #pragma omp for
-            for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
-                gdens = growthfac * perturbed_field->density[ct];
-                this_spin_temp->Tk_box[ct] = TK * (1.0 + cT_ad * gdens);
-                this_spin_temp->x_e_box[ct] = xe;
-                // compute the spin temperature
-                this_spin_temp->Ts_box[ct] = get_Ts(redshift, gdens, TK, xe, 0, &curr_xalpha);
+#pragma omp for
+            for (i=0; i<user_params->HII_DIM; i++){
+                for (j=0; j<user_params->HII_DIM; j++){
+                    for (k=0; k<HII_D_PARA; k++){
+                        ct=HII_R_INDEX(i,j,k);
+                        gdens = perturbed_field->density[ct]*growthfac;
+                        this_spin_temp->Tk_box[ct] = TK *(1.0 + cT_ad * gdens);
+                        this_spin_temp->x_e_box[ct] = xe;
+                        // compute the spin temperature
+                        this_spin_temp->Ts_box[ct] = get_Ts(redshift, gdens, TK, xe, 0, &curr_xalpha);
+                    }
+                }
             }
         }
 
@@ -556,7 +561,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                 #pragma omp for
                 for (i=0; i<user_params->HII_DIM; i++){
                     for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
+                        for (k=0; k<HII_D_PARA; k++){
                             *((float *)unfiltered_box + HII_R_FFT_INDEX(i,j,k)) = perturbed_field->density[HII_R_INDEX(i,j,k)];
                         }
                     }
@@ -565,7 +570,7 @@ LOG_SUPER_DEBUG("Initialised heat");
             LOG_DEBUG("Allocated unfiltered box");
 
             ////////////////// Transform unfiltered box to k-space to prepare for filtering /////////////////
-            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, unfiltered_box);
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, unfiltered_box);
             LOG_DEBUG("Done FFT on unfiltered box");
 
             // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
@@ -596,7 +601,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                     filter_box(box, 1, global_params.HEAT_FILTER, R);
                 }
                 // now fft back to real space
-                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, box);
+                dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box);
                 LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
 
                 min_density = 0.0;
@@ -610,7 +615,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                     #pragma omp for reduction(max:max_density) reduction(min:min_density)
                     for (i=0;i<user_params->HII_DIM; i++){
                         for (j=0;j<user_params->HII_DIM; j++){
-                            for (k=0;k<user_params->HII_DIM; k++){
+                            for (k=0;k<HII_D_PARA; k++){
                                 curr_delNL0 = *((float *)box + HII_R_FFT_INDEX(i,j,k));
 
                                 if (curr_delNL0 <= -1){ // correct for aliasing in the filtering step
@@ -930,7 +935,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                     #pragma omp for reduction(+:log10_Mcrit_LW_ave)
                     for (i=0; i<user_params->HII_DIM; i++){
                         for (j=0; j<user_params->HII_DIM; j++){
-                            for (k=0; k<user_params->HII_DIM; k++){
+                            for (k=0; k<HII_D_PARA; k++){
 
                                 if (flag_options->FIX_VCB_AVG){ //with this flag we ignore reading vcb box
                                     curr_vcb = global_params.VAVG;
@@ -959,7 +964,7 @@ LOG_SUPER_DEBUG("Initialised heat");
 
                 // NEED TO FILTER Mcrit_LW!!!
                 /*** Transform unfiltered box to k-space to prepare for filtering ***/
-                dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mcrit_LW_unfiltered);
+                dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, log10_Mcrit_LW_unfiltered);
 
                 #pragma omp parallel shared(log10_Mcrit_LW_unfiltered) \
                                      private(ct) \
@@ -1089,7 +1094,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                     if (R_ct > 0){// don't filter on cell size
                         filter_box(log10_Mcrit_LW_filtered, 1, global_params.HEAT_FILTER, R_values[R_ct]);
                     }
-                    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, log10_Mcrit_LW_filtered);
+                    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, log10_Mcrit_LW_filtered);
 
                     log10_Mcrit_LW_ave = 0; //recalculate it at this filtering scale
                     #pragma omp parallel shared(log10_Mcrit_LW,log10_Mcrit_LW_filtered,log10_Mcrit_mol) \
@@ -1098,7 +1103,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                         #pragma omp for reduction(+:log10_Mcrit_LW_ave)
                         for (i=0; i<user_params->HII_DIM; i++){
                             for (j=0; j<user_params->HII_DIM; j++){
-                                for (k=0; k<user_params->HII_DIM; k++){
+                                for (k=0; k<HII_D_PARA; k++){
                                     log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] = *((float *) log10_Mcrit_LW_filtered + HII_R_FFT_INDEX(i,j,k));
                                     if(log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] < log10_Mcrit_mol)
                                         log10_Mcrit_LW[R_ct][HII_R_INDEX(i,j,k)] = log10_Mcrit_mol;
@@ -1701,7 +1706,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                         filter_box(box, 1, global_params.HEAT_FILTER, R_values[R_ct]);
                     }
                     // now fft back to real space
-                    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, box);
+                    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box);
                     LOG_ULTRA_DEBUG("Executed FFT for R=%f", R_values[R_ct]);
 
                     // copy over the values
@@ -1712,7 +1717,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                         #pragma omp for
                         for (i=0;i<user_params->HII_DIM; i++){
                             for (j=0;j<user_params->HII_DIM; j++){
-                                for (k=0;k<user_params->HII_DIM; k++){
+                                for (k=0;k<HII_D_PARA; k++){
                                     curr_delNL0 = *((float *)box + HII_R_FFT_INDEX(i,j,k));
 
                                     if (curr_delNL0 <= -1){ // correct for aliasing in the filtering step
