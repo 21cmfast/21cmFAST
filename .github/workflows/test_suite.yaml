@@ -65,7 +65,7 @@ jobs:
         if: "contains(env.commit_message, 'ci debug')"
         run: |
           echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
-          echo "extra_pytest_args='-s -k mdz_tsfluct_nthreads --log-level-21=DEBUG'" >> $GITHUB_ENV
+          echo "extra_pytest_args=-s -k mdz_tsfluct_nthreads --log-level-21=DEBUG" >> $GITHUB_ENV
 
       - name: Make it a Normal Run
         if: "!contains(env.commit_message, 'ci debug')"
@@ -91,7 +91,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          python -m pytest -n 2 -l --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 ${{ env.extra_pytest_args }}
+          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
 
       - uses: codecov/codecov-action@v3
         if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
