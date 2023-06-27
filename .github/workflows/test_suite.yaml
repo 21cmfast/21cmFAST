@@ -64,7 +64,7 @@ jobs:
         if: "contains(github.event.payload.commits[0].message, 'ci debug')"
         run: |
           echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
-          echo "extra_pytest_args='-s -k test_perturb_field_data --log-level-21=DEBUG'" >> $GITHUB_ENV
+          echo "extra_pytest_args='-s -k mdz_tsfult_nthreads --log-level-21=DEBUG'" >> $GITHUB_ENV
 
       - name: 'Log Commit Message'
         run: echo ${{ github.event.commits[0].message }}
