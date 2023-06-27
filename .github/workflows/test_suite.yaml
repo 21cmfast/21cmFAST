@@ -35,7 +35,13 @@ jobs:
     steps:
       - uses: actions/checkout@master
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+
+      - name: Print head git commit message
+        id: get_head_commit_message
+        run: echo "commit_message=$(git show -s --format=%s)" >> "$GITHUB_ENV"
+
       - name: Setup Miniconda
         uses: conda-incubator/setup-miniconda@v2.1.1
         with:
@@ -55,22 +61,14 @@ jobs:
           conda config --show
           printenv | sort
 
-      - name: Logging
-        run: |
-          echo "${{toJSON(github.event)}}"
-          echo "${{ github.event.commits }}"
-          echo "${{ github.event.commits[0] }}"
-          echo "${{ github.event.head_commit.message }}"
-
-
       - name: Make it a Debug Run
-        if: "contains(github.event.head_commit.message, 'ci debug')"
+        if: "contains(env.commit_message, 'ci debug')"
         run: |
           echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
           echo "extra_pytest_args='-s -k mdz_tsfluct_nthreads --log-level-21=DEBUG'" >> $GITHUB_ENV
 
       - name: Make it a Normal Run
-        if: "!contains(github.event.head_commit.message, 'ci debug')"
+        if: "!contains(env.commit_message, 'ci debug')"
         run: |
           echo "log_level=INFO" >> $GITHUB_ENV
           echo "extra_pytest_args=" >> $GITHUB_ENV
