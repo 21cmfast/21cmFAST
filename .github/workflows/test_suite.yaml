@@ -57,20 +57,20 @@ jobs:
 
       - name: Logging
         run: |
-          echo ${{ github.event.commits }}
-          echo ${{ github.event.commits[0] }}
+          echo "${{toJSON(github.event)}}"
+          echo "${{ github.event.commits }}"
+          echo "${{ github.event.commits[0] }}"
+          echo "${{ github.event.head_commit.message }}"
+
 
       - name: Make it a Debug Run
-        if: "contains(github.event.payload.commits[0].message, 'ci debug')"
+        if: "contains(github.event.head_commit.message, 'ci debug')"
         run: |
           echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
-          echo "extra_pytest_args='-s -k mdz_tsfult_nthreads --log-level-21=DEBUG'" >> $GITHUB_ENV
-
-      - name: 'Log Commit Message'
-        run: echo ${{ github.event.commits[0].message }}
+          echo "extra_pytest_args='-s -k mdz_tsfluct_nthreads --log-level-21=DEBUG'" >> $GITHUB_ENV
 
       - name: Make it a Normal Run
-        if: "!contains(github.event.commits[0].message, 'ci debug')"
+        if: "!contains(github.event.head_commit.message, 'ci debug')"
         run: |
           echo "log_level=INFO" >> $GITHUB_ENV
           echo "extra_pytest_args=" >> $GITHUB_ENV
