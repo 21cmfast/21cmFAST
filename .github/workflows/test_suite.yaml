@@ -65,7 +65,7 @@ jobs:
         if: "contains(env.commit_message, 'ci debug')"
         run: |
           echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
-          echo "extra_pytest_args=-s -k mdz_tsfluct_nthreads --log-level-21=DEBUG" >> $GITHUB_ENV
+          echo "extra_pytest_args=-s -k "test_power_spectra_lightcone[mdz_tsfluct_nthreads]" --log-level-21=DEBUG" >> $GITHUB_ENV
 
       - name: Make it a Normal Run
         if: "!contains(env.commit_message, 'ci debug')"
