@@ -94,7 +94,7 @@ jobs:
           python -m pytest -n 2 -l ${{ env.extra_pytest_args }} --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25
 
       - name: Archive Integration Test Plots
-        if: "contains(env.commit_message, 'ci debug')"
+        if: contains(env.commit_message, 'ci debug')
         uses: actions/upload-artifact@v3
         with:
           name: integration-test-plots
