@@ -97,7 +97,7 @@ jobs:
         if: always() && contains(env.commit_message, 'ci debug')
         uses: actions/upload-artifact@v3
         with:
-          name: integration-test-plots
+          name: integration-test-plots-${{ matrix.os }}-${{ matrix.python-version }}
           path: |
             testplots/*.pdf
 
