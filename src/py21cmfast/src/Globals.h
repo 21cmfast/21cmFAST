@@ -90,6 +90,7 @@ struct GlobalParams{
     int N_DELTA_INTERP;
     int N_PROB_INTERP;
     double MIN_LOGPROB;
+    int SAMPLE_METHOD;
 
     bool USE_ADIABATIC_FLUCTUATIONS;
 };
@@ -173,6 +174,7 @@ extern struct GlobalParams global_params = {
     .N_DELTA_INTERP = 500,
     .N_PROB_INTERP = 500,
     .MIN_LOGPROB = -12,
+    .SAMPLE_METHOD = 0,
     
     .USE_ADIABATIC_FLUCTUATIONS = 1,
 };

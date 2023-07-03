@@ -809,8 +809,14 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                     filter_box(N_rec_filtered, 1, global_params.HII_FILTER, R);
                 }
                 if (flag_options->USE_HALO_FIELD) {
-                    filter_box(stars_filtered, 1, global_params.HII_FILTER, R);
-                    filter_box(sfr_filtered, 1, global_params.HII_FILTER, R);
+                    if(flag_options->USE_EXP_FILTER){
+                        filter_box_mfp(stars_filtered, 1, R, astro_params->EXP_FILTER_MFP);
+                        filter_box_mfp(sfr_filtered, 1, R, astro_params->EXP_FILTER_MFP);
+                    }
+                    else{
+                        filter_box(stars_filtered, 1, global_params.HII_FILTER, R);
+                        filter_box(sfr_filtered, 1, global_params.HII_FILTER, R);
+                    }
                 }
                 filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
                 if(flag_options->USE_MINI_HALOS){

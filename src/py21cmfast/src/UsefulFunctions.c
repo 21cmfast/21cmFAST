@@ -51,6 +51,61 @@ float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
     return T_HI * res_xH + global_params.T_RE * (1. - res_xH);
 }
 
+//filter_box, filter_box_annulus and filter_box_mfp should be combined in a better way, they require different inputs
+//and they are run on different subsets of the boxes but they contain a lot of the same math
+void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
+    int n_x, n_z, n_y, dimension,midpoint;
+    float k_x, k_y, k_z, k_mag, f, kR, kl, bterm;
+    float const1;
+    const1 = exp(-R/mfp); //independent of k, move it out of the loop
+
+    switch(RES) {
+        case 0:
+            dimension = user_params_ufunc->DIM;
+            midpoint = MIDDLE;
+            break;
+        case 1:
+            dimension = user_params_ufunc->HII_DIM;
+            midpoint = HII_MIDDLE;
+            break;
+    }
+    // loop through k-box
+
+#pragma omp parallel shared(box) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,kR,kl,f,bterm) num_threads(user_params_ufunc->N_THREADS)
+    {
+#pragma omp for
+        for (n_x=0; n_x<dimension; n_x++){
+            if (n_x>midpoint) {k_x =(n_x-dimension) * DELTA_K;}
+            else {k_x = n_x * DELTA_K;}
+
+            for (n_y=0; n_y<dimension; n_y++){
+                if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
+                else {k_y = n_y * DELTA_K;}
+                for (n_z=0; n_z<=midpoint; n_z++){
+                    k_z = n_z * DELTA_K;
+
+                    k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
+
+                    kR = k_mag*R;
+                    kl = k_mag*mfp;
+
+                    //Davies & Furlanetto MFP-eps(r) window function
+                    //TODO: optimize
+                    if (kR > 1e-4){
+                        f = -3.0*mfp/(kR*R*R*(kl*kl+1)*(kl*kl+1));
+                        bterm = const1*(kl*cos(kR)*(kl*kl*R + 2*mfp + R) + (-kl*kl*mfp + kl*kl*R + mfp + R)*sin(kR)) - 2*kl*mfp;
+                        f *= bterm;
+
+                        if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= f; }
+                        if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= f; }
+                    }
+                }
+            }
+        } // end looping through k box
+    }
+    return;
+}
+
 void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_outer){
     int n_x, n_z, n_y, dimension,midpoint;
     float k_x, k_y, k_z, k_mag, kRinner, kRouter;
@@ -72,16 +127,13 @@ void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_oute
     {
 #pragma omp for
         for (n_x=0; n_x<dimension; n_x++){
-//        for (n_x=dimension; n_x--;){
             if (n_x>midpoint) {k_x =(n_x-dimension) * DELTA_K;}
             else {k_x = n_x * DELTA_K;}
 
             for (n_y=0; n_y<dimension; n_y++){
-//            for (n_y=dimension; n_y--;){
                 if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
                 else {k_y = n_y * DELTA_K;}
 
-//                for (n_z=(midpoint+1); n_z--;){
                 for (n_z=0; n_z<=midpoint; n_z++){
                     k_z = n_z * DELTA_K;
 

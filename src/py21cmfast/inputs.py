@@ -303,6 +303,12 @@ class GlobalParams(StructInstanceWrapper):
         Number of probability bins for the sampler interpolation tables.
     MIN_LOGPROB:
         Lower limit (in log probability) of the inverse CDF table.
+    SAMPLE_METHOD:
+        Sampling method to use for stochastic halos: 
+            0: Mass sampling from CMF
+            1: N_halo sampling from CMF
+            2: Sheth & Lemson 99 Fcoll sampling
+            3: Darkforest (Qiu+20) binary splitting
     """
 
     def __init__(self, wrapped, ffi):
@@ -477,10 +483,6 @@ class UserParams(StructWithDefaults):
     MINIMIZE_MEMORY: bool, optional
         If set, the code will run in a mode that minimizes memory usage, at the expense
         of some CPU/disk-IO. Good for large boxes / small computers.
-    STOC_INVERSE: bool, optional
-        Sets the halo mass sampling to the inverse CMF sampling, as opposed to rejection sampling
-        this should be better in every way, but is only usable with interpolation tables since the
-        integral would otherwise take too long. (THIS FLAG WILL SOON BE REMOVED AND REPLACED WITH USE_INTERPOLATION_TABLES)
     STOC_MINIMUM_Z: float, optional
         The minimum (first) redshift at which to calculate the halo boxes, will behave as follows:
         If STOC_MINIMUM_Z is set, we step DOWN from the requested redshift by ZPRIME_STEP_FACTOR
@@ -509,7 +511,6 @@ class UserParams(StructWithDefaults):
         "FAST_FCOLL_TABLES": False,
         "USE_2LPT": True,
         "MINIMIZE_MEMORY": False,
-        "STOC_INVERSE": True,
         "STOC_MINIMUM_Z": None,
     }
 
@@ -631,17 +632,6 @@ class UserParams(StructWithDefaults):
         )
         return False
 
-    @property
-    def STOC_INVERSE(self):
-        """Check that USE_INTERPOLATION_TABLES is True."""
-        if self._STOC_INVERSE and not self.USE_INTERPOLATION_TABLES:
-            logger.warning(
-                "You cannot turn on STOC_INVERSE without USE_INTERPOLATION_TABLES. Switching to rejection sampling..."
-            )
-            return False
-        else:
-            return self._STOC_INVERSE
-
 
 class FlagOptions(StructWithDefaults):
     """
@@ -692,6 +682,10 @@ class FlagOptions(StructWithDefaults):
     HALO_STOCHASTICITY: bool, optional
         Sample the Conditional Halo Mass Function and sum over the sample instead of integrating it.
         This allows us to include stochasticity in other properties
+    USE_EXP_FILTER: bool, optional
+        Use the exponential filter (MFP-epsilon(r) from Davies & Furlanetto 2021) when calculating ionising emissivity fields
+        NOTE: this does not affect other field filters, and should probably be used with HII_FILTER==0 (real-space top-hat)
+        TODO: add a warning when you use HII_FILTER != 0 with this option
     """
 
     _ffi = ffi
@@ -709,6 +703,7 @@ class FlagOptions(StructWithDefaults):
         "PHOTON_CONS": False,
         "FIX_VCB_AVG": False,
         "HALO_STOCHASTICITY": False,
+        "USE_EXP_FILTER": False,
     }
 
     @property
@@ -900,6 +895,9 @@ class AstroParams(StructWithDefaults):
         Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Sec 2 of Muñoz+21 (2110.13919).
     A_VCB, BETA_VCB: float, optional
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Sec 2 of Muñoz+21 (2110.13919).
+    EXP_FILTER_MFP: double, optional
+        Mean-free path to use in the exponential HII_FILTER (only has an effect when USE_EXP_FILTER==True) (Davies & Furlanetto 2021 MFP-epsilon(r) method)
+        TODO: I've been told there's already a z-dependent MFP in ionised regions in some version I should combine this with
     """
 
     _ffi = ffi
@@ -932,6 +930,7 @@ class AstroParams(StructWithDefaults):
         "BETA_LW": 0.6,
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
+        "EXP_FILTER_MFP": 20,
     }
 
     def __init__(

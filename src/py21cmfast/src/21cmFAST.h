@@ -65,6 +65,7 @@ struct AstroParams{
     double BETA_LW;
     double A_VCB;
     double BETA_VCB;
+    double EXP_FILTER_MFP;
 
     float t_STAR;
 
@@ -86,6 +87,7 @@ struct FlagOptions{
     bool PHOTON_CONS;
     bool FIX_VCB_AVG;
     bool HALO_STOCHASTICITY;
+    bool USE_EXP_FILTER;
 };
 
 
@@ -216,6 +218,12 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
 
 int PhotonCons_Calibration(double *z_estimate, double *xH_estimate, int NSpline);
 int ComputeZstart_PhotonCons(double *zstart);
+
+//(jdavies): I need this to be accessible in python to pass the right haloboxes to IonizeBox
+float adjust_redshifts_for_photoncons(
+    struct AstroParams *astro_params, struct FlagOptions *flag_options, float *redshift,
+    float *stored_redshift, float *absolute_delta_z
+);
 
 int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analytic, double *z_cal_data, double *nf_cal_data, int *Ndata_calibration,
                          double *PhotonCons_NFdata, double *PhotonCons_deltaz, int *Ndata_PhotonCons);
