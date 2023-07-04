@@ -1516,7 +1516,7 @@ def halo_box(
 
         # Dynamically produce the halo list.
         # This uses default descendant behaviour, stepping from STOC_MINIMUM_Z to redshift
-        if flag_options.HALO_STOCHASTICITY:
+        if not flag_options.FIXED_HALO_GRIDS:
             if not isinstance(perturbed_field,PerturbedField) or not perturbed_field.is_computed:
                 perturbed_field = PerturbedField(redshift=0,
                         user_params=user_params,
@@ -2104,7 +2104,7 @@ def ionize_box(
             regen_halos = regenerate and prev_z == 0
             logger.info(f'z: {redshift} | regen {regenerate} | regen_halos {regen_halos}')
             raise NotImplementedError('Auto generation of halo fields for Ts is WIP')
-            if flag_options.HALO_STOCHASTICITY:
+            if not flag_options.FIXED_HALO_GRIDS:
                 #determine_halo_list will generate the descendant fields
                 #perturb and box only generate the current redshift
                 halo_field = determine_halo_list(
@@ -2455,7 +2455,7 @@ def spin_temperature(
                 #we only want to regenerate the halos on the first recursion, either at Z_HEAT_MAX or when we find a cached box
                 #in either case previous_spin_temp should be None
                 #SEE ISSUES & COMMENTS IN ionize_box!!!!!!!!!!!!!
-                if flag_options.HALO_STOCHASTICITY:
+                if not flag_options.FIXED_HALO_GRIDS:
                     halo_field = determine_halo_list(
                         redshift=redshift,
                         init_boxes=init_boxes,
@@ -2881,7 +2881,7 @@ def run_coeval(
                 perturb.append(p)
 
             for z in z_halos[::-1]:
-                if flag_options.HALO_STOCHASTICITY:
+                if not flag_options.FIXED_HALO_GRIDS:
                     halos = determine_halo_list(
                         redshift=z,
                         init_boxes=init_box,
@@ -2920,7 +2920,7 @@ def run_coeval(
                     regenerate=regenerate,
                     init_boxes=init_box,
                     pt_halos=pt_halos,
-                    perturbed_field=perturb[z_halos.index(z)] if not flag_options.HALO_STOCHASTICITY else None,
+                    perturbed_field=perturb[z_halos.index(z)] if flag_options.FIXED_HALO_GRIDS else None,
                     hooks=hooks,
                     direc=direc,
                 )]
@@ -3439,7 +3439,7 @@ def run_lightcone(
                 perturb.append(p)
 
             for iz,z in enumerate(z_halos[::-1]):
-                if flag_options.HALO_STOCHASTICITY:
+                if not flag_options.FIXED_HALO_GRIDS:
                     halo_field = determine_halo_list(
                         redshift=z,
                         init_boxes=init_box,

@@ -88,6 +88,7 @@ struct FlagOptions{
     bool FIX_VCB_AVG;
     bool HALO_STOCHASTICITY;
     bool USE_EXP_FILTER;
+    bool FIXED_HALO_GRIDS;
 };
 
 

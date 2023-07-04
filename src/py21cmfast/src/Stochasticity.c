@@ -1768,6 +1768,9 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
 
 //This, for the moment, grids the PERTURBED halo catalogue.
 //TODO: make a way to output both types by making 2 wrappers to this function that pass in arrays rather than structs
+//NOTE: this function is quite slow to generate fixed halo boxes, however I don't mind since it's a debug case
+//  If we want to make it faster just replace the integrals with the existing interpolation tables
+//TODO: I should also probably completely separate the fixed and sampled grids into two functions which this calls
 int ComputeHaloBox(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params
                     , struct FlagOptions * flag_options, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos
                     , struct HaloBox *grids){
@@ -1793,7 +1796,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         //TODO: PS_RATIO Term
 
         //calculate expected average halo box, for mean halo box fixing and debugging
-        if(!flag_options->HALO_STOCHASTICITY || LOG_LEVEL >= DEBUG_LEVEL){
+        if(flag_options->FIXED_HALO_GRIDS || LOG_LEVEL >= DEBUG_LEVEL){
             init_ps();
             
             M_min = minimum_source_mass(redshift,astro_params,flag_options);
@@ -1833,7 +1836,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         //the condition mass is at mean density, but the total cell mass is multiplied by delta 
         //This part mimics that behaviour
         //TODO: interpolation tables here (although the mean boxes are just a test)
-        if(!flag_options->HALO_STOCHASTICITY){
+        if(flag_options->FIXED_HALO_GRIDS){
             LOG_DEBUG("Mean halo boxes || Mmin = %.2e | Mmax = %.2e (s=%.2e) | z = %.2e | D = %.2e | cellvol = %.2e",M_min,M_max,sigma_max,redshift,growth_z,volume);
 #pragma omp parallel num_threads(user_params->N_THREADS)
             {
@@ -1855,9 +1858,9 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     //turn into one large halo if we exceed the critical
                     //Since these are perturbed (Eulerian) grids, I use the total cell mass (1+dens)
                     else if(dens>=MAX_DELTAC_FRAC*Deltac){
-                        mass = M_max * (1+dens);
-                        wstar = M_max * (1+dens) * cosmo_params->OMb / cosmo_params->OMm * norm_star * pow(M_max*(1+dens)/1e10,alpha_star) * norm_esc * pow(M_max*(1+dens)/1e10,alpha_esc);
-                        sfr = M_max * (1+dens) * cosmo_params->OMb / cosmo_params->OMm * norm_star * pow(M_max*(1+dens)/1e10,alpha_star) / t_star / t_hubble(redshift);
+                        mass = M_max * (1+dens) / volume;
+                        wstar = M_max * (1+dens) * cosmo_params->OMb / cosmo_params->OMm * norm_star * pow(M_max*(1+dens)/1e10,alpha_star) * norm_esc * pow(M_max*(1+dens)/1e10,alpha_esc) / volume;
+                        sfr = M_max * (1+dens) * cosmo_params->OMb / cosmo_params->OMm * norm_star * pow(M_max*(1+dens)/1e10,alpha_star) / t_star / t_hubble(redshift) / volume;
                         h_count = 1;
                     }
                     else{
@@ -1974,7 +1977,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             }
         }
 
-        if(user_params->USE_INTERPOLATION_TABLES && (!flag_options->HALO_STOCHASTICITY || LOG_LEVEL >= DEBUG_LEVEL)){
+        if(user_params->USE_INTERPOLATION_TABLES && (flag_options->FIXED_HALO_GRIDS|| LOG_LEVEL >= DEBUG_LEVEL)){
                 freeSigmaMInterpTable();
         }
 

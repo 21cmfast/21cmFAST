@@ -686,6 +686,14 @@ class FlagOptions(StructWithDefaults):
         Use the exponential filter (MFP-epsilon(r) from Davies & Furlanetto 2021) when calculating ionising emissivity fields
         NOTE: this does not affect other field filters, and should probably be used with HII_FILTER==0 (real-space top-hat)
         TODO: add a warning when you use HII_FILTER != 0 with this option
+    FIXED_HALO_GRIDS: bool, optional
+        When USE_HALO_FIELD is True, this flag bypasses the sampler, and calculates fixed grids of halo mass, stellar mass etc
+        analagous to FFRT-P (Davies & Furlanetto 2021) or ESF-E (Trac et al 2021), This flag has no effect is USE_HALO_FIELD is False
+        With USE_HALO_FIELD: (FIXED_HALO_GRIDS,HALO_STOCHASTICITY):
+                                (0,0): DexM only,
+                                (0,1): Halo Sampler,
+                                (1,?): FFRT-P fixed halo grids
+        TODO:add an ESF-L Method (perturb halo mass grids after fixed Lagrangian Fcoll)
     """
 
     _ffi = ffi
@@ -704,6 +712,7 @@ class FlagOptions(StructWithDefaults):
         "FIX_VCB_AVG": False,
         "HALO_STOCHASTICITY": False,
         "USE_EXP_FILTER": False,
+        "FIXED_HALO_GRIDS": False,
     }
 
     @property
