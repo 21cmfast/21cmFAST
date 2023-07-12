@@ -3691,7 +3691,11 @@ void determine_deltaz_for_photoncons() {
     // A lot of the steps and choices are not completely rubust, just chosed to smooth/average the data to have smoother resultant reionisation histories
 
     // Determine the number of extrapolated points required, if required at all.
-    if(calibrated_NF_min < global_params.PhotonConsEnd) {
+    if(!global_params.PhotonConsSmoothing){
+        NF_sample_min = global_params.PhotonConsAsymptoteTo;
+        N_extrapolated = 0;
+    }
+    else if(calibrated_NF_min < global_params.PhotonConsEnd) {
         // We require extrapolation, set minimum point to the threshold, and extrapolate beyond.
         NF_sample_min = global_params.PhotonConsEnd;
 
@@ -3741,6 +3745,32 @@ void determine_deltaz_for_photoncons() {
     }
 
     // Determining the end-point (lowest neutral fraction) for the photon non-conservation correction
+    if(!global_params.PhotonConsSmoothing){
+        NeutralFractions[0] = 0.999*NF_sample_min;
+        if(deltaz[1] < deltaz[2])
+            deltaz[0] = 0.999*deltaz[1];
+        else
+            deltaz[0] = 1.001*deltaz[1];
+
+        N_deltaz = N_NFsamples + N_extrapolated + 1;
+
+        // Now, we can construct the spline of the photon non-conservation correction (delta z as a function of neutral fraction)
+        deltaz_spline_for_photoncons_acc = gsl_interp_accel_alloc ();
+        deltaz_spline_for_photoncons = gsl_spline_alloc (gsl_interp_linear, N_NFsamples + N_extrapolated + 1);
+
+        gsl_set_error_handler_off();
+        int gsl_status;
+        gsl_status = gsl_spline_init(deltaz_spline_for_photoncons, NeutralFractions, deltaz, N_NFsamples + N_extrapolated + 1);
+        if(gsl_status){
+            for(i=0;i<N_NFsamples+1;i++){
+                LOG_ERROR("NF %.3f dz %.3f",NeutralFractions[i],deltaz[i]);
+            }
+        }
+        GSL_ERROR(gsl_status);
+        return;
+    }
+    
+    //SMOOTHING STUFF HERE
     if(calibrated_NF_min >= global_params.PhotonConsEnd) {
 
         increasing_val = 0;
@@ -3762,6 +3792,7 @@ void determine_deltaz_for_photoncons() {
         NeutralFractions[0] = 0.999*NF_sample_min;
         if(increasing_val) {
             // Values of delta z are always increasing with decreasing neutral fraction thus make the last point slightly larger
+            //NOTE (jdavies): since Neutralfractions[] is increasing, isnt this backwards???
             deltaz[0] = 1.001*deltaz[1];
         }
         else {
@@ -3879,7 +3910,7 @@ void determine_deltaz_for_photoncons() {
 
         for(i=0;i<(N_NFsamples+N_extrapolated);i++) {
 
-            val1 = deltaz[0];
+            val1 = deltaz[0]; //NOTE (jdavies): should this be deltaz[i]????
             val2 = deltaz[i+1];
 
             counter = 0;

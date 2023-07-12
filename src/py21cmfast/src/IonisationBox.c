@@ -775,7 +775,6 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             if ( ((R/(global_params.DELTA_R_HII_FACTOR) - cell_length_factor*(user_params->BOX_LEN)/(float)(user_params->HII_DIM)) <= FRACT_FLOAT_ERR) || \
                     ((R/(global_params.DELTA_R_HII_FACTOR) - global_params.R_BUBBLE_MIN) <= FRACT_FLOAT_ERR) ) {
                 LAST_FILTER_STEP = 1;
-                LOG_ULTRA_DEBUG("debug777");
                 R = fmax(cell_length_factor*user_params->BOX_LEN/(double)(user_params->HII_DIM), global_params.R_BUBBLE_MIN);
             }
 
@@ -1060,6 +1059,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 *((float *)sfr_filtered + HII_R_FFT_INDEX(x,y,z)) = fmaxf(
                                        *((float *)sfr_filtered + HII_R_FFT_INDEX(x,y,z)) , 0.0);
 
+                                //The adjustment to the numerator of Fcoll is done by loading the later halobox
+                                //The adjustment to the denominator is already done, no need for any more adjusments here
                                 density_over_mean = 1.0 + *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
                                 //Now this is F_esc weighted stellar mass density / baryon density == f_esc weighted fraction of stars
@@ -1532,7 +1533,9 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                             // use the original density and redshift for the snapshot (not the adjusted redshift)
                             // Only want to use the adjusted redshift for the ionisation field
-                            curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x, y, z)]) / adjustment_factor;
+                            //NOTE: but the structure field wasn't adjusted, this seems wrong
+                            // curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x, y, z)]) / adjustment_factor;
+                            curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x, y, z)]);
                             z_eff = pow(curr_dens, 1.0 / 3.0);
 
                             if (flag_options->PHOTON_CONS) {

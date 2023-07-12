@@ -2970,6 +2970,7 @@ def run_coeval(
                         user_params=user_params,
                         random_seed=random_seed, #needed since no boxes in memory
                         z_halos=redshifts[::-1],
+                        regenerate=regenerate,
                         hboxes=halobox[::-1])
 
                 st2 = spin_temperature(
@@ -3521,6 +3522,7 @@ def run_lightcone(
                             user_params=user_params,
                             random_seed=random_seed, #needed since no boxes in memory
                             z_halos=scrollz[::-1],
+                            regenerate=regenerate,
                             hboxes=hboxes[::-1])
 
             if flag_options.USE_TS_FLUCT:

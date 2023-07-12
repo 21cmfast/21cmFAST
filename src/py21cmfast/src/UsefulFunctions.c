@@ -55,7 +55,7 @@ float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
 //and they are run on different subsets of the boxes but they contain a lot of the same math
 void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
     int n_x, n_z, n_y, dimension,midpoint;
-    float k_x, k_y, k_z, k_mag, f, kR, kl, bterm;
+    float k_x, k_y, k_z, k_mag, f, kR, kl;
     float const1;
     const1 = exp(-R/mfp); //independent of k, move it out of the loop
 
@@ -71,7 +71,7 @@ void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
     }
     // loop through k-box
 
-#pragma omp parallel shared(box) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,kR,kl,f,bterm) num_threads(user_params_ufunc->N_THREADS)
+#pragma omp parallel shared(box) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,kR,kl,f) num_threads(user_params_ufunc->N_THREADS)
     {
 #pragma omp for
         for (n_x=0; n_x<dimension; n_x++){
@@ -81,8 +81,8 @@ void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
             for (n_y=0; n_y<dimension; n_y++){
                 if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
                 else {k_y = n_y * DELTA_K;}
-                for (n_z=0; n_z<=midpoint; n_z++){
-                    k_z = n_z * DELTA_K;
+                for (n_z=0; n_z<=(unsigned long long)(user_params_ufunc->NON_CUBIC_FACTOR*midpoint); n_z++){
+                    k_z = n_z * DELTA_K_PARA;
 
                     k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
 
@@ -91,14 +91,20 @@ void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
 
                     //Davies & Furlanetto MFP-eps(r) window function
                     //TODO: optimize
-                    if (kR > 1e-4){
-                        f = -3.0*mfp/(kR*R*R*(kl*kl+1)*(kl*kl+1));
-                        bterm = const1*(kl*cos(kR)*(kl*kl*R + 2*mfp + R) + (-kl*kl*mfp + kl*kl*R + mfp + R)*sin(kR)) - 2*kl*mfp;
-                        f *= bterm;
+                    //The filter no longer approaches 1 at k->0, so we can't use the limit
+                    //TODO: find the limit in terms of R,mfp and use it to optimize
+                    //if (kR > 1e-4){
 
-                        if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= f; }
-                        if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= f; }
-                    }
+                    //build the filter
+                    f = (kl*kl*R + 2*mfp + R)*kl*cos(kR);
+                    f += (-kl*kl*mfp + kl*kl*R + mfp + R)*sin(kR);
+                    f *= const1;
+                    f -= 2*kl*mfp;
+                    f *= -3.0*mfp/(kR*R*R*(kl*kl+1)*(kl*kl+1));
+
+                    if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= f; }
+                    if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= f; }
+                    // }
                 }
             }
         } // end looping through k box
@@ -134,8 +140,8 @@ void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_oute
                 if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
                 else {k_y = n_y * DELTA_K;}
 
-                for (n_z=0; n_z<=midpoint; n_z++){
-                    k_z = n_z * DELTA_K;
+                for (n_z=0; n_z<=(unsigned long long)(user_params_ufunc->NON_CUBIC_FACTOR*midpoint); n_z++){
+                    k_z = n_z * DELTA_K_PARA;
 
                     k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
 
@@ -654,9 +660,10 @@ void writeCosmoParams(struct CosmoParams *p){
 void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p){
 
     if(fo->USE_MASS_DEPENDENT_ZETA) {
-        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, ALPHA_STAR_MINI=%f, F_ESC10=%f (F_ESC7_MINI=%f), ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%e (L_X_MINI=%e), NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f (F_STAR7_MINI=%f), t_STAR=%f, N_RSD_STEPS=%f]",
+        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, ALPHA_STAR_MINI=%f, F_ESC10=%f (F_ESC7_MINI=%f), ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%e (L_X_MINI=%e), NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f (F_STAR7_MINI=%f), t_STAR=%f, N_RSD_STEPS=%f, SIGMA_STAR=%f, SIGMA_SFR %f CORR_STAR %f CORR_SFR %f EXP_FILTER_MFP %f]",
              p->HII_EFF_FACTOR, p->ALPHA_STAR, p->ALPHA_STAR_MINI, p->F_ESC10,p->F_ESC7_MINI, p->ALPHA_ESC, p->M_TURN,
-             p->R_BUBBLE_MAX, p->L_X, p->L_X_MINI, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->F_STAR7_MINI, p->t_STAR, p->N_RSD_STEPS);
+             p->R_BUBBLE_MAX, p->L_X, p->L_X_MINI, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->F_STAR7_MINI, p->t_STAR, p->N_RSD_STEPS,
+             p->SIGMA_STAR, p->SIGMA_SFR, p->CORR_STAR, p->CORR_SFR, p->EXP_FILTER_MFP);
     }
     else {
         LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ION_Tvir_MIN=%f, X_RAY_Tvir_MIN=%f, R_BUBBLE_MAX=%f, L_X=%e, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, t_STAR=%f, N_RSD_STEPS=%f]",
@@ -666,8 +673,8 @@ void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p){
 }
 
 void writeFlagOptions(struct FlagOptions *p){
-    LOG_INFO("FlagOptions: [USE_HALO_FIELD=%d, USE_MINI_HALOS=%d, USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d, M_MIN_in_Mass=%d, PHOTON_CONS=%d]",
-           p->USE_HALO_FIELD, p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->PHOTON_CONS);
+    LOG_INFO("FlagOptions: [USE_HALO_FIELD=%d, USE_MINI_HALOS=%d, USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d, M_MIN_in_Mass=%d, PHOTON_CONS=%d, HALO_STOCHASTICITY=%d, FIXED_HALO_GRIDS=%d, USE_EXP_FILTER=%d]",
+           p->USE_HALO_FIELD, p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->PHOTON_CONS, p->HALO_STOCHASTICITY, p->FIXED_HALO_GRIDS, p->USE_EXP_FILTER);
 }
 
 

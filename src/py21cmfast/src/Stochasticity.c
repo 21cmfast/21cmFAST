@@ -161,7 +161,7 @@ double EvaluateFgtrM(double growthf, double lnM, double del_bias, double sig_bia
     del = (Deltac - del_bias)/growthf;
 
     if(del < 0){
-        LOG_ERROR("error in FgtrM: condition sigma %.3e delta %.3e arg sigma %.3e delta %.3e",sig_bias,del_bias,sigsmallR,Deltac);
+        LOG_ERROR("error in FgtrM: condition sigma %.3e delta %.3e sigma %.3e delta %.3e",sig_bias,del_bias,sigsmallR,Deltac);
         Throw(ValueError);
     }
     //sometimes condition mass is close enough to minimum mass such that the sigmas are the same to float precision
@@ -707,7 +707,7 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     //Get expected N from interptable
     n_exp = EvaluatedNdMSpline(const_struct->cond_val,const_struct->lnM_max_tb); //should be the same as < lnM_cond, but that can hide some interp errors
     //TODO: remove if performance is affected by this line
-    n_exp_save = EvaluatedNdMSpline(const_struct->cond_val,const_struct->lnM_max_tb);
+    n_exp_save = EvaluatedNdMSpline(const_struct->cond_val,const_struct->lnM_max_tb) - EvaluatedNdMSpline(const_struct->cond_val,log(const_struct->M_min*global_params.HALO_SAMPLE_FACTOR));
     
     //Get expected M from erfc
     //sometimes condition mass is close enough to minimum mass such that the sigmas are the same to float precision
@@ -731,7 +731,7 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     const_struct->expected_N = n_exp * const_struct->M_cond / sqrt(2.*PI);
     const_struct->expected_N_save = n_exp_save * const_struct->M_cond / sqrt(2.*PI);
     const_struct->expected_M = frac * const_struct->M_cond;
-    const_struct->expected_M_save = frac * const_struct->M_cond;
+    const_struct->expected_M_save = frac_save * const_struct->M_cond;
 
     return;
 }
@@ -1023,7 +1023,7 @@ int fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_p
 int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
     //lnMmin only used for sampling, apply factor here
     double mass_tol = global_params.STOC_MASS_TOL;
-    double exp_M = hs_constants->expected_M * 0.98; //0.99 fudge factor for assuming that internal lagrangian volumes are independent
+    double exp_M = hs_constants->expected_M * 0.95; //0.95 fudge factor for assuming that internal lagrangian volumes are independent
 
     int n_halo_sampled, n_failures=0;
     double M_prog=0;
@@ -1103,7 +1103,7 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
 
     double tbl_arg = hs_constants->cond_val;
     n_halo_sampled = 0;
-    LOG_ULTRA_DEBUG("Start: M %.2e (%.2e) d %.2e",M_cond,exp_M,d_cond);
+    // LOG_ULTRA_DEBUG("Start: M %.2e (%.2e) d %.2e",M_cond,exp_M,d_cond);
     //set initial amount (subtract unresolved)
     //TODO: check if I should even do this
     M_remaining = exp_M;
@@ -1128,7 +1128,6 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
         M_sample = EvaluateSiginvSpline(sigma_sample);
         M_sample = exp(M_sample);
 
-        //if we assume that mass below the resolution is average, we cannot accept samples below the minimum
         //LOG_ULTRA_DEBUG("found Mass %d %.2e",n_halo_sampled,M_sample);
         M_out[n_halo_sampled++] = M_sample;
         M_remaining -= M_sample;
@@ -1157,7 +1156,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     double mu, G1, G2;
     double d_start, d_target;
     double q_res;
-    double m_start, m_half;
+    double m_start, m_half, lnm_half, lnm_start;
     double sigma_start, sigma_half, sigma_res;
     double sigmasq_start, sigmasq_half, sigmasq_res;
     double alpha_half,alpha_q;
@@ -1183,19 +1182,24 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     d_target = Deltac / growthf;
     n_points = 1;
     
-    sigma_res = EvaluateSigma(m_res, 0, &dummy);
+    sigma_res = EvaluateSigma(lnm_res, 0, &dummy);
     sigmasq_res = sigma_res*sigma_res;
+
+    LOG_DEBUG("Starting split %.2e %.2e",d_points[0],m_points[0]);
 
     while(idx < n_points) {
         d_start = d_points[idx];
         m_start = m_points[idx];
+        lnm_start = log(m_start);
         dd_target = d_target - d_start;
         save = 0;
         // Compute useful quantites
         m_half = 0.5*m_start;
-        sigma_start = EvaluateSigma(m_start,0,&dummy);
+        lnm_half = log(m_half);
+        sigma_start = EvaluateSigma(lnm_start,0,&dummy);
         sigmasq_start = sigma_start*sigma_start;
-        sigma_half = EvaluateSigma(m_half,1,&alpha_half);
+        sigma_half = EvaluateSigma(lnm_half,1,&alpha_half);
+        alpha_half = -m_half/(2*sigma_half*sigma_half)*alpha_half;
         sigmasq_half = sigma_half*sigma_half;
         G1 = G0*pow(d_start/sigma_start, gamma2);
         //
@@ -1210,7 +1214,8 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
             }
             //TODO: look at the J function in Parkinson+08 for a speedup
             //F = ComputeFraction(sigma_start, sigmasq_start, sigmasq_res, G1, dd, kit_sp);
-            F = 1 - EvaluateFgtrM(growth_d,lnm_res,d_start+dd,sigma_start);
+            growth_d = Deltac/(d_start + dd);
+            F = 1 - EvaluateFgtrM(growth_d,lnm_res,d_start*growth_d,sigma_start);
         }
         else {
             // Compute B and beta
@@ -1239,12 +1244,15 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
             N_upper = dN_dd*dd;
             // Compute F
             //TODO: look at the J function in Parkinson+08 for a speedup
-            F = 1 - EvaluateFgtrM(growth_d,lnm_res,d_start+dd,sigma_start);
+            growth_d = Deltac/(d_start + dd);
+            F = 1 - EvaluateFgtrM(growth_d,lnm_res,d_start*growth_d,sigma_start);
             // Generate random numbers and split the tree
             if (gsl_rng_uniform(rng) < N_upper) {
                 q = pow(pow(q_res, eta) + pow_diff*gsl_rng_uniform(rng), 1./eta);
                 m_q = q*m_start;
                 sigma_q = EvaluateSigma(log(m_q),1,&alpha_q);
+                //convert from d(sigma^2)/dm to -d(lnsigma)/d(lnm)
+                alpha_q = -m_q/(2*sigma_q*sigma_q)*alpha_q;
                 sigmasq_q = sigma_q*sigma_q;
                 factor1 = alpha_q/alpha_half;
                 factor2 = sigmasq_q*pow(sigmasq_q - sigmasq_start, -1.5)/(B*pow(q, beta));
@@ -1253,6 +1261,8 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
                     q = 0.; // No split
             }
         }
+        LOG_DEBUG("split n %d m %.2e q %.2e dd %.2e (%.2e %.2e) of %.2e",n_points,m_start,q,dd,dd1,dd2,dd_target);
+        LOG_DEBUG("dNdd %.2e B %.2e pow %.2e eta %.2e ah %.2e G2 %.2e b %.2e",dN_dd,B,pow_diff,eta,alpha_half,G2,beta);
         // Compute progenitor mass
         m_prog1 = (1 - F - q)*m_start;
         m_prog2 = q*m_start;
@@ -1273,10 +1283,9 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
             }
             if (m_prog2 > m_res){
                 d_points[n_points] = dd + d_start;
-                m_points[n_points++] = m_prog1;
+                m_points[n_points++] = m_prog2;
             }
         }
-        //
         ++idx;
     }
     *n_halo_out = n_out;
@@ -1321,8 +1330,6 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
         err = stoc_sheth_sample(hs_constants, rng, n_halo_out, M_out);
     }
     else if(global_params.SAMPLE_METHOD == 3){
-        // LOG_WARNING("splitting method is WIP: use SAMPLE_METHOD < 3");
-        // Throw(ValueError);
         err = stoc_split_sample(hs_constants, rng, n_halo_out, M_out);
     }
     else{
@@ -2094,8 +2101,8 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     //convert to dndlnm
                     test = test * prefactor * ps_ratio;
                 }
-                LOG_ULTRA_DEBUG(" D %.1e | M1 %.1e | M2 %.1e | d %.1e | s %.1e -> %.1e",
-                                growth_out,M[i],Mcond,delta,hs_constants->sigma_cond,test);
+                // LOG_ULTRA_DEBUG(" D %.1e | M1 %.1e | M2 %.1e | d %.1e | s %.1e -> %.1e",
+                //                 growth_out,M[i],Mcond,delta,hs_constants->sigma_cond,test);
                 result[i] = test;
             }
         }
@@ -2112,8 +2119,8 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             double dummy;
             #pragma omp parallel for private(test,lnM_hi,lnM_lo) num_threads(user_params->N_THREADS)
             for(i=0;i<n_mass;i++){
-                LOG_ULTRA_DEBUG("%d %d D %.1e | Ml %.1e | Mu %.1e | Mc %.1e | Mm %.1e | d %.1e | s %.1e",
-                                i, i+n_mass, growth_out,M[i],M[i+n_mass],Mcond,Mmin,delta,EvaluateSigma(lnMcond,0,&dummy));
+                // LOG_ULTRA_DEBUG("%d %d D %.1e | Ml %.1e | Mu %.1e | Mc %.1e | Mm %.1e | d %.1e | s %.1e",
+                //                 i, i+n_mass, growth_out,M[i],M[i+n_mass],Mcond,Mmin,delta,EvaluateSigma(lnMcond,0,&dummy));
 
                 lnM_lo = log(M[i]) < lnMmin ? lnMmin : log(M[i]);
                 lnM_hi = log(M[i+n_mass]) > lnMcond ? lnMcond : log(M[i+n_mass]);
@@ -2128,11 +2135,11 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 if(seed == 1){
                     test = EvaluateFgtrM(growth_out,lnM_lo,delta,EvaluateSigma(lnMcond,0,&dummy)) - EvaluateFgtrM(growth_out,lnM_hi,delta,EvaluateSigma(lnMcond,0,&dummy));
                     result[i+n_mass] = test * Mcond * ps_ratio;
-                    LOG_ULTRA_DEBUG("==> %.8e",result[i+n_mass]);
+                    // LOG_ULTRA_DEBUG("==> %.8e",result[i+n_mass]);
                 }
 
                 result[i] = test * Mcond / sqrt(2.*PI) * ps_ratio;
-                LOG_ULTRA_DEBUG("==> %.8e",result[i]);
+                // LOG_ULTRA_DEBUG("==> %.8e",result[i]);
             }
         }
 
@@ -2156,11 +2163,11 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     lnMcond = hs_constants_priv.lnM_cond;
                     delta = hs_constants_priv.delta;
                     
-                    LOG_ULTRA_DEBUG("%d %d D %.1e | Ml %.1e | Mc %.1e| d %.1e | s %.1e",
-                                    i,i+n_mass,growth_out,Mmin,Mcond,delta,EvaluateSigma(lnMcond,0,&dummy));
+                    // LOG_ULTRA_DEBUG("%d %d D %.1e | Ml %.1e | Mc %.1e| d %.1e | s %.1e",
+                    //                 i,i+n_mass,growth_out,Mmin,Mcond,delta,EvaluateSigma(lnMcond,0,&dummy));
 
                     test = IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,delta,seed,-1);
-                    LOG_ULTRA_DEBUG("==> %.8e",test);
+                    // LOG_ULTRA_DEBUG("==> %.8e",test);
                     //conditional MF multiplied by a few factors
                     result[i] = test  * Mcond / sqrt(2.*PI) * ps_ratio;
                     //This is a debug case, testing that the integral of M*dNdM == FgtrM

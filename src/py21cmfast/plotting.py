@@ -428,8 +428,8 @@ def plot_global_history(
     ylabel: str | None = None,
     ylog: bool = False,
     ax: plt.Axes | None = None,
-    fmt: str | None = None,
     zmax: float | None = None,
+    **kwargs
 ):
     """
     Plot the global history of a given quantity from a lightcone.
@@ -467,9 +467,9 @@ def plot_global_history(
     else:
         value = getattr(lightcone, "global_" + kind)
 
-    sel = np.array(lightcone.node_redshifts) < zmax
+    sel = np.array(lightcone.node_redshifts) < zmax if zmax is not None else Ellipsis
 
-    ax.plot(np.array(lightcone.node_redshifts)[sel], value[sel], fmt, **kwargs)
+    ax.plot(np.array(lightcone.node_redshifts)[sel], value[sel], **kwargs)
     ax.set_xlabel("Redshift")
     if ylabel is None:
         ylabel = kind
