@@ -3,16 +3,14 @@
  * other halo relations.*/
 
 //BIG TODO: sort out single/double precision all the way through
-//STYLE: make the function names consistent, re-order functions
-//so it makes sense and make a map of the call trees to look for modularisation
 //TODO: the USE_INTERPOLATION_TABLES flag may need to be forced, it's in a strange position here
-//  where it only affects the sigma table, which is only called in creating the other interpolation tables
+//  where it only affects the sigma table.
 //NOTE: for the future discrete tables this does make sense
 //TODO: Don't have every error be a ValueError
 
 //max number of attempts for mass tolerance before failure
 #define MAX_ITERATIONS 1e6
-#define MAX_ITER_N 1 //for stoc_halo_sample (select N halos) how many tries for one N
+#define MAX_ITER_N 1000 //for stoc_halo_sample (select N halos) how many tries for one N, this should be large to enforce a near-possion p(N)
 #define MMAX_TABLES 1e14
 
 //buffer size (per cell of arbitrary size) in the sampling function
@@ -157,17 +155,22 @@ double EvaluateFgtrM(double growthf, double lnM, double del_bias, double sig_bia
     sigsmallR = EvaluateSigma(lnM,0,&dummy);
 
     //LOG_ULTRA_DEBUG("FgtrM: SigmaM %.3e",sigsmallR);
-
-    del = (Deltac - del_bias)/growthf;
-
-    if(del < 0){
-        LOG_ERROR("error in FgtrM: condition sigma %.3e delta %.3e sigma %.3e delta %.3e",sig_bias,del_bias,sigsmallR,Deltac);
-        Throw(ValueError);
-    }
     //sometimes condition mass is close enough to minimum mass such that the sigmas are the same to float precision
     //In this case we just throw away the halo, since it is very unlikely to have progenitors
     if(sigsmallR <= sig_bias){
         return 0.;
+    }
+    
+    del = (Deltac - del_bias)/growthf;
+
+    //deal with floating point errors
+    //TODO: this is a little hacky, check the split growth factors before calling this instead
+    if(del < -FRACT_FLOAT_ERR*100){
+            LOG_ERROR("error in FgtrM: condition sigma %.3e delta %.3e sigma %.3e delta %.3e (%.3e)",sig_bias,del_bias,sigsmallR,Deltac,del);
+            Throw(ValueError);
+    }
+    if(del < FRACT_FLOAT_ERR*100){
+        return 1.;
     }
 
     sig = sqrt(sigsmallR*sigsmallR - sig_bias*sig_bias);
@@ -636,7 +639,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     init_ps();
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        initialiseSigmaMInterpTable(const_struct->M_min,const_struct->M_max_tables);
+        initialiseSigmaMInterpTable(const_struct->M_min / 2,const_struct->M_max_tables);
         initialise_siginv_spline();
     }
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min,0,&dummy);
@@ -910,6 +913,7 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, 
     double mass_tol = global_params.STOC_MASS_TOL;
     double exp_N = hs_constants->expected_N;
     double exp_M = hs_constants->expected_M;
+    double M_cond = hs_constants->M_cond;
 
     double hm_sample, M_prog;
     int ii, nh;
@@ -922,10 +926,8 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, 
         n_attempts = 0;
         nh = 0;
         //find an N which *could* fit the mass tolerance
-        while(nh==0 || M_min*nh > exp_M){
+        while((nh*M_cond < exp_M*(1-mass_tol))||(M_min*nh > exp_M*(1+mass_tol))){
             nh = gsl_ran_poisson(rng,exp_N);
-            //test break for even sampling REMOVE THIS LINE
-            break;
         }
         for(n_attempts=0;n_attempts<MAX_ITER_N;n_attempts++){
             M_prog = 0;
@@ -1023,7 +1025,8 @@ int fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_p
 int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
     //lnMmin only used for sampling, apply factor here
     double mass_tol = global_params.STOC_MASS_TOL;
-    double exp_M = hs_constants->expected_M * 0.95; //0.95 fudge factor for assuming that internal lagrangian volumes are independent
+    double exp_M = hs_constants->expected_M;
+    if(hs_constants->update)exp_M *= 0.95; //0.95 fudge factor for assuming that internal lagrangian volumes are independent
 
     int n_halo_sampled, n_failures=0;
     double M_prog=0;
@@ -1185,7 +1188,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     sigma_res = EvaluateSigma(lnm_res, 0, &dummy);
     sigmasq_res = sigma_res*sigma_res;
 
-    LOG_DEBUG("Starting split %.2e %.2e",d_points[0],m_points[0]);
+    // LOG_DEBUG("Starting split %.2e %.2e",d_points[0],m_points[0]);
 
     while(idx < n_points) {
         d_start = d_points[idx];
@@ -1261,8 +1264,9 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
                     q = 0.; // No split
             }
         }
-        LOG_DEBUG("split n %d m %.2e q %.2e dd %.2e (%.2e %.2e) of %.2e",n_points,m_start,q,dd,dd1,dd2,dd_target);
-        LOG_DEBUG("dNdd %.2e B %.2e pow %.2e eta %.2e ah %.2e G2 %.2e b %.2e",dN_dd,B,pow_diff,eta,alpha_half,G2,beta);
+        // LOG_DEBUG("split i %d n %d m %.2e d %.2e",idx,n_points,m_start,d_start);
+        // LOG_DEBUG("q %.2e dd %.2e (%.2e %.2e) of %.2e",q,dd,dd1,dd2,dd_target);
+        // LOG_DEBUG("dNdd %.2e B %.2e pow %.2e eta %.2e ah %.2e G2 %.2e b %.2e",dN_dd,B,pow_diff,eta,alpha_half,G2,beta);
         // Compute progenitor mass
         m_prog1 = (1 - F - q)*m_start;
         m_prog2 = q*m_start;
@@ -1276,17 +1280,23 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
             }
         }
         //if not finished yet, add them to the internal arrays
+        //We don't need the point at idx anymore, so we can put the first progenitor
+        //at the start point, and the second at the end
+        //since the first is always more massive, this saves memory
+        //TODO: this still drifts by the number of saved halos, figure out how to
+        //  keep the active halo at zero until the end, but that's minor as it should only drift a few dozen
         else {
             if (m_prog1 > m_res){
-                d_points[n_points] = dd + d_start;
-                m_points[n_points++] = m_prog1;
+                d_points[idx] = dd + d_start;
+                m_points[idx] = m_prog1;
+                idx--;
             }
             if (m_prog2 > m_res){
                 d_points[n_points] = dd + d_start;
                 m_points[n_points++] = m_prog2;
             }
         }
-        ++idx;
+        idx++;
     }
     *n_halo_out = n_out;
     return 0;
@@ -2006,6 +2016,57 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
     
 }
 
+int test_mfp_filter(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
+                    , float *input_box, double R, double mfp, double *result){
+    int i,j,k;
+    //setup the box
+    
+    fftwf_complex *box_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    fftwf_complex *box_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);    
+    LOG_DEBUG("Allocated");
+
+    for (i=0; i<user_params->HII_DIM; i++)
+        for (j=0; j<user_params->HII_DIM; j++)
+            for (k=0; k<HII_D_PARA; k++)
+                *((float *)box_unfiltered + HII_R_FFT_INDEX(i,j,k)) = input_box[HII_R_INDEX(i,j,k)];
+    LOG_DEBUG("Inited");
+
+
+    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box_unfiltered);
+
+    LOG_DEBUG("FFT'd");
+    
+    //QUESTION: why do this here instead of at the end?
+    for(i=0;i<HII_KSPACE_NUM_PIXELS;i++){
+        box_unfiltered[i] /= (double)HII_TOT_NUM_PIXELS;
+    }
+
+    memcpy(box_filtered,box_unfiltered,sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+    LOG_DEBUG("Copied");
+
+    if(flag_options->USE_EXP_FILTER)
+        filter_box_mfp(box_filtered, 1, R, mfp);
+    else
+        filter_box(box_filtered,1,global_params.HII_FILTER,R);
+
+
+    LOG_DEBUG("Filtered");
+    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box_filtered);
+    LOG_DEBUG("IFFT'd");
+    
+    for (i=0; i<user_params->HII_DIM; i++)
+        for (j=0; j<user_params->HII_DIM; j++)
+            for (k=0; k<HII_D_PARA; k++)
+                    result[HII_R_INDEX(i,j,k)] = fmaxf(*((float *)box_filtered + HII_R_FFT_INDEX(i,j,k)) , 0.0);
+
+    LOG_DEBUG("Assigned");
+
+    fftwf_free(box_unfiltered);
+    fftwf_free(box_filtered);
+
+    return 0;
+}
+
 //testing function to print stuff out from python
 /* type==0: UMF/CMF value at a list of masses
  * type==1: Integrated CMF in a single condition at multiple masses N(>M)
@@ -2030,7 +2091,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         gsl_rng * rng_stoc[user_params->N_THREADS];
         seed_rng_threads(rng_stoc,seed);
 
-        if(z_in > 0 && z_out <= z_in){
+        if(z_in > 0 && z_out <= z_in && type!=8){
             LOG_DEBUG("update must go back in time z_out=%.2f z_in=%.2f",z_out,z_in);
             Throw(ValueError);
         }
@@ -2394,9 +2455,14 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 LOG_ULTRA_DEBUG("dNdM inverse table: %.6e x = %.6e, y = %.6e z = %.6e",condition,x_in,y_in,test);
             }
         }
-        
+        else if(type==8){
+            double R = z_out;
+            double mfp = z_in;
+            LOG_DEBUG("Starting mfp filter");
+            test_mfp_filter(user_params,cosmo_params,astro_params,flag_options,M,R,mfp,result);
+        }
         else{
-            LOG_ERROR("Unkown output type");
+            LOG_ERROR("Unknown output type");
             Throw(ValueError);
         }
         

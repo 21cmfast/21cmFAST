@@ -58,6 +58,7 @@ void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
     float k_x, k_y, k_z, k_mag, f, kR, kl;
     float const1;
     const1 = exp(-R/mfp); //independent of k, move it out of the loop
+    // LOG_DEBUG("Filtering box with R=%.2e, L=%.2e",R,mfp);
 
     switch(RES) {
         case 0:
@@ -92,19 +93,24 @@ void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
                     //Davies & Furlanetto MFP-eps(r) window function
                     //TODO: optimize
                     //The filter no longer approaches 1 at k->0, so we can't use the limit
-                    //TODO: find the limit in terms of R,mfp and use it to optimize
-                    //if (kR > 1e-4){
-
-                    //build the filter
-                    f = (kl*kl*R + 2*mfp + R)*kl*cos(kR);
-                    f += (-kl*kl*mfp + kl*kl*R + mfp + R)*sin(kR);
-                    f *= const1;
-                    f -= 2*kl*mfp;
-                    f *= -3.0*mfp/(kR*R*R*(kl*kl+1)*(kl*kl+1));
-
+                    //TODO: find the limit in terms of k,R,mfp and use it to optimize
+                    if (kR > 1e-4){
+                        //build the filter
+                        f = (kl*kl*R + 2*mfp + R)*kl*cos(kR);
+                        f += (-kl*kl*mfp + kl*kl*R + mfp + R)*sin(kR);
+                        f *= const1;
+                        f -= 2*kl*mfp;
+                        f *= -3.0*mfp/(kR*R*R*(kl*kl+1)*(kl*kl+1));
+                    }
+                    else{
+                        // k-> 0 limit
+                        f = 2*mfp*mfp + 2*mfp*R + R*R;
+                        f *= -const1;
+                        f += 2*mfp*mfp;
+                        f *= 3*mfp/(R*R*R);
+                    }
                     if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= f; }
                     if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= f; }
-                    // }
                 }
             }
         } // end looping through k box

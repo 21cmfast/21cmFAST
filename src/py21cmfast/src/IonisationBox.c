@@ -130,6 +130,17 @@ LOG_SUPER_DEBUG("defined parameters");
         ION_EFF_FACTOR_MINI = 0.;
     }
 
+    //Yuxiang's evolving Rmax for MFP in ionised regions
+    //TODO: ask Yuxiang where this is from
+    //TODO 2: this should be the adjusted redshift I think but make sure
+    double exp_mfp;
+    if(flag_options->USE_EXP_FILTER){
+        if (redshift > 6)
+            exp_mfp = 25.483241248322766 / cosmo_params->hlittle;
+        else
+            exp_mfp = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. , -4.4);
+    }
+
     // For recombinations
     if(flag_options->INHOMO_RECO) {
 
@@ -809,8 +820,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 }
                 if (flag_options->USE_HALO_FIELD) {
                     if(flag_options->USE_EXP_FILTER){
-                        filter_box_mfp(stars_filtered, 1, R, astro_params->EXP_FILTER_MFP);
-                        filter_box_mfp(sfr_filtered, 1, R, astro_params->EXP_FILTER_MFP);
+                        filter_box_mfp(stars_filtered, 1, R, exp_mfp);
+                        filter_box_mfp(sfr_filtered, 1, R, exp_mfp);
                     }
                     else{
                         filter_box(stars_filtered, 1, global_params.HII_FILTER, R);
