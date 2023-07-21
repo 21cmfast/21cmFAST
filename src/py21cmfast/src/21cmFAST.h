@@ -65,7 +65,6 @@ struct AstroParams{
     double BETA_LW;
     double A_VCB;
     double BETA_VCB;
-    double EXP_FILTER_MFP;
 
     float t_STAR;
 

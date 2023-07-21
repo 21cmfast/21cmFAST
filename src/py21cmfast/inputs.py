@@ -904,9 +904,6 @@ class AstroParams(StructWithDefaults):
         Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Sec 2 of Muñoz+21 (2110.13919).
     A_VCB, BETA_VCB: float, optional
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Sec 2 of Muñoz+21 (2110.13919).
-    EXP_FILTER_MFP: double, optional
-        Mean-free path to use in the exponential HII_FILTER (only has an effect when USE_EXP_FILTER==True) (Davies & Furlanetto 2021 MFP-epsilon(r) method)
-        TODO: I've been told there's already a z-dependent MFP in ionised regions in some version I should combine this with
     """
 
     _ffi = ffi
@@ -939,7 +936,6 @@ class AstroParams(StructWithDefaults):
         "BETA_LW": 0.6,
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
-        "EXP_FILTER_MFP": 20,
     }
 
     def __init__(
