@@ -1646,6 +1646,10 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
 #pragma omp for
         for(ii=0;ii<nhalo_in;ii++){
             M2 = halofield_in->halo_masses[ii];
+            if(M2 < Mmin || M2 > Mmax_tb){
+                LOG_ERROR("Input Mass = %.2e, something went wrong in the input catalogue",M2);
+                Throw(ValueError);
+            }
             //LOG_ULTRA_DEBUG("Setting consts for M = %.3e",M2);
             stoc_set_consts_cond(&hs_constants_priv,M2);
             
