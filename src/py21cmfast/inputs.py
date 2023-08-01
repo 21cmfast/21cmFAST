@@ -846,6 +846,7 @@ class AstroParams(StructWithDefaults):
         "F_ESC10": -1.5,
         "F_ESC7_MINI": -2.0,
         "ALPHA_ESC": 0.1,
+        "BETA_ESC": 0,
         "M_TURN": 8.7,
         "R_BUBBLE_MAX": None,
         "ION_Tvir_MIN": 4.69897,
