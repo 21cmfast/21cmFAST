@@ -197,6 +197,7 @@ def _process_exitcode(exitcode, fnc, args):
                     PHOTONCONSERROR: PhotonConsError,
                     TABLEGENERATIONERROR: TableGenerationError,
                     TABLEEVALUATIONERROR: TableEvaluationError,
+                    INFINITYORNANERROR: InfinityorNaNError,
                     MASSDEPZETAERROR: MassDepZetaError,
                     MEMORYALLOCERROR: MemoryAllocError,
                 }[exitcode]
@@ -211,8 +212,8 @@ ctype2dtype = {}
 # Integer types
 for prefix in ("int", "uint"):
     for log_bytes in range(4):
-        ctype = "%s%d_t" % (prefix, 8 * (2 ** log_bytes))
-        dtype = "%s%d" % (prefix[0], 2 ** log_bytes)
+        ctype = "%s%d_t" % (prefix, 8 * (2**log_bytes))
+        dtype = "%s%d" % (prefix[0], 2**log_bytes)
         ctype2dtype[ctype] = np.dtype(dtype)
 
 # Floating point types
@@ -519,7 +520,18 @@ class StructWithDefaults(StructWrapper):
         return (
             self.__class__.__name__
             + "("
-            + ", ".join(sorted(k + ":" + str(v) for k, v in self.defining_dict.items()))
+            + ", ".join(
+                sorted(
+                    k
+                    + ":"
+                    + (
+                        float_to_string_precision(v, config["cache_redshift_sigfigs"])
+                        if isinstance(v, (float, np.float32))
+                        else str(v)
+                    )
+                    for k, v in self.defining_dict.items()
+                )
+            )
             + ")"
         )
 
@@ -557,6 +569,14 @@ def camel_to_snake(word: str, depublicize: bool = False):
         word = word.lstrip("_")
 
     return word
+
+
+def float_to_string_precision(x, n):
+    """Prints out a standard float number at a given number of significant digits.
+
+    Code here: https://stackoverflow.com/a/48812729
+    """
+    return f'{float(f"{x:.{int(n)}g}"):g}'
 
 
 def get_all_subclasses(cls):
@@ -942,7 +962,13 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         """
         return self.find_existing(direc) is not None
 
-    def write(self, direc=None, fname=None, write_inputs=True, mode="w"):
+    def write(
+        self,
+        direc=None,
+        fname: Union[str, Path, None, h5py.File, h5py.Group] = None,
+        write_inputs=True,
+        mode="w",
+    ):
         """
         Write the struct in standard HDF5 format.
 
@@ -973,16 +999,21 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             mode = "a"
 
         try:
-            direc = path.expanduser(direc or config["direc"])
+            if not isinstance(fname, (h5py.File, h5py.Group)):
+                direc = path.expanduser(direc or config["direc"])
 
-            if not path.exists(direc):
-                makedirs(direc)
+                if not path.exists(direc):
+                    makedirs(direc)
 
-            fname = fname or self._get_fname(direc)
-            if not path.isabs(fname):
-                fname = path.abspath(path.join(direc, fname))
+                fname = fname or self._get_fname(direc)
+                if not path.isabs(fname):
+                    fname = path.abspath(path.join(direc, fname))
 
-            with h5py.File(fname, mode) as f:
+                fl = h5py.File(fname, mode)
+            else:
+                fl = fname
+
+            try:
                 # Save input parameters to the file
                 if write_inputs:
                     for k in self._inputs + ("_global_params",):
@@ -991,7 +1022,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                         kfile = k.lstrip("_")
 
                         if isinstance(q, (StructWithDefaults, StructInstanceWrapper)):
-                            grp = f.create_group(kfile)
+                            grp = fl.create_group(kfile)
                             dct = q.self if isinstance(q, StructWithDefaults) else q
                             for kk, v in dct.items():
                                 if kk not in self._filter_params:
@@ -1002,17 +1033,20 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                                             f"key {kk} with value {v} is not able to be written to HDF5 attrs!"
                                         )
                         else:
-                            f.attrs[kfile] = q
+                            fl.attrs[kfile] = q
 
                     # Write 21cmFAST version to the file
-                    f.attrs["version"] = __version__
+                    fl.attrs["version"] = __version__
 
                 # Save the boxes to the file
-                boxes = f.create_group(self._name)
+                boxes = fl.create_group(self._name)
 
                 self.write_data_to_hdf5_group(boxes)
 
-                self._paths.insert(0, Path(fname))
+            finally:
+                if not isinstance(fname, (h5py.File, h5py.Group)):
+                    fl.close()
+                    self._paths.insert(0, Path(fname))
 
         except OSError as e:
             logger.warning(
@@ -1038,7 +1072,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         for k in self.primitive_fields:
             group.attrs[k] = getattr(self, k)
 
-    def save(self, fname=None, direc="."):
+    def save(self, fname=None, direc=".", h5_group=None):
         """Save the box to disk.
 
         In detail, this just calls write, but changes the default directory to the
@@ -1061,7 +1095,19 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             direc = path.dirname(fname)
             fname = path.basename(fname)
 
-        self.write(direc, fname)
+        if h5_group is not None:
+            if not path.isabs(fname):
+                fname = path.abspath(path.join(direc, fname))
+
+            fl = h5py.File(fname, "a")
+
+            try:
+                grp = fl.create_group(h5_group)
+                self.write(direc, grp)
+            finally:
+                fl.close()
+        else:
+            self.write(direc, fname)
 
     def _get_path(
         self, direc: Union[str, Path, None] = None, fname: Union[str, Path, None] = None
@@ -1083,7 +1129,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
     def read(
         self,
         direc: Union[str, Path, None] = None,
-        fname: Union[str, Path, None] = None,
+        fname: Union[str, Path, None, h5py.File, h5py.Group] = None,
         keys: Optional[Sequence[str]] = None,
     ):
         """
@@ -1096,15 +1142,19 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             centrally-managed directory, given by the ``config.yml`` in ``~/.21cmfast/``.
         fname
             The filename to read. By default, use the filename associated with this
-            object.
+            object. Can be an open h5py File or Group, which will be directly written to.
         keys
             The names of boxes to read in (can be a subset). By default, read everything.
         """
-        pth = self._get_path(direc, fname)
+        if not isinstance(fname, (h5py.File, h5py.Group)):
+            pth = self._get_path(direc, fname)
+            fl = h5py.File(pth, "r")
+        else:
+            fl = fname
 
-        with h5py.File(pth, "r") as f:
+        try:
             try:
-                boxes = f[self._name]
+                boxes = fl[self._name]
             except KeyError:
                 raise OSError(
                     f"While trying to read in {self._name}, the file exists, but does not have the "
@@ -1141,14 +1191,22 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                     pass
 
             # Need to make sure that the seed is set to the one that's read in.
-            seed = f.attrs["random_seed"]
+            seed = fl.attrs["random_seed"]
             self._random_seed = seed
+        finally:
+            self.__expose()
+            if isinstance(fl, h5py.File):
+                self._paths.insert(0, Path(fl.filename))
+            else:
+                self._paths.insert(0, Path(fl.file.filename))
 
-        self.__expose()
-        self._paths.insert(0, Path(pth))
+            if not isinstance(fname, (h5py.File, h5py.Group)):
+                fl.close()
 
     @classmethod
-    def from_file(cls, fname, direc=None, load_data=True):
+    def from_file(
+        cls, fname, direc=None, load_data=True, h5_group: Union[str, None] = None
+    ):
         """Create an instance from a file on disk.
 
         Parameters
@@ -1162,39 +1220,50 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             Whether to read in the data when creating the instance. If False, a bare
             instance is created with input parameters -- the instance can read data
             with the :func:`read` method.
+        h5_group
+            The path to the group within the file in which the object is stored.
         """
         direc = path.expanduser(direc or config["direc"])
 
         if not path.exists(fname):
             fname = path.join(direc, fname)
 
-        self = cls(**cls._read_inputs(fname))
+        with h5py.File(fname, "r") as fl:
+
+            if h5_group is not None:
+                self = cls(**cls._read_inputs(fl[h5_group]))
+            else:
+                self = cls(**cls._read_inputs(fl))
 
         if load_data:
-            self.read(fname=fname)
+            if h5_group is not None:
+                with h5py.File(fname, "r") as fl:
+                    self.read(fname=fl[h5_group])
+            else:
+                self.read(fname=fname)
+
         return self
 
     @classmethod
-    def _read_inputs(cls, fname):
+    def _read_inputs(cls, grp: Union[h5py.File, h5py.Group]):
         input_classes = [c.__name__ for c in StructWithDefaults.__subclasses__()]
 
         # Read the input parameter dictionaries from file.
         kwargs = {}
-        with h5py.File(fname, "r") as fl:
-            for k in cls._inputs:
-                kfile = k.lstrip("_")
-                input_class_name = snake_to_camel(kfile)
+        for k in cls._inputs:
+            kfile = k.lstrip("_")
+            input_class_name = snake_to_camel(kfile)
 
-                if input_class_name in input_classes:
-                    input_class = StructWithDefaults.__subclasses__()[
-                        input_classes.index(input_class_name)
-                    ]
-                    grp = fl[kfile]
-                    kwargs[k] = input_class(
-                        {k: v for k, v in dict(grp.attrs).items() if v != "none"}
-                    )
-                else:
-                    kwargs[kfile] = fl.attrs[kfile]
+            if input_class_name in input_classes:
+                input_class = StructWithDefaults.__subclasses__()[
+                    input_classes.index(input_class_name)
+                ]
+                subgrp = grp[kfile]
+                kwargs[k] = input_class(
+                    {k: v for k, v in dict(subgrp.attrs).items() if v != "none"}
+                )
+            else:
+                kwargs[kfile] = grp.attrs[kfile]
         return kwargs
 
     def __repr__(self):
@@ -1216,7 +1285,13 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                     else (
                         v.filtered_repr(self._filter_params)
                         if isinstance(v, StructInstanceWrapper)
-                        else k.lstrip("_") + ":" + repr(v)
+                        else k.lstrip("_")
+                        + ":"
+                        + (
+                            float_to_string_precision(v, config["cache_param_sigfigs"])
+                            if isinstance(v, (float, np.float32))
+                            else repr(v)
+                        )
                     )
                     for k, v in [
                         (k, getattr(self, k))

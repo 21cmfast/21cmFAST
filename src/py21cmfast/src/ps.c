@@ -2191,7 +2191,7 @@ double Nion_ConditionalM_MINI(double growthf, double M1, double M2, double sigma
 double Nion_ConditionalM(double growthf, double M1, double M2, double sigma2, double delta1, double delta2, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar, double Mlim_Fesc, bool FAST_FCOLL_TABLES) {
 
 
-  if (FAST_FCOLL_TABLES) { //JBM: Fast tables. Assume sharp Mturn, not exponential cutoff.
+  if (FAST_FCOLL_TABLES && global_params.USE_FAST_ATOMIC) { //JBM: Fast tables. Assume sharp Mturn, not exponential cutoff.
 
     return GaussLegendreQuad_Nion(0, 0, (float) growthf, (float) M2, (float) sigma2, (float) delta1, (float) delta2, (float) MassTurnover, (float) Alpha_star, (float) Alpha_esc, (float) Fstar10, (float) Fesc10, (float) Mlim_Fstar, (float) Mlim_Fesc, FAST_FCOLL_TABLES);
 
@@ -3996,6 +3996,9 @@ float adjust_redshifts_for_photoncons(
             adjusted_redshift = *redshift;
         }
         else {
+            // Initialise the photon non-conservation correction curve
+            // It is possible that for certain parameter choices that we can get here without initialisation happening.
+            // Thus check and initialise if not already done so
             if(!photon_cons_allocated) {
                 determine_deltaz_for_photoncons();
                 photon_cons_allocated = true;
