@@ -44,6 +44,7 @@ struct AstroParams{
     float ALPHA_STAR_MINI;
     float F_ESC10;
     float ALPHA_ESC;
+    float BETA_ESC;
     float M_TURN;
     float F_STAR7_MINI;
     float F_ESC7_MINI;

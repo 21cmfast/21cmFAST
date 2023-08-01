@@ -2936,12 +2936,13 @@ void initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float m
 }
 
 void initialise_Nion_Ts_spline(
-    int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Alpha_esc,
+    int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Alpha_esc, float Beta_esc,
     float Fstar10, float Fesc10
 ){
     int i;
     float Mmin = MassTurn/50., Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fesc;
+	float F_ESC10_zterm;
 
     if (z_val == NULL){
       z_val = calloc(Nbin,sizeof(double));
@@ -2949,14 +2950,15 @@ void initialise_Nion_Ts_spline(
     }
 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
-    Mlim_Fesc = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc10);
 
-#pragma omp parallel shared(z_val,Nion_z_val,zmin,zmax, MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc) private(i) num_threads(user_params_ps->N_THREADS)
+#pragma omp parallel shared(z_val,Nion_z_val,zmin,zmax, Mmin, Mmax, MassTurn, Alpha_star, Alpha_esc, Beta_esc, Fstar10, Fesc10, Mlim_Fstar) private(i, Mlim_Fesc, F_ESC10_zterm) num_threads(user_params_ps->N_THREADS)
     {
 #pragma omp for
         for (i=0; i<Nbin; i++){
             z_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
-            Nion_z_val[i] = Nion_General(z_val[i], Mmin, MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
+			F_ESC10_zterm = pow((1.+z_val[i])/8., Beta_esc);
+    		Mlim_Fesc = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc10*F_ESC10_zterm);
+            Nion_z_val[i] = Nion_General(z_val[i], Mmin, MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10*F_ESC10_zterm, Mlim_Fstar, Mlim_Fesc);
         }
     }
 
@@ -2970,12 +2972,13 @@ void initialise_Nion_Ts_spline(
 }
 
 void initialise_Nion_Ts_spline_MINI(
-    int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10,
+    int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Beta_esc, float Fstar10,
     float Fesc10, float Fstar7_MINI, float Fesc7_MINI
 ){
     int i,j;
     float Mmin = global_params.M_MIN_INTEGRAL, Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI, Mcrit_atom_val;
+	float F_ESC10_zterm;
 
     if (z_val == NULL){
       z_val = calloc(Nbin,sizeof(double));
@@ -2984,7 +2987,6 @@ void initialise_Nion_Ts_spline_MINI(
     }
 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
-    Mlim_Fesc = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc10);
     Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
     Mlim_Fesc_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc7_MINI * pow(1e3, Alpha_esc));
     float MassTurnover[NMTURN];
@@ -2992,15 +2994,17 @@ void initialise_Nion_Ts_spline_MINI(
         MassTurnover[i] = pow(10., LOG10_MTURN_MIN + (float)i/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
     }
 
-#pragma omp parallel shared(z_val,Nion_z_val,Nbin,zmin,zmax,Mmin,Alpha_star,Alpha_star_mini,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,\
+#pragma omp parallel shared(z_val,Nion_z_val,Nbin,zmin,zmax,Mmin,Mmax,Alpha_star,Alpha_star_mini,Alpha_esc,Beta_esc,Fstar10,Fesc10,Mlim_Fstar,\
                             Nion_z_val_MINI,MassTurnover,Fstar7_MINI, Fesc7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI) \
-                    private(i,j,Mcrit_atom_val) num_threads(user_params_ps->N_THREADS)
+                    private(i,j,Mcrit_atom_val,F_ESC10_zterm, Mlim_Fesc) num_threads(user_params_ps->N_THREADS)
     {
 #pragma omp for
         for (i=0; i<Nbin; i++){
             z_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
+			F_ESC10_zterm = pow((1.+z_val[i])/8., Beta_esc);
+    		Mlim_Fesc = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc10*F_ESC10_zterm);
             Mcrit_atom_val = atomic_cooling_threshold(z_val[i]);
-            Nion_z_val[i] = Nion_General(z_val[i], Mmin, Mcrit_atom_val, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
+            Nion_z_val[i] = Nion_General(z_val[i], Mmin, Mcrit_atom_val, Alpha_star, Alpha_esc, Fstar10, Fesc10*F_ESC10_zterm, Mlim_Fstar, Mlim_Fesc);
 
             for (j=0; j<NMTURN; j++){
                 Nion_z_val_MINI[i+j*Nbin] = Nion_General_MINI(z_val[i], Mmin, MassTurnover[j], Mcrit_atom_val, Alpha_star_mini, Alpha_esc, Fstar7_MINI, Fesc7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
@@ -3414,17 +3418,15 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     int cnt, nbin, i, istart;
     int fail_condition, not_mono_increasing, num_fails;
     int gsl_status;
+	double F_ESC10_zterm;
 
     z_arr = calloc(Nmax,sizeof(double));
     Q_arr = calloc(Nmax,sizeof(double));
 
     //set the minimum source mass
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-        ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
-
         M_MIN = astro_params->M_TURN/50.;
         Mlim_Fstar = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
-        Mlim_Fesc = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
         if(user_params->FAST_FCOLL_TABLES){
           initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
         }
@@ -3474,11 +3476,17 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
 
             // Ionizing emissivity (num of photons per baryon)
             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
+				F_ESC10_zterm = pow((1.+z0)/8., astro_params->BETA_ESC);
+        		ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10 * F_ESC10_zterm;
+
+        		Mlim_Fesc = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10 * F_ESC10_zterm);
                 Nion0 = ION_EFF_FACTOR*Nion_General(z0, astro_params->M_TURN/50., astro_params->M_TURN, astro_params->ALPHA_STAR,
-                                                astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
+                                                astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10*F_ESC10_zterm,
                                                 Mlim_Fstar, Mlim_Fesc);
+				F_ESC10_zterm = pow((1.+z1)/8., astro_params->BETA_ESC);
+        		Mlim_Fesc = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10 * F_ESC10_zterm);
                 Nion1 = ION_EFF_FACTOR*Nion_General(z1, astro_params->M_TURN/50., astro_params->M_TURN, astro_params->ALPHA_STAR,
-                                                astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
+                                                astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10*F_ESC10_zterm,
                                                 Mlim_Fstar, Mlim_Fesc);
             }
             else {

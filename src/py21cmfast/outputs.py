@@ -1132,7 +1132,7 @@ class LightCone(_HighLevelOutput):
         self.Nion_acg = (
             mean_f_colls
             * 10 ** astro_params.F_STAR10
-            * 10 ** astro_params.F_ESC10
+            * 10 ** astro_params.F_ESC10 * ( (1.+redshift) / 8 )**astro_params.BETA_ESC
             * self.global_params["Pop2_ion"]
         )
         self.Nion_mcg = (

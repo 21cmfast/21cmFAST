@@ -54,7 +54,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
 
     float growth_factor, pixel_mass, cell_length_factor, M_MIN, prev_growth_factor;
     float erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR, growth_factor_dz;
-    float Splined_Fcoll_MINI, prev_dens, ION_EFF_FACTOR_MINI, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI;
+    float Splined_Fcoll_MINI, prev_dens, ION_EFF_FACTOR_MINI, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI, prev_ION_EFF_FACTOR;
     float ave_M_coll_cell, ave_N_min_cell, pixel_volume, density_over_mean;
 
     float curr_vcb;
@@ -98,6 +98,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     float prev_min_density, prev_max_density;
 
     float stored_redshift, adjustment_factor;
+    float stored_prev_redshift, prev_adjustment_factor;
     float R_BUBBLE_MAX;
 
     gsl_rng * r[user_params->N_THREADS];
@@ -116,7 +117,10 @@ LOG_SUPER_DEBUG("defined parameters");
 
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-        ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
+        double F_ESC10_zterm = pow((1.+redshift)/8., astro_params->BETA_ESC);
+        double prev_F_ESC10_zterm = pow((1.+prev_redshift)/8., astro_params->BETA_ESC);
+        ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10 * F_ESC10_zterm;
+        prev_ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10 * prev_F_ESC10_zterm;
         ION_EFF_FACTOR_MINI = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
     }
     else {
@@ -172,6 +176,13 @@ LOG_SUPER_DEBUG("defined parameters");
         adjust_redshifts_for_photoncons(astro_params,flag_options,&redshift,&stored_redshift,&absolute_delta_z);
 LOG_DEBUG("PhotonCons data:");
 LOG_DEBUG("original redshift=%f, updated redshift=%f delta-z = %f", stored_redshift, redshift, absolute_delta_z);
+        if (flag_options->USE_MINI_HALOS){
+            if (prev_redshift < 1)
+                adjust_redshifts_for_photoncons(astro_params,flag_options,&prev_redshift,&stored_prev_redshift,&absolute_delta_z);
+            else
+                stored_prev_redshift = prev_redshift;
+LOG_DEBUG("original prev_redshift=%f, updated prev_redshift=%f delta-z = %f", stored_prev_redshift, prev_redshift, absolute_delta_z);
+        }
         if(isfinite(redshift)==0 || isfinite(absolute_delta_z)==0) {
             LOG_ERROR("Updated photon non-conservation redshift is either infinite or NaN!");
             LOG_ERROR("This can sometimes occur when reionisation stalls (i.e. extremely low"\
@@ -494,7 +505,7 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
             box->log10_Mturnover_MINI_ave = log10(Mturnover);
         }
         Mlim_Fstar = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR10);
-        Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10);
+        Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10* F_ESC10_zterm);
     }
     else {
 
@@ -572,26 +583,26 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
     // Determine the normalisation for the excursion set algorithm
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (flag_options->USE_MINI_HALOS){
-            if (previous_ionize_box->mean_f_coll * ION_EFF_FACTOR < 1e-4){
+            if (previous_ionize_box->mean_f_coll * prev_ION_EFF_FACTOR < 1e-4){
                 box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                                astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                                astro_params->F_STAR10,astro_params->F_ESC10* F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
                 if(flag_options->PHOTON_CONS) {
                     box->mean_f_coll_PC = Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                                astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                                astro_params->F_STAR10,astro_params->F_ESC10* F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
                 }
             }
             else{
                 box->mean_f_coll = previous_ionize_box->mean_f_coll + \
                                     Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                                 astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc) - \
+                                                 astro_params->F_STAR10,astro_params->F_ESC10 * F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc) - \
                                     Nion_General(prev_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                                 astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                                 astro_params->F_STAR10,astro_params->F_ESC10 * F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);// similar to Mturnover, F_ESC10_zterm should not be prev_F_ESC10_zterm
                 if(flag_options->PHOTON_CONS) {
                     box->mean_f_coll_PC = previous_ionize_box->mean_f_coll_PC + \
                                     Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
                                                  astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc) - \
-                                    Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                                 astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                    Nion_General(stored_prev_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
+                                                 astro_params->F_STAR10,astro_params->F_ESC10 *F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
                 }
             }
             if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI < 1e-4){
@@ -617,35 +628,35 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
                                         Nion_General_MINI(stored_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
                                                           astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI
                                                           ,Mlim_Fstar_MINI,Mlim_Fesc_MINI) - \
-                                        Nion_General_MINI(stored_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
+                                        Nion_General_MINI(stored_prev_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
                                                           astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
                                                           Mlim_Fstar_MINI,Mlim_Fesc_MINI);
                 }
             }
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,
-                                      astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                      astro_params->ALPHA_ESC,astro_params->F_STAR10,astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
             f_coll_min_MINI = Nion_General_MINI(global_params.Z_HEAT_MAX,M_MIN,Mturnover_MINI,Mcrit_atom,
                                                 astro_params->ALPHA_STAR_MINI,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,
                                                 astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
         }
         else{
             box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                            astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                            astro_params->F_STAR10,astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
             box->mean_f_coll_MINI = 0.;
             if(flag_options->PHOTON_CONS) {
                 box->mean_f_coll_PC = Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                            astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                            astro_params->F_STAR10,astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
                 box->mean_f_coll_MINI_PC = 0.;
             }
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                      astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc);
+                                      astro_params->F_STAR10,astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
         }
     }
     else {
         box->mean_f_coll = FgtrM_General(redshift, M_MIN);
         if(flag_options->PHOTON_CONS) {
-        	box->mean_f_coll_PC = FgtrM_General(stored_redshift, M_MIN);
-		}
+            box->mean_f_coll_PC = FgtrM_General(stored_redshift, M_MIN);
+        }
     }
 
     if(isfinite(box->mean_f_coll)==0) {
@@ -1006,15 +1017,15 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                                     log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                                     astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI,
                                                     astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                    astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,astro_params->F_STAR7_MINI,
+                                                    astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc,astro_params->F_STAR7_MINI,
                                                     astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI, user_params->FAST_FCOLL_TABLES);
 
-                            if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
+                            if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * prev_ION_EFF_FACTOR > 1e-4){
                                     initialise_Nion_General_spline_MINI_prev(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,
                                                                     massofscaleR,M_MIN,log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,
                                                                     log10Mturn_max_MINI,astro_params->ALPHA_STAR,  astro_params->ALPHA_STAR_MINI,
                                                                     astro_params->ALPHA_ESC,
-                                                                    astro_params->F_STAR10,astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,
+                                                                    astro_params->F_STAR10,astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc,
                                                                     astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
                                                                     Mlim_Fstar_MINI, Mlim_Fesc_MINI, user_params->FAST_FCOLL_TABLES);
                             }
@@ -1022,7 +1033,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                         else{
                             initialise_Nion_General_spline(redshift,min_density,max_density,massofscaleR,astro_params->M_TURN,
                                                         astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                        astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
+                                                        astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
                         }
                     }
                 }
@@ -1049,7 +1060,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             // since we are using the evolved (non-linear) density field
 #pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded_threaded,log10_Nion_spline,Nion_spline,erfc_denom,erfc_arg_min,\
                             erfc_arg_max,InvArgBinWidth,ArgBinWidth,ERFC_VALS_DIFF,ERFC_VALS,log10_Mturnover_filtered,log10Mturn_min,log10Mturn_bin_width_inv, \
-                            log10_Mturnover_MINI_filtered,log10Mturn_bin_width_inv_MINI,log10_Nion_spline_MINI,prev_deltax_filtered,previous_ionize_box,ION_EFF_FACTOR,\
+                            log10_Mturnover_MINI_filtered,log10Mturn_bin_width_inv_MINI,log10_Nion_spline_MINI,prev_deltax_filtered,previous_ionize_box,prev_ION_EFF_FACTOR, ION_EFF_FACTOR,F_ESC10_zterm,\
                             prev_overdense_small_bin_width, overdense_small_bin_width,overdense_small_bin_width_inv,\
                             prev_overdense_small_min,prev_overdense_small_bin_width_inv,prev_log10_Nion_spline,prev_log10_Nion_spline_MINI,prev_overdense_large_min,\
                             prev_overdense_large_bin_width_inv,prev_Nion_spline,prev_Nion_spline_MINI,box,counter,M_coll_filtered,massofscaleR,pixel_volume,sigmaMmax,\
@@ -1118,7 +1129,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                             Splined_Fcoll = Nion_ConditionalM(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,curr_dens,
                                                                               pow(10.,log10_Mturnover),astro_params->ALPHA_STAR,
                                                                               astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                                              astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
+                                                                              astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
 
                                             Splined_Fcoll_MINI = Nion_ConditionalM_MINI(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,curr_dens,
                                                                                     pow(10.,log10_Mturnover_MINI),Mcrit_atom,astro_params->ALPHA_STAR_MINI,
@@ -1128,7 +1139,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                                         prev_dens = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
-                                        if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
+                                        if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * prev_ION_EFF_FACTOR > 1e-4){
 
                                             if(user_params->USE_INTERPOLATION_TABLES) {
 
@@ -1145,7 +1156,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                                 prev_Splined_Fcoll = Nion_ConditionalM(prev_growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,prev_dens,
                                                                                        pow(10.,log10_Mturnover),astro_params->ALPHA_STAR,
                                                                                        astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                                                       astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
+                                                                                       astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
 
                                                 prev_Splined_Fcoll_MINI = Nion_ConditionalM_MINI(prev_growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,prev_dens,
                                                                                         pow(10.,log10_Mturnover_MINI),Mcrit_atom,astro_params->ALPHA_STAR_MINI,
@@ -1176,7 +1187,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                             Splined_Fcoll = Nion_ConditionalM(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,Deltac,curr_dens,
                                                                               astro_params->M_TURN,astro_params->ALPHA_STAR,
                                                                               astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                                              astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
+                                                                              astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
 
                                         }
                                     }

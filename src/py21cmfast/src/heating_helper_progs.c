@@ -898,14 +898,15 @@ double tauX_integrand_MINI(double zhat, void *params){
         fcoll_MINI = fcoll_MINI_left + (log10_Mturn_MINI - log10_Mturn_MINI_table_fcollz) / LOG10_MTURN_INT * (fcoll_MINI_right - fcoll_MINI_left);
     }
     else {
+        double F_ESC10_zterm = pow((1.+zhat)/8., astro_params_hf->BETA_ESC);
 
         Mcrit_atom_val = atomic_cooling_threshold(zhat);
 
         Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_STAR, astro_params_hf->F_STAR10);
-        Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_ESC, astro_params_hf->F_ESC10);
+        Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_ESC, astro_params_hf->F_ESC10*F_ESC10_zterm);
 
         fcoll = Nion_General(zhat, global_params.M_MIN_INTEGRAL, Mcrit_atom_val, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
-                             astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+                             astro_params_hf->F_STAR10, astro_params_hf->F_ESC10*F_ESC10_zterm, Mlim_Fstar, Mlim_Fesc);
 
         Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_STAR_MINI,
                                                astro_params_hf->F_STAR7_MINI * pow(1e3, astro_params_hf->ALPHA_STAR_MINI));
@@ -958,12 +959,13 @@ double tauX_integrand(double zhat, void *params){
             fcoll = Nion_z_val[redshift_int_fcollz] + ( zhat - redshift_table_fcollz )*( Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zpp_bin_width);
         }
         else {
+            double F_ESC10_zterm = pow((1.+zhat)/8., astro_params_hf->BETA_ESC);
 
             Mlim_Fstar = Mass_limit_bisection(astro_params_hf->M_TURN/50., global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_STAR, astro_params_hf->F_STAR10);
-            Mlim_Fesc = Mass_limit_bisection(astro_params_hf->M_TURN/50., global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_ESC, astro_params_hf->F_ESC10);
+            Mlim_Fesc = Mass_limit_bisection(astro_params_hf->M_TURN/50., global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_ESC, astro_params_hf->F_ESC10 * F_ESC10_zterm);
 
             fcoll = Nion_General(zhat, astro_params_hf->M_TURN/50., astro_params_hf->M_TURN/50., astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
-                                 astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+                                 astro_params_hf->F_STAR10, astro_params_hf->F_ESC10 * F_ESC10_zterm, Mlim_Fstar, Mlim_Fesc);
         }
     }
     else {
@@ -1024,7 +1026,7 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, d
     p.nu_0 = nu/(1+zp);
     p.x_e = x_e;
     p.x_e_ave = x_e_ave;
-    p.ion_eff = global_params.Pop2_ion*astro_params_hf->F_STAR10*astro_params_hf->F_ESC10;
+    p.ion_eff = global_params.Pop2_ion*astro_params_hf->F_STAR10*astro_params_hf->F_ESC10*pow((1.+zp)/8., astro_params_hf->BETA_ESC);
     p.ion_eff_MINI = global_params.Pop3_ion*astro_params_hf->F_STAR7_MINI*astro_params_hf->F_ESC7_MINI;
     p.log10_Mturn_MINI = log10_Mturn_MINI;
     p.LOG10_MTURN_INT = LOG10_MTURN_INT;
@@ -1077,7 +1079,7 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
     p.x_e_ave = x_e_ave;
 
     if(flag_options_hf->USE_MASS_DEPENDENT_ZETA) {
-        p.ion_eff = global_params.Pop2_ion*astro_params_hf->F_STAR10*astro_params_hf->F_ESC10;
+        p.ion_eff = global_params.Pop2_ion*astro_params_hf->F_STAR10*astro_params_hf->F_ESC10*pow((1.+zp)/8., astro_params_hf->BETA_ESC);
     }
     else {
         if (HI_filling_factor_zp > FRACT_FLOAT_ERR){

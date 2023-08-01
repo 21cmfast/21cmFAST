@@ -156,7 +156,8 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     int NO_LIGHT = 0;
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-        ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10;
+		double F_ESC10_zterm = pow((1.+redshift)/8., astro_params->BETA_ESC);
+        ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10 * F_ESC10_zterm;
         ION_EFF_FACTOR_MINI = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
     }
     else {
@@ -382,7 +383,7 @@ LOG_SUPER_DEBUG("initalised Ts Interp Arrays");
             M_MIN = (global_params.M_MIN_INTEGRAL)/50.;
 
             Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
-            Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
+            Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10 * F_ESC10_zterm);
 
             Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
                                                    astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
@@ -393,7 +394,7 @@ LOG_SUPER_DEBUG("initalised Ts Interp Arrays");
             M_MIN = (astro_params->M_TURN)/50.;
 
             Mlim_Fstar = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR, astro_params->F_STAR10);
-            Mlim_Fesc = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10);
+            Mlim_Fesc = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10 * F_ESC10_zterm);
         }
     }
     else {
@@ -732,7 +733,7 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
                     /* initialise interpolation of the mean collapse fraction for global reionization.*/
                     if (!flag_options->USE_MINI_HALOS){
                         initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                                 astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC,
+                                                 astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC, astro_params->BETA_ESC,
                                                  astro_params->F_STAR10, astro_params->F_ESC10);
 
                         initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
@@ -740,7 +741,7 @@ LOG_SUPER_DEBUG("Finished loop through filter scales R");
                     }
                     else{
                         initialise_Nion_Ts_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                                      astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI, astro_params->ALPHA_ESC, astro_params->F_STAR10,
+                                                      astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI, astro_params->ALPHA_ESC, astro_params->BETA_ESC, astro_params->F_STAR10,
                                                       astro_params->F_ESC10, astro_params->F_STAR7_MINI, astro_params->F_ESC7_MINI);
 
                         initialise_SFRD_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
@@ -899,11 +900,11 @@ LOG_SUPER_DEBUG("got density gridpoints");
 
                 if(flag_options->USE_MINI_HALOS) {
                     Splined_Fcollzp_mean = Nion_General(zp, global_params.M_MIN_INTEGRAL, atomic_cooling_threshold(zp), astro_params->ALPHA_STAR, astro_params->ALPHA_ESC,
-                                                        astro_params->F_STAR10, astro_params->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+                                                        astro_params->F_STAR10, astro_params->F_ESC10 * F_ESC10_zterm, Mlim_Fstar, Mlim_Fesc);
                 }
                 else {
                     Splined_Fcollzp_mean = Nion_General(zp, M_MIN, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC,
-                                                    astro_params->F_STAR10, astro_params->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+                                                    astro_params->F_STAR10, astro_params->F_ESC10 * F_ESC10_zterm, Mlim_Fstar, Mlim_Fesc);
                 }
             }
 
