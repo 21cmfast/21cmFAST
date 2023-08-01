@@ -15,7 +15,10 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from . import __version__
 from ._cfg import config
-from .c_21cmfast import lib
+try:
+    from .c_21cmfast import lib
+except:
+    pass
 
 _ffi = FFI()
 

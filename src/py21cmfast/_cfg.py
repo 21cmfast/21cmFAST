@@ -16,7 +16,7 @@ class ConfigurationError(Exception):
 class Config(dict):
     """Simple over-ride of dict that adds a context manager."""
 
-    _defaults = {"direc": "~/21cmFAST-cache", "regenerate": False, "write": True}
+    _defaults = {"direc": "~/21cmFAST-cache", "regenerate": False, "write": True,  "cache_param_sigfigs": 6, "cache_redshift_sigfigs": 4,}
 
     _aliases = {"direc": ("boxdir",)}
 

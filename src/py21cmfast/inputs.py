@@ -22,7 +22,11 @@ from pathlib import Path
 from ._cfg import config
 from ._data import DATA_PATH
 from ._utils import StructInstanceWrapper, StructWithDefaults
-from .c_21cmfast import ffi, lib
+try:
+    from .c_21cmfast import ffi
+except:
+    pass
+from .c_21cmfast import lib
 
 logger = logging.getLogger("21cmFAST")
 
@@ -837,9 +841,9 @@ class AstroParams(StructWithDefaults):
         "F_STAR7_MINI": -2.0,
         "ALPHA_STAR": 0.5,
         "ALPHA_STAR_MINI": 0.5,
-        "F_ESC10": -1.0,
+        "F_ESC10": -1.5,
         "F_ESC7_MINI": -2.0,
-        "ALPHA_ESC": -0.5,
+        "ALPHA_ESC": 0.1,
         "M_TURN": 8.7,
         "R_BUBBLE_MAX": None,
         "ION_Tvir_MIN": 4.69897,
@@ -849,7 +853,7 @@ class AstroParams(StructWithDefaults):
         "X_RAY_SPEC_INDEX": 1.0,
         "X_RAY_Tvir_MIN": None,
         "F_H2_SHIELD": 0.0,
-        "t_STAR": 0.5,
+        "t_STAR": 0.44,
         "N_RSD_STEPS": 20,
         "A_LW": 2.00,
         "BETA_LW": 0.6,
