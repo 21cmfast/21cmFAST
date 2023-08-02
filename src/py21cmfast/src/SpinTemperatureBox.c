@@ -154,9 +154,10 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     float M_MIN_at_zp;
 
     int NO_LIGHT = 0;
+	double F_ESC10_zterm;
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-		double F_ESC10_zterm = pow((1.+redshift)/8., astro_params->BETA_ESC);
+		F_ESC10_zterm = pow((1.+redshift)/8., astro_params->BETA_ESC);
         ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10 * F_ESC10_zterm;
         ION_EFF_FACTOR_MINI = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
     }
