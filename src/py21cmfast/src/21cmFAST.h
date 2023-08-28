@@ -88,6 +88,7 @@ struct FlagOptions{
     bool HALO_STOCHASTICITY;
     bool USE_EXP_FILTER;
     bool FIXED_HALO_GRIDS;
+    bool CELL_RECOMB;
 };
 
 

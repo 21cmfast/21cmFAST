@@ -142,8 +142,8 @@ LOG_SUPER_DEBUG("defined parameters");
     }
 
     // For recombinations
+    bool recomb_filter_flag = flag_options->INHOMO_RECO && !flag_options->CELL_RECOMB;
     if(flag_options->INHOMO_RECO) {
-
         if(INIT_RECOMBINATIONS) {
             init_MHR();
             INIT_RECOMBINATIONS=0;
@@ -278,7 +278,7 @@ LOG_SUPER_DEBUG("erfc interpolation done");
         xe_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         xe_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     }
-    if (flag_options->INHOMO_RECO){
+    if (recomb_filter_flag){
         N_rec_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS); // cumulative number of recombinations
         N_rec_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     }
@@ -680,7 +680,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 
         LOG_SUPER_DEBUG("calculated ionization fraction");
 
-        if (flag_options->INHOMO_RECO) {
+        if (recomb_filter_flag) {
 #pragma omp parallel shared(N_rec_unfiltered, previous_ionize_box) private(i, j, k) num_threads(user_params->N_THREADS)
             {
 #pragma omp for
@@ -718,7 +718,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
         }
 
 
-        if (flag_options->INHOMO_RECO) {
+        if (recomb_filter_flag) {
             dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, N_rec_unfiltered);
         }
 
@@ -733,7 +733,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
                 deltax_unfiltered[ct] /= (HII_TOT_NUM_PIXELS+0.0);
                 if(flag_options->USE_TS_FLUCT) { xe_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS; }
-                if (flag_options->INHOMO_RECO){ N_rec_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS; }
+                if (recomb_filter_flag){ N_rec_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS; }
                 if(flag_options->USE_HALO_FIELD) {
                     stars_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS;
                     sfr_unfiltered[ct] /= (double)HII_TOT_NUM_PIXELS;
@@ -793,7 +793,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             if (flag_options->USE_TS_FLUCT) {
                 memcpy(xe_filtered, xe_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
             }
-            if (flag_options->INHOMO_RECO) {
+            if (recomb_filter_flag) {
                 memcpy(N_rec_filtered, N_rec_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
             }
             if (flag_options->USE_HALO_FIELD) {
@@ -815,7 +815,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 if (flag_options->USE_TS_FLUCT) {
                     filter_box(xe_filtered, 1, global_params.HII_FILTER, R);
                 }
-                if (flag_options->INHOMO_RECO) {
+                if (recomb_filter_flag) {
                     filter_box(N_rec_filtered, 1, global_params.HII_FILTER, R);
                 }
                 if (flag_options->USE_HALO_FIELD) {
@@ -854,7 +854,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, xe_filtered);
             }
 
-            if (flag_options->INHOMO_RECO) {
+            if (recomb_filter_flag) {
                 dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, N_rec_filtered);
             }
 
@@ -1053,7 +1053,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                                 *((float *) deltax_filtered + HII_R_FFT_INDEX(x, y, z)), -1. + FRACT_FLOAT_ERR);
 
                             // <N_rec> cannot be less than zero
-                            if (flag_options->INHOMO_RECO) {
+                            if (recomb_filter_flag) {
                                 *((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)) = fmaxf(*((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z)), 0.0);
                             }
 
@@ -1364,9 +1364,15 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             }
 
                             if (flag_options->INHOMO_RECO) {
-                                rec = (*((float *) N_rec_filtered +
-                                         HII_R_FFT_INDEX(x, y, z))); // number of recombinations per mean baryon
-                                rec /= (1. + curr_dens); // number of recombinations per baryon inside <R>
+                                if(flag_options->CELL_RECOMB){
+                                    rec = previous_ionize_box->dNrec_box[HII_R_INDEX(x,y,z)];
+                                    rec /= (1 + perturbed_field->density[HII_R_INDEX(x,y,z)]);
+                                }
+                                else{
+                                    rec = (*((float *) N_rec_filtered +
+                                            HII_R_FFT_INDEX(x, y, z))); // number of recombinations per mean baryon
+                                    rec /= (1. + curr_dens); // number of recombinations per baryon inside cell/filter
+                                }
                             } else {
                                 rec = 0.;
                             }

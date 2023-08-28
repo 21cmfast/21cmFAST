@@ -1026,7 +1026,7 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
     //lnMmin only used for sampling, apply factor here
     double mass_tol = global_params.STOC_MASS_TOL;
     double exp_M = hs_constants->expected_M;
-    if(hs_constants->update)exp_M *= 0.95; //0.95 fudge factor for assuming that internal lagrangian volumes are independent
+    if(hs_constants->update)exp_M *= 0.94; //0.95 fudge factor for assuming that internal lagrangian volumes are independent
 
     int n_halo_sampled, n_failures=0;
     double M_prog=0;
