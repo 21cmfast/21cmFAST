@@ -4018,3 +4018,60 @@ def get_photoncons_dz(astro_params,flag_options,redshift):
                                         ffi.cast('float *',deltaz.ctypes.data))
 
     return redshift_pc_in[0],stored_redshift_pc_in[0],deltaz[0]
+
+#(jdavies): this will be a very hacky way to make a (d_alphastar vs z) array
+#for a photoncons done by ALPHA_STAR instead of redshift
+#This will work by taking the calibration simulation, plotting a RANGE of analytic
+#Q vs z curves for different ALPHA_STAR, and then finding the aloha star which has the inverse ratio
+#with the reference analytic as the calibration
+def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
+    ref_pc_data = _get_photon_nonconservation_data()
+    alpha_arr = np.linspace(-0.5,1.5,num=100)
+    test_pc_data = np.zeros((100,ref_pc_data['z_calibration'].size))
+
+    for i,a in enumerate(alpha_arr):
+        #alter astro params with new alpha
+        astro_params_photoncons = deepcopy(astro_params)
+        astro_params_photoncons.ALPHA_STAR = a
+
+        #find the analytic curve wth that alpha
+        _init_photon_conservation_correction(user_params=user_params,
+                                            cosmo_params=cosmo_params,
+                                            astro_params=astro_params_photoncons,
+                                            flag_options=flag_options)
+
+        #save it
+        pcd_buf = _get_photon_nonconservation_data()
+
+        #interpolate to the calibration redshifts
+        test_pc_data[i,...] = np.interp(ref_pc_data['z_calibration'],pcd_buf['z_analytic'],pcd_buf['Q_analytic'])
+    
+    ref_interp = np.interp(ref_pc_data['z_calibration'],ref_pc_data['z_analytic'],ref_pc_data['Q_analytic'])
+
+    #ratio of each alpha with calibration
+    ratio_test = test_pc_data/ref_pc_data['nf_calibration'][None,...]
+    #ratio of given alpha with calibration
+    ratio_ref = ref_interp/ref_pc_data['nf_calibration']
+    alpha_estimate = np.zeros_like(ratio_ref)
+
+    #now interpolate the required alpha to reach the same neutral fraction
+    for i in range(ref_pc_data['z_calibration'].size):
+        alpha_estimate[i] = np.interp(ratio_ref[i],ratio_test[:,i],alpha_arr)
+
+    print(f'z_analytic: {ref_pc_data['z_analytic']}')
+    print(f'z_calibration: {ref_pc_data['z_calibration']}')
+    print(f'Q_ref: {ref_pc_data['Q_analytic']}')
+    print(f'nf_ref: {ref_interp}')
+    print(f'nf_alpha: {test_pc_data}')
+    print(f'alpha estimate: {alpha_estimate}')
+
+
+    #reset the photoncons data, probably unneccessary
+    _init_photon_conservation_correction(user_params=user_params,
+                                            cosmo_params=cosmo_params,
+                                            astro_params=astro_params,
+                                            flag_options=flag_options)
+    
+
+
+
