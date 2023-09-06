@@ -34,6 +34,9 @@ struct parameters_gsl_MF_con_int_{
 };
 
 //parameters for the halo mass->stars calculations
+//Note: ideally I would split this into constants set per snapshot and
+//  constants set per condition, however some variables (delta or Mass)
+//  can be set with differing frequencies depending on the condition type
 static struct HaloSamplingConstants{
     //calculated per redshift
     int update; //flag for first box or updating halos
@@ -324,6 +327,57 @@ double MnMassfunction(double M, void *param_struct){
     }
     //norder for expectation values of M^n
     return pow(M_exp,n_order) * mf;
+}
+
+//Sheth Tormen 2002 fit for the CMF, while the moving barrier does not allow for a simple rescaling, it has been found
+//That a taylor expansion of the barrier shape around the point of interest well approximates the simulations
+//TODO: Count the growth factors needed in each term
+double st_taylor_factor(double sig, double sig_cond, double growthf){
+    double a = SHETH_A;
+    double alpha = global_params.SHETH_c;
+    double beta = global_params.SHETH_b;
+    double delsq = Deltac*Deltac/growthf/growthf;
+    double sigsq = sig*sig;
+    double sigcsq = sig_cond*sig_cond;
+    double sigdiff = sigsq - sigcsq;
+
+    double result = 0;
+
+    int i;
+    //Taylor expansion of the x^a part around (sigsq - sigcondsq)
+    for(i=5;i>-1;i--){
+        result = (result + (pow(sigsq/(SHETH_a*delsq), alpha - i) - pow(sigcsq/(SHETH_a*delsq), alpha - i)))*(alpha-i+1)*sigdiff/i; //the last factor makes the factorials and nth power of nth derivative
+    }
+
+    //constants and the + 1 factor from the barrier 0th derivative B = A*(1 + b*x^a)
+    result = (result/sigdiff*beta + 1)*sqrt(SHETH_a)*Deltac;
+    return result;
+}
+
+double dNdM_conditional_ST(double growthf, double M1, double M2, double delta1, double delta2, double sigma2){
+    double sigma1, sig1sq, sig2sq, dsigmadm, B1, B2;
+    double MassBinLow;
+    int MassBin;
+
+    sigma1 = EvaluateSigma(M1,1,&dsigmadm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
+
+    M1 = exp(M1);
+    M2 = exp(M2);
+
+    sig1sq = sigma1*sigma1;
+    sig2sq = sigma2*sigma2;
+    B1 = sheth_delc(delta1/growthf,sigma1);
+    B2 = sheth_delc(delta2/growthf,sigma2);
+
+    if((sigma1 > sigma2)) {
+        return -dsigmadm*sigma1*st_taylor_factor(sigma1,sigma2,growthf)/pow(sig1sq-sig2sq,1.5)*exp(-(B1 - B2)*(B1 - B2)/(sig1sq-sig2sq));
+    }
+    else if(sigma1==sigma2) {
+        return -dsigmadm*sigma1*st_taylor_factor(sigma1,sigma2,growthf)/pow(1e-6,1.5)*exp(-(B1 - B2)*(B1 - B2)/(1e-6));
+    }
+    else {
+        return 0.;
+    }
 }
 
 //copied mostly from the Nion functions

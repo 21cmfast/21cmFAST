@@ -131,8 +131,7 @@ LOG_SUPER_DEBUG("defined parameters");
     }
 
     //Yuxiang's evolving Rmax for MFP in ionised regions
-    //TODO: ask Yuxiang where this is from
-    //TODO 2: this should be the adjusted redshift I think but make sure
+    //TODO: this should be the adjusted redshift I think but make sure
     double exp_mfp;
     if(flag_options->USE_EXP_FILTER){
         if (redshift > 6)
@@ -1606,7 +1605,7 @@ LOG_DEBUG("global_xH = %e",global_xH);
         fftwf_free(xe_unfiltered);
         fftwf_free(xe_filtered);
     }
-    if (flag_options->INHOMO_RECO){
+    if (recomb_filter_flag){
         fftwf_free(N_rec_unfiltered);
         fftwf_free(N_rec_filtered);
     }

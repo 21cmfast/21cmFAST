@@ -94,6 +94,7 @@ from astropy import units
 from astropy.cosmology import z_at_value
 from copy import deepcopy
 from scipy.interpolate import interp1d
+from scipy.optimize import root_scalar
 from typing import Any, Callable, Sequence
 
 from ._cfg import config
@@ -4026,15 +4027,18 @@ def get_photoncons_dz(astro_params,flag_options,redshift):
 #with the reference analytic as the calibration
 def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
     ref_pc_data = _get_photon_nonconservation_data()
-    alpha_arr = np.linspace(-0.5,1.5,num=100)
-    test_pc_data = np.zeros((100,ref_pc_data['z_calibration'].size))
+    z = ref_pc_data['z_calibration']
+    alpha_arr = np.linspace(-2.0,2.0,num=201) #roughly -0.1 steps for an extended range of alpha
+    test_pc_data = np.zeros((alpha_arr.size,ref_pc_data['z_calibration'].size))
 
     for i,a in enumerate(alpha_arr):
         #alter astro params with new alpha
         astro_params_photoncons = deepcopy(astro_params)
-        astro_params_photoncons.ALPHA_STAR = a
+        astro_params_photoncons.ALPHA_ESC = a
 
         #find the analytic curve wth that alpha
+        #TODO: Theres a small memory leak here since global arrays are allocated (for some reason)
+        #TODO: use ffi to free them?
         _init_photon_conservation_correction(user_params=user_params,
                                             cosmo_params=cosmo_params,
                                             astro_params=astro_params_photoncons,
@@ -4048,30 +4052,71 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
     
     ref_interp = np.interp(ref_pc_data['z_calibration'],ref_pc_data['z_analytic'],ref_pc_data['Q_analytic'])
 
+    #filling factors sometimes go above 1, this causes problems in late-time ratios
+    #I want this in the test alphas to get the right photon ratio, but not in the reference analytic
+    #test_pc_data[test_pc_data > 1.] = 1.
+    ref_interp[ref_interp > 1] = 1.
+
     #ratio of each alpha with calibration
-    ratio_test = test_pc_data/ref_pc_data['nf_calibration'][None,...]
+    ratio_test = (test_pc_data)/ref_interp[None,...]
     #ratio of given alpha with calibration
-    ratio_ref = ref_interp/ref_pc_data['nf_calibration']
-    alpha_estimate = np.zeros_like(ratio_ref)
+    ratio_ref = (1-ref_pc_data['nf_calibration'])/ref_interp
 
-    #now interpolate the required alpha to reach the same neutral fraction
-    for i in range(ref_pc_data['z_calibration'].size):
-        alpha_estimate[i] = np.interp(ratio_ref[i],ratio_test[:,i],alpha_arr)
+    ratio_diff = ratio_test - 1/ratio_ref[None,:] #find N(alpha)/ref == ref/cal
+    diff_test = (test_pc_data) + (1-ref_pc_data['nf_calibration'])[None,...] - 2*ref_interp[None,...] #find N(alpha) - ref == ref - cal
+    reverse_test = test_pc_data - (1-ref_pc_data['nf_calibration'])[None,...] #find N(alpha) == cal, then apply - alpha
 
-    print(f'z_analytic: {ref_pc_data['z_analytic']}')
-    print(f'z_calibration: {ref_pc_data['z_calibration']}')
-    print(f'Q_ref: {ref_pc_data['Q_analytic']}')
-    print(f'nf_ref: {ref_interp}')
-    print(f'nf_alpha: {test_pc_data}')
-    print(f'alpha estimate: {alpha_estimate}')
+    alpha_estimate_ratio = np.zeros_like(z)
+    alpha_estimate_diff = np.zeros_like(z)
+    alpha_estimate_reverse = np.zeros_like(z)
 
+    #find the roots of each function
+    roots_ratio_idx = np.where(np.diff(np.sign(ratio_diff),axis=0))
+    roots_diff_idx = np.where(np.diff(np.sign(diff_test),axis=0))
+    roots_reverse_idx = np.where(np.diff(np.sign(reverse_test),axis=0))
+
+    #find alpha estimates
+    last_alpha = astro_params.ALPHA_ESC
+    for arr_in,arr_out in zip([ratio_diff,diff_test,reverse_test],[alpha_estimate_ratio,alpha_estimate_diff,alpha_estimate_reverse]):
+        #TODO: vectorize?
+        for i in range(z.size):
+            #get the roots at this redshift
+            roots_z = np.where(roots_ratio_idx[1] == i)
+            #if there are no roots, assign nan
+            if roots_z[0].size == 0:
+                arr_out[i] = np.nan
+                continue
+
+            alpha_idx = roots_ratio_idx[0][roots_z]
+
+            #interpolate
+            y0 = arr_in[alpha_idx,i]
+            y1 = arr_in[alpha_idx+1,i]
+            x0 = alpha_arr[alpha_idx]
+            x1 = alpha_arr[alpha_idx+1]
+            guesses = -y0*(x1-x0)/(y1-y0) + x0
+
+            #choose the root which gives the smoothest alpha vs z curve
+            # arr_out[i] = guesses[np.argmin(np.fabs(guesses - astro_params.ALPHA_ESC))]
+            arr_out[i] = guesses[np.argmin(np.fabs(guesses - last_alpha))]
+            last_alpha = arr_out[i]
+
+    #adjust the reverse one (we found the alpha which is close to the calibration sim, undo it)
+    alpha_estimate_reverse = 2*astro_params.ALPHA_ESC - alpha_estimate_reverse
 
     #reset the photoncons data, probably unneccessary
     _init_photon_conservation_correction(user_params=user_params,
                                             cosmo_params=cosmo_params,
                                             astro_params=astro_params,
                                             flag_options=flag_options)
-    
 
+    results = {'z_cal' : ref_pc_data['z_calibration'],
+                'Q_ana' : ref_interp,
+                'Q_alpha' : test_pc_data,
+                'Q_cal' : (1-ref_pc_data['nf_calibration']),
+                'alpha_ratio' : alpha_estimate_ratio,
+                'alpha_diff' : alpha_estimate_diff,
+                'alpha_reverse' : alpha_estimate_reverse,
+                'alpha_arr' : alpha_arr}
 
-
+    return results

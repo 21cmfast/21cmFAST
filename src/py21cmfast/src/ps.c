@@ -3544,7 +3544,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
             Q_arr[cnt] = Q1;
 
             cnt = cnt + 1;
-            if (Q1 >= 1.0) break; // if fully ionized, stop here.
+            //if (Q1 >= 1.0) break; // if fully ionized, stop here. NOTE(jdavies) I turned this off to find photon ratios, it shouldn't affect much
             // As the Q value increases, the bin size decreases gradually because more accurate calculation is required.
             if (da < 7e-5) da = 7e-5; // set minimum bin size.
             else da = pow(da,reduce_ratio);
@@ -3614,7 +3614,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     free(Q_arr);
 
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-      freeSigmaMInterpTable;
+      freeSigmaMInterpTable();
     }
 
     LOG_DEBUG("Initialised PhotonCons.");
