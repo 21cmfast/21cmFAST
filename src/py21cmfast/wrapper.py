@@ -94,7 +94,7 @@ from astropy import units
 from astropy.cosmology import z_at_value
 from copy import deepcopy
 from scipy.interpolate import interp1d
-from scipy.optimize import root_scalar
+from scipy.optimize import curve_fit
 from typing import Any, Callable, Sequence
 
 from ._cfg import config
@@ -2794,7 +2794,7 @@ def run_coeval(
             )
 
         #NOTE: why is this done twice?
-        if flag_options.PHOTON_CONS:
+        if flag_options.PHOTON_CONS or flag_options.PHOTON_CONS_ALPHA:
             calibrate_photon_cons(
                 user_params,
                 cosmo_params,
@@ -2805,6 +2805,9 @@ def run_coeval(
                 write,
                 direc,
             )
+            #this calculates the alpha fit and passes it to C
+            if flag_options.PHOTON_CONS_ALPHA:
+                photoncons_alpha_data = photoncons_alpha(cosmo_params,user_params,astro_params,flag_options)
 
         if not hasattr(redshift, "__len__"):
             singleton = True
@@ -3064,7 +3067,7 @@ def run_coeval(
             if _bt is not None:
                 brightness_files.append((z, os.path.join(direc, _bt.filename)))
 
-        if flag_options.PHOTON_CONS:
+        if flag_options.PHOTON_CONS or flag_options.PHOTON_CONS_ALPHA:
             photon_nonconservation_data = _get_photon_nonconservation_data()
             if photon_nonconservation_data:
                 lib.FreePhotonConsMemory()
@@ -3366,7 +3369,7 @@ def run_lightcone(
         except OSError:
             pass
 
-        if flag_options.PHOTON_CONS:
+        if flag_options.PHOTON_CONS or flag_options.PHOTON_CONS_ALPHA:
             calibrate_photon_cons(
                 user_params,
                 cosmo_params,
@@ -3377,6 +3380,9 @@ def run_lightcone(
                 write,
                 direc,
             )
+            #this calculates the alpha fit and passes it to C
+            if flag_options.PHOTON_CONS_ALPHA:
+                photoncons_alpha_data = photoncons_alpha(cosmo_params,user_params,astro_params,flag_options)
 
         d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(
             cosmo_params,
@@ -3681,6 +3687,10 @@ def run_lightcone(
         if flag_options.PHOTON_CONS:
             photon_nonconservation_data = _get_photon_nonconservation_data()
             if photon_nonconservation_data:
+                lib.FreePhotonConsMemory()      
+        elif flag_options.PHOTON_CONS_ALPHA:
+            photon_nonconservation_data = photoncons_alpha_data
+            if photon_nonconservation_data:
                 lib.FreePhotonConsMemory()
         else:
             photon_nonconservation_data = None
@@ -3918,7 +3928,7 @@ def calibrate_photon_cons(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, {})
 
-    if not flag_options.PHOTON_CONS:
+    if not (flag_options.PHOTON_CONS or flag_options.PHOTON_CONS_ALPHA):
         return
 
     with global_params.use(**global_kwargs):
@@ -4025,10 +4035,22 @@ def get_photoncons_dz(astro_params,flag_options,redshift):
 #This will work by taking the calibration simulation, plotting a RANGE of analytic
 #Q vs z curves for different ALPHA_STAR, and then finding the aloha star which has the inverse ratio
 #with the reference analytic as the calibration
+#TODO: don't rely on the photoncons functions since they do a bunch of other stuff in C
+#NOTE: alpha_func here MUST MATCH the C version TODO: remove one of them
+def alpha_func(Q,a_const,a_slope):
+    return a_const + a_slope*Q
+
 def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
+    #HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
+    if not lib.photon_cons_allocated:
+        lib.determine_deltaz_for_photoncons()
+        lib.photon_cons_allocated = ffi.cast('bool',True)
+
+    print(lib.photon_cons_allocated)
+
     ref_pc_data = _get_photon_nonconservation_data()
     z = ref_pc_data['z_calibration']
-    alpha_arr = np.linspace(-2.0,2.0,num=201) #roughly -0.1 steps for an extended range of alpha
+    alpha_arr = np.linspace(-1.0,2.0,num=61) #roughly -0.1 steps for an extended range of alpha
     test_pc_data = np.zeros((alpha_arr.size,ref_pc_data['z_calibration'].size))
 
     for i,a in enumerate(alpha_arr):
@@ -4064,7 +4086,7 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
 
     ratio_diff = ratio_test - 1/ratio_ref[None,:] #find N(alpha)/ref == ref/cal
     diff_test = (test_pc_data) + (1-ref_pc_data['nf_calibration'])[None,...] - 2*ref_interp[None,...] #find N(alpha) - ref == ref - cal
-    reverse_test = test_pc_data - (1-ref_pc_data['nf_calibration'])[None,...] #find N(alpha) == cal, then apply - alpha
+    reverse_test = test_pc_data - (1-ref_pc_data['nf_calibration'])[None,...] #find NF(alpha) == cal, then apply - alpha
 
     alpha_estimate_ratio = np.zeros_like(z)
     alpha_estimate_diff = np.zeros_like(z)
@@ -4076,18 +4098,20 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
     roots_reverse_idx = np.where(np.diff(np.sign(reverse_test),axis=0))
 
     #find alpha estimates
-    last_alpha = astro_params.ALPHA_ESC
-    for arr_in,arr_out in zip([ratio_diff,diff_test,reverse_test],[alpha_estimate_ratio,alpha_estimate_diff,alpha_estimate_reverse]):
+    for arr_in,roots_arr,arr_out in zip([ratio_diff,diff_test,reverse_test],
+                                        [roots_ratio_idx,roots_diff_idx,roots_reverse_idx],
+                                        [alpha_estimate_ratio,alpha_estimate_diff,alpha_estimate_reverse]):
         #TODO: vectorize?
-        for i in range(z.size):
+        last_alpha = astro_params.ALPHA_ESC
+        for i in range(z.size)[::-1]:
             #get the roots at this redshift
-            roots_z = np.where(roots_ratio_idx[1] == i)
+            roots_z = np.where(roots_arr[1] == i)
             #if there are no roots, assign nan
             if roots_z[0].size == 0:
                 arr_out[i] = np.nan
                 continue
 
-            alpha_idx = roots_ratio_idx[0][roots_z]
+            alpha_idx = roots_arr[0][roots_z]
 
             #interpolate
             y0 = arr_in[alpha_idx,i]
@@ -4098,7 +4122,7 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
 
             #choose the root which gives the smoothest alpha vs z curve
             # arr_out[i] = guesses[np.argmin(np.fabs(guesses - astro_params.ALPHA_ESC))]
-            arr_out[i] = guesses[np.argmin(np.fabs(guesses - last_alpha))]
+            arr_out[i] = guesses[np.argmin(np.fabs(guesses - last_alpha))]            
             last_alpha = arr_out[i]
 
     #adjust the reverse one (we found the alpha which is close to the calibration sim, undo it)
@@ -4110,6 +4134,14 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
                                             astro_params=astro_params,
                                             flag_options=flag_options)
 
+    #fit to the curve
+    max_q_fit = 0.99
+    #make sure there's an estimate and Q isn't too high
+    sel = np.isfinite(alpha_estimate_ratio) & (ref_interp < max_q_fit)
+    popt, pcov = curve_fit(alpha_func, ref_interp[sel], alpha_estimate_ratio[sel])
+    #pass to C
+    lib.set_alphacons_params(popt[0],popt[1])
+
     results = {'z_cal' : ref_pc_data['z_calibration'],
                 'Q_ana' : ref_interp,
                 'Q_alpha' : test_pc_data,
@@ -4117,6 +4149,8 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
                 'alpha_ratio' : alpha_estimate_ratio,
                 'alpha_diff' : alpha_estimate_diff,
                 'alpha_reverse' : alpha_estimate_reverse,
-                'alpha_arr' : alpha_arr}
+                'alpha_arr' : alpha_arr,
+                'alpha_fit_yint' : popt[0],
+                'alpha_fit_slope' : popt[1],}
 
     return results

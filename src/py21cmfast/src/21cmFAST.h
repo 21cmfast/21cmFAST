@@ -84,6 +84,7 @@ struct FlagOptions{
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
     bool PHOTON_CONS;
+    bool PHOTON_CONS_ALPHA; //not used in C
     bool FIX_VCB_AVG;
     bool HALO_STOCHASTICITY;
     bool USE_EXP_FILTER;
@@ -225,6 +226,7 @@ float adjust_redshifts_for_photoncons(
     struct AstroParams *astro_params, struct FlagOptions *flag_options, float *redshift,
     float *stored_redshift, float *absolute_delta_z
 );
+void determine_deltaz_for_photoncons();
 
 int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analytic, double *z_cal_data, double *nf_cal_data, int *Ndata_calibration,
                          double *PhotonCons_NFdata, double *PhotonCons_deltaz, int *Ndata_PhotonCons);
@@ -262,4 +264,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
 
 int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, struct HaloBox *halobox,
-                  double R_inner, double R_outer, int R_ct, struct XraySourceBox *source_box);                 
+                  double R_inner, double R_outer, int R_ct, struct XraySourceBox *source_box);
+
+//alpha photoncons functions
+void set_alphacons_params(double norm, double slope);

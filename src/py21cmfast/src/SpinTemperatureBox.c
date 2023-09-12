@@ -3181,7 +3181,7 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
         sfr_global = astro_params_ts->F_STAR10 * Nion_General(zp, M_MIN, astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, 0., astro_params_ts->F_STAR10, 1.,Mlim_Fstar,0.) * hubble(zp) / astro_params_ts->t_STAR;
         LOG_DEBUG("SFR(halo) = %.3e | SFR(global) = %.3e",sum_sfr,sfr_global*tot_mass);
 
-        mass_global = IntegratedNdM(dicke(zp),log(M_MIN),log(global_params.M_MAX_INTEGRAL),log(global_params.M_MAX_INTEGRAL),0,1,user_params_ts->HMF) * pow(user_params_ts->BOX_LEN,3);
+        mass_global = IntegratedNdM(dicke(zp),log(M_MIN),log(global_params.M_MAX_INTEGRAL),log(global_params.M_MAX_INTEGRAL),0,1,user_params_ts->HMF,0) * pow(user_params_ts->BOX_LEN,3);
         LOG_DEBUG("Mass(halo) = %.3e | Mass(global) %.3e",sum_mass,mass_global);
     }
 

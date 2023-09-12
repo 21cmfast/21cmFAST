@@ -675,6 +675,8 @@ class FlagOptions(StructWithDefaults):
     PHOTON_CONS : bool, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation.
+    PHOTON_CONS : bool, optional
+        Do the photon conservation correction in ALPHA_ESC rather than redshift
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
     USE_VELS_AUX: bool, optional
@@ -715,6 +717,7 @@ class FlagOptions(StructWithDefaults):
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
+        "PHOTON_CONS_ALPHA": False,
         "FIX_VCB_AVG": False,
         "HALO_STOCHASTICITY": False,
         "USE_EXP_FILTER": False,
@@ -783,10 +786,10 @@ class FlagOptions(StructWithDefaults):
     @property
     def PHOTON_CONS(self):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or not self._PHOTON_CONS:
+        if not (self.USE_MINI_HALOS and self.PHOTON_CONS_ALPHA) or not self._PHOTON_CONS:
             return self._PHOTON_CONS
         logger.warning(
-            "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
+            "USE_MINI_HALOS and PHOTON_CONS_ALPHA are not compatible with PHOTON_CONS! "
             "Automatically setting PHOTON_CONS to False."
         )
         return False
@@ -800,8 +803,8 @@ class FlagOptions(StructWithDefaults):
                 "Turning off Stochastic Halos..."
             )
             return False
-        else:
-            return self._HALO_STOCHASTICITY
+
+        return self._HALO_STOCHASTICITY
 
 
 class AstroParams(StructWithDefaults):

@@ -4338,3 +4338,22 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
     LOG_DEBUG("Done Freeing interpolation table memory.");
 	interpolation_tables_allocated = false;
 }
+
+//quick functions to set/get alpha photoncons parameters
+//TODO: pass directly from python into a struct
+double alpha_photoncons_yint;
+double alpha_photoncons_slope;
+void set_alphacons_params(double yint, double slope){
+    alpha_photoncons_yint = yint;
+    alpha_photoncons_slope = slope;
+    return;
+}
+//NOTE: The way I've set this up is a little annoying in that this function needs to match its counterpart in Python
+double get_alpha_fit(double redshift){
+    double Q, alpha_fit;
+    Q_at_z(redshift,&Q);
+    alpha_fit = alpha_photoncons_yint + Q*alpha_photoncons_slope;
+    LOG_DEBUG("Alpha photon cons fit activated z = %.2e, fit yint,slope = %.2e, %.2e, alpha = %.2e", redshift,
+                alpha_photoncons_yint,alpha_photoncons_slope,alpha_fit);
+    return alpha_fit;
+}
