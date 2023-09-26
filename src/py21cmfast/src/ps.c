@@ -4352,6 +4352,7 @@ void set_alphacons_params(double yint, double slope){
 double get_alpha_fit(double redshift){
     double Q, alpha_fit;
     Q_at_z(redshift,&Q);
+    if(Q > 1.) Q = 1.;
     alpha_fit = alpha_photoncons_yint + Q*alpha_photoncons_slope;
     LOG_DEBUG("Alpha photon cons fit activated z = %.2e, fit yint,slope = %.2e, %.2e, alpha = %.2e", redshift,
                 alpha_photoncons_yint,alpha_photoncons_slope,alpha_fit);

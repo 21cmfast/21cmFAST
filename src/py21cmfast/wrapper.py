@@ -4046,11 +4046,9 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
         lib.determine_deltaz_for_photoncons()
         lib.photon_cons_allocated = ffi.cast('bool',True)
 
-    print(lib.photon_cons_allocated)
-
     ref_pc_data = _get_photon_nonconservation_data()
     z = ref_pc_data['z_calibration']
-    alpha_arr = np.linspace(-1.0,2.0,num=61) #roughly -0.1 steps for an extended range of alpha
+    alpha_arr = np.linspace(-1.5,1.5,num=61) #roughly -0.1 steps for an extended range of alpha
     test_pc_data = np.zeros((alpha_arr.size,ref_pc_data['z_calibration'].size))
 
     for i,a in enumerate(alpha_arr):
@@ -4103,9 +4101,11 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
                                         [alpha_estimate_ratio,alpha_estimate_diff,alpha_estimate_reverse]):
         #TODO: vectorize?
         last_alpha = astro_params.ALPHA_ESC
+        logger.info('calculating alpha roots')
         for i in range(z.size)[::-1]:
             #get the roots at this redshift
             roots_z = np.where(roots_arr[1] == i)
+            logger.info(f'{roots_z[0].size} roots at z={z[i]}, Q={ref_interp[i]} ')
             #if there are no roots, assign nan
             if roots_z[0].size == 0:
                 arr_out[i] = np.nan
@@ -4119,6 +4119,7 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
             x0 = alpha_arr[alpha_idx]
             x1 = alpha_arr[alpha_idx+1]
             guesses = -y0*(x1-x0)/(y1-y0) + x0
+            logger.info(f'roots at alpha={x1} ')
 
             #choose the root which gives the smoothest alpha vs z curve
             # arr_out[i] = guesses[np.argmin(np.fabs(guesses - astro_params.ALPHA_ESC))]
@@ -4138,8 +4139,22 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
     max_q_fit = 0.99
     #make sure there's an estimate and Q isn't too high
     sel = np.isfinite(alpha_estimate_ratio) & (ref_interp < max_q_fit)
+
+    #if there are no alpha roots found, it's likely this is a strange reionisation history
+    #but we can't apply the alpha correction so throw an error
+    if np.count_nonzero(sel) == 0:
+        if ratio_ref.max() < 1e-5:
+            logger.info('These parameters result in no ionisation, running without alpha correction')
+            popt = [astro_params.ALPHA_ESC,0]
+        
+        else:
+            logger.error(f'no alpha found for this ionisation history, {astro_params}')
+            raise ValueError
+
     popt, pcov = curve_fit(alpha_func, ref_interp[sel], alpha_estimate_ratio[sel])
     #pass to C
+    logger.info(f'ALPHA_ESC Original = {astro_params.ALPHA_ESC:.3f}')
+    logger.info(f'Running with ALPHA_ESC = {popt[0]:.2f} + {popt[1]:.2f} * Q')
     lib.set_alphacons_params(popt[0],popt[1])
 
     results = {'z_cal' : ref_pc_data['z_calibration'],

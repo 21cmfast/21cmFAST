@@ -115,7 +115,6 @@ double minimum_source_mass(double redshift, struct AstroParams *astro_params, st
     return Mmin;
 }
 
-
 //Modularisation that should be put in ps.c for the evaluation of sigma
 double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
     //using log units to make the fast option faster and the slow option slower
@@ -304,6 +303,7 @@ double st_taylor_factor(double sig, double sig_cond, double growthf){
     //Taylor expansion of the x^a part around (sigsq - sigcondsq)
     for(i=5;i>-1;i--){
         result = (result + (pow(sigsq/(SHETH_a*delsq), alpha - i) - pow(sigcsq/(SHETH_a*delsq), alpha - i)))*(alpha-i+1)*sigdiff/i; //the last factor makes the factorials and nth power of nth derivative
+        LOG_ULTRA_DEBUG("%d term %.2e",i,result);
     }
 
     //constants and the + 1 factor from the barrier 0th derivative B = A*(1 + b*x^a)
@@ -319,6 +319,8 @@ double dNdM_conditional_ST(double growthf, double M1, double M2, double delta1, 
 
     sigma1 = EvaluateSigma(M1,1,&dsigmadm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
 
+    LOG_ULTRA_DEBUG("st fit: D: %.2f M1: %.2e M2: %.2e d1: %.2f d2: %.2f s2: %.2f",growthf,M2,M2,delta1,delta2,sigma2);
+
     M1 = exp(M1);
     M2 = exp(M2);
 
@@ -326,6 +328,8 @@ double dNdM_conditional_ST(double growthf, double M1, double M2, double delta1, 
     sig2sq = sigma2*sigma2;
     B1 = sheth_delc(delta1/growthf,sigma1);
     B2 = sheth_delc(delta2/growthf,sigma2);
+    LOG_ULTRA_DEBUG("Barriers 1: %.2e | 2: %.2e",B1,B2);
+    LOG_ULTRA_DEBUG("taylor expansion factor %.6e",st_taylor_factor(sigma1,sigma2,growthf));
 
     if((sigma1 > sigma2)) {
         return -dsigmadm*sigma1*st_taylor_factor(sigma1,sigma2,growthf)/pow(sig1sq-sig2sq,1.5)*exp(-(B1 - B2)*(B1 - B2)/(sig1sq-sig2sq));
@@ -338,12 +342,12 @@ double dNdM_conditional_ST(double growthf, double M1, double M2, double delta1, 
     }
 }
 
-//n_order is here because the variance calc can use these functions too
-//remove the variable (n==0) if we remove that calculation
 //TODO: it may be better to place the if-elses earlier, OR pass in a function pointer
+//  Although, I doubt the if-elses really have a big impact compared to the integrals
 double MnMassfunction(double M, void *param_struct){
     struct parameters_gsl_MF_con_int_ params = *(struct parameters_gsl_MF_con_int_ *)param_struct;
-    double mf;
+    double mf, m_factor;
+    int i;
     double growthf = params.growthf;
     double delta = params.delta;
     double n_order = params.n_order;
@@ -384,9 +388,9 @@ double MnMassfunction(double M, void *param_struct){
         if(HMF==0) {
             mf = dNdM_conditional_double(growthf,M,M_filter,Deltac,delta,sigma2);
         }
-        else if(HMF==1) {
-            mf = dNdM_conditional_ST(growthf,M,M_filter,Deltac,delta,sigma2);
-        }
+        // else if(HMF==1) {
+        //     mf = dNdM_conditional_ST(growthf,M,M_filter,Deltac,delta,sigma2);
+        // }
         else {
             //NOTE: Normalisation scaling is currently applied outside the integral, per condition
             //This will be the rescaled EPS CMF,
@@ -395,7 +399,8 @@ double MnMassfunction(double M, void *param_struct){
         }
     }
     //norder for expectation values of M^n
-    return pow(M_exp,n_order) * mf;
+    m_factor = pow(M_exp,n_order);
+    return m_factor * mf;
 }
 
 //copied mostly from the Nion functions
@@ -567,6 +572,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
 
             norm = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,0,user_params_stoc->HMF,1);
             ma[i] = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,1,user_params_stoc->HMF,1);
+            // LOG_ULTRA_DEBUG("cond x: %.2e (%d) ==> %.8e / %.8e",x,i,norm,ma[i]);
             
             //if the condition has no halos set the dndm table
             //the inverse table will be unaffected since p=0
@@ -700,6 +706,8 @@ void free_siginv_spline(){
     }
 }
 
+//TODO: Speedtest the RGI interpolation present in Spintemp etc...
+//  Save the X/Y/Z from the table builder and apply the Minihalo 2D interpolation
 double sample_dndM_inverse(double condition, gsl_rng * rng){
     double p_in;
     p_in = gsl_rng_uniform(rng);
@@ -854,7 +862,7 @@ void place_on_hires_grid(int x, int y, int z, int *crd_hi, gsl_rng * rng){
 
 //This function adds stochastic halo properties to an existing halo
 //TODO: this needs to be updated to handle MINI_HALOS and not USE_MASS_DEPENDENT_ZETA flags
-int add_halo_properties(gsl_rng *rng, float halo_mass, struct HaloSamplingConstants * hs_constants, float * output){
+int add_halo_properties(gsl_rng *rng, float halo_mass, float M_turn_var, struct HaloSamplingConstants * hs_constants, float * output){
     //for now, we just have stellar mass
     double f10 = astro_params_stoc->F_STAR10;
     double fa = astro_params_stoc->ALPHA_STAR;
@@ -868,20 +876,31 @@ int add_halo_properties(gsl_rng *rng, float halo_mass, struct HaloSamplingConsta
     //This clipping is normally done with the mass_limit_bisection root find.
     //I can't do that here with the stochasticity, since the f_star clipping happens AFTER the sampling
     fstar_mean = f10 * pow(halo_mass/1e10,fa);
+
+    //in order to remain consistent with the minihalo treatment in default (Nion_a * exp(-M/M_a) + Nion_m * exp(-M/M_m - M_a/M))
+    //we need to separate halos into molecular and atomically cooled
+    //for now I assign this randomly at each redshift which may cause some inconsistencies
+    //TODO: discuss a better option
+    dutycycle_term = exp(-M_turn_var/halo_mass);
+
+    //In order to include the feedback: I WILL need to go forward in time. This means a few things:
+    //I need to store progenitor properties (via index I guess) somewhere to do the updates
+    //I can then implement the MAR-based star formation as well if needed
+    //The caching becomes a huge issue though
+
     if(sigma_star > 0){
         //sample stellar masses from each halo mass assuming lognormal scatter
         f_sample = gsl_ran_ugaussian(rng);
         
         /* Simply adding lognormal scatter to a delta increases the mean (2* is as likely as 0.5*)
         * We multiply by exp(-sigma^2/2) so that X = exp(mu + N(0,1)*sigma) has the desired mean */
-        f_sample = fmin(fstar_mean * exp(-sigma_star*sigma_star/2 + f_sample*sigma_star - astro_params_stoc->M_TURN/halo_mass),1);
+        f_sample = fmin(fstar_mean * exp(-sigma_star*sigma_star/2 + f_sample*sigma_star) * dutycycle_term,1);
 
         sm_sample = halo_mass * (cosmo_params_stoc->OMb / cosmo_params_stoc->OMm) * f_sample; //f_star is galactic GAS/star fraction, so OMb is needed
     }
     else{
         //duty cycle, TODO: think about a way to explicitly include the binary nature consistently with the updates
         //At the moment, we simply reduce the mean
-        dutycycle_term = exp(-astro_params_stoc->M_TURN/halo_mass);
         sm_sample = halo_mass * (cosmo_params_stoc->OMb / cosmo_params_stoc->OMm) * fmin(fstar_mean*dutycycle_term,1);
     }
 
@@ -913,7 +932,7 @@ int update_halo_properties(gsl_rng * rng, float halo_mass, struct HaloSamplingCo
     double interp_star, interp_sfr;
 
     //sample new properties (uncorrelated)
-    add_halo_properties(rng, halo_mass, hs_constants, output);
+    add_halo_properties(rng, astro_params_stoc->M_TURN, halo_mass, hs_constants, output);
 
     //get dz correlations
     interp_star = hs_constants->corr_star;
@@ -966,7 +985,7 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
 #pragma omp parallel for private(buf)
     for(i=0;i<nhalos;i++){
         LOG_ULTRA_DEBUG("halo %d hm %.2e crd %d %d %d",i,halos->halo_masses[i],halos->halo_coords[3*i+0],halos->halo_coords[3*i+1],halos->halo_coords[3*i+2]);
-        add_halo_properties(rng_stoc[omp_get_thread_num()], halos->halo_masses[i], &hs_constants, buf);
+        add_halo_properties(rng_stoc[omp_get_thread_num()],astro_params_stoc->M_TURN, halos->halo_masses[i], &hs_constants, buf);
         LOG_ULTRA_DEBUG("stars %.2e sfr %.2e",buf[0],buf[1]);
         halos->stellar_masses[i] = buf[0];
         halos->halo_sfr[i] = buf[1];
@@ -1497,6 +1516,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
         //we need a private version
         //TODO: its probably better to split condition and z constants
         struct HaloSamplingConstants hs_constants_priv;
+        //NOTE: this will only copy right if there are no arrays in the struct
         hs_constants_priv = *hs_constants;
 
         //assign big halos into list first (split amongst ranks)
@@ -1554,6 +1574,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                         }
                     }
                     // LOG_ULTRA_DEBUG("Cell delta %.2f -> (N,M) (%.2f,%.2e) overlap defc %.2f ps_ratio %.2f",delta,hs_constants_priv.expected_N,hs_constants_priv.expected_N,mass_defc,ps_ratio);
+                    //TODO: the ps_ratio part will need to be moved when other CMF scalings are finished
                     hs_constants_priv.expected_M *= mass_defc/ps_ratio;
                     hs_constants_priv.expected_N *= mass_defc/ps_ratio;
                     // LOG_ULTRA_DEBUG("Starting sample (%d,%d,%d) (%d) with delta = %.2f cell"
@@ -1568,7 +1589,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                     M_cell = 0;
                     for(i=0;i<nh_buf;i++){
                         if(hm_buf[i] < Mmin*global_params.HALO_SAMPLE_FACTOR) continue; //save only halos some factor above minimum
-                        add_halo_properties(rng_arr[threadnum], hm_buf[i], &hs_constants_priv, prop_buf);
+                        add_halo_properties(rng_arr[threadnum], astro_params_stoc->M_TURN, hm_buf[i], &hs_constants_priv, prop_buf);
 
                         place_on_hires_grid(x,y,z,crd_hi,rng_arr[threadnum]);
 
@@ -2194,7 +2215,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         double growth_in = hs_constants->growth_in;
         //placeholders for condition vals
         double Mcond,lnMcond,delta;
-        
+
         LOG_DEBUG("TEST FUNCTION: type = %d z = (%.2f,%.2f), Mmin = %.3e, cond = %.3e, M(%d)=[%.2e,%.2e,%.2e...]",type,z_out,z_in,Mmin,condition,n_mass,M[0],M[1],M[2]);
 
         //Since the conditional MF is press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
@@ -2208,9 +2229,11 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             Mcond = hs_constants->M_cond;
             lnMcond = hs_constants->lnM_cond;
             delta = hs_constants->delta;
+            //using seed to select CMF or UMF since there's no RNG here
+            bool cmf_flag = seed==0;
 
             //parameters for CMF
-            double prefactor = RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm;
+            double prefactor = cmf_flag ? RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm : 1.;
             double dummy;
             struct parameters_gsl_MF_con_int_ parameters_gsl_MF_con = {
                 .redshift = z_out,
@@ -2220,15 +2243,9 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 .M_max = lnMcond,
                 .sigma_max = hs_constants->sigma_cond,
                 .HMF = user_params_stoc->HMF,
-                .CMF = seed==0,
+                .CMF = cmf_flag,
             };
             
-            //using seed to select CMF or UMF since there's no RNG here
-            if(seed==0){
-                parameters_gsl_MF_con.HMF = user_params_stoc->HMF;
-                prefactor = 1.;
-                ps_ratio = 1.;
-            }
             #pragma omp parallel for private(test)
             for(i=0;i<n_mass;i++){
                 //conditional ps mass func * pow(M,n_order)
@@ -2239,7 +2256,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     test = MnMassfunction(log(M[i]),(void*)&parameters_gsl_MF_con);
                     
                     //convert to dndlnm
-                    test = test * prefactor * ps_ratio;
+                    test = test * prefactor;
                 }
                 // LOG_ULTRA_DEBUG(" D %.1e | M1 %.1e | M2 %.1e | d %.1e | s %.1e -> %.1e",
                 //                 growth_out,M[i],Mcond,delta,hs_constants->sigma_cond,test);

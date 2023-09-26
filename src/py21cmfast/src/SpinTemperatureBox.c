@@ -2816,16 +2816,35 @@ void setup_z_edges(double zp){
 
 }
 
-//TODO: MINIHALOS
-double EvaluateNionTsTable(double z){
-    double zmax = z_val[zpp_interp_points_SFR-1];
-    double zmin = z_val[0];
-    double zwid = (zmax - zmin)/zpp_interp_points_SFR;
+//I've found that the table implementations present are significantly faster than GSL
+//  Which I'm guessing is due to their regular grid nature (we can always find the index instantly)
+//  So I'm making a general function for the 1D and 2D cases (I would've expected this case to be present in GSL)
+//TODO: probably put in UsefulFuncitons.c
+double EvaluateRGTable1D(double x, double *y_arr, double x_min, double x_width){
+    int idx = (int)floor((x - x_min)/x_width);
+    double table_val = x_min + x_width*(double)idx;
 
-    int redshift_int_fcollz = (int)floor((z - zmin)/zwid);
-    double redshift_table_fcollz = zmin + zwid*(float)redshift_int_fcollz;
+    double interp_point = (x - table_val)/x_width;
 
-    return Nion_z_val[redshift_int_fcollz] + (z - redshift_table_fcollz)*(Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zwid);
+    return y_arr[idx]*(1-interp_point) + y_arr[idx+1]*(interp_point);
+}
+//WARNING: Assumes table[x][y] stored as z_arr[y*n_x + x]
+double EvaluateRGTable2D(double x, double y, double *z_arr, double x_min, double x_width, double y_min, double y_width, int n_x){
+    int x_idx = (int)floor((x - x_min)/x_width);
+    int y_idx = (int)floor((y - y_min)/y_width);
+
+    double x_table = x_min + x_width*(double)x_idx;
+    double y_table = y_min + y_width*(double)y_idx;
+
+    double interp_point_x = (x - x_table)/x_width;
+    double interp_point_y = (y - y_table)/y_width;
+
+    double left_edge, right_edge;
+
+    left_edge = z_arr[n_x*y_idx + x_idx]*(1-interp_point_x) + z_arr[n_x*y_idx + x_idx + 1]*(interp_point_x);
+    right_edge = z_arr[n_x*(y_idx+1) + x_idx]*(1-interp_point_x) + z_arr[n_x*(y_idx+1) + x_idx + 1]*(interp_point_x);
+
+    return left_edge*(1-interp_point_y) + right_edge*(interp_point_y);
 }
 
 //fill a box[R_ct][box_ct] array for use in TS by filtering on different scales and storing results
@@ -3118,9 +3137,6 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
     double eff = global_params.Pop2_ion;
     double tot_mass =  RHOcrit * cosmo_params_ts->OMb * pow(user_params_ts->BOX_LEN,3);
 
-    //It would be nice to use the whole halo history to generate Ts, but I don't know a great way of doing that now
-    //As a quick implementation, I am fixing the mean at zpp, while using the halo field from zp
-    //Since this is a ratio I get rid of all the constants
     //TODO: Interpolation tables
     double Mlim_Fstar, Mlim_Fesc;
     Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
@@ -3165,9 +3181,11 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
     //TODO: ELSE (when abstracting the no-halo option)
     sum_Nion = sum_wstar * eff;
     Q = 1 - sum_Nion/tot_mass;
-    //Q is only used without MASS_DEPENDENT_ZETA, else Nion_general is called
+    //Q is only used without MASS_DEPENDENT_ZETA, else Nion_general / interpolation tables are called
     *Q_HI = Q;
 
+    //these are just checks to make sure our global properties are correct
+    //TODO: change to complier flags
     if(LOG_LEVEL>=DEBUG_LEVEL){
         wstar_global = Nion_General(zp, M_MIN, astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_ESC,
                             astro_params_ts->F_STAR10, astro_params_ts->F_ESC10, Mlim_Fstar, Mlim_Fesc);
@@ -3186,7 +3204,6 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
     }
 
     return sum_wstar > 1e-15 ? 0 : 1; //NO_LIGHT returned
-    
 }
 
 //the faster get_Ts put here for abstraction
