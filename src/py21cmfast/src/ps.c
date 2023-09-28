@@ -3484,6 +3484,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
                                                 astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10*F_ESC10_zterm,
                                                 Mlim_Fstar, Mlim_Fesc);
 				F_ESC10_zterm = pow((1.+z1)/8., astro_params->BETA_ESC);
+        		ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10 * F_ESC10_zterm;
+
         		Mlim_Fesc = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_ESC, astro_params->F_ESC10 * F_ESC10_zterm);
                 Nion1 = ION_EFF_FACTOR*Nion_General(z1, astro_params->M_TURN/50., astro_params->M_TURN, astro_params->ALPHA_STAR,
                                                 astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10*F_ESC10_zterm,
