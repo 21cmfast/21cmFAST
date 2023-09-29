@@ -932,7 +932,7 @@ int update_halo_properties(gsl_rng * rng, float halo_mass, struct HaloSamplingCo
     double interp_star, interp_sfr;
 
     //sample new properties (uncorrelated)
-    add_halo_properties(rng, astro_params_stoc->M_TURN, halo_mass, hs_constants, output);
+    add_halo_properties(rng, halo_mass, astro_params_stoc->M_TURN, hs_constants, output);
 
     //get dz correlations
     interp_star = hs_constants->corr_star;
@@ -985,7 +985,7 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
 #pragma omp parallel for private(buf)
     for(i=0;i<nhalos;i++){
         LOG_ULTRA_DEBUG("halo %d hm %.2e crd %d %d %d",i,halos->halo_masses[i],halos->halo_coords[3*i+0],halos->halo_coords[3*i+1],halos->halo_coords[3*i+2]);
-        add_halo_properties(rng_stoc[omp_get_thread_num()],astro_params_stoc->M_TURN, halos->halo_masses[i], &hs_constants, buf);
+        add_halo_properties(rng_stoc[omp_get_thread_num()], halos->halo_masses[i], astro_params_stoc->M_TURN, &hs_constants, buf);
         LOG_ULTRA_DEBUG("stars %.2e sfr %.2e",buf[0],buf[1]);
         halos->stellar_masses[i] = buf[0];
         halos->halo_sfr[i] = buf[1];
@@ -1589,7 +1589,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                     M_cell = 0;
                     for(i=0;i<nh_buf;i++){
                         if(hm_buf[i] < Mmin*global_params.HALO_SAMPLE_FACTOR) continue; //save only halos some factor above minimum
-                        add_halo_properties(rng_arr[threadnum], astro_params_stoc->M_TURN, hm_buf[i], &hs_constants_priv, prop_buf);
+                        add_halo_properties(rng_arr[threadnum], hm_buf[i], astro_params_stoc->M_TURN, &hs_constants_priv, prop_buf);
 
                         place_on_hires_grid(x,y,z,crd_hi,rng_arr[threadnum]);
 
