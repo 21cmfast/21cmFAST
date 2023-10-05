@@ -4042,6 +4042,7 @@ def alpha_func(Q,a_const,a_slope):
 
 def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
     #HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
+    #TODO: Move the deltaz interp tables to python
     if not lib.photon_cons_allocated:
         lib.determine_deltaz_for_photoncons()
         lib.photon_cons_allocated = ffi.cast('bool',True)
@@ -4126,6 +4127,8 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
             arr_out[i] = guesses[np.argmin(np.fabs(guesses - last_alpha))]            
             last_alpha = arr_out[i]
 
+        break
+
     #adjust the reverse one (we found the alpha which is close to the calibration sim, undo it)
     alpha_estimate_reverse = 2*astro_params.ALPHA_ESC - alpha_estimate_reverse
 
@@ -4137,8 +4140,9 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
 
     #fit to the curve
     max_q_fit = 0.99
-    #make sure there's an estimate and Q isn't too high
-    sel = np.isfinite(alpha_estimate_ratio) & (ref_interp < max_q_fit)
+    min_q_fit = 0.2
+    #make sure there's an estimate and Q isn't too high/low
+    sel = np.isfinite(alpha_estimate_ratio) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
 
     #if there are no alpha roots found, it's likely this is a strange reionisation history
     #but we can't apply the alpha correction so throw an error

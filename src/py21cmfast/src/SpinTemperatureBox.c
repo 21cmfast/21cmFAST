@@ -2816,37 +2816,6 @@ void setup_z_edges(double zp){
 
 }
 
-//I've found that the table implementations present are significantly faster than GSL
-//  Which I'm guessing is due to their regular grid nature (we can always find the index instantly)
-//  So I'm making a general function for the 1D and 2D cases (I would've expected this case to be present in GSL)
-//TODO: probably put in UsefulFuncitons.c
-double EvaluateRGTable1D(double x, double *y_arr, double x_min, double x_width){
-    int idx = (int)floor((x - x_min)/x_width);
-    double table_val = x_min + x_width*(double)idx;
-
-    double interp_point = (x - table_val)/x_width;
-
-    return y_arr[idx]*(1-interp_point) + y_arr[idx+1]*(interp_point);
-}
-//WARNING: Assumes table[x][y] stored as z_arr[y*n_x + x]
-double EvaluateRGTable2D(double x, double y, double *z_arr, double x_min, double x_width, double y_min, double y_width, int n_x){
-    int x_idx = (int)floor((x - x_min)/x_width);
-    int y_idx = (int)floor((y - y_min)/y_width);
-
-    double x_table = x_min + x_width*(double)x_idx;
-    double y_table = y_min + y_width*(double)y_idx;
-
-    double interp_point_x = (x - x_table)/x_width;
-    double interp_point_y = (y - y_table)/y_width;
-
-    double left_edge, right_edge;
-
-    left_edge = z_arr[n_x*y_idx + x_idx]*(1-interp_point_x) + z_arr[n_x*y_idx + x_idx + 1]*(interp_point_x);
-    right_edge = z_arr[n_x*(y_idx+1) + x_idx]*(1-interp_point_x) + z_arr[n_x*(y_idx+1) + x_idx + 1]*(interp_point_x);
-
-    return left_edge*(1-interp_point_y) + right_edge*(interp_point_y);
-}
-
 //fill a box[R_ct][box_ct] array for use in TS by filtering on different scales and storing results
 //input,box, and unfiltered should be 
 void fill_Rbox_table(float **result, float *input, float min_val, float const_factor){
@@ -2914,7 +2883,7 @@ LOG_ULTRA_DEBUG("Executed FFT for R=%f", R);
                                 //constant factors (i.e linear extrapolation to z=0 for dens.)
                                 curr = curr * const_factor;
 
-                                if (curr <= min_val){ // correct for aliasing in the filtering step
+                                if (curr < min_val){ // correct for aliasing in the filtering step
                                     curr = min_val;
                                 }
                                 

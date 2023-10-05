@@ -17,6 +17,10 @@
 #define MAX_HALO_CELL (int)1e5
 #define MAX_DELTAC_FRAC (float)0.995 //max delta/deltac for interpolation tables / integrals
 
+//we need to define a density minimum for the tables, since we are in lagrangian density / linear growth it's possible to go below -1
+//so we explicitly set a minimum here which sets table limits and puts no halos in cells below that density
+#define DELTA_MIN -1
+
 //TODO:These should be static, right?
 struct AstroParams *astro_params_stoc;
 struct CosmoParams *cosmo_params_stoc;
@@ -58,6 +62,14 @@ static struct HaloSamplingConstants{
     double lnM_max_tb;
     double sigma_min;
     double sigma_min_save;
+
+    //table info
+    double tbl_xmin;
+    double tbl_xwid;
+    double tbl_ymin;
+    double tbl_ywid;
+    double tbl_pmin;
+    double tbl_pwid;
 
     //per-condition/redshift depending on update or not
     double delta;
@@ -142,6 +154,11 @@ double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
     }
 
     return sigma;
+}
+
+//TODO: make a new RGI from the sigma tables,
+double EvaluateSigmaInverse(double sigma){
+    return 0;
 }
 
 /*
@@ -354,7 +371,6 @@ double MnMassfunction(double M, void *param_struct){
     double sigma2 = params.sigma_max; //M2 and sigma2 are degenerate, remove one
     double M_filter = params.M_max;
     double z = params.redshift;
-    //HMF = user_params.HMF unless we want the conditional in which case its -1
     int HMF = params.HMF;
     int CMF = params.CMF;
 
@@ -395,6 +411,7 @@ double MnMassfunction(double M, void *param_struct){
             //NOTE: Normalisation scaling is currently applied outside the integral, per condition
             //This will be the rescaled EPS CMF,
             //TODO: put rescaling options here (normalised EPS, rescaled EPS, local/global scalings of UMFs from Tramonte+17)
+            //Filter CMF type by CMF_MODE parameter (==1 for set CMF, ==2 for resnormalised, ==3 for rescaled EPS, ==4 for Tramonte local, ==5 for Tramonte global etc)
             mf = dNdM_conditional_double(growthf,M,M_filter,Deltac,delta,sigma2);
         }
     }
@@ -450,33 +467,14 @@ double IntegratedNdM(double growthf, double M1, double M2, double M_filter, doub
     return result;
 }
 
-gsl_spline2d *Nhalo_spline;
-gsl_interp_accel *Nhalo_cond_acc;
-#pragma omp threadprivate(Nhalo_cond_acc)
-gsl_interp_accel *Nhalo_min_acc;
-#pragma omp threadprivate(Nhalo_min_acc)
-
-gsl_spline2d *Nhalo_inv_spline;
-gsl_interp_accel *Nhalo_inv_cond_acc;
-#pragma omp threadprivate(Nhalo_inv_cond_acc)
-gsl_interp_accel *Nhalo_inv_prob_acc;
-#pragma omp threadprivate(Nhalo_inv_prob_acc)
-
-gsl_spline *M_exp_spline;
-gsl_interp_accel *M_exp_acc;
-#pragma omp threadprivate(M_exp_acc)
-
 //TODO:Move all these tables to the const struct
-gsl_spline *sigma_inv_spline;
-gsl_interp_accel *sigma_inv_acc;
-#pragma omp threadprivate(sigma_inv_acc)
+double **Nhalo_spline;
+double **Nhalo_inv_spline;
+double *M_exp_spline;
+double *sigma_inv_spline;
+//double EvaluateRGTable2D(double x, double y, double **z_arr, double x_min, double x_width, double y_min, double y_width, int n_x){
+// double EvaluateRGTable1D(double x, double *y_arr, double x_min, double x_width){
 
-double EvaluatedNdMSpline(double x_in, double y_in){
-    return gsl_spline2d_eval(Nhalo_spline,x_in,y_in,Nhalo_cond_acc,Nhalo_min_acc);
-}
-double EvaluateMexpSpline(double x_in){
-    return gsl_spline_eval(M_exp_spline,x_in,M_exp_acc);
-}
 
 //This table is N(>M | M_in), the CDF of dNdM_conditional
 //NOTE: Assumes you give it ymin as the minimum mass TODO: add another argument for Mmin
@@ -491,7 +489,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     if(update){
         nx = global_params.N_MASS_INTERP;
         delta = Deltac*growth1/param;
-        if(delta < -1 || delta > Deltac){
+        if(delta < DELTA_MIN || delta > Deltac){
             LOG_ERROR("Invalid delta %.3f",delta);
             Throw(ValueError);
         }
@@ -500,7 +498,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     else{
         nx = global_params.N_DELTA_INTERP;
         lnM_cond = param;
-        if(xmin < -1 || xmax > Deltac){
+        if(xmin < DELTA_MIN || xmax > Deltac){
             LOG_ERROR("Invalid delta [%.3f,%.3f]",xmin,xmax);
             Throw(ValueError);
         }
@@ -512,37 +510,30 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     np = global_params.N_PROB_INTERP;
 
     double xa[nx], ya[ny], za[nx*ny];
-    double pa[np], za_inv[nx*np], ma[nx];
-    double pbuf;
+    double za_inv[nx*np], ma[nx];
     double one_halo;
 
     int i,j,k;
     //set up coordinate grids
     for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*((double)i)/((double)nx-1);
     for(j=0;j<ny;j++) ya[j] = ymin + (ymax - ymin)*((double)j)/((double)ny-1);
-    //for(k=0;k<np;k++) pa[k] = exp(pmin + (pmax - pmin)*((double)k)/((double)np-1));
-
-    //log(1-p) distribution to get the rare halos right
-    //NOTE: although the interpolation points are linear in log(1-p),
-    //the table itself is linear in p
-    for(k=0;k<np-1;k++){
-        pbuf = global_params.MIN_LOGPROB*(double)k/((double)np-2); //max(log(1-p)) == MIN_LOGPROB
-        pbuf = exp(pbuf); // 1-p
-        pa[k] = 1 - pbuf;
-        //LOG_ULTRA_DEBUG("p = %.8e (%.8e)",pa[k],1 - pa[k]);
-    }
-    pa[np-1] = 1.;
     
-    Nhalo_spline = gsl_spline2d_alloc(gsl_interp2d_bilinear, nx, ny);
-    Nhalo_inv_spline = gsl_spline2d_alloc(gsl_interp2d_bilinear, nx, np);
-    M_exp_spline = gsl_spline_alloc(gsl_interp_linear,nx);
+    //allocate tables
+    Nhalo_spline = (double **)calloc(nx,sizeof(double *));
+    for(i=0;i<nx;i++) Nhalo_spline[i] = (double *)calloc(ny,sizeof(double));
+
+    Nhalo_inv_spline = (double **)calloc(nx,sizeof(double *));
+    for(i=0;i<nx;i++) Nhalo_inv_spline[i] = (double *)calloc(np,sizeof(double));
+    M_exp_spline = (double *)calloc(nx,sizeof(double));
 
     #pragma omp parallel num_threads(user_params_stoc->N_THREADS) private(i,j,k) firstprivate(delta,lnM_cond)
     {
         double x,y,buf;
         double norm;
         double lnM_prev,lnM_p;
-        double prob,prob_prev;
+        double prob;
+        double p_prev,p_target;
+        double k_next;
 
         #pragma omp for
         for(i=0;i<nx;i++){
@@ -552,7 +543,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             else delta = x;
 
             lnM_prev = ymin;
-            prob_prev = 0.;
+            p_prev = 0;
             //TODO: if this line affects performance, set it to zero, since it won't affect much
             one_halo = 1. / exp(lnM_cond) * sqrt(2*PI);
 
@@ -561,32 +552,37 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             if(delta > MAX_DELTAC_FRAC*Deltac){
                 //In the last bin, n_halo / mass * sqrt2pi interpolates toward one halo
                 for(j=0;j<ny;j++)
-                    gsl_interp2d_set(Nhalo_spline,za,i,j,one_halo);
+                    Nhalo_spline[i][j] = one_halo;
                 
                 //Similarly, the inverse CDF tends to a step function at lnM_cond
                 for(k=0;k<np;k++)
-                    gsl_interp2d_set(Nhalo_inv_spline,za_inv,i,k,lnM_cond);
+                    Nhalo_inv_spline[i][k] = lnM_cond;
 
                 continue;
             }
 
             norm = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,0,user_params_stoc->HMF,1);
-            ma[i] = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,1,user_params_stoc->HMF,1);
-            // LOG_ULTRA_DEBUG("cond x: %.2e (%d) ==> %.8e / %.8e",x,i,norm,ma[i]);
+            M_exp_spline[i] = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,1,user_params_stoc->HMF,1);
+            LOG_ULTRA_DEBUG("cond x: %.2e (%d) ==> %.8e / %.8e",x,i,norm,ma[i]);
             
             //if the condition has no halos set the dndm table
             //the inverse table will be unaffected since p=0
             if(norm==0){
                 for(j=0;j<ny;j++)
-                    gsl_interp2d_set(Nhalo_spline,za,i,j,0.);
+                    Nhalo_spline[i][j] = 0.;
                     
                 for(k=0;k<np;k++)
-                    gsl_interp2d_set(Nhalo_inv_spline,za_inv,i,k,0.);
+                    Nhalo_inv_spline[i][k] = 0.;
                 continue;
             }
 
-            gsl_interp2d_set(Nhalo_spline,za,i,0,0.); //set P(<Mmin) == 0.
-            gsl_interp2d_set(Nhalo_inv_spline,za_inv,i,0,ymin); //set P(<Mmin) == 0.
+            Nhalo_spline[i][0] = 0.;
+            Nhalo_inv_spline[i][0] = ymin;
+
+            //reset probability finding
+            k=np-1;
+            p_target = 0.;
+
             for(j=1;j<ny;j++){
                 y = ya[j];
                 if(lnM_cond <= y){
@@ -597,122 +593,69 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 else{
                     buf = IntegratedNdM(growth1, ymin, y, lnM_cond, delta, 0, user_params_stoc->HMF, 1); //Number density between ymin and y
                 }
-                //LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",x,i,exp(y),j,buf,buf/norm);
-                gsl_interp2d_set(Nhalo_spline,za,i,j,buf);
+                Nhalo_spline[i][j] = buf;
                 
-                prob = buf / norm; //get log-probability
+                //done with inverse table
+                if(k < 0) continue;
+
+                prob = buf / norm;
                 //catch some norm errors
                 if(prob != prob){
                     LOG_ERROR("Normalisation error in table generation");
-                    Throw(ValueError);
+                    Throw(TableGenerationError);
                 }
-                for(k=1;k<np-1;k++){
-                    //since we go ascending in y, prob_prev < prob
-                    if((prob < pa[k]) || (prob_prev > pa[k])) continue;
 
-                    //probabilities are between the target, interpolate to get target
-                    //NOTE: linear interpolation in (lnM,probability)
-                    lnM_p = (pa[k]-prob_prev)*(y - lnM_prev)/(prob-prob_prev) + lnM_prev;
-                    gsl_interp2d_set(Nhalo_inv_spline,za_inv,i,k,lnM_p);
-                    //LOG_ULTRA_DEBUG("Found c: %.2e p: %.2e (c %d, m %d, p %d) z: %.5e",update ? exp(x) : x,pa[k],i,j,k,exp(lnM_p));
+                // LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",update ? exp(x) : x,i,exp(y),j,prob,log1p(-prob));
+                //we have gone over the probability (machine precision) limit before filling the array
+                //  we set this mass bin (first mass to go over) to a very low value so we interpolate close to the point (M,-inf)
+                if(prob >= 1.)prob = global_params.MIN_LOGPROB * 10.;
+                else prob = log1p(-prob);
+
+                if(p_prev < p_target){
+                        LOG_ERROR("Target moved up?");
+                        Throw(TableGenerationError);
                 }
-                prob_prev = prob;
+                //loop through the remaining spaces in the inverse table and fill them
+                while(prob < p_target && k >= 0){
+                    //since we go ascending in y, prob > prob_prev
+                    //NOTE: linear interpolation in (lnM,log(1-p))
+                    lnM_p = (p_prev-p_target)*(y - lnM_prev)/(p_prev-prob) + lnM_prev;
+                    Nhalo_inv_spline[i][k] = lnM_p;
+
+                    // LOG_ULTRA_DEBUG("Found c: %.2e p: (%.2e,%.2e,%.2e) (c %d, m %d, p %d) z: %.5e",update ? exp(x) : x,p_prev,p_target,prob,i,j,k,exp(lnM_p));
+
+                    k--;
+                    p_target = global_params.MIN_LOGPROB*(1 - (double)k/(double)(np-1));
+                }
+                //keep the value at the previous mass bin for interpolation
+                p_prev = prob;
                 lnM_prev = y;
             }
-            
-            
-            //We set the rarest halo to be at MIN_LOGPROB since
-            //interpolating in underdense cells up to the entire cell mass
-            //vastly overestimates high mass halos.
-            //NOTE: at this point, lnM_p is the last Mass interpolated
-            //which will be the highest upper integral limit (log(p) = 1 - MIN_LOGPROB)
-            gsl_interp2d_set(Nhalo_inv_spline,za_inv,i,np-1,lnM_p);
-            
-            //option for setting exact max mass
-            // if(update)
-            //     gsl_interp2d_set(Nhalo_inv_spline,za_inv,i,np-1,lnM_max);
-
-            // LOG_ULTRA_DEBUG("P limits (%.2e,%.2e) = (%.2e,%.2e)",pa[0],pa[np-1],
-            //                 exp(gsl_interp2d_get(Nhalo_inv_spline,za_inv,i,0)),
-            //                 exp(gsl_interp2d_get(Nhalo_inv_spline,za_inv,i,np-1)));
         }
-
-        //initialise and fill the interp table
-        //The accelerators in GSL interpolators are not threadsafe, so we need one per thread.
-        //Since it's not super important which thread has which accelerator, just that they
-        //aren't using the same one at the same time, I think this is safe
-        Nhalo_min_acc = gsl_interp_accel_alloc();
-        Nhalo_cond_acc = gsl_interp_accel_alloc();
-
-        Nhalo_inv_prob_acc = gsl_interp_accel_alloc();
-        Nhalo_inv_cond_acc = gsl_interp_accel_alloc();
-
-        M_exp_acc = gsl_interp_accel_alloc();
     }
-    gsl_status = gsl_spline2d_init(Nhalo_spline, xa, ya, za, nx, ny);
-    GSL_ERROR(gsl_status);
-    
-    gsl_status = gsl_spline2d_init(Nhalo_inv_spline, xa, pa, za_inv, nx, np);
-    GSL_ERROR(gsl_status);
-    
-    gsl_status = gsl_spline_init(M_exp_spline, xa, ma, nx);
-    GSL_ERROR(gsl_status);
-
     LOG_DEBUG("Done.");
 }
 
 void free_dNdM_tables(){
-    gsl_spline2d_free(Nhalo_spline);
-    gsl_spline2d_free(Nhalo_inv_spline);
-    gsl_spline_free(M_exp_spline);
-
-    #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
-    {
-        gsl_interp_accel_free(Nhalo_cond_acc);
-        gsl_interp_accel_free(Nhalo_min_acc);
-        
-        gsl_interp_accel_free(Nhalo_inv_cond_acc);
-        gsl_interp_accel_free(Nhalo_inv_prob_acc);
-
-        gsl_interp_accel_free(M_exp_acc);
-    }
-}
-
-void initialise_siginv_spline(){
-    //use the sigma table to make an inverse
-    //gsl spline expects strictly increasing X array, since this is the opposite we need to reverse it
-    double xa[NMass], ya[NMass];
     int i;
-    sigma_inv_spline = gsl_spline_alloc(gsl_interp_linear,NMass);
-    for(i=0;i<NMass;i++){
-        xa[i] = Sigma_InterpTable[NMass-i-1];
-        ya[i] = Mass_InterpTable[NMass-i-1];
-        // LOG_ULTRA_DEBUG("%d: Sigma %.2e Mass %.2e",i,xa[i],ya[i]);
-    }
-    sigma_inv_acc = gsl_interp_accel_alloc();
-    gsl_spline_init(sigma_inv_spline,xa,ya,NMass);
-    // LOG_ULTRA_DEBUG("Done.");
-}
+    for(i=0;i<global_params.N_MASS_INTERP;i++) free(Nhalo_spline[i]);
+    free(Nhalo_spline);
 
-double EvaluateSiginvSpline(double sigma){
-    return gsl_spline_eval(sigma_inv_spline,sigma,sigma_inv_acc);
-}
+    for(i=0;i<global_params.N_MASS_INTERP;i++) free(Nhalo_inv_spline[i]);
+    free(Nhalo_inv_spline);
 
-void free_siginv_spline(){
-    gsl_spline_free(sigma_inv_spline);
-    #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
-    {
-        gsl_interp_accel_free(sigma_inv_acc);
-    }
+    free(M_exp_spline);
 }
 
 //TODO: Speedtest the RGI interpolation present in Spintemp etc...
 //  Save the X/Y/Z from the table builder and apply the Minihalo 2D interpolation
-double sample_dndM_inverse(double condition, gsl_rng * rng){
-    double p_in;
-    p_in = gsl_rng_uniform(rng);
-    double res = gsl_spline2d_eval(Nhalo_inv_spline,condition,p_in,Nhalo_inv_cond_acc,Nhalo_inv_prob_acc);
-    return res;
+//NOTE: if p(x) is uniform, p(log(1-x)) follows the exponential distribution
+//  But the gsl_ran_exponential function does the exact same thing but adds a mean
+double sample_dndM_inverse(double condition, struct HaloSamplingConstants * hs_constants, gsl_rng * rng){
+    double p_in, min_prob;
+    p_in = log1p(-gsl_rng_uniform(rng));
+    if(p_in < global_params.MIN_LOGPROB) p_in = global_params.MIN_LOGPROB;
+    return EvaluateRGTable2D(condition,p_in,Nhalo_inv_spline,hs_constants->tbl_xmin,hs_constants->tbl_xwid,hs_constants->tbl_pmin,hs_constants->tbl_pwid);
 }
 
 //Set the constants that are calculated once per snapshot
@@ -736,7 +679,6 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     init_ps();
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
         initialiseSigmaMInterpTable(const_struct->M_min / 2,const_struct->M_max_tables);
-        initialise_siginv_spline();
     }
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min,0,&dummy);
     const_struct->sigma_min_save = EvaluateSigma(const_struct->lnM_min,0,&dummy);
@@ -758,6 +700,9 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
         //TODO: change the table functions to accept the structure
         initialise_dNdM_tables(const_struct->lnM_min, const_struct->lnM_max_tb,const_struct->lnM_min, const_struct->lnM_max_tb,
                                 const_struct->growth_out, const_struct->growth_in, true);
+
+        const_struct->tbl_xmin = const_struct->lnM_min;
+        const_struct->tbl_xwid = (const_struct->lnM_max_tb - const_struct->lnM_min)/(global_params.N_MASS_INTERP - 1);
     }
     else {
         double M_cond = RHOcrit * cosmo_params_stoc->OMm * VOLUME / HII_TOT_NUM_PIXELS;
@@ -765,8 +710,17 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
         const_struct->lnM_cond = log(M_cond);
         const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond,0,&dummy);
         const_struct->update = 0;
-        initialise_dNdM_tables(-1, Deltac, const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->growth_out, const_struct->lnM_cond, false);
+        initialise_dNdM_tables(DELTA_MIN, Deltac, const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->growth_out, const_struct->lnM_cond, false);
+
+        const_struct->tbl_xmin = DELTA_MIN;
+        const_struct->tbl_xwid = (Deltac+1)/global_params.N_DELTA_INTERP;
     }
+
+    const_struct->tbl_ymin = const_struct->lnM_min;
+    const_struct->tbl_ywid = (const_struct->lnM_max_tb - const_struct->lnM_min)/(global_params.N_MASS_INTERP - 1);
+
+    const_struct->tbl_pmin = global_params.MIN_LOGPROB; //min log(1-p)
+    const_struct->tbl_pwid = (-global_params.MIN_LOGPROB)/(global_params.N_PROB_INTERP - 1);
     LOG_DEBUG("Done.");
     return;
 }
@@ -795,51 +749,37 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
 
     //the splines don't work well for cells above Deltac, but there CAN be cells above deltac, since this calculation happens
     //before the overlap, and since the smallest dexm mass is M_cell*(1.01^3) there *could* be a cell above Deltac not in a halo
-    if(!const_struct->update && cond_val > Deltac){
-        //these values won't actually do anything they just prevent the spline calls
-        const_struct->expected_M = const_struct->M_cond;
-        const_struct->expected_N = 1;
-        return;
+    if(!const_struct->update){
+        if(cond_val > MAX_DELTAC_FRAC*Deltac){
+            const_struct->expected_M = const_struct->M_cond;
+            const_struct->expected_N = 1;
+            return;
+        }
+        if(cond_val < DELTA_MIN){
+            const_struct->expected_M = 0;
+            const_struct->expected_N = 0;
+            return;
+        }
     }
 
-    //TODO: reorganize the below code with get_halo_avg, EvaluateFgtrM and EvaluatedNdMSpline
     //Get expected N from interptable
-    n_exp = EvaluatedNdMSpline(const_struct->cond_val,const_struct->lnM_max_tb); //should be the same as < lnM_cond, but that can hide some interp errors
+    n_exp = EvaluateRGTable2D(const_struct->cond_val,const_struct->lnM_max_tb*0.999, Nhalo_spline,
+                            const_struct->tbl_xmin,const_struct->tbl_xwid,
+                            const_struct->tbl_ymin,const_struct->tbl_ywid);
+    // n_exp = EvaluatedNdMSpline(const_struct->cond_val,const_struct->lnM_max_tb); //should be the same as < lnM_cond, but that can hide some interp errors
     //TODO: remove if performance is affected by this line
-    n_exp_save = EvaluatedNdMSpline(const_struct->cond_val,const_struct->lnM_max_tb) - EvaluatedNdMSpline(const_struct->cond_val,log(const_struct->M_min*global_params.HALO_SAMPLE_FACTOR));
     
+    n_exp_save = n_exp - EvaluateRGTable2D(const_struct->cond_val,const_struct->lnM_min + log(global_params.HALO_SAMPLE_FACTOR), Nhalo_spline,
+                            const_struct->tbl_xmin,const_struct->tbl_xwid,
+                            const_struct->tbl_ymin,const_struct->tbl_ywid);
     //NOTE: while the most common mass functions have simpler expressions for f(<M) (erfc based) this will be general, and shouldn't impact compute time much
-    m_exp = EvaluateMexpSpline(const_struct->cond_val);
+    m_exp = EvaluateRGTable1D(const_struct->cond_val,M_exp_spline,const_struct->tbl_xmin,const_struct->tbl_xwid);
     const_struct->expected_N = n_exp * const_struct->M_cond / sqrt(2.*PI);
     const_struct->expected_N_save = n_exp_save * const_struct->M_cond / sqrt(2.*PI);
     const_struct->expected_M = m_exp * const_struct->M_cond / sqrt(2.*PI);
     // const_struct->expected_M_save = frac_save * const_struct->M_cond;
 
     return;
-}
-
-//return the expected number and mass of halos for a given condition
-//REPLACED BY stoc_set_consts_cond()
-void get_halo_avg(double growth_out, double delta, double lnMmin, double lnMmax, float M_in, bool update, double * exp_N, double * exp_M){
-    double tbl_arg,frac,sigma_max,n_exp,dummy;
-    if(!update){
-        tbl_arg = delta;
-    }
-    else{
-        tbl_arg = log(M_in);
-    }
-
-    double M,N;
-    
-    sigma_max = EvaluateSigma(log(M_in),0,&dummy);
-    frac = EvaluateFgtrM(growth_out,lnMmin,delta,sigma_max);
-    n_exp = EvaluatedNdMSpline(tbl_arg,lnMmax);
-
-    N = n_exp * M_in / sqrt(2.*PI);
-    M = frac * M_in;
-
-    *exp_N = N;
-    *exp_M = M;
 }
 
 void place_on_hires_grid(int x, int y, int z, int *crd_hi, gsl_rng * rng){
@@ -1023,7 +963,7 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, 
             M_prog = 0;
             halo_count = 0;
             for(ii=0;ii<nh;ii++){
-                hm_sample = sample_dndM_inverse(tbl_arg,rng);
+                hm_sample = sample_dndM_inverse(tbl_arg,hs_constants,rng);
                 hm_sample = exp(hm_sample);
                 M_prog += hm_sample;
                 M_out[halo_count++] = hm_sample;
@@ -1116,7 +1056,8 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
     //lnMmin only used for sampling, apply factor here
     double mass_tol = global_params.STOC_MASS_TOL;
     double exp_M = hs_constants->expected_M;
-    if(hs_constants->update)exp_M *= 0.94; //0.95 fudge factor for assuming that internal lagrangian volumes are independent
+    //TODO:make this a globalparam
+    if(hs_constants->update)exp_M *= 1.; //~0.95 fudge factor for assuming that internal lagrangian volumes are independent
 
     int n_halo_sampled, n_failures=0;
     double M_prog=0;
@@ -1129,7 +1070,7 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
         n_halo_sampled = 0;
         M_prog = 0;
         while(M_prog < exp_M){
-            M_sample = sample_dndM_inverse(tbl_arg,rng);
+            M_sample = sample_dndM_inverse(tbl_arg,hs_constants,rng);
             M_sample = exp(M_sample);
 
             // the extra delta function at N_prog == 1
@@ -1218,7 +1159,7 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
         //we use the gaussian tail distribution to enforce our Mmin limit from the sigma tables
         x_sample = gsl_ran_ugaussian_tail(rng,x_min);
         sigma_sample = sqrt(del_term/(x_sample*x_sample) + sigma_r*sigma_r);
-        M_sample = EvaluateSiginvSpline(sigma_sample);
+        M_sample = EvaluateSigmaInverse(sigma_sample);
         M_sample = exp(M_sample);
 
         //LOG_ULTRA_DEBUG("found Mass %d %.2e",n_halo_sampled,M_sample);
@@ -1405,7 +1346,8 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
 
     int err;
     //If the expected mass is below our minimum saved mass, don't bother calculating
-    if(hs_constants->delta <= -1 || hs_constants->expected_M < hs_constants->M_min*global_params.HALO_SAMPLE_FACTOR){
+    //NOTE: some of these conditions are redundant with set_consts_cond()
+    if(hs_constants->delta <= DELTA_MIN || hs_constants->expected_M < hs_constants->M_min*global_params.HALO_SAMPLE_FACTOR){
         *n_halo_out = 0;
         return 0;
     }
@@ -1426,7 +1368,8 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     else if(global_params.SAMPLE_METHOD == 1){
         err = stoc_halo_sample(hs_constants, rng, n_halo_out, M_out);
     }
-    else if(global_params.SAMPLE_METHOD == 2){
+    //disabled temporarily when I changed the interp tables
+    else if(global_params.SAMPLE_METHOD == 2 && 0){
         err = stoc_sheth_sample(hs_constants, rng, n_halo_out, M_out);
     }
     else if(global_params.SAMPLE_METHOD == 3){
@@ -1539,7 +1482,9 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                 for (z=0; z<HII_D_PARA; z++){
                     delta = (double)dens_field[HII_R_INDEX(x,y,z)] * growthf;
 
+                    // LOG_ULTRA_DEBUG("cell (%d,%d,%d) %.2e Start",x,y,z,delta);
                     stoc_set_consts_cond(&hs_constants_priv,delta);
+                    // LOG_ULTRA_DEBUG("exp %.2f halos, %.2e Mass",hs_constants_priv.expected_N,hs_constants_priv.expected_M);
                     //Subtract mass from cells near big halos
                     mass_defc = 1;
                     for (j=0;j<nhalo_in;j++){
@@ -1617,7 +1562,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                         print_counter = 1;
                         print_hs_consts(&hs_constants_priv);
                     }
-                    // LOG_ULTRA_DEBUG("cell (%d,%d,%d) %.2e Done, %d (%.2f) halos, %.2e (%.2e) Mass",x,y,z,delta,nh_buf,hs_constants_priv.expected_N,M_cell,hs_constants_priv.expected_M);
+                    // LOG_ULTRA_DEBUG("Done, %d halos, %.2e Mass",nh_buf,M_cell);
                 }
             }
         }
@@ -1871,7 +1816,6 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
     
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
         freeSigmaMInterpTable();
-        free_siginv_spline();
     }
     free_dNdM_tables();
 
@@ -1964,7 +1908,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                 for(i=0;i<HII_TOT_NUM_PIXELS;i++){
                     dens = perturbed_field->density[i];
 
-                    //ignore very low density
+                    //ignore very low density NOTE:not using DELTA_MIN since it's perturbed (Eulerian)
                     if(dens <= -1){
                         mass = 0.;
                         wstar = 0.;
@@ -2167,14 +2111,14 @@ int test_mfp_filter(struct UserParams *user_params, struct CosmoParams *cosmo_pa
 }
 
 //testing function to print stuff out from python
-/* type==0: UMF/CMF value at a list of masses
- * type==1: Integrated CMF in a single condition at multiple masses N(>M)
- * type==2: Integrated CMF in multiple conditions in the entire mass range
- * type==3: Expected CMF from a list of conditions
- * type==4: Halo catalogue and excess mass from a list of conditions (stoc_sample)
- * type==5: Halo catalogue and coordinates from a list of conditions using the grid/structs (halo_update / build_halo_cat level)
- * type==6: N(<M) interpolation table output for a list of masses in one condition
- * type==7: INVERSE N(<M) interpolation table output for a list of masses in one condition */
+/* type 0: UMF/CMF value at a list of masses
+ * type 1: Integrated CMF in a single condition at multiple masses N(>M)
+ * type 2: Integrated CMF in multiple conditions in the entire mass range
+ * type 3: Expected CMF from a list of conditions
+ * type 4: Halo catalogue and excess mass from a list of conditions (stoc_sample)
+ * type 5: Halo catalogue and coordinates from a list of conditions using the grid/structs (halo_update / build_halo_cat level)
+ * type 6: N(<M) interpolation table output for a list of masses in one condition
+ * type 7: INVERSE N(<M) interpolation table output for a list of masses in one condition */
 int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
                         , int seed, int n_mass, float *M, double condition, double z_out, double z_in, int type, double *result){
     int status;
@@ -2205,6 +2149,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         struct HaloSamplingConstants *hs_constants = &hs_const_struct;
         LOG_DEBUG("Setting z constants. %.3f %.3f",z_out,z_in);
         stoc_set_consts_z(hs_constants,z_out,z_in);
+        print_hs_consts(hs_constants);
         //set first condition (for some outputs)
         //TODO: rewrite function agruments so I don't need to unpack here
         double Mmax_tb = hs_constants->M_max_tables;
@@ -2266,7 +2211,6 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         else if(type==1){
             //integrate CMF -> N(Ml<M<Mh) in one condition
             //TODO: make it possible to integrate UMFs
-            //seed gives n_order
             stoc_set_consts_cond(hs_constants,condition);
             Mcond = hs_constants->M_cond;
             lnMcond = hs_constants->lnM_cond;
@@ -2529,7 +2473,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     result[i] = 0;
                     continue;
                 }
-                test = EvaluatedNdMSpline(x_in,y_in);
+                test = EvaluateRGTable2D(x_in,y_in,Nhalo_inv_spline,hs_constants->tbl_xmin,hs_constants->tbl_xwid,hs_constants->tbl_ymin,hs_constants->tbl_ywid);
                 result[i] = test * mass / sqrt(2.*PI);
                 LOG_ULTRA_DEBUG("dNdM table: x = %.6e, y = %.6e z = %.6e",x_in,y_in,test);
             }
@@ -2542,12 +2486,12 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             x_in = hs_constants->cond_val;
             #pragma omp parallel for private(test,y_in)
             for(i=0;i<n_mass;i++){
-                if(M[i] < 0 || M[i] > 1){
-                    LOG_ERROR("invalid probability %.2f",M[i]);
-                    Throw(ValueError);
-                }
                 y_in = M[i];
-                test = gsl_spline2d_eval(Nhalo_inv_spline,x_in,y_in,Nhalo_inv_cond_acc,Nhalo_inv_prob_acc);
+                if(y_in >=0 || y_in <= global_params.MIN_LOGPROB){
+                    result[i] = 0.;
+                    continue;
+                }
+                test = EvaluateRGTable2D(x_in,y_in,Nhalo_inv_spline,hs_constants->tbl_xmin,hs_constants->tbl_xwid,hs_constants->tbl_pmin,hs_constants->tbl_pwid);
                 result[i] = exp(test);
                 LOG_ULTRA_DEBUG("dNdM inverse table: %.6e x = %.6e, y = %.6e z = %.6e",condition,x_in,y_in,test);
             }
