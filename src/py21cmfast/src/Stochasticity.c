@@ -156,9 +156,22 @@ double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
     return sigma;
 }
 
-//TODO: make a new RGI from the sigma tables,
+//The sigma interp table is regular in mass, nt sigma so we need to loop
+//TODO: make a new RGI from the sigma tables if we take then partition method seriously,
 double EvaluateSigmaInverse(double sigma){
-    return 0;
+    int idx;
+    for(idx=0;idx<NMass;idx++){
+        if(sigma < Sigma_InterpTable[idx]) break;
+    }
+    if(idx == NMass){
+        LOG_ERROR("sigma inverse out of bounds.");
+        Throw(TableEvaluationError);
+    }
+    double table_val_0 = Sigma_InterpTable[idx];
+    double table_val_1 = Sigma_InterpTable[idx];
+    double interp_point = (sigma - table_val_0)/(table_val_1-table_val_0);
+
+    return table_val_0*(1-interp_point) + table_val_1*(interp_point);
 }
 
 /*
@@ -1368,8 +1381,7 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     else if(global_params.SAMPLE_METHOD == 1){
         err = stoc_halo_sample(hs_constants, rng, n_halo_out, M_out);
     }
-    //disabled temporarily when I changed the interp tables
-    else if(global_params.SAMPLE_METHOD == 2 && 0){
+    else if(global_params.SAMPLE_METHOD == 2){
         err = stoc_sheth_sample(hs_constants, rng, n_halo_out, M_out);
     }
     else if(global_params.SAMPLE_METHOD == 3){
