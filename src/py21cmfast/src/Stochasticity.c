@@ -157,7 +157,7 @@ double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
 }
 
 //The sigma interp table is regular in mass, nt sigma so we need to loop
-//TODO: make a new RGI from the sigma tables if we take then partition method seriously,
+//TODO: make a new RGI from the sigma tables if we take the partition method seriously,
 double EvaluateSigmaInverse(double sigma){
     int idx;
     for(idx=0;idx<NMass;idx++){
@@ -619,9 +619,13 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 }
 
                 // LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",update ? exp(x) : x,i,exp(y),j,prob,log1p(-prob));
-                //we have gone over the probability (machine precision) limit before filling the array
-                //  we set this mass bin (first mass to go over) to a very low value so we interpolate close to the point (M,-inf)
-                if(prob >= 1.)prob = global_params.MIN_LOGPROB * 10.;
+                //There are time where we have gone over the probability (machine precision) limit before reaching the mass limit
+                //  we set the final point to be minimum probability at the maximum mass, which crosses the true CDF in the final bin
+                //  but is the best we can do without a rootfind
+                if(prob >= 1.){
+                    prob = global_params.MIN_LOGPROB;
+                    y = lnM_cond;
+                }
                 else prob = log1p(-prob);
 
                 if(p_prev < p_target){
@@ -629,7 +633,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                         Throw(TableGenerationError);
                 }
                 //loop through the remaining spaces in the inverse table and fill them
-                while(prob < p_target && k >= 0){
+                while(prob <= p_target && k >= 0){
                     //since we go ascending in y, prob > prob_prev
                     //NOTE: linear interpolation in (lnM,log(1-p))
                     lnM_p = (p_prev-p_target)*(y - lnM_prev)/(p_prev-prob) + lnM_prev;
@@ -667,7 +671,7 @@ void free_dNdM_tables(){
 double sample_dndM_inverse(double condition, struct HaloSamplingConstants * hs_constants, gsl_rng * rng){
     double p_in, min_prob;
     p_in = log1p(-gsl_rng_uniform(rng));
-    if(p_in < global_params.MIN_LOGPROB) p_in = global_params.MIN_LOGPROB;
+    if(p_in < global_params.MIN_LOGPROB) p_in = global_params.MIN_LOGPROB; //we assume that M(min_logprob) ~ M_cond
     return EvaluateRGTable2D(condition,p_in,Nhalo_inv_spline,hs_constants->tbl_xmin,hs_constants->tbl_xwid,hs_constants->tbl_pmin,hs_constants->tbl_pwid);
 }
 
@@ -1033,18 +1037,19 @@ int fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_p
         if(fabs(*M_tot_pt - M_out[*n_halo_pt-1] - exp_M) < fabs(*M_tot_pt - exp_M)){
             //LOG_ULTRA_DEBUG("removed");
             *M_tot_pt -= M_out[*n_halo_pt-1];
+            //here we remove by setting the counter one lower so it isn't read
             (*n_halo_pt)--; //increment has preference over dereference
         }
     }
     else{
         while(*M_tot_pt > exp_M){
+            //here we remove by setting halo mass to zero, skipping it during the consolidation
             last_M_del = remove_random_halo(rng,*n_halo_pt,&random_idx,M_tot_pt,M_out);
             //LOG_ULTRA_DEBUG("Removed halo %d M %.3e tot %.3e",random_idx,last_M_del,*M_tot_pt);
             n_removed++;
         }
 
         // if the sample with the last subtracted halo is closer to the expected mass, keep it
-        
         // LOG_ULTRA_DEBUG("Deciding to keep last halo M %.3e tot %.3e exp %.3e",last_M_del,*M_tot_pt,exp_M);
         if(fabs(*M_tot_pt + last_M_del - exp_M) < fabs(*M_tot_pt - exp_M)){
             M_out[random_idx] = last_M_del;
@@ -1070,7 +1075,7 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
     double mass_tol = global_params.STOC_MASS_TOL;
     double exp_M = hs_constants->expected_M;
     //TODO:make this a globalparam
-    if(hs_constants->update)exp_M *= 1.; //~0.95 fudge factor for assuming that internal lagrangian volumes are independent
+    // if(hs_constants->update)exp_M *= 0.95; //~0.95 fudge factor for assuming that internal lagrangian volumes are independent
 
     int n_halo_sampled, n_failures=0;
     double M_prog=0;
