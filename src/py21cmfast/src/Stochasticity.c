@@ -56,12 +56,9 @@ static struct HaloSamplingConstants{
     double growth_out;
     double M_min;
     double lnM_min;
-    double M_min_save;
-    double lnM_min_save;
     double M_max_tables;
     double lnM_max_tb;
     double sigma_min;
-    double sigma_min_save;
 
     //table info
     double tbl_xmin;
@@ -84,8 +81,6 @@ static struct HaloSamplingConstants{
     //although there's no pow calls so it should be faster
     double expected_N;
     double expected_M;
-    double expected_N_save; //expected save values for debug, remove later
-    double expected_M_save;
 
     //calculated per sample
     //Nothing here since it's the lowest level and there's no point saving
@@ -686,9 +681,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     double dummy;
     double M_min = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc);
     const_struct->M_min = M_min;
-    const_struct->M_min_save = M_min * global_params.HALO_SAMPLE_FACTOR;
     const_struct->lnM_min = log(M_min);
-    const_struct->lnM_min_save = log(const_struct->M_min_save);
     const_struct->M_max_tables = global_params.M_MAX_INTEGRAL;
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
 
@@ -698,7 +691,6 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
         initialiseSigmaMInterpTable(const_struct->M_min / 2,const_struct->M_max_tables);
     }
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min,0,&dummy);
-    const_struct->sigma_min_save = EvaluateSigma(const_struct->lnM_min,0,&dummy);
 
     if(redshift_prev >= 0){
         const_struct->t_h_prev = t_hubble(redshift_prev);
@@ -744,7 +736,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
 //set the constants which are calculated once per condition
 void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double cond_val){
-    double tbl_arg,sig,m_exp,n_exp,n_exp_save,dummy,del,frac_save;
+    double m_exp,n_exp,dummy;
 
     //Here the condition is a mass, volume is the Lagrangian volume and delta_l is set by the
     //redshift difference which represents the difference in delta_crit across redshifts
@@ -786,15 +778,10 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     // n_exp = EvaluatedNdMSpline(const_struct->cond_val,const_struct->lnM_max_tb); //should be the same as < lnM_cond, but that can hide some interp errors
     //TODO: remove if performance is affected by this line
     
-    n_exp_save = n_exp - EvaluateRGTable2D(const_struct->cond_val,const_struct->lnM_min + log(global_params.HALO_SAMPLE_FACTOR), Nhalo_spline,
-                            const_struct->tbl_xmin,const_struct->tbl_xwid,
-                            const_struct->tbl_ymin,const_struct->tbl_ywid);
     //NOTE: while the most common mass functions have simpler expressions for f(<M) (erfc based) this will be general, and shouldn't impact compute time much
     m_exp = EvaluateRGTable1D(const_struct->cond_val,M_exp_spline,const_struct->tbl_xmin,const_struct->tbl_xwid);
     const_struct->expected_N = n_exp * const_struct->M_cond / sqrt(2.*PI);
-    const_struct->expected_N_save = n_exp_save * const_struct->M_cond / sqrt(2.*PI);
     const_struct->expected_M = m_exp * const_struct->M_cond / sqrt(2.*PI);
-    // const_struct->expected_M_save = frac_save * const_struct->M_cond;
 
     return;
 }
@@ -1075,7 +1062,7 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
     double mass_tol = global_params.STOC_MASS_TOL;
     double exp_M = hs_constants->expected_M;
     //TODO:make this a globalparam
-    // if(hs_constants->update)exp_M *= 0.95; //~0.95 fudge factor for assuming that internal lagrangian volumes are independent
+    if(hs_constants->update)exp_M *= 0.95; //~0.95 fudge factor for assuming that internal lagrangian volumes are independent
 
     int n_halo_sampled, n_failures=0;
     double M_prog=0;
@@ -2388,10 +2375,11 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     M_prog = 0;
                     for(i=0;i<n_halo;i++){
                         M_prog += out_hm[i];
+                        n_halo_out++;
                         
                         //only save halos above the save limit, but add all halos to the totals
                         if(out_hm[i]<Mmin*global_params.HALO_SAMPLE_FACTOR){
-                            continue;   
+                            continue;
                         }
 
                         //critical is bad, but this is a test function so eeeehh
@@ -2399,11 +2387,10 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                         {
                             result[1+4*n_mass+(n_halo_tot++)] = out_hm[i];
                         }
-                        n_halo_out++;
                     }
                     //output descendant statistics
-                    result[0*n_mass + 1 + j] = (double)hs_constants_priv.expected_N_save;
-                    result[1*n_mass + 1 + j] = (double)hs_constants_priv.expected_M_save;
+                    result[0*n_mass + 1 + j] = (double)hs_constants_priv.expected_N;
+                    result[1*n_mass + 1 + j] = (double)hs_constants_priv.expected_M;
                     result[2*n_mass + 1 + j] = (double)n_halo_out;
                     result[3*n_mass + 1 + j] = (double)M_prog;
                 }
