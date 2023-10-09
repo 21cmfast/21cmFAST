@@ -745,9 +745,9 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
         const_struct->lnM_cond = log(cond_val);
         const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond,0,&dummy);
         //mean stellar mass of this halo mass, used for stellar z correlations
-        const_struct->mu_desc_star = fmin(astro_params_stoc->F_STAR10
-                                        * pow(cond_val/1e10,astro_params_stoc->ALPHA_STAR)
-                                        * exp(-astro_params_stoc->M_TURN/cond_val),1) * cond_val;
+        // const_struct->mu_desc_star = fmin(astro_params_stoc->F_STAR10
+        //                                 * pow(cond_val/1e10,astro_params_stoc->ALPHA_STAR)
+        //                                 * exp(-astro_params_stoc->M_TURN/cond_val),1) * cond_val;
         const_struct->cond_val = const_struct->lnM_cond;
     }
     //Here the condition is a cell of a given density, the volume/mass is given by the grid parameters
@@ -804,10 +804,8 @@ void place_on_hires_grid(int x, int y, int z, int *crd_hi, gsl_rng * rng){
     crd_hi[2] = z_hi;
 }
 
-//This function adds stochastic halo properties to an existing halo
-//TODO: this needs to be updated to handle MINI_HALOS and not USE_MASS_DEPENDENT_ZETA flags
-int add_halo_properties(gsl_rng *rng, float halo_mass, float M_turn_var, struct HaloSamplingConstants * hs_constants, float * output){
-    //for now, we just have stellar mass
+//calculates halo properties from astro parameters plus the correlated rng
+void set_halo_properties(float halo_mass, float M_turn_a, float M_turn_m, float t_h, float * input, float * output){
     double f10 = astro_params_stoc->F_STAR10;
     double fa = astro_params_stoc->ALPHA_STAR;
     double sigma_star = astro_params_stoc->SIGMA_STAR;
@@ -822,10 +820,10 @@ int add_halo_properties(gsl_rng *rng, float halo_mass, float M_turn_var, struct 
     fstar_mean = f10 * pow(halo_mass/1e10,fa);
 
     //in order to remain consistent with the minihalo treatment in default (Nion_a * exp(-M/M_a) + Nion_m * exp(-M/M_m - M_a/M))
-    //we need to separate halos into molecular and atomically cooled
-    //for now I assign this randomly at each redshift which may cause some inconsistencies
+    //we need to separate halos into molecular and atomically cooled, or deal with the overlap somehow
+
     //TODO: discuss a better option
-    dutycycle_term = exp(-M_turn_var/halo_mass);
+    dutycycle_term = exp(-M_turn_a/halo_mass);
 
     //In order to include the feedback: I WILL need to go forward in time. This means a few things:
     //I need to store progenitor properties (via index I guess) somewhere to do the updates
@@ -833,8 +831,7 @@ int add_halo_properties(gsl_rng *rng, float halo_mass, float M_turn_var, struct 
     //The caching becomes a huge issue though
 
     if(sigma_star > 0){
-        //sample stellar masses from each halo mass assuming lognormal scatter
-        f_sample = gsl_ran_ugaussian(rng);
+        f_sample = input[0];
         
         /* Simply adding lognormal scatter to a delta increases the mean (2* is as likely as 0.5*)
         * We multiply by exp(-sigma^2/2) so that X = exp(mu + N(0,1)*sigma) has the desired mean */
@@ -848,9 +845,9 @@ int add_halo_properties(gsl_rng *rng, float halo_mass, float M_turn_var, struct 
         sm_sample = halo_mass * (cosmo_params_stoc->OMb / cosmo_params_stoc->OMm) * fmin(fstar_mean*dutycycle_term,1);
     }
 
-    sfr_mean = sm_sample / (astro_params_stoc->t_STAR * hs_constants->t_h);
+    sfr_mean = sm_sample / (astro_params_stoc->t_STAR * t_h);
     if(sigma_sfr > 0){
-        sfr_sample = gsl_ran_ugaussian(rng);
+        sfr_sample = input[1];
         
         //Since there's no clipping on t_STAR (I think...), we can apply the lognormal to SFR directly instead of t_STAR
         sfr_sample = sfr_mean * exp(-sigma_sfr*sigma_sfr/2 + sfr_sample*sigma_sfr);
@@ -867,44 +864,25 @@ int add_halo_properties(gsl_rng *rng, float halo_mass, float M_turn_var, struct 
     return 0;
 }
 
-//props_in has form: M*, SFR, ....
-int update_halo_properties(gsl_rng * rng, float halo_mass, struct HaloSamplingConstants *hs_constants, float *props_in, float *output){
-    double f10 = astro_params_stoc->F_STAR10;
-    double fa = astro_params_stoc->ALPHA_STAR;
-    double sigma_star = astro_params_stoc->SIGMA_STAR;
-    double sigma_sfr = astro_params_stoc->SIGMA_SFR;
-    double interp_star, interp_sfr;
+//This function adds stochastic halo properties to an existing halo
+//TODO: this needs to be updated to handle MINI_HALOS and not USE_MASS_DEPENDENT_ZETA flags
+int set_prop_rng(gsl_rng *rng, int update, double *interp, float * input, float * output){
+    //find log(property/variance) / mean
+    double prop1 = gsl_ran_ugaussian(rng);
+    double prop2 = gsl_ran_ugaussian(rng);
 
-    //sample new properties (uncorrelated)
-    add_halo_properties(rng, halo_mass, astro_params_stoc->M_TURN, hs_constants, output);
+    //Correlate properties by interpolating between the sampled and descendant gaussians
+    //THIS ASSUMES THAT THE SELF-CORRELATION IS IN THE LOG PROPRETY, NOT THE PROPERTY ITSELF
+    //IF IT SHOULD BE IN LINEAR SPACE, EXPONENTIATE THE RANDOM VARIABLES
+    if(update){
+        prop1 = (1-interp[0])*prop1 + interp[0]*input[0];
+        prop2 = (1-interp[1])*prop1 + interp[1]*input[1];
+    }
 
-    //get dz correlations
-    interp_star = hs_constants->corr_star;
-    interp_sfr = hs_constants->corr_sfr;
-    float x1,x2,mu1,mu2;
+    output[0] = prop1;
+    output[1] = prop2;
 
-    //STELLAR MASS: get median from mean + lognormal scatter (we leave off a bunch of constants and use the mean because we only need the ratio)
-    mu1 = hs_constants->mu_desc_star;
-    mu2 = fmin(f10 * pow(halo_mass/1e10,fa)*exp(-astro_params_stoc->M_TURN/halo_mass),1) * halo_mass; //TODO: speed this line up, exp + pow on EVERY progenitor is slow
-    //The same CDF value will be given by the ratio of the means/medians, since the scatter is z and M-independent
-    x1 = props_in[0];
-    x2 = mu2/mu1*x1;
-    //interpolate between uncorrelated and matched properties.
-    output[0] = (1-interp_star)*output[0] + interp_star*x2;
-
-    //repeat for all other properties
-    //SFR: get median (TODO: if I add z-M dependent scatters I will need to re-add the constants)
-    mu1 = props_in[0] / hs_constants->t_h_prev;
-    mu2 = output[0] / hs_constants->t_h;
-    //calculate CDF(prop_prev|conditions) at previous snapshot (lognormal)
-    x1 = props_in[1];
-    x2 = mu2/mu1*x1;
-    //interpolate between uncorrelated and matched properties.
-    output[1] = (1-interp_sfr)*output[1] + interp_sfr*x2;
-
-    //repeat for all other properties
-
-    return 0;
+    return;
 }
 
 //This is the function called to assign halo properties to an entire catalogue, used for DexM halos
@@ -926,18 +904,21 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
     //loop through the halos and assign properties
     int i;
     float buf[2];
+    //dummy
+    float inbuf[2];
 #pragma omp parallel for private(buf)
     for(i=0;i<nhalos;i++){
         LOG_ULTRA_DEBUG("halo %d hm %.2e crd %d %d %d",i,halos->halo_masses[i],halos->halo_coords[3*i+0],halos->halo_coords[3*i+1],halos->halo_coords[3*i+2]);
-        add_halo_properties(rng_stoc[omp_get_thread_num()], halos->halo_masses[i], astro_params_stoc->M_TURN, &hs_constants, buf);
+        set_prop_rng(rng_stoc[omp_get_thread_num()], 0, inbuf, inbuf, buf);
         LOG_ULTRA_DEBUG("stars %.2e sfr %.2e",buf[0],buf[1]);
         halos->stellar_masses[i] = buf[0];
         halos->halo_sfr[i] = buf[1];
     }
 
     free_rng_threads(rng_stoc);
-    return 0;
+    
     LOG_DEBUG("Done.");
+    return 0;
 }
 
 /* Creates a realisation of halo properties by sampling the halo mass function and 
@@ -1436,7 +1417,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
 
         int nh_buf=0;
         double delta;
-        float prop_buf[2];
+        float prop_buf[2], prop_dummy[2];
         int crd_hi[3], crd_large[3];
         double halo_dist,halo_r,intersect_vol;
         double mass_defc=1;
@@ -1538,11 +1519,9 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                     M_cell = 0;
                     for(i=0;i<nh_buf;i++){
                         if(hm_buf[i] < Mmin*global_params.HALO_SAMPLE_FACTOR) continue; //save only halos some factor above minimum
-                        add_halo_properties(rng_arr[threadnum], hm_buf[i], astro_params_stoc->M_TURN, &hs_constants_priv, prop_buf);
 
+                        set_prop_rng(rng_arr[threadnum], 0, prop_dummy, prop_dummy, prop_buf);
                         place_on_hires_grid(x,y,z,crd_hi,rng_arr[threadnum]);
-
-                        //fill in arrays now, this should be quick compared to the sampling so critical shouldn't slow this down much
 
                         local_hm[count] = hm_buf[i];
                         local_sm[count] = prop_buf[0];
@@ -1651,6 +1630,8 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
 
     int print_counter = 0;
 
+    double corr_arr[2] = {hs_constants->corr_star,hs_constants->corr_sfr};
+
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
     {
         float prog_buf[MAX_HALO_CELL];
@@ -1711,9 +1692,8 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
             M_prog = 0;
             for(jj=0;jj<n_prog;jj++){
                 if(prog_buf[jj] < Mmin*global_params.HALO_SAMPLE_FACTOR) continue; //save only halos some factor above minimum
-
                 //LOG_ULTRA_DEBUG("updating props");
-                update_halo_properties(rng_arr[threadnum], prog_buf[jj], &hs_constants_priv, propbuf_in, propbuf_out);
+                set_prop_rng(rng_arr[threadnum], 1, corr_arr, propbuf_in, propbuf_out);
                 //LOG_ULTRA_DEBUG("Assigning");
 
                 local_hm[count] = prog_buf[jj];
@@ -1827,6 +1807,17 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
     return 0;
 }
 
+//TODO:put the fixed grids here
+int set_fixed_grids(struct PerturbedField * perturbed_field, struct HaloBox *grids)
+{
+    return 0;
+}
+
+int get_box_averages(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, double *averages){
+
+    return 0;
+}
+
 //This, for the moment, grids the PERTURBED halo catalogue.
 //TODO: make a way to output both types by making 2 wrappers to this function that pass in arrays rather than structs
 //NOTE: this function is quite slow to generate fixed halo boxes, however I don't mind since it's a debug case
@@ -1855,6 +1846,11 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         double alpha_star,norm_star,t_star,Mlim_Fstar,Mlim_Fesc;
         double volume,sigma_max;
         double prefactor_mass,prefactor_sfr,prefactor_star;
+        double t_h = t_hubble(redshift);
+
+        //TODO: replace M_turn_m with grid values
+        double M_turn_a = atomic_cooling_threshold(redshift);
+        double M_turn_m = log10(lyman_werner_threshold(redshift, 0., 0.,astro_params));
 
         //TODO: interpolation tables (eh this is fast anyway)
         //TODO: PS_RATIO Term
@@ -1888,8 +1884,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             Mlim_Fesc = Mass_limit_bisection(M_min, M_max, alpha_esc, norm_esc);
 
             hm_expected = IntegratedNdM(growth_z, lnMmin, lnMmax, lnMmax, 0, 1, user_params->HMF,0);
-            sm_expected = Nion_General(redshift, M_min, astro_params->M_TURN, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc);
-            sfr_expected = Nion_General(redshift, M_min, astro_params->M_TURN, alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.);
+            sm_expected = Nion_General(redshift, M_min, M_turn_a, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc);
+            sfr_expected = Nion_General(redshift, M_min, M_turn_m, alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.);
 
             sm_expected *= prefactor_star;
             sfr_expected *= prefactor_sfr;
@@ -1933,11 +1929,11 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                         mass = IntegratedNdM(growth_z,lnMmin,lnMmax,lnMmax,dens,1,user_params->HMF,1) * prefactor_mass * (1+dens);
                         h_count = IntegratedNdM(growth_z,lnMmin,lnMmax,lnMmax,dens,0,user_params->HMF,1) * prefactor_mass * (1+dens);
 
-                        wstar = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, Deltac, dens, astro_params->M_TURN
+                        wstar = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, Deltac, dens, M_turn_a
                                                 , astro_params->ALPHA_STAR, alpha_esc, astro_params->F_STAR10, astro_params->F_ESC10
                                                 , Mlim_Fstar, Mlim_Fesc, user_params->FAST_FCOLL_TABLES) * prefactor_star * (1+dens);
 
-                        sfr = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, Deltac, dens, astro_params->M_TURN
+                        sfr = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, Deltac, dens, M_turn_a
                                                 , astro_params->ALPHA_STAR, 0., astro_params->F_STAR10, 1., Mlim_Fstar, 0.
                                                 , user_params->FAST_FCOLL_TABLES) * prefactor_sfr * (1+dens);
                     }
@@ -1975,6 +1971,9 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                 int i_halo,idx,x,y,z;
                 double m,wstar,sfr,fesc;
                 double wsfr;
+                
+                float in_props[2];
+                float out_props[2];
 #pragma omp for
                 for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
                     grids->halo_mass[idx] = 0.0;
@@ -1998,11 +1997,19 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     //TODO: It could save some `pow` calls if I compute a mass limit outside the loop
                     fesc = fmin(norm_esc*pow(m/1e10,alpha_esc),1);
 
-                    wstar = halos->stellar_masses[i_halo]*fesc;
-                    sfr = halos->halo_sfr[i_halo];
-                    wsfr = halos->halo_sfr[i_halo]*fesc;
+                    //these are the 
+                    in_props[0] = halos->stellar_masses[i_halo];
+                    in_props[1] = halos->halo_sfr[i_halo];
+
+                    set_halo_properties(m,M_turn_a,M_turn_m,t_h,in_props,out_props);
+
+                    wstar = out_props[0]*fesc;
+                    sfr = out_props[1];
+                    wsfr = out_props[1]*fesc;
                     //will probably need unweighted Stellar later on
                     //Lx as well when that scatter is included
+
+                    //TODO: feed back the calculated properties to PerturbHaloField
 
 #pragma omp atomic update
                     grids->halo_mass[HII_R_INDEX(x, y, z)] += m;
@@ -2012,7 +2019,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->halo_sfr[HII_R_INDEX(x, y, z)] += sfr;
 #pragma omp atomic update
                     grids->whalo_sfr[HII_R_INDEX(x, y, z)] += wsfr;
-                    //sometimes we get zeromass halos (e.g tinkering with magnitude cuts)
+                    //It can be convenient to remove halos from a catalogue by setting them to zero, don't count those here
                     if(m>0){
 #pragma omp atomic update
                         grids->count[HII_R_INDEX(x, y, z)] += 1;
