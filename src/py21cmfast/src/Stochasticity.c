@@ -1859,7 +1859,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         if(flag_options->FIXED_HALO_GRIDS || LOG_LEVEL >= DEBUG_LEVEL){
             init_ps();
             
-            M_min = minimum_source_mass(redshift,astro_params,flag_options);
+            M_min = minimum_source_mass(redshift,astro_params,flag_options)*global_params.HALO_SAMPLE_FACTOR;
             volume = VOLUME / HII_TOT_NUM_PIXELS;
             M_max = RtoM(user_params->BOX_LEN / user_params->HII_DIM * L_FACTOR); //mass in cell of mean dens
 
@@ -1873,7 +1873,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             t_star = astro_params->t_STAR;
            
             lnMmax = log(M_max);
-            lnMmin = log(M_min*global_params.HALO_SAMPLE_FACTOR);
+            lnMmin = log(M_min);
             sigma_max = EvaluateSigma(lnMmax,0,&dummy);
 
             prefactor_mass = RHOcrit * cosmo_params->OMm / sqrt(2.*PI);
@@ -1885,7 +1885,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
 
             hm_expected = IntegratedNdM(growth_z, lnMmin, lnMmax, lnMmax, 0, 1, user_params->HMF,0);
             sm_expected = Nion_General(redshift, M_min, M_turn_a, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc);
-            sfr_expected = Nion_General(redshift, M_min, M_turn_m, alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.);
+            sfr_expected = Nion_General(redshift, M_min, M_turn_a, alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.);
 
             sm_expected *= prefactor_star;
             sfr_expected *= prefactor_sfr;
