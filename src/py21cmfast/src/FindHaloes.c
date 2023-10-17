@@ -377,8 +377,8 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
 
             halos->n_halos = halos_large->n_halos;
             halos->halo_masses = halos_large->halo_masses;
-            halos->stellar_masses = halos_large->stellar_masses;
-            halos->halo_sfr = halos_large->halo_sfr;
+            halos->star_rng = halos_large->star_rng;
+            halos->sfr_rng = halos_large->sfr_rng;
         }
         //either way we don't need the pointer to the temp struct
         //TODO: make sure this doesn't break the DexM only case
@@ -508,16 +508,16 @@ void init_halo_coords(struct HaloField *halos, int n_halos){
     halos->halo_masses = (float *)calloc(n_halos,sizeof(float));
     halos->halo_coords = (int *)calloc(3*n_halos,sizeof(int));
     
-    halos->stellar_masses = (float *) calloc(n_halos,sizeof(float));
-    halos->halo_sfr = (float *) calloc(n_halos,sizeof(float));
+    halos->star_rng = (float *) calloc(n_halos,sizeof(float));
+    halos->sfr_rng = (float *) calloc(n_halos,sizeof(float));
 }
 
 void free_halo_field(struct HaloField *halos){
     LOG_DEBUG("Freeing HaloField instance.");
     free(halos->halo_masses);
     free(halos->halo_coords);
-    free(halos->stellar_masses);
-    free(halos->halo_sfr);
+    free(halos->star_rng);
+    free(halos->sfr_rng);
     halos->n_halos = 0;
 
     free(halos->mass_bins);

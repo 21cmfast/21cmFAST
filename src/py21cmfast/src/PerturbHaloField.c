@@ -117,10 +117,10 @@ LOG_DEBUG("Begin Initialisation");
 
         halos_perturbed->n_halos = halos->n_halos;
         halos_perturbed->halo_masses = malloc(sizeof(float) * halos->n_halos);
-        halos_perturbed->stellar_masses = malloc(sizeof(float) * halos->n_halos);
-        halos_perturbed->halo_sfr = malloc(sizeof(float) * halos->n_halos);
+        halos_perturbed->star_rng = malloc(sizeof(float) * halos->n_halos);
+        halos_perturbed->sfr_rng = malloc(sizeof(float) * halos->n_halos);
         halos_perturbed->halo_coords = malloc(sizeof(int) * halos->n_halos * 3);
-
+        halos_perturbed->properties_set = false;
 
 
         // ******************   END INITIALIZATION     ******************************** //
@@ -203,9 +203,12 @@ LOG_DEBUG("Begin Initialisation");
                 halos_perturbed->halo_coords[i_halo*3+2] = zf;
 
                 halos_perturbed->halo_masses[i_halo] = halos->halo_masses[i_halo];
+                //For now, the properties are set to the RNG, they are calculated when the box is made
+                //TODO: figure out a way to move the properties, it is difficult to do so when mixing minihalos
+                //  and differently scaling quantities without saving them all separately
                 if(flag_options->HALO_STOCHASTICITY){
-                    halos_perturbed->stellar_masses[i_halo] = halos->stellar_masses[i_halo];
-                    halos_perturbed->halo_sfr[i_halo] = halos->halo_sfr[i_halo];
+                    halos_perturbed->star_rng[i_halo] = halos->star_rng[i_halo];
+                    halos_perturbed->sfr_rng[i_halo] = halos->sfr_rng[i_halo];
                 }
             }
         }
@@ -261,8 +264,8 @@ void free_phf(struct PerturbHaloField* halos){
     LOG_DEBUG("Freeing PerturbHaloField");
     free(halos->halo_masses);
     free(halos->halo_coords);
-    free(halos->stellar_masses);
-    free(halos->halo_sfr);
+    free(halos->star_rng);
+    free(halos->sfr_rng);
     LOG_DEBUG("Done Freeing PerturbHaloField");
     halos->n_halos = 0;
 }

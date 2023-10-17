@@ -109,8 +109,8 @@ struct HaloField{
     int *halo_coords;
 
     //Halo properties for stochastic model
-    float *stellar_masses;
-    float *halo_sfr;
+    float *star_rng;
+    float *sfr_rng;
 
     int n_mass_bins;
     int max_n_mass_bins;
@@ -128,9 +128,9 @@ struct HaloBox{
 
     //It may be useful to output unweighted stellar masses etc,
     //but for IonisationBox.c and SpinTemperatureBox.c we don't need them
-    float *wstar_mass; //weighted by F_ESC
-    float *halo_sfr;
-    float *whalo_sfr;
+    float *n_ion; //weighted by F_ESC
+    float *halo_sfr; //for x-rays and Ts stuff
+    float *whalo_sfr; //for Gamma12 TODO:replace with gamma12
     int *count;
 
     //generated from a perturbed field
@@ -151,8 +151,10 @@ struct PerturbHaloField{
     int *halo_coords;
 
     //Halo properties for stochastic model
-    float *stellar_masses;
-    float *halo_sfr;
+    float *star_rng;
+    float *sfr_rng;
+
+    bool properties_set;
 };
 
 
@@ -260,7 +262,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 //these two functions compute the new classes HaloBox and XraySourceBox, and need to be visible
 int ComputeHaloBox(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params
                     , struct FlagOptions * flag_options, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos
-                    , struct HaloBox *grids);
+                    , struct TsBox *previous_spin_temp, struct IonizedBox *previous_ionize_box, struct HaloBox *grids);
 
 int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, struct HaloBox *halobox,

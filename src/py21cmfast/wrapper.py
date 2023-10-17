@@ -1411,6 +1411,8 @@ def halo_box(
     init_boxes=None,
     pt_halos=None,
     perturbed_field=None,
+    previous_spin_temp=None,
+    previous_ionize_box=None,
     write=None,
     direc=None,
     regenerate=None,
@@ -1477,7 +1479,9 @@ def halo_box(
             },
             {"init_boxes": init_boxes,
              "pt_halos": pt_halos,
-             "perturbed_field": perturbed_field},
+             "perturbed_field": perturbed_field,
+             "previous_spin_temp": previous_spin_temp,
+             "previous_ionize_box": previous_ionize_box},
             redshift=redshift,
         )
 
@@ -1553,8 +1557,64 @@ def halo_box(
                     hooks=hooks,
                     direc=direc,
                 )
+    
+        #NOTE: due to the order, we use the previous spintemp here, like spin_temperature,
+        #       but UNLIKE ionize_box, which uses the current box
+        #TODO: think about the inconsistency here
+        #NOTE: I didn't make checks for prev_z since it isn't used in any equations, we simply use the last timestep
+        #   to calculate critical masses at the current timestep. The rest of the flag situations (INHOMO_RECO, USE_SPIN_TEMP) should be handled
+        #   by the other funcitons
+        #NOTE: if USE_MINI_HALOS is TRUE, so is USE_TS_FLUCT and INHOMO_RECO
+        if not isinstance(previous_spin_temp,TsBox) or not previous_spin_temp.is_computed:
+            prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
+            if (not flag_options.USE_MINI_HALOS) or prev_z > global_params.Z_HEAT_MAX:
+                    previous_spin_temp = TsBox(redshift=0,
+                            user_params=user_params,
+                            cosmo_params=cosmo_params,
+                            astro_params=astro_params,
+                            flag_options=flag_options, dummy=True)
+            else:
+                # Otherwise recursively create new previous box.
+                if prev_z < global_params.Z_HEAT_MAX:
+                    previous_spin_temp = spin_temperature(
+                        init_boxes=init_boxes,
+                        astro_params=astro_params,
+                        flag_options=flag_options,
+                        redshift=prev_z,
+                        regenerate=regenerate,
+                        hooks=hooks,
+                        direc=direc,
+                        cleanup=False,  # we know we'll need the memory again
+                    )
+        if not isinstance(previous_ionize_box,IonizedBox) or not previous_ionize_box.is_computed:
+            prev_z = (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1
+            if (not flag_options.USE_MINI_HALOS) or prev_z > global_params.Z_HEAT_MAX:
+                previous_ionize_box = IonizedBox(redshift=0,
+                        user_params=user_params,
+                        cosmo_params=cosmo_params,
+                        astro_params=astro_params,
+                        flag_options=flag_options, dummy=True)
+            else:
+                previous_ionize_box = ionize_box(
+                        init_boxes=init_boxes,
+                        astro_params=astro_params,
+                        flag_options=flag_options,
+                        redshift=prev_z,
+                        regenerate=regenerate,
+                        hooks=hooks,
+                        direc=direc,
+                    )
 
-    return box.compute(pt_halos=pt_halos,perturbed_field=perturbed_field,hooks=hooks)
+    result = box.compute(pt_halos=pt_halos,perturbed_field=perturbed_field,
+                        previous_ionize_box=previous_ionize_box,previous_spin_temp=previous_spin_temp,hooks=hooks)
+                        
+    #HACK: the pt_halos have changed (rng -> properties) so we might want to expose here
+    #TODO: Set properties in perturbhalofield instead OR change the compute framework to allow this
+    #       There might be a more clever way to store this information without creating extra fields
+    # pt_halos.__memory_map()
+    # pt_halos.__expose()
+
+    return result
 
 
 def interp_haloboxes(hbox_arr,z_halos,z_target) -> HaloBox:
@@ -1601,12 +1661,12 @@ def interp_haloboxes(hbox_arr,z_halos,z_target) -> HaloBox:
     hbox_desc = hbox_arr[idx_desc]
 
     hbox_out.halo_mass = (1-interp_param)*hbox_desc.halo_mass + interp_param*hbox_prog.halo_mass
-    hbox_out.wstar_mass = (1-interp_param)*hbox_desc.wstar_mass + interp_param*hbox_prog.wstar_mass
+    hbox_out.n_ion = (1-interp_param)*hbox_desc.n_ion + interp_param*hbox_prog.n_ion
     hbox_out.halo_sfr = (1-interp_param)*hbox_desc.halo_sfr + interp_param*hbox_prog.halo_sfr
     hbox_out.whalo_sfr = (1-interp_param)*hbox_desc.halo_sfr + interp_param*hbox_prog.whalo_sfr
     
-    logger.info(f'interpolated to z={z_target} between [{z_desc},{z_prog}] ({interp_param})')
-    logger.info(f'SFR verages desc: {hbox_desc.halo_sfr.mean()} interp {hbox_out.halo_sfr.mean()} prog {hbox_prog.halo_sfr.mean()}')
+    # logger.info(f'interpolated to z={z_target} between [{z_desc},{z_prog}] ({interp_param})')
+    # logger.info(f'SFR verages desc: {hbox_desc.halo_sfr.mean()} interp {hbox_out.halo_sfr.mean()} prog {hbox_prog.halo_sfr.mean()}')
     # logger.info(f'top-level struct (first 3 halo mass cells) {hbox_out.halo_mass[0,0,0]}, {hbox_out.halo_mass[0,0,1]}, {hbox_out.halo_mass[0,0,2]}')
     #pass the arrays to the c struct by calling again
     hbox_out()
@@ -2148,6 +2208,7 @@ def ionize_box(
                 regenerate=regenerate,
                 pt_halos=pt_halos,
                 perturbed_field=perturbed_field,
+                previous_ionize_box=previous_ionize_box,
             )
 
         # Set empty spin temp box if necessary.
@@ -2808,7 +2869,7 @@ def run_coeval(
             )
             #this calculates the alpha fit and passes it to C
             if flag_options.PHOTON_CONS_ALPHA:
-                photoncons_alpha_data = photoncons_alpha(cosmo_params,user_params,astro_params,flag_options)
+                photoncons_alpha_data = photoncons_fesc(cosmo_params,user_params,astro_params,flag_options)
 
         if not hasattr(redshift, "__len__"):
             singleton = True
@@ -2887,7 +2948,7 @@ def run_coeval(
                 #As far as I can tell adding to the list won't affect anything else down the line
                 perturb.append(p)
 
-            pt_halos_list = []
+            pt_halos = []
             for z in z_halos[::-1]:
                 if not flag_options.FIXED_HALO_GRIDS:
                     halos = determine_halo_list(
@@ -2934,6 +2995,7 @@ def run_coeval(
         ib_tracker = [0] * len(redshift)
         bt = [0] * len(redshift)
         st, ib, pf = None, None, None  # At first we don't have any "previous" st or ib.
+        hb2, ph2 = None, None #optional fields which remain None if their flags are off
 
         perturb_min = perturb[np.argmin(redshift)]
 
@@ -2949,48 +3011,50 @@ def run_coeval(
         z_halos = []
         for iz, z in enumerate(redshifts):
             pf2 = perturb[iz]
-            ph2 = pt_halos[iz] if flag_options.USE_HALO_FIELD else None
             pf2.load_all()
 
-            if flag_options.USE_TS_FLUCT:
-                if flag_options.USE_HALO_FIELD:
-                    if generate_halobox:
-                        halobox += [halo_box(
-                            redshift=z,
-                            astro_params=astro_params,
-                            flag_options=flag_options,
-                            cosmo_params=cosmo_params,
-                            user_params=user_params,
-                            regenerate=regenerate,
-                            init_boxes=init_box,
-                            pt_halos=pt_halos[iz],
-                            perturbed_field=perturb[iz] if flag_options.FIXED_HALO_GRIDS else None,
-                            hooks=hooks,
-                            direc=direc,
-                        )]
-                        #append the halo redshift array so we have all halo boxes [z,zmax]
-                        z_halos += [z]
-                    #if haloboxes have been provided with correct redshifts...
-                    else:
-                        z_halos = redshifts
-
-                    sourcebox = xray_source(
+            if flag_options.USE_HALO_FIELD:
+                if generate_halobox:
+                    ph2 = pt_halos[iz]
+                    hb2 = halo_box(
                         redshift=z,
                         astro_params=astro_params,
                         flag_options=flag_options,
                         cosmo_params=cosmo_params,
                         user_params=user_params,
-                        random_seed=random_seed, #needed since no boxes in memory
-                        z_halos=z_halos,
                         regenerate=regenerate,
-                        hboxes=halobox)
+                        init_boxes=init_box,
+                        pt_halos=ph2,
+                        perturbed_field=pf2,
+                        previous_ionize_box=ib,
+                        previous_spin_temp=st,
+                        hooks=hooks,
+                        direc=direc,
+                    )
+                    #append the halo redshift array so we have all halo boxes [z,zmax]
+                    z_halos += [z]
+                #if haloboxes have been provided with correct redshifts...
+                else:
+                    z_halos = redshifts
+
+            if flag_options.USE_TS_FLUCT:
+                sourcebox = xray_source(
+                    redshift=z,
+                    astro_params=astro_params,
+                    flag_options=flag_options,
+                    cosmo_params=cosmo_params,
+                    user_params=user_params,
+                    random_seed=random_seed, #needed since no boxes in memory
+                    z_halos=z_halos,
+                    regenerate=regenerate,
+                    hboxes=halobox)
 
                 st2 = spin_temperature(
                     redshift=z,
                     previous_spin_temp=st,
                     perturbed_field=perturb_min if use_interp_perturb_field else pf2,
                     # remember that perturb field is interpolated, so no need to provide exact one.
-                    halobox=halobox[iz] if flag_options.USE_HALO_FIELD else None,
+                    halobox=hb2,
                     sourcebox=sourcebox if flag_options.USE_HALO_FIELD else None,
                     astro_params=astro_params,
                     flag_options=flag_options,
@@ -3097,7 +3161,7 @@ def run_coeval(
                 ionized_box=ib,
                 brightness_temp=_bt,
                 ts_box=st,
-                halobox=halobox[redshifts.index(z)] if flag_options.USE_HALO_FIELD else None,
+                halobox=hb2 if flag_options.USE_HALO_FIELD else None,
                 photon_nonconservation_data=photon_nonconservation_data,
                 cache_files={
                     "init": [(0, os.path.join(direc, init_box.filename))],
@@ -3390,7 +3454,7 @@ def run_lightcone(
             )
             #this calculates the alpha fit and passes it to C
             if flag_options.PHOTON_CONS_ALPHA:
-                photoncons_alpha_data = photoncons_alpha(cosmo_params,user_params,astro_params,flag_options)
+                photoncons_alpha_data = photoncons_fesc(cosmo_params,user_params,astro_params,flag_options)
 
         d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(
             cosmo_params,
@@ -3521,6 +3585,8 @@ def run_lightcone(
                                 user_params=user_params,
                                 regenerate=regenerate,
                                 pt_halos=ph,
+                                previous_ionize_box=ib,
+                                previous_spin_temp=st,
                                 perturbed_field=pf2)
                 z_halos += [z]
                 hboxes.append(hbox2)
@@ -3682,6 +3748,11 @@ def run_lightcone(
 
             pf = pf2
             if flag_options.USE_HALO_FIELD:
+                if ph is not None:
+                    try:
+                        ph.purge(force=always_purge)
+                    except OSError:
+                        pass
                 if hbox is not None:
                     try:
                         hbox.purge(force=always_purge)
@@ -4145,8 +4216,8 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
                 'alpha_diff' : alpha_estimate_diff,
                 'alpha_reverse' : alpha_estimate_reverse,
                 'alpha_arr' : alpha_arr,
-                'alpha_fit_yint' : astro_params.ALPHA_ESC,
-                'alpha_fit_slope' : 0, #start with no correction
+                'fit_yint' : astro_params.ALPHA_ESC,
+                'fit_slope' : 0, #start with no correction
                 'found_alpha' : False,}
 
     #adjust the reverse one (we found the alpha which is close to the calibration sim, undo it)
@@ -4154,7 +4225,7 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
 
     #fit to the curve
     #make sure there's an estimate and Q isn't too high/low
-    fit_alpha = alpha_estimate_diff
+    fit_alpha = alpha_estimate_ratio
     sel = np.isfinite(fit_alpha) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
 
     #if there are no alpha roots found, it's likely this is a strange reionisation history
@@ -4162,11 +4233,15 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
     
     #if we can't fit due to not enough ionisation, catch that here
     if ref_interp.max() < min_q_fit:
-        results['alpha_fit_yint'] = last_alpha
+        results['fit_yint'] = last_alpha
         logger.warning(f'These parameters result in little ionisation, running with flat alpha correction {last_alpha}')
         
+    elif np.count_nonzero(sel) == 1:
+        results['fit_yint'] = last_alpha
+        logger.warning(f'ONLY ONE REDSHIFT HAD AN ALPHA FIT WITHIN THE RANGE, running with flat alpha correction {last_alpha}')
+        
     #here there are no fits, meaning we likely have a strange reionisaiton history where the photon conservation is worse than alpha can correct
-    if np.count_nonzero(sel) == 0:
+    elif np.count_nonzero(sel) == 0:
         logger.warning('No alpha within the range can fit the global history for any z, running without alpha correction')
         logger.warning('THIS REIONISAITON HISTORY IS LIKELY HIGHLY NON-CONSERVING OF PHOTONS')
     
@@ -4176,10 +4251,56 @@ def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
         logger.info(f'ALPHA_ESC Original = {astro_params.ALPHA_ESC:.3f}')
         logger.info(f'Running with ALPHA_ESC = {popt[0]:.2f} + {popt[1]:.2f} * Q')
 
-        results['alpha_fit_yint'] = popt[0]
-        results['alpha_fit_slope'] = popt[1]
+        results['fit_yint'] = popt[0]
+        results['fit_slope'] = popt[1]
         results['found_alpha'] = True
 
-    lib.set_alphacons_params(results['alpha_fit_yint'],results['alpha_fit_slope'])
+    lib.set_alphacons_params(results['fit_yint'],results['fit_slope'])
+
+    return results
+
+def photoncons_fesc(cosmo_params,user_params,astro_params,flag_options):
+    #HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
+    #TODO: Move the deltaz interp tables to python
+    if not lib.photon_cons_allocated:
+        lib.determine_deltaz_for_photoncons()
+        lib.photon_cons_allocated = ffi.cast('bool',True)
+
+    #Q(analytic) limits to fit the curve
+    max_q_fit = 0.99
+    min_q_fit = 0.2
+
+    ref_pc_data = _get_photon_nonconservation_data()
+    z = ref_pc_data['z_calibration']
+
+    #fit to the same z-array
+    ref_interp = np.interp(ref_pc_data['z_calibration'],ref_pc_data['z_analytic'],ref_pc_data['Q_analytic'])
+
+    #filling factors sometimes go above 1, this causes problems in late-time ratios
+    #I want this in the test alphas to get the right photon ratio, but not in the reference analytic
+    #test_pc_data[test_pc_data > 1.] = 1.
+    ref_interp[ref_interp > 1] = 1.
+
+    #ratio of each alpha with calibration
+    ratio_ref = ref_interp/(1-ref_pc_data['nf_calibration'])
+
+    fit_fesc = ratio_ref * astro_params.F_ESC10
+    sel = np.isfinite(fit_alpha) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
+
+    popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
+    #pass to C
+    logger.info(f'F_ESC10 Original = {astro_params.F_ESC10:.3f}')
+    logger.info(f'Running with F_ESC10 = {popt[0]:.2f} + {popt[1]:.2f} * Q')
+
+    #initialise the output structure before the fits
+    results = {'z_cal' : ref_pc_data['z_calibration'],
+                'Q_ana' : ref_interp,
+                'Q_cal' : (1-ref_pc_data['nf_calibration']),
+                'Q_ratio' : ratio_ref,
+                'fit_yint' : popt[0],
+                'fit_slope' : popt[1], #start with no correction
+            }
+            
+    lib.set_alphacons_params(results['fit_yint'],results['fit_slope'])
 
     return results

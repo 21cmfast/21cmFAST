@@ -299,8 +299,8 @@ class HaloField(_AllParamsBox):
 
     _c_based_pointers = (
         "halo_masses",
-        "stellar_masses",
-        "halo_sfr",
+        "star_rng",
+        "sfr_rng",
         "halo_coords",
         "mass_bins",
         "fgtrm",
@@ -319,8 +319,8 @@ class HaloField(_AllParamsBox):
     def _c_shape(self, cstruct):
         return {
             "halo_masses": (cstruct.n_halos,),
-            "stellar_masses": (cstruct.n_halos,),
-            "halo_sfr": (cstruct.n_halos,),
+            "star_rng": (cstruct.n_halos,),
+            "sfr_rng": (cstruct.n_halos,),
             "halo_coords": (cstruct.n_halos, 3),
             "mass_bins": (cstruct.n_mass_bins,),
             "fgtrm": (cstruct.n_mass_bins,),
@@ -339,7 +339,7 @@ class HaloField(_AllParamsBox):
             else:
                 required += ["hires_density"]
         elif isinstance(input_box, HaloField):
-                    required += ["halo_masses","halo_coords","stellar_masses","halo_sfr"]
+                    required += ["halo_masses","halo_coords","star_rng","sfr_rng"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for HaloField!"
@@ -367,7 +367,7 @@ class PerturbHaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
     _c_compute_function = lib.ComputePerturbHaloField
-    _c_based_pointers = ("halo_masses", "halo_coords","stellar_masses","halo_sfr")
+    _c_based_pointers = ("halo_masses", "halo_coords","star_rng","sfr_rng")
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         return {}
@@ -376,8 +376,8 @@ class PerturbHaloField(_AllParamsBox):
         return {
             "halo_masses": (cstruct.n_halos,),
             "halo_coords": (cstruct.n_halos, 3),
-            "stellar_masses": (cstruct.n_halos,),
-            "halo_sfr": (cstruct.n_halos,),
+            "star_rng": (cstruct.n_halos,),
+            "sfr_rng": (cstruct.n_halos,),
         }
 
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
@@ -430,7 +430,7 @@ class HaloBox(_AllParamsBox):
 
         out = {
             "halo_mass": shape,
-            "wstar_mass": shape,
+            "n_ion": shape,
             "halo_sfr": shape,
             "whalo_sfr": shape,
             "count": shape,
@@ -444,11 +444,15 @@ class HaloBox(_AllParamsBox):
         required = []
         if isinstance(input_box, PerturbHaloField):
             if self.flag_options.HALO_STOCHASTICITY:
-                required += ["halo_coords", "halo_masses", "stellar_masses","halo_sfr"]
+                required += ["halo_coords", "halo_masses", "star_rng","sfr_rng"]
             
         elif isinstance(input_box, PerturbedField):
             if not self.flag_options.HALO_STOCHASTICITY:
                 required += ["density"]
+        elif isinstance(input_box, TsBox):
+            required += ["J_21_LW_box"]
+        elif isinstance(input_box, IonizedBox):
+            required += ["Gamma12_box","z_re_box"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for HaloBox!"
@@ -461,6 +465,8 @@ class HaloBox(_AllParamsBox):
         *,
         pt_halos: PerturbHaloField,
         perturbed_field: PerturbedField,
+        previous_spin_temp: TsBox,
+        previous_ionize_box: IonizedBoxBox,
         hooks: dict,
     ):
         """Compute the function."""
@@ -472,6 +478,8 @@ class HaloBox(_AllParamsBox):
             self.flag_options,
             perturbed_field,
             pt_halos,
+            previous_spin_temp,
+            previous_ionize_box,
             hooks=hooks,
         )
 
@@ -611,7 +619,7 @@ class TsBox(_AllParamsBox):
         elif isinstance(input_box, HaloBox):
             if self.flag_options.USE_HALO_FIELD:
                 required += [
-                    "wstar_mass",
+                    "n_ion",
                     "halo_sfr",
                 ]
         elif isinstance(input_box, XraySourceBox):
@@ -743,7 +751,7 @@ class IonizedBox(_AllParamsBox):
             ):
                 required += ["Fcoll", "Fcoll_MINI"]
         elif isinstance(input_box, HaloBox):
-            required += ["halo_mass", "wstar_mass","whalo_sfr"]
+            required += ["halo_mass", "n_ion","whalo_sfr"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for IonizedBox!"

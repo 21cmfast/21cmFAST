@@ -565,7 +565,6 @@ LOG_SUPER_DEBUG("Initialised heat");
         LOG_INFO("previous_spin_temp: %e", previous_spin_temp->Tk_box[0]);
 
         /////////////// Create the z=0 non-linear density fields smoothed on scale R to be used in computing fcoll //////////////
-        //TODO: add the halo box filtering here
         R = L_FACTOR*user_params->BOX_LEN/(float)user_params->HII_DIM;
         R_factor = pow(global_params.R_XLy_MAX/R, 1/((float)global_params.NUM_FILTER_STEPS_FOR_Ts));
         LOG_SUPER_DEBUG("Looping through R");
@@ -3102,8 +3101,6 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
     double sum_Nion;
     double Nion_global;
     double Q;
-
-    double eff = global_params.Pop2_ion;
     double tot_mass =  RHOcrit * cosmo_params_ts->OMb * pow(user_params_ts->BOX_LEN,3);
 
     //TODO: Interpolation tables
@@ -3138,9 +3135,9 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
     //TODO: does this make any difference? surely the entire box sum will almost always equal the integral
     //it may come into play for a more sophisticated tau model (based on some more local xHII) but I'm not sure here
     if(flag_options_ts->USE_HALO_FIELD){
-#pragma omp parallel for num_threads(user_params_ts->N_THREADS) reduction(+:sum_wstar,sum_sfr,sum_mass)
+#pragma omp parallel for num_threads(user_params_ts->N_THREADS) reduction(+:sum_Nion,sum_sfr,sum_mass)
         for(box_ct=0;box_ct<HII_TOT_NUM_PIXELS;box_ct++){
-            sum_wstar += halo_box->wstar_mass[box_ct];
+            sum_Nion += halo_box->n_ion[box_ct];
             if(LOG_LEVEL>=DEBUG_LEVEL){
                 sum_sfr += halo_box->halo_sfr[box_ct];
                 sum_mass += halo_box->halo_mass[box_ct];
@@ -3148,7 +3145,6 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
         }
     }
     //TODO: ELSE (when abstracting the no-halo option)
-    sum_Nion = sum_wstar * eff;
     Q = 1 - sum_Nion/tot_mass;
     //Q is only used without MASS_DEPENDENT_ZETA, else Nion_general / interpolation tables are called
     *Q_HI = Q;
