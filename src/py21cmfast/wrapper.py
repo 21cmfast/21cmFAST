@@ -3547,8 +3547,7 @@ def run_lightcone(
                         hooks=hooks,
                         direc=direc,
                     )]
-                #same purging as pf
-                if user_params.MINIMIZE_MEMORY:
+                    #we always want to purge since these can be large:
                     try:
                         pt_halos[iz].purge(force=always_purge)
                     except OSError:
