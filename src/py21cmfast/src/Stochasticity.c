@@ -2080,7 +2080,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                 double m,nion,sfr,wsfr,stars;
                 
                 float in_props[2];
-                float out_props[2];
+                float out_props[4];
                 //Check if this initialisation is necessary. aren't they already zero'd in Python?
 #pragma omp for
                 for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
