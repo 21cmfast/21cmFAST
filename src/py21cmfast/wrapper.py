@@ -3747,11 +3747,6 @@ def run_lightcone(
 
             pf = pf2
             if flag_options.USE_HALO_FIELD:
-                if ph is not None:
-                    try:
-                        ph.purge(force=always_purge)
-                    except OSError:
-                        pass
                 if hbox is not None:
                     try:
                         hbox.purge(force=always_purge)
