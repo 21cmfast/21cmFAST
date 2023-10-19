@@ -4,6 +4,11 @@ Changelog
 dev-version
 -----------
 
+Fixed
+~~~~~
+
+* Incorrect sign on adiabatic fluctuations.
+
 v3.3.1 [24 May 2023]
 ----------------------
 

@@ -687,10 +687,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def _init_arrays(self):
         for k, state in self._array_state.items():
-            if k == "lowres_density":
-                logger.debug("THINKING ABOUT INITING LOWRES_DENSITY")
-                logger.debug(f"initialised {state.initialized}, computed_in_mem {state.computed_in_mem}, on disk {state.on_disk}")
-
             # Don't initialize C-based pointers or already-inited stuff, or stuff
             # that's computed on disk (if it's on disk, accessing the array should
             # just give the computed version, which is what we would want, not a

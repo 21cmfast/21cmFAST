@@ -508,7 +508,7 @@ LOG_SUPER_DEBUG("Initialised heat");
         growthfac = growth_factor_zp * inverse_growth_factor_z;
         // read file
         #pragma omp parallel shared(this_spin_temp,xe,TK,redshift,perturbed_field, \
-                                    inverse_growth_factor_z,growth_factor_zp,cT_ad) \
+                                    growthfac,cT_ad) \
                              private(i,j,k,ct,curr_xalpha,gdens) \
                              num_threads(user_params->N_THREADS)
         {

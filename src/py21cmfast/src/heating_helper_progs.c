@@ -316,7 +316,7 @@ double xion_RECFAST(float z, int flag)
 float cT_approx(float z)
 {
     if (global_params.USE_ADIABATIC_FLUCTUATIONS)
-        return 0.58 + 0.006*(z - 10.0);
+        return 0.58 - 0.006*(z - 10.0);
     else
         return 0.0;
 }
