@@ -1663,10 +1663,10 @@ def interp_haloboxes(hbox_arr,z_halos,z_target) -> HaloBox:
     hbox_out.halo_mass = (1-interp_param)*hbox_desc.halo_mass + interp_param*hbox_prog.halo_mass
     hbox_out.n_ion = (1-interp_param)*hbox_desc.n_ion + interp_param*hbox_prog.n_ion
     hbox_out.halo_sfr = (1-interp_param)*hbox_desc.halo_sfr + interp_param*hbox_prog.halo_sfr
-    hbox_out.whalo_sfr = (1-interp_param)*hbox_desc.halo_sfr + interp_param*hbox_prog.whalo_sfr
+    hbox_out.whalo_sfr = (1-interp_param)*hbox_desc.whalo_sfr + interp_param*hbox_prog.whalo_sfr
     
     # logger.info(f'interpolated to z={z_target} between [{z_desc},{z_prog}] ({interp_param})')
-    # logger.info(f'SFR verages desc: {hbox_desc.halo_sfr.mean()} interp {hbox_out.halo_sfr.mean()} prog {hbox_prog.halo_sfr.mean()}')
+    # logger.info(f'SFR averages desc {idx_desc}: {hbox_desc.halo_sfr.mean()} interp {hbox_out.halo_sfr.mean()} prog ({idx_prog}) {hbox_prog.halo_sfr.mean()}')
     # logger.info(f'top-level struct (first 3 halo mass cells) {hbox_out.halo_mass[0,0,0]}, {hbox_out.halo_mass[0,0,1]}, {hbox_out.halo_mass[0,0,2]}')
     #pass the arrays to the c struct by calling again
     hbox_out()
@@ -1806,7 +1806,7 @@ def xray_source(
             R_inner = R_range[i-1].to('Mpc').value if i > 0 else 0
             R_outer = R_range[i].to('Mpc').value
 
-            #logger.info(f'Starting zp={redshift}, R=[{R_inner},{R_outer}] zpp=[{zpp_avg[i]},{zpp_edges[i]}], idx={idx}')
+            # logger.info(f'Starting zp={redshift}, R=[{R_inner},{R_outer}] zpp=[{zpp_avg[i]},{zpp_edges[i]}]')
 
             if zpp_avg[i] >= z_max:
                 box.filtered_sfr[i,...] = 0

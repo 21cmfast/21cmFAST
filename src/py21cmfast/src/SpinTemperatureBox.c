@@ -2909,7 +2909,7 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
         short NO_LIGHT;
         fftwf_complex *filtered_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1){
+        if(R_ct == 0){
             LOG_DEBUG("starting XraySourceBox");
         }
         double fsfr_avg = 0;
@@ -3096,9 +3096,8 @@ void init_first_Ts(struct TsBox * box, float *dens, float z, float zp, double *x
 //TODO: add minihalo to haloboxes and this
 int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
     int box_ct;
-    double sum_wstar=0,sum_sfr=0,sum_mass=0;
+    double sum_Nion=0,sum_sfr=0,sum_mass=0;
     double sfr_global, eff_global, wstar_global, mass_global;
-    double sum_Nion;
     double Nion_global;
     double Q;
     double tot_mass =  RHOcrit * cosmo_params_ts->OMb * pow(user_params_ts->BOX_LEN,3);
@@ -3168,7 +3167,7 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
         LOG_DEBUG("Mass(halo) = %.3e | Mass(global) %.3e",sum_mass,mass_global);
     }
 
-    return sum_wstar > 1e-15 ? 0 : 1; //NO_LIGHT returned
+    return sum_Nion > 1e-15 ? 0 : 1; //NO_LIGHT returned
 }
 
 //the faster get_Ts put here for abstraction
