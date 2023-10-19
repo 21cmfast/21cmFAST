@@ -3547,11 +3547,14 @@ def run_lightcone(
                         hooks=hooks,
                         direc=direc,
                     )]
-                    #we always want to purge since these can be large:
-                    try:
-                        pt_halos[iz].purge(force=always_purge)
-                    except OSError:
-                        pass
+                    #NOTE: as above, purging doensn't work for C-allocated arrays,
+                    #   it double-frees when the python variable goes out of scope
+                    #TODO: Figure out a better way to allocate-free-load these objects
+                    # if user_params.MINIMIZE_MEMORY:
+                    #     try:
+                    #         pt_halos[iz].purge(force=always_purge)
+                    #     except OSError:
+                    #         pass
 
             #reverse the halo lists to be in line with the redshift lists
             pt_halos = pt_halos[::-1]
@@ -3587,7 +3590,7 @@ def run_lightcone(
                                 previous_ionize_box=ib,
                                 previous_spin_temp=st,
                                 perturbed_field=pf2)
-                z_halos += [z]
+                z_halos.append(z)
                 hboxes.append(hbox2)
 
                 if flag_options.USE_TS_FLUCT:
@@ -3746,12 +3749,9 @@ def run_lightcone(
                     pass
 
             pf = pf2
+            #NOTE: purging halofields is double freeing since __del__ frees c-allocated memory
+            #NOTE: We don't purge boxes since we need all of them for spintemp
             if flag_options.USE_HALO_FIELD:
-                if hbox is not None:
-                    try:
-                        hbox.purge(force=always_purge)
-                    except OSError:
-                        pass
                 hbox = hbox2
 
         if flag_options.PHOTON_CONS:
