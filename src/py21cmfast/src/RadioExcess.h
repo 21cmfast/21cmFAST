@@ -4,7 +4,7 @@
 #define astro_nu0 0.15 // in GHz
 
 // Print debug info array to a file, info contains: History_box, Gas Temp
-#define Debug_Printer 0
+#define Debug_Printer 1
 #define Reset_Radio_Temp_HMG 0
 
 double History_box_Interp(struct TsBox *previous_spin_temp, double z, int Type)
