@@ -208,9 +208,9 @@ void Refine_T_Radio(struct TsBox *previous_spin_temp, struct TsBox *this_spin_te
 	}
 }
 
-void Print_HMF(double z, double growthf, int hmf_model)
+void Print_HMF(double z, struct UserParams *user_params)
 {
-	double lm1, lm2, dlm, lm, hmf, m;
+	double lm1, lm2, dlm, lm, hmf, m, growthf;
 	int nm, idx;
 	FILE *OutputFile;
 
@@ -218,7 +218,7 @@ void Print_HMF(double z, double growthf, int hmf_model)
 	nm = 1000;
 	lm1 = 2.0;
 	lm2 = 20.0;
-
+	growthf = dicke(z);
 	dlm = (lm2 - lm1) / ((double)nm - 1.0);
 	lm = lm1;
 	
@@ -228,19 +228,19 @@ void Print_HMF(double z, double growthf, int hmf_model)
 	for (idx = 0; idx < nm; idx++)
 	{
 		m = pow(10.0, lm);
-		if (hmf_model == 0)
+		if (user_params->HMF == 0)
 		{
 			hmf = dNdM(growthf, m);
 		}
-		else if (hmf_model == 1)
+		else if (user_params->HMF == 1)
 		{
 			hmf = dNdM_st(growthf, m);
 		}
-		else if (hmf_model == 2)
+		else if (user_params->HMF == 2)
 		{
 			hmf = dNdM_WatsonFOF(growthf, m);
 		}
-		else if (hmf_model == 3)
+		else if (user_params->HMF == 3)
 		{
 			hmf = dNdM_WatsonFOF_z(z, growthf, m);
 		}
