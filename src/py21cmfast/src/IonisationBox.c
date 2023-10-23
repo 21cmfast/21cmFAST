@@ -1,5 +1,4 @@
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
-
 #define print_mturn_mini 1
 int INIT_ERFC_INTERPOLATION = 1;
 int INIT_RECOMBINATIONS = 1;
