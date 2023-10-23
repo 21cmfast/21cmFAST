@@ -518,6 +518,7 @@ class UserParams(StructWithDefaults):
         See :func:`power_spectrum_model` for a string representation.
         """
         if self.USE_RELATIVE_VELOCITIES:
+            ''' jsc: this is too noisy
             if self._POWER_SPECTRUM != 5 or (
                 isinstance(self._POWER_SPECTRUM, str)
                 and self._POWER_SPECTRUM.upper() != "CLASS"
@@ -526,6 +527,7 @@ class UserParams(StructWithDefaults):
                     "Automatically setting POWER_SPECTRUM to 5 (CLASS) as you are using "
                     "relative velocities"
                 )
+            '''
             return 5
         else:
             if isinstance(self._POWER_SPECTRUM, str):
@@ -630,13 +632,6 @@ class FlagOptions(StructWithDefaults):
         Determines whether to use radio excess background from ACG, if True then AstroParams.fR is used
     USE_RADIO_MCG: bool, optional
         Determines whether to use radio excess background from MCG, if True then AstroParams.fR_mini is used
-    USE_RADIO_PBH: bool, optional
-        Determines whether to use radio excess background from PBH, if True then AstroParams.fbh is used
-    USE_HAWKING_RADIATION: bool, optional, see 2108.13256
-        Determines whether to use heating and ionisation from Hawking radiation , since small PBH won't survive long enough to impact EoR and that heavy PBHs are not active enough, thus to use this feature you must also have:
-        -20 <= AstroParams.mbh <= -15.3
-        Technically you must also specify correct AstroParams.bh_spin but current version only support Schwarzschild PBH
-        Future version will add support for Kerr PBH (just need to set the initial condition right) and extended distribution
     """
 
     _ffi = ffi
@@ -651,11 +646,8 @@ class FlagOptions(StructWithDefaults):
         "M_MIN_in_Mass": False,
         "PHOTON_CONS": False,
         "FIX_VCB_AVG": False,
-        # Features for Radio Excess and Hawking Radiation
         "USE_RADIO_ACG": False,
         "USE_RADIO_MCG": False,
-        "USE_RADIO_PBH": False,
-        "USE_HAWKING_RADIATION": False,
     }
 
     @property
@@ -820,23 +812,7 @@ class AstroParams(StructWithDefaults):
         Radio efficiency for molecularly cooling galaxies (MCG) in mini-halos, normalised to 1 for modern day galaxies. Given in log10 units.
     aR_mini: float, optional
         Power-law energy spectra index for mini-halos
-    mbh: float, optional
-        PBH birth mass in msun. Given in log10 units.
-    fbh: float, optional
-        PBH fraction, i.e. rho_PBH/rho_dm, allowed range: [0, 1]. Given in log10 units.
-    bh_aR: float, optional
-        Radio power-law spectra index
-    bh_fX: float, optional
         PBH X-ray emission efficiency
-    bh_fR: float, optional
-        PBH radio emission efficiency, typical value is 1
-    bh_lambda: float, optional
-        PBH accretion efficiency
-    bh_Eta: float, optional
-        PBH emission efficiency, i.e. fraction of accreted mass that ends up being emitted
-    bh_spin: float, optional
-        Reduced initial Kerr spin for PBHs, see 2108.13256
-        Allowed range: [0,1)
     Radio_Zmin: float, optional
         Turn off radio emmisivity below this redshift, a phenomenological param motivated by ARCADE2 upper limit
     """
@@ -872,15 +848,7 @@ class AstroParams(StructWithDefaults):
         "aR": 0.7,
         "fR_mini": -10.0,
         "aR_mini": 0.7,
-        "mbh": 1,
-        "fbh": -120,
-        "bh_aR": 0.6,
-        "bh_fX": 0.1,
-        "bh_fR": 1,
-        "bh_lambda": 0.1,
-        "bh_Eta": 0.1,
-        "bh_spin": 0.0,
-        "Radio_Zmin": 0,
+        "Radio_Zmin": 0.0,
     }
 
     def __init__(
@@ -905,8 +873,6 @@ class AstroParams(StructWithDefaults):
             "X_RAY_Tvir_MIN",
             "fR",
             "fR_mini",
-            "fbh",
-            "mbh",
         ]:
             return 10**val
         else:
@@ -1019,12 +985,3 @@ def validate_all_inputs(
         # Some requirements for excess radio background and Hawking radiation
         if flag_options.USE_RADIO_MCG and not flag_options.USE_MINI_HALOS:
             raise ValueError("USE_RADIO_MCG requires USE_MINI_HALOS!")
-        if flag_options.USE_RADIO_PBH:
-            if not flag_options.USE_MASS_DEPENDENT_ZETA:
-                raise ValueError("USE_RADIO_PBH requires USE_MASS_DEPENDENT_ZETA!")
-            if not user_params.USE_INTERPOLATION_TABLES:
-                raise ValueError("USE_RADIO_PBH requires USE_INTERPOLATION_TABLES!")
-        if flag_options.USE_HAWKING_RADIATION and (
-            (astro_params.mbh < -20.001) or (astro_params.mbh > -15.299)
-        ):
-            raise ValueError("set mbh to [-20, -15.3] to USE_HAWKING_RADIATION!")
