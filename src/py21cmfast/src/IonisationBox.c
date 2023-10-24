@@ -528,7 +528,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 {
                     OutputFile = fopen("Mturn_Table_tmp.txt", "a");
                     // fprintf(OutputFile, "z    mturn    mturn_mini\n");
-                    fprintf(OutputFile, "%f    %E   %E  %E\n", redshift, box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave, atomic_cooling_threshold(redshift));
+                    fprintf(OutputFile, "%f    %E   %E  %E  %E\n", redshift, box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave, atomic_cooling_threshold(redshift), box->mean_f_coll_MINI);
                     fclose(OutputFile);
                 }
             }
