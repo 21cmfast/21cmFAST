@@ -1782,8 +1782,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             LOG_SUPER_DEBUG("looping over box...");
 
             zpp_max = zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts - 1];
-            ArchiveSize = (int)round(previous_spin_temp->History_box[0]);
-
+            
             // Correcting for the radio temp from sources > R_XLy_MAX
             Radio_Temp_HMG = Get_Radio_Temp_HMG(previous_spin_temp, astro_params, cosmo_params, flag_options, user_params, zpp_max, redshift);
 
@@ -2685,7 +2684,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 this_spin_temp->SFRD_MINI_box[box_ct] = Phi_2_SFRD(Phi_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
 
             }
-
+            
             // Caching averaged quantities
             if (this_spin_temp->first_box)
             {
@@ -2698,7 +2697,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             }
             else
             {
-
+                ArchiveSize = (int)round(previous_spin_temp->History_box[0]);
                 if (Debug_Printer == 1)
                 {
                     remove("History_box_tmp.txt");
