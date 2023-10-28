@@ -136,11 +136,14 @@ struct TsBox
     float *J_21_LW_box;
     // Boxes for Inhomogeneous Radio Background
     float *Trad_box;
-
-    // For averaged quantities from previous boxes, to be updated at every z step
-    // History_box[0] specifies box length
-    // Data structure: [z, SFRD, Tk, f4, f5]
-    // [f4 - f5] are redundency memory, just in case we need to store other stuff
+    /*
+    For averaged quantities from previous boxes, to be updated at every z step
+    Supports 5 data fields in current version, can be expanded if needed, e.g. for m_turn_II or m_turn_III
+    Most conveniently managed in History_box_Interp
+    contents: 
+        History_box[0] specifies box length
+        Data structure: [z, Phi_II, Tk, Phi_III, zpp[0]]
+    */
     float *History_box;
     float *SFRD_box;
     float *SFRD_MINI_box;
