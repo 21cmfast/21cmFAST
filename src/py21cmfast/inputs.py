@@ -727,17 +727,10 @@ class FlagOptions(StructWithDefaults):
 
     @property
     def USE_HALO_FIELD(self):
-        """Automatically setting USE_HALO_FIELD to False if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and self._USE_HALO_FIELD:
-            logger.warning(
-                "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
-                "Automatically setting USE_HALO_FIELD to False."
-            )
-            return False
         """Automatically setting USE_HALO_FIELD to False if not USE_MASS_DEPENDENT_ZETA."""
         if not self.USE_MASS_DEPENDENT_ZETA and self._USE_HALO_FIELD:
             logger.warning(
-                "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is also True! "
+                "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
                 "Automatically setting USE_HALO_FIELD to False."
             )
             return False

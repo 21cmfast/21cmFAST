@@ -462,7 +462,7 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
                               curr_vcb = global_params.VAVG;
                             }
                             else{
-                              if(user_params->USE_RELATIVE_VELOCITIES ){
+                              if(user_params->USE_RELATIVE_VELOCITIES){
                                 curr_vcb = ini_boxes->lowres_vcb[HII_R_INDEX(x,y,z)];
                               }
                               else{ //set vcb to a constant, either zero or vavg.
@@ -611,9 +611,11 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
                                                 astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
         }
         else{
+            LOG_DEBUG("Debug0");
             box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
                                             astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
             box->mean_f_coll_MINI = 0.;
+            
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
                                       astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
         }
@@ -1084,6 +1086,8 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 //Now this is F_esc weighted stellar mass density / baryon density == f_esc weighted fraction of stars
                                 //Should give photons / H atom when multiplied by ION_EFF_FACTOR
                                 Splined_Fcoll = *((float *)stars_filtered + HII_R_FFT_INDEX(x,y,z)) / (RHOcrit*cosmo_params->OMb*density_over_mean);
+                                //Minihalos are taken care of already
+                                Splined_Fcoll_MINI = 0;
                             }
                             else {
 
@@ -1307,12 +1311,13 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 Gamma_R_prefactor_MINI *= pow(1+redshift, 2);
             }
 
-            //With the halo field, we use the filtered, f_esc weighted star formation rate, which should be equivalent to
+            //With the halo field, we use the filtered, f_esc and N_ion weighted star formation rate, which should be equivalent to
             // `Fcoll` * OMb * RHOcrit * (1+delta) in the no halo field case. we also need a factor of 1/(1+delta) later on
             // to match that in the recombination (`Fcoll` is effectively fesc*star per baryon, whereas the filtered grids are fesc*SFRD)
             if(!flag_options->USE_HALO_FIELD){
+                //Minihalos already included
                 Gamma_R_prefactor *= N_b0 / t_ast;
-                Gamma_R_prefactor_MINI *= N_b0 / t_ast;
+                Gamma_R_prefactor_MINI = 0.;
             }
             else{
                 Gamma_R_prefactor *= Msun/(CMperMPC*CMperMPC*CMperMPC) / m_p;

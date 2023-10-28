@@ -1605,7 +1605,7 @@ def halo_box(
                         direc=direc,
                     )
 
-    result = box.compute(pt_halos=pt_halos,perturbed_field=perturbed_field,
+    result = box.compute(init_boxes=init_boxes,pt_halos=pt_halos,perturbed_field=perturbed_field,
                         previous_ionize_box=previous_ionize_box,previous_spin_temp=previous_spin_temp,hooks=hooks)
                         
     #HACK: the pt_halos have changed (rng -> properties) so we might want to expose here
@@ -1616,8 +1616,8 @@ def halo_box(
 
     return result
 
-
-def interp_haloboxes(hbox_arr,z_halos,z_target) -> HaloBox:
+#TODO: make this more general
+def interp_haloboxes(hbox_arr,fields,z_halos,z_target) -> HaloBox:
     """
     Photon conservation & Xray sources require halo boxes at redshifts
     that are not equal to the current redshift, and may be between redshift steps.
@@ -1628,14 +1628,10 @@ def interp_haloboxes(hbox_arr,z_halos,z_target) -> HaloBox:
         raise ValueError(f'Invalid z_target {z_target} for redshift array {z_halos}')
 
     idx_prog = np.searchsorted(z_halos,z_target,side='left')
-    #check if z is above or below the limits, return the first/last box in this case
-    #these arrays are already computed so no need to call them
-    if idx_prog == 0:
-        logger.debug(f"z_target {z_target} beyond limits, returning z={z_halos[0]} box")
-        return hbox_arr[0]
-    elif idx_prog == len(z_halos):
-        logger.debug(f"z_target {z_target} beyond limits, returning z={z_halos[-1]} box")
-        return hbox_arr[len(z_halos) - 1]
+    
+    if idx_prog == 0 or idx_prog == len(z_halos):
+        logger.debug(f"z_target {z_target} beyond limits, {z_halos[0],z_halos[-1]}")
+        raise ValueError
     
     z_prog = z_halos[idx_prog]
     idx_desc = idx_prog - 1
@@ -1660,10 +1656,9 @@ def interp_haloboxes(hbox_arr,z_halos,z_target) -> HaloBox:
     hbox_prog = hbox_arr[idx_prog]
     hbox_desc = hbox_arr[idx_desc]
 
-    hbox_out.halo_mass = (1-interp_param)*hbox_desc.halo_mass + interp_param*hbox_prog.halo_mass
-    hbox_out.n_ion = (1-interp_param)*hbox_desc.n_ion + interp_param*hbox_prog.n_ion
-    hbox_out.halo_sfr = (1-interp_param)*hbox_desc.halo_sfr + interp_param*hbox_prog.halo_sfr
-    hbox_out.whalo_sfr = (1-interp_param)*hbox_desc.whalo_sfr + interp_param*hbox_prog.whalo_sfr
+    for field in fields:
+        interp_field = (1-interp_param)*getattr(hbox_desc,field) + interp_param*getattr(hbox_prog,field)
+        setattr(hbox_out,field,interp_field)
     
     # logger.info(f'interpolated to z={z_target} between [{z_desc},{z_prog}] ({interp_param})')
     # logger.info(f'SFR averages desc {idx_desc}: {hbox_desc.halo_sfr.mean()} interp {hbox_out.halo_sfr.mean()} prog ({idx_prog}) {hbox_prog.halo_sfr.mean()}')
@@ -1672,7 +1667,7 @@ def interp_haloboxes(hbox_arr,z_halos,z_target) -> HaloBox:
     hbox_out()
     #HACK: Since we don't compute, we have to mark the struct as computed
     for k, state in hbox_out._array_state.items():
-        if state.initialized:
+        if state.initialized and k in fields:
             state.computed_in_mem = True
     #logger.info(f'C-level struct (first 3 halo mass cells) {asarray(getattr(hbox_out._cstruct, "halo_mass"), 3)}')
 
@@ -1812,7 +1807,7 @@ def xray_source(
                 box.filtered_sfr[i,...] = 0
                 continue
 
-            hbox_interp = interp_haloboxes(hboxes[::-1],z_halos[::-1],zpp_avg[i])
+            hbox_interp = interp_haloboxes(hboxes[::-1],['halo_sfr','halo_sfr_mini'],z_halos[::-1],zpp_avg[i])
             
             #if we have no halos we ignore the whole shell
             if hbox_interp.halo_mass.max() < (10 ** astro_params.M_TURN) / 50:
@@ -3075,7 +3070,7 @@ def run_coeval(
             #remember that in this case len(halobox) == len(redshifts+1)
             if flag_options.PHOTON_CONS and flag_options.USE_HALO_FIELD:
                 z_target,_,_ = get_photoncons_dz(astro_params,flag_options,z)
-                hbox_ionize = interp_haloboxes(halobox[::-1],z_halos[::-1],z_target)
+                hbox_ionize = interp_haloboxes(halobox[::-1],['n_ion','whalo_sfr'],z_halos[::-1],z_target)
                 hbox_ionize.redshift = z
             else:
                 hbox_ionize = hb2
@@ -3626,7 +3621,7 @@ def run_lightcone(
             if flag_options.PHOTON_CONS and flag_options.USE_HALO_FIELD:
                 z_target,_,_ = get_photoncons_dz(astro_params,flag_options,z)
                 logger.info(f'interpolating {z_target} onto {z_halos[-1]},{z_halos[0]} {len(hboxes)},{len(z_halos)}')
-                hbox_ionize = interp_haloboxes(hboxes[::-1],z_halos[::-1],z_target)
+                hbox_ionize = interp_haloboxes(hboxes[::-1],['n_ion','whalo_sfr'],z_halos[::-1],z_target)
                 hbox_ionize.redshift = z
             else:
                 hbox_ionize=hbox2 if flag_options.USE_HALO_FIELD else None
@@ -4100,6 +4095,9 @@ def get_photoncons_dz(astro_params,flag_options,redshift):
 
     return redshift_pc_in[0],stored_redshift_pc_in[0],deltaz[0]
 
+def alpha_func(Q,a_const,a_slope):
+    return a_const + a_slope*Q
+
 #(jdavies): this will be a very hacky way to make a (d_alphastar vs z) array
 #for a photoncons done by ALPHA_STAR instead of redshift
 #This will work by taking the calibration simulation, plotting a RANGE of analytic
@@ -4107,9 +4105,6 @@ def get_photoncons_dz(astro_params,flag_options,redshift):
 #with the reference analytic as the calibration
 #TODO: don't rely on the photoncons functions since they do a bunch of other stuff in C
 #NOTE: alpha_func here MUST MATCH the C version TODO: remove one of them
-def alpha_func(Q,a_const,a_slope):
-    return a_const + a_slope*Q
-
 def photoncons_alpha(cosmo_params,user_params,astro_params,flag_options):
     #HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
     #TODO: Move the deltaz interp tables to python

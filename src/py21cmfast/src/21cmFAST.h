@@ -124,25 +124,19 @@ struct HaloField{
 
 //gridded halo properties
 struct HaloBox{
+    //Things that aren't used in radiation fields but useful outputs
     float *halo_mass;
-
-    //It may be useful to output unweighted stellar masses etc,
-    //but for IonisationBox.c and SpinTemperatureBox.c we don't need them
-    float *n_ion; //weighted by F_ESC
-    float *halo_sfr; //for x-rays and Ts stuff
-    float *whalo_sfr; //for Gamma12 TODO:replace with gamma12
+    float *halo_stars;
+    float *halo_stars_mini;
     int *count;
 
-    //generated from a perturbed field
-    //Not 100% sure If I want to add the option for these grids
-    //int perturbed;
+    //For IonisationBox.c and SpinTemperatureBox.c
+    float *n_ion; //weighted by F_ESC*PopN_ion
+    float *halo_sfr; //for x-rays and Ts stuff
+    float *halo_sfr_mini; //for x-rays and Ts stuff
+    float *whalo_sfr; //for Gamma12 TODO: replace with gamma12
 
-    //maybe add these later if we want HM histograms in the cells
-    //int * n_halos;
-    //int *hm_hist;
-    //int n_mass_bins;
-    //int max_n_mass_bins;
-    //float *mass_bins;
+    double log10_Mcrit_LW_ave; //TODO: remove when TauX uses global structures
 };
 
 struct PerturbHaloField{
@@ -153,10 +147,7 @@ struct PerturbHaloField{
     //Halo properties for stochastic model
     float *star_rng;
     float *sfr_rng;
-
-    bool properties_set;
 };
-
 
 struct TsBox{
     float *Ts_box;
@@ -167,6 +158,7 @@ struct TsBox{
 
 struct XraySourceBox{
     float *filtered_sfr;
+    float *filtered_sfr_mini;
 };
 
 struct IonizedBox{
@@ -261,7 +253,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 
 //these two functions compute the new classes HaloBox and XraySourceBox, and need to be visible
 int ComputeHaloBox(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params
-                    , struct FlagOptions * flag_options, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos
+                    , struct FlagOptions * flag_options, struct InitialConditions * ini_boxes, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos
                     , struct TsBox *previous_spin_temp, struct IonizedBox *previous_ionize_box, struct HaloBox *grids);
 
 int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosmo_params,

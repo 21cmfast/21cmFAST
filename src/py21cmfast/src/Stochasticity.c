@@ -99,7 +99,6 @@ void print_hs_consts(struct HaloSamplingConstants * c){
 }
 
 //set the minimum source mass
-//TODO: include MINI_HALOS
 double minimum_source_mass(double redshift, struct AstroParams *astro_params, struct FlagOptions * flag_options){
     double Mmin;
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -817,86 +816,7 @@ void place_on_hires_grid(int x, int y, int z, int *crd_hi, gsl_rng * rng){
     crd_hi[2] = z_hi;
 }
 
-//calculates halo properties from astro parameters plus the correlated rng
-//TODO: make the input and output labeled structs
-//The inputs include all properties with a separate RNG
-//The outputs include all halo properties PLUS all properties which cannot be recovered when mixing all the halos together
-//  i.e escape fraction weighting, minihalo stuff that has separate parameters
-//INPUT ARRAY || 0: Stellar mass RNG, 1: SFR RNG
-//OUTPUT ARRAY || 0: Stellar Mass, 1: SFR 2: n_ion 3: f_esc weighted SFR
-void set_halo_properties(float halo_mass, float M_turn_a, float M_turn_m, float t_h, double norm_esc_var, double alpha_esc_var, float * input, float * output){
-    double f10 = astro_params_stoc->F_STAR10;
-    double fa = astro_params_stoc->ALPHA_STAR;
-    double sigma_star = astro_params_stoc->SIGMA_STAR;
-    double sigma_sfr = astro_params_stoc->SIGMA_SFR;
-
-    double f7 = astro_params_stoc->F_STAR7_MINI;
-    double fa_m = astro_params_stoc->ALPHA_STAR_MINI;
-    double fesc7 = astro_params_stoc->F_ESC7_MINI;
-
-    double fstar_mean, fstar_mean_mini, sfr_mean, wsfr_mean;
-    double f_sample, f_sample_mini, sm_sample, n_ion_sample, sfr_sample, wsfr_sample;
-    double fesc,fesc_mini;
-
-    //This clipping is normally done with the mass_limit_bisection root find.
-    //I can't do that here with the stochasticity, since the f_star clipping happens AFTER the sampling
-    //TODO: It could save some `pow` calls with F_esc if I compute a mass limit outside the loop
-    //NOTE: I can only do this if f_esc remains non-stochastic, this will also be irrelevant with mean property interptables
-    fesc = fmin(norm_esc_var*pow(halo_mass/1e10,alpha_esc_var),1);
-    
-    //A flattening of the high-mass FSTAR, HACKY VERSION FOR NOW
-    //TODO: code it properly with new parameters and pivot point defined somewhere
-    //NOTE: we don't want an upturn even with a negative ALPHA_STAR
-    if(astro_params_stoc->ALPHA_STAR > -0.61){
-        fstar_mean = f10 * exp(-M_turn_a/halo_mass) * pow(2.6e11/1e10,astro_params_stoc->ALPHA_STAR);
-        fstar_mean /= pow(halo_mass/2.6e11,-astro_params_stoc->ALPHA_STAR) + pow(halo_mass/2.6e11,0.61);
-    }
-    else{
-        fstar_mean = f10 * pow(halo_mass/1e10,fa) * exp(-M_turn_a/halo_mass);
-    }
-
-    //in order to remain consistent with the minihalo treatment in default (Nion_a * exp(-M/M_a) + Nion_m * exp(-M/M_m - M_a/M))
-    //  we treat the minihalos as a shift in the mean, where each halo will have both components
-    //  TODO: develop a probabilistic duty cycle model which assigns individual halos as atomically cooled, molecularly cooled, or inactive
-    if(flag_options_stoc->USE_MINI_HALOS){
-        fesc_mini = fmin(fesc7*pow(halo_mass/1e7,alpha_esc_var),1);
-        fstar_mean_mini = f7 * pow(halo_mass/1e7,fa_m) * exp(-M_turn_m/halo_mass - halo_mass/M_turn_a);
-    }
-    else{
-        fstar_mean_mini = 0;
-        fesc_mini = 0.;
-    }
-
-    /* Simply adding lognormal scatter to a delta increases the mean (2* is as likely as 0.5*)
-    * We multiply by exp(-sigma^2/2) so that X = exp(mu + N(0,1)*sigma) has the desired mean */
-    f_sample = exp(-sigma_star*sigma_star/2 + input[0]*sigma_star);
-    //This clipping is normally done with the mass_limit_bisection root find. hard to do with stochastic
-    //TODO: just put it in a table
-    f_sample = fmin(fstar_mean * f_sample,1);
-    f_sample_mini = fmin(fstar_mean_mini * f_sample,1);
-
-    sm_sample = halo_mass * (cosmo_params_stoc->OMb / cosmo_params_stoc->OMm) * (f_sample + f_sample_mini); //f_star is galactic GAS/star fraction, so OMb is needed
-    n_ion_sample = halo_mass * (cosmo_params_stoc->OMb / cosmo_params_stoc->OMm) * (f_sample*global_params.Pop2_ion*fesc + f_sample_mini*global_params.Pop3_ion*fesc_mini);
-
-    sfr_mean = sm_sample / (astro_params_stoc->t_STAR * t_h);
-    // wsfr_mean = sfr_mean * fesc;
-    
-    //Since there's no clipping on t_STAR, we can apply the lognormal to SFR directly instead of t_STAR
-    sfr_sample = sfr_mean * exp(-sigma_sfr*sigma_sfr/2 + input[1]*sigma_sfr);
-    wsfr_sample = sfr_sample * (fesc*f_sample + fesc_mini*f_sample_mini) / (f_sample + f_sample_mini); //each component has its own f_esc, this is strange but consistent with default 
-
-    //LOG_ULTRA_DEBUG("HM %.3e | SM %.3e | SFR %.3e (%.3e) | F* %.3e (%.3e) | duty %.3e",halo_mass,sm_sample,sfr_sample,sfr_mean,f_sample,fstar_mean,dutycycle_term);
-
-    output[0] = sm_sample;
-    output[1] = sfr_sample;
-    output[2] = n_ion_sample;
-    output[3] = wsfr_sample;
-
-    return 0;
-}
-
 //This function adds stochastic halo properties to an existing halo
-//TODO: this needs to be updated to handle MINI_HALOS and not USE_MASS_DEPENDENT_ZETA flags
 int set_prop_rng(gsl_rng *rng, int update, double *interp, float * input, float * output){
     //find log(property/variance) / mean
     double prop1 = gsl_ran_ugaussian(rng);
@@ -1827,6 +1747,94 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
     free_dNdM_tables();
 
     free_rng_threads(rng_stoc);
+    LOG_DEBUG("Done.");
+    return 0;
+}
+
+//calculates halo properties from astro parameters plus the correlated rng
+//TODO: make the input and output labeled structs
+//The inputs include all properties with a separate RNG
+//The outputs include all halo properties PLUS all properties which cannot be recovered when mixing all the halos together
+//  i.e escape fraction weighting, minihalo stuff that has separate parameters
+//Since there are so many spectral terms in the spin temperature calculation, it will be most efficient to split SFR into regular and minihalos
+//  BUT not split the ionisedbox fields. i.e
+//INPUT ARRAY || 0: Stellar mass RNG, 1: SFR RNG
+//OUTPUTS FOR RADIATIVE BACKGROUNDS: 0: SFR, 1: SFR_MINI, 2: n_ion 3: f_esc and N_ion weighted SFR (for gamma)
+//OUTPUTS FOR HALO BOXES: 4: Stellar mass, 5: Stellar mass (minihalo)
+//in order to remain consistent with the minihalo treatment in default (Nion_a * exp(-M/M_a) + Nion_m * exp(-M/M_m - M_a/M))
+//  we treat the minihalos as a shift in the mean, where each halo will have both components, representing a smooth
+//  transition in halo mass from one set of SFR/emmissivity parameters to the other.
+void set_halo_properties(float halo_mass, float M_turn_a, float M_turn_m, float t_h, double norm_esc_var, double alpha_esc_var, float * input, float * output){
+    double f10 = astro_params_stoc->F_STAR10;
+    double fa = astro_params_stoc->ALPHA_STAR;
+    double sigma_star = astro_params_stoc->SIGMA_STAR;
+    double sigma_sfr = astro_params_stoc->SIGMA_SFR;
+
+    double f7 = astro_params_stoc->F_STAR7_MINI;
+    double fa_m = astro_params_stoc->ALPHA_STAR_MINI;
+    double fesc7 = astro_params_stoc->F_ESC7_MINI;
+
+    double fstar_mean, fstar_mean_mini, sfr_mean, sfr_mean_mini;
+    double f_sample, f_sample_mini, sm_sample, n_ion_sample, sfr_sample, wsfr_sample;
+    double sm_sample_mini, sfr_sample_mini, ts_sample;
+    double fesc,fesc_mini;
+
+    //TODO: It could save some `pow` calls with F_esc if I compute a mass limit for fesc outside the loop
+    //NOTE: I can only do this if f_esc remains non-stochastic, this will also be irrelevant with mean property interptables
+    fesc = fmin(norm_esc_var*pow(halo_mass/1e10,alpha_esc_var),1);
+    
+    //A flattening of the high-mass FSTAR, HACKY VERSION FOR NOW
+    //TODO: code it properly with new parameters and pivot point defined somewhere
+    //NOTE: we don't want an upturn even with a negative ALPHA_STAR
+    if(astro_params_stoc->ALPHA_STAR > -0.61){
+        fstar_mean = f10 * exp(-M_turn_a/halo_mass) * pow(2.6e11/1e10,astro_params_stoc->ALPHA_STAR);
+        fstar_mean /= pow(halo_mass/2.8e11,-astro_params_stoc->ALPHA_STAR) + pow(halo_mass/2.8e11,0.61);
+    }
+    else{
+        fstar_mean = f10 * pow(halo_mass/1e10,fa) * exp(-M_turn_a/halo_mass);
+    }
+
+    if(flag_options_stoc->USE_MINI_HALOS){
+        fesc_mini = fmin(fesc7*pow(halo_mass/1e7,alpha_esc_var),1);
+        fstar_mean_mini = f7 * pow(halo_mass/1e7,fa_m) * exp(-M_turn_m/halo_mass - halo_mass/M_turn_a);
+    }
+    else{
+        fstar_mean_mini = 0;
+        fesc_mini = 0.;
+    }
+
+    /* Simply adding lognormal scatter to a delta increases the mean (2* is as likely as 0.5*)
+    * We multiply by exp(-sigma^2/2) so that X = exp(mu + N(0,1)*sigma) has the desired mean */
+    f_sample = exp(-sigma_star*sigma_star/2 + input[0]*sigma_star);
+
+    //This clipping is normally done with the mass_limit_bisection root find. hard to do with stochastic
+    //TODO: Interpolation tables for all the mean relations? (is this really faster than a coulple pow and exp calls?)
+    f_sample = fmin(fstar_mean * f_sample,1);
+    f_sample_mini = fmin(fstar_mean_mini * f_sample,1);
+
+    sm_sample = halo_mass * (cosmo_params_stoc->OMb / cosmo_params_stoc->OMm) * f_sample; //f_star is galactic GAS/star fraction, so OMb is needed
+    sm_sample_mini = halo_mass * (cosmo_params_stoc->OMb / cosmo_params_stoc->OMm) * f_sample_mini; //f_star is galactic GAS/star fraction, so OMb is needed
+
+    sfr_mean = sm_sample / (astro_params_stoc->t_STAR * t_h);
+    sfr_mean_mini = sm_sample_mini / (astro_params_stoc->t_STAR * t_h);
+
+    //Since there's no clipping on t_STAR, we can apply the lognormal to SFR directly instead of t_STAR
+    ts_sample = exp(-sigma_sfr*sigma_sfr/2 + input[1]*sigma_sfr);
+    sfr_sample = sfr_mean * ts_sample;
+    sfr_sample_mini = sfr_mean_mini * ts_sample;
+
+    n_ion_sample = sm_sample*global_params.Pop2_ion*fesc + sm_sample_mini*global_params.Pop3_ion*fesc_mini;
+    wsfr_sample = sfr_sample*global_params.Pop2_ion*fesc + sfr_sample_mini*global_params.Pop3_ion*fesc_mini;
+
+    //LOG_ULTRA_DEBUG("HM %.3e | SM %.3e | SFR %.3e (%.3e) | F* %.3e (%.3e) | duty %.3e",halo_mass,sm_sample,sfr_sample,sfr_mean,f_sample,fstar_mean,dutycycle_term);
+
+    output[0] = sfr_sample;
+    output[1] = sfr_sample_mini;
+    output[2] = n_ion_sample;
+    output[3] = wsfr_sample;
+    output[4] = sm_sample;
+    output[5] = sm_sample_mini;
+
     return 0;
 }
 
@@ -1834,8 +1842,10 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
 //As per default 21cmfast (strange pretending that the lagrangian density is eulerian and then *(1+delta))
 //This outputs the UN-NORMALISED grids (before mean-adjustment)
 //TODO: add minihalos
-//TODO: use the interpolation tables (Fixed grids are currently slow but a debug case)
-int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, struct PerturbedField * perturbed_field, struct TsBox *previous_spin_temp, struct IonizedBox *previous_ionize_box, struct HaloBox *grids, double *averages){
+//TODO: use the interpolation tables (Fixed grids are currently slow but a debug case so this is low priority)
+int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, struct InitialConditions * ini_boxes,
+                    struct PerturbedField * perturbed_field, struct TsBox *previous_spin_temp,
+                    struct IonizedBox *previous_ionize_box, struct HaloBox *grids, double *averages){
     //There's quite a bit of re-calculation here but this only happens once per snapshot
     double M_min = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc)*global_params.HALO_SAMPLE_FACTOR;
     double volume = VOLUME / HII_TOT_NUM_PIXELS;
@@ -1844,17 +1854,25 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, struct P
     double growth_z = dicke(redshift);
     double alpha_star = astro_params_stoc->ALPHA_STAR;
     double norm_star = astro_params_stoc->F_STAR10;
+    
+    double alpha_star_mini = astro_params_stoc->ALPHA_STAR_MINI;
+    double norm_star_mini = astro_params_stoc->F_STAR7_MINI;
+    double norm_esc_mini = astro_params_stoc->F_ESC7_MINI;
+
     double t_star = astro_params_stoc->t_STAR;
 
     double lnMmin = log(M_min);
     double lnMmax = log(M_max);
     
     double prefactor_mass = RHOcrit * cosmo_params_stoc->OMm / sqrt(2.*PI);
-    double prefactor_nion = global_params.Pop2_ion * RHOcrit * cosmo_params_stoc->OMb * norm_star * norm_esc;
-    double prefactor_sfr = RHOcrit * cosmo_params_stoc->OMb * norm_star / t_star / t_hubble(redshift);
+    double prefactor_nion = global_params.Pop2_ion * RHOcrit * cosmo_params_stoc->OMb;
+    double prefactor_sfr = RHOcrit * cosmo_params_stoc->OMb / t_star / t_hubble(redshift);
 
     double Mlim_Fstar = Mass_limit_bisection(M_min, M_max, alpha_star, norm_star);
     double Mlim_Fesc = Mass_limit_bisection(M_min, M_max, alpha_esc, norm_esc);
+    
+    double Mlim_Fstar_mini = Mass_limit_bisection(M_min, M_max, alpha_star, norm_star * pow(1e3,alpha_esc));
+    double Mlim_Fesc_mini = Mass_limit_bisection(M_min, M_max, alpha_esc, norm_esc_mini * pow(1e3,alpha_esc));
     
     double hm_avg, nion_avg, sfr_avg, wsfr_avg;
     double Mlim_a_avg=0, Mlim_m_avg=0;
@@ -1867,20 +1885,27 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, struct P
     else
         M_turn_a = astro_params_stoc->M_TURN;
 
+    double curr_vcb = flag_options_stoc->FIX_VCB_AVG ? global_params.VAVG : 0;
+
     LOG_DEBUG("Mean halo boxes || Mmin = %.2e | Mmax = %.2e (s=%.2e) | z = %.2e | D = %.2e | cellvol = %.2e",M_min,M_max,sigma_max,redshift,growth_z,volume);
-#pragma omp parallel num_threads(user_params_stoc->N_THREADS) firstprivate(M_turn_m,M_turn_a)
+#pragma omp parallel num_threads(user_params_stoc->N_THREADS) firstprivate(M_turn_m,M_turn_a,curr_vcb)
     {
         int i;
         double dens;
         double mass, nion, sfr, h_count;
+        double nion_mini, sfr_mini;
         double wsfr;
 #pragma omp for reduction(+:hm_avg,nion_avg,sfr_avg,wsfr_avg)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
             dens = perturbed_field->density[i];
-            
+
+            if(!flag_options_stoc->FIX_VCB_AVG && user_params_stoc->USE_RELATIVE_VELOCITIES){
+                curr_vcb = ini_boxes->lowres_vcb[i];
+            }
+
             //TODO: include VELOCITIES
             if(flag_options_stoc->USE_MINI_HALOS){
-                M_turn_m = lyman_werner_threshold(redshift, previous_spin_temp->J_21_LW_box[i], 0.,astro_params_stoc);
+                M_turn_m = lyman_werner_threshold(redshift, previous_spin_temp->J_21_LW_box[i], curr_vcb, astro_params_stoc);
                 M_turn_r = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[i], previous_ionize_box->z_re_box[i]);
             }
             if(M_turn_r > M_turn_a) M_turn_a = M_turn_r;
@@ -1912,19 +1937,30 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, struct P
                                         , Mlim_Fstar, Mlim_Fesc, user_params_stoc->FAST_FCOLL_TABLES);
 
                 sfr = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, Deltac, dens, M_turn_a
-                                        , astro_params_stoc->ALPHA_STAR, 0., astro_params_stoc->F_STAR10, 1., Mlim_Fstar, 0.
+                                        , alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.
                                         , user_params_stoc->FAST_FCOLL_TABLES);
 
                 //Same integral as Nion
                 // wsfr = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, Deltac, dens, M_turn_a
                 //                         , astro_params_stoc->ALPHA_STAR, alpha_esc, astro_params_stoc->F_STAR10, norm_esc, Mlim_Fstar, Mlim_Fesc
                 //                         , user_params_stoc->FAST_FCOLL_TABLES);
+                if(flag_options_stoc->USE_MINI_HALOS){
+                    nion_mini = Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_max, Deltac,
+                                                        dens, M_turn_m, M_turn_a, alpha_star_mini,
+                                                        alpha_esc, norm_star_mini, norm_esc, Mlim_Fstar_mini,
+                                                        Mlim_Fesc_mini, user_params_stoc->FAST_FCOLL_TABLES);
+                                                        
+                    sfr_mini = Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_max, Deltac,
+                                                        dens, M_turn_m, M_turn_a, alpha_star_mini,
+                                                        0., norm_star_mini, 1., Mlim_Fstar_mini, 0.,
+                                                        user_params_stoc->FAST_FCOLL_TABLES);
+                }
             }
             grids->halo_mass[i] = mass * prefactor_mass * (1+dens);
-            grids->n_ion[i] = nion * prefactor_nion * (1+dens);
-            grids->halo_sfr[i] = sfr * prefactor_sfr * (1+dens);
-            grids->whalo_sfr[i] = nion * prefactor_sfr * (1+dens) * norm_esc;
-            grids->count[i] = (int)(h_count * prefactor_mass * (1+dens)); //truncated
+            grids->n_ion[i] = (nion*norm_star*norm_esc + nion_mini*norm_star_mini*norm_esc_mini) * prefactor_nion * (1+dens);
+            grids->halo_sfr[i] = (sfr*norm_star + sfr_mini*norm_star_mini) * prefactor_sfr * (1+dens);
+            grids->whalo_sfr[i] = (nion*norm_star*norm_esc + nion_mini*norm_star_mini*norm_esc_mini) * prefactor_sfr * (1+dens);
+            grids->count[i] = (int)(h_count * prefactor_mass * (1+dens)); //NOTE: truncated
             
             hm_avg += mass;
             nion_avg += nion;
@@ -1981,7 +2017,7 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
     // wsfr_expected = Nion_General(redshift, M_min, M_turn_a, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc);
 
     // hm_expected *= prefactor_mass; //for non-CMF, the factors are already there
-    wsfr_expected = nion_expected * prefactor_sfr * norm_esc; //same integral, different prefactors, different in the stochastic grids due to scatter
+    wsfr_expected = nion_expected * prefactor_sfr * global_params.Pop2_ion * norm_esc; //same integral, different prefactors, different in the stochastic grids due to scatter
     nion_expected *= prefactor_nion;
     sfr_expected *= prefactor_sfr;
 
@@ -1999,10 +2035,26 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
 //  If we want to make it faster just replace the integrals with the existing interpolation tables
 //TODO: I should also probably completely separate the fixed and sampled grids into two functions which this calls
 int ComputeHaloBox(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
-                    struct FlagOptions * flag_options, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos,
+                    struct FlagOptions * flag_options, struct InitialConditions *ini_boxes, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos,
                     struct TsBox *previous_spin_temp, struct IonizedBox *previous_ionize_box, struct HaloBox *grids){
     int status;
     Try{
+
+        int idx;
+        //TODO: Check if this initialisation is necessary. aren't they already zero'd in Python?
+#pragma omp parallel for num_threads(user_params->N_THREADS) private(idx)
+        for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
+            grids->halo_mass[idx] = 0.0;
+            grids->n_ion[idx] = 0.0;
+            grids->halo_sfr[idx] = 0.0;
+            grids->whalo_sfr[idx] = 0.0;
+            grids->count[idx] = 0;
+        }
+        grids->log10_Mcrit_LW_ave = log10(lyman_werner_threshold(redshift, 0., 0.,astro_params));
+        if(!flag_options->FIXED_HALO_GRIDS && halos->n_halos == 0){
+            LOG_DEBUG("No halos to grid, continuing",halos->n_halos);
+            return 0;
+        }
         LOG_DEBUG("Gridding %d halos...",halos->n_halos);
 
         //get parameters
@@ -2022,6 +2074,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         double volume = VOLUME/HII_TOT_NUM_PIXELS;
         double M_turn_a_avg = 0, M_turn_m_avg = 0;
         
+        double curr_vcb = flag_options_stoc->FIX_VCB_AVG ? global_params.VAVG : 0;
+
         double M_turn_m,M_turn_a,M_turn_r;
         M_turn_r = 0.;
         if(flag_options_stoc->USE_MINI_HALOS){
@@ -2033,10 +2087,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             M_turn_m = 0.;
         }
 
-        LOG_DEBUG("atomic cooling threshold %11.3e",M_turn_a);
-        
         double averages_box[6], averages_global[4];
-
         M_min = minimum_source_mass(redshift,astro_params,flag_options);
 
         //calculate expected average halo box, for mean halo box fixing and debugging
@@ -2053,13 +2104,14 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         //Since we need the average turnover masses before we can calculate the global means, we do the CMF integrals first
         //Then we calculate the expected UMF integrals before doing the adjustment
         if(flag_options->FIXED_HALO_GRIDS){
-            set_fixed_grids(redshift, norm_esc, alpha_esc, perturbed_field, previous_spin_temp, previous_ionize_box, grids, averages_box);
+            set_fixed_grids(redshift, norm_esc, alpha_esc, ini_boxes, perturbed_field, previous_spin_temp, previous_ionize_box, grids, averages_box);
             M_turn_a_avg = averages_box[4];
             M_turn_m_avg = averages_box[5];
             get_box_averages(redshift, norm_esc, alpha_esc, M_turn_a_avg, M_turn_m_avg, averages_global);
             //This is the mean adjustment that happens in the rest of the code
             int i;
             
+            //NOTE: in the default mode, global averages are fixed separately for minihalo and regular parts
 #pragma omp parallel for num_threads(user_params->N_THREADS)
             for(i=0;i<HII_TOT_NUM_PIXELS;i++){
                 grids->halo_mass[i] *= averages_global[0]/averages_box[0];
@@ -2074,33 +2126,26 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             wsfr_avg = averages_global[3];
         }
         else{
-#pragma omp parallel num_threads(user_params->N_THREADS) firstprivate(M_turn_a,M_turn_m,M_turn_r)
+#pragma omp parallel num_threads(user_params->N_THREADS) firstprivate(M_turn_a,M_turn_m,M_turn_r,curr_vcb,idx)
             {
-                int i_halo,idx,x,y,z;
-                double m,nion,sfr,wsfr,stars;
+                int i_halo,x,y,z;
+                double m,nion,sfr,wsfr,sfr_mini,stars_mini,stars;
                 
                 float in_props[2];
-                float out_props[4];
-                //Check if this initialisation is necessary. aren't they already zero'd in Python?
-#pragma omp for
-                for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
-                    grids->halo_mass[idx] = 0.0;
-                    grids->n_ion[idx] = 0.0;
-                    grids->halo_sfr[idx] = 0.0;
-                    grids->whalo_sfr[idx] = 0.0;
-                    grids->count[idx] = 0;
-                }
-
-#pragma omp barrier
+                float out_props[6];
 
 #pragma omp for reduction(+:hm_avg,nion_avg,sfr_avg,wsfr_avg,M_turn_a_avg,M_turn_m_avg)
                 for(i_halo=0; i_halo<halos->n_halos; i_halo++){
                     x = halos->halo_coords[0+3*i_halo]; //NOTE:PerturbedHaloField is on HII_DIM, HaloField is on DIM
                     y = halos->halo_coords[1+3*i_halo];
                     z = halos->halo_coords[2+3*i_halo];
+                    
+                    if(!flag_options_stoc->FIX_VCB_AVG && user_params->USE_RELATIVE_VELOCITIES){
+                        curr_vcb = ini_boxes->lowres_vcb[HII_R_INDEX(x,y,z)];
+                    }
 
                     if(flag_options->USE_MINI_HALOS){
-                        M_turn_m = lyman_werner_threshold(redshift, previous_spin_temp->J_21_LW_box[HII_R_INDEX(x,y,z)], 0.,astro_params);
+                        M_turn_m = lyman_werner_threshold(redshift, previous_spin_temp->J_21_LW_box[HII_R_INDEX(x,y,z)], curr_vcb, astro_params);
                         M_turn_r = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[HII_R_INDEX(x, y, z)], previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)]);
                     }
                     
@@ -2115,10 +2160,13 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
 
                     set_halo_properties(m,M_turn_a,M_turn_m,t_h,norm_esc,alpha_esc,in_props,out_props);
 
-                    stars = out_props[0]; //not needed until I feed back
-                    sfr = out_props[1];
+                    sfr = out_props[0]; //not needed until I feed back
+                    sfr_mini = out_props[1];
                     nion = out_props[2];
                     wsfr = out_props[3];
+
+                    stars = out_props[4];
+                    stars_mini = out_props[5];
                     
                     // if(i_halo < 10){
                     //     LOG_DEBUG("%d: HM: %.2e SM: %.2e NI: %.2e SF: %.2e WS: %.2e",i_halo,m,stars,nion,sfr,wsfr);
@@ -2128,11 +2176,13 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     //TODO: move set_halo_properties to PertburbHaloField and move it forward in time
                     //  This will require EITHER separating mini and regular halo components OR the ternary halo model (inactive,moleculer,atomic)
                     //  OR directly storing all the grid components
-                    // halos->stellar_masses[i_halo] = stars;
-                    // halos->halo_sfr[i_halo] = sfr;
 
 #pragma omp atomic update
                     grids->halo_mass[HII_R_INDEX(x, y, z)] += m;
+#pragma omp atomic update
+                    grids->halo_stars[HII_R_INDEX(x, y, z)] += stars;
+#pragma omp atomic update
+                    grids->halo_stars_mini[HII_R_INDEX(x, y, z)] += stars_mini;
 #pragma omp atomic update
                     grids->n_ion[HII_R_INDEX(x, y, z)] += nion;
 #pragma omp atomic update
@@ -2145,17 +2195,15 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                         grids->count[HII_R_INDEX(x, y, z)] += 1;
                     }
 
+                    M_turn_m_avg += M_turn_m;
                     if(LOG_LEVEL >= DEBUG_LEVEL){
                         hm_avg += m;
                         sfr_avg += sfr;
                         wsfr_avg += wsfr;
                         nion_avg += nion;
                         M_turn_a_avg += M_turn_a;
-                        M_turn_m_avg += M_turn_m;
                     }
                 }
-                //mark that we've set the properties in the catalogue
-                // halos->properties_set = true;
 #pragma omp for
                 for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
                     grids->halo_mass[idx] /= volume;
@@ -2164,6 +2212,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->whalo_sfr[idx] /= volume;
                 }
             }
+            M_turn_m_avg /= halos->n_halos;
+            grids->log10_Mcrit_LW_ave = log10(M_turn_m_avg);
             if(LOG_LEVEL >= DEBUG_LEVEL){
                 hm_avg /= volume*HII_TOT_NUM_PIXELS;
                 sfr_avg /= volume*HII_TOT_NUM_PIXELS;
@@ -2172,13 +2222,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                 //NOTE: There is an inconsistency here, the sampled grids use a halo-averaged turnover mass
                 //  whereas the fixed grids / default 21cmfast uses a volume averaged one.
                 //  Neither of these are a perfect representation due to the nonlinear way turnover mass affects N_ion
-                //  However they should be consistent
                 //  TODO: make another loop to calculate the average Mturn (without slowing down hopefully)
-                //If there are no halos we want to use the initial global values of M_turn
-                if(halos->n_halos != 0){
-                    M_turn_a_avg /= halos->n_halos;
-                    M_turn_m_avg /= halos->n_halos;
-                }
+                M_turn_a_avg /= halos->n_halos;
                 get_box_averages(redshift, norm_esc, alpha_esc, M_turn_a_avg, M_turn_m_avg, averages_global);
             }
         }

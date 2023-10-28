@@ -430,10 +430,13 @@ class HaloBox(_AllParamsBox):
 
         out = {
             "halo_mass": shape,
-            "n_ion": shape,
-            "halo_sfr": shape,
-            "whalo_sfr": shape,
+            "halo_stars": shape,
+            "halo_stars_mini": shape,
             "count": shape,
+            "halo_sfr": shape,
+            "halo_sfr_mini": shape,
+            "n_ion": shape,
+            "whalo_sfr": shape,
         }
 
         return out
@@ -453,6 +456,9 @@ class HaloBox(_AllParamsBox):
             required += ["J_21_LW_box"]
         elif isinstance(input_box, IonizedBox):
             required += ["Gamma12_box","z_re_box"]
+        elif isinstance(input_box, InitialConditions):
+            if self.user_params.USE_RELATIVE_VELOCITIES:
+                required += ["lowres_vcb"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for HaloBox!"
@@ -463,6 +469,7 @@ class HaloBox(_AllParamsBox):
     def compute(
         self,
         *,
+        init_boxes: InitialConditions,
         pt_halos: PerturbHaloField,
         perturbed_field: PerturbedField,
         previous_spin_temp: TsBox,
@@ -476,6 +483,7 @@ class HaloBox(_AllParamsBox):
             self.cosmo_params,
             self.astro_params,
             self.flag_options,
+            init_boxes,
             perturbed_field,
             pt_halos,
             previous_spin_temp,
@@ -484,7 +492,7 @@ class HaloBox(_AllParamsBox):
         )
 
 class XraySourceBox(_AllParamsBox):
-    """A class containing all gridded halo properties"""
+    """A class containing the filtered sfr grids"""
 
     _meta = False
     _c_compute_function = lib.UpdateXraySourceBox
@@ -500,6 +508,7 @@ class XraySourceBox(_AllParamsBox):
 
         out = {
             "filtered_sfr": shape,
+            "filtered_sfr_mini": shape,
         }
 
         return out
@@ -508,7 +517,7 @@ class XraySourceBox(_AllParamsBox):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, HaloBox):
-                required += ["halo_sfr"]
+                required += ["halo_sfr","halo_sfr_mini"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for HaloBox!"
@@ -625,6 +634,8 @@ class TsBox(_AllParamsBox):
         elif isinstance(input_box, XraySourceBox):
             if self.flag_options.USE_HALO_FIELD:
                 required += ["filtered_sfr"]
+                if self.flag_options.USE_MINI_HALOS:
+                    required += ["filtered_sfr_mini"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for PerturbHaloField!"
@@ -751,7 +762,7 @@ class IonizedBox(_AllParamsBox):
             ):
                 required += ["Fcoll", "Fcoll_MINI"]
         elif isinstance(input_box, HaloBox):
-            required += ["halo_mass", "n_ion","whalo_sfr"]
+            required += ["n_ion","whalo_sfr"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for IonizedBox!"
