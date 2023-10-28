@@ -1810,7 +1810,7 @@ def xray_source(
             hbox_interp = interp_haloboxes(hboxes[::-1],['halo_sfr','halo_sfr_mini'],z_halos[::-1],zpp_avg[i])
             
             #if we have no halos we ignore the whole shell
-            if hbox_interp.halo_mass.max() < (10 ** astro_params.M_TURN) / 50:
+            if np.all(hbox_interp.halo_sfr + hbox_interp.halo_sfr_mini == 0):
                 box.filtered_sfr[i,...] = 0
                 continue
 

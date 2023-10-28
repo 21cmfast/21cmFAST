@@ -2867,11 +2867,16 @@ void calculate_spectral_factors(double zp){
         //TODO: compared to Mesinger+2011, which has (1+zpp)^3, same as const_zp_prefactor, figure out why
         zpp_integrand = ( pow(1+zp,2)*(1+zpp) );
         dstarlya_dt_prefactor[R_ct] = zpp_integrand * sum_lyn_val;
+        LOG_SUPER_DEBUG("z: %.2e R: %.2e starlya: %.4e",zpp,R_values[R_ct],dstarlya_dt_prefactor[R_ct]);
         
         if(flag_options_ts->USE_MINI_HALOS){
             dstarlya_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyn_val_MINI;
             dstarlyLW_dt_prefactor[R_ct]  = zpp_integrand * sum_lyLW_val;
             dstarlyLW_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyLW_val_MINI;
+            
+            LOG_SUPER_DEBUG("starmini: %.2e LW: %.2e LWmini: %.2e",dstarlya_dt_prefactor_MINI[R_ct],
+                                                        dstarlyLW_dt_prefactor[R_ct],
+                                                        dstarlyLW_dt_prefactor_MINI[R_ct]);
         }
 
         sum_lyn_prev = sum_lyn_val;

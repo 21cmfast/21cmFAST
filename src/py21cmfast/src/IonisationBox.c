@@ -553,6 +553,8 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
 
     // ARE WE USING A DISCRETE HALO FIELD (identified in the ICs with FindHaloes.c and evolved  with PerturbHaloField.c)
     if(flag_options->USE_HALO_FIELD) {
+        double nion_avg=0;
+        double wsfr_avg=0;
         stars_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         stars_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
@@ -561,16 +563,19 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
 
 #pragma omp parallel shared(stars_unfiltered,sfr_unfiltered,halos) private(i,j,k) num_threads(user_params->N_THREADS)
         {
-#pragma omp for
+#pragma omp for reduction(+:nion_avg,wsfr_avg)
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
                     for (k=0; k<HII_D_PARA; k++){
                         *((float *)stars_unfiltered + HII_R_FFT_INDEX(i,j,k)) = halos->n_ion[HII_R_INDEX(i,j,k)];
                         *((float *)sfr_unfiltered + HII_R_FFT_INDEX(i,j,k)) = halos->whalo_sfr[HII_R_INDEX(i,j,k)];
+                        nion_avg += halos->n_ion[HII_R_INDEX(i,j,k)];
+                        wsfr_avg += halos->whalo_sfr[HII_R_INDEX(i,j,k)];
                     }
                 }
             }
         }
+        LOG_DEBUG("HaloBox, avg n_ion %.3e avg w_sfr %.3e",nion_avg/HII_TOT_NUM_PIXELS,wsfr_avg/HII_TOT_NUM_PIXELS);
     } // end of the USE_HALO_FIELD option
 
     // lets check if we are going to bother with computing the inhmogeneous field at all...
@@ -611,7 +616,6 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
                                                 astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
         }
         else{
-            LOG_DEBUG("Debug0");
             box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
                                             astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
             box->mean_f_coll_MINI = 0.;
