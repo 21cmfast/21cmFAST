@@ -2,6 +2,7 @@
 
 // nu0 is degenerate with fR so no reason to leave this as a param
 #define astro_nu0 0.15 // in GHz
+#define History_box_DIM 20 // number of quantities to be saved in History_box
 
 // Print debug info array to a file, info contains: History_box, Gas Temp
 #define Debug_Printer 1

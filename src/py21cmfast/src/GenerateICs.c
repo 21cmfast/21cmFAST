@@ -39,7 +39,6 @@
 #include "PerturbHaloField.c"
 
 
-
 void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, struct CosmoParams *cosmo_params){
     /*****  Adjust the complex conjugate relations for a real array  *****/
 

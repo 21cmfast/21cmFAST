@@ -57,7 +57,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // All these are variables for Radio Background
         double Radio_Temp, Radio_Temp_HMG, Radio_Fun, Trad_inv, zpp_max, Phi, Phi_mini, Radio_zpp, new_nu, Phi_ave, Phi_ave_mini, T_IGM_ave;
         double Radio_Prefix_ACG, Radio_Prefix_MCG, Fill_Fraction, Radio_Temp_ave, dzpp_Rct0, zpp_Rct0, H_Rct0;
-        int idx, ArchiveSize, zid, fid, tid, sid, xid, Radio_Silent;
+        int idx, ArchiveSize, zid, fid, tid, sid, xid, Radio_Silent, m2_idx, m3_idx;
         FILE *OutputFile;
         
         // Initialising some variables
@@ -180,7 +180,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             Radio_Silent = 1;
         }
 
-        Fill_Fraction = (double)previous_spin_temp->History_box[0] * 5 / ((double)HII_TOT_NUM_PIXELS);
+        Fill_Fraction = (double)previous_spin_temp->History_box[0] * History_box_DIM / ((double)HII_TOT_NUM_PIXELS);
         if (Fill_Fraction > 0.8)
         {
             LOG_ERROR("History_box not large enough to record previous coevals, consider the following: increse HII_DIM, reduce z_prime_factor");
@@ -2686,6 +2686,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             }
             
             // Caching averaged quantities
+            printf("MSG from sp.c: History_box size changed, check radio.h for interpolation, don't use mturn results at high z (give -1)!!! \n");
             if (this_spin_temp->first_box)
             {
                 this_spin_temp->History_box[0] = 1.0;
@@ -2694,6 +2695,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 this_spin_temp->History_box[3] = Tk_BC;
                 this_spin_temp->History_box[4] = 0.0;
                 this_spin_temp->History_box[5] = zpp_for_evolve_list[0];
+                this_spin_temp->History_box[6] = 0.0; // fields for mturns can only be acessed in IonisationBox.c
+                this_spin_temp->History_box[7] = 0.0;
             }
             else
             {
@@ -2702,7 +2705,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 {
                     remove("History_box_tmp.txt");
                     OutputFile = fopen("History_box_tmp.txt", "a");
-                    fprintf(OutputFile, "     z           Phi            Tk          Phi_mini       zpp[0]\n");
+                    fprintf(OutputFile, "     z           Phi            Tk          Phi_III       zpp[0]          mturn          mturn_III \n");
 
                     Print_HMF(redshift, user_params);
                 }
@@ -2713,25 +2716,31 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 for (idx = 1; idx <= ArchiveSize; idx++)
                 {
 
-                    zid = (idx - 1) * 5 + 1;
+                    zid = (idx - 1) * History_box_DIM + 1;
                     fid = zid + 1;
                     tid = zid + 2;
                     sid = zid + 3;
                     xid = zid + 4;
+                    m2_idx = zid + 5;
+                    m3_idx = zid + 6;
 
                     this_spin_temp->History_box[zid] = previous_spin_temp->History_box[zid];
                     this_spin_temp->History_box[fid] = previous_spin_temp->History_box[fid];
                     this_spin_temp->History_box[tid] = previous_spin_temp->History_box[tid];
                     this_spin_temp->History_box[sid] = previous_spin_temp->History_box[sid];
                     this_spin_temp->History_box[xid] = previous_spin_temp->History_box[xid];
-
+                    this_spin_temp->History_box[m2_idx] = previous_spin_temp->History_box[m2_idx];
+                    this_spin_temp->History_box[m3_idx] = previous_spin_temp->History_box[m3_idx];
+                    
                     if (Debug_Printer == 1)
                     {
                         fprintf(OutputFile, "%f   ", this_spin_temp->History_box[zid]);
                         fprintf(OutputFile, "%E   ", this_spin_temp->History_box[fid]);
                         fprintf(OutputFile, "%E   ", this_spin_temp->History_box[tid]);
                         fprintf(OutputFile, "%E   ", this_spin_temp->History_box[sid]);
-                        fprintf(OutputFile, "%f\n", this_spin_temp->History_box[xid]);
+                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[xid]);
+                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[m2_idx]);
+                        fprintf(OutputFile, "%E\n", this_spin_temp->History_box[m3_idx]);
                     }
                 }
 
@@ -2750,11 +2759,11 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 }
 
                 // Save results for this redshift
-                this_spin_temp->History_box[zid + 5] = redshift;
-                this_spin_temp->History_box[fid + 5] = Phi_ave;
-                this_spin_temp->History_box[tid + 5] = T_IGM_ave;
-                this_spin_temp->History_box[sid + 5] = Phi_ave_mini;
-                this_spin_temp->History_box[xid + 5] = zpp_for_evolve_list[0];
+                this_spin_temp->History_box[zid + History_box_DIM] = redshift;
+                this_spin_temp->History_box[fid + History_box_DIM] = Phi_ave;
+                this_spin_temp->History_box[tid + History_box_DIM] = T_IGM_ave;
+                this_spin_temp->History_box[sid + History_box_DIM] = Phi_ave_mini;
+                this_spin_temp->History_box[xid + History_box_DIM] = zpp_for_evolve_list[0];
             }
 
             LOG_SUPER_DEBUG("finished loop");

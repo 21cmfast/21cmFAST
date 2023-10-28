@@ -519,11 +519,29 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 box->log10_Mturnover_MINI_ave = ave_log10_Mturnover_MINI / (double)HII_TOT_NUM_PIXELS;
                 Mturnover = pow(10., box->log10_Mturnover_ave);
                 Mturnover_MINI = pow(10., box->log10_Mturnover_MINI_ave);
+
+                // saving m_turns to history box
+                int ArchiveSize, zid;
+                int History_box_LEN = 20; // same as History_box_DIM but I cannot acess History_box_DIM from here
+                ArchiveSize = (int)round(spin_temp->History_box[0]);
+                zid = (ArchiveSize - 1) * History_box_LEN + 1;
+                if (ArchiveSize > 1)
+                {
+                    // Only save usable info when History_box has been initialised/filled at least once
+                    spin_temp->History_box[zid + 5] = Mturnover;
+                    spin_temp->History_box[zid + 6] = Mturnover_MINI;
+                }
+                else
+                {
+                    spin_temp->History_box[zid + 5] = -1.0;
+                    spin_temp->History_box[zid + 6] = -1.0;
+                }
+
                 M_MIN = global_params.M_MIN_INTEGRAL;
                 Mlim_Fstar_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
                 Mlim_Fesc_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
                 LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
-                
+
                 if (print_mturn_mini == 1)
                 {
                     OutputFile = fopen("Mturn_Table_tmp.txt", "a");
@@ -694,7 +712,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
         }
 
         if (box->mean_f_coll * ION_EFF_FACTOR + box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI < global_params.HII_ROUND_ERR)
-        {   // way too small to ionize anything...
+        { // way too small to ionize anything...
             //        printf( "The mean collapse fraction is %e, which is much smaller than the effective critical collapse fraction of %e\n I will just declare everything to be neutral\n", mean_f_coll, f_coll_crit);
 
             // find the neutral fraction
