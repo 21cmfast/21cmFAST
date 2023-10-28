@@ -2650,7 +2650,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             Phi_mini = 0.0;
             zpp_Rct0 = zpp_for_evolve_list[0];
             H_Rct0 = hubble(zpp_Rct0);
-            
+
             for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
             {
                 // #1: Gas temperature
@@ -2706,7 +2706,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     fprintf(OutputFile, "     z           Phi            Tk          Phi_mini       zpp[0]\n");
 
                     Print_HMF(redshift, user_params);
-
                 }
 
                 this_spin_temp->History_box[0] = previous_spin_temp->History_box[0] + 1.0;
@@ -2740,6 +2739,15 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 if (Debug_Printer == 1)
                 {
                     fclose(OutputFile);
+                    double ST_over_PS_tmp;
+                    ST_over_PS_tmp = Nion_General(redshift, astro_params->M_TURN/50.0, astro_params->M_TURN, astro_params->ALPHA_STAR, 0., astro_params->F_STAR10, 1., Mlim_Fstar, 0.);
+                    OutputFile = fopen("ST_over_PS_tmp.txt", "a");
+                    fprintf(OutputFile, "%f    %E\n", redshift, ST_over_PS_tmp);
+                    fclose(OutputFile);
+                    if (redshift < 35.0)
+                    {
+                    Print_Nion_MINI(redshift, astro_params);
+                    }
                 }
 
                 // Save results for this redshift
