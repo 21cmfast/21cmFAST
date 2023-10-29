@@ -69,7 +69,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
 
         float dens_val, prev_dens_val;
 
-        int overdense_int, status_int;
+        int overdense_int, status_int, ArchiveSize, zid;
+        int History_box_LEN = 20; // same as History_box_DIM but I cannot acess History_box_DIM from here
+
         int something_finite_or_infinite = 0;
         int log10_Mturnover_MINI_int, log10_Mturnover_int;
         int *overdense_int_boundexceeded_threaded = calloc(user_params->N_THREADS, sizeof(int));
@@ -520,8 +522,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 Mturnover_MINI = pow(10., box->log10_Mturnover_MINI_ave);
 
                 // saving m_turns to history box
-                int ArchiveSize, zid;
-                int History_box_LEN = 20; // same as History_box_DIM but I cannot acess History_box_DIM from here
                 ArchiveSize = (int)round(spin_temp->History_box[0]);
                 zid = (ArchiveSize - 1) * History_box_LEN + 1;
                 if (ArchiveSize > 1)
@@ -541,7 +541,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 Mlim_Fstar_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
                 Mlim_Fesc_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
                 LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
-
             }
             else
             {

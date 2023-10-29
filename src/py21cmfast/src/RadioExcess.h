@@ -530,3 +530,8 @@ void Test_History_box_Interp(struct TsBox *previous_spin_temp, struct AstroParam
 
 	fclose(OutputFile);
 }
+
+void Calibrate_EoR_feedback(double z)
+{
+	int idx;
+}
