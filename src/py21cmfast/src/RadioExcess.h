@@ -499,7 +499,6 @@ void Test_History_box_Interp(struct TsBox *previous_spin_temp, struct AstroParam
 
 	for (idx = 0; idx < nz; idx++)
 	{
-		
 		z = z1 + ((double)idx) * dz;
 		H = hubble(z);
 		Phi = History_box_Interp(previous_spin_temp, z, 1);
