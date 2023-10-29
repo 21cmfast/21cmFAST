@@ -531,6 +531,11 @@ void Test_History_box_Interp(struct TsBox *previous_spin_temp, struct AstroParam
 	fclose(OutputFile);
 }
 
+double Calibrate_Phi_mini(redshift)
+{
+	return 0;
+}
+
 void Calibrate_EoR_feedback(double z)
 {
 	int idx;
