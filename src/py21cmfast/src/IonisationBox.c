@@ -532,6 +532,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 }
                 else
                 {
+                    // Maybe History_box has not been initialised
                     spin_temp->History_box[zid + 5] = -1.0;
                     spin_temp->History_box[zid + 6] = -1.0;
                 }

@@ -59,7 +59,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         double Radio_Prefix_ACG, Radio_Prefix_MCG, Fill_Fraction, Radio_Temp_ave, dzpp_Rct0, zpp_Rct0, H_Rct0;
         int idx, ArchiveSize, zid, phi_idx, tk_idx, phi3_idx, zpp_idx, Radio_Silent, m2_idx, m3_idx;
         FILE *OutputFile;
-        
+
         // Initialising some variables
         T_IGM_ave = 0.0;
         Radio_Temp_ave = 0.0;
@@ -501,7 +501,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             {
                 if (user_params->FAST_FCOLL_TABLES)
                 {
-                        initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN), 1e20);
+                    initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN), 1e20);
                 }
                 else
                 {
@@ -509,11 +509,11 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     {
                         if (flag_options->USE_MINI_HALOS)
                         {
-                                initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL / 50., 1e20);
+                            initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL / 50., 1e20);
                         }
                         else
                         {
-                                initialiseSigmaMInterpTable(M_MIN, 1e20);
+                            initialiseSigmaMInterpTable(M_MIN, 1e20);
                         }
                     }
                     LOG_SUPER_DEBUG("Initialised sigmaM interp table");
@@ -548,7 +548,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                             this_spin_temp->Ts_box[HII_R_INDEX(i, j, k)] = get_Ts(redshift,
                                                                                   perturbed_field->density[HII_R_INDEX(i, j, k)] * inverse_growth_factor_z * growth_factor_zp,
                                                                                   TK, xe, 0, &curr_xalpha);
-                            this_spin_temp->Trad_box[HII_R_INDEX(i, j, k)] = 0.0;  // Initialize to 0
+                            this_spin_temp->Trad_box[HII_R_INDEX(i, j, k)] = 0.0; // Initialize to 0
                             this_spin_temp->SFRD_box[HII_R_INDEX(i, j, k)] = 0.0;
                             this_spin_temp->SFRD_MINI_box[HII_R_INDEX(i, j, k)] = 0.0;
                             this_spin_temp->History_box[HII_R_INDEX(i, j, k)] = 0.0;
@@ -568,11 +568,11 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 {
                     if (user_params->FAST_FCOLL_TABLES)
                     {
-                            initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN), 1e20);
+                        initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN), 1e20);
                     }
                     else
                     {
-                            initialiseSigmaMInterpTable(M_MIN, 1e20);
+                        initialiseSigmaMInterpTable(M_MIN, 1e20);
                     }
                 }
             }
@@ -596,8 +596,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 else
                     Tk_BC = T_RECFAST(global_params.Z_HEAT_MAX, 0);
 
-
-                // and initialize to the boundary values at Z_HEAT_END
+                    // and initialize to the boundary values at Z_HEAT_END
 #pragma omp parallel shared(previous_spin_temp, Tk_BC, xe_BC) private(ct) num_threads(user_params->N_THREADS)
                 {
 #pragma omp for
@@ -833,11 +832,11 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 {
                     if (user_params->FAST_FCOLL_TABLES)
                     {
-                            initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN), 1e20);
+                        initialiseSigmaMInterpTable(fmin(MMIN_FAST, M_MIN), 1e20);
                     }
                     else
                     {
-                            initialiseSigmaMInterpTable(M_MIN, 1e20);
+                        initialiseSigmaMInterpTable(M_MIN, 1e20);
                     }
                 }
             }
@@ -1782,7 +1781,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             LOG_SUPER_DEBUG("looping over box...");
 
             zpp_max = zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts - 1];
-            
+
             // Correcting for the radio temp from sources > R_XLy_MAX
             Radio_Temp_HMG = Get_Radio_Temp_HMG(previous_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift);
 
@@ -1839,7 +1838,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 {
 
                     // Initializing interpolation boundary for overdensity
-                    
+
                     if (!user_params->USE_INTERPOLATION_TABLES)
                     {
                         Mmax = RtoM(R_values[R_ct]);
@@ -2316,7 +2315,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                                 // update quantities
                                 x_e += dxe_dzp * dzp; // remember dzp is negative
-                                if (x_e > 1)                                       // can do this late in evolution if dzp is too large
+                                if (x_e > 1)          // can do this late in evolution if dzp is too large
                                     x_e = 1 - FRACT_FLOAT_ERR;
                                 else if (x_e < 0)
                                     x_e = 0;
@@ -2324,11 +2323,11 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                 {
                                     if (flag_options->USE_MINI_HALOS)
                                     {
-                                        T += (dxheat_dzp + dxheat_dzp_MINI + dcomp_dzp + dspec_dzp + dadia_dzp)  * dzp;
+                                        T += (dxheat_dzp + dxheat_dzp_MINI + dcomp_dzp + dspec_dzp + dadia_dzp) * dzp;
                                     }
                                     else
                                     {
-                                        T += (dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp ) * dzp;
+                                        T += (dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp) * dzp;
                                     }
                                 }
 
@@ -2429,7 +2428,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                         }
                     }
                 }
-
             }
             else
             {
@@ -2516,7 +2514,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                             ((freq_int_lya_tbl_diff[m_xHII_low][R_ct]) * inverse_val + freq_int_lya_tbl[m_xHII_low][R_ct]);
                                 dstarlya_dt += dfcoll_dz_val * dstarlya_dt_prefactor[R_ct];
                             }
-
                         }
 
                         // add prefactors
@@ -2552,13 +2549,13 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                         // update quantities
 
                         x_e += dxe_dzp * dzp; // remember dzp is negative
-                        if (x_e > 1)                            // can do this late in evolution if dzp is too large
+                        if (x_e > 1)          // can do this late in evolution if dzp is too large
                             x_e = 1 - FRACT_FLOAT_ERR;
                         else if (x_e < 0)
                             x_e = 0;
                         if (T < MAX_TK)
                         {
-                            T += (dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp ) * dzp;
+                            T += (dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp) * dzp;
                         }
 
                         if (T < 0)
@@ -2670,21 +2667,20 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                     if (flag_options->USE_MINI_HALOS)
                     {
-                        Phi_mini = dfcoll_dz_val_MINI * (double)del_fcoll_Rct_MINI[box_ct]/dzpp_Rct0;
-                        Phi_ave_mini +=  Phi_mini / ((double)HII_TOT_NUM_PIXELS);
+                        Phi_mini = dfcoll_dz_val_MINI * (double)del_fcoll_Rct_MINI[box_ct] / dzpp_Rct0;
+                        Phi_ave_mini += Phi_mini / ((double)HII_TOT_NUM_PIXELS);
                     }
                 }
                 else
                 {
                     Phi = fabs(dfcoll_dz_val / dzpp_Rct0);
-                    Phi_ave += Phi/ ((double)HII_TOT_NUM_PIXELS);
+                    Phi_ave += Phi / ((double)HII_TOT_NUM_PIXELS);
                 }
 
                 this_spin_temp->SFRD_box[box_ct] = Phi_2_SFRD(Phi, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 0);
                 this_spin_temp->SFRD_MINI_box[box_ct] = Phi_2_SFRD(Phi_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
-
             }
-            
+
             // Caching averaged quantities
             printf("MSG from sp.c: History_box size changed, check radio.h for interpolation, don't use mturn results at high z (give -1)!!! \n");
             if (this_spin_temp->first_box)
@@ -2731,7 +2727,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     this_spin_temp->History_box[zpp_idx] = previous_spin_temp->History_box[zpp_idx];
                     this_spin_temp->History_box[m2_idx] = previous_spin_temp->History_box[m2_idx];
                     this_spin_temp->History_box[m3_idx] = previous_spin_temp->History_box[m3_idx];
-                    
+
                     if (Debug_Printer == 1)
                     {
                         fprintf(OutputFile, "%f   ", this_spin_temp->History_box[zid]);
@@ -2748,13 +2744,13 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 {
                     fclose(OutputFile);
                     double ST_over_PS_tmp;
-                    ST_over_PS_tmp = Nion_General(redshift, astro_params->M_TURN/50.0, astro_params->M_TURN, astro_params->ALPHA_STAR, 0., astro_params->F_STAR10, 1., Mlim_Fstar, 0.);
+                    ST_over_PS_tmp = Nion_General(redshift, astro_params->M_TURN / 50.0, astro_params->M_TURN, astro_params->ALPHA_STAR, 0., astro_params->F_STAR10, 1., Mlim_Fstar, 0.);
                     OutputFile = fopen("ST_over_PS_tmp.txt", "a");
                     fprintf(OutputFile, "%f    %E\n", redshift, ST_over_PS_tmp);
                     fclose(OutputFile);
                     if (redshift < 35.0)
                     {
-                    Print_Nion_MINI(redshift, astro_params);
+                        Print_Nion_MINI(redshift, astro_params, flag_options);
                     }
                 }
 

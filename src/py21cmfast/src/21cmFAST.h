@@ -89,6 +89,7 @@ struct FlagOptions
     // Settings for Radio Excess and Hawking Radiation
     bool USE_RADIO_ACG;
     bool USE_RADIO_MCG;
+    bool Calibrate_EoR_feedback;
 };
 
 struct InitialConditions

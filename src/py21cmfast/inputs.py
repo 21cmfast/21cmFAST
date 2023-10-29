@@ -632,6 +632,8 @@ class FlagOptions(StructWithDefaults):
         Determines whether to use radio excess background from ACG, if True then AstroParams.fR is used
     USE_RADIO_MCG: bool, optional
         Determines whether to use radio excess background from MCG, if True then AstroParams.fR_mini is used
+    Calibrate_EoR_feedback: bool
+        Whether to calibrate EoR/photo-heating feedback for Pop II/III radio excess, used only when MINIHALO is activated
     """
 
     _ffi = ffi
@@ -648,6 +650,7 @@ class FlagOptions(StructWithDefaults):
         "FIX_VCB_AVG": False,
         "USE_RADIO_ACG": False,
         "USE_RADIO_MCG": False,
+        "Calibrate_EoR_feedback": False,
     }
 
     @property

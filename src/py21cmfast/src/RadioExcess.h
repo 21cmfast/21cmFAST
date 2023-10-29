@@ -270,6 +270,8 @@ double History_box_Interp(struct TsBox *previous_spin_temp, double z, int Type)
 	// Use_LogY for all
 	r = Interp_1D(z, z_axis, f_axis, ArchiveSize, 0, 1, 2);
 
+	// actually let's not use mturn
+
 	return r;
 }
 
@@ -471,13 +473,20 @@ double get_mturn_interp_EoS_tmp(double z)
 	return r;
 }
 
-void Print_Nion_MINI(double z, struct AstroParams *astro_params)
+void Print_Nion_MINI(double z, struct AstroParams *astro_params, struct FlagOptions *flag_options)
 {
 	double r, mturn, matom, Mlim_Fstar_MINI;
 	FILE *OutputFile;
 	mturn = get_mturn_interp_EoS_tmp(z);
 	matom = atomic_cooling_threshold(z);
-	r = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mturn, matom, 0., 0., astro_params->F_STAR7_MINI, 1., 0., 0.);
+	if (flag_options->USE_MINI_HALOS)
+	{
+		r = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mturn, matom, 0., 0., astro_params->F_STAR7_MINI, 1., 0., 0.);
+	}
+	else
+	{
+		r = 0.0;
+	}
 	OutputFile = fopen("Nion_Table_tmp.txt", "a");
 	fprintf(OutputFile, "%E  %E\n", z, r);
 	fclose(OutputFile);
