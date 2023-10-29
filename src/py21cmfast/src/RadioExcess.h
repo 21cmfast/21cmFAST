@@ -490,7 +490,7 @@ void Test_History_box_Interp(struct TsBox *previous_spin_temp, struct AstroParam
 	FILE *OutputFile;
 	remove("Test_History_box_Interp_tmp.txt");
 	OutputFile = fopen("Test_History_box_Interp_tmp.txt", "w");
-	fprintf(OutputFile, "     z           Phi            Tk          Phi_III       zpp[0]          mturn          mturn_III \n");
+	fprintf(OutputFile, "     z           Phi            Phi3          Tk       mturn          mturn3          SFRD		SFRD3\n");
 
 	nz = 1000;
 	z1 = 5;
