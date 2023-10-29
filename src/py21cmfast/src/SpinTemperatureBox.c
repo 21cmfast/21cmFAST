@@ -57,7 +57,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         // All these are variables for Radio Background
         double Radio_Temp, Radio_Temp_HMG, Radio_Fun, Trad_inv, zpp_max, Phi, Phi_mini, Radio_zpp, new_nu, Phi_ave, Phi_ave_mini, T_IGM_ave;
         double Radio_Prefix_ACG, Radio_Prefix_MCG, Fill_Fraction, Radio_Temp_ave, dzpp_Rct0, zpp_Rct0, H_Rct0;
-        int idx, ArchiveSize, zid, fid, tid, sid, xid, Radio_Silent, m2_idx, m3_idx;
+        int idx, ArchiveSize, zid, phi_idx, tk_idx, phi3_idx, zpp_idx, Radio_Silent, m2_idx, m3_idx;
         FILE *OutputFile;
         
         // Initialising some variables
@@ -1784,7 +1784,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             zpp_max = zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts - 1];
             
             // Correcting for the radio temp from sources > R_XLy_MAX
-            Radio_Temp_HMG = Get_Radio_Temp_HMG(previous_spin_temp, astro_params, cosmo_params, flag_options, user_params, zpp_max, redshift);
+            Radio_Temp_HMG = Get_Radio_Temp_HMG(previous_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift);
 
             // Main loop over the entire box for the IGM spin temperature and relevant quantities.
             if (flag_options->USE_MASS_DEPENDENT_ZETA)
@@ -2717,28 +2717,28 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 {
 
                     zid = (idx - 1) * History_box_DIM + 1;
-                    fid = zid + 1;
-                    tid = zid + 2;
-                    sid = zid + 3;
-                    xid = zid + 4;
+                    phi_idx = zid + 1;
+                    tk_idx = zid + 2;
+                    phi3_idx = zid + 3;
+                    zpp_idx = zid + 4;
                     m2_idx = zid + 5;
                     m3_idx = zid + 6;
 
                     this_spin_temp->History_box[zid] = previous_spin_temp->History_box[zid];
-                    this_spin_temp->History_box[fid] = previous_spin_temp->History_box[fid];
-                    this_spin_temp->History_box[tid] = previous_spin_temp->History_box[tid];
-                    this_spin_temp->History_box[sid] = previous_spin_temp->History_box[sid];
-                    this_spin_temp->History_box[xid] = previous_spin_temp->History_box[xid];
+                    this_spin_temp->History_box[phi_idx] = previous_spin_temp->History_box[phi_idx];
+                    this_spin_temp->History_box[tk_idx] = previous_spin_temp->History_box[tk_idx];
+                    this_spin_temp->History_box[phi3_idx] = previous_spin_temp->History_box[phi3_idx];
+                    this_spin_temp->History_box[zpp_idx] = previous_spin_temp->History_box[zpp_idx];
                     this_spin_temp->History_box[m2_idx] = previous_spin_temp->History_box[m2_idx];
                     this_spin_temp->History_box[m3_idx] = previous_spin_temp->History_box[m3_idx];
                     
                     if (Debug_Printer == 1)
                     {
                         fprintf(OutputFile, "%f   ", this_spin_temp->History_box[zid]);
-                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[fid]);
-                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[tid]);
-                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[sid]);
-                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[xid]);
+                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[phi_idx]);
+                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[tk_idx]);
+                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[phi3_idx]);
+                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[zpp_idx]);
                         fprintf(OutputFile, "%E   ", this_spin_temp->History_box[m2_idx]);
                         fprintf(OutputFile, "%E\n", this_spin_temp->History_box[m3_idx]);
                     }
@@ -2760,10 +2760,10 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                 // Save results for this redshift
                 this_spin_temp->History_box[zid + History_box_DIM] = redshift;
-                this_spin_temp->History_box[fid + History_box_DIM] = Phi_ave;
-                this_spin_temp->History_box[tid + History_box_DIM] = T_IGM_ave;
-                this_spin_temp->History_box[sid + History_box_DIM] = Phi_ave_mini;
-                this_spin_temp->History_box[xid + History_box_DIM] = zpp_for_evolve_list[0];
+                this_spin_temp->History_box[phi_idx + History_box_DIM] = Phi_ave;
+                this_spin_temp->History_box[tk_idx + History_box_DIM] = T_IGM_ave;
+                this_spin_temp->History_box[phi3_idx + History_box_DIM] = Phi_ave_mini;
+                this_spin_temp->History_box[zpp_idx + History_box_DIM] = zpp_for_evolve_list[0];
             }
 
             LOG_SUPER_DEBUG("finished loop");
