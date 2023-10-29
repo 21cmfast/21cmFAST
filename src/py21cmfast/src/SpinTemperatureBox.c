@@ -2706,8 +2706,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     remove("History_box_tmp.txt");
                     OutputFile = fopen("History_box_tmp.txt", "a");
                     fprintf(OutputFile, "     z           Phi            Tk          Phi_III       zpp[0]          mturn          mturn_III \n");
-
                     Print_HMF(redshift, user_params);
+                    Test_History_box_Interp(previous_spin_temp, astro_params, cosmo_params);
                 }
 
                 this_spin_temp->History_box[0] = previous_spin_temp->History_box[0] + 1.0;

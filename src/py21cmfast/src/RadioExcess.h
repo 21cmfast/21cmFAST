@@ -6,7 +6,6 @@
 
 // Print debug info array to a file, info contains: History_box, Gas Temp
 #define Debug_Printer 1
-#define Reset_Radio_Temp_HMG 0
 
 int Find_Index(double *x_axis, double x, int nx)
 {
@@ -321,6 +320,8 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 		{
 			Phi = History_box_Interp(previous_spin_temp, z, 1);
 			Phi_mini = History_box_Interp(previous_spin_temp, z, 2);
+			Phi = Phi > 1e-10 ? Phi : 0.;
+			Phi_mini = Phi_mini > 1e-10 ? Phi : 0.;
 			fun_ACG = Radio_Prefix_ACG * Phi * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR) * dz;
 			fun_MCG = Radio_Prefix_MCG * Phi_mini * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR_mini) * dz;
 			if (z > astro_params->Radio_Zmin)
@@ -328,10 +329,6 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 				Radio_Temp += fun_ACG + fun_MCG;
 			}
 			z += dz;
-		}
-		if (Reset_Radio_Temp_HMG == 1)
-		{
-			Radio_Temp = 0.0;
 		}
 		return Radio_Temp;
 	}
@@ -483,5 +480,44 @@ void Print_Nion_MINI(double z, struct AstroParams *astro_params)
 	r = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mturn, matom, 0., 0., astro_params->F_STAR7_MINI, 1., 0., 0.);
 	OutputFile = fopen("Nion_Table_tmp.txt", "a");
 	fprintf(OutputFile, "%E  %E\n", z, r);
+	fclose(OutputFile);
+}
+
+void Test_History_box_Interp(struct TsBox *previous_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params)
+{
+	int idx, nz;
+	double Phi, Phi3, Tk, mt, mt3, dz, z1, z2, z, H, SFRD, SFRD3;
+	FILE *OutputFile;
+	remove("Test_History_box_Interp_tmp.txt");
+	OutputFile = fopen("Test_History_box_Interp_tmp.txt", "w");
+	fprintf(OutputFile, "     z           Phi            Tk          Phi_III       zpp[0]          mturn          mturn_III \n");
+
+	nz = 1000;
+	z1 = 5;
+	z2 = 34;
+	dz = (z2 - z1) / (((double)nz) - 1);
+
+	for (idx = 0; idx < nz; idx++)
+	{
+		z = z1 + ((double)idx) * dz;
+		H = hubble(z);
+		Phi = History_box_Interp(previous_spin_temp, z, 1);
+		Phi3 = History_box_Interp(previous_spin_temp, z, 2);
+		Tk = History_box_Interp(previous_spin_temp, z, 3);
+		mt = History_box_Interp(previous_spin_temp, z, 4);
+		mt3 = History_box_Interp(previous_spin_temp, z, 5);
+		SFRD = Phi_2_SFRD(Phi, z, H, astro_params, cosmo_params, 0);
+		SFRD3 = Phi_2_SFRD(Phi3, z, H, astro_params, cosmo_params, 1);
+
+		fprintf(OutputFile, "%f  ", z);
+		fprintf(OutputFile, "%E  ", Phi);
+		fprintf(OutputFile, "%E  ", Phi3);
+		fprintf(OutputFile, "%E  ", Tk);
+		fprintf(OutputFile, "%E  ", mt);
+		fprintf(OutputFile, "%E  ", mt3);
+		fprintf(OutputFile, "%E  ", SFRD);
+		fprintf(OutputFile, "%E \n", SFRD3);
+	}
+
 	fclose(OutputFile);
 }
