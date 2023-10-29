@@ -320,8 +320,8 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 		{
 			Phi = History_box_Interp(previous_spin_temp, z, 1);
 			Phi_mini = History_box_Interp(previous_spin_temp, z, 2);
-			Phi = Phi > 1e-10 ? Phi : 0.;
-			Phi_mini = Phi_mini > 1e-10 ? Phi : 0.;
+			Phi = Phi > 1e-50 ? Phi : 0.;
+			Phi_mini = Phi_mini > 1e-50 ? Phi_mini : 0.;
 			fun_ACG = Radio_Prefix_ACG * Phi * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR) * dz;
 			fun_MCG = Radio_Prefix_MCG * Phi_mini * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR_mini) * dz;
 			if (z > astro_params->Radio_Zmin)
