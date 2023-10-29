@@ -8,6 +8,191 @@
 #define Debug_Printer 1
 #define Reset_Radio_Temp_HMG 0
 
+int Find_Index(double *x_axis, double x, int nx)
+{
+    /*
+    Find the index of closest left element, need this for interpolation
+    range handle:
+        if x is on the LEFT of x_axis[0] : return -1
+        if x is on the RIGHT of x_axis[nx-1] : return nx
+    */
+    double x1, x2, x3;
+    int id1, id2, id3, Stop, s1, s2, s3, idx, count, reversed;
+    id1 = 0;
+    id3 = nx - 1;
+    Stop = 0;
+    x1 = x_axis[id1];
+    x3 = x_axis[id3];
+    reversed = x1 < x3 ? 0 : 1;
+    if (!reversed)
+    {
+        if (x < x1)
+        {
+            Stop = 1;
+            idx = -1;
+        }
+        if (x > x3)
+        {
+            Stop = 1;
+            idx = nx;
+        }
+    }
+    else
+    {
+        // printf("x1 = %f, x3 = %f\n", x1, x3);
+        if (x > x1)
+        {
+            Stop = 1;
+            idx = -1;
+        }
+        if (x < x3)
+        {
+            Stop = 1;
+            idx = nx;
+        }
+    }
+
+    count = 0;
+    while (Stop == 0)
+    {
+        count = count + 1;
+        id2 = (int)round((((double)(id1 + id3))) / 2.0);
+        if (id3 == id1 + 1)
+        {
+            idx = id1;
+            Stop = 1;
+        }
+
+        x1 = x_axis[id1];
+        x2 = x_axis[id2];
+        x3 = x_axis[id3];
+
+        if (!reversed)
+        {
+            if (x < x2)
+            {
+                id3 = id2;
+            }
+            else
+            {
+                id1 = id2;
+            }
+        }
+        else
+        {
+            if (x < x2)
+            {
+                id1 = id2;
+            }
+            else
+            {
+                id3 = id2;
+            }
+        }
+        if (count > 100)
+        {
+            fprintf(stderr, "Error: solution not found after 100 iterations.\n");
+            exit(1);
+        }
+    }
+
+    // printf("Stopping, id1 = %d, id3 = %d, x1 = %f, x = %f, x3 = %f, idx = %d\n", id1, id3, x1, x, x3, idx);
+
+    return idx;
+}
+
+double Interp_1D(double x, double *x_axis, double *y_axis, int nx, int Use_LogX, int Use_LogY, int Overflow_Handle)
+{
+    /* Find value of y at x
+    Use_LogX : whether to use log axis for x
+    Use_LogY : whether to use log axis for y
+    Overflow_Handle : what to do if x is not in x_axis
+                      0 : raise error and exit
+                      1 : give nearest value
+    */
+    int id1, id2;
+    double x1, x2, y1, y2, x_, r, Small;
+    id1 = Find_Index(x_axis, x, nx);
+    Small = 1e-280;
+
+    if (id1 == -1)
+    {
+        if (Overflow_Handle == 1)
+        {
+            r = y_axis[0];
+        }
+        else
+        {
+            fprintf(stderr, "Error from Interp_1D: x is not in range, axis range: [%E   %E], x = %E\n", x_axis[0], x_axis[nx - 1], x);
+            exit(1);
+        }
+    }
+    else if (id1 == nx)
+    {
+        if (Overflow_Handle == 1)
+        {
+            r = y_axis[nx - 1];
+        }
+        else
+        {
+            fprintf(stderr, "Error from Interp_1D: x is not in range, axis range: [%E   %E], x = %E\n", x_axis[0], x_axis[nx - 1], x);
+            exit(1);
+        }
+    }
+    else
+    {
+        id2 = id1 + 1;
+        if (!Use_LogX)
+        {
+            x1 = x_axis[id1];
+            x2 = x_axis[id2];
+            x_ = x;
+        }
+        else
+        {
+            // Detect negative element
+            x1 = x_axis[id1];
+            x2 = x_axis[id2];
+            if (((x1 < 0) || (x2 < 0)) || (x < 0))
+            {
+                fprintf(stderr, "cannot use LogX for axis or x with negative element\n");
+                exit(1);
+            }
+
+            x1 = log(x1);
+            x2 = log(x2);
+            x_ = log(x);
+        }
+        y1 = y_axis[id1];
+        y2 = y_axis[id2];
+
+        if (Use_LogY)
+        {
+            // This is to avoid nan at log
+            if ((y1 < 0) || (y2 < 0))
+            {
+                fprintf(stderr, "cannot use LogY for axis with negative element\n");
+                exit(1);
+            }
+
+            y1 = y1 > Small ? y1 : Small;
+            y2 = y2 > Small ? y2 : Small;
+            y1 = log(y1);
+            y2 = log(y2);
+        }
+
+        r = (y2 - y1) * (x_ - x1) / (x2 - x1) + y1;
+
+        if (Use_LogY)
+        {
+            r = exp(r);
+        }
+        // printf("x_ = %f, x1 = %f, x2 = %f, y1 = %f, y2 = %f\n", x_, x1, x2, y1, y2);
+    }
+
+    return r;
+}
+
 double History_box_Interp(struct TsBox *previous_spin_temp, double z, int Type)
 {
 	// Interpolate to find quantities archived in History_box
@@ -285,175 +470,7 @@ void Print_HMF(double z, struct UserParams *user_params)
 	fclose(OutputFile);
 }
 
-int Find_Index(double *x_axis, double x, int nx)
-{
-    /*
-    Find closest left element index
-    range handle:
-        if x is on the LEFT of x_axis[0] : return -1
-        if x is on the RIGHT of x_axis[nx-1] : return nx
-    */
-    double x1, x2, x3;
-    int id1, id2, id3, Stop, s1, s2, s3, idx, count, reversed;
-    id1 = 0;
-    id3 = nx - 1;
-    Stop = 0;
-    x1 = x_axis[id1];
-    x3 = x_axis[id3];
-    reversed = x1 < x3 ? 0 : 1;
-    if (!reversed)
-    {
-        if (x < x1)
-        {
-            Stop = 1;
-            idx = -1;
-        }
-        if (x > x3)
-        {
-            Stop = 1;
-            idx = nx;
-        }
-    }
-    else
-    {
-        // printf("x1 = %f, x3 = %f\n", x1, x3);
-        if (x > x1)
-        {
-            Stop = 1;
-            idx = -1;
-        }
-        if (x < x3)
-        {
-            Stop = 1;
-            idx = nx;
-        }
-    }
-
-    count = 0;
-    while (Stop == 0)
-    {
-        count = count + 1;
-        id2 = (int)round((((double)(id1 + id3))) / 2.0);
-        if (id3 == id1 + 1)
-        {
-            idx = id1;
-            Stop = 1;
-        }
-
-        x1 = x_axis[id1];
-        x2 = x_axis[id2];
-        x3 = x_axis[id3];
-
-        if (!reversed)
-        {
-            if (x < x2)
-            {
-                id3 = id2;
-            }
-            else
-            {
-                id1 = id2;
-            }
-        }
-        else
-        {
-            if (x < x2)
-            {
-                id1 = id2;
-            }
-            else
-            {
-                id3 = id2;
-            }
-        }
-        if (count > 100)
-        {
-            fprintf(stderr, "Error: solution not found after 100 iterations.\n");
-            exit(1);
-        }
-    }
-    
-    // printf("Stopping, id1 = %d, id3 = %d, x1 = %f, x = %f, x3 = %f, idx = %d\n", id1, id3, x1, x, x3, idx);
-
-    return idx;
-
-}
-
-
-double Interp_1D(double x, double *x_axis, double *y_axis, int nx, int Use_LogX, int Use_LogY, int Overflow_Handle)
-{
-    /* Find value of y at x
-    Use_LogX : whether to use log axis for x
-    Use_LogY : whether to use log axis for y
-    Overflow_Handle : what to do if x is not in x_axis
-                      0 : raise error and exit
-                      1 : give nearest value
-    */
-    int id1, id2;
-    double x1, x2, y1, y2, x_, r;
-    id1 = Find_Index(x_axis, x, nx);
-    if (id1 == -1)
-    {
-        if (Overflow_Handle == 1)
-        {
-            r = y_axis[0];
-        }
-        else
-        {
-            fprintf(stderr, "Error from Interp_1D: x is not in range.\n");
-            exit(1);
-        }
-    }
-    else if (id1 == nx)
-    {
-        if (Overflow_Handle == 1)
-        {
-            r = y_axis[nx-1];
-        }
-        else
-        {
-            fprintf(stderr, "Error from Interp_1D: x is not in range.\n");
-            exit(1);
-        }
-    }
-    else
-    {
-        id2 = id1 + 1;
-        if (!Use_LogX)
-        {
-            x1 = x_axis[id1];
-            x2 = x_axis[id2];
-            x_ = x;
-        }
-        else
-        {
-            x1 = log(x_axis[id1]);
-            x2 = log(x_axis[id2]);
-            x_ = log(x);
-        }
-        y1 = y_axis[id1];
-        y2 = y_axis[id2];
-
-        if (Use_LogY)
-        {
-            y1 = log(y1);
-            y2 = log(y2);
-        }
-
-        r = (y2 - y1) / (x2 - x1) * (x_ - x1) + y1;
-        
-        if (Use_LogY)
-        {
-            r = exp(r);
-        }
-        // printf("x_ = %f, x1 = %f, x2 = %f, y1 = %f, y2 = %f\n", x_, x1, x2, y1, y2);
-    }
-
-    return r;
-}
-
-
-double get_mturn_interp(double z)
+double get_mturn_interp_EoS_tmp(double z)
 {
     int n, idx;
     double r;
@@ -491,7 +508,7 @@ void Print_Nion_MINI(double z, struct AstroParams *astro_params)
 {
 	double r, mturn, matom, Mlim_Fstar_MINI;
 	FILE *OutputFile;
-	mturn = get_mturn_interp(z);
+	mturn = get_mturn_interp_EoS_tmp(z);
 	matom = atomic_cooling_threshold(z);
 	r = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mturn, matom, 0., 0., astro_params->F_STAR7_MINI, 1., 0., 0.);
 	OutputFile = fopen("Nion_Table_tmp.txt", "a");
