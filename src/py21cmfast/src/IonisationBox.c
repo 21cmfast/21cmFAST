@@ -1,5 +1,4 @@
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
-#define print_mturn_mini 1
 int INIT_ERFC_INTERPOLATION = 1;
 int INIT_RECOMBINATIONS = 1;
 
@@ -542,13 +541,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 Mlim_Fesc_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
                 LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
 
-                if (print_mturn_mini == 1)
-                {
-                    OutputFile = fopen("Mturn_Table_tmp.txt", "a");
-                    // fprintf(OutputFile, "z    mturn    mturn_mini\n");
-                    fprintf(OutputFile, "%f    %E   %E  %E  %E\n", redshift, box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave, atomic_cooling_threshold(redshift), box->mean_f_coll_MINI);
-                    fclose(OutputFile);
-                }
             }
             else
             {
