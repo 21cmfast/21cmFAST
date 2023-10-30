@@ -2692,7 +2692,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             }
 
             // Caching averaged quantities
-            printf("MSG from sp.c: History_box size changed, check radio.h for interpolation, don't use mturn results at high z (give -1)!!! \n");
+            printf("MSG from sp.c: History_box size changed, check radio.h for interpolation, don't use mturn results at high z (give -1), check any codes that use History_box_Interp for mturns!!! \n");
             if (this_spin_temp->first_box)
             {
                 this_spin_temp->History_box[0] = 1.0; // ArchiveSize

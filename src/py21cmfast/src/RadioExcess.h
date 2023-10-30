@@ -179,7 +179,7 @@ double Interp_1D(double x, double *x_axis, double *y_axis, int nx, int Use_LogX,
 			// This is to avoid nan at log
 			if ((y1 < 0) || (y2 < 0))
 			{
-				fprintf(stderr, "cannot use LogY for axis with negative element\n");
+				fprintf(stderr, "Cannot use LogY for axis with negative element. Info: x1 = %E, x =  %E, x2 = %E, y1 = %E, y2 = %E\n", x1, x, x1, y1, y2);
 				exit(1);
 			}
 
@@ -345,23 +345,32 @@ void Refine_T_Radio(struct TsBox *previous_spin_temp, struct TsBox *this_spin_te
 	*/
 	int box_ct;
 	float T_prev, T_now, Conversion_Factor;
-	if (flag_options->USE_RADIO_MCG)
-	{
-		if (redshift < astro_params->Radio_Zmin)
-		{
-			LOG_ERROR("Current module only supports Radio ACG\n");
-			Throw(ValueError);
-		}
-	}
 
-	Conversion_Factor = pow((1 + redshift) / (1 + prev_redshift), 3 + astro_params->aR);
-
-	if (redshift < astro_params->Radio_Zmin)
+	if (redshift < astro_params->Radio_Zmin && (flag_options->USE_RADIO_MCG || flag_options->USE_RADIO_ACG))
 	{
-		for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
-		{
-			this_spin_temp->Trad_box[box_ct] = Conversion_Factor * previous_spin_temp->Trad_box[box_ct];
+
+		if (flag_options->USE_RADIO_ACG && (!flag_options->USE_RADIO_MCG))
+		{ // Only ACG
+			Conversion_Factor = pow((1 + redshift) / (1 + prev_redshift), 3 + astro_params->aR);
 		}
+		else if (flag_options->USE_RADIO_MCG && (!flag_options->USE_RADIO_ACG))
+		{ // Only MCG
+			Conversion_Factor = pow((1 + redshift) / (1 + prev_redshift), 3 + astro_params->aR_mini);
+		}
+		else if (flag_options->USE_RADIO_ACG && flag_options->USE_RADIO_MCG)
+		{ // co-exist
+			if (fabs(astro_params->aR - astro_params->aR_mini) < 0.0001)
+			{ // same spectra
+				Conversion_Factor = pow((1 + redshift) / (1 + prev_redshift), 3 + astro_params->aR_mini);
+			}
+			else
+			{ // different spectra, raise error
+				LOG_ERROR("Using multiple radio sources with different spectra");
+				Throw(ValueError);
+			}
+		}
+
+		this_spin_temp->Trad_box[box_ct] = Conversion_Factor * previous_spin_temp->Trad_box[box_ct];
 	}
 }
 
@@ -504,7 +513,7 @@ void Test_History_box_Interp(struct TsBox *previous_spin_temp, struct AstroParam
 
 	nz = 1000;
 	z1 = 5;
-	z2 = 34;
+	z2 = 32;
 	dz = (z2 - z1) / (((double)nz) - 1);
 
 	for (idx = 0; idx < nz; idx++)
@@ -565,6 +574,7 @@ void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *fl
 		Phi = 0.;
 	}
 	Phi = Phi / (astro_params->t_STAR * pow(1. + z, astro_params->X_RAY_SPEC_INDEX + 1.0));
+	printf("Why nan for first 2 snapshots?");
 	previous_spin_temp->History_box[head + 7] = Phi;
 }
 
