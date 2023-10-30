@@ -69,7 +69,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
 
         float dens_val, prev_dens_val;
 
-        int overdense_int, status_int, ArchiveSize, zid;
+        int overdense_int, status_int, ArchiveSize, head;
         int History_box_LEN = 20; // same as History_box_DIM but I cannot acess History_box_DIM from here
 
         int something_finite_or_infinite = 0;
@@ -521,20 +521,20 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 Mturnover = pow(10., box->log10_Mturnover_ave);
                 Mturnover_MINI = pow(10., box->log10_Mturnover_MINI_ave);
 
-                // saving m_turns to history box
+                // saving m_turns to history box, this spin_box is then passed to spin.c as prev_box
                 ArchiveSize = (int)round(spin_temp->History_box[0]);
-                zid = (ArchiveSize - 1) * History_box_LEN + 1;
+                head = (ArchiveSize - 1) * History_box_LEN + 1;
                 if (ArchiveSize > 1)
                 {
                     // Only save usable info when History_box has been initialised/filled at least once
-                    spin_temp->History_box[zid + 5] = Mturnover;
-                    spin_temp->History_box[zid + 6] = Mturnover_MINI;
+                    spin_temp->History_box[head + 5] = Mturnover;
+                    spin_temp->History_box[head + 6] = Mturnover_MINI;
                 }
                 else
                 {
                     // Maybe History_box has not been initialised
-                    spin_temp->History_box[zid + 5] = -1.0;
-                    spin_temp->History_box[zid + 6] = -1.0;
+                    spin_temp->History_box[head + 5] = -1.0;
+                    spin_temp->History_box[head + 6] = -1.0;
                 }
 
                 M_MIN = global_params.M_MIN_INTEGRAL;

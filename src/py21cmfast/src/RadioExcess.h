@@ -341,6 +341,7 @@ void Refine_T_Radio(struct TsBox *previous_spin_temp, struct TsBox *this_spin_te
 	/*
 	This has a number of issues:
 	1. Only applicapable to sources with same spectra shape
+	2. This is called within a box_ct loop, but I am doing another r_ct looop here. Results are the same but this wastes memory and cpu
 	*/
 	int box_ct;
 	float T_prev, T_now, Conversion_Factor;
@@ -531,12 +532,46 @@ void Test_History_box_Interp(struct TsBox *previous_spin_temp, struct AstroParam
 	fclose(OutputFile);
 }
 
-double Calibrate_Phi_mini(redshift)
+void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *flag_options, struct AstroParams *astro_params)
 {
-	return 0;
+	// Get globally averaged (not the box-averaged) Phi with reionisation feedback
+	// x_e_ave
+	// don't need to update if not using radio MCG or flag->calibrate == 0
+	int ArchiveSize, head;
+	double mt, mc, Mlim_Fstar_MINI, Phi, z;
+	ArchiveSize = (int)round(previous_spin_temp->History_box[0]);
+	head = (ArchiveSize - 1) * History_box_DIM + 1;
+
+	if ((flag_options->USE_RADIO_MCG && flag_options->Calibrate_EoR_feedback) && ArchiveSize > 2)
+	{
+		// don't do this for the first 2 snapshots, mturn info might be missed by io.c, effect on radio should be negligible
+		z = previous_spin_temp->History_box[head];
+		mt = previous_spin_temp->History_box[head + 6];
+		if (mt < 100.)
+		{
+			fprintf(stderr, "This is not right, mturn is not assigned?\n");
+			Throw(ValueError);
+		}
+		mc = atomic_cooling_threshold(z);
+		Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
+											   astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
+
+		Phi = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mt, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
+
+		printf("Phi for current z or zpp0 is not yet in history_box, so you should be careful if you use interpolation. Also m_turn may or may not be here\n");
+	}
+	else
+	{
+		Phi = 0.;
+	}
+	Phi = Phi / (astro_params->t_STAR * pow(1. + z, astro_params->X_RAY_SPEC_INDEX));
+	previous_spin_temp->History_box[head + 7] = Phi;
 }
 
-void Calibrate_EoR_feedback(double z)
+void Calibrate_EoR_feedback(double z, double x_e_ave, struct TsBox *this_spin_temp, struct TsBox *previous_spin_temp, struct FlagOptions *flag_options, struct AstroParams *astro_params)
 {
+	// History is in previous_spin_temp, Tradio to be calibrated is in this_spin_temp
+	// Don't do this unless using radio_mcg
+	printf("Don't forget zcut while you do this, gradually transition to xe = 1");
 	int idx;
 }
