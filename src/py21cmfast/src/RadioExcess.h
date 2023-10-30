@@ -558,13 +558,13 @@ void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *fl
 
 		Phi = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mt, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
 
-		printf("Phi for current z or zpp0 is not yet in history_box, so you should be careful if you use interpolation. Also m_turn may or may not be here\n");
+		// printf("Phi for current z or zpp0 is not yet in history_box, so you should be careful if you use interpolation. Also m_turn may or may not be here\n");
 	}
 	else
 	{
 		Phi = 0.;
 	}
-	Phi = Phi / (astro_params->t_STAR * pow(1. + z, astro_params->X_RAY_SPEC_INDEX));
+	Phi = Phi / (astro_params->t_STAR * pow(1. + z, astro_params->X_RAY_SPEC_INDEX + 1.0));
 	previous_spin_temp->History_box[head + 7] = Phi;
 }
 
@@ -573,5 +573,6 @@ void Calibrate_EoR_feedback(double z, double x_e_ave, struct TsBox *this_spin_te
 	// History is in previous_spin_temp, Tradio to be calibrated is in this_spin_temp
 	// Don't do this unless using radio_mcg
 	printf("Don't forget zcut while you do this, gradually transition to xe = 1");
+	printf("Refine T_radio is redudent\n");
 	int idx;
 }

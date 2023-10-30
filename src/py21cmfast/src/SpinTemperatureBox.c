@@ -2252,7 +2252,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                             {
 
                                 Refine_T_Radio(previous_spin_temp, this_spin_temp, prev_redshift, redshift, astro_params, flag_options);
-                                Calibrate_EoR_feedback(redshift, x_e_ave, this_spin_temp, previous_spin_temp, flag_options, astro_params);
+                                // Calibrate_EoR_feedback(redshift, x_e_ave, this_spin_temp, previous_spin_temp, flag_options, astro_params);
                                 Radio_Temp = this_spin_temp->Trad_box[box_ct];
 
                                 // Note here, that by construction it doesn't matter if using MINIMIZE_MEMORY as only need the R_ct = 0 box
