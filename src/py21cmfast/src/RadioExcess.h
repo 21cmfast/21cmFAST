@@ -550,12 +550,12 @@ void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *fl
 	double mt, mc, Mlim_Fstar_MINI, Phi, z;
 	ArchiveSize = (int)round(previous_spin_temp->History_box[0]);
 	head = (ArchiveSize - 1) * History_box_DIM + 1;
+	z = previous_spin_temp->History_box[head];
+	mt = previous_spin_temp->History_box[head + 6];
 
 	if ((flag_options->USE_RADIO_MCG && flag_options->Calibrate_EoR_feedback) && ArchiveSize > 2)
 	{
 		// don't do this for the first 2 snapshots, mturn info might be missed by io.c, effect on radio should be negligible
-		z = previous_spin_temp->History_box[head];
-		mt = previous_spin_temp->History_box[head + 6];
 		if (mt < 100.)
 		{
 			fprintf(stderr, "This is not right, mturn is not assigned?\n");
@@ -568,13 +568,13 @@ void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *fl
 		Phi = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mt, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
 
 		// printf("Phi for current z or zpp0 is not yet in history_box, so you should be careful if you use interpolation. Also m_turn may or may not be here\n");
+		Phi = Phi / (astro_params->t_STAR * pow(1. + z, astro_params->X_RAY_SPEC_INDEX + 1.0));
 	}
 	else
 	{
 		Phi = 0.;
 	}
 	Phi = Phi / (astro_params->t_STAR * pow(1. + z, astro_params->X_RAY_SPEC_INDEX + 1.0));
-	printf("Why nan for first 2 snapshots?");
 	previous_spin_temp->History_box[head + 7] = Phi;
 }
 

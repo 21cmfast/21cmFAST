@@ -532,9 +532,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 }
                 else
                 {
-                    // Maybe History_box has not been initialised
-                    spin_temp->History_box[head + 5] = -1.0;
-                    spin_temp->History_box[head + 6] = -1.0;
+                    // Maybe History_box has not been initialised, this should give near 0 SFRD but still try not to use this
+                    spin_temp->History_box[head + 5] = 1.0E20;
+                    spin_temp->History_box[head + 6] = 1.0E20;
                 }
 
                 M_MIN = global_params.M_MIN_INTEGRAL;
