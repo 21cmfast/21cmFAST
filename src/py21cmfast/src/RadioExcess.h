@@ -1,4 +1,4 @@
-// Things needed for Radio excess
+// Things needed for Radio excess 
 
 // nu0 is degenerate with fR so no reason to leave this as a param
 #define astro_nu0 0.15	   // in GHz
