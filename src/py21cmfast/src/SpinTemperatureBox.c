@@ -2724,7 +2724,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     // ---- history_box ----
                     remove("History_box_tmp.txt");
                     OutputFile = fopen("History_box_tmp.txt", "a");
-                    fprintf(OutputFile, "     z           Phi            Tk          Phi_III       zpp[0]          mturn          mturn_III \n");
+                    fprintf(OutputFile, "     z           Phi            Tk          Phi_III       zpp[0]     mturn(ion.c)      mturn_III(ion.c) Phi_III_EoR\n");
                     for (idx = 1; idx <= ArchiveSize; idx++)
                     {
                         head = (idx - 1) * History_box_DIM + 1;
