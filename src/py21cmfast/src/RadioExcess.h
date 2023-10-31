@@ -270,7 +270,7 @@ double History_box_Interp(struct TsBox *previous_spin_temp, double z, int Type)
 	// Use_LogY for all
 	r = Interp_1D(z, z_axis, f_axis, ArchiveSize, 0, 1, 2);
 
-	// actually let's not use mturn
+	// actually let's not use mturn interp for SFRD
 
 	return r;
 }
@@ -310,7 +310,7 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 
 	if (z1 > z2)
 	{
-		return 0.0;
+		Radio_Temp = 0.0;
 	}
 	else
 	{
@@ -332,8 +332,8 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 			}
 			z += dz;
 		}
-		return Radio_Temp;
 	}
+	return Radio_Temp;
 }
 
 void Refine_T_Radio(struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp, float prev_redshift, float redshift, struct AstroParams *astro_params, struct FlagOptions *flag_options)
