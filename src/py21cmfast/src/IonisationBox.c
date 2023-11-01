@@ -75,8 +75,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
         int something_finite_or_infinite = 0;
         int log10_Mturnover_MINI_int, log10_Mturnover_int;
         int *overdense_int_boundexceeded_threaded = calloc(user_params->N_THREADS, sizeof(int));
-        FILE *OutputFile;
-
+        
         if (user_params->USE_INTERPOLATION_TABLES)
         {
             overdense_large_min = global_params.CRIT_DENS_TRANSITION * 0.999;

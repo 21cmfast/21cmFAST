@@ -5,7 +5,7 @@
 #define History_box_DIM 20 // number of quantities to be saved in History_box
 
 // Print debug info array to a file, info contains: History_box, Gas Temp
-#define Debug_Printer 1
+#define Debug_Printer 0
 
 int Find_Index(double *x_axis, double x, int nx)
 {
@@ -201,7 +201,7 @@ double Interp_1D(double x, double *x_axis, double *y_axis, int nx, int Use_LogX,
 	return r;
 }
 
-double History_box_Interp(struct TsBox *previous_spin_temp, double z, int Type)
+double History_box_Interp(struct TsBox *previous_spin_temp, double z, int Type, int Overflow_Handle)
 {
 	/*
 	Interpolate to find quantities archived in History_box
@@ -272,7 +272,7 @@ double History_box_Interp(struct TsBox *previous_spin_temp, double z, int Type)
 		f_axis[idx] = previous_spin_temp->History_box[fid];
 	}
 	// Use_LogY for all
-	r = Interp_1D(z, z_axis, f_axis, ArchiveSize, 0, 1, 2);
+	r = Interp_1D(z, z_axis, f_axis, ArchiveSize, 0, 1, Overflow_Handle);
 
 	// actually let's not use mturn interp for SFRD
 
@@ -327,8 +327,8 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 
 		for (zid = 1; zid <= nz; zid++)
 		{
-			Phi = History_box_Interp(previous_spin_temp, z, 1);
-			Phi_mini = History_box_Interp(previous_spin_temp, z, 2);
+			Phi = History_box_Interp(previous_spin_temp, z, 1, 1);
+			Phi_mini = History_box_Interp(previous_spin_temp, z, 2, 1);
 			Phi = Phi > 1e-50 ? Phi : 0.;
 			Phi_mini = Phi_mini > 1e-50 ? Phi_mini : 0.;
 			fun_ACG = Radio_Prefix_ACG * Phi * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR) * dz;
@@ -527,11 +527,11 @@ void Test_History_box_Interp(struct TsBox *previous_spin_temp, struct AstroParam
 	{
 		z = z1 + ((double)idx) * dz;
 		H = hubble(z);
-		Phi = History_box_Interp(previous_spin_temp, z, 1);
-		Phi3 = History_box_Interp(previous_spin_temp, z, 2);
-		Tk = History_box_Interp(previous_spin_temp, z, 3);
-		mt = History_box_Interp(previous_spin_temp, z, 4);
-		mt3 = History_box_Interp(previous_spin_temp, z, 5);
+		Phi = History_box_Interp(previous_spin_temp, z, 1, 1);
+		Phi3 = History_box_Interp(previous_spin_temp, z, 2, 1);
+		Tk = History_box_Interp(previous_spin_temp, z, 3, 1);
+		mt = History_box_Interp(previous_spin_temp, z, 4, 1);
+		mt3 = History_box_Interp(previous_spin_temp, z, 5, 1);
 		SFRD = Phi_2_SFRD(Phi, z, H, astro_params, cosmo_params, 0);
 		SFRD3 = Phi_2_SFRD(Phi3, z, H, astro_params, cosmo_params, 1);
 
@@ -560,14 +560,8 @@ void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *fl
 	z = previous_spin_temp->History_box[head];
 	mt = previous_spin_temp->History_box[head + 6];
 
-	if (((flag_options->USE_RADIO_MCG && flag_options->Calibrate_EoR_feedback) && ArchiveSize > 2) || (redshift > 33.0))
+	if ((flag_options->Calibrate_EoR_feedback && ArchiveSize > 2) || (redshift > 33.0))
 	{
-		// don't do this for the first 2 snapshots, mturn info might be missed by io.c, effect on radio should be negligible
-		if (mt < 100.)
-		{
-			fprintf(stderr, "This is not right, mturn is not assigned?\n");
-			Throw(ValueError);
-		}
 		mc = atomic_cooling_threshold(z);
 		Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
 											   astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
@@ -585,8 +579,7 @@ void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *fl
 
 double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, struct FlagOptions *flag_options, double redshift, double Tr_ave, double xe_ave)
 {
-
-	printf("there is a bit which couples Tr to Ts, think about this\n");
+	// Find T_radio in presence of EoR feedback
 
 	double zmin, zmax, dz, Phi_mini, z, Radio_Temp, Prefix, dT, weigh;
 	int nz, idx, ArchiveSize, head;
@@ -601,7 +594,7 @@ double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astr
 
 	if (redshift > 33.0)
 	{
-		// either the box is empty or not important
+		// Either the box is empty or not important
 		Radio_Temp = Tr_ave;
 	}
 	else
@@ -612,7 +605,7 @@ double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astr
 		for (idx = 0; idx < nz; idx++)
 		{
 			z = zmin + ((double)idx) * dz;
-			Phi_mini = History_box_Interp(this_spin_temp, z, 6);
+			Phi_mini = History_box_Interp(this_spin_temp, z, 6, 1);
 			Phi_mini = Phi_mini > 1e-50 ? Phi_mini : 0.;
 			dT = Prefix * Phi_mini * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR_mini) * dz;
 			if (z > astro_params->Radio_Zmin)
@@ -620,9 +613,45 @@ double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astr
 				Radio_Temp += dT;
 			}
 		}
-		// Ensure a smooth transition, use calibrated result when xe >= 0.1
-		weigh = fmin(xe_ave / 0.1, 1.0);
+		// Use a smooth transition, use either xe or z
+		// weigh = fmin(xe_ave / 0.1, 1.0);
+		// weigh = 1.0;
+
+		weigh = redshift < 15? fmin(15 - redshift, 1) : 0;
 		Radio_Temp = (1 - weigh) * Tr_ave + weigh * Radio_Temp;
+
 	}
 	return Radio_Temp;
+}
+
+double Get_SFRD_EoR_MINI(struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, double xe_ave, double redshift)
+{
+	// This is abit buggy cause we only have mturn info about previous box
+	// however at lowz the z timestep is small enough so that prev box gives good enough results, so if using xe weighing then we should be alright
+	// plus SFRD_box is not used anywhere else
+
+	double Phi_EoR, weigh, H, Phi_ave, Phi_old, SFRD, mturn, mc, Mlim_Fstar_MINI;
+	int ArchiveSize, head;
+
+	ArchiveSize = (int)round(previous_spin_temp->History_box[0]);
+	head = (ArchiveSize - 1) * History_box_DIM + 1;
+	mturn = previous_spin_temp->History_box[head + 6]; // abit buggy but this the best we have
+	mc = atomic_cooling_threshold(redshift);
+	Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
+	Phi_EoR = Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, mturn, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
+	Phi_EoR = Phi_EoR / (astro_params->t_STAR * pow(1. + redshift, astro_params->X_RAY_SPEC_INDEX + 1.0));
+
+	ArchiveSize = (int)round(this_spin_temp->History_box[0]);
+	head = (ArchiveSize - 1) * History_box_DIM + 1;
+	Phi_old = this_spin_temp->History_box[head + 3];
+	
+	// weigh = fmin(xe_ave / 0.04, 1.0);
+	weigh = 1.0;
+	
+	Phi_ave = (1 - weigh) * Phi_old + weigh * Phi_EoR;
+	H = hubble(redshift);
+
+	SFRD = Phi_2_SFRD(Phi_ave, redshift, H, astro_params, cosmo_params, 1);
+
+	return SFRD;
 }

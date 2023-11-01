@@ -56,7 +56,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
         // All these are variables for Radio Background
         double Radio_Temp, Radio_Temp_HMG, Radio_Fun, Trad_inv, zpp_max, Phi, Phi_mini, Radio_zpp, new_nu, Phi_ave, Phi_ave_mini, T_IGM_ave;
-        double Radio_Prefix_ACG, Radio_Prefix_MCG, Fill_Fraction, Radio_Temp_ave, dzpp_Rct0, zpp_Rct0, H_Rct0, Tr_EoR;
+        double Radio_Prefix_ACG, Radio_Prefix_MCG, Fill_Fraction, Radio_Temp_ave, dzpp_Rct0, zpp_Rct0, H_Rct0, Tr_EoR, SFRD_EoR_MINI, SFRD_MINI_ave;
         int idx, ArchiveSize, head, phi_idx, tk_idx, phi3_idx, zpp_idx, Radio_Silent, m2_idx, m3_idx;
         FILE *OutputFile;
 
@@ -2725,14 +2725,14 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     for (idx = 1; idx <= ArchiveSize; idx++)
                     {
                         head = (idx - 1) * History_box_DIM + 1;
-                        fprintf(OutputFile, "%f   ", previous_spin_temp->History_box[head]);
-                        fprintf(OutputFile, "%E   ", previous_spin_temp->History_box[head + 1]);
-                        fprintf(OutputFile, "%E   ", previous_spin_temp->History_box[head + 2]);
-                        fprintf(OutputFile, "%E   ", previous_spin_temp->History_box[head + 3]);
-                        fprintf(OutputFile, "%E   ", previous_spin_temp->History_box[head + 4]);
-                        fprintf(OutputFile, "%E   ", previous_spin_temp->History_box[head + 5]);
-                        fprintf(OutputFile, "%E   ", previous_spin_temp->History_box[head + 6]);
-                        fprintf(OutputFile, "%E\n", previous_spin_temp->History_box[head + 7]);
+                        fprintf(OutputFile, "%f   ", this_spin_temp->History_box[head]);
+                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[head + 1]);
+                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[head + 2]);
+                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[head + 3]);
+                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[head + 4]);
+                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[head + 5]);
+                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[head + 6]);
+                        fprintf(OutputFile, "%E\n", this_spin_temp->History_box[head + 7]);
                     }
                     fclose(OutputFile);
 
@@ -2761,9 +2761,14 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             {
                 // Calibrating EoR feedback, coupling to Ts should be negligible by now since T21 would be dominated by xH
                 Tr_EoR = Get_EoR_Radio_mini(this_spin_temp, astro_params, cosmo_params, flag_options, redshift, Radio_Temp_ave, x_e_ave / (double)HII_TOT_NUM_PIXELS);
+                SFRD_EoR_MINI = Get_SFRD_EoR_MINI(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, x_e_ave / (double)HII_TOT_NUM_PIXELS, zpp_Rct0);
+                SFRD_MINI_ave = Phi_2_SFRD(Phi_ave_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
+                SFRD_MINI_ave = SFRD_MINI_ave > 1e-200? SFRD_MINI_ave : 1e-200; // avoid nan in divide
+
                 for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
                 {
                     this_spin_temp->Trad_box[box_ct] = Tr_EoR * this_spin_temp->Trad_box[box_ct] / Radio_Temp_ave;
+                    this_spin_temp->SFRD_MINI_box[box_ct] = SFRD_EoR_MINI * this_spin_temp->SFRD_MINI_box[box_ct] / SFRD_MINI_ave;
                 }
             }
 
