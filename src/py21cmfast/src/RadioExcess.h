@@ -259,6 +259,10 @@ double History_box_Interp(struct TsBox *previous_spin_temp, double z, int Type)
 		{ // mturn_III
 			fid = head + 6;
 		}
+		else if (Type == 6)
+		{ // Phi3_EoR
+			fid = head + 7;
+		}
 		else
 		{
 			LOG_ERROR("Wrong Type setting, must be in [1, 6].\n");
@@ -283,9 +287,10 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 	// zpp_max: maximum zpp
 
 	double z1, z2, dz, Phi, Phi_mini, z, fun_ACG, fun_MCG, Radio_Temp, Radio_Prefix_ACG, Radio_Prefix_MCG;
-	int nz, zid;
+	int nz, zid, RadioSilent;
 
 	nz = 1000;
+	RadioSilent = 1;
 	z2 = previous_spin_temp->History_box[5] - 0.01;
 	z1 = zpp_max;
 	dz = (z2 - z1) / (((double)nz) - 1);
@@ -293,6 +298,7 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 	if (flag_options->USE_RADIO_ACG)
 	{
 		Radio_Prefix_ACG = 113.6161 * astro_params->fR * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR10) * pow(astro_nu0 / 1.4276, astro_params->aR) * pow(1 + redshift, 3 + astro_params->aR);
+		RadioSilent = 0;
 	}
 	else
 	{
@@ -302,13 +308,14 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 	if (flag_options->USE_RADIO_MCG)
 	{
 		Radio_Prefix_MCG = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR7_MINI) * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3 + astro_params->aR_mini);
+		RadioSilent = 0;
 	}
 	else
 	{
 		Radio_Prefix_MCG = 0.0;
 	}
 
-	if (z1 > z2)
+	if (((z1 > z2) || RadioSilent) || redshift > 33.0)
 	{
 		Radio_Temp = 0.0;
 	}
@@ -541,7 +548,7 @@ void Test_History_box_Interp(struct TsBox *previous_spin_temp, struct AstroParam
 	fclose(OutputFile);
 }
 
-void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *flag_options, struct AstroParams *astro_params)
+void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *flag_options, struct AstroParams *astro_params, double redshift)
 {
 	// Get globally averaged (not the box-averaged) Phi with reionisation feedback
 	// x_e_ave
@@ -553,7 +560,7 @@ void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *fl
 	z = previous_spin_temp->History_box[head];
 	mt = previous_spin_temp->History_box[head + 6];
 
-	if ((flag_options->USE_RADIO_MCG && flag_options->Calibrate_EoR_feedback) && ArchiveSize > 2)
+	if (((flag_options->USE_RADIO_MCG && flag_options->Calibrate_EoR_feedback) && ArchiveSize > 2) || (redshift > 33.0))
 	{
 		// don't do this for the first 2 snapshots, mturn info might be missed by io.c, effect on radio should be negligible
 		if (mt < 100.)
@@ -567,22 +574,55 @@ void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *fl
 
 		Phi = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mt, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
 
-		// printf("Phi for current z or zpp0 is not yet in history_box, so you should be careful if you use interpolation. Also m_turn may or may not be here\n");
 		Phi = Phi / (astro_params->t_STAR * pow(1. + z, astro_params->X_RAY_SPEC_INDEX + 1.0));
 	}
 	else
 	{
 		Phi = 0.;
 	}
-	Phi = Phi / (astro_params->t_STAR * pow(1. + z, astro_params->X_RAY_SPEC_INDEX + 1.0));
 	previous_spin_temp->History_box[head + 7] = Phi;
 }
 
-void Calibrate_EoR_feedback(double z, double x_e_ave, struct TsBox *this_spin_temp, struct TsBox *previous_spin_temp, struct FlagOptions *flag_options, struct AstroParams *astro_params)
+double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, struct FlagOptions *flag_options, double redshift, double Tr_ave, double xe_ave)
 {
-	// History is in previous_spin_temp, Tradio to be calibrated is in this_spin_temp
-	// Don't do this unless using radio_mcg
-	printf("Don't forget zcut while you do this, gradually transition to xe = 1");
-	printf("Refine T_radio is redudent\n");
-	int idx;
+
+	printf("there is a bit which couples Tr to Ts, think about this\n");
+
+	double zmin, zmax, dz, Phi_mini, z, Radio_Temp, Prefix, dT, weigh;
+	int nz, idx, ArchiveSize, head;
+
+	// leave some redundencies for z range to avoid range error
+	ArchiveSize = (int)round(this_spin_temp->History_box[0]);
+	zmax = this_spin_temp->History_box[1] - 0.1; // z_heat_max
+	head = (ArchiveSize - 1) * History_box_DIM + 1;
+	zmin = this_spin_temp->History_box[head] + 0.001;
+	nz = 1000;
+	dz = (zmax - zmin) / (((double)nz) - 1);
+
+	if (redshift > 33.0)
+	{
+		// either the box is empty or not important
+		Radio_Temp = Tr_ave;
+	}
+	else
+	{
+		Prefix = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR7_MINI) * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3 + astro_params->aR_mini);
+		Radio_Temp = 0.0;
+
+		for (idx = 0; idx < nz; idx++)
+		{
+			z = zmin + ((double)idx) * dz;
+			Phi_mini = History_box_Interp(this_spin_temp, z, 6);
+			Phi_mini = Phi_mini > 1e-50 ? Phi_mini : 0.;
+			dT = Prefix * Phi_mini * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR_mini) * dz;
+			if (z > astro_params->Radio_Zmin)
+			{
+				Radio_Temp += dT;
+			}
+		}
+		// Ensure a smooth transition, use calibrated result when xe >= 0.1
+		weigh = fmin(xe_ave / 0.1, 1.0);
+		Radio_Temp = (1 - weigh) * Tr_ave + weigh * Radio_Temp;
+	}
+	return Radio_Temp;
 }

@@ -985,6 +985,9 @@ def validate_all_inputs(
         )
 
     if flag_options is not None:
-        # Some requirements for excess radio background and Hawking radiation
+        # Some requirements for excess radio background
         if flag_options.USE_RADIO_MCG and not flag_options.USE_MINI_HALOS:
             raise ValueError("USE_RADIO_MCG requires USE_MINI_HALOS!")
+        if flag_options.Calibrate_EoR_feedback and not flag_options.USE_RADIO_MCG:
+            raise ValueError("Calibrate_EoR_feedback requires USE_RADIO_MCG!")
+    

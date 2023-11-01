@@ -56,7 +56,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
         // All these are variables for Radio Background
         double Radio_Temp, Radio_Temp_HMG, Radio_Fun, Trad_inv, zpp_max, Phi, Phi_mini, Radio_zpp, new_nu, Phi_ave, Phi_ave_mini, T_IGM_ave;
-        double Radio_Prefix_ACG, Radio_Prefix_MCG, Fill_Fraction, Radio_Temp_ave, dzpp_Rct0, zpp_Rct0, H_Rct0;
+        double Radio_Prefix_ACG, Radio_Prefix_MCG, Fill_Fraction, Radio_Temp_ave, dzpp_Rct0, zpp_Rct0, H_Rct0, Tr_EoR;
         int idx, ArchiveSize, head, phi_idx, tk_idx, phi3_idx, zpp_idx, Radio_Silent, m2_idx, m3_idx;
         FILE *OutputFile;
 
@@ -1514,7 +1514,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             } // end loop over R_ct filter steps
 
             // calibrating Phi_mini
-            Calibrate_Phi_mini(previous_spin_temp, flag_options, astro_params);
+            Calibrate_Phi_mini(previous_spin_temp, flag_options, astro_params, redshift);
 
             // Throw the time intensive full calculations into a multiprocessing loop to get them evaluated faster
             if (!user_params->USE_INTERPOLATION_TABLES)
@@ -2318,8 +2318,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                 }
 
                                 // update quantities
-                                x_e += dxe_dzp * dzp; // remember dzp is negative
-                                if (x_e > 1)          // can do this late in evolution if dzp is too large
+                                x_e += dxe_dzp * dzp;
+                                if (x_e > 1) // can do this late in evolution if dzp is too large
                                     x_e = 1 - FRACT_FLOAT_ERR;
                                 else if (x_e < 0)
                                     x_e = 0;
@@ -2426,7 +2426,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                 }
 
                                 x_e_ave += x_e;
-
                                 Radio_Temp_ave += Radio_Temp / ((double)HII_TOT_NUM_PIXELS);
                             }
                         }
@@ -2692,24 +2691,22 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             }
 
             // Caching averaged quantities
-            printf("MSG from sp.c: History_box size changed, check radio.h for interpolation, don't use mturn results at high z (give -1), check any codes that use History_box_Interp for mturns!!! \n");
             if (this_spin_temp->first_box)
             {
-                this_spin_temp->History_box[0] = 1.0; // ArchiveSize
+                this_spin_temp->History_box[0] = 1.0;                      // ArchiveSize
                 this_spin_temp->History_box[1] = global_params.Z_HEAT_MAX; // redshift
-                this_spin_temp->History_box[2] = 0.0; // Phi
-                this_spin_temp->History_box[3] = Tk_BC; // Tk
-                this_spin_temp->History_box[4] = 0.0; // Phi_mini
-                this_spin_temp->History_box[5] = zpp_for_evolve_list[0]; // zpp0
-                this_spin_temp->History_box[6] = 0.0; // mturn_II
-                this_spin_temp->History_box[7] = 0.0; // mturn_III
-                this_spin_temp->History_box[8] = 0.0; // Phi_mini_calibrated
-
+                this_spin_temp->History_box[2] = 0.0;                      // Phi
+                this_spin_temp->History_box[3] = Tk_BC;                    // Tk
+                this_spin_temp->History_box[4] = 0.0;                      // Phi_mini
+                this_spin_temp->History_box[5] = zpp_for_evolve_list[0];   // zpp0
+                this_spin_temp->History_box[6] = 0.0;                      // mturn_II
+                this_spin_temp->History_box[7] = 0.0;                      // mturn_III
+                this_spin_temp->History_box[8] = 0.0;                      // Phi_mini_calibrated
             }
             else
             {
                 this_spin_temp->History_box[0] = previous_spin_temp->History_box[0] + 1.0; // updating archive size
-                ArchiveSize = (int)round(this_spin_temp->History_box[0]); // remember that this is for current box, at least 2 by now
+                ArchiveSize = (int)round(this_spin_temp->History_box[0]);                  // remember that this is for current box, at least 2 by now
 
                 // Save results for this redshift
                 head = (ArchiveSize - 1) * History_box_DIM + 1;
@@ -2744,21 +2741,30 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                     // ---- box_test ----
                     Test_History_box_Interp(previous_spin_temp, astro_params, cosmo_params);
-                    
+
                     // ---- Nion for M_TURN ----
                     double ST_over_PS_tmp;
                     ST_over_PS_tmp = Nion_General(redshift, astro_params->M_TURN / 50.0, astro_params->M_TURN, astro_params->ALPHA_STAR, 0., astro_params->F_STAR10, 1., Mlim_Fstar, 0.);
                     OutputFile = fopen("ST_over_PS_tmp.txt", "a");
                     fprintf(OutputFile, "%f    %E\n", redshift, ST_over_PS_tmp);
                     fclose(OutputFile);
-                    
+
                     // ---- Nion for EoS mturn ----
                     if (redshift < 35.0)
                     {
                         Print_Nion_MINI(redshift, astro_params, flag_options);
                     }
                 }
+            }
 
+            if (flag_options->USE_RADIO_MCG && flag_options->Calibrate_EoR_feedback)
+            {
+                // Calibrating EoR feedback, coupling to Ts should be negligible by now since T21 would be dominated by xH
+                Tr_EoR = Get_EoR_Radio_mini(this_spin_temp, astro_params, cosmo_params, flag_options, redshift, Radio_Temp_ave, x_e_ave / (double)HII_TOT_NUM_PIXELS);
+                for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
+                {
+                    this_spin_temp->Trad_box[box_ct] = Tr_EoR * this_spin_temp->Trad_box[box_ct] / Radio_Temp_ave;
+                }
             }
 
             LOG_SUPER_DEBUG("finished loop");
