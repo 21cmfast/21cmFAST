@@ -484,6 +484,8 @@ class UserParams(StructWithDefaults):
     def USE_INTERPOLATION_TABLES(self):
         """Whether to use interpolation tables for integrals, speeding things up."""
         if self._USE_INTERPOLATION_TABLES is None:
+            '''
+            JSC: force-silence warnings
             warnings.warn(
                 "The USE_INTERPOLATION_TABLES setting has changed in v3.1.2 to be "
                 "default True. You can likely ignore this warning, but if you relied on"
@@ -491,6 +493,7 @@ class UserParams(StructWithDefaults):
                 "explicitly. To silence this warning, set it explicitly to True. This"
                 "warning will be removed in v4."
             )
+            '''
             self._USE_INTERPOLATION_TABLES = True
 
         return self._USE_INTERPOLATION_TABLES
