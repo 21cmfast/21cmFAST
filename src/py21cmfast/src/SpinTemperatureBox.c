@@ -1294,16 +1294,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                         }
                         log10_Mcrit_LW_ave /= (double)HII_TOT_NUM_PIXELS;
 
-                        if (Debug_Printer == 1)
-                        {
-                            if (R_ct == 0)
-                            {
-                                OutputFile = fopen("Mturn_Table_sp_tmp.txt", "a");
-                                fprintf(OutputFile, "%f    %E\n", zpp_for_evolve_list[0], log10_Mcrit_LW_ave);
-                                fclose(OutputFile);
-                            }
-                        }
-
                         log10_Mcrit_LW_ave_list[R_ct] = log10_Mcrit_LW_ave;
 
                         if (user_params->USE_INTERPOLATION_TABLES)
@@ -2716,45 +2706,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 this_spin_temp->History_box[head + 3] = Phi_ave_mini;
                 this_spin_temp->History_box[head + 4] = zpp_for_evolve_list[0];
 
-                if (Debug_Printer == 1)
-                {
-                    // ---- history_box ----
-                    remove("History_box_tmp.txt");
-                    OutputFile = fopen("History_box_tmp.txt", "a");
-                    fprintf(OutputFile, "     z           Phi            Tk          Phi_III       zpp[0]     mturn(ion.c)      mturn_III(ion.c) Phi_III_EoR\n");
-                    for (idx = 1; idx <= ArchiveSize; idx++)
-                    {
-                        head = (idx - 1) * History_box_DIM + 1;
-                        fprintf(OutputFile, "%f   ", this_spin_temp->History_box[head]);
-                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[head + 1]);
-                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[head + 2]);
-                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[head + 3]);
-                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[head + 4]);
-                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[head + 5]);
-                        fprintf(OutputFile, "%E   ", this_spin_temp->History_box[head + 6]);
-                        fprintf(OutputFile, "%E\n", this_spin_temp->History_box[head + 7]);
-                    }
-                    fclose(OutputFile);
-
-                    // ---- HMF ----
-                    Print_HMF(redshift, user_params);
-
-                    // ---- box_test ----
-                    Test_History_box_Interp(previous_spin_temp, astro_params, cosmo_params);
-
-                    // ---- Nion for M_TURN ----
-                    double ST_over_PS_tmp;
-                    ST_over_PS_tmp = Nion_General(redshift, astro_params->M_TURN / 50.0, astro_params->M_TURN, astro_params->ALPHA_STAR, 0., astro_params->F_STAR10, 1., Mlim_Fstar, 0.);
-                    OutputFile = fopen("ST_over_PS_tmp.txt", "a");
-                    fprintf(OutputFile, "%f    %E\n", redshift, ST_over_PS_tmp);
-                    fclose(OutputFile);
-
-                    // ---- Nion for EoS mturn ----
-                    if (redshift < 35.0)
-                    {
-                        Print_Nion_MINI(redshift, astro_params, flag_options);
-                    }
-                }
             }
 
             if (flag_options->USE_RADIO_MCG && flag_options->Calibrate_EoR_feedback)
