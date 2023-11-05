@@ -86,9 +86,9 @@ struct GlobalParams{
     float STOC_MASS_TOL;
     float HALO_MTURN_FACTOR;
     float HALO_SAMPLE_FACTOR;
-    int MAXHALO_FACTOR; //safety factor in halo arrays (accounts for imbalance and oversampling)
+    float MAXHALO_FACTOR; //safety factor in halo arrays (accounts for imbalance and oversampling)
     int N_MASS_INTERP;
-    int N_DELTA_INTERP;
+    int N_COND_INTERP;
     int N_PROB_INTERP;
     double MIN_LOGPROB;
     int SAMPLE_METHOD;
@@ -168,14 +168,14 @@ extern struct GlobalParams global_params = {
 
     .USE_FAST_ATOMIC = 0,
 
-    .STOC_MASS_TOL = 1.0,
+    .STOC_MASS_TOL = 5.0, //effectively infinite, mass tolerance semi-deprecated
     .HALO_SAMPLE_FACTOR = 2,
-    .HALO_MTURN_FACTOR = 32,
-    .MAXHALO_FACTOR = 2,
-    .N_MASS_INTERP = 500,
-    .N_DELTA_INTERP = 500,
-    .N_PROB_INTERP = 500,
-    .MIN_LOGPROB = -12,
+    .HALO_MTURN_FACTOR = 16,
+    .MAXHALO_FACTOR = 1.2,
+    .N_MASS_INTERP = 200,
+    .N_COND_INTERP = 200,
+    .N_PROB_INTERP = 200,
+    .MIN_LOGPROB = -16,
     .SAMPLE_METHOD = 0,
     
     .USE_ADIABATIC_FLUCTUATIONS = 1,

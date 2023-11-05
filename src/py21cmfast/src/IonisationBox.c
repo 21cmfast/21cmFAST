@@ -125,6 +125,7 @@ LOG_SUPER_DEBUG("defined parameters");
     }
     
     //escape fractions taken into account in halo field
+    //TODO: control this in a different way
     if(flag_options->USE_HALO_FIELD){
         ION_EFF_FACTOR = 1.;
         ION_EFF_FACTOR_MINI = 1.;
@@ -471,6 +472,10 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
                             }
 
                             Mcrit_LW = lyman_werner_threshold(redshift, spin_temp->J_21_LW_box[HII_R_INDEX(x, y, z)], curr_vcb, astro_params);
+                            if(Mcrit_LW != Mcrit_LW || Mcrit_LW == 0){
+                                LOG_ERROR("Mcrit error %d %d %d: M %.2e z %.2f J %.2e v %.2e",x,y,z,Mcrit_LW,redshift,spin_temp->J_21_LW_box[HII_R_INDEX(x, y, z)],curr_vcb);
+                                Throw(ValueError);
+                            }
 
                             //JBM: this only accounts for effect 3 (largest on minihaloes). Effects 1 and 2 affect both minihaloes (MCGs) and regular ACGs, but they're smaller ~10%. See Sec 2 of Muñoz+21 (2110.13919)
 
@@ -499,7 +504,7 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
             M_MIN           = global_params.M_MIN_INTEGRAL;
             Mlim_Fstar_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR7_MINI * pow(1e3,astro_params->ALPHA_STAR_MINI));
             Mlim_Fesc_MINI  = Mass_limit_bisection(M_MIN, 1e16, alpha_esc_var, astro_params->F_ESC7_MINI * pow(1e3, alpha_esc_var));
-LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
+            LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs", box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
         }
         else{
             M_MIN     = astro_params->M_TURN/50.;
@@ -1087,11 +1092,14 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 //The adjustment to the denominator is already done, no need for any more adjusments here
                                 density_over_mean = 1.0 + *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
-                                //Now this is F_esc weighted stellar mass density / baryon density == f_esc weighted fraction of stars
-                                //Should give photons / H atom when multiplied by ION_EFF_FACTOR
-                                Splined_Fcoll = *((float *)stars_filtered + HII_R_FFT_INDEX(x,y,z)) / (RHOcrit*cosmo_params->OMb*density_over_mean);
+                                //Ionising photon output
+                                Splined_Fcoll = *((float *)stars_filtered + HII_R_FFT_INDEX(x,y,z));
                                 //Minihalos are taken care of already
-                                Splined_Fcoll_MINI = 0;
+                                Splined_Fcoll_MINI = 0.;
+                                //The smoothing done with minihalos corrects for sudden changes in M_crit
+                                //Nion_smoothed(z,Mcrit) = Nion(z,Mcrit) + (Nion(z_prev,Mcrit_prev) - Nion(z_prev,Mcrit))
+                                prev_Splined_Fcoll = 0.;
+                                prev_Splined_Fcoll_MINI = 0.;
                             }
                             else {
 
@@ -1196,7 +1204,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             }
 
                             // save the value of the collasped fraction into the Fcoll array
-                            if (flag_options->USE_MINI_HALOS){
+                            if (flag_options->USE_MINI_HALOS && !flag_options->USE_HALO_FIELD){
                                 if (Splined_Fcoll > 1.) Splined_Fcoll = 1.;
                                 if (Splined_Fcoll < 0.) Splined_Fcoll = 1e-40;
                                 if (prev_Splined_Fcoll > 1.) prev_Splined_Fcoll = 1.;
@@ -1302,9 +1310,11 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                 ST_over_PS = box->mean_f_coll/f_coll;
                 ST_over_PS_MINI = box->mean_f_coll_MINI/f_coll_MINI;
             }
+            if(LAST_FILTER_STEP)
+                LOG_DEBUG("HMF CELL %d CORRECTION %.2e (MINI %.2e)",user_params->HMF,ST_over_PS,ST_over_PS_MINI);
 
-            Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * ION_EFF_FACTOR / 1.0e-12;
-            Gamma_R_prefactor_MINI = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * ION_EFF_FACTOR_MINI / 1.0e-12;
+            Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
+            Gamma_R_prefactor_MINI = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR_MINI / 1.0e-12;
             if(flag_options->PHOTON_CONS) {
                 // Used for recombinations, which means we want to use the original redshift not the adjusted redshift
                 Gamma_R_prefactor *= pow(1+stored_redshift, 2);
@@ -1318,14 +1328,15 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             //With the halo field, we use the filtered, f_esc and N_ion weighted star formation rate, which should be equivalent to
             // `Fcoll` * OMb * RHOcrit * (1+delta) in the no halo field case. we also need a factor of 1/(1+delta) later on
             // to match that in the recombination (`Fcoll` is effectively fesc*star per baryon, whereas the filtered grids are fesc*SFRD)
-            if(!flag_options->USE_HALO_FIELD){
-                //Minihalos already included
-                Gamma_R_prefactor *= N_b0 / t_ast;
-                Gamma_R_prefactor_MINI = 0.;
+            //So the halo option needs an extra density term and the nonhalo option needs the SFR term
+            if(flag_options->USE_HALO_FIELD){
+                Gamma_R_prefactor /= RHOcrit * cosmo_params->OMb;
+                Gamma_R_prefactor_MINI /= RHOcrit * cosmo_params->OMb;
             }
             else{
-                Gamma_R_prefactor *= Msun/(CMperMPC*CMperMPC*CMperMPC) / m_p;
-                Gamma_R_prefactor_MINI *= Msun/(CMperMPC*CMperMPC*CMperMPC) / m_p;
+                //Minihalos already included
+                Gamma_R_prefactor /= t_ast;
+                Gamma_R_prefactor_MINI /= t_ast;
             }
 
             if (global_params.FIND_BUBBLE_ALGORITHM != 2 && global_params.FIND_BUBBLE_ALGORITHM != 1) { // center method
@@ -1349,6 +1360,12 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
                             Splined_Fcoll = box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
+
+                            //Since the halo boxes give ionising photon output, this term accounts for the local density of absorbers
+                            //  We have separated the source/absorber filtering in the halo model so this is necessary
+                            if(flag_options->USE_HALO_FIELD){
+                                Splined_Fcoll *= 1 / (RHOcrit*cosmo_params->OMb*curr_dens);
+                            }
 
                             f_coll = ST_over_PS * Splined_Fcoll;
 

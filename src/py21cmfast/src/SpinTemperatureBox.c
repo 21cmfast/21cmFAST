@@ -2871,7 +2871,7 @@ void calculate_spectral_factors(double zp){
         
         if(flag_options_ts->USE_MINI_HALOS){
             dstarlya_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyn_val_MINI;
-            dstarlyLW_dt_prefactor[R_ct]  = zpp_integrand * sum_lyLW_val;
+            dstarlyLW_dt_prefactor[R_ct] = zpp_integrand * sum_lyLW_val;
             dstarlyLW_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyLW_val_MINI;
             
             LOG_SUPER_DEBUG("starmini: %.2e LW: %.2e LWmini: %.2e",dstarlya_dt_prefactor_MINI[R_ct],
@@ -2984,6 +2984,7 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
             LOG_DEBUG("starting XraySourceBox");
         }
         double fsfr_avg = 0;
+        double fsfr_avg_mini = 0;
 
     #pragma omp parallel private(i,j,k) num_threads(user_params->N_THREADS)
         {
@@ -3039,12 +3040,14 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
                     for (k=0;k<user_params->HII_DIM; k++){
                         curr = *((float *)filtered_box + HII_R_FFT_INDEX(i,j,k));
                         curr_mini = *((float *)filtered_box_mini + HII_R_FFT_INDEX(i,j,k));
-                        if (curr < 0.){ // correct for aliasing in the filtering step
-                            curr = 0.;
-                        }
+                        // correct for aliasing in the filtering step
+                        if(curr < 0.) curr = 0.;
+                        if(curr_mini < 0.) curr_mini = 0.;
+
                         source_box->filtered_sfr[R_ct * HII_TOT_NUM_PIXELS + HII_R_INDEX(i,j,k)] = curr;
                         source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS + HII_R_INDEX(i,j,k)] = curr_mini;
                         fsfr_avg += curr;
+                        fsfr_avg_mini += curr_mini;
                     }
                 }
             }
@@ -3052,7 +3055,7 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
         if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1){
             LOG_DEBUG("finished XraySourceBox");
         }
-        LOG_SUPER_DEBUG("R = %8.3f | mean sfr = %10.3e",R_outer,fsfr_avg/HII_TOT_NUM_PIXELS);
+        LOG_SUPER_DEBUG("R = %8.3f | mean sfr = %10.3e (%10.3e MINI)",R_outer,fsfr_avg/HII_TOT_NUM_PIXELS,fsfr_avg_mini/HII_TOT_NUM_PIXELS);
         
         fftwf_free(filtered_box);
         fftwf_free(unfiltered_box);
@@ -3203,6 +3206,7 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
         zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0); //global
 
         //We need the talbes for the frequency integrals and debug messages
+        //I initialise here because this function WILL host the global mean calcualtions later on
         LOG_DEBUG("initing Nion spline from %.2f to %.2f",determine_zpp_min,determine_zpp_max);
         if(flag_options_ts->USE_MINI_HALOS){
             initialise_Nion_Ts_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
@@ -3226,7 +3230,6 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
             sum_Nion += halo_box->n_ion[box_ct];
             if(LOG_LEVEL>=DEBUG_LEVEL){
                 sum_sfr += halo_box->halo_sfr[box_ct];
-                sum_mass += halo_box->halo_mass[box_ct];
             }
         }
     }
@@ -3235,26 +3238,6 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
     //Q is only used without MASS_DEPENDENT_ZETA, else Nion_general / interpolation tables are called for each zhat in [zp,zpp]
     //TODO: Change this in the frequency integrals
     *Q_HI = Q;
-
-    //these are just checks to make sure our global properties are correct
-    //TODO: change to complier flags
-    if(LOG_LEVEL>=DEBUG_LEVEL){
-        M_MIN = minimum_source_mass(zp,astro_params_ts,flag_options_ts);
-        wstar_global = Nion_General(zp, M_MIN, astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_ESC,
-                            astro_params_ts->F_STAR10, astro_params_ts->F_ESC10, Mlim_Fstar, Mlim_Fesc);
-    
-        eff_global = global_params.Pop2_ion * astro_params_ts->F_STAR10 * astro_params_ts->F_ESC10;
-
-        //1 - Nion / Mass
-        LOG_DEBUG("N(halo) = %.3e | N(global) = %.3e",sum_Nion,eff_global*wstar_global*tot_mass);
-
-        //SFR / Mass
-        sfr_global = astro_params_ts->F_STAR10 * Nion_General(zp, M_MIN, astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, 0., astro_params_ts->F_STAR10, 1.,Mlim_Fstar,0.) * hubble(zp) / astro_params_ts->t_STAR;
-        LOG_DEBUG("SFR(halo) = %.3e | SFR(global) = %.3e",sum_sfr,sfr_global*tot_mass);
-
-        mass_global = IntegratedNdM(dicke(zp),log(M_MIN),log(global_params.M_MAX_INTEGRAL),log(global_params.M_MAX_INTEGRAL),0,1,user_params_ts->HMF,0) * pow(user_params_ts->BOX_LEN,3);
-        LOG_DEBUG("Mass(halo) = %.3e | Mass(global) %.3e",sum_mass,mass_global);
-    }
 
     return sum_Nion > 1e-15 ? 0 : 1; //NO_LIGHT returned
 }
@@ -3426,6 +3409,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     double z_edge_factor, dzpp_for_evolve, zpp, xray_R_factor;
     double J_alpha_ave,xalpha_ave,xheat_ave,xion_ave,Ts_ave,Tk_ave,x_e_ave;
     J_alpha_ave=xalpha_ave=xheat_ave=xion_ave=Ts_ave=Tk_ave=x_e_ave=0;
+    double J_LW_ave=0.;
 
     for(R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
         dzpp_for_evolve = dzpp_list[R_ct];
@@ -3440,12 +3424,13 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             //private variables
             int xidx;
             double ival, sfr_term, xray_sfr, curr_delta, x_e, T;
-            double dxion_sink_dt, dxe_dzp, dadia_dzp, dspec_dzp;
-            double dcomp_dzp, dxheat_dzp, J_alpha_tot, T_inv, T_inv_sq;
+            double dxion_sink_dt, dxe_dzp, dadia_dzp, dspec_dzp, dCMBheat_dzp;
+            double dcomp_dzp, dxheat_dzp, J_alpha_tot, J_LW_tot, T_inv, T_inv_sq;
             double xc_fast, xi_power, xa_tilde_fast_arg;
             double TS_fast, TSold_fast, xa_tilde_fast;
             double sfr_term_mini=0.,starlya_factor_mini=0.;
             double tau21, xCMB, prev_Ts;
+            double density_term;
 
             int print_count = 0;
 
@@ -3480,6 +3465,9 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     x_e = previous_spin_temp->x_e_box[box_ct];
                     T = previous_spin_temp->Tk_box[box_ct];
                     prev_Ts = previous_spin_temp->Ts_box[box_ct];
+                    
+                    //In the halo model the filtered sfr is supplied, we need the ratio of absorbers
+                    density_term = 1 / (RHOcrit*cosmo_params->OMb*curr_dens);
 
                     //this corrected for aliasing before, but sometimes there are still some delta==-1 cells
                     //which breaks the adiabatic part, TODO: check out the perturbed field calculations to find out why
@@ -3488,12 +3476,12 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     }
 
                     // add prefactors
-                    dxheat_dt_box[box_ct] *= xray_prefactor * volunit_inv;
-                    dxion_source_dt_box[box_ct] *= xray_prefactor * volunit_inv;
-                    dxlya_dt_box[box_ct] *= xray_prefactor * volunit_inv * Nb_zp * (1+curr_delta); //1+delta from downscattering absorbers
-                    dstarlya_dt_box[box_ct] *= lya_star_prefactor * volunit_inv;
+                    dxheat_dt_box[box_ct] *= xray_prefactor * volunit_inv * density_term;
+                    dxion_source_dt_box[box_ct] *= xray_prefactor * volunit_inv * density_term;
+                    dxlya_dt_box[box_ct] *= xray_prefactor * volunit_inv * Nb_zp * (1+curr_delta) * density_term; //2 density terms from downscattering absorbers
+                    dstarlya_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * density_term;
                     if(flag_options->USE_MINI_HALOS){
-                        dstarlyLW_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * hplank * 1e21;
+                        dstarlyLW_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * hplank * 1e21 * density_term;
                     }
 
                     /*if(print_count<5){
@@ -3529,6 +3517,13 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 
                     // lastly, X-ray heating
                     dxheat_dzp = dxheat_dt_box[box_ct] * dt_dzp * 2.0 / 3.0 / k_B / (1.0+x_e);
+                    //next, CMB heating rate
+                    dCMBheat_dzp = 0.;
+                    if (flag_options->USE_CMB_HEATING) {
+                        //Meiksin et al. 2021
+                        eps_CMB = (3./4.) * (T_cmb*(1.+zp)/T21) * A10_HYPERFINE * f_H * (hplank*hplank/Lambda_21/Lambda_21/m_p) * (1.+2.*T/T21);
+                        dCMBheat_dzp = 	-eps_CMB * (2./3./k_B/(1.+x_e))/hubble(zp)/(1.+zp);
+                    }
 
                     //update quantities
                     x_e += ( dxe_dzp ) * dzp; // remember dzp is negative
@@ -3537,7 +3532,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     else if (x_e < 0)
                         x_e = 0;
                     if (T < MAX_TK) {
-                            T += ( dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp ) * dzp;
+                            T += ( dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp + dCMBheat_dzp ) * dzp;
                     }
 
                     if (T<0){ // spurious bahaviour of the trapazoidalintegrator. generally overcooling in underdensities
@@ -3548,8 +3543,10 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     this_spin_temp->Tk_box[box_ct] = T;
 
                     J_alpha_tot = ( dxlya_dt_box[box_ct] + dstarlya_dt_box[box_ct] ); //not really d/dz, but the lya flux
-                    if(flag_options->USE_MINI_HALOS)
-                        this_spin_temp->J_21_LW_box[box_ct] = dstarlyLW_dt_box[box_ct];
+                    if(flag_options->USE_MINI_HALOS){
+                        J_LW_tot = dstarlyLW_dt_box[box_ct];
+                        this_spin_temp->J_21_LW_box[box_ct] = J_LW_tot;
+                    }
 
                     // Note: to make the code run faster, the get_Ts function call to evaluate the spin temperature was replaced with the code below.
                     // Algorithm is the same, but written to be more computationally efficient
@@ -3572,14 +3569,13 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                             xa_tilde_fast = ( 1.0 - 0.0631789*T_inv + 0.115995*T_inv_sq - \
                                             0.401403*T_inv*pow(TS_fast,-1.) + 0.336463*T_inv_sq*pow(TS_fast,-1.) )*xa_tilde_fast_arg;
 
-                            TS_fast = (1.0+xa_tilde_fast+xc_fast)*pow(Trad_fast_inv+xa_tilde_fast*\
+                            TS_fast = (xCMB+xa_tilde_fast+xc_fast)*pow(xCMB*Trad_fast_inv+xa_tilde_fast*\
                                                 ( T_inv + 0.405535*T_inv*pow(TS_fast,-1.) - 0.405535*T_inv_sq ) + xc_fast*T_inv,-1.);
                         }
                     } else { // Collisions only
-                        TS_fast = (1.0 + xc_fast)/(Trad_fast_inv + xc_fast*T_inv);
+                        TS_fast = (xCMB + xc_fast)/(xCMB*Trad_fast_inv + xc_fast*T_inv);
                         xa_tilde_fast = 0.0;
                     }
-
                     if(TS_fast < 0.) {
                         // It can very rarely result in a negative spin temperature. If negative, it is a very small number.
                         // Take the absolute value, the optical depth can deal with very large numbers, so ok to be small
@@ -3595,12 +3591,12 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                         xion_ave += ( dt_dzp*dxion_source_dt_box[box_ct] );
                         Ts_ave += TS_fast;
                         Tk_ave += T;
+                        J_LW_ave += J_LW_tot;
                     }
                     x_e_ave += x_e;
                 }
             }
         }
-
     }
 
     if(LOG_LEVEL >= DEBUG_LEVEL){
@@ -3612,8 +3608,13 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         xalpha_ave /= (double)HII_TOT_NUM_PIXELS;
         xheat_ave /= (double)HII_TOT_NUM_PIXELS;
         xion_ave /= (double)HII_TOT_NUM_PIXELS;
-            LOG_DEBUG("zp = %.2e Ts_ave = %.2e x_e_ave = %.2e Tk_ave = %.2e J_alpha_ave = %.2e xalpha_ave = %e xheat_ave = %.2e xion_ave = %.2e"
-                ,zp,Ts_ave,x_e_ave,Tk_ave,J_alpha_ave,xalpha_ave,xheat_ave,xion_ave);
+        
+        LOG_DEBUG("AVERAGES zp = %.2e Ts = %.2e x_e = %.2e Tk %.2e",zp,Ts_ave,x_e_ave,Tk_ave);
+        LOG_DEBUG("J_alpha = %.2e xalpha = %e xheat = %.2e xion = %.2e",J_alpha_ave,xalpha_ave,xheat_ave,xion_ave);
+        if (flag_options->USE_MINI_HALOS){
+            J_LW_ave /= (double)HII_TOT_NUM_PIXELS;
+            LOG_DEBUG("J_LW %.2e",J_LW_ave/1e21);
+        }
     }
 
     for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){

@@ -2958,7 +2958,9 @@ def run_coeval(
                         hooks=hooks,
                         direc=direc,
                     )
+                    logger.info('Debug halofield done')
                     halos_desc = halos
+                    logger.info('Debug starting perturb')
                     pt_halos += [perturb_halo_list(
                         redshift=z,
                         init_boxes=init_box,
