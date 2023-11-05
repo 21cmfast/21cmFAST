@@ -1,4 +1,6 @@
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
+#define DEBUG_PRINT_MTURNS 1
+
 int INIT_ERFC_INTERPOLATION = 1;
 int INIT_RECOMBINATIONS = 1;
 
@@ -520,8 +522,22 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 Mturnover = pow(10., box->log10_Mturnover_ave);
                 Mturnover_MINI = pow(10., box->log10_Mturnover_MINI_ave);
 
+                if (DEBUG_PRINT_MTURNS == 1)
+                {
+                    FILE *OutputFile;
+                    // Yell to ensure that the user does not forget this, e.g. when running mcmc
+                    printf("------------------------------------------------ DEBUG_PRINTER activated ------------------------------------------------\n");
+                    OutputFile = fopen("Mturns_IO_tmp.txt", "w");
+                    if (spin_temp->first_box)
+                    {
+                        fprintf(OutputFile, "z    mt    mt3    matom\n");
+                    }
+                    fprintf(OutputFile, "%.3f    %.4E    %.4E    %.4E\n", redshift, Mturnover, Mturnover_MINI, atomic_cooling_threshold(redshift));
+                    fclose(OutputFile);
+                }
+
                 // saving m_turns to history box, this spin_box is then passed to spin.c as prev_box
-                if (flag_options->Calibrate_EoR_feedback && (! spin_temp->first_box))
+                if (flag_options->Calibrate_EoR_feedback && (!spin_temp->first_box))
                 {
                     /* why add !spin_temp->first_box
                     isolated p21c call works ok on mac and cluster, mpi tests also went ok on mac but leads to malloc error on cluster

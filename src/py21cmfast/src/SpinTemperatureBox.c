@@ -1294,6 +1294,15 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                             }
                         }
                         log10_Mcrit_LW_ave /= (double)HII_TOT_NUM_PIXELS;
+                        if (Debug_Printer == 1)
+                        {
+                            if (R_ct == 0)
+                            {
+                                OutputFile = fopen("Mturns_SP_tmp.txt", "a");
+                                fprintf(OutputFile, "%f    %E\n", zpp_for_evolve_list[0], log10_Mcrit_LW_ave);
+                                fclose(OutputFile);
+                            }
+                        }
 
                         log10_Mcrit_LW_ave_list[R_ct] = log10_Mcrit_LW_ave;
 
@@ -2717,6 +2726,63 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 {
                     this_spin_temp->Trad_box[box_ct] = Tr_EoR * this_spin_temp->Trad_box[box_ct] / Radio_Temp_ave;
                     this_spin_temp->SFRD_MINI_box[box_ct] = SFRD_EoR_MINI * this_spin_temp->SFRD_MINI_box[box_ct] / SFRD_MINI_ave;
+                }
+            }
+
+            if (Debug_Printer == 1)
+            {
+                // Yell to ensure that the user does not forget this, e.g. when running mcmc
+                printf("------------------------------------------------ DEBUG_PRINTER activated ------------------------------------------------\n");
+
+                // ---- history_box ----
+                double z_debug, Phi_debug;
+                ArchiveSize = (int)round(this_spin_temp->History_box[0]);
+                remove("History_box_tmp.txt");
+                OutputFile = fopen("History_box_tmp.txt", "a");
+                fprintf(OutputFile, "   z       Phi          Tk          Phi3       zpp[0]     mt(io.c)   mt3(io.c)   Phi3_EoR       SFRD      SFRD3      SFRD3_EoR\n");
+                for (idx = 1; idx <= ArchiveSize; idx++)
+                {
+                    head = (idx - 1) * History_box_DIM + 1;
+                    fprintf(OutputFile, "%.3f   ", this_spin_temp->History_box[head]);
+                    fprintf(OutputFile, "%.3E   ", this_spin_temp->History_box[head + 1]);
+                    fprintf(OutputFile, "%.3E   ", this_spin_temp->History_box[head + 2]);
+                    fprintf(OutputFile, "%.3E   ", this_spin_temp->History_box[head + 3]);
+                    fprintf(OutputFile, "%.3E   ", this_spin_temp->History_box[head + 4]);
+                    fprintf(OutputFile, "%.3E   ", this_spin_temp->History_box[head + 5]);
+                    fprintf(OutputFile, "%.3E   ", this_spin_temp->History_box[head + 6]);
+                    fprintf(OutputFile, "%.3E   ", this_spin_temp->History_box[head + 7]);
+
+                    z_debug = this_spin_temp->History_box[head + 4];
+
+                    Phi_debug = this_spin_temp->History_box[head + 1];
+                    fprintf(OutputFile, "%.3E   ", Phi_2_SFRD(Phi_debug, z_debug, hubble(z_debug), astro_params, cosmo_params, 0));
+
+                    Phi_debug = this_spin_temp->History_box[head + 3];
+                    fprintf(OutputFile, "%.3E   ", Phi_2_SFRD(Phi_debug, z_debug, hubble(z_debug), astro_params, cosmo_params, 1));
+
+                    z_debug = this_spin_temp->History_box[head];
+                    Phi_debug = this_spin_temp->History_box[head + 7];
+                    fprintf(OutputFile, "%.3E\n", Phi_2_SFRD(Phi_debug, z_debug, hubble(z_debug), astro_params, cosmo_params, 1));
+                }
+                fclose(OutputFile);
+
+                // ---- HMF ----
+                Print_HMF(redshift, user_params);
+
+                // ---- box_test ----
+                Test_History_box_Interp(previous_spin_temp, astro_params, cosmo_params);
+
+                // ---- Nion for M_TURN ----
+                double ST_over_PS_tmp;
+                ST_over_PS_tmp = Nion_General(redshift, astro_params->M_TURN / 50.0, astro_params->M_TURN, astro_params->ALPHA_STAR, 0., astro_params->F_STAR10, 1., Mlim_Fstar, 0.);
+                OutputFile = fopen("ST_over_PS_tmp.txt", "a");
+                fprintf(OutputFile, "%f    %E\n", redshift, ST_over_PS_tmp);
+                fclose(OutputFile);
+
+                // ---- Nion for EoS mturn ----
+                if (redshift < 35.0)
+                {
+                    Print_Nion_MINI(redshift, astro_params, flag_options);
                 }
             }
 
