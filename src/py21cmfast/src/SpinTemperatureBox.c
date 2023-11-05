@@ -1503,6 +1503,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 }
 
             } // end loop over R_ct filter steps
+            Calibrate_Phi_mini(previous_spin_temp, flag_options, astro_params, redshift);
 
             // Throw the time intensive full calculations into a multiprocessing loop to get them evaluated faster
             if (!user_params->USE_INTERPOLATION_TABLES)
@@ -2707,7 +2708,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             if (flag_options->Calibrate_EoR_feedback)
             {
                 // Calibrating EoR feedback, coupling to Ts should be negligible by now since T21 would be dominated by xH
-                Calibrate_Phi_mini(previous_spin_temp, flag_options, astro_params, redshift);
                 Tr_EoR = Get_EoR_Radio_mini(this_spin_temp, astro_params, cosmo_params, flag_options, redshift, Radio_Temp_ave, x_e_ave / (double)HII_TOT_NUM_PIXELS);
                 SFRD_EoR_MINI = Get_SFRD_EoR_MINI(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, x_e_ave / (double)HII_TOT_NUM_PIXELS, zpp_Rct0);
                 SFRD_MINI_ave = Phi_2_SFRD(Phi_ave_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);

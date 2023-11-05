@@ -1,7 +1,7 @@
 // Things needed for Radio excess
 
 // nu0 is degenerate with fR so no reason to leave this as a param
-#define astro_nu0 0.15 // in GHz
+#define astro_nu0 0.15	   // in GHz
 #define History_box_DIM 20 // number of quantities to be saved in History_box
 
 int Find_Index(double *x_axis, double x, int nx)
@@ -410,14 +410,12 @@ void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *fl
 	double mt, mc, Mlim_Fstar_MINI, Phi, z;
 	ArchiveSize = (int)round(previous_spin_temp->History_box[0]);
 	head = (ArchiveSize - 1) * History_box_DIM + 1;
-	z = previous_spin_temp->History_box[head];
-	mt = previous_spin_temp->History_box[head + 6];
-
 	// if ((flag_options->Calibrate_EoR_feedback && ArchiveSize > 2) || (redshift > 33.0))
-
 	if ((flag_options->Calibrate_EoR_feedback && ArchiveSize > 2) && (redshift < 33.0))
 	{
 		// printf("why redshift > 33 in earlier version?\n");
+		z = previous_spin_temp->History_box[head];
+		mt = previous_spin_temp->History_box[head + 6];
 		mc = atomic_cooling_threshold(z);
 		Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
 											   astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
