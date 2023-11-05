@@ -1147,6 +1147,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     }
                     else
                     {
+
                         Splined_Fcollzp_mean_MINI = Nion_General_MINI(zp, global_params.M_MIN_INTEGRAL, pow(10., log10_Mcrit_LW_ave), atomic_cooling_threshold(zp),
                                                                       astro_params->ALPHA_STAR_MINI, astro_params->ALPHA_ESC, astro_params->F_STAR7_MINI,
                                                                       astro_params->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
@@ -1502,9 +1503,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 }
 
             } // end loop over R_ct filter steps
-
-            // calibrating Phi_mini
-            Calibrate_Phi_mini(previous_spin_temp, flag_options, astro_params, redshift);
 
             // Throw the time intensive full calculations into a multiprocessing loop to get them evaluated faster
             if (!user_params->USE_INTERPOLATION_TABLES)
@@ -2242,7 +2240,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                             {
 
                                 Refine_T_Radio(previous_spin_temp, this_spin_temp, prev_redshift, redshift, astro_params, flag_options);
-                                // Calibrate_EoR_feedback(redshift, x_e_ave, this_spin_temp, previous_spin_temp, flag_options, astro_params);
                                 Radio_Temp = this_spin_temp->Trad_box[box_ct];
 
                                 // Note here, that by construction it doesn't matter if using MINIMIZE_MEMORY as only need the R_ct = 0 box
@@ -2689,8 +2686,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 this_spin_temp->History_box[3] = Tk_BC;                    // Tk
                 this_spin_temp->History_box[4] = 0.0;                      // Phi_mini
                 this_spin_temp->History_box[5] = zpp_for_evolve_list[0];   // zpp0
-                this_spin_temp->History_box[6] = 0.0;                      // mturn_II
-                this_spin_temp->History_box[7] = 0.0;                      // mturn_III
+                this_spin_temp->History_box[6] = 1.0e20;                   // mturn_II
+                this_spin_temp->History_box[7] = 1.0e20;                   // mturn_III
                 this_spin_temp->History_box[8] = 0.0;                      // Phi_mini_calibrated
             }
             else
@@ -2705,16 +2702,16 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 this_spin_temp->History_box[head + 2] = T_IGM_ave;
                 this_spin_temp->History_box[head + 3] = Phi_ave_mini;
                 this_spin_temp->History_box[head + 4] = zpp_for_evolve_list[0];
-
             }
 
-            if (flag_options->USE_RADIO_MCG && flag_options->Calibrate_EoR_feedback)
+            if (flag_options->Calibrate_EoR_feedback)
             {
                 // Calibrating EoR feedback, coupling to Ts should be negligible by now since T21 would be dominated by xH
+                Calibrate_Phi_mini(previous_spin_temp, flag_options, astro_params, redshift);
                 Tr_EoR = Get_EoR_Radio_mini(this_spin_temp, astro_params, cosmo_params, flag_options, redshift, Radio_Temp_ave, x_e_ave / (double)HII_TOT_NUM_PIXELS);
                 SFRD_EoR_MINI = Get_SFRD_EoR_MINI(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, x_e_ave / (double)HII_TOT_NUM_PIXELS, zpp_Rct0);
                 SFRD_MINI_ave = Phi_2_SFRD(Phi_ave_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
-                SFRD_MINI_ave = SFRD_MINI_ave > 1e-200? SFRD_MINI_ave : 1e-200; // avoid nan in divide
+                SFRD_MINI_ave = SFRD_MINI_ave > 1e-200 ? SFRD_MINI_ave : 1e-200; // avoid nan in divide
 
                 for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
                 {

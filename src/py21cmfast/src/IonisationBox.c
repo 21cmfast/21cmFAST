@@ -75,7 +75,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
         int something_finite_or_infinite = 0;
         int log10_Mturnover_MINI_int, log10_Mturnover_int;
         int *overdense_int_boundexceeded_threaded = calloc(user_params->N_THREADS, sizeof(int));
-        
+
         if (user_params->USE_INTERPOLATION_TABLES)
         {
             overdense_large_min = global_params.CRIT_DENS_TRANSITION * 0.999;
@@ -521,19 +521,28 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 Mturnover_MINI = pow(10., box->log10_Mturnover_MINI_ave);
 
                 // saving m_turns to history box, this spin_box is then passed to spin.c as prev_box
-                ArchiveSize = (int)round(spin_temp->History_box[0]);
-                head = (ArchiveSize - 1) * History_box_LEN + 1;
-                if (ArchiveSize > 1)
+                if (flag_options->Calibrate_EoR_feedback && (! spin_temp->first_box))
                 {
-                    // Only save usable info when History_box has been initialised/filled at least once
-                    spin_temp->History_box[head + 5] = Mturnover;
-                    spin_temp->History_box[head + 6] = Mturnover_MINI;
-                }
-                else
-                {
-                    // Maybe History_box has not been initialised, this should give near 0 SFRD but still try not to use this
-                    spin_temp->History_box[head + 5] = 1.0E20;
-                    spin_temp->History_box[head + 6] = 1.0E20;
+                    /* why add !spin_temp->first_box
+                    isolated p21c call works ok on mac and cluster, mpi tests also went ok on mac but leads to malloc error on cluster
+                    but maybe things work differently on HPC, one reason I can think of is that at the first box, History_box has not been initialised
+                    so don't try to acess anything if first_box==1
+                    */
+
+                    ArchiveSize = (int)round(spin_temp->History_box[0]);
+                    head = (ArchiveSize - 1) * History_box_LEN + 1;
+                    if (ArchiveSize > 1)
+                    {
+                        // Only save usable info when History_box has been initialised/filled at least once
+                        spin_temp->History_box[head + 5] = Mturnover;
+                        spin_temp->History_box[head + 6] = Mturnover_MINI;
+                    }
+                    else
+                    {
+                        // Maybe History_box has not been initialised, this should give near 0 SFRD but still try not to use this
+                        spin_temp->History_box[head + 5] = 1.0E20;
+                        spin_temp->History_box[head + 6] = 1.0E20;
+                    }
                 }
 
                 M_MIN = global_params.M_MIN_INTEGRAL;

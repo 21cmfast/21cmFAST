@@ -433,20 +433,20 @@ class TsBox(_AllParamsBox):
             raise AttributeError("Something went wrong, maybe Trad not computed?")
         else:
             return np.mean(self.Trad_box)
-
+    
     @cached_property
     def global_SFRD(self):
-        """Global SFRD."""
+        """Global SFRD"""
         if "SFRD_box" not in self._computed_arrays:
-            raise AttributeError("Something went wrong, maybe Trad not computed?")
+            raise AttributeError("Something went wrong, maybe SFRD_box not computed?")
         else:
             return np.mean(self.SFRD_box)
-
+        
     @cached_property
     def global_SFRD_MINI(self):
         """Global SFRD_MINI."""
         if "SFRD_MINI_box" not in self._computed_arrays:
-            raise AttributeError("Something went wrong, maybe Trad not computed?")
+            raise AttributeError("Something went wrong, maybe SFRD_MINI_box not computed?")
         else:
             return np.mean(self.SFRD_MINI_box)
 

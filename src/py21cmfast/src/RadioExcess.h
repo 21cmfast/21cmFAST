@@ -1,11 +1,8 @@
 // Things needed for Radio excess
 
 // nu0 is degenerate with fR so no reason to leave this as a param
-#define astro_nu0 0.15	   // in GHz
+#define astro_nu0 0.15 // in GHz
 #define History_box_DIM 20 // number of quantities to be saved in History_box
-
-// Print debug info array to a file, info contains: History_box, Gas Temp
-#define Debug_Printer 0
 
 int Find_Index(double *x_axis, double x, int nx)
 {
@@ -403,12 +400,12 @@ float Phi_2_SFRD(double Phi, double z, double H, struct AstroParams *astro_param
 	return SFRD;
 }
 
-
 void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *flag_options, struct AstroParams *astro_params, double redshift)
 {
 	// Get globally averaged (not the box-averaged) Phi with reionisation feedback
 	// x_e_ave
 	// don't need to update if not using radio MCG or flag->calibrate == 0
+
 	int ArchiveSize, head;
 	double mt, mc, Mlim_Fstar_MINI, Phi, z;
 	ArchiveSize = (int)round(previous_spin_temp->History_box[0]);
@@ -416,12 +413,14 @@ void Calibrate_Phi_mini(struct TsBox *previous_spin_temp, struct FlagOptions *fl
 	z = previous_spin_temp->History_box[head];
 	mt = previous_spin_temp->History_box[head + 6];
 
-	if ((flag_options->Calibrate_EoR_feedback && ArchiveSize > 2) || (redshift > 33.0))
+	// if ((flag_options->Calibrate_EoR_feedback && ArchiveSize > 2) || (redshift > 33.0))
+
+	if ((flag_options->Calibrate_EoR_feedback && ArchiveSize > 2) && (redshift < 33.0))
 	{
+		// printf("why redshift > 33 in earlier version?\n");
 		mc = atomic_cooling_threshold(z);
 		Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
 											   astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
-
 		Phi = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mt, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
 
 		Phi = Phi / (astro_params->t_STAR * pow(1. + z, astro_params->X_RAY_SPEC_INDEX + 1.0));
@@ -473,9 +472,8 @@ double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astr
 		// weigh = fmin(xe_ave / 0.1, 1.0);
 		// weigh = 1.0;
 
-		weigh = redshift < 15? fmin(15 - redshift, 1) : 0;
+		weigh = redshift < 15 ? fmin(15 - redshift, 1) : 0;
 		Radio_Temp = (1 - weigh) * Tr_ave + weigh * Radio_Temp;
-
 	}
 	return Radio_Temp;
 }
@@ -500,10 +498,10 @@ double Get_SFRD_EoR_MINI(struct TsBox *previous_spin_temp, struct TsBox *this_sp
 	ArchiveSize = (int)round(this_spin_temp->History_box[0]);
 	head = (ArchiveSize - 1) * History_box_DIM + 1;
 	Phi_old = this_spin_temp->History_box[head + 3];
-	
+
 	// weigh = fmin(xe_ave / 0.04, 1.0);
-	weigh = 1.0;
-	
+	weigh = redshift < 15 ? fmin(15 - redshift, 1) : 0;
+
 	Phi_ave = (1 - weigh) * Phi_old + weigh * Phi_EoR;
 	H = hubble(redshift);
 
