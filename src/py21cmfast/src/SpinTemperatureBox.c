@@ -2638,7 +2638,7 @@ void Broadcast_struct_global_TS(struct UserParams *user_params, struct CosmoPara
 
 void alloc_global_arrays(){
     int i;
-    //z-edges, these should probably be the same dtype
+    //z-edges, these should probably all be the same dtype
     zpp_for_evolve_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
     zpp_growth = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
     zpp_edge = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
@@ -2668,15 +2668,30 @@ void alloc_global_arrays(){
     dxion_source_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
     dxlya_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
     dstarlya_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
+    if(flag_options_ts->USE_LYA_HEATING){
+        dstarlya_cont_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
+        dstarlya_inj_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
+    }
+    if(flag_options_ts->USE_MINI_HALOS){
+        dstarlyLW_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
+    }
 
     //spectral stuff
     //TODO: add LYA_HEATING
     dstarlya_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+    if(flag_options_ts->USE_LYA_HEATING){
+        dstarlya_cont_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+        dstarlya_inj_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+    }
+
     if(flag_options_ts->USE_MINI_HALOS){
         dstarlya_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
         dstarlyLW_dt_prefactor = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
         dstarlyLW_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        dstarlyLW_dt_box = (double *) calloc(HII_TOT_NUM_PIXELS,sizeof(double));
+        if(flag_options_ts->USE_LYA_HEATING){
+            dstarlya_cont_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+            dstarlya_inj_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+        }
     }
     
     //helpers for the interpolation
@@ -2716,11 +2731,18 @@ void free_global_arrays(){
 
     //spectral
     free(dstarlya_dt_prefactor);
+    if(flag_options_ts->USE_LYA_HEATING){
+        free(dstarlya_cont_dt_prefactor);
+        free(dstarlya_inj_dt_prefactor);
+    }
     if(flag_options_ts->USE_MINI_HALOS){
         free(dstarlya_dt_prefactor_MINI);
         free(dstarlyLW_dt_prefactor);
         free(dstarlyLW_dt_prefactor_MINI);
-        free(dstarlyLW_dt_box); //part of boxes
+        if(flag_options_ts->USE_LYA_HEATING){
+            free(dstarlya_inj_dt_prefactor_MINI);
+            free(dstarlya_cont_dt_prefactor_MINI);
+        }
     }
 
     //boxes
@@ -2730,6 +2752,13 @@ void free_global_arrays(){
     free(dxlya_dt_box);
     free(dstarlya_dt_box);
     free(sum_lyn);
+    if(flag_options_ts->USE_MINI_HALOS){
+        free(dstarlyLW_dt_box);
+    }
+    if(flag_options_ts->USE_LYA_HEATING){
+        free(dstarlya_cont_dt_box);
+        free(dstarlya_inj_dt_box);
+    }
 
     //interpolation helpers
     free(m_xHII_low_box);
@@ -2789,12 +2818,13 @@ void calculate_spectral_factors(double zp){
     int R_ct, n_ct;
     double zpp,zpp_integrand;
 
-    double sum_lyn_val;
-    double sum_lyn_val_MINI;
-    double sum_lyLW_val;
-    double sum_lyLW_val_MINI;
-    double sum_lyn_prev = 0.;
-    double sum_lyn_prev_MINI = 0.;
+    double sum_lyn_val, sum_lyn_val_MINI;
+    double sum_lyLW_val, sum_lyLW_val_MINI;
+    double sum_lynto2_val, sum_lynto2_val_MINI;
+    double sum_ly2_val, sum_ly2_val_MINI;
+    double sum_lyn_prev = 0., sum_lyn_prev_MINI = 0.;
+    double sum_ly2_prev = 0., sum_ly2_prev_MINI = 0.;
+    double sum_lynto2_prev = 0., sum_lynto2_prev_MINI = 0.;
     for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
         zpp = zpp_for_evolve_list[R_ct];
         //We need to set up prefactors for how much of Lyman-N radiation is recycled to Lyman-alpha
@@ -2802,14 +2832,25 @@ void calculate_spectral_factors(double zp){
         sum_lyn_val_MINI = 0.;
         sum_lyLW_val = 0.;
         sum_lyLW_val_MINI = 0.;
-        for (n_ct=NSPEC_MAX; n_ct>=2; n_ct--){
+        sum_lynto2_val = 0.;
+        sum_lynto2_val_MINI = 0.;
+        sum_ly2_val = 0.;
+        sum_ly2_val_MINI = 0.;
+
+        //in case we use LYA_HEATING, we separate the ==2 and >2 cases
+        nuprime = nu_n(2)*(1.+zpp)/(1.+zp);
+        sum_ly2_val = frecycle(2) * spectral_emissivity(nuprime, 0, 2);
+        if(flag_options_ts->USE_MINI_HALOS)
+            sum_ly2_val_MINI = frecycle(2) * spectral_emissivity(nuprime, 0, 3);
+
+        for (n_ct=NSPEC_MAX; n_ct>=3; n_ct--){
             if (zpp > zmax(zp, n_ct))
                 continue;
 
             nuprime = nu_n(n_ct)*(1+zpp)/(1.0+zp);
             if(flag_options_ts->USE_MINI_HALOS){
-                sum_lyn_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
-                sum_lyn_val_MINI += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
+                sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
+                sum_lynto2_val_MINI += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
 
                 if (nuprime < NU_LW_THRESH / NUIONIZATION)
                     nuprime = NU_LW_THRESH / NUIONIZATION;
@@ -2819,9 +2860,13 @@ void calculate_spectral_factors(double zp){
                 sum_lyLW_val_MINI += (1. - astro_params_ts->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 3);
             }
             else{
-                sum_lyn_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
+                //This is only useful if global_params.Pop is ever used, which I think is rare
+                //It would be nice to remove the if-else otherwise
+                sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
             }
         }
+        sum_lyn_val = sum_ly2_val + sum_lynto2_val;
+        sum_lyn_val_MINI = sum_ly2_val_MINI + sum_lynto2_val_MINI;
         // Find if we need to add a partial contribution to a radii to avoid kinks in the Lyman-alpha flux
         // As we look at discrete radii (light-cone redshift, zpp) we can have two radii where one has a
         // contribution and the next (larger) radii has no contribution. However, if the number of filtering
@@ -2858,9 +2903,13 @@ void calculate_spectral_factors(double zp){
             // Now add a non-zero contribution to the previously zero contribution
             // The amount is the weight, multplied by the contribution from the previous radii
             sum_lyn_val = weight * sum_lyn_prev;
+            sum_ly2_val = weight * sum_ly2_prev;
+            sum_lynto2_val = weight * sum_lynto2_prev;
             //Apply same weight for sum_ly2 and sum_lynto2
             if (flag_options_ts->USE_MINI_HALOS){
                 sum_lyn_val_MINI = weight * sum_lyn_prev_MINI;
+                sum_ly2_val_MINI = weight * sum_ly2_prev_MINI;
+                sum_lynto2_val_MINI = weight * sum_lynto2_prev_MINI;
             }
             first_radii = false;
         }
@@ -2869,10 +2918,18 @@ void calculate_spectral_factors(double zp){
         dstarlya_dt_prefactor[R_ct] = zpp_integrand * sum_lyn_val;
         LOG_SUPER_DEBUG("z: %.2e R: %.2e starlya: %.4e",zpp,R_values[R_ct],dstarlya_dt_prefactor[R_ct]);
         
+        if(flag_options_ts->USE_LYA_HEATING){
+            dstarlya_cont_dt_prefactor[R_ct] = zpp_integrand * sum_ly2_val;
+            dstarlya_inj_dt_prefactor[R_ct] = zpp_integrand * sum_lynto2_val;
+        }
         if(flag_options_ts->USE_MINI_HALOS){
             dstarlya_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyn_val_MINI;
             dstarlyLW_dt_prefactor[R_ct] = zpp_integrand * sum_lyLW_val;
             dstarlyLW_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyLW_val_MINI;
+            if(flag_options_ts->USE_LYA_HEATING){
+                dstarlya_cont_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_ly2_val_MINI;
+                dstarlya_inj_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_lynto2_val_MINI;
+            }
             
             LOG_SUPER_DEBUG("starmini: %.2e LW: %.2e LWmini: %.2e",dstarlya_dt_prefactor_MINI[R_ct],
                                                         dstarlyLW_dt_prefactor[R_ct],
@@ -2881,6 +2938,10 @@ void calculate_spectral_factors(double zp){
 
         sum_lyn_prev = sum_lyn_val;
         sum_lyn_prev_MINI = sum_lyn_val_MINI;
+        sum_ly2_prev = sum_ly2_val;
+        sum_ly2_prev_MINI = sum_ly2_val_MINI;
+        sum_lynto2_prev = sum_lynto2_val;
+        sum_lynto2_prev_MINI = sum_lynto2_val_MINI;
     }    
 }
 
@@ -3433,7 +3494,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     double z_edge_factor, dzpp_for_evolve, zpp, xray_R_factor;
     double J_alpha_ave,xalpha_ave,xheat_ave,xion_ave,Ts_ave,Tk_ave,x_e_ave;
     J_alpha_ave=xalpha_ave=xheat_ave=xion_ave=Ts_ave=Tk_ave=x_e_ave=0;
-    double J_LW_ave=0.;
+    double J_LW_ave=0., eps_lya_cont_ave=0, eps_lya_inj_ave=0;
 
     for(R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
         dzpp_for_evolve = dzpp_list[R_ct];
@@ -3455,10 +3516,12 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             double sfr_term_mini=0.,starlya_factor_mini=0.;
             double tau21, xCMB, prev_Ts;
             double density_term;
+            double E_continuum, E_injected, eps_Lya_cont, eps_Lya_inj;
+            double Ndot_alpha_cont,Ndot_alpha_inj;
 
             int print_count = 0;
 
-#pragma omp for
+#pragma omp for reduction(+:J_alpha_ave,xalpha_ave,xheat_ave,xion_ave,Ts_ave,Tk_ave,x_e_ave,eps_lya_cont_ave,eps_lya_inj_ave)
             for(box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
                 //sum each R contribution together
                 //Since the Halo option doesn't differentiate between the global Fcoll (NO_LIGHT) and conditional (ave_fcoll), this is consistent
@@ -3482,6 +3545,12 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     dxion_source_dt_box[box_ct] += xray_sfr * xray_R_factor * (freq_int_ion_tbl_diff[xidx][R_ct] * ival + freq_int_ion_tbl[xidx][R_ct]);
                     dxlya_dt_box[box_ct] += xray_sfr * xray_R_factor * (freq_int_lya_tbl_diff[xidx][R_ct] * ival + freq_int_lya_tbl[xidx][R_ct]);
                     dstarlya_dt_box[box_ct] += sfr_term*dstarlya_dt_prefactor[R_ct] + sfr_term_mini*starlya_factor_mini; //the MINI factors might not be allocated
+
+                    if(flag_options->USE_LYA_HEATING){
+                        dstarlya_cont_dt_box[box_ct] += sfr_term*dstarlya_cont_dt_prefactor[R_ct] + sfr_term_mini*dstarlya_cont_dt_prefactor_MINI[R_ct];
+                        dstarlya_inj_dt_box[box_ct] += sfr_term*dstarlya_inj_dt_prefactor[R_ct] + sfr_term_mini*dstarlya_inj_dt_prefactor_MINI[R_ct];
+                    }
+
                 }
                 //Why is this part even in the R loop?
                 if(R_ct==0){
@@ -3506,6 +3575,10 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     dstarlya_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * density_term;
                     if(flag_options->USE_MINI_HALOS){
                         dstarlyLW_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * hplank * 1e21 * density_term;
+                    }
+                    if(flag_options->USE_LYA_HEATING){
+                        dstarlya_cont_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * density_term;
+                        dstarlya_inj_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * density_term;
                     }
 
                     /*if(print_count<5){
@@ -3548,6 +3621,25 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                         eps_CMB = (3./4.) * (T_cmb*(1.+zp)/T21) * A10_HYPERFINE * f_H * (hplank*hplank/Lambda_21/Lambda_21/m_p) * (1.+2.*T/T21);
                         dCMBheat_dzp = 	-eps_CMB * (2./3./k_B/(1.+x_e))/hubble(zp)/(1.+zp);
                     }
+                    
+                    //lastly, Ly-alpha heating rate
+                    eps_Lya_cont = 0.;
+                    eps_Lya_inj = 0.;
+
+                    if (flag_options->USE_LYA_HEATING) {
+                        E_continuum = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delta,x_e), 2);
+                        E_injected = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delta,x_e), 3);
+                        if (isnan(E_continuum) || isinf(E_continuum)){
+                            E_continuum = 0.;
+                        }
+                        if (isnan(E_injected) || isinf(E_injected)){
+                            E_injected = 0.;
+                        }
+                        Ndot_alpha_cont = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delta))/(1.+zp)/C * dstarlya_cont_dt_box[box_ct];
+                        Ndot_alpha_inj = (4.*PI*Ly_alpha_HZ) / (N_b0*pow(1.+zp,3.)*(1.+curr_delta))/(1.+zp)/C * dstarlya_inj_dt_box[box_ct];
+                        eps_Lya_cont = - Ndot_alpha_cont * E_continuum * (2. / 3. /k_B/ (1.+x_e));
+                        eps_Lya_inj = - Ndot_alpha_inj * E_injected * (2. / 3. /k_B/ (1.+x_e));
+                    }
 
                     //update quantities
                     x_e += ( dxe_dzp ) * dzp; // remember dzp is negative
@@ -3556,7 +3648,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     else if (x_e < 0)
                         x_e = 0;
                     if (T < MAX_TK) {
-                            T += ( dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp + dCMBheat_dzp ) * dzp;
+                            T += ( dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp + dCMBheat_dzp + eps_Lya_cont + eps_Lya_inj ) * dzp;
                     }
 
                     if (T<0){ // spurious bahaviour of the trapazoidalintegrator. generally overcooling in underdensities
@@ -3616,6 +3708,8 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                         Ts_ave += TS_fast;
                         Tk_ave += T;
                         J_LW_ave += J_LW_tot;
+                        eps_lya_inj_ave += eps_Lya_inj;
+                        eps_lya_cont_ave += eps_Lya_cont;
                     }
                     x_e_ave += x_e;
                 }
@@ -3638,6 +3732,10 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         if (flag_options->USE_MINI_HALOS){
             J_LW_ave /= (double)HII_TOT_NUM_PIXELS;
             LOG_DEBUG("J_LW %.2e",J_LW_ave/1e21);
+        }if (flag_options->USE_LYA_HEATING){
+            eps_lya_cont_ave /= (double)HII_TOT_NUM_PIXELS;
+            eps_lya_inj_ave /= (double)HII_TOT_NUM_PIXELS;
+            LOG_DEBUG("eps_cont %.2e eps_inj %.2e",eps_lya_cont_ave,eps_lya_inj_ave);
         }
     }
 
