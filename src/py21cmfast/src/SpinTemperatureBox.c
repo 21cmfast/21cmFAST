@@ -2770,20 +2770,19 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 Print_HMF(redshift, user_params);
 
                 // ---- box_test ----
-                Test_History_box_Interp(previous_spin_temp, astro_params, cosmo_params);
+                // Test_History_box_Interp(previous_spin_temp, astro_params, cosmo_params);
 
                 // ---- Nion for M_TURN ----
-                double ST_over_PS_tmp;
-                ST_over_PS_tmp = Nion_General(redshift, astro_params->M_TURN / 50.0, astro_params->M_TURN, astro_params->ALPHA_STAR, 0., astro_params->F_STAR10, 1., Mlim_Fstar, 0.);
-                OutputFile = fopen("ST_over_PS_tmp.txt", "a");
-                fprintf(OutputFile, "%f    %E\n", redshift, ST_over_PS_tmp);
+                double nion_tmp;
+                nion_tmp = Nion_General(redshift, astro_params->M_TURN / 50.0, astro_params->M_TURN, astro_params->ALPHA_STAR, 0., astro_params->F_STAR10, 1., Mlim_Fstar, 0.);
+                nion_tmp = Nion_2_SFRD_tmp(redshift, nion_tmp, astro_params, cosmo_params, 0);
+                OutputFile = fopen("SFRD_2_no_MINI.txt", "a");
+                fprintf(OutputFile, "%f    %E\n", redshift, nion_tmp);
                 fclose(OutputFile);
 
-                // ---- Nion for EoS mturn ----
-                if (redshift < 35.0)
-                {
-                    Print_Nion_MINI(redshift, astro_params, flag_options);
-                }
+                // ---- SFRD for EoS mturn ----
+                Print_SFRD_MINI_EoS2021_tmp(redshift, astro_params, cosmo_params, flag_options);
+                
             }
 
             LOG_SUPER_DEBUG("finished loop");

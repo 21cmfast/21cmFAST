@@ -5,7 +5,7 @@
 #define History_box_DIM 20 // number of quantities to be saved in History_box
 
 // Print debug info array to a file, info contains: History_box, Gas Temp
-#define Debug_Printer 1
+#define Debug_Printer 0
 
 int Find_Index(double *x_axis, double x, int nx)
 {
@@ -90,7 +90,7 @@ int Find_Index(double *x_axis, double x, int nx)
 		}
 		if (count > 100)
 		{
-			fprintf(stderr, "Error: solution not found after 100 iterations.\n");
+			fprintf(stderr, "Error @ Find_Index: solution not found after 100 iterations, x_axis[0] = %E, x = %E, x_axis[-1] = %E.\n", x_axis[0], x, x_axis[nx-1]);
 			exit(1);
 		}
 	}
@@ -564,7 +564,6 @@ void Print_HMF(double z, struct UserParams *user_params)
 	fclose(OutputFile);
 }
 
-
 double get_mturn_interp_EoS_tmp(double z)
 {
 	int n, idx;
@@ -599,26 +598,45 @@ double get_mturn_interp_EoS_tmp(double z)
 	return r;
 }
 
-
-void Print_Nion_MINI(double z, struct AstroParams *astro_params, struct FlagOptions *flag_options)
+double Nion_2_SFRD_tmp(double z, double nion, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, int Use_mini)
 {
-	double r, mturn, matom, Mlim_Fstar_MINI;
-	FILE *OutputFile;
-	mturn = get_mturn_interp_EoS_tmp(z);
-	matom = atomic_cooling_threshold(z);
-	if (flag_options->USE_MINI_HALOS)
+	// Convert Nion_General and Nion_General_MINI outputs as SFRD in msun/yr/Mpc^3
+	double H, SFRD, OmB, f710, t_star;
+
+	H = hubble(z);
+	OmB = cosmo_params->OMb;
+	if (Use_mini)
 	{
-		r = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mturn, matom, 0., 0., astro_params->F_STAR7_MINI, 1., 0., 0.);
+		f710 = astro_params->F_STAR7_MINI;
 	}
 	else
 	{
-		r = 0.0;
+		f710 = astro_params->F_STAR10;
 	}
-	OutputFile = fopen("Nion_Table_tmp.txt", "a");
-	fprintf(OutputFile, "%E  %E\n", z, r);
-	fclose(OutputFile);
+
+	SFRD = nion * OmB * RHOcrit * f710 * H / astro_params->t_STAR * SperYR;
+	return SFRD;
 }
 
+void Print_SFRD_MINI_EoS2021_tmp(double z, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, struct FlagOptions *flag_options)
+{
+	double nion, mturn, matom, Mlim_Fstar_MINI, SFRD;
+	FILE *OutputFile;
+	mturn = get_mturn_interp_EoS_tmp(z);
+	matom = atomic_cooling_threshold(z);
+	if (flag_options->USE_MINI_HALOS && z < 35.)
+	{
+		nion = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mturn, matom, 0., 0., astro_params->F_STAR7_MINI, 1., 0., 0.);
+	}
+	else
+	{
+		nion = 0.0;
+	}
+	SFRD = Nion_2_SFRD_tmp(z, nion, astro_params, cosmo_params, 1);
+	OutputFile = fopen("SFRD_MINI_EoS2021_tmp.txt", "a");
+	fprintf(OutputFile, "%E  %E\n", z, SFRD);
+	fclose(OutputFile);
+}
 
 void Test_History_box_Interp(struct TsBox *previous_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params)
 {

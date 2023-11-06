@@ -1,5 +1,5 @@
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
-#define DEBUG_PRINT_MTURNS 1
+#define DEBUG_PRINT_MTURNS 0
 
 int INIT_ERFC_INTERPOLATION = 1;
 int INIT_RECOMBINATIONS = 1;
@@ -527,10 +527,10 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                     FILE *OutputFile;
                     // Yell to ensure that the user does not forget this, e.g. when running mcmc
                     printf("------------------------------------------------ DEBUG_PRINTER activated ------------------------------------------------\n");
-                    OutputFile = fopen("Mturns_IO_tmp.txt", "w");
-                    if (spin_temp->first_box)
+                    OutputFile = fopen("Mturns_IO_tmp.txt", "a");
+                    if (spin_temp->first_box && redshift > 35)
                     {
-                        fprintf(OutputFile, "z    mt    mt3    matom\n");
+                        fprintf(OutputFile, "  z            mt           mt3          matom\n");
                     }
                     fprintf(OutputFile, "%.3f    %.4E    %.4E    %.4E\n", redshift, Mturnover, Mturnover_MINI, atomic_cooling_threshold(redshift));
                     fclose(OutputFile);
