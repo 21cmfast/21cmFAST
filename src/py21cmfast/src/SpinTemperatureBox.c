@@ -2975,7 +2975,6 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
     int status;
     Try{
         int i,j,k,ct;
-        short NO_LIGHT;
         fftwf_complex *filtered_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         fftwf_complex *filtered_box_mini = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -3131,6 +3130,48 @@ void fill_freqint_tables(float zp, double x_e_ave, double filling_factor_of_HI_z
     
 }
 
+double EvaluateNionTs(double redshift){
+    //differences in turnover are handled by table setup
+    if(user_params->USE_INTERPOLATION_TABLES)
+        return EvaluateRGTable1D(redshift,Nion_z_val,determine_zpp_min,zpp_bin_width);
+
+    //minihalos uses a different turnover mass
+    if(flag_options->USE_MINI_HALOS)
+        return Nion_General(zp, global_params.M_MIN_INTEGRAL, atomic_cooling_threshold(zp), astro_params->ALPHA_STAR, astro_params->ALPHA_ESC,
+                            astro_params->F_STAR10, astro_params->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+    
+    return Nion_General(zp, M_MIN, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC,
+                        astro_params->F_STAR10, astro_params->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+}
+
+double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave){
+    //TODO: Move to EvaluateRGTable2D (make a real 2D array instead of this)
+    int log10_Mcrit_LW_ave_int_Nion_z;
+    double log10_Mcrit_LW_ave_table_Nion_z,Splined_Fcollzp_mean_MINI;
+    double Splined_Fcollzp_mean_MINI_left,Splined_Fcollzp_mean_MINI_right;
+    if(user_params->USE_INTERPOLATION_TABLES) {
+        log10_Mcrit_LW_ave_int_Nion_z = (int)floor( ( log10_Mcrit_LW_ave - LOG10_MTURN_MIN) / LOG10_MTURN_INT);
+        log10_Mcrit_LW_ave_table_Nion_z = LOG10_MTURN_MIN + LOG10_MTURN_INT * (float)log10_Mcrit_LW_ave_int_Nion_z;
+
+        Splined_Fcollzp_mean_MINI_left = Nion_z_val_MINI[redshift_int_Nion_z + zpp_interp_points_SFR * log10_Mcrit_LW_ave_int_Nion_z] + \
+                                    ( redshift - redshift_table_Nion_z ) / (zpp_bin_width)*\
+                                        ( Nion_z_val_MINI[redshift_int_Nion_z + 1 + zpp_interp_points_SFR * log10_Mcrit_LW_ave_int_Nion_z] -\
+                                        Nion_z_val_MINI[redshift_int_Nion_z + zpp_interp_points_SFR * log10_Mcrit_LW_ave_int_Nion_z] );
+        Splined_Fcollzp_mean_MINI_right = Nion_z_val_MINI[redshift_int_Nion_z + zpp_interp_points_SFR * (log10_Mcrit_LW_ave_int_Nion_z+1)] + \
+                                    ( redshift - redshift_table_Nion_z ) / (zpp_bin_width)*\
+                                        ( Nion_z_val_MINI[redshift_int_Nion_z + 1 + zpp_interp_points_SFR * (log10_Mcrit_LW_ave_int_Nion_z+1)] -\
+                                        Nion_z_val_MINI[redshift_int_Nion_z + zpp_interp_points_SFR * (log10_Mcrit_LW_ave_int_Nion_z+1)] );
+        Splined_Fcollzp_mean_MINI = Splined_Fcollzp_mean_MINI_left + \
+                    (log10_Mcrit_LW_ave - log10_Mcrit_LW_ave_table_Nion_z) / LOG10_MTURN_INT * (Splined_Fcollzp_mean_MINI_right - Splined_Fcollzp_mean_MINI_left);
+    }
+    else {
+        Splined_Fcollzp_mean_MINI = Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mcrit_LW_ave), atomic_cooling_threshold(redshift),
+                                                        astro_params->ALPHA_STAR_MINI, astro_params->ALPHA_ESC, astro_params->F_STAR7_MINI,
+                                                        astro_params->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
+    }
+    return Splined_Fcollzp_mean_MINI;
+}
+
 //construct a Ts table above Z_HEAT_MAX, this can happen if we are computing the first box or if we
 //request a redshift above Z_HEAT_MAX
 void init_first_Ts(struct TsBox * box, float *dens, float z, float zp, double *x_e_ave, double *Tk_ave, bool prev_box){
@@ -3177,20 +3218,15 @@ void init_first_Ts(struct TsBox * box, float *dens, float z, float zp, double *x
     }
 }
 
-//calculate the global properties used for making the frequency integrals
-//used for filling factor, ST_OVER_PS, and NO_LIGHT
-//TODO: add minihalo to haloboxes and this
+//calculate the global properties used for making the frequency integrals,
+//  used for filling factor, ST_OVER_PS, and NO_LIGHT
 int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
     int box_ct;
     double sum_Nion=0,sum_sfr=0,sum_mass=0;
-    double sfr_global, eff_global, wstar_global, mass_global;
+    double eff_global, wstar_global, mass_global;
     double Nion_global;
     double Q;
     double tot_mass =  RHOcrit * cosmo_params_ts->OMb * pow(user_params_ts->BOX_LEN,3);
-
-    double Mlim_Fstar, Mlim_Fesc;
-    Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
-    Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_ESC, astro_params_ts->F_ESC10);
     
     //For a lot of global evolution, this code uses Nion_general. We can replace this with the halo field
     //at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1 barrier
@@ -3228,12 +3264,12 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
 #pragma omp parallel for num_threads(user_params_ts->N_THREADS) reduction(+:sum_Nion,sum_sfr,sum_mass)
         for(box_ct=0;box_ct<HII_TOT_NUM_PIXELS;box_ct++){
             sum_Nion += halo_box->n_ion[box_ct];
-            if(LOG_LEVEL>=DEBUG_LEVEL){
-                sum_sfr += halo_box->halo_sfr[box_ct];
-            }
         }
     }
-    //TODO: ELSE (when abstracting the no-halo option)
+    else{
+
+    }
+    
     Q = 1 - sum_Nion/tot_mass;
     //Q is only used without MASS_DEPENDENT_ZETA, else Nion_general / interpolation tables are called for each zhat in [zp,zpp]
     //TODO: Change this in the frequency integrals
@@ -3251,7 +3287,6 @@ double get_Ts_fast(float z, float delta, float TK, float xe, float Jalpha, float
 
 //outer-level function for calculating Ts based on the Halo boxes
 //TODO: make sure redshift (zp), perturbed_field_redshift, zpp all consistent
-//TODO: add Minihalos (which includes LW)
 void ts_halos(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift, short cleanup,
                   struct PerturbedField *perturbed_field, struct HaloBox *halo_box, struct XraySourceBox *source_box, struct TsBox *previous_spin_temp,
@@ -3467,7 +3502,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     prev_Ts = previous_spin_temp->Ts_box[box_ct];
                     
                     //In the halo model the filtered sfr is supplied, we need the ratio of absorbers
-                    density_term = 1 / (RHOcrit*cosmo_params->OMb*curr_dens);
+                    density_term = 1 / (RHOcrit*cosmo_params->OMb*curr_dens); //TODO: put in USE_HALO_FIELD FLAG
 
                     //this corrected for aliasing before, but sometimes there are still some delta==-1 cells
                     //which breaks the adiabatic part, TODO: check out the perturbed field calculations to find out why
