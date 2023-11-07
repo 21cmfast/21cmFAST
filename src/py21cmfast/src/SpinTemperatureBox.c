@@ -3555,18 +3555,17 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                 //Why is this part even in the R loop?
                 if(R_ct==0){
                     curr_delta = perturbed_field->density[box_ct] * growth_factor_zp * inverse_growth_factor_z; //map density to z' TODO: look at why this is an option
-                    x_e = previous_spin_temp->x_e_box[box_ct];
-                    T = previous_spin_temp->Tk_box[box_ct];
-                    prev_Ts = previous_spin_temp->Ts_box[box_ct];
-                    
-                    //In the halo model the filtered sfr is supplied, we need the ratio of absorbers
-                    density_term = 1 / (RHOcrit*cosmo_params->OMb*curr_delta); //TODO: put in USE_HALO_FIELD FLAG
-
                     //this corrected for aliasing before, but sometimes there are still some delta==-1 cells
                     //which breaks the adiabatic part, TODO: check out the perturbed field calculations to find out why
                     if (curr_delta <= -1){
                         curr_delta = -1+FRACT_FLOAT_ERR;
                     }
+                    x_e = previous_spin_temp->x_e_box[box_ct];
+                    T = previous_spin_temp->Tk_box[box_ct];
+                    prev_Ts = previous_spin_temp->Ts_box[box_ct];
+                    
+                    //In the halo model the filtered sfr is supplied, we need the ratio of absorbers
+                    density_term = 1 / (RHOcrit*cosmo_params->OMb*(1+curr_delta)); //TODO: put in USE_HALO_FIELD FLAG
 
                     // add prefactors
                     dxheat_dt_box[box_ct] *= xray_prefactor * volunit_inv * density_term;
