@@ -370,6 +370,9 @@ def _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_max):
         return ""
 
     if zticks != "distance":
+        if z_max is None:
+            z_max = lightcone.lightcone_redshifts.max()
+
         loc = AutoLocator()
         # Get redshift ticks.
         lc_z = lightcone.lightcone_redshifts[lightcone.lightcone_redshifts < z_max]
