@@ -1364,7 +1364,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                             //Since the halo boxes give ionising photon output, this term accounts for the local density of absorbers
                             //  We have separated the source/absorber filtering in the halo model so this is necessary
                             if(flag_options->USE_HALO_FIELD){
-                                Splined_Fcoll *= 1 / (RHOcrit*cosmo_params->OMb*curr_dens);
+                                Splined_Fcoll *= 1 / (RHOcrit*cosmo_params->OMb*(1+curr_dens));
                             }
 
                             f_coll = ST_over_PS * Splined_Fcoll;
