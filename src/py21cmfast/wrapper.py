@@ -2864,6 +2864,7 @@ def run_coeval(
             )
             #this calculates the alpha fit and passes it to C
             if flag_options.PHOTON_CONS_ALPHA:
+                logger.info(f'starting alpha cons')
                 photoncons_alpha_data = photoncons_fesc(cosmo_params,user_params,astro_params,flag_options)
 
         if not hasattr(redshift, "__len__"):
@@ -2958,9 +2959,6 @@ def run_coeval(
                         hooks=hooks,
                         direc=direc,
                     )
-                    logger.info('Debug halofield done')
-                    halos_desc = halos
-                    logger.info('Debug starting perturb')
                     pt_halos += [perturb_halo_list(
                         redshift=z,
                         init_boxes=init_box,
@@ -2973,6 +2971,7 @@ def run_coeval(
                         hooks=hooks,
                         direc=direc,
                     )]
+                    halos_desc = halos
                 
             #reverse to get the right redshift order
             pt_halos = pt_halos[::-1]
@@ -4275,12 +4274,12 @@ def photoncons_fesc(cosmo_params,user_params,astro_params,flag_options):
     #ratio of each alpha with calibration
     ratio_ref = ref_interp/(1-ref_pc_data['nf_calibration'])
 
-    fit_fesc = ratio_ref * astro_params.F_ESC10
-    sel = np.isfinite(fit_alpha) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
+    fit_fesc = ratio_ref * 10**astro_params.F_ESC10
+    sel = np.isfinite(fit_fesc) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
 
     popt, pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
     #pass to C
-    logger.info(f'F_ESC10 Original = {astro_params.F_ESC10:.3f}')
+    logger.info(f'F_ESC10 Original = {10**astro_params.F_ESC10:.3f}')
     logger.info(f'Running with F_ESC10 = {popt[0]:.2f} + {popt[1]:.2f} * Q')
 
     #initialise the output structure before the fits
@@ -4288,6 +4287,7 @@ def photoncons_fesc(cosmo_params,user_params,astro_params,flag_options):
                 'Q_ana' : ref_interp,
                 'Q_cal' : (1-ref_pc_data['nf_calibration']),
                 'Q_ratio' : ratio_ref,
+                'fit_target' : fit_fesc,
                 'fit_yint' : popt[0],
                 'fit_slope' : popt[1], #start with no correction
             }

@@ -1949,6 +1949,11 @@ void set_halo_properties(float halo_mass, float M_turn_a, float M_turn_m, float 
     }
 
     //TODO: apply some version of the Mcrit smoothing which happens in the minihalo model
+    //NOTE: that smoothing is a trapezoidal integration (assuming constant Mturn in the step)
+    //  This has some implications for my model, the halo history SHOULD matter in terms of Nion
+    //  i.e the turnover mass HISTORY of a halo should change its total n_ion.
+    //  However it is not clear to me how this can be implemented, since I would need not only the
+    //  previous M_turn grids but also a previous halo mass (with possibly many progenitors)
     if(flag_options_stoc->USE_MINI_HALOS){
         fesc_mini = fmin(fesc7*pow(halo_mass/1e7,alpha_esc_var),1);
         fstar_mean_mini = f7 * pow(halo_mass/1e7,fa_m) * exp(-M_turn_m/halo_mass - halo_mass/M_turn_a);
