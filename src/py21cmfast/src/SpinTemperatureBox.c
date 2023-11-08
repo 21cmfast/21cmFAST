@@ -3487,6 +3487,10 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             dstarlya_dt_box[box_ct] = 0.;
             if(flag_options_ts->USE_MINI_HALOS)
                 dstarlyLW_dt_box[box_ct] = 0.;
+            if(flag_options->USE_LYA_HEATING){
+                dstarlya_cont_dt_box[box_ct] = 0.;
+                dstarlya_inj_dt_box[box_ct] = 0.;
+            }
         }
     }
 
@@ -3514,6 +3518,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             double xc_fast, xi_power, xa_tilde_fast_arg;
             double TS_fast, TSold_fast, xa_tilde_fast;
             double sfr_term_mini=0.,starlya_factor_mini=0.;
+            double lyacont_factor_mini=0.,lyainj_factor_mini=0.;
             double tau21, xCMB, prev_Ts;
             double density_term;
             double E_continuum, E_injected, eps_Lya_cont, eps_Lya_inj;
@@ -3536,8 +3541,15 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     if(flag_options->USE_MINI_HALOS){
                         sfr_term_mini = source_box->filtered_sfr_mini[R_ct*HII_TOT_NUM_PIXELS + box_ct] * z_edge_factor;
                         dstarlyLW_dt_box[box_ct] += sfr_term*dstarlyLW_dt_prefactor[R_ct] + sfr_term_mini*dstarlyLW_dt_prefactor_MINI[R_ct];
-                        starlya_factor_mini = dstarlya_dt_prefactor_MINI[R_ct];
+                        starlya_factor_mini = dstarlya_dt_prefactor_MINI[R_ct]; //These may not be allocated
+                        lyacont_factor_mini = dstarlya_cont_dt_prefactor_MINI[R_ct];
+                        lyainj_factor_mini = dstarlya_inj_dt_prefactor_MINI[R_ct]; //TODO: move this outside the box loop
                     }
+                    else{
+                        sfr_term_mini=0.;
+                    }
+
+                    // LOG_DEBUG("cell %d R %d, sfr %.2e (%.2e)",box_ct,R_ct,sfr_term,sfr_term_mini);
                     xray_sfr = (sfr_term*astro_params->L_X + sfr_term_mini*astro_params->L_X_MINI);
                     xidx = m_xHII_low_box[box_ct];
                     ival = inverse_val_box[box_ct];
@@ -3547,10 +3559,9 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     dstarlya_dt_box[box_ct] += sfr_term*dstarlya_dt_prefactor[R_ct] + sfr_term_mini*starlya_factor_mini; //the MINI factors might not be allocated
 
                     if(flag_options->USE_LYA_HEATING){
-                        dstarlya_cont_dt_box[box_ct] += sfr_term*dstarlya_cont_dt_prefactor[R_ct] + sfr_term_mini*dstarlya_cont_dt_prefactor_MINI[R_ct];
-                        dstarlya_inj_dt_box[box_ct] += sfr_term*dstarlya_inj_dt_prefactor[R_ct] + sfr_term_mini*dstarlya_inj_dt_prefactor_MINI[R_ct];
+                        dstarlya_cont_dt_box[box_ct] += sfr_term*dstarlya_cont_dt_prefactor[R_ct] + sfr_term_mini*lyacont_factor_mini;
+                        dstarlya_inj_dt_box[box_ct] += sfr_term*dstarlya_inj_dt_prefactor[R_ct] + sfr_term_mini*lyainj_factor_mini;
                     }
-
                 }
                 //Why is this part even in the R loop?
                 if(R_ct==0){
@@ -3580,11 +3591,17 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                         dstarlya_inj_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * density_term;
                     }
 
-                    /*if(print_count<5){
-                        LOG_DEBUG("delta: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delta
-                            ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct]);
-                        print_count++;
-                    }*/
+                    // if(print_count<5 && dxheat_dt_box[box_ct] > 0.){
+                    //     LOG_DEBUG("delta: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delta
+                    //         ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct]);
+                    //     if(flag_options_ts->USE_LYA_HEATING){
+                    //         LOG_DEBUG("Lya inj %.3e | Lya cont %.3e",dstarlya_inj_dt_box[box_ct],dstarlya_cont_dt_box[box_ct]);
+                    //     }
+                    //     if(flag_options_ts->USE_MINI_HALOS){
+                    //         LOG_DEBUG("LyW %.3e",dstarlyLW_dt_box[box_ct]);
+                    //     }
+                    //     print_count++;
+                    // }
 
                     // Now we can solve the evolution equations  //
                     tau21 = (3*hplank*A10_HYPERFINE*C*Lambda_21*Lambda_21/32./PI/k_B) * ((1-x_e)*No*pow(1.+zp,3.)) /prev_Ts/hubble(zp);
@@ -3624,7 +3641,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     //lastly, Ly-alpha heating rate
                     eps_Lya_cont = 0.;
                     eps_Lya_inj = 0.;
-
                     if (flag_options->USE_LYA_HEATING) {
                         E_continuum = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delta,x_e), 2);
                         E_injected = Energy_Lya_heating(T, previous_spin_temp->Ts_box[box_ct], taugp(zp,curr_delta,x_e), 3);

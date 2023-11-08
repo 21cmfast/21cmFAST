@@ -2177,7 +2177,7 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
     double prefactor_sfr = RHOcrit * cosmo_params_stoc->OMb * norm_star / t_star / t_h;
     double prefactor_sfr_mini = RHOcrit * cosmo_params_stoc->OMb * norm_star_mini / t_star / t_h;
 
-    double hm_expected,nion_expected,sfr_expected,wsfr_expected,sfr_expected_mini;
+    double hm_expected,nion_expected,sfr_expected,wsfr_expected,sfr_expected_mini=0;
 
     double Mlim_Fstar = Mass_limit_bisection(M_min, M_max, alpha_star, norm_star);
     double Mlim_Fesc = Mass_limit_bisection(M_min, M_max, alpha_esc, norm_esc);
@@ -2354,7 +2354,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     stars_mini = out_props[5];
                     
                     // if(i_halo < 10){
-                    //     LOG_DEBUG("%d: HM: %.2e SM: %.2e NI: %.2e SF: %.2e WS: %.2e",i_halo,m,stars,nion,sfr,wsfr);
+                    //     LOG_DEBUG("%d (%d %d %d): HM: %.2e SM: %.2e (%.2e) NI: %.2e SF: %.2e (%.2e) WS: %.2e",i_halo,x,y,z,m,stars,stars_mini,nion,sfr,sfr_mini,wsfr);
                     // }
 
                     //feed back the calculated properties to PerturbHaloField
@@ -2402,7 +2402,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->halo_sfr_mini[idx] /= volume;
                     grids->whalo_sfr[idx] /= volume;
 
-                    if(LOG_LEVEL >= DEBUG_LEVEL){
+                    if(LOG_LEVEL >= DEBUG_LEVEL && flag_options_stoc->USE_MINI_HALOS){
                         M_turn_r = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[idx], previous_ionize_box->z_re_box[idx]);
                         M_turn_a = atomic_cooling_threshold(redshift);
                         M_turn_m = lyman_werner_threshold(redshift, previous_spin_temp->J_21_LW_box[idx], ini_boxes->lowres_vcb[idx], astro_params);
