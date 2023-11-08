@@ -30,6 +30,7 @@
 #include "Globals.h"
 #include "indexing.c"
 #include "UsefulFunctions.c"
+#include "interpolation.c"
 #include "ps.c"
 #include "dft.c"
 #include "PerturbField.c"

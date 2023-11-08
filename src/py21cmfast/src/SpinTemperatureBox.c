@@ -3316,9 +3316,6 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
             sum_Nion += halo_box->n_ion[box_ct];
         }
     }
-    else{
-
-    }
     
     Q = 1 - sum_Nion/tot_mass;
     //Q is only used without MASS_DEPENDENT_ZETA, else Nion_general / interpolation tables are called for each zhat in [zp,zpp]
