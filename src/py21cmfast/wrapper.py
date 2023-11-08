@@ -3002,6 +3002,7 @@ def run_coeval(
         perturb_files = []
         ionize_files = []
         brightness_files = []
+        pth_files = []
 
         # Iterate through redshift from top to bottom
         z_halos = []
@@ -3128,6 +3129,7 @@ def run_coeval(
             perturb_files.append((z, os.path.join(direc, pf2.filename)))
             if flag_options.USE_HALO_FIELD:
                 hbox_files.append((z,os.path.join(direc, hb2.filename)))
+                pth_files.append((z,os.path.join(direc,ph2.filename)))
             if flag_options.USE_TS_FLUCT:
                 spin_temp_files.append((z, os.path.join(direc, st2.filename)))
             ionize_files.append((z, os.path.join(direc, ib2.filename)))
@@ -3166,6 +3168,7 @@ def run_coeval(
                     "ionized_box": ionize_files,
                     "brightness_temp": brightness_files,
                     "spin_temp": spin_temp_files,
+                    "pt_halos" : pth_files,
                 },
             )
             for z, ib, _bt, st in zip(redshift, ib_tracker, bt, st_tracker)
@@ -3562,6 +3565,7 @@ def run_lightcone(
         ionize_files = []
         brightness_files = []
         hbox_files = []
+        pth_files = []
         log10_mturnovers = np.zeros(len(scrollz))
         log10_mturnovers_mini = np.zeros(len(scrollz))
         hboxes = []
@@ -3687,6 +3691,7 @@ def run_lightcone(
             perturb_files.append((z, os.path.join(direc, pf2.filename)))
             if flag_options.USE_HALO_FIELD:
                 hbox_files.append((z,os.path.join(direc,hbox2.filename)))
+                pth_files.append((z,os.path.join(direc,ph.filename)))
             if flag_options.USE_TS_FLUCT:
                 spin_temp_files.append((z, os.path.join(direc, st2.filename)))
             ionize_files.append((z, os.path.join(direc, ib2.filename)))
@@ -3788,6 +3793,7 @@ def run_lightcone(
                     "brightness_temp": brightness_files,
                     "spin_temp": spin_temp_files,
                     "halobox": hbox_files,
+                    "pt_halos" : pth_files,
                 },
                 log10_mturnovers=log10_mturnovers,
                 log10_mturnovers_mini=log10_mturnovers_mini,
