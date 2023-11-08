@@ -549,8 +549,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                                                                   perturbed_field->density[HII_R_INDEX(i, j, k)] * inverse_growth_factor_z * growth_factor_zp,
                                                                                   TK, xe, 0, &curr_xalpha);
                             this_spin_temp->Trad_box[HII_R_INDEX(i, j, k)] = 0.0; // Initialize to 0
-                            this_spin_temp->SFRD_box[HII_R_INDEX(i, j, k)] = 0.0;
-                            this_spin_temp->SFRD_MINI_box[HII_R_INDEX(i, j, k)] = 0.0;
+                            // this_spin_temp->SFRD_box[HII_R_INDEX(i, j, k)] = 0.0;
+                            // this_spin_temp->SFRD_MINI_box[HII_R_INDEX(i, j, k)] = 0.0;
                             this_spin_temp->History_box[HII_R_INDEX(i, j, k)] = 0.0;
                         }
                     }
@@ -2677,8 +2677,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     Phi_ave += Phi / ((double)HII_TOT_NUM_PIXELS);
                 }
 
-                this_spin_temp->SFRD_box[box_ct] = Phi_2_SFRD(Phi, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 0);
-                this_spin_temp->SFRD_MINI_box[box_ct] = Phi_2_SFRD(Phi_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
+                // this_spin_temp->SFRD_box[box_ct] = Phi_2_SFRD(Phi, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 0);
+                // this_spin_temp->SFRD_MINI_box[box_ct] = Phi_2_SFRD(Phi_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
 
                 if (!this_spin_temp->first_box)
                 {
@@ -2725,14 +2725,14 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
                 {
                     this_spin_temp->Trad_box[box_ct] = Tr_EoR * this_spin_temp->Trad_box[box_ct] / Radio_Temp_ave;
-                    this_spin_temp->SFRD_MINI_box[box_ct] = SFRD_EoR_MINI * this_spin_temp->SFRD_MINI_box[box_ct] / SFRD_MINI_ave;
+                    // this_spin_temp->SFRD_MINI_box[box_ct] = SFRD_EoR_MINI * this_spin_temp->SFRD_MINI_box[box_ct] / SFRD_MINI_ave;
                 }
             }
 
             if (Debug_Printer == 1)
             {
                 // Yell to ensure that the user does not forget this, e.g. when running mcmc
-                printf("------------------------------------------------ DEBUG_PRINTER activated ------------------------------------------------\n");
+                printf("------------------------------------------------ DEBUG_PRINTER activated in SP.c------------------------------------------------\n");
 
                 // ---- history_box ----
                 double z_debug, Phi_debug;
@@ -2770,7 +2770,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 Print_HMF(redshift, user_params);
 
                 // ---- box_test ----
-                // Test_History_box_Interp(previous_spin_temp, astro_params, cosmo_params);
+                Test_History_box_Interp(this_spin_temp, astro_params, cosmo_params);
 
                 // ---- Nion for M_TURN ----
                 double nion_tmp;

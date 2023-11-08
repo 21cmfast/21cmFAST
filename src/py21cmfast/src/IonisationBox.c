@@ -526,7 +526,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 {
                     FILE *OutputFile;
                     // Yell to ensure that the user does not forget this, e.g. when running mcmc
-                    printf("------------------------------------------------ DEBUG_PRINTER activated ------------------------------------------------\n");
+                    printf("------------------------------------------------ DEBUG_PRINTER activated in IO.c ------------------------------------------------\n");
                     OutputFile = fopen("Mturns_IO_tmp.txt", "a");
                     if (spin_temp->first_box && redshift > 35)
                     {

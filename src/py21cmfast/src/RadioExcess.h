@@ -90,7 +90,7 @@ int Find_Index(double *x_axis, double x, int nx)
 		}
 		if (count > 100)
 		{
-			fprintf(stderr, "Error @ Find_Index: solution not found after 100 iterations, x_axis[0] = %E, x = %E, x_axis[-1] = %E.\n", x_axis[0], x, x_axis[nx-1]);
+			fprintf(stderr, "Error @ Find_Index: solution not found after 100 iterations, x_axis[0] = %E, x = %E, x_axis[-1] = %E.\n", x_axis[0], x, x_axis[nx - 1]);
 			exit(1);
 		}
 	}
@@ -214,12 +214,33 @@ double History_box_Interp(struct TsBox *previous_spin_temp, double z, int Type, 
 		3 - Tk
 		4 - mturn_II
 		5 - mturn_III
+		6 - Phi_III_EoR
 	*/
 	int ArchiveSize, idx, head, zid, fid;
 	// Very generous with memory, nobody is gonna run lightcones with 10000 timesteps (?)
 	double z_axis[10000], f_axis[10000], r;
 
 	ArchiveSize = (int)round(previous_spin_temp->History_box[0]);
+	if (previous_spin_temp->first_box || ArchiveSize < 2)
+	{
+		if ((Type == 1 || Type == 2) || Type == 6)
+		{
+			return 0.0;
+		}
+		else if (Type == 3)
+		{
+			return global_params.TK_at_Z_HEAT_MAX;
+		}
+		else if (Type == 4 || Type == 5)
+		{
+			return 1.0E20;
+		}
+		else
+		{
+			fprintf(stderr, "Error in History_box_Interp: Exception not set for Type = %d.\n", Type);
+		}
+	}
+
 	if (ArchiveSize > 8000)
 	{
 		fprintf(stderr, "Error: ArchiveSize exceeds z_axis size.\n");
@@ -315,7 +336,7 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 		Radio_Prefix_MCG = 0.0;
 	}
 
-	if (((z1 > z2) || RadioSilent) || redshift > 33.0)
+	if ((z1 > z2 || RadioSilent) || redshift > 33.0)
 	{
 		Radio_Temp = 0.0;
 	}
@@ -647,7 +668,7 @@ void Test_History_box_Interp(struct TsBox *previous_spin_temp, struct AstroParam
 	OutputFile = fopen("Test_History_box_Interp_tmp.txt", "w");
 	fprintf(OutputFile, "     z           Phi            Phi3          Tk       mturn          mturn3          SFRD		SFRD3\n");
 
-	nz = 1000;
+	nz = 100;
 	z1 = 5;
 	z2 = 32;
 	dz = (z2 - z1) / (((double)nz) - 1);

@@ -146,8 +146,8 @@ struct TsBox
         Data structure: [z, Phi_II, Tk, Phi_III, zpp[0]]
     */
     float *History_box;
-    float *SFRD_box;
-    float *SFRD_MINI_box;
+    // float *SFRD_box;
+    // float *SFRD_MINI_box;
 };
 
 struct IonizedBox
