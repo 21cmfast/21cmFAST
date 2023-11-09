@@ -95,6 +95,8 @@ void freeSigmaMInterpTable();
 void initialiseGL_Nion(int n, float M_Min, float M_Max);
 void initialiseGL_Nion_Xray(int n, float M_Min, float M_Max);
 
+double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm);
+
 float Mass_limit (float logM, float PL, float FRAC);
 void bisection(float *x, float xlow, float xup, int *iter);
 float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC);
@@ -833,19 +835,7 @@ double dNdM_st(double growthf, double M){
     float MassBinLow;
     int MassBin;
 
-    if(user_params_ps->USE_INTERPOLATION_TABLES) {
-        MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
-        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
-
-        sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
-
-        dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
-        dsigmadm = -pow(10.,dsigmadm);
-    }
-    else {
-        sigma = sigma_z0(M);
-        dsigmadm = dsigmasqdm_z0(M);
-    }
+    sigma = EvaluateSigma(log(M),1,&dsigmadm);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
@@ -874,19 +864,8 @@ double dNdM_WatsonFOF(double growthf, double M){
     float MassBinLow;
     int MassBin;
 
-    if(user_params_ps->USE_INTERPOLATION_TABLES) {
-        MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
-        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    sigma = EvaluateSigma(log(M),1,&dsigmadm);
 
-        sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
-
-        dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
-        dsigmadm = -pow(10.,dsigmadm);
-    }
-    else {
-        sigma = sigma_z0(M);
-        dsigmadm = dsigmasqdm_z0(M);
-    }
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
 
@@ -913,19 +892,8 @@ double dNdM_WatsonFOF_z(double z, double growthf, double M){
     float MassBinLow;
     int MassBin;
 
-    if(user_params_ps->USE_INTERPOLATION_TABLES) {
-        MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
-        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
+    sigma = EvaluateSigma(log(M),1,&dsigmadm);
 
-        sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
-
-        dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
-        dsigmadm = -pow(10.,dsigmadm);
-    }
-    else {
-        sigma = sigma_z0(M);
-        dsigmadm = dsigmasqdm_z0(M);
-    }
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
 
@@ -957,19 +925,7 @@ double dNdM(double growthf, double M){
     float MassBinLow;
     int MassBin;
 
-    if(user_params_ps->USE_INTERPOLATION_TABLES) {
-        MassBin = (int)floor( (log(M) - MinMass )*inv_mass_bin_width );
-        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
-
-        sigma = Sigma_InterpTable[MassBin] + ( log(M) - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
-
-        dsigmadm = dSigmadm_InterpTable[MassBin] + ( log(M) - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
-        dsigmadm = -pow(10.,dsigmadm);
-    }
-    else {
-        sigma = sigma_z0(M);
-        dsigmadm = dsigmasqdm_z0(M);
-    }
+    sigma = EvaluateSigma(log(M),1,&dsigmadm);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
@@ -2006,25 +1962,9 @@ void initialiseGL_Nion_Xray(int n, float M_Min, float M_Max){
 }
 
 float dNdM_conditional(float growthf, float M1, float M2, float delta1, float delta2, float sigma2){
+    double sigma1, dsigmadm; //JD: changed to double for the abstraction, examine later
 
-    float sigma1, dsigmadm,dsigma_val;
-    float MassBinLow;
-    int MassBin;
-
-    if(user_params_ps->USE_INTERPOLATION_TABLES) {
-        MassBin = (int)floor( (M1 - MinMass )*inv_mass_bin_width );
-
-        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
-
-        sigma1 = Sigma_InterpTable[MassBin] + ( M1 - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
-
-        dsigma_val = dSigmadm_InterpTable[MassBin] + ( M1 - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
-        dsigmadm = -pow(10.,dsigma_val);
-    }
-    else {
-        sigma1 = sigma_z0(exp(M1));
-        dsigmadm = dsigmasqdm_z0(exp(M1));
-    }
+    sigma1 = EvaluateSigma(M1,1,&dsigmadm);
 
     M1 = exp(M1);
     M2 = exp(M2);
@@ -2358,9 +2298,6 @@ float GaussLegendreQuad_Nion_MINI(int Type, int n, float growthf, float M2, floa
         .LimitMass_Fesc = Mlim_Fesc_MINI
     };
 
-
-
-
     if(delta2 > delta1*0.9999) {
         result = 1.;
         return result;
@@ -2376,46 +2313,31 @@ float GaussLegendreQuad_Nion_MINI(int Type, int n, float growthf, float M2, floa
 
       double delta_arg = pow( (delta1 - delta2)/growthf , 2.);
 
-
       double LogMass=log(MassTurnover);
-      int MassBin = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
-      double MassBinLow = MinMass + mass_bin_width*(double)MassBin;
-      double sigmaM1 = Sigma_InterpTable[MassBin] + ( LogMass - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+      double sigmaM1 = EvaluateSigma(LogMass,0,NULL);
       nu_lower_limit = delta_arg/(sigmaM1 * sigmaM1 - sigma2 * sigma2);
 
-
-
       LogMass = log(MassTurnover_upper);
-      MassBin = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
-      MassBinLow = MinMass + mass_bin_width*(double)MassBin;
-      double sigmaM2 = Sigma_InterpTable[MassBin] + ( LogMass - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+      double sigmaM2 = EvaluateSigma(LogMass,0,NULL);
       nu_higher_limit = delta_arg/(sigmaM2*sigmaM2-sigma2*sigma2);
-
 
       //note we keep nupivot1 just in case very negative delta makes it reach that nu
       LogMass = log(MPIVOT1); //jbm could be done outside and it'd be even faster
-      int MassBinpivot = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
-      double MassBinLowpivot = MinMass + mass_bin_width*(double)MassBinpivot;
-      double sigmapivot1 = Sigma_InterpTable[MassBinpivot] + ( LogMass - MassBinLowpivot )*( Sigma_InterpTable[MassBinpivot+1] - Sigma_InterpTable[MassBinpivot] )*inv_mass_bin_width;
+      double sigmapivot1 = EvaluateSigma(LogMass,0,NULL);
       double nupivot1 = delta_arg/(sigmapivot1*sigmapivot1); //note, it does not have the sigma2 on purpose.
 
       LogMass = log(MPIVOT2); //jbm could be done outside and it'd be even faster
-      MassBinpivot = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
-      MassBinLowpivot = MinMass + mass_bin_width*(double)MassBinpivot;
-      double sigmapivot2 = Sigma_InterpTable[MassBinpivot] + ( LogMass - MassBinLowpivot )*( Sigma_InterpTable[MassBinpivot+1] - Sigma_InterpTable[MassBinpivot] )*inv_mass_bin_width;
+      double sigmapivot2 = EvaluateSigma(LogMass,0,NULL);
       double nupivot2 = delta_arg/(sigmapivot2*sigmapivot2);
-
 
       double beta1 = (Alpha_star+Alpha_esc) * AINDEX1 * (0.5); //exponent for Fcollapprox for nu>nupivot1 (large M)
       double beta2 = (Alpha_star+Alpha_esc) * AINDEX2 * (0.5); //exponent for Fcollapprox for nupivot1>nu>nupivot2 (small M)
       double beta3 = (Alpha_star+Alpha_esc) * AINDEX3 * (0.5); //exponent for Fcollapprox for nu<nupivot2 (smallest M)
       //beta2 fixed by continuity.
 
-
       // // 3PLs
       double fcollres=0.0;
       double fcollres_high=0.0; //for the higher threshold to subtract
-
 
       // re-written for further speedups
       if (nu_higher_limit <= nupivot2){ //if both are below pivot2 don't bother adding and subtracting the high contribution
@@ -2465,7 +2387,6 @@ float GaussLegendreQuad_Nion(int Type, int n, float growthf, float M2, float sig
       return result;
     }
 
-
     double integrand, x;
     integrand = 0.;
 
@@ -2485,27 +2406,19 @@ float GaussLegendreQuad_Nion(int Type, int n, float growthf, float M2, float sig
     };
 
   if (FAST_FCOLL_TABLES && global_params.USE_FAST_ATOMIC){ //JBM: Fast tables. Assume sharp Mturn, not exponential cutoff.
-
-
       double delta_arg = pow( (delta1 - delta2)/growthf , 2.0);
 
       double LogMass=log(MassTurnover);
-      int MassBin = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
-      double MassBinLow = MinMass + mass_bin_width*(double)MassBin;
-      double sigmaM1 = Sigma_InterpTable[MassBin] + ( LogMass - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
-      nu_lower_limit = delta_arg/(sigmaM1*sigmaM1-sigma2*sigma2);
+      double sigmaM1 = EvaluateSigma(LogMass,0,NULL);
+      nu_lower_limit = delta_arg/(sigmaM1 * sigmaM1 - sigma2 * sigma2);
 
-
+      //note we keep nupivot1 just in case very negative delta makes it reach that nu
       LogMass = log(MPIVOT1); //jbm could be done outside and it'd be even faster
-      int MassBinpivot = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
-      double MassBinLowpivot = MinMass + mass_bin_width*(double)MassBinpivot;
-      double sigmapivot1 = Sigma_InterpTable[MassBinpivot] + ( LogMass - MassBinLowpivot )*( Sigma_InterpTable[MassBinpivot+1] - Sigma_InterpTable[MassBinpivot] )*inv_mass_bin_width;
+      double sigmapivot1 = EvaluateSigma(LogMass,0,NULL);
       double nupivot1 = delta_arg/(sigmapivot1*sigmapivot1); //note, it does not have the sigma2 on purpose.
 
       LogMass = log(MPIVOT2); //jbm could be done outside and it'd be even faster
-      MassBinpivot = (int)floor( (LogMass - MinMass )*inv_mass_bin_width );
-      MassBinLowpivot = MinMass + mass_bin_width*(double)MassBinpivot;
-      double sigmapivot2 = Sigma_InterpTable[MassBinpivot] + ( LogMass - MassBinLowpivot )*( Sigma_InterpTable[MassBinpivot+1] - Sigma_InterpTable[MassBinpivot] )*inv_mass_bin_width;
+      double sigmapivot2 = EvaluateSigma(LogMass,0,NULL);
       double nupivot2 = delta_arg/(sigmapivot2*sigmapivot2);
 
 
@@ -2516,9 +2429,6 @@ float GaussLegendreQuad_Nion(int Type, int n, float growthf, float M2, float sig
 
 
       double nucrit_sigma2 = delta_arg*pow(sigma2+1e-10,-2.0); //above this nu sigma2>sigma1, so HMF=0. eps added to avoid infinities
-
-
-
 
     // // 3PLs
       double fcollres=0.0;
@@ -2595,19 +2505,12 @@ void initialise_Nion_General_spline(float z, float min_density, float max_densit
 
     ln_10 = log(10);
 
-    float MassBinLow;
-    int MassBin;
-
     growthf = dicke(z);
 
     Mmin = log(Mmin);
     Mmax = log(Mmax);
 
-    MassBin = (int)floor( ( Mmax - MinMass )*inv_mass_bin_width );
-
-    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
-
-    sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    sigma2 = EvaluateSigma(Mmax,0,NULL);
 
 #pragma omp parallel shared(log10_overdense_spline_SFR,log10_Nion_spline,overdense_small_low,overdense_small_high,growthf,Mmax,sigma2,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc) private(i,overdense_val) num_threads(user_params_ps->N_THREADS)
     {
@@ -2680,19 +2583,12 @@ void initialise_Nion_General_spline_MINI(float z, float Mcrit_atom, float min_de
 
     ln_10 = log(10);
 
-    float MassBinLow;
-    int MassBin;
-
     growthf = dicke(z);
 
     Mmin = log(Mmin);
     Mmax = log(Mmax);
 
-    MassBin = (int)floor( ( Mmax - MinMass )*inv_mass_bin_width );
-
-    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
-
-    sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    sigma2 = EvaluateSigma(Mmax,0,NULL);
 
     for (i=0; i<NSFR_low; i++){
         log10_overdense_spline_SFR[i] = log10(1. + overdense_small_low) + (double)i/((double)NSFR_low-1.)*(log10(1.+overdense_small_high)-log10(1.+overdense_small_low));
@@ -2822,19 +2718,11 @@ void initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float m
 
     ln_10 = log(10);
 
-    float MassBinLow;
-    int MassBin;
-
     growthf = dicke(z);
 
     Mmin = log(Mmin);
     Mmax = log(Mmax);
-
-    MassBin = (int)floor( ( Mmax - MinMass )*inv_mass_bin_width );
-
-    MassBinLow = MinMass + mass_bin_width*(float)MassBin;
-
-    sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+    sigma2 = EvaluateSigma(Mmax,0,NULL);
 
     for (i=0; i<NSFR_low; i++){
         prev_log10_overdense_spline_SFR[i] = log10(1. + overdense_small_low) + (double)i/((double)NSFR_low-1.)*(log10(1.+overdense_small_high)-log10(1.+overdense_small_low));
@@ -3145,9 +3033,6 @@ void initialise_SFRD_Conditional_table(
         overdense_high_table[i] = overdense_large_low + (float)i/((float)NSFR_high-1.)*(overdense_large_high - overdense_large_low);
     }
 
-    float MassBinLow;
-    int MassBin;
-
     for (j=0; j < Nfilter; j++) {
 
         Mmax = RtoM(R[j]);
@@ -3155,11 +3040,7 @@ void initialise_SFRD_Conditional_table(
         initialiseGL_Nion_Xray(NGL_SFR, MassTurnover/50., Mmax);
 
         Mmax = log(Mmax);
-        MassBin = (int)floor( ( Mmax - MinMass )*inv_mass_bin_width );
-
-        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
-
-        sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+        sigma2 = EvaluateSigma(Mmax,0,NULL);
 
         if(min_density[j]*growthf[j] < -1.) {
             overdense_small_low = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
@@ -3255,9 +3136,6 @@ void initialise_SFRD_Conditional_table_MINI(
         overdense_high_table[i] = overdense_large_low + (float)i/((float)NSFR_high-1.)*(overdense_large_high - overdense_large_low);
     }
 
-    float MassBinLow;
-    int MassBin;
-
     for (j=0; j < Nfilter; j++) {
 
         Mmax = RtoM(R[j]);
@@ -3265,11 +3143,7 @@ void initialise_SFRD_Conditional_table_MINI(
         initialiseGL_Nion_Xray(NGL_SFR, global_params.M_MIN_INTEGRAL, Mmax);
 
         Mmax = log(Mmax);
-        MassBin = (int)floor( ( Mmax - MinMass )*inv_mass_bin_width );
-
-        MassBinLow = MinMass + mass_bin_width*(float)MassBin;
-
-        sigma2 = Sigma_InterpTable[MassBin] + ( Mmax - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
+        sigma2 = EvaluateSigma(Mmax,0,NULL);
 
         if(min_density[j]*growthf[j] < -1.) {
             overdense_small_low = -1. + global_params.MIN_DENSITY_LOW_LIMIT;
@@ -4357,4 +4231,28 @@ double get_alpha_fit(double redshift){
     LOG_DEBUG("Alpha photon cons fit activated z = %.2e, fit yint,slope = %.2e, %.2e, alpha = %.2e", redshift,
                 alpha_photoncons_yint,alpha_photoncons_slope,alpha_fit);
     return alpha_fit;
+}
+
+//Modularisation for the evaluation of sigma
+double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
+    //using log units to make the fast option faster and the slow option slower
+    double sigma;
+    double dsigma_val;
+
+    //all this stuff is defined in ps.c and initialised with InitialiseSigmaInterpTable
+    //NOTE: The interpolation tables are `float` in ps.c
+    if(user_params_ps->USE_INTERPOLATION_TABLES) {
+        sigma = EvaluateRGTable1D_f(lnM, Sigma_InterpTable, MinMass, mass_bin_width);
+        
+        if(calc_ds){
+            dsigma_val = EvaluateRGTable1D_f(lnM, dSigmadm_InterpTable, MinMass, mass_bin_width);
+            *dsigmadm = -pow(10.,dsigma_val); //this may be slow, figure out why the dsigmadm table is in log10
+        }
+    }
+    else {
+        sigma = sigma_z0(exp(lnM));
+        if(calc_ds) *dsigmadm = dsigmasqdm_z0(exp(lnM));
+    }
+
+    return sigma;
 }

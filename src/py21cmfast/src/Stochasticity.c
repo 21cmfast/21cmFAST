@@ -125,37 +125,8 @@ double minimum_source_mass(double redshift, struct AstroParams *astro_params, st
     return Mmin;
 }
 
-//Modularisation that should be put in ps.c for the evaluation of sigma
-double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
-    //using log units to make the fast option faster and the slow option slower
-    double sigma;
-    float MassBinLow;
-    int MassBin;
-    double dsigma_val;
-
-    //all this stuff is defined in ps.c and initialised with InitialiseSigmaInterpTable
-    //NOTE: The interpolation tables are `float` in ps.c
-    if(user_params_ps->USE_INTERPOLATION_TABLES) {
-        MassBin = (int)floor( (lnM - MinMass )*inv_mass_bin_width );
-        MassBinLow = MinMass + mass_bin_width*(double)MassBin;
-
-        sigma = Sigma_InterpTable[MassBin] + ( lnM - MassBinLow )*( Sigma_InterpTable[MassBin+1] - Sigma_InterpTable[MassBin] )*inv_mass_bin_width;
-        
-        if(calc_ds){
-            dsigma_val = dSigmadm_InterpTable[MassBin] + ( lnM - MassBinLow )*( dSigmadm_InterpTable[MassBin+1] - dSigmadm_InterpTable[MassBin] )*inv_mass_bin_width;
-            *dsigmadm = -pow(10.,dsigma_val); //this may be slow but it's only used in the construction of the dNdM interp tables
-        }
-    }
-    else {
-        sigma = sigma_z0(exp(lnM));
-        if(calc_ds) *dsigmadm = dsigmasqdm_z0(exp(lnM));
-    }
-
-    return sigma;
-}
-
-//The sigma interp table is regular in mass, nt sigma so we need to loop
-//TODO: make a new RGI from the sigma tables if we take the partition method seriously,
+//The sigma interp table is regular in log mass, not sigma so we need to loop ONLY FOR METHOD=3
+//TODO: make a new RGI from the sigma tables if we take the partition method seriously.
 double EvaluateSigmaInverse(double sigma){
     int idx;
     for(idx=0;idx<NMass;idx++){
@@ -179,11 +150,10 @@ double EvaluateSigmaInverse(double sigma){
  */
 double EvaluateFgtrM(double growthf, double lnM, double del_bias, double sig_bias){
     double del, sig, sigsmallR;
-    double dummy;
 
     //LOG_ULTRA_DEBUG("FgtrM: z=%.2f M=%.3e d=%.3e s=%.3e",z,exp(lnM),del_bias,sig_bias);
 
-    sigsmallR = EvaluateSigma(lnM,0,&dummy);
+    sigsmallR = EvaluateSigma(lnM,0,NULL);
 
     //LOG_ULTRA_DEBUG("FgtrM: SigmaM %.3e",sigsmallR);
     //sometimes condition mass is close enough to minimum mass such that the sigmas are the same to float precision
@@ -285,9 +255,7 @@ void free_rng_threads(gsl_rng * rng_arr[]){
 //CONDITIONAL MASS FUNCTION COPIED FROM PS.C, CHANGED TO DOUBLE PRECISION
 double dNdM_conditional_double(double growthf, double M1, double M2, double delta1, double delta2, double sigma2){
 
-    double sigma1, dsigmadm,dsigma_val;
-    double MassBinLow;
-    int MassBin;
+    double sigma1, dsigmadm;
 
     sigma1 = EvaluateSigma(M1,1,&dsigmadm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
 
@@ -438,12 +406,11 @@ double IntegratedNdM(double growthf, double M1, double M2, double M_filter, doub
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
-    double rel_tol = 1e-3; //<- relative tolerance
+    double rel_tol = 1e-5; //<- relative tolerance
     gsl_integration_workspace * w
     = gsl_integration_workspace_alloc (1000);
     
-    double dummy;
-    double sigma = EvaluateSigma(M_filter,0,&dummy);
+    double sigma = EvaluateSigma(M_filter,0,NULL);
 
     struct parameters_gsl_MF_con_int_ parameters_gsl_MF_con = {
         .growthf = growthf,
@@ -703,7 +670,6 @@ void initialise_dNdM_tables_RF(double xmin, double xmax, double ymin, double yma
         double p_target, exp_M;
         int attempts;
         struct parameters_gsl_MF_con_int_ parameters_gsl_MF_con;
-        double dummy;
         bool first_check;
         bool second_check;
 
@@ -790,7 +756,7 @@ void initialise_dNdM_tables_RF(double xmin, double xmax, double ymin, double yma
                         .growthf = growth1,
                         .delta = delta,
                         .n_order = 0,
-                        .sigma_cond = EvaluateSigma(lnM_cond,0,&dummy),
+                        .sigma_cond = EvaluateSigma(lnM_cond,0,NULL),
                         .M_cond = lnM_cond,
                         .HMF = user_params_stoc->HMF,
                         .CMF = 1,
@@ -847,7 +813,6 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     const_struct->z_out = redshift;
     const_struct->z_in = redshift_prev;
 
-    double dummy;
     double M_min = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc);
     const_struct->M_min = M_min;
     const_struct->lnM_min = log(M_min);
@@ -859,7 +824,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
         initialiseSigmaMInterpTable(const_struct->M_min / 2,const_struct->M_max_tables);
     }
-    const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min,0,&dummy);
+    const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min,0,NULL);
 
     if(redshift_prev >= 0){
         const_struct->t_h_prev = t_hubble(redshift_prev);
@@ -888,7 +853,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
         double M_cond = RHOcrit * cosmo_params_stoc->OMm * VOLUME / HII_TOT_NUM_PIXELS;
         const_struct->M_cond = M_cond;
         const_struct->lnM_cond = log(M_cond);
-        const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond,0,&dummy);
+        const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond,0,NULL);
         const_struct->update = 0;
         initialise_dNdM_tables(DELTA_MIN, Deltac, const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->growth_out, const_struct->lnM_cond, false);
 
@@ -907,14 +872,14 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
 //set the constants which are calculated once per condition
 void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double cond_val){
-    double m_exp,n_exp,dummy;
+    double m_exp,n_exp;
 
     //Here the condition is a mass, volume is the Lagrangian volume and delta_l is set by the
     //redshift difference which represents the difference in delta_crit across redshifts
     if(const_struct->update){
         const_struct->M_cond = cond_val;
         const_struct->lnM_cond = log(cond_val);
-        const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond,0,&dummy);
+        const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond,0,NULL);
         //mean stellar mass of this halo mass, used for stellar z correlations
         // const_struct->mu_desc_star = fmin(astro_params_stoc->F_STAR10
         //                                 * pow(cond_val/1e10,astro_params_stoc->ALPHA_STAR)
@@ -1217,7 +1182,6 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     int n_halo_sampled;
     double x_sample, sigma_sample, M_sample, M_remaining, delta_current;
     double lnM_remaining, sigma_r, del_term;
-    double *dummy;
 
     double tbl_arg = hs_constants->cond_val;
     n_halo_sampled = 0;
@@ -1231,7 +1195,7 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
 
     while(M_remaining > M_min*global_params.HALO_SAMPLE_FACTOR){
         delta_current = (Deltac - d_cond)/(M_remaining/M_cond);
-        sigma_r = EvaluateSigma(lnM_remaining,0,&dummy);
+        sigma_r = EvaluateSigma(lnM_remaining,0,NULL);
         del_term = delta_current*delta_current/growthf/growthf;
 
         //Low x --> high sigma --> low mass, high x --> low sigma --> high mass
@@ -1283,7 +1247,6 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     double dd1, dd2, dd, dd_target, dN_dd, N_upper, F;
     double q, m_q, sigma_q, sigmasq_q, R_q, factor1, factor2;
     double m_prog1, m_prog2;
-    double dummy;
     int save;
     int n_out = 0;
     int idx_first = -1;
@@ -1300,7 +1263,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     d_target = Deltac / growthf;
     n_points = 1;
     
-    sigma_res = EvaluateSigma(lnm_res, 0, &dummy);
+    sigma_res = EvaluateSigma(lnm_res, 0, NULL);
     sigmasq_res = sigma_res*sigma_res;
 
     // LOG_DEBUG("Starting split %.2e %.2e",d_points[0],m_points[0]);
@@ -1314,7 +1277,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
         // Compute useful quantites
         m_half = 0.5*m_start;
         lnm_half = log(m_half);
-        sigma_start = EvaluateSigma(lnm_start,0,&dummy);
+        sigma_start = EvaluateSigma(lnm_start,0,NULL);
         sigmasq_start = sigma_start*sigma_start;
         sigma_half = EvaluateSigma(lnm_half,1,&alpha_half);
         alpha_half = -m_half/(2*sigma_half*sigma_half)*alpha_half;
@@ -2537,7 +2500,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         //gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
 
         //gsl_rng_set(rseed, random_seed);
-        double test,dummy;
+        double test;
         int err=0;
         int i,j;
 
@@ -2575,7 +2538,6 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 
             //parameters for CMF
             double prefactor = cmf_flag ? RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm : 1.;
-            double dummy;
             struct parameters_gsl_MF_con_int_ parameters_gsl_MF_con = {
                 .redshift = z_out,
                 .growthf = growth_out,
@@ -2612,7 +2574,6 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             delta = hs_constants->delta;
 
             double lnM_hi, lnM_lo;
-            double dummy;
             #pragma omp parallel for private(test,lnM_hi,lnM_lo) num_threads(user_params->N_THREADS)
             for(i=0;i<n_mass;i++){
                 // LOG_ULTRA_DEBUG("%d %d D %.1e | Ml %.1e | Mu %.1e | Mc %.1e | Mm %.1e | d %.1e | s %.1e",
@@ -2629,7 +2590,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 test = IntegratedNdM(growth_out,lnM_lo,lnM_hi,lnMcond,delta,seed,user_params->HMF,1);
                 //This is a debug case, testing that the integral of M*dNdM == FgtrM
                 if(seed == 1){
-                    test = EvaluateFgtrM(growth_out,lnM_lo,delta,EvaluateSigma(lnMcond,0,&dummy)) - EvaluateFgtrM(growth_out,lnM_hi,delta,EvaluateSigma(lnMcond,0,&dummy));
+                    test = EvaluateFgtrM(growth_out,lnM_lo,delta,EvaluateSigma(lnMcond,0,NULL)) - EvaluateFgtrM(growth_out,lnM_hi,delta,EvaluateSigma(lnMcond,0,NULL));
                     result[i+n_mass] = test * Mcond * ps_ratio;
                     // LOG_ULTRA_DEBUG("==> %.8e",result[i+n_mass]);
                 }
@@ -2643,8 +2604,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             //intregrate CMF -> N_halos in many conditions
             //TODO: make it possible to integrate UMFs
             //quick hack: seed gives n_order
-            double dummy;
-            #pragma omp parallel private(test,Mcond,lnMcond,delta,dummy) num_threads(user_params->N_THREADS)
+            #pragma omp parallel private(test,Mcond,lnMcond,delta) num_threads(user_params->N_THREADS)
             {
                 //we need a private version
                 //TODO: its probably better to split condition and z constants
@@ -2660,7 +2620,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     delta = hs_constants_priv.delta;
                     
                     // LOG_ULTRA_DEBUG("%d %d D %.1e | Ml %.1e | Mc %.1e| d %.1e | s %.1e",
-                    //                 i,i+n_mass,growth_out,Mmin,Mcond,delta,EvaluateSigma(lnMcond,0,&dummy));
+                    //                 i,i+n_mass,growth_out,Mmin,Mcond,delta,EvaluateSigma(lnMcond,0,NULL));
 
                     test = IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,delta,seed,user_params->HMF,1);
                     // LOG_ULTRA_DEBUG("==> %.8e",test);
@@ -2682,7 +2642,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             double out_bins[100];
             int n_bins = 100;
             double prefactor = RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm;
-            double dummy,test;
+            double test;
             double tot_mass=0;
             double lnMbin_max = hs_constants->lnM_max_tb; //arbitrary bin maximum
             

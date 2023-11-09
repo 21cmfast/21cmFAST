@@ -20,7 +20,7 @@ struct RGTable2D{
 
     double **z_arr;
 
-    double saved_xll, saved_xul; //for future acceleration
+    double saved_ll, saved_ul; //for future acceleration
 };
 
 double EvaluateRGTable1D(double x, double *y_arr, double x_min, double x_width){
@@ -30,6 +30,16 @@ double EvaluateRGTable1D(double x, double *y_arr, double x_min, double x_width){
 
     return y_arr[idx]*(1-interp_point) + y_arr[idx+1]*(interp_point);
 }
+
+//some tables are floats but I still need to return doubles
+double EvaluateRGTable1D_f(double x, float *y_arr, float x_min, float x_width){
+    int idx = (int)floor((x - x_min)/x_width);
+    double table_val = x_min + x_width*(float)idx;
+    double interp_point = (x - table_val)/x_width;
+
+    return y_arr[idx]*(1-interp_point) + y_arr[idx+1]*(interp_point);
+}
+
 double EvaluateRGTable2D(double x, double y, double **z_arr, double x_min, double x_width, double y_min, double y_width){
     int x_idx = (int)floor((x - x_min)/x_width);
     int y_idx = (int)floor((y - y_min)/y_width);

@@ -169,10 +169,10 @@ extern struct GlobalParams global_params = {
     .USE_FAST_ATOMIC = 0,
 
     .STOC_MASS_TOL = 5.0, //effectively infinite, mass tolerance semi-deprecated
-    .HALO_SAMPLE_FACTOR = 2,
+    .HALO_SAMPLE_FACTOR = 1,
     .HALO_MTURN_FACTOR = 16,
-    .MAXHALO_FACTOR = 1.2,
-    .N_MASS_INTERP = 200,
+    .MAXHALO_FACTOR = 2,
+    .N_MASS_INTERP = 300,
     .N_COND_INTERP = 200,
     .N_PROB_INTERP = 200,
     .MIN_LOGPROB = -16,

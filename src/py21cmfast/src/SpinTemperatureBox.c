@@ -97,6 +97,7 @@ if (LOG_LEVEL >= DEBUG_LEVEL){
     double Tk_ave, J_alpha_ave, xalpha_ave, J_alpha_tot, Xheat_ave, Xion_ave, nuprime, Ts_ave;
     double lower_int_limit,Luminosity_converstion_factor,T_inv_TS_fast_inv;
     double J_LW_ave, J_alpha_tot_MINI, J_alpha_ave_MINI, J_LW_ave_MINI,dxheat_dzp_MINI,Xheat_ave_MINI;
+    double eps_lya_cont_ave,eps_lya_inj_ave,eps_lya_cont_ave_MINI,eps_lya_inj_ave_MINI;
     double dadia_dzp, dcomp_dzp, dxheat_dt, dxion_source_dt, dxion_sink_dt, T, x_e, dxe_dzp, n_b;
     double dspec_dzp, dxheat_dzp, dxlya_dt, dstarlya_dt, fcoll_R;
     double Trad_fast,xc_fast,xc_inverse,TS_fast,TSold_fast,xa_tilde_fast,TS_prefactor,xa_tilde_prefactor,gamma_alpha;
@@ -1572,6 +1573,7 @@ LOG_SUPER_DEBUG("Initialised heat");
 
         J_alpha_ave = xalpha_ave = Xheat_ave = Xion_ave = 0.;
         J_alpha_ave_MINI = J_LW_ave = J_LW_ave_MINI = Xheat_ave_MINI = 0.;
+        eps_lya_cont_ave = eps_lya_cont_ave_MINI = eps_lya_inj_ave = eps_lya_inj_ave_MINI = 0.;
 
         // Extra pre-factors etc. are defined here, as they are independent of the density field,
         // and only have to be computed once per z' or R_ct, rather than each box_ct
@@ -1772,7 +1774,6 @@ LOG_SUPER_DEBUG("Initialised heat");
                     }
                 }
                 double sum_fsfr=0;
-                int sum_crit=0;
                 #pragma omp parallel shared(delNL0,zpp_growth,SFRD_z_high_table,fcoll_interp_high_min,\
                                             fcoll_interp_high_bin_width_inv,log10_SFRD_z_low_table,\
                                             fcoll_int_boundexceeded_threaded,log10_Mcrit_LW,SFRD_z_high_table_MINI,\
@@ -1783,7 +1784,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                                              fcoll_MINI_right,fcoll_MINI) \
                                      num_threads(user_params->N_THREADS)
                 {
-                    #pragma omp for reduction(+:ave_fcoll,ave_fcoll_MINI,sum_fsfr,sum_crit)
+                    #pragma omp for reduction(+:ave_fcoll,ave_fcoll_MINI,sum_fsfr)
                     for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
 
                         if(user_params->MINIMIZE_MEMORY) {
@@ -1912,7 +1913,6 @@ LOG_SUPER_DEBUG("Initialised heat");
                                     else {
                                         fcoll = pow(10.,10.);
                                         fcoll_MINI =1e10;
-                                        sum_crit++;
                                     }
                                 }
                             }
@@ -1937,7 +1937,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                             }
 
                             ave_fcoll += fcoll;
-                            sum_fsfr += (1.+curr_dens)*fcoll/pow(10.,10.) * pow(user_params->BOX_LEN,3) / HII_TOT_NUM_PIXELS * RHOcrit * cosmo_params->OMb * astro_params->F_STAR10 / astro_params->t_STAR / t_hubble(zpp_for_evolve_list[R_ct]);
+                            sum_fsfr += (1.+curr_dens)*fcoll;
                             del_fcoll_Rct[box_ct] = (1.+curr_dens)*fcoll;
 
                             if (flag_options->USE_MINI_HALOS){
@@ -1949,7 +1949,6 @@ LOG_SUPER_DEBUG("Initialised heat");
 
                     }
                 }
-                LOG_SUPER_DEBUG("R = %8.3f | mean sfr = %10.3e | n>crit %6d",R_values[R_ct],sum_fsfr/HII_TOT_NUM_PIXELS,sum_crit);
 
                 for(i=0;i<user_params->N_THREADS;i++) {
                     if(fcoll_int_boundexceeded_threaded[omp_get_thread_num()]==1) {
@@ -1969,6 +1968,10 @@ LOG_SUPER_DEBUG("Initialised heat");
                 if(ave_fcoll_MINI!=0.) {
                     ave_fcoll_inv_MINI = 1./ave_fcoll_MINI;
                 }
+                
+                // LOG_DEBUG("R = %8.3f | mean sfr = %10.3e (%10.3e) ",R_values[R_ct],
+                //             sum_fsfr/pow(10.,10.) * pow(user_params->BOX_LEN,3) / HII_TOT_NUM_PIXELS * RHOcrit * cosmo_params->OMb * astro_params->F_STAR10 / astro_params->t_STAR / t_hubble(zpp_for_evolve_list[R_ct])/HII_TOT_NUM_PIXELS,
+                //             ave_fcoll * pow(user_params->BOX_LEN,3) / HII_TOT_NUM_PIXELS * RHOcrit * cosmo_params->OMb * astro_params->F_STAR10 / astro_params->t_STAR / t_hubble(zpp_for_evolve_list[R_ct]));
 
                 dfcoll_dz_val = (ave_fcoll_inv/pow(10.,10.))*ST_over_PS[R_ct]*SFR_timescale_factor[R_ct]/astro_params->t_STAR;
 
@@ -2008,7 +2011,8 @@ LOG_SUPER_DEBUG("Initialised heat");
                     num_threads(user_params->N_THREADS)
                 {
                     int print_count=0;
-                    #pragma omp for reduction(+:J_alpha_ave,xalpha_ave,Xheat_ave,Xion_ave,Ts_ave,Tk_ave,x_e_ave,J_alpha_ave_MINI,Xheat_ave_MINI,J_LW_ave,J_LW_ave_MINI)
+                    #pragma omp for reduction(+:J_alpha_ave,xalpha_ave,Xheat_ave,Xion_ave,Ts_ave,Tk_ave,x_e_ave,J_alpha_ave_MINI,Xheat_ave_MINI,J_LW_ave,J_LW_ave_MINI, \
+                                                eps_lya_cont_ave,eps_lya_cont_ave_MINI,eps_lya_inj_ave,eps_lya_inj_ave_MINI)
                     for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
 
                         // I've added the addition of zero just in case. It should be zero anyway, but just in case there is some weird
@@ -2282,11 +2286,15 @@ LOG_SUPER_DEBUG("Initialised heat");
                                 Xion_ave += ( dt_dzp*dxion_source_dt_box[box_ct] );
                                 Ts_ave += TS_fast;
                                 Tk_ave += T;
+                                eps_lya_cont_ave += eps_Lya_cont;
+                                eps_lya_inj_ave += eps_Lya_inj;
                                 if (flag_options->USE_MINI_HALOS){
                                     J_alpha_ave_MINI += J_alpha_tot_MINI;
                                     Xheat_ave_MINI += ( dxheat_dzp_MINI );
                                     J_LW_ave += dstarlyLW_dt_box[box_ct];
                                     J_LW_ave_MINI += dstarlyLW_dt_box_MINI[box_ct];
+                                    eps_lya_cont_ave_MINI += eps_Lya_cont_MINI;
+                                    eps_lya_inj_ave_MINI += eps_Lya_inj_MINI;
                                 }
                             }
 
@@ -2547,20 +2555,28 @@ LOG_SUPER_DEBUG("Initialised heat");
             xalpha_ave /= (double)HII_TOT_NUM_PIXELS;
             Xheat_ave /= (double)HII_TOT_NUM_PIXELS;
             Xion_ave /= (double)HII_TOT_NUM_PIXELS;
+            eps_lya_cont_ave /= (double)HII_TOT_NUM_PIXELS;
+            eps_lya_inj_ave /= (double)HII_TOT_NUM_PIXELS;
 
             if (flag_options->USE_MINI_HALOS){
                 J_alpha_ave_MINI /= (double)HII_TOT_NUM_PIXELS;
                 Xheat_ave_MINI /= (double)HII_TOT_NUM_PIXELS;
                 J_LW_ave /= (double)HII_TOT_NUM_PIXELS;
                 J_LW_ave_MINI /= (double)HII_TOT_NUM_PIXELS;
-
-                LOG_DEBUG("zp = %e Ts_ave = %e x_e_ave = %e Tk_ave = %e J_alpha_ave = %e(%e) xalpha_ave = %e"
-                          "Xheat_ave = %e(%e) Xion_ave = %e J_LW_ave = %e (%e)",zp,Ts_ave,x_e_ave,Tk_ave,J_alpha_ave,\
-                          J_alpha_ave_MINI,xalpha_ave,Xheat_ave,Xheat_ave_MINI,Xion_ave,J_LW_ave/1e21,J_LW_ave_MINI/1e21);
+                eps_lya_cont_ave_MINI /= (double)HII_TOT_NUM_PIXELS;
+                eps_lya_inj_ave_MINI /= (double)HII_TOT_NUM_PIXELS;
             }
-            else{
-                LOG_DEBUG("zp = %.2e Ts_ave = %.2e x_e_ave = %.2e Tk_ave = %.2e J_alpha_ave = %.2e xalpha_ave = %.2e"
-                          " xheat_ave = %.2e xion_ave = %.2e",zp,Ts_ave,x_e_ave,Tk_ave,J_alpha_ave,xalpha_ave,Xheat_ave,Xion_ave);
+                
+            LOG_DEBUG("AVERAGES zp = %.2e Ts = %.2e x_e = %.2e Tk %.2e",zp,Ts_ave,x_e_ave,Tk_ave);
+            LOG_DEBUG("J_alpha = %.2e xalpha = %e xheat = %.2e xion = %.2e",J_alpha_ave,xalpha_ave,Xheat_ave,Xion_ave);
+            if (flag_options->USE_MINI_HALOS){
+                LOG_DEBUG("J_LW %.2e",J_LW_ave/1e21);
+            }
+            if (flag_options->USE_LYA_HEATING){
+                LOG_DEBUG("eps_cont %.2e eps_inj %.2e",eps_lya_cont_ave,eps_lya_inj_ave);
+                if(flag_options->USE_LYA_HEATING){
+                    LOG_DEBUG("eps_cont_MINI %.2e eps_inj_MINI %.2e",eps_lya_cont_ave_MINI,eps_lya_inj_ave_MINI);
+                }
             }
         }
 
@@ -2848,8 +2864,9 @@ void calculate_spectral_factors(double zp){
                 continue;
 
             nuprime = nu_n(n_ct)*(1+zpp)/(1.0+zp);
+
+            sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
             if(flag_options_ts->USE_MINI_HALOS){
-                sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
                 sum_lynto2_val_MINI += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
 
                 if (nuprime < NU_LW_THRESH / NUIONIZATION)
@@ -2916,11 +2933,12 @@ void calculate_spectral_factors(double zp){
         //TODO: compared to Mesinger+2011, which has (1+zpp)^3, same as const_zp_prefactor, figure out why
         zpp_integrand = ( pow(1+zp,2)*(1+zpp) );
         dstarlya_dt_prefactor[R_ct] = zpp_integrand * sum_lyn_val;
-        LOG_SUPER_DEBUG("z: %.2e R: %.2e starlya: %.4e",zpp,R_values[R_ct],dstarlya_dt_prefactor[R_ct]);
+        // LOG_DEBUG("z: %.2e R: %.2e starlya: %.4e",zpp,R_values[R_ct],dstarlya_dt_prefactor[R_ct]);
         
         if(flag_options_ts->USE_LYA_HEATING){
             dstarlya_cont_dt_prefactor[R_ct] = zpp_integrand * sum_ly2_val;
             dstarlya_inj_dt_prefactor[R_ct] = zpp_integrand * sum_lynto2_val;
+            // LOG_DEBUG("cont %.2e inj %.2e",dstarlya_cont_dt_prefactor[R_ct],dstarlya_inj_dt_prefactor[R_ct]);
         }
         if(flag_options_ts->USE_MINI_HALOS){
             dstarlya_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyn_val_MINI;
@@ -2931,9 +2949,10 @@ void calculate_spectral_factors(double zp){
                 dstarlya_inj_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_lynto2_val_MINI;
             }
             
-            LOG_SUPER_DEBUG("starmini: %.2e LW: %.2e LWmini: %.2e",dstarlya_dt_prefactor_MINI[R_ct],
-                                                        dstarlyLW_dt_prefactor[R_ct],
-                                                        dstarlyLW_dt_prefactor_MINI[R_ct]);
+            // LOG_DEBUG("starmini: %.2e LW: %.2e LWmini: %.2e",dstarlya_dt_prefactor_MINI[R_ct],
+            //                                             dstarlyLW_dt_prefactor[R_ct],
+            //                                             dstarlyLW_dt_prefactor_MINI[R_ct]);
+            // LOG_DEBUG("cont mini %.2e inj mini %.2e",dstarlya_cont_dt_prefactor_MINI[R_ct],dstarlya_inj_dt_prefactor_MINI[R_ct]);
         }
 
         sum_lyn_prev = sum_lyn_val;
@@ -3115,7 +3134,7 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
         if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1){
             LOG_DEBUG("finished XraySourceBox");
         }
-        LOG_SUPER_DEBUG("R = %8.3f | mean sfr = %10.3e (%10.3e MINI)",R_outer,fsfr_avg/HII_TOT_NUM_PIXELS,fsfr_avg_mini/HII_TOT_NUM_PIXELS);
+        // LOG_DEBUG("R = %8.3f | mean sfr = %10.3e (%10.3e MINI)",R_outer,fsfr_avg/HII_TOT_NUM_PIXELS,fsfr_avg_mini/HII_TOT_NUM_PIXELS);
         
         fftwf_free(filtered_box);
         fftwf_free(unfiltered_box);
@@ -3143,7 +3162,7 @@ void fill_freqint_tables(float zp, double x_e_ave, double filling_factor_of_HI_z
         //In TauX we integrate Nion from zpp to zp using the LW turnover mass at zp (predending its at zpp)
         //  Calculated from the average smoothed zp grid (from previous LW field) at radius R
         //TODO: For now, I will (kind of) mimic this behaviour by providing average Mcrit_LW at zp from the HaloBox
-        //  However I want to replace this with the REAL ionised fraction which occured at the previous timestep
+        //  However I want to replace this with the REAL ionised fraction which occured at the previous timesteps
         //  i.e real global history structures rather than passing averages at zpp or zhat
         for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
             if(flag_options_ts->USE_MINI_HALOS){
@@ -3208,7 +3227,6 @@ double EvaluateNionTs(double redshift){
 }
 
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave){
-    //TODO: Move to EvaluateRGTable2D (make a real 2D array instead of this)
     if(user_params_ts->USE_INTERPOLATION_TABLES) {
         double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
         return EvaluateRGTable2D(log10_Mturn_LW_ave,redshift,Nion_z_val_MINI,LOG10_MTURN_MIN,LOG10_MTURN_INT,determine_zpp_min,zpp_bin_width);
@@ -3276,7 +3294,7 @@ int global_reion_properties(float zp, struct HaloBox *halo_box, double * Q_HI){
     double sum_Nion=0,sum_sfr=0,sum_mass=0;
     double Nion_global;
     double Q;
-    double tot_mass =  RHOcrit * cosmo_params_ts->OMb * pow(user_params_ts->BOX_LEN,3);
+    double tot_mass = RHOcrit * cosmo_params_ts->OMb * pow(user_params_ts->BOX_LEN,3);
     
     //For a lot of global evolution, this code uses Nion_general. We can replace this with the halo field
     //at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1 barrier
@@ -3382,7 +3400,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 
     //setup dzp for the rate equations (T is added onto prev_spin_temp)
     //TODO: Figure out the default case in the above big function. it seems to:
-    //  First calculate zpp max and minimum using perturbed_redshift as abase, filling the R arrays
+    //  First calculate zpp max and minimum using perturbed_redshift as a base, filling the R arrays
     //  Then recalculate the R arrays without changing the extrema
     dzp = redshift - prev_redshift;
 
@@ -3456,7 +3474,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 
     double Nb_zp = N_b0 * (1+zp)*(1+zp)*(1+zp); //used for lya_X and sinks NOTE: the 2 density factors are from source & absorber since its downscattered x-ray
     double lya_star_prefactor = C / FOURPI * Msun / m_p * (1 - 0.75*global_params.Y_He); //converts SFR density -> stellar baryon density + prefactors
-    double volunit_inv = pow(CMperMPC,-3); //TODO: check if the cm length unit here is comoving
+    double volunit_inv = pow(CMperMPC,-3); //changes to emissivity per cm-3
 
     //boxes that are independent of R (for interpolation of the nu integrals)
     //NOTE: Frequency integrals are based on PREVIOUS XHII
@@ -3517,7 +3535,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             double sfr_term_mini=0.,starlya_factor_mini=0.;
             double lyacont_factor_mini=0.,lyainj_factor_mini=0.;
             double tau21, xCMB, prev_Ts;
-            double density_term;
             double E_continuum, E_injected, eps_Lya_cont, eps_Lya_inj;
             double Ndot_alpha_cont,Ndot_alpha_inj;
 
@@ -3532,7 +3549,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                 //The reason why they are boxes in USE_MASS_DEPENDENT_ZETA, is to be compatible with MINIMIZE_MEMORY, replacing the ~40*NUM_PIXELS with ~4-16*NUM_PIXELS
                 // (both are kept without the flag). This is not compatible with non-linearly evolved source fields (going from zp to REAL zpp)
                 //TODO: for the halo model we can reverse the loop order, calculate R-dependent factors and not use these boxes
-                //  Also think about how to handle MINIMIZE_MEMORY in the modular case
+                //  Also think about how to handle MINIMIZE_MEMORY in the modular case. It may also be faster to fill in the boxes due to memory locality
                 if(!NO_LIGHT) {
                     sfr_term = source_box->filtered_sfr[R_ct*HII_TOT_NUM_PIXELS + box_ct] * z_edge_factor;
                     if(flag_options->USE_MINI_HALOS){
@@ -3572,20 +3589,22 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     T = previous_spin_temp->Tk_box[box_ct];
                     prev_Ts = previous_spin_temp->Ts_box[box_ct];
                     
-                    //In the halo model the filtered sfr is supplied, we need the ratio of absorbers
-                    density_term = 1 / (RHOcrit*cosmo_params->OMb*(1+curr_delta)); //TODO: put in USE_HALO_FIELD FLAG
+                    //NOTE: if the filtered grids have sfr density, and the factors convert to emissivity density, surely I need a 1/(1+delta_curr)
+                    //  factor here for absorber density (i.e overdense regions need more radiation to have the same effects)
+                    //  What am I missing? The ionisation box has a final delta dependence of (1+delta_source)/(1+delta_absorber) which makes sense
+                    //  But here it's just (1+delta_source).
 
                     // add prefactors
-                    dxheat_dt_box[box_ct] *= xray_prefactor * volunit_inv * density_term;
-                    dxion_source_dt_box[box_ct] *= xray_prefactor * volunit_inv * density_term;
-                    dxlya_dt_box[box_ct] *= xray_prefactor * volunit_inv * Nb_zp * (1+curr_delta) * density_term; //2 density terms from downscattering absorbers
-                    dstarlya_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * density_term;
+                    dxheat_dt_box[box_ct] *= xray_prefactor * volunit_inv;
+                    dxion_source_dt_box[box_ct] *= xray_prefactor * volunit_inv;
+                    dxlya_dt_box[box_ct] *= xray_prefactor * volunit_inv * Nb_zp * (1+curr_delta); //2 density terms from downscattering absorbers
+                    dstarlya_dt_box[box_ct] *= lya_star_prefactor * volunit_inv;
                     if(flag_options->USE_MINI_HALOS){
-                        dstarlyLW_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * hplank * 1e21 * density_term;
+                        dstarlyLW_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * hplank * 1e21;
                     }
                     if(flag_options->USE_LYA_HEATING){
-                        dstarlya_cont_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * density_term;
-                        dstarlya_inj_dt_box[box_ct] *= lya_star_prefactor * volunit_inv * density_term;
+                        dstarlya_cont_dt_box[box_ct] *= lya_star_prefactor * volunit_inv;
+                        dstarlya_inj_dt_box[box_ct] *= lya_star_prefactor * volunit_inv;
                     }
 
                     // if(print_count<5 && dxheat_dt_box[box_ct] > 0.){
@@ -3744,7 +3763,8 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         if (flag_options->USE_MINI_HALOS){
             J_LW_ave /= (double)HII_TOT_NUM_PIXELS;
             LOG_DEBUG("J_LW %.2e",J_LW_ave/1e21);
-        }if (flag_options->USE_LYA_HEATING){
+        }
+        if (flag_options->USE_LYA_HEATING){
             eps_lya_cont_ave /= (double)HII_TOT_NUM_PIXELS;
             eps_lya_inj_ave /= (double)HII_TOT_NUM_PIXELS;
             LOG_DEBUG("eps_cont %.2e eps_inj %.2e",eps_lya_cont_ave,eps_lya_inj_ave);
