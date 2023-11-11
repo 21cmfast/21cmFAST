@@ -5,7 +5,7 @@
 #define History_box_DIM 20 // number of quantities to be saved in History_box
 
 // Print debug info array to a file, info contains: History_box, Gas Temp
-#define Debug_Printer 0
+#define Debug_Printer 1
 
 int Find_Index(double *x_axis, double x, int nx)
 {
