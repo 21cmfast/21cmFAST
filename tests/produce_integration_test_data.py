@@ -205,8 +205,12 @@ OPTIONS = {
             "USE_INTERPOLATION_TABLES": False,
         },
     ],
-    "fast_fcoll": [
-        12.1,
+    "fast_fcoll_hiz": [
+        18,
+        {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True},
+    ],
+    "fast_fcoll_lowz": [
+        8,
         {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True},
     ],
     "relvel": [
@@ -221,6 +225,14 @@ OPTIONS = {
             "FAST_FCOLL_TABLES": True,
             "USE_RELATIVE_VELOCITIES": True,
         },
+    ],
+    "lyman_alpha_heating": [
+        8,
+        {"N_THREADS": 4, "USE_CMB_HEATING": False},
+    ],
+    "cmb_heating": [
+        8,
+        {"N_THREADS": 4, "USE_LYA_HEATING": False},
     ],
 }
 
@@ -310,7 +322,8 @@ def get_all_options_halo(redshift, **kwargs):
 def produce_coeval_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
 
-    coeval = run_coeval(write=write_ics_only_hook, **options)
+    with config.use(ignore_R_BUBBLE_MAX_error=True):
+        coeval = run_coeval(write=write_ics_only_hook, **options)
     p = {}
 
     for field in COEVAL_FIELDS:
@@ -324,19 +337,20 @@ def produce_coeval_power_spectra(redshift, **kwargs):
 
 def produce_lc_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
-    lightcone = run_lightcone(
-        max_redshift=options["redshift"] + 2,
-        lightcone_quantities=[
-            k
-            for k in LIGHTCONE_FIELDS
-            if (
-                options["flag_options"].get("USE_TS_FLUCT", False)
-                or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
-            )
-        ],
-        write=write_ics_only_hook,
-        **options,
-    )
+    with config.use(ignore_R_BUBBLE_MAX_error=True):
+        lightcone = run_lightcone(
+            max_redshift=options["redshift"] + 2,
+            lightcone_quantities=[
+                k
+                for k in LIGHTCONE_FIELDS
+                if (
+                    options["flag_options"].get("USE_TS_FLUCT", False)
+                    or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
+                )
+            ],
+            write=write_ics_only_hook,
+            **options,
+        )
 
     p = {}
     for field in LIGHTCONE_FIELDS:
@@ -516,7 +530,6 @@ def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
 
 
 def produce_data_for_halo_field_tests(name, redshift, force, **kwargs):
-
     pt_halos = produce_halo_field_data(redshift, **kwargs)
 
     fname = get_filename("halo_field_data", name)

@@ -4,6 +4,101 @@ Changelog
 dev-version
 -----------
 
+Fixed
+~~~~~
+
+* Incorrect sign on adiabatic fluctuations.
+
+v3.3.1 [24 May 2023]
+----------------------
+
+Fixed
+~~~~~
+
+* Compilation of C code for some compilers (#330)
+
+v3.3.0 [17 May 2023]
+----------------------
+
+Internals
+~~~~~~~~~
+
+* Refactored setting up of inputs to high-level functions so that there is less code
+  repetition.
+
+Fixed
+~~~~~
+
+* Running with ``R_BUBBLE_MAX`` too large auto-fixes it to be ``BOX_LEN`` (#112)
+* Bug in calling ``clear_cache``.
+* Inconsistency in the way that the very highest redshift of an evolution is handled
+  between low-level code (eg. ``spin_temperature()``) and high-level code (eg. ``run_coeval()``).
+
+
+Added
+~~~~~
+
+* New ``validate_all_inputs`` function that cross-references the four main input structs
+  and ensures all the parameters make sense together. Mostly for internal use.
+* Ability to save/read directly from an open HDF5 File (#170)
+* An implementation of cloud-in-cell to more accurately redistribute the perturbed mass
+  across all neighbouring cells instead of the previous nearest cell approach
+* Changed PhotonConsEndCalibz from z = 5 -> z = 3.5 to handle later reionisation
+  scenarios in line with current observations (#305)
+* Add in an initialisation check for the photon conservation to address some issues
+  arising for early EOR histories (#311)
+* Added ``NON_CUBIC_FACTOR`` to ``UserParams`` to allow for non-cubic coeval boxes (#289)
+
+v3.2.1 [13 Sep 2022]
+----------------------
+
+Changed
+~~~~~~~
+
+* Included log10_mturnovers(_mini) in lightcone class. Only useful when USE_MINI_HALOS
+
+
+v3.2.0 [11 Jul 2022]
+----------------------
+
+Changed
+~~~~~~~
+
+* Floats are now represented to a specific number of significant digits in the hash of
+  an output object. This fixes problems with very close redshifts not being read from
+  cache (#80). Note that this means that very close astro/cosmo params will now be read
+  from cache. This could cause issues when creating large databases with many random
+  parameters. The behaviour can modified in the configuration by setting the
+  ``cache_param_sigfigs`` and ``cache_redshift_sigfigs`` parameters (these are 6 and
+  4 by default, respectively).
+  **NOTE**: updating to this version will cause your previous cached files to become
+  unusable. Remove them before updating.
+
+Fixed
+~~~~~
+
+* Added a missing C-based error to the known errors in Python.
+
+v3.1.5 [27 Apr 2022]
+----------------------
+
+v3.1.4 [10 Feb 2022]
+----------------------
+
+Fixed
+~~~~~
+
+* error in FFT normalization in FindHaloes
+* docs not compiling on RTD due to missing ``scipy.integrate`` mock module
+* Updated matplotlib removed support for setting vmin/vmax and norm. Now passes vmin/vmax
+  to the norm() constructor.
+
+v3.1.3 [27 Oct 2021]
+----------------------
+
+* Fixed ``FAST_FCOLL_TABLES`` so it only affects MCGs and not ACGs. Added tests of this
+  flag for high and low z separately.
+
 v3.1.2 [14 Jul 2021]
 ----------------------
 
@@ -17,6 +112,7 @@ Change
 
 * Updated ``USE_INTERPOLATION_TABLES`` to be default True. This makes much more sense as
   a default value. Until v4, a warning will be raised if it is not set explicitly.
+
 
 v3.1.1 [13 Jun 2021]
 ----------------------

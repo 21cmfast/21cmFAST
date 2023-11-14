@@ -21,6 +21,7 @@ struct UserParams{
     int HII_DIM;
     int DIM;
     float BOX_LEN;
+    float NON_CUBIC_FACTOR;
     bool USE_FFTW_WISDOM;
     int HMF;
     int USE_RELATIVE_VELOCITIES;
@@ -29,7 +30,7 @@ struct UserParams{
     bool PERTURB_ON_HIGH_RES;
     bool NO_RNG;
     bool USE_INTERPOLATION_TABLES;
-    bool FAST_FCOLL_TABLES; //jbm:Whether to use the fast Fcoll table approximation in EPS
+    bool FAST_FCOLL_TABLES; //Whether to use the fast Fcoll table approximation in EPS
     bool USE_2LPT;
     bool MINIMIZE_MEMORY;
 };
@@ -72,6 +73,8 @@ struct FlagOptions{
     // Parameters taken from INIT_PARAMS.H
     bool USE_HALO_FIELD;
     bool USE_MINI_HALOS;
+    bool USE_CMB_HEATING; //CMB Heating Flag
+    bool USE_LYA_HEATING; //Lya Heating Flag
     bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
     bool INHOMO_RECO;
@@ -94,7 +97,6 @@ struct PerturbedField{
 };
 
 struct HaloField{
-
     int n_halos;
     float *halo_masses;
     int *halo_coords;
@@ -117,7 +119,6 @@ struct PerturbHaloField{
 
 
 struct TsBox{
-    int first_box;
     float *Ts_box;
     float *x_e_box;
     float *Tk_box;
@@ -125,7 +126,6 @@ struct TsBox{
 };
 
 struct IonizedBox{
-    int first_box;
     double mean_f_coll;
     double mean_f_coll_MINI;
     double mean_f_coll_PC;

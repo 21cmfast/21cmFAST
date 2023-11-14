@@ -42,10 +42,51 @@ which supports ``-fopenmp``. As long as these packages install into the standard
 a standard installation of ``21cmFAST`` will be automatically possible (see below).
 If they are installed to a place not on the ``LD_LIBRARY``/``INCLUDE`` paths, then you
 must use the compilation options (see below) to specify where they are.
+For example, you can check if the header file for ``fftw3`` is
+in its default location ``/usr/include/`` by running::
+
+    cd /usr/include/
+    find fftw3.h
+
+or::
+
+    locate fftw3.h
 
 .. note:: there exists the option of installing ``gsl``, ``fftw`` and ``gcc`` using ``conda``.
           This is discussed below in the context of MacOSX, where it is often the
           easiest way to get the dependencies, but it is equally applicable to linux.
+
+Ubuntu
+^^^^^^
+If you are installing 21cmFAST just as a user, the very simplest method is ``conda``
+-- with this method you simply need ``conda install -c conda-forge 21cmFAST``, and all
+dependencies will be automatically installed. However, if you are going to use
+``pip`` to install the package directly from the repository, there is
+a [bug in pip](https://stackoverflow.com/questions/71340058/conda-does-not-look-for-libpthread-and-libpthread-nonshared-at-the-right-place-w)
+that means it cannot find conda-installed shared libraries properly. In that case, it is much
+easier to install the basic dependencies (``gcc``, ``gsl`` and ``fftw3``) with your
+system's package manager. ``gcc`` is by default available in Ubuntu.
+To check if ``gcc`` is installed, run ``gcc --version`` in your terminal.
+Install ``fftw3`` and ``gsl`` on your system with  ``sudo apt-get install libfftw3-dev libgsl-dev``.
+
+
+In your ``21cmfast`` environment, now install the ``21cmFAST`` package using::
+
+    cd /path/to/21cmFAST/
+    pip install .
+
+If there is an issue during installation, add ``DEBUG=all`` or ``--DEBUG`` which may provide additional
+information.
+
+.. note:: If there is an error during compilation that the ``fftw3`` library cannot be found,
+          check where the ``fftw3`` library is actually located using ``locate libfftw3.so``.
+          For example, it may be located in ``/usr/lib/x86_64-linux-gnu/``. Then, provide this path
+          to the installation command with the ``LIB`` flag. For more details see the note in the
+          MacOSX section below.
+
+.. note:: You may choose to install ``gsl`` as an anaconda package as well, however, in that case,
+          you need to add both ``INC`` paths in the installation command e.g.:
+          ``GSL_INC=/path/to/conda/env/include FFTW_INC=/usr/include``
 
 MacOSX
 ~~~~~~
@@ -69,6 +110,12 @@ If you get the ``conda`` version, you still need to install the headers::
 On older versions then you need to do::
 
     open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_<input version>.pkg
+
+.. note:: some versions of MacOS will also require you to point to the correct gcc
+          compiler using the ``CC`` environment variable. Overall, the point is to NOT
+          use ``clang``. If ``gcc --version`` shows that it is actually GCC, then you
+          can set ``CC=gcc``. If you use homebrew to install ``gcc``, it is likely that
+          you'll have to set ``CC=gcc-11``.
 
 For newer versions, you may need to prepend the following command to your ``pip install`` command
 when installing ``21cmFAST`` (see later instructions)::
@@ -94,7 +141,7 @@ For Users
 
 Then, at the command line::
 
-    pip install git+git://github.com/21cmFAST/21cmFAST.git
+    pip install git+https://github.com/21cmFAST/21cmFAST.git
 
 If developing, from the top-level directory do::
 
@@ -129,6 +176,11 @@ the C-library in dev mode (so you can do stuff like valgrid and gdb with it),
 install with DEBUG=True. So for example::
 
     CC=/usr/bin/gcc DEBUG=True GSL_LIB=/opt/local/lib FFTW_INC=/usr/local/include pip install -e .
+
+.. note:: For MacOS a typical installation command will look like
+          ``CC=gcc CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX<input version>.sdk" pip install .``
+          (using either ``gcc`` or ``gcc-11`` depending on how you installed gcc), with
+          other compile options possible as well.
 
 In addition, the ``BOXDIR`` variable specifies the *default* directory that any
 data produced by 21cmFAST will be cached. This value can be updated at any time by
