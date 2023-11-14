@@ -21,11 +21,10 @@
 //so we explicitly set a minimum here which sets table limits and puts no halos in cells below that (Lagrangian) density
 #define DELTA_MIN -1
 
-//TODO:These should be static, right?
-struct AstroParams *astro_params_stoc;
-struct CosmoParams *cosmo_params_stoc;
-struct UserParams *user_params_stoc;
-struct FlagOptions *flag_options_stoc;
+static struct AstroParams *astro_params_stoc;
+static struct CosmoParams *cosmo_params_stoc;
+static struct UserParams *user_params_stoc;
+static struct FlagOptions *flag_options_stoc;
 
 //Parameters used for gsl integral on the mass function
 struct parameters_gsl_MF_con_int_{
@@ -46,7 +45,7 @@ struct parameters_gsl_MF_con_int_{
 //Note: ideally I would split this into constants set per snapshot and
 //  constants set per condition, however some variables (delta or Mass)
 //  can be set with differing frequencies depending on the condition type
-static struct HaloSamplingConstants{
+struct HaloSamplingConstants{
     //calculated per redshift
     int update; //flag for first box or updating halos
     double t_h;
@@ -2525,7 +2524,9 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         //Since the conditional MF is press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
         double ps_ratio = 1.;
         if(!hs_constants->update && user_params->HMF!=0){
-            ps_ratio = IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,0,1,0,0) / IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,0,1,user_params->HMF,0);
+            lnMcond = hs_constants->lnM_cond;
+            ps_ratio = IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,0,1,user_params->HMF,0) / IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,0,1,0,0);
+            LOG_DEBUG("Using PS ratio of %.2f",ps_ratio);
         }
 
         if(type==0){
@@ -2537,7 +2538,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             int cmf_flag = (seed==0) ? 1 : 0;
 
             //parameters for CMF
-            double prefactor = cmf_flag ? RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm : 1.;
+            double prefactor = cmf_flag ? RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm * ps_ratio : 1.;
             struct parameters_gsl_MF_con_int_ parameters_gsl_MF_con = {
                 .redshift = z_out,
                 .growthf = growth_out,

@@ -509,6 +509,9 @@ class XraySourceBox(_AllParamsBox):
         out = {
             "filtered_sfr": shape,
             "filtered_sfr_mini": shape,
+            "mean_sfr": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
+            "mean_sfr_mini": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
+            "mean_log10_Mcrit_LW": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
         }
 
         return out

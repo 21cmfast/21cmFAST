@@ -92,6 +92,13 @@ LOG_DEBUG("Begin Initialisation");
         if(global_params.OPTIMIZE) {
             forbidden = (char *) malloc(sizeof(char)*num_pixels);
         }
+        if(LOG_LEVEL >= DEBUG_LEVEL){
+            double Mmax_debug = 1e16;
+            double Mmin_debug = RtoM(L_FACTOR*user_params->BOX_LEN/grid_dim);
+            initialiseSigmaMInterpTable(Mmin_debug*0.9,Mmax_debug*1.1);
+            double expected_nhalo = VOLUME * IntegratedNdM(growth_factor,log(Mmin_debug),log(Mmax_debug),log(Mmax_debug),0,0,user_params->HMF,0);
+            LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e]",expected_nhalo,Mmin_debug,Mmax_debug);
+        }
 
 #pragma omp parallel shared(boxes,density_field) private(i,j,k) num_threads(user_params->N_THREADS)
         {
@@ -144,7 +151,7 @@ LOG_DEBUG("Prepare to filter to find halos");
 
         while ((R > 0.5*Delta_R) && (RtoM(R) >= M_MIN)){ // filter until we get to half the pixel size or M_MIN
 
-LOG_ULTRA_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%e M_MIN=%e", R, 0.5*Delta_R, RtoM(R), M_MIN);
+LOG_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%e M_MIN=%e", R, 0.5*Delta_R, RtoM(R), M_MIN);
 
             M = RtoM(R);
             if(global_params.DELTA_CRIT_MODE == 1 && (user_params->HMF>0 && user_params->HMF<4)){
@@ -204,11 +211,9 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
             // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
             dn=0;
             
-//TODO: Fix the race condition: it doesn't matter which thread finds the halo first, but if two threads find a halo in the same region
-//simultaneously (before the first one updates in_halo) some halos could double-up
-//putting the conditional in a critical part would undo most of the threading benefit, think of something else
+//TODO: Fix the race condition propertly to remove the critical: it doesn't matter which thread finds the halo first
+//  but if two threads find a halo in the same region simultaneously (before the first one updates in_halo) some halos could double-up
 //checking for overlaps in new halos after this loop could work, but I would have to calculate distances between all new halos which sounds slow
-//for now, I think it's good enough to set the static schedule so that the race condition only matters for large halos in low-res grids and small boxes.
 #pragma omp parallel shared(boxes,density_field,in_halo,forbidden,halo_field,growth_factor,M,delta_crit) private(x,y,z,delta_m) num_threads(user_params->N_THREADS) reduction(+: dn,n,total_halo_num)
             {
                 unsigned long long index_c;
@@ -229,30 +234,36 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                             delta_m = *((float *)density_field + index_c) * growth_factor / num_pixels;
 
                             // if not within a larger halo, and radii don't overlap, update in_halo box
+                            //TODO: something to remove the criticals (see above note)
                             // *****************  BEGIN OPTIMIZATION ***************** //
                             if(global_params.OPTIMIZE && (M > global_params.OPTIMIZE_MIN_MASS)) {
                                 if ( (delta_m > delta_crit) && !forbidden[index_r]){
-                                    check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
-                                    check_halo(forbidden, user_params, res_flag, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
+                                    #pragma omp critical
+                                    {
+                                        check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
+                                        check_halo(forbidden, user_params, res_flag, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
 
-                                    halo_field[index_r] = M;
+                                        halo_field[index_r] = M;
 
-                                    dn++; // keep track of the number of halos
-                                    n++;
-                                    total_halo_num++;
+                                        dn++; // keep track of the number of halos
+                                        n++;
+                                        total_halo_num++;
+                                    }
                                 }
                             }
                             // *****************  END OPTIMIZATION ***************** //
                             else {
                                 if ((delta_m > delta_crit) && !in_halo[index_r] && !check_halo(in_halo, user_params, res_flag, R, x,y,z,1)){ // we found us a "new" halo!
+                                    #pragma omp critical
+                                    {
+                                        check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
 
-                                    check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
+                                        halo_field[index_r] = M;
 
-                                    halo_field[index_r] = M;
-
-                                    dn++; // keep track of the number of halos
-                                    n++;
-                                    total_halo_num++;
+                                        dn++; // keep track of the number of halos
+                                        n++;
+                                        total_halo_num++;
+                                    }
                                 }
                             }
                         }
@@ -260,7 +271,7 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                 }
             }
 
-            LOG_ULTRA_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", dn, n, growth_factor, delta_crit);
+            LOG_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", dn, n, growth_factor, delta_crit);
 
             if (dn > 0){
                 // now lets keep the mass functions (FgrtR)
