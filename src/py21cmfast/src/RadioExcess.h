@@ -511,11 +511,12 @@ double Get_EoR_Radio_mini(struct TsBox *this_spin_temp, struct AstroParams *astr
 	return Radio_Temp;
 }
 
-double Get_EoR_Radio_mini_v2(struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, double redshift)
+double Get_EoR_Radio_mini_v2(struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, float redshift)
 {
-	int idx, nx, ArchiveSize, head;
-	double nion, dz, fun, dT, T, Prefix, Phi, z, z_prev, mt, mc, Mlim_Fstar_MINI, SFRD_debug;
+	int idx, nz, ArchiveSize, head;
+	double nion, dz, fun, dT, T, Prefix, Phi, z, z_prev, mt, mc, Mlim_Fstar_MINI, SFRD_debug, z_axis[400], nion_axis[400], zmin, zmax;
 	FILE *OutputFile;
+	nz = 400;
 
 	if ((this_spin_temp->first_box) || (redshift > 33.0))
 	{
@@ -523,44 +524,39 @@ double Get_EoR_Radio_mini_v2(struct TsBox *previous_spin_temp, struct TsBox *thi
 	}
 	else
 	{
-		Prefix = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR7_MINI) * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3 + astro_params->aR_mini);
-		ArchiveSize = (int)round(previous_spin_temp->History_box[0]);
+		printf("---- Using V2----\n");
+		ArchiveSize = (int)round(this_spin_temp->History_box[0]);
 		if (ArchiveSize > 3)
 		{
 			Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
 												   astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
-			T = 0.;
 			if (Debug_Printer == 1)
 			{
 				remove("SFRD_PopIII_tmp.txt");
 				OutputFile = fopen("SFRD_PopIII_tmp.txt", "a");
 			}
-
-			for (idx = 0; idx < ArchiveSize - 1; idx++)
+			
+			// First fill z_axis and nion_axis
+			if (ArchiveSize > 390)
+			{
+				fprintf(stderr, "Error @ Get_EoR_Radio_mini: Running with very fine z time steps, z and nion axis is not large enough.\n");
+			}
+			for (idx = 0; idx < ArchiveSize; idx++)
 			{
 				head = idx * History_box_DIM + 1;
-				z = previous_spin_temp->History_box[head];
-				z_prev = previous_spin_temp->History_box[head + History_box_DIM];
-
-				dz = fabs(z - z_prev);
+				z = this_spin_temp->History_box[head];
+				z_axis[idx] = z;
 				mc = atomic_cooling_threshold(z);
-				mt = previous_spin_temp->History_box[head + 6];
-				if (mt < 1e2)
+				mt = this_spin_temp->History_box[head + 6];
+				if (mt < 1.0e2)
 				{
-					Phi = previous_spin_temp->History_box[head + 3];
-					nion = astro_params->t_STAR * pow(1 + z, astro_params->X_RAY_SPEC_INDEX + 1.0) * Phi;
+					fprintf(stderr, "Error @ Get_EoR_Radio_mini: mturn is smaller than 100, this is not supposed to happen.\n");
 				}
-				else
-				{
-					nion = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mt, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
-				}
-
-				fun = Prefix * nion / astro_params->t_STAR / pow(1 + z, astro_params->aR_mini - 1.0);
-				dT = fun * dz;
-				T = T + dT;
+				nion_axis[idx] = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mt, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
+				
 				if (Debug_Printer == 1)
 				{
-					Phi = nion / astro_params->t_STAR / pow(1 + z, astro_params->X_RAY_SPEC_INDEX + 1.0);
+					Phi = nion_axis[idx] / astro_params->t_STAR / pow(1 + z, astro_params->X_RAY_SPEC_INDEX + 1.0);
 					SFRD_debug = Phi_2_SFRD(Phi, z, hubble(z), astro_params, cosmo_params, 1);
 					fprintf(OutputFile, "%.3E   %3E    %3E\n", z, SFRD_debug, mt);
 				}
@@ -568,6 +564,21 @@ double Get_EoR_Radio_mini_v2(struct TsBox *previous_spin_temp, struct TsBox *thi
 			if (Debug_Printer == 1)
 			{
 				fclose(OutputFile);
+			}
+			
+			// Now interpolate for finer z
+			Prefix = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * astro_params->F_STAR7_MINI * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3.0 + astro_params->aR_mini);
+			zmax = z_axis[0]; //z_heat_max
+			zmin = z_axis[ArchiveSize - 1]; // this is current redshift
+			dz = (zmax - zmin)/ (((double)nz) - 1.0);
+			T = 0.;
+			for (idx = 0; idx < nz; idx++)
+			{
+				z = zmin + ((double)idx) * dz;
+				nion = Interp_1D(z, z_axis, nion_axis, ArchiveSize, 0, 1, 1);
+				fun = Prefix * nion / astro_params->t_STAR / pow(1.0 + z, astro_params->aR_mini + 1);
+				dT = fun * dz;
+				T = T + dT;
 			}
 		}
 		else

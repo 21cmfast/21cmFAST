@@ -62,7 +62,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
         // Initialising some variables
         T_IGM_ave = 0.0;
-        Radio_Temp_ave = 0.0;
         Radio_Prefix_ACG = 113.6161 * astro_params->fR * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR10) * pow(astro_nu0 / 1.4276, astro_params->aR) * pow(1 + redshift, 3 + astro_params->aR);
         Radio_Prefix_MCG = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR7_MINI) * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3 + astro_params->aR_mini);
 
@@ -1512,7 +1511,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 }
 
             } // end loop over R_ct filter steps
-            Calibrate_Phi_mini(previous_spin_temp, this_spin_temp, flag_options, astro_params, redshift);
+            // Calibrate_Phi_mini(previous_spin_temp, this_spin_temp, flag_options, astro_params, redshift);
 
             // Throw the time intensive full calculations into a multiprocessing loop to get them evaluated faster
             if (!user_params->USE_INTERPOLATION_TABLES)
@@ -2423,7 +2422,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                 }
 
                                 x_e_ave += x_e;
-                                Radio_Temp_ave += Radio_Temp / ((double)HII_TOT_NUM_PIXELS);
                             }
                         }
                     }
@@ -2640,6 +2638,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
             // ---- Computing averaged quantities ----
             T_IGM_ave = 0.0;
+            Radio_Temp_ave = 0.0;
             Phi_ave = 0.0;
             Phi_ave_mini = 0.0;
             Phi = 0.0;
@@ -2650,15 +2649,12 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
             {
                 // #1: Gas temperature
-                if (isfinite(this_spin_temp->Ts_box[box_ct]) == 0)
-                {
-                    LOG_ERROR("Estimated spin temperature is either infinite of NaN!");
-                    //                Throw(ParameterError);
-                    Throw(InfinityorNaNError);
-                }
                 T_IGM_ave += this_spin_temp->Tk_box[box_ct] / ((double)HII_TOT_NUM_PIXELS);
+                
+                // #2: Radio Temp
+                Radio_Temp_ave += this_spin_temp->Trad_box[box_ct] / ((double)HII_TOT_NUM_PIXELS);
 
-                // #2: Phi and Phi_mini
+                // #3: Phi and Phi_mini
                 // at this stage R_ct woube be 0 anyway
                 if (flag_options->USE_MASS_DEPENDENT_ZETA)
                 {
@@ -2721,8 +2717,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             if (flag_options->Calibrate_EoR_feedback)
             {
                 // Calibrating EoR feedback, coupling to Ts should be negligible by now since T21 would be dominated by xH
-                Tr_EoR = Get_EoR_Radio_mini(this_spin_temp, astro_params, cosmo_params, flag_options, redshift, Radio_Temp_ave, x_e_ave / (double)HII_TOT_NUM_PIXELS);
-                // Tr_EoR = Get_EoR_Radio_mini_v2(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, redshift);
+                // Tr_EoR = Get_EoR_Radio_mini(this_spin_temp, astro_params, cosmo_params, flag_options, redshift, Radio_Temp_ave, x_e_ave / (double)HII_TOT_NUM_PIXELS);
+                Tr_EoR = Get_EoR_Radio_mini_v2(this_spin_temp, astro_params, cosmo_params, redshift);
                 // SFRD_EoR_MINI = Get_SFRD_EoR_MINI(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, x_e_ave / (double)HII_TOT_NUM_PIXELS, zpp_Rct0);
                 // SFRD_MINI_ave = Phi_2_SFRD(Phi_ave_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
                 // SFRD_MINI_ave = SFRD_MINI_ave > 1e-200 ? SFRD_MINI_ave : 1e-200; // avoid nan in divide
