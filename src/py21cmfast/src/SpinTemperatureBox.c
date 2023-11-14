@@ -1512,7 +1512,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 }
 
             } // end loop over R_ct filter steps
-            Calibrate_Phi_mini(previous_spin_temp, flag_options, astro_params, redshift);
+            Calibrate_Phi_mini(previous_spin_temp, this_spin_temp, flag_options, astro_params, redshift);
 
             // Throw the time intensive full calculations into a multiprocessing loop to get them evaluated faster
             if (!user_params->USE_INTERPOLATION_TABLES)
@@ -2699,6 +2699,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 this_spin_temp->History_box[6] = 1.0e20;                   // mturn_II
                 this_spin_temp->History_box[7] = 1.0e20;                   // mturn_III
                 this_spin_temp->History_box[8] = 0.0;                      // Phi_mini_calibrated
+                this_spin_temp->mturns_EoR[0] = 1.0e20;                    // mturn_II
+                this_spin_temp->mturns_EoR[1] = 1.0e20;                    // mturn_III
             }
             else
             {
@@ -2712,15 +2714,18 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 this_spin_temp->History_box[head + 2] = T_IGM_ave;
                 this_spin_temp->History_box[head + 3] = Phi_ave_mini;
                 this_spin_temp->History_box[head + 4] = zpp_for_evolve_list[0];
+                this_spin_temp->History_box[head + 5] = previous_spin_temp->mturns_EoR[0];
+                this_spin_temp->History_box[head + 6] = previous_spin_temp->mturns_EoR[1]; 
             }
 
             if (flag_options->Calibrate_EoR_feedback)
             {
                 // Calibrating EoR feedback, coupling to Ts should be negligible by now since T21 would be dominated by xH
                 Tr_EoR = Get_EoR_Radio_mini(this_spin_temp, astro_params, cosmo_params, flag_options, redshift, Radio_Temp_ave, x_e_ave / (double)HII_TOT_NUM_PIXELS);
-                SFRD_EoR_MINI = Get_SFRD_EoR_MINI(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, x_e_ave / (double)HII_TOT_NUM_PIXELS, zpp_Rct0);
-                SFRD_MINI_ave = Phi_2_SFRD(Phi_ave_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
-                SFRD_MINI_ave = SFRD_MINI_ave > 1e-200 ? SFRD_MINI_ave : 1e-200; // avoid nan in divide
+                // Tr_EoR = Get_EoR_Radio_mini_v2(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, redshift);
+                // SFRD_EoR_MINI = Get_SFRD_EoR_MINI(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, x_e_ave / (double)HII_TOT_NUM_PIXELS, zpp_Rct0);
+                // SFRD_MINI_ave = Phi_2_SFRD(Phi_ave_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
+                // SFRD_MINI_ave = SFRD_MINI_ave > 1e-200 ? SFRD_MINI_ave : 1e-200; // avoid nan in divide
 
                 for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
                 {
@@ -2733,6 +2738,12 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             {
                 // Yell to ensure that the user does not forget this, e.g. when running mcmc
                 printf("------------------------------------------------ DEBUG_PRINTER activated in SP.c------------------------------------------------\n");
+
+                OutputFile = fopen("Mturn_SP_tmp_tmp_tmp_tmp.txt", "a");
+                fprintf(OutputFile, "%3E    %.3E    %.3E\n", redshift, previous_spin_temp->mturns_EoR[0], previous_spin_temp->mturns_EoR[1]);
+                fclose(OutputFile);
+
+                printf("------------------------------------------------ %E     %E ------------------------------------------------\n", this_spin_temp->mturns_EoR[0], previous_spin_temp->mturns_EoR[0]);
 
                 // ---- history_box ----
                 double z_debug, Phi_debug;
@@ -2782,7 +2793,14 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                 // ---- SFRD for EoS mturn ----
                 Print_SFRD_MINI_EoS2021_tmp(redshift, astro_params, cosmo_params, flag_options);
-                
+
+                // Finally to test Nion_General_MINI speed
+                double Mlim_Fstar_MINI_tmp = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
+                                                                  astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
+                for (idx = 0; idx < 10; idx++)
+                {// testing code speed
+                    nion_tmp = Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, 5.0e5, 1.0e10, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI_tmp, 0.);
+                }
             }
 
             LOG_SUPER_DEBUG("finished loop");

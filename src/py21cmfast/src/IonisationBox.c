@@ -1,5 +1,5 @@
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
-#define DEBUG_PRINT_MTURNS 1
+#define DEBUG_PRINT_MTURNS 0
 
 int INIT_ERFC_INTERPOLATION = 1;
 int INIT_RECOMBINATIONS = 1;
@@ -72,7 +72,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
         float dens_val, prev_dens_val;
 
         int overdense_int, status_int, ArchiveSize, head;
-        int History_box_LEN = 20; // same as History_box_DIM but I cannot acess History_box_DIM from here
+        // int History_box_LEN = 20; // same as History_box_DIM but I cannot acess History_box_DIM from here
 
         int something_finite_or_infinite = 0;
         int log10_Mturnover_MINI_int, log10_Mturnover_int;
@@ -521,12 +521,18 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                 box->log10_Mturnover_MINI_ave = ave_log10_Mturnover_MINI / (double)HII_TOT_NUM_PIXELS;
                 Mturnover = pow(10., box->log10_Mturnover_ave);
                 Mturnover_MINI = pow(10., box->log10_Mturnover_MINI_ave);
+                // if ((flag_options->Calibrate_EoR_feedback && (!spin_temp->first_box)) && ((redshift < 33.0) && (redshift > 4.0)))
+                if (flag_options->Calibrate_EoR_feedback && (!spin_temp->first_box))
+                {
+                    spin_temp->mturns_EoR[0] = Mturnover;
+                    spin_temp->mturns_EoR[1] = Mturnover_MINI;
+                }
 
                 if (DEBUG_PRINT_MTURNS == 1)
                 {
                     FILE *OutputFile;
                     // Yell to ensure that the user does not forget this, e.g. when running mcmc
-                    printf("------------------------------------------------ DEBUG_PRINTER activated in IO.c ------------------------------------------------\n");
+                    printf("------------------------------------------------ DEBUG_PRINTER activated in IO.c ------------------------------------------------, mt3 = %E\n", Mturnover_MINI);
                     OutputFile = fopen("Mturns_IO_tmp.txt", "a");
                     if (spin_temp->first_box && redshift > 35)
                     {
@@ -535,16 +541,18 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                     fprintf(OutputFile, "%.3f    %.4E    %.4E    %.4E\n", redshift, Mturnover, Mturnover_MINI, atomic_cooling_threshold(redshift));
                     fclose(OutputFile);
                 }
-
+                
+                /* Module ditched, can lead to strange memory issue on cluster, switch to use mturns_EoR
                 // saving m_turns to history box, this spin_box is then passed to spin.c as prev_box
-                if (flag_options->Calibrate_EoR_feedback && (!spin_temp->first_box))
+                if ((flag_options->Calibrate_EoR_feedback && (!spin_temp->first_box)) && ((redshift < 33.0) && (redshift > 4.0)))
                 {
-                    /* why add !spin_temp->first_box
-                    isolated p21c call works ok on mac and cluster, mpi tests also went ok on mac but leads to malloc error on cluster
-                    but maybe things work differently on HPC, one reason I can think of is that at the first box, History_box has not been initialised
-                    so don't try to acess anything if first_box==1
-                    */
 
+                    // why add !spin_temp->first_box and z range:
+                    // avoid memory access at incorrect redshifts
+                    // isolated p21c call works ok on mac and cluster, mpi tests also went ok on mac but leads to malloc error on cluster
+                    // but maybe things work differently on HPC, one reason I can think of is that at the first box, History_box has not been initialised
+                    // so don't try to acess anything if first_box==1
+                    
                     ArchiveSize = (int)round(spin_temp->History_box[0]);
                     head = (ArchiveSize - 1) * History_box_LEN + 1;
                     if (ArchiveSize > 1)
@@ -560,6 +568,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
                         spin_temp->History_box[head + 6] = 1.0E20;
                     }
                 }
+                */
 
                 M_MIN = global_params.M_MIN_INTEGRAL;
                 Mlim_Fstar_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
