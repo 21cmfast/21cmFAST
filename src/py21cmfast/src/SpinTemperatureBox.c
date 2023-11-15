@@ -61,7 +61,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         FILE *OutputFile;
 
         // Initialising some variables
-        T_IGM_ave = 0.0;
         Radio_Prefix_ACG = 113.6161 * astro_params->fR * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR10) * pow(astro_nu0 / 1.4276, astro_params->aR) * pow(1 + redshift, 3 + astro_params->aR);
         Radio_Prefix_MCG = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * (astro_params->F_STAR7_MINI) * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3 + astro_params->aR_mini);
 
@@ -547,10 +546,10 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                             this_spin_temp->Ts_box[HII_R_INDEX(i, j, k)] = get_Ts(redshift,
                                                                                   perturbed_field->density[HII_R_INDEX(i, j, k)] * inverse_growth_factor_z * growth_factor_zp,
                                                                                   TK, xe, 0, &curr_xalpha);
-                            this_spin_temp->Trad_box[HII_R_INDEX(i, j, k)] = 0.0; // Initialize to 0
+                            // this_spin_temp->Trad_box[HII_R_INDEX(i, j, k)] = 0.0; // Initialize to 0
                             // this_spin_temp->SFRD_box[HII_R_INDEX(i, j, k)] = 0.0;
                             // this_spin_temp->SFRD_MINI_box[HII_R_INDEX(i, j, k)] = 0.0;
-                            this_spin_temp->History_box[HII_R_INDEX(i, j, k)] = 0.0;
+                            // this_spin_temp->History_box[HII_R_INDEX(i, j, k)] = 0.0;
                         }
                     }
                 }
@@ -1789,7 +1788,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             if (flag_options->USE_MASS_DEPENDENT_ZETA)
             {
 
-#pragma omp parallel shared(del_fcoll_Rct, dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box, previous_spin_temp,   \
+#pragma omp parallel shared(del_fcoll_Rct, dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box, previous_spin_temp, this_spin_temp, \
                                 x_int_XHII, m_xHII_low_box, inverse_val_box, inverse_diff, dstarlyLW_dt_box, dstarlyLW_dt_box_MINI, \
                                 dxheat_dt_box_MINI, dxion_source_dt_box_MINI, dxlya_dt_box_MINI, dstarlya_dt_box_MINI) private(box_ct, xHII_call) num_threads(user_params->N_THREADS)
                 {
@@ -2173,7 +2172,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                                                                                                                                 xc_fast, xi_power, xa_tilde_fast_arg, TS_fast, TSold_fast, xa_tilde_fast, dxheat_dzp_MINI, J_alpha_tot_MINI, curr_delNL0) \
     num_threads(user_params->N_THREADS)
                     {
-#pragma omp for reduction(+ : J_alpha_ave, xalpha_ave, Xheat_ave, Xion_ave, Ts_ave, Tk_ave, x_e_ave, J_alpha_ave_MINI, Xheat_ave_MINI, J_LW_ave, J_LW_ave_MINI)
+#pragma omp for reduction(+ : J_alpha_ave, xalpha_ave, Xheat_ave, Xion_ave, Ts_ave, Tk_ave, x_e_ave, J_alpha_ave_MINI, Xheat_ave_MINI, J_LW_ave, J_LW_ave_MINI) // JSC: summation & average
                         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
                         {
 

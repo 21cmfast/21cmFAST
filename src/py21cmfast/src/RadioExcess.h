@@ -524,7 +524,7 @@ double Get_EoR_Radio_mini_v2(struct TsBox *this_spin_temp, struct AstroParams *a
 	}
 	else
 	{
-		printf("---- Using V2----\n");
+		// printf("---- Using V2----\n");
 		ArchiveSize = (int)round(this_spin_temp->History_box[0]);
 		if (ArchiveSize > 3)
 		{
@@ -558,7 +558,7 @@ double Get_EoR_Radio_mini_v2(struct TsBox *this_spin_temp, struct AstroParams *a
 				{
 					Phi = nion_axis[idx] / astro_params->t_STAR / pow(1 + z, astro_params->X_RAY_SPEC_INDEX + 1.0);
 					SFRD_debug = Phi_2_SFRD(Phi, z, hubble(z), astro_params, cosmo_params, 1);
-					fprintf(OutputFile, "%.3E   %3E    %3E\n", z, SFRD_debug, mt);
+					fprintf(OutputFile, "%E   %E    %E    %E\n", z, SFRD_debug, mt, Phi);
 				}
 			}
 			if (Debug_Printer == 1)
