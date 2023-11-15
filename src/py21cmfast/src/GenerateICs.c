@@ -245,7 +245,9 @@ int ComputeInitialConditions(
                         a = gsl_ran_ugaussian(r[omp_get_thread_num()]);
                         b = gsl_ran_ugaussian(r[omp_get_thread_num()]);
                     }
-
+                    if(user_params->FIX_AND_PAIR){
+                        b = -1.0 * b;
+                    }
                     HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME*p/2.0) * (a + b*I);
 
                 }

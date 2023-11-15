@@ -479,6 +479,7 @@ class UserParams(StructWithDefaults):
         "FAST_FCOLL_TABLES": False,
         "USE_2LPT": True,
         "MINIMIZE_MEMORY": False,
+        "FIX_AND_PAIR": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
