@@ -11,6 +11,7 @@ include_dirs = [CLOC]
 # Set compilation arguments dependent on environment and OS... a bit buggy
 # ========================================================================
 OS_Name = platform.system()
+
 if "DEBUG" in os.environ:
     if OS_Name == 'Darwin':
         # fopenmp is known to fail on mac

@@ -55,8 +55,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         }
 
         // All these are variables for Radio Background
-        double Radio_Temp, Radio_Temp_HMG, Radio_Fun, Trad_inv, zpp_max, Phi, Phi_mini, Radio_zpp, new_nu, Phi_ave, Phi_ave_mini, T_IGM_ave;
-        double Radio_Prefix_ACG, Radio_Prefix_MCG, Fill_Fraction, Radio_Temp_ave, dzpp_Rct0, zpp_Rct0, H_Rct0, Tr_EoR, SFRD_EoR_MINI, SFRD_MINI_ave;
+        double Radio_Temp, Radio_Temp_HMG, Trad_inv, zpp_max, Phi, Phi_mini, Radio_zpp, new_nu, Phi_ave, Phi_ave_mini, T_IGM_ave, dT_Radio;
+        double Radio_Prefix_ACG, Radio_Prefix_MCG, Fill_Fraction, Radio_Temp_ave, dzpp_Rct0, zpp_Rct0, H_Rct0, Tr_EoR, SFRD_EoR_MINI, SFRD_MINI_ave, Radio_Prefix_ACG_Rct, Radio_Prefix_MCG_Rct;
         int idx, ArchiveSize, head, phi_idx, tk_idx, phi3_idx, zpp_idx, Radio_Silent, m2_idx, m3_idx;
         FILE *OutputFile;
 
@@ -182,6 +182,12 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
         if (Fill_Fraction > 0.8)
         {
             LOG_ERROR("History_box not large enough to record previous coevals, consider the following: increse HII_DIM, reduce z_prime_factor");
+            Throw(ValueError);
+        }
+
+        if (redshift < astro_params->Radio_Zmin)
+        {
+            LOG_ERROR("Need to use Refine_T_Radio for this feature, which has not been tested for mpi.");
             Throw(ValueError);
         }
 
@@ -1782,14 +1788,14 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             zpp_max = zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts - 1];
 
             // Correcting for the radio temp from sources > R_XLy_MAX
-            Radio_Temp_HMG = Get_Radio_Temp_HMG(previous_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift);
+            Radio_Temp_HMG = Get_Radio_Temp_HMG(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, flag_options, zpp_max, redshift);
 
             // Main loop over the entire box for the IGM spin temperature and relevant quantities.
             if (flag_options->USE_MASS_DEPENDENT_ZETA)
             {
 
-#pragma omp parallel shared(del_fcoll_Rct, dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box, previous_spin_temp, this_spin_temp, \
-                                x_int_XHII, m_xHII_low_box, inverse_val_box, inverse_diff, dstarlyLW_dt_box, dstarlyLW_dt_box_MINI, \
+#pragma omp parallel shared(del_fcoll_Rct, dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box, previous_spin_temp, this_spin_temp,   \
+                                x_int_XHII, m_xHII_low_box, inverse_val_box, inverse_diff, dstarlyLW_dt_box, dstarlyLW_dt_box_MINI, Radio_Temp_HMG, \
                                 dxheat_dt_box_MINI, dxion_source_dt_box_MINI, dxlya_dt_box_MINI, dstarlya_dt_box_MINI) private(box_ct, xHII_call) num_threads(user_params->N_THREADS)
                 {
 #pragma omp for
@@ -2162,14 +2168,26 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                         dstarlyLW_dt_prefactor_MINI[R_ct] *= dfcoll_dz_val_MINI;
                     }
 
-#pragma omp parallel shared(dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box, dfcoll_dz_val, del_fcoll_Rct, freq_int_heat_tbl_diff,                                                                                                                      \
-                                m_xHII_low_box, inverse_val_box, freq_int_heat_tbl, freq_int_ion_tbl_diff, freq_int_ion_tbl, freq_int_lya_tbl_diff,                                                                                                                       \
-                                freq_int_lya_tbl, dstarlya_dt_prefactor, R_ct, previous_spin_temp, this_spin_temp, const_zp_prefactor, prefactor_1,                                                                                                                       \
-                                prefactor_2, delNL0, growth_factor_zp, dt_dzp, zp, dgrowth_factor_dzp, dcomp_dzp_prefactor, Trad_fast, dzp, TS_prefactor,                                                                                                                 \
-                                xc_inverse, Trad_fast_inv, dstarlyLW_dt_box, dstarlyLW_dt_prefactor, dxheat_dt_box_MINI, dxion_source_dt_box_MINI,                                                                                                                        \
-                                dxlya_dt_box_MINI, dstarlya_dt_box_MINI, dstarlyLW_dt_box_MINI, dfcoll_dz_val_MINI, del_fcoll_Rct_MINI,                                                                                                                                   \
-                                dstarlya_dt_prefactor_MINI, dstarlyLW_dt_prefactor_MINI, prefactor_2_MINI, const_zp_prefactor_MINI) private(box_ct, x_e, T, dxion_sink_dt, dxe_dzp, dadia_dzp, dspec_dzp, dcomp_dzp, dxheat_dzp, J_alpha_tot, T_inv, T_inv_sq,            \
-                                                                                                                                                xc_fast, xi_power, xa_tilde_fast_arg, TS_fast, TSold_fast, xa_tilde_fast, dxheat_dzp_MINI, J_alpha_tot_MINI, curr_delNL0) \
+                    if ((zpp_for_evolve_list[R_ct] > astro_params->Radio_Zmin) && (Radio_Silent == 0))
+                    {
+                        Radio_Prefix_ACG_Rct = Radio_Prefix_ACG * pow(1 + zpp_for_evolve_list[R_ct], astro_params->X_RAY_SPEC_INDEX - astro_params->aR);
+                        Radio_Prefix_MCG_Rct = Radio_Prefix_MCG * pow(1 + zpp_for_evolve_list[R_ct], astro_params->X_RAY_SPEC_INDEX - astro_params->aR_mini);
+                    }
+                    else
+                    {
+                        Radio_Prefix_ACG_Rct = 0.0;
+                        Radio_Prefix_MCG_Rct = 0.0;
+                    }
+
+#pragma omp parallel shared(dxheat_dt_box, dxion_source_dt_box, dxlya_dt_box, dstarlya_dt_box, dfcoll_dz_val, del_fcoll_Rct, freq_int_heat_tbl_diff,                                           \
+                                m_xHII_low_box, inverse_val_box, freq_int_heat_tbl, freq_int_ion_tbl_diff, freq_int_ion_tbl, freq_int_lya_tbl_diff,                                            \
+                                freq_int_lya_tbl, dstarlya_dt_prefactor, R_ct, previous_spin_temp, this_spin_temp, const_zp_prefactor, prefactor_1,                                            \
+                                prefactor_2, delNL0, growth_factor_zp, dt_dzp, zp, dgrowth_factor_dzp, dcomp_dzp_prefactor, Trad_fast, dzp, TS_prefactor,                                      \
+                                xc_inverse, Trad_fast_inv, dstarlyLW_dt_box, dstarlyLW_dt_prefactor, dxheat_dt_box_MINI, dxion_source_dt_box_MINI,                                             \
+                                dxlya_dt_box_MINI, dstarlya_dt_box_MINI, dstarlyLW_dt_box_MINI, dfcoll_dz_val_MINI, del_fcoll_Rct_MINI,                                                        \
+                                dstarlya_dt_prefactor_MINI, dstarlyLW_dt_prefactor_MINI, prefactor_2_MINI, Radio_Prefix_MCG_Rct, Radio_Prefix_ACG_Rct,                                         \
+                                const_zp_prefactor_MINI) private(box_ct, x_e, T, dxion_sink_dt, dxe_dzp, dadia_dzp, dspec_dzp, dcomp_dzp, dxheat_dzp, J_alpha_tot, T_inv, T_inv_sq, dT_Radio,  \
+                                                                     xc_fast, xi_power, xa_tilde_fast_arg, TS_fast, TSold_fast, xa_tilde_fast, dxheat_dzp_MINI, J_alpha_tot_MINI, curr_delNL0) \
     num_threads(user_params->N_THREADS)
                     {
 #pragma omp for reduction(+ : J_alpha_ave, xalpha_ave, Xheat_ave, Xion_ave, Ts_ave, Tk_ave, x_e_ave, J_alpha_ave_MINI, Xheat_ave_MINI, J_LW_ave, J_LW_ave_MINI) // JSC: summation & average
@@ -2184,27 +2202,16 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                 dxheat_dt_box[box_ct] += (dfcoll_dz_val * (double)del_fcoll_Rct[box_ct] * ((freq_int_heat_tbl_diff[m_xHII_low_box[box_ct]][R_ct]) * inverse_val_box[box_ct] + freq_int_heat_tbl[m_xHII_low_box[box_ct]][R_ct]));
 
                                 // Note: dfcoll_dz_val * (double)del_fcoll_Rct[box_ct] = Phi * dzp
-                                if ((zpp_for_evolve_list[R_ct] > astro_params->Radio_Zmin) && (Radio_Silent == 0))
+                                dT_Radio = 0.0;
+                                if (flag_options->USE_RADIO_ACG)
                                 {
-                                    // Radio_Fun: sum this up to get T_Radio
-                                    Radio_Fun = 0.0;
-
-                                    // Radio Galaxy models
-                                    if (flag_options->USE_RADIO_ACG) // Pop II
-                                    {
-                                        Radio_Fun += Radio_Prefix_ACG * dfcoll_dz_val * (double)del_fcoll_Rct[box_ct] * (pow(1 + zpp_for_evolve_list[R_ct], astro_params->X_RAY_SPEC_INDEX - astro_params->aR));
-                                    }
-
-                                    if (flag_options->USE_RADIO_MCG) // Pop III
-                                    {
-                                        Radio_Fun += Radio_Prefix_MCG * dfcoll_dz_val_MINI * (double)del_fcoll_Rct_MINI[box_ct] * (pow(1 + zpp_for_evolve_list[R_ct], astro_params->X_RAY_SPEC_INDEX - astro_params->aR_mini));
-                                    }
+                                    dT_Radio += Radio_Prefix_ACG_Rct * dfcoll_dz_val * (double)del_fcoll_Rct[box_ct];
                                 }
-                                else
+                                if (flag_options->USE_RADIO_MCG)
                                 {
-                                    Radio_Fun = 0.0;
+                                    dT_Radio += Radio_Prefix_MCG_Rct * dfcoll_dz_val_MINI * (double)del_fcoll_Rct_MINI[box_ct];
                                 }
-                                this_spin_temp->Trad_box[box_ct] += Radio_Fun;
+                                this_spin_temp->Trad_box[box_ct] += dT_Radio;
 
                                 dxion_source_dt_box[box_ct] += (dfcoll_dz_val * (double)del_fcoll_Rct[box_ct] * ((freq_int_ion_tbl_diff[m_xHII_low_box[box_ct]][R_ct]) * inverse_val_box[box_ct] + freq_int_ion_tbl[m_xHII_low_box[box_ct]][R_ct]));
 
@@ -2247,8 +2254,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                             if (R_ct == 0)
                             {
 
-                                Refine_T_Radio(previous_spin_temp, this_spin_temp, prev_redshift, redshift, astro_params, flag_options);
-                                Radio_Temp = this_spin_temp->Trad_box[box_ct];
+                                // Radio_Temp = this_spin_temp->Trad_box[box_ct];
 
                                 // Note here, that by construction it doesn't matter if using MINIMIZE_MEMORY as only need the R_ct = 0 box
                                 curr_delNL0 = delNL0[0][box_ct];
@@ -2368,7 +2374,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                                 // if (J_alpha_tot > 1.0e-20) { // Must use WF effect
                                 //  New in v1.4
-                                Trad_inv = 1 / (Radio_Temp + T_cmb * (1 + redshift));
+                                Trad_inv = 1 / (this_spin_temp->Trad_box[box_ct] + T_cmb * (1 + redshift));
                                 if (fabs(J_alpha_tot) > 1.0e-20)
                                 { // Must use WF effect
                                     TS_fast = Trad_fast;
@@ -2428,12 +2434,14 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             }
             else
             {
-#pragma omp parallel shared(previous_spin_temp, x_int_XHII, inverse_diff, delNL0_rev, dens_grid_int_vals, ST_over_PS, zpp_growth, dfcoll_interp1,                                                                                                                                                  \
-                                density_gridpoints, dfcoll_interp2, freq_int_heat_tbl_diff, freq_int_heat_tbl, freq_int_ion_tbl_diff, freq_int_ion_tbl,                                                                                                                                            \
-                                freq_int_lya_tbl_diff, freq_int_lya_tbl, dstarlya_dt_prefactor, const_zp_prefactor, prefactor_1, growth_factor_zp, dzp,                                                                                                                                            \
-                                dt_dzp, dgrowth_factor_dzp, dcomp_dzp_prefactor, this_spin_temp, xc_inverse, TS_prefactor, xa_tilde_prefactor, Trad_fast_inv) private(box_ct, x_e, T, xHII_call, m_xHII_low, inverse_val, dxheat_dt, dxion_source_dt, dxlya_dt, dstarlya_dt, curr_delNL0, R_ct,    \
-                                                                                                                                                                          dfcoll_dz_val, dxion_sink_dt, dxe_dzp, dadia_dzp, dspec_dzp, dcomp_dzp, J_alpha_tot, T_inv, T_inv_sq, xc_fast, xi_power, \
-                                                                                                                                                                          xa_tilde_fast_arg, TS_fast, TSold_fast, xa_tilde_fast)                                                                   \
+#pragma omp parallel shared(previous_spin_temp, x_int_XHII, inverse_diff, delNL0_rev, dens_grid_int_vals, ST_over_PS, zpp_growth, dfcoll_interp1, Radio_Temp_HMG,                   \
+                                density_gridpoints, dfcoll_interp2, freq_int_heat_tbl_diff, freq_int_heat_tbl, freq_int_ion_tbl_diff, freq_int_ion_tbl, Radio_Prefix_ACG,           \
+                                freq_int_lya_tbl_diff, freq_int_lya_tbl, dstarlya_dt_prefactor, const_zp_prefactor, prefactor_1, growth_factor_zp, dzp, Radio_Silent,               \
+                                dt_dzp, dgrowth_factor_dzp, dcomp_dzp_prefactor, this_spin_temp, xc_inverse, TS_prefactor, xa_tilde_prefactor,                                      \
+                                Trad_fast_inv) private(box_ct, Radio_Temp, dT_Radio,                                                                                                \
+                                                           x_e, T, xHII_call, m_xHII_low, inverse_val, dxheat_dt, dxion_source_dt, dxlya_dt, dstarlya_dt, curr_delNL0, R_ct,        \
+                                                           dfcoll_dz_val, dxion_sink_dt, dxe_dzp, dadia_dzp, dspec_dzp, dcomp_dzp, J_alpha_tot, T_inv, T_inv_sq, xc_fast, xi_power, \
+                                                           xa_tilde_fast_arg, TS_fast, TSold_fast, xa_tilde_fast)                                                                   \
     num_threads(user_params->N_THREADS)
                 {
 #pragma omp for reduction(+ : J_alpha_ave, xalpha_ave, Xheat_ave, Xion_ave, Ts_ave, Tk_ave, x_e_ave)
@@ -2494,13 +2502,13 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
                                 if ((zpp_for_evolve_list[R_ct] > astro_params->Radio_Zmin) && (Radio_Silent == 0))
                                 {
-                                    Radio_Fun = Radio_Prefix_ACG * dfcoll_dz_val * pow(1 + zpp_for_evolve_list[R_ct], astro_params->X_RAY_SPEC_INDEX - astro_params->aR);
+                                    dT_Radio = Radio_Prefix_ACG * dfcoll_dz_val * pow(1 + zpp_for_evolve_list[R_ct], astro_params->X_RAY_SPEC_INDEX - astro_params->aR);
                                 }
                                 else
                                 {
-                                    Radio_Fun = 0.0;
+                                    dT_Radio = 0.0;
                                 }
-                                Radio_Temp += Radio_Fun;
+                                Radio_Temp += dT_Radio;
 
                                 dxheat_dt += dfcoll_dz_val *
                                              ((freq_int_heat_tbl_diff[m_xHII_low][R_ct]) * inverse_val + freq_int_heat_tbl[m_xHII_low][R_ct]);
@@ -2649,7 +2657,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
             {
                 // #1: Gas temperature
                 T_IGM_ave += this_spin_temp->Tk_box[box_ct] / ((double)HII_TOT_NUM_PIXELS);
-                
+
                 // #2: Radio Temp
                 Radio_Temp_ave += this_spin_temp->Trad_box[box_ct] / ((double)HII_TOT_NUM_PIXELS);
 
@@ -2710,7 +2718,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 this_spin_temp->History_box[head + 3] = Phi_ave_mini;
                 this_spin_temp->History_box[head + 4] = zpp_for_evolve_list[0];
                 this_spin_temp->History_box[head + 5] = previous_spin_temp->mturns_EoR[0];
-                this_spin_temp->History_box[head + 6] = previous_spin_temp->mturns_EoR[1]; 
+                this_spin_temp->History_box[head + 6] = previous_spin_temp->mturns_EoR[1];
             }
 
             if (flag_options->Calibrate_EoR_feedback)
@@ -2793,7 +2801,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 double Mlim_Fstar_MINI_tmp = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params->ALPHA_STAR_MINI,
                                                                   astro_params->F_STAR7_MINI * pow(1e3, astro_params->ALPHA_STAR_MINI));
                 for (idx = 0; idx < 10; idx++)
-                {// testing code speed
+                { // testing code speed
                     nion_tmp = Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, 5.0e5, 1.0e10, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI_tmp, 0.);
                 }
             }

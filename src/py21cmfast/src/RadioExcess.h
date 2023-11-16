@@ -300,7 +300,7 @@ double History_box_Interp(struct TsBox *previous_spin_temp, double z, int Type, 
 	return r;
 }
 
-double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, struct FlagOptions *flag_options, double zpp_max, double redshift)
+double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp, struct AstroParams *astro_params, struct CosmoParams *cosmo_params, struct FlagOptions *flag_options, double zpp_max, double redshift)
 {
 
 	// Find Radio Temp from sources in redshifts [zpp_max, Z_Heat_max]
@@ -312,9 +312,6 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 
 	nz = 1000;
 	RadioSilent = 1;
-	z2 = previous_spin_temp->History_box[5] - 0.01;
-	z1 = zpp_max;
-	dz = (z2 - z1) / (((double)nz) - 1);
 
 	if (flag_options->USE_RADIO_ACG)
 	{
@@ -336,29 +333,40 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 		Radio_Prefix_MCG = 0.0;
 	}
 
-	if ((z1 > z2 || RadioSilent) || redshift > 33.0)
+	if ((RadioSilent || redshift > 33.0) || this_spin_temp->first_box)
 	{
 		Radio_Temp = 0.0;
 	}
 	else
 	{
 
-		z = z1;
-		Radio_Temp = 0.0;
-
-		for (zid = 1; zid <= nz; zid++)
+		z2 = previous_spin_temp->History_box[5] - 0.01;
+		z1 = zpp_max;
+		if (z1 > z2)
 		{
-			Phi = History_box_Interp(previous_spin_temp, z, 1, 1);
-			Phi_mini = History_box_Interp(previous_spin_temp, z, 2, 1);
-			Phi = Phi > 1e-50 ? Phi : 0.;
-			Phi_mini = Phi_mini > 1e-50 ? Phi_mini : 0.;
-			fun_ACG = Radio_Prefix_ACG * Phi * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR) * dz;
-			fun_MCG = Radio_Prefix_MCG * Phi_mini * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR_mini) * dz;
-			if (z > astro_params->Radio_Zmin)
+			Radio_Temp = 0.0;
+		}
+		else
+		{
+			dz = (z2 - z1) / (((double)nz) - 1);
+
+			z = z1;
+			Radio_Temp = 0.0;
+
+			for (zid = 1; zid <= nz; zid++)
 			{
-				Radio_Temp += fun_ACG + fun_MCG;
+				Phi = History_box_Interp(previous_spin_temp, z, 1, 1);
+				Phi_mini = History_box_Interp(previous_spin_temp, z, 2, 1);
+				Phi = Phi > 1e-50 ? Phi : 0.;
+				Phi_mini = Phi_mini > 1e-50 ? Phi_mini : 0.;
+				fun_ACG = Radio_Prefix_ACG * Phi * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR) * dz;
+				fun_MCG = Radio_Prefix_MCG * Phi_mini * pow(1 + z, astro_params->X_RAY_SPEC_INDEX - astro_params->aR_mini) * dz;
+				if (z > astro_params->Radio_Zmin)
+				{
+					Radio_Temp += fun_ACG + fun_MCG;
+				}
+				z += dz;
 			}
-			z += dz;
 		}
 	}
 	return Radio_Temp;
@@ -366,7 +374,8 @@ double Get_Radio_Temp_HMG(struct TsBox *previous_spin_temp, struct AstroParams *
 
 void Refine_T_Radio(struct TsBox *previous_spin_temp, struct TsBox *this_spin_temp, float prev_redshift, float redshift, struct AstroParams *astro_params, struct FlagOptions *flag_options)
 {
-	/*
+	/* An analytic formula to eliminate numerical kinks from Radio_Zmin
+	Need to be careful when executed wihin a mpi loop
 	This has a number of issues:
 	1. Only applicapable to sources with same spectra shape
 	2. This is called within a box_ct loop, but I am doing another r_ct looop here. Results are the same but this wastes memory and cpu
@@ -397,8 +406,10 @@ void Refine_T_Radio(struct TsBox *previous_spin_temp, struct TsBox *this_spin_te
 				Throw(ValueError);
 			}
 		}
-
-		this_spin_temp->Trad_box[box_ct] = Conversion_Factor * previous_spin_temp->Trad_box[box_ct];
+		for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
+		{
+			this_spin_temp->Trad_box[box_ct] = Conversion_Factor * previous_spin_temp->Trad_box[box_ct];
+		}
 	}
 }
 
@@ -535,7 +546,7 @@ double Get_EoR_Radio_mini_v2(struct TsBox *this_spin_temp, struct AstroParams *a
 				remove("SFRD_PopIII_tmp.txt");
 				OutputFile = fopen("SFRD_PopIII_tmp.txt", "a");
 			}
-			
+
 			// First fill z_axis and nion_axis
 			if (ArchiveSize > 390)
 			{
@@ -553,7 +564,7 @@ double Get_EoR_Radio_mini_v2(struct TsBox *this_spin_temp, struct AstroParams *a
 					fprintf(stderr, "Error @ Get_EoR_Radio_mini: mturn is smaller than 100, this is not supposed to happen.\n");
 				}
 				nion_axis[idx] = Nion_General_MINI(z, global_params.M_MIN_INTEGRAL, mt, mc, astro_params->ALPHA_STAR_MINI, 0., astro_params->F_STAR7_MINI, 1., Mlim_Fstar_MINI, 0.);
-				
+
 				if (Debug_Printer == 1)
 				{
 					Phi = nion_axis[idx] / astro_params->t_STAR / pow(1 + z, astro_params->X_RAY_SPEC_INDEX + 1.0);
@@ -565,12 +576,12 @@ double Get_EoR_Radio_mini_v2(struct TsBox *this_spin_temp, struct AstroParams *a
 			{
 				fclose(OutputFile);
 			}
-			
+
 			// Now interpolate for finer z
 			Prefix = 113.6161 * astro_params->fR_mini * cosmo_params->OMb * (pow(cosmo_params->hlittle, 2)) * astro_params->F_STAR7_MINI * pow(astro_nu0 / 1.4276, astro_params->aR_mini) * pow(1 + redshift, 3.0 + astro_params->aR_mini);
-			zmax = z_axis[0]; //z_heat_max
+			zmax = z_axis[0];				// z_heat_max
 			zmin = z_axis[ArchiveSize - 1]; // this is current redshift
-			dz = (zmax - zmin)/ (((double)nz) - 1.0);
+			dz = (zmax - zmin) / (((double)nz) - 1.0);
 			T = 0.;
 			for (idx = 0; idx < nz; idx++)
 			{
