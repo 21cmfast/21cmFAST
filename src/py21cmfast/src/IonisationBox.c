@@ -86,7 +86,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
 
     double ave_log10_Mturnover, ave_log10_Mturnover_MINI;
 
-    float Mlim_Fstar, Mlim_Fesc;
+    float Mlim_Fstar, Mlim_Fesc, prev_Mlim_Fesc, stored_Mlim_Fesc, stored_prev_Mlim_Fesc;
     float Mlim_Fstar_MINI, Mlim_Fesc_MINI;
 
     float Mcrit_atom, log10_Mcrit_atom, log10_Mcrit_mol;
@@ -97,8 +97,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     float min_density, max_density;
     float prev_min_density, prev_max_density;
 
-    float stored_redshift, adjustment_factor;
-    float stored_prev_redshift, prev_adjustment_factor;
+    float stored_redshift, adjustment_factor, stored_F_ESC10_zterm;
+    float stored_prev_redshift, prev_adjustment_factor, stored_prev_F_ESC10_zterm;
     float R_BUBBLE_MAX;
 
     gsl_rng * r[user_params->N_THREADS];
@@ -189,6 +189,10 @@ LOG_DEBUG("original prev_redshift=%f, updated prev_redshift=%f delta-z = %f", st
         ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10 * F_ESC10_zterm;
         prev_ION_EFF_FACTOR = global_params.Pop2_ion * astro_params->F_STAR10 * astro_params->F_ESC10 * prev_F_ESC10_zterm;
         ION_EFF_FACTOR_MINI = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
+        if(flag_options->PHOTON_CONS) {
+            stored_F_ESC10_zterm = pow((1.+stored_redshift)/8., astro_params->BETA_ESC);
+            stored_prev_F_ESC10_zterm = pow((1.+stored_prev_redshift)/8., astro_params->BETA_ESC);
+		}
     }
     else {
         ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;
@@ -509,6 +513,11 @@ LOG_SUPER_DEBUG("average turnover masses are %.2f and %.2f for ACGs and MCGs", b
         }
         Mlim_Fstar = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR10);
         Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10* F_ESC10_zterm);
+        prev_Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10* prev_F_ESC10_zterm);
+		if(flag_options->PHOTON_CONS){
+          stored_Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10* stored_F_ESC10_zterm);
+          stored_prev_Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_ESC, astro_params->F_ESC10* stored_prev_F_ESC10_zterm);
+		}
     }
     else {
 
@@ -591,7 +600,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
                                                 astro_params->F_STAR10,astro_params->F_ESC10* F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
                 if(flag_options->PHOTON_CONS) {
                     box->mean_f_coll_PC = Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                                astro_params->F_STAR10,astro_params->F_ESC10* F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
+                                                astro_params->F_STAR10,astro_params->F_ESC10* stored_F_ESC10_zterm,Mlim_Fstar,stored_Mlim_Fesc);
                 }
             }
             else{
@@ -603,9 +612,9 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
                 if(flag_options->PHOTON_CONS) {
                     box->mean_f_coll_PC = previous_ionize_box->mean_f_coll_PC + \
                                     Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                                 astro_params->F_STAR10,astro_params->F_ESC10 *F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc) - \
+                                                 astro_params->F_STAR10,astro_params->F_ESC10 *stored_F_ESC10_zterm,Mlim_Fstar,stored_Mlim_Fesc) - \
                                     Nion_General(stored_prev_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                                 astro_params->F_STAR10,astro_params->F_ESC10 *F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
+                                                 astro_params->F_STAR10,astro_params->F_ESC10 *stored_F_ESC10_zterm,Mlim_Fstar,stored_Mlim_Fesc);
                 }
             }
             if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI < 1e-4){
@@ -648,7 +657,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
             box->mean_f_coll_MINI = 0.;
             if(flag_options->PHOTON_CONS) {
                 box->mean_f_coll_PC = Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                            astro_params->F_STAR10,astro_params->F_ESC10*F_ESC10_zterm,Mlim_Fstar,Mlim_Fesc);
+                                            astro_params->F_STAR10,astro_params->F_ESC10*stored_ESC10_zterm,Mlim_Fstar,stored_Mlim_Fesc);
                 box->mean_f_coll_MINI_PC = 0.;
             }
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
