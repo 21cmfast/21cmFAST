@@ -45,7 +45,7 @@ static gsl_spline *erfc_spline;
 
 float calibrated_NF_min;
 
-double *deltaz, *deltaz_smoothed, *NeutralFractions, *z_Q, *Q_value, *nf_vals, *z_vals;
+double *deltaz, *deltaz_smoothed, *NeutralFractions, *z_Q, *Q_value, *nf_vals, *z_vals, *Q_z, *z_value;
 int N_NFsamples,N_extrapolated, N_analytic, N_calibrated, N_deltaz;
 
 bool initialised_ComputeLF = false;
@@ -1988,6 +1988,11 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
                 if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.)
                     log10phi[i + i_z*nbins] = -30.;
             }
+            gsl_spline_free (deriv_spline);
+            gsl_interp_accel_free(deriv_spline_acc);
+            free(lnM_temp);
+            free(deriv_temp);
+            free(deriv);
         }
     }
 
@@ -3605,8 +3610,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     Qmax = Q_value[0];
 
     // initialise interpolation z as a function of Q
-    double *Q_z = calloc(nbin,sizeof(double));
-    double *z_value = calloc(nbin,sizeof(double));
+    Q_z = calloc(nbin,sizeof(double));
+    z_value = calloc(nbin,sizeof(double));
 
     z_at_Q_spline_acc = gsl_interp_accel_alloc ();
     z_at_Q_spline = gsl_spline_alloc (gsl_interp_linear, nbin);
@@ -4159,6 +4164,8 @@ void z_at_Q(double Q, double *splined_value){
 }
 
 void free_Q_value() {
+    free(z_value);
+    free(Q_z);
     gsl_spline_free (Q_at_z_spline);
     gsl_interp_accel_free (Q_at_z_spline_acc);
     gsl_spline_free (z_at_Q_spline);

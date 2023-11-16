@@ -2643,6 +2643,9 @@ void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_o
             }
             free(SFRD_z_high_table);
         }
+		
+        if(flag_options->USE_MINI_HALOS)
+          free(log10_Mcrit_LW_ave_list);
 
         free(del_fcoll_Rct);
         free(dxheat_dt_box);

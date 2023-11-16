@@ -736,6 +736,7 @@ void inspectInitialConditions(struct InitialConditions *x, int print_pid, int pr
         printf("%s\t\tlowres_vx_2LPT: ", pid);
         print_corners_real(x->lowres_vx_2LPT, HII_DIM, NCF);
     }
+	free(pid);
 }
 
 
@@ -770,6 +771,7 @@ void inspectPerturbedField(struct PerturbedField *x, int print_pid, int print_co
         printf("%s\t\tvelocity: ", pid);
         print_corners_real(x->velocity, HII_DIM, NCF);
     }
+	free(pid);
 
 }
 
@@ -812,6 +814,7 @@ void inspectTsBox(struct TsBox *x, int print_pid, int print_corners, int print_f
         printf("%s\t\tTk_box : ", pid);
         print_corners_real(x->Tk_box, HII_DIM, NCF);
     }
+	free(pid);
 }
 
 void inspectIonizedBox(struct IonizedBox *x, int print_pid, int print_corners, int print_first, int HII_DIM, float NCF){
@@ -861,6 +864,7 @@ void inspectIonizedBox(struct IonizedBox *x, int print_pid, int print_corners, i
         printf("%s\t\tNrec_box  : ", pid);
         print_corners_real(x->Nrec_box, HII_DIM, NCF);
     }
+	free(pid);
 }
 
 void inspectBrightnessTemp(struct BrightnessTemp *x, int print_pid, int print_corners, int print_first, int HII_DIM, float NCF){
@@ -884,6 +888,7 @@ void inspectBrightnessTemp(struct BrightnessTemp *x, int print_pid, int print_co
         printf("%s\t\tbrightness_temp: ",pid);
         print_corners_real(x->brightness_temp, HII_DIM, NCF);
     }
+	free(pid);
 }
 double atomic_cooling_threshold(float z){
     return TtoM(z, 1e4, 0.59);
