@@ -657,7 +657,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
             box->mean_f_coll_MINI = 0.;
             if(flag_options->PHOTON_CONS) {
                 box->mean_f_coll_PC = Nion_General(stored_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
-                                            astro_params->F_STAR10,astro_params->F_ESC10*stored_ESC10_zterm,Mlim_Fstar,stored_Mlim_Fesc);
+                                            astro_params->F_STAR10,astro_params->F_ESC10*stored_F_ESC10_zterm,Mlim_Fstar,stored_Mlim_Fesc);
                 box->mean_f_coll_MINI_PC = 0.;
             }
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,
