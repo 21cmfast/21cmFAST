@@ -71,6 +71,7 @@ LOG_DEBUG("Begin Initialisation");
         //otherwise it finds halos on DIM
         //I rename the flag here for clarity and in case we want some other conditions later
         int res_flag = flag_options->HALO_STOCHASTICITY ? 1 : 0;
+        // int res_flag = 0;
         int grid_dim = res_flag ? user_params->HII_DIM : user_params->DIM;
         int z_dim = res_flag ? HII_D_PARA : D_PARA;
         int num_pixels = res_flag ? HII_TOT_NUM_PIXELS : TOT_NUM_PIXELS;
@@ -78,6 +79,10 @@ LOG_DEBUG("Begin Initialisation");
 
         //set minimum source mass
         M_MIN = minimum_source_mass(redshift, astro_params, flag_options);
+        //if we use the sampler we want to stop at the cell mass
+        if(flag_options->HALO_STOCHASTICITY){
+            M_MIN = RtoM(L_FACTOR*user_params->BOX_LEN/user_params->HII_DIM);
+        }
 
         // allocate array for the k-space box
         density_field = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*k_num_pixels);
@@ -94,10 +99,11 @@ LOG_DEBUG("Begin Initialisation");
         }
         if(LOG_LEVEL >= DEBUG_LEVEL){
             double Mmax_debug = 1e16;
-            double Mmin_debug = RtoM(L_FACTOR*user_params->BOX_LEN/grid_dim);
+            double Mmin_debug;
+            Mmin_debug = RtoM(L_FACTOR*user_params->BOX_LEN/grid_dim);
             initialiseSigmaMInterpTable(Mmin_debug*0.9,Mmax_debug*1.1);
             double expected_nhalo = VOLUME * IntegratedNdM(growth_factor,log(Mmin_debug),log(Mmax_debug),log(Mmax_debug),0,0,user_params->HMF,0);
-            LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e]",expected_nhalo,Mmin_debug,Mmax_debug);
+            LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e] (%.2e)",expected_nhalo,Mmin_debug,Mmax_debug, RHOcrit * cosmo_params->OMm * VOLUME / TOT_NUM_PIXELS);
         }
 
 #pragma omp parallel shared(boxes,density_field) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -150,10 +156,9 @@ LOG_DEBUG("Prepare to filter to find halos");
         float *halo_field = calloc(num_pixels, sizeof(float));
 
         while ((R > 0.5*Delta_R) && (RtoM(R) >= M_MIN)){ // filter until we get to half the pixel size or M_MIN
-
-LOG_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%e M_MIN=%e", R, 0.5*Delta_R, RtoM(R), M_MIN);
-
             M = RtoM(R);
+            LOG_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%e M_MIN=%e", R, 0.5*Delta_R, M, M_MIN);
+
             if(global_params.DELTA_CRIT_MODE == 1 && (user_params->HMF>0 && user_params->HMF<4)){
                 if(user_params->HMF==1) {
                     // use sheth tormen correction
@@ -164,7 +169,7 @@ LOG_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%e M_MI
             // first let's check if virialized halos of this size are rare enough
             // that we don't have to worry about them (let's define 7 sigma away, as in Mesinger et al 05)
             if ((sigma_z0(M)*growth_factor*7.) < delta_crit){
-LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
+                LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                 R /= global_params.DELTA_R_FACTOR;
                 continue;
             }
@@ -207,71 +212,65 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
                 }
             }
             // *****************  END OPTIMIZATION ***************** //
-
             // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
             dn=0;
             
-//TODO: Fix the race condition propertly to remove the critical: it doesn't matter which thread finds the halo first
-//  but if two threads find a halo in the same region simultaneously (before the first one updates in_halo) some halos could double-up
-//checking for overlaps in new halos after this loop could work, but I would have to calculate distances between all new halos which sounds slow
-#pragma omp parallel shared(boxes,density_field,in_halo,forbidden,halo_field,growth_factor,M,delta_crit) private(x,y,z,delta_m) num_threads(user_params->N_THREADS) reduction(+: dn,n,total_halo_num)
-            {
-                unsigned long long index_c;
-                unsigned long long index_r;
-#pragma omp for schedule(static)
-                for (x=0; x<grid_dim; x++){
-                    for (y=0; y<grid_dim; y++){
-                        for (z=0; z<z_dim; z++){
-                            if(res_flag){
-                                index_c = HII_R_FFT_INDEX(x,y,z);
-                                index_r = HII_R_INDEX(x,y,z);
+            //TODO: Fix the race condition propertly to thread: it doesn't matter which thread finds the halo first
+            //  but if two threads find a halo in the same region simultaneously (before the first one updates in_halo) some halos could double-up
+            //checking for overlaps in new halos after this loop could work, but I would have to calculate distances between all new halos which sounds slow
+            unsigned long long index_c;
+            unsigned long long index_r;
+            for (x=0; x<grid_dim; x++){
+                for (y=0; y<grid_dim; y++){
+                    for (z=0; z<z_dim; z++){
+                        if(res_flag){
+                            index_c = HII_R_FFT_INDEX(x,y,z);
+                            index_r = HII_R_INDEX(x,y,z);
+                        }
+                        else{
+                            index_c = R_FFT_INDEX(x,y,z);
+                            index_r = R_INDEX(x,y,z);
+                        }
+                        
+                        delta_m = *((float *)density_field + index_c) * growth_factor / num_pixels;
+
+                        // if not within a larger halo, and radii don't overlap, update in_halo box
+                        //TODO: something to remove the criticals (see above note)
+                        // *****************  BEGIN OPTIMIZATION ***************** //
+                        if(global_params.OPTIMIZE && (M > global_params.OPTIMIZE_MIN_MASS)) {
+                            if ( (delta_m > delta_crit) && !forbidden[index_r]){
+                                check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
+                                check_halo(forbidden, user_params, res_flag, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
+
+                                halo_field[index_r] = M;
+
+                                dn++; // keep track of the number of halos
+                                n++;
+                                total_halo_num++;
                             }
-                            else{
-                                index_c = R_FFT_INDEX(x,y,z);
-                                index_r = R_INDEX(x,y,z);
-                            }
-                            
-                            delta_m = *((float *)density_field + index_c) * growth_factor / num_pixels;
+                        }
+                        // *****************  END OPTIMIZATION ***************** //
+                        else {
+                            if ((delta_m > delta_crit) && !in_halo[index_r] && !check_halo(in_halo, user_params, res_flag, R, x,y,z,1)){ // we found us a "new" halo!                            
+                                LOG_ULTRA_DEBUG("Halo found at (%d,%d,%d) ir %d if %d, delta = %.4f",x,y,z,index_r,index_c,delta_m);
+                                LOG_ULTRA_DEBUG("IR %d IC %d val %.4f R %.3e M %.3e",R_INDEX(x,y,z),R_FFT_INDEX(x,y,z),
+                                            *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / num_pixels,
+                                            R,M);
 
-                            // if not within a larger halo, and radii don't overlap, update in_halo box
-                            //TODO: something to remove the criticals (see above note)
-                            // *****************  BEGIN OPTIMIZATION ***************** //
-                            if(global_params.OPTIMIZE && (M > global_params.OPTIMIZE_MIN_MASS)) {
-                                if ( (delta_m > delta_crit) && !forbidden[index_r]){
-                                    #pragma omp critical
-                                    {
-                                        check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
-                                        check_halo(forbidden, user_params, res_flag, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
+                                check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
 
-                                        halo_field[index_r] = M;
+                                halo_field[index_r] = M;
 
-                                        dn++; // keep track of the number of halos
-                                        n++;
-                                        total_halo_num++;
-                                    }
-                                }
-                            }
-                            // *****************  END OPTIMIZATION ***************** //
-                            else {
-                                if ((delta_m > delta_crit) && !in_halo[index_r] && !check_halo(in_halo, user_params, res_flag, R, x,y,z,1)){ // we found us a "new" halo!
-                                    #pragma omp critical
-                                    {
-                                        check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
-
-                                        halo_field[index_r] = M;
-
-                                        dn++; // keep track of the number of halos
-                                        n++;
-                                        total_halo_num++;
-                                    }
-                                }
+                                dn++; // keep track of the number of halos
+                                n++;
+                                total_halo_num++;
                             }
                         }
                     }
                 }
             }
 
-            LOG_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", dn, n, growth_factor, delta_crit);
+            LOG_SUPER_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", dn, n, growth_factor, delta_crit);
 
             if (dn > 0){
                 // now lets keep the mass functions (FgrtR)
@@ -364,12 +363,10 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
         //add halo properties for ionisation TODO: add a flag
         add_properties_cat(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift, halos_large);
         if(total_halo_num>=3)
-        LOG_DEBUG("%d Large halos [%.3e,%.3e,%.3e]",halos_large->n_halos,halos_large->halo_masses[0],halos_large->halo_masses[1],halos_large->halo_masses[2]);
-        
-        //TODO: this probably should be in the wrapper but it's hard with each class only having one compute function
-        //TODO: move later on so its possible to get halos above HII_DIM with DexM then sample below HII_DIM
+            LOG_DEBUG("Found %d DexM halos",total_halo_num);
+
         if(flag_options->HALO_STOCHASTICITY){
-            LOG_DEBUG("Finding halos below grid resolution %.3e",RtoM(0.5*Delta_R));
+            LOG_DEBUG("Finding halos below grid resolution %.3e",M_MIN);
             stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_prev, redshift, boxes->lowres_density, halos_large, halos);
             //stochastic_halofield allocates new memory for all the halos so we can free everything
             free_halo_field(halos_large);
@@ -388,11 +385,10 @@ LOG_SUPER_DEBUG("Haloes too rare for M = %e! Skipping...", M);
 
             halos->n_halos = halos_large->n_halos;
             halos->halo_masses = halos_large->halo_masses;
+            halos->halo_coords = halos_large->halo_coords;
             halos->star_rng = halos_large->star_rng;
             halos->sfr_rng = halos_large->sfr_rng;
         }
-        //either way we don't need the pointer to the temp struct
-        //TODO: make sure this doesn't break the DexM only case
         free(halos_large);
 
 LOG_DEBUG("Finished halo processing.");
@@ -424,8 +420,6 @@ if (halos->n_halos > 3)
 
 }
 
-
-
 // Function check_halo combines the original two functions overlap_halo and update_in_halo
 // from the original 21cmFAST. Lots of redundant code, hence reduced into a single function
 int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, float R, int x, int y, int z, int check_type) {
@@ -450,7 +444,6 @@ int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, flo
     int grid_dim = res_flag ? user_params->HII_DIM : user_params->DIM;
     int z_dim = res_flag ? HII_D_PARA : D_PARA;
     int num_pixels = res_flag ? HII_TOT_NUM_PIXELS : TOT_NUM_PIXELS;
-    int k_num_pixels = res_flag ? HII_KSPACE_NUM_PIXELS : KSPACE_NUM_PIXELS;
 
     // convert R to index units
     R_index = ceil(R/user_params->BOX_LEN*grid_dim);
@@ -495,15 +488,13 @@ int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, flo
                     if (!in_halo[curr_index]){
                         if(pixel_in_halo(grid_dim,z_dim,x,x_index,y,y_index,z,z_index,Rsq_curr_index)) {
                             // we are within the sphere defined by R, so change flag in in_halo array
-//does the race condition matter here? if any thread marks the pixel it should be 1
-#pragma omp atomic write
                             in_halo[curr_index] = 1;
                         }
                     }
                 }
                 else {
                     LOG_ERROR("check_type must be 1 or 2, got %d", check_type);
-                    Throw ValueError;
+                    Throw(ValueError);
                 }
             }
         }

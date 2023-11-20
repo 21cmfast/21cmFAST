@@ -3049,8 +3049,9 @@ void initialise_SFRD_Conditional_table(
             overdense_small_low = min_density[j]*growthf[j];
         }
         overdense_small_high = max_density[j]*growthf[j];
-        if(overdense_small_high > global_params.CRIT_DENS_TRANSITION) {
-            overdense_small_high = global_params.CRIT_DENS_TRANSITION;
+        //JD: I put a buffer in to simplify the table evaluation
+        if(overdense_small_high > global_params.CRIT_DENS_TRANSITION*1.1) {
+            overdense_small_high = global_params.CRIT_DENS_TRANSITION*1.1;
         }
 
         for (i=0; i<NSFR_low; i++) {
@@ -3152,8 +3153,9 @@ void initialise_SFRD_Conditional_table_MINI(
             overdense_small_low = min_density[j]*growthf[j];
         }
         overdense_small_high = max_density[j]*growthf[j];
-        if(overdense_small_high > global_params.CRIT_DENS_TRANSITION) {
-            overdense_small_high = global_params.CRIT_DENS_TRANSITION;
+        //JD: I put a buffer in to simplify table evaluation
+        if(overdense_small_high > global_params.CRIT_DENS_TRANSITION*1.1) {
+            overdense_small_high = global_params.CRIT_DENS_TRANSITION*1.1;
         }
 
         for (i=0; i<NSFR_low; i++) {

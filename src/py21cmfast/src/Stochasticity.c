@@ -195,7 +195,7 @@ void seed_rng_threads(gsl_rng * rng_arr[], int seed){
     unsigned int seeds[user_params_stoc->N_THREADS];
 
     // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
-    int num_int = INT_MAX/16;
+    int num_int = INT_MAX/256; //JD: this was taking a few seconds per snapshot so i reduced the number TODO: init the RNG once
     int i, thread_num;
     unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int*sizeof(unsigned int))); // Some large number of possible integers
     for (i=0; i<num_int; i++) {
@@ -1519,6 +1519,9 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
             local_crd[0 + 3*count] = crd_hi[0];
             local_crd[1 + 3*count] = crd_hi[1];
             local_crd[2 + 3*count] = crd_hi[2];
+            // local_crd[0 + 3*count] = halofield_large->halo_coords[0 + 3*j];
+            // local_crd[1 + 3*count] = halofield_large->halo_coords[1 + 3*j];
+            // local_crd[2 + 3*count] = halofield_large->halo_coords[2 + 3*j];
             count++;
         }
 

@@ -1175,9 +1175,8 @@ def determine_halo_list(
             redshift=redshift,
         )
 
-        #NOTE: this will not happen if we make mean HMF boxes, since we don't call this function in that case
-        if user_params.HMF != 1 and not flag_options.HALO_STOCHASTICITY:
-            raise ValueError("USE_HALO_FIELD with DexM is only valid for HMF = 1")
+        if user_params.HMF != 1 and user_params.HMF != 0:
+            raise ValueError("USE_HALO_FIELD with DexM is only valid for HMF = 1 or 0")
 
         min_z = user_params.STOC_MINIMUM_Z if user_params.STOC_MINIMUM_Z is not None else -1
 
@@ -2160,7 +2159,8 @@ def ionize_box(
             #we ONLY want to regenerate the halo field on the highest redshift
             regen_halos = regenerate and prev_z == 0
             logger.info(f'z: {redshift} | regen {regenerate} | regen_halos {regen_halos}')
-            raise NotImplementedError('Auto generation of halo fields for Ts is WIP')
+            raise NotImplementedError("Automatic generation of halo boxes not yet implemented, \
+                                            Use run_coeval, run_lightcone or explicitly generate the box")
             if not flag_options.FIXED_HALO_GRIDS:
                 #determine_halo_list will generate the descendant fields
                 #perturb and box only generate the current redshift
@@ -2216,7 +2216,6 @@ def ionize_box(
         elif spin_temp is None:
             spin_temp = spin_temperature(
                 perturbed_field=perturbed_field,
-                halobox=halobox,
                 flag_options=flag_options,
                 init_boxes=init_boxes,
                 direc=direc,
@@ -2243,7 +2242,6 @@ def spin_temperature(
     flag_options=None,
     redshift=None,
     perturbed_field=None,
-    halobox=None,
     sourcebox=None,
     previous_spin_temp=None,
     init_boxes=None,
@@ -2385,7 +2383,6 @@ def spin_temperature(
                 "init_boxes": init_boxes,
                 "perturbed_field": perturbed_field,
                 "previous_spin_temp": previous_spin_temp,
-                "halobox": halobox,
                 "sourcebox": sourcebox,
             },
         )
@@ -2504,64 +2501,11 @@ def spin_temperature(
         if flag_options.USE_HALO_FIELD:
             #TODO: this doesn't work with the recursion at all, move to a list of needed snapshots like the lightcone
             if sourcebox is None or not sourcebox.is_computed:
-                raise NotImplementedError("Automatic generation of Xray source box from halos not yet implemented")
-            #The entire halo history is generated via similar (but backwards) recursion to the spintemp            
-            if halobox is None or not halobox.is_computed:
-                regen_halos = regenerate and previous_spin_temp.dummy
-                logger.info(f'z: {redshift} | regen {regenerate} | regen_halos {regen_halos}')
-                raise NotImplementedError('Auto generation of halo fields for Ts is WIP')
-                #we only want to regenerate the halos on the first recursion, either at Z_HEAT_MAX or when we find a cached box
-                #in either case previous_spin_temp should be None
-                #SEE ISSUES & COMMENTS IN ionize_box!!!!!!!!!!!!!
-                if not flag_options.FIXED_HALO_GRIDS:
-                    halo_field = determine_halo_list(
-                        redshift=redshift,
-                        init_boxes=init_boxes,
-                        cosmo_params=cosmo_params,
-                        user_params=user_params,
-                        astro_params=astro_params,
-                        flag_options=flag_options,
-                        regenerate=regen_halos,
-                        hooks=hooks,
-                        direc=direc,
-                    )
-                    pt_halos = perturb_halo_list(
-                        redshift=redshift,
-                        init_boxes=init_boxes,
-                        cosmo_params=cosmo_params,
-                        user_params=user_params,
-                        astro_params=astro_params,
-                        flag_options=flag_options,
-                        halo_field=halo_field,
-                        regenerate=regenerate,
-                        hooks=hooks,
-                        direc=direc,
-                    )
-                else:
-                    pt_halos = PerturbHaloField(redshift=0,
-                        user_params=user_params,
-                        cosmo_params=cosmo_params,
-                        astro_params=astro_params,
-                        flag_options=flag_options,dummy=True)
-
-                halobox = halo_box(redshift=redshift,
-                    init_boxes=init_boxes,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    cosmo_params=cosmo_params,
-                    user_params=user_params,
-                    regenerate=regenerate,
-                    pt_halos=pt_halos,
-                    perturbed_field=perturbed_field,
-                )
-
+                raise NotImplementedError("Automatic generation of Xray source box from halos not yet implemented, \
+                                             Use run_coeval, run_lightcone or explicitly generate the source box")
+            #The entire halo history is generated via similar (but backwards) recursion to the spintemp 
         else:
             sourcebox = XraySourceBox(redshift=0,
-                                user_params=user_params,
-                                cosmo_params=cosmo_params,
-                                astro_params=astro_params,
-                                flag_options=flag_options,dummy=True)
-            halobox = HaloBox(redshift=0,
                                 user_params=user_params,
                                 cosmo_params=cosmo_params,
                                 astro_params=astro_params,
@@ -2581,13 +2525,11 @@ def spin_temperature(
         return box.compute(
             cleanup=cleanup,
             perturbed_field=perturbed_field,
-            halobox=halobox,
             sourcebox=sourcebox,
             prev_spin_temp=previous_spin_temp,
             ics=init_boxes,
             hooks=hooks,
         )
-
 
 def brightness_temperature(
     *,
@@ -3050,8 +2992,6 @@ def run_coeval(
                     redshift=z,
                     previous_spin_temp=st,
                     perturbed_field=perturb_min if use_interp_perturb_field else pf2,
-                    # remember that perturb field is interpolated, so no need to provide exact one.
-                    halobox=hb2,
                     sourcebox=sourcebox if flag_options.USE_HALO_FIELD else None,
                     astro_params=astro_params,
                     flag_options=flag_options,
@@ -3612,7 +3552,6 @@ def run_lightcone(
                     astro_params=astro_params,
                     flag_options=flag_options,
                     perturbed_field=perturb_min if use_interp_perturb_field else pf2,
-                    halobox=hbox2 if flag_options.USE_HALO_FIELD else None,
                     sourcebox=sourcebox if flag_options.USE_HALO_FIELD else None,
                     regenerate=regenerate,
                     init_boxes=init_box,

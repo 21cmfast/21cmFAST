@@ -628,12 +628,6 @@ class TsBox(_AllParamsBox):
             ]
             if self.flag_options.USE_MINI_HALOS:
                 required += ["J_21_LW_box"]
-        elif isinstance(input_box, HaloBox):
-            if self.flag_options.USE_HALO_FIELD:
-                required += [
-                    "n_ion",
-                    "halo_sfr",
-                ]
         elif isinstance(input_box, XraySourceBox):
             if self.flag_options.USE_HALO_FIELD:
                 required += ["filtered_sfr"]
@@ -651,7 +645,6 @@ class TsBox(_AllParamsBox):
         *,
         cleanup: bool,
         perturbed_field: PerturbedField,
-        halobox: HaloBox,
         sourcebox: XraySourceBox,
         prev_spin_temp,
         ics: InitialConditions,
@@ -668,7 +661,6 @@ class TsBox(_AllParamsBox):
             self.perturbed_field_redshift,
             cleanup,
             perturbed_field,
-            halobox,
             sourcebox,
             prev_spin_temp,
             ics,
