@@ -763,22 +763,16 @@ LOG_SUPER_DEBUG("Initialised heat");
                     }
 
                     /* initialise interpolation of the mean collapse fraction for global reionization.*/
-                    if (!flag_options->USE_MINI_HALOS){
-                        initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                                 astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC,
-                                                 astro_params->F_STAR10, astro_params->F_ESC10);
+                    initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
+                                                astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI, astro_params->ALPHA_ESC,
+                                                astro_params->F_STAR10, astro_params->F_ESC10, astro_params->F_STAR7_MINI, astro_params->F_ESC7_MINI,
+                                                astro_params->M_TURN,flag_options->USE_MINI_HALOS);
 
-                        initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                              astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->F_STAR10);
-                    }
-                    else{
-                        initialise_Nion_Ts_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                                      astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI, astro_params->ALPHA_ESC, astro_params->F_STAR10,
-                                                      astro_params->F_ESC10, astro_params->F_STAR7_MINI, astro_params->F_ESC7_MINI);
+                    initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
+                                            astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI,
+                                            astro_params->F_STAR10, astro_params->F_STAR7_MINI,astro_params->M_TURN,
+                                            flag_options->USE_MINI_HALOS);
 
-                        initialise_SFRD_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                                   astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR10, astro_params->F_STAR7_MINI);
-                    }
                     interpolation_tables_allocated = true;
                 }
                 else {
@@ -918,32 +912,7 @@ LOG_SUPER_DEBUG("Initialised heat");
 
         if(flag_options->USE_MASS_DEPENDENT_ZETA) {
 
-            if(user_params->USE_INTERPOLATION_TABLES) {
-                redshift_int_Nion_z = (int)floor( ( zp - determine_zpp_min )/zpp_bin_width );
-
-                if(redshift_int_Nion_z < 0 || (redshift_int_Nion_z + 1) > (zpp_interp_points_SFR - 1)) {
-                    LOG_ERROR("I have overstepped my allocated memory for the interpolation table Nion_z_val");
-//                    Throw(ParameterError);
-                    Throw(TableEvaluationError);
-                }
-
-                redshift_table_Nion_z = determine_zpp_min + zpp_bin_width*(float)redshift_int_Nion_z;
-
-                Splined_Fcollzp_mean = Nion_z_val[redshift_int_Nion_z] + \
-                        ( zp - redshift_table_Nion_z )*( Nion_z_val[redshift_int_Nion_z+1] - Nion_z_val[redshift_int_Nion_z] )/(zpp_bin_width);
-            }
-            else {
-
-                if(flag_options->USE_MINI_HALOS) {
-                    Splined_Fcollzp_mean = Nion_General(zp, global_params.M_MIN_INTEGRAL, atomic_cooling_threshold(zp), astro_params->ALPHA_STAR, astro_params->ALPHA_ESC,
-                                                        astro_params->F_STAR10, astro_params->F_ESC10, Mlim_Fstar, Mlim_Fesc);
-                }
-                else {
-                    Splined_Fcollzp_mean = Nion_General(zp, M_MIN, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC,
-                                                    astro_params->F_STAR10, astro_params->F_ESC10, Mlim_Fstar, Mlim_Fesc);
-                }
-            }
-
+            Splined_Fcollzp_mean = EvaluateNionTs(zp,Mlim_Fstar,Mlim_Fesc);
             if (flag_options->USE_MINI_HALOS){
                 log10_Mcrit_mol = log10(lyman_werner_threshold(zp, 0., 0.,astro_params));
                 log10_Mcrit_LW_ave = 0.0;
@@ -994,27 +963,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                         log10_Mcrit_LW_unfiltered[ct] /= (float)HII_TOT_NUM_PIXELS;
                     }
                 }
-
-                if(user_params->USE_INTERPOLATION_TABLES) {
-                    log10_Mcrit_LW_ave_int_Nion_z = (int)floor( ( log10_Mcrit_LW_ave - LOG10_MTURN_MIN) / LOG10_MTURN_INT);
-                    log10_Mcrit_LW_ave_table_Nion_z = LOG10_MTURN_MIN + LOG10_MTURN_INT * (float)log10_Mcrit_LW_ave_int_Nion_z;
-
-                    Splined_Fcollzp_mean_MINI_left = Nion_z_val_MINI[redshift_int_Nion_z + zpp_interp_points_SFR * log10_Mcrit_LW_ave_int_Nion_z] + \
-                                                ( zp - redshift_table_Nion_z ) / (zpp_bin_width)*\
-                                                  ( Nion_z_val_MINI[redshift_int_Nion_z + 1 + zpp_interp_points_SFR * log10_Mcrit_LW_ave_int_Nion_z] -\
-                                                    Nion_z_val_MINI[redshift_int_Nion_z + zpp_interp_points_SFR * log10_Mcrit_LW_ave_int_Nion_z] );
-                    Splined_Fcollzp_mean_MINI_right = Nion_z_val_MINI[redshift_int_Nion_z + zpp_interp_points_SFR * (log10_Mcrit_LW_ave_int_Nion_z+1)] + \
-                                                ( zp - redshift_table_Nion_z ) / (zpp_bin_width)*\
-                                                  ( Nion_z_val_MINI[redshift_int_Nion_z + 1 + zpp_interp_points_SFR * (log10_Mcrit_LW_ave_int_Nion_z+1)] -\
-                                                    Nion_z_val_MINI[redshift_int_Nion_z + zpp_interp_points_SFR * (log10_Mcrit_LW_ave_int_Nion_z+1)] );
-                    Splined_Fcollzp_mean_MINI = Splined_Fcollzp_mean_MINI_left + \
-                                (log10_Mcrit_LW_ave - log10_Mcrit_LW_ave_table_Nion_z) / LOG10_MTURN_INT * (Splined_Fcollzp_mean_MINI_right - Splined_Fcollzp_mean_MINI_left);
-                }
-                else {
-                    Splined_Fcollzp_mean_MINI = Nion_General_MINI(zp, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mcrit_LW_ave), atomic_cooling_threshold(zp),
-                                                                  astro_params->ALPHA_STAR_MINI, astro_params->ALPHA_ESC, astro_params->F_STAR7_MINI,
-                                                                  astro_params->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
-                }
+                Splined_Fcollzp_mean_MINI = EvaluateNionTs_MINI(zp,log10_Mcrit_LW_ave,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
             }
             else{
                 Splined_Fcollzp_mean_MINI = 0;
@@ -1088,25 +1037,12 @@ LOG_SUPER_DEBUG("Initialised heat");
                 // Using the interpolated values to update arrays of relevant quanties for the IGM spin temperature calculation
 
                 if(user_params->USE_INTERPOLATION_TABLES) {
-                    redshift_int_SFRD = (int)floor( ( zpp - determine_zpp_min )/zpp_bin_width );
-
-                    if(redshift_int_SFRD < 0 || (redshift_int_SFRD + 1) > (zpp_interp_points_SFR - 1)) {
-                        LOG_ERROR("I have overstepped my allocated memory for the interpolation table SFRD_val");
-                        //Throw(ParameterError);
-                        Throw(TableEvaluationError);
-                    }
-
-                    redshift_table_SFRD = determine_zpp_min + zpp_bin_width*(float)redshift_int_SFRD;
-
-                    Splined_SFRD_zpp = SFRD_val[redshift_int_SFRD] + \
-                                    ( zpp - redshift_table_SFRD )*( SFRD_val[redshift_int_SFRD+1] - SFRD_val[redshift_int_SFRD] )/(zpp_bin_width);
-
-                    ST_over_PS[R_ct] = pow(1+zpp, -astro_params->X_RAY_SPEC_INDEX)*fabs(dzpp_for_evolve);
-                    ST_over_PS[R_ct] *= Splined_SFRD_zpp;
+                    ST_over_PS[R_ct] = EvaluateSFRD(zpp,Mlim_Fstar); //NOTE: this has a flag for interptables but will put Nion in directly
                 }
                 else {
                     ST_over_PS[R_ct] = pow(1+zpp, -astro_params->X_RAY_SPEC_INDEX)*fabs(dzpp_for_evolve); // Multiplied by Nion later
                 }
+                
 
                 if(flag_options->USE_MINI_HALOS){
                     memcpy(log10_Mcrit_LW_filtered, log10_Mcrit_LW_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -1139,22 +1075,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                     LOG_DEBUG("R = %.2e ave l10Mc = %.2e",R_values[R_ct],log10_Mcrit_LW_ave);
 
                     if(user_params->USE_INTERPOLATION_TABLES) {
-                        log10_Mcrit_LW_ave_int_SFRD = (int)floor( ( log10_Mcrit_LW_ave - LOG10_MTURN_MIN) / LOG10_MTURN_INT);
-                        log10_Mcrit_LW_ave_table_SFRD = LOG10_MTURN_MIN + LOG10_MTURN_INT * (float)log10_Mcrit_LW_ave_int_SFRD;
-
-                        Splined_SFRD_zpp_MINI_left = SFRD_val_MINI[redshift_int_SFRD + zpp_interp_points_SFR * log10_Mcrit_LW_ave_int_SFRD] + \
-                                                ( zpp - redshift_table_SFRD ) / (zpp_bin_width)*\
-                                                  ( SFRD_val_MINI[redshift_int_SFRD + 1 + zpp_interp_points_SFR * log10_Mcrit_LW_ave_int_SFRD] -\
-                                                    SFRD_val_MINI[redshift_int_SFRD + zpp_interp_points_SFR * log10_Mcrit_LW_ave_int_SFRD] );
-                        Splined_SFRD_zpp_MINI_right = SFRD_val_MINI[redshift_int_SFRD + zpp_interp_points_SFR * (log10_Mcrit_LW_ave_int_SFRD+1)] + \
-                                                ( zpp - redshift_table_SFRD ) / (zpp_bin_width)*\
-                                                  ( SFRD_val_MINI[redshift_int_SFRD + 1 + zpp_interp_points_SFR * (log10_Mcrit_LW_ave_int_SFRD+1)] -\
-                                                    SFRD_val_MINI[redshift_int_SFRD + zpp_interp_points_SFR * (log10_Mcrit_LW_ave_int_SFRD+1)] );
-                        Splined_SFRD_zpp_MINI = Splined_SFRD_zpp_MINI_left + \
-                            (log10_Mcrit_LW_ave - log10_Mcrit_LW_ave_table_SFRD) / LOG10_MTURN_INT * (Splined_SFRD_zpp_MINI_right - Splined_SFRD_zpp_MINI_left);
-
-                        ST_over_PS_MINI[R_ct] = pow(1+zpp, -astro_params->X_RAY_SPEC_INDEX)*fabs(dzpp_for_evolve);
-                        ST_over_PS_MINI[R_ct] *= Splined_SFRD_zpp_MINI;
+                        ST_over_PS_MINI[R_ct] = EvaluateSFRD_MINI(zpp,log10_Mcrit_LW_ave,Mlim_Fstar_MINI);
                     }
                     else {
                         ST_over_PS_MINI[R_ct] = pow(1+zpp, -astro_params->X_RAY_SPEC_INDEX)*fabs(dzpp_for_evolve); // Multiplied by Nion later
@@ -1165,7 +1086,6 @@ LOG_SUPER_DEBUG("Initialised heat");
 
             }
             else {
-
                 if(user_params->USE_INTERPOLATION_TABLES) {
                     // Determining values for the evaluating the interpolation table
                     zpp_gridpoint1_int = (int)floor((zpp - determine_zpp_min)/zpp_bin_width);
@@ -1222,10 +1142,10 @@ LOG_SUPER_DEBUG("Initialised heat");
             if(user_params->USE_INTERPOLATION_TABLES) {
                 if(flag_options->USE_MINI_HALOS){
                     lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp, x_e_ave, filling_factor_of_HI_zp,
-                                                              log10_Mcrit_LW_ave,LOG10_MTURN_INT), (astro_params->NU_X_THRESH)*NU_over_EV);
+                                                              log10_Mcrit_LW_ave, Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI), (astro_params->NU_X_THRESH)*NU_over_EV);
                 }
                 else{
-                    lower_int_limit = fmax(nu_tau_one(zp, zpp, x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
+                    lower_int_limit = fmax(nu_tau_one(zp, zpp, x_e_ave, filling_factor_of_HI_zp, Mlim_Fstar, Mlim_Fesc), (astro_params->NU_X_THRESH)*NU_over_EV);
                 }
 
                 if (filling_factor_of_HI_zp < 0) filling_factor_of_HI_zp = 0; // for global evol; nu_tau_one above treats negative (post_reionization) inferred filling factors properly
@@ -1429,10 +1349,10 @@ LOG_SUPER_DEBUG("Initialised heat");
 
                     if(flag_options->USE_MINI_HALOS){
                         lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
-                                                               log10_Mcrit_LW_ave_list[R_ct],LOG10_MTURN_INT), (astro_params->NU_X_THRESH)*NU_over_EV);
+                                                               log10_Mcrit_LW_ave_list[R_ct], Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI), (astro_params->NU_X_THRESH)*NU_over_EV);
                     }
                     else{
-                        lower_int_limit = fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp), (astro_params->NU_X_THRESH)*NU_over_EV);
+                        lower_int_limit = fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp, Mlim_Fstar, Mlim_Fesc), (astro_params->NU_X_THRESH)*NU_over_EV);
                     }
 
                     if (filling_factor_of_HI_zp < 0) filling_factor_of_HI_zp = 0; // for global evol; nu_tau_one above treats negative (post_reionization) inferred filling factors properly
@@ -3259,6 +3179,19 @@ void fill_freqint_tables(float zp, double x_e_ave, double filling_factor_of_HI_z
     double lower_int_limit;
     int x_e_ct,R_ct;
     double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
+    //TODO: Move the bisections to some static context param struct so they're calculated once
+    //  However since this is only used for non-interptable cases it's hardly going to affect much
+    double Mlim_Fstar,Mlim_Fesc,Mlim_Fstar_MINI,Mlim_Fesc_MINI;
+    if(!user_params_ts->USE_INTERPOLATION_TABLES && flag_options_ts->USE_MASS_DEPENDENT_ZETA){
+        Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
+        Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_ESC, astro_params_ts->F_ESC10);
+        if(flag_options_ts->USE_MINI_HALOS){
+            Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR_MINI,
+                                                    astro_params_ts->F_STAR7_MINI * pow(1e3, astro_params_ts->ALPHA_STAR_MINI));
+            Mlim_Fesc_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_ESC,
+                                                astro_params_ts->F_ESC7_MINI * pow(1e3, astro_params_ts->ALPHA_ESC));
+        }
+    }
 #pragma omp parallel private(R_ct,x_e_ct,lower_int_limit) num_threads(user_params_ts->N_THREADS)
     {
 #pragma omp for
@@ -3270,10 +3203,10 @@ void fill_freqint_tables(float zp, double x_e_ave, double filling_factor_of_HI_z
         for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
             if(flag_options_ts->USE_MINI_HALOS){
                 lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
-                                                        log10_Mcrit_LW_ave[R_ct],LOG10_MTURN_INT), (astro_params_ts->NU_X_THRESH)*NU_over_EV);
+                                                        log10_Mcrit_LW_ave[R_ct], Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI), (astro_params_ts->NU_X_THRESH)*NU_over_EV);
             }
             else{
-                lower_int_limit = fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp), (astro_params_ts->NU_X_THRESH)*NU_over_EV);
+                lower_int_limit = fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp, Mlim_Fstar, Mlim_Fesc), (astro_params_ts->NU_X_THRESH)*NU_over_EV);
             }
             // set up frequency integral table for later interpolation for the cell's x_e value
             for (x_e_ct = 0; x_e_ct < x_int_NXHII; x_e_ct++){
@@ -3311,33 +3244,6 @@ void fill_freqint_tables(float zp, double x_e_ave, double filling_factor_of_HI_z
         }
     }
     
-}
-
-double EvaluateNionTs(double redshift){
-    //differences in turnover are handled by table setup
-    if(user_params_ts->USE_INTERPOLATION_TABLES)
-        return EvaluateRGTable1D(redshift,Nion_z_val,determine_zpp_min,zpp_bin_width);
-
-    //minihalos uses a different turnover mass
-    double Mlim_Fstar,Mlim_Fesc;
-    if(flag_options_ts->USE_MINI_HALOS)
-        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_ESC,
-                            astro_params_ts->F_STAR10, astro_params_ts->F_ESC10, Mlim_Fstar, Mlim_Fesc);
-    
-    double M_MIN;
-    return Nion_General(redshift, M_MIN, astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_ESC,
-                        astro_params_ts->F_STAR10, astro_params_ts->F_ESC10, Mlim_Fstar, Mlim_Fesc);
-}
-
-double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave){
-    if(user_params_ts->USE_INTERPOLATION_TABLES) {
-        double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
-        return EvaluateRGTable2D(log10_Mturn_LW_ave,redshift,Nion_z_val_MINI,LOG10_MTURN_MIN,LOG10_MTURN_INT,determine_zpp_min,zpp_bin_width);
-    }
-    double Mlim_Fstar_MINI,Mlim_Fesc_MINI;
-    return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
-                            astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->ALPHA_ESC, astro_params_ts->F_STAR7_MINI,
-                            astro_params_ts->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
 }
 
 //construct a Ts table above Z_HEAT_MAX, this can happen if we are computing the first box or if we
@@ -3417,48 +3323,38 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         determine_zpp_max = zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts-1]*1.001;
         zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0); //global
 
-        //We need the talbes for the frequency integrals
-        //I initialise here because this function WILL host the global mean calcualtions later on
-        //TODO: These global tables confuse me, we do ~400 integrals to build the table, despite only having
+        //We need the tables for the frequency integrals
+        //TODO: These global tables confuse me, we do ~400 (x50 for mini) integrals to build the table, despite only having
         //  ~100 redshifts. The benefit of interpolating here would only matter if we keep the same table
         //  over subsequent snapshots, which we don't seem to do.
-        //Furthermore, the SFRD table multiplies this by ~50 for the M turnovers
-        //  Despite the fact that there is ONE average turnover per redshift
-        //NOTE: this is the first time we use the splines in spintemp but I should separate the initialisation anyway
+        //  The Nion table is used in nu_tau_one a lot but I think there's a better way to do that
+        //NOTE: this is the first time we use the splines in spintemp but I should separate
+        // the initialisation anyway for clarity
         LOG_DEBUG("initing Nion spline from %.2f to %.2f",determine_zpp_min,determine_zpp_max);
-        if (!flag_options_ts->USE_MINI_HALOS){
-            initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                        astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_ESC,
-                                        astro_params_ts->F_STAR10, astro_params_ts->F_ESC10);
+        /* initialise interpolation of the mean collapse fraction for global reionization.*/
+        initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
+                                    astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->ALPHA_ESC,
+                                    astro_params_ts->F_STAR10, astro_params_ts->F_ESC10, astro_params_ts->F_STAR7_MINI, astro_params_ts->F_ESC7_MINI,
+                                    astro_params_ts->M_TURN,flag_options_ts->USE_MINI_HALOS);
+        
+        LOG_DEBUG("initing SFRD spline from %.2f to %.2f",determine_zpp_min,determine_zpp_max);
 
-            initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                    astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
-        }
-        else{
-            initialise_Nion_Ts_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                            astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->ALPHA_ESC, astro_params_ts->F_STAR10,
-                                            astro_params_ts->F_ESC10, astro_params_ts->F_STAR7_MINI, astro_params_ts->F_ESC7_MINI);
-
-            initialise_SFRD_spline_MINI(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                        astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->F_STAR10, astro_params_ts->F_STAR7_MINI);
-        }
+        initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
+                                astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI,
+                                astro_params_ts->F_STAR10, astro_params_ts->F_STAR7_MINI,astro_params_ts->M_TURN,
+                                flag_options_ts->USE_MINI_HALOS);
         LOG_DEBUG("Done.");
     }
     else{
         //TODO: Move the bisections to some static context param struct so they're calculated once
         //  However since this is only used for non-interptable cases it's hardly going to affect much
+        Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
+        Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_ESC, astro_params_ts->F_ESC10);
         if(flag_options_ts->USE_MINI_HALOS){
-            Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
-            Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_ESC, astro_params_ts->F_ESC10);
-
             Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR_MINI,
                                                     astro_params_ts->F_STAR7_MINI * pow(1e3, astro_params_ts->ALPHA_STAR_MINI));
             Mlim_Fesc_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_ESC,
                                                     astro_params_ts->F_ESC7_MINI * pow(1e3, astro_params_ts->ALPHA_ESC));
-        }
-        else{
-            Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
-            Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_ESC, astro_params_ts->F_ESC10);
         }
     }
 
@@ -3466,85 +3362,18 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //  are based on the expected global Nion. as mentioned above it would be nice to
     //  change this to a saved reionisation/sfrd history from previous snapshots
     //TODO: move all this to EvaluateRGTable2D
-    if(user_params_ts->USE_INTERPOLATION_TABLES) {
-        sum_nion = EvaluateRGTable1D(zp,Nion_z_val,determine_zpp_min,zpp_bin_width);
-        if(flag_options_ts->USE_MINI_HALOS){
-            redshift_int = (int)floor( ( zp - determine_zpp_min )/zpp_bin_width );
-            if(redshift_int < 0 || (redshift_int + 1) > (zpp_interp_points_SFR - 1)) {
-                LOG_ERROR("I have overstepped my allocated memory for the interpolation table Nion_z_val");
-                Throw(TableEvaluationError);
-            }
-            redshift_table = determine_zpp_min + zpp_bin_width*(float)redshift_int;
-
-            log10_Mcrit_LW_int = (int)floor( ( log10_Mcrit_LW_ave[0] - LOG10_MTURN_MIN) / log10_Mcrit_width);
-            log10_Mcrit_LW_table = LOG10_MTURN_MIN + log10_Mcrit_width * (float)log10_Mcrit_LW_int;
-
-            spline_left = Nion_z_val_MINI[redshift_int + zpp_interp_points_SFR * log10_Mcrit_LW_int] + \
-                                        ( zp - redshift_table ) / (zpp_bin_width)*\
-                                            ( Nion_z_val_MINI[redshift_int + 1 + zpp_interp_points_SFR * log10_Mcrit_LW_int] -\
-                                            Nion_z_val_MINI[redshift_int + zpp_interp_points_SFR * log10_Mcrit_LW_int] );
-            spline_right = Nion_z_val_MINI[redshift_int + zpp_interp_points_SFR * (log10_Mcrit_LW_int+1)] + \
-                                        ( zp - redshift_table ) / (zpp_bin_width)*\
-                                            ( Nion_z_val_MINI[redshift_int + 1 + zpp_interp_points_SFR * (log10_Mcrit_LW_int + 1)] -\
-                                            Nion_z_val_MINI[redshift_int + zpp_interp_points_SFR * (log10_Mcrit_LW_int + 1)] );
-
-            sum_nion_mini += spline_left + (log10_Mcrit_LW_ave[0] - log10_Mcrit_LW_table) / log10_Mcrit_width * (spline_right - spline_left);
-        }
-    }
-    else {
-        if(flag_options_ts->USE_MINI_HALOS){
-            sum_nion = Nion_General(zp, global_params.M_MIN_INTEGRAL, atomic_cooling_threshold(zp), astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_ESC,
-                            astro_params_ts->F_STAR10, astro_params_ts->F_ESC10, Mlim_Fstar, Mlim_Fesc);
-            sum_nion_mini = Nion_General_MINI(zp, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mcrit_LW_ave[0]), atomic_cooling_threshold(zp),
-                                                            astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->ALPHA_ESC, astro_params_ts->F_STAR7_MINI,
-                                                            astro_params_ts->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
-        }
-        else{
-            sum_nion = Nion_General(zp, global_params.M_MIN_INTEGRAL, astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_ESC,
-                            astro_params_ts->F_STAR10, astro_params_ts->F_ESC10, Mlim_Fstar, Mlim_Fesc);
-        }
+    sum_nion = EvaluateNionTs(zp,Mlim_Fstar,Mlim_Fesc);
+    if(flag_options_ts->USE_MINI_HALOS){
+        sum_nion_mini = EvaluateNionTs_MINI(zp,log10_Mcrit_LW_ave[0],Mlim_Fstar_MINI,Mlim_Fesc_MINI);
     }
 
     //Now global SFRD at (R_ct) for the mean fixing
     for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
         zpp = zpp_for_evolve_list[R_ct];
-        if(user_params_ts->USE_INTERPOLATION_TABLES){
-            mean_sfr_zpp[R_ct] = EvaluateRGTable1D(zpp,SFRD_val,determine_zpp_min,zpp_bin_width);
-            if(flag_options_ts->USE_MINI_HALOS){
-                redshift_int = (int)floor( ( zpp - determine_zpp_min )/zpp_bin_width );
-                if(redshift_int < 0 || (redshift_int + 1) > (zpp_interp_points_SFR - 1)) {
-                    LOG_ERROR("I have overstepped my allocated memory for the interpolation table Nion_z_val");
-                    Throw(TableEvaluationError);
-                }
-                redshift_table = determine_zpp_min + zpp_bin_width*(float)redshift_int;
-
-                log10_Mcrit_LW_int = (int)floor( ( log10_Mcrit_LW_ave[R_ct] - LOG10_MTURN_MIN) / log10_Mcrit_width);
-                log10_Mcrit_LW_table = LOG10_MTURN_MIN + log10_Mcrit_width * (float)log10_Mcrit_LW_int;
-
-                spline_left = SFRD_val_MINI[redshift_int + zpp_interp_points_SFR * log10_Mcrit_LW_int] + \
-                                        ( zpp - redshift_table ) / (zpp_bin_width)*\
-                                        ( SFRD_val_MINI[redshift_int + 1 + zpp_interp_points_SFR * log10_Mcrit_LW_int] -\
-                                        SFRD_val_MINI[redshift_int + zpp_interp_points_SFR * log10_Mcrit_LW_int] );
-                spline_right = SFRD_val_MINI[redshift_int + zpp_interp_points_SFR * (log10_Mcrit_LW_int + 1)] + \
-                                        ( zpp - redshift_table ) / (zpp_bin_width)*\
-                                        ( SFRD_val_MINI[redshift_int + 1 + zpp_interp_points_SFR * (log10_Mcrit_LW_int + 1)] -\
-                                        SFRD_val_MINI[redshift_int + zpp_interp_points_SFR * (log10_Mcrit_LW_int + 1)] );
-                mean_sfr_zpp_mini[R_ct] = spline_left + (log10_Mcrit_LW_ave[R_ct] - log10_Mcrit_LW_table) / log10_Mcrit_width * (spline_right - spline_left);
-            }
+        mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp,Mlim_Fstar);
+        if(flag_options_ts->USE_MINI_HALOS){
+            mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp,log10_Mcrit_LW_ave[R_ct],Mlim_Fstar_MINI);
         }
-        else {
-            if(flag_options_ts->USE_MINI_HALOS){
-                mean_sfr_zpp[R_ct] = Nion_General(zp, global_params.M_MIN_INTEGRAL, atomic_cooling_threshold(zp), astro_params_ts->ALPHA_STAR, 0.,
-                                astro_params_ts->F_STAR10, 1., Mlim_Fstar, Mlim_Fesc);
-                mean_sfr_zpp_mini[R_ct] = Nion_General_MINI(zp, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mcrit_LW_ave[0]), atomic_cooling_threshold(zp),
-                                                                astro_params_ts->ALPHA_STAR_MINI, 0., astro_params_ts->F_STAR7_MINI,
-                                                                1., Mlim_Fstar_MINI, Mlim_Fesc_MINI);
-            }
-            else{
-                mean_sfr_zpp[R_ct] = Nion_General(zp, global_params.M_MIN_INTEGRAL, astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR, 0.,
-                                astro_params_ts->F_STAR10, 1., Mlim_Fstar, Mlim_Fesc);
-            } 
-        }                
     }
     //TODO: change to use global_params.Pop in no minihalo case?, this variable is pretty inconsistently used
     //  throughout the rest of the code mostly just assuming Pop2
@@ -3598,21 +3427,14 @@ void calculate_sfrd_from_grid(int R_ct, float **dens_R_grid, float **Mcrit_R_gri
         Mmax = RtoM(R_values[R_ct]);
         sigmaMmax = EvaluateSigma(log(Mmax),0,NULL);
         //TODO: Move the bisections to some static context param struct so they're calculated once
+        //  However since this is only used for non-interptable cases it's hardly going to affect much
+        Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
+        Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_ESC, astro_params_ts->F_ESC10);
         if (flag_options_ts->USE_MINI_HALOS){
-            M_MIN = (global_params.M_MIN_INTEGRAL)/50.;
-
-            Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
-            Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_ESC, astro_params_ts->F_ESC10);
-
             Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR_MINI,
                                                     astro_params_ts->F_STAR7_MINI * pow(1e3, astro_params_ts->ALPHA_STAR_MINI));
             Mlim_Fesc_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_ESC,
                                                     astro_params_ts->F_ESC7_MINI * pow(1e3, astro_params_ts->ALPHA_ESC));
-        }
-        else{
-            M_MIN = (astro_params_ts->M_TURN)/50.;
-            Mlim_Fstar = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
-            Mlim_Fesc = Mass_limit_bisection(M_MIN, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_ESC, astro_params_ts->F_ESC10);
         }
     }
     #pragma omp parallel num_threads(user_params_ts->N_THREADS)
@@ -4007,7 +3829,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift, prev_redshift, perturbed_field_redshift);
 
     Broadcast_struct_global_TS(user_params,cosmo_params,astro_params,flag_options);
-    //Broadcast_struct_global_PS(user_params,cosmo_params);
+    Broadcast_struct_global_IT(user_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_HF(user_params,cosmo_params,astro_params, flag_options);
 
@@ -4220,12 +4042,15 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             }
             xray_R_factor = pow(1+zpp,-(astro_params->X_RAY_SPEC_INDEX));
             
+            //TODO: we don't use the filtered density / Mcrit tables after this, It would be a good idea to re-use them
+            // as SFR and SFR_MINI grids and move this outside the R loop
             if(!flag_options->USE_HALO_FIELD){
                 calculate_sfrd_from_grid(R_ct,delNL0,log10_Mcrit_LW,del_fcoll_Rct,del_fcoll_Rct_MINI,&ave_fcoll,&ave_fcoll_MINI);
                 avg_fix_term = mean_sfr_zpp[R_ct]/ave_fcoll; //THE SFRD table multiplies by 1e10 for some reason, which is hidden by this mean fixing
                 LOG_DEBUG("z %6.2f ave sfrd val %.3e avg global %.3e",zpp_for_evolve_list[R_ct],ave_fcoll,mean_sfr_zpp[R_ct]);
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
             }
+
             //minihalo factors should be separated since they may not be allocated
             if(flag_options->USE_MINI_HALOS){
                 starlya_factor_mini = dstarlya_dt_prefactor_MINI[R_ct];
@@ -4244,7 +4069,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                 #pragma omp for 
                 for(box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
                     //sum each R contribution together
-                    //Since the Halo option doesn't differentiate between the global Fcoll (NO_LIGHT) and conditional (ave_fcoll), this is consistent
                     //NOTE: the original code had separate grids for minihalos, which were simply summed afterwards, I've combined them here since I can't
                     //  see a good reason for them to be separated (other than some floating point strangeness? i.e sum all the small numbers and big numbers separately)
                     //The reason why they are boxes in USE_MASS_DEPENDENT_ZETA, is to be compatible with MINIMIZE_MEMORY, replacing the ~40*NUM_PIXELS with ~4-16*NUM_PIXELS

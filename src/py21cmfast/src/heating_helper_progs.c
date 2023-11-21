@@ -751,10 +751,56 @@ double Tc_eff(double TK, double TS)
     return ans;
 }
 
+//JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
+//TODO: Better organisation of the functions here and in spintemp
+double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
+    //differences in turnover are handled by table setup
+    if(user_params_hf->USE_INTERPOLATION_TABLES)
+        return EvaluateRGTable1D(redshift,Nion_z_val,determine_zpp_min,zpp_bin_width);
 
+    //minihalos uses a different turnover mass
+    if(flag_options_hf->USE_MINI_HALOS)
+        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
+                            astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+    
+    return Nion_General(redshift, global_params.M_MIN_INTEGRAL, astro_params_hf->M_TURN, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
+                        astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+}
 
+double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
+    if(user_params_hf->USE_INTERPOLATION_TABLES) {
+        double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
+        return EvaluateRGTable2D(log10_Mturn_LW_ave,redshift,Nion_z_val_MINI,LOG10_MTURN_MIN,LOG10_MTURN_INT,determine_zpp_min,zpp_bin_width);
+    }
 
+    return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
+                            astro_params_hf->ALPHA_STAR_MINI, astro_params_hf->ALPHA_ESC, astro_params_hf->F_STAR7_MINI,
+                            astro_params_hf->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
+}
 
+double EvaluateSFRD(double redshift, double Mlim_Fstar){
+    //differences in turnover are handled by table setup
+    if(user_params_hf->USE_INTERPOLATION_TABLES)
+        return EvaluateRGTable1D(redshift,SFRD_val,determine_zpp_min,zpp_bin_width);
+
+    //minihalos uses a different turnover mass
+    if(flag_options_hf->USE_MINI_HALOS)
+        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_hf->ALPHA_STAR, 0.,
+                            astro_params_hf->F_STAR10, 1., Mlim_Fstar, 0);
+
+    return Nion_General(redshift, global_params.M_MIN_INTEGRAL, astro_params_hf->M_TURN, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
+                        astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, 0);
+}
+
+double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI){
+    if(user_params_hf->USE_INTERPOLATION_TABLES) {
+        double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
+        return EvaluateRGTable2D(log10_Mturn_LW_ave,redshift,SFRD_val_MINI,LOG10_MTURN_MIN,LOG10_MTURN_INT,determine_zpp_min,zpp_bin_width);
+    }
+    return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
+                            astro_params_hf->ALPHA_STAR_MINI, 0., astro_params_hf->F_STAR7_MINI,
+                            1., Mlim_Fstar_MINI, 0.);
+}
 
 //
 //  Evaluates the frequency integral in the Tx evolution equation
@@ -783,6 +829,7 @@ double integrand_in_nu_heat_integral(double nu, void * params){
 
     return species_sum * pow(nu/((astro_params_hf->NU_X_THRESH)*NU_over_EV), -(astro_params_hf->X_RAY_SPEC_INDEX)-1);
 }
+
 double integrand_in_nu_ion_integral(double nu, void * params){
     double species_sum, F_i;
     float x_e = *(double *) params;
@@ -807,6 +854,7 @@ double integrand_in_nu_ion_integral(double nu, void * params){
 
     return species_sum * pow(nu/((astro_params_hf->NU_X_THRESH)*NU_over_EV), -(astro_params_hf->X_RAY_SPEC_INDEX)-1);
 }
+
 double integrand_in_nu_lya_integral(double nu, void * params){
     double species_sum;
     float x_e = *(double *) params;
@@ -825,6 +873,7 @@ double integrand_in_nu_lya_integral(double nu, void * params){
 
     return species_sum * pow(nu/((astro_params_hf->NU_X_THRESH)*NU_over_EV), -(astro_params_hf->X_RAY_SPEC_INDEX)-1);
 }
+
 double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, int FLAG){
     double result, error;
     double rel_tol  = 0.01; //<- relative tolerance
@@ -863,10 +912,6 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
     return result;
 }
 
-
-
-
-
 // Calculates the optical depth for a photon arriving at z = zp with frequency nu,
 // emitted at z = zpp.
 // The filling factor of neutral IGM at zp is HI_filling_factor_zp.
@@ -879,22 +924,13 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
 // table in the new version of 21CMMC (including spin-temperature fluctuations).
 
 typedef struct{
-    double nu_0, x_e, x_e_ave, ion_eff, ion_eff_MINI, log10_Mturn_MINI, LOG10_MTURN_INT;
+    double nu_0, x_e, x_e_ave, ion_eff, ion_eff_MINI, log10_Mturn_MINI, Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI;
 } tauX_params;
 double tauX_integrand_MINI(double zhat, void *params){
 
     double n, drpropdz, nuhat, sigma_tilde, fcoll, HI_filling_factor_zhat;
-
-    int z_fcoll_int1,z_fcoll_int2;
-    float z_fcoll_val1,z_fcoll_val2;
-    // New in v1.4
-    double log10_Mturn_MINI, LOG10_MTURN_INT;
-    double fcoll_MINI_left, fcoll_MINI_right, fcoll_MINI;
-
-    int redshift_int_fcollz, log10_Mturn_MINI_int_fcollz;
-    float redshift_table_fcollz, log10_Mturn_MINI_table_fcollz;
-
-    float Mcrit_atom_val, Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI;
+    double log10_Mturn_MINI;
+    double fcoll_MINI;
 
     tauX_params *p = (tauX_params *) params;
 
@@ -902,43 +938,8 @@ double tauX_integrand_MINI(double zhat, void *params){
     n = N_b0 * pow(1+zhat, 3);
     nuhat = p->nu_0 * (1+zhat);
     log10_Mturn_MINI = p->log10_Mturn_MINI;
-    LOG10_MTURN_INT = p->LOG10_MTURN_INT;
-
-    if(user_params_hf->USE_INTERPOLATION_TABLES) {
-        redshift_int_fcollz = (int)floor( ( zhat - determine_zpp_min )/zpp_bin_width );
-        redshift_table_fcollz = determine_zpp_min + zpp_bin_width*(float)redshift_int_fcollz;
-
-        fcoll = Nion_z_val[redshift_int_fcollz] + ( zhat - redshift_table_fcollz )*( Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zpp_bin_width);
-
-        log10_Mturn_MINI_int_fcollz = (int)floor( ( log10_Mturn_MINI - LOG10_MTURN_MIN) / LOG10_MTURN_INT);
-        log10_Mturn_MINI_table_fcollz = LOG10_MTURN_MIN + LOG10_MTURN_INT * (float)log10_Mturn_MINI_int_fcollz;
-
-        fcoll_MINI_left =    Nion_z_val_MINI[redshift_int_fcollz  + zpp_interp_points_SFR *  log10_Mturn_MINI_int_fcollz   ] + ( zhat - redshift_table_fcollz ) / (zpp_bin_width)*\
-                                      ( Nion_z_val_MINI[redshift_int_fcollz+1+ zpp_interp_points_SFR *  log10_Mturn_MINI_int_fcollz   ] -\
-                                        Nion_z_val_MINI[redshift_int_fcollz  + zpp_interp_points_SFR *  log10_Mturn_MINI_int_fcollz   ] );
-        fcoll_MINI_right =   Nion_z_val_MINI[redshift_int_fcollz  + zpp_interp_points_SFR * (log10_Mturn_MINI_int_fcollz+1)] + ( zhat - redshift_table_fcollz ) / (zpp_bin_width)*\
-                                      ( Nion_z_val_MINI[redshift_int_fcollz+1+ zpp_interp_points_SFR * (log10_Mturn_MINI_int_fcollz+1)] -\
-                                        Nion_z_val_MINI[redshift_int_fcollz  + zpp_interp_points_SFR * (log10_Mturn_MINI_int_fcollz+1)] );
-        fcoll_MINI = fcoll_MINI_left + (log10_Mturn_MINI - log10_Mturn_MINI_table_fcollz) / LOG10_MTURN_INT * (fcoll_MINI_right - fcoll_MINI_left);
-    }
-    else {
-
-        Mcrit_atom_val = atomic_cooling_threshold(zhat);
-
-        Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_STAR, astro_params_hf->F_STAR10);
-        Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_ESC, astro_params_hf->F_ESC10);
-
-        fcoll = Nion_General(zhat, global_params.M_MIN_INTEGRAL, Mcrit_atom_val, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
-                             astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
-
-        Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_STAR_MINI,
-                                               astro_params_hf->F_STAR7_MINI * pow(1e3, astro_params_hf->ALPHA_STAR_MINI));
-        Mlim_Fesc_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_ESC,
-                                              astro_params_hf->F_ESC7_MINI * pow(1e3, astro_params_hf->ALPHA_ESC));
-
-        fcoll_MINI = Nion_General_MINI(zhat, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mturn_MINI), Mcrit_atom_val, astro_params_hf->ALPHA_STAR_MINI, astro_params_hf->ALPHA_ESC,
-                          astro_params_hf->F_STAR7_MINI, astro_params_hf->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
-    }
+    fcoll = EvaluateNionTs(zhat,p->Mlim_Fstar,p->Mlim_Fesc);
+    fcoll_MINI = EvaluateNionTs_MINI(zhat,log10_Mturn_MINI,p->Mlim_Fstar_MINI,p->Mlim_Fesc_MINI);
 
     if ((fcoll < 1e-20) && (fcoll_MINI < 1e-20)){
         HI_filling_factor_zhat = 1;
@@ -953,18 +954,7 @@ double tauX_integrand_MINI(double zhat, void *params){
     return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
 }
 double tauX_integrand(double zhat, void *params){
-
     double n, drpropdz, nuhat, sigma_tilde, fcoll, HI_filling_factor_zhat;
-
-    int z_fcoll_int1,z_fcoll_int2;
-    float z_fcoll_val1,z_fcoll_val2;
-    // New in v1.4
-    float Splined_Fcollz_mean;
-
-    int redshift_int_fcollz;
-    float redshift_table_fcollz;
-
-    float Mlim_Fstar, Mlim_Fesc;
 
     tauX_params *p = (tauX_params *) params;
 
@@ -974,34 +964,12 @@ double tauX_integrand(double zhat, void *params){
 
     // New in v1.4
     if (flag_options_hf->USE_MASS_DEPENDENT_ZETA) {
-
-        if(user_params_hf->USE_INTERPOLATION_TABLES) {
-            redshift_int_fcollz = (int)floor( ( zhat - determine_zpp_min )/zpp_bin_width );
-            redshift_table_fcollz = determine_zpp_min + zpp_bin_width*(float)redshift_int_fcollz;
-            //LOG_ULTRA_DEBUG("tau int %d table %e %e %e",redshift_int_fcollz,redshift_table_fcollz,determine_zpp_min,zpp_bin_width);
-
-            fcoll = Nion_z_val[redshift_int_fcollz] + ( zhat - redshift_table_fcollz )*( Nion_z_val[redshift_int_fcollz+1] - Nion_z_val[redshift_int_fcollz] )/(zpp_bin_width);
-        }
-        else {
-
-            Mlim_Fstar = Mass_limit_bisection(astro_params_hf->M_TURN/50., global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_STAR, astro_params_hf->F_STAR10);
-            Mlim_Fesc = Mass_limit_bisection(astro_params_hf->M_TURN/50., global_params.M_MAX_INTEGRAL, astro_params_hf->ALPHA_ESC, astro_params_hf->F_ESC10);
-
-            fcoll = Nion_General(zhat, astro_params_hf->M_TURN/50., astro_params_hf->M_TURN/50., astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
-                                 astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
-        }
+        fcoll = EvaluateNionTs(zhat,p->Mlim_Fstar,p->Mlim_Fesc);
     }
+    //TODO: if this flag is off fill in the same table with the other integrals and remove the branch
     else {
-
         if(user_params_hf->USE_INTERPOLATION_TABLES) {
-            z_fcoll_int1 = (int)floor(( zhat - zmin_1DTable )/zbin_width_1DTable);
-            z_fcoll_int2 = z_fcoll_int1 + 1;
-
-            z_fcoll_val1 = zmin_1DTable + zbin_width_1DTable*(float)z_fcoll_int1;
-            z_fcoll_val2 = zmin_1DTable + zbin_width_1DTable*(float)z_fcoll_int2;
-
-            fcoll = FgtrM_1DTable_linear[z_fcoll_int1] + ( zhat - z_fcoll_val1 )*( FgtrM_1DTable_linear[z_fcoll_int2] - FgtrM_1DTable_linear[z_fcoll_int1] )/( z_fcoll_val2 - z_fcoll_val1 );
-
+            fcoll = EvaluateRGTable1D(zhat,FgtrM_1DTable_linear,zmin_1DTable,zbin_width_1DTable);
             fcoll = pow(10.,fcoll);
         }
         else {
@@ -1023,27 +991,14 @@ double tauX_integrand(double zhat, void *params){
 
     return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
 }
-double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, double HI_filling_factor_zp, double log10_Mturn_MINI, double LOG10_MTURN_INT){
-
-    double result, error, fcoll;
-
+double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, double HI_filling_factor_zp, double log10_Mturn_MINI,
+                double Mlim_Fstar, double Mlim_Fesc, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
+    double result, error;
     gsl_function F;
 
     double rel_tol  = 0.005; //<- relative tolerance
-    //    double rel_tol  = 0.01; //<- relative tolerance
-    gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
+    gsl_integration_workspace * w = gsl_integration_workspace_alloc(1000);
     tauX_params p;
-
-    int z_fcoll_int1,z_fcoll_int2;
-    float z_fcoll_val1,z_fcoll_val2;
-
-    float Splined_Fcollz_mean;
-
-    int redshift_int_fcollz;
-    float redshift_table_fcollz;
-
-    //     if (DEBUG_ON)
-    //     printf("in taux, parameters are: %e, %e, %f, %f, %e\n", nu, x_e, zp, zpp, HI_filling_factor_zp);
 
     F.function = &tauX_integrand_MINI;
     p.nu_0 = nu/(1+zp);
@@ -1052,7 +1007,10 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, d
     p.ion_eff = global_params.Pop2_ion*astro_params_hf->F_STAR10*astro_params_hf->F_ESC10;
     p.ion_eff_MINI = global_params.Pop3_ion*astro_params_hf->F_STAR7_MINI*astro_params_hf->F_ESC7_MINI;
     p.log10_Mturn_MINI = log10_Mturn_MINI;
-    p.LOG10_MTURN_INT = LOG10_MTURN_INT;
+    p.Mlim_Fstar = Mlim_Fstar;
+    p.Mlim_Fesc = Mlim_Fesc;
+    p.Mlim_Fstar_MINI = Mlim_Fstar_MINI;
+    p.Mlim_Fesc_MINI = Mlim_Fesc_MINI;
 
     F.params = &p;
 
@@ -1065,69 +1023,49 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, d
     if(status!=0){
         LOG_ERROR("(function argument): zp=%e zpp=%e rel_tol=%e result=%e error=%e",zp,zpp,rel_tol,result,error);
         LOG_ERROR("data: nu=%e nu_0=%e x_e=%e x_e_ave=%e",nu,p.nu_0,p.x_e,p.x_e_ave);
-        LOG_ERROR("data: ion_eff=%e ion_eff_MINI=%e log10_Mturn_MINI=%e LOG10_MTURN_INT=%e",p.ion_eff,p.ion_eff_MINI,p.log10_Mturn_MINI,p.LOG10_MTURN_INT);
+        LOG_ERROR("data: ion_eff=%e ion_eff_MINI=%e log10_Mturn_MINI=%e",p.ion_eff,p.ion_eff_MINI,p.log10_Mturn_MINI);
         GSL_ERROR(status);
     }
 
     gsl_integration_workspace_free (w);
 
-    //     if (DEBUG_ON)
-    //     printf("returning from tauX, return value=%e\n", result);
-
     return result;
 }
 
-double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double HI_filling_factor_zp){
-
+double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double HI_filling_factor_zp,
+            double Mlim_Fstar, double Mlim_Fesc){
     double result, error, fcoll;
-
     gsl_function F;
-
     double rel_tol  = 0.005; //<- relative tolerance
-    //    double rel_tol  = 0.01; //<- relative tolerance
     gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
     tauX_params p;
-
-    int z_fcoll_int1,z_fcoll_int2;
-    float z_fcoll_val1,z_fcoll_val2;
-
-    float Splined_Fcollz_mean;
-
-    int redshift_int_fcollz;
-    float redshift_table_fcollz;
 
     F.function = &tauX_integrand;
     p.nu_0 = nu/(1+zp);
     p.x_e = x_e;
     p.x_e_ave = x_e_ave;
+    p.Mlim_Fstar = Mlim_Fstar;
+    p.Mlim_Fesc = Mlim_Fesc;
 
     if(flag_options_hf->USE_MASS_DEPENDENT_ZETA) {
         p.ion_eff = global_params.Pop2_ion*astro_params_hf->F_STAR10*astro_params_hf->F_ESC10;
     }
     else {
+        //if we don't have an explicit ionising efficiency, we estimate one by using the values at zp
         if (HI_filling_factor_zp > FRACT_FLOAT_ERR){
-
-            if(user_params_hf->USE_INTERPOLATION_TABLES) {
-                z_fcoll_int1 = (int)floor(( zp - zmin_1DTable )/zbin_width_1DTable);
-                z_fcoll_int2 = z_fcoll_int1 + 1;
-
-                z_fcoll_val1 = zmin_1DTable + zbin_width_1DTable*(float)z_fcoll_int1;
-                z_fcoll_val2 = zmin_1DTable + zbin_width_1DTable*(float)z_fcoll_int2;
-
-                fcoll = FgtrM_1DTable_linear[z_fcoll_int1] + ( zp - z_fcoll_val1 )*( FgtrM_1DTable_linear[z_fcoll_int2] - FgtrM_1DTable_linear[z_fcoll_int1] )/( z_fcoll_val2 - z_fcoll_val1 );
-
+            //TODO: remove the branch by filling in the nion tables with FgtrM
+            if(user_params_hf->USE_INTERPOLATION_TABLES){
+                fcoll = EvaluateRGTable1D(zp,FgtrM_1DTable_linear,zmin_1DTable,zbin_width_1DTable);
                 fcoll = pow(10.,fcoll);
             }
-            else {
-                if(flag_options_hf->M_MIN_in_Mass) {
+            else{
+                if(flag_options_hf->M_MIN_in_Mass){
                     fcoll = FgtrM(zp, (astro_params_hf->M_TURN)/50.);
                 }
-                else {
+                else{
                     fcoll = FgtrM(zp, get_M_min_ion(zp));
                 }
             }
-
-
             p.ion_eff = (1.0 - HI_filling_factor_zp) / fcoll * (1.0 - x_e_ave);
             PS_ION_EFF = p.ion_eff;
 
@@ -1136,13 +1074,10 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
             p.ion_eff = PS_ION_EFF; // uses the previous one in post reionization regime
         }
     }
-
     F.params = &p;
 
     int status;
-
     gsl_set_error_handler_off();
-
     status = gsl_integration_qag (&F, zpp, zp, 0, rel_tol,1000, GSL_INTEG_GAUSS15, w, &result, &error);
 
     if(status!=0){
@@ -1150,7 +1085,6 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
         LOG_ERROR("data: nu=%e nu_0=%e x_e=%e x_e_ave=%e ion_eff=%e",nu,nu/(1+zp),x_e,x_e_ave,p.ion_eff);
         GSL_ERROR(status);
     }
-
     gsl_integration_workspace_free (w);
 
     return result;
@@ -1167,18 +1101,21 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
 // Used to speed up Ts.c and remove parameter dependence reducing the dimensionality of the required interpolation
 // table in the new version of 21CMMC (including spin-temperature fluctuations).
 
+//NOTE: the mass limits are only needed when we don't use interptables and are constant, I could move to a const struct
 typedef struct{
-    double x_e, zp, zpp, HI_filling_factor_zp,log10_Mturn_MINI,LOG10_MTURN_INT;
+    double x_e, zp, zpp, HI_filling_factor_zp, log10_Mturn_MINI, Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI;
 } nu_tau_one_params;
 double nu_tau_one_helper_MINI(double nu, void * params){
     nu_tau_one_params *p = (nu_tau_one_params *) params;
-    return tauX_MINI(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp,p->log10_Mturn_MINI,p->LOG10_MTURN_INT) - 1;
+    return tauX_MINI(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp,
+                    p->log10_Mturn_MINI,p->Mlim_Fstar,p->Mlim_Fesc,p->Mlim_Fstar_MINI,p->Mlim_Fesc_MINI) - 1;
 }
 double nu_tau_one_helper(double nu, void * params){
     nu_tau_one_params *p = (nu_tau_one_params *) params;
-    return tauX(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp) - 1;
+    return tauX(nu, p->x_e, p->x_e, p->zp, p->zpp, p->HI_filling_factor_zp,p->Mlim_Fstar,p->Mlim_Fesc) - 1;
 }
-double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_factor_zp, double log10_Mturn_MINI, double LOG10_MTURN_INT){
+double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_factor_zp, double log10_Mturn_MINI,
+                        double Mlim_Fstar, double Mlim_Fesc, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
 
     int status, iter, max_iter;
     const gsl_root_fsolver_type * T;
@@ -1203,7 +1140,8 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
     }
 
     //check if lower bound has null
-    if (tauX_MINI(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp, log10_Mturn_MINI, LOG10_MTURN_INT) < 1)
+    if (tauX_MINI(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp, log10_Mturn_MINI,
+                 Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI) < 1)
         return HeI_NUIONIZATION;
 
     // set frequency boundary values
@@ -1216,7 +1154,11 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
     p.zpp = zpp;
     p.HI_filling_factor_zp = HI_filling_factor_zp;
     p.log10_Mturn_MINI = log10_Mturn_MINI;
-    p.LOG10_MTURN_INT = LOG10_MTURN_INT;
+    p.Mlim_Fstar = Mlim_Fstar;
+    p.Mlim_Fesc = Mlim_Fesc;
+    p.Mlim_Fstar_MINI = Mlim_Fstar_MINI;
+    p.Mlim_Fesc_MINI = Mlim_Fesc_MINI;
+
     F.function = &nu_tau_one_helper_MINI;
     F.params = &p;
     gsl_root_fsolver_set (s, &F, x_lo, x_hi);
@@ -1239,14 +1181,14 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
 
     if(!isfinite(r)){
         LOG_ERROR("Value for nu_tau_one_MINI is infinite or NAN");
-//        Throw(ParameterError);
         Throw(InfinityorNaNError);
     }
 
     return r;
 }
 
-double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp){
+double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp,
+                    double Mlim_Fstar, double Mlim_Fesc){
 
     int status, iter, max_iter;
     const gsl_root_fsolver_type * T;
@@ -1271,7 +1213,7 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
     }
 
     //check if lower bound has null
-    if (tauX(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp) < 1)
+    if (tauX(HeI_NUIONIZATION, x_e, x_e, zp, zpp, HI_filling_factor_zp, Mlim_Fstar, Mlim_Fesc) < 1)
         return HeI_NUIONIZATION;
 
     // set frequency boundary values
@@ -1283,6 +1225,9 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
     p.zp = zp;
     p.zpp = zpp;
     p.HI_filling_factor_zp = HI_filling_factor_zp;
+    p.Mlim_Fstar = Mlim_Fstar;
+    p.Mlim_Fesc = Mlim_Fesc;
+
     F.function = &nu_tau_one_helper;
     F.params = &p;
     gsl_root_fsolver_set (s, &F, x_lo, x_hi);
@@ -1305,7 +1250,6 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
 
     if(!isfinite(r)){
         LOG_ERROR("nu_tau_one is infinite or NAN");
-//        Throw(ParameterError);
         Throw(InfinityorNaNError);
     }
 

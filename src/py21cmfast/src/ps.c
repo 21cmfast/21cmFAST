@@ -87,9 +87,6 @@ double *lnMhalo_param_MINI, *Muv_param_MINI, *Mhalo_param_MINI;
 double *log10phi_MINI; *M_uv_z_MINI, *M_h_z_MINI;
 double *deriv, *lnM_temp, *deriv_temp;
 
-double *z_val, *z_X_val, *Nion_z_val, *SFRD_val;
-double *Nion_z_val_MINI, *SFRD_val_MINI;
-
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 void freeSigmaMInterpTable();
 void initialiseGL_Nion(int n, float M_Min, float M_Max);
@@ -1660,6 +1657,7 @@ double ddicke_dz(double z){
 
 
 /* compute a mass limit where the stellar baryon fraction and the escape fraction exceed unity */
+//NOTE (JD): Why aren't we using 1e10 * pow(FRAC,-1/PL)? what am I missing here that makes the rootfind necessary
 float Mass_limit (float logM, float PL, float FRAC) {
     return FRAC*pow(pow(10.,logM)/1e10,PL);
 }
@@ -2823,183 +2821,6 @@ void initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float m
 
             if(isfinite(prev_Nion_spline_MINI[i+j*NSFR_high])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in prev_Nion_spline_MINI");
-//                Throw(ParameterError);
-                Throw(TableGenerationError);
-            }
-        }
-    }
-}
-
-void initialise_Nion_Ts_spline(
-    int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Alpha_esc,
-    float Fstar10, float Fesc10
-){
-    int i;
-    float Mmin = MassTurn/50., Mmax = global_params.M_MAX_INTEGRAL;
-    float Mlim_Fstar, Mlim_Fesc;
-
-    if (z_val == NULL){
-      z_val = calloc(Nbin,sizeof(double));
-      Nion_z_val = calloc(Nbin,sizeof(double));
-    }
-
-    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
-    Mlim_Fesc = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc10);
-
-#pragma omp parallel shared(z_val,Nion_z_val,zmin,zmax, MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc) private(i) num_threads(user_params_ps->N_THREADS)
-    {
-#pragma omp for
-        for (i=0; i<Nbin; i++){
-            z_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
-            Nion_z_val[i] = Nion_General(z_val[i], Mmin, MassTurn, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
-        }
-    }
-
-    for (i=0; i<Nbin; i++){
-        if(isfinite(Nion_z_val[i])==0) {
-            LOG_ERROR("Detected either an infinite or NaN value in Nion_z_val");
-//            Throw(ParameterError);
-            Throw(TableGenerationError);
-        }
-    }
-}
-
-void initialise_Nion_Ts_spline_MINI(
-    int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10,
-    float Fesc10, float Fstar7_MINI, float Fesc7_MINI
-){
-    int i,j;
-    float Mmin = global_params.M_MIN_INTEGRAL, Mmax = global_params.M_MAX_INTEGRAL;
-    float Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI, Mcrit_atom_val;
-
-    if (z_val == NULL){
-      z_val = calloc(Nbin,sizeof(double));
-      Nion_z_val = calloc(Nbin,sizeof(double));
-      Nion_z_val_MINI = calloc(Nbin*NMTURN,sizeof(double));
-    }
-
-    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
-    Mlim_Fesc = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc10);
-    Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
-    Mlim_Fesc_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc7_MINI * pow(1e3, Alpha_esc));
-    float MassTurnover[NMTURN];
-    for (i=0;i<NMTURN;i++){
-        MassTurnover[i] = pow(10., LOG10_MTURN_MIN + (float)i/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
-    }
-
-#pragma omp parallel shared(z_val,Nion_z_val,Nbin,zmin,zmax,Mmin,Alpha_star,Alpha_star_mini,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,\
-                            Nion_z_val_MINI,MassTurnover,Fstar7_MINI, Fesc7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI) \
-                    private(i,j,Mcrit_atom_val) num_threads(user_params_ps->N_THREADS)
-    {
-#pragma omp for
-        for (i=0; i<Nbin; i++){
-            z_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
-            Mcrit_atom_val = atomic_cooling_threshold(z_val[i]);
-            Nion_z_val[i] = Nion_General(z_val[i], Mmin, Mcrit_atom_val, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
-
-            for (j=0; j<NMTURN; j++){
-                Nion_z_val_MINI[i+j*Nbin] = Nion_General_MINI(z_val[i], Mmin, MassTurnover[j], Mcrit_atom_val, Alpha_star_mini, Alpha_esc, Fstar7_MINI, Fesc7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
-            }
-        }
-    }
-
-    for (i=0; i<Nbin; i++){
-        if(isfinite(Nion_z_val[i])==0) {
-            i = Nbin;
-            LOG_ERROR("Detected either an infinite or NaN value in Nion_z_val");
-//            Throw(ParameterError);
-            Throw(TableGenerationError);
-        }
-
-        for (j=0; j<NMTURN; j++){
-            if(isfinite(Nion_z_val_MINI[i+j*Nbin])==0){
-                j = NMTURN;
-                LOG_ERROR("Detected either an infinite or NaN value in Nion_z_val_MINI");
-//                Throw(ParameterError);
-                Throw(TableGenerationError);
-            }
-        }
-    }
-}
-
-
-void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float MassTurn, float Alpha_star, float Fstar10){
-    int i;
-    float Mmin = MassTurn/50., Mmax = global_params.M_MAX_INTEGRAL;
-    float Mlim_Fstar;
-
-    if (z_X_val == NULL){
-      z_X_val = calloc(Nbin,sizeof(double));
-      SFRD_val = calloc(Nbin,sizeof(double));
-    }
-
-    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
-
-#pragma omp parallel shared(z_X_val,SFRD_val,zmin,zmax, MassTurn, Alpha_star, Fstar10, Mlim_Fstar) private(i) num_threads(user_params_ps->N_THREADS)
-    {
-#pragma omp for
-        for (i=0; i<Nbin; i++){
-            z_X_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
-            SFRD_val[i] = Nion_General(z_X_val[i], Mmin, MassTurn, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
-        }
-    }
-
-    for (i=0; i<Nbin; i++){
-        if(isfinite(SFRD_val[i])==0) {
-            LOG_ERROR("Detected either an infinite or NaN value in SFRD_val");
-//            Throw(ParameterError);
-            Throw(TableGenerationError);
-        }
-    }
-}
-
-void initialise_SFRD_spline_MINI(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI){
-    int i,j;
-    float Mmin = global_params.M_MIN_INTEGRAL, Mmax = global_params.M_MAX_INTEGRAL;
-    float Mlim_Fstar, Mlim_Fstar_MINI, Mcrit_atom_val;
-
-    if (z_X_val == NULL){
-      z_X_val = calloc(Nbin,sizeof(double));
-      SFRD_val = calloc(Nbin,sizeof(double));
-      SFRD_val_MINI = calloc(Nbin*NMTURN,sizeof(double));
-    }
-
-    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
-    Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
-
-    float MassTurnover[NMTURN];
-    for (i=0;i<NMTURN;i++){
-        MassTurnover[i] = pow(10., LOG10_MTURN_MIN + (float)i/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
-    }
-
-#pragma omp parallel shared(z_X_val,zmin,zmax,Nbin,SFRD_val,Mmin, Alpha_star,Alpha_star_mini,Fstar10,Mlim_Fstar,\
-                            SFRD_val_MINI,MassTurnover,Fstar7_MINI,Mlim_Fstar_MINI) \
-                    private(i,j,Mcrit_atom_val) num_threads(user_params_ps->N_THREADS)
-    {
-#pragma omp for
-        for (i=0; i<Nbin; i++){
-            z_X_val[i] = zmin + (double)i/((double)Nbin-1.)*(zmax - zmin);
-            Mcrit_atom_val = atomic_cooling_threshold(z_X_val[i]);
-            SFRD_val[i] = Nion_General(z_X_val[i], Mmin, Mcrit_atom_val, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
-
-            for (j=0; j<NMTURN; j++){
-                SFRD_val_MINI[i+j*Nbin] = Nion_General_MINI(z_X_val[i], Mmin, MassTurnover[j], Mcrit_atom_val, Alpha_star_mini, 0., Fstar7_MINI, 1.,Mlim_Fstar_MINI,0.);
-            }
-        }
-    }
-
-    for (i=0; i<Nbin; i++){
-        if(isfinite(SFRD_val[i])==0) {
-            i = Nbin;
-            LOG_ERROR("Detected either an infinite or NaN value in SFRD_val");
-//            Throw(ParameterError);
-            Throw(TableGenerationError);
-        }
-
-        for (j=0; j<NMTURN; j++){
-            if(isfinite(SFRD_val_MINI[i+j*Nbin])==0) {
-                j = NMTURN;
-                LOG_ERROR("Detected either an infinite or NaN value in SFRD_val_MINI");
 //                Throw(ParameterError);
                 Throw(TableGenerationError);
             }
@@ -4194,27 +4015,6 @@ void FreePhotonConsMemory() {
     photon_cons_allocated = false;
 }
 
-void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
-    LOG_DEBUG("Freeing some interpolation table memory.");
-	freeSigmaMInterpTable();
-    if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-        free(z_val); z_val = NULL;
-        free(Nion_z_val);
-        free(z_X_val); z_X_val = NULL;
-        free(SFRD_val);
-        if (flag_options->USE_MINI_HALOS){
-            free(Nion_z_val_MINI);
-            free(SFRD_val_MINI);
-        }
-    }
-    else{
-        free(FgtrM_1DTable_linear);
-    }
-
-    LOG_DEBUG("Done Freeing interpolation table memory.");
-	interpolation_tables_allocated = false;
-}
-
 //quick functions to set/get alpha photoncons parameters
 //TODO: pass directly from python into a struct
 double alpha_photoncons_yint;
@@ -4234,6 +4034,14 @@ double get_alpha_fit(double redshift){
                 alpha_photoncons_yint,alpha_photoncons_slope,alpha_fit);
     return alpha_fit;
 }
+
+//HACK: define the interpolation function here. I want to have the table initialisations in interpolation.c
+//  which require the powerspec functions, but these functions require the sigma table, so I need to declare
+//  the function here (i.e InitialiseTable -> Nion_General -> EvaluateTable -> sigma)
+
+//TODO: Either separate interpolation into two files (one for the tables themselves, one for the table functions which need ps.c)
+//  OR rethink the structure of the makefile (i.e not just one big <#include x.c> in GenerateICs.c) (make some headers)
+double EvaluateRGTable1D_f(double x, float *y_arr, float x_min, float x_width);
 
 //Modularisation for the evaluation of sigma
 double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
