@@ -80,15 +80,18 @@ double EvaluateRGTable2D(double x, double y, double **z_arr, double x_min, doubl
 
 //I'm beginning to move the interpolation table initialisation here from ps.c
 //  For now, we will keep them as globals but eventually moving to static structs will be ideal
-double *z_val, *z_X_val, *Nion_z_val, *SFRD_val;
-double **Nion_z_val_MINI, **SFRD_val_MINI;
+
+//Global Nion (z,[Mcrit_LW]) tables
+double *z_val, *Nion_z_val, **Nion_z_val_MINI;
+//Global SFRD (z,[Mcrit_LW]) tables NOTE: spintemp assumes z_val == z_X_val
+double *z_X_val, *SFRD_val, **SFRD_val_MINI;
 
 //NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to assign ST_over_PS in Spintemp. 
 //  It may be better to just do the integrals at each R
 void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI, float mturn_a_const, int minihalos){
     int i,j;
     float Mmin, Mmax;
-    Mmin = minihalos ? global_params.M_MIN_INTEGRAL/50. : mturn_a_const/50.;
+    Mmin = minihalos ? global_params.M_MIN_INTEGRAL : mturn_a_const/50.;
     Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fstar_MINI;
 
@@ -97,8 +100,8 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
         SFRD_val = calloc(Nbin,sizeof(double));
         if(minihalos){
             SFRD_val_MINI = calloc(Nbin,sizeof(double*));
-            for(j=0;j<NMTURN;j++){
-                SFRD_val_MINI[j] = calloc(NMTURN,sizeof(double));
+            for(i=0;i<Nbin;i++){
+                SFRD_val_MINI[i] = calloc(NMTURN,sizeof(double));
             }
         }
     }
@@ -107,8 +110,8 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     if(minihalos){
         Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
-        for (i=0;i<NMTURN;i++){
-            MassTurnover[i] = pow(10., LOG10_MTURN_MIN + (float)i/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
+        for (j=0;j<NMTURN;j++){
+            MassTurnover[j] = pow(10., LOG10_MTURN_MIN + (float)j/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
         }
     }
 
@@ -123,6 +126,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
             if(minihalos){
                 for (j=0; j<NMTURN; j++){
                     SFRD_val_MINI[i][j] = Nion_General_MINI(z_X_val[i], Mmin, MassTurnover[j], Mcrit_atom_val, Alpha_star_mini, 0., Fstar7_MINI, 1.,Mlim_Fstar_MINI,0.);
+                    // LOG_DEBUG("SFRD %d %d : z = %.2e Mt = %.2e val = %.2e",i,j,z_X_val[i],MassTurnover[j],SFRD_val_MINI[i][j]);
                 }
             }
         }
@@ -153,7 +157,7 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
     //SigmaMInterp table has different limits with minihalos
     //TODO: make uniform
     float Mmin, Mmax;
-    Mmin = minihalos ? global_params.M_MIN_INTEGRAL/50. : mturn_a_const/50.;
+    Mmin = minihalos ? global_params.M_MIN_INTEGRAL : mturn_a_const / 50;
     Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI;
 
@@ -162,11 +166,12 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
         Nion_z_val = calloc(Nbin,sizeof(double));
         if(minihalos){
             Nion_z_val_MINI = calloc(Nbin,sizeof(double*));
-            for(j=0;j<NMTURN;j++){
-                Nion_z_val_MINI[j] = calloc(NMTURN,sizeof(double));
+            for(i=0;i<Nbin;i++){
+                Nion_z_val_MINI[i] = calloc(NMTURN,sizeof(double));
             }
         }
     }
+    LOG_DEBUG("allocd");
 
     float MassTurnover[NMTURN];
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
@@ -174,10 +179,11 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
     if(minihalos){
         Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
         Mlim_Fesc_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc7_MINI * pow(1e3, Alpha_esc));
-        for (i=0;i<NMTURN;i++){
-            MassTurnover[i] = pow(10., LOG10_MTURN_MIN + (float)i/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
+        for (j=0;j<NMTURN;j++){
+            MassTurnover[j] = pow(10., LOG10_MTURN_MIN + (float)j/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
         }
     }
+    LOG_DEBUG("found mlim");
 
 #pragma omp parallel private(i,j) num_threads(user_params_it->N_THREADS)
     {
@@ -190,11 +196,13 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
             Nion_z_val[i] = Nion_General(z_val[i], Mmin, Mcrit_atom_val, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
             if(minihalos){
                 for (j=0; j<NMTURN; j++){
+                    // LOG_DEBUG("(%d,%d) -> z%.2e Ma%.2e Mm%.2e",i,j,z_val[i],Mcrit_atom_val,MassTurnover[j]);
                     Nion_z_val_MINI[i][j] = Nion_General_MINI(z_val[i], Mmin, MassTurnover[j], Mcrit_atom_val, Alpha_star_mini, Alpha_esc, Fstar7_MINI, Fesc7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
                 }
             }
         }
     }
+    LOG_DEBUG("filled tables");
 
     for (i=0; i<Nbin; i++){
         if(isfinite(Nion_z_val[i])==0) {

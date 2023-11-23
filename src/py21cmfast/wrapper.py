@@ -3282,6 +3282,7 @@ def run_lightcone(
             redshift=redshift,
         )
 
+        #JD: I don't think this has any effect, passing write=None still caches everything but trips this error
         if user_params.MINIMIZE_MEMORY and not write:
             raise ValueError(
                 "If trying to minimize memory usage, you must be caching. Set write=True!"

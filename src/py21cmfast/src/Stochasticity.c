@@ -21,6 +21,7 @@
 //so we explicitly set a minimum here which sets table limits and puts no halos in cells below that (Lagrangian) density
 #define DELTA_MIN -1
 
+//NOTE: because the .c files are directly included in GenerateIC.c, the static doesn't really do anything :(
 static struct AstroParams *astro_params_stoc;
 static struct CosmoParams *cosmo_params_stoc;
 static struct UserParams *user_params_stoc;
@@ -114,10 +115,10 @@ double minimum_source_mass(double redshift, struct AstroParams *astro_params, st
         else {
             //set the minimum source mass
             if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
-                Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
+                Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22) / global_params.HALO_MTURN_FACTOR;
             }
             else { // ionized IGM
-                Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
+                Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6) / global_params.HALO_MTURN_FACTOR;
             }
         }
     }

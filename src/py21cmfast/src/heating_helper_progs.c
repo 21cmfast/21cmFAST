@@ -770,7 +770,7 @@ double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
     if(user_params_hf->USE_INTERPOLATION_TABLES) {
         double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
-        return EvaluateRGTable2D(log10_Mturn_LW_ave,redshift,Nion_z_val_MINI,LOG10_MTURN_MIN,LOG10_MTURN_INT,determine_zpp_min,zpp_bin_width);
+        return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,Nion_z_val_MINI,determine_zpp_min,zpp_bin_width,LOG10_MTURN_MIN,LOG10_MTURN_INT);
     }
 
     return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
@@ -795,7 +795,9 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar){
 double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI){
     if(user_params_hf->USE_INTERPOLATION_TABLES) {
         double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
-        return EvaluateRGTable2D(log10_Mturn_LW_ave,redshift,SFRD_val_MINI,LOG10_MTURN_MIN,LOG10_MTURN_INT,determine_zpp_min,zpp_bin_width);
+        // LOG_DEBUG("SFRD : z = %.2e Mt = %.2e val = %.2e",redshift,log10_Mturn_LW_ave,
+        //         EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,SFRD_val_MINI,determine_zpp_min,zpp_bin_width,LOG10_MTURN_MIN,LOG10_MTURN_INT));
+        return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,SFRD_val_MINI,determine_zpp_min,zpp_bin_width,LOG10_MTURN_MIN,LOG10_MTURN_INT);
     }
     return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
                             astro_params_hf->ALPHA_STAR_MINI, 0., astro_params_hf->F_STAR7_MINI,

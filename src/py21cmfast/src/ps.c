@@ -2829,7 +2829,7 @@ void initialise_Nion_General_spline_MINI_prev(float z, float Mcrit_atom, float m
 }
 
 void initialise_SFRD_Conditional_table(
-    int Nfilter, float min_density[], float max_density[], float growthf[], float R[],
+    int Nfilter, double min_density[], double max_density[], double growthf[], double R[],
     float MassTurnover, float Alpha_star, float Fstar10, bool FAST_FCOLL_TABLES
 ){
 
@@ -2927,7 +2927,7 @@ void initialise_SFRD_Conditional_table(
 }
 
 void initialise_SFRD_Conditional_table_MINI(
-    int Nfilter, float min_density[], float max_density[], float growthf[], float R[],
+    int Nfilter, double min_density[], double max_density[], double growthf[], double R[],
     float Mcrit_atom[], float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI, bool FAST_FCOLL_TABLES
 ){
 
