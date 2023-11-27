@@ -1672,6 +1672,9 @@ def interp_haloboxes(hbox_arr,fields,z_halos,z_target) -> HaloBox:
 
     return hbox_out
 
+#NOTE: the current implementation of this box is very hacky, since I have trouble figuring out a way to _compute()
+#   over multiple redshifts in a nice way using this wrapper.
+#TODO: if we move some code to jax or similar I think this would be one of the first candidates (just filling out some filtered grids)
 def xray_source(
     *,
     redshift,

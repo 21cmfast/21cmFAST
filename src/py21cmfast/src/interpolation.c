@@ -40,8 +40,13 @@ double EvaluateRGTable1D(double x, double *y_arr, double x_min, double x_width){
     int idx = (int)floor((x - x_min)/x_width);
     double table_val = x_min + x_width*(double)idx;
     double interp_point = (x - table_val)/x_width;
+    // LOG_DEBUG("1D: x %.6e -> idx %d -> tbl %.6e -> itp %.6e",x,idx,table_val,interp_point);
 
-    return y_arr[idx]*(1-interp_point) + y_arr[idx+1]*(interp_point);
+    double result = y_arr[idx]*(1-interp_point) + y_arr[idx+1]*(interp_point);
+
+    // LOG_DEBUG("-> result %.2e",result);
+
+    return result;
 }
 
 //some tables are floats but I still need to return doubles
@@ -85,6 +90,8 @@ double EvaluateRGTable2D(double x, double y, double **z_arr, double x_min, doubl
 double *z_val, *Nion_z_val, **Nion_z_val_MINI;
 //Global SFRD (z,[Mcrit_LW]) tables NOTE: spintemp assumes z_val == z_X_val
 double *z_X_val, *SFRD_val, **SFRD_val_MINI;
+//Fcoll table for old parametrisation (list of 1D tables)
+double **F_table_dens, **F_table_val, **dF_table_val;
 
 //NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to assign ST_over_PS in Spintemp. 
 //  It may be better to just do the integrals at each R
@@ -94,6 +101,8 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
     Mmin = minihalos ? global_params.M_MIN_INTEGRAL : mturn_a_const/50.;
     Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fstar_MINI;
+
+    LOG_DEBUG("initing SFRD spline from %.2f to %.2f",zmin,zmax);
 
     if (z_X_val == NULL){
         z_X_val = calloc(Nbin,sizeof(double));
@@ -160,6 +169,7 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
     Mmin = minihalos ? global_params.M_MIN_INTEGRAL : mturn_a_const / 50;
     Mmax = global_params.M_MAX_INTEGRAL;
     float Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI;
+    LOG_DEBUG("initing Nion spline from %.2f to %.2f",zmin,zmax);
 
     if (z_val == NULL){
         z_val = calloc(Nbin,sizeof(double));
@@ -222,23 +232,102 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
     }
 }
 
+//TODO: I'm not 100% sure the tables do much since there are no integrals (maybe erfc is slow?), look into it
+//This table is a lot simpler than the one that existed previously, which was a R_ct x 2D table, with
+//  loads of precomputed interpolation points. This may have been from a point where the table was generated only once
+//  and needed both an R and zpp axis.
+//NOTE: both here and for the conditional tables it says "log spacing is desired", but I can't see why.
+//  TODO: make a plot of Fcoll vs delta, and Fcoll vs log(1+delta) to see which binning is better
+//      but I would expect linear in delta to be fine
+void initialise_FgtrM_delta_table(int n_radii, double *min_dens, double *max_dens, double *z_array, double *growth_array, double *smin_array, double *smax_array){
+    int i,j;
+
+    if(F_table_dens == NULL){
+        F_table_dens = calloc(n_radii,sizeof(double*));
+        for(i=0;i<n_radii;i++){
+            F_table_dens[i] = calloc(dens_Ninterp,sizeof(double));
+        }
+        F_table_val = calloc(n_radii,sizeof(double*));
+        for(i=0;i<n_radii;i++){
+            F_table_val[i] = calloc(dens_Ninterp,sizeof(double));
+        }
+        dF_table_val = calloc(n_radii,sizeof(double*));
+        for(i=0;i<n_radii;i++){
+            dF_table_val[i] = calloc(dens_Ninterp,sizeof(double));
+        }
+    }
+
+    for(i=0;i<n_radii;i++){
+        //dens_Ninterp is a global define, probably shouldn't be
+        for(j=0;j<dens_Ninterp;j++){
+            F_table_dens[i][j] = min_dens[i] + j*(max_dens[i] - min_dens[i])/(dens_Ninterp-1);
+            F_table_val[i][j] = FgtrM_bias_fast(growth_array[i], F_table_dens[i][j], smin_array[i], smax_array[i]);
+            dF_table_val[i][j] = dfcoll_dz(z_array[i], smin_array[i], F_table_dens[i][j], smax_array[i]);
+        }
+    }
+    LOG_DEBUG("done");
+}
+
+int n_redshifts_1DTable;
+double zmin_1DTable, zmax_1DTable, zbin_width_1DTable;
+double *FgtrM_1DTable_linear;
+
+//TODO: change to same z-bins as other global 1D tables
+void init_FcollTable(double zmin, double zmax, struct AstroParams *astro_params, struct FlagOptions *flag_options)
+{
+    int i;
+    double z_table;
+
+    zmin_1DTable = zmin;
+    zmax_1DTable = 1.2*zmax;
+
+    zbin_width_1DTable = 0.1;
+
+    n_redshifts_1DTable = (int)ceil((zmax_1DTable - zmin_1DTable)/zbin_width_1DTable);
+
+    FgtrM_1DTable_linear = (double *)calloc(n_redshifts_1DTable,sizeof(double));
+    
+    LOG_DEBUG("initing Fcoll spline from %.2f to %.2f %d[%.2f %.2f]",zmin,zmax,n_redshifts_1DTable,
+                        zmin_1DTable,zbin_width_1DTable);
+
+    for(i=0;i<n_redshifts_1DTable;i++){
+        z_table = zmin_1DTable + zbin_width_1DTable*(double)i;
+        //NOTE: previously this divided Mturn by 50 which I think is a bug with M_MIN_in_Mass, since there is a sharp cutoff
+        FgtrM_1DTable_linear[i] = FgtrM(z_table, minimum_source_mass(z_table,astro_params,flag_options));
+    }
+}
+
+
 //frees Sigma and the global interp tables
 //TODO: better organisation of the table allocation/free
+//  also the 2D array freeing should be split loops / function
 void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
     LOG_DEBUG("Freeing some interpolation table memory.");
 	freeSigmaMInterpTable();
+    int i;
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         free(z_val); z_val = NULL;
         free(Nion_z_val);
         free(z_X_val); z_X_val = NULL;
         free(SFRD_val);
         if (flag_options->USE_MINI_HALOS){
+            for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++){
+                free(Nion_z_val_MINI[i]);
+                free(SFRD_val_MINI[i]);
+            }
             free(Nion_z_val_MINI);
             free(SFRD_val_MINI);
         }
     }
-    else{
-        free(FgtrM_1DTable_linear);
+    else{            
+        for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++){
+                free(F_table_dens[i]);
+                free(F_table_val[i]);
+                free(dF_table_val[i]);
+        }
+        free(F_table_dens);
+        free(F_table_val);
+        free(dF_table_val);
     }
 
     LOG_DEBUG("Done Freeing interpolation table memory.");

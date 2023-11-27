@@ -112,12 +112,6 @@ float GaussLegendreQuad_Nion_MINI(int Type, int n, float growthf, float M2, floa
 //JBM: Exact integral for power-law indices non zero (for zero it's erfc)
 double Fcollapprox (double numin, double beta);
 
-
-
-int n_redshifts_1DTable;
-double zmin_1DTable, zmax_1DTable, zbin_width_1DTable;
-double *FgtrM_1DTable_linear;
-
 static gsl_interp_accel *Q_at_z_spline_acc;
 static gsl_spline *Q_at_z_spline;
 static gsl_interp_accel *z_at_Q_spline_acc;
@@ -1611,37 +1605,54 @@ double dnbiasdM(double M, float z, double M_o, float del_o){
 /*
  calculates the fraction of mass contained in haloes with mass > M at redshift z, in regions with a linear overdensity of del_bias, and standard deviation sig_bias
  */
-double FgtrM_bias(double z, double M, double del_bias, double sig_bias){
-    double del, sig, sigsmallR;
 
-    sigsmallR = sigma_z0(M);
-
-    if (!(sig_bias < sigsmallR)){ // biased region is smaller that halo!
-//        fprintf(stderr, "FgtrM_bias: Biased region is smaller than halo!\nResult is bogus.\n");
-//        return 0;
-        return 0.000001;
+//I wrote a version of FgtrM which takes the growth func instead of z for a bit of speed
+double FgtrM_bias_fast(float growthf, float del_bias, float sig_small, float sig_large){
+    double del, sig;
+    if (sig_large > sig_small){ // biased region is smaller that halo!
+        LOG_ERROR("Trying to compute FgtrM in region where M_min > M_max");
+        Throw(ValueError);
     }
+    //sometimes they are the same to float precision, where the M_condition ~ M_Min
+    if(sig_large == sig_small){
+        return 0.;
+    }
+    del = Deltac/growthf - del_bias; //NOTE HERE DELTA EXTRAPOLATED TO z=0
+    sig = sqrt(sig_small*sig_small - sig_large*sig_large);
+    
+    del = (Deltac - del_bias)/growthf;
 
-    del = Deltac/dicke(z) - del_bias;
-    sig = sqrt(sigsmallR*sigsmallR - sig_bias*sig_bias);
-
+    //if the density is above critical on this scale, it is collapsed
+    //NOTE: should we allow del < 0???
+    if(del < FRACT_FLOAT_ERR){
+        return 1.;
+    }
     return splined_erfc(del / (sqrt(2)*sig));
 }
 
 /* Uses sigma parameters instead of Mass for scale */
 double sigmaparam_FgtrM_bias(float z, float sigsmallR, float del_bias, float sig_bias){
-    double del, sig;
+    return FgtrM_bias_fast(dicke(z),del_bias,sigsmallR,sig_bias);
+}
 
-    if (!(sig_bias < sigsmallR)){ // biased region is smaller that halo!
-        //    fprintf(stderr, "local_FgtrM_bias: Biased region is smaller than halo!\nResult is bogus.\n");
-        //    return 0;
-        return 0.000001;
-    }
+double FgtrM_bias(double z, double M, double del_bias, double sig_bias){
+    return sigmaparam_FgtrM_bias(z,EvaluateSigma(exp(M),0,NULL),del_bias,sig_bias);
+}
 
-    del = Deltac/dicke(z) - del_bias;
-    sig = sqrt(sigsmallR*sigsmallR - sig_bias*sig_bias);
+//  Redshift derivative of the conditional collapsed fraction
+//  TODO: change to use linear growth ddicke_dz, dsigmadz since we have these tabulated?
+float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias)
+{
+    double dz,z1,z2;
+    double fc1,fc2,ans;
 
-    return splined_erfc(del / (sqrt(2)*sig));
+    dz = 0.001;
+    z1 = z + dz;
+    z2 = z - dz;
+    fc1 = sigmaparam_FgtrM_bias(z1, sigma_min, del_bias, sig_bias);
+    fc2 = sigmaparam_FgtrM_bias(z2, sigma_min, del_bias, sig_bias);
+    ans = (fc1 - fc2)/(2.0*dz);
+    return ans;
 }
 
 /* redshift derivative of the growth function at z */
@@ -1651,10 +1662,6 @@ double ddicke_dz(double z){
 
     return (dicke(z+dz)-dicke(z))/dz;
 }
-
-
-
-
 
 /* compute a mass limit where the stellar baryon fraction and the escape fraction exceed unity */
 //NOTE (JD): Why aren't we using 1e10 * pow(FRAC,-1/PL)? what am I missing here that makes the rootfind necessary
@@ -4065,4 +4072,40 @@ double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
     }
 
     return sigma;
+}
+
+//set the minimum source mass
+double minimum_source_mass(double redshift, struct AstroParams *astro_params, struct FlagOptions *flag_options){
+    double Mmin,min_factor,ion_factor;
+    if(flag_options->USE_HALO_FIELD)
+        min_factor = global_params.HALO_MTURN_FACTOR; //halo sampler we set the lower bound
+    else if(flag_options->USE_MASS_DEPENDENT_ZETA)
+        min_factor = 50.; // small lower bound since minima doesn't slow down integrals
+    else
+        min_factor = 1.; //sharp cutoff
+
+    // automatically true if USE_MASS_DEPENDENT_ZETA
+    if(flag_options->USE_MINI_HALOS) {
+        Mmin = global_params.M_MIN_INTEGRAL;
+    }
+    else if(flag_options->M_MIN_in_Mass) {
+        Mmin = astro_params->M_TURN;
+    }
+    else {
+        ion_factor = astro_params->ION_Tvir_MIN < 9.99999e3 ? 1.22 : 0.6;
+        Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, ion_factor);
+    }
+    Mmin /= min_factor;
+    
+    //I doubt this will be used much but previously
+    //  it was ONLY in the !USE_MASS_DEP_ZETA case,
+    //  and the fuction looks odd (fudge), should be tested
+    if(global_params.P_CUTOFF){
+        Mmin = fmax(Mmin,M_J_WDM());
+    }
+
+    if(user_params_ps->FAST_FCOLL_TABLES)
+        Mmin = fmin(MMIN_FAST,Mmin);
+
+    return Mmin;
 }

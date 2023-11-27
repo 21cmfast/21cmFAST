@@ -102,29 +102,6 @@ void print_hs_consts(struct HaloSamplingConstants * c){
     return;
 }
 
-//set the minimum source mass
-double minimum_source_mass(double redshift, struct AstroParams *astro_params, struct FlagOptions * flag_options){
-    double Mmin;
-    if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-        Mmin = astro_params->M_TURN / global_params.HALO_MTURN_FACTOR;
-    }
-    else {
-        if(flag_options->M_MIN_in_Mass) {
-            Mmin = astro_params->M_TURN / global_params.HALO_MTURN_FACTOR;
-        }
-        else {
-            //set the minimum source mass
-            if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
-                Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22) / global_params.HALO_MTURN_FACTOR;
-            }
-            else { // ionized IGM
-                Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6) / global_params.HALO_MTURN_FACTOR;
-            }
-        }
-    }
-    return Mmin;
-}
-
 //The sigma interp table is regular in log mass, not sigma so we need to loop ONLY FOR METHOD=3
 //TODO: make a new RGI from the sigma tables if we take the partition method seriously.
 double EvaluateSigmaInverse(double sigma){
@@ -141,42 +118,6 @@ double EvaluateSigmaInverse(double sigma){
     double interp_point = (sigma - table_val_0)/(table_val_1-table_val_0);
 
     return table_val_0*(1-interp_point) + table_val_1*(interp_point);
-}
-
-/*
- copied from ps.c but with interpolation tables and growthf
- Expects the same delta as dNdM_conditional i.e linear delta at z=0
- TODO: put this and EvaluateSigma in ps.c
- */
-double EvaluateFgtrM(double growthf, double lnM, double del_bias, double sig_bias){
-    double del, sig, sigsmallR;
-
-    //LOG_ULTRA_DEBUG("FgtrM: z=%.2f M=%.3e d=%.3e s=%.3e",z,exp(lnM),del_bias,sig_bias);
-
-    sigsmallR = EvaluateSigma(lnM,0,NULL);
-
-    //LOG_ULTRA_DEBUG("FgtrM: SigmaM %.3e",sigsmallR);
-    //sometimes condition mass is close enough to minimum mass such that the sigmas are the same to float precision
-    //In this case we just throw away the halo, since it is very unlikely to have progenitors
-    if(sigsmallR <= sig_bias){
-        return 0.;
-    }
-    
-    del = (Deltac - del_bias)/growthf;
-
-    //deal with floating point errors
-    //TODO: this is a little hacky, check the split growth factors before calling this instead
-    if(del < -FRACT_FLOAT_ERR*100){
-            LOG_ERROR("error in FgtrM: condition sigma %.3e delta %.3e sigma %.3e delta %.3e (%.3e)",sig_bias,del_bias,sigsmallR,Deltac,del);
-            Throw(ValueError);
-    }
-    if(del < FRACT_FLOAT_ERR*100){
-        return 1.;
-    }
-
-    sig = sqrt(sigsmallR*sigsmallR - sig_bias*sig_bias);
-
-    return splined_erfc(del / (sqrt(2)*sig));
 }
 
 void Broadcast_struct_global_STOC(struct UserParams *user_params, struct CosmoParams *cosmo_params,struct AstroParams *astro_params, struct FlagOption *flag_options){
@@ -1296,7 +1237,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
             //TODO: look at the J function in Parkinson+08 for a speedup
             //F = ComputeFraction(sigma_start, sigmasq_start, sigmasq_res, G1, dd, kit_sp);
             growth_d = Deltac/(d_start + dd);
-            F = 1 - EvaluateFgtrM(growth_d,lnm_res,d_start*growth_d,sigma_start);
+            F = 1 - FgtrM_bias_fast(growth_d,d_start,sigma_res,sigma_start);
         }
         else {
             // Compute B and beta
@@ -1326,7 +1267,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
             // Compute F
             //TODO: look at the J function in Parkinson+08 for a speedup
             growth_d = Deltac/(d_start + dd);
-            F = 1 - EvaluateFgtrM(growth_d,lnm_res,d_start*growth_d,sigma_start);
+            F = 1 - FgtrM_bias_fast(growth_d,d_start,sigma_res,sigma_start);
             // Generate random numbers and split the tree
             if (gsl_rng_uniform(rng) < N_upper) {
                 q = pow(pow(q_res, eta) + pow_diff*gsl_rng_uniform(rng), 1./eta);
@@ -2595,7 +2536,8 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 test = IntegratedNdM(growth_out,lnM_lo,lnM_hi,lnMcond,delta,seed,user_params->HMF,1);
                 //This is a debug case, testing that the integral of M*dNdM == FgtrM
                 if(seed == 1){
-                    test = EvaluateFgtrM(growth_out,lnM_lo,delta,EvaluateSigma(lnMcond,0,NULL)) - EvaluateFgtrM(growth_out,lnM_hi,delta,EvaluateSigma(lnMcond,0,NULL));
+                    test = FgtrM_bias_fast(growth_out,delta/hs_constants->growth_out,EvaluateSigma(lnM_lo,0,NULL),hs_constants->sigma_cond) \
+                                         - FgtrM_bias_fast(growth_out,delta/hs_constants->growth_out,EvaluateSigma(lnM_hi,0,NULL),hs_constants->sigma_cond);
                     result[i+n_mass] = test * Mcond * ps_ratio;
                     // LOG_ULTRA_DEBUG("==> %.8e",result[i+n_mass]);
                 }
@@ -2633,7 +2575,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     result[i] = test  * Mcond / sqrt(2.*PI) * ps_ratio;
                     //This is a debug case, testing that the integral of M*dNdM == FgtrM
                     if(seed == 1){
-                        test = EvaluateFgtrM(growth_out,lnMmin,delta,hs_constants_priv.sigma_cond) * Mcond;
+                        test = FgtrM_bias_fast(growth_out,delta/hs_constants_priv.growth_out,hs_constants_priv.sigma_min,hs_constants_priv.sigma_cond) * Mcond;
                         result[i+n_mass] = test * ps_ratio;
                     }
                 }
@@ -2872,6 +2814,23 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             double mfp = z_in;
             LOG_DEBUG("Starting mfp filter");
             test_mfp_filter(user_params,cosmo_params,astro_params,flag_options,M,R,mfp,result);
+        }
+        else if(type==9){
+            double delta_in;
+            double F_buf;
+            if(hs_constants->update){
+                LOG_ERROR("no update for type==9 (FgtrM test)");
+                Throw(ValueError);
+            }
+            for(i=0;i<n_mass;i++){
+                delta_in = M[i];
+                stoc_set_consts_cond(hs_constants,delta_in);
+                F_buf = FgtrM_bias_fast(hs_constants->growth_out,delta_in,hs_constants->sigma_min,
+                                        hs_constants->sigma_cond);
+                
+                result[i] = F_buf;
+                result[i + n_mass] = hs_constants->expected_M / hs_constants->M_cond;
+            }
         }
         else{
             LOG_ERROR("Unknown output type");
