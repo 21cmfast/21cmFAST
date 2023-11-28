@@ -1494,8 +1494,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     double max_buf=-1e20, min_buf=1e20, curr_dens;
     curr_vcb = flag_options_ts->FIX_VCB_AVG ? global_params.VAVG : 0;
 
-    double Mmin,Mmax;
-
     //TODO: I want to move this part of the box assignment to an XraySourceBox for consistency between
     //  halo/nohalo flags and options to use the proper perturbfield/SFRD and annular filters
     if(!flag_options->USE_HALO_FIELD){
@@ -1704,11 +1702,13 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         for(R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
             dzpp_for_evolve = dzpp_list[R_ct];
             zpp = zpp_for_evolve_list[R_ct];
+            //TODO: check the edge factor again in the annular filter situation
+            //  The integral of that filter is not 1
             if(flag_options->USE_HALO_FIELD)
                 z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]); //dtdz'' dz'' -> dR for the radius sum (C included in constants)
             
             else if(flag_options->USE_MASS_DEPENDENT_ZETA){
-                //TODO: hubble array
+                //TODO: hubble array instead of call
                 z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]) * hubble(zpp) / astro_params->t_STAR;
             }
             else{
@@ -1745,6 +1745,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             }
 
             //minihalo factors should be separated since they may not be allocated
+            //TODO: arrays < 100 should probably always be allocated on the stack
             if(flag_options->USE_MINI_HALOS){
                 starlya_factor_mini = dstarlya_dt_prefactor_MINI[R_ct];
                 lyacont_factor_mini = dstarlya_cont_dt_prefactor_MINI[R_ct];
@@ -1820,7 +1821,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             //  What am I missing? The ionisation box has a final delta dependence of (1+delta_source)/(1+delta_absorber) which makes sense
             //  But here it's just (1+delta_source).
             //  mean_sfr_zpp has no rhoc (divided out), The tables have no rhoc, there is only one in the constant factor, and a 1+delta_source in the grids
-            
+
             //Add prefactors that don't depend on R
             rad.dxheat_dt = dxheat_dt_box[box_ct] * zp_consts.xray_prefactor * zp_consts.volunit_inv;
             rad.dxion_dt = dxion_source_dt_box[box_ct] * zp_consts.xray_prefactor * zp_consts.volunit_inv;
