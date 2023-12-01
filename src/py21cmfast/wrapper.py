@@ -3433,6 +3433,8 @@ def run_lightcone(
 
         #we explicitly pass the descendant halos here since we have a redshift list prior
         #   this will generate the extra fields if STOC_MINIMUM_Z is given
+        #TODO: with feedback, we cannot only store the HaloBox. Storing every halofield is silly
+        #   and purging C-allocated fields causes a crash. Find a better way to organise this
         pt_halos = []
         if flag_options.USE_HALO_FIELD:
             halos_desc = None

@@ -4077,35 +4077,33 @@ double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
 //set the minimum source mass
 double minimum_source_mass(double redshift, struct AstroParams *astro_params, struct FlagOptions *flag_options){
     double Mmin,min_factor,ion_factor;
-    if(flag_options->USE_HALO_FIELD)
-        min_factor = global_params.HALO_MTURN_FACTOR; //halo sampler we set the lower bound
-    else if(flag_options->USE_MASS_DEPENDENT_ZETA)
+    if(flag_options->USE_MASS_DEPENDENT_ZETA)
         min_factor = 50.; // small lower bound since minima doesn't slow down integrals
     else
         min_factor = 1.; //sharp cutoff
 
-    // automatically true if USE_MASS_DEPENDENT_ZETA
+    // automatically false if !USE_MASS_DEPENDENT_ZETA
     if(flag_options->USE_MINI_HALOS) {
         Mmin = global_params.M_MIN_INTEGRAL;
     }
+    // automatically true if USE_MASS_DEPENDENT_ZETA
     else if(flag_options->M_MIN_in_Mass) {
         Mmin = astro_params->M_TURN;
     }
     else {
         ion_factor = astro_params->ION_Tvir_MIN < 9.99999e3 ? 1.22 : 0.6;
         Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, ion_factor);
+        
+        //I doubt this will be used much but previously
+        //  it was ONLY in the !USE_MASS_DEP_ZETA case,
+        //  and the fuction looks odd (fudge), should be tested
+        //  doesn't make much sense with the turnover, unless it is incorporated
+        //  with the feedbacks (LW,atomic,reion)
+        if(global_params.P_CUTOFF){
+            Mmin = fmax(Mmin,M_J_WDM());
+        }
     }
     Mmin /= min_factor;
-    
-    //I doubt this will be used much but previously
-    //  it was ONLY in the !USE_MASS_DEP_ZETA case,
-    //  and the fuction looks odd (fudge), should be tested
-    if(global_params.P_CUTOFF){
-        Mmin = fmax(Mmin,M_J_WDM());
-    }
-
-    if(user_params_ps->FAST_FCOLL_TABLES)
-        Mmin = fmin(MMIN_FAST,Mmin);
 
     return Mmin;
 }

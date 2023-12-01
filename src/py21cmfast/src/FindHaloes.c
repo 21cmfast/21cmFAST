@@ -79,10 +79,8 @@ LOG_DEBUG("Begin Initialisation");
 
         //set minimum source mass
         M_MIN = minimum_source_mass(redshift, astro_params, flag_options);
-        //if we use the sampler we want to stop at the cell mass
-        if(flag_options->HALO_STOCHASTICITY){
-            M_MIN = RtoM(L_FACTOR*user_params->BOX_LEN/user_params->HII_DIM);
-        }
+        //if we use the sampler we want to stop at the HII cell mass
+        M_MIN = fmax(M_MIN,RtoM(L_FACTOR*user_params->BOX_LEN/grid_dim));
 
         // allocate array for the k-space box
         density_field = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*k_num_pixels);
@@ -99,11 +97,9 @@ LOG_DEBUG("Begin Initialisation");
         }
         if(LOG_LEVEL >= DEBUG_LEVEL){
             double Mmax_debug = 1e16;
-            double Mmin_debug;
-            Mmin_debug = RtoM(L_FACTOR*user_params->BOX_LEN/grid_dim);
-            initialiseSigmaMInterpTable(Mmin_debug*0.9,Mmax_debug*1.1);
-            double expected_nhalo = VOLUME * IntegratedNdM(growth_factor,log(Mmin_debug),log(Mmax_debug),log(Mmax_debug),0,0,user_params->HMF,0);
-            LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e] (%.2e)",expected_nhalo,Mmin_debug,Mmax_debug, RHOcrit * cosmo_params->OMm * VOLUME / TOT_NUM_PIXELS);
+            initialiseSigmaMInterpTable(M_MIN*0.9,Mmax_debug*1.1);
+            double expected_nhalo = VOLUME * IntegratedNdM(growth_factor,log(M_MIN),log(Mmax_debug),log(Mmax_debug),0,0,user_params->HMF,0);
+            LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e] (%.2e)",expected_nhalo,M_MIN,Mmax_debug, RHOcrit * cosmo_params->OMm * VOLUME / TOT_NUM_PIXELS);
         }
 
 #pragma omp parallel shared(boxes,density_field) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -139,8 +135,7 @@ LOG_DEBUG("Finalised Initialisation");
         Delta_R = L_FACTOR*2.*user_params->BOX_LEN/(grid_dim+0.0);
 
         total_halo_num = 0;
-        if(res_flag) R = 0.5*Delta_R*1.01; //on lowres we want to end roughly on the cell scale
-        else R = MtoR(M_MIN*1.01); // one percent higher for rounding
+        R = MtoR(M_MIN*1.01); // one percent higher for rounding
 
 LOG_DEBUG("Prepare to filter to find halos");
 
@@ -157,7 +152,7 @@ LOG_DEBUG("Prepare to filter to find halos");
 
         while ((R > 0.5*Delta_R) && (RtoM(R) >= M_MIN)){ // filter until we get to half the pixel size or M_MIN
             M = RtoM(R);
-            LOG_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%e M_MIN=%e", R, 0.5*Delta_R, M, M_MIN);
+            LOG_SUPER_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%e M_MIN=%e", R, 0.5*Delta_R, M, M_MIN);
 
             if(global_params.DELTA_CRIT_MODE == 1 && (user_params->HMF>0 && user_params->HMF<4)){
                 if(user_params->HMF==1) {

@@ -258,6 +258,7 @@ void initialise_FgtrM_delta_table(int n_radii, double *min_dens, double *max_den
     }
 
     for(i=0;i<n_radii;i++){
+        // LOG_DEBUG("Starting R %d dens [%.2e,%.2e] D %.2e sig [%.2e,%.2e]",i,min_dens[i],max_dens[i],growth_array[i],smin_array[i],smax_array[i]);
         //dens_Ninterp is a global define, probably shouldn't be
         for(j=0;j<dens_Ninterp;j++){
             F_table_dens[i][j] = min_dens[i] + j*(max_dens[i] - min_dens[i])/(dens_Ninterp-1);
@@ -303,7 +304,10 @@ void init_FcollTable(double zmin, double zmax, struct AstroParams *astro_params,
 //  also the 2D array freeing should be split loops / function
 void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
     LOG_DEBUG("Freeing some interpolation table memory.");
-	freeSigmaMInterpTable();
+    //Since the sigma table in Ts and ion are linked, we cannot free here
+    //TODO: better organisation of this table, we initilialise once unless using TtoM
+    //  keeping in mind a user may change parameters in the same instance
+	// freeSigmaMInterpTable();
     int i;
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         free(z_val); z_val = NULL;

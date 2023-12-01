@@ -107,10 +107,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
  * variables with static structs, so that things are scoped properly.*/
  
 //OTHER NOTES:
-//If MINIMIZE_MEMORY is false, we don't use the FFTW arrays after filling the tables. I have freed all the fftw stuff within that function
-//  I can have a separate setup/free functions for the case with MINIMIZE_MEMORY
 //Assuming that the same redshift (or within 0.0001) isn't called twice in a row (which it shouldn't be because caching), the global tables (Nion,SFRD)
-//  are initialised and used once. I'm not including those tables for now since it seems inefficient but I may be wrong here
+//  We may want to not use tables for global SFRD and Nion (would require a change in nu_tau_one)
 //I rely on the default behaviour of OpenMP scoping (everything shared unless its a stack variable defined in the parallel region)
 //  so I can avoid making massive directives, this breaks from the style of the remainder of the code but I find it much more readable
 //  the only downside is when there are a lot of re-used private variables which is rarely the case and can be specially placed in a private clause
@@ -1460,7 +1458,10 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 
     if(user_params->USE_INTERPOLATION_TABLES){
         double M_MIN;
-        M_MIN = minimum_source_mass(redshift,astro_params,flag_options);
+        double z_var = flag_options->USE_MASS_DEPENDENT_ZETA ? \
+            redshift : zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts - 1];
+        M_MIN = minimum_source_mass(z_var,astro_params,flag_options);
+        if(user_params->FAST_FCOLL_TABLES) M_MIN = fmin(MMIN_FAST,M_MIN);
         initialiseSigmaMInterpTable(M_MIN,1e20);
     }
     
@@ -1565,12 +1566,16 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         }
 
         //mass limits required for no interp table case, also for FgtrM table limits
+        //NOTE: no FAST_FCOLL here
         for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
             //NOTE: not sure why this is the minimum mass here but I just moved it here
             M_min_R[R_ct] = minimum_source_mass(zpp_for_evolve_list[R_ct],astro_params,flag_options);
             M_max_R[R_ct] = RtoM(R_values[R_ct]);
             sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]),0,NULL);
             sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]),0,NULL);
+            
+            // LOG_DEBUG("R %d = %.2e z %.2e || M = [%.2e, %.2e] sig [%.2e %.2e]",R_ct,R_values[R_ct],
+            //             zpp_for_evolve_list[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
         }
         LOG_DEBUG("found limits");
         //currently, we need the density limits to setup the interp tables
@@ -1658,7 +1663,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         for(box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
             xHII_call = previous_spin_temp->x_e_box[box_ct];
             // Check if ionized fraction is within boundaries; if not, adjust to be within
-            if (xHII_call > x_int_XHII[x_int_NXHII-1]*0.999) {
+            if (xHII_call > x_int_XHII[x_int_NXHII-1]*0.999){
                 xHII_call = x_int_XHII[x_int_NXHII-1]*0.999;
             }
             else if (xHII_call < x_int_XHII[0]) {
@@ -1704,16 +1709,16 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             zpp = zpp_for_evolve_list[R_ct];
             //TODO: check the edge factor again in the annular filter situation
             //  The integral of that filter is not 1
+            //TODO: also remove the fabs and make sure signs are correct following
+            //  dzpp is negative, as should dtdz be, look in get_Ts_fast()
+            //TODO: hubble array instead of call
             if(flag_options->USE_HALO_FIELD)
                 z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]); //dtdz'' dz'' -> dR for the radius sum (C included in constants)
-            
-            else if(flag_options->USE_MASS_DEPENDENT_ZETA){
-                //TODO: hubble array instead of call
+            else if(flag_options->USE_MASS_DEPENDENT_ZETA)
                 z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]) * hubble(zpp) / astro_params->t_STAR;
-            }
-            else{
-                z_edge_factor = fabs(dzpp_for_evolve);
-            }
+            else
+                z_edge_factor = dzpp_for_evolve;
+
             xray_R_factor = pow(1+zpp,-(astro_params->X_RAY_SPEC_INDEX));
             //index for grids
             R_index = user_params->MINIMIZE_MEMORY ? 0 : R_ct;
@@ -1772,6 +1777,8 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                         sfr_term = source_box->filtered_sfr[R_index*HII_TOT_NUM_PIXELS + box_ct] * z_edge_factor;
                     }
                     else{
+                        //NOTE: for !USE_MASS_DEPENDENT_ZETA, F_STAR10 is still used for constant stellar fraction
+                        //TODO: check if this was intended since it is nowhere else in the code
                         sfr_term = del_fcoll_Rct[box_ct] * z_edge_factor * avg_fix_term * astro_params->F_STAR10;
                     }
                     if(flag_options->USE_MINI_HALOS){

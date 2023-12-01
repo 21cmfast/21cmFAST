@@ -753,8 +753,10 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     const_struct->growth_out = dicke(redshift);
     const_struct->z_out = redshift;
     const_struct->z_in = redshift_prev;
-
-    double M_min = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc);
+    
+    //NOTE: the halo model uses a different M_min
+    // double M_min = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc);
+    double M_min = astro_params_stoc->M_TURN / global_params.HALO_MTURN_FACTOR * global_params.HALO_SAMPLE_FACTOR;
     const_struct->M_min = M_min;
     const_struct->lnM_min = log(M_min);
     const_struct->M_max_tables = global_params.M_MAX_INTEGRAL;
@@ -1578,6 +1580,9 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
         LOG_SUPER_DEBUG("Thread %d has %llu of %llu halos, concatenating (starting at %llu)...",threadnum,count,count_total,istart);
                 
         //copy each local array into the struct
+        //TODO: change the struct to have fixed size, determined by parameters (average number * factor)
+        //  This way I can make them sparse and save ~half the memory
+        //  the PerturbHaloField can either be the same size and sparse of condensed there since number won't change
         memcpy(halofield_out->halo_masses + istart,local_hm,count*sizeof(float));
         memcpy(halofield_out->star_rng + istart,local_sm,count*sizeof(float));
         memcpy(halofield_out->sfr_rng + istart,local_sfr,count*sizeof(float));
@@ -1913,7 +1918,8 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, struct I
                     struct PerturbedField * perturbed_field, struct TsBox *previous_spin_temp,
                     struct IonizedBox *previous_ionize_box, struct HaloBox *grids, double *averages){
     //There's quite a bit of re-calculation here but this only happens once per snapshot
-    double M_min = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc)*global_params.HALO_SAMPLE_FACTOR;
+    // double M_min = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc);
+    double M_min = astro_params_stoc->M_TURN / global_params.HALO_MTURN_FACTOR * global_params.HALO_SAMPLE_FACTOR;
     double volume = VOLUME / HII_TOT_NUM_PIXELS;
     double M_max = RtoM(user_params_stoc->BOX_LEN / user_params_stoc->HII_DIM * L_FACTOR); //mass in cell of mean dens
     double sigma_max = sigma_z0(M_max);
@@ -2062,6 +2068,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, struct I
 //Expected global averages for box quantities for mean adjustment
 //TODO: use the global interpolation tables (only one integral per property per snapshot so this is low priority)
 //WARNING: THESE AVERAGE BOXES ARE WRONG, CHECK THEM
+//TODO: Use the functions from SpinTemperature.c Instead with the tables
 int get_box_averages(double redshift, double norm_esc, double alpha_esc, double M_turn_a, double M_turn_m, double *averages){
     double alpha_star = astro_params_stoc->ALPHA_STAR;
     double norm_star = astro_params_stoc->F_STAR10;
@@ -2072,7 +2079,8 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
     double norm_star_mini = astro_params_stoc->F_STAR7_MINI;
     double norm_esc_mini = astro_params_stoc->F_ESC7_MINI;
     //There's quite a bit of re-calculation here but this only happens once per snapshot
-    double M_min = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc) * global_params.HALO_SAMPLE_FACTOR;
+    // double M_min = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc) * global_params.HALO_SAMPLE_FACTOR;
+    double M_min = astro_params_stoc->M_TURN / global_params.HALO_MTURN_FACTOR * global_params.HALO_SAMPLE_FACTOR;
     double M_max = global_params.M_MAX_INTEGRAL; //mass in cell of mean dens
     double lnMmax = log(M_max);
     double lnMmin = log(M_min);
@@ -2178,7 +2186,9 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         }
 
         double averages_box[7], averages_global[5];
-        M_min = minimum_source_mass(redshift,astro_params,flag_options);
+        
+        // M_min = minimum_source_mass(redshift,astro_params,flag_options);
+        M_min = astro_params_stoc->M_TURN / global_params.HALO_MTURN_FACTOR * global_params.HALO_SAMPLE_FACTOR;
 
         //calculate expected average halo box, for mean halo box fixing and debugging
         if(flag_options->FIXED_HALO_GRIDS || LOG_LEVEL >= DEBUG_LEVEL){
