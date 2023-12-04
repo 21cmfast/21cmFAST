@@ -123,7 +123,7 @@ LOG_SUPER_DEBUG("defined parameters");
         //alpha_esc_var = get_alpha_fit(redshift);
         norm_esc_var = get_alpha_fit(redshift);
     }
-    
+
     //escape fractions taken into account in halo field
     //TODO: control this in a different way
     if(flag_options->USE_HALO_FIELD){
@@ -268,7 +268,7 @@ LOG_SUPER_DEBUG("erfc interpolation done");
     fftwf_complex *deltax_unfiltered, *deltax_unfiltered_original, *deltax_filtered;
     fftwf_complex *xe_unfiltered, *xe_filtered, *N_rec_unfiltered, *N_rec_filtered;
     fftwf_complex *prev_deltax_unfiltered, *prev_deltax_filtered;
-    
+
     //new halo property grids
     fftwf_complex *stars_unfiltered,*stars_filtered;
     fftwf_complex *sfr_unfiltered,*sfr_filtered;
@@ -624,7 +624,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
             box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
                                             astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
             box->mean_f_coll_MINI = 0.;
-            
+
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
                                       astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
         }
@@ -883,7 +883,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
             f_coll = 0;
             f_coll_MINI = 0;
             massofscaleR = RtoM(R);
-            
+
             LOG_ULTRA_DEBUG("checking densities: N_b0 sim %.5e | mass/vol %.5e | rhocrit %.5e",N_b0*(CMperMPC*CMperMPC*CMperMPC)/Msun * m_p
                         ,(massofscaleR) / (4/3.0)*PI*pow(R,3) * (cosmo_params->OMb / cosmo_params->OMm)
                         ,RHOcrit * cosmo_params->OMb);

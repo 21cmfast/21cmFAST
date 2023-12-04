@@ -160,7 +160,7 @@ void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_oute
                         if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= (f_outer - f_inner); }
                         if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= (f_outer - f_inner); }
                     }
-                    
+
                 }
             }
         } // end looping through k box

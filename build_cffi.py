@@ -17,10 +17,10 @@ else:
 
 libraries = ["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"]
 
-#stuff for gperftools
+# stuff for gperftools
 if "PROFILE" in os.environ:
-    libraries += ["profiler","tcmalloc"]
-    #we need this even if DEBUG is off
+    libraries += ["profiler", "tcmalloc"]
+    # we need this even if DEBUG is off
     extra_compile_args += ["-g"]
 
 # Set the C-code logging level.

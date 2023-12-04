@@ -1619,7 +1619,7 @@ double FgtrM_bias_fast(float growthf, float del_bias, float sig_small, float sig
     }
     del = Deltac/growthf - del_bias; //NOTE HERE DELTA EXTRAPOLATED TO z=0
     sig = sqrt(sig_small*sig_small - sig_large*sig_large);
-    
+
     del = (Deltac - del_bias)/growthf;
 
     //if the density is above critical on this scale, it is collapsed
@@ -3473,7 +3473,7 @@ void determine_deltaz_for_photoncons() {
         GSL_ERROR(gsl_status);
         return;
     }
-    
+
     //SMOOTHING STUFF HERE
     if(calibrated_NF_min >= global_params.PhotonConsEnd) {
 
@@ -4060,7 +4060,7 @@ double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
     //NOTE: The interpolation tables are `float` in ps.c
     if(user_params_ps->USE_INTERPOLATION_TABLES) {
         sigma = EvaluateRGTable1D_f(lnM, Sigma_InterpTable, MinMass, mass_bin_width);
-        
+
         if(calc_ds){
             dsigma_val = EvaluateRGTable1D_f(lnM, dSigmadm_InterpTable, MinMass, mass_bin_width);
             *dsigmadm = -pow(10.,dsigma_val); //this may be slow, figure out why the dsigmadm table is in log10
@@ -4093,7 +4093,7 @@ double minimum_source_mass(double redshift, struct AstroParams *astro_params, st
     else {
         ion_factor = astro_params->ION_Tvir_MIN < 9.99999e3 ? 1.22 : 0.6;
         Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, ion_factor);
-        
+
         //I doubt this will be used much but previously
         //  it was ONLY in the !USE_MASS_DEP_ZETA case,
         //  and the fuction looks odd (fudge), should be tested

@@ -93,7 +93,7 @@ double *z_X_val, *SFRD_val, **SFRD_val_MINI;
 //Fcoll table for old parametrisation (list of 1D tables)
 double **F_table_dens, **F_table_val, **dF_table_val;
 
-//NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to assign ST_over_PS in Spintemp. 
+//NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to assign ST_over_PS in Spintemp.
 //  It may be better to just do the integrals at each R
 void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI, float mturn_a_const, int minihalos){
     int i,j;
@@ -114,7 +114,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
             }
         }
     }
-    
+
     float MassTurnover[NMTURN];
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     if(minihalos){
@@ -287,7 +287,7 @@ void init_FcollTable(double zmin, double zmax, struct AstroParams *astro_params,
     n_redshifts_1DTable = (int)ceil((zmax_1DTable - zmin_1DTable)/zbin_width_1DTable);
 
     FgtrM_1DTable_linear = (double *)calloc(n_redshifts_1DTable,sizeof(double));
-    
+
     LOG_DEBUG("initing Fcoll spline from %.2f to %.2f %d[%.2f %.2f]",zmin,zmax,n_redshifts_1DTable,
                         zmin_1DTable,zbin_width_1DTable);
 
@@ -323,7 +323,7 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
             free(SFRD_val_MINI);
         }
     }
-    else{            
+    else{
         for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++){
                 free(F_table_dens[i]);
                 free(F_table_val[i]);

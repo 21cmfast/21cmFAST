@@ -287,11 +287,13 @@ class _AllParamsBox(_OutputStructZ):
 
 class HaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
+
     _inputs = _AllParamsBox._inputs + ("desc_redshift",)
+
     def __init__(
         self,
         *,
-        desc_redshift: Optional[float] = None,
+        desc_redshift: float | None = None,
         **kwargs,
     ):
         self.desc_redshift = desc_redshift
@@ -310,7 +312,7 @@ class HaloField(_AllParamsBox):
     )
     _c_compute_function = lib.ComputeHaloField
 
-    #TODO: Having no Array state makes allocation/memory management awkward for this object
+    # TODO: Having no Array state makes allocation/memory management awkward for this object
     #   I would like to properly manage it in some other way, currently you should declare in python,
     #   allocate in C and NEVER deallocate it, since it should be GC'd in python somewhere (I think????)
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
@@ -333,21 +335,23 @@ class HaloField(_AllParamsBox):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
-            #NOTE: DexM runs the first sample w HALO_STOCHASTICITY on the lores density grid, subsequent runs do not need density
+            # NOTE: DexM runs the first sample w HALO_STOCHASTICITY on the lores density grid, subsequent runs do not need density
             if self.flag_options.HALO_STOCHASTICITY:
                 required += ["lowres_density"]
             else:
                 required += ["hires_density"]
         elif isinstance(input_box, HaloField):
-                    required += ["halo_masses","halo_coords","star_rng","sfr_rng"]
+            required += ["halo_masses", "halo_coords", "star_rng", "sfr_rng"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for HaloField!"
             )
         return required
 
-    #TODO, it doesn't like when I specify the HaloField type here for the previous field (seems similar in the Ts box)
-    def compute(self, *, halos_desc, ics: InitialConditions, random_seed: int, hooks: dict):
+    # TODO, it doesn't like when I specify the HaloField type here for the previous field (seems similar in the Ts box)
+    def compute(
+        self, *, halos_desc, ics: InitialConditions, random_seed: int, hooks: dict
+    ):
         """Compute the function."""
         return self._compute(
             self.desc_redshift,
@@ -367,7 +371,7 @@ class PerturbHaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
     _c_compute_function = lib.ComputePerturbHaloField
-    _c_based_pointers = ("halo_masses", "halo_coords","star_rng","sfr_rng")
+    _c_based_pointers = ("halo_masses", "halo_coords", "star_rng", "sfr_rng")
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         return {}
@@ -413,6 +417,7 @@ class PerturbHaloField(_AllParamsBox):
             hooks=hooks,
         )
 
+
 class HaloBox(_AllParamsBox):
     """A class containing all gridded halo properties"""
 
@@ -423,7 +428,7 @@ class HaloBox(_AllParamsBox):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
+    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         shape = (self.user_params.HII_DIM,) * 2 + (
             int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),
         )
@@ -441,28 +446,25 @@ class HaloBox(_AllParamsBox):
 
         return out
 
-
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, PerturbHaloField):
             if self.flag_options.HALO_STOCHASTICITY:
-                required += ["halo_coords", "halo_masses", "star_rng","sfr_rng"]
-            
+                required += ["halo_coords", "halo_masses", "star_rng", "sfr_rng"]
+
         elif isinstance(input_box, PerturbedField):
             if not self.flag_options.HALO_STOCHASTICITY:
                 required += ["density"]
         elif isinstance(input_box, TsBox):
             required += ["J_21_LW_box"]
         elif isinstance(input_box, IonizedBox):
-            required += ["Gamma12_box","z_re_box"]
+            required += ["Gamma12_box", "z_re_box"]
         elif isinstance(input_box, InitialConditions):
             if self.user_params.USE_RELATIVE_VELOCITIES:
                 required += ["lowres_vcb"]
         else:
-            raise ValueError(
-                f"{type(input_box)} is not an input required for HaloBox!"
-            )
+            raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
 
         return required
 
@@ -491,6 +493,7 @@ class HaloBox(_AllParamsBox):
             hooks=hooks,
         )
 
+
 class XraySourceBox(_AllParamsBox):
     """A class containing the filtered sfr grids"""
 
@@ -501,9 +504,11 @@ class XraySourceBox(_AllParamsBox):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def _get_box_structures(self) -> Dict[str, Union[Dict, Tuple[int]]]:
-        shape =  (global_params.NUM_FILTER_STEPS_FOR_Ts,) + (self.user_params.HII_DIM,) * 2 + (
-            int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),
+    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
+        shape = (
+            (global_params.NUM_FILTER_STEPS_FOR_Ts,)
+            + (self.user_params.HII_DIM,) * 2
+            + (int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),)
         )
 
         out = {
@@ -516,15 +521,13 @@ class XraySourceBox(_AllParamsBox):
 
         return out
 
-    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> List[str]:
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, HaloBox):
-                required += ["halo_sfr","halo_sfr_mini"]
+            required += ["halo_sfr", "halo_sfr_mini"]
         else:
-            raise ValueError(
-                f"{type(input_box)} is not an input required for HaloBox!"
-            )
+            raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
 
         return required
 
@@ -757,7 +760,7 @@ class IonizedBox(_AllParamsBox):
             ):
                 required += ["Fcoll", "Fcoll_MINI"]
         elif isinstance(input_box, HaloBox):
-            required += ["n_ion","whalo_sfr"]
+            required += ["n_ion", "whalo_sfr"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for IonizedBox!"
@@ -1198,7 +1201,7 @@ class Coeval(_HighLevelOutput):
                 setattr(self, field, getattr(box, field))
 
     @classmethod
-    def get_fields(cls, spin_temp: bool = True, hbox: bool = True) -> List[str]:
+    def get_fields(cls, spin_temp: bool = True, hbox: bool = True) -> list[str]:
         """Obtain a list of name of simulation boxes saved in the Coeval object."""
         pointer_fields = []
         for cls in [InitialConditions, PerturbedField, IonizedBox, BrightnessTemp]:
@@ -1383,11 +1386,15 @@ class LightCone(_HighLevelOutput):
     @property
     def lightcone_redshifts(self):
         """Redshift of each cell along the redshift axis."""
-        #NOTE(jdavies) added the 'bounded' method since it seems there are some compatibility issues with astropy and scipy
-        #where astropy gives default bounds to a function with default unbounded minimization
+        # NOTE(jdavies) added the 'bounded' method since it seems there are some compatibility issues with astropy and scipy
+        # where astropy gives default bounds to a function with default unbounded minimization
         return np.array(
             [
-                z_at_value(self.cosmo_params.cosmo.comoving_distance, d * units.Mpc,method='bounded')
+                z_at_value(
+                    self.cosmo_params.cosmo.comoving_distance,
+                    d * units.Mpc,
+                    method="bounded",
+                )
                 for d in self.lightcone_distances
             ]
         )

@@ -304,7 +304,7 @@ class GlobalParams(StructInstanceWrapper):
     MIN_LOGPROB:
         Lower limit (in log probability) of the inverse CDF table.
     SAMPLE_METHOD:
-        Sampling method to use for stochastic halos: 
+        Sampling method to use for stochastic halos:
             0: Mass sampling from CMF
             1: N_halo sampling from CMF
             2: Sheth & Lemson 99 Fcoll sampling
@@ -737,7 +737,6 @@ class FlagOptions(StructWithDefaults):
 
         return self._USE_HALO_FIELD
 
-        
     @property
     def M_MIN_in_Mass(self):
         """Whether minimum halo mass is defined in mass or virial temperature."""
@@ -779,7 +778,10 @@ class FlagOptions(StructWithDefaults):
     @property
     def PHOTON_CONS(self):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
-        if not (self.USE_MINI_HALOS and self.PHOTON_CONS_ALPHA) or not self._PHOTON_CONS:
+        if (
+            not (self.USE_MINI_HALOS and self.PHOTON_CONS_ALPHA)
+            or not self._PHOTON_CONS
+        ):
             return self._PHOTON_CONS
         logger.warning(
             "USE_MINI_HALOS and PHOTON_CONS_ALPHA are not compatible with PHOTON_CONS! "
@@ -842,7 +844,7 @@ class AstroParams(StructWithDefaults):
     CORR_STAR : float, optional
         Self-correlation length used for updating halo properties. Properties are interpolated between
         a random sample at the current halo mass and one matching the point in the PDF of the
-        previous sample, the interpolation point in [0,1] is given by exp(-dz/CORR_STAR)      
+        previous sample, the interpolation point in [0,1] is given by exp(-dz/CORR_STAR)
     SIGMA_SFR : float, optional
         Lognormal scatter of the stellar mass to SFR relation.
         Uniform across all masses and redshifts.
@@ -918,7 +920,7 @@ class AstroParams(StructWithDefaults):
         "ALPHA_STAR": 0.5,
         "ALPHA_STAR_MINI": 0.5,
         "SIGMA_STAR": 0.0,
-        "CORR_STAR" : 0.5,
+        "CORR_STAR": 0.5,
         "SIGMA_SFR": 0.0,
         "CORR_SFR": 0.2,
         "F_ESC10": -1.0,
