@@ -2827,7 +2827,11 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         }
         else if(type==9){
             double delta_in;
-            double F_buf;
+            double F_buf,N_buf,S_buf;
+            double Mlim_Fstar = Mass_limit_bisection(hs_constants->M_min, hs_constants->M_max_tables,
+                                                        astro_params->ALPHA_STAR, astro_params->F_STAR10);
+            double Mlim_Fesc = Mass_limit_bisection(hs_constants->M_min, hs_constants->M_max_tables,
+                                                        astro_params->ALPHA_ESC, astro_params->F_ESC10);
             if(hs_constants->update){
                 LOG_ERROR("no update for type==9 (FgtrM test)");
                 Throw(ValueError);
@@ -2837,9 +2841,19 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 stoc_set_consts_cond(hs_constants,delta_in);
                 F_buf = FgtrM_bias_fast(hs_constants->growth_out,delta_in,hs_constants->sigma_min,
                                         hs_constants->sigma_cond);
+
+                N_buf = Nion_ConditionalM(hs_constants->growth_out, hs_constants->lnM_min, hs_constants->lnM_cond, hs_constants->sigma_cond,
+                                         Deltac, delta_in, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC,
+                                         astro_params->F_STAR10, astro_params->F_ESC10,Mlim_Fstar, Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
+
+                S_buf = Nion_ConditionalM(hs_constants->growth_out, hs_constants->lnM_min, hs_constants->lnM_cond, hs_constants->sigma_cond,
+                                         Deltac, delta_in, astro_params->M_TURN, astro_params->ALPHA_STAR, 0.,
+                                         astro_params->F_STAR10, 1., Mlim_Fstar, 0., user_params->FAST_FCOLL_TABLES);
                 
                 result[i] = F_buf;
                 result[i + n_mass] = hs_constants->expected_M / hs_constants->M_cond;
+                result[i + 2*n_mass] = N_buf;
+                result[i + 3*n_mass] = S_buf;
             }
         }
         else{

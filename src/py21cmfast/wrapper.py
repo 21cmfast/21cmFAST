@@ -3435,6 +3435,7 @@ def run_lightcone(
         #   this will generate the extra fields if STOC_MINIMUM_Z is given
         #TODO: with feedback, we cannot only store the HaloBox. Storing every halofield is silly
         #   and purging C-allocated fields causes a crash. Find a better way to organise this
+        #   The easiest way to fix this is probably to move the HaloField to a python-allocated struct
         pt_halos = []
         if flag_options.USE_HALO_FIELD:
             halos_desc = None
