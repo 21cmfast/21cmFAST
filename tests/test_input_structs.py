@@ -44,12 +44,11 @@ def test_bad_construction(c):
         CosmoParams(1)
 
 
-def test_warning_bad_params(caplog):
-    CosmoParams(bad_param=1)
-    assert (
-        "The following parameters to CosmoParams are not supported: ['bad_param']"
-        in caplog.text
-    )
+def test_warning_bad_params():
+    with pytest.warns(
+        UserWarning, match="The following parameters to CosmoParams are not supported"
+    ):
+        CosmoParams(SIGMA_8=0.8, bad_param=1)
 
 
 def test_constructed_from_itself(c):
@@ -198,3 +197,18 @@ def test_validation():
             validate_all_inputs(
                 cosmo_params=c, astro_params=a, flag_options=f, user_params=u
             )
+
+
+def test_user_params():
+    up = UserParams()
+    up_non_cubic = UserParams(NON_CUBIC_FACTOR=1.5)
+
+    assert up_non_cubic.tot_fft_num_pixels == 1.5 * up.tot_fft_num_pixels
+    assert up_non_cubic.HII_tot_num_pixels == up.HII_tot_num_pixels * 1.5
+
+    with pytest.raises(
+        ValueError,
+        match="NON_CUBIC_FACTOR \\* DIM and NON_CUBIC_FACTOR \\* HII_DIM must be integers",
+    ):
+        up = UserParams(NON_CUBIC_FACTOR=1.1047642)
+        up.NON_CUBIC_FACTOR

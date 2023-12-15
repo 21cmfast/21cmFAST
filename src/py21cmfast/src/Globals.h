@@ -81,10 +81,7 @@ struct GlobalParams{
     float VAVG;
 
     bool USE_FAST_ATOMIC; //whether to apply the fast fcoll tables for atomic cooling haloes, usually turned off as it's not a big computational cost and those can deviate ~5-10% at z<10.
-
-
-
-
+    bool USE_ADIABATIC_FLUCTUATIONS;
 };
 
 extern struct GlobalParams global_params = {
@@ -157,4 +154,5 @@ extern struct GlobalParams global_params = {
     .VAVG=25.86,
 
     .USE_FAST_ATOMIC = 0,
+    .USE_ADIABATIC_FLUCTUATIONS = 1,
 };

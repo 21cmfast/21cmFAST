@@ -409,6 +409,9 @@ class UserParams(StructWithDefaults):
         Number of cells for the high-res box (sampling ICs) along a principal axis. To avoid
         sampling issues, DIM should be at least 3 or 4 times HII_DIM, and an integer multiple.
         By default, it is set to 3*HII_DIM.
+    NON_CUBIC_FACTOR : float, optional
+        Factor which allows the creation of non-cubic boxes. It will shorten/lengthen the line
+        of sight dimension of all boxes. NON_CUBIC_FACTOR * DIM/HII_DIM must result in an integer
     BOX_LEN : float, optional
         Length of the box, in Mpc. Default 300 Mpc.
     HMF: int or str, optional
@@ -464,6 +467,7 @@ class UserParams(StructWithDefaults):
         "BOX_LEN": 300.0,
         "DIM": None,
         "HII_DIM": 200,
+        "NON_CUBIC_FACTOR": 1.0,
         "USE_FFTW_WISDOM": False,
         "HMF": 1,
         "USE_RELATIVE_VELOCITIES": False,
@@ -501,14 +505,26 @@ class UserParams(StructWithDefaults):
         return self._DIM or 3 * self.HII_DIM
 
     @property
+    def NON_CUBIC_FACTOR(self):
+        """Factor to shorten/lengthen the line-of-sight dimension (non-cubic boxes)."""
+        dcf = self.DIM * self._NON_CUBIC_FACTOR
+        hdcf = self.HII_DIM * self._NON_CUBIC_FACTOR
+        if dcf % int(dcf) or hdcf % int(hdcf):
+            raise ValueError(
+                "NON_CUBIC_FACTOR * DIM and NON_CUBIC_FACTOR * HII_DIM must be integers"
+            )
+        else:
+            return self._NON_CUBIC_FACTOR
+
+    @property
     def tot_fft_num_pixels(self):
         """Total number of pixels in the high-res box."""
-        return self.DIM**3
+        return self.NON_CUBIC_FACTOR * self.DIM**3
 
     @property
     def HII_tot_num_pixels(self):
         """Total number of pixels in the low-res box."""
-        return self.HII_DIM**3
+        return self.NON_CUBIC_FACTOR * self.HII_DIM**3
 
     @property
     def POWER_SPECTRUM(self):
@@ -603,6 +619,10 @@ class FlagOptions(StructWithDefaults):
     USE_MINI_HALOS : bool, optional
         Set to True if using mini-halos parameterization.
         If True, USE_MASS_DEPENDENT_ZETA and INHOMO_RECO must be True.
+    USE_CMB_HEATING : bool, optional
+        Whether to include CMB Heating. (cf Eq.4 of Meiksin 2021, arxiv.org/abs/2105.14516)
+    USE_LYA_HEATING : bool, optional
+        Whether to use Lyman-alpha heating. (cf Sec. 3 of Reis+2021, doi.org/10.1093/mnras/stab2089)
     USE_MASS_DEPENDENT_ZETA : bool, optional
         Set to True if using new parameterization. Setting to True will automatically
         set `M_MIN_in_Mass` to True.
@@ -633,6 +653,8 @@ class FlagOptions(StructWithDefaults):
     _defaults_ = {
         "USE_HALO_FIELD": False,
         "USE_MINI_HALOS": False,
+        "USE_CMB_HEATING": True,
+        "USE_LYA_HEATING": True,
         "USE_MASS_DEPENDENT_ZETA": False,
         "SUBCELL_RSD": False,
         "INHOMO_RECO": False,

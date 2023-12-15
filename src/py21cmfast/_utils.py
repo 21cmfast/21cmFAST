@@ -365,7 +365,6 @@ class StructWithDefaults(StructWrapper):
 
     def __init__(self, *args, **kwargs):
         super().__init__()
-
         if args:
             if len(args) > 1:
                 raise TypeError(
@@ -398,7 +397,7 @@ class StructWithDefaults(StructWrapper):
                 setattr(self, "_" + k, v)
 
         if kwargs:
-            logger.warning(
+            warnings.warn(
                 "The following parameters to {thisclass} are not supported: {lst}".format(
                     thisclass=self.__class__.__name__, lst=list(kwargs.keys())
                 )
@@ -688,10 +687,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def _init_arrays(self):
         for k, state in self._array_state.items():
-            if k == "lowres_density":
-                logger.debug("THINKING ABOUT INITING LOWRES_DENSITY")
-                logger.debug(state.initialized, state.computed_in_mem, state.on_disk)
-
             # Don't initialize C-based pointers or already-inited stuff, or stuff
             # that's computed on disk (if it's on disk, accessing the array should
             # just give the computed version, which is what we would want, not a

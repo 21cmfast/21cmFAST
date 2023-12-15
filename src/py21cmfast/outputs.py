@@ -127,8 +127,12 @@ class InitialConditions(_OutputStruct):
         self.prepare(keep=keep, force=force)
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        shape = (self.user_params.HII_DIM,) * 3
-        hires_shape = (self.user_params.DIM,) * 3
+        shape = (self.user_params.HII_DIM,) * 2 + (
+            int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),
+        )
+        hires_shape = (self.user_params.DIM,) * 2 + (
+            int(self.user_params.NON_CUBIC_FACTOR * self.user_params.DIM),
+        )
 
         out = {
             "lowres_density": shape,
@@ -204,8 +208,10 @@ class PerturbedField(_OutputStructZ):
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
         return {
-            "density": (self.user_params.HII_DIM,) * 3,
-            "velocity": (self.user_params.HII_DIM,) * 3,
+            "density": (self.user_params.HII_DIM,) * 2
+            + (int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),),
+            "velocity": (self.user_params.HII_DIM,) * 2
+            + (int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),),
         }
 
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
@@ -266,7 +272,6 @@ class _AllParamsBox(_OutputStructZ):
         *,
         astro_params: AstroParams | None = None,
         flag_options: FlagOptions | None = None,
-        first_box: bool = False,
         **kwargs,
     ):
         self.flag_options = flag_options or FlagOptions()
@@ -276,11 +281,6 @@ class _AllParamsBox(_OutputStructZ):
 
         self.log10_Mturnover_ave = 0.0
         self.log10_Mturnover_MINI_ave = 0.0
-
-        self.first_box = first_box
-        if first_box:
-            self.mean_f_coll = 0.0
-            self.mean_f_coll_MINI = 0.0
 
         super().__init__(**kwargs)
 
@@ -403,7 +403,9 @@ class TsBox(_AllParamsBox):
         super().__init__(**kwargs)
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        shape = (self.user_params.HII_DIM,) * 3
+        shape = (self.user_params.HII_DIM,) * 2 + (
+            int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),
+        )
         return {
             "Ts_box": shape,
             "x_e_box": shape,
@@ -526,7 +528,9 @@ class IonizedBox(_AllParamsBox):
         else:
             n_filtering = 1
 
-        shape = (self.user_params.HII_DIM,) * 3
+        shape = (self.user_params.HII_DIM,) * 2 + (
+            int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),
+        )
         filter_shape = (n_filtering,) + shape
 
         out = {
@@ -625,7 +629,10 @@ class BrightnessTemp(_AllParamsBox):
     _filter_params = _OutputStructZ._filter_params
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        return {"brightness_temp": (self.user_params.HII_DIM,) * 3}
+        return {
+            "brightness_temp": (self.user_params.HII_DIM,) * 2
+            + (int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),)
+        }
 
     @cached_property
     def global_Tb(self):
