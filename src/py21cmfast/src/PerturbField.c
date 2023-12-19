@@ -1,4 +1,135 @@
 // Re-write of perturb_field.c for being accessible within the MCMC
+void compute_perturbed_velocities(
+    unsigned short axis,
+    struct UserParams *user_params,
+    fftwf_complex *HIRES_density_perturb,
+    fftwf_complex *HIRES_density_perturb_saved,
+    fftwf_complex *LOWRES_density_perturb,
+    fftwf_complex *LOWRES_density_perturb_saved,
+    float dDdt_over_D,
+    int dimension,
+    int switch_mid,
+    float f_pixel_factor,
+    float *velocity
+){
+
+    float k_x, k_y, k_z, k_sq;
+    int n_x, n_y, n_z;
+    int i,j,k;
+
+    float kvec[3];
+
+    if(user_params->PERTURB_ON_HIGH_RES) {
+        // We are going to generate the velocity field on the high-resolution perturbed
+        // density grid
+        memcpy(
+            HIRES_density_perturb,
+            HIRES_density_perturb_saved,
+            sizeof(fftwf_complex)*KSPACE_NUM_PIXELS
+        );
+    }
+    else {
+        // We are going to generate the velocity field on the low-resolution perturbed density grid
+        memcpy(
+            LOWRES_density_perturb,
+            LOWRES_density_perturb_saved,
+            sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS
+        );
+    }
+
+    #pragma omp parallel \
+        shared(LOWRES_density_perturb,HIRES_density_perturb,dDdt_over_D,dimension,switch_mid) \
+        private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq) \
+        num_threads(user_params->N_THREADS)
+    {
+        #pragma omp for
+        for (n_x=0; n_x<dimension; n_x++){
+            if (n_x>switch_mid)
+                k_x =(n_x-dimension) * DELTA_K;  // wrap around for FFT convention
+            else
+                k_x = n_x * DELTA_K;
+
+            for (n_y=0; n_y<dimension; n_y++){
+                if (n_y>switch_mid)
+                    k_y =(n_y-dimension) * DELTA_K;
+                else
+                    k_y = n_y * DELTA_K;
+
+                for (n_z=0; n_z<=(unsigned long long)(user_params->NON_CUBIC_FACTOR*switch_mid); n_z++){
+                    k_z = n_z * DELTA_K_PARA;
+
+                    kvec[0] = k_x;
+                    kvec[1] = k_y;
+                    kvec[2] = k_z;
+
+                    k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
+
+                    // now set the velocities
+                    if ((n_x==0) && (n_y==0) && (n_z==0)) { // DC mode
+                        if(user_params->PERTURB_ON_HIGH_RES) {
+                            HIRES_density_perturb[0] = 0;
+                        }
+                        else {
+                            LOWRES_density_perturb[0] = 0;
+                        }
+                    }
+                    else{
+                        if(user_params->PERTURB_ON_HIGH_RES) {
+                            HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*kvec[axis]*I/k_sq/(TOT_NUM_PIXELS+0.0);
+                        }
+                        else {
+                            LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*kvec[axis]*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    if(user_params->PERTURB_ON_HIGH_RES) {
+
+        // smooth the high resolution field ready for resampling
+        if (user_params->DIM != user_params->HII_DIM)
+            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_density_perturb);
+
+        #pragma omp parallel \
+            shared(velocity,HIRES_density_perturb,f_pixel_factor) \
+            private(i,j,k) \
+            num_threads(user_params->N_THREADS)
+        {
+            #pragma omp for
+            for (i=0; i<user_params->HII_DIM; i++){
+                for (j=0; j<user_params->HII_DIM; j++){
+                    for (k=0; k<HII_D_PARA; k++){
+                        *((float *)velocity + HII_R_INDEX(i,j,k)) = *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5), (unsigned long long)(j*f_pixel_factor+0.5), (unsigned long long)(k*f_pixel_factor+0.5)));
+                    }
+                }
+            }
+        }
+    }
+    else {
+        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, LOWRES_density_perturb);
+
+        #pragma omp parallel \
+            shared(velocity,LOWRES_density_perturb) \
+            private(i,j,k) \
+            num_threads(user_params->N_THREADS)
+        {
+            #pragma omp for
+            for (i=0; i<user_params->HII_DIM; i++){
+                for (j=0; j<user_params->HII_DIM; j++){
+                    for (k=0; k<HII_D_PARA; k++){
+                        *((float *)velocity + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
+                    }
+                }
+            }
+        }
+    }
+}
+
 int ComputePerturbField(
     float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
     struct InitialConditions *boxes, struct PerturbedField *perturbed_field
@@ -546,465 +677,49 @@ int ComputePerturbField(
 
     dDdt_over_D = dDdt/growth_factor;
 
+
     if (user_params->KEEP_3D_VELOCITIES){
-        if(user_params->PERTURB_ON_HIGH_RES) {
-            // We are going to generate the velocity field on the high-resolution perturbed density grid
-            memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-        }
-        else {
-            // We are going to generate the velocity field on the low-resolution perturbed density grid
-            memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        }
-
-    #pragma omp parallel shared(LOWRES_density_perturb,HIRES_density_perturb,dDdt_over_D,dimension,switch_mid) \
-                            private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq) num_threads(user_params->N_THREADS)
-        {
-    #pragma omp for
-            for (n_x=0; n_x<dimension; n_x++){
-                if (n_x>switch_mid)
-                    k_x =(n_x-dimension) * DELTA_K;  // wrap around for FFT convention
-                else
-                    k_x = n_x * DELTA_K;
-
-                for (n_y=0; n_y<dimension; n_y++){
-                    if (n_y>switch_mid)
-                        k_y =(n_y-dimension) * DELTA_K;
-                    else
-                        k_y = n_y * DELTA_K;
-
-                    for (n_z=0; n_z<=switch_mid; n_z++){
-                        k_z = n_z * DELTA_K;
-
-                        k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
-
-                        // now set the velocities
-                        if ((n_x==0) && (n_y==0) && (n_z==0)) { // DC mode
-                            if(user_params->PERTURB_ON_HIGH_RES) {
-                                HIRES_density_perturb[0] = 0;
-                            }
-                            else {
-                                LOWRES_density_perturb[0] = 0;
-                            }
-                        }
-                        else{
-                            if(user_params->PERTURB_ON_HIGH_RES) {
-                                HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_x*I/k_sq/(TOT_NUM_PIXELS+0.0);
-                            }
-                            else {
-                                LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_x*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-
-        if(user_params->PERTURB_ON_HIGH_RES) {
-
-            // smooth the high resolution field ready for resampling
-            if (user_params->DIM != user_params->HII_DIM)
-                filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_density_perturb);
-
-    #pragma omp parallel shared(perturbed_field,HIRES_density_perturb,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
-            {
-    #pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
-                            *((float *)perturbed_field->velocity_x + HII_R_INDEX(i,j,k)) = *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5), (unsigned long long)(j*f_pixel_factor+0.5), (unsigned long long)(k*f_pixel_factor+0.5)));
-                        }
-                    }
-                }
-            }
-        }
-        else {
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, LOWRES_density_perturb);
-
-    #pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
-            {
-    #pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
-                            *((float *)perturbed_field->velocity_x + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
-                        }
-                    }
-                }
-            }
-        }
-
-
-        // Now do the y-axis velocities
-        if(user_params->PERTURB_ON_HIGH_RES) {
-            // We are going to generate the velocity field on the high-resolution perturbed density grid
-            memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-        }
-        else {
-            // We are going to generate the velocity field on the low-resolution perturbed density grid
-            memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        }
-
-        #pragma omp parallel shared(LOWRES_density_perturb,HIRES_density_perturb,dDdt_over_D,dimension,switch_mid) \
-                            private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq) num_threads(user_params->N_THREADS)
-        {
-    #pragma omp for
-            for (n_x=0; n_x<dimension; n_x++){
-                if (n_x>switch_mid)
-                    k_x =(n_x-dimension) * DELTA_K;  // wrap around for FFT convention
-                else
-                    k_x = n_x * DELTA_K;
-
-                for (n_y=0; n_y<dimension; n_y++){
-                    if (n_y>switch_mid)
-                        k_y =(n_y-dimension) * DELTA_K;
-                    else
-                        k_y = n_y * DELTA_K;
-
-                    for (n_z=0; n_z<=switch_mid; n_z++){
-                        k_z = n_z * DELTA_K;
-
-                        k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
-
-                        // now set the velocities
-                        if ((n_x==0) && (n_y==0) && (n_z==0)) { // DC mode
-                            if(user_params->PERTURB_ON_HIGH_RES) {
-                                HIRES_density_perturb[0] = 0;
-                            }
-                            else {
-                                LOWRES_density_perturb[0] = 0;
-                            }
-                        }
-                        else{
-                            if(user_params->PERTURB_ON_HIGH_RES) {
-                                HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_y*I/k_sq/(TOT_NUM_PIXELS+0.0);
-                            }
-                            else {
-                                LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_y*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-
-        if(user_params->PERTURB_ON_HIGH_RES) {
-
-            // smooth the high resolution field ready for resampling
-            if (user_params->DIM != user_params->HII_DIM)
-                filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_density_perturb);
-
-    #pragma omp parallel shared(perturbed_field,HIRES_density_perturb,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
-            {
-    #pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
-                            *((float *)perturbed_field->velocity_y + HII_R_INDEX(i,j,k)) = *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5), (unsigned long long)(j*f_pixel_factor+0.5), (unsigned long long)(k*f_pixel_factor+0.5)));
-                        }
-                    }
-                }
-            }
-        }
-        else {
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, LOWRES_density_perturb);
-
-    #pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
-            {
-    #pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
-                            *((float *)perturbed_field->velocity_y + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
-                        }
-                    }
-                }
-            }
-        }
-
-
+        compute_perturbed_velocities(
+            0,
+            user_params,
+            HIRES_density_perturb,
+            HIRES_density_perturb_saved,
+            LOWRES_density_perturb,
+            LOWRES_density_perturb_saved,
+            dDdt_over_D,
+            dimension,
+            switch_mid,
+            f_pixel_factor,
+            perturbed_field->velocity_x
+        );
+        compute_perturbed_velocities(
+            1,
+            user_params,
+            HIRES_density_perturb,
+            HIRES_density_perturb_saved,
+            LOWRES_density_perturb,
+            LOWRES_density_perturb_saved,
+            dDdt_over_D,
+            dimension,
+            switch_mid,
+            f_pixel_factor,
+            perturbed_field->velocity_y
+        );
     }
 
-
-    // Now do the z-axis velocities
-    if(user_params->PERTURB_ON_HIGH_RES) {
-        // We are going to generate the velocity field on the high-resolution perturbed density grid
-        memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-    }
-    else {
-        // We are going to generate the velocity field on the low-resolution perturbed density grid
-        memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    }
-
-    #pragma omp parallel shared(LOWRES_density_perturb,HIRES_density_perturb,dDdt_over_D,dimension,switch_mid) \
-                        private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq) num_threads(user_params->N_THREADS)
-    {
-#pragma omp for
-        for (n_x=0; n_x<dimension; n_x++){
-            if (n_x>switch_mid)
-                k_x =(n_x-dimension) * DELTA_K;  // wrap around for FFT convention
-            else
-                k_x = n_x * DELTA_K;
-
-                for (n_y=0; n_y<dimension; n_y++){
-                    if (n_y>switch_mid)
-                        k_y =(n_y-dimension) * DELTA_K;
-                    else
-                        k_y = n_y * DELTA_K;
-
-                for (n_z=0; n_z<=switch_mid; n_z++){
-                    k_z = n_z * DELTA_K;
-
-                        k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
-
-                        // now set the velocities
-                        if ((n_x==0) && (n_y==0) && (n_z==0)) { // DC mode
-                            if(user_params->PERTURB_ON_HIGH_RES) {
-                                HIRES_density_perturb[0] = 0;
-                            }
-                            else {
-                                LOWRES_density_perturb[0] = 0;
-                            }
-                        }
-                        else{
-                            if(user_params->PERTURB_ON_HIGH_RES) {
-                                HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_x*I/k_sq/(TOT_NUM_PIXELS+0.0);
-                            }
-                            else {
-                                LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_x*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-
-        if(user_params->PERTURB_ON_HIGH_RES) {
-
-            // smooth the high resolution field ready for resampling
-            if (user_params->DIM != user_params->HII_DIM)
-                filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_density_perturb);
-
-    #pragma omp parallel shared(perturbed_field,HIRES_density_perturb,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
-            {
-    #pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
-                            *((float *)perturbed_field->velocity_x + HII_R_INDEX(i,j,k)) = *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5), (unsigned long long)(j*f_pixel_factor+0.5), (unsigned long long)(k*f_pixel_factor+0.5)));
-                        }
-                    }
-                }
-            }
-        }
-        else {
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, LOWRES_density_perturb);
-
-    #pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
-            {
-    #pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
-                            *((float *)perturbed_field->velocity_x + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
-                        }
-                    }
-                }
-            }
-        }
-
-
-        // Now do the y-axis velocities
-        if(user_params->PERTURB_ON_HIGH_RES) {
-            // We are going to generate the velocity field on the high-resolution perturbed density grid
-            memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-        }
-        else {
-            // We are going to generate the velocity field on the low-resolution perturbed density grid
-            memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        }
-
-        #pragma omp parallel shared(LOWRES_density_perturb,HIRES_density_perturb,dDdt_over_D,dimension,switch_mid) \
-                            private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq) num_threads(user_params->N_THREADS)
-        {
-    #pragma omp for
-            for (n_x=0; n_x<dimension; n_x++){
-                if (n_x>switch_mid)
-                    k_x =(n_x-dimension) * DELTA_K;  // wrap around for FFT convention
-                else
-                    k_x = n_x * DELTA_K;
-
-                for (n_y=0; n_y<dimension; n_y++){
-                    if (n_y>switch_mid)
-                        k_y =(n_y-dimension) * DELTA_K;
-                    else
-                        k_y = n_y * DELTA_K;
-
-                    for (n_z=0; n_z<=switch_mid; n_z++){
-                        k_z = n_z * DELTA_K;
-
-                        k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
-
-                        // now set the velocities
-                        if ((n_x==0) && (n_y==0) && (n_z==0)) { // DC mode
-                            if(user_params->PERTURB_ON_HIGH_RES) {
-                                HIRES_density_perturb[0] = 0;
-                            }
-                            else {
-                                LOWRES_density_perturb[0] = 0;
-                            }
-                        }
-                        else{
-                            if(user_params->PERTURB_ON_HIGH_RES) {
-                                HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_y*I/k_sq/(TOT_NUM_PIXELS+0.0);
-                            }
-                            else {
-                                LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_y*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-
-        if(user_params->PERTURB_ON_HIGH_RES) {
-
-            // smooth the high resolution field ready for resampling
-            if (user_params->DIM != user_params->HII_DIM)
-                filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, user_params->N_THREADS, HIRES_density_perturb);
-
-    #pragma omp parallel shared(perturbed_field,HIRES_density_perturb,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
-            {
-    #pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
-                            *((float *)perturbed_field->velocity_y + HII_R_INDEX(i,j,k)) = *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5), (unsigned long long)(j*f_pixel_factor+0.5), (unsigned long long)(k*f_pixel_factor+0.5)));
-                        }
-                    }
-                }
-            }
-        }
-        else {
-            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, LOWRES_density_perturb);
-
-    #pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
-            {
-    #pragma omp for
-                for (i=0; i<user_params->HII_DIM; i++){
-                    for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
-                            *((float *)perturbed_field->velocity_y + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
-                        }
-                    }
-                }
-            }
-        }
-
-
-    }
-
-
-    // Now do the z-axis velocities
-    if(user_params->PERTURB_ON_HIGH_RES) {
-        // We are going to generate the velocity field on the high-resolution perturbed density grid
-        memcpy(HIRES_density_perturb, HIRES_density_perturb_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-    }
-    else {
-        // We are going to generate the velocity field on the low-resolution perturbed density grid
-        memcpy(LOWRES_density_perturb, LOWRES_density_perturb_saved, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    }
-
-    #pragma omp parallel shared(LOWRES_density_perturb,HIRES_density_perturb,dDdt_over_D,dimension,switch_mid) \
-                        private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq) num_threads(user_params->N_THREADS)
-    {
-#pragma omp for
-        for (n_x=0; n_x<dimension; n_x++){
-            if (n_x>switch_mid)
-                k_x =(n_x-dimension) * DELTA_K;  // wrap around for FFT convention
-            else
-                k_x = n_x * DELTA_K;
-
-            for (n_y=0; n_y<dimension; n_y++){
-                if (n_y>switch_mid)
-                    k_y =(n_y-dimension) * DELTA_K;
-                else
-                    k_y = n_y * DELTA_K;
-
-                for (n_z=0; n_z<=(unsigned long long)(user_params->NON_CUBIC_FACTOR*switch_mid); n_z++){
-                    k_z = n_z * DELTA_K_PARA;
-
-                    k_sq = k_x*k_x + k_y*k_y + k_z*k_z;
-
-                    // now set the velocities
-                    if ((n_x==0) && (n_y==0) && (n_z==0)) { // DC mode
-                        if(user_params->PERTURB_ON_HIGH_RES) {
-                            HIRES_density_perturb[0] = 0;
-                        }
-                        else {
-                            LOWRES_density_perturb[0] = 0;
-                        }
-                    }
-                    else{
-                        if(user_params->PERTURB_ON_HIGH_RES) {
-                            HIRES_density_perturb[C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_z*I/k_sq/(TOT_NUM_PIXELS+0.0);
-                        }
-                        else {
-                            LOWRES_density_perturb[HII_C_INDEX(n_x,n_y,n_z)] *= dDdt_over_D*k_z*I/k_sq/(HII_TOT_NUM_PIXELS+0.0);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
-    if(user_params->PERTURB_ON_HIGH_RES) {
-
-        // smooth the high resolution field ready for resampling
-        if (user_params->DIM != user_params->HII_DIM)
-            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_density_perturb);
-
-#pragma omp parallel shared(perturbed_field,HIRES_density_perturb,f_pixel_factor) private(i,j,k) num_threads(user_params->N_THREADS)
-        {
-#pragma omp for
-            for (i=0; i<user_params->HII_DIM; i++){
-                for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<HII_D_PARA; k++){
-                        *((float *)perturbed_field->velocity_z + HII_R_INDEX(i,j,k)) = *((float *)HIRES_density_perturb + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5), (unsigned long long)(j*f_pixel_factor+0.5), (unsigned long long)(k*f_pixel_factor+0.5)));
-                    }
-                }
-            }
-        }
-    }
-    else {
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, LOWRES_density_perturb);
-
-#pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
-        {
-#pragma omp for
-            for (i=0; i<user_params->HII_DIM; i++){
-                for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<user_params->HII_D_PARA; k++){
-                        *((float *)perturbed_field->velocity_z + HII_R_INDEX(i,j,k)) = *((float *)LOWRES_density_perturb + HII_R_FFT_INDEX(i,j,k));
-                    }
-                }
-            }
-        }
-    }
+    compute_perturbed_velocities(
+        2,
+        user_params,
+        HIRES_density_perturb,
+        HIRES_density_perturb_saved,
+        LOWRES_density_perturb,
+        LOWRES_density_perturb_saved,
+        dDdt_over_D,
+        dimension,
+        switch_mid,
+        f_pixel_factor,
+        perturbed_field->velocity_z
+    );
 
     fftwf_cleanup_threads();
     fftwf_cleanup();

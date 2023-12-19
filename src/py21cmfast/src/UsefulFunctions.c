@@ -695,9 +695,9 @@ void debugSummarizePerturbField(struct PerturbedField *x, int HII_DIM, float NCF
     LOG_SUPER_DEBUG("  density: ");
     debugSummarizeBox(x->density, HII_DIM, NCF, "    ");
     LOG_SUPER_DEBUG("  velocity_x: ");
-    debugSummarizeBox(x->velocity_x, HII_DIM, "    ");
+    debugSummarizeBox(x->velocity_x, HII_DIM, NCF, "    ");
     LOG_SUPER_DEBUG("  velocity_y: ");
-    debugSummarizeBox(x->velocity_y, HII_DIM, "    ");
+    debugSummarizeBox(x->velocity_y, HII_DIM, NCF, "    ");
     LOG_SUPER_DEBUG("  velocity_z: ");
     debugSummarizeBox(x->velocity_z, HII_DIM, NCF, "    ");
 
@@ -791,7 +791,7 @@ void inspectPerturbedField(struct PerturbedField *x, int print_pid, int print_co
         print_corners_real(x->velocity_y, HII_DIM, NCF);
 
         printf("%s\t\tvelocity: ", pid);
-        print_corners_real(x->velocity, HII_DIM, NCF);
+        print_corners_real(x->velocity_z, HII_DIM, NCF);
     }
 
 }
