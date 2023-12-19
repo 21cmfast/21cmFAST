@@ -70,17 +70,17 @@ void apply_subcell_rsds(
             for (j=0; j<user_params->HII_DIM; j++){
 
                 // Generate the optical-depth for the specific line-of-sight with R.S.D
-                for(k=0;k<user_params->HII_DIM;k++) {
+                for(k=0;k<HII_D_PARA;k++) {
                     delta_T_RSD_LOS[omp_get_thread_num()][k] = 0.0;
                 }
 
-                for (k=0; k<user_params->HII_DIM; k++){
+                for (k=0; k<HII_D_PARA; k++){
 
                     if((fabs(box->brightness_temp[HII_R_INDEX(i,j,k)]) >= FRACT_FLOAT_ERR) && \
                                 (ionized_box->xH_box[HII_R_INDEX(i,j,k)] >= FRACT_FLOAT_ERR)) {
 
                         if(k==0) {
-                            d1_low = v[HII_R_FFT_INDEX(i,j,user_params->HII_DIM-1)]/H;
+                            d1_low = v[HII_R_FFT_INDEX(i,j,HII_D_PARA-1)]/H;
                             d2_low = v[HII_R_FFT_INDEX(i,j,k)]/H;
                         }
                         else {
@@ -89,7 +89,7 @@ void apply_subcell_rsds(
                         }
 
                         // Displacements (converted from velocity) for the original cell centres straddling half of the sub-cells (cell after)
-                        if(k==(user_params->HII_DIM-1)) {
+                        if(k==(HII_D_PARA-1)) {
                             d1_high = v[HII_R_FFT_INDEX(i,j,k)]/H;
                             d2_high = v[HII_R_FFT_INDEX(i,j,0)]/H;
                         }
@@ -138,7 +138,7 @@ void apply_subcell_rsds(
 
                                     // check if the new cell position is at the edge of the box. If so, periodic boundary conditions
                                     if(k<((int)cell_distance+1)) {
-                                        delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance+1) + user_params->HII_DIM] += \
+                                        delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance+1) + HII_D_PARA] += \
                                                         box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                     }
                                     else {
@@ -156,7 +156,7 @@ void apply_subcell_rsds(
 
                                     // Check if the first part of the sub-cell is at the box edge
                                     if(k<(((int)cell_distance))) {
-                                        delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance) + user_params->HII_DIM] += \
+                                        delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance) + HII_D_PARA] += \
                                                 fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                     }
                                     else {
@@ -165,7 +165,7 @@ void apply_subcell_rsds(
                                     }
                                     // Check if the second part of the sub-cell is at the box edge
                                     if(k<(((int)cell_distance + 1))) {
-                                        delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance+1) + user_params->HII_DIM] += \
+                                        delta_T_RSD_LOS[omp_get_thread_num()][k-((int)cell_distance+1) + HII_D_PARA] += \
                                                 fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                     }
                                     else {
@@ -183,7 +183,7 @@ void apply_subcell_rsds(
 
                                 // Check the periodic boundaries conditions and move the fraction of each sub-cell to the appropriate new cell
                                 if(k==0) {
-                                    delta_T_RSD_LOS[omp_get_thread_num()][user_params->HII_DIM-1] += \
+                                    delta_T_RSD_LOS[omp_get_thread_num()][HII_D_PARA-1] += \
                                             fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                     delta_T_RSD_LOS[omp_get_thread_num()][k] += \
                                             fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
@@ -203,7 +203,7 @@ void apply_subcell_rsds(
                                 fraction_within = 1. - fraction_outside;
 
                                 // Check the periodic boundaries conditions and move the fraction of each sub-cell to the appropriate new cell
-                                if(k==(user_params->HII_DIM-1)) {
+                                if(k==(HII_D_PARA-1)) {
                                     delta_T_RSD_LOS[omp_get_thread_num()][k] += \
                                             fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                     delta_T_RSD_LOS[omp_get_thread_num()][0] += \
@@ -226,8 +226,8 @@ void apply_subcell_rsds(
                                     // sub-cell is entirely contained within the new cell (just add it to the new cell)
 
                                     // check if the new cell position is at the edge of the box. If so, periodic boundary conditions
-                                    if(k>(user_params->HII_DIM - 1 - (int)cell_distance)) {
-                                        delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance - user_params->HII_DIM] += \
+                                    if(k>(HII_D_PARA - 1 - (int)cell_distance)) {
+                                        delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance - HII_D_PARA] += \
                                                 box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                     }
                                     else {
@@ -243,8 +243,8 @@ void apply_subcell_rsds(
                                     fraction_within = 1. - fraction_outside;
 
                                     // Check if the first part of the sub-cell is at the box edge
-                                    if(k>(user_params->HII_DIM - 1 - ((int)cell_distance-1))) {
-                                        delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance-1 - user_params->HII_DIM] += \
+                                    if(k>(HII_D_PARA - 1 - ((int)cell_distance-1))) {
+                                        delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance-1 - HII_D_PARA] += \
                                                 fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                     }
                                     else {
@@ -252,8 +252,8 @@ void apply_subcell_rsds(
                                                 fraction_within*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                     }
                                     // Check if the second part of the sub-cell is at the box edge
-                                    if(k>(user_params->HII_DIM - 1 - ((int)cell_distance))) {
-                                        delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance - user_params->HII_DIM] += \
+                                    if(k>(HII_D_PARA - 1 - ((int)cell_distance))) {
+                                        delta_T_RSD_LOS[omp_get_thread_num()][k+(int)cell_distance - HII_D_PARA] += \
                                                 fraction_outside*box->brightness_temp[HII_R_INDEX(i,j,k)]/((float)astro_params->N_RSD_STEPS);
                                     }
                                     else {
@@ -266,7 +266,7 @@ void apply_subcell_rsds(
                     }
                 }
 
-                for(k=0;k<user_params->HII_DIM;k++) {
+                for(k=0;k<HII_D_PARA;k++) {
                     box->brightness_temp[HII_R_INDEX(i,j,k)] = delta_T_RSD_LOS[omp_get_thread_num()][k];
 
                     ave += delta_T_RSD_LOS[omp_get_thread_num()][k];

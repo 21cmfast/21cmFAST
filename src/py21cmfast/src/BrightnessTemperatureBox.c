@@ -40,8 +40,6 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
         for (i=0; i<user_params->HII_DIM; i++){
             for (j=0; j<user_params->HII_DIM; j++){
                 for (k=0; k<HII_D_PARA; k++){
-                    *((float *)v + HII_R_FFT_INDEX(i,j,k)) = perturb_field->velocity[HII_R_INDEX(i,j,k)];
-                for (k=0; k<user_params->HII_DIM; k++){
                     *((float *)v + HII_R_FFT_INDEX(i,j,k)) = perturb_field->velocity_z[HII_R_INDEX(i,j,k)];
                 }
             }
@@ -127,7 +125,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                 #pragma omp for
                 for (i=0; i<user_params->HII_DIM; i++){
                     for (j=0; j<user_params->HII_DIM; j++){
-                        for (k=0; k<user_params->HII_DIM; k++){
+                        for (k=0; k<HII_D_PARA; k++){
                             dvdx = clip(vel_gradient[HII_R_FFT_INDEX(i,j,k)], -max_v_deriv, max_v_deriv);
                             box->brightness_temp[HII_R_INDEX(i,j,k)] /= (dvdx/H + 1.0);
                         }
@@ -208,7 +206,7 @@ void get_velocity_gradient(struct UserParams *user_params, float *v, float *vel_
 {
     memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
-    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, vel_gradient);
+    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, vel_gradient);
 
     float k_x, k_y, k_z;
     int n_x, n_y, n_z;
@@ -227,7 +225,7 @@ void get_velocity_gradient(struct UserParams *user_params, float *v, float *vel_
                 else
                     k_y = n_y * DELTA_K;
 
-                for (n_z=0; n_z<=HII_MIDDLE; n_z++){
+                for (n_z=0; n_z<=HII_MIDDLE_PARA; n_z++){
                     k_z = n_z * DELTA_K;
 
                     // take partial deriavative along the line of sight
@@ -237,5 +235,5 @@ void get_velocity_gradient(struct UserParams *user_params, float *v, float *vel_
         }
     }
 
-    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, user_params->N_THREADS, vel_gradient);
+    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, vel_gradient);
 }
