@@ -1,15 +1,15 @@
-void apply_subcell_rsds(
+double apply_subcell_rsds(
     struct UserParams *user_params,
     struct CosmoParams *cosmo_params,
     struct FlagOptions *flag_options,
     struct AstroParams *astro_params,
     struct IonizedBox *ionized_box,
     struct BrightnessTemp *box,
-    float subcell_width,
     float redshift,
     struct SpinTemperature *spin_temp,
     float T_rad,
-    float *v
+    float *v,
+    float H
 ) {
 
     char wisdom_filename[500];
@@ -28,20 +28,14 @@ void apply_subcell_rsds(
         delta_T_RSD_LOS[i] = (float *)calloc(user_params->HII_DIM,sizeof(float));
     }
 
-    float d1_low, d1_high, d2_low, d2_high, gradient_component, min_gradient_component;
+    float gradient_component, min_gradient_component;
+    float d1_low, d1_high, d2_low, d2_high;
     float x_val1, x_val2, subcell_displacement;
     float RSD_pos_new, RSD_pos_new_boundary_low,RSD_pos_new_boundary_high;
     float fraction_within, fraction_outside, cell_distance;
 
-    double dvdx, max_v_deriv;
-    float const_factor, pixel_Ts_factor, pixel_x_HI, pixel_deltax, H;
     float cellsize = user_params->BOX_LEN/(float)user_params->HII_DIM;
-
-    init_ps();
-
-    H = hubble(redshift);
-    const_factor = 27 * (cosmo_params->OMb*cosmo_params->hlittle*cosmo_params->hlittle/0.023) *
-    sqrt( (0.15/(cosmo_params->OMm)/(cosmo_params->hlittle)/(cosmo_params->hlittle)) * (1.+redshift)/10.0 );
+    float subcell_width = cellsize/(float)(astro_params->N_RSD_STEPS);
 
     // normalised units of cell length. 0 equals beginning of cell, 1 equals end of cell
     // These are the sub-cell central positions (x_pos_offset), and the corresponding normalised value (x_pos) between 0 and 1
@@ -49,6 +43,9 @@ void apply_subcell_rsds(
         x_pos_offset[ii] = subcell_width*(float)ii + subcell_width/2.;
         x_pos[ii] = x_pos_offset[ii]/cellsize;
     }
+
+    x_val1 = 0.0;
+    x_val2 = 1.0;
 
     /*
     Note to convert the velocity v, to a displacement in redshift space, convert
@@ -276,4 +273,5 @@ void apply_subcell_rsds(
     }
 
     ave /= (float)HII_TOT_NUM_PIXELS;
+    return(ave);
 }

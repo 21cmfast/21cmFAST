@@ -613,7 +613,7 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
             }
         }
 
-        LOG_SUPER_DEBUG("%sCorners: %f %f %f %f %f %f %f %f",
+        LOG_SUPER_DEBUG("%sCorners: %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
             indent,
             corners[0], corners[1], corners[2], corners[3],
             corners[4], corners[5], corners[6], corners[7]
@@ -631,7 +631,7 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
         }
         mean=sum/(size*size*((int)(size*ncf)));
 
-        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %f, %f, %f, %f", indent, sum, mean, mn, mx);
+        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
     }
 }
 
@@ -654,7 +654,7 @@ void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
             }
         }
 
-        LOG_SUPER_DEBUG("%sCorners: %lf %lf %lf %lf %lf %lf %lf %lf",
+        LOG_SUPER_DEBUG("%sCorners: %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
             indent,
             corners[0], corners[1], corners[2], corners[3],
             corners[4], corners[5], corners[6], corners[7]
@@ -672,7 +672,7 @@ void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
         }
         mean=sum/(size*size*((int)(size*ncf)));
 
-        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %lf, %lf, %lf, %lf", indent, sum, mean, mn, mx);
+        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
     }
 }
 

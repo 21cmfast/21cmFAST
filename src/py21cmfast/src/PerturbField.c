@@ -35,11 +35,12 @@ void compute_perturbed_velocities(
             LOWRES_density_perturb_saved,
             sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS
         );
+        LOG_SUPER_DEBUG("dDdt_over_D=%.6e, dimension=%d, switch_mid=%d, f_pixel_factor=%f", dDdt_over_D, dimension, switch_mid, f_pixel_factor);
     }
 
     #pragma omp parallel \
         shared(LOWRES_density_perturb,HIRES_density_perturb,dDdt_over_D,dimension,switch_mid) \
-        private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq) \
+        private(n_x,n_y,n_z,k_x,k_y,k_z,k_sq, kvec) \
         num_threads(user_params->N_THREADS)
     {
         #pragma omp for
@@ -86,6 +87,8 @@ void compute_perturbed_velocities(
         }
     }
 
+    LOG_SUPER_DEBUG("density_perturb after modification by dDdt: ");
+    debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
 
     if(user_params->PERTURB_ON_HIGH_RES) {
 
@@ -128,6 +131,9 @@ void compute_perturbed_velocities(
             }
         }
     }
+    LOG_SUPER_DEBUG("velocity: ");
+    debugSummarizeBox(velocity, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
+
 }
 
 int ComputePerturbField(
@@ -331,10 +337,12 @@ int ComputePerturbField(
 
         // go through the high-res box, mapping the mass onto the low-res (updated) box
         LOG_DEBUG("Perturb the density field");
-#pragma omp parallel shared(init_growth_factor,boxes,f_pixel_factor,resampled_box,dimension) \
-                        private(i,j,k,xi,xf,yi,yf,zi,zf,HII_i,HII_j,HII_k,d_x,d_y,d_z,t_x,t_y,t_z,xp1,yp1,zp1) num_threads(user_params->N_THREADS)
+        #pragma omp parallel \
+            shared(init_growth_factor,boxes,f_pixel_factor,resampled_box,dimension) \
+            private(i,j,k,xi,xf,yi,yf,zi,zf,HII_i,HII_j,HII_k,d_x,d_y,d_z,t_x,t_y,t_z,xp1,yp1,zp1) \
+            num_threads(user_params->N_THREADS)
         {
-#pragma omp for
+            #pragma omp for
             for (i=0; i<user_params->DIM;i++){
                 for (j=0; j<user_params->DIM;j++){
                     for (k=0; k<D_PARA;k++){
@@ -475,10 +483,12 @@ int ComputePerturbField(
         debugSummarizeBoxDouble(resampled_box, dimension, user_params->NON_CUBIC_FACTOR, "  ");
 
         // Resample back to a float for remaining algorithm
-#pragma omp parallel shared(LOWRES_density_perturb,HIRES_density_perturb,resampled_box,dimension) \
-                        private(i,j,k) num_threads(user_params->N_THREADS)
+        #pragma omp parallel \
+            shared(LOWRES_density_perturb,HIRES_density_perturb,resampled_box,dimension) \
+            private(i,j,k) \
+            num_threads(user_params->N_THREADS)
         {
-#pragma omp for
+            #pragma omp for
             for (i=0; i<dimension; i++){
                 for (j=0; j<dimension; j++){
                     for (k=0; k<(unsigned long long)(user_params->NON_CUBIC_FACTOR*dimension); k++){

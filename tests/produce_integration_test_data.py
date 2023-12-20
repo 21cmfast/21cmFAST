@@ -52,22 +52,21 @@ DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 LIGHTCONE_FIELDS = [
     "density",
     "velocity",
-    "xH_box",
     "Ts_box",
-    "z_re_box",
     "Gamma12_box",
     "dNrec_box",
     "x_e_box",
     "Tk_box",
     "J_21_LW_box",
+    "xH_box",
+    "z_re_box",
     "brightness_temp",
 ]
 
-COEVAL_FIELDS = [
-    "lowres_density",
-    "lowres_vx_2LPT",
-    "lowres_vx",
-] + LIGHTCONE_FIELDS
+COEVAL_FIELDS = LIGHTCONE_FIELDS.copy()
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("Ts_box"), "lowres_density")
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("Ts_box"), "lowres_vx_2LPT")
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("Ts_box"), "lowres_vx")
 
 OPTIONS = {
     "simple": [12, {}],

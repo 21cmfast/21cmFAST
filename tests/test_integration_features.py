@@ -67,7 +67,10 @@ def test_power_spectra_coeval(name, module_direc, plt):
     if plt == mpl.pyplot:
         make_coeval_comparison_plot(test_k, true_powers, test_powers, plt)
 
-    for key, value in true_powers.items():
+    for key in prd.COEVAL_FIELDS:
+        if key not in true_powers:
+            continue
+        value = true_powers[key]
         print(f"Testing {key}")
         assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=1e-2)) < 10
         np.testing.assert_allclose(value, test_powers[key], atol=0, rtol=1e-1)
@@ -102,7 +105,12 @@ def test_power_spectra_lightcone(name, module_direc, plt):
             test_k, lc.node_redshifts, true_powers, true_global, test_powers, lc, plt
         )
 
-    for key, value in true_powers.items():
+    for key in prd.LIGHTCONE_FIELDS:
+        if key not in true_powers:
+            continue
+
+        value = true_powers[key]
+
         if value[0] > 0:
             print(f"Testing {key}")
             # Ensure all but 10 of the values is within 1%, and none of the values

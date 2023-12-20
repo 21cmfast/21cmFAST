@@ -46,8 +46,7 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
         }
     }
 
-    float d1_low, d1_high, d2_low, d2_high, gradient_component, min_gradient_component, subcell_width, x_val1, x_val2, subcell_displacement;
-    float RSD_pos_new, RSD_pos_new_boundary_low,RSD_pos_new_boundary_high, fraction_within, fraction_outside, cell_distance;
+    float gradient_component, min_gradient_component;
 
     double dvdx, max_v_deriv;
     float const_factor, T_rad, pixel_Ts_factor, pixel_x_HI, pixel_deltax, H;
@@ -103,13 +102,8 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
     ave /= (float)HII_TOT_NUM_PIXELS;
 
-    x_val1 = 0.;
-    x_val2 = 1.;
-
     // Get RSDs
     if (flag_options->APPLY_RSDS){
-        subcell_width = (user_params->BOX_LEN/(float)user_params->HII_DIM)/(float)(astro_params->N_RSD_STEPS);
-
         ave = 0.;
         get_velocity_gradient(user_params, v, vel_gradient);
 
@@ -128,10 +122,12 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
                         for (k=0; k<HII_D_PARA; k++){
                             dvdx = clip(vel_gradient[HII_R_FFT_INDEX(i,j,k)], -max_v_deriv, max_v_deriv);
                             box->brightness_temp[HII_R_INDEX(i,j,k)] /= (dvdx/H + 1.0);
+                            ave += box->brightness_temp[HII_R_INDEX(i,j,k)];
                         }
                     }
                 }
             }
+            ave /= (float)HII_TOT_NUM_PIXELS;
         } else {
             // This is if we're doing both TS_FLUCT and SUBCELL_RSD
             min_gradient_component = 1.0;
@@ -165,7 +161,10 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
         }
 
         if(flag_options->SUBCELL_RSD) {
-            apply_subcell_rsds(user_params, cosmo_params, flag_options, astro_params, ionized_box, box, subcell_width, redshift, spin_temp, T_rad, v);
+            ave = apply_subcell_rsds(
+                user_params, cosmo_params, flag_options, astro_params, ionized_box, box,
+                redshift, spin_temp, T_rad, v, H
+            );
         }
     }
 
