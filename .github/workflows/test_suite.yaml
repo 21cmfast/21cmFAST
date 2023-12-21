@@ -43,15 +43,15 @@ jobs:
         run: echo "commit_message=$(git show -s --format=%s)" >> "$GITHUB_ENV"
 
       - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v2.1.1
+        uses: conda-incubator/setup-miniconda@v3
         with:
           # auto-update-conda: true
-          miniconda-version: "latest"
+          mamba-version: "*"
+          channels: conda-forge,defaults
           python-version: ${{ matrix.python-version }}
           environment-file: ci/${{ matrix.os }}-env.yml
           activate-environment: tests
-          channel-priority: strict
-          use-only-tar-bz2: true
+          channel-priority: true
 
       - name: Conda Info
         run: |
