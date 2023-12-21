@@ -17,7 +17,7 @@ dependencies:
   - pip
   - gsl
   - fftw
-  - gcc
+  #- gcc
   - pip:
     - powerbox
     - cached_property
