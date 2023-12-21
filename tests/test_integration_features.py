@@ -72,8 +72,15 @@ def test_power_spectra_coeval(name, module_direc, plt):
             continue
         value = true_powers[key]
         print(f"Testing {key}")
-        assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=1e-2)) < 10
-        np.testing.assert_allclose(value, test_powers[key], atol=0, rtol=1e-1)
+        np.testing.assert_allclose(
+            value / test_powers[key].max(),
+            test_powers[key] / test_powers[key].max(),
+            atol=1e-8,
+        )
+
+
+#        assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=1e-2)) < 10
+#        np.testing.assert_allclose(value, test_powers[key], atol=0, rtol=1e-1)
 
 
 @pytest.mark.parametrize("name", options)
@@ -115,8 +122,13 @@ def test_power_spectra_lightcone(name, module_direc, plt):
             print(f"Testing {key}")
             # Ensure all but 10 of the values is within 1%, and none of the values
             # is outside 10%
-            assert np.all(np.abs(value - test_powers[key]) / value[0] < 1e-3)
-            assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=5e-2)) < 10
+            np.testing.assert_allclose(
+                value / test_powers[key].max(),
+                test_powers[key] / test_powers[key].max(),
+                atol=1e-8,
+            )
+            # assert np.all(np.abs(value - test_powers[key]) / value[0] < 1e-3)
+            # assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=5e-2)) < 10
 
     for key, value in true_global.items():
         print(f"Testing Global {key}")
