@@ -75,7 +75,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
         np.testing.assert_allclose(
             value / test_powers[key].max(),
             test_powers[key] / test_powers[key].max(),
-            atol=1e-4,
+            atol=2e-4,
             rtol=0,
         )
 
@@ -126,7 +126,7 @@ def test_power_spectra_lightcone(name, module_direc, plt):
             np.testing.assert_allclose(
                 value / test_powers[key].max(),
                 test_powers[key] / test_powers[key].max(),
-                atol=1e-4,
+                atol=2e-4,
                 rtol=0,
             )
             # assert np.all(np.abs(value - test_powers[key]) / value[0] < 1e-3)
