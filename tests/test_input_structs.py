@@ -212,3 +212,18 @@ def test_user_params():
     ):
         up = UserParams(NON_CUBIC_FACTOR=1.1047642)
         up.NON_CUBIC_FACTOR
+
+    assert up.cell_size / up.cell_size_hires == up.DIM / up.HII_DIM
+
+
+def test_flag_options(caplog):
+    flg = FlagOptions(USE_HALO_FIELD=True, USE_MINI_HALOS=True)
+    assert not flg.USE_HALO_FIELD
+    assert (
+        "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True"
+        in caplog.text
+    )
+
+    flg = FlagOptions(PHOTON_CONS=True, USE_MINI_HALOS=True)
+    assert not flg.PHOTON_CONS
+    assert "USE_MINI_HALOS is not compatible with PHOTON_CONS" in caplog.text

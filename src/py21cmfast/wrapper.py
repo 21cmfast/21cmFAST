@@ -2488,6 +2488,7 @@ def run_lightcone(
     hooks=None,
     always_purge: bool = False,
     lightcone_filename: str | Path = None,
+    return_at_z: float = 0.0,
     **global_kwargs,
 ):
     r"""
@@ -2564,6 +2565,11 @@ def run_lightcone(
         The filename to which to save the lightcone. The lightcone is returned in
         memory, and can be saved manually later, but including this filename will
         save the lightcone on each iteration, which can be helpful for checkpointing.
+    return_at_z
+        If given, evaluation of the lightcone will be stopped at the given redshift,
+        and the partial lightcone object will be returned. Lightcone evaluation can
+        continue if the returned lightcone is saved to file, and this file is passed
+        as `lightcone_filename`.
     \*\*global_kwargs :
         Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
         *temporarily* set global attributes for the duration of the function. Note that
@@ -2618,8 +2624,8 @@ def run_lightcone(
             redshift = perturb.redshift
         elif redshift is not None:
             warnings.warn(
-                DeprecationWarning,
                 "passing redshift directly is deprecated, please use the Lightconer interface instead",
+                category=DeprecationWarning,
             )
 
         if user_params.MINIMIZE_MEMORY and not write:
@@ -2629,7 +2635,11 @@ def run_lightcone(
 
         max_redshift = (
             global_params.Z_HEAT_MAX
-            if (flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT)
+            if (
+                flag_options.INHOMO_RECO
+                or flag_options.USE_TS_FLUCT
+                or (max_redshift is None and lightconer is None)
+            )
             else (
                 max_redshift
                 if max_redshift is not None
@@ -2649,8 +2659,10 @@ def run_lightcone(
         lightconer.validate_options(user_params, flag_options)
 
         # Get the redshift through which we scroll and evaluate the ionization field.
-        scrollz = _logscroll_redshifts(
-            redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift
+        scrollz = np.array(
+            _logscroll_redshifts(
+                redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift
+            )
         )
 
         lcz = lightconer.lc_redshifts
@@ -2703,7 +2715,13 @@ def run_lightcone(
 
         if lightcone_filename and Path(lightcone_filename).exists():
             lightcone = LightCone.read(lightcone_filename)
-            scrollz = scrollz[np.array(scrollz) < lightcone._current_redshift]
+            scrollz = scrollz[scrollz < lightcone._current_redshift]
+            if len(scrollz) == 0:
+                # The entire lightcone is already full!
+                logger.info(
+                    f"Lightcone already full at z={lightcone._current_redshift}. Returning."
+                )
+                return lightcone
             lc = lightcone.lightcones
         else:
             lcn_cls = (
@@ -2781,6 +2799,12 @@ def run_lightcone(
         if flag_options.PHOTON_CONS:
             calibrate_photon_cons(**kw)
 
+        if return_at_z > lightcone.redshift and not write:
+            raise ValueError(
+                "Returning before the final redshift requires caching in order to "
+                "continue the simulation later. Set write=True!"
+            )
+
         # Iterate through redshift from top to bottom
         if lightcone.redshift != lightcone._current_redshift:
             logger.info(
@@ -2795,10 +2819,16 @@ def run_lightcone(
                 flag_options=flag_options,
                 astro_params=astro_params,
             )
-            st = cached_boxes["TsBox"][0]
-            prev_perturb = cached_boxes["PerturbedField"][0]
-            ib = cached_boxes["IonizedBox"][0]
-            lc_index = lightcone._current_index
+            try:
+                st = cached_boxes["TsBox"][0] if flag_options.USE_TS_FLUCT else None
+                prev_perturb = cached_boxes["PerturbedField"][0]
+                ib = cached_boxes["IonizedBox"][0]
+            except (KeyError, IndexError):
+                raise OSError(
+                    f"No component boxes found at z={lightcone._current_redshift} with "
+                    f"seed {lightcone.random_seed} and direc={direc}. You need to have "
+                    "run with write=True to continue from a checkpoint."
+                )
             pf = prev_perturb
         else:
             st, ib, prev_perturb = None, None, None
@@ -2814,6 +2844,8 @@ def run_lightcone(
         log10_mturnovers_mini = np.zeros(len(scrollz))
         coeval = None
         prev_coeval = None
+        st2 = None
+        pt_halos = None
 
         if lightcone_filename and not Path(lightcone_filename).exists():
             lightcone.save(lightcone_filename)
@@ -2846,8 +2878,8 @@ def run_lightcone(
                 previous_ionize_box=ib,
                 perturbed_field=pf2,
                 previous_perturbed_field=prev_perturb,
-                spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
-                pt_halos=pt_halos if flag_options.USE_HALO_FIELD else None,
+                spin_temp=st2,
+                pt_halos=pt_halos,
                 cleanup=(cleanup and iz == (len(scrollz) - 1)),
                 **kw,
             )
@@ -2908,6 +2940,12 @@ def run_lightcone(
                 ):
                     if this_lc is not None:
                         lightcone.lightcones[quantity][..., idx] = this_lc
+                        lc_index = idx
+
+                if lightcone_filename:
+                    lightcone.make_checkpoint(
+                        lightcone_filename, redshift=z, index=lc_index
+                    )
 
             # Save current ones as old ones.
             if flag_options.USE_TS_FLUCT:
@@ -2925,10 +2963,9 @@ def run_lightcone(
 
             pf = pf2
 
-            if lightcone_filename:
-                lightcone.make_checkpoint(
-                    lightcone_filename, redshift=z, index=lc_index
-                )
+            if z <= return_at_z:
+                # Optionally return when the lightcone is only partially filled
+                break
 
         if flag_options.PHOTON_CONS:
             photon_nonconservation_data = _get_photon_nonconservation_data()

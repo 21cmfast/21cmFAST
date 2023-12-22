@@ -212,9 +212,9 @@ def get_boxes_at_redshift(
                 logger.debug(
                     f"{file} {paramtype} don't match: {getattr(obj, paramtype)} vs. {paramobj}"
                 )
-                continue
-
-        out[obj.__class__.__name__].append(obj)
+                break
+        else:
+            out[obj.__class__.__name__].append(obj)
 
     return out
 

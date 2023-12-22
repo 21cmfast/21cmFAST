@@ -135,21 +135,21 @@ def low_redshift():
 
 
 @pytest.fixture(scope="session")
-def perturb_field(ic, redshift):
+def perturbed_field(ic, redshift):
     """A default perturb_field"""
     return wrapper.perturb_field(redshift=redshift, init_boxes=ic, write=True)
 
 
 @pytest.fixture(scope="session")
-def rectlcn(perturb_field, max_redshift) -> RectilinearLightconer:
+def rectlcn(perturbed_field, max_redshift) -> RectilinearLightconer:
     return RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=perturb_field.redshift,
+        min_redshift=perturbed_field.redshift,
         max_redshift=max_redshift,
-        resolution=perturb_field.user_params.cell_size,
-        cosmo=perturb_field.cosmo_params.cosmo,
+        resolution=perturbed_field.user_params.cell_size,
+        cosmo=perturbed_field.cosmo_params.cosmo,
     )
 
 
 @pytest.fixture(scope="session")
-def lc(perturb_field, rectlcn):
-    return run_lightcone(lightconer=rectlcn, perturb=perturb_field)
+def lc(perturbed_field, rectlcn):
+    return run_lightcone(lightconer=rectlcn, perturb=perturbed_field)
