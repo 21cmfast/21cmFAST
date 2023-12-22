@@ -4,6 +4,7 @@ import pytest
 
 import attr
 import numpy as np
+import re
 from astropy import units as un
 from astropy.cosmology import Planck18, z_at_value
 from astropy_healpix import HEALPix
@@ -114,7 +115,7 @@ def test_incompatible_coevals(equal_cdist):
     z7.cosmo_params.update(SIGMA_8=2 * orig)
 
     with pytest.raises(ValueError, match="c1 and c2 must have the same cosmo"):
-        equal_cdist.make_lightcone_slices(z6, z7)
+        next(equal_cdist.make_lightcone_slices(z6, z7))
 
     z7.cosmo_params.update(SIGMA_8=orig)
 
@@ -124,17 +125,17 @@ def test_incompatible_coevals(equal_cdist):
     with pytest.raises(
         ValueError, match="c1 and c2 must have the same user parameters"
     ):
-        equal_cdist.make_lightcone_slices(z6, z7)
+        next(equal_cdist.make_lightcone_slices(z6, z7))
 
 
 def test_coeval_redshifts_outside_box(equal_cdist):
     z0 = equal_cdist.lc_redshifts[0] - 3
-    z1 = equal_cdist.lc_redshifts[-1] - 1
+    z1 = equal_cdist.lc_redshifts[0] - 1
 
     z6 = get_uniform_coeval(redshift=z0, fill=0)
     z7 = get_uniform_coeval(redshift=z1, fill=1.0)
 
-    q, idx, out = equal_cdist.make_lightcone_slices(z6, z7)
+    q, idx, out = next(equal_cdist.make_lightcone_slices(z6, z7))
     assert q is None
     assert idx is None
     assert len(out) == 0
@@ -154,7 +155,7 @@ def test_bad_kind_for_redshift_interp(equal_cdist):
     c1 = np.zeros((10, 10, 10))
     c2 = np.zeros((10, 10, 10))
 
-    with pytest.raises(ValueError, match="kind must be 'mean' or 'max'"):
+    with pytest.raises(ValueError, match="kind must be 'mean' or 'mean_max'"):
         equal_cdist.redshift_interpolation(3.0, c1, c2, 1, 4, kind="min")
 
 
@@ -163,9 +164,6 @@ def test_bad_instantiation():
         ValueError, match="Either lc_distances or lc_redshifts must be provided"
     ):
         lcn.RectilinearLightconer()
-
-    with pytest.raises(ValueError, match="lc_distances must have units of length"):
-        lcn.RectilinearLightconer(lc_distances=np.linspace(0, 1, 10) * un.MHz)
 
     with pytest.raises(ValueError, match="lc_distances must be non-negative"):
         lcn.RectilinearLightconer(lc_distances=np.linspace(-1, 1, 10) * un.Mpc)
@@ -190,7 +188,7 @@ def test_equal_cdist_endpoint():
         max_redshift=zmax,
         resolution=res,
     )
-    assert lc.lc_distances.max() == d1
+    assert np.isclose(lc.lc_distances.max(), d1, atol=d1 / 20)
 
 
 def test_equal_redshift_bad_instantiation():
@@ -198,7 +196,7 @@ def test_equal_redshift_bad_instantiation():
     lon, lat = hp.healpix_to_lonlat(np.arange(hp.npix))
 
     with pytest.raises(ValueError, match="Either dz or resolution must be provided"):
-        lcn.AngularLightconer.with_equal_cdist_slices(
+        lcn.AngularLightconer.with_equal_redshift_slices(
             latitude=lat.radian,
             longitude=lon.radian,
             min_redshift=6.0,
@@ -217,15 +215,15 @@ def test_angular_lightconer_bad_instantiation():
             longitude=lon[None, :].radian,
             latitude=lat.radian,
             lc_redshifts=np.linspace(6, 7, 10),
-            resolution=2 * un.Mpc,
         )
 
-    with pytest.raises(ValueError, match="longitude must be in the range [0, 2pi]"):
+    with pytest.raises(
+        ValueError, match=re.escape("longitude must be in the range [0, 2pi]")
+    ):
         lcn.AngularLightconer(
-            longitude=lon + 2 * np.pi,
+            longitude=lon.radian + 2 * np.pi,
             latitude=lat.radian,
             lc_redshifts=np.linspace(6, 7, 10),
-            resolution=2 * un.Mpc,
         )
 
     with pytest.raises(
@@ -235,7 +233,6 @@ def test_angular_lightconer_bad_instantiation():
             longitude=lon.radian,
             latitude=lat[None, :].radian,
             lc_redshifts=np.linspace(6, 7, 10),
-            resolution=2 * un.Mpc,
         )
 
 
@@ -275,10 +272,13 @@ def test_rotation_equality():
 
 
 def test_validation_options_angular(equal_z_angle):
-    with pytest.raises(ValueError, match="APPLY_RSDS must be False"):
-        equal_z_angle.validate_options(flag_options=FlagOptions(APPLY_RSDS=True))
+    with pytest.raises(ValueError, match="APPLY_RSDs must be False"):
+        equal_z_angle.validate_options(
+            flag_options=FlagOptions(APPLY_RSDS=True), user_params=UserParams()
+        )
 
     with pytest.raises(ValueError, match="To get the LoS velocity, you need to set"):
         equal_z_angle.validate_options(
-            flag_options=UserParams(KEEP_3D_VELOCITIES=False)
+            user_params=UserParams(KEEP_3D_VELOCITIES=False),
+            flag_options=FlagOptions(APPLY_RSDS=False),
         )

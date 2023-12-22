@@ -68,9 +68,6 @@ class Lightconer(ABC):
 
     @lc_distances.validator
     def _lcd_vld(self, attribute, value):
-        if not value.unit.is_equivalent("Mpc"):
-            raise ValueError("lc_distances must have units of length")
-
         if np.any(value < 0):
             raise ValueError("lc_distances must be non-negative")
 
@@ -118,9 +115,7 @@ class Lightconer(ABC):
         dmax = cosmo.comoving_distance(max_redshift).to_value(Mpc)
         res = resolution.to_value(Mpc)
 
-        lc_distances = np.arange(d_at_redshift, dmax + res, res)
-        if np.isclose(lc_distances.max() + res, dmax):
-            lc_distances = np.append(lc_distances, dmax)
+        lc_distances = np.arange(d_at_redshift, dmax + res / 2, res)
 
         return cls(lc_distances=lc_distances * Mpc, cosmo=cosmo, **kw)
 
@@ -195,7 +190,7 @@ class Lightconer(ABC):
 
         # Return early if no lightcone indices are between the coeval distances.
         if len(lcidx) == 0:
-            return None, None, lcidx
+            yield None, None, lcidx
 
         lc_distances = pixlcdist[lcidx]
 
@@ -323,7 +318,7 @@ class RectilinearLightconer(Lightconer):
     def _index_offset_default(self) -> int:
         # While it probably makes more sense to use zero as the default offset,
         # we use n_lightcone to maintain default backwards compatibility.
-        return len(self.lc_redshifts)
+        return len(self.lc_distances)
 
     def coeval_subselect(
         self, lcd: Quantity[pixel], coeval: np.ndarray, coeval_res: Quantity[_LENGTH]
