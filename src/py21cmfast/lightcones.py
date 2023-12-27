@@ -115,7 +115,9 @@ class Lightconer(ABC):
         dmax = cosmo.comoving_distance(max_redshift).to_value(Mpc)
         res = resolution.to_value(Mpc)
 
-        lc_distances = np.arange(d_at_redshift, dmax + res / 2, res)
+        lc_distances = np.arange(d_at_redshift, dmax + res, res)
+        # if np.isclose(lc_distances.max() + res, dmax):
+        #     lc_distances = np.append(lc_distances, dmax)
 
         return cls(lc_distances=lc_distances * Mpc, cosmo=cosmo, **kw)
 
