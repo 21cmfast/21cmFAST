@@ -91,6 +91,17 @@ class ArrayState:
         """Whether C currently has initialized memory for this array."""
         return self.c_memory and self.initialized
 
+    def __str__(self):
+        """Returns a string representation of the ArrayState."""
+        if self.computed_in_mem:
+            return "computed (in mem)"
+        elif self.on_disk:
+            return "computed (on disk)"
+        elif self.initialized:
+            return "memory initialized (not computed)"
+        else:
+            return "uncomputed and uninitialized"
+
 
 class ParameterError(RuntimeError):
     """An exception representing a bad choice of parameters."""
@@ -655,7 +666,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             if pth.exists():
                 return pth
 
-        logger.info("All paths that defined {self} have been deleted on disk.")
+        logger.info(f"All paths that defined {self} have been deleted on disk.")
         return None
 
     @abstractmethod
@@ -791,8 +802,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         if flush is not None and keep is None:
             keep = [k for k in self._array_state if k not in flush]
-        elif keep is not None and flush is None:
-            flush = [k for k in self._array_state if k not in keep]
+        elif flush is None:
+            flush = [
+                k
+                for k in self._array_state
+                if k not in keep and self._array_state[k].initialized
+            ]
 
         flush = flush or []
         keep = keep or []
@@ -807,7 +822,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
     def _remove_array(self, k, force=False):
         state = self._array_state[k]
 
-        if not state.initialized:
+        if not state.initialized and k in self._array_structure:
             warnings.warn(f"Trying to remove array that isn't yet created: {k}")
             return
 
@@ -1139,6 +1154,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         else:
             fl = fname
 
+        keys = keys or []
         try:
             try:
                 boxes = fl[self._name]
@@ -1150,9 +1166,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
             # Set our arrays.
             for k in boxes.keys():
-                if keys is None or k in keys:
+                self._array_state[k].on_disk = True
+                if k in keys:
                     setattr(self, k, boxes[k][...])
-                    self._array_state[k].on_disk = True
                     self._array_state[k].computed_in_mem = True
                     setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
@@ -1192,7 +1208,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     @classmethod
     def from_file(
-        cls, fname, direc=None, load_data=True, h5_group: Union[str, None] = None
+        cls,
+        fname,
+        direc=None,
+        load_data=True,
+        h5_group: Union[str, None] = None,
+        arrays_to_load=None,
     ):
         """Create an instance from a file on disk.
 
@@ -1221,12 +1242,14 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             else:
                 self = cls(**cls._read_inputs(fl))
 
-        if load_data:
-            if h5_group is not None:
-                with h5py.File(fname, "r") as fl:
-                    self.read(fname=fl[h5_group])
-            else:
-                self.read(fname=fname)
+        if not load_data:
+            arrays_to_load = []
+
+        if h5_group is not None:
+            with h5py.File(fname, "r") as fl:
+                self.read(fname=fl[h5_group], keys=arrays_to_load)
+        else:
+            self.read(fname=fname, keys=arrays_to_load)
 
         return self
 
@@ -1418,8 +1441,11 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 and not self.ensure_input_computed(arg, load=True)
             ):
                 raise ValueError(
-                    f"Trying to use {arg} to compute {self}, but some required arrays "
-                    f"are not computed!"
+                    f"Trying to use {arg.__class__.__name__} to compute "
+                    f"{self.__class__.__name__}, but some required arrays "
+                    f"are not computed!\nArrays required: "
+                    f"{self.get_required_input_arrays(arg)}\n"
+                    f"Current State: {[(k, str(v)) for k, v in self._array_state.items()]}"
                 )
 
     def _compute(
