@@ -1452,13 +1452,13 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         self, *args, hooks: Optional[Dict[Union[str, Callable], Dict[str, Any]]] = None
     ):
         """Compute the actual function that fills this struct."""
-        # Write a detailed message about call arguments if debug turned on.
-        if logger.getEffectiveLevel() <= logging.DEBUG:
-            self._log_call_arguments(*args)
-
         # Check that all required inputs are really computed, and load them into memory
         # if they're not already.
         self._ensure_arguments_exist(*args)
+
+        # Write a detailed message about call arguments if debug turned on.
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            self._log_call_arguments(*args)
 
         # Construct the args. All StructWrapper objects need to actually pass their
         # underlying cstruct, rather than themselves. OutputStructs also pass the

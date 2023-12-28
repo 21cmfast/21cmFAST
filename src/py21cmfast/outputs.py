@@ -466,10 +466,7 @@ class TsBox(_AllParamsBox):
         elif isinstance(input_box, PerturbedField):
             required += ["density"]
         elif isinstance(input_box, TsBox):
-            required += [
-                "Tk_box",
-                "x_e_box",
-            ]
+            required += ["Tk_box", "x_e_box", "Ts_box"]
             if self.flag_options.USE_MINI_HALOS:
                 required += ["J_21_LW_box"]
         else:
