@@ -3030,39 +3030,6 @@ def _get_coeval_callbacks(
     return compute_coeval_callback
 
 
-def _get_interpolation_outputs(
-    lightcone_quantities: Sequence,
-    global_quantities: Sequence,
-    flag_options: FlagOptions,
-) -> dict[str, str]:
-    _fld_names = get_all_fieldnames(arrays_only=True, lightcone_only=True, as_dict=True)
-
-    incorrect_lc = [q for q in lightcone_quantities if q not in _fld_names.keys()]
-    if incorrect_lc:
-        raise ValueError(
-            f"The following lightcone_quantities are not available: {incorrect_lc}"
-        )
-
-    _fld_names = get_all_fieldnames(
-        arrays_only=False, lightcone_only=True, as_dict=True
-    )
-    incorrect_gl = [q for q in global_quantities if q not in _fld_names.keys()]
-    if incorrect_gl:
-        raise ValueError(
-            f"The following global_quantities are not available: {incorrect_gl}"
-        )
-
-    if not flag_options.USE_TS_FLUCT and any(
-        _fld_names[q] == "TsBox" for q in lightcone_quantities + global_quantities
-    ):
-        raise ValueError(
-            "TsBox quantity found in lightcone_quantities or global_quantities, "
-            "but not running spin_temp!"
-        )
-
-    return _fld_names
-
-
 def calibrate_photon_cons(
     astro_params,
     flag_options,

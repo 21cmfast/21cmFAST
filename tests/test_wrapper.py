@@ -5,6 +5,7 @@ but whether different parameter options work/don't work as intended.
 """
 import pytest
 
+import h5py
 import numpy as np
 from astropy import units as un
 
@@ -529,6 +530,17 @@ def test_lc_with_lightcone_filename(rectlcn, perturbed_field, tmpdirec):
 def test_lc_partial_eval(rectlcn, perturbed_field, tmpdirec, lc):
     fname = tmpdirec / "lightcone_partial.h5"
 
+    with pytest.raises(
+        ValueError, match="Returning before the final redshift requires caching"
+    ):
+        wrapper.run_lightcone(
+            lightconer=rectlcn,
+            perturb=perturbed_field,
+            lightcone_filename=fname,
+            return_at_z=20.0,
+            write=False,
+        )
+
     partial = wrapper.run_lightcone(
         lightconer=rectlcn,
         perturb=perturbed_field,
@@ -549,3 +561,38 @@ def test_lc_partial_eval(rectlcn, perturbed_field, tmpdirec, lc):
     )
 
     assert finished == lc
+
+    # Test that if _current redshift is not calculated, a good error is
+    # raised
+    with h5py.File(fname, "a") as fl:
+        fl.attrs["current_redshift"] = 2 * partial._current_redshift
+
+    with pytest.raises(IOError, match="No component boxes found at z"):
+        wrapper.run_lightcone(
+            lightconer=rectlcn,
+            perturb=perturbed_field,
+            lightcone_filename=fname,
+        )
+
+
+def test_lc_pass_redshift_deprecation(rectlcn, ic):
+    with pytest.warns(
+        DeprecationWarning, match="passing redshift directly is deprecated"
+    ):
+        wrapper.run_lightcone(
+            lightconer=rectlcn, redshift=rectlcn.lc_redshifts.min(), init_box=ic
+        )
+
+
+def test_coeval_lowerz_than_photon_cons(ic):
+    with pytest.raises(ValueError, match="You have passed a redshift"):
+        wrapper.run_coeval(
+            init_box=ic, redshift=2.0, flag_options={"PHOTON_CONS": True}
+        )
+
+
+def test_lc_lowerz_than_photon_cons(rectlcn, ic):
+    with pytest.raises(ValueError, match="You have passed a redshift"):
+        wrapper.run_lightcone(
+            init_box=ic, redshift=2.0, flag_options={"PHOTON_CONS": True}
+        )
