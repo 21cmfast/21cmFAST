@@ -1745,8 +1745,8 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                 calculate_sfrd_from_grid(R_ct,delta_box_input,Mcrit_box_input,del_fcoll_Rct,del_fcoll_Rct_MINI,&ave_fcoll,&ave_fcoll_MINI);
                 avg_fix_term = mean_sfr_zpp[R_ct]/ave_fcoll; //THE SFRD table multiplies by 1e10 for some reason, which is hidden by this mean fixing
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
-                LOG_DEBUG("z %6.2f ave sfrd val %.3e avg global %.3e (MINI %.2e %.2e)",zpp_for_evolve_list[R_ct],ave_fcoll,
-                                    mean_sfr_zpp[R_ct],ave_fcoll_MINI,mean_sfr_zpp_mini[R_ct]);
+                // LOG_DEBUG("z %6.2f ave sfrd val %.3e avg global %.3e (MINI %.2e %.2e)",zpp_for_evolve_list[R_ct],ave_fcoll,
+                //                     mean_sfr_zpp[R_ct],ave_fcoll_MINI,mean_sfr_zpp_mini[R_ct]);
             }
 
             //minihalo factors should be separated since they may not be allocated
@@ -1803,6 +1803,11 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                         dstarlya_cont_dt_box[box_ct] += sfr_term*dstarlya_cont_dt_prefactor[R_ct] + sfr_term_mini*lyacont_factor_mini;
                         dstarlya_inj_dt_box[box_ct] += sfr_term*dstarlya_inj_dt_prefactor[R_ct] + sfr_term_mini*lyainj_factor_mini;
                     }
+                    if(box_ct==0){
+                        LOG_SUPER_DEBUG("Cell0 R=%.1f || xh %.2e | xi %.2e | xl %.2e | sl %.2e | ct %.2e | ij %.2e",R_values[R_ct],dxheat_dt_box[box_ct],
+                                        dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct],dstarlya_cont_dt_box[box_ct],dstarlya_inj_dt_box[box_ct]);
+                        LOG_SUPER_DEBUG("sl fac %.4e cont %.4e inj %.4e",dstarlya_dt_prefactor[R_ct],dstarlya_cont_dt_prefactor[R_ct],dstarlya_inj_dt_prefactor[R_ct]);
+                    }
                 }
             }
         }
@@ -1811,7 +1816,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 #pragma omp parallel private(box_ct)
     {
         double curr_delta;
-        int print_count=0;
         struct Ts_cell ts_cell;
         struct Box_rad_terms rad;
         #pragma omp for reduction(+:J_alpha_ave,xheat_ave,xion_ave,Ts_ave,Tk_ave,x_e_ave,eps_lya_cont_ave,eps_lya_inj_ave)
@@ -1852,19 +1856,17 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             this_spin_temp->x_e_box[box_ct] = ts_cell.x_e;
             this_spin_temp->J_21_LW_box[box_ct] = ts_cell.J_21_LW;
 
-            // if(print_count<2 && dxheat_dt_box[box_ct] > 0.){
-            //     LOG_DEBUG("delta: %.3e | dxheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delta
-            //         ,rad.dxheat_dt,rad.dxion_dt,rad.dxlya_dt,rad.dstarlya_dt);
-            //     if(flag_options_ts->USE_LYA_HEATING){
-            //         LOG_DEBUG("Lya inj %.3e | Lya cont %.3e",rad.dstarlya_inj_dt,rad.dstarlya_cont_dt);
-            //     }
-            //     if(flag_options_ts->USE_MINI_HALOS){
-            //         LOG_DEBUG("LyW %.3e",rad.dstarLW_dt);
-            //     }
-            //     LOG_DEBUG("Ts %.3e Tk %.3e x_e %.3e J_21_LW %.3e",ts_cell.Ts,ts_cell.Tk,ts_cell.x_e,ts_cell.J_21_LW);
-
-            //     print_count++;
-            // }
+            if(box_ct==0){
+                LOG_SUPER_DEBUG("Cell0: delta: %.3e | xheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delta
+                    ,rad.dxheat_dt,rad.dxion_dt,rad.dxlya_dt,rad.dstarlya_dt);
+                if(flag_options_ts->USE_LYA_HEATING){
+                    LOG_SUPER_DEBUG("Lya inj %.3e | Lya cont %.3e",rad.dstarlya_inj_dt,rad.dstarlya_cont_dt);
+                }
+                if(flag_options_ts->USE_MINI_HALOS){
+                    LOG_SUPER_DEBUG("LyW %.3e",rad.dstarLW_dt);
+                }
+                LOG_SUPER_DEBUG("Ts %.3e Tk %.3e x_e %.3e J_21_LW %.3e",ts_cell.Ts,ts_cell.Tk,ts_cell.x_e,ts_cell.J_21_LW);
+            }
             
             if(LOG_LEVEL >= DEBUG_LEVEL){
                 J_alpha_ave += rad.dxlya_dt + rad.dstarlya_dt;
