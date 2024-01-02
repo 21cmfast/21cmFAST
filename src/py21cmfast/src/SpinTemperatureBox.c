@@ -446,9 +446,15 @@ void calculate_spectral_factors(double zp){
 
         //in case we use LYA_HEATING, we separate the ==2 and >2 cases
         nuprime = nu_n(2)*(1.+zpp)/(1.+zp);
-        sum_ly2_val = frecycle(2) * spectral_emissivity(nuprime, 0, 2);
-        if(flag_options_ts->USE_MINI_HALOS)
-            sum_ly2_val_MINI = frecycle(2) * spectral_emissivity(nuprime, 0, 3);
+        if(zpp < zmax(zp,2)){
+            if(flag_options_ts->USE_MINI_HALOS){
+                sum_ly2_val = frecycle(2) * spectral_emissivity(nuprime, 0, 2);
+                sum_ly2_val_MINI = frecycle(2) * spectral_emissivity(nuprime, 0, 3);
+            }
+            else{
+                sum_ly2_val = frecycle(2) * spectral_emissivity(nuprime, 0, global_params.Pop);
+            }
+        }
 
         for (n_ct=NSPEC_MAX; n_ct>=3; n_ct--){
             if (zpp > zmax(zp, n_ct))
@@ -456,8 +462,8 @@ void calculate_spectral_factors(double zp){
 
             nuprime = nu_n(n_ct)*(1+zpp)/(1.0+zp);
 
-            sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
             if(flag_options_ts->USE_MINI_HALOS){
+                sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
                 sum_lynto2_val_MINI += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
 
                 if (nuprime < NU_LW_THRESH / NUIONIZATION)
@@ -469,7 +475,7 @@ void calculate_spectral_factors(double zp){
             }
             else{
                 //This is only useful if global_params.Pop is ever used, which I think is rare
-                //It would be nice to remove the if-else otherwise
+                //TODO: It would be nice to remove the if-else otherwise
                 sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, global_params.Pop);
             }
         }
@@ -524,12 +530,12 @@ void calculate_spectral_factors(double zp){
         //TODO: compared to Mesinger+2011, which has (1+zpp)^3, same as const_zp_prefactor, figure out why
         zpp_integrand = ( pow(1+zp,2)*(1+zpp) );
         dstarlya_dt_prefactor[R_ct] = zpp_integrand * sum_lyn_val;
-        // LOG_DEBUG("z: %.2e R: %.2e starlya: %.4e",zpp,R_values[R_ct],dstarlya_dt_prefactor[R_ct]);
+        LOG_SUPER_DEBUG("z: %.2e R: %.2e int %.2e starlya: %.4e",zpp,R_values[R_ct],zpp_integrand,dstarlya_dt_prefactor[R_ct]);
         
         if(flag_options_ts->USE_LYA_HEATING){
             dstarlya_cont_dt_prefactor[R_ct] = zpp_integrand * sum_ly2_val;
             dstarlya_inj_dt_prefactor[R_ct] = zpp_integrand * sum_lynto2_val;
-            // LOG_DEBUG("cont %.2e inj %.2e",dstarlya_cont_dt_prefactor[R_ct],dstarlya_inj_dt_prefactor[R_ct]);
+            LOG_SUPER_DEBUG("cont %.2e inj %.2e",dstarlya_cont_dt_prefactor[R_ct],dstarlya_inj_dt_prefactor[R_ct]);
         }
         if(flag_options_ts->USE_MINI_HALOS){
             dstarlya_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyn_val_MINI;
@@ -1804,12 +1810,13 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                         dstarlya_inj_dt_box[box_ct] += sfr_term*dstarlya_inj_dt_prefactor[R_ct] + sfr_term_mini*lyainj_factor_mini;
                     }
                     if(box_ct==0){
-                        LOG_SUPER_DEBUG("Cell0 R=%.1f || xh %.2e | xi %.2e | xl %.2e | sl %.2e | ct %.2e | ij %.2e",R_values[R_ct],dxheat_dt_box[box_ct],
+                        LOG_SUPER_DEBUG("Cell0 R=%.1f (%.3f) || xh %.2e | xi %.2e | xl %.2e | sl %.2e | ct %.2e | ij %.2e",R_values[R_ct],zpp_for_evolve_list[R_ct],dxheat_dt_box[box_ct],
                                         dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct],dstarlya_cont_dt_box[box_ct],dstarlya_inj_dt_box[box_ct]);
-                        LOG_SUPER_DEBUG("sl fac %.4e cont %.4e inj %.4e SFR %.4e",dstarlya_dt_prefactor[R_ct],
+                        LOG_SUPER_DEBUG("sl fac %.4e cont %.4e inj %.4e SFR %.4e (%.4e)",dstarlya_dt_prefactor[R_ct],
                                         dstarlya_cont_dt_prefactor[R_ct],
                                         dstarlya_inj_dt_prefactor[R_ct],
-                                        sfr_term);
+                                        sfr_term,
+                                        del_fcoll_Rct[box_ct]);
                     }
                 }
             }
