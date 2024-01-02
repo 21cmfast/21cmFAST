@@ -1806,7 +1806,10 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     if(box_ct==0){
                         LOG_SUPER_DEBUG("Cell0 R=%.1f || xh %.2e | xi %.2e | xl %.2e | sl %.2e | ct %.2e | ij %.2e",R_values[R_ct],dxheat_dt_box[box_ct],
                                         dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct],dstarlya_cont_dt_box[box_ct],dstarlya_inj_dt_box[box_ct]);
-                        LOG_SUPER_DEBUG("sl fac %.4e cont %.4e inj %.4e",dstarlya_dt_prefactor[R_ct],dstarlya_cont_dt_prefactor[R_ct],dstarlya_inj_dt_prefactor[R_ct]);
+                        LOG_SUPER_DEBUG("sl fac %.4e cont %.4e inj %.4e SFR %.4e",dstarlya_dt_prefactor[R_ct],
+                                        dstarlya_cont_dt_prefactor[R_ct],
+                                        dstarlya_inj_dt_prefactor[R_ct],
+                                        sfr_term);
                     }
                 }
             }
