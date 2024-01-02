@@ -432,6 +432,7 @@ void calculate_spectral_factors(double zp){
     double sum_lyn_prev = 0., sum_lyn_prev_MINI = 0.;
     double sum_ly2_prev = 0., sum_ly2_prev_MINI = 0.;
     double sum_lynto2_prev = 0., sum_lynto2_prev_MINI = 0.;
+    double prev_zpp;
     for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
         zpp = zpp_for_evolve_list[R_ct];
         //We need to set up prefactors for how much of Lyman-N radiation is recycled to Lyman-alpha
@@ -481,45 +482,30 @@ void calculate_spectral_factors(double zp){
         }
         sum_lyn_val = sum_ly2_val + sum_lynto2_val;
         sum_lyn_val_MINI = sum_ly2_val_MINI + sum_lynto2_val_MINI;
-        // Find if we need to add a partial contribution to a radii to avoid kinks in the Lyman-alpha flux
-        // As we look at discrete radii (light-cone redshift, zpp) we can have two radii where one has a
-        // contribution and the next (larger) radii has no contribution. However, if the number of filtering
-        // steps were infinitely large, we would have contributions between these two discrete radii
-        // Thus, this aims to add a weighted contribution to the first radii where this occurs to smooth out
-        // kinks in the average Lyman-alpha flux.
-
-        // Note: We do not apply this correction to the LW background as it is unaffected by this. It is only
-        // the Lyn contribution that experiences the kink. Applying this correction to LW introduces kinks
-        // into the otherwise smooth quantity
+        
+        //At the edge of the redshift limit, part of the shell will still contain a contribution
+        //  This loop approximates the volume which contains the contribution
+        //  and multiplies this by the previous shell's value.
+        //TODO: this should probably be done separately for ly2, lyto2, OR each lyN?
         if(R_ct > 1 && sum_lyn_val==0.0 && sum_lyn_prev>0. && first_radii) {
-            // The current zpp for which we are getting zero contribution
-            trial_zpp_max = (zpp_edge[R_ct-1] - (R_values[R_ct] - R_values[R_ct-1])*CMperMPC / drdz(zpp_edge[R_ct-1]) + zpp_edge[R_ct-1])*0.5;
-            // The zpp for the previous radius for which we had a non-zero contribution
-            trial_zpp_min = (zpp_edge[R_ct-2] - (R_values[R_ct-1] - R_values[R_ct-2])*CMperMPC / drdz(zpp_edge[R_ct-2])+zpp_edge[R_ct-2])*0.5;
-
-            // Split the previous radii and current radii into n_pts_radii smaller radii (redshift) to have fine control of where
-            // it transitions from zero to non-zero
-            // This is a coarse approximation as it assumes that the linear sampling is a good representation of the different
-            // volumes of the shells (from different radii).
             for(ii=0;ii<n_pts_radii;ii++) {
-                trial_zpp = trial_zpp_min + (trial_zpp_max - trial_zpp_min)*(float)ii/((float)n_pts_radii-1.);
+                trial_zpp = prev_zpp + (zpp - prev_zpp)*(float)ii/((float)n_pts_radii-1.);
                 counter = 0;
                 for (n_ct=NSPEC_MAX; n_ct>=2; n_ct--){
                     if (trial_zpp > zmax(zp, n_ct))
                         continue;
                     counter += 1;
                 }
+                //This is the first sub-radius which has no contribution
+                //Use this distance to weigh contribution at previous R
                 if(counter==0&&first_zero) {
                     first_zero = false;
                     weight = (float)ii/(float)n_pts_radii;
                 }
             }
-            // Now add a non-zero contribution to the previously zero contribution
-            // The amount is the weight, multplied by the contribution from the previous radii
             sum_lyn_val = weight * sum_lyn_prev;
             sum_ly2_val = weight * sum_ly2_prev;
             sum_lynto2_val = weight * sum_lynto2_prev;
-            //Apply same weight for sum_ly2 and sum_lynto2
             if (flag_options_ts->USE_MINI_HALOS){
                 sum_lyn_val_MINI = weight * sum_lyn_prev_MINI;
                 sum_ly2_val_MINI = weight * sum_ly2_prev_MINI;
@@ -546,10 +532,10 @@ void calculate_spectral_factors(double zp){
                 dstarlya_inj_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_lynto2_val_MINI;
             }
             
-            // LOG_DEBUG("starmini: %.2e LW: %.2e LWmini: %.2e",dstarlya_dt_prefactor_MINI[R_ct],
-            //                                             dstarlyLW_dt_prefactor[R_ct],
-            //                                             dstarlyLW_dt_prefactor_MINI[R_ct]);
-            // LOG_DEBUG("cont mini %.2e inj mini %.2e",dstarlya_cont_dt_prefactor_MINI[R_ct],dstarlya_inj_dt_prefactor_MINI[R_ct]);
+            LOG_SUPER_DEBUG("starmini: %.2e LW: %.2e LWmini: %.2e",dstarlya_dt_prefactor_MINI[R_ct],
+                                                        dstarlyLW_dt_prefactor[R_ct],
+                                                        dstarlyLW_dt_prefactor_MINI[R_ct]);
+            LOG_SUPER_DEBUG("cont mini %.2e inj mini %.2e",dstarlya_cont_dt_prefactor_MINI[R_ct],dstarlya_inj_dt_prefactor_MINI[R_ct]);
         }
 
         sum_lyn_prev = sum_lyn_val;
@@ -821,7 +807,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
                 }
             }
             LOG_SUPER_DEBUG("%d of %d heat: %.3e %.3e %.3e ion: %.3e %.3e %.3e lya: %.3e %.3e %.3e lower %.3e"
-                ,global_params.NUM_FILTER_STEPS_FOR_Ts,R_ct
+                ,R_ct,global_params.NUM_FILTER_STEPS_FOR_Ts
                 ,freq_int_heat_tbl[0][R_ct],freq_int_heat_tbl[x_int_NXHII/2][R_ct],freq_int_heat_tbl[x_int_NXHII-1][R_ct]
                 ,freq_int_ion_tbl[0][R_ct],freq_int_ion_tbl[x_int_NXHII/2][R_ct],freq_int_ion_tbl[x_int_NXHII-1][R_ct]
                 ,freq_int_lya_tbl[0][R_ct],freq_int_lya_tbl[x_int_NXHII/2][R_ct],freq_int_lya_tbl[x_int_NXHII-1][R_ct], lower_int_limit);
@@ -1355,7 +1341,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
     //NOTE: does this stop cooling if we ever go over the limit? I suppose that shouldn't happen but it's strange anyway
     Tk = rad->prev_Tk;
     if (Tk < MAX_TK)
-            Tk += (dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp + dCMBheat_dzp + eps_Lya_cont + eps_Lya_inj) * dzp;
+        Tk += (dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp + dCMBheat_dzp + eps_Lya_cont + eps_Lya_inj) * dzp;
     //spurious bahaviour of the trapazoidalintegrator. generally overcooling in underdensities
     if (Tk<0)
         Tk = consts->Trad;
@@ -1366,6 +1352,9 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
     double J_alpha_tot = rad->dstarlya_dt + rad->dxlya_dt; //not really d/dz, but the lya flux
     if(flag_options_ts->USE_MINI_HALOS){
         output.J_21_LW = rad->dstarLW_dt;
+    }
+    else{
+        output.J_21_LW = 0.;
     }
 
     // Note: to make the code run faster, the get_Ts function call to evaluate the spin temperature was replaced with the code below.
@@ -1812,11 +1801,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                     if(box_ct==0){
                         LOG_SUPER_DEBUG("Cell0 R=%.1f (%.3f) || xh %.2e | xi %.2e | xl %.2e | sl %.2e | ct %.2e | ij %.2e",R_values[R_ct],zpp_for_evolve_list[R_ct],dxheat_dt_box[box_ct],
                                         dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct],dstarlya_cont_dt_box[box_ct],dstarlya_inj_dt_box[box_ct]);
-                        LOG_SUPER_DEBUG("sl fac %.4e cont %.4e inj %.4e SFR %.4e (%.4e)",dstarlya_dt_prefactor[R_ct],
-                                        dstarlya_cont_dt_prefactor[R_ct],
-                                        dstarlya_inj_dt_prefactor[R_ct],
-                                        sfr_term,
-                                        del_fcoll_Rct[box_ct]);
                     }
                 }
             }
@@ -1866,6 +1850,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             this_spin_temp->x_e_box[box_ct] = ts_cell.x_e;
             this_spin_temp->J_21_LW_box[box_ct] = ts_cell.J_21_LW;
 
+            // Single cell debug
             if(box_ct==0){
                 LOG_SUPER_DEBUG("Cell0: delta: %.3e | xheat: %.3e | dxion: %.3e | dxlya: %.3e | dstarlya: %.3e",curr_delta
                     ,rad.dxheat_dt,rad.dxion_dt,rad.dxlya_dt,rad.dstarlya_dt);
