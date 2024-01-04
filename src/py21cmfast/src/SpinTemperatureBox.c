@@ -60,8 +60,9 @@ double Mlim_Fstar_g, Mlim_Fesc_g, Mlim_Fstar_MINI_g, Mlim_Fesc_MINI_g;
 // struct radii_spec r_s;
 
 bool TsInterpArraysInitialised = false;
+
+//a debug flag for printing results from a single cell
 int debug_printed;
-#pragma omp threadprivate(debug_printed)
 
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options,
@@ -835,45 +836,34 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
 
 //construct a Ts table above Z_HEAT_MAX, this can happen if we are computing the first box or if we
 //request a redshift above Z_HEAT_MAX
-void init_first_Ts(struct TsBox * box, float *dens, float z, float zp, double *x_e_ave, double *Tk_ave, bool prev_box){
+void init_first_Ts(struct TsBox * box, float *dens, float z, float zp, double *x_e_ave, double *Tk_ave){
     int box_ct;
     //zp is the requested redshift, z is the perturbed field redshift
     float growth_factor_zp;
     float inverse_growth_factor_z;
-    double xe, TK;
+    double xe, TK, cT_ad;
 
-    //TODO: its probably a good idea to force zp == Z_HEAT_MAX if prev_box
-    //prev_box means we enable the user options for xe and Tk, and don't calculate Ts
-    if(prev_box && global_params.XION_at_Z_HEAT_MAX > 0)
-        xe = global_params.XION_at_Z_HEAT_MAX;
-    else
-        xe = xion_RECFAST(zp,0);
-        
-    if(prev_box && global_params.TK_at_Z_HEAT_MAX > 0)
-        TK = global_params.TK_at_Z_HEAT_MAX;
-    else
-        TK = T_RECFAST(zp,0);
+    xe = xion_RECFAST(zp,0);
+    TK = T_RECFAST(zp,0);
+    cT_ad = cT_approx(zp);
 
-    //these could be moved out & passed as a ratio but surely this isn't a bottleneck
-    if(!prev_box){
-        growth_factor_zp = dicke(zp);
-        inverse_growth_factor_z = 1/dicke(z);
-    }
+    growth_factor_zp = dicke(zp);
+    inverse_growth_factor_z = 1/dicke(z);
+
     *x_e_ave = xe;
     *Tk_ave = TK;
 
 #pragma omp parallel private(box_ct) num_threads(user_params_ts->N_THREADS)
     {
+        double gdens;
         double curr_xalpha;
 #pragma omp for
         for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
-            box->Tk_box[box_ct] = TK;
+            gdens = dens[box_ct]*inverse_growth_factor_z*growth_factor_zp;
+            box->Tk_box[box_ct] = TK*(1.0 + cT_ad * gdens);
             box->x_e_box[box_ct] = xe;
             // compute the spin temperature
-            if(!prev_box){
-                box->Ts_box[box_ct] = get_Ts(z,dens[box_ct]*inverse_growth_factor_z*growth_factor_zp,
-                                            TK, xe, 0, &curr_xalpha);
-            }
+            box->Ts_box[box_ct] = get_Ts(z, gdens, TK, xe, 0, &curr_xalpha);
         }
     }
 }
@@ -1344,12 +1334,12 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
     //NOTE: does this stop cooling if we ever go over the limit? I suppose that shouldn't happen but it's strange anyway
     Tk = rad->prev_Tk;
     if (Tk < MAX_TK){
-        if(debug_printed==0){
+        if(debug_printed==0 && omp_get_thread_num()==0){
             LOG_SUPER_DEBUG("Heating Terms: T %.4e | X %.4e | c %.4e | S %.4e | A %.4e | c %.4e | lc %.4e | li %.4e | dz %.4e",
                                         Tk, dxheat_dzp, dcomp_dzp, dspec_dzp, dadia_dzp, dCMBheat_dzp, eps_Lya_cont, eps_Lya_inj, dzp);
         }
         Tk += (dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp + dCMBheat_dzp + eps_Lya_cont + eps_Lya_inj) * dzp;
-        if(debug_printed==0){
+        if(debug_printed==0 && omp_get_thread_num()==0){
             LOG_SUPER_DEBUG("--> T %.4e",Tk);
             debug_printed=1;
         }
@@ -1477,7 +1467,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     //TODO: z ~> zmax case and first_box setting should be done in wrapper initialisation
     if(redshift > global_params.Z_HEAT_MAX){
         LOG_DEBUG("redshift greater than Z_HEAT_MAX");
-        init_first_Ts(this_spin_temp,perturbed_field->density,perturbed_field_redshift,redshift,&x_e_ave_p,&Tk_ave_p,false);
+        init_first_Ts(this_spin_temp,perturbed_field->density,perturbed_field_redshift,redshift,&x_e_ave_p,&Tk_ave_p);
         return;
     }
     
@@ -1811,8 +1801,9 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                         dstarlya_inj_dt_box[box_ct] += sfr_term*dstarlya_inj_dt_prefactor[R_ct] + sfr_term_mini*lyainj_factor_mini;
                     }
                     if(box_ct==0){
-                        LOG_SUPER_DEBUG("Cell0 R=%.1f (%.3f) || xh %.2e | xi %.2e | xl %.2e | sl %.2e | ct %.2e | ij %.2e",R_values[R_ct],zpp_for_evolve_list[R_ct],dxheat_dt_box[box_ct],
-                                        dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct],dstarlya_cont_dt_box[box_ct],dstarlya_inj_dt_box[box_ct]);
+                        LOG_SUPER_DEBUG("Cell0 R=%.1f (%.3f) | d %.4e | SFR (%.4e,%.4e)",R_values[R_ct],zpp_for_evolve_list[R_ct],delta_box_input[box_ct],del_fcoll_Rct[box_ct],sfr_term);
+                        LOG_SUPER_DEBUG("xh %.2e | xi %.2e | xl %.2e | sl %.2e | ct %.2e | ij %.2e",dxheat_dt_box[box_ct]/astro_params->L_X,
+                                        dxion_source_dt_box[box_ct]/astro_params->L_X,dxlya_dt_box[box_ct]/astro_params->L_X,dstarlya_dt_box[box_ct],dstarlya_cont_dt_box[box_ct],dstarlya_inj_dt_box[box_ct]);
                     }
                 }
             }

@@ -206,10 +206,12 @@ class GlobalParams(StructInstanceWrapper):
         If positive, then overwrite default boundary conditions for the evolution
         equations with this value. The default is to use the value obtained from RECFAST.
         See also `XION_at_Z_HEAT_MAX`.
+        JD: This has been removed in the C code, RECFAST is always called
     XION_at_Z_HEAT_MAX : float
         If positive, then overwrite default boundary conditions for the evolution
         equations with this value. The default is to use the value obtained from RECFAST.
         See also `TK_at_Z_HEAT_MAX`.
+        JD: This has been removed in the C code, RECFAST is always called
     Pop : int
         Stellar Population responsible for early heating (2 or 3)
     Pop2_ion : float
