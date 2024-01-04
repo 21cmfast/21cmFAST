@@ -60,6 +60,8 @@ double Mlim_Fstar_g, Mlim_Fesc_g, Mlim_Fstar_MINI_g, Mlim_Fesc_MINI_g;
 // struct radii_spec r_s;
 
 bool TsInterpArraysInitialised = false;
+int debug_printed;
+#pragma omp threadprivate(debug_printed)
 
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options,
@@ -82,6 +84,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
     Broadcast_struct_global_TS(user_params,cosmo_params,astro_params,flag_options);
     Broadcast_struct_global_IT(user_params);
     omp_set_num_threads(user_params->N_THREADS);
+    debug_printed = 0;
 
     //TODO: rename to ts_main or move here with some allocation functions etc
     ts_halos(redshift,prev_redshift,user_params,cosmo_params,astro_params,flag_options,perturbed_field_redshift,
@@ -1340,8 +1343,17 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
         x_e = 0;
     //NOTE: does this stop cooling if we ever go over the limit? I suppose that shouldn't happen but it's strange anyway
     Tk = rad->prev_Tk;
-    if (Tk < MAX_TK)
+    if (Tk < MAX_TK){
+        if(debug_printed==0){
+            LOG_SUPER_DEBUG("Heating Terms: T %.4e | X %.4e | c %.4e | S %.4e | A %.4e | c %.4e | lc %.4e | li %.4e | dz %.4e",
+                                        Tk, dxheat_dzp, dcomp_dzp, dspec_dzp, dadia_dzp, dCMBheat_dzp, eps_Lya_cont, eps_Lya_inj, dzp);
+        }
         Tk += (dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp + dCMBheat_dzp + eps_Lya_cont + eps_Lya_inj) * dzp;
+        if(debug_printed==0){
+            LOG_SUPER_DEBUG("--> T %.4e",Tk);
+            debug_printed=1;
+        }
+    }
     //spurious bahaviour of the trapazoidalintegrator. generally overcooling in underdensities
     if (Tk<0)
         Tk = consts->Trad;
