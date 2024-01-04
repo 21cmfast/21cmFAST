@@ -1174,6 +1174,7 @@ struct Ts_zp_consts{
     double xc_inverse; //collisional prefactor
     double dcomp_dzp_prefactor; //compton prefactor
     double Nb_zp; //physical critical density
+    double N_zp; //physical critical density
     double lya_star_prefactor; //converts SFR density -> stellar baryon density + prefactors
     double volunit_inv; //inverse volume unit for cm^-3 conversion
     double hubble_zp; //H(z)
@@ -1224,6 +1225,7 @@ void set_zp_consts(double zp, struct Ts_zp_consts *consts){
     consts->dcomp_dzp_prefactor = (-1.51e-4)/(hubble(zp)/Ho)/(cosmo_params_ts->hlittle)*pow(consts->Trad,4.0)/(1.0+zp);
 
     consts->Nb_zp = N_b0 * (1+zp)*(1+zp)*(1+zp); //used for lya_X and sinks NOTE: the 2 density factors are from source & absorber since its downscattered x-ray
+    consts->N_zp = No * (1+zp)*(1+zp)*(1+zp); //used for CMB 
     consts->lya_star_prefactor = C / FOURPI * Msun / m_p * (1 - 0.75*global_params.Y_He); //converts SFR density -> stellar baryon density + prefactors
     
     //converts the grid emissivity unit to per cm-3
@@ -1278,10 +1280,12 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
     struct Ts_cell output;
     double tau21,xCMB,dxion_sink_dt,dxe_dzp,dadia_dzp,dspec_dzp,dcomp_dzp,dxheat_dzp;
     double dCMBheat_dzp,eps_CMB,eps_Lya_cont,eps_Lya_inj,E_continuum,E_injected,Ndot_alpha_cont,Ndot_alpha_inj;
-    tau21 = (3*hplank*A10_HYPERFINE*C*Lambda_21*Lambda_21/32./PI/k_B) * ((1-rad->prev_xe)*consts->Nb_zp)/rad->prev_Ts/consts->hubble_zp;
+
+    tau21 = (3*hplank*A10_HYPERFINE*C*Lambda_21*Lambda_21/32./PI/k_B) * ((1-rad->prev_xe)*consts->N_zp)/rad->prev_Ts/consts->hubble_zp;
     xCMB = (1. - exp(-tau21))/tau21;
     
     // First let's do dxe_dzp //
+    //NOTE: Nb_zp includes helium, TODO: make sure this is right
     dxion_sink_dt = alpha_A(rad->prev_Tk) * global_params.CLUMPING_FACTOR * rad->prev_xe*rad->prev_xe * f_H * consts->Nb_zp * \
                     (1.+rad->delta);
                     
