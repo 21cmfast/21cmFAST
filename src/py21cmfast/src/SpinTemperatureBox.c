@@ -1186,6 +1186,7 @@ void set_zp_consts(double zp, struct Ts_zp_consts *consts){
     //constant prefactors for the R_ct==0 part
     LOG_DEBUG("Setting zp constants");
     double Luminosity_converstion_factor;
+    double gamma_alpha;
     if(fabs(astro_params_ts->X_RAY_SPEC_INDEX - 1.0) < 1e-6) {
         Luminosity_converstion_factor = (astro_params_ts->NU_X_THRESH)*NU_over_EV * log( global_params.NU_X_BAND_MAX/(astro_params_ts->NU_X_THRESH) );
         Luminosity_converstion_factor = 1./Luminosity_converstion_factor;
@@ -1210,7 +1211,13 @@ void set_zp_consts(double zp, struct Ts_zp_consts *consts){
     consts->Trad = T_cmb*(1.0+zp);
     consts->Trad_inv = 1.0/consts->Trad;
     consts->Ts_prefactor = pow(1.0e-7*(1.342881e-7 / hubble(zp))*No*pow(1+zp,3),1./3.);
-    consts->xa_tilde_prefactor = 1.66e11/(1.0+zp);
+
+    gamma_alpha = f_alpha*pow(Ly_alpha_HZ*e_charge/(C/10.),2.); // division of C/10. is converstion of electric charge from esu to coulomb
+    gamma_alpha /= 6.*(m_e/1000.)*pow(C/100.,3.)*vac_perm; //division by 1000. to convert gram to kg and division by 100. to convert cm to m
+
+    consts->xa_tilde_prefactor = 8.*PI*pow(Ly_alpha_ANG*1.e-8,2.)*gamma_alpha*T21; //1e-8 converts angstrom to cm.
+    consts->xa_tilde_prefactor /= 9.*A10_HYPERFINE*consts->Trad;
+    // consts->xa_tilde_prefactor = 1.66e11/(1.0+zp);
 
     consts->xc_inverse =  pow(1.0+zp,3.0)*T21/(consts->Trad*A10_HYPERFINE);
 
@@ -1334,15 +1341,13 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
     //NOTE: does this stop cooling if we ever go over the limit? I suppose that shouldn't happen but it's strange anyway
     Tk = rad->prev_Tk;
     if (Tk < MAX_TK){
-        if(debug_printed==0 && omp_get_thread_num()==0){
+        if(debug_printed==0 && omp_get_thread_num()==0)
             LOG_SUPER_DEBUG("Heating Terms: T %.4e | X %.4e | c %.4e | S %.4e | A %.4e | c %.4e | lc %.4e | li %.4e | dz %.4e",
                                         Tk, dxheat_dzp, dcomp_dzp, dspec_dzp, dadia_dzp, dCMBheat_dzp, eps_Lya_cont, eps_Lya_inj, dzp);
-        }
+
         Tk += (dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp + dCMBheat_dzp + eps_Lya_cont + eps_Lya_inj) * dzp;
-        if(debug_printed==0 && omp_get_thread_num()==0){
+        if(debug_printed==0 && omp_get_thread_num()==0)
             LOG_SUPER_DEBUG("--> T %.4e",Tk);
-            debug_printed=1;
-        }
     }
     //spurious bahaviour of the trapazoidalintegrator. generally overcooling in underdensities
     if (Tk<0)
@@ -1350,14 +1355,9 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
 
     output.x_e = x_e;
     output.Tk = Tk;
+    output.J_21_LW = flag_options_ts->USE_MINI_HALOS ? rad->dstarLW_dt : 0.;
 
     double J_alpha_tot = rad->dstarlya_dt + rad->dxlya_dt; //not really d/dz, but the lya flux
-    if(flag_options_ts->USE_MINI_HALOS){
-        output.J_21_LW = rad->dstarLW_dt;
-    }
-    else{
-        output.J_21_LW = 0.;
-    }
 
     // Note: to make the code run faster, the get_Ts function call to evaluate the spin temperature was replaced with the code below.
     // Algorithm is the same, but written to be more computationally efficient
@@ -1368,7 +1368,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
     double T_inv, T_inv_sq, xc_fast,xi_power,xa_tilde_fast_arg;
     double xa_tilde_fast, TS_fast, TSold_fast;
     T_inv = 1/Tk;
-    T_inv_sq = T_inv*T_inv;
+    T_inv_sq = T_inv*T_inv; //different
 
     xc_fast = (1.0+rad->delta)*consts->xc_inverse*\
             ( (1.0-x_e)*No*kappa_10(Tk,0) + x_e*N_b0*kappa_10_elec(Tk,0) + x_e*No*kappa_10_pH(Tk,0) );
@@ -1384,7 +1384,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
             TSold_fast = TS_fast;
 
             xa_tilde_fast = ( 1.0 - 0.0631789*T_inv + 0.115995*T_inv_sq - \
-                            0.401403*T_inv*pow(TS_fast,-1.) + 0.336463*T_inv_sq*pow(TS_fast,-1.) )*xa_tilde_fast_arg;
+                                    0.401403*T_inv*pow(TS_fast,-1.) + 0.336463*T_inv_sq*pow(TS_fast,-1.) )*xa_tilde_fast_arg;
 
             TS_fast = (xCMB+xa_tilde_fast+xc_fast)*pow(xCMB*consts->Trad_inv+xa_tilde_fast*\
                                 ( T_inv + 0.405535*T_inv*pow(TS_fast,-1.) - 0.405535*T_inv_sq ) + xc_fast*T_inv,-1.);
@@ -1392,6 +1392,10 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
     } else { // Collisions only
         TS_fast = (xCMB + xc_fast)/(xCMB*consts->Trad_inv + xc_fast*T_inv);
         xa_tilde_fast = 0.0;
+    }
+    if(debug_printed==0 && omp_get_thread_num()==0){
+        LOG_SUPER_DEBUG("Spin terms xc %.5e xa %.5e xC %.5e Ti %.5e T2 %.5e --> T %.4e",xc_fast,xa_tilde_fast_arg,xCMB,T_inv,T_inv_sq,TS_fast);
+        debug_printed=1;
     }
     if(TS_fast < 0.) {
         // It can very rarely result in a negative spin temperature. If negative, it is a very small number.
@@ -1406,6 +1410,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
 
 //outer-level function for calculating Ts based on the Halo boxes
 //TODO: make sure redshift (zp), perturbed_field_redshift, zpp all consistent
+//NOTE: some single-value floats have been changed to doubles resulting in 5th decimal place differences
 //THE !USE_MASS_DEPENDENT_ZETA case used to differ in a few ways, I'm logging them here just in case:
 //  - The delNL0 array was reversed [box_ct][R_ct], i.e it was filled in a strided manner and the
 //      R loop for the Ts calculation was inner. There are two implications, the first being that it's
@@ -1863,7 +1868,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                 if(flag_options_ts->USE_MINI_HALOS){
                     LOG_SUPER_DEBUG("LyW %.3e",rad.dstarLW_dt);
                 }
-                LOG_SUPER_DEBUG("Ts %.3e Tk %.3e x_e %.3e J_21_LW %.3e",ts_cell.Ts,ts_cell.Tk,ts_cell.x_e,ts_cell.J_21_LW);
+                LOG_SUPER_DEBUG("Ts %.5e Tk %.5e x_e %.5e J_21_LW %.5e",ts_cell.Ts,ts_cell.Tk,ts_cell.x_e,ts_cell.J_21_LW);
             }
             
             if(LOG_LEVEL >= DEBUG_LEVEL){
