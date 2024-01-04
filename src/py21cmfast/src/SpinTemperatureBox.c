@@ -1319,7 +1319,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
             E_injected = 0.;
         }
         Ndot_alpha_cont = (4.*PI*Ly_alpha_HZ) / (consts->Nb_zp*(1.+rad->delta))/(1.+zp)/C * rad->dstarlya_cont_dt;
-        Ndot_alpha_inj = (4.*PI*Ly_alpha_HZ) / (consts->Nb_zp*(1.+rad->delta))/(1.+zp)/C * rad->dstarlya_cont_dt;
+        Ndot_alpha_inj = (4.*PI*Ly_alpha_HZ) / (consts->Nb_zp*(1.+rad->delta))/(1.+zp)/C * rad->dstarlya_inj_dt;
         eps_Lya_cont = - Ndot_alpha_cont * E_continuum * (2./3./k_B/(1. + rad->prev_xe));
         eps_Lya_inj = - Ndot_alpha_inj * E_injected * (2./3./k_B/(1. + rad->prev_xe));
     }
