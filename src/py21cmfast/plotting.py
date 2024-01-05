@@ -96,7 +96,7 @@ def _imshow_slice(
         slc = slc.T
 
     if cmap == "EoR":
-        imshow_kw["norm"] = colors.Normalize(vmin=-150,vmax=30)
+        imshow_kw["norm"] = colors.Normalize(vmin=-150, vmax=30)
 
     norm_kw = {k: imshow_kw.pop(k) for k in ["vmin", "vmax"] if k in imshow_kw}
     norm = imshow_kw.pop(
@@ -109,19 +109,22 @@ def _imshow_slice(
         ax_short = np.amin(slc.shape)
         asp = 40 if cbar_horizontal == rotate else 10
         if cbar_horizontal == rotate:
-            #long edge colorbar
-            frac = ax_long/(asp*ax_short + ax_long)
+            # long edge colorbar
+            frac = ax_long / (asp * ax_short + ax_long)
             pad = 0.10
         else:
-            #short edge colorbar
-            frac = ax_short/(asp*ax_long + ax_short)
+            # short edge colorbar
+            frac = ax_short / (asp * ax_long + ax_short)
             pad = 0.05
 
         cb = plt.colorbar(
             orientation="horizontal" if cbar_horizontal else "vertical",
-            aspect=asp, ax=ax, fraction=frac, pad=pad
+            aspect=asp,
+            ax=ax,
+            fraction=frac,
+            pad=pad,
         )
-        #cb.outline.set_edgecolor(None)
+        # cb.outline.set_edgecolor(None)
 
     return fig, ax
 
@@ -222,7 +225,7 @@ def lightcone_sliceplot(
     zticks: str = "redshift",
     fig: plt.Figure | None = None,
     ax: plt.Axes | None = None,
-    z_max = None,
+    z_max=None,
     **kwargs,
 ):
     """Create a 2D plot of a slice through a lightcone.
@@ -268,14 +271,17 @@ def lightcone_sliceplot(
         "y": 2 if z_axis == "y" else [1, 0, 1][slice_axis],
     }
 
-    plot_shape = [lightcone.shape[axis_dct["x"]],lightcone.shape[axis_dct["y"]]]
-    plot_crd = [lightcone.lightcone_dimensions[axis_dct["x"]],lightcone.lightcone_dimensions[axis_dct["y"]]]
+    plot_shape = [lightcone.shape[axis_dct["x"]], lightcone.shape[axis_dct["y"]]]
+    plot_crd = [
+        lightcone.lightcone_dimensions[axis_dct["x"]],
+        lightcone.lightcone_dimensions[axis_dct["y"]],
+    ]
     plot_sel = Ellipsis
-    if z_max is not None and slice_axis in (0,1):
+    if z_max is not None and slice_axis in (0, 1):
         zmax_idx = np.argmin(np.fabs(z_max - lightcone.lightcone_redshifts))
         plot_shape[1 if vertical else 0] = zmax_idx
         plot_crd[1 if vertical else 0] = lightcone.lightcone_coords[zmax_idx]
-        plot_sel = slice(0,zmax_idx,1)
+        plot_sel = slice(0, zmax_idx, 1)
 
     if fig is None and ax is None:
         fig, ax = plt.subplots(
@@ -283,8 +289,7 @@ def lightcone_sliceplot(
             1,
             figsize=(
                 plot_shape[0] * 0.015 + 0.5,
-                plot_shape[1] * 0.015
-                + (2.5 if kwargs.get("cbar", True) else 0.05),
+                plot_shape[1] * 0.015 + (2.5 if kwargs.get("cbar", True) else 0.05),
             ),
         )
     elif fig is None:
@@ -313,7 +318,7 @@ def lightcone_sliceplot(
     cbar_horizontal = kwargs.pop("cbar_horizontal", not vertical)
     if lightcone2 is None:
         fig, ax = _imshow_slice(
-            getattr(lightcone, kind)[:,:,plot_sel],
+            getattr(lightcone, kind)[:, :, plot_sel],
             extent=extent,
             slice_axis=slice_axis,
             rotate=not vertical,
@@ -324,7 +329,9 @@ def lightcone_sliceplot(
             **kwargs,
         )
     else:
-        d = (getattr(lightcone, kind)[plot[sel]] - getattr(lightcone2, kind))[:,:,plot_sel]
+        d = (getattr(lightcone, kind)[plot[sel]] - getattr(lightcone2, kind))[
+            :, :, plot_sel
+        ]
         fig, ax = _imshow_slice(
             d,
             extent=extent,
@@ -432,7 +439,7 @@ def plot_global_history(
     ylog: bool = False,
     ax: plt.Axes | None = None,
     zmax: float | None = None,
-    **kwargs
+    **kwargs,
 ):
     """
     Plot the global history of a given quantity from a lightcone.

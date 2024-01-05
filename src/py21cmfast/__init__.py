@@ -23,13 +23,13 @@ from ._logging import configure_logging
 from .cache_tools import query_cache
 from .outputs import (
     Coeval,
+    HaloBox,
     InitialConditions,
     IonizedBox,
-    HaloBox,
-    XraySourceBox,
     LightCone,
     PerturbedField,
     TsBox,
+    XraySourceBox,
 )
 from .wrapper import (
     AstroParams,
@@ -46,15 +46,15 @@ from .wrapper import (
     determine_halo_list,
     get_all_fieldnames,
     global_params,
+    halo_box,
     initial_conditions,
     ionize_box,
-    halo_box,
-    xray_source,
     perturb_field,
     perturb_halo_list,
     run_coeval,
     run_lightcone,
     spin_temperature,
+    xray_source,
 )
 
 configure_logging()

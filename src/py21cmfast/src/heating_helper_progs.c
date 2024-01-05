@@ -685,11 +685,11 @@ double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
     if(user_params_hf->USE_INTERPOLATION_TABLES){
         if(flag_options_hf->USE_MASS_DEPENDENT_ZETA)
             return EvaluateRGTable1D(redshift,Nion_z_val,determine_zpp_min,zpp_bin_width);
-            
+
         // LOG_DEBUG("returning FgtrM at z=%.2e bmin/wid = %.2e %.2e",redshift,zmin_1DTable,zbin_width_1DTable);
         return EvaluateRGTable1D(redshift,FgtrM_1DTable_linear,zmin_1DTable,zbin_width_1DTable);
     }
-    
+
     //minihalos uses a different turnover mass
     if(flag_options_hf->USE_MINI_HALOS)
         return Nion_General(redshift, global_params.M_MIN_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
@@ -697,10 +697,10 @@ double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
     if(flag_options_hf->USE_MASS_DEPENDENT_ZETA)
         return Nion_General(redshift, global_params.M_MIN_INTEGRAL, astro_params_hf->M_TURN, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
                             astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
-    
+
     if(flag_options_hf->M_MIN_in_Mass)
         return FgtrM_General(redshift, astro_params_hf->M_TURN);
-    
+
     return FgtrM_General(redshift, minimum_source_mass(redshift,astro_params_hf,flag_options_hf));
 }
 
@@ -723,7 +723,7 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar){
         //same table as Nion, due to no mass dependence
         return EvaluateRGTable1D(redshift,FgtrM_1DTable_linear,zmin_1DTable,zbin_width_1DTable);
     }
-        
+
     //minihalos uses a different turnover mass
     if(flag_options_hf->USE_MINI_HALOS)
         return Nion_General(redshift, global_params.M_MIN_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_hf->ALPHA_STAR, 0.,
@@ -732,10 +732,10 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar){
     if(flag_options_hf->USE_MASS_DEPENDENT_ZETA)
         return Nion_General(redshift, global_params.M_MIN_INTEGRAL, astro_params_hf->M_TURN, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
                             astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, 0);
-    
+
     if(flag_options_hf->M_MIN_in_Mass)
         return FgtrM(redshift, (astro_params_hf->M_TURN)/50.);
-    
+
     return FgtrM(redshift, minimum_source_mass(redshift,astro_params_hf,flag_options_hf));
 }
 
@@ -912,7 +912,7 @@ double tauX_integrand(double zhat, void *params){
     nuhat = p->nu_0 * (1+zhat);
 
     fcoll = EvaluateNionTs(zhat,p->Mlim_Fstar,p->Mlim_Fesc);
-    
+
     if (fcoll < 1e-20)
         HI_filling_factor_zhat = 1;
     else

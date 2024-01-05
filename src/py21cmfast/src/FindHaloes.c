@@ -209,7 +209,7 @@ LOG_DEBUG("Prepare to filter to find halos");
             // *****************  END OPTIMIZATION ***************** //
             // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
             dn=0;
-            
+
             //TODO: Fix the race condition propertly to thread: it doesn't matter which thread finds the halo first
             //  but if two threads find a halo in the same region simultaneously (before the first one updates in_halo) some halos could double-up
             //checking for overlaps in new halos after this loop could work, but I would have to calculate distances between all new halos which sounds slow
@@ -226,7 +226,7 @@ LOG_DEBUG("Prepare to filter to find halos");
                             index_c = R_FFT_INDEX(x,y,z);
                             index_r = R_INDEX(x,y,z);
                         }
-                        
+
                         delta_m = *((float *)density_field + index_c) * growth_factor / num_pixels;
 
                         // if not within a larger halo, and radii don't overlap, update in_halo box
@@ -246,7 +246,7 @@ LOG_DEBUG("Prepare to filter to find halos");
                         }
                         // *****************  END OPTIMIZATION ***************** //
                         else {
-                            if ((delta_m > delta_crit) && !in_halo[index_r] && !check_halo(in_halo, user_params, res_flag, R, x,y,z,1)){ // we found us a "new" halo!                            
+                            if ((delta_m > delta_crit) && !in_halo[index_r] && !check_halo(in_halo, user_params, res_flag, R, x,y,z,1)){ // we found us a "new" halo!
                                 LOG_ULTRA_DEBUG("Halo found at (%d,%d,%d) ir %d if %d, delta = %.4f",x,y,z,index_r,index_c,delta_m);
                                 LOG_ULTRA_DEBUG("IR %d IC %d val %.4f R %.3e M %.3e",R_INDEX(x,y,z),R_FFT_INDEX(x,y,z),
                                             *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / num_pixels,
@@ -347,7 +347,7 @@ LOG_DEBUG("Prepare to filter to find halos");
 #pragma omp barrier
 
             LOG_SUPER_DEBUG("Thread %d has %d of %d halos, concatenating (starting at %d)...",threadnum,counter,total_halo_num,istart_local[threadnum]);
-            
+
             //copy each local array into the struct
             memcpy(halos_large->halo_masses + istart_local[threadnum],local_masses,counter*sizeof(float));
             memcpy(halos_large->halo_coords + istart_local[threadnum]*3,local_coords,counter*sizeof(int)*3);
@@ -504,7 +504,7 @@ void init_halo_coords(struct HaloField *halos, int n_halos){
     halos->n_halos = n_halos;
     halos->halo_masses = (float *)calloc(n_halos,sizeof(float));
     halos->halo_coords = (int *)calloc(3*n_halos,sizeof(int));
-    
+
     halos->star_rng = (float *) calloc(n_halos,sizeof(float));
     halos->sfr_rng = (float *) calloc(n_halos,sizeof(float));
 }

@@ -159,7 +159,7 @@ struct TsBox{
 struct XraySourceBox{
     float *filtered_sfr;
     float *filtered_sfr_mini;
-    
+
     double *mean_log10_Mcrit_LW; //TODO: remove when TauX uses global structures
     double *mean_sfr; //TODO: remove when TauX uses global structures
     double *mean_sfr_mini; //TODO: remove when TauX uses global structures

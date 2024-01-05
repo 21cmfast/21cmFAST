@@ -90,7 +90,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
     //TODO: rename to ts_main or move here with some allocation functions etc
     ts_halos(redshift,prev_redshift,user_params,cosmo_params,astro_params,flag_options,perturbed_field_redshift,
             cleanup,perturbed_field,source_box,previous_spin_temp,ini_boxes,this_spin_temp);
-    
+
     destruct_heat();
 
     // This is an entire re-write of Ts.c from 21cmFAST. You can refer back to Ts.c in 21cmFAST if this become a little obtuse. The computation has remained the same //
@@ -106,10 +106,10 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 /* JDAVIES: I'm setting up a refactor here for the Halo option, but plan to move over the rest afterwards
  * This is convenient because calculating TS from the Halo Field won't use most of the above code, which is
  * dedicated to setting up the HMF integrals. I want to abstract into smaller parts e.g: filling tables, nu integrals
- * as well as have separate high-level functions (ts_halo,ts_fcoll,ts_massdep_zeta) so that each flag case can 
+ * as well as have separate high-level functions (ts_halo,ts_fcoll,ts_massdep_zeta) so that each flag case can
  * allocate and use what it needs while staying readable. Afterwards I would also want to replace most of the global
  * variables with static structs, so that things are scoped properly.*/
- 
+
 //OTHER NOTES:
 //Assuming that the same redshift (or within 0.0001) isn't called twice in a row (which it shouldn't be because caching), the global tables (Nion,SFRD)
 //  We may want to not use tables for global SFRD and Nion (would require a change in nu_tau_one)
@@ -145,12 +145,12 @@ void alloc_global_arrays(){
     dzpp_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
     dtdz_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
     R_values = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-    
+
     sigma_min = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
     sigma_max = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
     M_min_R = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
     M_max_R = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-    
+
     //frequency integral tables
     freq_int_heat_tbl = (double **)calloc(x_int_NXHII,sizeof(double *));
     freq_int_ion_tbl = (double **)calloc(x_int_NXHII,sizeof(double *));
@@ -197,8 +197,8 @@ void alloc_global_arrays(){
             dstarlya_inj_dt_prefactor_MINI = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
         }
     }
-    
-    
+
+
     //Nonhalo stuff
     //TODO: move interp tables to the other framework in interpolation.c
     int num_R_boxes = user_params_ts->MINIMIZE_MEMORY ? 1 : global_params.NUM_FILTER_STEPS_FOR_Ts;
@@ -213,7 +213,7 @@ void alloc_global_arrays(){
                 log10_Mcrit_LW[i] = (float *)calloc(HII_TOT_NUM_PIXELS, sizeof(float));
             }
         }
-        
+
         del_fcoll_Rct =  calloc(HII_TOT_NUM_PIXELS,sizeof(float));
         if(flag_options_ts->USE_MINI_HALOS){
             del_fcoll_Rct_MINI = calloc(HII_TOT_NUM_PIXELS,sizeof(float));
@@ -252,14 +252,14 @@ void alloc_global_arrays(){
             }
         }
     }
-    
+
     //helpers for the interpolation
     m_xHII_low_box = (int *)calloc(HII_TOT_NUM_PIXELS,sizeof(int));
     inverse_val_box = (float *)calloc(HII_TOT_NUM_PIXELS,sizeof(float));
     if(flag_options_ts->USE_MINI_HALOS){
         Mcrit_atom_interp_table = (float *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
     }
-    
+
     TsInterpArraysInitialised = true;
 }
 
@@ -340,7 +340,7 @@ void free_global_arrays(){
             free(delNL0[i]);
         }
         free(delNL0);
-        
+
         if(flag_options_ts->USE_MINI_HALOS){
             for(i=0;i<num_R_boxes;i++) {
                 free(log10_Mcrit_LW[i]);
@@ -365,14 +365,14 @@ void free_global_arrays(){
                 free(log10_SFRD_z_low_table[j]);
             }
             free(log10_SFRD_z_low_table);
-            
+
             for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
                 free(SFRD_z_high_table[j]);
             }
             free(SFRD_z_high_table);
         }
     }
-    
+
     TsInterpArraysInitialised = false;
 }
 
@@ -387,7 +387,7 @@ void setup_z_edges(double zp){
 
     R = L_FACTOR*user_params_ts->BOX_LEN/(float)user_params_ts->HII_DIM;
     R_factor = pow(global_params.R_XLy_MAX/R, 1/((float)global_params.NUM_FILTER_STEPS_FOR_Ts));
-    
+
     for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
         R_values[R_ct] = R;
         if(R_ct==0){
@@ -556,7 +556,7 @@ void calculate_spectral_factors(double zp){
 void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, float *input_j21, fftwf_complex *output_dens, fftwf_complex *output_LW){
     int i,j,k,ct;
     double curr_vcb,curr_j21,M_buf;
-    
+
     //TODO: Meraxes just applies a pointer cast box = (fftwf_complex *) input. Figure out why this works,
     //      They pad the input by a factor of 2 to cover the complex part, but from the type I thought it would be stored [(r,c),(r,c)...]
     //      Not [(r,r,r,r....),(c,c,c....)] so the alignment should be wrong, right?
@@ -598,7 +598,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
         for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
             output_LW[ct] /= (float)HII_TOT_NUM_PIXELS;
         }
-    }      
+    }
 }
 
 
@@ -620,7 +620,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double * R_a
             max_out_R = -1e20;
             // copy over unfiltered box
             memcpy(box, unfiltered_box, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-            
+
             // don't filter on cell size
             if (R > L_FACTOR*(user_params_ts->BOX_LEN / user_params_ts->HII_DIM)){
                 filter_box(box, 1, global_params.HEAT_FILTER, R);
@@ -641,7 +641,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double * R_a
 
                             //NOTE: Min value is on the grid BEFORE constant factor
                             // correct for aliasing in the filtering step
-                            if (curr < min_value){ 
+                            if (curr < min_value){
                                 curr = min_value;
                             }
 
@@ -755,7 +755,7 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
             LOG_DEBUG("finished XraySourceBox");
         }
         // LOG_DEBUG("R = %8.3f | mean sfr = %10.3e (%10.3e MINI)",R_outer,fsfr_avg/HII_TOT_NUM_PIXELS,fsfr_avg_mini/HII_TOT_NUM_PIXELS);
-        
+
         fftwf_free(filtered_box);
         fftwf_free(unfiltered_box);
         fftwf_free(filtered_box_mini);
@@ -802,7 +802,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
                 freq_int_heat_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 0);
                 freq_int_ion_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 1);
                 freq_int_lya_tbl[x_e_ct][R_ct] = integrate_over_nu(zp, x_int_XHII[x_e_ct], lower_int_limit, 2);
-        
+
                 //we store these to avoid calculating them in the box_ct loop
                 if(x_e_ct > 0){
                     freq_int_heat_tbl_diff[x_e_ct-1][R_ct] = freq_int_heat_tbl[x_e_ct][R_ct] - freq_int_heat_tbl[x_e_ct-1][R_ct];
@@ -879,9 +879,9 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     double sum_nion=0,sum_sfr=0,sum_mass=0,sum_nion_mini=0;
     double Q;
     double zpp;
-    
+
     double log10_Mcrit_width = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
-    
+
     //For a lot of global evolution, this code uses Nion_general. We can replace this with the halo field
     //at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1 barrier
     //so it needs the QHII in a range [zp,zpp]. I want to replace this whole thing with a global history struct but
@@ -933,7 +933,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
             mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp,log10_Mcrit_LW_ave[R_ct],Mlim_Fstar_MINI_g);
         }
     }
-    
+
     LOG_DEBUG("sfrd zpp = %.3e (%.3e MINI) --> %.3e (%.3e MINI)",mean_sfr_zpp[0],mean_sfr_zpp_mini[0],
                 mean_sfr_zpp[R_ct],mean_sfr_zpp_mini[R_ct]);
 
@@ -992,7 +992,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
             fcoll_interp_bin_width_inv = 1./fcoll_interp_bin_width;
         }
     }
-    
+
     // LOG_DEBUG("Got table limits / mass limits");
     #pragma omp parallel num_threads(user_params_ts->N_THREADS)
     {
@@ -1205,7 +1205,7 @@ void set_zp_consts(double zp, struct Ts_zp_consts *consts){
     //for halos, we just want the SFR -> X-ray part
     //NOTE: compared to Mesinger+11: (1+zpp)^2 (1+zp) -> (1+zp)^3
     consts->xray_prefactor = Luminosity_converstion_factor / ((astro_params_ts->NU_X_THRESH)*NU_over_EV) \
-                            * C * pow(1+zp, astro_params_ts->X_RAY_SPEC_INDEX + 3); //(1+z)^3 is here because we don't want it in the star lya (already in zpp integrand)                     
+                            * C * pow(1+zp, astro_params_ts->X_RAY_SPEC_INDEX + 3); //(1+z)^3 is here because we don't want it in the star lya (already in zpp integrand)
 
     // Required quantities for calculating the IGM spin temperature
     // Note: These used to be determined in evolveInt (and other functions). But I moved them all here, into a single location.
@@ -1227,14 +1227,14 @@ void set_zp_consts(double zp, struct Ts_zp_consts *consts){
     consts->Nb_zp = N_b0 * (1+zp)*(1+zp)*(1+zp); //used for lya_X and sinks NOTE: the 2 density factors are from source & absorber since its downscattered x-ray
     consts->N_zp = No * (1+zp)*(1+zp)*(1+zp); //used for CMB 
     consts->lya_star_prefactor = C / FOURPI * Msun / m_p * (1 - 0.75*global_params.Y_He); //converts SFR density -> stellar baryon density + prefactors
-    
+
     //converts the grid emissivity unit to per cm-3
     if(flag_options_ts->USE_HALO_FIELD){
         consts->volunit_inv = pow(CMperMPC,-3); //changes to emissivity per cm-3
     }
     else{
         consts->volunit_inv = cosmo_params_ts->OMb * RHOcrit * pow(CMperMPC,-3);
-    }   
+    }
 
     consts->growth_zp = dicke(zp);
     consts->hubble_zp = hubble(zp);
@@ -1283,12 +1283,12 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
 
     tau21 = (3*hplank*A10_HYPERFINE*C*Lambda_21*Lambda_21/32./PI/k_B) * ((1-rad->prev_xe)*consts->N_zp)/rad->prev_Ts/consts->hubble_zp;
     xCMB = (1. - exp(-tau21))/tau21;
-    
+
     // First let's do dxe_dzp //
     //NOTE: Nb_zp includes helium, TODO: make sure this is right
     dxion_sink_dt = alpha_A(rad->prev_Tk) * global_params.CLUMPING_FACTOR * rad->prev_xe*rad->prev_xe * f_H * consts->Nb_zp * \
                     (1.+rad->delta);
-                    
+
     dxe_dzp = consts->dt_dzp*(rad->dxion_dt - dxion_sink_dt);
 
     // Next, let's get the temperature components //
@@ -1315,7 +1315,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
         eps_CMB = (3./4.) * (consts->Trad/T21) * A10_HYPERFINE * f_H * (hplank*hplank/Lambda_21/Lambda_21/m_p) * (1. + 2.*rad->prev_Tk/T21);
         dCMBheat_dzp = 	-eps_CMB * (2./3./k_B/(1.+rad->prev_xe))/consts->hubble_zp/(1.+zp);
     }
-    
+
     //lastly, Ly-alpha heating rate
     eps_Lya_cont = 0.;
     eps_Lya_inj = 0.;
@@ -1380,7 +1380,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
     xi_power = consts->Ts_prefactor * cbrt((1.0+rad->delta)*(1.0-x_e)*T_inv_sq);
 
     xa_tilde_fast_arg = consts->xa_tilde_prefactor*J_alpha_tot*pow( 1.0 + 2.98394*xi_power + 1.53583*xi_power*xi_power + 3.85289*xi_power*xi_power*xi_power, -1. );
-    
+
     if (J_alpha_tot > 1.0e-20) { // Must use WF effect
         TS_fast = consts->Trad;
         TSold_fast = 0.0;
@@ -1408,7 +1408,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
     }
 
     output.Ts = TS_fast;
-    
+
     return output;
 }
 
@@ -1452,13 +1452,13 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     //TODO: move some of these zp factors to the const struct
     growth_factor_z = dicke(perturbed_field_redshift);
     inverse_growth_factor_z = 1./growth_factor_z;
-    
+
     growth_factor_zp = dicke(redshift);
     dzp = redshift - prev_redshift;
 
     zp = redshift; //TODO: remove some of these aliases
     prev_zp = prev_redshift;
-    
+
     //setup the R_ct 1D arrays
     setup_z_edges(zp);
 
@@ -1470,7 +1470,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         if(user_params->FAST_FCOLL_TABLES) M_MIN = fmin(MMIN_FAST,M_MIN);
         initialiseSigmaMInterpTable(M_MIN,1e20);
     }
-    
+
     //As far as I can tell, the only thing used from this is the X_e array
     init_heat();
     //TODO: z ~> zmax case and first_box setting should be done in wrapper initialisation
@@ -1479,9 +1479,9 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         init_first_Ts(this_spin_temp,perturbed_field->density,perturbed_field_redshift,redshift,&x_e_ave_p,&Tk_ave_p);
         return;
     }
-    
+
     calculate_spectral_factors(zp);
-    
+
     //Fill the R_ct,box_ct fields
     //Since we use the average Mturn for the global tables this must be done first
     //NOTE: The filtered Mturn for the previous snapshot is used for Fcoll at ALL zpp
@@ -1579,7 +1579,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             M_max_R[R_ct] = RtoM(R_values[R_ct]);
             sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]),0,NULL);
             sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]),0,NULL);
-            
+
             // LOG_DEBUG("R %d = %.2e z %.2e || M = [%.2e, %.2e] sig [%.2e %.2e]",R_ct,R_values[R_ct],
             //             zpp_for_evolve_list[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
         }
@@ -1590,7 +1590,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         //  and Either set a global limit for the table OR lienar spacing
         //  So we can re-use the two R_ct * box_ct grids as SFRD
         if(user_params->USE_INTERPOLATION_TABLES){
-            if(flag_options->USE_MASS_DEPENDENT_ZETA){    
+            if(flag_options->USE_MASS_DEPENDENT_ZETA){
                 if (!flag_options->USE_MINI_HALOS){
                     initialise_SFRD_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,
                                                         max_densities,zpp_growth,R_values,astro_params->M_TURN,
@@ -1624,7 +1624,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     //set the constants calculated once per snapshot
     struct Ts_zp_consts zp_consts;
     set_zp_consts(zp,&zp_consts);
-    
+
     // LOG_DEBUG("Set consts.");
 
     x_e_ave_p = Tk_ave_p = 0.0;
@@ -1642,16 +1642,16 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 
     int NO_LIGHT;
     double filling_factor_of_HI_zp;
-    
+
     //this should initialise and use the global tables (given box average turnovers)
     //  and use them to give: Filling factor at zp (only used for !MASS_DEPENDENT_ZETA to get ion_eff)
     //  global SFRD at each filter radius (numerator of ST_over_PS factor)
     double mean_sfr_zpp[global_params.NUM_FILTER_STEPS_FOR_Ts];
     double mean_sfr_zpp_mini[global_params.NUM_FILTER_STEPS_FOR_Ts];
-    
+
     //a bit of an awkward assignment, should be fixed when I move the no-halo filtering to an XraySourceBox
     double *log10_Mcrit_LW_ave_zpp;
-    log10_Mcrit_LW_ave_zpp = flag_options_ts->USE_HALO_FIELD ? source_box->mean_log10_Mcrit_LW : ave_log10_MturnLW; 
+    log10_Mcrit_LW_ave_zpp = flag_options_ts->USE_HALO_FIELD ? source_box->mean_log10_Mcrit_LW : ave_log10_MturnLW;
 
     NO_LIGHT = global_reion_properties(redshift,x_e_ave_p,log10_Mcrit_LW_ave_zpp,&filling_factor_of_HI_zp,mean_sfr_zpp,mean_sfr_zpp_mini);
 
@@ -1771,7 +1771,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                 int xidx;
                 double ival, sfr_term, xray_sfr, x_e, T;
                 double sfr_term_mini=0;
-                #pragma omp for 
+                #pragma omp for
                 for(box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
                     //sum each R contribution together
                     //NOTE: the original code had separate grids for minihalos, which were simply summed afterwards, I've combined them here since I can't
@@ -1832,7 +1832,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             if (curr_delta <= -1){
                 curr_delta = -1+FRACT_FLOAT_ERR;
             }
-            
+
             //NOTE: if the filtered grids have sfr density, and the factors convert to emissivity density, surely I need a 1/(1+delta_curr)
             //  factor here for absorber density (i.e overdense regions need more radiation to have the same effects)
             //  What am I missing? The ionisation box has a final delta dependence of (1+delta_source)/(1+delta_absorber) which makes sense
@@ -1930,10 +1930,10 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         fftwf_cleanup();
     }
 
-    if(cleanup){    
+    if(cleanup){
         if(user_params->USE_INTERPOLATION_TABLES)
             FreeTsInterpolationTables(flag_options);
-        
+
         free_global_arrays();
     }
 

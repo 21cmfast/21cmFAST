@@ -177,6 +177,6 @@ extern struct GlobalParams global_params = {
     .N_PROB_INTERP = 200,
     .MIN_LOGPROB = -16,
     .SAMPLE_METHOD = 0,
-    
+
     .USE_ADIABATIC_FLUCTUATIONS = 1,
 };
