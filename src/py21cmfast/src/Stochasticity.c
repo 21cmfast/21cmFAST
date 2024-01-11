@@ -756,7 +756,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     //NOTE: the halo model uses a different M_min
     // double M_min = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc);
-    double M_min = astro_params_stoc->M_TURN / global_params.HALO_MTURN_FACTOR * global_params.HALO_SAMPLE_FACTOR;
+    double M_min = astro_params_stoc->M_TURN / global_params.HALO_MTURN_FACTOR;
     const_struct->M_min = M_min;
     const_struct->lnM_min = log(M_min);
     const_struct->M_max_tables = global_params.M_MAX_INTEGRAL;

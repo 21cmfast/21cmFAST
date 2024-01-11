@@ -4,13 +4,15 @@
 //TODO: find out if the compiler optimizes this if it's called with the same x or y, (first 3 points are the same)
 //  Because there are some points such as the frequency integral tables where we evaluate an entire column of one 2D table
 //  Otherwise write a function which saves the left_edge and right_edge for faster evaluation
+//TODO: make a print_interp_error(array,x,y) function which prints the cell corners, interpolation points etc
 
 //definitions from ps.c
 //ps.c is currently included first
 //MOVE THESE WHEN YOU MOVE THE COND TABLES
-// #define NMTURN 50//100
-// #define LOG10_MTURN_MAX ((double)(10))
-// #define LOG10_MTURN_MIN ((double)(5.-9e-8))
+#define NDELTA 400
+#define NMTURN 50//100
+#define LOG10_MTURN_MAX ((double)(10))
+#define LOG10_MTURN_MIN ((double)(5.-9e-8))
 
 static struct UserParams * user_params_it;
 
@@ -18,6 +20,7 @@ void Broadcast_struct_global_IT(struct UserParams *user_params){
     user_params_it = user_params;
 }
 
+//TODO: for the moment the tables are still in global arrays, but will move to these structs soon
 struct RGTable1D{
     int n_bin;
     double x_min;
@@ -42,20 +45,12 @@ double EvaluateRGTable1D(double x, double *y_arr, double x_min, double x_width){
     double interp_point = (x - table_val)/x_width;
     // LOG_DEBUG("1D: x %.6e -> idx %d -> tbl %.6e -> itp %.6e",x,idx,table_val,interp_point);
 
+    //a + f(a-b) is one fewer operation but less precise
     double result = y_arr[idx]*(1-interp_point) + y_arr[idx+1]*(interp_point);
 
     // LOG_DEBUG("-> result %.2e",result);
 
     return result;
-}
-
-//some tables are floats but I still need to return doubles
-double EvaluateRGTable1D_f(double x, float *y_arr, float x_min, float x_width){
-    int idx = (int)floor((x - x_min)/x_width);
-    double table_val = x_min + x_width*(float)idx;
-    double interp_point = (x - table_val)/x_width;
-
-    return y_arr[idx]*(1-interp_point) + y_arr[idx+1]*(interp_point);
 }
 
 double EvaluateRGTable2D(double x, double y, double **z_arr, double x_min, double x_width, double y_min, double y_width){
@@ -82,6 +77,41 @@ double EvaluateRGTable2D(double x, double y, double **z_arr, double x_min, doubl
 
     return result;
 }
+
+//some tables are floats but I still need to return doubles
+double EvaluateRGTable1D_f(double x, float *y_arr, float x_min, float x_width){
+    int idx = (int)floor((x - x_min)/x_width);
+    double table_val = x_min + x_width*(float)idx;
+    double interp_point = (x - table_val)/x_width;
+
+    return y_arr[idx]*(1-interp_point) + y_arr[idx+1]*(interp_point);
+}
+
+double EvaluateRGTable2D_f(double x, double y, float **z_arr, double x_min, double x_width, double y_min, double y_width){
+    int x_idx = (int)floor((x - x_min)/x_width);
+    int y_idx = (int)floor((y - y_min)/y_width);
+
+    double x_table = x_min + x_width*(double)x_idx;
+    double y_table = y_min + y_width*(double)y_idx;
+
+    double interp_point_x = (x - x_table)/x_width;
+    double interp_point_y = (y - y_table)/y_width;
+
+    double left_edge, right_edge, result;
+
+    // LOG_DEBUG("2D Interp: val (%.2e,%.2e) min (%.2e,%.2e) wid (%.2e,%.2e)",x,y,x_min,y_min,x_width,y_width);
+    // LOG_DEBUG("2D Interp: idx (%d,%d) tbl (%.2e,%.2e) itp (%.2e,%.2e)",x_idx,y_idx,x_table,y_table,interp_point_x,interp_point_y);
+    // LOG_DEBUG("2D Interp: table cornders (%.2e,%.2e,%.2e,%.2e)",z_arr[x_idx][y_idx],z_arr[x_idx][y_idx+1],z_arr[x_idx+1][y_idx],z_arr[x_idx+1][y_idx+1]);
+
+    left_edge = z_arr[x_idx][y_idx]*(1-interp_point_y) + z_arr[x_idx][y_idx+1]*(interp_point_y);
+    right_edge = z_arr[x_idx+1][y_idx]*(1-interp_point_y) + z_arr[x_idx+1][y_idx+1]*(interp_point_y);
+
+    result = left_edge*(1-interp_point_x) + right_edge*(interp_point_x);
+    // LOG_DEBUG("result %.6e",result);
+
+    return result;
+}
+
 
 //I'm beginning to move the interpolation table initialisation here from ps.c
 //  For now, we will keep them as globals but eventually moving to static structs will be ideal
@@ -298,6 +328,212 @@ void init_FcollTable(double zmin, double zmax, struct AstroParams *astro_params,
     }
 }
 
+//NOTE: we only have one overdensity table, since currently all tables will use the same one
+//   at any point in time. This may not be true in the future so be careful
+//NOTE: since reionisation feedback is not included in the Ts calculation, the SFRD spline
+//  is Rx1D unlike the Mini table, which is Rx2D
+//NOTE: SFRD tables have fixed Mturn range, Nion tables vary
+//TODO: fix the confusing Mmax=log(Mmax) naming
+//TODO: it would be slightly less accurate but maybe faster to tabulate in linear delta, linear Fcoll
+//  rather than linear-log, check the profiles
+float **ln_Nion_spline, **prev_ln_Nion_spline, **ln_SFRD_spline, *ln_Nion_spline_1D;
+float **ln_Nion_spline_MINI, **prev_ln_Nion_spline_MINI, ***ln_SFRD_spline_MINI;
+
+void initialise_Nion_General_spline(float z, float Mcrit_atom, float min_density, float max_density,
+                                     float Mmax, float Mmin, float log10Mturn_min, float log10Mturn_max,
+                                     float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star,
+                                     float Alpha_star_mini, float Alpha_esc, float Fstar10, float Fesc10,
+                                     float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI,
+                                     float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, bool FAST_FCOLL_TABLES,
+                                     bool minihalos, bool prev){
+    double growthf, sigma2;
+    int i,j;
+    float **output_spline, **output_spline_MINI;
+    double overdense_table[NDELTA];
+    double mturns[NMTURN], mturns_MINI[NMTURN];
+
+    if(prev){
+        output_spline = prev_ln_Nion_spline;
+        output_spline_MINI = prev_ln_Nion_spline_MINI;
+    }
+    else{
+        output_spline = ln_Nion_spline;
+        output_spline_MINI = ln_Nion_spline_MINI;
+    }
+
+    growthf = dicke(z);
+    Mmin = log(Mmin);
+    Mmax = log(Mmax);
+
+    sigma2 = EvaluateSigma(Mmax,0,NULL);
+    // Even when we use GL, this is done in Ionisationbox.c
+    // initialiseGL_Nion(NGL_SFR, global_params.M_MIN_INTEGRAL, Mmax);
+    
+    for (i=0;i<NDELTA;i++) {
+        overdense_table[i] = min_density + (float)i/((float)NDELTA-1.)*(max_density - min_density);
+    }
+    if(minihalos){
+        for (i=0;i<NMTURN;i++){
+            mturns[i] = pow(10., log10Mturn_min + (float)i/((float)NMTURN-1.)*(log10Mturn_max-log10Mturn_min));
+            mturns_MINI[i] = pow(10., log10Mturn_min_MINI + (float)i/((float)NMTURN-1.)*(log10Mturn_max_MINI-log10Mturn_min_MINI));
+        }
+    }
+
+#pragma omp parallel private(i,j) num_threads(user_params_ps->N_THREADS)
+    {
+#pragma omp for
+        for(i=0;i<NDELTA;i++){
+            if(!minihalos){
+                //pass constant M_turn as minimum
+                ln_Nion_spline_1D[i] = log(Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,Deltac,
+                                                overdense_table[i],Mcrit_atom,Alpha_star,Alpha_esc,
+                                                Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,FAST_FCOLL_TABLES));
+                if(ln_Nion_spline_1D[i]<-40)
+                    ln_Nion_spline_1D[i]=-40;
+
+                continue;
+            }
+            for (j=0; j<NMTURN; j++){
+                output_spline[i][j] = log(Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,Deltac,
+                                                overdense_table[i],mturns[j],Alpha_star,Alpha_esc,
+                                                Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,FAST_FCOLL_TABLES));
+                
+                // output_spline[i][j] = log(GaussLegendreQuad_Nion(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,\
+                                                        pow(10.,log10_overdense_spline_SFR[i])-1.,Mturns[j],Alpha_star,\
+                                                        Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc, FAST_FCOLL_TABLES));
+
+                if(output_spline[i][j]<-40)
+                    output_spline[i][j]=-40;
+
+                output_spline_MINI[i][j] = log(Nion_ConditionalM_MINI(growthf,Mmin,Mmax,sigma2,Deltac,overdense_table[i],
+                                                    mturns_MINI[j],Mcrit_atom,Alpha_star_mini,Alpha_esc,Fstar7_MINI,Fesc7_MINI,
+                                                    Mlim_Fstar_MINI,Mlim_Fesc_MINI, FAST_FCOLL_TABLES));
+                
+                // output_spline_MINI[i][j] = log(GaussLegendreQuad_Nion_MINI(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,\
+                                                                pow(10.,log10_overdense_spline_SFR[i])-1.,Mturns_MINI[j],Mcrit_atom,\
+                                                                Alpha_star_mini,Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI, FAST_FCOLL_TABLES));
+
+                if(output_spline_MINI[i][j]<-40.)
+                    output_spline_MINI[i][j]=-40.0;
+            }
+        }
+    }
+
+    for(i=0;i<NDELTA;i++) {
+        if(isfinite(ln_Nion_spline_1D[i])==0) {
+            LOG_ERROR("Detected either an infinite or NaN value in Nion_spline_1D");
+            Throw(TableGenerationError);
+        }
+        if(!minihalos) continue;
+        for (j=0; j<NMTURN; j++){
+            if(isfinite(output_spline[i][j])==0) {
+                LOG_ERROR("Detected either an infinite or NaN value in Nion_spline");
+                Throw(TableGenerationError);
+            }
+
+            if(isfinite(output_spline_MINI[i][j])==0) {
+               LOG_ERROR("Detected either an infinite or NaN value in Nion_spline_MINI");
+                Throw(TableGenerationError);
+            }
+        }
+    }
+}
+
+void initialise_SFRD_Conditional_table(int Nfilter, double min_density[], double max_density[], double growthf[],
+                                    double R[], float Mcrit_atom[], double Mmin, float Alpha_star, float Alpha_star_mini,
+                                    float Fstar10, float Fstar7_MINI, bool FAST_FCOLL_TABLES, bool minihalos
+){
+    float Mmax,Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
+    int i,j,k,i_tot;
+
+    Mmax = RtoM(R[Nfilter-1]);
+    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
+    Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
+
+    float MassTurnover[NMTURN];
+    for(i=0;i<NMTURN;i++){
+        MassTurnover[i] = pow(10., LOG10_MTURN_MIN + (float)i/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
+    }
+
+    Mmin = log(Mmin);
+    for(j=0; j < Nfilter; j++){
+        // LOG_SUPER_DEBUG("filter %d",j);
+        Mmax = RtoM(R[j]);
+
+        initialiseGL_Nion_Xray(NGL_SFR, global_params.M_MIN_INTEGRAL, Mmax);
+
+        Mmax = log(Mmax);
+        sigma2 = EvaluateSigma(Mmax,0,NULL);
+
+#pragma omp parallel private(i,k) num_threads(user_params_ps->N_THREADS)
+        {
+            double curr_dens;
+#pragma omp for
+            for (i=0; i<NDELTA; i++){
+                // LOG_SUPER_DEBUG("Delta %d",i);
+                curr_dens = min_density[j] + (float)i/((float)NDELTA-1.)*(max_density[j] - min_density[j]);
+                ln_SFRD_spline[j][i] = log(Nion_ConditionalM(growthf[j],Mmin,Mmax,sigma2,Deltac,curr_dens,\
+                                                            Mcrit_atom[j],Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., FAST_FCOLL_TABLES));
+                // log_SFRD_spline[j][i] = log(GaussLegendreQuad_Nion(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,curr_dens.,\
+                                                                            Mcrit_atom[j],Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., FAST_FCOLL_TABLES));
+                if(ln_SFRD_spline[j][i] < -50.)
+                    ln_SFRD_spline[j][i] = -50.;
+
+                // LOG_SUPER_DEBUG("Done.",i);
+                if(!minihalos) continue;
+
+                for (k=0; k<NMTURN; k++){
+                    ln_SFRD_spline_MINI[j][i][k] = log(Nion_ConditionalM_MINI(growthf[j],Mmin,Mmax,sigma2,Deltac,\
+                                                curr_dens,MassTurnover[k],Mcrit_atom[j],\
+                                                Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., FAST_FCOLL_TABLES));
+                    // ln_SFRD_spline_MINI[j][i][k] = log(GaussLegendreQuad_Nion_MINI(1,NGL_SFR,growthf[j],Mmax,sigma2,Deltac,overdense_array_R,\
+                                                            MassTurnover[k], Mcrit_atom[j],Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., FAST_FCOLL_TABLES));
+                    if(ln_SFRD_spline_MINI[j][i][k] < -50.)
+                        ln_SFRD_spline_MINI[j][i][k] = -50.;
+                }
+            }
+        }
+    }
+    for(j=0;j<Nfilter;j++){
+        for (i=0; i<NDELTA; i++){
+            if(isfinite(ln_SFRD_spline[j][i])==0) {
+                LOG_ERROR("Detected either an infinite or NaN value in ACG SFRD conditional table");
+                Throw(TableGenerationError);
+            }
+
+            if(!minihalos) continue;
+
+            for (k=0; k<NMTURN; k++){
+                if(isfinite(ln_SFRD_spline_MINI[j][i][k])==0) {
+                    LOG_ERROR("Detected either an infinite or NaN value in MCG SFRD conditional table");
+                    Throw(TableGenerationError);
+                }
+            }
+        }
+    }
+}
+
+void FreeIonInterpolationTables(struct FlagOptions * flag_options){
+    int i;
+    LOG_SUPER_DEBUG("interp");
+    if(flag_options->USE_MINI_HALOS){
+        LOG_SUPER_DEBUG("db1");
+        for(i=0;i<NDELTA;i++) free(ln_Nion_spline[i]);
+        free(ln_Nion_spline);
+        LOG_SUPER_DEBUG("db2");
+        for(i=0;i<NDELTA;i++) free(ln_Nion_spline_MINI[i]);
+        free(ln_Nion_spline_MINI);
+        LOG_SUPER_DEBUG("db3");
+        for(i=0;i<NDELTA;i++) free(prev_ln_Nion_spline[i]);
+        free(prev_ln_Nion_spline);
+        LOG_SUPER_DEBUG("db4");
+        for(i=0;i<NDELTA;i++) free(prev_ln_Nion_spline_MINI[i]);
+        free(prev_ln_Nion_spline_MINI);
+    }
+    else{
+        free(ln_Nion_spline_1D);
+    }
+}
 
 //frees Sigma and the global interp tables
 //TODO: better organisation of the table allocation/free
@@ -335,5 +571,4 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
     }
 
     LOG_DEBUG("Done Freeing interpolation table memory.");
-	interpolation_tables_allocated = false;
 }
