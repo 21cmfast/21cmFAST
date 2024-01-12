@@ -57,6 +57,7 @@
 
 // STRUCTURE //
 #define Deltac (1.68) // at z=0, density excess at virialization
+#define DELTAC_DELOS (1.5)
 #define N_nu (1.0) // # of heavy neutrinos (for EH trasfer function)
 #define BODE_e (0.361) // Epsilon parameter in Bode et al. 2000 trans. funct.
 #define BODE_n (5.0) // Eda parameter in Bode et al. 2000 trans. funct.
