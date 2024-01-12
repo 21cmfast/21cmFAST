@@ -67,7 +67,7 @@ double EvaluateRGTable2D(double x, double y, double **z_arr, double x_min, doubl
 
     // LOG_DEBUG("2D Interp: val (%.2e,%.2e) min (%.2e,%.2e) wid (%.2e,%.2e)",x,y,x_min,y_min,x_width,y_width);
     // LOG_DEBUG("2D Interp: idx (%d,%d) tbl (%.2e,%.2e) itp (%.2e,%.2e)",x_idx,y_idx,x_table,y_table,interp_point_x,interp_point_y);
-    // LOG_DEBUG("2D Interp: table cornders (%.2e,%.2e,%.2e,%.2e)",z_arr[x_idx][y_idx],z_arr[x_idx][y_idx+1],z_arr[x_idx+1][y_idx],z_arr[x_idx+1][y_idx+1]);
+    // LOG_DEBUG("2D Interp: table corners (%.2e,%.2e,%.2e,%.2e)",z_arr[x_idx][y_idx],z_arr[x_idx][y_idx+1],z_arr[x_idx+1][y_idx],z_arr[x_idx+1][y_idx+1]);
 
     left_edge = z_arr[x_idx][y_idx]*(1-interp_point_y) + z_arr[x_idx][y_idx+1]*(interp_point_y);
     right_edge = z_arr[x_idx+1][y_idx]*(1-interp_point_y) + z_arr[x_idx+1][y_idx+1]*(interp_point_y);
@@ -101,7 +101,7 @@ double EvaluateRGTable2D_f(double x, double y, float **z_arr, double x_min, doub
 
     // LOG_DEBUG("2D Interp: val (%.2e,%.2e) min (%.2e,%.2e) wid (%.2e,%.2e)",x,y,x_min,y_min,x_width,y_width);
     // LOG_DEBUG("2D Interp: idx (%d,%d) tbl (%.2e,%.2e) itp (%.2e,%.2e)",x_idx,y_idx,x_table,y_table,interp_point_x,interp_point_y);
-    // LOG_DEBUG("2D Interp: table cornders (%.2e,%.2e,%.2e,%.2e)",z_arr[x_idx][y_idx],z_arr[x_idx][y_idx+1],z_arr[x_idx+1][y_idx],z_arr[x_idx+1][y_idx+1]);
+    // LOG_DEBUG("2D Interp: table corners (%.2e,%.2e,%.2e,%.2e)",z_arr[x_idx][y_idx],z_arr[x_idx][y_idx+1],z_arr[x_idx+1][y_idx],z_arr[x_idx+1][y_idx+1]);
 
     left_edge = z_arr[x_idx][y_idx]*(1-interp_point_y) + z_arr[x_idx][y_idx+1]*(interp_point_y);
     right_edge = z_arr[x_idx+1][y_idx]*(1-interp_point_y) + z_arr[x_idx+1][y_idx+1]*(interp_point_y);
@@ -420,11 +420,13 @@ void initialise_Nion_General_spline(float z, float Mcrit_atom, float min_density
     }
 
     for(i=0;i<NDELTA;i++) {
-        if(isfinite(ln_Nion_spline_1D[i])==0) {
-            LOG_ERROR("Detected either an infinite or NaN value in Nion_spline_1D");
-            Throw(TableGenerationError);
+        if(!minihalos){
+            if(isfinite(ln_Nion_spline_1D[i])==0) {
+                LOG_ERROR("Detected either an infinite or NaN value in Nion_spline_1D");
+                Throw(TableGenerationError);
+            }
+            continue;
         }
-        if(!minihalos) continue;
         for (j=0; j<NMTURN; j++){
             if(isfinite(output_spline[i][j])==0) {
                 LOG_ERROR("Detected either an infinite or NaN value in Nion_spline");
@@ -457,7 +459,6 @@ void initialise_SFRD_Conditional_table(int Nfilter, double min_density[], double
 
     Mmin = log(Mmin);
     for(j=0; j < Nfilter; j++){
-        // LOG_SUPER_DEBUG("filter %d",j);
         Mmax = RtoM(R[j]);
 
         initialiseGL_Nion_Xray(NGL_SFR, global_params.M_MIN_INTEGRAL, Mmax);
@@ -479,7 +480,6 @@ void initialise_SFRD_Conditional_table(int Nfilter, double min_density[], double
                 if(ln_SFRD_spline[j][i] < -50.)
                     ln_SFRD_spline[j][i] = -50.;
 
-                // LOG_SUPER_DEBUG("Done.",i);
                 if(!minihalos) continue;
 
                 for (k=0; k<NMTURN; k++){
@@ -515,18 +515,13 @@ void initialise_SFRD_Conditional_table(int Nfilter, double min_density[], double
 
 void FreeIonInterpolationTables(struct FlagOptions * flag_options){
     int i;
-    LOG_SUPER_DEBUG("interp");
     if(flag_options->USE_MINI_HALOS){
-        LOG_SUPER_DEBUG("db1");
         for(i=0;i<NDELTA;i++) free(ln_Nion_spline[i]);
         free(ln_Nion_spline);
-        LOG_SUPER_DEBUG("db2");
         for(i=0;i<NDELTA;i++) free(ln_Nion_spline_MINI[i]);
         free(ln_Nion_spline_MINI);
-        LOG_SUPER_DEBUG("db3");
         for(i=0;i<NDELTA;i++) free(prev_ln_Nion_spline[i]);
         free(prev_ln_Nion_spline);
-        LOG_SUPER_DEBUG("db4");
         for(i=0;i<NDELTA;i++) free(prev_ln_Nion_spline_MINI[i]);
         free(prev_ln_Nion_spline_MINI);
     }

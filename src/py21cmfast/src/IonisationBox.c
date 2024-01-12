@@ -997,7 +997,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                     erfc_denom = 1. / (growth_factor * erfc_denom);
                 }
             }
-
+            LOG_SUPER_DEBUG("Initialised tables");
             // Determine the global averaged f_coll for the overall normalisation
 
             // Reset value of int check to see if we are over-stepping our interpolation table
