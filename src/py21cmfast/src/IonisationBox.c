@@ -35,6 +35,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_IT(user_params);
 
     omp_set_num_threads(user_params->N_THREADS);
 
@@ -960,7 +961,9 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                     }
 
                     initialiseGL_Nion(NGL_SFR, M_MIN,massofscaleR);
-                    LOG_SUPER_DEBUG("Initialising tables from %.2e to %.2e",min_density,max_density);
+                    LOG_SUPER_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
+                                    min_density,max_density,M_MIN,massofscaleR,log10Mturn_min,log10Mturn_max,
+                                    log10Mturn_min_MINI,log10Mturn_max_MINI);
                     if(user_params->USE_INTERPOLATION_TABLES){
                         //To avoid both zero bin widths and densest cell segfault
                         min_density -= 0.001;
@@ -985,6 +988,9 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                                     norm_esc_var,Mlim_Fstar,Mlim_Fesc,astro_params->F_STAR7_MINI,
                                                     astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI, user_params->FAST_FCOLL_TABLES,
                                                     flag_options->USE_MINI_HALOS, true);
+                            LOG_SUPER_DEBUG("Tb midpoints %.4e %.4e %.4e %.4e",ln_Nion_spline[NDELTA/2][NMTURN/2],
+                                            ln_Nion_spline_MINI[NDELTA/2][NMTURN/2],prev_ln_Nion_spline[NDELTA/2][NMTURN/2],
+                                            prev_ln_Nion_spline_MINI[NDELTA/2][NMTURN/2]);
                         }
                     }
                 }

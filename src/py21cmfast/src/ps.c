@@ -800,45 +800,47 @@ And radiation.
 //UNFINISHED
 double dNdlnM_Delos(double growthf, double lnM){
     double dfdnu,dsigmadm,sigma,sigma_inv,dfdM;
+    double nu;
     //hardcoded for now
     double coeff_nu = 0.519;
     double index_nu = 0.582;
     double exp_factor = -0.469;
 
-    sigma = EvaluateSigma(M,1,&dsigmadm);
+    sigma = EvaluateSigma(lnM,1,&dsigmadm);
     sigma_inv = 1/sigma;
 
     nu = DELTAC_DELOS*sigma_inv;
 
-    dfdnu = coeff_nu*pow(nu,index_nu)*exp(-index_sigma*nu*nu);
-    dfdM = dfdlnnu * fabs(dsigmadm);
+    dfdnu = coeff_nu*pow(nu,index_nu)*exp(-index_nu*nu*nu);
+    dfdM = dfdnu * fabs(dsigmadm);
 
     //NOTE: unlike the other UMFs this is dNdlogM and leaves out
     //   the (cosmo_params_ps->OMm)*RHOcrit/M) / sqrt(2.*PI)
     //NOTE: dfdM == constants*dNdlnM
-    return dfdlnM;
+    return dfdM;
 }
 
 //UNFINISHED
 double dNdlnM_conditional_Delos(double growthf, double lnM, double lnM_cond, double delta_cond, double sigma_cond){
     double result,dfdnu,dsigmadm,sigma,sigma_denom,dfdM;
+    double nu;
     //hardcoded for now
     double coeff_nu = 0.519;
     double index_nu = 0.582;
     double exp_factor = -0.469;
 
-    sigma = EvaluateSigma(M,1,&dsigmadm);
+    sigma = EvaluateSigma(lnM,1,&dsigmadm);
     sigma_denom = 1/sqrt(sigma_cond*sigma_cond - sigma*sigma);
 
     nu = (DELTAC_DELOS - delta_cond)*sigma_denom;
 
-    dfdnu = coeff_nu*pow(nu,index_nu)*exp(-index_sigma*nu*nu);
-    dfdM = dfdlnnu * fabs(dsigmadm)*sigma_cond*sigma_cond*sigma_denom*sigma_denom;
+    dfdnu = coeff_nu*pow(nu,index_nu)*exp(-index_nu*nu*nu);
+    dfdM = dfdnu * fabs(dsigmadm)*sigma_cond*sigma_cond*sigma_denom*sigma_denom;
 
     //NOTE: unlike the other UMFs this is dNdlogM and leaves out
     //   the (cosmo_params_ps->OMm)*RHOcrit/M) / sqrt(2.*PI)
     //NOTE: dfdM == constants*dNdlnM
-    return dfdlnM;
+    return dfdM;
 }
 
 /*
