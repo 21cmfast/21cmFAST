@@ -222,63 +222,6 @@ double dNdM_conditional_double(double growthf, double M1, double M2, double delt
     }
 }
 
-//Sheth Tormen 2002 fit for the CMF, while the moving barrier does not allow for a simple rescaling, it has been found
-//That a taylor expansion of the barrier shape around the point of interest well approximates the simulations
-//TODO: Count the growth factors needed in each term, also move to ps.c
-double st_taylor_factor(double sig, double sig_cond, double growthf){
-    double a = SHETH_A;
-    double alpha = global_params.SHETH_c;
-    double beta = global_params.SHETH_b;
-    double delsq = Deltac*Deltac/growthf/growthf;
-    double sigsq = sig*sig;
-    double sigcsq = sig_cond*sig_cond;
-    double sigdiff = sigsq - sigcsq;
-
-    double result = 0;
-
-    int i;
-    //Taylor expansion of the x^a part around (sigsq - sigcondsq)
-    for(i=5;i>-1;i--){
-        result = (result + (pow(sigsq/(SHETH_a*delsq), alpha - i) - pow(sigcsq/(SHETH_a*delsq), alpha - i)))*(alpha-i+1)*sigdiff/i; //the last factor makes the factorials and nth power of nth derivative
-        LOG_ULTRA_DEBUG("%d term %.2e",i,result);
-    }
-
-    //constants and the + 1 factor from the barrier 0th derivative B = A*(1 + b*x^a)
-    result = (result/sigdiff*beta + 1)*sqrt(SHETH_a)*Deltac;
-    return result;
-}
-
-//TODO: move to ps.c
-double dNdM_conditional_ST(double growthf, double M1, double M2, double delta1, double delta2, double sigma2){
-    double sigma1, sig1sq, sig2sq, dsigmadm, B1, B2;
-    double MassBinLow;
-    int MassBin;
-
-    sigma1 = EvaluateSigma(M1,1,&dsigmadm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
-
-    LOG_ULTRA_DEBUG("st fit: D: %.2f M1: %.2e M2: %.2e d1: %.2f d2: %.2f s2: %.2f",growthf,M2,M2,delta1,delta2,sigma2);
-
-    M1 = exp(M1);
-    M2 = exp(M2);
-
-    sig1sq = sigma1*sigma1;
-    sig2sq = sigma2*sigma2;
-    B1 = sheth_delc(delta1/growthf,sigma1);
-    B2 = sheth_delc(delta2/growthf,sigma2);
-    LOG_ULTRA_DEBUG("Barriers 1: %.2e | 2: %.2e",B1,B2);
-    LOG_ULTRA_DEBUG("taylor expansion factor %.6e",st_taylor_factor(sigma1,sigma2,growthf));
-
-    if((sigma1 > sigma2)) {
-        return -dsigmadm*sigma1*st_taylor_factor(sigma1,sigma2,growthf)/pow(sig1sq-sig2sq,1.5)*exp(-(B1 - B2)*(B1 - B2)/(sig1sq-sig2sq));
-    }
-    else if(sigma1==sigma2) {
-        return -dsigmadm*sigma1*st_taylor_factor(sigma1,sigma2,growthf)/pow(1e-6,1.5)*exp(-(B1 - B2)*(B1 - B2)/(1e-6));
-    }
-    else {
-        return 0.;
-    }
-}
-
 //TODO: it may be better to place the if-elses earlier, OR pass in a function pointer
 //  Although, I doubt the if-elses really have a big impact compared to the integrals
 double MnMassfunction(double M, void *param_struct){
@@ -315,6 +258,9 @@ double MnMassfunction(double M, void *param_struct){
         else if(HMF==3) {
             mf = dNdM_WatsonFOF_z(z, growthf, M_exp) * M_exp;
         }
+        else if(HMF==4) {
+            mf = dNdlnM_Delos(z, growthf, M_exp); //consts?
+        }
         else {
             //TODO: proper errors
             return -1;
@@ -324,9 +270,12 @@ double MnMassfunction(double M, void *param_struct){
         if(HMF==0) {
             mf = dNdM_conditional_double(growthf,M,M_filter,Deltac,delta,sigma2);
         }
-        // else if(HMF==1) {
-        //     mf = dNdM_conditional_ST(growthf,M,M_filter,Deltac,delta,sigma2);
-        // }
+        else if(HMF==1) {
+            mf = dNdM_conditional_ST(growthf,M,M_filter,Deltac,delta,sigma2);
+        }
+        else if(HMF==4) {
+            mf = dNdlnM_conditional_Delos(growthf,M,M_filter,Deltac,delta,sigma2);
+        }
         else {
             //NOTE: Normalisation scaling is currently applied outside the integral, per condition
             //This will be the rescaled EPS CMF,

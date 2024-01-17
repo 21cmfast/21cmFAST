@@ -255,6 +255,8 @@ void free(void *ptr);
 int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
                         , int seed, int n_mass, float *M, double condition, double z_out, double z_in, int type, double *result);
 
+double IntegratedNdM(double growthf, double M1, double M2, double M_filter, double delta, double n_order, int HMF, int CMF);
+
 //these two functions compute the new classes HaloBox and XraySourceBox, and need to be visible
 int ComputeHaloBox(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params
                     , struct FlagOptions * flag_options, struct InitialConditions * ini_boxes, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos

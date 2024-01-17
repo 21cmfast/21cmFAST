@@ -154,10 +154,19 @@ LOG_DEBUG("Prepare to filter to find halos");
             M = RtoM(R);
             LOG_SUPER_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%e M_MIN=%e", R, 0.5*Delta_R, M, M_MIN);
 
-            if(global_params.DELTA_CRIT_MODE == 1 && (user_params->HMF>0 && user_params->HMF<4)){
+            //TODO: throw in an init loop
+            if(global_params.DELTA_CRIT_MODE == 1){
                 if(user_params->HMF==1) {
                     // use sheth tormen correction
                     delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
+                }
+                else if(user_params->HMF==6) {
+                    // use Delos 2023 flat barrier
+                    delta_crit = 1.5;
+                }
+                else{
+                    LOG_WARNING("Halo Finder: You have selected DELTA_CRIT_MODE==1 with HMF %d which does not have a barrier\
+                                    , using EPS deltacrit = 1.68",user_params->HMF);
                 }
             }
 
