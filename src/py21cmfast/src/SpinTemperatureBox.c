@@ -1687,16 +1687,18 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                         dstarlya_inj_dt_box[box_ct] += sfr_term*dstarlya_inj_dt_prefactor[R_ct] + sfr_term_mini*lyainj_factor_mini;
                     }
                     if(box_ct==0){
-                        LOG_SUPER_DEBUG("Cell0 R=%.1f (%.3f) | SFR (%.4e,%.4e) | integral (%.4e %.4e)",
-                                        R_values[R_ct],zpp_for_evolve_list[R_ct],sfr_term,sfr_term_mini,
-                                        Nion_ConditionalM(zpp_growth[R_ct],log(global_params.M_MIN_INTEGRAL),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,
+                        LOG_SUPER_DEBUG("Cell0 R=%.1f (%.3f) | SFR %.4e | integral %.4e",
+                                        R_values[R_ct],zpp_for_evolve_list[R_ct],sfr_term,
+                                        Nion_ConditionalM(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,
                                             delNL0[R_ct][box_ct]*zpp_growth[R_ct],
                                             Mcrit_atom_interp_table[R_ct],astro_params->ALPHA_STAR,0.,astro_params->F_STAR10,1.,Mlim_Fstar_g,0.,
-                                            user_params->FAST_FCOLL_TABLES) * z_edge_factor * (1+delNL0[R_ct][box_ct]*zpp_growth[R_ct]) * avg_fix_term * astro_params->F_STAR10,
-                                        Nion_ConditionalM_MINI(zpp_growth[R_ct],log(global_params.M_MIN_INTEGRAL),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,\
+                                            user_params->FAST_FCOLL_TABLES) * z_edge_factor * (1+delNL0[R_ct][box_ct]*zpp_growth[R_ct]) * avg_fix_term * astro_params->F_STAR10);
+                        if(flag_options->USE_MINI_HALOS)
+                            LOG_SUPER_DEBUG("Cell0 MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,\
                                             delNL0[R_ct][box_ct]*zpp_growth[R_ct],pow(10,log10_Mcrit_LW[R_ct][box_ct]),Mcrit_atom_interp_table[R_ct],\
                                             astro_params->ALPHA_STAR_MINI,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI_g, 0., user_params->FAST_FCOLL_TABLES) \
                                              * z_edge_factor * (1+delNL0[R_ct][box_ct]*zpp_growth[R_ct]) * avg_fix_term_MINI * astro_params->F_STAR7_MINI);
+                                             
                         LOG_SUPER_DEBUG("xh %.2e | xi %.2e | xl %.2e | sl %.2e | ct %.2e | ij %.2e",dxheat_dt_box[box_ct]/astro_params->L_X,
                                         dxion_source_dt_box[box_ct]/astro_params->L_X,dxlya_dt_box[box_ct]/astro_params->L_X,dstarlya_dt_box[box_ct],dstarlya_cont_dt_box[box_ct],dstarlya_inj_dt_box[box_ct]);
                     }
