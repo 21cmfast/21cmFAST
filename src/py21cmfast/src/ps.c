@@ -821,7 +821,7 @@ double dNdlnM_Delos(double growthf, double lnM){
 }
 
 //UNFINISHED
-double dNdlnM_conditional_Delos(double growthf, double lnM, double lnM_cond, double delta_cond, double sigma_cond){
+double dNdlnM_conditional_Delos(double growthf, double lnM, double lnM_cond, double delta_crit, double delta_cond, double sigma_cond){
     double result,dfdnu,dsigmadm,sigma,sigma_denom,dfdM;
     double nu;
     //hardcoded for now
@@ -3577,7 +3577,7 @@ double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
     return sigma;
 }
 
-//set the minimum source mass
+//set the minimum source mass for the integrals, If we have an exponential cutoff we go below the chosen mass by a factor of 50
 double minimum_source_mass(double redshift, struct AstroParams *astro_params, struct FlagOptions *flag_options){
     double Mmin,min_factor,ion_factor;
     if(flag_options->USE_MASS_DEPENDENT_ZETA)

@@ -25,6 +25,15 @@
  * https://github.com/dmcrodrigues/macro-logger/blob/master/macrologger.h
  */
 
+//James Davies: To keep some rough consistency with future debug logging, here's how I've broadly chosen use the log levels in 21cmFAST:
+//      LOG_DEBUG: useful outputs called once per outer function e.g: global quantities, parameters, initialisation
+//          For finding global parameter bugs
+//      LOG_SUPER_DEBUG: things assigned in smaller loops within functions e.g: Filter radius quantities, single cell outputs, thread loops
+//          For finding bugs which occur only with certain conditions or if you need to check quantities for a single cell
+//      LOG_ULTRA_DEBUG: For where you need to print quantities in multiple individual cells.
+//          For when you're at your wits end finding very tricky bugs which only occur in some cells
+//          This should really only be done with very small test runs (small box or short duration) or calling C functions directly from the library 
+
 #ifndef __MACROLOGGER_H__
 #define __MACROLOGGER_H__
 

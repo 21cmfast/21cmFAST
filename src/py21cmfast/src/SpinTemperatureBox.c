@@ -1074,6 +1074,10 @@ void set_zp_consts(double zp, struct Ts_zp_consts *consts){
     LOG_DEBUG("Setting zp constants");
     double Luminosity_converstion_factor;
     double gamma_alpha;
+    consts->growth_zp = dicke(zp);
+    consts->hubble_zp = hubble(zp);
+    consts->dgrowth_dzp = ddicke_dz(zp);
+    consts->dt_dzp = dtdz(zp);
     if(fabs(astro_params_ts->X_RAY_SPEC_INDEX - 1.0) < 1e-6) {
         Luminosity_converstion_factor = (astro_params_ts->NU_X_THRESH)*NU_over_EV * log( global_params.NU_X_BAND_MAX/(astro_params_ts->NU_X_THRESH) );
         Luminosity_converstion_factor = 1./Luminosity_converstion_factor;
@@ -1097,7 +1101,7 @@ void set_zp_consts(double zp, struct Ts_zp_consts *consts){
     // Note: These used to be determined in evolveInt (and other functions). But I moved them all here, into a single location.
     consts->Trad = T_cmb*(1.0+zp);
     consts->Trad_inv = 1.0/consts->Trad;
-    consts->Ts_prefactor = pow(1.0e-7*(1.342881e-7 / hubble(zp))*No*pow(1+zp,3),1./3.);
+    consts->Ts_prefactor = pow(1.0e-7*(1.342881e-7 / consts->hubble_zp)*No*pow(1+zp,3),1./3.);
 
     gamma_alpha = f_alpha*pow(Ly_alpha_HZ*e_charge/(C/10.),2.); // division of C/10. is converstion of electric charge from esu to coulomb
     gamma_alpha /= 6.*(m_e/1000.)*pow(C/100.,3.)*vac_perm; //division by 1000. to convert gram to kg and division by 100. to convert cm to m
@@ -1108,7 +1112,7 @@ void set_zp_consts(double zp, struct Ts_zp_consts *consts){
 
     consts->xc_inverse =  pow(1.0+zp,3.0)*T21/(consts->Trad*A10_HYPERFINE);
 
-    consts->dcomp_dzp_prefactor = (-1.51e-4)/(hubble(zp)/Ho)/(cosmo_params_ts->hlittle)*pow(consts->Trad,4.0)/(1.0+zp);
+    consts->dcomp_dzp_prefactor = (-1.51e-4)/(consts->hubble_zp/Ho)/(cosmo_params_ts->hlittle)*pow(consts->Trad,4.0)/(1.0+zp);
 
     consts->Nb_zp = N_b0 * (1+zp)*(1+zp)*(1+zp); //used for lya_X and sinks NOTE: the 2 density factors are from source & absorber since its downscattered x-ray
     consts->N_zp = No * (1+zp)*(1+zp)*(1+zp); //used for CMB 
@@ -1121,11 +1125,6 @@ void set_zp_consts(double zp, struct Ts_zp_consts *consts){
     else{
         consts->volunit_inv = cosmo_params_ts->OMb * RHOcrit * pow(CMperMPC,-3);
     }
-
-    consts->growth_zp = dicke(zp);
-    consts->hubble_zp = hubble(zp);
-    consts->dgrowth_dzp = ddicke_dz(zp);
-    consts->dt_dzp = dtdz(zp);
 
     LOG_DEBUG("Set zp consts xr %.2e Tr %.2e Ts %.2e xa %.2e xc %.2e cm %.2e",consts->xray_prefactor,consts->Trad,
                 consts->Ts_prefactor,consts->xa_tilde_prefactor,consts->xc_inverse,consts->dcomp_dzp_prefactor);
@@ -1389,6 +1388,19 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     double max_buf=-1e20, min_buf=1e20, curr_dens;
     curr_vcb = flag_options_ts->FIX_VCB_AVG ? global_params.VAVG : 0;
 
+    //These limits are used in the no table case, in the FgtrM tables, and in certain debug messages
+    //      So it makes sense to always calculate them
+    //NOTE: there was no FAST_FCOLL here, i'm not sure if that's correct
+    for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
+        M_min_R[R_ct] = minimum_source_mass(zpp_for_evolve_list[R_ct],astro_params,flag_options);
+        M_max_R[R_ct] = RtoM(R_values[R_ct]);
+        sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]),0,NULL);
+        sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]),0,NULL);
+
+        LOG_SUPER_DEBUG("R %d = %.2e z %.2e || M = [%.2e, %.2e] sig [%.2e %.2e]",R_ct,R_values[R_ct],
+                    zpp_for_evolve_list[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
+    }
+
     //TODO: I want to move this part of the box assignment to an XraySourceBox for consistency between
     //  halo/nohalo flags and options to use the proper perturbfield/SFRD and annular filters
     if(!flag_options->USE_HALO_FIELD){
@@ -1455,19 +1467,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             max_densities[R_ct] = max_densities[R_ct]*zpp_growth[R_ct] + 0.001;
             min_densities[R_ct] = min_densities[R_ct]*zpp_growth[R_ct] - 0.001;
             // LOG_SUPER_DEBUG("R_ct %d [min,max] = [%.2e,%.2e] Ma %.2e D %.2e",R_ct,min_densities[R_ct],max_densities[R_ct],Mcrit_atom_interp_table[R_ct],zpp_growth[R_ct]);
-        }
-
-        //mass limits required for no interp table case, also for FgtrM table limits
-        //NOTE: there was no FAST_FCOLL here, i'm not sure if that's correct
-        for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
-            //NOTE: not sure why this is the minimum mass here but I just moved it here
-            M_min_R[R_ct] = minimum_source_mass(zpp_for_evolve_list[R_ct],astro_params,flag_options);
-            M_max_R[R_ct] = RtoM(R_values[R_ct]);
-            sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]),0,NULL);
-            sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]),0,NULL);
-
-            // LOG_DEBUG("R %d = %.2e z %.2e || M = [%.2e, %.2e] sig [%.2e %.2e]",R_ct,R_values[R_ct],
-            //             zpp_for_evolve_list[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
         }
 
         if(user_params->USE_INTERPOLATION_TABLES){
@@ -1686,7 +1685,9 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                         dstarlya_cont_dt_box[box_ct] += sfr_term*dstarlya_cont_dt_prefactor[R_ct] + sfr_term_mini*lyacont_factor_mini;
                         dstarlya_inj_dt_box[box_ct] += sfr_term*dstarlya_inj_dt_prefactor[R_ct] + sfr_term_mini*lyainj_factor_mini;
                     }
-                    if(box_ct==0){
+                    //TODO: come up with a way to get the integral check without the density field
+                    //      will we ever need filtered density with the halo model?)
+                    if(box_ct==0 && !flag_options->USE_HALO_FIELD){
                         LOG_SUPER_DEBUG("Cell0 R=%.1f (%.3f) | SFR %.4e | integral %.4e",
                                         R_values[R_ct],zpp_for_evolve_list[R_ct],sfr_term,
                                         Nion_ConditionalM(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,

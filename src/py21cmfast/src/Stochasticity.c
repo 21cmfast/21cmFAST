@@ -259,7 +259,7 @@ double MnMassfunction(double M, void *param_struct){
             mf = dNdM_WatsonFOF_z(z, growthf, M_exp) * M_exp;
         }
         else if(HMF==4) {
-            mf = dNdlnM_Delos(z, growthf, M_exp); //consts?
+            mf = dNdlnM_Delos(growthf, M_exp); //consts?
         }
         else {
             //TODO: proper errors
@@ -2823,4 +2823,16 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
     }
     LOG_DEBUG("Done.");
     return(0);
+}
+
+//This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the box
+int expected_nhalo(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions * flag_options){
+    //minimum sampled mass
+    double M_min = astro_params->M_TURN / global_params.HALO_MTURN_FACTOR * global_params.HALO_SAMPLE_FACTOR;
+    //maximum sampled mass
+    double M_max = RHOcrit * cosmo_params->OMm * VOLUME / HII_TOT_NUM_PIXELS;
+
+    double growthf = dicke(redshift);
+
+    return IntegratedNdM(growthf, M_min, M_max, M_max, 0., 0., user_params->HMF, 0) * M_max / sqrt(2.*PI); 
 }
