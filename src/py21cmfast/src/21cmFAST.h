@@ -105,21 +105,13 @@ struct PerturbedField{
 
 struct HaloField{
     int n_halos;
+    int buffer_size;
     float *halo_masses;
     int *halo_coords;
 
     //Halo properties for stochastic model
     float *star_rng;
     float *sfr_rng;
-
-    int n_mass_bins;
-    int max_n_mass_bins;
-
-    float *mass_bins;
-    float *fgtrm;
-    float *sqrt_dfgtrm;
-    float *dndlm;
-    float *sqrtdn_dlm;
 };
 
 //gridded halo properties
@@ -141,6 +133,7 @@ struct HaloBox{
 
 struct PerturbHaloField{
     int n_halos;
+    int buffer_size;
     float *halo_masses;
     int *halo_coords;
 
@@ -256,7 +249,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                         , int seed, int n_mass, float *M, double condition, double z_out, double z_in, int type, double *result);
 
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the box
-int expected_nhalo(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions * flag_options);
+double expected_nhalo(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions * flag_options);
 
 //these two functions compute the new classes HaloBox and XraySourceBox, and need to be visible
 int ComputeHaloBox(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params

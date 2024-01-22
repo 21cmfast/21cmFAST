@@ -211,7 +211,6 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
             }
         }
     }
-    LOG_DEBUG("allocd");
 
     float MassTurnover[NMTURN];
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
@@ -223,7 +222,6 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
             MassTurnover[j] = pow(10., LOG10_MTURN_MIN + (float)j/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
         }
     }
-    LOG_DEBUG("found mlim");
 
 #pragma omp parallel private(i,j) num_threads(user_params_it->N_THREADS)
     {
@@ -242,7 +240,6 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
             }
         }
     }
-    LOG_DEBUG("filled tables");
 
     for (i=0; i<Nbin; i++){
         if(isfinite(Nion_z_val[i])==0) {
@@ -368,7 +365,7 @@ void initialise_Nion_General_spline(float z, float Mcrit_atom, float min_density
     sigma2 = EvaluateSigma(Mmax,0,NULL);
     // Even when we use GL, this is done in Ionisationbox.c
     // initialiseGL_Nion(NGL_SFR, global_params.M_MIN_INTEGRAL, Mmax);
-    
+
     for (i=0;i<NDELTA;i++) {
         overdense_table[i] = min_density + (float)i/((float)NDELTA-1.)*(max_density - min_density);
     }
@@ -397,7 +394,7 @@ void initialise_Nion_General_spline(float z, float Mcrit_atom, float min_density
                 output_spline[i][j] = log(Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,Deltac,
                                                 overdense_table[i],mturns[j],Alpha_star,Alpha_esc,
                                                 Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,FAST_FCOLL_TABLES));
-                
+
                 // output_spline[i][j] = log(GaussLegendreQuad_Nion(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,\
                                                         pow(10.,log10_overdense_spline_SFR[i])-1.,Mturns[j],Alpha_star,\
                                                         Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc, FAST_FCOLL_TABLES));
@@ -408,7 +405,7 @@ void initialise_Nion_General_spline(float z, float Mcrit_atom, float min_density
                 output_spline_MINI[i][j] = log(Nion_ConditionalM_MINI(growthf,Mmin,Mmax,sigma2,Deltac,overdense_table[i],
                                                     mturns_MINI[j],Mcrit_atom,Alpha_star_mini,Alpha_esc,Fstar7_MINI,Fesc7_MINI,
                                                     Mlim_Fstar_MINI,Mlim_Fesc_MINI, FAST_FCOLL_TABLES));
-                
+
                 // output_spline_MINI[i][j] = log(GaussLegendreQuad_Nion_MINI(0,NGL_SFR,growthf,Mmax,sigma2,Deltac,\
                                                                 pow(10.,log10_overdense_spline_SFR[i])-1.,Mturns_MINI[j],Mcrit_atom,\
                                                                 Alpha_star_mini,Alpha_esc,Fstar7_MINI,Fesc7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI, FAST_FCOLL_TABLES));

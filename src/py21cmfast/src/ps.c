@@ -3578,15 +3578,19 @@ double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
 }
 
 //set the minimum source mass for the integrals, If we have an exponential cutoff we go below the chosen mass by a factor of 50
+//NOTE: previously, with USE_MINI_HALOS, the sigma table was initialised with M_MIN_INTEGRAL/50, but then all integrals perofmed
+//      from M_MIN_INTEGRAL
+//TODO: *sometimes* we need to initialise tables slightly lower than the integral, this is solved ad-hoc in each file that calls this function
+//      I should make a proper fix
 double minimum_source_mass(double redshift, struct AstroParams *astro_params, struct FlagOptions *flag_options){
     double Mmin,min_factor,ion_factor;
-    if(flag_options->USE_MASS_DEPENDENT_ZETA)
+    if(flag_options->USE_MASS_DEPENDENT_ZETA && !flag_options->USE_MINI_HALOS)
         min_factor = 50.; // small lower bound to cover far below the turnover
     else
         min_factor = 1.; //sharp cutoff
 
     // automatically false if !USE_MASS_DEPENDENT_ZETA
-    if(flag_options->USE_MINI_HALOS) {
+    if(flag_options->USE_MINI_HALOS){
         Mmin = global_params.M_MIN_INTEGRAL;
     }
     // automatically true if USE_MASS_DEPENDENT_ZETA
@@ -3597,7 +3601,7 @@ double minimum_source_mass(double redshift, struct AstroParams *astro_params, st
         ion_factor = astro_params->ION_Tvir_MIN < 9.99999e3 ? 1.22 : 0.6;
         Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, ion_factor);
     }
-    
+
     //I doubt this will be used much but previously
     //  it was ONLY in the !USE_MASS_DEP_ZETA case,
     //  and the fuction looks odd (fudge), should be tested
@@ -3606,7 +3610,7 @@ double minimum_source_mass(double redshift, struct AstroParams *astro_params, st
     if(global_params.P_CUTOFF){
         Mmin = fmax(Mmin,M_J_WDM());
     }
-    
+
     Mmin /= min_factor;
 
     return Mmin;

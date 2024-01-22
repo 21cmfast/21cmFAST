@@ -1493,6 +1493,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def __del__(self):
         """Safely delete the object and its C-allocated memory."""
+        # TODO: figure out why this breaks the C memory if purged, _remove_array should set .initialised to false,
+        #       which should make .c_has_active_memory false
         for k in self._c_based_pointers:
             if self._array_state[k].c_has_active_memory:
                 lib.free(getattr(self._cstruct, k))

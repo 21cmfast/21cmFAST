@@ -14,6 +14,7 @@ parameter objects necessary to define it.
 from __future__ import annotations
 
 import h5py
+import logging
 import numpy as np
 import os
 import warnings
@@ -31,6 +32,8 @@ from ._utils import OutputStruct as _BaseOutputStruct
 from ._utils import _check_compatible_inputs
 from .c_21cmfast import ffi, lib
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+
+logger = logging.getLogger("21cmFAST")
 
 
 class _OutputStruct(_BaseOutputStruct):
@@ -288,58 +291,41 @@ class _AllParamsBox(_OutputStructZ):
 class HaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
-    _inputs = _AllParamsBox._inputs + ("desc_redshift",)
+    _meta = False
+    _inputs = _AllParamsBox._inputs + (
+        "desc_redshift",
+        "buffer_size",
+    )
+    _c_compute_function = lib.ComputeHaloField
 
     def __init__(
         self,
         *,
         desc_redshift: float | None = None,
+        buffer_size: int = 0.0,
         **kwargs,
     ):
         self.desc_redshift = desc_redshift
+        self.buffer_size = buffer_size
+
         super().__init__(**kwargs)
 
-    _c_based_pointers = (
-        "halo_masses",
-        "star_rng",
-        "sfr_rng",
-        "halo_coords",
-        "mass_bins",
-        "fgtrm",
-        "sqrt_dfgtrm",
-        "dndlm",
-        "sqrtdn_dlm",
-    )
-    _c_compute_function = lib.ComputeHaloField
-
-    # TODO: Having no Array state makes allocation/memory management awkward for this object
-    #   I would like to properly manage it in some other way, currently you should declare in python,
-    #   allocate in C and NEVER deallocate it, since it should be GC'd in python somewhere (I think????)
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        return {}
-
-    def _c_shape(self, cstruct):
-        return {
-            "halo_masses": (cstruct.n_halos,),
-            "star_rng": (cstruct.n_halos,),
-            "sfr_rng": (cstruct.n_halos,),
-            "halo_coords": (cstruct.n_halos, 3),
-            "mass_bins": (cstruct.n_mass_bins,),
-            "fgtrm": (cstruct.n_mass_bins,),
-            "sqrt_dfgtrm": (cstruct.n_mass_bins,),
-            "dndlm": (cstruct.n_mass_bins,),
-            "sqrtdn_dlm": (cstruct.n_mass_bins,),
+        # add a buffer to the average number of halos
+        out = {
+            "halo_masses": (self.buffer_size,),
+            "star_rng": (self.buffer_size,),
+            "sfr_rng": (self.buffer_size,),
+            "halo_coords": (self.buffer_size, 3),
         }
+
+        return out
 
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
-            # NOTE: DexM runs the first sample w HALO_STOCHASTICITY on the lores density grid, subsequent runs do not need density
-            if self.flag_options.HALO_STOCHASTICITY:
-                required += ["lowres_density"]
-            else:
-                required += ["hires_density"]
+            required += ["hires_density"]
         elif isinstance(input_box, HaloField):
             required += ["halo_masses", "halo_coords", "star_rng", "sfr_rng"]
         else:
@@ -371,18 +357,27 @@ class PerturbHaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
     _c_compute_function = lib.ComputePerturbHaloField
-    _c_based_pointers = ("halo_masses", "halo_coords", "star_rng", "sfr_rng")
+    _meta = False
+    _inputs = _AllParamsBox._inputs + ("buffer_size",)
+
+    def __init__(
+        self,
+        buffer_size: int = 0.0,
+        **kwargs,
+    ):
+        self.buffer_size = buffer_size
+        super().__init__(**kwargs)
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        return {}
-
-    def _c_shape(self, cstruct):
-        return {
-            "halo_masses": (cstruct.n_halos,),
-            "halo_coords": (cstruct.n_halos, 3),
-            "star_rng": (cstruct.n_halos,),
-            "sfr_rng": (cstruct.n_halos,),
+        # add a buffer to the average number of halos
+        out = {
+            "halo_masses": (self.buffer_size,),
+            "star_rng": (self.buffer_size,),
+            "sfr_rng": (self.buffer_size,),
+            "halo_coords": (self.buffer_size, 3),
         }
+
+        return out
 
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -404,6 +399,7 @@ class PerturbHaloField(_AllParamsBox):
 
         return required
 
+    # TODO: We should check here that the buffer size is >= halo_field.n_halos
     def compute(self, *, ics: InitialConditions, halo_field: HaloField, hooks: dict):
         """Compute the function."""
         return self._compute(
@@ -419,7 +415,7 @@ class PerturbHaloField(_AllParamsBox):
 
 
 class HaloBox(_AllParamsBox):
-    """A class containing all gridded halo properties"""
+    """A class containing all gridded halo properties."""
 
     _meta = False
     _c_compute_function = lib.ComputeHaloBox
@@ -475,7 +471,7 @@ class HaloBox(_AllParamsBox):
         pt_halos: PerturbHaloField,
         perturbed_field: PerturbedField,
         previous_spin_temp: TsBox,
-        previous_ionize_box: IonizedBoxBox,
+        previous_ionize_box: IonizedBox,
         hooks: dict,
     ):
         """Compute the function."""
@@ -495,7 +491,7 @@ class HaloBox(_AllParamsBox):
 
 
 class XraySourceBox(_AllParamsBox):
-    """A class containing the filtered sfr grids"""
+    """A class containing the filtered sfr grids."""
 
     _meta = False
     _c_compute_function = lib.UpdateXraySourceBox

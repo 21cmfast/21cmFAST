@@ -116,11 +116,6 @@ LOG_DEBUG("Begin Initialisation");
         unsigned long long n_halos;
 
         halos_perturbed->n_halos = halos->n_halos;
-        halos_perturbed->halo_masses = malloc(sizeof(float) * halos->n_halos);
-        halos_perturbed->star_rng = malloc(sizeof(float) * halos->n_halos);
-        halos_perturbed->sfr_rng = malloc(sizeof(float) * halos->n_halos);
-        halos_perturbed->halo_coords = malloc(sizeof(int) * halos->n_halos * 3);
-
 
         // ******************   END INITIALIZATION     ******************************** //
 

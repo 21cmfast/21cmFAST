@@ -457,7 +457,7 @@ void calculate_spectral_factors(double zp){
                 //  currently: emitted frequency >= received frequency of next n
                 if (nuprime >= nu_n(n_ct + 1))
                     continue;
-                
+
                 sum_lyLW_val  += (1. - astro_params_ts->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
                 sum_lyLW_val_MINI += (1. - astro_params_ts->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 3);
             }
@@ -491,7 +491,7 @@ void calculate_spectral_factors(double zp){
         }
         sum_lyn_val = sum_ly2_val + sum_lynto2_val;
         sum_lyn_val_MINI = sum_ly2_val_MINI + sum_lynto2_val_MINI;
-        
+
         //At the edge of the redshift limit, part of the shell will still contain a contribution
         //  This loop approximates the volume which contains the contribution
         //  and multiplies this by the previous shell's value.
@@ -526,7 +526,7 @@ void calculate_spectral_factors(double zp){
         zpp_integrand = ( pow(1+zp,2)*(1+zpp) );
         dstarlya_dt_prefactor[R_ct] = zpp_integrand * sum_lyn_val;
         LOG_SUPER_DEBUG("z: %.2e R: %.2e int %.2e starlya: %.4e",zpp,R_values[R_ct],zpp_integrand,dstarlya_dt_prefactor[R_ct]);
-        
+
         if(flag_options_ts->USE_LYA_HEATING){
             dstarlya_cont_dt_prefactor[R_ct] = zpp_integrand * sum_ly2_val;
             dstarlya_inj_dt_prefactor[R_ct] = zpp_integrand * sum_lynto2_val;
@@ -540,7 +540,7 @@ void calculate_spectral_factors(double zp){
                 dstarlya_cont_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_ly2_val_MINI;
                 dstarlya_inj_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_lynto2_val_MINI;
             }
-            
+
             LOG_SUPER_DEBUG("starmini: %.2e LW: %.2e LWmini: %.2e",dstarlya_dt_prefactor_MINI[R_ct],
                                                         dstarlyLW_dt_prefactor[R_ct],
                                                         dstarlyLW_dt_prefactor_MINI[R_ct]);
@@ -1115,7 +1115,7 @@ void set_zp_consts(double zp, struct Ts_zp_consts *consts){
     consts->dcomp_dzp_prefactor = (-1.51e-4)/(consts->hubble_zp/Ho)/(cosmo_params_ts->hlittle)*pow(consts->Trad,4.0)/(1.0+zp);
 
     consts->Nb_zp = N_b0 * (1+zp)*(1+zp)*(1+zp); //used for lya_X and sinks NOTE: the 2 density factors are from source & absorber since its downscattered x-ray
-    consts->N_zp = No * (1+zp)*(1+zp)*(1+zp); //used for CMB 
+    consts->N_zp = No * (1+zp)*(1+zp)*(1+zp); //used for CMB
     consts->lya_star_prefactor = C / FOURPI * Msun / m_p * (1 - 0.75*global_params.Y_He); //converts SFR density -> stellar baryon density + prefactors
 
     //converts the grid emissivity unit to per cm-3
@@ -1349,11 +1349,9 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
 
     double M_MIN;
     //with the TtoM limit, we use the largest redshift, to cover the whole range
-    double z_var = flag_options->USE_MASS_DEPENDENT_ZETA ? \
-        redshift : zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts - 1];
-    M_MIN = minimum_source_mass(z_var,astro_params,flag_options);
+    M_MIN = minimum_source_mass(zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts - 1],astro_params,flag_options);
     if(user_params->FAST_FCOLL_TABLES) M_MIN = fmin(MMIN_FAST,M_MIN);
-    
+
     LOG_SUPER_DEBUG("Minimum Source Mass %.6e (log) %.6e",M_MIN,log(M_MIN));
     if(user_params->USE_INTERPOLATION_TABLES)
         initialiseSigmaMInterpTable(M_MIN,1e20);
@@ -1481,7 +1479,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                 initialise_FgtrM_delta_table(global_params.NUM_FILTER_STEPS_FOR_Ts, min_densities, max_densities, zpp_for_evolve_list, zpp_growth, sigma_min, sigma_max);
             }
         }
-    
+
         //These are still re-calculated internally in each table initialisation
         //TODO: combine into a struct and remove globals
         Mlim_Fstar_g = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
@@ -1699,7 +1697,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                                             delNL0[R_ct][box_ct]*zpp_growth[R_ct],pow(10,log10_Mcrit_LW[R_ct][box_ct]),Mcrit_atom_interp_table[R_ct],\
                                             astro_params->ALPHA_STAR_MINI,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI_g, 0., user_params->FAST_FCOLL_TABLES) \
                                              * z_edge_factor * (1+delNL0[R_ct][box_ct]*zpp_growth[R_ct]) * avg_fix_term_MINI * astro_params->F_STAR7_MINI);
-                                             
+
                         LOG_SUPER_DEBUG("xh %.2e | xi %.2e | xl %.2e | sl %.2e | ct %.2e | ij %.2e",dxheat_dt_box[box_ct]/astro_params->L_X,
                                         dxion_source_dt_box[box_ct]/astro_params->L_X,dxlya_dt_box[box_ct]/astro_params->L_X,dstarlya_dt_box[box_ct],dstarlya_cont_dt_box[box_ct],dstarlya_inj_dt_box[box_ct]);
                     }
@@ -1757,7 +1755,7 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
                 }
                 LOG_SUPER_DEBUG("Ts %.5e Tk %.5e x_e %.5e J_21_LW %.5e",ts_cell.Ts,ts_cell.Tk,ts_cell.x_e,ts_cell.J_21_LW);
             }
-            
+
             if(LOG_LEVEL >= DEBUG_LEVEL){
                 J_alpha_ave += rad.dxlya_dt + rad.dstarlya_dt;
                 xheat_ave += rad.dxheat_dt;

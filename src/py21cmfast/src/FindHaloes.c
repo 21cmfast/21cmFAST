@@ -8,13 +8,10 @@
 // ComputeHaloField outputs a cube with non-zero elements containing the Mass of
 // the virialized halos
 
-int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, float R, int x, int y, int z, int check_type);
+int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z, int check_type);
 void init_halo_coords(struct HaloField *halos, int n_halos);
 int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index );
 void free_halo_field(struct HaloField *halos);
-void init_hmf(struct HaloField *halos);
-void trim_hmf(struct HaloField *halos);
-
 
 int ComputeHaloField(float redshift_prev, float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                      struct AstroParams *astro_params, struct FlagOptions *flag_options,
@@ -52,14 +49,12 @@ LOG_DEBUG("redshift=%f", redshift);
         float growth_factor, R, delta_m, dm, dlnm, M, Delta_R, delta_crit;
         double fgtrm, dfgtrm;
         unsigned long long ct;
-        char filename[80], *in_halo, *forbidden;
-        int i,j,k,x,y,z,dn,n,counter;
+        char *in_halo, *forbidden;
+        int i,j,k,x,y,z,dn,n;
         int total_halo_num;
         float R_temp, x_temp, y_temp, z_temp, dummy, M_MIN;
 
-LOG_DEBUG("Begin Initialisation");
-
-        counter = 0;
+        LOG_DEBUG("Begin Initialisation");
 
         // ***************** BEGIN INITIALIZATION ***************** //
         init_ps();
@@ -67,20 +62,20 @@ LOG_DEBUG("Begin Initialisation");
         growth_factor = dicke(redshift); // normalized to 1 at z=0
         delta_crit = Deltac; // for now set to spherical; check if we want elipsoidal later
 
-        //when using the halo sampler, this finds the large halos on HII_DIM, then the sampler runs below HII_DIM
-        //otherwise it finds halos on DIM
-        //I rename the flag here for clarity and in case we want some other conditions later
-        int res_flag = flag_options->HALO_STOCHASTICITY ? 1 : 0;
-        // int res_flag = 0;
-        int grid_dim = res_flag ? user_params->HII_DIM : user_params->DIM;
-        int z_dim = res_flag ? HII_D_PARA : D_PARA;
-        int num_pixels = res_flag ? HII_TOT_NUM_PIXELS : TOT_NUM_PIXELS;
-        int k_num_pixels = res_flag ? HII_KSPACE_NUM_PIXELS : KSPACE_NUM_PIXELS;
+        //store highly used parameters
+        int grid_dim = user_params->DIM;
+        int z_dim = D_PARA;
+        int num_pixels = TOT_NUM_PIXELS;
+        int k_num_pixels = KSPACE_NUM_PIXELS;
 
         //set minimum source mass
         M_MIN = minimum_source_mass(redshift, astro_params, flag_options);
         //if we use the sampler we want to stop at the HII cell mass
-        M_MIN = fmax(M_MIN,RtoM(L_FACTOR*user_params->BOX_LEN/grid_dim));
+        if(flag_options->HALO_STOCHASTICITY)
+            M_MIN = fmax(M_MIN,RtoM(L_FACTOR*user_params->BOX_LEN/user_params->HII_DIM));
+        //otherwise we stop at the cell mass
+        else
+            M_MIN = fmax(M_MIN,RtoM(L_FACTOR*user_params->BOX_LEN/grid_dim));
 
         // allocate array for the k-space box
         density_field = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*k_num_pixels);
@@ -95,11 +90,20 @@ LOG_DEBUG("Begin Initialisation");
         if(global_params.OPTIMIZE) {
             forbidden = (char *) malloc(sizeof(char)*num_pixels);
         }
+
+        unsigned long long int nhalo_threads[user_params->N_THREADS];
+        unsigned long long int istart_threads[user_params->N_THREADS];
+        //expected TOTAL halos in box from minimum source mass
+
+        unsigned long long int arraysize_total = halos->buffer_size;
+        unsigned long long int arraysize_local = arraysize_total / user_params->N_THREADS;
+
         if(LOG_LEVEL >= DEBUG_LEVEL){
             double Mmax_debug = 1e16;
             initialiseSigmaMInterpTable(M_MIN*0.9,Mmax_debug*1.1);
-            double expected_nhalo = VOLUME * IntegratedNdM(growth_factor,log(M_MIN),log(Mmax_debug),log(Mmax_debug),0,0,user_params->HMF,0);
-            LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e] (%.2e)",expected_nhalo,M_MIN,Mmax_debug, RHOcrit * cosmo_params->OMm * VOLUME / TOT_NUM_PIXELS);
+            double nhalo_debug = VOLUME * IntegratedNdM(growth_factor,log(M_MIN),log(Mmax_debug),log(Mmax_debug),0,0,user_params->HMF,0);
+            //expected halos above minimum filter mass
+            LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e] (%.2e)",nhalo_debug,M_MIN,Mmax_debug, RHOcrit * cosmo_params->OMm * VOLUME / TOT_NUM_PIXELS);
         }
 
 #pragma omp parallel shared(boxes,density_field) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -108,11 +112,7 @@ LOG_DEBUG("Begin Initialisation");
             for (i=0; i<grid_dim; i++){
                 for (j=0; j<grid_dim; j++){
                     for (k=0; k<z_dim; k++){
-                        //TODO: I want a cleaner way to approach the indexing with high/low res options
-                        if(res_flag)
-                            *((float *)density_field + HII_R_FFT_INDEX(i,j,k)) = *((float *)boxes->lowres_density + HII_R_INDEX(i,j,k));
-                        else
-                            *((float *)density_field + R_FFT_INDEX(i,j,k)) = *((float *)boxes->hires_density + R_INDEX(i,j,k));
+                        *((float *)density_field + R_FFT_INDEX(i,j,k)) = *((float *)boxes->hires_density + R_INDEX(i,j,k));
                     }
                 }
             }
@@ -125,7 +125,7 @@ LOG_DEBUG("Begin Initialisation");
 
         // ***************** END INITIALIZATION ***************** //
 
-LOG_DEBUG("Finalised Initialisation");
+        LOG_DEBUG("Finalised Initialisation");
 
         // lets filter it now
         // set initial R value
@@ -137,17 +137,21 @@ LOG_DEBUG("Finalised Initialisation");
         total_halo_num = 0;
         R = MtoR(M_MIN*1.01); // one percent higher for rounding
 
-LOG_DEBUG("Prepare to filter to find halos");
+        LOG_DEBUG("Prepare to filter to find halos");
 
         while (R < L_FACTOR*user_params->BOX_LEN)
             R*=global_params.DELTA_R_FACTOR;
 
-        // This uses more memory than absolutely necessary, but is fastest.
-        //TODO: I could just use halos_prev? which would make it exist in the wrapper
-        //  but would take some tinkering
-        struct HaloField *halos_large = malloc(sizeof(struct HaloField));
-        halos_large->n_halos = 0;
-        init_hmf(halos_large);
+        struct HaloField *halos_dexm;
+        if(flag_options->HALO_STOCHASTICITY){
+            //To save memory, we allocate the smaller (large mass) halofield here instead of using halos_prev
+            halos_dexm = malloc(sizeof(struct HaloField));
+        }
+        else{
+            //assign directly to the output field instead
+            halos_dexm = halos;
+        }
+
         float *halo_field = calloc(num_pixels, sizeof(float));
 
         while ((R > 0.5*Delta_R) && (RtoM(R) >= M_MIN)){ // filter until we get to half the pixel size or M_MIN
@@ -164,7 +168,7 @@ LOG_DEBUG("Prepare to filter to find halos");
                     // use Delos 2023 flat barrier
                     delta_crit = 1.5;
                 }
-                else{
+                else if(user_params->HMF!=0){
                     LOG_WARNING("Halo Finder: You have selected DELTA_CRIT_MODE==1 with HMF %d which does not have a barrier\
                                     , using EPS deltacrit = 1.68",user_params->HMF);
                 }
@@ -182,7 +186,7 @@ LOG_DEBUG("Prepare to filter to find halos");
 
             // now filter the box on scale R
             // 0 = top hat in real space, 1 = top hat in k space
-            filter_box(density_field, res_flag, global_params.HALO_FILTER, R);
+            filter_box(density_field, 0, global_params.HALO_FILTER, R);
 
             // do the FFT to get delta_m box
             dft_c2r_cube(user_params->USE_FFTW_WISDOM, grid_dim, z_dim, user_params->N_THREADS, density_field);
@@ -201,13 +205,10 @@ LOG_DEBUG("Prepare to filter to find halos");
                         for (x=0; x<grid_dim; x++){
                             for (y=0; y<grid_dim; y++){
                                 for (z=0; z<z_dim; z++){
-                                    if(res_flag)
-                                        halo_buf = halo_field[HII_R_INDEX(x,y,z)];
-                                    else
-                                        halo_buf = halo_field[R_INDEX(x,y,z)];
+                                    halo_buf = halo_field[R_INDEX(x,y,z)];
                                     if(halo_buf > 0.) {
                                         R_temp = MtoR(halo_buf);
-                                        check_halo(forbidden, user_params, res_flag, R_temp+global_params.R_OVERLAP_FACTOR*R, x,y,z,2);
+                                        check_halo(forbidden, user_params, R_temp+global_params.R_OVERLAP_FACTOR*R, x,y,z,2);
                                     }
                                 }
                             }
@@ -222,31 +223,20 @@ LOG_DEBUG("Prepare to filter to find halos");
             //TODO: Fix the race condition propertly to thread: it doesn't matter which thread finds the halo first
             //  but if two threads find a halo in the same region simultaneously (before the first one updates in_halo) some halos could double-up
             //checking for overlaps in new halos after this loop could work, but I would have to calculate distances between all new halos which sounds slow
-            unsigned long long index_c;
-            unsigned long long index_r;
             for (x=0; x<grid_dim; x++){
                 for (y=0; y<grid_dim; y++){
                     for (z=0; z<z_dim; z++){
-                        if(res_flag){
-                            index_c = HII_R_FFT_INDEX(x,y,z);
-                            index_r = HII_R_INDEX(x,y,z);
-                        }
-                        else{
-                            index_c = R_FFT_INDEX(x,y,z);
-                            index_r = R_INDEX(x,y,z);
-                        }
-
-                        delta_m = *((float *)density_field + index_c) * growth_factor / num_pixels;
+                        delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / num_pixels;
 
                         // if not within a larger halo, and radii don't overlap, update in_halo box
                         //TODO: something to remove the criticals (see above note)
                         // *****************  BEGIN OPTIMIZATION ***************** //
                         if(global_params.OPTIMIZE && (M > global_params.OPTIMIZE_MIN_MASS)) {
-                            if ( (delta_m > delta_crit) && !forbidden[index_r]){
-                                check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
-                                check_halo(forbidden, user_params, res_flag, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
+                            if ( (delta_m > delta_crit) && !forbidden[R_INDEX(x,y,z)]){
+                                check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
+                                check_halo(forbidden, user_params, (1.+global_params.R_OVERLAP_FACTOR)*R, x,y,z,2); // flag the pixels contained within this halo
 
-                                halo_field[index_r] = M;
+                                halo_field[R_INDEX(x,y,z)] = M;
 
                                 dn++; // keep track of the number of halos
                                 n++;
@@ -255,15 +245,15 @@ LOG_DEBUG("Prepare to filter to find halos");
                         }
                         // *****************  END OPTIMIZATION ***************** //
                         else {
-                            if ((delta_m > delta_crit) && !in_halo[index_r] && !check_halo(in_halo, user_params, res_flag, R, x,y,z,1)){ // we found us a "new" halo!
-                                LOG_ULTRA_DEBUG("Halo found at (%d,%d,%d) ir %d if %d, delta = %.4f",x,y,z,index_r,index_c,delta_m);
+                            if ((delta_m > delta_crit) && !in_halo[R_INDEX(x,y,z)] && !check_halo(in_halo, user_params, R, x,y,z,1)){ // we found us a "new" halo!
+                                LOG_ULTRA_DEBUG("Halo found at (%d,%d,%d) ir %d if %d, delta = %.4f",x,y,z,R_INDEX(x,y,z),R_FFT_INDEX(x,y,z),delta_m);
                                 LOG_ULTRA_DEBUG("IR %d IC %d val %.4f R %.3e M %.3e",R_INDEX(x,y,z),R_FFT_INDEX(x,y,z),
                                             *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / num_pixels,
                                             R,M);
 
-                                check_halo(in_halo, user_params, res_flag, R, x,y,z,2); // flag the pixels contained within this halo
+                                check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
 
-                                halo_field[index_r] = M;
+                                halo_field[R_INDEX(x,y,z)] = M;
 
                                 dn++; // keep track of the number of halos
                                 n++;
@@ -276,126 +266,51 @@ LOG_DEBUG("Prepare to filter to find halos");
 
             LOG_SUPER_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", dn, n, growth_factor, delta_crit);
 
-            if (dn > 0){
-                // now lets keep the mass functions (FgrtR)
-                fgtrm += M/(RHOcrit*cosmo_params->OMm)*dn/VOLUME;
-                dfgtrm += pow(M/(RHOcrit*cosmo_params->OMm)*sqrt(dn)/VOLUME, 2);
-
-                // and the dndlnm files
-                dlnm = log(RtoM(global_params.DELTA_R_FACTOR*R)) - log(M);
-
-                if (halos_large->n_mass_bins == halos_large->max_n_mass_bins){
-                    // We've gone past the limit.
-                    LOG_WARNING("Code has required more than 100 mass bins, and will no longer store masses.");
-                }
-                else{
-                    halos_large->mass_bins[halos_large->n_mass_bins] = M;
-                    halos_large->fgtrm[halos_large->n_mass_bins] = fgtrm;
-                    halos_large->sqrt_dfgtrm[halos_large->n_mass_bins] = sqrt(dfgtrm);
-                    halos_large->dndlm[halos_large->n_mass_bins] = dn/VOLUME/dlnm;
-                    halos_large->sqrtdn_dlm[halos_large->n_mass_bins] = sqrt(dn)/VOLUME/dlnm;
-                    halos_large->n_mass_bins++;
-                }
-            }
-
             R /= global_params.DELTA_R_FACTOR;
         }
 
         LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.");
 
-        // Trim the mass function entries
-        trim_hmf(halos_large);
+        //Allocate the Halo Mass and Coordinate Fields (non-wrapper structure)
+        if(flag_options->USE_HALO_FIELD)
+            init_halo_coords(halos_dexm, total_halo_num);
 
-        // Initialize the halo co-ordinate and mass arrays.
-        init_halo_coords(halos_large, total_halo_num);
-
-        int istart_local[user_params->N_THREADS];
-        memset(istart_local,0,sizeof(int)*user_params->N_THREADS);
-        float * local_masses;
-        int * local_coords;
-        int threadnum;
-
-//I would expect the number of halos to be much less than the number of cells so defining local arrays here
-//and then concatenating shouldn't increase memory too much
-#pragma omp parallel shared(halos_large,halo_field,istart_local) private(x,y,z,counter,local_coords,local_masses,threadnum,i) num_threads(user_params->N_THREADS)
-        {
-            //TODO: find a way to allocate less, based on the local number of halos
-            //this can be done in the previous loop if we can guarantee the scheduler allocates the same chunks
-            threadnum = omp_get_thread_num();
-            local_masses = calloc(total_halo_num,sizeof(float));
-            local_coords = calloc(total_halo_num*3,sizeof(int));
-            // reuse counter as its no longer needed
-            counter = 0;
-            float halo_buf = 0;
-#pragma omp for
-            for (x=0; x<grid_dim; x++){
-                for (y=0; y<grid_dim; y++){
-                    for (z=0; z<z_dim; z++){
-                        if(res_flag)
-                            halo_buf = halo_field[HII_R_INDEX(x,y,z)];
-                        else
-                            halo_buf = halo_field[R_INDEX(x,y,z)];
-                        if(halo_buf > 0.) {
-                            local_masses[counter] = halo_buf;
-                            local_coords[0 + counter*3] = x;
-                            local_coords[1 + counter*3] = y;
-                            local_coords[2 + counter*3] = z;
-                            counter++;
-                        }
+        //Assign to the struct
+        //NOTE: To thread this part, we would need to keep track of how many halos are in each thread before
+        //      OR assign a buffer of size n_halo * n_thread (in case the last thread has all the halos),
+        //      copy the structure from stochasticity.c with the assignment and condensing
+        unsigned long long int count=0;
+        float halo_buf = 0;
+        for (x=0; x<grid_dim; x++){
+            for (y=0; y<grid_dim; y++){
+                for (z=0; z<z_dim; z++){
+                    halo_buf = halo_field[R_INDEX(x,y,z)];
+                    if(halo_buf > 0.) {
+                        LOG_ULTRA_DEBUG("Halo %d at (%d,%d,%d) M=%.2e i=%d of g %d",count,x,y,z,halo_buf,total_halo_num);
+                        halos_dexm->halo_masses[count] = halo_buf;
+                        halos_dexm->halo_coords[3*count + 0] = x;
+                        halos_dexm->halo_coords[3*count + 1] = y;
+                        halos_dexm->halo_coords[3*count + 2] = z;
+                        count++;
                     }
                 }
             }
-
-//this loop exectuted on all threads, we need the start index of each local array
-//i[0] == 0, i[1] == n_0, i[2] == n_0 + n_1 etc...
-            for(i=user_params->N_THREADS-1;i>threadnum;i--){
-#pragma omp atomic update
-                istart_local[i] += counter;
-            }
-//we need each thread to be done here before copying the data
-#pragma omp barrier
-
-            LOG_SUPER_DEBUG("Thread %d has %d of %d halos, concatenating (starting at %d)...",threadnum,counter,total_halo_num,istart_local[threadnum]);
-
-            //copy each local array into the struct
-            memcpy(halos_large->halo_masses + istart_local[threadnum],local_masses,counter*sizeof(float));
-            memcpy(halos_large->halo_coords + istart_local[threadnum]*3,local_coords,counter*sizeof(int)*3);
-
-            free(local_coords);
-            free(local_masses);
         }
+
         //add halo properties for ionisation TODO: add a flag
-        add_properties_cat(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift, halos_large);
-        if(total_halo_num>=3)
-            LOG_DEBUG("Found %d DexM halos",total_halo_num);
+        add_properties_cat(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift, halos_dexm);
+        LOG_DEBUG("Found %d DexM halos",total_halo_num);
 
         if(flag_options->HALO_STOCHASTICITY){
             LOG_DEBUG("Finding halos below grid resolution %.3e",M_MIN);
-            stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_prev, redshift, boxes->lowres_density, halos_large, halos);
-            //stochastic_halofield allocates new memory for all the halos so we can free everything
-            free_halo_field(halos_large);
-        }
-        else{
-            //assign to output struct
-            //I could pass in **HaloField to do this in one step but this should be fine
-            //  since the fields are not allocated in the wrapper
-            init_hmf(halos);
-            halos->mass_bins = halos_large->mass_bins;
-            halos->fgtrm = halos_large->fgtrm;
-            halos->sqrt_dfgtrm = halos_large->fgtrm;
-            halos->dndlm = halos_large->dndlm;
-            halos->sqrtdn_dlm = halos_large->sqrtdn_dlm;
-            halos->n_mass_bins = halos_large->n_mass_bins;
+            stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_prev, redshift, boxes->lowres_density, halos_dexm, halos);
 
-            halos->n_halos = halos_large->n_halos;
-            halos->halo_masses = halos_large->halo_masses;
-            halos->halo_coords = halos_large->halo_coords;
-            halos->star_rng = halos_large->star_rng;
-            halos->sfr_rng = halos_large->sfr_rng;
+            //Here, halos_dexm is allocated in the C, so free it
+            free_halo_field(halos_dexm);
+            free(halos_dexm);
         }
-        free(halos_large);
 
-LOG_DEBUG("Finished halo processing.");
+        LOG_DEBUG("Finished halo processing.");
 
         free(in_halo);
         free(halo_field);
@@ -426,7 +341,7 @@ if (halos->n_halos > 3)
 
 // Function check_halo combines the original two functions overlap_halo and update_in_halo
 // from the original 21cmFAST. Lots of redundant code, hence reduced into a single function
-int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, float R, int x, int y, int z, int check_type) {
+int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z, int check_type) {
 
     // if check_type == 1 (perform original overlap halo)
     //          Funtion OVERLAP_HALO checks if the would be halo with radius R
@@ -445,9 +360,9 @@ int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, flo
         R *= global_params.R_OVERLAP_FACTOR;
     }
 
-    int grid_dim = res_flag ? user_params->HII_DIM : user_params->DIM;
-    int z_dim = res_flag ? HII_D_PARA : D_PARA;
-    int num_pixels = res_flag ? HII_TOT_NUM_PIXELS : TOT_NUM_PIXELS;
+    int grid_dim = user_params->DIM;
+    int z_dim = D_PARA;
+    int num_pixels = TOT_NUM_PIXELS;
 
     // convert R to index units
     R_index = ceil(R/user_params->BOX_LEN*grid_dim);
@@ -475,10 +390,7 @@ int check_halo(char * in_halo, struct UserParams *user_params, int res_flag, flo
                 if (z_index<0) {z_index += z_dim;}
                 else if (z_index>=z_dim) {z_index -= z_dim;}
 
-                if(res_flag)
-                    curr_index = HII_R_INDEX(x_index,y_index,z_index);
-                else
-                    curr_index = R_INDEX(x_index,y_index,z_index);
+                curr_index = R_INDEX(x_index,y_index,z_index);
 
                 if(check_type==1) {
                     if ( in_halo[curr_index] &&
@@ -525,35 +437,6 @@ void free_halo_field(struct HaloField *halos){
     free(halos->star_rng);
     free(halos->sfr_rng);
     halos->n_halos = 0;
-
-    free(halos->mass_bins);
-    free(halos->fgtrm);
-    free(halos->sqrt_dfgtrm);
-    free(halos->dndlm);
-    free(halos->sqrtdn_dlm);
-    halos->n_mass_bins = 0;
-}
-void init_hmf(struct HaloField *halos){
-    // Initalize mass function array with an abitrary large number of elements.
-    // We will trim it later.
-    halos->max_n_mass_bins = 100;
-    halos->mass_bins = (float *) malloc(sizeof(float) * halos->max_n_mass_bins);
-    halos->fgtrm = (float *) malloc(sizeof(float) * halos->max_n_mass_bins);
-    halos->sqrt_dfgtrm = (float *) malloc(sizeof(float) * halos->max_n_mass_bins);
-    halos->dndlm = (float *) malloc(sizeof(float) * halos->max_n_mass_bins);
-    halos->sqrtdn_dlm = (float *) malloc(sizeof(float) * halos->max_n_mass_bins);
-    halos->n_mass_bins = 0;
-}
-
-void trim_hmf(struct HaloField *halos){
-    // Trim hmf arrays down to actual number of mass bins.
-    if (halos->n_mass_bins > 0){
-        halos->mass_bins = (float *) realloc(halos->mass_bins, sizeof(float) * halos->n_mass_bins);
-        halos->fgtrm = (float *) realloc(halos->fgtrm, sizeof(float)  * halos->n_mass_bins);
-        halos->sqrt_dfgtrm = (float *) realloc(halos->sqrt_dfgtrm, sizeof(float)  * halos->n_mass_bins);
-        halos->dndlm = (float *) realloc(halos->dndlm, sizeof(float)  * halos->n_mass_bins);
-        halos->sqrtdn_dlm = (float *) realloc(halos->sqrtdn_dlm, sizeof(float)  * halos->n_mass_bins);
-    }
 }
 
 int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index ) {
@@ -571,6 +454,8 @@ int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_inde
     yminsq = pow(y-y_index-grid_dim, 2);
     zminsq = pow(z-z_index-z_dim, 2);
 
+    //This checks the center, 6 faces, 12 edges and 8 corners of the cell == 27 points
+    //NOTE:The center check is not really necessary
     if(
        ( (Rsq_curr_index > (xsq + ysq + zsq)) || // AND pixel is within this halo
         (Rsq_curr_index > (xsq + ysq + zplussq)) ||

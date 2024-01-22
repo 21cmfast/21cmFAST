@@ -395,7 +395,7 @@ def get_all_fieldnames(
         Whether to return results as a dictionary of ``quantity: class_name``.
         Otherwise returns a set of quantities.
     """
-    classes = [cls(redshift=0) for cls in _OutputStructZ._implementations()]
+    classes = [cls(redshift=0, dummy=True) for cls in _OutputStructZ._implementations()]
 
     if not lightcone_only:
         classes.append(InitialConditions())
@@ -1217,9 +1217,18 @@ def determine_halo_list(
         else:
             desc_z = halos_desc.redshift
 
+        # find the buffer size from expected halos in the box
+        hbuffer_size = lib.expected_nhalo(
+            redshift, user_params(), cosmo_params(), astro_params(), flag_options()
+        )
+        hbuffer_size = int((hbuffer_size + 1) * global_params.MAXHALO_FACTOR)
+        # set a minimum in case of fluctuation at high z
+        hbuffer_size = int(max(hbuffer_size, 1e3))
+
         # Initialize halo list boxes.
         fields = HaloField(
             desc_redshift=desc_z,
+            buffer_size=hbuffer_size,
             redshift=redshift,
             user_params=user_params,
             cosmo_params=cosmo_params,
@@ -1227,7 +1236,6 @@ def determine_halo_list(
             flag_options=flag_options,
             random_seed=random_seed,
         )
-
         # Construct FFTW wisdoms. Only if required
         construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
 
@@ -1363,9 +1371,21 @@ def perturb_halo_list(
         if user_params.HMF != 1 and not flag_options.HALO_STOCHASTICITY:
             raise ValueError("USE_HALO_FIELD (with DexM) is only valid for HMF = 1")
 
+        if halo_field is None or not halo_field.is_computed:
+            # find the buffer size from expected halos in the box
+            hbuffer_size = lib.expected_nhalo(
+                redshift, user_params(), cosmo_params(), astro_params(), flag_options()
+            )
+            hbuffer_size = int((hbuffer_size + 1) * global_params.MAXHALO_FACTOR)
+            # set a minimum in case of fluctuation at high z
+            hbuffer_size = int(max(hbuffer_size, 1e3))
+        else:
+            hbuffer_size = halo_field.n_halos
+
         # Initialize halo list boxes.
         fields = PerturbHaloField(
             redshift=redshift,
+            buffer_size=hbuffer_size,
             user_params=user_params,
             cosmo_params=cosmo_params,
             astro_params=astro_params,
@@ -1474,7 +1494,6 @@ def halo_box(
         See docs of :func:`initial_conditions` for more information.
 
     """
-
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
     with global_params.use(**global_kwargs):
         # Configure and check input/output parameters/structs
@@ -1667,10 +1686,31 @@ def halo_box(
 # TODO: make this more general
 def interp_haloboxes(hbox_arr, fields, z_halos, z_target) -> HaloBox:
     """
+    Interpolate HaloBox history to the desired redshift.
+
     Photon conservation & Xray sources require halo boxes at redshifts
     that are not equal to the current redshift, and may be between redshift steps.
     So we need a function to interpolate between two halo boxes.
     We assume here that z_arr is strictly INCERASING
+
+    Parameters
+    ----------
+    hbox_arr: List of HaloBox instances
+        The halobox history to be interpolated
+    fields: List of Strings
+        The properties of the haloboxes to be interpolated
+    z_halos : array_like
+        The redshifts of each HaloBox.
+    pt_halos: :class:`~PerturbHaloField` or None, optional
+        If passed, this contains all the dark matter haloes obtained if using the USE_HALO_FIELD.
+        This is a list of halo masses and coords for the dark matter haloes.
+    z_target : Float
+        The desired redshift of interpolation
+
+    Returns
+    -------
+    :class:`~HaloBox` :
+        An object containing the halo box data.
     """
     if z_target > z_halos[-1] or z_target < z_halos[0]:
         raise ValueError(f"Invalid z_target {z_target} for redshift array {z_halos}")
@@ -1745,7 +1785,7 @@ def xray_source(
     **global_kwargs,
 ) -> XraySourceBox:
     r"""
-    Compute filtered grid of SFR for use in spin temperature calculation
+    Compute filtered grid of SFR for use in spin temperature calculation.
 
     This will filter over the halo history in annuli, computing the contribution to the sfr density
 
@@ -1780,7 +1820,6 @@ def xray_source(
         See docs of :func:`initial_conditions` for more information.
 
     """
-
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
     with global_params.use(**global_kwargs):
         # Configure and check input/output parameters/structs
@@ -1909,6 +1948,7 @@ def xray_source(
 
 # TODO (see above dummy hook): find a better way to not call hooks without messing with the default (writing)
 def do_nothing(box, **kwargs):
+    """Does Nothing. Will be removed."""
     return
 
 
@@ -2895,7 +2935,7 @@ def run_coeval(
             )
             # this calculates the alpha fit and passes it to C
             if flag_options.PHOTON_CONS_ALPHA:
-                logger.info(f"starting alpha cons")
+                logger.info("starting alpha cons")
                 photoncons_alpha_data = photoncons_fesc(
                     cosmo_params, user_params, astro_params, flag_options
                 )
@@ -2961,8 +3001,6 @@ def run_coeval(
                 z_halos.append(z_target)
                 logger.info(f"calculating additional halo field at z={z_halos[-1]}")
                 # we also need a perturb field for mean boxes.
-                # TODO: separate halo_box from the mean boxes since one only needs the perturbfield
-                #   and the other needs pt_halos
                 p = perturb_field(
                     redshift=z_target,
                     init_boxes=init_box,
@@ -2980,7 +3018,7 @@ def run_coeval(
                 perturb.append(p)
 
             pt_halos = []
-            for z in z_halos[::-1]:
+            for i, z in enumerate(z_halos[::-1]):
                 if not flag_options.FIXED_HALO_GRIDS:
                     halos = determine_halo_list(
                         redshift=z,
@@ -3008,6 +3046,12 @@ def run_coeval(
                             direc=direc,
                         )
                     ]
+
+                    # we never want to store every halofield
+                    # try:
+                    #     pt_halos[i].purge(force=always_purge)
+                    # except OSError:
+                    #     pass
                     halos_desc = halos
 
             # reverse to get the right redshift order
@@ -3068,6 +3112,7 @@ def run_coeval(
                         hooks=hooks,
                         direc=direc,
                     )
+                    ph2.purge(force=always_purge)
                     # append the halo redshift array so we have all halo boxes [z,zmax]
                     z_halos += [z]
                 # if haloboxes have been provided with correct redshifts...
@@ -3182,6 +3227,10 @@ def run_coeval(
             photon_nonconservation_data = _get_photon_nonconservation_data()
             if photon_nonconservation_data:
                 lib.FreePhotonConsMemory()
+        elif flag_options.PHOTON_CONS_ALPHA:
+            photon_nonconservation_data = photoncons_alpha_data
+            if photon_nonconservation_data:
+                lib.FreePhotonConsMemory()
         else:
             photon_nonconservation_data = None
 
@@ -3191,7 +3240,6 @@ def run_coeval(
             and lib.interpolation_tables_allocated
         ):
             lib.FreeTsInterpolationTables(flag_options())
-        # logger.info(f"{redshifts},{redshift} {redshifts.index(redshift[0])} {perturb}")
         coevals = [
             Coeval(
                 redshift=z,
@@ -3362,7 +3410,6 @@ def run_lightcone(
         See docs of :func:`initial_conditions` for more information.
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
-
     with global_params.use(**global_kwargs):
         (
             random_seed,
@@ -3388,7 +3435,6 @@ def run_lightcone(
             raise ValueError(
                 "If trying to minimize memory usage, you must be caching. Set write=True!"
             )
-
         # Ensure passed quantities are appropriate
         _fld_names = _get_interpolation_outputs(
             list(lightcone_quantities), list(global_quantities), flag_options
@@ -3513,7 +3559,7 @@ def run_lightcone(
         )
 
         # Iterate through redshift from top to bottom
-        st, ib, bt, prev_perturb = None, None, None, None
+        st, ib, bt = None, None, None, None
         lc_index = 0
         box_index = 0
         lc = {
@@ -3580,8 +3626,6 @@ def run_lightcone(
                         halos_desc=halos_desc,
                         direc=direc,
                     )
-                    # NOTE: I'm assuming this calls the __del__ method of the object (since it completely breaks
-                    #   when I free it otherwise) So this shouldn't be a memory leak
                     halos_desc = halo_field
                     pt_halos += [
                         perturb_halo_list(
@@ -3597,14 +3641,12 @@ def run_lightcone(
                             direc=direc,
                         )
                     ]
-                    # NOTE: as above, purging doensn't work for C-allocated arrays,
-                    #   it double-frees when the python variable goes out of scope
-                    # TODO: Figure out a better way to allocate-free-load these objects
-                    # if user_params.MINIMIZE_MEMORY:
-                    #     try:
-                    #         pt_halos[iz].purge(force=always_purge)
-                    #     except OSError:
-                    #         pass
+
+                    # we never want to store every halofield
+                    # try:
+                    #     pt_halos[iz].purge(force=always_purge)
+                    # except OSError:
+                    #     pass
 
             # reverse the halo lists to be in line with the redshift lists
             pt_halos = pt_halos[::-1]
@@ -3643,6 +3685,7 @@ def run_lightcone(
                     previous_spin_temp=st,
                     perturbed_field=pf2,
                 )
+                ph.purge(force=always_purge)
                 z_halos.append(z)
                 hboxes.append(hbox2)
 
@@ -3688,10 +3731,6 @@ def run_lightcone(
             else:
                 hbox_ionize = hbox2 if flag_options.USE_HALO_FIELD else None
 
-            # NOTE (jdavies): I see no difference here between pf(used in LC interpolation) and prev_perturb(passed to ionize_box)
-            #   I have replaced with pf since the latter was only updated (see below) with MINI_HALOS, but checked
-            #   and regenerated for all flags. It's probably best later to only check for the previous fields in ionize_box
-            #   if MINI_HALOS is true
             ib2 = ionize_box(
                 redshift=z,
                 previous_ionize_box=ib,
@@ -3797,8 +3836,6 @@ def run_lightcone(
                 st = st2
             ib = ib2
             bt = bt2
-            # if flag_options.USE_MINI_HALOS:
-            #     prev_perturb = pf2
 
             if pf is not None:
                 try:
@@ -4150,6 +4187,7 @@ def calibrate_photon_cons(
 # (Jdavies): I needed a function to access the delta z from the wrapper
 # get_photoncons_data does not have the edge cases that adjust_redshifts_for_photoncons does
 def get_photoncons_dz(astro_params, flag_options, redshift):
+    """Accesses the delta z arrays from the photon conservation model in C."""
     deltaz = np.zeros(1).astype("f4")
     redshift_pc_in = np.array([redshift]).astype("f4")
     stored_redshift_pc_in = np.array([redshift]).astype("f4")
@@ -4165,6 +4203,7 @@ def get_photoncons_dz(astro_params, flag_options, redshift):
 
 
 def alpha_func(Q, a_const, a_slope):
+    """Linear Function to fit in the simpler photon conservation model."""
     return a_const + a_slope * Q
 
 
@@ -4176,6 +4215,7 @@ def alpha_func(Q, a_const, a_slope):
 # TODO: don't rely on the photoncons functions since they do a bunch of other stuff in C
 # NOTE: alpha_func here MUST MATCH the C version TODO: remove one of them
 def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
+    """The Simpler photons conservation model using ALPHA_ESC, which adjusts the slope of the escape fraction instead of redshifts to match a global evolution."""
     # HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
     # TODO: Move the deltaz interp tables to python
     if not lib.photon_cons_allocated:
@@ -4348,6 +4388,10 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
 
 
 def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
+    """The Even Simpler photon conservation model using F_ESC10.
+
+    Adjusts the normalisation of the escape fraction to match a global evolution.
+    """
     # HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
     # TODO: Move the deltaz interp tables to python
     if not lib.photon_cons_allocated:
@@ -4359,7 +4403,6 @@ def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
     min_q_fit = 0.2
 
     ref_pc_data = _get_photon_nonconservation_data()
-    z = ref_pc_data["z_calibration"]
 
     # fit to the same z-array
     ref_interp = np.interp(
