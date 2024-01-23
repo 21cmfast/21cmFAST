@@ -92,7 +92,10 @@ class InitialConditions(_OutputStruct):
 
     def prepare_for_perturb(self, flag_options: FlagOptions, force: bool = False):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
-        keep = ["hires_density"]
+        keep = ["hires_density"] 
+        
+        if flag_options.HALO_STOCHASTICITY:
+            keep.append("lowres_density")
 
         if not self.user_params.PERTURB_ON_HIGH_RES:
             keep.append("lowres_density")
@@ -105,8 +108,6 @@ class InitialConditions(_OutputStruct):
                 keep.append("lowres_vy_2LPT")
                 keep.append("lowres_vz_2LPT")
 
-            if flag_options.USE_HALO_FIELD:
-                keep.append("hires_density")
         else:
             keep.append("hires_vx")
             keep.append("hires_vy")

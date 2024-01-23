@@ -1223,7 +1223,7 @@ def determine_halo_list(
         )
         hbuffer_size = int((hbuffer_size + 1) * global_params.MAXHALO_FACTOR)
         # set a minimum in case of fluctuation at high z
-        hbuffer_size = int(max(hbuffer_size, 1e3))
+        hbuffer_size = int(max(hbuffer_size, 1e6))
 
         # Initialize halo list boxes.
         fields = HaloField(
@@ -1673,12 +1673,6 @@ def halo_box(
         previous_spin_temp=previous_spin_temp,
         hooks=hooks,
     )
-
-    # HACK: the pt_halos have changed (rng -> properties) so we might want to expose here
-    # TODO: Set properties in perturbhalofield instead OR change the compute framework to allow this
-    #       There might be a more clever way to store this information without creating extra fields
-    # pt_halos.__memory_map()
-    # pt_halos.__expose()
 
     return result
 
@@ -3048,10 +3042,10 @@ def run_coeval(
                     ]
 
                     # we never want to store every halofield
-                    # try:
-                    #     pt_halos[i].purge(force=always_purge)
-                    # except OSError:
-                    #     pass
+                    try:
+                        pt_halos[i].purge(force=always_purge)
+                    except OSError:
+                        pass
                     halos_desc = halos
 
             # reverse to get the right redshift order
@@ -3112,7 +3106,6 @@ def run_coeval(
                         hooks=hooks,
                         direc=direc,
                     )
-                    ph2.purge(force=always_purge)
                     # append the halo redshift array so we have all halo boxes [z,zmax]
                     z_halos += [z]
                 # if haloboxes have been provided with correct redshifts...
@@ -3186,6 +3179,12 @@ def run_coeval(
             if pf is not None:
                 try:
                     pf.purge(force=always_purge)
+                except OSError:
+                    pass
+
+            if ph2 is not None:
+                try:
+                    ph2.purge(force=always_purge)
                 except OSError:
                     pass
 
@@ -3520,14 +3519,6 @@ def run_lightcone(
         perturb = perturb_
         perturb_min = perturb[np.argmin(scrollz)]
 
-        # Now that we've got all the perturb fields, we can purge init more.
-        try:
-            init_box.prepare_for_spin_temp(
-                flag_options=flag_options, force=always_purge
-            )
-        except OSError:
-            pass
-
         if flag_options.PHOTON_CONS or flag_options.PHOTON_CONS_ALPHA:
             calibrate_photon_cons(
                 user_params,
@@ -3650,6 +3641,14 @@ def run_lightcone(
 
             # reverse the halo lists to be in line with the redshift lists
             pt_halos = pt_halos[::-1]
+
+        # Now that we've got all the perturb fields, we can purge init more.
+        try:
+            init_box.prepare_for_spin_temp(
+                flag_options=flag_options, force=always_purge
+            )
+        except OSError:
+            pass
 
         hbox = None
 

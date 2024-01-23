@@ -246,11 +246,7 @@ LOG_DEBUG("redshift=%f", redshift);
                         // *****************  END OPTIMIZATION ***************** //
                         else {
                             if ((delta_m > delta_crit) && !in_halo[R_INDEX(x,y,z)] && !check_halo(in_halo, user_params, R, x,y,z,1)){ // we found us a "new" halo!
-                                LOG_ULTRA_DEBUG("Halo found at (%d,%d,%d) ir %d if %d, delta = %.4f",x,y,z,R_INDEX(x,y,z),R_FFT_INDEX(x,y,z),delta_m);
-                                LOG_ULTRA_DEBUG("IR %d IC %d val %.4f R %.3e M %.3e",R_INDEX(x,y,z),R_FFT_INDEX(x,y,z),
-                                            *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / num_pixels,
-                                            R,M);
-
+                                // LOG_ULTRA_DEBUG("Halo found at (%d,%d,%d), delta = %.4f",x,y,z,delta_m);
                                 check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
 
                                 halo_field[R_INDEX(x,y,z)] = M;
@@ -272,7 +268,7 @@ LOG_DEBUG("redshift=%f", redshift);
         LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.");
 
         //Allocate the Halo Mass and Coordinate Fields (non-wrapper structure)
-        if(flag_options->USE_HALO_FIELD)
+        if(flag_options->HALO_STOCHASTICITY)
             init_halo_coords(halos_dexm, total_halo_num);
 
         //Assign to the struct
@@ -286,7 +282,6 @@ LOG_DEBUG("redshift=%f", redshift);
                 for (z=0; z<z_dim; z++){
                     halo_buf = halo_field[R_INDEX(x,y,z)];
                     if(halo_buf > 0.) {
-                        LOG_ULTRA_DEBUG("Halo %d at (%d,%d,%d) M=%.2e i=%d of g %d",count,x,y,z,halo_buf,total_halo_num);
                         halos_dexm->halo_masses[count] = halo_buf;
                         halos_dexm->halo_coords[3*count + 0] = x;
                         halos_dexm->halo_coords[3*count + 1] = y;

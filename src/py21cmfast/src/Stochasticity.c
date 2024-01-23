@@ -895,9 +895,9 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
     float inbuf[2];
 #pragma omp parallel for private(buf)
     for(i=0;i<nhalos;i++){
-        LOG_ULTRA_DEBUG("halo %d hm %.2e crd %d %d %d",i,halos->halo_masses[i],halos->halo_coords[3*i+0],halos->halo_coords[3*i+1],halos->halo_coords[3*i+2]);
+        // LOG_ULTRA_DEBUG("halo %d hm %.2e crd %d %d %d",i,halos->halo_masses[i],halos->halo_coords[3*i+0],halos->halo_coords[3*i+1],halos->halo_coords[3*i+2]);
         set_prop_rng(rng_stoc[omp_get_thread_num()], 0, inbuf, inbuf, buf);
-        LOG_ULTRA_DEBUG("stars %.2e sfr %.2e",buf[0],buf[1]);
+        // LOG_ULTRA_DEBUG("stars %.2e sfr %.2e",buf[0],buf[1]);
         halos->star_rng[i] = buf[0];
         halos->sfr_rng[i] = buf[1];
     }
@@ -1505,7 +1505,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
             }
         }
 
-        if(count > arraysize_local){
+        if(count >= arraysize_local){
             LOG_ERROR("Ran out of memory, with %llu halos and local size %llu",count,arraysize_local);
             Throw(ValueError);
         }
@@ -1632,7 +1632,7 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
                 print_hs_consts(&hs_constants_priv);
             }
         }
-        if(count > arraysize_local){
+        if(count >= arraysize_local){
             LOG_ERROR("Ran out of memory, with %llu halos and local size %llu",count,arraysize_local);
             Throw(ValueError);
         }
@@ -2166,8 +2166,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     stars = out_props[4];
                     stars_mini = out_props[5];
 
-                    if(i_halo < 10){
-                        LOG_SUPER_DEBUG("%d (%d %d %d): HM: %.2e SM: %.2e (%.2e) NI: %.2e SF: %.2e (%.2e) WS: %.2e",i_halo,x,y,z,m,stars,stars_mini,nion,sfr,sfr_mini,wsfr);
+                    if(x+y+z == 0){
+                        LOG_SUPER_DEBUG("Cell 0 Halo %d: HM: %.2e SM: %.2e (%.2e) NI: %.2e SF: %.2e (%.2e) WS: %.2e",i_halo,m,stars,stars_mini,nion,sfr,sfr_mini,wsfr);
                     }
 
                     //feed back the calculated properties to PerturbHaloField
@@ -2194,13 +2194,6 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     if(m>0){
 #pragma omp atomic update
                         grids->count[HII_R_INDEX(x, y, z)] += 1;
-                    }
-
-                    if(i_halo < 10){
-                        LOG_SUPER_DEBUG("--> HM: %.2e SM: %.2e (%.2e) NI: %.2e SF: %.2e (%.2e) WS: %.2e ct : %d",grids->halo_mass[HII_R_INDEX(x, y, z)],
-                                            grids->halo_stars[HII_R_INDEX(x, y, z)],grids->halo_stars_mini[HII_R_INDEX(x, y, z)],
-                                            grids->n_ion[HII_R_INDEX(x, y, z)],grids->halo_sfr[HII_R_INDEX(x, y, z)],grids->halo_sfr_mini[HII_R_INDEX(x, y, z)],
-                                            grids->whalo_sfr[HII_R_INDEX(x, y, z)],grids->count[HII_R_INDEX(x, y, z)]);
                     }
 
                     M_turn_m_avg += M_turn_m;
@@ -2232,6 +2225,10 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     }
                 }
             }
+            LOG_SUPER_DEBUG("Cell 0: HM: %.2e SM: %.2e (%.2e) NI: %.2e SF: %.2e (%.2e) WS: %.2e ct : %d",grids->halo_mass[HII_R_INDEX(0,0,0)],
+                                grids->halo_stars[HII_R_INDEX(0,0,0)],grids->halo_stars_mini[HII_R_INDEX(0,0,0)],
+                                grids->n_ion[HII_R_INDEX(0,0,0)],grids->halo_sfr[HII_R_INDEX(0,0,0)],grids->halo_sfr_mini[HII_R_INDEX(0,0,0)],
+                                grids->whalo_sfr[HII_R_INDEX(0,0,0)],grids->count[HII_R_INDEX(0,0,0)]);
             M_turn_m_avg /= halos->n_halos;
             grids->log10_Mcrit_LW_ave = log10(M_turn_m_avg);
             if(LOG_LEVEL >= DEBUG_LEVEL){
