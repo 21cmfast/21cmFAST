@@ -311,7 +311,6 @@ class HaloField(_AllParamsBox):
         super().__init__(**kwargs)
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        # add a buffer to the average number of halos
         out = {
             "halo_masses": (self.buffer_size,),
             "star_rng": (self.buffer_size,),
@@ -369,7 +368,6 @@ class PerturbHaloField(_AllParamsBox):
         super().__init__(**kwargs)
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        # add a buffer to the average number of halos
         out = {
             "halo_masses": (self.buffer_size,),
             "star_rng": (self.buffer_size,),

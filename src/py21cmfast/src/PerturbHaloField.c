@@ -197,13 +197,8 @@ LOG_DEBUG("Begin Initialisation");
                 halos_perturbed->halo_coords[i_halo*3+2] = zf;
 
                 halos_perturbed->halo_masses[i_halo] = halos->halo_masses[i_halo];
-                //For now, the properties are set to the RNG, they are calculated when the box is made
-                //TODO: figure out a way to move the properties, it is difficult to do so when mixing minihalos
-                //  and differently scaling quantities without saving them all separately
-                if(flag_options->HALO_STOCHASTICITY){
-                    halos_perturbed->star_rng[i_halo] = halos->star_rng[i_halo];
-                    halos_perturbed->sfr_rng[i_halo] = halos->sfr_rng[i_halo];
-                }
+                halos_perturbed->star_rng[i_halo] = halos->star_rng[i_halo];
+                halos_perturbed->sfr_rng[i_halo] = halos->sfr_rng[i_halo];
             }
         }
 

@@ -1465,8 +1465,8 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                             //      So we don't break here
                         }
                     }
-                    if(x+y+z==0){
-                        LOG_ULTRA_DEBUG("Cell delta %.2f -> (N,M) (%.2f,%.2e) overlap defc %.2f ps_ratio %.2f",
+                    if(x+y+z == 0){
+                        LOG_ULTRA_DEBUG("Cell 0 %d delta %.2f -> (N,M) (%.2f,%.2e) overlap defc %.2f ps_ratio %.2f",
                                         delta,hs_constants_priv.expected_N,hs_constants_priv.expected_N,mass_defc,ps_ratio);
                     }
                     //TODO: the ps_ratio part will need to be moved when other CMF scalings are finished
@@ -1492,14 +1492,14 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                         count++;
 
                         M_cell += hm_buf[i];
-                        if(x+y+z==0){
+                        if(x+y+z == 0){
                             LOG_ULTRA_DEBUG("Halo %d Mass %.2e Stellar %.2e SFR %.2e",i,hm_buf[i],prop_buf[0],prop_buf[1]);
                         }
                     }
-                    if(x+y+z==0){
-                        LOG_SUPER_DEBUG("Cell0: delta %.2f | N %d (exp. %.2e) | Total M %.2e (exp. %.2e)",
+                    if(x+y+z == 0){
+                        LOG_SUPER_DEBUG("Cell 0: delta %.2f | N %d (exp. %.2e) | Total M %.2e (exp. %.2e)",
                                         delta,nh_buf,hs_constants_priv.expected_N,M_cell,hs_constants_priv.expected_M);
-                        print_hs_consts(&hs_constants_priv);
+                        // print_hs_consts(&hs_constants_priv);
                     }
                 }
             }
@@ -1976,7 +1976,8 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
     double norm_star_mini = astro_params_stoc->F_STAR7_MINI;
     double norm_esc_mini = astro_params_stoc->F_ESC7_MINI;
     //There's quite a bit of re-calculation here but this only happens once per snapshot
-    double M_min = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc) * global_params.HALO_SAMPLE_FACTOR;
+    double M_min = minimum_source_mass(redshift,astro_params_stoc,flag_options_stoc);
+    // double M_min = astro_params_stoc->M_TURN / global_params.HALO_MTURN_FACTOR * global_params.HALO_SAMPLE_FACTOR;
     double M_max = global_params.M_MAX_INTEGRAL; //mass in cell of mean dens
     double lnMmax = log(M_max);
     double lnMmin = log(M_min);
@@ -2063,7 +2064,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
 
         double M_min;
         double t_h = t_hubble(redshift);
-        double volume = VOLUME/HII_TOT_NUM_PIXELS;
+        double cell_volume = VOLUME/HII_TOT_NUM_PIXELS;
         double M_turn_a_avg = 0, M_turn_m_avg = 0, M_turn_r_avg = 0.;
         double M_turn_a_avg_cell=0, M_turn_m_avg_cell=0, M_turn_r_avg_cell=0;
 
@@ -2165,9 +2166,9 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     stars = out_props[4];
                     stars_mini = out_props[5];
 
-                    // if(i_halo < 10){
-                    //     LOG_DEBUG("%d (%d %d %d): HM: %.2e SM: %.2e (%.2e) NI: %.2e SF: %.2e (%.2e) WS: %.2e",i_halo,x,y,z,m,stars,stars_mini,nion,sfr,sfr_mini,wsfr);
-                    // }
+                    if(i_halo < 10){
+                        LOG_SUPER_DEBUG("%d (%d %d %d): HM: %.2e SM: %.2e (%.2e) NI: %.2e SF: %.2e (%.2e) WS: %.2e",i_halo,x,y,z,m,stars,stars_mini,nion,sfr,sfr_mini,wsfr);
+                    }
 
                     //feed back the calculated properties to PerturbHaloField
                     //TODO: move set_halo_properties to PertburbHaloField and move it forward in time
@@ -2195,6 +2196,13 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                         grids->count[HII_R_INDEX(x, y, z)] += 1;
                     }
 
+                    if(i_halo < 10){
+                        LOG_SUPER_DEBUG("--> HM: %.2e SM: %.2e (%.2e) NI: %.2e SF: %.2e (%.2e) WS: %.2e ct : %d",grids->halo_mass[HII_R_INDEX(x, y, z)],
+                                            grids->halo_stars[HII_R_INDEX(x, y, z)],grids->halo_stars_mini[HII_R_INDEX(x, y, z)],
+                                            grids->n_ion[HII_R_INDEX(x, y, z)],grids->halo_sfr[HII_R_INDEX(x, y, z)],grids->halo_sfr_mini[HII_R_INDEX(x, y, z)],
+                                            grids->whalo_sfr[HII_R_INDEX(x, y, z)],grids->count[HII_R_INDEX(x, y, z)]);
+                    }
+
                     M_turn_m_avg += M_turn_m;
                     if(LOG_LEVEL >= DEBUG_LEVEL){
                         hm_avg += m;
@@ -2208,11 +2216,11 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                 }
 #pragma omp for reduction(+:M_turn_a_avg_cell,M_turn_m_avg_cell,M_turn_r_avg_cell)
                 for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
-                    grids->halo_mass[idx] /= volume;
-                    grids->n_ion[idx] /= volume;
-                    grids->halo_sfr[idx] /= volume;
-                    grids->halo_sfr_mini[idx] /= volume;
-                    grids->whalo_sfr[idx] /= volume;
+                    grids->halo_mass[idx] /= cell_volume;
+                    grids->n_ion[idx] /= cell_volume;
+                    grids->halo_sfr[idx] /= cell_volume;
+                    grids->halo_sfr_mini[idx] /= cell_volume;
+                    grids->whalo_sfr[idx] /= cell_volume;
 
                     if(LOG_LEVEL >= DEBUG_LEVEL && flag_options_stoc->USE_MINI_HALOS){
                         M_turn_r = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[idx], previous_ionize_box->z_re_box[idx]);
@@ -2227,11 +2235,11 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             M_turn_m_avg /= halos->n_halos;
             grids->log10_Mcrit_LW_ave = log10(M_turn_m_avg);
             if(LOG_LEVEL >= DEBUG_LEVEL){
-                hm_avg /= volume*HII_TOT_NUM_PIXELS;
-                sfr_avg /= volume*HII_TOT_NUM_PIXELS;
-                sfr_avg_mini /= volume*HII_TOT_NUM_PIXELS;
-                wsfr_avg /= volume*HII_TOT_NUM_PIXELS;
-                nion_avg /= volume*HII_TOT_NUM_PIXELS;
+                hm_avg /= VOLUME;
+                sfr_avg /= VOLUME;
+                sfr_avg_mini /= VOLUME;
+                wsfr_avg /= VOLUME;
+                nion_avg /= VOLUME;
                 //NOTE: There is an inconsistency here, the sampled grids use a halo-averaged turnover mass
                 //  whereas the fixed grids / default 21cmfast uses the volume averaged LOG10(turnover mass).
                 //  Neither of these are a perfect representation due to the nonlinear way turnover mass affects N_ion

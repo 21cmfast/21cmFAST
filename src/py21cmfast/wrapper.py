@@ -3643,10 +3643,10 @@ def run_lightcone(
                     ]
 
                     # we never want to store every halofield
-                    # try:
-                    #     pt_halos[iz].purge(force=always_purge)
-                    # except OSError:
-                    #     pass
+                    try:
+                        pt_halos[iz].purge(force=always_purge)
+                    except OSError:
+                        pass
 
             # reverse the halo lists to be in line with the redshift lists
             pt_halos = pt_halos[::-1]
@@ -3685,7 +3685,6 @@ def run_lightcone(
                     previous_spin_temp=st,
                     perturbed_field=pf2,
                 )
-                ph.purge(force=always_purge)
                 z_halos.append(z)
                 hboxes.append(hbox2)
 
@@ -3842,10 +3841,14 @@ def run_lightcone(
                     pf.purge(force=always_purge)
                 except OSError:
                     pass
+                    
+            if ph is not None:
+                try:
+                    ph.purge(force=always_purge)
+                except OSError:
+                    pass
 
             pf = pf2
-            # NOTE: purging halofields is double freeing since __del__ frees c-allocated memory
-            # NOTE: We don't purge boxes since we need all of them for spintemp
             if flag_options.USE_HALO_FIELD:
                 hbox = hbox2
 
