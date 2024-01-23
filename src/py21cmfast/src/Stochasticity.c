@@ -271,7 +271,8 @@ double MnMassfunction(double M, void *param_struct){
             mf = dNdM_conditional_double(growthf,M,M_filter,Deltac,delta,sigma2);
         }
         else if(HMF==1) {
-            mf = dNdM_conditional_ST(growthf,M,M_filter,Deltac,delta,sigma2);
+            // mf = dNdM_conditional_ST(growthf,M,M_filter,Deltac,delta,sigma2);
+            mf = dNdM_conditional_double(growthf,M,M_filter,Deltac,delta,sigma2);
         }
         else if(HMF==4) {
             mf = dNdlnM_conditional_Delos(growthf,M,M_filter,Deltac,delta,sigma2);
@@ -1376,6 +1377,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
     LOG_DEBUG("Total Array Size %llu, array size per thread %llu (~%.3e GB total)",arraysize_total,arraysize_local,6.*arraysize_total*sizeof(int)/1e9);
 
     //Since the conditional MF is extended press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
+    //TODO: do this ONLY if we choose to normalise (i.e flesh out all of the CMF options (rescaling, normalising, adjusting, matching))
     double ps_ratio = 1.;
     if(user_params_stoc->HMF!=0){
         ps_ratio = (IntegratedNdM(growthf,lnMmin,lnMcell,lnMcell,0,1,0,0)
@@ -1518,6 +1520,9 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
     unsigned long long int count_total = 0;
     for(i=0;i<user_params_stoc->N_THREADS;i++){
         memmove(&halofield_out->halo_masses[count_total],&halofield_out->halo_masses[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
+        memmove(&halofield_out->star_rng[count_total],&halofield_out->star_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
+        memmove(&halofield_out->sfr_rng[count_total],&halofield_out->sfr_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
+        memmove(&halofield_out->halo_coords[3*count_total],&halofield_out->halo_coords[3*istart_threads[i]],sizeof(int)*3*nhalo_threads[i]);
         count_total += nhalo_threads[i];
     }
     halofield_out->n_halos = count_total;
@@ -1527,7 +1532,6 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
     memset(&halofield_out->halo_coords[3*count_total],0,3*(arraysize_total-count_total)*sizeof(int));
     memset(&halofield_out->star_rng[count_total],0,(arraysize_total-count_total)*sizeof(float));
     memset(&halofield_out->sfr_rng[count_total],0,(arraysize_total-count_total)*sizeof(float));
-    halofield_out->n_halos = count_total;
     return 0;
 }
 
@@ -1643,6 +1647,9 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
     unsigned long long int count_total = 0;
     for(i=0;i<user_params_stoc->N_THREADS;i++){
         memmove(&halofield_out->halo_masses[count_total],&halofield_out->halo_masses[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
+        memmove(&halofield_out->star_rng[count_total],&halofield_out->star_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
+        memmove(&halofield_out->sfr_rng[count_total],&halofield_out->sfr_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
+        memmove(&halofield_out->halo_coords[3*count_total],&halofield_out->halo_coords[3*istart_threads[i]],sizeof(int)*3*nhalo_threads[i]);
         count_total += nhalo_threads[i];
     }
     //replace the rest with zeros for clarity

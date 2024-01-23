@@ -3559,7 +3559,7 @@ def run_lightcone(
         )
 
         # Iterate through redshift from top to bottom
-        st, ib, bt = None, None, None, None
+        st, ib, bt = None, None, None
         lc_index = 0
         box_index = 0
         lc = {
