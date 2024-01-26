@@ -1184,8 +1184,10 @@ def determine_halo_list(
             redshift=redshift,
         )
 
-        if user_params.HMF != 1 and user_params.HMF != 0:
-            raise ValueError("USE_HALO_FIELD with DexM is only valid for HMF = 1 or 0")
+        if user_params.HMF not in [0, 1, 4]:
+            logger.warning(
+                "DexM Halofinder is not confiugred with the given HMF, will use Deltacrit=1.68"
+            )
 
         min_z = (
             user_params.STOC_MINIMUM_Z if user_params.STOC_MINIMUM_Z is not None else -1
@@ -3840,7 +3842,7 @@ def run_lightcone(
                     pf.purge(force=always_purge)
                 except OSError:
                     pass
-                    
+
             if ph is not None:
                 try:
                     ph.purge(force=always_purge)

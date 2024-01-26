@@ -71,7 +71,7 @@ LOG_DEBUG("redshift=%f", redshift);
         //set minimum source mass
         M_MIN = minimum_source_mass(redshift, astro_params, flag_options);
         //if we use the sampler we want to stop at the HII cell mass
-        if(flag_options->HALO_STOCHASTICITY)
+        if(flag_options->HALO_STOCHASTICITY || flag_options->FIXED_HALO_GRIDS)
             M_MIN = fmax(M_MIN,RtoM(L_FACTOR*user_params->BOX_LEN/user_params->HII_DIM));
         //otherwise we stop at the cell mass
         else
@@ -101,9 +101,9 @@ LOG_DEBUG("redshift=%f", redshift);
         if(LOG_LEVEL >= DEBUG_LEVEL){
             double Mmax_debug = 1e16;
             initialiseSigmaMInterpTable(M_MIN*0.9,Mmax_debug*1.1);
-            double nhalo_debug = VOLUME * IntegratedNdM(growth_factor,log(M_MIN),log(Mmax_debug),log(Mmax_debug),0,0,user_params->HMF,0);
+            double nhalo_debug = VOLUME * IntegratedNdM(growth_factor,log(M_MIN),log(Mmax_debug),log(Mmax_debug),0,user_params->HMF,0);
             //expected halos above minimum filter mass
-            LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e] (%.2e)",nhalo_debug,M_MIN,Mmax_debug, RHOcrit * cosmo_params->OMm * VOLUME / TOT_NUM_PIXELS);
+            LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e]",nhalo_debug,M_MIN,Mmax_debug);
         }
 
 #pragma omp parallel shared(boxes,density_field) private(i,j,k) num_threads(user_params->N_THREADS)
@@ -164,9 +164,9 @@ LOG_DEBUG("redshift=%f", redshift);
                     // use sheth tormen correction
                     delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
                 }
-                else if(user_params->HMF==6) {
+                else if(user_params->HMF==4) {
                     // use Delos 2023 flat barrier
-                    delta_crit = 1.5;
+                    delta_crit = DELTAC_DELOS;
                 }
                 else if(user_params->HMF!=0){
                     LOG_WARNING("Halo Finder: You have selected DELTA_CRIT_MODE==1 with HMF %d which does not have a barrier\

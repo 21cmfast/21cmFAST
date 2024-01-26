@@ -448,6 +448,7 @@ class UserParams(StructWithDefaults):
         1: ST (Sheth-Tormen)
         2: Watson (Watson FOF)
         3: Watson-z (Watson FOF-z)
+        3: Delos (Delos+23)
     USE_RELATIVE_VELOCITIES: int, optional
         Flag to decide whether to use relative velocities.
         If True, POWER_SPECTRUM is automatically set to 5. Default False.
@@ -516,7 +517,7 @@ class UserParams(StructWithDefaults):
         "STOC_MINIMUM_Z": None,
     }
 
-    _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
+    _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
     _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
 
     @property
@@ -694,9 +695,11 @@ class FlagOptions(StructWithDefaults):
         When USE_HALO_FIELD is True, this flag bypasses the sampler, and calculates fixed grids of halo mass, stellar mass etc
         analagous to FFRT-P (Davies & Furlanetto 2021) or ESF-E (Trac et al 2021), This flag has no effect is USE_HALO_FIELD is False
         With USE_HALO_FIELD: (FIXED_HALO_GRIDS,HALO_STOCHASTICITY):
-                                (0,0): DexM only,
-                                (0,1): Halo Sampler,
-                                (1,?): FFRT-P fixed halo grids
+
+        (0,0): DexM only,
+        (0,1): Halo Sampler,
+        (1,?): FFRT-P fixed halo grids
+
         TODO:add an ESF-L Method (perturb halo mass grids after fixed Lagrangian Fcoll)
     CELL_RECOMB: bool, optional
         An alternate way of counting recombinations based on the local cell rather than the filter region.

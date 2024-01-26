@@ -27,21 +27,6 @@ static struct CosmoParams *cosmo_params_stoc;
 static struct UserParams *user_params_stoc;
 static struct FlagOptions *flag_options_stoc;
 
-//Parameters used for gsl integral on the mass function
-struct parameters_gsl_MF_con_int_{
-    double redshift;
-    double growthf;
-    double delta;
-    double n_order;
-    double sigma_cond;
-    double M_cond;
-    double M_max_int;
-    double rf_target;
-    double rf_norm;
-    int HMF;
-    int CMF;
-};
-
 //parameters for the halo mass->stars calculations
 //Note: ideally I would split this into constants set per snapshot and
 //  constants set per condition, however some variables (delta or Mass)
@@ -193,148 +178,14 @@ void free_rng_threads(gsl_rng * rng_arr[]){
     }
 }
 
-//CONDITIONAL MASS FUNCTION COPIED FROM PS.C, CHANGED TO DOUBLE PRECISION
-double dNdM_conditional_double(double growthf, double M1, double M2, double delta1, double delta2, double sigma2){
+//Get the relevant excursion set barrier density given the user-specified HMF
+double get_delta_crit(int HMF, double sigma, double growthf){
+    if(HMF==4)
+        return DELTAC_DELOS;
+    if(HMF==1);
+        return sheth_delc(Deltac/growthf,sigma)*growthf;
 
-    double sigma1, dsigmadm;
-
-    sigma1 = EvaluateSigma(M1,1,&dsigmadm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
-
-    M1 = exp(M1);
-    M2 = exp(M2);
-
-    sigma1 = sigma1*sigma1;
-    sigma2 = sigma2*sigma2;
-
-    dsigmadm = dsigmadm/(2.0*sigma1); // This is actually sigma1^{2} as calculated above, however, it should just be sigma1. It cancels with the same factor below. Why I have decided to write it like that I don't know!
-
-    if((sigma1 > sigma2)) {
-
-        return -(( delta1 - delta2 )/growthf)*( 2.*sigma1*dsigmadm )*( exp( - ( delta1 - delta2 )*( delta1 - delta2 )/( 2.*growthf*growthf*( sigma1 - sigma2 ) ) ) )/(pow( sigma1 - sigma2, 1.5));
-    }
-    else if(sigma1==sigma2) {
-
-        return -(( delta1 - delta2 )/growthf)*( 2.*sigma1*dsigmadm )*( exp( - ( delta1 - delta2 )*( delta1 - delta2 )/( 2.*growthf*growthf*( 1.e-6 ) ) ) )/(pow( 1.e-6, 1.5));
-
-    }
-    else {
-        return 0.;
-    }
-}
-
-//TODO: it may be better to place the if-elses earlier, OR pass in a function pointer
-//  Although, I doubt the if-elses really have a big impact compared to the integrals
-double MnMassfunction(double M, void *param_struct){
-    struct parameters_gsl_MF_con_int_ params = *(struct parameters_gsl_MF_con_int_ *)param_struct;
-    double mf, m_factor;
-    int i;
-    double growthf = params.growthf;
-    double delta = params.delta;
-    double n_order = params.n_order;
-    double sigma2 = params.sigma_cond; //M2 and sigma2 are degenerate, remove one
-    double M_filter = params.M_cond;
-    double z = params.redshift;
-    int HMF = params.HMF;
-    int CMF = params.CMF;
-
-    double M_exp = exp(M);
-
-    //M1 is the mass of interest, M2 doesn't seem to be used (input as max mass),
-    // delta1 is critical, delta2 is current, sigma is sigma(Mmax,z=0)
-    //WE WANT DNDLOGM HERE, SO WE ADJUST ACCORDINGLY
-
-    //dNdlnM = dfcoll/dM * M / M * constants
-    //All unconditional functions are dNdM, conditional is actually dfcoll dM == dNdlogm * constants
-    if(!CMF){
-        if(HMF==0) {
-            mf = dNdM(growthf, M_exp) * M_exp;
-        }
-        else if(HMF==1) {
-            mf = dNdM_st(growthf, M_exp) * M_exp;
-        }
-        else if(HMF==2) {
-            mf = dNdM_WatsonFOF(growthf, M_exp) * M_exp;
-        }
-        else if(HMF==3) {
-            mf = dNdM_WatsonFOF_z(z, growthf, M_exp) * M_exp;
-        }
-        else if(HMF==4) {
-            mf = dNdlnM_Delos(growthf, M_exp); //consts?
-        }
-        else {
-            //TODO: proper errors
-            return -1;
-        }
-    }
-    else{
-        if(HMF==0) {
-            mf = dNdM_conditional_double(growthf,M,M_filter,Deltac,delta,sigma2);
-        }
-        else if(HMF==1) {
-            // mf = dNdM_conditional_ST(growthf,M,M_filter,Deltac,delta,sigma2);
-            mf = dNdM_conditional_double(growthf,M,M_filter,Deltac,delta,sigma2);
-        }
-        else if(HMF==4) {
-            mf = dNdlnM_conditional_Delos(growthf,M,M_filter,Deltac,delta,sigma2);
-        }
-        else {
-            //NOTE: Normalisation scaling is currently applied outside the integral, per condition
-            //This will be the rescaled EPS CMF,
-            //TODO: put rescaling options here (normalised EPS, rescaled EPS, local/global scalings of UMFs from Tramonte+17)
-            //Filter CMF type by CMF_MODE parameter (==1 for set CMF, ==2 for resnormalised, ==3 for rescaled EPS, ==4 for Tramonte local, ==5 for Tramonte global etc)
-            mf = dNdM_conditional_double(growthf,M,M_filter,Deltac,delta,sigma2);
-        }
-    }
-    //norder for expectation values of M^n
-    m_factor = pow(M_exp,n_order);
-    return m_factor * mf;
-}
-
-//copied mostly from the Nion functions
-//I might be missing something like this that already exists somewhere in the code
-//TODO: rename since its now an integral of M * dfcoll/dm = dNdM / [(RHOcrit * (1+delta) / sqrt(2.*PI) * cosmo_params_stoc->OMm)]
-double IntegratedNdM(double growthf, double M1, double M2, double M_filter, double delta, double n_order, int HMF, int CMF){
-    double result, error, lower_limit, upper_limit;
-    gsl_function F;
-    // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
-    double rel_tol = 1e-5; //<- relative tolerance
-    gsl_integration_workspace * w
-    = gsl_integration_workspace_alloc (1000);
-
-    double sigma = EvaluateSigma(M_filter,0,NULL);
-
-    struct parameters_gsl_MF_con_int_ parameters_gsl_MF_con = {
-        .growthf = growthf,
-        .delta = delta,
-        .n_order = n_order,
-        .sigma_cond = sigma,
-        .M_cond = M_filter,
-        .HMF = HMF,
-        .CMF = CMF,
-    };
-    int status;
-
-    F.function = &MnMassfunction;
-    F.params = &parameters_gsl_MF_con;
-    lower_limit = M1;
-    upper_limit = M2;
-
-    gsl_set_error_handler_off();
-
-    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
-                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
-
-    if(status!=0) {
-        LOG_ERROR("gsl integration error occured!");
-        LOG_ERROR("(function argument): lower_limit=%.3e upper_limit=%.3e (%.3e) rel_tol=%.3e result=%.3e error=%.3e",lower_limit,upper_limit,exp(upper_limit),rel_tol,result,error);
-        LOG_ERROR("data: growthf=%.3e M2=%.3e delta=%.3e sigma2=%.3e HMF=%.3d order=%.3e",growthf,exp(M_filter),delta,sigma,HMF,n_order);
-        //LOG_ERROR("data: growthf=%e M2=%e delta=%e,sigma2=%e",parameters_gsl_MF_con.growthf,parameters_gsl_MF_con.M_max,parameters_gsl_MF_con.delta,parameters_gsl_MF_con.sigma_max);
-        GSL_ERROR(status);
-    }
-
-    gsl_integration_workspace_free (w);
-
-    return result;
+    return Deltac;
 }
 
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the entire box
@@ -354,7 +205,7 @@ double expected_nhalo(double redshift, struct UserParams *user_params, struct Co
         initialiseSigmaMInterpTable(M_min/2,M_max);
     }
 
-    result = IntegratedNdM(growthf, log(M_min), log(M_max), log(M_max), 0., 0., user_params->HMF, 0) * VOLUME;
+    result = IntegratedNdM(growthf, log(M_min), log(M_max), log(M_max), 0., user_params->HMF, 0) * VOLUME;
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f",result,M_min,M_max,redshift);
 
     return result;
@@ -370,22 +221,16 @@ double *sigma_inv_spline;
 //NOTE: Assumes you give it ymin as the minimum mass TODO: add another argument for Mmin
 void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool update){
     int nx,ny,np;
-    double delta,lnM_cond;
+    double delta,lnM_cond,delta_crit;
     int k_lim = update ? 1 : 0;
     LOG_DEBUG("Initialising dNdM Table from [[%.2e,%.2e],[%.2e,%.2e]]",xmin,xmax,ymin,ymax);
     LOG_DEBUG("D_out %.2e P %.2e up %d",growth1,param,update);
 
-    //Check for invalid delta, set condition limits
-    if(update){
-        delta = Deltac*growth1/param;
-        if(delta < DELTA_MIN || delta > Deltac){
-            LOG_ERROR("Invalid delta %.3f",delta);
-            Throw(ValueError);
-        }
-    }
-    else{
+    if(!update){
         lnM_cond = param;
-        if(xmin < DELTA_MIN || xmax > Deltac){
+        //current barrier at the condition for bounds checking
+        delta_crit = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),growth1);
+        if(xmin < DELTA_MIN || xmax > delta_crit){
             LOG_ERROR("Invalid delta [%.3f,%.3f]",xmin,xmax);
             Throw(ValueError);
         }
@@ -413,7 +258,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     Nhalo_inv_spline = (double **)calloc(nx,sizeof(double *));
     for(i=0;i<nx;i++) Nhalo_inv_spline[i] = (double *)calloc(np,sizeof(double));
 
-    #pragma omp parallel num_threads(user_params_stoc->N_THREADS) private(i,j,k) firstprivate(delta,lnM_cond)
+    #pragma omp parallel num_threads(user_params_stoc->N_THREADS) private(i,j,k) firstprivate(delta,delta_crit,lnM_cond)
     {
         double x,y,buf;
         double norm;
@@ -426,8 +271,15 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
         for(i=0;i<nx;i++){
             x = xa[i];
             //set the condition
-            if(update) lnM_cond = x;
-            else delta = x;
+            if(update){
+                lnM_cond = x;
+                //barrier at given mass
+                delta = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),param);
+                //current barrier at condition for bounds checking
+                delta_crit = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),growth1);
+            }
+            else
+                delta = x;
 
             lnM_prev = ymin;
             p_prev = 0;
@@ -435,7 +287,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             //this one needs to be done before the norm is calculated
             //NOTE: the values do nothing since these cases are dealt with in stoc_sample
             //  BUT attempting to call IntegratedNdM crashes near Deltac
-            if(delta > MAX_DELTAC_FRAC*Deltac){
+            if(delta > MAX_DELTAC_FRAC*delta_crit){
                 //In the last bin, n_halo / mass * sqrt2pi interpolates toward one halo
                 Nhalo_spline[i] = sqrt(2*PI) / exp(lnM_cond);
                 M_exp_spline[i] = sqrt(2*PI);
@@ -446,8 +298,8 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 continue;
             }
 
-            norm = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,0,user_params_stoc->HMF,1);
-            M_exp_spline[i] = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,1,user_params_stoc->HMF,1);
+            norm = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,0);
+            M_exp_spline[i] = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,1);
             Nhalo_spline[i] = norm;
             // LOG_ULTRA_DEBUG("cond x: %.2e (%d) ==> %.8e / %.8e",x,i,norm,M_exp_spline[i]);
 
@@ -476,7 +328,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                     buf = 0.;
                 }
                 else{
-                    buf = IntegratedNdM(growth1, y, ymax, lnM_cond, delta, 0, user_params_stoc->HMF, 1); //Number density between ymin and y
+                    buf = IntegratedNdM(growth1, y, ymax, lnM_cond, delta, user_params_stoc->HMF, 2); //Number density between ymin and y
                 }
 
                 prob = buf / norm;
@@ -540,23 +392,16 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
 //Rootfind version for testing
 void initialise_dNdM_tables_RF(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool update){
     int nx,np;
-    double delta,lnM_cond;
+    double delta,lnM_cond,delta_crit;
     double rf_rel_tol = 1e-3; //ln Mass ratio tolerance, Masses in table will be accurate to this factor
 
     LOG_DEBUG("Initialising dNdM Table from [[%.2e,%.2e],[%.2e,%.2e]]",xmin,xmax,ymin,ymax);
     LOG_DEBUG("D_out %.2e P %.2e up %d",growth1,param,update);
 
-    //Check for invalid delta, set condition limits
-    if(update){
-        delta = Deltac*growth1/param;
-        if(delta < DELTA_MIN || delta > Deltac){
-            LOG_ERROR("Invalid delta %.3f",delta);
-            Throw(ValueError);
-        }
-    }
-    else{
+    if(!update){
         lnM_cond = param;
-        if(xmin < DELTA_MIN || xmax > Deltac){
+        delta_crit = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),growth1);
+        if(xmin < DELTA_MIN || xmax > delta_crit){
             LOG_ERROR("Invalid delta [%.3f,%.3f]",xmin,xmax);
             Throw(ValueError);
         }
@@ -576,14 +421,14 @@ void initialise_dNdM_tables_RF(double xmin, double xmax, double ymin, double yma
     Nhalo_inv_spline = (double **)calloc(nx,sizeof(double *));
     for(i=0;i<nx;i++) Nhalo_inv_spline[i] = (double *)calloc(np,sizeof(double));
 
-    #pragma omp parallel num_threads(user_params_stoc->N_THREADS) private(i,j,k) firstprivate(delta,lnM_cond)
+    #pragma omp parallel num_threads(user_params_stoc->N_THREADS) private(i,j,k) firstprivate(delta,lnM_cond,delta_crit)
     {
         double x,buf;
         double norm;
         double lnM_guess, lnM_prev, lnM_next, p_guess, p_prev, dp_guess;
         double p_target, exp_M;
         int attempts;
-        struct parameters_gsl_MF_con_int_ parameters_gsl_MF_con;
+        struct parameters_gsl_MF_integrals mf_params;
         bool first_check;
         bool second_check;
 
@@ -591,13 +436,18 @@ void initialise_dNdM_tables_RF(double xmin, double xmax, double ymin, double yma
         for(i=0;i<nx;i++){
             x = xa[i];
             //set the condition
-            if(update) lnM_cond = x;
-            else delta = x;
+            if(update){
+                lnM_cond = x;
+                delta = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),param);
+                delta_crit = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),growth1); //just for limit
+            }
+            else
+                delta = x;
             //setting to zero for high delta
             //this one needs to be done before the norm is calculated
             //NOTE: the values do nothing since these cases are dealt with in stoc_sample
             //  BUT attempting to call IntegratedNdM crashes near Deltac
-            if(delta > MAX_DELTAC_FRAC*Deltac){
+            if(delta > MAX_DELTAC_FRAC*delta_crit){
                 //In the last bin, n_halo / mass * sqrt2pi interpolates toward one halo
                 Nhalo_spline[i] = sqrt(2*PI) / exp(lnM_cond);
                 M_exp_spline[i] = sqrt(2*PI);
@@ -608,8 +458,8 @@ void initialise_dNdM_tables_RF(double xmin, double xmax, double ymin, double yma
                 continue;
             }
 
-            norm = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,0,user_params_stoc->HMF,1);
-            exp_M = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,1,user_params_stoc->HMF,1);
+            norm = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,2);
+            exp_M = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,3);
             Nhalo_spline[i] = norm;
             M_exp_spline[i] = exp_M;
             LOG_ULTRA_DEBUG("cond x: %.6e (%d) ==> %.8e / %.8e",x,i,norm,exp_M);
@@ -638,7 +488,7 @@ void initialise_dNdM_tables_RF(double xmin, double xmax, double ymin, double yma
                 //Start root finding
                 LOG_ULTRA_DEBUG("Target p: %.2e (%d)",p_target,k);
                 for(attempts=0;attempts<MAX_ITERATIONS;attempts++){
-                    buf = IntegratedNdM(growth1, lnM_guess, ymax, lnM_cond, delta, 0, user_params_stoc->HMF, 1); //Number density between ymin and y
+                    buf = IntegratedNdM(growth1, lnM_guess, ymax, lnM_cond, delta, user_params_stoc->HMF, 2); //Number density between ymin and y
                     p_guess = buf/norm - p_target;
                     //catch some norm errors
                     if(p_guess != p_guess){
@@ -666,16 +516,14 @@ void initialise_dNdM_tables_RF(double xmin, double xmax, double ymin, double yma
 
                     //If we go over (derivative == 0), do a Bisection step, Otherwise newton's method
                     //Here we are guaranteed to bracket the root since p==1
-                    parameters_gsl_MF_con = (struct parameters_gsl_MF_con_int_ ){
+                    mf_params = (struct parameters_gsl_MF_integrals){
                         .growthf = growth1,
                         .delta = delta,
-                        .n_order = 0,
                         .sigma_cond = EvaluateSigma(lnM_cond,0,NULL),
                         .M_cond = lnM_cond,
                         .HMF = user_params_stoc->HMF,
-                        .CMF = 1,
                     };
-                    dp_guess = -1 * MnMassfunction(lnM_guess,&parameters_gsl_MF_con) / norm;
+                    dp_guess = -1 * cmf_integrand(lnM_guess,&mf_params) / norm;
                     LOG_ULTRA_DEBUG("LnM guess = %.6e | p = %.6e | dp = %.6e",lnM_guess,p_guess,dp_guess);
                     if(dp_guess == 0.)
                         lnM_next = (lnM_guess+lnM_prev)/2;
@@ -754,7 +602,6 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
         else
             const_struct->corr_star = 0;
 
-        const_struct->delta = Deltac*const_struct->growth_out/const_struct->growth_in;
         const_struct->update = 1;
         //TODO: change the table functions to accept the structure
         initialise_dNdM_tables(const_struct->lnM_min, const_struct->lnM_max_tb,const_struct->lnM_min, const_struct->lnM_max_tb,
@@ -770,11 +617,13 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
         const_struct->M_cond = M_cond;
         const_struct->lnM_cond = log(M_cond);
         const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond,0,NULL);
+        //for the table limits
+        double delta_crit = get_delta_crit(user_params_stoc->HMF,const_struct->sigma_cond,const_struct->growth_out);
         const_struct->update = 0;
-        initialise_dNdM_tables(DELTA_MIN, Deltac, const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->growth_out, const_struct->lnM_cond, false);
+        initialise_dNdM_tables(DELTA_MIN, delta_crit, const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->growth_out, const_struct->lnM_cond, false);
 
         const_struct->tbl_xmin = DELTA_MIN;
-        const_struct->tbl_xwid = (Deltac+1)/(global_params.N_COND_INTERP-1);
+        const_struct->tbl_xwid = (delta_crit-DELTA_MIN)/(global_params.N_COND_INTERP-1);
         const_struct->tbl_pmin = global_params.MIN_LOGPROB; //min log(1-p)
         const_struct->tbl_pwid = (-global_params.MIN_LOGPROB)/(global_params.N_PROB_INTERP - 1);
     }
@@ -801,18 +650,18 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
         //                                 * pow(cond_val/1e10,astro_params_stoc->ALPHA_STAR)
         //                                 * exp(-astro_params_stoc->M_TURN/cond_val),1) * cond_val;
         const_struct->cond_val = const_struct->lnM_cond;
+        //condition delta is the previous delta crit
+        const_struct->delta = get_delta_crit(user_params_stoc->HMF,const_struct->sigma_cond,const_struct->growth_in);
     }
     //Here the condition is a cell of a given density, the volume/mass is given by the grid parameters
     else{
         const_struct->delta = cond_val;
         const_struct->cond_val = cond_val;
-    }
 
-    //the splines don't work well for cells above Deltac, but there CAN be cells above deltac, since this calculation happens
-    //before the overlap, and since the smallest dexm mass is M_cell*(1.01^3) there *could* be a cell above Deltac not in a halo
-    //NOTE: this does nothing since these cases are dealt with in stoc_sample
-    if(!const_struct->update){
-        if(cond_val > MAX_DELTAC_FRAC*Deltac){
+        //the splines don't work well for cells above Deltac, but there CAN be cells above deltac, since this calculation happens
+        //before the overlap, and since the smallest dexm mass is M_cell*(1.01^3) there *could* be a cell above Deltac not in a halo
+        //NOTE: all this does is prevent integration errors below since these cases are also dealt with in stoc_sample
+        if(cond_val > MAX_DELTAC_FRAC*get_delta_crit(user_params_stoc->HMF,const_struct->sigma_cond,const_struct->growth_out)){
             const_struct->expected_M = const_struct->M_cond;
             const_struct->expected_N = 1;
             return;
@@ -830,7 +679,6 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     m_exp = EvaluateRGTable1D(const_struct->cond_val,M_exp_spline,const_struct->tbl_xmin,const_struct->tbl_xwid);
     const_struct->expected_N = n_exp * const_struct->M_cond / sqrt(2.*PI);
     const_struct->expected_M = m_exp * const_struct->M_cond / sqrt(2.*PI);
-
     return;
 }
 
@@ -1110,8 +958,8 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     double x_min;
 
     while(M_remaining > M_min*global_params.HALO_SAMPLE_FACTOR){
-        delta_current = (Deltac - d_cond)/(M_remaining/M_cond);
         sigma_r = EvaluateSigma(lnM_remaining,0,NULL);
+        delta_current = (get_delta_crit(user_params_stoc->HMF,sigma_r,growthf) - d_cond)/(M_remaining/M_cond);
         del_term = delta_current*delta_current/growthf/growthf;
 
         //Low x --> high sigma --> low mass, high x --> low sigma --> high mass
@@ -1140,6 +988,7 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
 //This code was mostly taken from Darkforest (Qiu+20)
 //NOTE: some unused variables here
 //TODO: optimize sqrt 2 etc
+//TODO: make it work with non-EPS HMF, either with parameter setting OR implement directly
 int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
     double G0 = 1;
     double gamma1 = 0;
@@ -1196,6 +1045,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
         sigma_start = EvaluateSigma(lnm_start,0,NULL);
         sigmasq_start = sigma_start*sigma_start;
         sigma_half = EvaluateSigma(lnm_half,1,&alpha_half);
+        //convert from d(sigma^2)/dm to -d(lnsigma)/d(lnm)
         alpha_half = -m_half/(2*sigma_half*sigma_half)*alpha_half;
         sigmasq_half = sigma_half*sigma_half;
         G1 = G0*pow(d_start/sigma_start, gamma2);
@@ -1316,7 +1166,7 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
         return 0;
     }
     //if delta is above critical, form one big halo
-    if(hs_constants->delta > MAX_DELTAC_FRAC*Deltac){
+    if(hs_constants->delta > MAX_DELTAC_FRAC*get_delta_crit(user_params_stoc->HMF,hs_constants->sigma_cond,hs_constants->growth_out)){
         *n_halo_out = 1;
 
         //using expected instead of overlap here, since the expected fraction approaches 100% for delta -> Detlac
@@ -1379,9 +1229,9 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
     //Since the conditional MF is extended press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
     //TODO: do this ONLY if we choose to normalise (i.e flesh out all of the CMF options (rescaling, normalising, adjusting, matching))
     double ps_ratio = 1.;
-    if(user_params_stoc->HMF!=0){
-        ps_ratio = (IntegratedNdM(growthf,lnMmin,lnMcell,lnMcell,0,1,0,0)
-            / IntegratedNdM(growthf,lnMmin,lnMcell,lnMcell,0,1,user_params_stoc->HMF,0));
+    if(user_params_stoc->HMF>1 && user_params_stoc->HMF<4){
+        ps_ratio = (IntegratedNdM(growthf,lnMmin,lnMcell,lnMcell,0,0,1)
+            / IntegratedNdM(growthf,lnMmin,lnMcell,lnMcell,0,user_params_stoc->HMF,1));
     }
 
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
@@ -1466,7 +1316,8 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                         }
                     }
                     if(x+y+z == 0){
-                        LOG_ULTRA_DEBUG("Cell 0 %d delta %.2f -> (N,M) (%.2f,%.2e) overlap defc %.2f ps_ratio %.2f",
+                        print_hs_consts(&hs_constants_priv);
+                        LOG_ULTRA_DEBUG("Cell 0 delta %.2f -> (N,M) (%.2f,%.2e) overlap defc %.2f ps_ratio %.2f",
                                         delta,hs_constants_priv.expected_N,hs_constants_priv.expected_N,mass_defc,ps_ratio);
                     }
                     //TODO: the ps_ratio part will need to be moved when other CMF scalings are finished
@@ -1499,7 +1350,6 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                     if(x+y+z == 0){
                         LOG_SUPER_DEBUG("Cell 0: delta %.2f | N %d (exp. %.2e) | Total M %.2e (exp. %.2e)",
                                         delta,nh_buf,hs_constants_priv.expected_N,M_cell,hs_constants_priv.expected_M);
-                        // print_hs_consts(&hs_constants_priv);
                     }
                 }
             }
@@ -1627,9 +1477,9 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
                 }
             }
             if(ii==0){
+                print_hs_consts(&hs_constants_priv);
                 LOG_SUPER_DEBUG("First Halo: Mass %.2f | N %d (exp. %.2e) | Total M %.2e (exp. %.2e)",
                                         M2,n_prog,hs_constants_priv.expected_N,M_prog,hs_constants_priv.expected_M);
-                print_hs_consts(&hs_constants_priv);
             }
         }
         if(count >= arraysize_local){
@@ -1858,6 +1708,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, struct I
         M_turn_a = astro_params_stoc->M_TURN;
 
     double curr_vcb = flag_options_stoc->FIX_VCB_AVG ? global_params.VAVG : 0;
+    double delta_crit = get_delta_crit(user_params_stoc->HMF,sigma_max,growth_z);
 
     LOG_DEBUG("Mean halo boxes || Mmin = %.2e | Mmax = %.2e (s=%.2e) | z = %.2e | D = %.2e | cellvol = %.2e",M_min,M_max,sigma_max,redshift,growth_z,volume);
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS) firstprivate(M_turn_m,M_turn_a,curr_vcb)
@@ -1892,7 +1743,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, struct I
             }
             //turn into one large halo if we exceed the critical
             //Since these are perturbed (Eulerian) grids, I use the total cell mass (1+dens)
-            else if(dens>=MAX_DELTAC_FRAC*Deltac){
+            else if(dens>=MAX_DELTAC_FRAC*delta_crit){
                 mass = M_max * (1+dens) / volume;
                 nion = global_params.Pop2_ion * M_max * (1+dens) * cosmo_params_stoc->OMb / cosmo_params_stoc->OMm * norm_star * pow(M_max*(1+dens)/1e10,alpha_star) * norm_esc * pow(M_max*(1+dens)/1e10,alpha_esc) / volume;
                 sfr = M_max * (1+dens) * cosmo_params_stoc->OMb / cosmo_params_stoc->OMm * norm_star * pow(M_max*(1+dens)/1e10,alpha_star) / t_star / t_hubble(redshift) / volume;
@@ -1901,28 +1752,28 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, struct I
             else{
                 //calling IntegratedNdM with star and SFR need special care for the f*/fesc clipping, and calling NionConditionalM for mass includes duty cycle
                 //neither of which I want
-                mass = IntegratedNdM(growth_z,lnMmin,lnMmax,lnMmax,dens,1,user_params_stoc->HMF,1);
-                h_count = IntegratedNdM(growth_z,lnMmin,lnMmax,lnMmax,dens,0,user_params_stoc->HMF,1);
+                h_count = IntegratedNdM(growth_z,lnMmin,lnMmax,lnMmax,dens,user_params_stoc->HMF,2);
+                mass = IntegratedNdM(growth_z,lnMmin,lnMmax,lnMmax,dens,user_params_stoc->HMF,3);
 
-                nion = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, Deltac, dens, M_turn_a
+                nion = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, delta_crit, dens, M_turn_a
                                         , astro_params_stoc->ALPHA_STAR, alpha_esc, astro_params_stoc->F_STAR10, norm_esc
                                         , Mlim_Fstar, Mlim_Fesc, user_params_stoc->FAST_FCOLL_TABLES);
 
-                sfr = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, Deltac, dens, M_turn_a
+                sfr = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, delta_crit, dens, M_turn_a
                                         , alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.
                                         , user_params_stoc->FAST_FCOLL_TABLES);
 
                 //Same integral as Nion
-                // wsfr = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, Deltac, dens, M_turn_a
+                // wsfr = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, delta_crit, dens, M_turn_a
                 //                         , astro_params_stoc->ALPHA_STAR, alpha_esc, astro_params_stoc->F_STAR10, norm_esc, Mlim_Fstar, Mlim_Fesc
                 //                         , user_params_stoc->FAST_FCOLL_TABLES);
                 if(flag_options_stoc->USE_MINI_HALOS){
-                    nion_mini = Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_max, Deltac,
+                    nion_mini = Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_max, delta_crit,
                                                         dens, M_turn_m, M_turn_a, alpha_star_mini,
                                                         alpha_esc, norm_star_mini, norm_esc, Mlim_Fstar_mini,
                                                         Mlim_Fesc_mini, user_params_stoc->FAST_FCOLL_TABLES);
 
-                    sfr_mini = Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_max, Deltac,
+                    sfr_mini = Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_max, delta_crit,
                                                         dens, M_turn_m, M_turn_a, alpha_star_mini,
                                                         0., norm_star_mini, 1., Mlim_Fstar_mini, 0.,
                                                         user_params_stoc->FAST_FCOLL_TABLES);
@@ -1996,7 +1847,7 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
     double Mlim_Fstar_mini = Mass_limit_bisection(M_min, M_max, alpha_star, norm_star * pow(1e3,alpha_esc));
     double Mlim_Fesc_mini = Mass_limit_bisection(M_min, M_max, alpha_esc, norm_esc_mini * pow(1e3,alpha_esc));
 
-    hm_expected = IntegratedNdM(growth_z, lnMmin, lnMmax, lnMmax, 0, 1, user_params_stoc->HMF,0);
+    hm_expected = IntegratedNdM(growth_z, lnMmin, lnMmax, lnMmax, 0, user_params_stoc->HMF, 1);
     nion_expected = Nion_General(redshift, M_min, M_turn_a, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc) * prefactor_nion;
     sfr_expected = Nion_General(redshift, M_min, M_turn_a, alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.) * prefactor_sfr;
     // wsfr_expected = Nion_General(redshift, M_min, M_turn_a, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc);
@@ -2362,7 +2213,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         struct HaloSamplingConstants *hs_constants = &hs_const_struct;
         LOG_DEBUG("Setting z constants. %.3f %.3f",z_out,z_in);
         stoc_set_consts_z(hs_constants,z_out,z_in);
-        print_hs_consts(hs_constants);
+        // print_hs_consts(hs_constants);
         //set first condition (for some outputs)
         //TODO: rewrite function agruments so I don't need to unpack here
         double Mmax_tb = hs_constants->M_max_tables;
@@ -2378,14 +2229,15 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 
         //Since the conditional MF is press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
         double ps_ratio = 1.;
-        if(!hs_constants->update && user_params->HMF!=0){
+        if(!hs_constants->update && user_params_stoc->HMF>1 && user_params_stoc->HMF<4){
             lnMcond = hs_constants->lnM_cond;
-            ps_ratio = IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,0,1,user_params->HMF,0) / IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,0,1,0,0);
+            ps_ratio = IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,0,user_params->HMF,1) / IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,0,0,1);
             LOG_DEBUG("Using PS ratio of %.2f",ps_ratio);
         }
 
         if(type==0){
             stoc_set_consts_cond(hs_constants,condition);
+            print_hs_consts(hs_constants);
             Mcond = hs_constants->M_cond;
             lnMcond = hs_constants->lnM_cond;
             delta = hs_constants->delta;
@@ -2393,32 +2245,32 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             int cmf_flag = (seed==0) ? 1 : 0;
 
             //parameters for CMF
-            double prefactor = cmf_flag ? RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm * ps_ratio : 1.;
-            struct parameters_gsl_MF_con_int_ parameters_gsl_MF_con = {
+            double prefactor = RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm * ps_ratio;
+            struct parameters_gsl_MF_integrals params = {
                 .redshift = z_out,
                 .growthf = growth_out,
                 .delta = delta,
-                .n_order = 0,
                 .M_cond = lnMcond,
                 .sigma_cond = hs_constants->sigma_cond,
                 .HMF = user_params_stoc->HMF,
-                .CMF = cmf_flag,
             };
 
-            #pragma omp parallel for private(test)
+            #pragma omp parallel for
             for(i=0;i<n_mass;i++){
                 //conditional ps mass func * pow(M,n_order)
                 if((M[i] < Mmin) || (M[i] > MMAX_TABLES) || ((cmf_flag) && (M[i] > Mcond))){
                     test = 0.;
                 }
                 else{
-                    test = MnMassfunction(log(M[i]),(void*)&parameters_gsl_MF_con);
-                    //convert to dndlnm
-                    test = test * prefactor;
+                    if(cmf_flag){
+                        result[i] = cmf_integrand(log(M[i]), (void*)&params) * prefactor;
+                    }
+                    else{
+                        result[i] = umf_integrand(log(M[i]), (void*)&params);
+                    }
                 }
                 LOG_ULTRA_DEBUG(" D %.1e | M1 %.1e | M2 %.1e | d %.1e | s %.1e -> %.1e",
-                                growth_out,M[i],Mcond,delta,hs_constants->sigma_cond,test);
-                result[i] = test;
+                                growth_out,M[i],Mcond,delta,hs_constants->sigma_cond,result[i]);
             }
         }
         else if(type==1){
@@ -2432,8 +2284,8 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             double lnM_hi, lnM_lo;
             #pragma omp parallel for private(test,lnM_hi,lnM_lo) num_threads(user_params->N_THREADS)
             for(i=0;i<n_mass;i++){
-                // LOG_ULTRA_DEBUG("%d %d D %.1e | Ml %.1e | Mu %.1e | Mc %.1e | Mm %.1e | d %.1e | s %.1e",
-                //                 i, i+n_mass, growth_out,M[i],M[i+n_mass],Mcond,Mmin,delta,EvaluateSigma(lnMcond,0,&dummy));
+                LOG_ULTRA_DEBUG("%d %d D %.1e | Ml %.1e | Mu %.1e | Mc %.1e | Mm %.1e | d %.1e | s %.1e",
+                                i, i+n_mass, growth_out,M[i],M[i+n_mass],Mcond,Mmin,delta,EvaluateSigma(lnMcond,0,NULL));
 
                 lnM_lo = log(M[i]) < lnMmin ? lnMmin : log(M[i]);
                 lnM_hi = log(M[i+n_mass]) > lnMcond ? lnMcond : log(M[i+n_mass]);
@@ -2443,17 +2295,9 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     continue;
                 }
 
-                test = IntegratedNdM(growth_out,lnM_lo,lnM_hi,lnMcond,delta,seed,user_params->HMF,1);
-                //This is a debug case, testing that the integral of M*dNdM == FgtrM
-                if(seed == 1){
-                    test = FgtrM_bias_fast(growth_out,delta/hs_constants->growth_out,EvaluateSigma(lnM_lo,0,NULL),hs_constants->sigma_cond) \
-                                         - FgtrM_bias_fast(growth_out,delta/hs_constants->growth_out,EvaluateSigma(lnM_hi,0,NULL),hs_constants->sigma_cond);
-                    result[i+n_mass] = test * Mcond * ps_ratio;
-                    // LOG_ULTRA_DEBUG("==> %.8e",result[i+n_mass]);
-                }
-
+                test = IntegratedNdM(growth_out,lnM_lo,lnM_hi,lnMcond,delta,user_params->HMF,seed);
                 result[i] = test * Mcond / sqrt(2.*PI) * ps_ratio;
-                // LOG_ULTRA_DEBUG("==> %.8e",result[i]);
+                LOG_ULTRA_DEBUG("==> %.8e",result[i]);
             }
         }
 
@@ -2476,18 +2320,13 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     lnMcond = hs_constants_priv.lnM_cond;
                     delta = hs_constants_priv.delta;
 
-                    // LOG_ULTRA_DEBUG("%d %d D %.1e | Ml %.1e | Mc %.1e| d %.1e | s %.1e",
-                    //                 i,i+n_mass,growth_out,Mmin,Mcond,delta,EvaluateSigma(lnMcond,0,NULL));
+                    LOG_ULTRA_DEBUG("%d %d D %.1e | Ml %.1e | Mc %.1e| d %.1e | s %.1e",
+                                    i,i+n_mass,growth_out,Mmin,Mcond,delta,EvaluateSigma(lnMcond,0,NULL));
 
-                    test = IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,delta,seed,user_params->HMF,1);
-                    // LOG_ULTRA_DEBUG("==> %.8e",test);
+                    test = IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,delta,user_params->HMF,seed);
+                    LOG_ULTRA_DEBUG("==> %.8e",test);
                     //conditional MF multiplied by a few factors
                     result[i] = test  * Mcond / sqrt(2.*PI) * ps_ratio;
-                    //This is a debug case, testing that the integral of M*dNdM == FgtrM
-                    if(seed == 1){
-                        test = FgtrM_bias_fast(growth_out,delta/hs_constants_priv.growth_out,hs_constants_priv.sigma_min,hs_constants_priv.sigma_cond) * Mcond;
-                        result[i+n_mass] = test * ps_ratio;
-                    }
                 }
             }
         }
@@ -2503,15 +2342,13 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             double tot_mass=0;
             double lnMbin_max = hs_constants->lnM_max_tb; //arbitrary bin maximum
 
-            struct parameters_gsl_MF_con_int_ parameters_gsl_MF_con = {
+            struct parameters_gsl_MF_integrals params = {
                 .redshift = z_out,
                 .growthf = growth_out,
                 .delta = 0,
-                .n_order = 0,
                 .M_cond = 0,
                 .sigma_cond = 0,
                 .HMF = user_params_stoc->HMF,
-                .CMF = 1,
             };
 
             for(i=0;i<n_bins;i++){
@@ -2534,9 +2371,9 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     stoc_set_consts_cond(&hs_constants_priv,cond);
                     lnMcond = hs_constants_priv.lnM_cond;
 
-                    parameters_gsl_MF_con.M_cond = lnMcond;
-                    parameters_gsl_MF_con.sigma_cond = hs_constants_priv.sigma_cond;
-                    parameters_gsl_MF_con.delta = hs_constants_priv.delta;
+                    params.M_cond = lnMcond;
+                    params.sigma_cond = hs_constants_priv.sigma_cond;
+                    params.delta = hs_constants_priv.delta;
                     for(i=0;i<n_bins;i++){
                         lnM_bin = out_bins[i];
 
@@ -2545,7 +2382,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                             test = 0.;
                         }
                         else{
-                            test = MnMassfunction(lnM_bin,(void*)&parameters_gsl_MF_con);
+                            test = cmf_integrand(lnM_bin,(void*)&params);
                             test = test * prefactor * ps_ratio;
                         }
                         out_cmf[i] += test * M[j] / sqrt(2.*PI);

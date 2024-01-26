@@ -83,7 +83,7 @@ void bisection(float *x, float xlow, float xup, int *iter);
 float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC);
 
 double sheth_delc(double del, double sig);
-float dNdM_conditional(float growthf, float M1, float M2, float delta1, float delta2, float sigma2);
+double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, double sigma_cond);
 double dNion_ConditionallnM(double lnM, void *params);
 double Nion_ConditionalM(double growthf, double M1, double M2, double sigma2, double delta1, double delta2, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar, double Mlim_Fesc, bool FAST_FCOLL_TABLES);
 double dNion_ConditionallnM_MINI(double lnM, void *params);
@@ -152,6 +152,30 @@ struct parameters_gsl_SFR_con_int_{
     double frac_esc;
     double LimitMass_Fstar;
     double LimitMass_Fesc;
+};
+
+//Parameters used for gsl integral on the mass function
+struct parameters_gsl_MF_integrals{
+    //parameters for all MF integrals
+    double redshift;
+    double growthf;
+    double delta;
+
+    //Conditional parameters
+    double sigma_cond;
+    double M_cond;
+    int HMF;
+
+    //SFR additions
+    double Mturn;
+    double f_star_norm;
+    double alpha_star;
+    //MINI
+    double Mturn_upper;
+
+    //Nion additions
+    double f_esc_norm;
+    double alpha_esc;
 };
 
 unsigned long *lvector(long nl, long nh);
@@ -795,115 +819,137 @@ double sheth_delc(double del, double sig){
 Unconditional Mass function from Delos 2023 (https://arxiv.org/pdf/2311.17986.pdf)
 Matches well with N-bodies (M200), has a corresponding Conditional Mass Function (below) and
 an excursion set method. Hence can be consistently used throughout the Halo Finder, Halo Sampler
-And radiation.
+And radiation. The mass functions are based off a constant barrier delta = 1.5 and a top-hat window function
 */
-//UNFINISHED
 double dNdlnM_Delos(double growthf, double lnM){
     double dfdnu,dsigmadm,sigma,sigma_inv,dfdM;
     double nu;
     //hardcoded for now
-    double coeff_nu = 0.519;
-    double index_nu = 0.582;
-    double exp_factor = -0.469;
+    const double coeff_nu = 0.519;
+    const double index_nu = 0.582;
+    const double exp_factor = -0.469;
 
-    sigma = EvaluateSigma(lnM,1,&dsigmadm);
-    sigma_inv = 1/sigma;
+    sigma = EvaluateSigma(lnM,1,&dsigmadm)*growthf;
+    sigma_inv = 1/(sigma);
+    dsigmadm = dsigmadm * (growthf*growthf*0.5*sigma_inv);
 
     nu = DELTAC_DELOS*sigma_inv;
 
-    dfdnu = coeff_nu*pow(nu,index_nu)*exp(-index_nu*nu*nu);
-    dfdM = dfdnu * fabs(dsigmadm);
+    dfdnu = coeff_nu*pow(nu,index_nu)*exp(exp_factor*nu*nu);
+    dfdM = dfdnu * fabs(dsigmadm) * sigma_inv;
 
-    //NOTE: unlike the other UMFs this is dNdlogM and leaves out
-    //   the (cosmo_params_ps->OMm)*RHOcrit/M) / sqrt(2.*PI)
+    //NOTE: unlike the other UMFs this is dNdlogM
     //NOTE: dfdM == constants*dNdlnM
-    return dfdM;
+    return dfdM*cosmo_params_ps->OMm*RHOcrit;
 }
 
-//UNFINISHED
-double dNdlnM_conditional_Delos(double growthf, double lnM, double lnM_cond, double delta_crit, double delta_cond, double sigma_cond){
-    double result,dfdnu,dsigmadm,sigma,sigma_denom,dfdM;
+double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, double sigma_cond){
+    double result,dfdnu,dsigmadm,sigma,sigdiff_inv,dfdM,sigma_inv;
     double nu;
     //hardcoded for now
-    double coeff_nu = 0.519;
-    double index_nu = 0.582;
-    double exp_factor = -0.469;
+    const double coeff_nu = 0.519;
+    const double index_nu = 0.582;
+    const double exp_factor = -0.469;
 
-    sigma = EvaluateSigma(lnM,1,&dsigmadm);
-    sigma_denom = 1/sqrt(sigma_cond*sigma_cond - sigma*sigma);
+    sigma_cond = sigma_cond*growthf; //does not propogate back
+    sigma = EvaluateSigma(lnM,1,&dsigmadm)*growthf;
+    if(sigma < sigma_cond) return 0.;
+    sigdiff_inv = sigma == sigma_cond ? 1e6 : 1/(sigma*sigma - sigma_cond*sigma_cond);
 
-    nu = (DELTAC_DELOS - delta_cond)*sigma_denom;
+    sigma_inv = 1/sigma;
+    dsigmadm = dsigmadm * (growthf*growthf*0.5*sigma_inv);
 
-    dfdnu = coeff_nu*pow(nu,index_nu)*exp(-index_nu*nu*nu);
-    dfdM = dfdnu * fabs(dsigmadm)*sigma_cond*sigma_cond*sigma_denom*sigma_denom;
+    nu = (DELTAC_DELOS - delta_cond)*sqrt(sigdiff_inv);
 
-    //NOTE: unlike the other UMFs this is dNdlogM and leaves out
-    //   the (cosmo_params_ps->OMm)*RHOcrit/M) / sqrt(2.*PI)
+    dfdnu = coeff_nu*pow(nu,index_nu)*exp(exp_factor*nu*nu);
+    dfdM = dfdnu * fabs(dsigmadm) * sigma_inv * sigma * sigma * sigdiff_inv;
+
+    //NOTE: like the other CMFs this is dNdlogM and leaves out
+    //   the (cosmo_params_ps->OMm)*RHOcrit
     //NOTE: dfdM == constants*dNdlnM
+    // LOG_ULTRA_DEBUG("M = %.3e Barrier = %.3f || dndlnM= %.6e",exp(lnM),DELTAC_DELOS,dfdM);
     return dfdM;
 }
 
 //Sheth Tormen 2002 fit for the CMF, while the moving barrier does not allow for a simple rescaling, it has been found
 //That a taylor expansion of the barrier shape around the point of interest well approximates the simulations
 //TODO: Count the growth factors needed in each term, also move to ps.c
-double st_taylor_factor(double sig, double sig_cond, double growthf){
-    double a = SHETH_A;
+double st_taylor_factor(double sig, double sig_cond, double delta_cond, double growthf){
+    int i;
+    double a = SHETH_a;
     double alpha = global_params.SHETH_c;
     double beta = global_params.SHETH_b;
+
     double delsq = Deltac*Deltac/growthf/growthf;
     double sigsq = sig*sig;
     double sigcsq = sig_cond*sig_cond;
-    double sigdiff = sigsq - sigcsq;
+    //See note below
+    double sigdiff = sig == sig_cond ? 1e-6 : sigsq - sigcsq;
+    double dn_const = sqrt(a)*Deltac*beta*pow(a*delsq,-alpha);
 
-    double result = 0;
-
-    int i;
-    //Taylor expansion of the x^a part around (sigsq - sigcondsq)
-    for(i=5;i>-1;i--){
-        result = (result + (pow(sigsq/(SHETH_a*delsq), alpha - i) - pow(sigcsq/(SHETH_a*delsq), alpha - i)))*(alpha-i+1)*sigdiff/i; //the last factor makes the factorials and nth power of nth derivative
-        LOG_ULTRA_DEBUG("%d term %.2e",i,result);
+    //define arrays of factors to save time and math calls
+    int n_fac[6] = {1,1,2,6,24,120};
+    double a_fac[6];
+    double s_fac[6];
+    a_fac[0] = 1;
+    s_fac[0] = 1;
+    for(i=1;i<6;i++){
+        a_fac[i] = a_fac[i-1] * (alpha-i+1);
+        s_fac[i] = s_fac[i-1] * (-sigdiff);
     }
 
-    //constants and the + 1 factor from the barrier 0th derivative B = A*(1 + b*x^a)
-    result = (result/sigdiff*beta + 1)*sqrt(SHETH_a)*Deltac;
+    double result = 0.;
+    //Taylor expansion of the x^a part around (sigsq - sigcondsq) (summing small to large)
+    for(i=5;i>=0;i--){
+        result += s_fac[i]*dn_const*pow(sigsq,alpha-i)/(a_fac[i]*n_fac[i]);
+        // LOG_ULTRA_DEBUG("%d term %.2e",i,result);
+    }
+    //add the constant terms from the 0th derivative of the barrier (condition delta independent of halo sigma)
+    result += sqrt(a)*Deltac - delta_cond/growthf;
+
     return result;
 }
 
-double dNdM_conditional_ST(double growthf, double M1, double M2, double delta1, double delta2, double sigma2){
-    double sigma1, sig1sq, sig2sq, dsigmadm, B1, B2;
-    double MassBinLow;
-    int MassBin;
+//CMF Corresponding to the Sheth Mo Tormen HMF, here we assume that we are passing the correct delta2,
+//      which is the condition delta, the barrier delta1 is set by the mass, so it is passed usually as Deltac
+//NOTE: Currently broken and I don't know why
+double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double sigma_cond){
+    double sigma1, dsigmadm, Barrier, factor, sigdiff_inv, result;
 
-    sigma1 = EvaluateSigma(M1,1,&dsigmadm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
+    sigma1 = EvaluateSigma(lnM,1,&dsigmadm)*growthf; //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
+    sigma_cond = sigma_cond * growthf;
+    if(sigma1 < sigma_cond) return 0.;
 
-    LOG_ULTRA_DEBUG("st fit: D: %.2f M1: %.2e M2: %.2e d1: %.2f d2: %.2f s2: %.2f",growthf,M2,M2,delta1,delta2,sigma2);
+    dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma1)); //d(s^2)/dm z0 to dsdm
 
-    M1 = exp(M1);
-    M2 = exp(M2);
+    Barrier = sheth_delc(Deltac/growthf,sigma1/growthf)*growthf;
+    factor = st_taylor_factor(sigma1,sigma_cond,delta_cond,growthf);
 
-    sig1sq = sigma1*sigma1;
-    sig2sq = sigma2*sigma2;
-    B1 = sheth_delc(delta1/growthf,sigma1);
-    B2 = sheth_delc(delta2/growthf,sigma2);
-    LOG_ULTRA_DEBUG("Barriers 1: %.2e | 2: %.2e",B1,B2);
-    LOG_ULTRA_DEBUG("taylor expansion factor %.6e",st_taylor_factor(sigma1,sigma2,growthf));
+    //This was in the original conditional function (see below)
+    //TODO: figure out if it's actually necessary
+    sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1/(sigma1*sigma1 - sigma_cond*sigma_cond);
 
-    if((sigma1 > sigma2)) {
-        return -dsigmadm*sigma1*st_taylor_factor(sigma1,sigma2,growthf)/pow(sig1sq-sig2sq,1.5)*exp(-(B1 - B2)*(B1 - B2)/(sig1sq-sig2sq));
-    }
-    else if(sigma1==sigma2) {
-        return -dsigmadm*sigma1*st_taylor_factor(sigma1,sigma2,growthf)/pow(1e-6,1.5)*exp(-(B1 - B2)*(B1 - B2)/(1e-6));
-    }
-    else {
-        return 0.;
-    }
+    result = -dsigmadm*sigma1*factor*pow(sigdiff_inv,1.5)*exp(-(Barrier - delta_cond)*(Barrier - delta_cond)*(sigdiff_inv));
+    // LOG_ULTRA_DEBUG("M = %.3e T = %.3e Barrier = %.3f || dndlnM= %.6e",exp(lnM),factor,Barrier,result);
+    return result;
 }
 
+//Conditional Extended Press-Schechter Mass function, with constant barrier delta=1.682 and sharp-k window function
+double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, double sigma_cond){
+    double sigma1, dsigmasqdm, sigdiff_inv;
+    sigma1 = EvaluateSigma(lnM,1,&dsigmasqdm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
+
+    //limit setting
+    if(sigma1 < sigma_cond) return 0.;
+    sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1/(sigma1*sigma1 - sigma_cond*sigma_cond);
+
+    return -((Deltac - delta_cond)/growthf)*dsigmasqdm*pow(sigdiff_inv, 1.5)*exp(-(Deltac - delta_cond )*(Deltac - delta_cond)/(2.*growthf*growthf)*sigdiff_inv);
+}
 
 /*
  FUNCTION dNdM_st(z, M)
  Computes the Press_schechter mass function with Sheth-Torman correction for ellipsoidal collapse at
- redshift z, and dark matter halo mass M (in solar masses).
+ redshift z, and dark matter halo mass M (in solar masses). Moving barrier B(z,sigma) and sharp-k window functino
 
  Uses interpolated sigma and dsigmadm to be computed faster. Necessary for mass-dependent ionising efficiencies.
 
@@ -913,7 +959,6 @@ double dNdM_conditional_ST(double growthf, double M1, double M2, double delta1, 
  Reference: Sheth, Mo, Torman 2001
  */
 double dNdM_st(double growthf, double M){
-
     double sigma, dsigmadm, nuhat;
 
     float MassBinLow;
@@ -1017,6 +1062,135 @@ double dNdM(double growthf, double M){
     return (-(cosmo_params_ps->OMm)*RHOcrit/M) * sqrt(2/PI) * (Deltac/(sigma*sigma)) * dsigmadm * pow(E, -(Deltac*Deltac)/(2*sigma*sigma));
 }
 
+//TODO: make HMF an enum for clarity
+double cmf_integrand(double lnM, void *param_struct){
+    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
+    double mf, m_factor;
+    double growthf = params.growthf;
+    double delta = params.delta; //the condition delta
+    double sigma2 = params.sigma_cond; //M2 and sigma2 are degenerate, remove one
+    double M_filter = params.M_cond;
+    int HMF = params.HMF;
+
+    double M_exp = exp(lnM);
+
+    //dNdlnM = dfcoll/dM * M / M * constants
+    if(HMF==0) {
+        mf = dNdM_conditional_EPS(growthf,lnM,delta,sigma2);
+    }
+    else if(HMF==1) {
+        mf = dNdM_conditional_ST(growthf,lnM,delta,sigma2);
+    }
+    else if(HMF==4) {
+        mf = dNdlnM_conditional_Delos(growthf,lnM,delta,sigma2);
+    }
+    else {
+        //NOTE: Normalisation scaling is currently applied outside the integral, per condition
+        //This will be the rescaled EPS CMF,
+        //TODO: put rescaling options here (normalised EPS, rescaled EPS, local/global scalings of UMFs from Tramonte+17)
+        //Filter CMF type by CMF_MODE parameter (==1 for set CMF, ==2 for resnormalised, ==3 for rescaled EPS, ==4 for Tramonte local, ==5 for Tramonte global etc)
+        mf = dNdM_conditional_EPS(growthf,lnM,delta,sigma2);
+    }
+    return mf;
+}
+
+double cfcoll_integrand(double lnM, void *param_struct){
+    return exp(lnM) * cmf_integrand(lnM,param_struct);
+}
+
+double umf_integrand(double lnM, void *param_struct){
+    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
+    double mf, m_factor;
+    int i;
+    double growthf = params.growthf;
+    double z = params.redshift;
+    int HMF = params.HMF;
+
+    double M_exp = exp(lnM);
+
+    //most of the UMFs are defined with M, but we integrate over lnM
+    //TODO: rewrite the old MFs as dNdlnM
+    //NOTE: HMF > 4 or < 0 gets caught earlier, so unless some strange change is made this is fine
+    if(HMF==0) {
+        return dNdM(growthf, M_exp) * M_exp;
+    }
+    else if(HMF==1) {
+        return dNdM_st(growthf, M_exp) * M_exp;
+    }
+    else if(HMF==2) {
+        return dNdM_WatsonFOF(growthf, M_exp) * M_exp;
+    }
+    else if(HMF==3) {
+        return dNdM_WatsonFOF_z(z, growthf, M_exp) * M_exp;
+    }
+    else if(HMF==4) {
+        return dNdlnM_Delos(growthf, lnM); //NOTE: dNdlogM
+    }
+}
+
+double ufcoll_integrand(double lnM, void *param_struct){
+    return exp(lnM) * umf_integrand(lnM,param_struct);
+}
+
+//TODO: nion_c_integrand, nion_u_integrand, sfr_c_integrand, sfr_u_integrand
+
+//TODO: make type enum for clarity
+double (*get_integrand_function(int type))(double,void*){
+    if(type==0)
+        return &umf_integrand; //Condtional mass function integral
+    else if(type==1)
+        return &ufcoll_integrand; //Collapsed fraction integral
+    else if(type==2)
+        return &cmf_integrand; //Unconditional mass function integral
+    else if(type==3)
+        return &cfcoll_integrand; //Unconditional mass function integral
+    else{
+        LOG_ERROR("Invalid type %d for MF integral");
+        Throw(ValueError);
+    }
+}
+
+//Integral of a CMF or UMF
+//In future all MF integrals will go through here, simply selecting the integrand function from a switch
+double IntegratedNdM(double growthf, double lnM_lo, double lnM_hi, double M_filter, double delta, int HMF, int type){
+    double result, error, lower_limit, upper_limit;
+    gsl_function F;
+    // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
+    double rel_tol = 1e-3; //<- relative tolerance
+    gsl_integration_workspace * w
+    = gsl_integration_workspace_alloc (1000);
+
+    double sigma = EvaluateSigma(M_filter,0,NULL);
+
+    struct parameters_gsl_MF_integrals params = {
+        .growthf = growthf,
+        .delta = delta,
+        .sigma_cond = sigma,
+        .M_cond = M_filter,
+        .HMF = HMF,
+    };
+    int status;
+    F.function = get_integrand_function(type);
+    F.params = &params;
+    lower_limit = lnM_lo;
+    upper_limit = lnM_hi;
+
+    gsl_set_error_handler_off();
+    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
+                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
+
+    if(status!=0) {
+        LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("(function argument): lower_limit=%.3e upper_limit=%.3e (%.3e) rel_tol=%.3e result=%.3e error=%.3e",lower_limit,upper_limit,exp(upper_limit),rel_tol,result,error);
+        LOG_ERROR("data: growthf=%.3e M2=%.3e delta=%.3e sigma2=%.3e HMF=%.3d",growthf,exp(M_filter),delta,sigma,HMF);
+        GSL_ERROR(status);
+    }
+
+    gsl_integration_workspace_free (w);
+
+    return result;
+}
+
 /*
  FUNCTION FgtrM(z, M)
  Computes the fraction of mass contained in haloes with mass > M at redshift z
@@ -1042,7 +1216,6 @@ double FgtrM_wsigma(double z, double sig){
 
     return splined_erfc(del / (sqrt(2)*sig));
 }
-
 
 /*
  FUNCTION FgtrM_Watson(z, M)
@@ -2058,33 +2231,6 @@ void initialiseGL_Nion_Xray(int n, float M_Min, float M_Max){
     gauleg(log(M_Min),log(M_Max),xi_SFR_Xray,wi_SFR_Xray,n);
 }
 
-float dNdM_conditional(float growthf, float M1, float M2, float delta1, float delta2, float sigma2){
-    double sigma1, dsigmadm; //JD: changed to double for the abstraction, examine later
-
-    sigma1 = EvaluateSigma(M1,1,&dsigmadm);
-
-    M1 = exp(M1);
-    M2 = exp(M2);
-
-    sigma1 = sigma1*sigma1;
-    sigma2 = sigma2*sigma2;
-
-    dsigmadm = dsigmadm/(2.0*sigma1); // This is actually sigma1^{2} as calculated above, however, it should just be sigma1. It cancels with the same factor below. Why I have decided to write it like that I don't know!
-
-    if((sigma1 > sigma2)) {
-
-        return -(( delta1 - delta2 )/growthf)*( 2.*sigma1*dsigmadm )*( exp( - ( delta1 - delta2 )*( delta1 - delta2 )/( 2.*growthf*growthf*( sigma1 - sigma2 ) ) ) )/(pow( sigma1 - sigma2, 1.5));
-    }
-    else if(sigma1==sigma2) {
-
-        return -(( delta1 - delta2 )/growthf)*( 2.*sigma1*dsigmadm )*( exp( - ( delta1 - delta2 )*( delta1 - delta2 )/( 2.*growthf*growthf*( 1.e-6 ) ) ) )/(pow( 1.e-6, 1.5));
-
-    }
-    else {
-        return 0.;
-    }
-}
-
 void initialiseGL_Nion(int n, float M_Min, float M_Max){
     //calculates the weightings and the positions for Gauss-Legendre quadrature.
     gauleg(log(M_Min),log(M_Max),xi_SFR,wi_SFR,n);
@@ -2126,7 +2272,7 @@ double dNion_ConditionallnM_MINI(double lnM, void *params) {
     else
         Fesc = pow(M/1e7,Alpha_esc);
 
-    return M*exp(-MassTurnover/M)*exp(-M/MassTurnover_upper)*Fstar*Fesc*dNdM_conditional(growthf,log(M),M2,del1,del2,sigma2)/sqrt(2.*PI);
+    return M*exp(-MassTurnover/M)*exp(-M/MassTurnover_upper)*Fstar*Fesc*dNdM_conditional_EPS(growthf,log(M),del2,sigma2)/sqrt(2.*PI);
 }
 
 double dNion_ConditionallnM(double lnM, void *params) {
@@ -2162,7 +2308,7 @@ double dNion_ConditionallnM(double lnM, void *params) {
     else
         Fesc = pow(M/1e10,Alpha_esc);
 
-    return M*exp(-MassTurnover/M)*Fstar*Fesc*dNdM_conditional(growthf,log(M),M2,del1,del2,sigma2)/sqrt(2.*PI);
+    return M*exp(-MassTurnover/M)*Fstar*Fesc*dNdM_conditional_EPS(growthf,log(M),del2,sigma2)/sqrt(2.*PI);
 }
 
 
@@ -2330,7 +2476,7 @@ float Nion_ConditionallnM_GL_MINI(float lnM, struct parameters_gsl_SFR_con_int_ 
     else
         Fesc = pow(M/1e7,Alpha_esc);
 
-    return M*exp(-MassTurnover/M)*exp(-M/MassTurnover_upper)*Fstar*Fesc*dNdM_conditional(growthf,log(M),M2,del1,del2,sigma2)/sqrt(2.*PI);
+    return M*exp(-MassTurnover/M)*exp(-M/MassTurnover_upper)*Fstar*Fesc*dNdM_conditional_EPS(growthf,log(M),del2,sigma2)/sqrt(2.*PI);
 }
 
 float Nion_ConditionallnM_GL(float lnM, struct parameters_gsl_SFR_con_int_ parameters_gsl_SFR_con){
@@ -2364,7 +2510,7 @@ float Nion_ConditionallnM_GL(float lnM, struct parameters_gsl_SFR_con_int_ param
     else
         Fesc = pow(M/1e10,Alpha_esc);
 
-    return M*exp(-MassTurnover/M)*Fstar*Fesc*dNdM_conditional(growthf,log(M),M2,del1,del2,sigma2)/sqrt(2.*PI);
+    return M*exp(-MassTurnover/M)*Fstar*Fesc*dNdM_conditional_EPS(growthf,log(M),del2,sigma2)/sqrt(2.*PI);
 
 }
 
@@ -3566,6 +3712,7 @@ double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
 
         if(calc_ds){
             dsigma_val = EvaluateRGTable1D_f(lnM, dSigmadm_InterpTable, MinMass, mass_bin_width);
+            //NOTE: This is d(sigma squared)/dm
             *dsigmadm = -pow(10.,dsigma_val); //this may be slow, figure out why the dsigmadm table is in log10
         }
     }
