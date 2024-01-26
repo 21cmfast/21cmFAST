@@ -159,23 +159,24 @@ struct parameters_gsl_MF_integrals{
     //parameters for all MF integrals
     double redshift;
     double growthf;
-    double delta;
+    int HMF;
 
     //Conditional parameters
     double sigma_cond;
     double M_cond;
-    int HMF;
+    double delta;
 
     //SFR additions
     double Mturn;
     double f_star_norm;
     double alpha_star;
-    //MINI
-    double Mturn_upper;
 
     //Nion additions
     double f_esc_norm;
     double alpha_esc;
+
+    //Minihalo additions
+    double Mturn_upper;
 };
 
 unsigned long *lvector(long nl, long nh);
@@ -829,11 +830,11 @@ double dNdlnM_Delos(double growthf, double lnM){
     const double index_nu = 0.582;
     const double exp_factor = -0.469;
 
-    sigma = EvaluateSigma(lnM,1,&dsigmadm)*growthf;
+    sigma = EvaluateSigma(lnM,1,&dsigmadm);
     sigma_inv = 1/(sigma);
-    dsigmadm = dsigmadm * (growthf*growthf*0.5*sigma_inv);
+    dsigmadm = dsigmadm * 0.5 * sigma_inv;
 
-    nu = DELTAC_DELOS*sigma_inv;
+    nu = DELTAC_DELOS*sigma_inv/growthf;
 
     dfdnu = coeff_nu*pow(nu,index_nu)*exp(exp_factor*nu*nu);
     dfdM = dfdnu * fabs(dsigmadm) * sigma_inv;
@@ -851,15 +852,14 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
     const double index_nu = 0.582;
     const double exp_factor = -0.469;
 
-    sigma_cond = sigma_cond*growthf; //does not propogate back
-    sigma = EvaluateSigma(lnM,1,&dsigmadm)*growthf;
+    sigma = EvaluateSigma(lnM,1,&dsigmadm);
     if(sigma < sigma_cond) return 0.;
     sigdiff_inv = sigma == sigma_cond ? 1e6 : 1/(sigma*sigma - sigma_cond*sigma_cond);
 
     sigma_inv = 1/sigma;
-    dsigmadm = dsigmadm * (growthf*growthf*0.5*sigma_inv);
+    dsigmadm = dsigmadm * (0.5*sigma_inv); //d(s^2)/dm z0 to dsdm
 
-    nu = (DELTAC_DELOS - delta_cond)*sqrt(sigdiff_inv);
+    nu = (DELTAC_DELOS - delta_cond)*sqrt(sigdiff_inv)/growthf;
 
     dfdnu = coeff_nu*pow(nu,index_nu)*exp(exp_factor*nu*nu);
     dfdM = dfdnu * fabs(dsigmadm) * sigma_inv * sigma * sigma * sigdiff_inv;
@@ -880,12 +880,14 @@ double st_taylor_factor(double sig, double sig_cond, double delta_cond, double g
     double alpha = global_params.SHETH_c;
     double beta = global_params.SHETH_b;
 
-    double delsq = Deltac*Deltac/growthf/growthf;
+    double delta_crit = Deltac/growthf;
+
+    double delsq = delta_crit*delta_crit;
     double sigsq = sig*sig;
     double sigcsq = sig_cond*sig_cond;
     //See note below
     double sigdiff = sig == sig_cond ? 1e-6 : sigsq - sigcsq;
-    double dn_const = sqrt(a)*Deltac*beta*pow(a*delsq,-alpha);
+    double dn_const = sqrt(a)*Deltac/growthf*beta*pow(a*delsq,-alpha);
 
     //define arrays of factors to save time and math calls
     int n_fac[6] = {1,1,2,6,24,120};
@@ -905,7 +907,7 @@ double st_taylor_factor(double sig, double sig_cond, double delta_cond, double g
         // LOG_ULTRA_DEBUG("%d term %.2e",i,result);
     }
     //add the constant terms from the 0th derivative of the barrier (condition delta independent of halo sigma)
-    result += sqrt(a)*Deltac - delta_cond/growthf;
+    result += sqrt(a)*delta_crit - delta_cond/growthf;
 
     return result;
 }
@@ -915,35 +917,33 @@ double st_taylor_factor(double sig, double sig_cond, double delta_cond, double g
 //NOTE: Currently broken and I don't know why
 double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double sigma_cond){
     double sigma1, dsigmadm, Barrier, factor, sigdiff_inv, result;
-
-    sigma1 = EvaluateSigma(lnM,1,&dsigmadm)*growthf; //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
-    sigma_cond = sigma_cond * growthf;
+    double delta_0 = delta_cond / growthf;
+    sigma1 = EvaluateSigma(lnM,1,&dsigmadm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
     if(sigma1 < sigma_cond) return 0.;
 
-    dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma1)); //d(s^2)/dm z0 to dsdm
+    dsigmadm = dsigmadm /(2.*sigma1); //d(s^2)/dm z0 to dsdm
 
-    Barrier = sheth_delc(Deltac/growthf,sigma1/growthf)*growthf;
-    factor = st_taylor_factor(sigma1,sigma_cond,delta_cond,growthf);
+    Barrier = sheth_delc(Deltac/growthf,sigma1);
+    factor = st_taylor_factor(sigma1,sigma_cond,delta_0,growthf);
 
-    //This was in the original conditional function (see below)
-    //TODO: figure out if it's actually necessary
     sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1/(sigma1*sigma1 - sigma_cond*sigma_cond);
 
-    result = -dsigmadm*sigma1*factor*pow(sigdiff_inv,1.5)*exp(-(Barrier - delta_cond)*(Barrier - delta_cond)*(sigdiff_inv));
+    result = -dsigmadm*sigma1*factor*pow(sigdiff_inv,1.5)*exp(-(Barrier - delta_0)*(Barrier - delta_0)*(sigdiff_inv));
     // LOG_ULTRA_DEBUG("M = %.3e T = %.3e Barrier = %.3f || dndlnM= %.6e",exp(lnM),factor,Barrier,result);
     return result;
 }
 
 //Conditional Extended Press-Schechter Mass function, with constant barrier delta=1.682 and sharp-k window function
 double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, double sigma_cond){
-    double sigma1, dsigmasqdm, sigdiff_inv;
+    double sigma1, dsigmasqdm, sigdiff_inv, del;
     sigma1 = EvaluateSigma(lnM,1,&dsigmasqdm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
 
     //limit setting
     if(sigma1 < sigma_cond) return 0.;
     sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1/(sigma1*sigma1 - sigma_cond*sigma_cond);
+    del = (Deltac - delta_cond)/growthf;
 
-    return -((Deltac - delta_cond)/growthf)*dsigmasqdm*pow(sigdiff_inv, 1.5)*exp(-(Deltac - delta_cond )*(Deltac - delta_cond)/(2.*growthf*growthf)*sigdiff_inv);
+    return -del*dsigmasqdm*pow(sigdiff_inv, 1.5)*exp(-del*del*0.5*sigdiff_inv)/sqrt(2.*PI);
 }
 
 /*
@@ -1217,171 +1217,13 @@ double FgtrM_wsigma(double z, double sig){
     return splined_erfc(del / (sqrt(2)*sig));
 }
 
-/*
- FUNCTION FgtrM_Watson(z, M)
- Computes the fraction of mass contained in haloes with mass > M at redshift z
- Uses Watson et al (2013) correction
- */
-double dFdlnM_Watson_z (double lnM, void *params){
-    struct parameters_gsl_FgtrM_int_ vals = *(struct parameters_gsl_FgtrM_int_ *)params;
-
-    double M = exp(lnM);
-    double z = vals.z_obs;
-    double growthf = vals.gf_obs;
-
-    return dNdM_WatsonFOF_z(z, growthf, M) * M * M;
-}
-double FgtrM_Watson_z(double z, double growthf, double M){
-    double result, error, lower_limit, upper_limit;
-    gsl_function F;
-    double rel_tol  = 0.001; //<- relative tolerance
-    gsl_integration_workspace * w
-    = gsl_integration_workspace_alloc (1000);
-
-    F.function = &dFdlnM_Watson_z;
-    struct parameters_gsl_FgtrM_int_ parameters_gsl_FgtrM = {
-        .z_obs = z,
-        .gf_obs = growthf,
-    };
-
-    F.params = &parameters_gsl_FgtrM;
-    lower_limit = log(M);
-    upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
-
-    int status;
-
-    gsl_set_error_handler_off();
-
-    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
-                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
-
-    if(status!=0) {
-        LOG_ERROR("gsl integration error occured!");
-        LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
-        LOG_ERROR("data: z=%e growthf=%e M=%e",z,growthf,M);
-        GSL_ERROR(status);
-    }
-
-    gsl_integration_workspace_free (w);
-
-    return result / (cosmo_params_ps->OMm*RHOcrit);
-}
-
-
-/*
- FUNCTION FgtrM_Watson(z, M)
- Computes the fraction of mass contained in haloes with mass > M at redshift z
- Uses Watson et al (2013) correction
- */
-double dFdlnM_Watson (double lnM, void *params){
-    double growthf = *(double *)params;
-    double M = exp(lnM);
-    return dNdM_WatsonFOF(growthf, M) * M * M;
-}
-double FgtrM_Watson(double growthf, double M){
-    double result, error, lower_limit, upper_limit;
-    gsl_function F;
-    double rel_tol  = 0.001; //<- relative tolerance
-    gsl_integration_workspace * w
-    = gsl_integration_workspace_alloc (1000);
-
-    F.function = &dFdlnM_Watson;
-    F.params = &growthf;
-    lower_limit = log(M);
-    upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
-
-    int status;
-
-    gsl_set_error_handler_off();
-
-    status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
-                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
-
-    if(status!=0) {
-        LOG_ERROR("gsl integration error occured!");
-        LOG_ERROR("lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
-        LOG_ERROR("data: growthf=%e M=%e",growthf,M);
-        GSL_ERROR(status);
-    }
-
-    gsl_integration_workspace_free (w);
-
-    return result / (cosmo_params_ps->OMm*RHOcrit);
-}
-
-double dFdlnM_General(double lnM, void *params){
-    struct parameters_gsl_FgtrM_int_ vals = *(struct parameters_gsl_FgtrM_int_ *)params;
-
-    double M = exp(lnM);
-    double z = vals.z_obs;
-    double growthf = vals.gf_obs;
-
-    double MassFunction;
-
-    if(user_params_ps->HMF==0) {
-        MassFunction = dNdM(growthf, M);
-    }
-    if(user_params_ps->HMF==1) {
-        MassFunction = dNdM_st(growthf, M);
-    }
-    if(user_params_ps->HMF==2) {
-        MassFunction = dNdM_WatsonFOF(growthf, M);
-    }
-    if(user_params_ps->HMF==3) {
-        MassFunction = dNdM_WatsonFOF_z(z, growthf, M);
-    }
-    return MassFunction * M * M;
-}
-
-/*
- FUNCTION FgtrM_General(z, M)
- Computes the fraction of mass contained in haloes with mass > M at redshift z
- */
 double FgtrM_General(double z, double M){
-
-    double del, sig, growthf;
-    int status;
+    double lower_limit, upper_limit, growthf;
 
     growthf = dicke(z);
-
-    struct parameters_gsl_FgtrM_int_ parameters_gsl_FgtrM = {
-        .z_obs = z,
-        .gf_obs = growthf,
-    };
-
-    if(user_params_ps->HMF<4 && user_params_ps->HMF>-1) {
-
-        double result, error, lower_limit, upper_limit;
-        gsl_function F;
-        double rel_tol  = 0.001; //<- relative tolerance
-        gsl_integration_workspace * w
-        = gsl_integration_workspace_alloc (1000);
-
-        F.function = &dFdlnM_General;
-        F.params = &parameters_gsl_FgtrM;
-
-        lower_limit = log(M);
-        upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
-
-        gsl_set_error_handler_off();
-
-        status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61, w, &result, &error);
-
-        if(status!=0) {
-            LOG_ERROR("gsl integration error occured!");
-            LOG_ERROR("lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
-            LOG_ERROR("data: z=%e growthf=%e M=%e",z,growthf,M);
-            GSL_ERROR(status);
-        }
-
-        gsl_integration_workspace_free (w);
-
-        return result / (cosmo_params_ps->OMm*RHOcrit);
-    }
-    else {
-        LOG_ERROR("Incorrect HMF selected: %i (should be between 0 and 3).", user_params_ps->HMF);
-        Throw(ValueError);
-    }
+    lower_limit = log(M);
+    upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
+    return IntegratedNdM(growthf, lower_limit, upper_limit, upper_limit, 0, user_params_ps->HMF, 1) / (cosmo_params_ps->OMm*RHOcrit);
 }
 
 double dNion_General(double lnM, void *params){

@@ -298,8 +298,8 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 continue;
             }
 
-            norm = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,0);
-            M_exp_spline[i] = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,1);
+            norm = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,2);
+            M_exp_spline[i] = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,3);
             Nhalo_spline[i] = norm;
             // LOG_ULTRA_DEBUG("cond x: %.2e (%d) ==> %.8e / %.8e",x,i,norm,M_exp_spline[i]);
 
@@ -449,8 +449,8 @@ void initialise_dNdM_tables_RF(double xmin, double xmax, double ymin, double yma
             //  BUT attempting to call IntegratedNdM crashes near Deltac
             if(delta > MAX_DELTAC_FRAC*delta_crit){
                 //In the last bin, n_halo / mass * sqrt2pi interpolates toward one halo
-                Nhalo_spline[i] = sqrt(2*PI) / exp(lnM_cond);
-                M_exp_spline[i] = sqrt(2*PI);
+                Nhalo_spline[i] = 1. / exp(lnM_cond);
+                M_exp_spline[i] = 1.;
                 //Similarly, the inverse CDF tends to a step function at lnM_cond
                 for(k=0;k<np;k++)
                     Nhalo_inv_spline[i][k] = lnM_cond;
@@ -467,7 +467,7 @@ void initialise_dNdM_tables_RF(double xmin, double xmax, double ymin, double yma
             //if the condition has no halos (either expected total mass is below resolution OR norm==0)
             //  set the dndm table directly since norm==0 breaks things, we set to ymin instead of 0 for the sake
             //  of the interpolation
-            if((exp_M*exp(lnM_cond) < sqrt(2.*PI)*exp(ymin)) || (norm == 0)){
+            if((exp_M*exp(lnM_cond) < exp(ymin)) || (norm == 0)){
                 for(k=0;k<np;k++)
                     Nhalo_inv_spline[i][k] = ymin;
                 continue;
@@ -677,8 +677,8 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     n_exp = EvaluateRGTable1D(const_struct->cond_val,Nhalo_spline,const_struct->tbl_xmin,const_struct->tbl_xwid);
     //NOTE: while the most common mass functions have simpler expressions for f(<M) (erfc based) this will be general, and shouldn't impact compute time much
     m_exp = EvaluateRGTable1D(const_struct->cond_val,M_exp_spline,const_struct->tbl_xmin,const_struct->tbl_xwid);
-    const_struct->expected_N = n_exp * const_struct->M_cond / sqrt(2.*PI);
-    const_struct->expected_M = m_exp * const_struct->M_cond / sqrt(2.*PI);
+    const_struct->expected_N = n_exp * const_struct->M_cond;
+    const_struct->expected_M = m_exp * const_struct->M_cond;
     return;
 }
 
@@ -1684,7 +1684,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, struct I
     double lnMmin = log(M_min);
     double lnMmax = log(M_max);
 
-    double prefactor_mass = RHOcrit * cosmo_params_stoc->OMm / sqrt(2.*PI);
+    double prefactor_mass = RHOcrit * cosmo_params_stoc->OMm;
     double prefactor_nion = RHOcrit * cosmo_params_stoc->OMb * norm_star * norm_esc * global_params.Pop2_ion;
     double prefactor_nion_mini = RHOcrit * cosmo_params_stoc->OMb * norm_star_mini * norm_esc_mini * global_params.Pop3_ion;
     double prefactor_sfr = RHOcrit * cosmo_params_stoc->OMb * norm_star / t_star / t_h;
@@ -1834,7 +1834,7 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
     double lnMmin = log(M_min);
     double growth_z = dicke(redshift);
 
-    // double prefactor_mass = RHOcrit * cosmo_params_stoc->OMm / sqrt(2.*PI);
+    // double prefactor_mass = RHOcrit * cosmo_params_stoc->OMm;
     double prefactor_nion = RHOcrit * cosmo_params_stoc->OMb * norm_star * norm_esc * global_params.Pop2_ion;
     double prefactor_nion_mini = RHOcrit * cosmo_params_stoc->OMb * norm_star_mini * norm_esc_mini * global_params.Pop3_ion;
     double prefactor_sfr = RHOcrit * cosmo_params_stoc->OMb * norm_star / t_star / t_h;
@@ -2245,7 +2245,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             int cmf_flag = (seed==0) ? 1 : 0;
 
             //parameters for CMF
-            double prefactor = RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm * ps_ratio;
+            double prefactor = RHOcrit * cosmo_params_stoc->OMm * ps_ratio;
             struct parameters_gsl_MF_integrals params = {
                 .redshift = z_out,
                 .growthf = growth_out,
@@ -2296,7 +2296,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 }
 
                 test = IntegratedNdM(growth_out,lnM_lo,lnM_hi,lnMcond,delta,user_params->HMF,seed);
-                result[i] = test * Mcond / sqrt(2.*PI) * ps_ratio;
+                result[i] = test * Mcond * ps_ratio;
                 LOG_ULTRA_DEBUG("==> %.8e",result[i]);
             }
         }
@@ -2326,7 +2326,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     test = IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,delta,user_params->HMF,seed);
                     LOG_ULTRA_DEBUG("==> %.8e",test);
                     //conditional MF multiplied by a few factors
-                    result[i] = test  * Mcond / sqrt(2.*PI) * ps_ratio;
+                    result[i] = test  * Mcond * ps_ratio;
                 }
             }
         }
@@ -2337,7 +2337,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             double out_cmf[100];
             double out_bins[100];
             int n_bins = 100;
-            double prefactor = RHOcrit / sqrt(2.*PI) * cosmo_params_stoc->OMm;
+            double prefactor = RHOcrit * cosmo_params_stoc->OMm;
             double test;
             double tot_mass=0;
             double lnMbin_max = hs_constants->lnM_max_tb; //arbitrary bin maximum
@@ -2385,7 +2385,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                             test = cmf_integrand(lnM_bin,(void*)&params);
                             test = test * prefactor * ps_ratio;
                         }
-                        out_cmf[i] += test * M[j] / sqrt(2.*PI);
+                        out_cmf[i] += test * M[j];
                     }
                 }
             }
@@ -2525,11 +2525,11 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 
                 mass = hs_constants->M_cond;
                 test = EvaluateRGTable1D(x_in,Nhalo_spline,hs_constants->tbl_xmin,hs_constants->tbl_xwid);
-                result[i] = test * mass / sqrt(2.*PI);
+                result[i] = test * mass;
                 LOG_ULTRA_DEBUG("N = %.6e",test);
 
                 test = EvaluateRGTable1D(x_in,M_exp_spline,hs_constants->tbl_xmin,hs_constants->tbl_xwid);
-                result[i+n_mass] = test * mass / sqrt(2.*PI);
+                result[i+n_mass] = test * mass;
                 LOG_ULTRA_DEBUG("M = %.6e",test);
             }
         }
