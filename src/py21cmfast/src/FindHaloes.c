@@ -160,6 +160,12 @@ LOG_DEBUG("redshift=%f", redshift);
 
             //TODO: throw in an init loop
             if(global_params.DELTA_CRIT_MODE == 1){
+                //This algorithm does not use the sheth tormen OR Jenkins parameters,
+                //        rather it uses a reduced barrier to correct for some part of this algorithm,
+                //        which would otherwise result in ~3x halos at redshift 6 (including with EPS).
+                //        Once I Figure out the cause of the discrepancy I can adjust again but for now
+                //        we will use the parameters that roughly give the ST mass function.
+                // delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
                 if(user_params->HMF==1) {
                     // use sheth tormen correction
                     delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));

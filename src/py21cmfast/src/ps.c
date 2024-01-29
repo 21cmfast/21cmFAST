@@ -816,6 +816,13 @@ double sheth_delc(double del, double sig){
     return sqrt(SHETH_a)*del*(1. + global_params.SHETH_b*pow(sig*sig/(SHETH_a*del*del), global_params.SHETH_c));
 }
 
+/*DexM uses a fit to this barrier to acheive MF similar to ST, Here I use the fixed version for the sampler*/
+double sheth_delc_fixed(double del, double sig){
+    double sheth_b = 0.485;
+    double sheth_c = 0.615;
+    return sqrt(SHETH_a)*del*(1. + sheth_b*pow(sig*sig/(SHETH_a*del*del), sheth_c));
+}
+
 /*
 Unconditional Mass function from Delos 2023 (https://arxiv.org/pdf/2311.17986.pdf)
 Matches well with N-bodies (M200), has a corresponding Conditional Mass Function (below) and
@@ -877,8 +884,8 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
 double st_taylor_factor(double sig, double sig_cond, double delta_cond, double growthf){
     int i;
     double a = SHETH_a;
-    double alpha = global_params.SHETH_c;
-    double beta = global_params.SHETH_b;
+    double alpha = 0.615; //fixed instead of global_params.SHETH_c bc of DexM corrections
+    double beta = 0.485; //fixed instead of global_params.SHETH_b
 
     double delta_crit = Deltac/growthf;
 
@@ -923,7 +930,7 @@ double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double
 
     dsigmadm = dsigmadm /(2.*sigma1); //d(s^2)/dm z0 to dsdm
 
-    Barrier = sheth_delc(Deltac/growthf,sigma1);
+    Barrier = sheth_delc_fixed(Deltac/growthf,sigma1);
     factor = st_taylor_factor(sigma1,sigma_cond,delta_0,growthf);
 
     sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1/(sigma1*sigma1 - sigma_cond*sigma_cond);

@@ -182,7 +182,7 @@ void free_rng_threads(gsl_rng * rng_arr[]){
 double get_delta_crit(int HMF, double sigma, double growthf){
     if(HMF==4)
         return DELTAC_DELOS;
-    if(HMF==1);
+    if(HMF==1)
         return sheth_delc(Deltac/growthf,sigma)*growthf;
 
     return Deltac;
@@ -274,12 +274,13 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             if(update){
                 lnM_cond = x;
                 //barrier at given mass
-                delta = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),param);
+                delta = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),param)/param*growth1;
                 //current barrier at condition for bounds checking
                 delta_crit = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),growth1);
             }
-            else
+            else{
                 delta = x;
+            }
 
             lnM_prev = ymin;
             p_prev = 0;
@@ -651,7 +652,8 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
         //                                 * exp(-astro_params_stoc->M_TURN/cond_val),1) * cond_val;
         const_struct->cond_val = const_struct->lnM_cond;
         //condition delta is the previous delta crit
-        const_struct->delta = get_delta_crit(user_params_stoc->HMF,const_struct->sigma_cond,const_struct->growth_in);
+        const_struct->delta = get_delta_crit(user_params_stoc->HMF,const_struct->sigma_cond,const_struct->growth_in)\
+                                                / const_struct->growth_in * const_struct->growth_out;
     }
     //Here the condition is a cell of a given density, the volume/mass is given by the grid parameters
     else{
@@ -1473,10 +1475,15 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
 
                 if(ii==0){
                     M_prog += prog_buf[jj];
-                    LOG_ULTRA_DEBUG("First Halo Prog %d: Mass %.2e Stellar %.2e SFR %.2e",jj,prog_buf[jj],propbuf_out[0],propbuf_out[1]);
+                    LOG_ULTRA_DEBUG("First Halo Prog %d: Mass %.2e Stellar %.2e SFR %.2e e_d %.3f",jj,prog_buf[jj],propbuf_out[0],propbuf_out[1],Deltac*growth_out/growth_in);
                 }
             }
             if(ii==0){
+                LOG_ULTRA_DEBUG(" HMF %d delta %.3f delta_coll %.3f delta_prev %.3f adjusted %.3f",user_params_stoc->HMF,
+                                                                                hs_constants_priv.delta,
+                                                                                get_delta_crit(user_params_stoc->HMF,hs_constants_priv.sigma_cond,growth_out),
+                                                                                get_delta_crit(user_params_stoc->HMF,hs_constants_priv.sigma_cond,growth_in),
+                                                                                get_delta_crit(user_params_stoc->HMF,hs_constants_priv.sigma_cond,growth_in)*growth_out/growth_in);
                 print_hs_consts(&hs_constants_priv);
                 LOG_SUPER_DEBUG("First Halo: Mass %.2f | N %d (exp. %.2e) | Total M %.2e (exp. %.2e)",
                                         M2,n_prog,hs_constants_priv.expected_N,M_prog,hs_constants_priv.expected_M);
