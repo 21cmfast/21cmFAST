@@ -1,4 +1,5 @@
 """Run the example in the JOSS paper and make plots."""
+
 import matplotlib.pyplot as plt
 
 import py21cmfast as p21c

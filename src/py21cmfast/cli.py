@@ -1,4 +1,5 @@
 """Module that contains the command line app."""
+
 import builtins
 import click
 import inspect

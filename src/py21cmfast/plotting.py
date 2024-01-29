@@ -1,4 +1,5 @@
 """Simple plotting functions for 21cmFAST objects."""
+
 from __future__ import annotations
 
 import matplotlib.pyplot as plt

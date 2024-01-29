@@ -84,6 +84,7 @@ interpolated onto the lightcone cells):
 
 >>> lightcone = p21.run_lightcone(redshift=z2, max_redshift=z2, z_step_factor=1.03)
 """
+
 from __future__ import annotations
 
 import logging
@@ -558,9 +559,7 @@ def compute_luminosity_function(
                 return None, None, None
 
     else:
-        mturnovers = (
-            np.zeros(len(redshifts), dtype="float32") + 10**astro_params.M_TURN
-        )
+        mturnovers = np.zeros(len(redshifts), dtype="float32") + 10**astro_params.M_TURN
         component = 1
 
     if component == 0:
@@ -1892,9 +1891,11 @@ def spin_temperature(
             flag_options=flag_options,
             random_seed=random_seed,
             prev_spin_redshift=prev_z,
-            perturbed_field_redshift=perturbed_field.redshift
-            if (perturbed_field is not None and perturbed_field.is_computed)
-            else redshift,
+            perturbed_field_redshift=(
+                perturbed_field.redshift
+                if (perturbed_field is not None and perturbed_field.is_computed)
+                else redshift
+            ),
         )
 
         # Construct FFTW wisdoms. Only if required
@@ -2385,9 +2386,11 @@ def run_coeval(
                 perturbed_field=pf2,
                 # perturb field *not* interpolated here.
                 previous_perturbed_field=pf,
-                pt_halos=pt_halos[redshift.index(z)]
-                if z in redshift and flag_options.USE_HALO_FIELD
-                else None,
+                pt_halos=(
+                    pt_halos[redshift.index(z)]
+                    if z in redshift and flag_options.USE_HALO_FIELD
+                    else None
+                ),
                 astro_params=astro_params,
                 flag_options=flag_options,
                 spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
@@ -2865,9 +2868,11 @@ def run_lightcone(
                     ionized_box=ib2,
                     brightness_temp=bt2,
                     ts_box=st2 if flag_options.USE_TS_FLUCT else None,
-                    photon_nonconservation_data=_get_photon_nonconservation_data()
-                    if flag_options.PHOTON_CONS
-                    else None,
+                    photon_nonconservation_data=(
+                        _get_photon_nonconservation_data()
+                        if flag_options.PHOTON_CONS
+                        else None
+                    ),
                     _globals=None,
                 )
                 try:

@@ -11,6 +11,7 @@ parameter objects necessary to define it.
              as output objects from the various functions contained here. Only the data
              within the objects should be accessed.
 """
+
 from __future__ import annotations
 
 import h5py
@@ -1083,9 +1084,9 @@ class Coeval(_HighLevelOutput):
         with h5py.File(fname, "r") as fl:
             for output_class in _ut.OutputStruct._implementations():
                 if output_class.__name__ in fl:
-                    kwargs[
-                        _ut.camel_to_snake(output_class.__name__)
-                    ] = output_class.from_file(fname)
+                    kwargs[_ut.camel_to_snake(output_class.__name__)] = (
+                        output_class.from_file(fname)
+                    )
 
         return kwargs
 
