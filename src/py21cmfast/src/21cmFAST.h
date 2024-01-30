@@ -217,6 +217,7 @@ float adjust_redshifts_for_photoncons(
     struct AstroParams *astro_params, struct FlagOptions *flag_options, float *redshift,
     float *stored_redshift, float *absolute_delta_z
 );
+
 void determine_deltaz_for_photoncons();
 
 int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analytic, double *z_cal_data, double *nf_cal_data, int *Ndata_calibration,

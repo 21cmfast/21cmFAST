@@ -21,12 +21,14 @@ void Broadcast_struct_global_IT(struct UserParams *user_params){
 }
 
 //TODO: for the moment the tables are still in global arrays, but will move to these structs soon
+//TODO: sort out if we actually need single precision tables
 struct RGTable1D{
     int n_bin;
     double x_min;
     double x_width;
 
     double *y_arr;
+    int allocated;
 };
 
 struct RGTable2D{
@@ -37,6 +39,27 @@ struct RGTable2D{
     double **z_arr;
 
     double saved_ll, saved_ul; //for future acceleration
+    int allocated;
+};
+
+struct RGTable1D_f{
+    int n_bin;
+    double x_min;
+    double x_width;
+
+    float *y_arr;
+    int allocated;
+};
+
+struct RGTable2D_f{
+    int nx_bin, ny_bin;
+    double x_min, y_min;
+    double x_width, y_width;
+
+    float **z_arr;
+
+    double saved_ll, saved_ul; //for future acceleration
+    int allocated;
 };
 
 double EvaluateRGTable1D(double x, double *y_arr, double x_min, double x_width){
@@ -333,8 +356,9 @@ void init_FcollTable(double zmin, double zmax, struct AstroParams *astro_params,
 //TODO: fix the confusing Mmax=log(Mmax) naming
 //TODO: it would be slightly less accurate but maybe faster to tabulate in linear delta, linear Fcoll
 //  rather than linear-log, check the profiles
-float **ln_Nion_spline, **prev_ln_Nion_spline, **ln_SFRD_spline, *ln_Nion_spline_1D;
-float **ln_Nion_spline_MINI, **prev_ln_Nion_spline_MINI, ***ln_SFRD_spline_MINI;
+//I assign to NULL to keep track of allocation
+float **ln_Nion_spline=NULL, **prev_ln_Nion_spline=NULL, **ln_SFRD_spline=NULL, *ln_Nion_spline_1D=NULL;
+float **ln_Nion_spline_MINI=NULL, **prev_ln_Nion_spline_MINI=NULL, ***ln_SFRD_spline_MINI=NULL;
 
 void initialise_Nion_General_spline(float z, float Mcrit_atom, float min_density, float max_density,
                                      float Mmax, float Mmin, float log10Mturn_min, float log10Mturn_max,
@@ -373,6 +397,27 @@ void initialise_Nion_General_spline(float z, float Mcrit_atom, float min_density
         for (i=0;i<NMTURN;i++){
             mturns[i] = pow(10., log10Mturn_min + (float)i/((float)NMTURN-1.)*(log10Mturn_max-log10Mturn_min));
             mturns_MINI[i] = pow(10., log10Mturn_min_MINI + (float)i/((float)NMTURN-1.)*(log10Mturn_max_MINI-log10Mturn_min_MINI));
+        }
+    }
+
+    if (minihalos){
+        if(ln_Nion_spline==NULL) {
+            LOG_SUPER_DEBUG("allocating interp Nion2d");
+            ln_Nion_spline = calloc(NDELTA,sizeof(float*));
+            for(i=0;i<NDELTA;i++) ln_Nion_spline[i] = calloc(NMTURN,sizeof(float));
+            ln_Nion_spline_MINI = calloc(NDELTA,sizeof(float*));
+            for(i=0;i<NDELTA;i++) ln_Nion_spline_MINI[i] = calloc(NMTURN,sizeof(float));
+            prev_ln_Nion_spline = calloc(NDELTA,sizeof(float*));
+            for(i=0;i<NDELTA;i++) prev_ln_Nion_spline[i] = calloc(NMTURN,sizeof(float));
+            prev_ln_Nion_spline_MINI = calloc(NDELTA,sizeof(float*));
+            for(i=0;i<NDELTA;i++) prev_ln_Nion_spline_MINI[i] = calloc(NMTURN,sizeof(float));
+        }
+    }
+    else{
+        if(ln_Nion_spline_1D==NULL){
+            LOG_SUPER_DEBUG("allocating interp Nion1d");
+            //TODO: for some reason we don't use reion feedback without minihalos
+            ln_Nion_spline_1D = calloc(NDELTA,sizeof(float));
         }
     }
 
@@ -454,12 +499,34 @@ void initialise_SFRD_Conditional_table(int Nfilter, double min_density[], double
         MassTurnover[i] = pow(10., LOG10_MTURN_MIN + (float)i/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
     }
 
+    //strictly I should check every pointer but they're allocated together
+    //We still allocate the full spline even if Nfilter is less since it can be used elsewhere
+    if(ln_SFRD_spline == NULL){
+        LOG_SUPER_DEBUG("allocating interp SFRD");
+        ln_SFRD_spline = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
+        for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
+            ln_SFRD_spline[j] = (float *)calloc(NDELTA,sizeof(float));
+        }
+
+        if(minihalos){
+            ln_SFRD_spline_MINI = (float ***)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float **));
+            for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++){
+                ln_SFRD_spline_MINI[j] = (float **)calloc(NDELTA,sizeof(float *));
+                for(i=0;i<NDELTA;i++){
+                    ln_SFRD_spline_MINI[j][i] = (float *)calloc(NMTURN,sizeof(float));
+                }
+            }
+        }
+    }
+
+    LOG_DEBUG("Initialising SFRD conditional table");
+
     Mmin = log(Mmin);
+
     for(j=0; j < Nfilter; j++){
         Mmax = RtoM(R[j]);
 
-        initialiseGL_Nion_Xray(NGL_SFR, global_params.M_MIN_INTEGRAL, Mmax);
-
+        // initialiseGL_Nion_Xray(NGL_SFR, global_params.M_MIN_INTEGRAL, Mmax);
         Mmax = log(Mmax);
         sigma2 = EvaluateSigma(Mmax,0,NULL);
 
@@ -468,7 +535,6 @@ void initialise_SFRD_Conditional_table(int Nfilter, double min_density[], double
             double curr_dens;
 #pragma omp for
             for (i=0; i<NDELTA; i++){
-                // LOG_SUPER_DEBUG("Delta %d",i);
                 curr_dens = min_density[j] + (float)i/((float)NDELTA-1.)*(max_density[j] - min_density[j]);
                 ln_SFRD_spline[j][i] = log(Nion_ConditionalM(growthf[j],Mmin,Mmax,sigma2,Deltac,curr_dens,\
                                                             Mcrit_atom[j],Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., FAST_FCOLL_TABLES));
@@ -510,20 +576,47 @@ void initialise_SFRD_Conditional_table(int Nfilter, double min_density[], double
     }
 }
 
-void FreeIonInterpolationTables(struct FlagOptions * flag_options){
+void FreeNionConditionalTable(struct FlagOptions * flag_options){
     int i;
+    LOG_SUPER_DEBUG("Freeing interp Nion");
     if(flag_options->USE_MINI_HALOS){
         for(i=0;i<NDELTA;i++) free(ln_Nion_spline[i]);
         free(ln_Nion_spline);
+        ln_Nion_spline=NULL;
         for(i=0;i<NDELTA;i++) free(ln_Nion_spline_MINI[i]);
         free(ln_Nion_spline_MINI);
+        ln_Nion_spline_MINI=NULL;
         for(i=0;i<NDELTA;i++) free(prev_ln_Nion_spline[i]);
         free(prev_ln_Nion_spline);
+        prev_ln_Nion_spline=NULL;
         for(i=0;i<NDELTA;i++) free(prev_ln_Nion_spline_MINI[i]);
         free(prev_ln_Nion_spline_MINI);
+        prev_ln_Nion_spline_MINI=NULL;
     }
     else{
         free(ln_Nion_spline_1D);
+        ln_Nion_spline_1D = NULL;
+    }
+}
+
+void FreeSFRDConditionalTable(struct FlagOptions *flag_options){
+    int j,i;
+    LOG_SUPER_DEBUG("freeing interp SFRD");
+    for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
+        free(ln_SFRD_spline[j]);
+    }
+    free(ln_SFRD_spline);
+    ln_SFRD_spline = NULL;
+
+    if(flag_options->USE_MINI_HALOS){
+        for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++){
+            for(i=0;i<NDELTA;i++){
+                free(ln_SFRD_spline_MINI[j][i]);
+            }
+            free(ln_SFRD_spline_MINI[j]);
+        }
+        free(ln_SFRD_spline_MINI);
+        ln_SFRD_spline_MINI = NULL;
     }
 }
 
@@ -561,6 +654,7 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
         free(F_table_val);
         free(dF_table_val);
     }
+    FreeSFRDConditionalTable(flag_options);
 
     LOG_DEBUG("Done Freeing interpolation table memory.");
 }

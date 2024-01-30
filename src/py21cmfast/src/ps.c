@@ -894,7 +894,7 @@ double st_taylor_factor(double sig, double sig_cond, double delta_cond, double g
     double sigcsq = sig_cond*sig_cond;
     //See note below
     double sigdiff = sig == sig_cond ? 1e-6 : sigsq - sigcsq;
-    double dn_const = sqrt(a)*Deltac/growthf*beta*pow(a*delsq,-alpha);
+    double dn_const = sqrt(a)*delta_crit*beta*pow(a*delsq,-alpha);
 
     //define arrays of factors to save time and math calls
     int n_fac[6] = {1,1,2,6,24,120};
@@ -914,7 +914,7 @@ double st_taylor_factor(double sig, double sig_cond, double delta_cond, double g
         // LOG_ULTRA_DEBUG("%d term %.2e",i,result);
     }
     //add the constant terms from the 0th derivative of the barrier (condition delta independent of halo sigma)
-    result += sqrt(a)*delta_crit - delta_cond/growthf;
+    result += sqrt(a)*delta_crit - delta_cond;
 
     return result;
 }
@@ -923,19 +923,17 @@ double st_taylor_factor(double sig, double sig_cond, double delta_cond, double g
 //      which is the condition delta, the barrier delta1 is set by the mass, so it is passed usually as Deltac
 //NOTE: Currently broken and I don't know why
 double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double sigma_cond){
-    double sigma1, dsigmadm, Barrier, factor, sigdiff_inv, result;
+    double sigma1, dsigmasqdm, Barrier, factor, sigdiff_inv, result;
     double delta_0 = delta_cond / growthf;
-    sigma1 = EvaluateSigma(lnM,1,&dsigmadm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
+    sigma1 = EvaluateSigma(lnM,1,&dsigmasqdm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
     if(sigma1 < sigma_cond) return 0.;
-
-    dsigmadm = dsigmadm /(2.*sigma1); //d(s^2)/dm z0 to dsdm
 
     Barrier = sheth_delc_fixed(Deltac/growthf,sigma1);
     factor = st_taylor_factor(sigma1,sigma_cond,delta_0,growthf);
 
     sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1/(sigma1*sigma1 - sigma_cond*sigma_cond);
 
-    result = -dsigmadm*sigma1*factor*pow(sigdiff_inv,1.5)*exp(-(Barrier - delta_0)*(Barrier - delta_0)*(sigdiff_inv));
+    result = -dsigmasqdm*factor*pow(sigdiff_inv,1.5)*exp(-(Barrier - delta_0)*(Barrier - delta_0)*(sigdiff_inv))/sqrt(2.*PI);
     // LOG_ULTRA_DEBUG("M = %.3e T = %.3e Barrier = %.3f || dndlnM= %.6e",exp(lnM),factor,Barrier,result);
     return result;
 }

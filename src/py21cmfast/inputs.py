@@ -290,11 +290,9 @@ class GlobalParams(StructInstanceWrapper):
     STOC_MASS_TOL:
         Mass tolerance for the stochastic halo sampling, a sample will be rejected if its mass sum falls
         outside of the expected mass * (1 +- STOC_MASS_TOL)
-    HALO_MTURN_FACTOR:
-        Sets the lower mass limit for interpolation tables, integration and sampling of the halo mass functions
-        The lower limit will be M_TURN / HALO_MTURN_FACTOR
-    HALO_SAMPLE_FACTOR:
-        Sets the lower mass limit for saving sampled halos, The lower limit is M_TURN / HALO_MTURN_FACTOR * HALO_SAMPLE_FACTOR
+    SAMPLER_MIN_MASS:
+        Sets the minimum mass used by the halo sampler, halos below this mass will have the average contriubution
+        based on the integral of the given CMF. Greatly affects performance and memory usage.
     MAXHALO_FACTOR:
         Safety factor to multiply halo array sizes, total (all threads) array size will be UMF integral * MAXHALO_FACTOR
     N_MASS_INTERP:

@@ -229,21 +229,6 @@ void alloc_global_arrays(){
         if(user_params_ts->USE_INTERPOLATION_TABLES) {
             min_densities = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
             max_densities = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-
-            ln_SFRD_spline = (float **)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float *));
-            for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
-                ln_SFRD_spline[j] = (float *)calloc(NDELTA,sizeof(float));
-            }
-
-            if(flag_options_ts->USE_MINI_HALOS){
-                ln_SFRD_spline_MINI = (float ***)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float **));
-                for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++){
-                    ln_SFRD_spline_MINI[j] = (float **)calloc(NDELTA,sizeof(float *));
-                    for(i=0;i<NDELTA;i++){
-                        ln_SFRD_spline_MINI[j][i] = (float *)calloc(NMTURN,sizeof(float));
-                    }
-                }
-            }
         }
     }
 
@@ -349,21 +334,6 @@ void free_ts_global_arrays(){
         if(user_params_ts->USE_INTERPOLATION_TABLES) {
             free(min_densities);
             free(max_densities);
-
-            for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
-                free(ln_SFRD_spline[j]);
-            }
-            free(ln_SFRD_spline);
-
-            if(flag_options_ts->USE_MINI_HALOS){
-                for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++){
-                    for(i=0;i<NDELTA;i++){
-                        free(ln_SFRD_spline_MINI[j][i]);
-                    }
-                    free(ln_SFRD_spline_MINI[j]);
-                }
-                free(ln_SFRD_spline_MINI);
-            }
         }
     }
 
@@ -1812,9 +1782,9 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     }
 
     if(cleanup){
-        if(user_params->USE_INTERPOLATION_TABLES)
+        if(user_params->USE_INTERPOLATION_TABLES){
             FreeTsInterpolationTables(flag_options);
-
+        }
         free_ts_global_arrays();
     }
 

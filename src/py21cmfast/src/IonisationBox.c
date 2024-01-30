@@ -82,7 +82,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     double density_bin_width, prev_density_bin_width;
 
     float stored_redshift, adjustment_factor;
-    
+
     float log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
     float log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
 
@@ -280,23 +280,6 @@ LOG_SUPER_DEBUG("erfc interpolation done");
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
         xi_SFR = calloc(NGL_SFR+1,sizeof(float));
         wi_SFR = calloc(NGL_SFR+1,sizeof(float));
-
-        if(user_params->USE_INTERPOLATION_TABLES) {
-            if (flag_options->USE_MINI_HALOS){
-                ln_Nion_spline = calloc(NDELTA,sizeof(float*));
-                for(i=0;i<NDELTA;i++) ln_Nion_spline[i] = calloc(NMTURN,sizeof(float));
-                ln_Nion_spline_MINI = calloc(NDELTA,sizeof(float*));
-                for(i=0;i<NDELTA;i++) ln_Nion_spline_MINI[i] = calloc(NMTURN,sizeof(float));
-                prev_ln_Nion_spline = calloc(NDELTA,sizeof(float*));
-                for(i=0;i<NDELTA;i++) prev_ln_Nion_spline[i] = calloc(NMTURN,sizeof(float));
-                prev_ln_Nion_spline_MINI = calloc(NDELTA,sizeof(float*));
-                for(i=0;i<NDELTA;i++) prev_ln_Nion_spline_MINI[i] = calloc(NMTURN,sizeof(float));
-            }
-            else{
-                //TODO: for some reason we don't use reion feedback without minihalos
-                ln_Nion_spline_1D = calloc(NDELTA,sizeof(float));
-            }
-        }
     }
 
     // Calculate the density field for this redshift if the initial conditions/cosmology are changing
@@ -1124,7 +1107,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                     else{
                                         if(user_params->USE_INTERPOLATION_TABLES) {
                                             Splined_Fcoll = exp(EvaluateRGTable1D_f(curr_dens,ln_Nion_spline_1D,min_density,density_bin_width));
-                                            
+
                                             //TODO: Implement a bounds check? (the linear tables are much simpler though)
                                             // if(status_int > 0) {
                                             //     overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
@@ -1357,7 +1340,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                 LOG_SUPER_DEBUG("Cell0 R=%.1f | d %.4e | fcoll (%.4e,%.4e) Mini (%.4e %.4e) | rec %.4e | X %.4e",
                                                     R,curr_dens,Splined_Fcoll,f_coll,Splined_Fcoll_MINI,f_coll_MINI,rec,xHII_from_xrays);
                             }
-                        
+
                             // check if fully ionized!
                             if ( (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI> (1. - xHII_from_xrays)*(1.0+rec)) ){ //IONIZED!!
                                 // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
@@ -1600,7 +1583,7 @@ LOG_DEBUG("global_xH = %e",global_xH);
         free(wi_SFR);
 
         if(user_params->USE_INTERPOLATION_TABLES)
-            FreeIonInterpolationTables(flag_options);
+            FreeNionConditionalTable(flag_options);
 
         if(flag_options->USE_MINI_HALOS){
             fftwf_free(log10_Mturnover_unfiltered);
