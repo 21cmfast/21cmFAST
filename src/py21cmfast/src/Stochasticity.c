@@ -105,7 +105,7 @@ double EvaluateSigmaInverse(double sigma){
     return table_val_0*(1-interp_point) + table_val_1*(interp_point);
 }
 
-void Broadcast_struct_global_STOC(struct UserParams *user_params, struct CosmoParams *cosmo_params,struct AstroParams *astro_params, struct FlagOption *flag_options){
+void Broadcast_struct_global_STOC(struct UserParams *user_params, struct CosmoParams *cosmo_params,struct AstroParams *astro_params, struct FlagOptions *flag_options){
     cosmo_params_stoc = cosmo_params;
     user_params_stoc = user_params;
     astro_params_stoc = astro_params;

@@ -485,8 +485,7 @@ void initialise_Nion_General_spline(float z, float Mcrit_atom, float min_density
 
 void initialise_SFRD_Conditional_table(int Nfilter, double min_density[], double max_density[], double growthf[],
                                     double R[], float Mcrit_atom[], double Mmin, float Alpha_star, float Alpha_star_mini,
-                                    float Fstar10, float Fstar7_MINI, bool FAST_FCOLL_TABLES, bool minihalos
-){
+                                    float Fstar10, float Fstar7_MINI, bool FAST_FCOLL_TABLES, bool minihalos){
     float Mmax,Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
     int i,j,k,i_tot;
 

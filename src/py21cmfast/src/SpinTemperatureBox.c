@@ -133,7 +133,7 @@ static struct UserParams *user_params_ts;
 static struct FlagOptions *flag_options_ts;
 
 //allocate the arrays that are always needed and defined globally, including frequency integrals, zp edges, etc
-void Broadcast_struct_global_TS(struct UserParams *user_params, struct CosmoParams *cosmo_params,struct AstroParams *astro_params, struct FlagOption *flag_options){
+void Broadcast_struct_global_TS(struct UserParams *user_params, struct CosmoParams *cosmo_params,struct AstroParams *astro_params, struct FlagOptions *flag_options){
     cosmo_params_ts = cosmo_params;
     user_params_ts = user_params;
     astro_params_ts = astro_params;

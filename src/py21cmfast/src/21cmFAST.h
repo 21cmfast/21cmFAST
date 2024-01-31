@@ -233,6 +233,9 @@ int CreateFFTWWisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_
 void Broadcast_struct_global_PS(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoParams *cosmo_params);
 void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options);
+void Broadcast_struct_global_STOC(struct UserParams *user_params, struct CosmoParams *cosmo_params,struct AstroParams *astro_params, struct FlagOptions *flag_options);
+void Broadcast_struct_global_TS(struct UserParams *user_params, struct CosmoParams *cosmo_params,struct AstroParams *astro_params, struct FlagOptions *flag_options);
+void Broadcast_struct_global_IT(struct UserParams *user_params);
 
 // void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_options);
 void FreePhotonConsMemory();
@@ -263,3 +266,24 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
 
 //alpha photoncons functions
 void set_alphacons_params(double norm, double slope);
+
+//exposing lower-level functions for testing
+double init_ps();
+double dicke(double z);
+double sigma_z0(double M);
+void initialiseSigmaMInterpTable(float M_Min, float M_Max);
+double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm);
+double IntegratedNdM(double growthf, double lnM_lo, double lnM_hi, double M_filter, double delta, int HMF, int type);
+void initialise_SFRD_Conditional_table(int Nfilter, double min_density[], double max_density[], double growthf[],
+                                    double R[], float Mcrit_atom[], double Mmin, float Alpha_star, float Alpha_star_mini,
+                                    float Fstar10, float Fstar7_MINI, bool FAST_FCOLL_TABLES, bool minihalos);
+void initialise_Nion_General_spline(float z, float Mcrit_atom, float min_density, float max_density,
+                                     float Mmax, float Mmin, float log10Mturn_min, float log10Mturn_max,
+                                     float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star,
+                                     float Alpha_star_mini, float Alpha_esc, float Fstar10, float Fesc10,
+                                     float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI,
+                                     float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, bool FAST_FCOLL_TABLES,
+                                     bool minihalos, bool prev);
+void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool update);
+double cmf_integrand(double lnM, void *param_struct);
+double umf_integrand(double lnM, void *param_struct);
