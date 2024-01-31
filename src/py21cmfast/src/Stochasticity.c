@@ -183,7 +183,7 @@ double get_delta_crit(int HMF, double sigma, double growthf){
     if(HMF==4)
         return DELTAC_DELOS;
     if(HMF==1)
-        return sheth_delc(Deltac/growthf,sigma)*growthf;
+        return sheth_delc_fixed(Deltac/growthf,sigma)*growthf;
 
     return Deltac;
 }
@@ -2166,13 +2166,13 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         LOG_DEBUG("SUB-SAMPLER",redshift);
         LOG_DEBUG("Exp. averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_subsampler[0],averages_subsampler[3],averages_subsampler[1],
                                                                                                     averages_subsampler[2],averages_subsampler[4]);
-        LOG_DEBUG("Box  averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_subsampler[0],averages_subsampler[3],
-                                                                                                    averages_subsampler[1],averages_subsampler[2],averages_subsampler[4]);
-        LOG_DEBUG("Ratio:         (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_subsampler[0]/averages_subsampler[0],
-                                                                                                    averages_subsampler[3]/averages_subsampler[3],
-                                                                                                    averages_subsampler[1]/averages_subsampler[1],
-                                                                                                    averages_subsampler[2]/averages_subsampler[2],
-                                                                                                    averages_subsampler[4]/averages_subsampler[4]);
+        LOG_DEBUG("Box  averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_box[0],averages_box[3],
+                                                                                                    averages_box[1],averages_box[2],averages_box[4]);
+        LOG_DEBUG("Ratio:         (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_box[0]/averages_subsampler[0],
+                                                                                                    averages_box[3]/averages_subsampler[3],
+                                                                                                    averages_box[1]/averages_subsampler[1],
+                                                                                                    averages_box[2]/averages_subsampler[2],
+                                                                                                    averages_box[4]/averages_subsampler[4]);
         LOG_DEBUG("Turnovers: ACG %11.3e global %11.3e Cell %11.3e",M_turn_a_avg,atomic_cooling_threshold(redshift),M_turn_a_avg_cell);
         LOG_DEBUG("MCG  %11.3e Cell %11.3e",M_turn_m_avg,M_turn_m_avg_cell);
         LOG_DEBUG("Reion %11.3e Cell %11.3e",M_turn_r_avg,M_turn_r_avg_cell);

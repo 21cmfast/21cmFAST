@@ -818,9 +818,10 @@ double sheth_delc(double del, double sig){
 
 /*DexM uses a fit to this barrier to acheive MF similar to ST, Here I use the fixed version for the sampler*/
 double sheth_delc_fixed(double del, double sig){
+    double a = 0.707;
     double sheth_b = 0.485;
     double sheth_c = 0.615;
-    return sqrt(SHETH_a)*del*(1. + sheth_b*pow(sig*sig/(SHETH_a*del*del), sheth_c));
+    return sqrt(a)*del*(1. + sheth_b*pow(sig*sig/(a*del*del), sheth_c));
 }
 
 /*
@@ -883,18 +884,18 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
 //TODO: Count the growth factors needed in each term, also move to ps.c
 double st_taylor_factor(double sig, double sig_cond, double delta_cond, double growthf){
     int i;
-    double a = SHETH_a;
+    // double a = SHETH_a;
+    double a = 0.707;
     double alpha = 0.615; //fixed instead of global_params.SHETH_c bc of DexM corrections
     double beta = 0.485; //fixed instead of global_params.SHETH_b
 
-    double delta_crit = Deltac/growthf;
+    double del = Deltac/growthf;
 
-    double delsq = delta_crit*delta_crit;
     double sigsq = sig*sig;
     double sigcsq = sig_cond*sig_cond;
     //See note below
     double sigdiff = sig == sig_cond ? 1e-6 : sigsq - sigcsq;
-    double dn_const = sqrt(a)*delta_crit*beta*pow(a*delsq,-alpha);
+    double dn_const = sqrt(a)*del*beta*pow(a*del*del,-alpha);
 
     //define arrays of factors to save time and math calls
     int n_fac[6] = {1,1,2,6,24,120};
@@ -902,19 +903,20 @@ double st_taylor_factor(double sig, double sig_cond, double delta_cond, double g
     double s_fac[6];
     a_fac[0] = 1;
     s_fac[0] = 1;
-    for(i=1;i<6;i++){
+    for(i=1;i<=5;i++){
         a_fac[i] = a_fac[i-1] * (alpha-i+1);
         s_fac[i] = s_fac[i-1] * (-sigdiff);
     }
 
     double result = 0.;
     //Taylor expansion of the x^a part around (sigsq - sigcondsq) (summing small to large)
-    for(i=5;i>=0;i--){
-        result += s_fac[i]*dn_const*pow(sigsq,alpha-i)/(a_fac[i]*n_fac[i]);
+    for(i=5;i>=1;i--){
+        result += s_fac[i]/n_fac[i] * pow(sigsq,alpha-i)*a_fac[i];
         // LOG_ULTRA_DEBUG("%d term %.2e",i,result);
     }
+    result *= dn_const;
     //add the constant terms from the 0th derivative of the barrier (condition delta independent of halo sigma)
-    result += sqrt(a)*delta_crit - delta_cond;
+    // result += sqrt(a)*delta_crit - delta_cond;
 
     return result;
 }
@@ -929,11 +931,11 @@ double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double
     if(sigma1 < sigma_cond) return 0.;
 
     Barrier = sheth_delc_fixed(Deltac/growthf,sigma1);
-    factor = st_taylor_factor(sigma1,sigma_cond,delta_0,growthf);
+    factor = st_taylor_factor(sigma1,sigma_cond,delta_0,growthf) + Barrier;
 
     sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1/(sigma1*sigma1 - sigma_cond*sigma_cond);
 
-    result = -dsigmasqdm*factor*pow(sigdiff_inv,1.5)*exp(-(Barrier - delta_0)*(Barrier - delta_0)*(sigdiff_inv))/sqrt(2.*PI);
+    result = -dsigmasqdm*factor*pow(sigdiff_inv,1.5)*exp(-(Barrier - delta_0)*(Barrier - delta_0)*0.5*(sigdiff_inv))/sqrt(2.*PI);
     // LOG_ULTRA_DEBUG("M = %.3e T = %.3e Barrier = %.3f || dndlnM= %.6e",exp(lnM),factor,Barrier,result);
     return result;
 }
