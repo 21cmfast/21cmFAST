@@ -3653,6 +3653,7 @@ def run_lightcone(
             pass
 
         hbox = None
+        ph = None
 
         perturb_files = []
         spin_temp_files = []
