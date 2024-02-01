@@ -309,6 +309,9 @@ class GlobalParams(StructInstanceWrapper):
             1: N_halo sampling from CMF
             2: Sheth & Lemson 99 Fcoll sampling
             3: Darkforest (Qiu+20) binary splitting
+    AVG_BELOW_SAMPLER:
+        int flag to add the average halo proeprties in each cell between the source mass limit
+        and the mass sampled by the halo sampler
     """
 
     def __init__(self, wrapped, ffi):

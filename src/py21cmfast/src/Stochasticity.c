@@ -2023,7 +2023,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         }
         else{
             //set below-resolution properties
-            if(M_min < global_params.SAMPLER_MIN_MASS){
+            if(global_params.AVG_BELOW_SAMPLER && M_min < global_params.SAMPLER_MIN_MASS){
                 set_fixed_grids(redshift, norm_esc, alpha_esc, M_min, global_params.SAMPLER_MIN_MASS, ini_boxes, perturbed_field, previous_spin_temp, previous_ionize_box, grids, averages_box);
             }
 #pragma omp parallel num_threads(user_params->N_THREADS) firstprivate(M_turn_a,M_turn_m,M_turn_r,curr_vcb,idx)

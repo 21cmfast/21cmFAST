@@ -62,6 +62,79 @@ struct RGTable2D_f{
     int allocated;
 };
 
+void allocate_RGTable1D(int n_bin, struct RGTable1D * ptr){
+    //allocate the struct itself
+    ptr = malloc(sizeof(struct RGTable1D));
+    ptr->n_bin = n_bin;
+    ptr->y_arr = calloc(n_bin,sizeof(double));
+}
+
+void allocate_RGTable1D_f(int n_bin, struct RGTable1D_f * ptr){
+    //allocate the struct itself
+    ptr = malloc(sizeof(struct RGTable1D_f));
+    ptr->n_bin = n_bin;
+    //allocate the table array
+    ptr->y_arr = calloc(n_bin,sizeof(float));
+}
+
+void free_RGTable1D(struct RGTable1D * ptr){
+    free(ptr->y_arr);
+    free(ptr);
+    ptr = NULL;
+}
+
+void free_RGTable1D_f(struct RGTable1D_f * ptr){
+    free(ptr->y_arr);
+    free(ptr);
+    ptr = NULL;
+}
+
+void allocate_RGTable2D(int n_x, int n_y, struct RGTable2D * ptr){
+    //allocate the struct itself
+    int i;
+    ptr = malloc(sizeof(struct RGTable2D));
+    ptr->nx_bin = n_x;
+    ptr->ny_bin = n_y;
+
+    //allocate the table 2D array
+    ptr->z_arr = calloc(n_x,sizeof(double*));
+    for(i=0;i<n_x;i++){
+        ptr->z_arr[i] = calloc(n_y,sizeof(double));
+    }
+}
+
+void allocate_RGTable2D_f(int n_x, int n_y, struct RGTable2D_f * ptr){
+    //allocate the struct itself
+    int i;
+    ptr = malloc(sizeof(struct RGTable2D_f));
+    ptr->nx_bin = n_x;
+    ptr->ny_bin = n_y;
+
+    //allocate the table 2D array
+    ptr->z_arr = calloc(n_x,sizeof(float*));
+    for(i=0;i<n_x;i++){
+        ptr->z_arr[i] = calloc(n_y,sizeof(float));
+    }
+}
+
+void free_RGTable2D_f(struct RGTable2D_f * ptr){
+    int i;
+    for(i=0;i<ptr->nx_bin;i++)
+        free(ptr->z_arr[i]);
+    free(ptr->z_arr);
+    free(ptr);
+    ptr = NULL;
+}
+
+void free_RGTable2D(struct RGTable2D * ptr){
+    int i;
+    for(i=0;i<ptr->nx_bin;i++)
+        free(ptr->z_arr[i]);
+    free(ptr->z_arr);
+    free(ptr);
+    ptr = NULL;
+}
+
 double EvaluateRGTable1D(double x, double *y_arr, double x_min, double x_width){
     int idx = (int)floor((x - x_min)/x_width);
     double table_val = x_min + x_width*(double)idx;
@@ -135,9 +208,7 @@ double EvaluateRGTable2D_f(double x, double y, float **z_arr, double x_min, doub
     return result;
 }
 
-
-//I'm beginning to move the interpolation table initialisation here from ps.c
-//  For now, we will keep them as globals but eventually moving to static structs will be ideal
+//Specific interpolation tables are below
 
 //Global Nion (z,[Mcrit_LW]) tables
 double *z_val, *Nion_z_val, **Nion_z_val_MINI;
@@ -507,7 +578,7 @@ void initialise_SFRD_Conditional_table(int Nfilter, double min_density[], double
             ln_SFRD_spline[j] = (float *)calloc(NDELTA,sizeof(float));
         }
 
-        if(minihalos){
+        if(minihalos && ln_SFRD_spline_MINI == NULL){
             ln_SFRD_spline_MINI = (float ***)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float **));
             for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++){
                 ln_SFRD_spline_MINI[j] = (float **)calloc(NDELTA,sizeof(float *));
@@ -600,7 +671,6 @@ void FreeNionConditionalTable(struct FlagOptions * flag_options){
 
 void FreeSFRDConditionalTable(struct FlagOptions *flag_options){
     int j,i;
-    LOG_SUPER_DEBUG("freeing interp SFRD");
     for(j=0;j<global_params.NUM_FILTER_STEPS_FOR_Ts;j++) {
         free(ln_SFRD_spline[j]);
     }
@@ -630,9 +700,11 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
 	// freeSigmaMInterpTable();
     int i;
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-        free(z_val); z_val = NULL;
+        free(z_val);
+        z_val = NULL;
         free(Nion_z_val);
-        free(z_X_val); z_X_val = NULL;
+        free(z_X_val);
+        z_X_val = NULL;
         free(SFRD_val);
         if (flag_options->USE_MINI_HALOS){
             for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++){
@@ -653,7 +725,8 @@ void FreeTsInterpolationTables(struct FlagOptions *flag_options) {
         free(F_table_val);
         free(dF_table_val);
     }
-    FreeSFRDConditionalTable(flag_options);
+    if(!flag_options->USE_HALO_FIELD)
+        FreeSFRDConditionalTable(flag_options);
 
     LOG_DEBUG("Done Freeing interpolation table memory.");
 }

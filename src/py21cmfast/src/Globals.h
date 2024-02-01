@@ -91,6 +91,7 @@ struct GlobalParams{
     int N_PROB_INTERP;
     double MIN_LOGPROB;
     int SAMPLE_METHOD;
+    int AVG_BELOW_SAMPLER;
 
     bool USE_ADIABATIC_FLUCTUATIONS;
 };
@@ -177,6 +178,7 @@ extern struct GlobalParams global_params = {
     .N_PROB_INTERP = 200,
     .MIN_LOGPROB = -16,
     .SAMPLE_METHOD = 0,
+    .AVG_BELOW_SAMPLER = 0,
 
     .USE_ADIABATIC_FLUCTUATIONS = 1,
 };
