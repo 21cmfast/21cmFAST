@@ -104,8 +104,8 @@ struct PerturbedField{
 };
 
 struct HaloField{
-    int n_halos;
-    int buffer_size;
+    long long unsigned int n_halos;
+    long long unsigned int buffer_size;
     float *halo_masses;
     int *halo_coords;
 
@@ -132,8 +132,8 @@ struct HaloBox{
 };
 
 struct PerturbHaloField{
-    int n_halos;
-    int buffer_size;
+    long long unsigned int n_halos;
+    long long unsigned int buffer_size;
     float *halo_masses;
     int *halo_coords;
 
