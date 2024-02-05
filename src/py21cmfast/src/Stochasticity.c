@@ -202,7 +202,7 @@ double expected_nhalo(double redshift, struct UserParams *user_params, struct Co
 
     result = IntegratedNdM(growthf, log(M_min), log(M_max), log(M_max), 0., user_params->HMF, 0) * VOLUME;
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f",result,M_min,M_max,redshift);
-    
+
     if(user_params->USE_INTERPOLATION_TABLES)
         freeSigmaMInterpTable();
 
@@ -1696,13 +1696,13 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
 
     //TODO: These tables are coarser than needed, I should do an initial loop to find delta and Mturn limits
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        initialise_SFRD_Conditional_table_one(min_density,max_density,growth_z,MtoR(M_max),M_turn_a,M_min,
+        initialise_SFRD_Conditional_table_one(min_density,max_density,growth_z,MtoR(M_max),M_turn_a,M_min,M_max,
                                                 astro_params_stoc->ALPHA_STAR, astro_params_stoc->ALPHA_STAR_MINI, astro_params_stoc->F_STAR10,
                                                 astro_params_stoc->F_STAR7_MINI, user_params_stoc->FAST_FCOLL_TABLES,
                                                 flag_options_stoc->USE_MINI_HALOS,&SFRD_conditional_table,&SFRD_conditional_table_MINI);
 
         //note: we do not yet have the previous ion table here
-        initialise_Nion_Conditional_spline(redshift,M_turn_a,min_density,max_density,M_cell,M_min,
+        initialise_Nion_Conditional_spline(redshift,M_turn_a,min_density,max_density,M_min,M_max,
                                 LOG10_MTURN_MIN,LOG10_MTURN_MAX,LOG10_MTURN_MIN,LOG10_MTURN_MAX,
                                 astro_params_stoc->ALPHA_STAR, astro_params_stoc->ALPHA_STAR_MINI,
                                 alpha_esc,astro_params_stoc->F_STAR10,
@@ -1824,7 +1824,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
             Mlim_m_avg += M_turn_m;
         }
     }
-    
+
     free_RGTable1D_f(&Nion_Conditional_Table1D);
     free_RGTable2D_f(&Nion_Conditional_Table2D);
     free_RGTable2D_f(&Nion_Conditional_Table_MINI);
@@ -1881,15 +1881,15 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
     double Mlim_Fesc_mini = Mass_limit_bisection(M_min, M_max, alpha_esc, norm_esc_mini * pow(1e3,alpha_esc));
 
     hm_expected = IntegratedNdM(growth_z, lnMmin, lnMmax, lnMmax, 0, user_params_stoc->HMF, 1);
-    nion_expected = Nion_General(redshift, M_min, M_turn_a, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc) * prefactor_nion;
-    sfr_expected = Nion_General(redshift, M_min, M_turn_a, alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.) * prefactor_sfr;
+    nion_expected = Nion_General(redshift, M_min, M_max, M_turn_a, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc) * prefactor_nion;
+    sfr_expected = Nion_General(redshift, M_min, M_max, M_turn_a, alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.) * prefactor_sfr;
     // wsfr_expected = Nion_General(redshift, M_min, M_turn_a, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc);
     if(flag_options_stoc->USE_MINI_HALOS){
-        nion_expected += Nion_General_MINI(redshift, M_min, M_turn_m, M_turn_a,
+        nion_expected += Nion_General_MINI(redshift, M_min, M_max, M_turn_m, M_turn_a,
                                             alpha_star_mini, alpha_esc, norm_star_mini,
                                             norm_esc_mini, Mlim_Fstar_mini, Mlim_Fesc_mini) * prefactor_nion_mini;
 
-        sfr_expected_mini = Nion_General_MINI(redshift, M_min, M_turn_m, M_turn_a,
+        sfr_expected_mini = Nion_General_MINI(redshift, M_min, M_max, M_turn_m, M_turn_a,
                                             alpha_star_mini, 0., norm_star_mini,
                                             1., Mlim_Fstar_mini, 0.) * prefactor_sfr_mini;
     }

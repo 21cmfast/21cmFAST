@@ -693,10 +693,10 @@ double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc, stru
 
     //minihalos uses a different turnover mass
     if(flag_options_hf->USE_MINI_HALOS)
-        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
+        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
                             astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
     if(flag_options_hf->USE_MASS_DEPENDENT_ZETA)
-        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, astro_params_hf->M_TURN, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
+        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->M_TURN, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
                             astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
 
     return FgtrM_General(redshift, minimum_source_mass(redshift,astro_params_hf,flag_options_hf));
@@ -707,7 +707,7 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Ml
         return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,table);
     }
 
-    return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
+    return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
                             astro_params_hf->ALPHA_STAR_MINI, astro_params_hf->ALPHA_ESC, astro_params_hf->F_STAR7_MINI,
                             astro_params_hf->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
 }
@@ -719,11 +719,11 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar, struct RGTable1D * table
 
     //minihalos uses a different turnover mass
     if(flag_options_hf->USE_MINI_HALOS)
-        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_hf->ALPHA_STAR, 0.,
+        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_hf->ALPHA_STAR, 0.,
                             astro_params_hf->F_STAR10, 1., Mlim_Fstar, 0);
 
     if(flag_options_hf->USE_MASS_DEPENDENT_ZETA)
-        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, astro_params_hf->M_TURN, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
+        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->M_TURN, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
                             astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, 0);
 
     //NOTE: Previously, with M_MIN_IN_MASS, the FgtrM function used M_turn/50, which seems like a bug
@@ -736,7 +736,7 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim
     if(user_params_hf->USE_INTERPOLATION_TABLES){
         return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,table);
     }
-    return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
+    return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
                             astro_params_hf->ALPHA_STAR_MINI, 0., astro_params_hf->F_STAR7_MINI,
                             1., Mlim_Fstar_MINI, 0.);
 }

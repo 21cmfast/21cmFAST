@@ -859,8 +859,8 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
 
     double log10_Mcrit_width = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
 
-    struct RGTable1D SFRD_z_table;
-    struct RGTable2D SFRD_z_table_MINI;
+    struct RGTable1D SFRD_z_table = {.allocated = false,};
+    struct RGTable2D SFRD_z_table_MINI = {.allocated = false,};
 
     //For a lot of global evolution, this code uses Nion_general. We can replace this with the halo field
     //at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1 barrier
@@ -932,8 +932,10 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //This is safe since allocation is checked in the freeing function
     free_RGTable1D(&Nion_z_table);
     free_RGTable1D(&SFRD_z_table);
-    free_RGTable2D(&Nion_z_table_MINI);
-    free_RGTable2D(&SFRD_z_table_MINI);
+    if(flag_options_ts->USE_MINI_HALOS){
+        free_RGTable2D(&Nion_z_table_MINI);
+        free_RGTable2D(&SFRD_z_table_MINI);
+    }
 
     LOG_DEBUG("Done.");
 
@@ -950,15 +952,16 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     double mturn_bin_width = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
     double delta_bin_width = (max_densities[R_ct] - min_densities[R_ct])/((float)NDELTA-1.);
 
-    struct RGTable1D_f SFRD_conditional_table;
-    struct RGTable2D_f SFRD_conditional_table_MINI;
-    struct RGTable1D_f fcoll_conditional_table;
-    struct RGTable1D_f dfcoll_conditional_table;
+    struct RGTable1D_f SFRD_conditional_table = {.allocated = false,};
+    struct RGTable2D_f SFRD_conditional_table_MINI = {.allocated = false,};
+    struct RGTable1D_f fcoll_conditional_table = {.allocated = false,};
+    struct RGTable1D_f dfcoll_conditional_table = {.allocated = false,};
 
     if(user_params_ts->USE_INTERPOLATION_TABLES){
         if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
             initialise_SFRD_Conditional_table_one(min_densities[R_ct],
-                                                    max_densities[R_ct],zpp_growth[R_ct],R_values[R_ct],Mcrit_atom_interp_table[R_ct],global_params.M_MIN_INTEGRAL,
+                                                    max_densities[R_ct],zpp_growth[R_ct],R_values[R_ct],Mcrit_atom_interp_table[R_ct],
+                                                    global_params.M_MIN_INTEGRAL,M_max_R[R_ct],
                                                     astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->F_STAR10,
                                                     astro_params_ts->F_STAR7_MINI, user_params_ts->FAST_FCOLL_TABLES,
                                                     flag_options_ts->USE_MINI_HALOS,&SFRD_conditional_table,&SFRD_conditional_table_MINI);
@@ -1051,7 +1054,8 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     }
     *ave_sfrd = ave_sfrd_buf/HII_TOT_NUM_PIXELS;
     *ave_sfrd_mini = ave_sfrd_buf_mini/HII_TOT_NUM_PIXELS;
-    
+
+    //These functions check for allocation
     free_RGTable1D_f(&SFRD_conditional_table);
     free_RGTable2D_f(&SFRD_conditional_table_MINI);
     free_RGTable1D_f(&fcoll_conditional_table);

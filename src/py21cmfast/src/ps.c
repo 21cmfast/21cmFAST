@@ -61,8 +61,8 @@ double sigma_norm, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_
 double sigmaparam_FgtrM_bias(float z, float sigsmallR, float del_bias, float sig_bias);
 
 //so far, these are the only global tables, since they are used across files through several functions
-struct RGTable1D_f Sigma_InterpTable;
-struct RGTable1D_f dSigmasqdm_InterpTable;
+struct RGTable1D_f Sigma_InterpTable = {.allocated = false,};
+struct RGTable1D_f dSigmasqdm_InterpTable = {.allocated = false,};
 
 float *xi_SFR,*wi_SFR, *xi_SFR_Xray, *wi_SFR_Xray;
 
@@ -1283,7 +1283,7 @@ double dNion_General(double lnM, void *params){
     return MassFunction * M * M * exp(-MassTurnover/M) * Fstar * Fesc;
 }
 
-double Nion_General(double z, double M_Min, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar, double Mlim_Fesc){
+double Nion_General(double z, double M_Min, double M_Max, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar, double Mlim_Fesc){
 
     double growthf;
 
@@ -1315,7 +1315,7 @@ double Nion_General(double z, double M_Min, double MassTurnover, double Alpha_st
         F.params = &parameters_gsl_SFR;
 
         lower_limit = log(M_Min);
-        upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M_Min*100));
+        upper_limit = log(M_Max);
 
         gsl_set_error_handler_off();
 
@@ -1390,7 +1390,7 @@ double dNion_General_MINI(double lnM, void *params){
     return MassFunction * M * M * exp(-MassTurnover/M) * exp(-M/MassTurnover_upper) * Fstar * Fesc;
 }
 
-double Nion_General_MINI(double z, double M_Min, double MassTurnover, double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc){
+double Nion_General_MINI(double z, double M_Min, double M_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc){
 
     double growthf;
     int status;
@@ -1423,7 +1423,7 @@ double Nion_General_MINI(double z, double M_Min, double MassTurnover, double Mas
         F.params = &parameters_gsl_SFR;
 
         lower_limit = log(M_Min);
-        upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M_Min*100));
+        upper_limit = log(M_Max);
 
         gsl_set_error_handler_off();
 
@@ -2684,10 +2684,10 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
 
             // Ionizing emissivity (num of photons per baryon)
             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-                Nion0 = ION_EFF_FACTOR*Nion_General(z0, astro_params->M_TURN/50., astro_params->M_TURN, astro_params->ALPHA_STAR,
+                Nion0 = ION_EFF_FACTOR*Nion_General(z0, astro_params->M_TURN/50., global_params.M_MAX_INTEGRAL, astro_params->M_TURN, astro_params->ALPHA_STAR,
                                                 astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
                                                 Mlim_Fstar, Mlim_Fesc);
-                Nion1 = ION_EFF_FACTOR*Nion_General(z1, astro_params->M_TURN/50., astro_params->M_TURN, astro_params->ALPHA_STAR,
+                Nion1 = ION_EFF_FACTOR*Nion_General(z1, astro_params->M_TURN/50., global_params.M_MAX_INTEGRAL, astro_params->M_TURN, astro_params->ALPHA_STAR,
                                                 astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
                                                 Mlim_Fstar, Mlim_Fesc);
             }

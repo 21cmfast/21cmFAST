@@ -86,9 +86,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     float log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
     float log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
 
-    struct RGTable1D_f Nion_Conditional_Table1D;
-    struct RGTable2D_f Nion_Conditional_Table2D, Nion_Conditional_Table_MINI;
-    struct RGTable2D_f Nion_Conditional_Table_prev, Nion_Conditional_Table_prev_MINI;
+    struct RGTable1D_f Nion_Conditional_Table1D = {.allocated = false,};
+    struct RGTable2D_f Nion_Conditional_Table2D = {.allocated = false,}, Nion_Conditional_Table_MINI = {.allocated = false,};
+    struct RGTable2D_f Nion_Conditional_Table_prev = {.allocated = false,}, Nion_Conditional_Table_prev_MINI = {.allocated = false,};
 
     gsl_rng * r[user_params->N_THREADS];
 
@@ -553,42 +553,42 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (flag_options->USE_MINI_HALOS){
             if (previous_ionize_box->mean_f_coll * ION_EFF_FACTOR < 1e-4){
-                box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
+                box->mean_f_coll = Nion_General(redshift,M_MIN,global_params.M_MAX_INTEGRAL,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
                                                 astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
             }
             else{
                 box->mean_f_coll = previous_ionize_box->mean_f_coll + \
-                                    Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
+                                    Nion_General(redshift,M_MIN,global_params.M_MAX_INTEGRAL,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
                                                  astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc) - \
-                                    Nion_General(prev_redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
+                                    Nion_General(prev_redshift,M_MIN,global_params.M_MAX_INTEGRAL,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
                                                  astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
             }
             if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI < 1e-4){
-                box->mean_f_coll_MINI = Nion_General_MINI(redshift,M_MIN,Mturnover_MINI,Mcrit_atom,
+                box->mean_f_coll_MINI = Nion_General_MINI(redshift,M_MIN,global_params.M_MAX_INTEGRAL,Mturnover_MINI,Mcrit_atom,
                                                           astro_params->ALPHA_STAR_MINI,alpha_esc_var,astro_params->F_STAR7_MINI,
                                                           astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
             }
             else{
                 box->mean_f_coll_MINI = previous_ionize_box->mean_f_coll_MINI + \
-                                        Nion_General_MINI(redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
+                                        Nion_General_MINI(redshift,M_MIN,global_params.M_MAX_INTEGRAL,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
                                                           alpha_esc_var,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI
                                                           ,Mlim_Fstar_MINI,Mlim_Fesc_MINI) - \
-                                        Nion_General_MINI(prev_redshift,M_MIN,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
+                                        Nion_General_MINI(prev_redshift,M_MIN,global_params.M_MAX_INTEGRAL,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
                                                           alpha_esc_var,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
                                                           Mlim_Fstar_MINI,Mlim_Fesc_MINI);
             }
-            f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,
+            f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,global_params.M_MAX_INTEGRAL,Mturnover,astro_params->ALPHA_STAR,
                                       alpha_esc_var,astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
-            f_coll_min_MINI = Nion_General_MINI(global_params.Z_HEAT_MAX,M_MIN,Mturnover_MINI,Mcrit_atom,
+            f_coll_min_MINI = Nion_General_MINI(global_params.Z_HEAT_MAX,M_MIN,global_params.M_MAX_INTEGRAL,Mturnover_MINI,Mcrit_atom,
                                                 astro_params->ALPHA_STAR_MINI,alpha_esc_var,astro_params->F_STAR7_MINI,
                                                 astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
         }
         else{
-            box->mean_f_coll = Nion_General(redshift,M_MIN,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
+            box->mean_f_coll = Nion_General(redshift,M_MIN,global_params.M_MAX_INTEGRAL,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
                                             astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
             box->mean_f_coll_MINI = 0.;
 
-            f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
+            f_coll_min = Nion_General(global_params.Z_HEAT_MAX,M_MIN,global_params.M_MAX_INTEGRAL,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
                                       astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
         }
     }
@@ -959,7 +959,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                         prev_max_density += 0.001;
                         density_bin_width = (max_density - min_density)/((double)NDELTA-1);
                         prev_density_bin_width = (prev_max_density - prev_min_density)/((double)NDELTA-1);
-                        initialise_Nion_Conditional_spline(redshift,Mcrit_atom,min_density,max_density,massofscaleR,M_MIN,
+                        initialise_Nion_Conditional_spline(redshift,Mcrit_atom,min_density,max_density,M_MIN,massofscaleR,
                                                 log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                                 astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI,
                                                 alpha_esc_var,astro_params->F_STAR10,
@@ -968,7 +968,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                                 flag_options->USE_MINI_HALOS, &Nion_Conditional_Table1D, &Nion_Conditional_Table2D, &Nion_Conditional_Table_MINI);
 
                         if(flag_options->USE_MINI_HALOS && (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4)){
-                            initialise_Nion_Conditional_spline(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,massofscaleR,M_MIN,
+                            initialise_Nion_Conditional_spline(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,M_MIN,massofscaleR,
                                                     log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                                     astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI,
                                                     alpha_esc_var,astro_params->F_STAR10,
@@ -1606,7 +1606,8 @@ LOG_DEBUG("global_xH = %e",global_xH);
     if(!flag_options->USE_TS_FLUCT && user_params->USE_INTERPOLATION_TABLES) {
             freeSigmaMInterpTable();
     }
-    
+
+    //These functions check for allocation
     free_RGTable1D_f(&Nion_Conditional_Table1D);
     free_RGTable2D_f(&Nion_Conditional_Table2D);
     free_RGTable2D_f(&Nion_Conditional_Table_MINI);
