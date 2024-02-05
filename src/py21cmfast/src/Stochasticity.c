@@ -294,7 +294,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             fcoll = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,3);
             Nhalo_table.y_arr[i] = norm;
             Mcoll_table.y_arr[i] = fcoll;
-            LOG_ULTRA_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);
+            // LOG_ULTRA_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);
 
             //if the condition has no halos set the dndm table directly since norm==0 breaks things
             if(norm==0){

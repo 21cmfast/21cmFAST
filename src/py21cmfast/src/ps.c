@@ -1179,6 +1179,7 @@ double IntegratedNdM(double growthf, double lnM_lo, double lnM_hi, double M_filt
         .M_cond = M_filter,
         .HMF = HMF,
     };
+
     int status;
     F.function = get_integrand_function(type);
     F.params = &params;
@@ -1527,7 +1528,6 @@ void gauleg(float x1, float x2, float x[], float w[], int n)
 
 void initialiseSigmaMInterpTable(float M_min, float M_max){
     int i;
-    float Mass;
 
     if(!Sigma_InterpTable.allocated)
         allocate_RGTable1D_f(NMass,&Sigma_InterpTable);
@@ -1541,6 +1541,7 @@ void initialiseSigmaMInterpTable(float M_min, float M_max){
 
 #pragma omp parallel private(i) num_threads(user_params_ps->N_THREADS)
     {
+        float Mass;
 #pragma omp for
         for(i=0;i<NMass;i++) {
             Mass = exp(Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width);
