@@ -8,6 +8,11 @@ float determine_zpp_min, zpp_bin_width;
 
 double BinWidth_pH,inv_BinWidth_pH,BinWidth_elec,inv_BinWidth_elec,BinWidth_10,inv_BinWidth_10,PS_ION_EFF;
 
+//These tables are currently global since they are used in TauX
+//TODO: pass them in or find a better way to manage them
+struct RGTable1D Nion_z_table;
+struct RGTable2D Nion_z_table_MINI;
+
 void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options){
 
     user_params_hf = user_params;
@@ -679,15 +684,11 @@ double Tc_eff(double TK, double TS)
 }
 
 //JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
-//TODO: Better organisation of the functions here and in spintemp
-double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
+//TODO: Better organisation of the functions here and in spintemp, I should split the interptable case
+double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc, struct RGTable1D *table){
     //differences in turnover are handled by table setup
     if(user_params_hf->USE_INTERPOLATION_TABLES){
-        if(flag_options_hf->USE_MASS_DEPENDENT_ZETA)
-            return EvaluateRGTable1D(redshift,Nion_z_val,determine_zpp_min,zpp_bin_width);
-
-        // LOG_DEBUG("returning FgtrM at z=%.2e bmin/wid = %.2e %.2e",redshift,zmin_1DTable,zbin_width_1DTable);
-        return EvaluateRGTable1D(redshift,FgtrM_1DTable_linear,zmin_1DTable,zbin_width_1DTable);
+        return EvaluateRGTable1D(redshift,table); //the correct table should be passed
     }
 
     //minihalos uses a different turnover mass
@@ -698,16 +699,12 @@ double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
         return Nion_General(redshift, global_params.M_MIN_INTEGRAL, astro_params_hf->M_TURN, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
                             astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
 
-    if(flag_options_hf->M_MIN_in_Mass)
-        return FgtrM_General(redshift, astro_params_hf->M_TURN);
-
     return FgtrM_General(redshift, minimum_source_mass(redshift,astro_params_hf,flag_options_hf));
 }
 
-double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
-    if(user_params_hf->USE_INTERPOLATION_TABLES) {
-        double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
-        return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,Nion_z_val_MINI,determine_zpp_min,zpp_bin_width,LOG10_MTURN_MIN,LOG10_MTURN_INT);
+double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI, struct RGTable2D *table){
+    if(user_params_hf->USE_INTERPOLATION_TABLES){
+        return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,table);
     }
 
     return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
@@ -715,13 +712,9 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Ml
                             astro_params_hf->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
 }
 
-double EvaluateSFRD(double redshift, double Mlim_Fstar){
-    //differences in turnover are handled by table setup
+double EvaluateSFRD(double redshift, double Mlim_Fstar, struct RGTable1D * table){
     if(user_params_hf->USE_INTERPOLATION_TABLES){
-        if(flag_options_hf->USE_MASS_DEPENDENT_ZETA)
-            return EvaluateRGTable1D(redshift,SFRD_val,determine_zpp_min,zpp_bin_width);
-        //same table as Nion, due to no mass dependence
-        return EvaluateRGTable1D(redshift,FgtrM_1DTable_linear,zmin_1DTable,zbin_width_1DTable);
+        return EvaluateRGTable1D(redshift,table); //assuming you passed the right table
     }
 
     //minihalos uses a different turnover mass
@@ -733,18 +726,15 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar){
         return Nion_General(redshift, global_params.M_MIN_INTEGRAL, astro_params_hf->M_TURN, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
                             astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, 0);
 
-    if(flag_options_hf->M_MIN_in_Mass)
-        return FgtrM(redshift, (astro_params_hf->M_TURN)/50.);
+    //NOTE: Previously, with M_MIN_IN_MASS, the FgtrM function used M_turn/50, which seems like a bug
+    // since it goes against the assumption of sharp cutoff
 
-    return FgtrM(redshift, minimum_source_mass(redshift,astro_params_hf,flag_options_hf));
+    return FgtrM_General(redshift, minimum_source_mass(redshift,astro_params_hf,flag_options_hf));
 }
 
-double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI){
-    if(user_params_hf->USE_INTERPOLATION_TABLES) {
-        double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
-        // LOG_DEBUG("SFRD : z = %.2e Mt = %.2e val = %.2e",redshift,log10_Mturn_LW_ave,
-        //         EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,SFRD_val_MINI,determine_zpp_min,zpp_bin_width,LOG10_MTURN_MIN,LOG10_MTURN_INT));
-        return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,SFRD_val_MINI,determine_zpp_min,zpp_bin_width,LOG10_MTURN_MIN,LOG10_MTURN_INT);
+double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, struct RGTable2D * table){
+    if(user_params_hf->USE_INTERPOLATION_TABLES){
+        return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,table);
     }
     return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
                             astro_params_hf->ALPHA_STAR_MINI, 0., astro_params_hf->F_STAR7_MINI,
@@ -887,8 +877,8 @@ double tauX_integrand_MINI(double zhat, void *params){
     n = N_b0 * pow(1+zhat, 3);
     nuhat = p->nu_0 * (1+zhat);
     log10_Mturn_MINI = p->log10_Mturn_MINI;
-    fcoll = EvaluateNionTs(zhat,p->Mlim_Fstar,p->Mlim_Fesc);
-    fcoll_MINI = EvaluateNionTs_MINI(zhat,log10_Mturn_MINI,p->Mlim_Fstar_MINI,p->Mlim_Fesc_MINI);
+    fcoll = EvaluateNionTs(zhat,p->Mlim_Fstar,p->Mlim_Fesc,&Nion_z_table);
+    fcoll_MINI = EvaluateNionTs_MINI(zhat,log10_Mturn_MINI,p->Mlim_Fstar_MINI,p->Mlim_Fesc_MINI,&Nion_z_table_MINI);
 
     if ((fcoll < 1e-20) && (fcoll_MINI < 1e-20)){
         HI_filling_factor_zhat = 1;
@@ -911,7 +901,7 @@ double tauX_integrand(double zhat, void *params){
     n = N_b0 * pow(1+zhat, 3);
     nuhat = p->nu_0 * (1+zhat);
 
-    fcoll = EvaluateNionTs(zhat,p->Mlim_Fstar,p->Mlim_Fesc);
+    fcoll = EvaluateNionTs(zhat,p->Mlim_Fstar,p->Mlim_Fesc,&Nion_z_table);
 
     if (fcoll < 1e-20)
         HI_filling_factor_zhat = 1;
@@ -985,9 +975,9 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
     else {
         //if we don't have an explicit ionising efficiency, we estimate one by using the values at zp
         if (HI_filling_factor_zp > FRACT_FLOAT_ERR){
-            //TODO: remove the branch by filling in the nion tables with FgtrM
             if(user_params_hf->USE_INTERPOLATION_TABLES){
-                fcoll = EvaluateRGTable1D(zp,FgtrM_1DTable_linear,zmin_1DTable,zbin_width_1DTable);
+                //Nion table re-used for fcoll
+                fcoll = EvaluateRGTable1D(zp,&Nion_z_table);
                 fcoll = pow(10.,fcoll);
             }
             else{

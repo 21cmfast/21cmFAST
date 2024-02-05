@@ -1,6 +1,6 @@
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
 
-void ts_halos(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+void ts_main(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift, short cleanup,
                   struct PerturbedField *perturbed_field, struct XraySourceBox *source_box, struct TsBox *previous_spin_temp,
                   struct InitialConditions *ini_boxes, struct TsBox *this_spin_temp);
@@ -60,7 +60,8 @@ double Mlim_Fstar_g, Mlim_Fesc_g, Mlim_Fstar_MINI_g, Mlim_Fesc_MINI_g;
 
 bool TsInterpArraysInitialised = false;
 
-//a debug flag for printing results from a single cell
+//a debug flag for printing results from a single cell without passing cell number to the functions
+//TODO: remove later
 int debug_printed;
 
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
@@ -86,8 +87,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
     omp_set_num_threads(user_params->N_THREADS);
     debug_printed = 0;
 
-    //TODO: rename to ts_main or move here with some allocation functions etc
-    ts_halos(redshift,prev_redshift,user_params,cosmo_params,astro_params,flag_options,perturbed_field_redshift,
+    ts_main(redshift,prev_redshift,user_params,cosmo_params,astro_params,flag_options,perturbed_field_redshift,
             cleanup,perturbed_field,source_box,previous_spin_temp,ini_boxes,this_spin_temp);
 
     destruct_heat();
@@ -204,7 +204,6 @@ void alloc_global_arrays(){
 
 
     //Nonhalo stuff
-    //TODO: move interp tables to the other framework in interpolation.c
     int num_R_boxes = user_params_ts->MINIMIZE_MEMORY ? 1 : global_params.NUM_FILTER_STEPS_FOR_Ts;
     if(!flag_options_ts->USE_HALO_FIELD){
         delNL0 = (float **)calloc(num_R_boxes,sizeof(float *));
@@ -233,6 +232,7 @@ void alloc_global_arrays(){
     }
 
     //helpers for the interpolation
+    //NOTE: The frequency integrals are tables regardless of the flag
     m_xHII_low_box = (int *)calloc(HII_TOT_NUM_PIXELS,sizeof(int));
     inverse_val_box = (float *)calloc(HII_TOT_NUM_PIXELS,sizeof(float));
     Mcrit_atom_interp_table = (float *)calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(float));
@@ -748,6 +748,8 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
 
 //construct the [x_e][R_ct] tables
 //NOTE: these have always been interpolation tables in x_e, regardless of flags
+//NOTE: Frequency integrals are based on PREVIOUS x_e_ave
+//  The x_e tables are not regular, hence the precomputation of indices/interp points
 void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_zp, double *log10_Mcrit_LW_ave){
     double lower_int_limit;
     int x_e_ct,R_ct;
@@ -849,13 +851,16 @@ void init_first_Ts(struct TsBox * box, float *dens, float z, float zp, double *x
 //  and be used in conjunction with a function which computes the box sums to do adjustment
 //  e.g: global_reion -> if(!NO_LIGHT) -> sum_box -> source *= global/box_avg
 //  either globally or at each R/zpp
-int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_ave, double *Q_HI, double *mean_sfr_zpp, double *mean_sfr_zpp_mini){
+int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_ave, double *mean_sfr_zpp, double *mean_sfr_zpp_mini){
     int R_ct;
     double sum_nion=0,sum_sfr=0,sum_mass=0,sum_nion_mini=0;
-    double Q;
+    double Q_HI;
     double zpp;
 
     double log10_Mcrit_width = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
+
+    struct RGTable1D SFRD_z_table;
+    struct RGTable2D SFRD_z_table_MINI;
 
     //For a lot of global evolution, this code uses Nion_general. We can replace this with the halo field
     //at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1 barrier
@@ -878,24 +883,26 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
             initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                                         astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->ALPHA_ESC,
                                         astro_params_ts->F_STAR10, astro_params_ts->F_ESC10, astro_params_ts->F_STAR7_MINI, astro_params_ts->F_ESC7_MINI,
-                                        astro_params_ts->M_TURN, flag_options_ts->USE_MINI_HALOS);
+                                        astro_params_ts->M_TURN, flag_options_ts->USE_MINI_HALOS,&Nion_z_table,&Nion_z_table_MINI);
 
             initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
                                     astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI,
                                     astro_params_ts->F_STAR10, astro_params_ts->F_STAR7_MINI,astro_params_ts->M_TURN,
-                                    flag_options_ts->USE_MINI_HALOS);
+                                    flag_options_ts->USE_MINI_HALOS,&SFRD_z_table,&SFRD_z_table_MINI);
         }
         else{
-            init_FcollTable(determine_zpp_min,determine_zpp_max,astro_params_ts,flag_options_ts);
+            init_FcollTable(determine_zpp_min,determine_zpp_max,astro_params_ts,flag_options_ts,&SFRD_z_table);
+            //both tables are the same in this mode
+            Nion_z_table = SFRD_z_table;
         }
     }
 
     //For consistency between halo and non-halo based, the NO_LIGHT and filling_factor_zp
     //  are based on the expected global Nion. as mentioned above it would be nice to
     //  change this to a saved reionisation/sfrd history from previous snapshots
-    sum_nion = EvaluateNionTs(zp,Mlim_Fstar_g,Mlim_Fesc_g);
+    sum_nion = EvaluateNionTs(zp,Mlim_Fstar_g,Mlim_Fesc_g,&Nion_z_table);
     if(flag_options_ts->USE_MINI_HALOS){
-        sum_nion_mini = EvaluateNionTs_MINI(zp,log10_Mcrit_LW_ave[0],Mlim_Fstar_MINI_g,Mlim_Fesc_MINI_g);
+        sum_nion_mini = EvaluateNionTs_MINI(zp,log10_Mcrit_LW_ave[0],Mlim_Fstar_MINI_g,Mlim_Fesc_MINI_g,&Nion_z_table_MINI);
     }
 
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)",sum_nion,sum_nion_mini);
@@ -903,22 +910,31 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //Now global SFRD at (R_ct) for the mean fixing
     for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
         zpp = zpp_for_evolve_list[R_ct];
-        mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp,Mlim_Fstar_g);
+        mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp,Mlim_Fstar_g,&SFRD_z_table);
         if(flag_options_ts->USE_MINI_HALOS){
-            mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp,log10_Mcrit_LW_ave[R_ct],Mlim_Fstar_MINI_g);
+            mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp,log10_Mcrit_LW_ave[R_ct],Mlim_Fstar_MINI_g,&SFRD_z_table_MINI);
         }
     }
 
     //TODO: change to use global_params.Pop in no minihalo case?, this variable is pretty inconsistently used
-    //  throughout the rest of the code mostly just assuming Pop2
+    //  throughout the rest of the code mostly just assuming Pop2. Otherwise I should remove the global parameter
     double ION_EFF_FACTOR,ION_EFF_FACTOR_MINI;
     ION_EFF_FACTOR = astro_params_ts->F_STAR10 * astro_params_ts->F_ESC10 * global_params.Pop2_ion;
     ION_EFF_FACTOR_MINI = astro_params_ts->F_STAR7_MINI * astro_params_ts->F_ESC7_MINI * global_params.Pop3_ion;
 
-    Q = 1 - ( ION_EFF_FACTOR * sum_nion + ION_EFF_FACTOR_MINI * sum_nion_mini )/ (1.0 - x_e_ave);
-    //Q is only used without MASS_DEPENDENT_ZETA, else Nion_general / interpolation tables are called for each zhat in [zp,zpp]
-    //TODO: Change this in the frequency integrals
-    *Q_HI = Q;
+    //NOTE: only used without MASS_DEPENDENT_ZETA
+    Q_HI = 1 - ( ION_EFF_FACTOR * sum_nion + ION_EFF_FACTOR_MINI * sum_nion_mini )/ (1.0 - x_e_ave);
+
+    //Initialise freq tables & prefactors (x_e by R tables)
+    fill_freqint_tables(zp,x_e_ave,Q_HI,log10_Mcrit_LW_ave);
+
+    //We don't use the global tables after this
+    //This is safe since allocation is checked in the freeing function
+    free_RGTable1D(&Nion_z_table);
+    free_RGTable1D(&SFRD_z_table);
+    free_RGTable2D(&Nion_z_table_MINI);
+    free_RGTable2D(&SFRD_z_table_MINI);
+
     LOG_DEBUG("Done.");
 
     return sum_nion + sum_nion_mini > 1e-15 ? 0 : 1; //NO_LIGHT returned
@@ -926,12 +942,32 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
 
 //TODO: probably reuse the input grids since they aren't used again
 //      apart from unfiltered density
+//TODO: pass arguments to this function instead of using R_ct and globals
 void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid, float *sfrd_grid,
                              float *sfrd_grid_mini, double *ave_sfrd, double *ave_sfrd_mini){
     double ave_sfrd_buf=0;
     double ave_sfrd_buf_mini=0;
     double mturn_bin_width = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
     double delta_bin_width = (max_densities[R_ct] - min_densities[R_ct])/((float)NDELTA-1.);
+
+    struct RGTable1D_f SFRD_conditional_table;
+    struct RGTable2D_f SFRD_conditional_table_MINI;
+    struct RGTable1D_f fcoll_conditional_table;
+    struct RGTable1D_f dfcoll_conditional_table;
+
+    if(user_params_ts->USE_INTERPOLATION_TABLES){
+        if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
+            initialise_SFRD_Conditional_table_one(min_densities[R_ct],
+                                                    max_densities[R_ct],zpp_growth[R_ct],R_values[R_ct],Mcrit_atom_interp_table[R_ct],global_params.M_MIN_INTEGRAL,
+                                                    astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->F_STAR10,
+                                                    astro_params_ts->F_STAR7_MINI, user_params_ts->FAST_FCOLL_TABLES,
+                                                    flag_options_ts->USE_MINI_HALOS,&SFRD_conditional_table,&SFRD_conditional_table_MINI);
+        }
+        else{
+            initialise_FgtrM_delta_table_one(min_densities[R_ct], max_densities[R_ct], zpp_for_evolve_list[R_ct],
+                                             zpp_growth[R_ct], sigma_min[R_ct], sigma_max[R_ct], &fcoll_conditional_table, &dfcoll_conditional_table);
+        }
+    }
 
     #pragma omp parallel num_threads(user_params_ts->N_THREADS)
     {
@@ -965,20 +1001,17 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
 
             if(user_params_ts->USE_INTERPOLATION_TABLES){
                 if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
-                    fcoll = EvaluateRGTable1D_f(curr_dens,ln_SFRD_spline[R_ct],min_densities[R_ct],delta_bin_width);
+                    fcoll = EvaluateRGTable1D_f(curr_dens,&SFRD_conditional_table);
                     fcoll = exp(fcoll);
 
                     if (flag_options_ts->USE_MINI_HALOS){
-                        // LOG_SUPER_DEBUG("cell %d d %.2e m %.2e",box_ct,curr_dens,curr_mcrit);
-                        fcoll_MINI = EvaluateRGTable2D_f(curr_dens,curr_mcrit,ln_SFRD_spline_MINI[R_ct],min_densities[R_ct],
-                                                        delta_bin_width,LOG10_MTURN_MIN,mturn_bin_width);
+                        fcoll_MINI = EvaluateRGTable2D_f(curr_dens,curr_mcrit,&SFRD_conditional_table_MINI);
                         fcoll_MINI = exp(fcoll_MINI);
                     }
                 }
                 else{
-                    // LOG_DEBUG("R %d %.2e | dens %.2e min %.2e wid %.2e",R_ct,R_values[R_ct],curr_dens,min_densities[R_ct],fcoll_interp_bin_width);
-                    fcoll = EvaluateRGTable1D(curr_dens,F_table_val[R_ct],min_densities[R_ct],delta_bin_width);
-                    dfcoll = EvaluateRGTable1D(curr_dens,dF_table_val[R_ct],min_densities[R_ct],delta_bin_width);
+                    fcoll = EvaluateRGTable1D(curr_dens,&fcoll_conditional_table);
+                    dfcoll = EvaluateRGTable1D(curr_dens,&dfcoll_conditional_table);
                 }
             }
             else {
@@ -1018,6 +1051,11 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     }
     *ave_sfrd = ave_sfrd_buf/HII_TOT_NUM_PIXELS;
     *ave_sfrd_mini = ave_sfrd_buf_mini/HII_TOT_NUM_PIXELS;
+    
+    free_RGTable1D_f(&SFRD_conditional_table);
+    free_RGTable2D_f(&SFRD_conditional_table_MINI);
+    free_RGTable1D_f(&fcoll_conditional_table);
+    free_RGTable1D_f(&dfcoll_conditional_table);
 }
 
 //TODO: this could be further split into emissivity, spintemp calculation constants
@@ -1282,7 +1320,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct Ts_zp_consts *consts, str
 //      and exponentials in order to fill in the SFRD tables with ERFC instead of integrating, speeding things up.
 //  - There was a WDM mass cutoff parameter which has been replicated, I can implement this properly in minimum_source_mass when I modularise that part
 //  - The density tables were spaced in log10 between 1e-6 and the maximum
-void ts_halos(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+void ts_main(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift, short cleanup,
                   struct PerturbedField *perturbed_field, struct XraySourceBox *source_box, struct TsBox *previous_spin_temp,
                   struct InitialConditions *ini_boxes, struct TsBox *this_spin_temp){
@@ -1437,19 +1475,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
             // LOG_SUPER_DEBUG("R_ct %d [min,max] = [%.2e,%.2e] Ma %.2e D %.2e",R_ct,min_densities[R_ct],max_densities[R_ct],Mcrit_atom_interp_table[R_ct],zpp_growth[R_ct]);
         }
 
-        if(user_params->USE_INTERPOLATION_TABLES){
-            if(flag_options->USE_MASS_DEPENDENT_ZETA){
-                initialise_SFRD_Conditional_table(global_params.NUM_FILTER_STEPS_FOR_Ts,min_densities,
-                                                        max_densities,zpp_growth,R_values,Mcrit_atom_interp_table,global_params.M_MIN_INTEGRAL,
-                                                        astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR10,
-                                                        astro_params->F_STAR7_MINI, user_params->FAST_FCOLL_TABLES,
-                                                        flag_options->USE_MINI_HALOS);
-            }
-            else{
-                initialise_FgtrM_delta_table(global_params.NUM_FILTER_STEPS_FOR_Ts, min_densities, max_densities, zpp_for_evolve_list, zpp_growth, sigma_min, sigma_max);
-            }
-        }
-
         //These are still re-calculated internally in each table initialisation
         //TODO: combine into a struct and remove globals
         Mlim_Fstar_g = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_ts->ALPHA_STAR, astro_params_ts->F_STAR10);
@@ -1462,7 +1487,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
         }
     }
     LOG_DEBUG("Initialised conditional tables.");
-
     //set the constants calculated once per snapshot
     struct Ts_zp_consts zp_consts;
     set_zp_consts(zp,&zp_consts);
@@ -1483,11 +1507,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     LOG_DEBUG("Prev Box: x_e_ave %.3e | TK_ave %.3e",x_e_ave_p,Tk_ave_p);
 
     int NO_LIGHT;
-    double filling_factor_of_HI_zp;
-
-    //this should initialise and use the global tables (given box average turnovers)
-    //  and use them to give: Filling factor at zp (only used for !MASS_DEPENDENT_ZETA to get ion_eff)
-    //  global SFRD at each filter radius (numerator of ST_over_PS factor)
     double mean_sfr_zpp[global_params.NUM_FILTER_STEPS_FOR_Ts];
     double mean_sfr_zpp_mini[global_params.NUM_FILTER_STEPS_FOR_Ts];
 
@@ -1495,15 +1514,11 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     double *log10_Mcrit_LW_ave_zpp;
     log10_Mcrit_LW_ave_zpp = flag_options_ts->USE_HALO_FIELD ? source_box->mean_log10_Mcrit_LW : ave_log10_MturnLW;
 
-    NO_LIGHT = global_reion_properties(redshift,x_e_ave_p,log10_Mcrit_LW_ave_zpp,&filling_factor_of_HI_zp,mean_sfr_zpp,mean_sfr_zpp_mini);
+    //this should initialise and use the global tables (given box average turnovers)
+    //  and use them to give: Filling factor at zp (only used for !MASS_DEPENDENT_ZETA to get ion_eff)
+    //  global SFRD at each filter radius (numerator of ST_over_PS factor)
+    NO_LIGHT = global_reion_properties(redshift,x_e_ave_p,log10_Mcrit_LW_ave_zpp,mean_sfr_zpp,mean_sfr_zpp_mini);
 
-    //Initialise freq tables & prefactors (x_e by R tables)
-    fill_freqint_tables(zp,x_e_ave_p,filling_factor_of_HI_zp,log10_Mcrit_LW_ave_zpp);
-    LOG_DEBUG("done freqint.");
-
-    //boxes that are independent of R (for interpolation of the nu integrals)
-    //NOTE: Frequency integrals are based on PREVIOUS XHII
-    //  The x_e tables are not regular, hence the precomputation of indices/interp points
     #pragma omp parallel private(box_ct) num_threads(user_params->N_THREADS)
     {
         float xHII_call;
@@ -1782,9 +1797,6 @@ void ts_halos(float redshift, float prev_redshift, struct UserParams *user_param
     }
 
     if(cleanup){
-        if(user_params->USE_INTERPOLATION_TABLES){
-            FreeTsInterpolationTables(flag_options);
-        }
         free_ts_global_arrays();
     }
 

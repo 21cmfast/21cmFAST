@@ -86,6 +86,10 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     float log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
     float log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
 
+    struct RGTable1D_f Nion_Conditional_Table1D;
+    struct RGTable2D_f Nion_Conditional_Table2D, Nion_Conditional_Table_MINI;
+    struct RGTable2D_f Nion_Conditional_Table_prev, Nion_Conditional_Table_prev_MINI;
+
     gsl_rng * r[user_params->N_THREADS];
 
 LOG_SUPER_DEBUG("initing heat");
@@ -955,25 +959,25 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                         prev_max_density += 0.001;
                         density_bin_width = (max_density - min_density)/((double)NDELTA-1);
                         prev_density_bin_width = (prev_max_density - prev_min_density)/((double)NDELTA-1);
-                        initialise_Nion_General_spline(redshift,Mcrit_atom,min_density,max_density,massofscaleR,M_MIN,
+                        initialise_Nion_Conditional_spline(redshift,Mcrit_atom,min_density,max_density,massofscaleR,M_MIN,
                                                 log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                                 astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI,
                                                 alpha_esc_var,astro_params->F_STAR10,
                                                 norm_esc_var,Mlim_Fstar,Mlim_Fesc,astro_params->F_STAR7_MINI,
                                                 astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI, user_params->FAST_FCOLL_TABLES,
-                                                flag_options->USE_MINI_HALOS, false);
+                                                flag_options->USE_MINI_HALOS, &Nion_Conditional_Table1D, &Nion_Conditional_Table2D, &Nion_Conditional_Table_MINI);
 
                         if(flag_options->USE_MINI_HALOS && (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4)){
-                            initialise_Nion_General_spline(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,massofscaleR,M_MIN,
+                            initialise_Nion_Conditional_spline(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,massofscaleR,M_MIN,
                                                     log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                                     astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI,
                                                     alpha_esc_var,astro_params->F_STAR10,
                                                     norm_esc_var,Mlim_Fstar,Mlim_Fesc,astro_params->F_STAR7_MINI,
                                                     astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI, user_params->FAST_FCOLL_TABLES,
-                                                    flag_options->USE_MINI_HALOS, true);
-                            LOG_SUPER_DEBUG("Tb midpoints %.4e %.4e %.4e %.4e",ln_Nion_spline[NDELTA/2][NMTURN/2],
-                                            ln_Nion_spline_MINI[NDELTA/2][NMTURN/2],prev_ln_Nion_spline[NDELTA/2][NMTURN/2],
-                                            prev_ln_Nion_spline_MINI[NDELTA/2][NMTURN/2]);
+                                                    flag_options->USE_MINI_HALOS, &Nion_Conditional_Table1D, &Nion_Conditional_Table_prev, &Nion_Conditional_Table_prev_MINI);
+                            LOG_SUPER_DEBUG("Tb midpoints %.4e %.4e %.4e %.4e",Nion_Conditional_Table2D.z_arr[NDELTA/2][NMTURN/2],
+                                            Nion_Conditional_Table_MINI.z_arr[NDELTA/2][NMTURN/2],Nion_Conditional_Table_prev.z_arr[NDELTA/2][NMTURN/2],
+                                            Nion_Conditional_Table_prev_MINI.z_arr[NDELTA/2][NMTURN/2]);
                         }
                     }
                 }
@@ -996,9 +1000,9 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 
             // renormalize the collapse fraction so that the mean matches ST,
             // since we are using the evolved (non-linear) density field
-#pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded_threaded,ln_Nion_spline,erfc_denom,erfc_arg_min,\
+#pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded_threaded,erfc_denom,erfc_arg_min,\
                             erfc_arg_max,InvArgBinWidth,ArgBinWidth,ERFC_VALS_DIFF,ERFC_VALS,log10_Mturnover_filtered,log10Mturn_min,log10Mturn_bin_width_inv, \
-                            log10_Mturnover_MINI_filtered,log10Mturn_bin_width_inv_MINI,ln_Nion_spline_MINI,prev_deltax_filtered,previous_ionize_box,ION_EFF_FACTOR,\
+                            log10_Mturnover_MINI_filtered,log10Mturn_bin_width_inv_MINI,prev_deltax_filtered,previous_ionize_box,ION_EFF_FACTOR,\
                             box,counter,stars_filtered,massofscaleR,pixel_volume,sigmaMmax,\
                             M_MIN,growth_factor,Mlim_Fstar,Mlim_Fesc,Mcrit_atom,Mlim_Fstar_MINI,Mlim_Fesc_MINI,prev_growth_factor) \
                     private(x,y,z,curr_dens,Splined_Fcoll,Splined_Fcoll_MINI,dens_val,overdense_int,erfc_arg_val,erfc_arg_val_index,log10_Mturnover,\
@@ -1049,10 +1053,8 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                         log10_Mturnover = *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z));
                                         log10_Mturnover_MINI = *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z));
                                         if(user_params->USE_INTERPOLATION_TABLES){
-                                            Splined_Fcoll = exp(EvaluateRGTable2D_f(curr_dens,log10_Mturnover,ln_Nion_spline,min_density,
-                                                                                density_bin_width,log10Mturn_min,log10Mturn_bin_width));
-                                            Splined_Fcoll_MINI = exp(EvaluateRGTable2D_f(curr_dens,log10_Mturnover_MINI,ln_Nion_spline_MINI,min_density,
-                                                                                density_bin_width,log10Mturn_min_MINI,log10Mturn_bin_width_MINI));
+                                            Splined_Fcoll = exp(EvaluateRGTable2D_f(curr_dens,log10_Mturnover,&Nion_Conditional_Table2D));
+                                            Splined_Fcoll_MINI = exp(EvaluateRGTable2D_f(curr_dens,log10_Mturnover_MINI,&Nion_Conditional_Table_MINI));
 
                                             if(status_int > 0) {
                                                 overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
@@ -1077,10 +1079,8 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                         if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
 
                                             if(user_params->USE_INTERPOLATION_TABLES) {
-                                                prev_Splined_Fcoll = exp(EvaluateRGTable2D_f(prev_dens,log10_Mturnover,prev_ln_Nion_spline,prev_min_density,
-                                                                                    prev_density_bin_width,log10Mturn_min,log10Mturn_bin_width));
-                                                prev_Splined_Fcoll_MINI = exp(EvaluateRGTable2D_f(prev_dens,log10_Mturnover_MINI,prev_ln_Nion_spline_MINI,prev_min_density,
-                                                                                    prev_density_bin_width,log10Mturn_min_MINI,log10Mturn_bin_width_MINI));
+                                                prev_Splined_Fcoll = exp(EvaluateRGTable2D_f(prev_dens,log10_Mturnover,&Nion_Conditional_Table_prev));
+                                                prev_Splined_Fcoll_MINI = exp(EvaluateRGTable2D_f(prev_dens,log10_Mturnover_MINI,&Nion_Conditional_Table_prev_MINI));
 
                                                 if(status_int > 0) {
                                                     overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
@@ -1106,7 +1106,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                     }
                                     else{
                                         if(user_params->USE_INTERPOLATION_TABLES) {
-                                            Splined_Fcoll = exp(EvaluateRGTable1D_f(curr_dens,ln_Nion_spline_1D,min_density,density_bin_width));
+                                            Splined_Fcoll = exp(EvaluateRGTable1D_f(curr_dens,&Nion_Conditional_Table1D));
 
                                             //TODO: Implement a bounds check? (the linear tables are much simpler though)
                                             // if(status_int > 0) {
@@ -1582,9 +1582,6 @@ LOG_DEBUG("global_xH = %e",global_xH);
         free(xi_SFR);
         free(wi_SFR);
 
-        if(user_params->USE_INTERPOLATION_TABLES)
-            FreeNionConditionalTable(flag_options);
-
         if(flag_options->USE_MINI_HALOS){
             fftwf_free(log10_Mturnover_unfiltered);
             fftwf_free(log10_Mturnover_filtered);
@@ -1609,6 +1606,12 @@ LOG_DEBUG("global_xH = %e",global_xH);
     if(!flag_options->USE_TS_FLUCT && user_params->USE_INTERPOLATION_TABLES) {
             freeSigmaMInterpTable();
     }
+    
+    free_RGTable1D_f(&Nion_Conditional_Table1D);
+    free_RGTable2D_f(&Nion_Conditional_Table2D);
+    free_RGTable2D_f(&Nion_Conditional_Table_MINI);
+    free_RGTable2D_f(&Nion_Conditional_Table_prev);
+    free_RGTable2D_f(&Nion_Conditional_Table_prev_MINI);
 
     free(overdense_int_boundexceeded_threaded);
 

@@ -58,13 +58,15 @@ struct FlagOptions *flag_options_ps;
 //double sigma_norm, R, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_nu, f_baryon, beta_c, d2fact, R_CUTOFF, DEL_CURR, SIG_CURR;
 double sigma_norm, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_nu, f_baryon, beta_c, d2fact, R_CUTOFF, DEL_CURR, SIG_CURR;
 
-float MinMass, mass_bin_width, inv_mass_bin_width;
-
 double sigmaparam_FgtrM_bias(float z, float sigsmallR, float del_bias, float sig_bias);
 
-float *Mass_InterpTable, *Sigma_InterpTable, *dSigmadm_InterpTable;
+//so far, these are the only global tables, since they are used across files through several functions
+struct RGTable1D_f Sigma_InterpTable;
+struct RGTable1D_f dSigmasqdm_InterpTable;
+
 float *xi_SFR,*wi_SFR, *xi_SFR_Xray, *wi_SFR_Xray;
 
+//These globals are used for the LF calculation
 double *lnMhalo_param, *Muv_param, *Mhalo_param;
 double *log10phi, *M_uv_z, *M_h_z;
 double *lnMhalo_param_MINI, *Muv_param_MINI, *Mhalo_param_MINI;
@@ -1164,8 +1166,9 @@ double IntegratedNdM(double growthf, double lnM_lo, double lnM_hi, double M_filt
     gsl_function F;
     // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
     double rel_tol = 1e-3; //<- relative tolerance
+    int w_size = 2000;
     gsl_integration_workspace * w
-    = gsl_integration_workspace_alloc (1000);
+    = gsl_integration_workspace_alloc (w_size);
 
     double sigma = EvaluateSigma(M_filter,0,NULL);
 
@@ -1184,12 +1187,12 @@ double IntegratedNdM(double growthf, double lnM_lo, double lnM_hi, double M_filt
 
     gsl_set_error_handler_off();
     status = gsl_integration_qag (&F, lower_limit, upper_limit, 0, rel_tol,
-                         1000, GSL_INTEG_GAUSS61, w, &result, &error);
+                         w_size, GSL_INTEG_GAUSS61, w, &result, &error);
 
     if(status!=0) {
         LOG_ERROR("gsl integration error occured!");
         LOG_ERROR("(function argument): lower_limit=%.3e upper_limit=%.3e (%.3e) rel_tol=%.3e result=%.3e error=%.3e",lower_limit,upper_limit,exp(upper_limit),rel_tol,result,error);
-        LOG_ERROR("data: growthf=%.3e M2=%.3e delta=%.3e sigma2=%.3e HMF=%.3d",growthf,exp(M_filter),delta,sigma,HMF);
+        LOG_ERROR("data: growthf=%.3e M2=%.3e delta=%.3e sigma2=%.3e HMF=%d type=%d ",growthf,exp(M_filter),delta,sigma,HMF,type);
         GSL_ERROR(status);
     }
 
@@ -1522,46 +1525,43 @@ void gauleg(float x1, float x2, float x[], float w[], int n)
     }
 }
 
-void initialiseSigmaMInterpTable(float M_Min, float M_Max)
-{
+void initialiseSigmaMInterpTable(float M_min, float M_max){
     int i;
     float Mass;
 
-    if (Mass_InterpTable == NULL){
-      Mass_InterpTable = calloc(NMass,sizeof(float));
-      Sigma_InterpTable = calloc(NMass,sizeof(float));
-      dSigmadm_InterpTable = calloc(NMass,sizeof(float));
-    }
+    if(!Sigma_InterpTable.allocated)
+        allocate_RGTable1D_f(NMass,&Sigma_InterpTable);
+    if(!dSigmasqdm_InterpTable.allocated)
+        allocate_RGTable1D_f(NMass,&dSigmasqdm_InterpTable);
 
-#pragma omp parallel shared(Mass_InterpTable,Sigma_InterpTable,dSigmadm_InterpTable) private(i) num_threads(user_params_ps->N_THREADS)
+    Sigma_InterpTable.x_min = log(M_min);
+    Sigma_InterpTable.x_width = (log(M_max) - log(M_min))/(NMass-1.);
+    dSigmasqdm_InterpTable.x_min = log(M_min);
+    dSigmasqdm_InterpTable.x_width = (log(M_max) - log(M_min))/(NMass-1.);
+
+#pragma omp parallel private(i) num_threads(user_params_ps->N_THREADS)
     {
 #pragma omp for
         for(i=0;i<NMass;i++) {
-            Mass_InterpTable[i] = log(M_Min) + (float)i/(NMass-1)*( log(M_Max) - log(M_Min) );
-            Sigma_InterpTable[i] = sigma_z0(exp(Mass_InterpTable[i]));
-            dSigmadm_InterpTable[i] = log10(-dsigmasqdm_z0(exp(Mass_InterpTable[i])));
+            Mass = exp(Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width);
+            Sigma_InterpTable.y_arr[i] = sigma_z0(Mass);
+            dSigmasqdm_InterpTable.y_arr[i] = log10(-dsigmasqdm_z0(Mass)); //TODO: look into if log/linear is better
+            // LOG_DEBUG("i %d lnM %.2e M %.2e S %.2e dS %.2e",i, Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width,
+            //             Mass, Sigma_InterpTable.y_arr[i], dSigmasqdm_InterpTable.y_arr[i]);
         }
     }
 
     for(i=0;i<NMass;i++) {
-        if(isfinite(Mass_InterpTable[i]) == 0 || isfinite(Sigma_InterpTable[i]) == 0 || isfinite(dSigmadm_InterpTable[i])==0) {
+        if(isfinite(Sigma_InterpTable.y_arr[i]) == 0 || isfinite(dSigmasqdm_InterpTable.y_arr[i]) == 0){
             LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
-//            Throw(ParameterError);
             Throw(TableGenerationError);
         }
     }
-
-    MinMass = log(M_Min);
-    mass_bin_width = 1./(NMass-1)*( log(M_Max) - log(M_Min) );
-    inv_mass_bin_width = 1./mass_bin_width;
 }
 
-void freeSigmaMInterpTable()
-{
-    free(Mass_InterpTable);
-    free(Sigma_InterpTable);
-    free(dSigmadm_InterpTable);
-    Mass_InterpTable = NULL;
+void freeSigmaMInterpTable(){
+    free_RGTable1D_f(&Sigma_InterpTable);
+    free_RGTable1D_f(&dSigmasqdm_InterpTable);
 }
 
 
@@ -3540,14 +3540,6 @@ double get_alpha_fit(double redshift){
     return alpha_fit;
 }
 
-//HACK: define the interpolation function here. I want to have the table initialisations in interpolation.c
-//  which require the powerspec functions, but these functions require the sigma table, so I need to declare
-//  the function here (i.e InitialiseTable -> Nion_General -> EvaluateTable -> sigma)
-
-//TODO: Either separate interpolation into two files (one for the tables themselves, one for the table functions which need ps.c)
-//  OR rethink the structure of the makefile (i.e not just one big <#include x.c> in GenerateICs.c) (make some headers)
-double EvaluateRGTable1D_f(double x, float *y_arr, float x_min, float x_width);
-
 //Modularisation for the evaluation of sigma
 double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
     //using log units to make the fast option faster and the slow option slower
@@ -3557,10 +3549,10 @@ double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
     //all this stuff is defined in ps.c and initialised with InitialiseSigmaInterpTable
     //NOTE: The interpolation tables are `float` in ps.c
     if(user_params_ps->USE_INTERPOLATION_TABLES) {
-        sigma = EvaluateRGTable1D_f(lnM, Sigma_InterpTable, MinMass, mass_bin_width);
+        sigma = EvaluateRGTable1D_f(lnM, &Sigma_InterpTable);
 
         if(calc_ds){
-            dsigma_val = EvaluateRGTable1D_f(lnM, dSigmadm_InterpTable, MinMass, mass_bin_width);
+            dsigma_val = EvaluateRGTable1D_f(lnM, &dSigmasqdm_InterpTable);
             //NOTE: This is d(sigma squared)/dm
             *dsigmadm = -pow(10.,dsigma_val); //this may be slow, figure out why the dsigmadm table is in log10
         }

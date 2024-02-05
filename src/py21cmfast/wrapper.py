@@ -3235,12 +3235,6 @@ def run_coeval(
         else:
             photon_nonconservation_data = None
 
-        if (
-            flag_options.USE_TS_FLUCT
-            and user_params.USE_INTERPOLATION_TABLES
-            and lib.interpolation_tables_allocated
-        ):
-            lib.FreeTsInterpolationTables(flag_options())
         coevals = [
             Coeval(
                 redshift=z,
@@ -3864,13 +3858,6 @@ def run_lightcone(
                 lib.FreePhotonConsMemory()
         else:
             photon_nonconservation_data = None
-
-        if (
-            flag_options.USE_TS_FLUCT
-            and user_params.USE_INTERPOLATION_TABLES
-            and lib.interpolation_tables_allocated
-        ):
-            lib.FreeTsInterpolationTables(flag_options())
 
         out = (
             LightCone(
