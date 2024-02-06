@@ -1636,10 +1636,8 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                     struct PerturbedField * perturbed_field, struct TsBox *previous_spin_temp,
                     struct IonizedBox *previous_ionize_box, struct HaloBox *grids, double *averages){
     //There's quite a bit of re-calculation here but this only happens once per snapshot
-    double volume = VOLUME / HII_TOT_NUM_PIXELS;
-    double R_cell = user_params_stoc->BOX_LEN / user_params_stoc->HII_DIM * L_FACTOR;
-    double M_cell = RtoM(R_cell); //mass in cell of mean dens
-    double sigma_cell = sigma_z0(M_cell);
+    double cell_volume = VOLUME / HII_TOT_NUM_PIXELS;
+    double M_cell = RHOcrit * cosmo_params_stoc->OMm * cell_volume; //mass in cell of mean dens
     double growth_z = dicke(redshift);
     double alpha_star = astro_params_stoc->ALPHA_STAR;
     double norm_star = astro_params_stoc->F_STAR10;
@@ -1654,6 +1652,8 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
     double lnMmin = log(M_min);
     double lnMcell = log(M_cell);
     double lnMmax = log(M_max);
+
+    double sigma_cell = EvaluateSigma(lnMcell,0,NULL);
 
     double prefactor_mass = RHOcrit * cosmo_params_stoc->OMm;
     double prefactor_nion = RHOcrit * cosmo_params_stoc->OMb * norm_star * norm_esc * global_params.Pop2_ion;
@@ -1673,36 +1673,31 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
     //interptable variables
     double min_density = -1;
     double max_density = MAX_DELTAC_FRAC*Deltac;
-    double density_bin_width = (max_density-min_density)/(NDELTA-1.);
-
-    double log10Mturn_bin_width = (LOG10_MTURN_MAX-LOG10_MTURN_MIN)/(NMTURN-1.);
-
-    double M_turn_m,M_turn_a,M_turn_r;
-    M_turn_m = 0.;
-    M_turn_r = 0.;
-    if(flag_options_stoc->USE_MINI_HALOS)
-        M_turn_a = atomic_cooling_threshold(redshift);
-    else
-        M_turn_a = astro_params_stoc->M_TURN;
 
     double curr_vcb = flag_options_stoc->FIX_VCB_AVG ? global_params.VAVG : 0;
     double delta_crit = get_delta_crit(user_params_stoc->HMF,sigma_cell,growth_z);
 
+    //store initial values so we don't recompute
+    double M_turn_a_store = flag_options_stoc->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params_stoc->M_TURN;
+    double M_turn_m_store = lyman_werner_threshold(redshift, 0., curr_vcb, astro_params_stoc);
+    double M_turn_a = M_turn_a_store;
+    double M_turn_m = M_turn_m_store;
+    double M_turn_r = 0.;
 
-    struct RGTable1D_f SFRD_conditional_table;
-    struct RGTable2D_f SFRD_conditional_table_MINI;
-    struct RGTable1D_f Nion_Conditional_Table1D;
-    struct RGTable2D_f Nion_Conditional_Table2D, Nion_Conditional_Table_MINI;
+    struct RGTable1D_f SFRD_conditional_table = {.allocated=false};
+    struct RGTable2D_f SFRD_conditional_table_MINI = {.allocated=false};
+    struct RGTable1D_f Nion_Conditional_Table1D = {.allocated=false};
+    struct RGTable2D_f Nion_Conditional_Table2D = {.allocated=false}, Nion_Conditional_Table_MINI = {.allocated=false};
 
     //TODO: These tables are coarser than needed, I should do an initial loop to find delta and Mturn limits
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        initialise_SFRD_Conditional_table_one(min_density,max_density,growth_z,MtoR(M_max),M_turn_a,M_min,M_max,
+        initialise_SFRD_Conditional_table(min_density,max_density,growth_z,M_turn_a,M_min,M_max,M_cell,
                                                 astro_params_stoc->ALPHA_STAR, astro_params_stoc->ALPHA_STAR_MINI, astro_params_stoc->F_STAR10,
                                                 astro_params_stoc->F_STAR7_MINI, user_params_stoc->FAST_FCOLL_TABLES,
                                                 flag_options_stoc->USE_MINI_HALOS,&SFRD_conditional_table,&SFRD_conditional_table_MINI);
 
         //note: we do not yet have the previous ion table here
-        initialise_Nion_Conditional_spline(redshift,M_turn_a,min_density,max_density,M_min,M_max,
+        initialise_Nion_Conditional_spline(redshift,M_turn_a,min_density,max_density,M_min,M_max,M_cell,
                                 LOG10_MTURN_MIN,LOG10_MTURN_MAX,LOG10_MTURN_MIN,LOG10_MTURN_MAX,
                                 astro_params_stoc->ALPHA_STAR, astro_params_stoc->ALPHA_STAR_MINI,
                                 alpha_esc,astro_params_stoc->F_STAR10,
@@ -1714,15 +1709,15 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
         initialise_dNdM_tables(min_density, max_density, lnMmin, lnMmax, growth_z, lnMcell, false);
     }
 
-    LOG_DEBUG("Mean halo boxes || Mmin = %.2e | Mcell = %.2e (s=%.2e) | z = %.2e | D = %.2e | cellvol = %.2e",M_min,M_cell,sigma_cell,redshift,growth_z,volume);
-#pragma omp parallel num_threads(user_params_stoc->N_THREADS) firstprivate(M_turn_m,M_turn_a,curr_vcb)
+    LOG_DEBUG("Mean halo boxes || M = [%.2e %.2e] | Mcell = %.2e (s=%.2e) | z = %.2e | D = %.2e | cellvol = %.2e",M_min,M_max,M_cell,sigma_cell,redshift,growth_z,cell_volume);
+#pragma omp parallel num_threads(user_params_stoc->N_THREADS) firstprivate(M_turn_m,M_turn_a,M_turn_r,curr_vcb)
     {
         int i;
-        double dens;
-        double mass, nion, sfr, h_count;
-        double nion_mini, sfr_mini;
-        double wsfr;
-#pragma omp for reduction(+:hm_avg,nion_avg,sfr_avg,wsfr_avg)
+        double dens=0;
+        double mass=0, nion=0, sfr=0, h_count=0;
+        double nion_mini=0, sfr_mini=0;
+        double wsfr=0;
+#pragma omp for reduction(+:hm_avg,nion_avg,sfr_avg,sfr_avg_mini,wsfr_avg,Mlim_a_avg,Mlim_m_avg)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
             dens = perturbed_field->density[i];
 
@@ -1730,13 +1725,12 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                 curr_vcb = ini_boxes->lowres_vcb[i];
             }
 
-            //TODO: include VELOCITIES
             if(flag_options_stoc->USE_MINI_HALOS){
                 M_turn_m = lyman_werner_threshold(redshift, previous_spin_temp->J_21_LW_box[i], curr_vcb, astro_params_stoc);
                 M_turn_r = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[i], previous_ionize_box->z_re_box[i]);
+                if(M_turn_r > M_turn_a) M_turn_a = M_turn_r;
+                if(M_turn_r > M_turn_m) M_turn_m = M_turn_r;
             }
-            if(M_turn_r > M_turn_a) M_turn_a = M_turn_r;
-            if(M_turn_r > M_turn_m) M_turn_m = M_turn_r;
 
             //ignore very low density NOTE:not using DELTA_MIN since it's perturbed (Eulerian)
             if(dens <= -1){
@@ -1749,9 +1743,9 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
             //Since these are perturbed (Eulerian) grids, I use the total cell mass (1+dens)
             else if(dens>=MAX_DELTAC_FRAC*delta_crit){
                 if(M_cell <= M_max){
-                    mass = M_cell * (1+dens) / volume;
-                    nion = global_params.Pop2_ion * M_cell * (1+dens) * cosmo_params_stoc->OMb / cosmo_params_stoc->OMm * norm_star * pow(M_cell*(1+dens)/1e10,alpha_star) * norm_esc * pow(M_cell*(1+dens)/1e10,alpha_esc) / volume;
-                    sfr = M_cell * (1+dens) * cosmo_params_stoc->OMb / cosmo_params_stoc->OMm * norm_star * pow(M_cell*(1+dens)/1e10,alpha_star) / t_star / t_hubble(redshift) / volume;
+                    mass = M_cell * (1+dens) / cell_volume;
+                    nion = prefactor_nion * M_cell * (1+dens) / cosmo_params_stoc->OMm / RHOcrit * pow(M_cell*(1+dens)/1e10,alpha_star) * pow(M_cell*(1+dens)/1e10,alpha_esc) / cell_volume;
+                    sfr = prefactor_sfr * M_cell * (1+dens) / cosmo_params_stoc->OMm / RHOcrit * pow(M_cell*(1+dens)/1e10,alpha_star) / cell_volume;
                     h_count = 1;
                 }
                 else{
@@ -1769,7 +1763,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                 if(user_params_stoc->USE_INTERPOLATION_TABLES){
                     h_count = EvaluateRGTable1D(dens,&Nhalo_table);
                     mass = EvaluateRGTable1D(dens,&Mcoll_table);
-                    sfr = EvaluateRGTable1D_f(dens,&SFRD_conditional_table);
+                    sfr = exp(EvaluateRGTable1D_f(dens,&SFRD_conditional_table));
                     if(flag_options_stoc->USE_MINI_HALOS){
                         sfr_mini = exp(EvaluateRGTable2D_f(dens,log10(M_turn_m),&SFRD_conditional_table_MINI));
                         nion_mini = exp(EvaluateRGTable2D_f(dens,log10(M_turn_m),&Nion_Conditional_Table_MINI));
@@ -1778,14 +1772,13 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                     else{
                         nion = exp(EvaluateRGTable1D_f(dens,&Nion_Conditional_Table1D));
                     }
-
                 }
                 else{
                     h_count = IntegratedNdM(growth_z,lnMmin,lnMmax,lnMcell,dens,user_params_stoc->HMF,2);
                     mass = IntegratedNdM(growth_z,lnMmin,lnMmax,lnMcell,dens,user_params_stoc->HMF,3);
 
                     nion = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, delta_crit, dens, M_turn_a
-                                            , astro_params_stoc->ALPHA_STAR, alpha_esc, astro_params_stoc->F_STAR10, norm_esc
+                                            , alpha_star, alpha_esc, norm_star, norm_esc
                                             , Mlim_Fstar, Mlim_Fesc, user_params_stoc->FAST_FCOLL_TABLES);
 
                     sfr = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, delta_crit, dens, M_turn_a
@@ -1812,14 +1805,30 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
             grids->halo_mass[i] = mass * prefactor_mass * (1+dens);
             grids->n_ion[i] = (nion*prefactor_nion + nion_mini*prefactor_nion_mini) * (1+dens);
             grids->halo_sfr[i] = (sfr*prefactor_sfr) * (1+dens);
-            grids->halo_sfr_mini[i] = sfr_mini*prefactor_sfr_mini * (1+dens);
             grids->whalo_sfr[i] = grids->n_ion[i] / t_star / t_h; //no stochasticity so they're the same to a constant
             grids->count[i] = (int)(h_count * prefactor_mass * (1+dens)); //NOTE: truncated
+            grids->halo_sfr_mini[i] = sfr_mini*prefactor_sfr_mini * (1+dens); //zero if !Minihalos
+
+            if(i==0 && user_params_stoc->USE_INTERPOLATION_TABLES){
+                LOG_SUPER_DEBUG("Cell 0 tables: count %.2e mass %.2e nion %.2e sfr %.2e delta %.2f",h_count,mass,nion,sfr,dens);
+                LOG_SUPER_DEBUG("Cell 0 intgrl: count %.2e mass %.2e nion %.2e sfr %.2e",
+                                IntegratedNdM(growth_z,lnMmin,lnMmax,lnMcell,dens,user_params_stoc->HMF,2),
+                                IntegratedNdM(growth_z,lnMmin,lnMmax,lnMcell,dens,user_params_stoc->HMF,3),
+                                Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, delta_crit, dens, M_turn_a
+                                            , astro_params_stoc->ALPHA_STAR, alpha_esc, astro_params_stoc->F_STAR10, norm_esc
+                                            , Mlim_Fstar, Mlim_Fesc, user_params_stoc->FAST_FCOLL_TABLES),
+                                Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, delta_crit, dens, M_turn_a
+                                            , alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.
+                                            , user_params_stoc->FAST_FCOLL_TABLES));
+                LOG_SUPER_DEBUG("Cell 0 grids: count %d mass %.2e nion %.2e sfr %.2e", grids->count[i],
+                                    grids->halo_mass[i],grids->n_ion[i],grids->halo_sfr[i]);
+            }
 
             hm_avg += grids->halo_mass[i];
             nion_avg += grids->n_ion[i];
             sfr_avg += grids->halo_sfr[i];
             wsfr_avg += grids->whalo_sfr[i];
+            sfr_avg_mini += grids->halo_sfr_mini[i];
             Mlim_a_avg += M_turn_a;
             Mlim_m_avg += M_turn_m;
         }
@@ -1834,6 +1843,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
     hm_avg /= HII_TOT_NUM_PIXELS;
     nion_avg /= HII_TOT_NUM_PIXELS;
     sfr_avg /= HII_TOT_NUM_PIXELS;
+    sfr_avg_mini /= HII_TOT_NUM_PIXELS;
     wsfr_avg /= HII_TOT_NUM_PIXELS;
     Mlim_a_avg /= HII_TOT_NUM_PIXELS;
     Mlim_m_avg /= HII_TOT_NUM_PIXELS;
@@ -1858,6 +1868,8 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
     double norm_star = astro_params_stoc->F_STAR10;
     double t_star = astro_params_stoc->t_STAR;
     double t_h = t_hubble(redshift);
+
+    LOG_SUPER_DEBUG("Getting Box averages z=%.2f M [%.2e %.2e] Mt [%.2e %.2e]",redshift,M_min,M_max,M_turn_a,M_turn_m);
 
     double alpha_star_mini = astro_params_stoc->ALPHA_STAR_MINI;
     double norm_star_mini = astro_params_stoc->F_STAR7_MINI;
@@ -1928,10 +1940,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             grids->count[idx] = 0;
         }
         grids->log10_Mcrit_LW_ave = log10(lyman_werner_threshold(redshift, 0., 0.,astro_params));
-        if(!flag_options->FIXED_HALO_GRIDS && halos->n_halos == 0){
-            LOG_DEBUG("No halos to grid, continuing",halos->n_halos);
-            return 0;
-        }
+
         LOG_DEBUG("Gridding %d halos...",halos->n_halos);
 
         //get parameters
@@ -1953,25 +1962,20 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         double M_turn_a_avg = 0, M_turn_m_avg = 0, M_turn_r_avg = 0.;
         double M_turn_a_avg_cell=0, M_turn_m_avg_cell=0, M_turn_r_avg_cell=0;
 
-        double curr_vcb = flag_options_stoc->FIX_VCB_AVG ? global_params.VAVG : 0;
+        double curr_vcb = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
 
-        double M_turn_m,M_turn_a,M_turn_r,M_turn_a_val;
-        M_turn_r = 0.;
-        if(flag_options_stoc->USE_MINI_HALOS){
-            M_turn_a_val = atomic_cooling_threshold(redshift);
-            M_turn_a = M_turn_a_val;
-            M_turn_m = lyman_werner_threshold(redshift, 0., 0.,astro_params_stoc); //This only does something when there are no halos and we are printing global averages
-        }
-        else{
-            M_turn_a = astro_params->M_TURN;
-            M_turn_m = 0.;
-        }
+        //store initial values so we don't recompute
+        double M_turn_a_store = flag_options->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params->M_TURN;
+        double M_turn_m_store = lyman_werner_threshold(redshift, 0., curr_vcb, astro_params_stoc);
+        double M_turn_a = M_turn_a_store;
+        double M_turn_m = M_turn_m_store;
+        double M_turn_r = 0.;
 
         double averages_box[7], averages_global[5], averages_subsampler[5];
 
         init_ps();
         if(user_params->USE_INTERPOLATION_TABLES){
-            initialiseSigmaMInterpTable(M_min, global_params.M_MAX_INTEGRAL); //this needs to be initialised above MMax because of Nion_General
+            initialiseSigmaMInterpTable(M_min/2, global_params.M_MAX_INTEGRAL); //this needs to be initialised above MMax because of Nion_General
         }
         //do the mean HMF box
         //The default 21cmFAST has a strange behaviour where the nonlinear density is used as linear,
@@ -2007,6 +2011,15 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             //set below-resolution properties
             if(global_params.AVG_BELOW_SAMPLER && M_min < global_params.SAMPLER_MIN_MASS){
                 set_fixed_grids(redshift, norm_esc, alpha_esc, M_min, global_params.SAMPLER_MIN_MASS, ini_boxes, perturbed_field, previous_spin_temp, previous_ionize_box, grids, averages_box);
+                //TODO: This is pretty redundant, but since the fixed grids have density units (X Mpc-3) I have to re-multiply before adding the halos.
+                //      I should instead have a flag to output the summed values in cell. (2*N_pixel > N_halo so generally i don't want to do it in the halo loop)
+                for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
+                    grids->halo_mass[idx] *= cell_volume;
+                    grids->n_ion[idx] *= cell_volume;
+                    grids->halo_sfr[idx] *= cell_volume;
+                    grids->halo_sfr_mini[idx] *= cell_volume;
+                    grids->whalo_sfr[idx] *= cell_volume;
+                }
             }
 #pragma omp parallel num_threads(user_params->N_THREADS) firstprivate(M_turn_a,M_turn_m,M_turn_r,curr_vcb,idx)
             {
@@ -2026,12 +2039,14 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                         curr_vcb = ini_boxes->lowres_vcb[HII_R_INDEX(x,y,z)];
                     }
 
+                    //set values before reionisation feedback
+                    M_turn_a = M_turn_a_store;
                     if(flag_options->USE_MINI_HALOS){
-                        M_turn_a = M_turn_a_val;
                         M_turn_m = lyman_werner_threshold(redshift, previous_spin_temp->J_21_LW_box[HII_R_INDEX(x,y,z)], curr_vcb, astro_params);
                         M_turn_r = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[HII_R_INDEX(x, y, z)], previous_ionize_box->z_re_box[HII_R_INDEX(x, y, z)]);
                     }
 
+                    //if reion feedback is higher, replace the values
                     if(M_turn_r > M_turn_a) M_turn_a = M_turn_r;
                     if(M_turn_r > M_turn_m) M_turn_m = M_turn_r;
 
@@ -2099,6 +2114,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->halo_sfr_mini[idx] /= cell_volume;
                     grids->whalo_sfr[idx] /= cell_volume;
 
+                    //cell averages for debug
                     if(LOG_LEVEL >= DEBUG_LEVEL && flag_options_stoc->USE_MINI_HALOS){
                         M_turn_r = reionization_feedback(redshift, previous_ionize_box->Gamma12_box[idx], previous_ionize_box->z_re_box[idx]);
                         M_turn_a = atomic_cooling_threshold(redshift);
@@ -2121,6 +2137,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                 sfr_avg_mini /= VOLUME;
                 wsfr_avg /= VOLUME;
                 nion_avg /= VOLUME;
+
                 //NOTE: There is an inconsistency here, the sampled grids use a halo-averaged turnover mass
                 //  whereas the fixed grids / default 21cmfast uses the volume averaged LOG10(turnover mass).
                 //  Neither of these are a perfect representation due to the nonlinear way turnover mass affects N_ion
@@ -2129,6 +2146,14 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                 M_turn_m_avg_cell /= HII_TOT_NUM_PIXELS;
                 M_turn_r_avg /= halos->n_halos;
                 M_turn_r_avg_cell /= HII_TOT_NUM_PIXELS;
+
+                //If we have no halos, assume the turnover has no reion feedback & no LW for the debug printing
+                if(halos->n_halos == 0){
+                    M_turn_a_avg = M_turn_a_store;
+                    M_turn_m_avg = M_turn_m_store;
+                    M_turn_r_avg = 0.;
+                }
+
                 get_box_averages(redshift, norm_esc, alpha_esc, global_params.SAMPLER_MIN_MASS, global_params.M_MAX_INTEGRAL, M_turn_a_avg, M_turn_m_avg, averages_global);
                 get_box_averages(redshift, norm_esc, alpha_esc, M_min, global_params.SAMPLER_MIN_MASS, M_turn_a_avg, M_turn_m_avg, averages_subsampler);
             }
@@ -2142,23 +2167,24 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         LOG_DEBUG("Exp. averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_global[0],averages_global[3],averages_global[1],
                                                                                                     averages_global[2],averages_global[4]);
         LOG_DEBUG("Box  averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",hm_avg,nion_avg,sfr_avg,sfr_avg_mini,wsfr_avg);
-        LOG_DEBUG("Ratio:         (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_global[0]/hm_avg,averages_global[3]/nion_avg,
-                                                                                                    averages_global[1]/sfr_avg,averages_global[2]/sfr_avg_mini,
-                                                                                                    averages_global[4]/wsfr_avg);
-        LOG_DEBUG("SUB-SAMPLER",redshift);
-        LOG_DEBUG("Exp. averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_subsampler[0],averages_subsampler[3],averages_subsampler[1],
-                                                                                                    averages_subsampler[2],averages_subsampler[4]);
-        LOG_DEBUG("Box  averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_box[0],averages_box[3],
-                                                                                                    averages_box[1],averages_box[2],averages_box[4]);
-        LOG_DEBUG("Ratio:         (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_box[0]/averages_subsampler[0],
-                                                                                                    averages_box[3]/averages_subsampler[3],
-                                                                                                    averages_box[1]/averages_subsampler[1],
-                                                                                                    averages_box[2]/averages_subsampler[2],
-                                                                                                    averages_box[4]/averages_subsampler[4]);
+        LOG_DEBUG("Ratio:         (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",hm_avg/averages_global[0],nion_avg/averages_global[3],
+                                                                                                    sfr_avg/averages_global[1],sfr_avg_mini/averages_global[2],
+                                                                                                    wsfr_avg/averages_global[4]);
+        if(global_params.AVG_BELOW_SAMPLER && M_min < global_params.SAMPLER_MIN_MASS){
+            LOG_DEBUG("SUB-SAMPLER",redshift);
+            LOG_DEBUG("Exp. averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_subsampler[0],averages_subsampler[3],averages_subsampler[1],
+                                                                                                        averages_subsampler[2],averages_subsampler[4]);
+            LOG_DEBUG("Box  averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_box[0],averages_box[3],
+                                                                                                        averages_box[1],averages_box[2],averages_box[4]);
+            LOG_DEBUG("Ratio:         (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_box[0]/averages_subsampler[0],
+                                                                                                        averages_box[3]/averages_subsampler[3],
+                                                                                                        averages_box[1]/averages_subsampler[1],
+                                                                                                        averages_box[2]/averages_subsampler[2],
+                                                                                                        averages_box[4]/averages_subsampler[4]);
+        }
         LOG_DEBUG("Turnovers: ACG %11.3e global %11.3e Cell %11.3e",M_turn_a_avg,atomic_cooling_threshold(redshift),M_turn_a_avg_cell);
         LOG_DEBUG("MCG  %11.3e Cell %11.3e",M_turn_m_avg,M_turn_m_avg_cell);
         LOG_DEBUG("Reion %11.3e Cell %11.3e",M_turn_r_avg,M_turn_r_avg_cell);
-
     }
     Catch(status){
         return(status);

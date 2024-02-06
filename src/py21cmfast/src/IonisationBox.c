@@ -959,7 +959,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                         prev_max_density += 0.001;
                         density_bin_width = (max_density - min_density)/((double)NDELTA-1);
                         prev_density_bin_width = (prev_max_density - prev_min_density)/((double)NDELTA-1);
-                        initialise_Nion_Conditional_spline(redshift,Mcrit_atom,min_density,max_density,M_MIN,massofscaleR,
+                        initialise_Nion_Conditional_spline(redshift,Mcrit_atom,min_density,max_density,M_MIN,massofscaleR,massofscaleR,
                                                 log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                                 astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI,
                                                 alpha_esc_var,astro_params->F_STAR10,
@@ -968,7 +968,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                                 flag_options->USE_MINI_HALOS, &Nion_Conditional_Table1D, &Nion_Conditional_Table2D, &Nion_Conditional_Table_MINI);
 
                         if(flag_options->USE_MINI_HALOS && (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4)){
-                            initialise_Nion_Conditional_spline(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,M_MIN,massofscaleR,
+                            initialise_Nion_Conditional_spline(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,M_MIN,massofscaleR,massofscaleR,
                                                     log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                                     astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI,
                                                     alpha_esc_var,astro_params->F_STAR10,
@@ -1337,7 +1337,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                             }
 
                             if(HII_R_INDEX(x,y,z) == 0){
-                                LOG_SUPER_DEBUG("Cell0 R=%.1f | d %.4e | fcoll (%.4e,%.4e) Mini (%.4e %.4e) | rec %.4e | X %.4e",
+                                LOG_SUPER_DEBUG("Cell 0: R=%.1f | d %.4e | fcoll (%.4e,%.4e) Mini (%.4e %.4e) | rec %.4e | X %.4e",
                                                     R,curr_dens,Splined_Fcoll,f_coll,Splined_Fcoll_MINI,f_coll_MINI,rec,xHII_from_xrays);
                             }
 

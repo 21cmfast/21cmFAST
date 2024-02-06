@@ -172,10 +172,12 @@ struct parameters_gsl_MF_integrals{
     double Mturn;
     double f_star_norm;
     double alpha_star;
+    double Mlim_star;
 
     //Nion additions
     double f_esc_norm;
     double alpha_esc;
+    double Mlim_esc;
 
     //Minihalo additions
     double Mturn_upper;
@@ -1105,6 +1107,37 @@ double cmf_integrand(double lnM, void *param_struct){
 
 double cfcoll_integrand(double lnM, void *param_struct){
     return exp(lnM) * cmf_integrand(lnM,param_struct);
+}
+
+double cnion_integrand(double lnM, void *param_struct){
+    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
+    double M_turn_lower = params.Mturn;
+    double f_starn = params.f_star_norm;
+    double a_star = params.alpha_star;
+    double f_escn = params.f_esc_norm;
+    double a_esc = params.alpha_esc;
+    double Mlim_star = params.Mlim_star;
+    double Mlim_esc = params.Mlim_esc;
+
+    double Fstar, Fesc;
+
+    double M = exp(lnM);
+
+    if (a_star > 0. && M > Mlim_star)
+        Fstar = 1./f_starn;
+    else if (a_star < 0. && M < Mlim_star)
+        Fstar = 1/f_starn;
+    else
+        Fstar = pow(M/1e10,a_star);
+
+    if (a_esc > 0. && M > Mlim_esc)
+        Fesc = 1./f_escn;
+    else if (a_esc < 0. && M < Mlim_esc)
+        Fesc = 1./f_escn;
+    else
+        Fesc = pow(M/1e10,a_esc);
+
+    return M * M * Fstar * Fesc * exp(-M_turn_lower/M) * cmf_integrand(lnM,param_struct);
 }
 
 double umf_integrand(double lnM, void *param_struct){
@@ -2122,7 +2155,7 @@ double dNion_ConditionallnM_MINI(double lnM, void *params) {
     else
         Fesc = pow(M/1e7,Alpha_esc);
 
-    return M*exp(-MassTurnover/M)*exp(-M/MassTurnover_upper)*Fstar*Fesc*dNdM_conditional_EPS(growthf,log(M),del2,sigma2)/sqrt(2.*PI);
+    return M*exp(-MassTurnover/M)*exp(-M/MassTurnover_upper)*Fstar*Fesc*dNdM_conditional_EPS(growthf,log(M),del2,sigma2);
 }
 
 double dNion_ConditionallnM(double lnM, void *params) {
@@ -2158,7 +2191,7 @@ double dNion_ConditionallnM(double lnM, void *params) {
     else
         Fesc = pow(M/1e10,Alpha_esc);
 
-    return M*exp(-MassTurnover/M)*Fstar*Fesc*dNdM_conditional_EPS(growthf,log(M),del2,sigma2)/sqrt(2.*PI);
+    return M*exp(-MassTurnover/M)*Fstar*Fesc*dNdM_conditional_EPS(growthf,log(M),del2,sigma2);
 }
 
 
@@ -2326,7 +2359,7 @@ float Nion_ConditionallnM_GL_MINI(float lnM, struct parameters_gsl_SFR_con_int_ 
     else
         Fesc = pow(M/1e7,Alpha_esc);
 
-    return M*exp(-MassTurnover/M)*exp(-M/MassTurnover_upper)*Fstar*Fesc*dNdM_conditional_EPS(growthf,log(M),del2,sigma2)/sqrt(2.*PI);
+    return M*exp(-MassTurnover/M)*exp(-M/MassTurnover_upper)*Fstar*Fesc*dNdM_conditional_EPS(growthf,log(M),del2,sigma2);
 }
 
 float Nion_ConditionallnM_GL(float lnM, struct parameters_gsl_SFR_con_int_ parameters_gsl_SFR_con){
@@ -2360,7 +2393,7 @@ float Nion_ConditionallnM_GL(float lnM, struct parameters_gsl_SFR_con_int_ param
     else
         Fesc = pow(M/1e10,Alpha_esc);
 
-    return M*exp(-MassTurnover/M)*Fstar*Fesc*dNdM_conditional_EPS(growthf,log(M),del2,sigma2)/sqrt(2.*PI);
+    return M*exp(-MassTurnover/M)*Fstar*Fesc*dNdM_conditional_EPS(growthf,log(M),del2,sigma2);
 
 }
 

@@ -959,15 +959,15 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
 
     if(user_params_ts->USE_INTERPOLATION_TABLES){
         if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
-            initialise_SFRD_Conditional_table_one(min_densities[R_ct],
-                                                    max_densities[R_ct],zpp_growth[R_ct],R_values[R_ct],Mcrit_atom_interp_table[R_ct],
-                                                    global_params.M_MIN_INTEGRAL,M_max_R[R_ct],
+            initialise_SFRD_Conditional_table(min_densities[R_ct],
+                                                    max_densities[R_ct],zpp_growth[R_ct],Mcrit_atom_interp_table[R_ct],
+                                                    global_params.M_MIN_INTEGRAL,M_max_R[R_ct],M_max_R[R_ct],
                                                     astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->F_STAR10,
                                                     astro_params_ts->F_STAR7_MINI, user_params_ts->FAST_FCOLL_TABLES,
                                                     flag_options_ts->USE_MINI_HALOS,&SFRD_conditional_table,&SFRD_conditional_table_MINI);
         }
         else{
-            initialise_FgtrM_delta_table_one(min_densities[R_ct], max_densities[R_ct], zpp_for_evolve_list[R_ct],
+            initialise_FgtrM_delta_table(min_densities[R_ct], max_densities[R_ct], zpp_for_evolve_list[R_ct],
                                              zpp_growth[R_ct], sigma_min[R_ct], sigma_max[R_ct], &fcoll_conditional_table, &dfcoll_conditional_table);
         }
     }
@@ -1675,14 +1675,14 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                     //TODO: come up with a way to get the integral check without the density field
                     //      will we ever need filtered density with the halo model?)
                     if(box_ct==0 && !flag_options->USE_HALO_FIELD){
-                        LOG_SUPER_DEBUG("Cell0 R=%.1f (%.3f) | SFR %.4e | integral %.4e",
+                        LOG_SUPER_DEBUG("Cell 0: R=%.1f (%.3f) | SFR %.4e | integral %.4e",
                                         R_values[R_ct],zpp_for_evolve_list[R_ct],sfr_term,
                                         Nion_ConditionalM(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,
                                             delNL0[R_ct][box_ct]*zpp_growth[R_ct],
                                             Mcrit_atom_interp_table[R_ct],astro_params->ALPHA_STAR,0.,astro_params->F_STAR10,1.,Mlim_Fstar_g,0.,
                                             user_params->FAST_FCOLL_TABLES) * z_edge_factor * (1+delNL0[R_ct][box_ct]*zpp_growth[R_ct]) * avg_fix_term * astro_params->F_STAR10);
                         if(flag_options->USE_MINI_HALOS)
-                            LOG_SUPER_DEBUG("Cell0 MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,\
+                            LOG_SUPER_DEBUG("Cell 0: MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,\
                                             delNL0[R_ct][box_ct]*zpp_growth[R_ct],pow(10,log10_Mcrit_LW[R_ct][box_ct]),Mcrit_atom_interp_table[R_ct],\
                                             astro_params->ALPHA_STAR_MINI,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI_g, 0., user_params->FAST_FCOLL_TABLES) \
                                              * z_edge_factor * (1+delNL0[R_ct][box_ct]*zpp_growth[R_ct]) * avg_fix_term_MINI * astro_params->F_STAR7_MINI);

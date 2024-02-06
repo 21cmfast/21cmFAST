@@ -148,35 +148,7 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
 //NOTE: both here and for the conditional tables it says "log spacing is desired", but I can't see why.
 //  TODO: make a plot of Fcoll vs delta, and Fcoll vs log(1+delta) to see which binning is better
 //      but I would expect linear in delta to be fine
-void initialise_FgtrM_delta_table_all(int n_radii, double *min_dens, double *max_dens, double *z_array, double *growth_array, double *smin_array, double *smax_array , struct RGTable1D *F_tables, struct RGTable1D *dF_tables){
-    int i,j;
-    double dens;
-
-    for(i=0;i<n_radii;i++){
-        if(!F_tables[i].allocated){
-            allocate_RGTable1D(dens_Ninterp,&F_tables[i]);
-            F_tables[i].x_min = min_dens[i];
-            F_tables[i].x_width = (max_dens[i] - min_dens[i])/(dens_Ninterp - 1.);
-        }
-        if(!dF_tables[i].allocated){
-            allocate_RGTable1D(dens_Ninterp,&dF_tables[i]);
-            dF_tables[i].x_min = min_dens[i];
-            dF_tables[i].x_width = (max_dens[i] - min_dens[i])/(dens_Ninterp - 1.);
-        }
-    }
-
-    for(i=0;i<n_radii;i++){
-        //dens_Ninterp is a global define, probably shouldn't be
-        for(j=0;j<dens_Ninterp;j++){
-            dens = F_tables[i].x_min + j*F_tables[i].x_width;
-            F_tables[i].y_arr[j] = FgtrM_bias_fast(growth_array[i], dens, smin_array[i], smax_array[i]);
-            dF_tables[i].y_arr[j] = dfcoll_dz(z_array[i], smin_array[i], dens, smax_array[i]);
-        }
-    }
-    LOG_DEBUG("done");
-}
-
-void initialise_FgtrM_delta_table_one(double min_dens, double max_dens, double zpp, double growth_zpp, double smin_zpp, double smax_zpp, struct RGTable1D *F_table, struct RGTable1D *dF_table){
+void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, double growth_zpp, double smin_zpp, double smax_zpp, struct RGTable1D *F_table, struct RGTable1D *dF_table){
     int i,j;
     double dens;
 
@@ -229,7 +201,7 @@ void init_FcollTable(double zmin, double zmax, struct AstroParams *astro_params,
 //  rather than linear-log, check the profiles
 
 void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_density, float max_density,
-                                     float Mmin, float Mmax, float log10Mturn_min, float log10Mturn_max,
+                                     float Mmin, float Mmax, float Mcond, float log10Mturn_min, float log10Mturn_max,
                                      float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star,
                                      float Alpha_star_mini, float Alpha_esc, float Fstar10, float Fesc10,
                                      float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI,
@@ -240,11 +212,13 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
     double overdense_table[NDELTA];
     double mturns[NMTURN], mturns_MINI[NMTURN];
 
+    LOG_DEBUG("Initialising Nion conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
+
     growthf = dicke(z);
     Mmin = log(Mmin);
     Mmax = log(Mmax);
 
-    sigma2 = EvaluateSigma(Mmax,0,NULL);
+    sigma2 = EvaluateSigma(log(Mcond),0,NULL);
 
     //If we use minihalos, both tables are 2D (delta,mturn) due to reionisaiton feedback
     //otherwise, the Nion table is 1D, since reionsaiton feedback is only active with minihalos
@@ -342,102 +316,20 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
 
 //since SFRD is not used in Ionisationbox, and reionisation feedback is not included in the Ts calculation,
 //    The non-minihalo table is always Rx1D and the minihalo table is always Rx2D
-void initialise_SFRD_Conditional_table_all(int Nfilter, double min_density[], double max_density[], double growthf[],
-                                    double R[], float Mcrit_atom[], double Mmin, float Alpha_star, float Alpha_star_mini,
-                                    float Fstar10, float Fstar7_MINI, bool FAST_FCOLL_TABLES, bool minihalos, struct RGTable1D_f *tables, struct RGTable2D_f *tables_mini){
-    float Mmax,Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
-    int i,j,k,i_tot;
 
-    Mmax = RtoM(R[Nfilter-1]);
-    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
-    Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
-
-    float MassTurnover[NMTURN];
-    for(i=0;i<NMTURN;i++){
-        MassTurnover[i] = pow(10., LOG10_MTURN_MIN + (float)i/((float)NMTURN-1.)*(LOG10_MTURN_MAX-LOG10_MTURN_MIN));
-    }
-
-    //NOTE: Here we use the constant Mturn limits instead of variables like in the Nion tables
-    for(i=0;i<Nfilter;i++){
-        if(!tables[i].allocated){
-            allocate_RGTable1D_f(NDELTA,&tables[i]);
-        }
-        tables[i].x_min=min_density[i];
-        tables[i].x_width=(max_density[i] - min_density[i])/(NDELTA-1.);
-
-        if(!tables_mini[i].allocated){
-            allocate_RGTable2D_f(NDELTA,NMTURN,&tables_mini[i]);
-        }
-        tables_mini[i].x_min = min_density[i];
-        tables_mini[i].x_width = (max_density[i] - min_density[i])/(NDELTA-1.);
-        tables_mini[i].y_min = LOG10_MTURN_MIN;
-        tables_mini[i].x_width = (LOG10_MTURN_MAX - LOG10_MTURN_MIN)/(NMTURN-1.);
-    }
-
-    LOG_DEBUG("Initialising SFRD conditional table");
-
-    Mmin = log(Mmin);
-
-    for(j=0; j < Nfilter; j++){
-        Mmax = RtoM(R[j]);
-
-        Mmax = log(Mmax);
-        sigma2 = EvaluateSigma(Mmax,0,NULL);
-
-#pragma omp parallel private(i,k) num_threads(user_params_ps->N_THREADS)
-        {
-            double curr_dens;
-#pragma omp for
-            for (i=0; i<NDELTA; i++){
-                curr_dens = min_density[j] + (float)i/((float)NDELTA-1.)*(max_density[j] - min_density[j]);
-                tables[j].y_arr[i] = log(Nion_ConditionalM(growthf[j],Mmin,Mmax,sigma2,Deltac,curr_dens,\
-                                                            Mcrit_atom[j],Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., FAST_FCOLL_TABLES));
-
-                if(tables[j].y_arr[i] < -50.)
-                    tables[j].y_arr[i] = -50.;
-
-                if(!minihalos) continue;
-
-                for (k=0; k<NMTURN; k++){
-                    tables_mini[j].z_arr[i][k]  = log(Nion_ConditionalM_MINI(growthf[j],Mmin,Mmax,sigma2,Deltac,\
-                                                curr_dens,MassTurnover[k],Mcrit_atom[j],\
-                                                Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., FAST_FCOLL_TABLES));
-
-                    if(tables_mini[j].z_arr[i][k] < -50.)
-                        tables_mini[j].z_arr[i][k] = -50.;
-                }
-            }
-        }
-    }
-    for(j=0;j<Nfilter;j++){
-        for (i=0; i<NDELTA; i++){
-            if(isfinite(tables[j].y_arr[i])==0) {
-                LOG_ERROR("Detected either an infinite or NaN value in ACG SFRD conditional table");
-                Throw(TableGenerationError);
-            }
-
-            if(!minihalos) continue;
-
-            for (k=0; k<NMTURN; k++){
-                if(isfinite(tables_mini[j].z_arr[i][k])==0) {
-                    LOG_ERROR("Detected either an infinite or NaN value in MCG SFRD conditional table");
-                    Throw(TableGenerationError);
-                }
-            }
-        }
-    }
-}
-
-//To better localise the tables, I could either separate each radius like in Ionisationbox.c, OR calculate all SFRD at once ouside the R loop
-//      For now I'm doing the former but if/when I move the non-halos to XraySourceBox I will use the _all version
-void initialise_SFRD_Conditional_table_one(double min_density, double max_density, double growthf,
-                                    double R, float Mcrit_atom, double Mmin, double Mmax, float Alpha_star, float Alpha_star_mini,
+//This function initialises one table, for table Rx arrays I will call this function in a loop
+void initialise_SFRD_Conditional_table(double min_density, double max_density, double growthf,
+                                    float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
                                     float Fstar10, float Fstar7_MINI, bool FAST_FCOLL_TABLES, bool minihalos, struct RGTable1D_f *table, struct RGTable2D_f *table_mini){
     float Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
     int i,j,k,i_tot;
 
+    LOG_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
+
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
+
+    double lnM_condition = log(Mcond);
 
     float MassTurnover[NMTURN];
     for(i=0;i<NMTURN;i++){
@@ -451,17 +343,19 @@ void initialise_SFRD_Conditional_table_one(double min_density, double max_densit
     table->x_min = min_density;
     table->x_width = (max_density - min_density)/(NDELTA-1.);
 
-    if(!table_mini->allocated){
-        allocate_RGTable2D_f(NDELTA,NMTURN,table_mini);
+    if(minihalos){
+        if(!table_mini->allocated){
+            allocate_RGTable2D_f(NDELTA,NMTURN,table_mini);
+        }
+        table_mini->x_min = min_density;
+        table_mini->x_width = (max_density - min_density)/(NDELTA-1.);
+        table_mini->y_min = LOG10_MTURN_MIN;
+        table_mini->y_width = (LOG10_MTURN_MAX - LOG10_MTURN_MIN)/(NMTURN-1.);
     }
-    table_mini->x_min = min_density;
-    table_mini->x_width = (max_density - min_density)/(NDELTA-1.);
-    table_mini->y_min = LOG10_MTURN_MIN;
-    table_mini->x_width = (LOG10_MTURN_MAX - LOG10_MTURN_MIN)/(NMTURN-1.);
 
     double lnMmin = log(Mmin);
     double lnMmax = log(Mmax);
-    sigma2 = EvaluateSigma(lnMmax,0,NULL);
+    sigma2 = EvaluateSigma(lnM_condition,0,NULL); //sigma is always the condition, whereas lnMmax is just the integral limit
 
 #pragma omp parallel private(i,k) num_threads(user_params_ps->N_THREADS)
     {
@@ -469,6 +363,8 @@ void initialise_SFRD_Conditional_table_one(double min_density, double max_densit
 #pragma omp for
         for (i=0; i<NDELTA; i++){
             curr_dens = min_density + (float)i/((float)NDELTA-1.)*(max_density - min_density);
+
+            // LOG_DEBUG("starting d %d",curr_dens, exp(lnMmin),exp(lnMmax),sigma2);
             table->y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,sigma2,Deltac,curr_dens,\
                                                         Mcrit_atom,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., FAST_FCOLL_TABLES));
 
@@ -478,7 +374,7 @@ void initialise_SFRD_Conditional_table_one(double min_density, double max_densit
             if(!minihalos) continue;
 
             for (k=0; k<NMTURN; k++){
-                table_mini->z_arr[i][k]  = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,sigma2,Deltac,\
+                table_mini->z_arr[i][k] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,sigma2,Deltac,\
                                             curr_dens,MassTurnover[k],Mcrit_atom,\
                                             Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., FAST_FCOLL_TABLES));
 
