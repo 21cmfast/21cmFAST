@@ -81,8 +81,6 @@ struct GlobalParams{
 
     float VAVG;
 
-    bool USE_FAST_ATOMIC; //whether to apply the fast fcoll tables for atomic cooling haloes, usually turned off as it's not a big computational cost and those can deviate ~5-10% at z<10.
-
     float STOC_MASS_TOL;
     float SAMPLER_MIN_MASS;
     float MAXHALO_FACTOR; //safety factor in halo arrays (accounts for imbalance and oversampling)
@@ -167,8 +165,6 @@ extern struct GlobalParams global_params = {
     .T_RE = 2e4,
 
     .VAVG=25.86,
-
-    .USE_FAST_ATOMIC = 0,
 
     .STOC_MASS_TOL = 5.0, //effectively infinite, mass tolerance semi-deprecated
     .SAMPLER_MIN_MASS = 5e7,

@@ -476,8 +476,21 @@ class UserParams(StructWithDefaults):
     USE_INTERPOLATION_TABLES: bool, optional
         If True, calculates and evaluates quantites using interpolation tables, which
         is considerably faster than when performing integrals explicitly.
-    FAST_FCOLL_TABLES: bool, optional
-        Whether to use fast Fcoll tables, as described in Appendix of Muñoz+21 (2110.13919). Significant speedup for minihaloes.
+    INTEGRATION_METHOD_ATOMIC: int, optional
+        The integration method to use for all HMF integrals of atomic halos in the grids:
+        0: GSL QAG adaptive integration,
+        1: Gauss-Legendre integration, previously forced in the interpolation tables,
+        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+    INTEGRATION_METHOD_MINI: int, optional
+        The integration method to use for all HMF integrals of minihalos in the grids:
+        0: GSL QAG adaptive integration,
+        1: Gauss-Legendre integration, previously forced in the interpolation tables,
+        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+    INTEGRATION_METHOD_HALOS: int, optional
+        The integration method to use for all HMF integrals for halos from the sampler catalogues:
+        0: GSL QAG adaptive integration,
+        1: Gauss-Legendre integration, previously forced in the interpolation tables,
+        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
     USE_2LPT: bool, optional
         Whether to use second-order Lagrangian perturbation theory (2LPT).
         Set this to True if the density field or the halo positions are extrapolated to
@@ -512,7 +525,9 @@ class UserParams(StructWithDefaults):
         "PERTURB_ON_HIGH_RES": False,
         "NO_RNG": False,
         "USE_INTERPOLATION_TABLES": None,
-        "FAST_FCOLL_TABLES": False,
+        "INTEGRATION_METHOD_ATOMIC": 1,
+        "INTEGRATION_METHOD_MINI": 1,
+        "INTEGRATION_METHOD_HALOS": 0,
         "USE_2LPT": True,
         "MINIMIZE_MEMORY": False,
         "STOC_MINIMUM_Z": None,
@@ -627,14 +642,13 @@ class UserParams(StructWithDefaults):
         return self._power_models[self.POWER_SPECTRUM]
 
     @property
-    def FAST_FCOLL_TABLES(self):
-        """Check that USE_INTERPOLATION_TABLES is True."""
-        if not self._FAST_FCOLL_TABLES or self.USE_INTERPOLATION_TABLES:
-            return self._FAST_FCOLL_TABLES
-        logger.warning(
-            "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES."
-        )
-        return False
+    def INTEGRATION_METHOD_HALOS(self):
+        """The integration methods other than QAG do not yet work for halos."""
+        if self._INTEGRATION_METHOD_HALOS != 0:
+            logger.warning(
+                "Only the QAG integrator currently works for the halo sampler, setting INTEGRATION_METHOD_HALOS to 0"
+            )
+        return 0
 
 
 class FlagOptions(StructWithDefaults):

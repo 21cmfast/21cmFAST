@@ -16,7 +16,6 @@ struct CosmoParams{
 };
 
 struct UserParams{
-
     // Parameters taken from INIT_PARAMS.H
     int HII_DIM;
     int DIM;
@@ -30,7 +29,9 @@ struct UserParams{
     bool PERTURB_ON_HIGH_RES;
     bool NO_RNG;
     bool USE_INTERPOLATION_TABLES;
-    bool FAST_FCOLL_TABLES; //Whether to use the fast Fcoll table approximation in EPS
+    int INTEGRATION_METHOD_ATOMIC;
+    int INTEGRATION_METHOD_MINI;
+    int INTEGRATION_METHOD_HALOS;
     bool USE_2LPT;
     bool MINIMIZE_MEMORY;
 };
@@ -271,22 +272,3 @@ double dicke(double z);
 double sigma_z0(double M);
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm);
-double IntegratedNdM(double growthf, double lnM_lo, double lnM_hi, double M_filter, double delta, int HMF, int type);
-
-//For tests, I will need to define the Table structs here so that the following functions can be declared This should obviously change with a better organisation of the project
-
-// void initialise_SFRD_Conditional_table_all(int Nfilter, double min_density[], double max_density[], double growthf[],
-//                                     double R[], float Mcrit_atom[], double Mmin, float Alpha_star, float Alpha_star_mini,
-//                                     float Fstar10, float Fstar7_MINI, bool FAST_FCOLL_TABLES, bool minihalos, struct RGTable1D_f *tables, struct RGTable2D_f *tables_mini);
-
-// void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_density, float max_density,
-//                                      float Mmax, float Mmin, float log10Mturn_min, float log10Mturn_max,
-//                                      float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star,
-//                                      float Alpha_star_mini, float Alpha_esc, float Fstar10, float Fesc10,
-//                                      float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI,
-//                                      float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, bool FAST_FCOLL_TABLES,
-//                                      bool minihalos, struct RGTable1D_f *table_1d, struct RGTable2D_f *table_2d, struct RGTable2D_f *table_mini);
-
-void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool update);
-double cmf_integrand(double lnM, void *param_struct);
-double umf_integrand(double lnM, void *param_struct);

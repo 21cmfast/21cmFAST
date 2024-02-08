@@ -47,11 +47,12 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
             z_val = table->x_min + i*table->x_width; //both tables will have the same values here
             if(minihalos)Mcrit_atom_val = atomic_cooling_threshold(z_val);
 
-            table->y_arr[i] = Nion_General(z_val, Mmin, Mmax, Mcrit_atom_val, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
+            table->y_arr[i] = Nion_General(z_val, Mmin, Mmax, Mcrit_atom_val, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.,user_params_it->INTEGRATION_METHOD_ATOMIC);
             if(minihalos){
                 for (j=0; j<NMTURN; j++){
                     mturn_val = pow(10,table_mini->y_min + j*table_mini->y_width);
-                    table_mini->z_arr[i][j] = Nion_General_MINI(z_val, Mmin, Mmax, mturn_val, Mcrit_atom_val, Alpha_star_mini, 0., Fstar7_MINI, 1.,Mlim_Fstar_MINI,0.);
+                    table_mini->z_arr[i][j] = Nion_General_MINI(z_val, Mmin, Mmax, mturn_val, Mcrit_atom_val, Alpha_star_mini,
+                                                                 0., Fstar7_MINI, 1.,Mlim_Fstar_MINI,0.,user_params_it->INTEGRATION_METHOD_MINI);
                 }
             }
         }
@@ -115,11 +116,13 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
             z_val = table->x_min + i*table->x_width; //both tables will have the same values here
             if(minihalos)Mcrit_atom_val = atomic_cooling_threshold(z_val);
 
-            table->y_arr[i] = Nion_General(z_val, Mmin, Mmax, Mcrit_atom_val, Alpha_star, Alpha_esc, Fstar10, Fesc10, Mlim_Fstar, Mlim_Fesc);
+            table->y_arr[i] = Nion_General(z_val, Mmin, Mmax, Mcrit_atom_val, Alpha_star, Alpha_esc, Fstar10, Fesc10,
+                                             Mlim_Fstar, Mlim_Fesc, user_params_it->INTEGRATION_METHOD_ATOMIC);
             if(minihalos){
                 for (j=0; j<NMTURN; j++){
                     mturn_val = pow(10,table_mini->y_min + j*table_mini->y_width);
-                    table_mini->z_arr[i][j] = Nion_General_MINI(z_val, Mmin, Mmax, mturn_val, Mcrit_atom_val, Alpha_star_mini, Alpha_esc, Fstar7_MINI, Fesc7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
+                    table_mini->z_arr[i][j] = Nion_General_MINI(z_val, Mmin, Mmax, mturn_val, Mcrit_atom_val, Alpha_star_mini, Alpha_esc,
+                                                     Fstar7_MINI, Fesc7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI, user_params_it->INTEGRATION_METHOD_MINI);
                 }
             }
         }
@@ -205,7 +208,7 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
                                      float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star,
                                      float Alpha_star_mini, float Alpha_esc, float Fstar10, float Fesc10,
                                      float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI,
-                                     float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, bool FAST_FCOLL_TABLES,
+                                     float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, int method, int method_mini,
                                      bool minihalos, struct RGTable1D_f *table_1d, struct RGTable2D_f *table_2d, struct RGTable2D_f *table_mini){
     double growthf, sigma2;
     int i,j;
@@ -260,31 +263,31 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
         }
     }
 
-#pragma omp parallel private(i,j) num_threads(user_params_ps->N_THREADS)
+#pragma omp parallel private(i,j) num_threads(user_params_it->N_THREADS)
     {
 #pragma omp for
         for(i=0;i<NDELTA;i++){
             if(!minihalos){
                 //pass constant M_turn as minimum
-                table_1d->y_arr[i] = log(Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,Deltac,
+                table_1d->y_arr[i] = log(Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,
                                                 overdense_table[i],Mcrit_atom,Alpha_star,Alpha_esc,
-                                                Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,FAST_FCOLL_TABLES));
+                                                Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC));
                 if(table_1d->y_arr[i] < -40.)
                     table_1d->y_arr[i] = -40.;
 
                 continue;
             }
             for (j=0; j<NMTURN; j++){
-                table_2d->z_arr[i][j] = log(Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,Deltac,
+                table_2d->z_arr[i][j] = log(Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,
                                                 overdense_table[i],mturns[j],Alpha_star,Alpha_esc,
-                                                Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,FAST_FCOLL_TABLES));
+                                                Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC));
 
                 if(table_2d->z_arr[i][j] < -40.)
                     table_2d->z_arr[i][j] = -40.;
 
-                table_mini->z_arr[i][j] = log(Nion_ConditionalM_MINI(growthf,Mmin,Mmax,sigma2,Deltac,overdense_table[i],
+                table_mini->z_arr[i][j] = log(Nion_ConditionalM_MINI(growthf,Mmin,Mmax,sigma2,overdense_table[i],
                                                     mturns_MINI[j],Mcrit_atom,Alpha_star_mini,Alpha_esc,Fstar7_MINI,Fesc7_MINI,
-                                                    Mlim_Fstar_MINI,Mlim_Fesc_MINI, FAST_FCOLL_TABLES));
+                                                    Mlim_Fstar_MINI,Mlim_Fesc_MINI,user_params_it->INTEGRATION_METHOD_MINI));
 
                 if(table_mini->z_arr[i][j] < -40.)
                     table_mini->z_arr[i][j] = -40.;
@@ -320,7 +323,8 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
 //This function initialises one table, for table Rx arrays I will call this function in a loop
 void initialise_SFRD_Conditional_table(double min_density, double max_density, double growthf,
                                     float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
-                                    float Fstar10, float Fstar7_MINI, bool FAST_FCOLL_TABLES, bool minihalos, struct RGTable1D_f *table, struct RGTable2D_f *table_mini){
+                                    float Fstar10, float Fstar7_MINI, int method, int method_mini, bool minihalos,
+                                    struct RGTable1D_f *table, struct RGTable2D_f *table_mini){
     float Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
     int i,j,k,i_tot;
 
@@ -357,7 +361,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
     double lnMmax = log(Mmax);
     sigma2 = EvaluateSigma(lnM_condition,0,NULL); //sigma is always the condition, whereas lnMmax is just the integral limit
 
-#pragma omp parallel private(i,k) num_threads(user_params_ps->N_THREADS)
+#pragma omp parallel private(i,k) num_threads(user_params_it->N_THREADS)
     {
         double curr_dens;
 #pragma omp for
@@ -365,8 +369,8 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
             curr_dens = min_density + (float)i/((float)NDELTA-1.)*(max_density - min_density);
 
             // LOG_DEBUG("starting d %d",curr_dens, exp(lnMmin),exp(lnMmax),sigma2);
-            table->y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,sigma2,Deltac,curr_dens,\
-                                                        Mcrit_atom,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., FAST_FCOLL_TABLES));
+            table->y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,sigma2,curr_dens,\
+                                            Mcrit_atom,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., user_params_it->INTEGRATION_METHOD_ATOMIC));
 
             if(table->y_arr[i] < -50.)
                 table->y_arr[i] = -50.;
@@ -374,9 +378,9 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
             if(!minihalos) continue;
 
             for (k=0; k<NMTURN; k++){
-                table_mini->z_arr[i][k] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,sigma2,Deltac,\
+                table_mini->z_arr[i][k] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,sigma2,\
                                             curr_dens,MassTurnover[k],Mcrit_atom,\
-                                            Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., FAST_FCOLL_TABLES));
+                                            Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., user_params_it->INTEGRATION_METHOD_MINI));
 
                 if(table_mini->z_arr[i][k] < -50.)
                     table_mini->z_arr[i][k] = -50.;

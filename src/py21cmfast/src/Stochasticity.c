@@ -174,16 +174,6 @@ void free_rng_threads(gsl_rng * rng_arr[]){
     }
 }
 
-//Get the relevant excursion set barrier density given the user-specified HMF
-double get_delta_crit(int HMF, double sigma, double growthf){
-    if(HMF==4)
-        return DELTAC_DELOS;
-    if(HMF==1)
-        return sheth_delc_fixed(Deltac/growthf,sigma)*growthf;
-
-    return Deltac;
-}
-
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the entire box
 double expected_nhalo(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions * flag_options){
     //minimum sampled mass
@@ -199,8 +189,16 @@ double expected_nhalo(double redshift, struct UserParams *user_params, struct Co
     if(user_params->USE_INTERPOLATION_TABLES)
         initialiseSigmaMInterpTable(M_min/2,M_max);
 
+    struct parameters_gsl_MF_integrals params = {
+        .redshift = redshift,
+        .growthf = growthf,
+        .HMF = user_params_stoc->HMF,
+    };
 
-    result = IntegratedNdM(growthf, log(M_min), log(M_max), log(M_max), 0., user_params->HMF, 0) * VOLUME;
+    if(user_params_stoc->INTEGRATION_METHOD_HALOS == 1)
+        initialise_GL(NGL_INT, log(M_min), log(M_max));
+
+    result = IntegratedNdM(log(M_min), log(M_max), params, 1, user_params->INTEGRATION_METHOD_HALOS) * VOLUME;
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f",result,M_min,M_max,redshift);
 
     if(user_params->USE_INTERPOLATION_TABLES)
@@ -215,13 +213,15 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     int nx,ny,np;
     double lnM_cond,delta_crit;
     int k_lim = update ? 1 : 0;
+    double sigma_cond;
     LOG_DEBUG("Initialising dNdM Table from [[%.2e,%.2e],[%.2e,%.2e]]",xmin,xmax,ymin,ymax);
     LOG_DEBUG("D_out %.2e P %.2e up %d",growth1,param,update);
 
     if(!update){
         lnM_cond = param;
+        sigma_cond = EvaluateSigma(lnM_cond,0,NULL);
         //current barrier at the condition for bounds checking
-        delta_crit = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),growth1);
+        delta_crit = get_delta_crit(user_params_stoc->HMF,sigma_cond,growth1);
         if(xmin < DELTA_MIN || xmax > MAX_DELTAC_FRAC*delta_crit){
             LOG_ERROR("Invalid delta [%.5f,%.5f] Either too close to critical density (> 0.999 * %.5f) OR negative mass",xmin,xmax,delta_crit);
             Throw(ValueError);
@@ -261,8 +261,12 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     Nhalo_inv_table.x_width = (xmax - xmin)/((double)nx-1);
     Nhalo_inv_table.y_min = pa[0];
     Nhalo_inv_table.y_width = pa[1] - pa[0];
+    struct parameters_gsl_MF_integrals integral_params = {
+                .growthf = growth1,
+                .HMF = user_params_stoc->HMF,
+    };
 
-    #pragma omp parallel num_threads(user_params_stoc->N_THREADS) private(i,j,k) firstprivate(delta_crit,lnM_cond)
+    #pragma omp parallel num_threads(user_params_stoc->N_THREADS) private(i,j,k) firstprivate(delta_crit,integral_params,sigma_cond,lnM_cond)
     {
         double x,y,buf;
         double norm,fcoll;
@@ -279,7 +283,8 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             if(update){
                 lnM_cond = x;
                 //barrier at given mass
-                delta = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),param)/param*growth1;
+                sigma_cond = EvaluateSigma(lnM_cond,0,NULL);
+                delta = get_delta_crit(user_params_stoc->HMF,sigma_cond,param)/param*growth1;
                 // //current barrier at condition for bounds checking
                 // delta_crit = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),growth1);
             }
@@ -287,11 +292,26 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 delta = x;
             }
 
+            integral_params.delta = delta;
+            integral_params.sigma_cond = sigma_cond;
+
             lnM_prev = ymin;
             p_prev = 0;
 
-            norm = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,2);
-            fcoll = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,3);
+            if(ymin >= lnM_cond){
+                Nhalo_table.y_arr[i] = 0.;
+                Mcoll_table.y_arr[i] = 0.;
+                for(k=1;k<np-1;k++)
+                    Nhalo_inv_table.z_arr[i][k] = ymin;
+                continue;
+            }
+
+            //BIG TODO: THIS IS SUPER INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
+            if(user_params_stoc->INTEGRATION_METHOD_HALOS == 1)
+                initialise_GL(NGL_INT, ymin, lnM_cond);
+
+            norm = IntegratedNdM(ymin, lnM_cond, integral_params,-1, user_params_stoc->INTEGRATION_METHOD_HALOS);
+            fcoll = IntegratedNdM(ymin, lnM_cond, integral_params, -2, user_params_stoc->INTEGRATION_METHOD_HALOS);
             Nhalo_table.y_arr[i] = norm;
             Mcoll_table.y_arr[i] = fcoll;
             // LOG_ULTRA_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);
@@ -314,6 +334,10 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 //done with inverse table
                 if(k < k_lim) break;
 
+                //BIG TODO: THIS IS EVEN MORE INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
+                if(user_params_stoc->INTEGRATION_METHOD_HALOS == 1)
+                    initialise_GL(NGL_INT, y, lnM_cond);
+
                 y = ya[j];
                 if(lnM_cond <= y){
                     //setting to one guarantees samples at lower mass
@@ -321,7 +345,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                     buf = 0.;
                 }
                 else{
-                    buf = IntegratedNdM(growth1, y, ymax, lnM_cond, delta, user_params_stoc->HMF, 2); //Number density between ymin and y
+                    buf = IntegratedNdM(y, lnM_cond, integral_params, -1, user_params_stoc->INTEGRATION_METHOD_HALOS); //Number density between ymin and y
                 }
 
                 prob = buf / norm;
@@ -368,167 +392,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     LOG_DEBUG("Done.");
 }
 
-//Rootfind version for testing
-void initialise_dNdM_tables_RF(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool update){
-    int nx,np;
-    double delta,lnM_cond,delta_crit;
-    double rf_rel_tol = 1e-3; //ln Mass ratio tolerance, Masses in table will be accurate to this factor
-
-    LOG_DEBUG("Initialising dNdM Table from [[%.2e,%.2e],[%.2e,%.2e]]",xmin,xmax,ymin,ymax);
-    LOG_DEBUG("D_out %.2e P %.2e up %d",growth1,param,update);
-
-    if(!update){
-        lnM_cond = param;
-        delta_crit = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),growth1);
-        if(xmin < DELTA_MIN || xmax > delta_crit){
-            LOG_ERROR("Invalid delta [%.3f,%.3f]",xmin,xmax);
-            Throw(ValueError);
-        }
-    }
-    nx = global_params.N_COND_INTERP;
-    np = global_params.N_PROB_INTERP;
-
-    double xa[nx], pa[np];
-
-    int i,j,k;
-    //set up coordinate grids
-    for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*((double)i)/((double)nx-1);
-    for(k=0;k<np;k++) pa[k] = (double)k/(double)(np-1); //must be strictly increasing
-    //allocate tables
-    allocate_RGTable1D(nx,&Nhalo_table);
-    Nhalo_table.x_min = xmin;
-    Nhalo_table.x_width = (xmax - xmin)/((double)nx-1);
-    allocate_RGTable1D(nx,&Mcoll_table);
-    Mcoll_table.x_min = xmin;
-    Mcoll_table.x_width = (xmax - xmin)/((double)nx-1);
-    allocate_RGTable2D(nx,np,&Nhalo_inv_table);
-    Nhalo_inv_table.x_min = xmin;
-    Nhalo_inv_table.x_width = (xmax - xmin)/((double)nx-1);
-    Nhalo_inv_table.y_min = ymin;
-    Nhalo_inv_table.y_width = (ymax - ymin)/((double)np-1);
-
-    #pragma omp parallel num_threads(user_params_stoc->N_THREADS) private(i,j,k) firstprivate(delta,lnM_cond,delta_crit)
-    {
-        double x,buf;
-        double norm;
-        double lnM_guess, lnM_prev, lnM_next, p_guess, p_prev, dp_guess;
-        double p_target, exp_M;
-        int attempts;
-        struct parameters_gsl_MF_integrals mf_params;
-        bool first_check;
-        bool second_check;
-
-        #pragma omp for
-        for(i=0;i<nx;i++){
-            x = xa[i];
-            //set the condition
-            if(update){
-                lnM_cond = x;
-                delta = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),param);
-                delta_crit = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),growth1); //just for limit
-            }
-            else
-                delta = x;
-            //setting to zero for high delta
-            //this one needs to be done before the norm is calculated
-            //NOTE: the values do nothing since these cases are dealt with in stoc_sample
-            //  BUT attempting to call IntegratedNdM crashes near Deltac
-            if(delta > MAX_DELTAC_FRAC*delta_crit){
-                //In the last bin, n_halo / mass * sqrt2pi interpolates toward one halo
-                Nhalo_table.y_arr[i] = 1. / exp(lnM_cond);
-                Mcoll_table.y_arr[i] = 1.;
-                //Similarly, the inverse CDF tends to a step function at lnM_cond
-                for(k=0;k<np;k++)
-                    Nhalo_inv_table.z_arr[i][k] = lnM_cond;
-
-                continue;
-            }
-
-            norm = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,2);
-            exp_M = IntegratedNdM(growth1,ymin,ymax,lnM_cond,delta,user_params_stoc->HMF,3);
-            Nhalo_table.y_arr[i] = norm;
-            Mcoll_table.y_arr[i] = exp_M;
-            LOG_ULTRA_DEBUG("cond x: %.6e (%d) ==> %.8e / %.8e",x,i,norm,exp_M);
-
-            //if the condition has no halos (either expected total mass is below resolution OR norm==0)
-            //  set the dndm table directly since norm==0 breaks things, we set to ymin instead of 0 for the sake
-            //  of the interpolation
-            if((exp_M*exp(lnM_cond) < exp(ymin)) || (norm == 0)){
-                for(k=0;k<np;k++)
-                    Nhalo_inv_table.z_arr[i][k] = ymin;
-                continue;
-            }
-
-            //inverse table limits
-            Nhalo_inv_table.z_arr[i][np-1] = ymin;
-            Nhalo_inv_table.z_arr[i][0] = lnM_cond;
-            //reset initial guess
-            lnM_guess = ymin;
-            lnM_prev = 0.; //just to fail the first second_check
-            p_prev = 1.;
-            for(k=np-2;k>0;k--){
-                p_target = pa[k];
-                first_check = false;
-                second_check = false;
-
-                //Start root finding
-                LOG_ULTRA_DEBUG("Target p: %.2e (%d)",p_target,k);
-                for(attempts=0;attempts<MAX_ITERATIONS;attempts++){
-                    buf = IntegratedNdM(growth1, lnM_guess, ymax, lnM_cond, delta, user_params_stoc->HMF, 2); //Number density between ymin and y
-                    p_guess = buf/norm - p_target;
-                    //catch some norm errors
-                    if(p_guess != p_guess){
-                        LOG_ERROR("Normalisation error in table generation");
-                        Throw(TableGenerationError);
-                    }
-
-                    //check if we are close enough, if so use current point as next guess
-                    //We need one of two convergence criteria, Either we bracket the root with a small enough interval
-                    //  OR we are close enough to the desired probability
-                    //  The second is required since we can jump over/under the root with Newton at high gradients, looping infinitely
-                    first_check = fabs(p_guess)/p_target < rf_rel_tol;
-                    second_check = (fabs(lnM_guess-lnM_prev)/lnM_guess < rf_rel_tol) && (p_guess*p_prev < 0);
-                    if(first_check || second_check){
-                        LOG_ULTRA_DEBUG("Found (%d|%d) lnM = %.2e, %d attempts (%.6e %.6e)",first_check,second_check,lnM_guess,attempts,p_guess,p_target);
-                        Nhalo_inv_table.z_arr[i][k] = first_check ? lnM_guess : (lnM_guess+lnM_prev)/2;
-
-                        //we keep lnM_guess and lnM_prev for the next probability
-                        //adjusting for the next p
-                        p_guess = p_guess + pa[k] - pa[k-1];
-                        p_prev = p_prev + pa[k] - pa[k-1];
-                        //TODO: don't repeat the integration
-                        break;
-                    }
-
-                    //If we go over (derivative == 0), do a Bisection step, Otherwise newton's method
-                    //Here we are guaranteed to bracket the root since p==1
-                    mf_params = (struct parameters_gsl_MF_integrals){
-                        .growthf = growth1,
-                        .delta = delta,
-                        .sigma_cond = EvaluateSigma(lnM_cond,0,NULL),
-                        .M_cond = lnM_cond,
-                        .HMF = user_params_stoc->HMF,
-                    };
-                    dp_guess = -1 * cmf_integrand(lnM_guess,&mf_params) / norm;
-                    LOG_ULTRA_DEBUG("LnM guess = %.6e | p = %.6e | dp = %.6e",lnM_guess,p_guess,dp_guess);
-                    if(dp_guess == 0.)
-                        lnM_next = (lnM_guess+lnM_prev)/2;
-                    else
-                        lnM_next = lnM_guess - p_guess/dp_guess;
-
-                    lnM_prev = lnM_guess;
-                    p_prev = p_guess;
-                    lnM_guess = lnM_next;
-                }
-                if(attempts == MAX_ITERATIONS){
-                    LOG_ERROR("could not find root i %d k %d lnM %.2e d %.2e p %.2e",i,k,lnM_cond,delta,pa[k]);
-                    Throw(TableGenerationError);
-                }
-            }
-        }
-    }
-    LOG_DEBUG("Done.");
-}
+//TODO: start rootfind tables again by copying the above and replacing the interpolation with a false positive rootfind
 
 void free_dNdM_tables(){
     int i;
@@ -569,6 +433,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
         initialiseSigmaMInterpTable(const_struct->M_min / 2,const_struct->M_max_tables);
     }
+
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min,0,NULL);
 
     if(redshift_prev >= 0){
@@ -1194,10 +1059,21 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
 
     //Since the conditional MF is extended press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
     //TODO: do this ONLY if we choose to normalise (i.e flesh out all of the CMF options (rescaling, normalising, adjusting, matching))
+
     double ps_ratio = 1.;
     if(user_params_stoc->HMF>1 && user_params_stoc->HMF<4){
-        ps_ratio = (IntegratedNdM(growthf,lnMmin,lnMcell,lnMcell,0,0,1)
-            / IntegratedNdM(growthf,lnMmin,lnMcell,lnMcell,0,user_params_stoc->HMF,1));
+        struct parameters_gsl_MF_integrals params = {
+            .redshift = hs_constants->z_out,
+            .growthf = growthf,
+            .HMF = 0,
+        };
+
+        if(user_params_stoc->INTEGRATION_METHOD_HALOS == 1)
+            initialise_GL(NGL_INT, lnMmin, lnMcell);
+
+        ps_ratio = IntegratedNdM(lnMmin,lnMcell,params,2,user_params_stoc->INTEGRATION_METHOD_HALOS);
+        params.HMF = user_params_stoc->HMF;
+        ps_ratio /= IntegratedNdM(lnMmin,lnMcell,params,2,user_params_stoc->INTEGRATION_METHOD_HALOS);
     }
 
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
@@ -1677,6 +1553,17 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
     double curr_vcb = flag_options_stoc->FIX_VCB_AVG ? global_params.VAVG : 0;
     double delta_crit = get_delta_crit(user_params_stoc->HMF,sigma_cell,growth_z);
 
+
+    struct parameters_gsl_MF_integrals params = {
+            .redshift = redshift,
+            .growthf = growth_z,
+            .sigma_cond = sigma_cell,
+            .HMF = user_params_stoc->HMF,
+    };
+
+    if(user_params_stoc->INTEGRATION_METHOD_ATOMIC == 1 || user_params_stoc->INTEGRATION_METHOD_MINI == 1)
+        initialise_GL(NGL_INT, lnMmin, lnMmax);
+
     //store initial values so we don't recompute
     double M_turn_a_store = flag_options_stoc->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params_stoc->M_TURN;
     double M_turn_m_store = lyman_werner_threshold(redshift, 0., curr_vcb, astro_params_stoc);
@@ -1693,7 +1580,8 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
         initialise_SFRD_Conditional_table(min_density,max_density,growth_z,M_turn_a,M_min,M_max,M_cell,
                                                 astro_params_stoc->ALPHA_STAR, astro_params_stoc->ALPHA_STAR_MINI, astro_params_stoc->F_STAR10,
-                                                astro_params_stoc->F_STAR7_MINI, user_params_stoc->FAST_FCOLL_TABLES,
+                                                astro_params_stoc->F_STAR7_MINI, user_params_stoc->INTEGRATION_METHOD_ATOMIC,
+                                                user_params_stoc->INTEGRATION_METHOD_MINI,
                                                 flag_options_stoc->USE_MINI_HALOS,&SFRD_conditional_table,&SFRD_conditional_table_MINI);
 
         //note: we do not yet have the previous ion table here
@@ -1702,7 +1590,8 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                                 astro_params_stoc->ALPHA_STAR, astro_params_stoc->ALPHA_STAR_MINI,
                                 alpha_esc,astro_params_stoc->F_STAR10,
                                 norm_esc,Mlim_Fstar,Mlim_Fesc,astro_params_stoc->F_STAR7_MINI,
-                                astro_params_stoc->F_ESC7_MINI,Mlim_Fstar_mini, Mlim_Fesc_mini, user_params_stoc->FAST_FCOLL_TABLES,
+                                astro_params_stoc->F_ESC7_MINI,Mlim_Fstar_mini, Mlim_Fesc_mini,  user_params_stoc->INTEGRATION_METHOD_ATOMIC,
+                                user_params_stoc->INTEGRATION_METHOD_MINI,
                                 flag_options_stoc->USE_MINI_HALOS, &Nion_Conditional_Table1D, &Nion_Conditional_Table2D, &Nion_Conditional_Table_MINI);
 
         //TODO: disable inverse table generation here with a flag or split up the functions
@@ -1720,7 +1609,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
 #pragma omp for reduction(+:hm_avg,nion_avg,sfr_avg,sfr_avg_mini,wsfr_avg,Mlim_a_avg,Mlim_m_avg)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
             dens = perturbed_field->density[i];
-
+            params.delta = dens;
             if(!flag_options_stoc->FIX_VCB_AVG && user_params_stoc->USE_RELATIVE_VELOCITIES){
                 curr_vcb = ini_boxes->lowres_vcb[i];
             }
@@ -1774,31 +1663,32 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                     }
                 }
                 else{
-                    h_count = IntegratedNdM(growth_z,lnMmin,lnMmax,lnMcell,dens,user_params_stoc->HMF,2);
-                    mass = IntegratedNdM(growth_z,lnMmin,lnMmax,lnMcell,dens,user_params_stoc->HMF,3);
+                    //NOTE: we use the atomic method for all halo mass/count here
+                    h_count = IntegratedNdM(lnMmin,lnMmax,params,-1,user_params_stoc->INTEGRATION_METHOD_HALOS); //FF doesn't work for halo number yet
+                    mass = IntegratedNdM(lnMmin,lnMmax,params,-2,user_params_stoc->INTEGRATION_METHOD_ATOMIC);
 
-                    nion = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, delta_crit, dens, M_turn_a
+                    nion = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, dens, M_turn_a
                                             , alpha_star, alpha_esc, norm_star, norm_esc
-                                            , Mlim_Fstar, Mlim_Fesc, user_params_stoc->FAST_FCOLL_TABLES);
+                                            , Mlim_Fstar, Mlim_Fesc,  user_params_stoc->INTEGRATION_METHOD_ATOMIC);
 
-                    sfr = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, delta_crit, dens, M_turn_a
+                    sfr = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, dens, M_turn_a
                                             , alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.
-                                            , user_params_stoc->FAST_FCOLL_TABLES);
+                                            , user_params_stoc->INTEGRATION_METHOD_ATOMIC);
 
                     //Same integral as Nion
                     // wsfr = Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_max, delta_crit, dens, M_turn_a
                     //                         , astro_params_stoc->ALPHA_STAR, alpha_esc, astro_params_stoc->F_STAR10, norm_esc, Mlim_Fstar, Mlim_Fesc
                     //                         , user_params_stoc->FAST_FCOLL_TABLES);
                     if(flag_options_stoc->USE_MINI_HALOS){
-                        nion_mini = Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_cell, delta_crit,
+                        nion_mini = Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_cell,
                                                             dens, M_turn_m, M_turn_a, alpha_star_mini,
                                                             alpha_esc, norm_star_mini, norm_esc, Mlim_Fstar_mini,
-                                                            Mlim_Fesc_mini, user_params_stoc->FAST_FCOLL_TABLES);
+                                                            Mlim_Fesc_mini, user_params_stoc->INTEGRATION_METHOD_MINI);
 
-                        sfr_mini = Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_cell, delta_crit,
+                        sfr_mini = Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_cell,
                                                             dens, M_turn_m, M_turn_a, alpha_star_mini,
                                                             0., norm_star_mini, 1., Mlim_Fstar_mini, 0.,
-                                                            user_params_stoc->FAST_FCOLL_TABLES);
+                                                            user_params_stoc->INTEGRATION_METHOD_MINI);
                     }
                 }
             }
@@ -1812,14 +1702,14 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
             if(i==0 && user_params_stoc->USE_INTERPOLATION_TABLES){
                 LOG_SUPER_DEBUG("Cell 0 tables: count %.2e mass %.2e nion %.2e sfr %.2e delta %.2f",h_count,mass,nion,sfr,dens);
                 LOG_SUPER_DEBUG("Cell 0 intgrl: count %.2e mass %.2e nion %.2e sfr %.2e",
-                                IntegratedNdM(growth_z,lnMmin,lnMmax,lnMcell,dens,user_params_stoc->HMF,2),
-                                IntegratedNdM(growth_z,lnMmin,lnMmax,lnMcell,dens,user_params_stoc->HMF,3),
-                                Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, delta_crit, dens, M_turn_a
+                                IntegratedNdM(lnMmin,lnMmax,params,-1,user_params_stoc->INTEGRATION_METHOD_ATOMIC),
+                                IntegratedNdM(lnMmin,lnMmax,params,-2,user_params_stoc->INTEGRATION_METHOD_ATOMIC),
+                                Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, dens, M_turn_a
                                             , astro_params_stoc->ALPHA_STAR, alpha_esc, astro_params_stoc->F_STAR10, norm_esc
-                                            , Mlim_Fstar, Mlim_Fesc, user_params_stoc->FAST_FCOLL_TABLES),
-                                Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, delta_crit, dens, M_turn_a
+                                            , Mlim_Fstar, Mlim_Fesc, user_params_stoc->INTEGRATION_METHOD_ATOMIC),
+                                Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, dens, M_turn_a
                                             , alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.
-                                            , user_params_stoc->FAST_FCOLL_TABLES));
+                                            , user_params_stoc->INTEGRATION_METHOD_ATOMIC));
                 LOG_SUPER_DEBUG("Cell 0 grids: count %d mass %.2e nion %.2e sfr %.2e", grids->count[i],
                                     grids->halo_mass[i],grids->n_ion[i],grids->halo_sfr[i]);
             }
@@ -1892,18 +1782,32 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
     double Mlim_Fstar_mini = Mass_limit_bisection(M_min, M_max, alpha_star, norm_star * pow(1e3,alpha_esc));
     double Mlim_Fesc_mini = Mass_limit_bisection(M_min, M_max, alpha_esc, norm_esc_mini * pow(1e3,alpha_esc));
 
-    hm_expected = IntegratedNdM(growth_z, lnMmin, lnMmax, lnMmax, 0, user_params_stoc->HMF, 1);
-    nion_expected = Nion_General(redshift, M_min, M_max, M_turn_a, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc) * prefactor_nion;
-    sfr_expected = Nion_General(redshift, M_min, M_max, M_turn_a, alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.) * prefactor_sfr;
+    struct parameters_gsl_MF_integrals params = {
+            .redshift = redshift,
+            .growthf = growth_z,
+            .HMF = user_params_stoc->HMF,
+    };
+
+    if(user_params_stoc->INTEGRATION_METHOD_ATOMIC == 1 || user_params_stoc->INTEGRATION_METHOD_MINI == 1)
+        initialise_GL(NGL_INT, lnMmin, lnMmax);
+
+    //NOTE: we use the atomic method for all halo mass/count here
+    hm_expected = IntegratedNdM(lnMmin,lnMmax,params,1,user_params_stoc->INTEGRATION_METHOD_ATOMIC);
+    nion_expected = Nion_General(redshift, M_min, M_max, M_turn_a, alpha_star, alpha_esc, norm_star,
+                                 norm_esc, Mlim_Fstar, Mlim_Fesc,user_params_stoc->INTEGRATION_METHOD_ATOMIC) * prefactor_nion;
+    sfr_expected = Nion_General(redshift, M_min, M_max, M_turn_a, alpha_star, 0., norm_star, 1.,
+                                 Mlim_Fstar, 0.,user_params_stoc->INTEGRATION_METHOD_ATOMIC) * prefactor_sfr;
     // wsfr_expected = Nion_General(redshift, M_min, M_turn_a, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc);
     if(flag_options_stoc->USE_MINI_HALOS){
         nion_expected += Nion_General_MINI(redshift, M_min, M_max, M_turn_m, M_turn_a,
                                             alpha_star_mini, alpha_esc, norm_star_mini,
-                                            norm_esc_mini, Mlim_Fstar_mini, Mlim_Fesc_mini) * prefactor_nion_mini;
+                                            norm_esc_mini, Mlim_Fstar_mini, Mlim_Fesc_mini,
+                                            user_params_stoc->INTEGRATION_METHOD_MINI) * prefactor_nion_mini;
 
         sfr_expected_mini = Nion_General_MINI(redshift, M_min, M_max, M_turn_m, M_turn_a,
                                             alpha_star_mini, 0., norm_star_mini,
-                                            1., Mlim_Fstar_mini, 0.) * prefactor_sfr_mini;
+                                            1., Mlim_Fstar_mini, 0.,
+                                            user_params_stoc->INTEGRATION_METHOD_MINI) * prefactor_sfr_mini;
     }
 
     // hm_expected *= prefactor_mass; //for non-CMF, the factors are already there
@@ -2281,6 +2185,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 
         struct HaloSamplingConstants hs_const_struct;
         struct HaloSamplingConstants *hs_constants = &hs_const_struct;
+
         LOG_DEBUG("Setting z constants. %.3f %.3f",z_out,z_in);
         stoc_set_consts_z(hs_constants,z_out,z_in);
         // print_hs_consts(hs_constants);
@@ -2295,35 +2200,33 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         //placeholders for condition vals
         double Mcond,lnMcond,delta;
 
+        struct parameters_gsl_MF_integrals integral_params = {
+                .redshift = z_out,
+                .growthf = growth_out,
+                .HMF = user_params->HMF,
+        };
+
         LOG_DEBUG("TEST FUNCTION: type = %d z = (%.2f,%.2f), Mmin = %.3e, cond = %.3e, M(%d)=[%.2e,%.2e,%.2e...]",type,z_out,z_in,Mmin,condition,n_mass,M[0],M[1],M[2]);
 
         //Since the conditional MF is press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
         double ps_ratio = 1.;
+        struct parameters_gsl_MF_integrals params_second = integral_params;
         if(!hs_constants->update && user_params_stoc->HMF>1 && user_params_stoc->HMF<4){
-            lnMcond = hs_constants->lnM_cond;
-            ps_ratio = IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,0,user_params->HMF,1) / IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,0,0,1);
-            LOG_DEBUG("Using PS ratio of %.2f",ps_ratio);
+            params_second.HMF = 0;
+            ps_ratio = IntegratedNdM(lnMmin,lnMmax_tb,params_second,2,user_params_stoc->INTEGRATION_METHOD_HALOS);
+            ps_ratio /= IntegratedNdM(lnMmin,lnMmax_tb,integral_params,2,user_params_stoc->INTEGRATION_METHOD_HALOS);
         }
 
         if(type==0){
             stoc_set_consts_cond(hs_constants,condition);
             print_hs_consts(hs_constants);
-            Mcond = hs_constants->M_cond;
-            lnMcond = hs_constants->lnM_cond;
-            delta = hs_constants->delta;
             //using seed to select CMF or UMF since there's no RNG here
             int cmf_flag = (seed==0) ? 1 : 0;
 
             //parameters for CMF
             double prefactor = RHOcrit * cosmo_params_stoc->OMm * ps_ratio;
-            struct parameters_gsl_MF_integrals params = {
-                .redshift = z_out,
-                .growthf = growth_out,
-                .delta = delta,
-                .M_cond = lnMcond,
-                .sigma_cond = hs_constants->sigma_cond,
-                .HMF = user_params_stoc->HMF,
-            };
+            integral_params.delta = hs_constants->delta;
+            integral_params.sigma_cond = hs_constants->sigma_cond;
 
             #pragma omp parallel for
             for(i=0;i<n_mass;i++){
@@ -2333,14 +2236,14 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 }
                 else{
                     if(cmf_flag){
-                        result[i] = cmf_integrand(log(M[i]), (void*)&params) * prefactor;
+                        result[i] = c_mf_integrand(log(M[i]), (void*)&integral_params) * prefactor;
                     }
                     else{
-                        result[i] = umf_integrand(log(M[i]), (void*)&params);
+                        result[i] = u_mf_integrand(log(M[i]), (void*)&integral_params);
                     }
                 }
                 LOG_ULTRA_DEBUG(" D %.1e | M1 %.1e | M2 %.1e | d %.1e | s %.1e -> %.1e",
-                                growth_out,M[i],Mcond,delta,hs_constants->sigma_cond,result[i]);
+                                growth_out,M[i],hs_constants->M_cond,hs_constants->delta,hs_constants->sigma_cond,result[i]);
             }
         }
         else if(type==1){
@@ -2351,11 +2254,12 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             lnMcond = hs_constants->lnM_cond;
             delta = hs_constants->delta;
 
+            integral_params.delta = hs_constants->delta;
+            integral_params.sigma_cond = hs_constants->sigma_cond;
+
             double lnM_hi, lnM_lo;
             #pragma omp parallel for private(test,lnM_hi,lnM_lo) num_threads(user_params->N_THREADS)
             for(i=0;i<n_mass;i++){
-                LOG_ULTRA_DEBUG("%d %d D %.1e | Ml %.1e | Mu %.1e | Mc %.1e | Mm %.1e | d %.1e | s %.1e",
-                                i, i+n_mass, growth_out,M[i],M[i+n_mass],Mcond,Mmin,delta,EvaluateSigma(lnMcond,0,NULL));
 
                 lnM_lo = log(M[i]) < lnMmin ? lnMmin : log(M[i]);
                 lnM_hi = log(M[i+n_mass]) > lnMcond ? lnMcond : log(M[i+n_mass]);
@@ -2365,9 +2269,15 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     continue;
                 }
 
-                test = IntegratedNdM(growth_out,lnM_lo,lnM_hi,lnMcond,delta,user_params->HMF,seed);
+                //WARNING: SUPER INEFFICIENT
+                if(user_params_stoc->INTEGRATION_METHOD_HALOS == 1)
+                    initialise_GL(NGL_INT, lnM_lo, lnM_hi);
+
+                test = IntegratedNdM(lnM_lo,lnM_hi,integral_params,seed,user_params->INTEGRATION_METHOD_HALOS);
                 result[i] = test * Mcond * ps_ratio;
-                LOG_ULTRA_DEBUG("==> %.8e",result[i]);
+
+                LOG_ULTRA_DEBUG("%d D %.1e | Ml %.1e | Mu %.1e | Mc %.1e| d %.1e | s %.1e ==> %.8e",
+                                i,growth_out,M[i],M[i+n_mass],Mcond,delta,EvaluateSigma(lnMcond,0,NULL),result[i]);
             }
         }
 
@@ -2380,6 +2290,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 //we need a private version
                 //TODO: its probably better to split condition and z constants
                 struct HaloSamplingConstants hs_constants_priv;
+                struct parameters_gsl_MF_integrals int_params_priv = integral_params;
                 hs_constants_priv = *hs_constants;
                 double cond,tbl_arg;
                 #pragma omp for
@@ -2395,11 +2306,16 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     lnMcond = hs_constants_priv.lnM_cond;
                     delta = hs_constants_priv.delta;
 
-                    LOG_ULTRA_DEBUG("%d %d D %.1e | Ml %.1e | Mc %.1e| d %.1e | s %.1e",
-                                    i,i+n_mass,growth_out,Mmin,Mcond,delta,EvaluateSigma(lnMcond,0,NULL));
+                    int_params_priv.delta = hs_constants_priv.delta;
+                    int_params_priv.sigma_cond = hs_constants_priv.sigma_cond;
 
-                    test = IntegratedNdM(growth_out,lnMmin,lnMcond,lnMcond,delta,user_params->HMF,seed);
-                    LOG_ULTRA_DEBUG("==> %.8e",test);
+                    //WARNING: SUPER INEFFICIENT
+                    if(user_params_stoc->INTEGRATION_METHOD_HALOS == 1)
+                        initialise_GL(NGL_INT, lnMmin, lnMcond);
+
+                    test = IntegratedNdM(lnMmin,lnMcond,int_params_priv,seed,user_params->INTEGRATION_METHOD_HALOS);
+                    LOG_ULTRA_DEBUG("%d D %.1e | Ml %.1e | Mc %.1e | d %.1e | s %.1e ==> %.8e",
+                                    i,growth_out,Mmin,Mcond,delta,EvaluateSigma(lnMcond,0,NULL),test);
                     //conditional MF multiplied by a few factors
                     result[i] = test  * Mcond * ps_ratio;
                 }
@@ -2417,15 +2333,6 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             double tot_mass=0;
             double lnMbin_max = hs_constants->lnM_max_tb; //arbitrary bin maximum
 
-            struct parameters_gsl_MF_integrals params = {
-                .redshift = z_out,
-                .growthf = growth_out,
-                .delta = 0,
-                .M_cond = 0,
-                .sigma_cond = 0,
-                .HMF = user_params_stoc->HMF,
-            };
-
             for(i=0;i<n_bins;i++){
                 out_cmf[i] = 0;
                 out_bins[i] = lnMmin + ((double)i/((double)n_bins-1))*(lnMbin_max - lnMmin);
@@ -2437,6 +2344,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                 //TODO: its probably better to split condition and z constants
                 double lnM_bin;
                 struct HaloSamplingConstants hs_constants_priv;
+                struct parameters_gsl_MF_integrals int_params_priv = integral_params;
                 double cond;
                 hs_constants_priv = *hs_constants;
                 #pragma omp for
@@ -2446,9 +2354,8 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                     stoc_set_consts_cond(&hs_constants_priv,cond);
                     lnMcond = hs_constants_priv.lnM_cond;
 
-                    params.M_cond = lnMcond;
-                    params.sigma_cond = hs_constants_priv.sigma_cond;
-                    params.delta = hs_constants_priv.delta;
+                    int_params_priv.sigma_cond = hs_constants_priv.sigma_cond;
+                    int_params_priv.delta = hs_constants_priv.delta;
                     for(i=0;i<n_bins;i++){
                         lnM_bin = out_bins[i];
 
@@ -2457,7 +2364,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                             test = 0.;
                         }
                         else{
-                            test = cmf_integrand(lnM_bin,(void*)&params);
+                            test = c_mf_integrand(lnM_bin,(void*)&int_params_priv);
                             test = test * prefactor * ps_ratio;
                         }
                         out_cmf[i] += test * M[j];
@@ -2599,11 +2506,10 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
 
                 //this does the integrals
                 stoc_set_consts_cond(hs_constants,x_in);
-                mass = hs_constants->M_cond;
                 result[i] = hs_constants->expected_N;
                 result[i+n_mass] = hs_constants->expected_M;
 
-                LOG_ULTRA_DEBUG("x_in %.6e (%.6e) N %.6e M = %.6e",x_in,M[i],result[i],result[i+n_mass]);
+                LOG_ULTRA_DEBUG("x_in %.6e (%.6e) N %.6e M = %.6e",M[i],result[i],result[i+n_mass]);
             }
         }
 
@@ -2658,12 +2564,12 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
                                         hs_constants->sigma_cond);
 
                 N_buf = Nion_ConditionalM(hs_constants->growth_out, hs_constants->lnM_min, hs_constants->lnM_cond, hs_constants->sigma_cond,
-                                         Deltac, delta_in, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC,
-                                         astro_params->F_STAR10, astro_params->F_ESC10,Mlim_Fstar, Mlim_Fesc, user_params->FAST_FCOLL_TABLES);
+                                         delta_in, astro_params->M_TURN, astro_params->ALPHA_STAR, astro_params->ALPHA_ESC,
+                                         astro_params->F_STAR10, astro_params->F_ESC10,Mlim_Fstar, Mlim_Fesc, user_params_stoc->INTEGRATION_METHOD_ATOMIC);
 
                 S_buf = Nion_ConditionalM(hs_constants->growth_out, hs_constants->lnM_min, hs_constants->lnM_cond, hs_constants->sigma_cond,
-                                         Deltac, delta_in, astro_params->M_TURN, astro_params->ALPHA_STAR, 0.,
-                                         astro_params->F_STAR10, 1., Mlim_Fstar, 0., user_params->FAST_FCOLL_TABLES);
+                                         delta_in, astro_params->M_TURN, astro_params->ALPHA_STAR, 0.,
+                                         astro_params->F_STAR10, 1., Mlim_Fstar, 0., user_params_stoc->INTEGRATION_METHOD_ATOMIC);
 
                 result[i] = F_buf;
                 result[i + n_mass] = hs_constants->expected_M / hs_constants->M_cond;

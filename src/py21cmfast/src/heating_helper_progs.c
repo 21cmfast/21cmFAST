@@ -694,12 +694,12 @@ double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc, stru
     //minihalos uses a different turnover mass
     if(flag_options_hf->USE_MINI_HALOS)
         return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
-                            astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+                            astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc,user_params_hf->INTEGRATION_METHOD_ATOMIC);
     if(flag_options_hf->USE_MASS_DEPENDENT_ZETA)
         return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->M_TURN, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
-                            astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+                            astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, Mlim_Fesc,user_params_hf->INTEGRATION_METHOD_ATOMIC);
 
-    return FgtrM_General(redshift, minimum_source_mass(redshift,astro_params_hf,flag_options_hf));
+    return FgtrM_General(redshift, minimum_source_mass(redshift,astro_params_hf,flag_options_hf), user_params_hf->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI, struct RGTable2D *table){
@@ -709,7 +709,7 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Ml
 
     return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
                             astro_params_hf->ALPHA_STAR_MINI, astro_params_hf->ALPHA_ESC, astro_params_hf->F_STAR7_MINI,
-                            astro_params_hf->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
+                            astro_params_hf->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI,user_params_hf->INTEGRATION_METHOD_MINI);
 }
 
 double EvaluateSFRD(double redshift, double Mlim_Fstar, struct RGTable1D * table){
@@ -720,16 +720,16 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar, struct RGTable1D * table
     //minihalos uses a different turnover mass
     if(flag_options_hf->USE_MINI_HALOS)
         return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_hf->ALPHA_STAR, 0.,
-                            astro_params_hf->F_STAR10, 1., Mlim_Fstar, 0);
+                            astro_params_hf->F_STAR10, 1., Mlim_Fstar, 0, user_params_hf->INTEGRATION_METHOD_ATOMIC);
 
     if(flag_options_hf->USE_MASS_DEPENDENT_ZETA)
         return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_hf->M_TURN, astro_params_hf->ALPHA_STAR, astro_params_hf->ALPHA_ESC,
-                            astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, 0);
+                            astro_params_hf->F_STAR10, astro_params_hf->F_ESC10, Mlim_Fstar, 0, user_params_hf->INTEGRATION_METHOD_ATOMIC);
 
     //NOTE: Previously, with M_MIN_IN_MASS, the FgtrM function used M_turn/50, which seems like a bug
     // since it goes against the assumption of sharp cutoff
 
-    return FgtrM_General(redshift, minimum_source_mass(redshift,astro_params_hf,flag_options_hf));
+    return FgtrM_General(redshift, minimum_source_mass(redshift,astro_params_hf,flag_options_hf),user_params_hf->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, struct RGTable2D * table){
@@ -738,7 +738,7 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim
     }
     return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
                             astro_params_hf->ALPHA_STAR_MINI, 0., astro_params_hf->F_STAR7_MINI,
-                            1., Mlim_Fstar_MINI, 0.);
+                            1., Mlim_Fstar_MINI, 0., user_params_hf->INTEGRATION_METHOD_MINI);
 }
 
 //

@@ -101,7 +101,13 @@ LOG_DEBUG("redshift=%f", redshift);
         if(LOG_LEVEL >= DEBUG_LEVEL){
             double Mmax_debug = 1e16;
             initialiseSigmaMInterpTable(M_MIN*0.9,Mmax_debug*1.1);
-            double nhalo_debug = VOLUME * IntegratedNdM(growth_factor,log(M_MIN),log(Mmax_debug),log(Mmax_debug),0,user_params->HMF,0);
+            struct parameters_gsl_MF_integrals params = {
+                .redshift = redshift,
+                .growthf = growth_factor,
+                .HMF = user_params->HMF,
+            };
+
+            double nhalo_debug = IntegratedNdM(log(M_MIN), log(Mmax_debug), params, 1, user_params->INTEGRATION_METHOD_HALOS) * VOLUME;
             //expected halos above minimum filter mass
             LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e]",nhalo_debug,M_MIN,Mmax_debug);
         }

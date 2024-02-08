@@ -222,9 +222,6 @@ void alloc_global_arrays(){
             del_fcoll_Rct_MINI = calloc(HII_TOT_NUM_PIXELS,sizeof(float));
         }
 
-        xi_SFR_Xray = calloc(NGL_SFR+1,sizeof(double));
-        wi_SFR_Xray = calloc(NGL_SFR+1,sizeof(double));
-
         if(user_params_ts->USE_INTERPOLATION_TABLES) {
             min_densities = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
             max_densities = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
@@ -329,8 +326,6 @@ void free_ts_global_arrays(){
             free(del_fcoll_Rct_MINI);
         }
 
-        free(xi_SFR_Xray);
-        free(wi_SFR_Xray);
         if(user_params_ts->USE_INTERPOLATION_TABLES) {
             free(min_densities);
             free(max_densities);
@@ -862,6 +857,10 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     struct RGTable1D SFRD_z_table = {.allocated = false,};
     struct RGTable2D SFRD_z_table_MINI = {.allocated = false,};
 
+    //TODO: only do this when we select GL integration
+    if(user_params_ts->INTEGRATION_METHOD_ATOMIC == 1 || user_params_ts->INTEGRATION_METHOD_MINI == 1)
+        initialise_GL(NGL_INT,log(global_params.M_MIN_INTEGRAL),log(global_params.M_MAX_INTEGRAL));
+
     //For a lot of global evolution, this code uses Nion_general. We can replace this with the halo field
     //at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1 barrier
     //so it needs the QHII in a range [zp,zpp]. I want to replace this whole thing with a global history struct but
@@ -957,13 +956,16 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     struct RGTable1D_f fcoll_conditional_table = {.allocated = false,};
     struct RGTable1D_f dfcoll_conditional_table = {.allocated = false,};
 
+    if(user_params_ts->INTEGRATION_METHOD_ATOMIC == 1 || user_params_ts->INTEGRATION_METHOD_MINI == 1)
+        initialise_GL(NGL_INT,log(M_min_R[R_ct]),log(M_max_R[R_ct]));
+
     if(user_params_ts->USE_INTERPOLATION_TABLES){
         if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
             initialise_SFRD_Conditional_table(min_densities[R_ct],
                                                     max_densities[R_ct],zpp_growth[R_ct],Mcrit_atom_interp_table[R_ct],
                                                     global_params.M_MIN_INTEGRAL,M_max_R[R_ct],M_max_R[R_ct],
                                                     astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->F_STAR10,
-                                                    astro_params_ts->F_STAR7_MINI, user_params_ts->FAST_FCOLL_TABLES,
+                                                    astro_params_ts->F_STAR7_MINI, user_params_ts->INTEGRATION_METHOD_ATOMIC, user_params_ts->INTEGRATION_METHOD_MINI,
                                                     flag_options_ts->USE_MINI_HALOS,&SFRD_conditional_table,&SFRD_conditional_table_MINI);
         }
         else{
@@ -1020,18 +1022,18 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
             else {
                 if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
                     if (flag_options_ts->USE_MINI_HALOS){
-                        fcoll = Nion_ConditionalM(zpp_growth[R_ct],log(global_params.M_MIN_INTEGRAL),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,curr_dens,Mcrit_atom_interp_table[R_ct],
-                                                    astro_params_ts->ALPHA_STAR,0.,astro_params_ts->F_STAR10,1.,Mlim_Fstar_g,0., user_params_ts->FAST_FCOLL_TABLES);
+                        fcoll = Nion_ConditionalM(zpp_growth[R_ct],log(global_params.M_MIN_INTEGRAL),log(M_max_R[R_ct]),sigma_max[R_ct],curr_dens,Mcrit_atom_interp_table[R_ct],
+                                                    astro_params_ts->ALPHA_STAR,0.,astro_params_ts->F_STAR10,1.,Mlim_Fstar_g,0., user_params_ts->INTEGRATION_METHOD_ATOMIC);
 
-                        fcoll_MINI = Nion_ConditionalM_MINI(zpp_growth[R_ct],log(global_params.M_MIN_INTEGRAL),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,\
+                        fcoll_MINI = Nion_ConditionalM_MINI(zpp_growth[R_ct],log(global_params.M_MIN_INTEGRAL),log(M_max_R[R_ct]),sigma_max[R_ct],\
                                                 curr_dens,pow(10,Mcrit_R_grid[box_ct]),Mcrit_atom_interp_table[R_ct],\
-                                                astro_params_ts->ALPHA_STAR_MINI,0.,astro_params_ts->F_STAR7_MINI,1.,Mlim_Fstar_MINI_g, 0., user_params_ts->FAST_FCOLL_TABLES);
+                                                astro_params_ts->ALPHA_STAR_MINI,0.,astro_params_ts->F_STAR7_MINI,1.,Mlim_Fstar_MINI_g, 0., user_params_ts->INTEGRATION_METHOD_MINI);
 
                     }
                     else {
-                        fcoll = Nion_ConditionalM(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,curr_dens,
+                        fcoll = Nion_ConditionalM(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],curr_dens,
                                                     astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR,0.,
-                                                    astro_params_ts->F_STAR10,1.,Mlim_Fstar_g,0., user_params_ts->FAST_FCOLL_TABLES);
+                                                    astro_params_ts->F_STAR10,1.,Mlim_Fstar_g,0., user_params_ts->INTEGRATION_METHOD_ATOMIC);
                     }
                 }
                 else{
@@ -1361,8 +1363,9 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
 
     double M_MIN;
     //with the TtoM limit, we use the largest redshift, to cover the whole range
+    //This M_MIN just sets the sigma table range, the minimum mass for the integrals is set per radius in setup_z_edges
     M_MIN = minimum_source_mass(zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts - 1],astro_params,flag_options);
-    if(user_params->FAST_FCOLL_TABLES) M_MIN = fmin(MMIN_FAST,M_MIN);
+    if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2) M_MIN = fmin(MMIN_FAST,M_MIN);
 
     LOG_SUPER_DEBUG("Minimum Source Mass %.6e (log) %.6e",M_MIN,log(M_MIN));
     if(user_params->USE_INTERPOLATION_TABLES)
@@ -1677,14 +1680,14 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                     if(box_ct==0 && !flag_options->USE_HALO_FIELD){
                         LOG_SUPER_DEBUG("Cell 0: R=%.1f (%.3f) | SFR %.4e | integral %.4e",
                                         R_values[R_ct],zpp_for_evolve_list[R_ct],sfr_term,
-                                        Nion_ConditionalM(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,
+                                        Nion_ConditionalM(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],
                                             delNL0[R_ct][box_ct]*zpp_growth[R_ct],
                                             Mcrit_atom_interp_table[R_ct],astro_params->ALPHA_STAR,0.,astro_params->F_STAR10,1.,Mlim_Fstar_g,0.,
-                                            user_params->FAST_FCOLL_TABLES) * z_edge_factor * (1+delNL0[R_ct][box_ct]*zpp_growth[R_ct]) * avg_fix_term * astro_params->F_STAR10);
+                                            user_params_ts->INTEGRATION_METHOD_ATOMIC) * z_edge_factor * (1+delNL0[R_ct][box_ct]*zpp_growth[R_ct]) * avg_fix_term * astro_params->F_STAR10);
                         if(flag_options->USE_MINI_HALOS)
-                            LOG_SUPER_DEBUG("Cell 0: MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],Deltac,\
+                            LOG_SUPER_DEBUG("Cell 0: MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],\
                                             delNL0[R_ct][box_ct]*zpp_growth[R_ct],pow(10,log10_Mcrit_LW[R_ct][box_ct]),Mcrit_atom_interp_table[R_ct],\
-                                            astro_params->ALPHA_STAR_MINI,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI_g, 0., user_params->FAST_FCOLL_TABLES) \
+                                            astro_params->ALPHA_STAR_MINI,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI_g, 0., user_params_ts->INTEGRATION_METHOD_MINI) \
                                              * z_edge_factor * (1+delNL0[R_ct][box_ct]*zpp_growth[R_ct]) * avg_fix_term_MINI * astro_params->F_STAR7_MINI);
 
                         LOG_SUPER_DEBUG("xh %.2e | xi %.2e | xl %.2e | sl %.2e | ct %.2e | ij %.2e",dxheat_dt_box[box_ct]/astro_params->L_X,
