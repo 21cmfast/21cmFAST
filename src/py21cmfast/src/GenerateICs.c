@@ -41,6 +41,7 @@
 #include "recombinations.c"
 #include "IonisationBox.c"
 #include "Stochasticity.c"
+#include "HaloBox.c"
 #include "SpinTemperatureBox.c"
 #include "BrightnessTemperatureBox.c"
 #include "FindHaloes.c"
