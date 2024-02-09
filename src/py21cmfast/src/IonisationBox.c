@@ -35,7 +35,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
-    Broadcast_struct_global_IT(user_params);
+    Broadcast_struct_global_IT(user_params,cosmo_params,astro_params,flag_options);
 
     omp_set_num_threads(user_params->N_THREADS);
 
@@ -85,10 +85,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
 
     float log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
     float log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
-
-    struct RGTable1D_f Nion_Conditional_Table1D = {.allocated = false,};
-    struct RGTable2D_f Nion_Conditional_Table2D = {.allocated = false,}, Nion_Conditional_Table_MINI = {.allocated = false,};
-    struct RGTable2D_f Nion_Conditional_Table_prev = {.allocated = false,}, Nion_Conditional_Table_prev_MINI = {.allocated = false,};
 
     gsl_rng * r[user_params->N_THREADS];
 
@@ -340,6 +336,10 @@ LOG_DEBUG("first redshift, do some initialization");
             previous_ionize_box->dNrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     }
     //set the minimum source mass
+    M_MIN = minimum_source_mass(redshift,astro_params,flag_options);
+    LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
+
+    //Find the mass limits and average turnovers
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (flag_options->USE_MINI_HALOS){
             ave_log10_Mturnover = 0.;
@@ -458,13 +458,11 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
             box->log10_Mturnover_MINI_ave = ave_log10_Mturnover_MINI/(double) HII_TOT_NUM_PIXELS;
             Mturnover                 = pow(10., box->log10_Mturnover_ave);
             Mturnover_MINI            = pow(10., box->log10_Mturnover_MINI_ave);
-            M_MIN           = global_params.M_MIN_INTEGRAL;
             Mlim_Fstar_MINI = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR_MINI, astro_params->F_STAR7_MINI * pow(1e3,astro_params->ALPHA_STAR_MINI));
             Mlim_Fesc_MINI  = Mass_limit_bisection(M_MIN, 1e16, alpha_esc_var, astro_params->F_ESC7_MINI * pow(1e3, alpha_esc_var));
             LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs", box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
         }
         else{
-            M_MIN     = astro_params->M_TURN/50.;
             Mturnover = astro_params->M_TURN;
             Mcrit_atom = Mturnover; //for table init
             box->log10_Mturnover_ave = log10(Mturnover);
@@ -473,34 +471,15 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
         Mlim_Fstar = Mass_limit_bisection(M_MIN, 1e16, astro_params->ALPHA_STAR, astro_params->F_STAR10);
         Mlim_Fesc  = Mass_limit_bisection(M_MIN, 1e16, alpha_esc_var, norm_esc_var);
     }
-    else {
-
-        //set the minimum source mass
-        if (astro_params->ION_Tvir_MIN < 9.99999e3) { // neutral IGM
-            M_MIN = (float)TtoM(redshift, astro_params->ION_Tvir_MIN, 1.22);
-        }
-        else { // ionized IGM
-            M_MIN = (float)TtoM(redshift, astro_params->ION_Tvir_MIN, 0.6);
-        }
-    }
-
-LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
 
     if(user_params->USE_INTERPOLATION_TABLES) {
-      if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2){
-        initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
-      }
-      else{
-        //if the TS code is called, the table should already be initialised
-        //NOTE: if TS is loaded from file, this breaks
-        if(!flag_options->USE_TS_FLUCT) {
+        if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2){
+            initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
+        }
+        else if(!flag_options->USE_TS_FLUCT) {
             initialiseSigmaMInterpTable(M_MIN,1e20);
         }
-        else if(flag_options->USE_MINI_HALOS){
-            initialiseSigmaMInterpTable(global_params.M_MIN_INTEGRAL/50.,1e20);
-        }
-      }
-
+        
     }
 
 
@@ -543,6 +522,9 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
 
     // lets check if we are going to bother with computing the inhmogeneous field at all...
     global_xH = 0.0;
+    
+    if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || user_params->INTEGRATION_METHOD_MINI == 1)
+        initialise_GL(NGL_INT, log(M_MIN), log(global_params.M_MAX_INTEGRAL));
 
     // Determine the normalisation for the excursion set algorithm
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -963,7 +945,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                                 norm_esc_var,Mlim_Fstar,Mlim_Fesc,astro_params->F_STAR7_MINI,
                                                 astro_params->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI,
                                                 user_params->INTEGRATION_METHOD_ATOMIC, user_params->INTEGRATION_METHOD_MINI,
-                                                flag_options->USE_MINI_HALOS, &Nion_Conditional_Table1D, &Nion_Conditional_Table2D, &Nion_Conditional_Table_MINI);
+                                                flag_options->USE_MINI_HALOS,false);
 
                         if(flag_options->USE_MINI_HALOS && (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4)){
                             initialise_Nion_Conditional_spline(prev_redshift,Mcrit_atom,prev_min_density,prev_max_density,M_MIN,massofscaleR,massofscaleR,
@@ -973,14 +955,15 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                                     norm_esc_var,Mlim_Fstar,Mlim_Fesc,astro_params->F_STAR7_MINI,
                                                     astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI,
                                                     user_params->INTEGRATION_METHOD_ATOMIC, user_params->INTEGRATION_METHOD_MINI,
-                                                    flag_options->USE_MINI_HALOS, &Nion_Conditional_Table1D, &Nion_Conditional_Table_prev, &Nion_Conditional_Table_prev_MINI);
-                            LOG_SUPER_DEBUG("Tb midpoints %.4e %.4e %.4e %.4e",Nion_Conditional_Table2D.z_arr[NDELTA/2][NMTURN/2],
-                                            Nion_Conditional_Table_MINI.z_arr[NDELTA/2][NMTURN/2],Nion_Conditional_Table_prev.z_arr[NDELTA/2][NMTURN/2],
-                                            Nion_Conditional_Table_prev_MINI.z_arr[NDELTA/2][NMTURN/2]);
+                                                    flag_options->USE_MINI_HALOS,true);
+                            LOG_SUPER_DEBUG("Tb midpoints %.4e %.4e %.4e %.4e",Nion_conditional_table2D.z_arr[NDELTA/2][NMTURN/2],
+                                            Nion_conditional_table_MINI.z_arr[NDELTA/2][NMTURN/2],Nion_conditional_table_prev.z_arr[NDELTA/2][NMTURN/2],
+                                            Nion_conditional_table_MINI_prev.z_arr[NDELTA/2][NMTURN/2]);
                         }
                     }
                 }
                 else {
+                    //TODO: replace with Fcoll_z tables
                     erfc_denom = 2. * (pow(sigma_z0(M_MIN), 2) - pow(sigma_z0(massofscaleR), 2));
                     if (erfc_denom < 0) { // our filtering scale has become too small
                         break;
@@ -1051,52 +1034,17 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                     if (flag_options->USE_MINI_HALOS){
                                         log10_Mturnover = *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z));
                                         log10_Mturnover_MINI = *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z));
-                                        if(user_params->USE_INTERPOLATION_TABLES){
-                                            Splined_Fcoll = exp(EvaluateRGTable2D_f(curr_dens,log10_Mturnover,&Nion_Conditional_Table2D));
-                                            Splined_Fcoll_MINI = exp(EvaluateRGTable2D_f(curr_dens,log10_Mturnover_MINI,&Nion_Conditional_Table_MINI));
-
-                                            if(status_int > 0) {
-                                                overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
-                                                LOG_ULTRA_DEBUG("Broken 1059 in thread=%d", omp_get_thread_num());
-                                            }
-                                        }
-                                        else {
-
-                                            Splined_Fcoll = Nion_ConditionalM(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,curr_dens,
-                                                                              pow(10.,log10_Mturnover),astro_params->ALPHA_STAR,
-                                                                              alpha_esc_var,astro_params->F_STAR10,
-                                                                              norm_esc_var,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC);
-
-                                            Splined_Fcoll_MINI = Nion_ConditionalM_MINI(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,curr_dens,
-                                                                                    pow(10.,log10_Mturnover_MINI),Mcrit_atom,astro_params->ALPHA_STAR_MINI,
-                                                                                    alpha_esc_var,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
-                                                                                    Mlim_Fstar_MINI,Mlim_Fesc_MINI,user_params->INTEGRATION_METHOD_MINI);
-                                        }
+                                        
+                                        Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(curr_dens,log10_Mturnover_MINI,growth_factor,M_MIN,
+                                                                                            massofscaleR,sigmaMmax,Mcrit_atom,Mlim_Fstar,Mlim_Fesc,false);
 
                                         prev_dens = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
                                         if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
-
-                                            if(user_params->USE_INTERPOLATION_TABLES) {
-                                                prev_Splined_Fcoll = exp(EvaluateRGTable2D_f(prev_dens,log10_Mturnover,&Nion_Conditional_Table_prev));
-                                                prev_Splined_Fcoll_MINI = exp(EvaluateRGTable2D_f(prev_dens,log10_Mturnover_MINI,&Nion_Conditional_Table_prev_MINI));
-
-                                                if(status_int > 0) {
-                                                    overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
-                                                    LOG_ULTRA_DEBUG("Broken 1086 in thread=%d", omp_get_thread_num());
-                                                }
-                                            }
-                                            else {
-                                                prev_Splined_Fcoll = Nion_ConditionalM(prev_growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,prev_dens,
-                                                                                       pow(10.,log10_Mturnover),astro_params->ALPHA_STAR,
-                                                                                       alpha_esc_var,astro_params->F_STAR10,
-                                                                                       norm_esc_var,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC);
-
-                                                prev_Splined_Fcoll_MINI = Nion_ConditionalM_MINI(prev_growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,prev_dens,
-                                                                                        pow(10.,log10_Mturnover_MINI),Mcrit_atom,astro_params->ALPHA_STAR_MINI,
-                                                                                        alpha_esc_var,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
-                                                                                        Mlim_Fstar_MINI,Mlim_Fesc_MINI,user_params->INTEGRATION_METHOD_MINI);
-                                            }
+                                            prev_Splined_Fcoll = EvaluateNion_Conditional(prev_dens,log10_Mturnover,prev_growth_factor,M_MIN,massofscaleR,
+                                                                                                sigmaMmax,Mlim_Fstar,Mlim_Fesc,true);
+                                            prev_Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(prev_dens,log10_Mturnover_MINI,prev_growth_factor,M_MIN,
+                                                                                                massofscaleR,sigmaMmax,Mcrit_atom,Mlim_Fstar,Mlim_Fesc,true);
                                         }
                                         else{
                                             prev_Splined_Fcoll = 0.;
@@ -1104,24 +1052,11 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                         }
                                     }
                                     else{
-                                        if(user_params->USE_INTERPOLATION_TABLES) {
-                                            Splined_Fcoll = exp(EvaluateRGTable1D_f(curr_dens,&Nion_Conditional_Table1D));
-
-                                            //TODO: Implement a bounds check? (the linear tables are much simpler though)
-                                            // if(status_int > 0) {
-                                            //     overdense_int_boundexceeded_threaded[omp_get_thread_num()] = status_int;
-                                            //     LOG_ULTRA_DEBUG("Broken in thread=%d", omp_get_thread_num());
-                                            // }
-                                        }
-                                        else{
-                                            Splined_Fcoll = Nion_ConditionalM(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,curr_dens,
-                                                                              astro_params->M_TURN,astro_params->ALPHA_STAR,
-                                                                              alpha_esc_var,astro_params->F_STAR10,
-                                                                              norm_esc_var,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC);
-                                        }
+                                        log10_Mturnover = log10(astro_params->M_TURN);
                                     }
+                                    Splined_Fcoll = EvaluateNion_Conditional(curr_dens,log10_Mturnover,growth_factor,M_MIN,massofscaleR,sigmaMmax,Mlim_Fstar,Mlim_Fesc,false);
                                 }
-                                else {
+                                else{ //TODO: replace with fcoll_z_table
                                     erfc_arg_val = (Deltac - curr_dens) * erfc_denom;
                                     if (erfc_arg_val < erfc_arg_min || erfc_arg_val > erfc_arg_max) {
                                         Splined_Fcoll = splined_erfc(erfc_arg_val);
@@ -1182,6 +1117,21 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                             else{
                                 box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = Splined_Fcoll;
                                 f_coll += Splined_Fcoll;
+                            }
+                            if(x+y+z == 0 && LAST_FILTER_STEP){
+                                LOG_SUPER_DEBUG("Cell 0: R=%.1f | d %.4e | fcoll (%.4e == %.4e)",
+                                                    R,curr_dens,Splined_Fcoll,\
+                                                    Nion_ConditionalM(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,curr_dens,
+                                                        pow(10,log10_Mturnover),
+                                                        astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
+                                                        astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC));
+                                if(flag_options->USE_MINI_HALOS){
+                                    LOG_SUPER_DEBUG("mini (%.4e == %.4e)", Splined_Fcoll_MINI,\
+                                                    Nion_ConditionalM_MINI(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,curr_dens,
+                                                        pow(10,log10_Mturnover_MINI),Mcrit_atom,
+                                                        astro_params->ALPHA_STAR_MINI,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,
+                                                        astro_params->F_ESC7_MINI,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_MINI));
+                                }
                             }
                         }
                     }
@@ -1335,13 +1285,33 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                 xHII_from_xrays = 0.;
                             }
 
-                            if(HII_R_INDEX(x,y,z) == 0){
-                                LOG_SUPER_DEBUG("Cell 0: R=%.1f | d %.4e | fcoll (%.4e,%.4e) Mini (%.4e %.4e) | rec %.4e | X %.4e",
-                                                    R,curr_dens,Splined_Fcoll,f_coll,Splined_Fcoll_MINI,f_coll_MINI,rec,xHII_from_xrays);
+                            if(x+y+z == 0){
+                                //reusing variables (i know its not log10)
+                                if(flag_options->USE_MINI_HALOS){
+                                    log10_Mturnover = pow(10,*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)));
+                                    log10_Mturnover_MINI = pow(10,*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)));
+                                }
+                                else{
+                                    log10_Mturnover = astro_params->M_TURN;
+                                }
+                                LOG_SUPER_DEBUG("Cell 0: R=%.1f | d %.4e | fcoll (s %.4e f %.4e i %.4e) | rec %.4e | X %.4e",
+                                                    R,curr_dens,Splined_Fcoll,f_coll,\
+                                                    Nion_ConditionalM(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,curr_dens,
+                                                        log10_Mturnover,
+                                                        astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
+                                                        astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC));
+                                if(flag_options->USE_MINI_HALOS){
+                                    LOG_SUPER_DEBUG("Mini (s %.4e f %.4e i %.4e)",Splined_Fcoll_MINI,f_coll_MINI,\
+                                                    Nion_ConditionalM_MINI(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,curr_dens,
+                                                        log10_Mturnover_MINI,Mcrit_atom,
+                                                        astro_params->ALPHA_STAR_MINI,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,
+                                                        astro_params->F_ESC7_MINI,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_MINI),\
+                                                    rec,xHII_from_xrays);
+                                }
                             }
 
                             // check if fully ionized!
-                            if ( (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI> (1. - xHII_from_xrays)*(1.0+rec)) ){ //IONIZED!!
+                            if ( (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI > (1. - xHII_from_xrays)*(1.0+rec)) ){ //IONIZED!!
                                 // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
                                 // this assumes photon-starved growth of HII regions...  breaks down post EoR
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
@@ -1604,11 +1574,11 @@ LOG_DEBUG("global_xH = %e",global_xH);
     }
 
     //These functions check for allocation
-    free_RGTable1D_f(&Nion_Conditional_Table1D);
-    free_RGTable2D_f(&Nion_Conditional_Table2D);
-    free_RGTable2D_f(&Nion_Conditional_Table_MINI);
-    free_RGTable2D_f(&Nion_Conditional_Table_prev);
-    free_RGTable2D_f(&Nion_Conditional_Table_prev_MINI);
+    free_RGTable1D_f(&Nion_conditional_table1D);
+    free_RGTable2D_f(&Nion_conditional_table2D);
+    free_RGTable2D_f(&Nion_conditional_table_MINI);
+    free_RGTable2D_f(&Nion_conditional_table_prev);
+    free_RGTable2D_f(&Nion_conditional_table_MINI_prev);
 
     free(overdense_int_boundexceeded_threaded);
 

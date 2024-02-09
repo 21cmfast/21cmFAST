@@ -15,22 +15,12 @@
 
 //buffer size (per cell of arbitrary size) in the sampling function
 #define MAX_HALO_CELL (int)1e5
-#define MAX_DELTAC_FRAC (float)0.999 //max delta/deltac for interpolation tables / integrals
-
-//we need to define a density minimum for the tables, since we are in lagrangian density / linear growth it's possible to go below -1
-//so we explicitly set a minimum here which sets table limits and puts no halos in cells below that (Lagrangian) density
-#define DELTA_MIN -1
 
 //NOTE: because the .c files are directly included in GenerateIC.c, the static doesn't really do anything :(
 static struct AstroParams *astro_params_stoc;
 static struct CosmoParams *cosmo_params_stoc;
 static struct UserParams *user_params_stoc;
 static struct FlagOptions *flag_options_stoc;
-
-//TODO: move these tables to the below struct
-struct RGTable2D Nhalo_inv_table = {.allocated=false};
-struct RGTable1D Nhalo_table = {.allocated=false};
-struct RGTable1D Mcoll_table = {.allocated=false};
 
 //parameters for the halo mass->stars calculations
 //Note: ideally I would split this into constants set per snapshot and
@@ -192,10 +182,10 @@ double expected_nhalo(double redshift, struct UserParams *user_params, struct Co
     struct parameters_gsl_MF_integrals params = {
         .redshift = redshift,
         .growthf = growthf,
-        .HMF = user_params_stoc->HMF,
+        .HMF = user_params->HMF,
     };
 
-    if(user_params_stoc->INTEGRATION_METHOD_HALOS == 1)
+    if(user_params->INTEGRATION_METHOD_HALOS == 1)
         initialise_GL(NGL_INT, log(M_min), log(M_max));
 
     result = IntegratedNdM(log(M_min), log(M_max), params, 1, user_params->INTEGRATION_METHOD_HALOS) * VOLUME;
@@ -205,200 +195,6 @@ double expected_nhalo(double redshift, struct UserParams *user_params, struct Co
         freeSigmaMInterpTable();
 
     return result;
-}
-
-//This table is N(>M | M_in), the CDF of dNdM_conditional
-//NOTE: Assumes you give it ymin as the minimum mass TODO: add another argument for Mmin
-void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool update){
-    int nx,ny,np;
-    double lnM_cond,delta_crit;
-    int k_lim = update ? 1 : 0;
-    double sigma_cond;
-    LOG_DEBUG("Initialising dNdM Table from [[%.2e,%.2e],[%.2e,%.2e]]",xmin,xmax,ymin,ymax);
-    LOG_DEBUG("D_out %.2e P %.2e up %d",growth1,param,update);
-
-    if(!update){
-        lnM_cond = param;
-        sigma_cond = EvaluateSigma(lnM_cond,0,NULL);
-        //current barrier at the condition for bounds checking
-        delta_crit = get_delta_crit(user_params_stoc->HMF,sigma_cond,growth1);
-        if(xmin < DELTA_MIN || xmax > MAX_DELTAC_FRAC*delta_crit){
-            LOG_ERROR("Invalid delta [%.5f,%.5f] Either too close to critical density (> 0.999 * %.5f) OR negative mass",xmin,xmax,delta_crit);
-            Throw(ValueError);
-        }
-    }
-    nx = global_params.N_COND_INTERP;
-    ny = global_params.N_MASS_INTERP;
-    np = global_params.N_PROB_INTERP;
-
-    double xa[nx], ya[ny], pa[np];
-
-    int i,j,k;
-    //set up coordinate grids
-    for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*((double)i)/((double)nx-1);
-    for(j=0;j<ny;j++) ya[j] = ymin + (ymax - ymin)*((double)j)/((double)ny-1);
-    for(k=0;k<np;k++){
-        if(update)
-            pa[k] = (double)k/(double)(np-1);
-        else
-            pa[k] = global_params.MIN_LOGPROB*(1 - (double)k/(double)(np-1));
-    }
-
-    //allocate tables
-    if(!Nhalo_table.allocated)
-        allocate_RGTable1D(nx,&Nhalo_table);
-    Nhalo_table.x_min = xmin;
-    Nhalo_table.x_width = (xmax - xmin)/((double)nx-1);
-
-    if(!Mcoll_table.allocated)
-        allocate_RGTable1D(nx,&Mcoll_table);
-    Mcoll_table.x_min = xmin;
-    Mcoll_table.x_width = (xmax - xmin)/((double)nx-1);
-
-    if(!Nhalo_inv_table.allocated)
-        allocate_RGTable2D(nx,np,&Nhalo_inv_table);
-    Nhalo_inv_table.x_min = xmin;
-    Nhalo_inv_table.x_width = (xmax - xmin)/((double)nx-1);
-    Nhalo_inv_table.y_min = pa[0];
-    Nhalo_inv_table.y_width = pa[1] - pa[0];
-    struct parameters_gsl_MF_integrals integral_params = {
-                .growthf = growth1,
-                .HMF = user_params_stoc->HMF,
-    };
-
-    #pragma omp parallel num_threads(user_params_stoc->N_THREADS) private(i,j,k) firstprivate(delta_crit,integral_params,sigma_cond,lnM_cond)
-    {
-        double x,y,buf;
-        double norm,fcoll;
-        double lnM_prev,lnM_p;
-        double prob;
-        double p_prev,p_target;
-        double k_next;
-        double delta;
-
-        #pragma omp for
-        for(i=0;i<nx;i++){
-            x = xa[i];
-            //set the condition
-            if(update){
-                lnM_cond = x;
-                //barrier at given mass
-                sigma_cond = EvaluateSigma(lnM_cond,0,NULL);
-                delta = get_delta_crit(user_params_stoc->HMF,sigma_cond,param)/param*growth1;
-                // //current barrier at condition for bounds checking
-                // delta_crit = get_delta_crit(user_params_stoc->HMF,EvaluateSigma(lnM_cond,0,NULL),growth1);
-            }
-            else{
-                delta = x;
-            }
-
-            integral_params.delta = delta;
-            integral_params.sigma_cond = sigma_cond;
-
-            lnM_prev = ymin;
-            p_prev = 0;
-
-            if(ymin >= lnM_cond){
-                Nhalo_table.y_arr[i] = 0.;
-                Mcoll_table.y_arr[i] = 0.;
-                for(k=1;k<np-1;k++)
-                    Nhalo_inv_table.z_arr[i][k] = ymin;
-                continue;
-            }
-
-            //BIG TODO: THIS IS SUPER INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
-            if(user_params_stoc->INTEGRATION_METHOD_HALOS == 1)
-                initialise_GL(NGL_INT, ymin, lnM_cond);
-
-            norm = IntegratedNdM(ymin, lnM_cond, integral_params,-1, user_params_stoc->INTEGRATION_METHOD_HALOS);
-            fcoll = IntegratedNdM(ymin, lnM_cond, integral_params, -2, user_params_stoc->INTEGRATION_METHOD_HALOS);
-            Nhalo_table.y_arr[i] = norm;
-            Mcoll_table.y_arr[i] = fcoll;
-            // LOG_ULTRA_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);
-
-            //if the condition has no halos set the dndm table directly since norm==0 breaks things
-            if(norm==0){
-                for(k=1;k<np-1;k++)
-                    Nhalo_inv_table.z_arr[i][k] = ymin;
-                continue;
-            }
-            // //inverse table limits
-            Nhalo_inv_table.z_arr[i][0] = lnM_cond; //will be overwritten in grid if we find MIN_LOGPROB within the mass range
-            Nhalo_inv_table.z_arr[i][np-1] = ymin;
-
-            //reset probability finding
-            k=np-1;
-            p_target = pa[k];
-            p_prev = update ? 1. : 0; //start with p==1 from the ymin integral, (logp==0)
-            for(j=1;j<ny;j++){
-                //done with inverse table
-                if(k < k_lim) break;
-
-                //BIG TODO: THIS IS EVEN MORE INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
-                if(user_params_stoc->INTEGRATION_METHOD_HALOS == 1)
-                    initialise_GL(NGL_INT, y, lnM_cond);
-
-                y = ya[j];
-                if(lnM_cond <= y){
-                    //setting to one guarantees samples at lower mass
-                    //This fixes upper mass limits for the conditions
-                    buf = 0.;
-                }
-                else{
-                    buf = IntegratedNdM(y, lnM_cond, integral_params, -1, user_params_stoc->INTEGRATION_METHOD_HALOS); //Number density between ymin and y
-                }
-
-                prob = buf / norm;
-                //catch some norm errors
-                if(prob != prob){
-                    LOG_ERROR("Normalisation error in table generation");
-                    Throw(TableGenerationError);
-                }
-
-                //There are time where we have gone over the probability (machine precision) limit before reaching the mass limit
-                //  we set the final point to be minimum probability at the maximum mass, which crosses the true CDF in the final bin
-                //  but is the best we can do without a rootfind
-                if(!update){
-                    if(prob == 0.){
-                        prob = global_params.MIN_LOGPROB;
-                        y = lnM_cond;
-                    }
-                    else prob = log(prob);
-                }
-                // LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",update ? exp(x) : x,i,exp(y),j,prob,p_prev);
-
-                if(p_prev < p_target){
-                        LOG_ERROR("Target moved up?");
-                        Throw(TableGenerationError);
-                }
-                //loop through the remaining spaces in the inverse table and fill them
-                while(prob <= p_target && k >= k_lim){
-                    //since we go ascending in y, prob > prob_prev
-                    //NOTE: linear interpolation in (lnMM,log(p)|p)
-                    lnM_p = (p_prev-p_target)*(y - lnM_prev)/(p_prev-prob) + lnM_prev;
-                    Nhalo_inv_table.z_arr[i][k] = lnM_p;
-
-                    // LOG_ULTRA_DEBUG("Found c: %.2e p: (%.2e,%.2e,%.2e) (c %d, m %d, p %d) z: %.5e",update ? exp(x) : x,p_prev,p_target,prob,i,j,k,exp(lnM_p));
-
-                    k--;
-                    p_target=pa[k];
-                }
-                //keep the value at the previous mass bin for interpolation
-                p_prev = prob;
-                lnM_prev = y;
-            }
-        }
-    }
-    LOG_DEBUG("Done.");
-}
-
-//TODO: start rootfind tables again by copying the above and replacing the interpolation with a false positive rootfind
-
-void free_dNdM_tables(){
-    int i;
-    free_RGTable2D(&Nhalo_inv_table);
-    free_RGTable1D(&Nhalo_table);
-    free_RGTable1D(&Mcoll_table);
 }
 
 //TODO: Speedtest the RGI interpolation present in Spintemp etc...
@@ -1365,6 +1161,7 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
+    Broadcast_struct_global_IT(user_params,cosmo_params,astro_params,flag_options);
 
     int n_halo_stoc;
     int i_start,i;

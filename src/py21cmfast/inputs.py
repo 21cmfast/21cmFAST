@@ -645,10 +645,10 @@ class UserParams(StructWithDefaults):
     def INTEGRATION_METHOD_HALOS(self):
         """The integration methods other than QAG do not yet work for halos."""
         if self._INTEGRATION_METHOD_HALOS != 0:
-            logger.warning(
-                "Only the QAG integrator currently works for the halo sampler, setting INTEGRATION_METHOD_HALOS to 0"
+            warnings.warn(
+                "Only the QAG integrator currently works for the halo sampler, setting to 1 or 2 is for testing only"
             )
-        return 0
+        return self._INTEGRATION_METHOD_HALOS
 
 
 class FlagOptions(StructWithDefaults):

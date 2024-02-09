@@ -142,7 +142,6 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
     double curr_vcb = flag_options_stoc->FIX_VCB_AVG ? global_params.VAVG : 0;
     double delta_crit = get_delta_crit(user_params_stoc->HMF,sigma_cell,growth_z);
 
-
     struct parameters_gsl_MF_integrals params = {
             .redshift = redshift,
             .growthf = growth_z,
@@ -171,7 +170,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                                                 astro_params_stoc->ALPHA_STAR, astro_params_stoc->ALPHA_STAR_MINI, astro_params_stoc->F_STAR10,
                                                 astro_params_stoc->F_STAR7_MINI, user_params_stoc->INTEGRATION_METHOD_ATOMIC,
                                                 user_params_stoc->INTEGRATION_METHOD_MINI,
-                                                flag_options_stoc->USE_MINI_HALOS,&SFRD_conditional_table,&SFRD_conditional_table_MINI);
+                                                flag_options_stoc->USE_MINI_HALOS);
 
         //note: we do not yet have the previous ion table here
         initialise_Nion_Conditional_spline(redshift,M_turn_a,min_density,max_density,M_min,M_max,M_cell,
@@ -181,7 +180,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                                 norm_esc,Mlim_Fstar,Mlim_Fesc,astro_params_stoc->F_STAR7_MINI,
                                 astro_params_stoc->F_ESC7_MINI,Mlim_Fstar_mini, Mlim_Fesc_mini,  user_params_stoc->INTEGRATION_METHOD_ATOMIC,
                                 user_params_stoc->INTEGRATION_METHOD_MINI,
-                                flag_options_stoc->USE_MINI_HALOS, &Nion_Conditional_Table1D, &Nion_Conditional_Table2D, &Nion_Conditional_Table_MINI);
+                                flag_options_stoc->USE_MINI_HALOS,false);
 
         //TODO: disable inverse table generation here with a flag or split up the functions
         initialise_dNdM_tables(min_density, max_density, lnMmin, lnMmax, growth_z, lnMcell, false);
@@ -313,9 +312,9 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
         }
     }
 
-    free_RGTable1D_f(&Nion_Conditional_Table1D);
-    free_RGTable2D_f(&Nion_Conditional_Table2D);
-    free_RGTable2D_f(&Nion_Conditional_Table_MINI);
+    free_RGTable1D_f(&Nion_conditional_table1D);
+    free_RGTable2D_f(&Nion_conditional_table2D);
+    free_RGTable2D_f(&Nion_conditional_table_MINI);
     free_RGTable1D_f(&SFRD_conditional_table);
     free_RGTable2D_f(&SFRD_conditional_table_MINI);
 
@@ -513,6 +512,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->halo_sfr_mini[idx] *= cell_volume;
                     grids->whalo_sfr[idx] *= cell_volume;
                 }
+                LOG_DEBUG("finished subsampler M[%.2e %.2e]",M_min,global_params.SAMPLER_MIN_MASS);
             }
 #pragma omp parallel num_threads(user_params->N_THREADS) firstprivate(M_turn_a,M_turn_m,M_turn_r,curr_vcb,idx)
             {

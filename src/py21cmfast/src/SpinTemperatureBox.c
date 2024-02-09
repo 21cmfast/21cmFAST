@@ -83,7 +83,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_HF(user_params,cosmo_params,astro_params, flag_options);
     Broadcast_struct_global_TS(user_params,cosmo_params,astro_params,flag_options);
-    Broadcast_struct_global_IT(user_params);
+    Broadcast_struct_global_IT(user_params,cosmo_params,astro_params,flag_options);
     omp_set_num_threads(user_params->N_THREADS);
     debug_printed = 0;
 
@@ -854,12 +854,12 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
 
     double log10_Mcrit_width = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
 
-    struct RGTable1D SFRD_z_table = {.allocated = false,};
-    struct RGTable2D SFRD_z_table_MINI = {.allocated = false,};
+    double M_min = minimum_source_mass(zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts-1],
+                                        astro_params_ts,flag_options_ts);
 
     //TODO: only do this when we select GL integration
     if(user_params_ts->INTEGRATION_METHOD_ATOMIC == 1 || user_params_ts->INTEGRATION_METHOD_MINI == 1)
-        initialise_GL(NGL_INT,log(global_params.M_MIN_INTEGRAL),log(global_params.M_MAX_INTEGRAL));
+        initialise_GL(NGL_INT,log(M_min),log(global_params.M_MAX_INTEGRAL));
 
     //For a lot of global evolution, this code uses Nion_general. We can replace this with the halo field
     //at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1 barrier
@@ -879,29 +879,27 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         //  The Nion table is used in nu_tau_one a lot but I think there's a better way to do that
         if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
             /* initialise interpolation of the mean collapse fraction for global reionization.*/
-            initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
+            initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, M_min, global_params.M_MAX_INTEGRAL,
                                         astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->ALPHA_ESC,
                                         astro_params_ts->F_STAR10, astro_params_ts->F_ESC10, astro_params_ts->F_STAR7_MINI, astro_params_ts->F_ESC7_MINI,
-                                        astro_params_ts->M_TURN, flag_options_ts->USE_MINI_HALOS,&Nion_z_table,&Nion_z_table_MINI);
+                                        astro_params_ts->M_TURN, flag_options_ts->USE_MINI_HALOS);
 
-            initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
+            initialise_SFRD_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, M_min, global_params.M_MAX_INTEGRAL,
                                     astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI,
                                     astro_params_ts->F_STAR10, astro_params_ts->F_STAR7_MINI,astro_params_ts->M_TURN,
-                                    flag_options_ts->USE_MINI_HALOS,&SFRD_z_table,&SFRD_z_table_MINI);
+                                    flag_options_ts->USE_MINI_HALOS);
         }
         else{
-            init_FcollTable(determine_zpp_min,determine_zpp_max,astro_params_ts,flag_options_ts,&SFRD_z_table);
-            //both tables are the same in this mode
-            Nion_z_table = SFRD_z_table;
+            init_FcollTable(determine_zpp_min,determine_zpp_max,M_min);
         }
     }
 
     //For consistency between halo and non-halo based, the NO_LIGHT and filling_factor_zp
     //  are based on the expected global Nion. as mentioned above it would be nice to
     //  change this to a saved reionisation/sfrd history from previous snapshots
-    sum_nion = EvaluateNionTs(zp,Mlim_Fstar_g,Mlim_Fesc_g,&Nion_z_table);
+    sum_nion = EvaluateNionTs(zp,Mlim_Fstar_g,Mlim_Fesc_g);
     if(flag_options_ts->USE_MINI_HALOS){
-        sum_nion_mini = EvaluateNionTs_MINI(zp,log10_Mcrit_LW_ave[0],Mlim_Fstar_MINI_g,Mlim_Fesc_MINI_g,&Nion_z_table_MINI);
+        sum_nion_mini = EvaluateNionTs_MINI(zp,log10_Mcrit_LW_ave[0],Mlim_Fstar_MINI_g,Mlim_Fesc_MINI_g);
     }
 
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)",sum_nion,sum_nion_mini);
@@ -909,9 +907,9 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //Now global SFRD at (R_ct) for the mean fixing
     for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
         zpp = zpp_for_evolve_list[R_ct];
-        mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp,Mlim_Fstar_g,&SFRD_z_table);
+        mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp,Mlim_Fstar_g);
         if(flag_options_ts->USE_MINI_HALOS){
-            mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp,log10_Mcrit_LW_ave[R_ct],Mlim_Fstar_MINI_g,&SFRD_z_table_MINI);
+            mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp,log10_Mcrit_LW_ave[R_ct],Mlim_Fstar_MINI_g);
         }
     }
 
@@ -951,11 +949,6 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     double mturn_bin_width = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
     double delta_bin_width = (max_densities[R_ct] - min_densities[R_ct])/((float)NDELTA-1.);
 
-    struct RGTable1D_f SFRD_conditional_table = {.allocated = false,};
-    struct RGTable2D_f SFRD_conditional_table_MINI = {.allocated = false,};
-    struct RGTable1D_f fcoll_conditional_table = {.allocated = false,};
-    struct RGTable1D_f dfcoll_conditional_table = {.allocated = false,};
-
     if(user_params_ts->INTEGRATION_METHOD_ATOMIC == 1 || user_params_ts->INTEGRATION_METHOD_MINI == 1)
         initialise_GL(NGL_INT,log(M_min_R[R_ct]),log(M_max_R[R_ct]));
 
@@ -966,11 +959,11 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
                                                     global_params.M_MIN_INTEGRAL,M_max_R[R_ct],M_max_R[R_ct],
                                                     astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->F_STAR10,
                                                     astro_params_ts->F_STAR7_MINI, user_params_ts->INTEGRATION_METHOD_ATOMIC, user_params_ts->INTEGRATION_METHOD_MINI,
-                                                    flag_options_ts->USE_MINI_HALOS,&SFRD_conditional_table,&SFRD_conditional_table_MINI);
+                                                    flag_options_ts->USE_MINI_HALOS);
         }
         else{
             initialise_FgtrM_delta_table(min_densities[R_ct], max_densities[R_ct], zpp_for_evolve_list[R_ct],
-                                             zpp_growth[R_ct], sigma_min[R_ct], sigma_max[R_ct], &fcoll_conditional_table, &dfcoll_conditional_table);
+                                             zpp_growth[R_ct], sigma_min[R_ct], sigma_max[R_ct]);
         }
     }
 
@@ -1004,54 +997,23 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
                 continue;
             }
 
-            if(user_params_ts->USE_INTERPOLATION_TABLES){
-                if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
-                    fcoll = EvaluateRGTable1D_f(curr_dens,&SFRD_conditional_table);
-                    fcoll = exp(fcoll);
-
-                    if (flag_options_ts->USE_MINI_HALOS){
-                        fcoll_MINI = EvaluateRGTable2D_f(curr_dens,curr_mcrit,&SFRD_conditional_table_MINI);
-                        fcoll_MINI = exp(fcoll_MINI);
-                    }
-                }
-                else{
-                    fcoll = EvaluateRGTable1D(curr_dens,&fcoll_conditional_table);
-                    dfcoll = EvaluateRGTable1D(curr_dens,&dfcoll_conditional_table);
-                }
-            }
-            else {
-                if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
-                    if (flag_options_ts->USE_MINI_HALOS){
-                        fcoll = Nion_ConditionalM(zpp_growth[R_ct],log(global_params.M_MIN_INTEGRAL),log(M_max_R[R_ct]),sigma_max[R_ct],curr_dens,Mcrit_atom_interp_table[R_ct],
-                                                    astro_params_ts->ALPHA_STAR,0.,astro_params_ts->F_STAR10,1.,Mlim_Fstar_g,0., user_params_ts->INTEGRATION_METHOD_ATOMIC);
-
-                        fcoll_MINI = Nion_ConditionalM_MINI(zpp_growth[R_ct],log(global_params.M_MIN_INTEGRAL),log(M_max_R[R_ct]),sigma_max[R_ct],\
-                                                curr_dens,pow(10,Mcrit_R_grid[box_ct]),Mcrit_atom_interp_table[R_ct],\
-                                                astro_params_ts->ALPHA_STAR_MINI,0.,astro_params_ts->F_STAR7_MINI,1.,Mlim_Fstar_MINI_g, 0., user_params_ts->INTEGRATION_METHOD_MINI);
-
-                    }
-                    else {
-                        fcoll = Nion_ConditionalM(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],curr_dens,
-                                                    astro_params_ts->M_TURN, astro_params_ts->ALPHA_STAR,0.,
-                                                    astro_params_ts->F_STAR10,1.,Mlim_Fstar_g,0., user_params_ts->INTEGRATION_METHOD_ATOMIC);
-                    }
-                }
-                else{
-                    fcoll = FgtrM_bias_fast(zpp_growth[R_ct],curr_dens,sigma_min[R_ct],sigma_max[R_ct]);
-                    dfcoll = dfcoll_dz(zpp_for_evolve_list[R_ct],sigma_min[R_ct],curr_dens,sigma_max[R_ct]);
-                }
-            }
-            ave_sfrd_buf += fcoll;
             if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
-                sfrd_grid[box_ct] = (1.+curr_dens)*fcoll;
-                if (flag_options_ts->USE_MINI_HALOS){
-                    ave_sfrd_buf_mini += fcoll_MINI;
-                    sfrd_grid_mini[box_ct] = (1.+curr_dens)*fcoll_MINI;
-                }
+                    fcoll = EvaluateSFRD_Conditional(curr_dens,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_max[R_ct],
+                                                    Mcrit_atom_interp_table[R_ct],Mlim_Fstar_g);
+                    sfrd_grid[box_ct] = (1.+curr_dens)*fcoll;
+
+                    if (flag_options_ts->USE_MINI_HALOS){
+                        fcoll_MINI = EvaluateSFRD_Conditional_MINI(curr_dens,curr_mcrit,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],
+                                                                    sigma_max[R_ct],Mcrit_atom_interp_table[R_ct],Mlim_Fstar_g);    
+                        sfrd_grid_mini[box_ct] = (1.+curr_dens)*fcoll_MINI;
+                    }
             }
             else{
+                fcoll = EvaluateFcoll_delta(curr_dens,zpp_growth[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
+                dfcoll = EvaluatedFcolldz(curr_dens,zpp_for_evolve_list[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
                 sfrd_grid[box_ct] = (1.+curr_dens)*dfcoll;
             }
+            ave_sfrd_buf += fcoll;
         }
     }
     *ave_sfrd = ave_sfrd_buf/HII_TOT_NUM_PIXELS;
@@ -1369,7 +1331,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
 
     LOG_SUPER_DEBUG("Minimum Source Mass %.6e (log) %.6e",M_MIN,log(M_MIN));
     if(user_params->USE_INTERPOLATION_TABLES)
-        initialiseSigmaMInterpTable(M_MIN,1e20);
+        initialiseSigmaMInterpTable(M_MIN/2,1e20);
 
     //As far as I can tell, the only thing used from this is the X_e array
     init_heat();
@@ -1493,7 +1455,6 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                                                 astro_params_ts->F_ESC7_MINI * pow(1e3, astro_params_ts->ALPHA_ESC));
         }
     }
-    LOG_DEBUG("Initialised conditional tables.");
     //set the constants calculated once per snapshot
     struct Ts_zp_consts zp_consts;
     set_zp_consts(zp,&zp_consts);

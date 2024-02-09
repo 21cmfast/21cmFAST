@@ -60,7 +60,7 @@ double sigma_norm, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_
 
 double sigmaparam_FgtrM_bias(float z, float sigsmallR, float del_bias, float sig_bias);
 
-//Sigma interpolation tables are defined here instead of interp_tables since they are used in their construction
+//Sigma interpolation tables are defined here instead of interp_tables.c since they are used in their construction
 struct RGTable1D_f Sigma_InterpTable = {.allocated = false,};
 struct RGTable1D_f dSigmasqdm_InterpTable = {.allocated = false,};
 
@@ -77,8 +77,6 @@ double *deriv, *lnM_temp, *deriv_temp;
 
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 void freeSigmaMInterpTable();
-void initialiseGL_Nion(int n, float M_Min, float M_Max);
-void initialiseGL_Nion_Xray(int n, float M_Min, float M_Max);
 
 double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm);
 
@@ -1105,7 +1103,7 @@ double c_nion_integrand(double lnM, void *param_struct){
     double Fstar = get_frac_limit(M,f_starn,a_star,Mlim_star,false);
     double Fesc = get_frac_limit(M,f_escn,a_esc,Mlim_esc,false);
 
-    return M * M * Fstar * Fesc * exp(-M_turn_lower/M) * c_mf_integrand(lnM,param_struct);
+    return M * Fstar * Fesc * exp(-M_turn_lower/M) * c_mf_integrand(lnM,param_struct);
 }
 
 //The reason this is separated from the above is the second exponent
@@ -1122,10 +1120,10 @@ double c_nion_integrand_mini(double lnM, void *param_struct){
 
     double M = exp(lnM);
 
-    double Fstar = get_frac_limit(M,f_starn,a_star,Mlim_star,false);
-    double Fesc = get_frac_limit(M,f_escn,a_esc,Mlim_esc,false);
+    double Fstar = get_frac_limit(M,f_starn,a_star,Mlim_star,true);
+    double Fesc = get_frac_limit(M,f_escn,a_esc,Mlim_esc,true);
 
-    return M * M * Fstar * Fesc * exp(-M_turn_lower/M) * exp(-M/M_turn_upper) * c_mf_integrand(lnM,param_struct);
+    return M * Fstar * Fesc * exp(-M_turn_lower/M) * exp(-M/M_turn_upper) * c_mf_integrand(lnM,param_struct);
 }
 
 double u_mf_integrand(double lnM, void *param_struct){
@@ -1164,7 +1162,7 @@ double u_fcoll_integrand(double lnM, void *param_struct){
 
 double u_nion_integrand(double lnM, void *param_struct){
     struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
-    double M_turn_lower = params.Mturn;
+    double M_turn = params.Mturn;
     double f_starn = params.f_star_norm;
     double a_star = params.alpha_star;
     double f_escn = params.f_esc_norm;
@@ -1177,7 +1175,7 @@ double u_nion_integrand(double lnM, void *param_struct){
     double Fstar = get_frac_limit(M,f_starn,a_star,Mlim_star,false);
     double Fesc = get_frac_limit(M,f_escn,a_esc,Mlim_esc,false);
 
-    return M * M * Fstar * Fesc * exp(-M_turn_lower/M) * u_mf_integrand(lnM,param_struct);
+    return M * Fstar * Fesc * exp(-M_turn/M) * u_mf_integrand(lnM,param_struct);
 }
 
 //The reason this is separated from the above is the second exponent
@@ -1197,7 +1195,7 @@ double u_nion_integrand_mini(double lnM, void *param_struct){
     double Fstar = get_frac_limit(M,f_starn,a_star,Mlim_star,false);
     double Fesc = get_frac_limit(M,f_escn,a_esc,Mlim_esc,false);
 
-    return M * M * Fstar * Fesc * exp(-M_turn_lower/M) * exp(-M/M_turn_upper) * u_mf_integrand(lnM,param_struct);
+    return M * Fstar * Fesc * exp(-M_turn_lower/M) * exp(-M/M_turn_upper) * u_mf_integrand(lnM,param_struct);
 }
 
 ///// INTEGRATION ROUTINES BELOW /////
@@ -1234,7 +1232,7 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     gsl_function F;
     // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
     double rel_tol = 1e-3; //<- relative tolerance
-    int w_size = 2000;
+    int w_size = 1000;
     gsl_integration_workspace * w
     = gsl_integration_workspace_alloc (w_size);
 
@@ -1524,7 +1522,9 @@ double Nion_General(double z, double M_Min, double M_Max, double MassTurnover, d
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_ps->HMF,
     };
-    return IntegratedNdM(log(M_Min),log(M_Max),params,3,method);
+    // LOG_DEBUG("Nion_General: M[%.2e %.2e] z=%.2f Turn %.2e fs (%.2e %.2e) fe (%.2e %.2e) lims (%.2e %.2e)",
+    //             M_Min,M_Max,z,MassTurnover,Fstar10,Alpha_star,Fesc10,Alpha_esc,Mlim_Fstar,Mlim_Fesc);
+    return IntegratedNdM(log(M_Min),log(M_Max),params,3,method) / ((cosmo_params_ps->OMm)*RHOcrit);
 }
 
 double Nion_General_MINI(double z, double M_Min, double M_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
@@ -1542,10 +1542,10 @@ double Nion_General_MINI(double z, double M_Min, double M_Max, double MassTurnov
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_ps->HMF,
     };
-    return IntegratedNdM(log(M_Min),log(M_Max),params,4,method);
+    return IntegratedNdM(log(M_Min),log(M_Max),params,4,method) / ((cosmo_params_ps->OMm)*RHOcrit);
 }
 
-double Nion_ConditionalM_MINI(double growthf, double M1, double M2, double sigma2, double delta2, double MassTurnover,
+double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double sigma2, double delta2, double MassTurnover,
                             double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar10,
                             double Fesc10, double Mlim_Fstar, double Mlim_Fesc, int method){
     struct parameters_gsl_MF_integrals params = {
@@ -1562,12 +1562,12 @@ double Nion_ConditionalM_MINI(double growthf, double M1, double M2, double sigma
         .sigma_cond = sigma2,
         .delta = delta2,
     };
-    return IntegratedNdM(log(M1),log(M2),params,-4,method);
+    return IntegratedNdM(lnM1,lnM2,params,-4,method);
 }
 
-double Nion_ConditionalM(double growthf, double M1, double M2, double sigma2, double delta2, double MassTurnover,
+double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double sigma2, double delta2, double MassTurnover,
                         double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar,
-                        double Mlim_Fesc, int method) {
+                        double Mlim_Fesc, int method){
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
         .Mturn = MassTurnover,
@@ -1581,7 +1581,7 @@ double Nion_ConditionalM(double growthf, double M1, double M2, double sigma2, do
         .sigma_cond = sigma2,
         .delta = delta2,
     };
-    return IntegratedNdM(log(M1),log(M2),params,-3, method);
+    return IntegratedNdM(lnM1,lnM2,params,-3, method);
 }
 
 /* returns the "effective Jeans mass" in Msun

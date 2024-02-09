@@ -6,12 +6,6 @@
 //  Otherwise write a function which saves the left_edge and right_edge for faster evaluation
 //TODO: make a print_interp_error(array,x,y) function which prints the cell corners, interpolation points etc
 
-static struct UserParams * user_params_it;
-
-void Broadcast_struct_global_IT(struct UserParams *user_params){
-    user_params_it = user_params;
-}
-
 //TODO: for the moment the tables are still in global arrays, but will move to these structs soon
 //TODO: sort out if we actually need single precision tables
 struct RGTable1D{

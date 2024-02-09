@@ -236,7 +236,7 @@ void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoPara
 void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options);
 void Broadcast_struct_global_STOC(struct UserParams *user_params, struct CosmoParams *cosmo_params,struct AstroParams *astro_params, struct FlagOptions *flag_options);
 void Broadcast_struct_global_TS(struct UserParams *user_params, struct CosmoParams *cosmo_params,struct AstroParams *astro_params, struct FlagOptions *flag_options);
-void Broadcast_struct_global_IT(struct UserParams *user_params);
+void Broadcast_struct_global_IT(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options);
 
 // void free_TsCalcBoxes(struct UserParams *user_params, struct FlagOptions *flag_options);
 void FreePhotonConsMemory();
@@ -272,3 +272,35 @@ double dicke(double z);
 double sigma_z0(double M);
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm);
+
+void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Mmin, float Mmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI,
+                             float mturn_a_const, bool minihalos);
+void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Mmin, float Mmax, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10,
+                                float Fesc10, float Fstar7_MINI, float Fesc7_MINI, float mturn_a_const, bool minihalos);
+void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, double growth_zpp, double smin_zpp, double smax_zpp);
+void init_FcollTable(double zmin, double zmax, double M_min);
+void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_density, float max_density,
+                                     float Mmin, float Mmax, float Mcond, float log10Mturn_min, float log10Mturn_max,
+                                     float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star,
+                                     float Alpha_star_mini, float Alpha_esc, float Fstar10, float Fesc10,
+                                     float Mlim_Fstar, float Mlim_Fesc, float Fstar7_MINI, float Fesc7_MINI,
+                                     float Mlim_Fstar_MINI, float Mlim_Fesc_MINI, int method, int method_mini,
+                                     bool minihalos, bool prev);
+void initialise_SFRD_Conditional_table(double min_density, double max_density, double growthf,
+                                    float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
+                                    float Fstar10, float Fstar7_MINI, int method, int method_mini, bool minihalos);
+
+double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc);
+double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI);
+double EvaluateSFRD(double redshift, double Mlim_Fstar);
+double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI);
+double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max, double sigma_max, double Mturn_a, double Mlim_Fstar);
+double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max, double Mturn_a, double Mlim_Fstar);
+double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max);
+double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double sigma_max);
+double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min, double M_max, double sigma_max,
+                                double Mlim_Fstar, double Mlim_Fesc, bool prev);
+double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max,
+                                    double Mturn_a, double Mlim_Fstar, double Mlim_Fesc, bool prev);
+
+void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool update);
