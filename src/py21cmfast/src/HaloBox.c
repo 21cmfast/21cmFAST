@@ -149,8 +149,6 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
             .HMF = user_params_stoc->HMF,
     };
 
-    if(user_params_stoc->INTEGRATION_METHOD_ATOMIC == 1 || user_params_stoc->INTEGRATION_METHOD_MINI == 1)
-        initialise_GL(NGL_INT, lnMmin, lnMmax);
 
     //store initial values so we don't recompute
     double M_turn_a_store = flag_options_stoc->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params_stoc->M_TURN;
@@ -159,13 +157,12 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
     double M_turn_m = M_turn_m_store;
     double M_turn_r = 0.;
 
-    struct RGTable1D_f SFRD_conditional_table = {.allocated=false};
-    struct RGTable2D_f SFRD_conditional_table_MINI = {.allocated=false};
-    struct RGTable1D_f Nion_Conditional_Table1D = {.allocated=false};
-    struct RGTable2D_f Nion_Conditional_Table2D = {.allocated=false}, Nion_Conditional_Table_MINI = {.allocated=false};
-
     //TODO: These tables are coarser than needed, I should do an initial loop to find delta and Mturn limits
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
+        if(user_params_stoc->INTEGRATION_METHOD_ATOMIC == 1 || user_params_stoc->INTEGRATION_METHOD_MINI == 1){
+            initialise_GL(NGL_INT, lnMmin, lnMmax);
+        }
+        
         initialise_SFRD_Conditional_table(min_density,max_density,growth_z,M_turn_a,M_min,M_max,M_cell,
                                                 astro_params_stoc->ALPHA_STAR, astro_params_stoc->ALPHA_STAR_MINI, astro_params_stoc->F_STAR10,
                                                 astro_params_stoc->F_STAR7_MINI, user_params_stoc->INTEGRATION_METHOD_ATOMIC,
@@ -243,11 +240,11 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                     sfr = exp(EvaluateRGTable1D_f(dens,&SFRD_conditional_table));
                     if(flag_options_stoc->USE_MINI_HALOS){
                         sfr_mini = exp(EvaluateRGTable2D_f(dens,log10(M_turn_m),&SFRD_conditional_table_MINI));
-                        nion_mini = exp(EvaluateRGTable2D_f(dens,log10(M_turn_m),&Nion_Conditional_Table_MINI));
-                        nion = exp(EvaluateRGTable2D_f(dens,log10(M_turn_a),&Nion_Conditional_Table2D));
+                        nion_mini = exp(EvaluateRGTable2D_f(dens,log10(M_turn_m),&Nion_conditional_table_MINI));
+                        nion = exp(EvaluateRGTable2D_f(dens,log10(M_turn_a),&Nion_conditional_table2D));
                     }
                     else{
-                        nion = exp(EvaluateRGTable1D_f(dens,&Nion_Conditional_Table1D));
+                        nion = exp(EvaluateRGTable1D_f(dens,&Nion_conditional_table1D));
                     }
                 }
                 else{
@@ -357,7 +354,7 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
     double lnMmin = log(M_min);
     double growth_z = dicke(redshift);
 
-    // double prefactor_mass = RHOcrit * cosmo_params_stoc->OMm;
+    double prefactor_mass = RHOcrit * cosmo_params_stoc->OMm;
     double prefactor_nion = RHOcrit * cosmo_params_stoc->OMb * norm_star * norm_esc * global_params.Pop2_ion;
     double prefactor_nion_mini = RHOcrit * cosmo_params_stoc->OMb * norm_star_mini * norm_esc_mini * global_params.Pop3_ion;
     double prefactor_sfr = RHOcrit * cosmo_params_stoc->OMb * norm_star / t_star / t_h;
@@ -398,7 +395,7 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
                                             user_params_stoc->INTEGRATION_METHOD_MINI) * prefactor_sfr_mini;
     }
 
-    // hm_expected *= prefactor_mass; //for non-CMF, the factors are already there
+    hm_expected *= prefactor_mass; //for non-CMF, the factors are already there
     wsfr_expected = nion_expected / t_star / t_h; //same integral, different prefactors, different in the stochastic grids due to scatter
 
     averages[0] = hm_expected;

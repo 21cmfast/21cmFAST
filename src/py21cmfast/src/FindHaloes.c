@@ -107,6 +107,10 @@ LOG_DEBUG("redshift=%f", redshift);
                 .HMF = user_params->HMF,
             };
 
+            if(user_params->INTEGRATION_METHOD_HALOS == 1){
+                initialise_GL(NGL_INT,log(M_MIN),log(Mmax_debug));
+            }
+
             double nhalo_debug = IntegratedNdM(log(M_MIN), log(Mmax_debug), params, 1, user_params->INTEGRATION_METHOD_HALOS) * VOLUME;
             //expected halos above minimum filter mass
             LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e]",nhalo_debug,M_MIN,Mmax_debug);
