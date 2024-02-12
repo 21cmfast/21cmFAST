@@ -86,7 +86,8 @@ def test_Massfunc_conditional_tables(name):
 
     growth_out = lib.dicke(redshift)
     growth_in = lib.dicke(redshift * global_params.ZPRIME_STEP_FACTOR)
-    delta_update = growth_out / growth_in * 1.68
+    if up.HMF != 1:
+        delta_update = lib.get_delta_crit(up.HMF, 0.0, 0.0) * growth_out / growth_in
     cell_mass = (
         (
             cp.cosmo.critical_density(0)
@@ -169,6 +170,13 @@ def test_Massfunc_conditional_tables(name):
     )
 
     sigma_cond_halo = np.vectorize(lib.sigma_z0)(edges)
+    if up.HMF == 1:
+        delta_update = (
+            np.vectorize(lib.get_delta_crit)(up.HMF, sigma_cond_halo, growth_in)
+            * growth_out
+            / growth_in
+        )
+
     N_cmfi_halo = np.vectorize(lib.Nhalo_Conditional)(
         growth_out,
         N_inverse_halo,

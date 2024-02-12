@@ -271,6 +271,7 @@ void set_alphacons_params(double norm, double slope);
 double init_ps();
 double dicke(double z);
 double sigma_z0(double M);
+double get_delta_crit(int HMF, double sigma, double growthf);
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm);
 
