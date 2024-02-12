@@ -1545,6 +1545,26 @@ double Nion_General_MINI(double z, double M_Min, double M_Max, double MassTurnov
     return IntegratedNdM(log(M_Min),log(M_Max),params,4,method) / ((cosmo_params_ps->OMm)*RHOcrit);
 }
 
+double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double sigma, double delta, int method){
+    struct parameters_gsl_MF_integrals params = {
+        .growthf = growthf,
+        .HMF = user_params_ps->HMF,
+        .sigma_cond = sigma,
+        .delta = delta,
+    };
+    return IntegratedNdM(lnM1,lnM2,params,-1, method);
+}
+
+double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double sigma, double delta, int method){
+    struct parameters_gsl_MF_integrals params = {
+        .growthf = growthf,
+        .HMF = user_params_ps->HMF,
+        .sigma_cond = sigma,
+        .delta = delta,
+    };
+    return IntegratedNdM(lnM1,lnM2,params,-2, method);
+}
+
 double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double sigma2, double delta2, double MassTurnover,
                             double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar10,
                             double Fesc10, double Mlim_Fstar, double Mlim_Fesc, int method){
@@ -1640,10 +1660,10 @@ void initialiseSigmaMInterpTable(float M_min, float M_max){
 #pragma omp for
         for(i=0;i<NMass;i++) {
             Mass = exp(Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width);
+            // LOG_DEBUG("i %d lnM %.2e M %.2e",i, Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width, Mass);
             Sigma_InterpTable.y_arr[i] = sigma_z0(Mass);
             dSigmasqdm_InterpTable.y_arr[i] = log10(-dsigmasqdm_z0(Mass)); //TODO: look into if log/linear is better
-            // LOG_DEBUG("i %d lnM %.2e M %.2e S %.2e dS %.2e",i, Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width,
-            //             Mass, Sigma_InterpTable.y_arr[i], dSigmasqdm_InterpTable.y_arr[i]);
+            // LOG_DEBUG("S %.2e dS %.2e", Sigma_InterpTable.y_arr[i], dSigmasqdm_InterpTable.y_arr[i]);
         }
     }
 

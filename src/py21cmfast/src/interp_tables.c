@@ -545,7 +545,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             fcoll = IntegratedNdM(ymin, lnM_cond, integral_params, -2, user_params_it->INTEGRATION_METHOD_HALOS);
             Nhalo_table.y_arr[i] = norm;
             Mcoll_table.y_arr[i] = fcoll;
-            // LOG_ULTRA_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);
+            // LOG_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);
 
             //if the condition has no halos set the dndm table directly since norm==0 breaks things
             if(norm==0){
@@ -750,4 +750,17 @@ double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double 
         return EvaluateRGTable1D_f(delta,&dfcoll_conditional_table);
     }
     return dfcoll_dz(redshift,delta,sigma_min,sigma_max);
+}
+
+//These tables are always allocated so we do not need to combine tables and non-tables into a single evaluation function
+double EvaluateNhalo(double condition){
+    return EvaluateRGTable1D(condition,&Nhalo_table);
+}
+
+double EvaluateMcoll(double condition){
+    return EvaluateRGTable1D(condition,&Mcoll_table);
+}
+
+double EvaluateNhaloInv(double condition, double prob){
+    return EvaluateRGTable2D(condition,prob,&Nhalo_inv_table);
 }

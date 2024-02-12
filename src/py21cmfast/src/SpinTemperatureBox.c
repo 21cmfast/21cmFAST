@@ -92,9 +92,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 
     destruct_heat();
 
-    // This is an entire re-write of Ts.c from 21cmFAST. You can refer back to Ts.c in 21cmFAST if this become a little obtuse. The computation has remained the same //
-    // JD: it became obtuse so I have attempted to modularise it
-
     } // End of try
     Catch(status){
         return(status);
@@ -103,10 +100,10 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
 }
 
 /* JDAVIES: I'm setting up a refactor here for the Halo option, but plan to move over the rest afterwards
- * This is convenient because calculating TS from the Halo Field won't use most of the above code, which is
- * dedicated to setting up the HMF integrals. I want to abstract into smaller parts e.g: filling tables, nu integrals
- * as well as have separate high-level functions (ts_halo,ts_fcoll,ts_massdep_zeta) so that each flag case can
- * allocate and use what it needs while staying readable. Afterwards I would also want to replace most of the global
+ * This is convenient because calculating TS from the Halo Field won't use most of the previous code, which is
+ * dedicated to setting up the HMF integrals. I abstract into smaller parts e.g: filling tables, nu integrals
+ * so that each flag case can allocate and use what it needs while staying readable.
+ * Afterwards I would also want to replace most of the global
  * variables with static structs, so that things are scoped properly.*/
 
 //OTHER NOTES:
@@ -1004,7 +1001,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
 
                     if (flag_options_ts->USE_MINI_HALOS){
                         fcoll_MINI = EvaluateSFRD_Conditional_MINI(curr_dens,curr_mcrit,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],
-                                                                    sigma_max[R_ct],Mcrit_atom_interp_table[R_ct],Mlim_Fstar_g);    
+                                                                    sigma_max[R_ct],Mcrit_atom_interp_table[R_ct],Mlim_Fstar_g);
                         sfrd_grid_mini[box_ct] = (1.+curr_dens)*fcoll_MINI;
                     }
             }
@@ -1336,7 +1333,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
     //As far as I can tell, the only thing used from this is the X_e array
     init_heat();
     //TODO: z ~> zmax case and first_box setting should be done in wrapper initialisation
-    if(redshift > global_params.Z_HEAT_MAX){
+    if(redshift >= global_params.Z_HEAT_MAX){
         LOG_DEBUG("redshift greater than Z_HEAT_MAX");
         init_first_Ts(this_spin_temp,perturbed_field->density,perturbed_field_redshift,redshift,&x_e_ave_p,&Tk_ave_p);
         return;

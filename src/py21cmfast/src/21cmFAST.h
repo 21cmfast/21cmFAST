@@ -267,6 +267,7 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
 void set_alphacons_params(double norm, double slope);
 
 //exposing lower-level functions for testing
+//Initialisation of tables
 double init_ps();
 double dicke(double z);
 double sigma_z0(double M);
@@ -290,6 +291,9 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
                                     float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
                                     float Fstar10, float Fstar7_MINI, int method, int method_mini, bool minihalos);
 
+void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool update);
+
+//evaluation of tables
 double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc);
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI);
 double EvaluateSFRD(double redshift, double Mlim_Fstar);
@@ -302,5 +306,12 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev);
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max,
                                     double Mturn_a, double Mlim_Fstar, double Mlim_Fesc, bool prev);
+double EvaluateNhalo(double condition);
+double EvaluateMcoll(double condition);
+double EvaluateNhaloInv(double condition, double prob);
+double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max);
+double EvaluatedFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max);
 
-void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool update);
+//integrals
+double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double sigma, double delta, int method);
+double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double sigma, double delta, int method);
