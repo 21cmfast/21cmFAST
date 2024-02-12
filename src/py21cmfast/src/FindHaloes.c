@@ -168,27 +168,31 @@ LOG_DEBUG("redshift=%f", redshift);
             M = RtoM(R);
             LOG_SUPER_DEBUG("while loop for finding halos: R = %f 0.5*Delta_R = %f RtoM(R)=%e M_MIN=%e", R, 0.5*Delta_R, M, M_MIN);
 
+            //Pending a serious deep-dive into this algorithm, I will force DexM to use the fitted parameters to the 
+            //      Sheth-Tormen mass function (as of right now, We do not even reproduce EPS results)
+            delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
+
             //TODO: throw in an init loop
-            if(global_params.DELTA_CRIT_MODE == 1){
-                //This algorithm does not use the sheth tormen OR Jenkins parameters,
-                //        rather it uses a reduced barrier to correct for some part of this algorithm,
-                //        which would otherwise result in ~3x halos at redshift 6 (including with EPS).
-                //        Once I Figure out the cause of the discrepancy I can adjust again but for now
-                //        we will use the parameters that roughly give the ST mass function.
-                // delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
-                if(user_params->HMF==1) {
-                    // use sheth tormen correction
-                    delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
-                }
-                else if(user_params->HMF==4) {
-                    // use Delos 2023 flat barrier
-                    delta_crit = DELTAC_DELOS;
-                }
-                else if(user_params->HMF!=0){
-                    LOG_WARNING("Halo Finder: You have selected DELTA_CRIT_MODE==1 with HMF %d which does not have a barrier\
-                                    , using EPS deltacrit = 1.68",user_params->HMF);
-                }
-            }
+            // if(global_params.DELTA_CRIT_MODE == 1){
+            //     //This algorithm does not use the sheth tormen OR Jenkins parameters,
+            //     //        rather it uses a reduced barrier to correct for some part of this algorithm,
+            //     //        which would otherwise result in ~3x halos at redshift 6 (including with EPS).
+            //     //        Once I Figure out the cause of the discrepancy I can adjust again but for now
+            //     //        we will use the parameters that roughly give the ST mass function.
+            //     // delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
+            //     if(user_params->HMF==1) {
+            //         // use sheth tormen correction
+            //         delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
+            //     }
+            //     else if(user_params->HMF==4) {
+            //         // use Delos 2023 flat barrier
+            //         delta_crit = DELTAC_DELOS;
+            //     }
+            //     else if(user_params->HMF!=0){
+            //         LOG_WARNING("Halo Finder: You have selected DELTA_CRIT_MODE==1 with HMF %d which does not have a barrier\
+            //                         , using EPS deltacrit = 1.68",user_params->HMF);
+            //     }
+            // }
 
             // first let's check if virialized halos of this size are rare enough
             // that we don't have to worry about them (let's define 7 sigma away, as in Mesinger et al 05)
