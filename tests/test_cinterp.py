@@ -288,7 +288,7 @@ def test_FgtrM_conditional_tables(name):
         fcoll_tables = np.vectorize(lib.EvaluateFcoll_delta)(
             edges_d, growth_out, sigma_min, sigma_cond
         )
-        dfcoll_tables = np.vectorize(lib.EvaluatedFcoll_delta)(
+        dfcoll_tables = np.vectorize(lib.EvaluatedFcolldz)(
             edges_d, growth_out, sigma_min, sigma_cond
         )
 
@@ -300,7 +300,7 @@ def test_FgtrM_conditional_tables(name):
         fcoll_integrals = np.vectorize(lib.EvaluateFcoll_delta)(
             edges_d, growth_out, sigma_min, sigma_cond
         )
-        dfcoll_integrals = np.vectorize(lib.EvaluatedFcoll_delta)(
+        dfcoll_integrals = np.vectorize(lib.EvaluatedFcolldz)(
             edges_d, growth_out, sigma_min, sigma_cond
         )
 
