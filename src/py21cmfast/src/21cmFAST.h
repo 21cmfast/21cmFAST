@@ -301,7 +301,6 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar);
 double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI);
 double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max, double sigma_max, double Mturn_a, double Mlim_Fstar);
 double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max, double Mturn_a, double Mlim_Fstar);
-double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max);
 double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double sigma_max);
 double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min, double M_max, double sigma_max,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev);
