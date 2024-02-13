@@ -4249,7 +4249,7 @@ void z_at_NFHist(double xHI_Hist, double *splined_value){
 void NFHist_at_z(double z, double *splined_value){
     float returned_value;
 
-    returned_value = gsl_spline_eval(z_NFHistory_spline, z, NFHistory_spline_acc);
+    returned_value = gsl_spline_eval(z_NFHistory_spline, z, z_NFHistory_spline_acc);
     *splined_value = returned_value;
 }
 
