@@ -54,7 +54,7 @@ def test_sigma_table(name):
     sigma_ref = map(lib.sigma_z0, mass_range)
     sigma_table = map(lib.EvaluateSigma, np.log(mass_range))
 
-    assert np.all((sigma_ref - sigma_table) / sigma_ref < RELATIVE_TOLERANCE)
+    np.testing.assert_allclose(sigma_ref, sigma_table, atol=0, rtol=RELATIVE_TOLERANCE)
 
 
 @pytest.mark.parametrize("name", options_hmf)
@@ -209,23 +209,15 @@ def test_Massfunc_conditional_tables(name):
         * edges
     )
 
-    assert np.all(
-        np.fabs(N_cmf_cell[:, 0] - N_exp_cell) / N_cmf_cell[:, 0] < RELATIVE_TOLERANCE
+    np.testing.assert_allclose(N_cmf_halo, N_exp_halo, atol=0, rtol=RELATIVE_TOLERANCE)
+    np.testing.assert_allclose(N_cmf_cell, N_exp_cell, atol=0, rtol=RELATIVE_TOLERANCE)
+    np.testing.assert_allclose(M_cmf_halo, M_exp_halo, atol=0, rtol=RELATIVE_TOLERANCE)
+    np.testing.assert_allclose(M_cmf_cell, M_exp_cell, atol=0, rtol=RELATIVE_TOLERANCE)
+    np.testing.assert_allclose(
+        N_cmfi_halo, N_inverse_halo, atol=0, rtol=RELATIVE_TOLERANCE
     )
-    assert np.all(
-        np.fabs(N_cmf_halo[:, 0] - N_exp_halo) / N_cmf_halo[:, 0] < RELATIVE_TOLERANCE
-    )
-    assert np.all(
-        np.fabs(M_cmf_cell[:, 0] - M_exp_cell) / M_cmf_cell[:, 0] < RELATIVE_TOLERANCE
-    )
-    assert np.all(
-        np.fabs(M_cmf_halo[:, 0] - M_exp_halo) / M_cmf_halo[:, 0] < RELATIVE_TOLERANCE
-    )
-    assert np.all(
-        np.fabs(N_cmf_cell - N_inverse_cell) / N_cmf_cell < RELATIVE_TOLERANCE
-    )
-    assert np.all(
-        np.fabs(N_cmf_halo - N_inverse_halo) / N_cmf_halo < RELATIVE_TOLERANCE
+    np.testing.assert_allclose(
+        N_cmfi_cell, N_inverse_cell, atol=0, rtol=RELATIVE_TOLERANCE
     )
 
 
@@ -304,13 +296,12 @@ def test_FgtrM_conditional_tables(name):
             edges_d, growth_out, sigma_min, sigma_cond
         )
 
-        assert np.all(
-            np.fabs(fcoll_tables - fcoll_integrals) / fcoll_tables < RELATIVE_TOLERANCE
-        )
-        assert np.all(
-            np.fabs(dfcoll_tables - dfcoll_integrals) / dfcoll_tables
-            < RELATIVE_TOLERANCE
-        )
+    np.testing.assert_allclose(
+        fcoll_tables, fcoll_integrals, atol=0, rtol=RELATIVE_TOLERANCE
+    )
+    np.testing.assert_allclose(
+        dfcoll_tables, dfcoll_integrals, atol=0, rtol=RELATIVE_TOLERANCE
+    )
 
 
 # A few notes on this test function:
@@ -443,12 +434,11 @@ def test_Nion_conditional_tables(name):
             fo.INTEGRATION_METHOD_MINI,
         )
 
-        assert np.all(
-            np.fabs(Nion_tables - Nion_integrals) / Nion_tables < RELATIVE_TOLERANCE
+        np.testing.assert_allclose(
+            Nion_tables, Nion_integrals, atol=0, rtol=RELATIVE_TOLERANCE
         )
-        assert np.all(
-            np.fabs(Nion_tables_mini - Nion_integrals_mini) / Nion_tables_mini
-            < RELATIVE_TOLERANCE
+        np.testing.assert_allclose(
+            Nion_tables_mini, Nion_integrals_mini, atol=0, rtol=RELATIVE_TOLERANCE
         )
 
 
@@ -562,10 +552,9 @@ def test_SFRD_conditional_table(name):
             fo.INTEGRATION_METHOD_MINI,
         )
 
-        assert np.all(
-            np.fabs(SFRD_tables - SFRD_integrals) / SFRD_tables < RELATIVE_TOLERANCE
+        np.testing.assert_allclose(
+            SFRD_tables, SFRD_integrals, atol=0, rtol=RELATIVE_TOLERANCE
         )
-        assert np.all(
-            np.fabs(SFRD_tables_mini - SFRD_integrals_mini) / SFRD_tables_mini
-            < RELATIVE_TOLERANCE
+        np.testing.assert_allclose(
+            SFRD_tables_mini, SFRD_integrals_mini, atol=0, rtol=RELATIVE_TOLERANCE
         )
