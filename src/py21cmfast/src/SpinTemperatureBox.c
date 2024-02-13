@@ -926,10 +926,9 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //This is safe since allocation is checked in the freeing function
     free_RGTable1D(&Nion_z_table);
     free_RGTable1D(&SFRD_z_table);
-    if(flag_options_ts->USE_MINI_HALOS){
-        free_RGTable2D(&Nion_z_table_MINI);
-        free_RGTable2D(&SFRD_z_table_MINI);
-    }
+    free_RGTable2D(&Nion_z_table_MINI);
+    free_RGTable2D(&SFRD_z_table_MINI);
+    free_RGTable1D(&fcoll_z_table);
 
     LOG_DEBUG("Done.");
 

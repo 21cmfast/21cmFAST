@@ -665,7 +665,9 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Ml
 
 double EvaluateSFRD(double redshift, double Mlim_Fstar){
     if(user_params_it->USE_INTERPOLATION_TABLES){
-        return EvaluateRGTable1D(redshift,&SFRD_z_table); //assuming you passed the right table
+        if(flag_options_it->USE_MASS_DEPENDENT_ZETA)
+            return EvaluateRGTable1D(redshift,&SFRD_z_table);
+        return EvaluateRGTable1D(redshift,&fcoll_z_table);
     }
 
     //minihalos uses a different turnover mass
