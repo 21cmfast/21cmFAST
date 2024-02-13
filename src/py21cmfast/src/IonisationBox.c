@@ -99,7 +99,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
 
     float stored_redshift, adjustment_factor, stored_F_ESC10_zterm;
     float stored_prev_redshift, prev_adjustment_factor, stored_prev_F_ESC10_zterm;
-    float R_BUBBLE_MAX;
+    float R_BUBBLE_MAX, R_BUBBLE_MAX_MAX, R_BUBBLE_MAX_z;
 
     gsl_rng * r[user_params->N_THREADS];
 
@@ -376,13 +376,17 @@ LOG_DEBUG("first redshift, do some initialization");
             previous_ionize_box->Nrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     }
     if (flag_options->EVOLVING_R_BUBBLE_MAX){
+		R_BUBBLE_MAX_MAX = 25.483241248322766 / cosmo_params->hlittle; // THis is for MINIHALOS because we need to make sure higher-z Fcoll and Fcoll_MINI are done at the same filtering radii...
         if (redshift > 6)
             R_BUBBLE_MAX = 25.483241248322766 / cosmo_params->hlittle;
         else
             R_BUBBLE_MAX = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. , -4.4);
     }
-    else
+    else{
         R_BUBBLE_MAX = astro_params->R_BUBBLE_MAX;
+		R_BUBBLE_MAX_MAX = R_BUBBLE_MAX;
+	}
+
     //set the minimum source mass
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
         if (flag_options->USE_MINI_HALOS){
@@ -395,8 +399,8 @@ LOG_DEBUG("first redshift, do some initialization");
                 // really painful to get the length...
                 counter = 1;
                 R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
-                while ((R - fmin(R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ){
-                    if(R >= fmin(R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) {
+                while ((R - fmin(R_BUBBLE_MAX_MAX, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ){
+                    if(R >= fmin(R_BUBBLE_MAX_MAX, L_FACTOR*user_params->BOX_LEN)) {
                         stored_R = R/(global_params.DELTA_R_HII_FACTOR);
                     }
                     R*= global_params.DELTA_R_HII_FACTOR;
@@ -812,13 +816,17 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
         // loop through the filter radii (in Mpc)
         erfc_denom_cell = 1; //dummy value
 
+		counter = 0;
         R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
 
-        while ((R - fmin(R_BUBBLE_MAX, L_FACTOR * user_params->BOX_LEN)) <= FRACT_FLOAT_ERR) {
+        while ((R - fmin(R_BUBBLE_MAX_MAX, L_FACTOR * user_params->BOX_LEN)) <= FRACT_FLOAT_ERR) {
             R *= global_params.DELTA_R_HII_FACTOR;
-            if (R >= fmin(R_BUBBLE_MAX, L_FACTOR * user_params->BOX_LEN)) {
+            if (R >= fmin(R_BUBBLE_MAX_MAX, L_FACTOR * user_params->BOX_LEN)) {
                 stored_R = R / (global_params.DELTA_R_HII_FACTOR);
             }
+			counter += 1;
+            if (R >= fmin(R_BUBBLE_MAX, L_FACTOR * user_params->BOX_LEN))
+				R_BUBBLE_MAX_z = R;
         }
 
         LOG_DEBUG("set max radius: %f", R);
@@ -828,8 +836,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
         LAST_FILTER_STEP = 0;
 
         first_step_R = 1;
-
-        double R_temp = (double) (R_BUBBLE_MAX);
 
         counter = 0;
 
@@ -1307,6 +1313,11 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
             f_coll_MINI /= (double) HII_TOT_NUM_PIXELS;
 
+ 			// This is for the evolving Rmax particularly for the minihalo runs
+			// We need to make sure the filtering radii are consitent across all snapshots
+			// We need to use previous Fcoll and Fcoll_MINI 
+			// But we do not need, at higher redshift, to assign reionization for radius larger than the real Rmax
+			if (R <= R_BUBBLE_MAX_z){
             // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
                 if (f_coll <= f_coll_min) f_coll = f_coll_min;
@@ -1343,7 +1354,6 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                           global_params.FIND_BUBBLE_ALGORITHM);
                 Throw(ValueError);
             }
-
 
 #pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,box,ST_over_PS,pixel_mass,M_MIN,r,f_coll_min,Gamma_R_prefactor,\
                             ION_EFF_FACTOR,ION_EFF_FACTOR_MINI,LAST_FILTER_STEP,counter,ST_over_PS_MINI,f_coll_min_MINI,Gamma_R_prefactor_MINI,TK,cT_ad,perturbed_field) \
@@ -1480,6 +1490,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
             LOG_SUPER_DEBUG("z_re_box after R=%f: ", R);
             debugSummarizeBox(box->z_re_box, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
+			}
 
 
             if (first_step_R) {
