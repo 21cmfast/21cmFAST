@@ -113,5 +113,7 @@ dependencies:
   - h5py
   - jupyter
   - nb_conda
+  - pytest-plt
+  - questionary
   - pip:
       - pre-commit

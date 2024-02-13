@@ -314,3 +314,9 @@ double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double 
 //integrals
 double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double sigma, double delta, int method);
 double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double sigma, double delta, int method);
+double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double sigma2, double delta2, double MassTurnover,
+                        double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar,
+                        double Mlim_Fesc, int method);
+double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double sigma2, double delta2, double MassTurnover,
+                            double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar10,
+                            double Fesc10, double Mlim_Fstar, double Mlim_Fesc, int method);

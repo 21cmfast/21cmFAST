@@ -3115,17 +3115,18 @@ def run_coeval(
                     z_halos = redshifts
 
             if flag_options.USE_TS_FLUCT:
-                sourcebox = xray_source(
-                    redshift=z,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    cosmo_params=cosmo_params,
-                    user_params=user_params,
-                    random_seed=random_seed,  # needed since no boxes in memory
-                    z_halos=z_halos,
-                    regenerate=regenerate,
-                    hboxes=halobox,
-                )
+                if flag_options.USE_HALO_FIELD:
+                    sourcebox = xray_source(
+                        redshift=z,
+                        astro_params=astro_params,
+                        flag_options=flag_options,
+                        cosmo_params=cosmo_params,
+                        user_params=user_params,
+                        random_seed=random_seed,  # needed since no boxes in memory
+                        z_halos=z_halos,
+                        regenerate=regenerate,
+                        hboxes=halobox,
+                    )
 
                 st2 = spin_temperature(
                     redshift=z,

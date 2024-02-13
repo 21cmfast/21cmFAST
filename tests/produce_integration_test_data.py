@@ -249,7 +249,9 @@ OPTIONS_PT = {
 if len(set(OPTIONS_PT.keys())) != len(list(OPTIONS_PT.keys())):
     raise ValueError("There is a non-unique option_pt name!")
 
-OPTIONS_HALO = {"halo_field": [9, {"USE_HALO_FIELD": True}]}
+OPTIONS_HALO = {
+    "halo_field": [9, {"USE_HALO_FIELD": True, "USE_MASS_DEPENDENT_ZETA": True}]
+}
 
 if len(set(OPTIONS_HALO.keys())) != len(list(OPTIONS_HALO.keys())):
     raise ValueError("There is a non-unique option_halo name!")
