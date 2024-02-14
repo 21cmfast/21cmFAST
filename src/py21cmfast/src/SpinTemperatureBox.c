@@ -219,10 +219,8 @@ void alloc_global_arrays(){
             del_fcoll_Rct_MINI = calloc(HII_TOT_NUM_PIXELS,sizeof(float));
         }
 
-        if(user_params_ts->USE_INTERPOLATION_TABLES) {
-            min_densities = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-            max_densities = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
-        }
+        min_densities = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
+        max_densities = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
     }
 
     //helpers for the interpolation
@@ -323,10 +321,8 @@ void free_ts_global_arrays(){
             free(del_fcoll_Rct_MINI);
         }
 
-        if(user_params_ts->USE_INTERPOLATION_TABLES) {
-            free(min_densities);
-            free(max_densities);
-        }
+        free(min_densities);
+        free(max_densities);
     }
 
     TsInterpArraysInitialised = false;
@@ -1380,7 +1376,6 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
 
         prepare_filter_boxes(redshift,perturbed_field->density,ini_boxes->lowres_vcb,previous_spin_temp->J_21_LW_box,
                             delta_unfiltered,log10_Mcrit_LW_unfiltered);
-        LOG_DEBUG("Forward FFT Done");
         //fill the filtered boxes if we are storing them all
         if(!user_params->MINIMIZE_MEMORY){
             fill_Rbox_table(delNL0,delta_unfiltered,R_values,global_params.NUM_FILTER_STEPS_FOR_Ts,-1,inverse_growth_factor_z,min_densities,ave_dens,max_densities);

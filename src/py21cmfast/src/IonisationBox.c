@@ -186,7 +186,6 @@ LOG_SUPER_DEBUG("defined parameters");
             LOG_ERROR("Updated photon non-conservation redshift is either infinite or NaN!");
             LOG_ERROR("This can sometimes occur when reionisation stalls (i.e. extremely low"\
                       "F_ESC or F_STAR or not enough sources)");
-//            Throw(ParameterError);
             Throw(PhotonConsError);
         }
     }
@@ -479,7 +478,7 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
         else if(!flag_options->USE_TS_FLUCT) {
             initialiseSigmaMInterpTable(M_MIN,1e20);
         }
-        
+
     }
 
 
@@ -522,7 +521,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
 
     // lets check if we are going to bother with computing the inhmogeneous field at all...
     global_xH = 0.0;
-    
+
     if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || user_params->INTEGRATION_METHOD_MINI == 1)
         initialise_GL(NGL_INT, log(M_MIN), log(global_params.M_MAX_INTEGRAL));
 
@@ -927,7 +926,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                     if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || user_params->INTEGRATION_METHOD_MINI == 1)
                         initialise_GL(NGL_INT, log(M_MIN), log(massofscaleR));
 
-                    LOG_SUPER_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
+                    LOG_ULTRA_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
                                     min_density,max_density,M_MIN,massofscaleR,log10Mturn_min,log10Mturn_max,
                                     log10Mturn_min_MINI,log10Mturn_max_MINI);
                     if(user_params->USE_INTERPOLATION_TABLES){
@@ -1034,7 +1033,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                     if (flag_options->USE_MINI_HALOS){
                                         log10_Mturnover = *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z));
                                         log10_Mturnover_MINI = *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z));
-                                        
+
                                         Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(curr_dens,log10_Mturnover_MINI,growth_factor,M_MIN,
                                                                                             massofscaleR,sigmaMmax,Mcrit_atom,Mlim_Fstar,Mlim_Fesc,false);
 

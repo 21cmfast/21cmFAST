@@ -497,14 +497,6 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 .HMF = user_params_it->HMF,
     };
 
-    //HACK: The Delos Mass function seems to underpredict Mcoll at high delta.
-    //      Pending some tests I will force it to use the EPS mass fraction
-    //      but keeping the mass distribution.
-    //This is meant to be a temporary fix
-    struct parameters_gsl_MF_integrals integral_params_Mcoll = integral_params;
-    if(update)
-        integral_params_Mcoll.HMF = 0;
-
     #pragma omp parallel num_threads(user_params_it->N_THREADS) private(i,j,k) firstprivate(delta_crit,integral_params,sigma_cond,lnM_cond)
     {
         double x,y,buf;
@@ -524,8 +516,6 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 //barrier at given mass
                 sigma_cond = EvaluateSigma(lnM_cond,0,NULL);
                 delta = get_delta_crit(user_params_it->HMF,sigma_cond,param)/param*growth1;
-                // //current barrier at condition for bounds checking
-                // delta_crit = get_delta_crit(user_params_it->HMF,EvaluateSigma(lnM_cond,0,NULL),growth1);
             }
             else{
                 delta = x;
@@ -550,7 +540,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 initialise_GL(NGL_INT, ymin, lnM_cond);
 
             norm = IntegratedNdM(ymin, lnM_cond, integral_params,-1, user_params_it->INTEGRATION_METHOD_HALOS);
-            fcoll = IntegratedNdM(ymin, lnM_cond, integral_params_Mcoll, -2, user_params_it->INTEGRATION_METHOD_HALOS);
+            fcoll = IntegratedNdM(ymin, lnM_cond, integral_params, -2, user_params_it->INTEGRATION_METHOD_HALOS);
             Nhalo_table.y_arr[i] = norm;
             Mcoll_table.y_arr[i] = fcoll;
             // LOG_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);

@@ -320,3 +320,6 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double sigma2
 double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double sigma2, double delta2, double MassTurnover,
                             double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar7,
                             double Fesc7, double Mlim_Fstar, double Mlim_Fesc, int method);
+
+double umf_function(double growthf, double lnM, double z, int HMF);
+double cmf_function(double growthf, double lnM, double delta_cond, double sigma_cond, int HMF);

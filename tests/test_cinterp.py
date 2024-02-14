@@ -36,6 +36,8 @@ options_hmf = list(OPTIONS_HMF.keys())
 
 @pytest.mark.parametrize("name", options_ps)
 def test_sigma_table(name):
+    abs_tol = 1e-12
+
     redshift, kwargs = OPTIONS_PS[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -55,12 +57,14 @@ def test_sigma_table(name):
     sigma_table = map(lib.EvaluateSigma, np.log(mass_range))
 
     np.testing.assert_allclose(
-        sigma_ref, sigma_table, atol=1e-12, rtol=RELATIVE_TOLERANCE
+        sigma_ref, sigma_table, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 
 @pytest.mark.parametrize("name", options_hmf)
 def test_Massfunc_conditional_tables(name):
+    abs_tol = 1e-12
+
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -213,27 +217,29 @@ def test_Massfunc_conditional_tables(name):
     )
 
     np.testing.assert_allclose(
-        N_cmf_halo, N_exp_halo, atol=1e-12, rtol=RELATIVE_TOLERANCE
+        N_cmf_halo, N_exp_halo, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        N_cmf_cell, N_exp_cell, atol=1e-12, rtol=RELATIVE_TOLERANCE
+        N_cmf_cell, N_exp_cell, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        M_cmf_halo, M_exp_halo, atol=1e-12, rtol=RELATIVE_TOLERANCE
+        M_cmf_halo, M_exp_halo, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        M_cmf_cell, M_exp_cell, atol=1e-12, rtol=RELATIVE_TOLERANCE
+        M_cmf_cell, M_exp_cell, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        N_cmfi_halo, N_inverse_halo, atol=1e-12, rtol=RELATIVE_TOLERANCE
+        N_cmfi_halo, N_inverse_halo, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        N_cmfi_cell, N_inverse_cell, atol=1e-12, rtol=RELATIVE_TOLERANCE
+        N_cmfi_cell, N_inverse_cell, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 
 @pytest.mark.parametrize("name", options_hmf)
 def test_FgtrM_conditional_tables(name):
+    abs_tol = 1e-12
+
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -308,10 +314,10 @@ def test_FgtrM_conditional_tables(name):
         )
 
     np.testing.assert_allclose(
-        fcoll_tables, fcoll_integrals, atol=1e-12, rtol=RELATIVE_TOLERANCE
+        fcoll_tables, fcoll_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        dfcoll_tables, dfcoll_integrals, atol=1e-12, rtol=RELATIVE_TOLERANCE
+        dfcoll_tables, dfcoll_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 
@@ -325,6 +331,8 @@ def test_FgtrM_conditional_tables(name):
 #       I do not use them here fully, instead calling the integrals directly to avoid parameter changes
 @pytest.mark.parametrize("name", options_hmf)
 def test_Nion_conditional_tables(name):
+    abs_tol = 1e-17  # min = exp(-40) ~4e-18
+
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -447,15 +455,17 @@ def test_Nion_conditional_tables(name):
         )
 
         np.testing.assert_allclose(
-            Nion_tables, Nion_integrals, atol=1e-12, rtol=RELATIVE_TOLERANCE
+            Nion_tables, Nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
         )
         np.testing.assert_allclose(
-            Nion_tables_mini, Nion_integrals_mini, atol=1e-12, rtol=RELATIVE_TOLERANCE
+            Nion_tables_mini, Nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
         )
 
 
 @pytest.mark.parametrize("name", options_hmf)
 def test_SFRD_conditional_table(name):
+    abs_tol = 1e-21  # minimum = exp(-50) ~1e-22
+
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -566,8 +576,8 @@ def test_SFRD_conditional_table(name):
         )
 
         np.testing.assert_allclose(
-            SFRD_tables, SFRD_integrals, atol=1e-12, rtol=RELATIVE_TOLERANCE
+            SFRD_tables, SFRD_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
         )
         np.testing.assert_allclose(
-            SFRD_tables_mini, SFRD_integrals_mini, atol=1e-12, rtol=RELATIVE_TOLERANCE
+            SFRD_tables_mini, SFRD_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
         )

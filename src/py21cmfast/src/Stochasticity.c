@@ -872,6 +872,18 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
         ps_ratio /= IntegratedNdM(lnMmin,lnMcell,params,2,user_params_stoc->INTEGRATION_METHOD_HALOS);
     }
 
+    //quick acceleration attempt
+    //I would like to put this in the below parallel loop but I need the reduction to happen first
+    double largest_mass=0;
+    double largest_R;
+    int h_idx;
+#pragma omp parallel for num_threads(user_params_stoc->N_THREADS) reduction(max:largest_mass)
+    for (h_idx=0;h_idx<nhalo_in;h_idx++){
+        if(halofield_large->halo_masses[h_idx] > largest_mass)
+            largest_mass = halofield_large->halo_masses[h_idx];
+    }
+    largest_R = MtoR(largest_mass)/boxlen*lo_dim; //in cell units
+
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
     {
         //PRIVATE VARIABLES
@@ -911,6 +923,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
             halofield_out->halo_coords[1 + 3*(istart+count)] = halofield_large->halo_coords[1 + 3*j];
             halofield_out->halo_coords[2 + 3*(istart+count)] = halofield_large->halo_coords[2 + 3*j];
             count++;
+
         }
 
 #pragma omp for
@@ -926,6 +939,13 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                         crd_large[0] = halofield_large->halo_coords[0 + 3*j] * hi_dim / lo_dim;
                         crd_large[1] = halofield_large->halo_coords[1 + 3*j] * hi_dim / lo_dim;
                         crd_large[2] = halofield_large->halo_coords[2 + 3*j] * hi_dim / lo_dim;
+
+                        //exclude the largest cube for acceleration
+                        if(fabs(crd_large[0] - x) > largest_R ||
+                            fabs(crd_large[1] - y) > largest_R ||
+                            fabs(crd_large[2] - z) > largest_R)
+                            continue;
+
                         //mass subtraction from cell, PRETENDING THEY ARE SPHERES OF RADIUS L_FACTOR in cell widths
                         halo_r = MtoR(halofield_large->halo_masses[j]) / boxlen * lo_dim; //units of HII_DIM cell width
                         halo_dist = sqrt((crd_large[0] - x)*(crd_large[0] - x) +
@@ -1275,6 +1295,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
         Broadcast_struct_global_UF(user_params,cosmo_params);
         Broadcast_struct_global_PS(user_params,cosmo_params);
         Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
+        Broadcast_struct_global_IT(user_params,cosmo_params,astro_params,flag_options);
 
         omp_set_num_threads(user_params->N_THREADS);
 
@@ -1341,7 +1362,7 @@ int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosm
             #pragma omp parallel for
             for(i=0;i<n_mass;i++){
                 //conditional ps mass func * pow(M,n_order)
-                if((M[i] < Mmin) || (M[i] > MMAX_TABLES) || ((cmf_flag) && (M[i] > Mcond))){
+                if((M[i] < Mmin) || (M[i] > MMAX_TABLES) || ((cmf_flag) && (M[i] > hs_constants->M_cond))){
                     test = 0.;
                 }
                 else{

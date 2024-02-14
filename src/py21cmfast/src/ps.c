@@ -1054,34 +1054,33 @@ double get_frac_limit(double M, double norm, double alpha, double limit, bool mi
     return pow(M/1e10,alpha);
 }
 
+double cmf_function(double growthf, double lnM, double delta, double sigma, int HMF){
+    //dNdlnM = dfcoll/dM * M / M * constants
+    if(HMF==0) {
+        return dNdM_conditional_EPS(growthf,lnM,delta,sigma);
+    }
+    if(HMF==1) {
+        return dNdM_conditional_ST(growthf,lnM,delta,sigma);
+    }
+    if(HMF==4) {
+        return dNdlnM_conditional_Delos(growthf,lnM,delta,sigma);
+    }
+    //NOTE: Normalisation scaling is currently applied outside the integral, per condition
+    //This will be the rescaled EPS CMF,
+    //TODO: put rescaling options here (normalised EPS, rescaled EPS, local/global scalings of UMFs from Tramonte+17)
+    //Filter CMF type by CMF_MODE parameter (==1 for set CMF, ==2 for resnormalised, ==3 for rescaled EPS, ==4 for Tramonte local, ==5 for Tramonte global etc)
+    return dNdM_conditional_EPS(growthf,lnM,delta,sigma);
+
+}
+
 double c_mf_integrand(double lnM, void *param_struct){
     struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
-    double mf, m_factor;
     double growthf = params.growthf;
     double delta = params.delta; //the condition delta
     double sigma2 = params.sigma_cond;
     int HMF = params.HMF;
 
-    double M_exp = exp(lnM);
-
-    //dNdlnM = dfcoll/dM * M / M * constants
-    if(HMF==0) {
-        mf = dNdM_conditional_EPS(growthf,lnM,delta,sigma2);
-    }
-    else if(HMF==1) {
-        mf = dNdM_conditional_ST(growthf,lnM,delta,sigma2);
-    }
-    else if(HMF==4) {
-        mf = dNdlnM_conditional_Delos(growthf,lnM,delta,sigma2);
-    }
-    else {
-        //NOTE: Normalisation scaling is currently applied outside the integral, per condition
-        //This will be the rescaled EPS CMF,
-        //TODO: put rescaling options here (normalised EPS, rescaled EPS, local/global scalings of UMFs from Tramonte+17)
-        //Filter CMF type by CMF_MODE parameter (==1 for set CMF, ==2 for resnormalised, ==3 for rescaled EPS, ==4 for Tramonte local, ==5 for Tramonte global etc)
-        mf = dNdM_conditional_EPS(growthf,lnM,delta,sigma2);
-    }
-    return mf;
+    return cmf_function(growthf,lnM,delta,sigma2,HMF);
 }
 
 double c_fcoll_integrand(double lnM, void *param_struct){
@@ -1126,14 +1125,7 @@ double c_nion_integrand_mini(double lnM, void *param_struct){
     return M * Fstar * Fesc * exp(-M_turn_lower/M) * exp(-M/M_turn_upper) * c_mf_integrand(lnM,param_struct);
 }
 
-double u_mf_integrand(double lnM, void *param_struct){
-    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
-    double mf, m_factor;
-    int i;
-    double growthf = params.growthf;
-    double z = params.redshift;
-    int HMF = params.HMF;
-
+double umf_function(double growthf, double lnM, double z, int HMF){
     double M_exp = exp(lnM);
 
     //most of the UMFs are defined with M, but we integrate over lnM
@@ -1142,18 +1134,32 @@ double u_mf_integrand(double lnM, void *param_struct){
     if(HMF==0) {
         return dNdM(growthf, M_exp) * M_exp;
     }
-    else if(HMF==1) {
+    if(HMF==1) {
         return dNdM_st(growthf, M_exp) * M_exp;
     }
-    else if(HMF==2) {
+    if(HMF==2) {
         return dNdM_WatsonFOF(growthf, M_exp) * M_exp;
     }
-    else if(HMF==3) {
+    if(HMF==3) {
         return dNdM_WatsonFOF_z(z, growthf, M_exp) * M_exp;
     }
-    else if(HMF==4) {
+    if(HMF==4) {
         return dNdlnM_Delos(growthf, lnM); //NOTE: dNdlogM
     }
+    else{
+        LOG_ERROR("Invalid HMF %d",HMF);
+        Throw(ValueError);
+    }
+}
+
+double u_mf_integrand(double lnM, void *param_struct){
+    struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
+    double mf, m_factor;
+    double growthf = params.growthf;
+    double z = params.redshift;
+    int HMF = params.HMF;
+
+    return umf_function(growthf,lnM,z,HMF);
 }
 
 double u_fcoll_integrand(double lnM, void *param_struct){
@@ -1231,7 +1237,7 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
-    double rel_tol = 1e-3; //<- relative tolerance
+    double rel_tol = 1e-4; //<- relative tolerance
     int w_size = 1000;
     gsl_integration_workspace * w
     = gsl_integration_workspace_alloc (w_size);
@@ -1578,7 +1584,8 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double s
         .f_esc_norm = Fesc7,
         .Mlim_star = Mlim_Fstar,
         .Mlim_esc = Mlim_Fesc,
-        .HMF = user_params_ps->HMF,
+        // .HMF = user_params_ps->HMF,
+        .HMF = 0, //FORCE EPS UNTIL THE OTHERS WORK
         .sigma_cond = sigma2,
         .delta = delta2,
     };
@@ -1597,7 +1604,8 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double sigma2
         .f_esc_norm = Fesc10,
         .Mlim_star = Mlim_Fstar,
         .Mlim_esc = Mlim_Fesc,
-        .HMF = user_params_ps->HMF,
+        // .HMF = user_params_ps->HMF,
+        .HMF = 0, //FORCE EPS UNTIL THE OTHERS WORK
         .sigma_cond = sigma2,
         .delta = delta2,
     };
@@ -2297,13 +2305,14 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
             z1 = 1./(a-delta_a) - 1.;
 
             // Ionizing emissivity (num of photons per baryon)
+            //We Force QAG due to the changing limits and messy implementation which I will fix later (hopefully move the whole thing to python)
             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
                 Nion0 = ION_EFF_FACTOR*Nion_General(z0, astro_params->M_TURN/50., global_params.M_MAX_INTEGRAL, astro_params->M_TURN, astro_params->ALPHA_STAR,
                                                 astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
-                                                Mlim_Fstar, Mlim_Fesc, user_params->INTEGRATION_METHOD_ATOMIC);
+                                                Mlim_Fstar, Mlim_Fesc, 0);
                 Nion1 = ION_EFF_FACTOR*Nion_General(z1, astro_params->M_TURN/50., global_params.M_MAX_INTEGRAL, astro_params->M_TURN, astro_params->ALPHA_STAR,
                                                 astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
-                                                Mlim_Fstar, Mlim_Fesc, user_params->INTEGRATION_METHOD_ATOMIC);
+                                                Mlim_Fstar, Mlim_Fesc, 0);
             }
             else {
                 //set the minimum source mass
@@ -2333,8 +2342,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
                   }
                 }
 
-                Nion0 = ION_EFF_FACTOR*FgtrM_General(z0,M_MIN_z0,user_params->INTEGRATION_METHOD_ATOMIC);
-                Nion1 = ION_EFF_FACTOR*FgtrM_General(z1,M_MIN_z1,user_params->INTEGRATION_METHOD_ATOMIC);
+                Nion0 = ION_EFF_FACTOR*FgtrM_General(z0,M_MIN_z0,0);
+                Nion1 = ION_EFF_FACTOR*FgtrM_General(z1,M_MIN_z1,0);
                 freeSigmaMInterpTable();
             }
 
@@ -2429,6 +2438,9 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
 
     free(z_arr);
     free(Q_arr);
+
+    free(Q_z);
+    free(z_value);
 
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
       freeSigmaMInterpTable();
