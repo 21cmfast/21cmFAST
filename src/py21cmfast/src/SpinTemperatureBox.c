@@ -942,17 +942,14 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
                              float *sfrd_grid_mini, double *ave_sfrd, double *ave_sfrd_mini){
     double ave_sfrd_buf=0;
     double ave_sfrd_buf_mini=0;
-    double mturn_bin_width = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
-    double delta_bin_width = (max_densities[R_ct] - min_densities[R_ct])/((float)NDELTA-1.);
-
     if(user_params_ts->INTEGRATION_METHOD_ATOMIC == 1 || user_params_ts->INTEGRATION_METHOD_MINI == 1)
         initialise_GL(NGL_INT,log(M_min_R[R_ct]),log(M_max_R[R_ct]));
 
     if(user_params_ts->USE_INTERPOLATION_TABLES){
         if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
             initialise_SFRD_Conditional_table(min_densities[R_ct],
-                                                    max_densities[R_ct],zpp_growth[R_ct],Mcrit_atom_interp_table[R_ct],
-                                                    global_params.M_MIN_INTEGRAL,M_max_R[R_ct],M_max_R[R_ct],
+                                                    max_densities[R_ct]*1.001,zpp_growth[R_ct],Mcrit_atom_interp_table[R_ct],
+                                                    M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],
                                                     astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->F_STAR10,
                                                     astro_params_ts->F_STAR7_MINI, user_params_ts->INTEGRATION_METHOD_ATOMIC, user_params_ts->INTEGRATION_METHOD_MINI,
                                                     flag_options_ts->USE_MINI_HALOS);
@@ -1010,6 +1007,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
                 sfrd_grid[box_ct] = (1.+curr_dens)*dfcoll;
             }
             ave_sfrd_buf += fcoll;
+            ave_sfrd_buf_mini += fcoll;
         }
     }
     *ave_sfrd = ave_sfrd_buf/HII_TOT_NUM_PIXELS;
@@ -1572,7 +1570,8 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                 }
                 // LOG_SUPER_DEBUG("Calculating sfrd at zpp %.2e edge %.2e",zpp, z_edge_factor);
                 calculate_sfrd_from_grid(R_ct,delta_box_input,Mcrit_box_input,del_fcoll_Rct,del_fcoll_Rct_MINI,&ave_fcoll,&ave_fcoll_MINI);
-                avg_fix_term = mean_sfr_zpp[R_ct]/ave_fcoll; //THE SFRD table multiplies by 1e10 for some reason, which is hidden by this mean fixing
+                avg_fix_term = mean_sfr_zpp[R_ct]/ave_fcoll;
+                avg_fix_term_MINI = mean_sfr_zpp[R_ct]/ave_fcoll_MINI;
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
                 LOG_SUPER_DEBUG("z %6.2f ave sfrd (mini) val %.3e (%.3e) global %.3e (%.3e)",zpp_for_evolve_list[R_ct],ave_fcoll,
                                     ave_fcoll_MINI,mean_sfr_zpp[R_ct],mean_sfr_zpp_mini[R_ct]);

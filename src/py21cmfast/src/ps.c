@@ -1566,16 +1566,16 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double sigma,
 }
 
 double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double sigma2, double delta2, double MassTurnover,
-                            double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar10,
-                            double Fesc10, double Mlim_Fstar, double Mlim_Fesc, int method){
+                            double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar7,
+                            double Fesc7, double Mlim_Fstar, double Mlim_Fesc, int method){
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
         .Mturn = MassTurnover,
         .Mturn_upper = MassTurnover_upper,
         .alpha_star = Alpha_star,
         .alpha_esc = Alpha_esc,
-        .f_star_norm = Fstar10,
-        .f_esc_norm = Fesc10,
+        .f_star_norm = Fstar7,
+        .f_esc_norm = Fesc7,
         .Mlim_star = Mlim_Fstar,
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_ps->HMF,
