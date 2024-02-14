@@ -693,7 +693,7 @@ class FlagOptions(StructWithDefaults):
     PHOTON_CONS : bool, optional
         Whether to perform a small correction to account for the inherent
         photon non-conservation.
-    PHOTON_CONS : bool, optional
+    PHOTON_CONS_ALPHA : bool, optional
         Do the photon conservation correction in ALPHA_ESC rather than redshift
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
