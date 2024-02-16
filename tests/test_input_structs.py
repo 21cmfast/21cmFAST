@@ -5,6 +5,7 @@ Unit tests for input structures
 import pytest
 
 import pickle
+import warnings
 
 from py21cmfast import AstroParams  # An example of a struct with defaults
 from py21cmfast import CosmoParams, FlagOptions, UserParams, __version__, global_params
@@ -171,9 +172,9 @@ def test_interpolation_table_warning():
     with pytest.warns(UserWarning, match="setting has changed in v3.1.2"):
         UserParams().USE_INTERPOLATION_TABLES
 
-    with pytest.warns(None) as record:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         UserParams(USE_INTERPOLATION_TABLES=True).USE_INTERPOLATION_TABLES
-    assert not record
 
 
 def test_validation():
