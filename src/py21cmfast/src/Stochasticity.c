@@ -85,7 +85,7 @@ double EvaluateSigmaInverse(double sigma, struct RGTable1D_f *s_table){
         Throw(TableEvaluationError);
     }
     double table_val_0 = s_table->x_min + idx*s_table->x_width;
-    double table_val_1 = s_table->x_min + idx-1*s_table->x_width; //TODO:CHECK
+    double table_val_1 = s_table->x_min + (idx-1)*s_table->x_width; //TODO:CHECK
     double interp_point = (sigma - table_val_0)/(table_val_1-table_val_0);
 
     return table_val_0*(1-interp_point) + table_val_1*(interp_point);
@@ -872,17 +872,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
         ps_ratio /= IntegratedNdM(lnMmin,lnMcell,params,2,user_params_stoc->INTEGRATION_METHOD_HALOS);
     }
 
-    //quick acceleration attempt
-    //I would like to put this in the below parallel loop but I need the reduction to happen first
-    double largest_mass=0;
-    double largest_R;
-    int h_idx;
-#pragma omp parallel for num_threads(user_params_stoc->N_THREADS) reduction(max:largest_mass)
-    for (h_idx=0;h_idx<nhalo_in;h_idx++){
-        if(halofield_large->halo_masses[h_idx] > largest_mass)
-            largest_mass = halofield_large->halo_masses[h_idx];
-    }
-    largest_R = MtoR(largest_mass)/boxlen*lo_dim; //in cell units
+    double *dexm_radii = calloc(nhalo_in,sizeof(double));
 
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
     {
@@ -894,7 +884,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
         double delta;
         float prop_buf[2], prop_dummy[2];
         int crd_hi[3];
-        double crd_large[3];
+        double crd_diff[3], crd_large[3];
 
         //dexm overlap variables
         double halo_dist,halo_r,intersect_vol;
@@ -922,9 +912,14 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
             halofield_out->halo_coords[0 + 3*(istart+count)] = halofield_large->halo_coords[0 + 3*j];
             halofield_out->halo_coords[1 + 3*(istart+count)] = halofield_large->halo_coords[1 + 3*j];
             halofield_out->halo_coords[2 + 3*(istart+count)] = halofield_large->halo_coords[2 + 3*j];
-            count++;
 
+            //To accelerate, I store the large-halo radii
+            dexm_radii[j] = MtoR(halofield_large->halo_masses[j])/boxlen*lo_dim;
+            count++;
         }
+
+//I need the full radii list before the loop starts
+#pragma omp barrier
 
 #pragma omp for
         for (x=0; x<lo_dim; x++){
@@ -933,24 +928,27 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                     delta = (double)dens_field[HII_R_INDEX(x,y,z)] * growthf;
                     stoc_set_consts_cond(&hs_constants_priv,delta);
                     //Subtract mass from cells near big halos
-                    mass_defc = 1;
+                    mass_defc = 1.;
                     for (j=0;j<nhalo_in;j++){
                         //convert to lowres coordinates, no precision lost since its a double
-                        crd_large[0] = halofield_large->halo_coords[0 + 3*j] * hi_dim / lo_dim;
-                        crd_large[1] = halofield_large->halo_coords[1 + 3*j] * hi_dim / lo_dim;
-                        crd_large[2] = halofield_large->halo_coords[2 + 3*j] * hi_dim / lo_dim;
+                        //We effectively add 0.5 to both centres in their native resolution to compare cell centres
+                        crd_large[0] = ((halofield_large->halo_coords[0 + 3*j] + 0.5) / (double)hi_dim * (double)lo_dim) - 0.5;
+                        crd_large[1] = ((halofield_large->halo_coords[1 + 3*j] + 0.5) / (double)hi_dim * (double)lo_dim) - 0.5;
+                        crd_large[2] = ((halofield_large->halo_coords[2 + 3*j] + 0.5) / (double)D_PARA * (double)HII_D_PARA) - 0.5;
 
-                        //exclude the largest cube for acceleration
-                        if(fabs(crd_large[0] - x) > largest_R ||
-                            fabs(crd_large[1] - y) > largest_R ||
-                            fabs(crd_large[2] - z) > largest_R)
+                        //check all reflections
+                        crd_diff[0] = fmin(fmin(fabs(crd_large[0] - x),fabs(crd_large[0] + lo_dim - x)),fabs(crd_large[0] - lo_dim - x));
+                        crd_diff[1] = fmin(fmin(fabs(crd_large[1] - y),fabs(crd_large[1] + lo_dim - y)),fabs(crd_large[1] - lo_dim - y));
+                        crd_diff[2] = fmin(fmin(fabs(crd_large[2] - z),fabs(crd_large[2] + lo_dim - z)),fabs(crd_large[2] - lo_dim - z));
+
+                        //exclude the cube first for speed
+                        if(crd_diff[0] > halo_r || crd_diff[1] > halo_r || crd_diff[2] > halo_r)
                             continue;
 
                         //mass subtraction from cell, PRETENDING THEY ARE SPHERES OF RADIUS L_FACTOR in cell widths
-                        halo_r = MtoR(halofield_large->halo_masses[j]) / boxlen * lo_dim; //units of HII_DIM cell width
-                        halo_dist = sqrt((crd_large[0] - x)*(crd_large[0] - x) +
-                                            (crd_large[1] - y)*(crd_large[1] - y) +
-                                            (crd_large[2] - z)*(crd_large[2] - z)); //distance between sphere centres
+                        halo_r = dexm_radii[j]; //units of HII_DIM cell width
+                        //distance between the centres
+                        halo_dist = sqrt(crd_diff[0]*crd_diff[0] + crd_diff[1]*crd_diff[1] + crd_diff[2]*crd_diff[2]);
 
                         //Cell is entirely outside of halo
                         if(halo_dist - L_FACTOR > halo_r){
@@ -959,6 +957,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                         //Cell is entirely within halo
                         else if(halo_dist + L_FACTOR < halo_r){
                             mass_defc = 0;
+                            // LOG_ULTRA_DEBUG("Cell (%d %d %d) entirely within halo %d (%.1f %.1f %.1f) R %.2e",x,y,z,j,crd_large[0],crd_large[1],crd_large[2],halo_r);
                             break;
                         }
                         //partially inside halo, pretend cells are spheres to do the calculation much faster without too much error
@@ -968,6 +967,8 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                             intersect_vol *= PI*(halo_r + L_FACTOR - halo_dist) / 12*halo_dist; //volume in cell_width^3
 
                             mass_defc -= intersect_vol; //since cell volume == 1, M*mass_defc should adjust the mass correctly
+                            // LOG_ULTRA_DEBUG("Cell (%d %d %d) has %.2f fractional volume in halo %d (%.2f %.2f %.2f) R %.2e",
+                            //                     x,y,z,intersect_vol,j,crd_large[0],crd_large[1],crd_large[2],halo_r);
 
                             //NOTE: it is possible for a single HII_DIM cells to be partially in two halos on the DIM grid
                             //      So we don't break here
@@ -975,8 +976,8 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                     }
                     if(x+y+z == 0){
                         print_hs_consts(&hs_constants_priv);
-                        LOG_ULTRA_DEBUG("Cell 0: delta %.2f -> (N,M) (%.2f,%.2e) overlap defc %.2f ps_ratio %.2f",
-                                        delta,hs_constants_priv.expected_N,hs_constants_priv.expected_M,mass_defc,ps_ratio);
+                        LOG_ULTRA_DEBUG("Cell (%d %d %d): delta %.2f -> (N,M) (%.2f,%.2e) overlap defc %.2f ps_ratio %.2f",x,y,z,
+                                    delta,hs_constants_priv.expected_N,hs_constants_priv.expected_M,mass_defc,ps_ratio);
                     }
                     //TODO: the ps_ratio part will need to be moved when other CMF scalings are finished
                     hs_constants_priv.expected_M *= mass_defc/ps_ratio;
@@ -986,8 +987,6 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                     //output total halo number, catalogues of masses and positions
                     M_cell = 0;
                     for(i=0;i<nh_buf;i++){
-                        if(hm_buf[i] < global_params.SAMPLER_MIN_MASS) continue; //save only halos some factor above minimum
-
                         set_prop_rng(rng_arr[threadnum], 0, prop_dummy, prop_dummy, prop_buf);
                         place_on_hires_grid(x,y,z,crd_hi,rng_arr[threadnum]);
 
@@ -1012,6 +1011,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                 }
             }
         }
+        LOG_SUPER_DEBUG("Thread %d found %d halos",threadnum,count);
 
         if(count >= arraysize_local){
             LOG_ERROR("Ran out of memory, with %llu halos and local size %llu",count,arraysize_local);
@@ -1021,6 +1021,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
         istart_threads[threadnum] = istart;
         nhalo_threads[threadnum] = count;
     }
+    free(dexm_radii);
 
     //Condense the sparse array
     //TODO: figure out a way to do this in parralel without overwriting elements before they are moved
@@ -1116,7 +1117,6 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
             //place progenitors in local list
             M_prog = 0;
             for(jj=0;jj<n_prog;jj++){
-                if(prog_buf[jj] < global_params.SAMPLER_MIN_MASS) continue; //save only halos some factor above minimum
                 set_prop_rng(rng_arr[threadnum], 1, corr_arr, propbuf_in, propbuf_out);
 
                 halofield_out->halo_masses[istart + count] = prog_buf[jj];
@@ -1205,7 +1205,7 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
         build_halo_cats(rng_stoc,redshift,dens_field,halos_prev,halos,&hs_constants);
     }
     else{
-        LOG_DEBUG("updating halo field from z=%.1f to z=%.1f | %d", redshift_prev,redshift,halos->n_halos);
+        LOG_DEBUG("updating halo field from z=%.1f to z=%.1f | %d", redshift_prev,redshift,halos_prev->n_halos);
         halo_update(rng_stoc,redshift_prev,redshift,halos_prev,halos,&hs_constants);
     }
 

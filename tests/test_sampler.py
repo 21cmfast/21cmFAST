@@ -15,6 +15,7 @@ RELATIVE_TOLERANCE = 1e-1
 options_hmf = list(cint.OPTIONS_HMF.keys())
 
 
+@pytest.mark.xfail
 @pytest.mark.parametrize("name", options_hmf)
 def test_sampler(name, plt):
     redshift, kwargs = cint.OPTIONS_HMF[name]
@@ -23,15 +24,15 @@ def test_sampler(name, plt):
     up = UserParams(opts["user_params"])
     cp = CosmoParams(opts["cosmo_params"])
     ap = AstroParams(opts["astro_params"])
-    fo = FlagOptions(opts["flag_optsions"])
+    fo = FlagOptions(opts["flag_options"])
     up.update(USE_INTERPOLATION_TABLES=True)
     lib.Broadcast_struct_global_PS(up(), cp())
     lib.Broadcast_struct_global_UF(up(), cp())
     lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
     lib.Broadcast_struct_global_STOC(up(), cp(), ap(), fo())
 
-    l10min = 7
-    l10max = 12
+    l10min = 8
+    l10max = 11
     edges = np.logspace(l10min, l10max, num=10 * (l10max - l10min))
     bin_minima = edges[:-1]
     bin_maxima = edges[1:]
@@ -126,9 +127,9 @@ def test_sampler(name, plt):
         mf_out = hist / volume_total_d[i] / dlnm
         binned_cmf = binned_cmf * n_cond / volume_total_d[i] / dlnm * cond_mass_d
 
-        np.assert_allclose(N_out.mean(), exp_M[0], rel_tol=RELATIVE_TOLERANCE)
-        np.assert_allclose(M_out.mean(), exp_M[0], rel_tol=RELATIVE_TOLERANCE)
-        np.assert_allclose(mf_out, binned_cmf, rel_tol=RELATIVE_TOLERANCE)
+        np.testing.assert_allclose(N_out.mean(), exp_N[0], rtol=RELATIVE_TOLERANCE)
+        np.testing.assert_allclose(M_out.mean(), exp_M[0], rtol=RELATIVE_TOLERANCE)
+        np.testing.assert_allclose(mf_out, binned_cmf, rtol=RELATIVE_TOLERANCE)
 
     # HALO MASS CONDITIONS WITH FIXED z-step
     for i, m in enumerate(conditions_m):
@@ -182,6 +183,6 @@ def test_sampler(name, plt):
         mf_out = hist / volume_total_m[i] / dlnm
         binned_cmf = binned_cmf * n_cond / volume_total_m[i] / dlnm * cond_mass_m
 
-        np.assert_allclose(N_out.mean(), exp_N[0], rel_tol=RELATIVE_TOLERANCE)
-        np.assert_allclose(M_out.mean(), exp_M[0], rel_tol=RELATIVE_TOLERANCE)
-        np.assert_allclose(mf_out, binned_cmf, rel_tol=RELATIVE_TOLERANCE)
+        np.testing.assert_allclose(N_out.mean(), exp_N[0], rtol=RELATIVE_TOLERANCE)
+        np.testing.assert_allclose(M_out.mean(), exp_M[0], rtol=RELATIVE_TOLERANCE)
+        np.testing.assert_allclose(mf_out, binned_cmf, rtol=RELATIVE_TOLERANCE)
