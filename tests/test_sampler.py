@@ -182,6 +182,6 @@ def test_sampler(name, plt):
         mf_out = hist / volume_total_m[i] / dlnm
         binned_cmf = binned_cmf * n_cond / volume_total_m[i] / dlnm * cond_mass_m
 
-        np.assert_allclose(N_out.mean(), exp_M[0], rel_tol=RELATIVE_TOLERANCE)
+        np.assert_allclose(N_out.mean(), exp_N[0], rel_tol=RELATIVE_TOLERANCE)
         np.assert_allclose(M_out.mean(), exp_M[0], rel_tol=RELATIVE_TOLERANCE)
         np.assert_allclose(mf_out, binned_cmf, rel_tol=RELATIVE_TOLERANCE)

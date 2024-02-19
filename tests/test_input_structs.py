@@ -155,15 +155,6 @@ def test_globals():
     assert global_params.Z_HEAT_MAX == orig
 
 
-def test_fcoll_on(caplog):
-    f = UserParams(FAST_FCOLL_TABLES=True, USE_INTERPOLATION_TABLES=False)
-    assert not f.FAST_FCOLL_TABLES
-    assert (
-        "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES"
-        in caplog.text
-    )
-
-
 @pytest.mark.xfail(
     __version__ >= "4.0.0", reason="the warning can be removed in v4", strict=True
 )

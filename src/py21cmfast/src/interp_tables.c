@@ -553,7 +553,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 continue;
             }
             //inverse table limits
-            Nhalo_inv_table.z_arr[i][0] = lnM_cond; //will be overwritten in grid if we find MIN_LOGPROB within the mass range
+            Nhalo_inv_table.z_arr[i][0] = lnM_cond; //will be overwritten in grid
             Nhalo_inv_table.z_arr[i][np-1] = ymin;
 
             //reset probability finding
@@ -588,7 +588,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 //There are time where we have gone over the probability (machine precision) limit before reaching the mass limit
                 if(!update){
                     if(prob == 0.){
-                        prob = global_params.MIN_LOGPROB - 1.;
+                        prob = global_params.MIN_LOGPROB - 1.; //to make sure we go over the limit we extrapolate to here
                         //if we have at least 2 probabilities, we extrapolate to the next mass before hitting zero
                         if(k<np-2){
                             y = Nhalo_inv_table.z_arr[i][k+1] +
@@ -598,7 +598,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                         }
                         //the k==np-2 case remains unchanged, one probability target was hit, we go straight down from the current mass
                         else if(k==np-1){
-                            y = ymin; //we've hit zero on the first probabilty target, this is a tiny halo which will not produce progenitors
+                            y = ymin; //we've hit zero on the first probabilty target, this is a delta ~ -1 cell which will not produce halos
                         }
                     }
                     else prob = log(prob);
