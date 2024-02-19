@@ -45,7 +45,7 @@ options_halo = list(prd.OPTIONS_HALO.keys())
 @pytest.mark.parametrize("name", options)
 def test_power_spectra_coeval(name, module_direc, plt):
     redshift, kwargs = prd.OPTIONS[name]
-    print(f"Options used for the test at z={redshift}: ", kwargs)
+    print(f"Options used for the test at z={redshift}: ", kwargs, flush=True)
 
     # First get pre-made data
     with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:

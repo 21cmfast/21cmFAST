@@ -248,8 +248,9 @@ int init_heat();
 void free(void *ptr);
 
 //need a python visible function to test lower level functions using the package
-int my_visible_function(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
-                        , int seed, int n_mass, float *M, double condition, double z_out, double z_in, int type, double *result);
+int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options,
+                        int seed, int n_condition, float *conditions, int *cond_crd, double z_out, double z_in, int *out_n_tot, int *out_n_cell, double *out_n_exp,
+                        double *out_m_cell, double *out_m_exp, float *out_halo_masses, int *out_halo_coords);
 
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the box
 double expected_nhalo(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions * flag_options);
@@ -312,6 +313,7 @@ double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, doubl
 double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double sigma_max);
 
 //integrals
+void initialise_GL(int n, float lnM_Min, float lnM_Max);
 double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double sigma, double delta, int method);
 double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double sigma, double delta, int method);
 double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double sigma2, double delta2, double MassTurnover,

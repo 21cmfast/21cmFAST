@@ -360,7 +360,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
     float Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
     int i,j,k,i_tot;
 
-    // LOG_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
+    LOG_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
@@ -536,11 +536,12 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             }
 
             //BIG TODO: THIS IS SUPER INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
+            //      GL seems to require smoothness in the whole interval so we cannot use ymax for everything (TEST THIS)
             if(user_params_it->INTEGRATION_METHOD_HALOS == 1)
                 initialise_GL(NGL_INT, ymin, lnM_cond);
 
-            norm = IntegratedNdM(ymin, lnM_cond, integral_params,-1, user_params_it->INTEGRATION_METHOD_HALOS);
-            fcoll = IntegratedNdM(ymin, lnM_cond, integral_params, -2, user_params_it->INTEGRATION_METHOD_HALOS);
+            norm = IntegratedNdM(ymin, ymax, integral_params,-1, user_params_it->INTEGRATION_METHOD_HALOS);
+            fcoll = IntegratedNdM(ymin, ymax, integral_params, -2, user_params_it->INTEGRATION_METHOD_HALOS);
             Nhalo_table.y_arr[i] = norm;
             Mcoll_table.y_arr[i] = fcoll;
             // LOG_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);
@@ -551,19 +552,19 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                     Nhalo_inv_table.z_arr[i][k] = ymin;
                 continue;
             }
-            // //inverse table limits
+            //inverse table limits
             Nhalo_inv_table.z_arr[i][0] = lnM_cond; //will be overwritten in grid if we find MIN_LOGPROB within the mass range
             Nhalo_inv_table.z_arr[i][np-1] = ymin;
 
             //reset probability finding
             k=np-1;
-            p_target = pa[k];
             p_prev = update ? 1. : 0; //start with p==1 from the ymin integral, (logp==0)
             for(j=1;j<ny;j++){
                 //done with inverse table
                 if(k < k_lim) break;
 
                 //BIG TODO: THIS IS EVEN MORE INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
+                //      i.e reverse the loop if we have to define for every condition, OR initialise in arrays
                 if(user_params_it->INTEGRATION_METHOD_HALOS == 1)
                     initialise_GL(NGL_INT, y, lnM_cond);
 
@@ -574,7 +575,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                     buf = 0.;
                 }
                 else{
-                    buf = IntegratedNdM(y, lnM_cond, integral_params, -1, user_params_it->INTEGRATION_METHOD_HALOS); //Number density between ymin and y
+                    buf = IntegratedNdM(y, ymax, integral_params, -1, user_params_it->INTEGRATION_METHOD_HALOS); //Number density between ymin and y
                 }
 
                 prob = buf / norm;
@@ -585,32 +586,34 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 }
 
                 //There are time where we have gone over the probability (machine precision) limit before reaching the mass limit
-                //  we set the final point to be minimum probability at the maximum mass, which crosses the true CDF in the final bin
-                //  but is the best we can do without a rootfind
                 if(!update){
                     if(prob == 0.){
-                        prob = global_params.MIN_LOGPROB;
-                        y = lnM_cond;
+                        prob = global_params.MIN_LOGPROB - 1.;
+                        //if we have at least 2 probabilities, we extrapolate to the next mass before hitting zero
+                        if(k<np-2){
+                            y = Nhalo_inv_table.z_arr[i][k+1] +
+                                (prob-pa[k+1]) *
+                                (Nhalo_inv_table.z_arr[i][k+1]-Nhalo_inv_table.z_arr[i][k+2]) /
+                                (pa[k+1]-pa[k+2]);
+                        }
+                        //the k==np-2 case remains unchanged, one probability target was hit, we go straight down from the current mass
+                        else if(k==np-1){
+                            y = ymin; //we've hit zero on the first probabilty target, this is a tiny halo which will not produce progenitors
+                        }
                     }
                     else prob = log(prob);
                 }
                 // LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",update ? exp(x) : x,i,exp(y),j,prob,p_prev);
-
-                if(p_prev < p_target){
-                        LOG_ERROR("Target moved up?");
-                        Throw(TableGenerationError);
-                }
                 //loop through the remaining spaces in the inverse table and fill them
-                while(prob <= p_target && k >= k_lim){
+                while(prob <= pa[k] && k >= k_lim){
                     //since we go ascending in y, prob > prob_prev
-                    //NOTE: linear interpolation in (lnMM,log(p)|p)
-                    lnM_p = (p_prev-p_target)*(y - lnM_prev)/(p_prev-prob) + lnM_prev;
+                    //NOTE: linear interpolation in (lnM,log(p)|p)
+                    lnM_p = (p_prev-pa[k])*(y - lnM_prev)/(p_prev-prob) + lnM_prev;
                     Nhalo_inv_table.z_arr[i][k] = lnM_p;
 
-                    // LOG_ULTRA_DEBUG("Found c: %.2e p: (%.2e,%.2e,%.2e) (c %d, m %d, p %d) z: %.5e",update ? exp(x) : x,p_prev,p_target,prob,i,j,k,exp(lnM_p));
+                    // LOG_ULTRA_DEBUG("Found c: %.2e p: (%.2e,%.2e,%.2e) (c %d, m %d, p %d) z: %.5e",update ? exp(x) : x,p_prev,pa[k],prob,i,j,k,exp(lnM_p));
 
                     k--;
-                    p_target=pa[k];
                 }
                 //keep the value at the previous mass bin for interpolation
                 p_prev = prob;

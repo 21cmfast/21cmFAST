@@ -66,7 +66,7 @@ struct RGTable1D_f dSigmasqdm_InterpTable = {.allocated = false,};
 
 //These arrays hold the points and weights for the Gauss-Legendre integration routine
 //(JD) Since these were always malloc'd one at a time with fixed length ~100, I've changed them to fixed-length arrays
-float xi_GL[NGL_INT+1], wi_GL[NGL_INT+1];
+float xi_GL[NGL_INT+1], wi_GL[NGL_INT+1], GL_limit[2];
 
 //These globals are used for the LF calculation
 double *lnMhalo_param, *Muv_param, *Mhalo_param;
@@ -1309,12 +1309,20 @@ void gauleg(float x1, float x2, float x[], float w[], int n)
 //Specific initialistion for the global arrays
 void initialise_GL(int n, float lnM_Min, float lnM_Max){
     gauleg(lnM_Min,lnM_Max,xi_GL,wi_GL,n);
+    GL_limit[0] = lnM_Min;
+    GL_limit[1] = lnM_Max;
 }
 
 //actually perform the GL integration
+//NOTE: that the lnM limits are not used
 double IntegratedNdM_GL(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, int type){
     int i;
     double integral = 0;
+    if((float)lnM_lo != (float)GL_limit[0] || (float)lnM_hi != (float)GL_limit[1]){
+        LOG_ERROR("Integral limits [%.8e %.8e] do not match Gauss Legendre limits [%.8e %.8e]!",lnM_lo,lnM_hi,GL_limit[0],GL_limit[1]);
+        Throw(TableGenerationError);
+    }
+
     for(i=1; i<(NGL_INT+1); i++){
         integral += wi_GL[i]*(get_integrand_function(type))(xi_GL[i],&params);
     }

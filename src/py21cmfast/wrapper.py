@@ -3086,6 +3086,7 @@ def run_coeval(
 
         # Iterate through redshift from top to bottom
         z_halos = []
+        hbox_arr = []
         for iz, z in enumerate(redshifts):
             pf2 = perturb[iz]
             pf2.load_all()
@@ -3110,6 +3111,7 @@ def run_coeval(
                     )
                     # append the halo redshift array so we have all halo boxes [z,zmax]
                     z_halos += [z]
+                    hbox_arr += [hb2]
                 # if haloboxes have been provided with correct redshifts...
                 else:
                     z_halos = redshifts
@@ -3125,7 +3127,7 @@ def run_coeval(
                         random_seed=random_seed,  # needed since no boxes in memory
                         z_halos=z_halos,
                         regenerate=regenerate,
-                        hboxes=halobox,
+                        hboxes=hbox_arr,
                     )
 
                 st2 = spin_temperature(
