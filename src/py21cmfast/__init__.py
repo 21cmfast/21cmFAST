@@ -1,4 +1,5 @@
 """The py21cmfast package."""
+
 try:
     from importlib.metadata import PackageNotFoundError, version
 except ImportError:

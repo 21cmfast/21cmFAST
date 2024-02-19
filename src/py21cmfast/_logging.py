@@ -3,6 +3,7 @@
 Significantly, adds a new formatter which prepends the PID of the logging process to
 any output. This is helpful when running multiple threads in MPI.
 """
+
 import logging
 import sys
 from multiprocessing import current_process

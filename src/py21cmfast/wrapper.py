@@ -84,6 +84,7 @@ interpolated onto the lightcone cells):
 
 >>> lightcone = p21.run_lightcone(redshift=z2, max_redshift=z2, z_step_factor=1.03)
 """
+
 from __future__ import annotations
 
 import logging
@@ -563,9 +564,7 @@ def compute_luminosity_function(
                 return None, None, None
 
     else:
-        mturnovers = (
-            np.zeros(len(redshifts), dtype="float32") + 10**astro_params.M_TURN
-        )
+        mturnovers = np.zeros(len(redshifts), dtype="float32") + 10**astro_params.M_TURN
         component = 1
 
     if component == 0:
@@ -1895,9 +1894,11 @@ def spin_temperature(
             flag_options=flag_options,
             random_seed=random_seed,
             prev_spin_redshift=prev_z,
-            perturbed_field_redshift=perturbed_field.redshift
-            if (perturbed_field is not None and perturbed_field.is_computed)
-            else redshift,
+            perturbed_field_redshift=(
+                perturbed_field.redshift
+                if (perturbed_field is not None and perturbed_field.is_computed)
+                else redshift
+            ),
         )
 
         # Construct FFTW wisdoms. Only if required

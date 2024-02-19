@@ -1,6 +1,7 @@
 """
 Various tests of the initial_conditions() function and InitialConditions class.
 """
+
 import pytest
 
 import numpy as np
