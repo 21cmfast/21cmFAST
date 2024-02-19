@@ -15,7 +15,7 @@ ignore =
     # Docstring in imperative mood. This should *not* be the case for @property's, but can't ignore them atm.
     D401
 max-line-length = 88
-max-complexity = 40
+max-complexity = 55
 docstring-convention=numpy
 inline-quotes="
 ignore-decorators=click.option

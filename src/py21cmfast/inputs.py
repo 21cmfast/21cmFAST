@@ -17,7 +17,8 @@ from __future__ import annotations
 import contextlib
 import logging
 import warnings
-from astropy.cosmology import Planck15
+from astropy import units as un
+from astropy.cosmology import FLRW, Planck15
 from os import path
 from pathlib import Path
 
@@ -34,6 +35,7 @@ Planck18 = Planck15.clone(
     Om0=(0.02242 + 0.11933) / 0.6766**2,
     Ob0=0.02242 / 0.6766**2,
     H0=67.66,
+    name="Planck18",
 )
 
 
@@ -372,6 +374,10 @@ class CosmoParams(StructWithDefaults):
         Spectral index of the power spectrum.
     """
 
+    def __init__(self, *args, _base_cosmo=Planck18, **kwargs):
+        self._base_cosmo = _base_cosmo
+        super().__init__(*args, **kwargs)
+
     _ffi = ffi
 
     _defaults_ = {
@@ -390,7 +396,23 @@ class CosmoParams(StructWithDefaults):
     @property
     def cosmo(self):
         """Return an astropy cosmology object for this cosmology."""
-        return Planck15.clone(H0=self.hlittle * 100, Om0=self.OMm, Ob0=self.OMb)
+        return self._base_cosmo.clone(
+            name=self._base_cosmo.name,
+            H0=self.hlittle * 100,
+            Om0=self.OMm,
+            Ob0=self.OMb,
+        )
+
+    @classmethod
+    def from_astropy(cls, cosmo: FLRW, **kwargs):
+        """Create a CosmoParams object from an astropy cosmology object.
+
+        Pass SIGMA_8 and POWER_INDEX as kwargs if you want to override the default
+        values.
+        """
+        return cls(
+            hlittle=cosmo.h, OMm=cosmo.Om0, OMb=cosmo.Ob0, _base_cosmo=cosmo, **kwargs
+        )
 
 
 class UserParams(StructWithDefaults):
@@ -479,6 +501,7 @@ class UserParams(StructWithDefaults):
         "FAST_FCOLL_TABLES": False,
         "USE_2LPT": True,
         "MINIMIZE_MEMORY": False,
+        "KEEP_3D_VELOCITIES": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
@@ -538,10 +561,11 @@ class UserParams(StructWithDefaults):
                 isinstance(self._POWER_SPECTRUM, str)
                 and self._POWER_SPECTRUM.upper() != "CLASS"
             ):
-                logger.warning(
+                logger.warn(
                     "Automatically setting POWER_SPECTRUM to 5 (CLASS) as you are using "
                     "relative velocities"
                 )
+                self._POWER_SPECTRUM = 5
             return 5
         else:
             if isinstance(self._POWER_SPECTRUM, str):
@@ -594,10 +618,20 @@ class UserParams(StructWithDefaults):
         """Check that USE_INTERPOLATION_TABLES is True."""
         if not self._FAST_FCOLL_TABLES or self.USE_INTERPOLATION_TABLES:
             return self._FAST_FCOLL_TABLES
-        logger.warning(
+        logger.warn(
             "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES."
         )
         return False
+
+    @property
+    def cell_size(self) -> un.Quantity[un.Mpc]:
+        """The resolution of a low-res cell."""
+        return (self.BOX_LEN / self.HII_DIM) * un.Mpc
+
+    @property
+    def cell_size_hires(self) -> un.Quantity[un.Mpc]:
+        """The resolution of a hi-res cell."""
+        return (self.BOX_LEN / self.DIM) * un.Mpc
 
 
 class FlagOptions(StructWithDefaults):
@@ -657,6 +691,7 @@ class FlagOptions(StructWithDefaults):
         "USE_LYA_HEATING": True,
         "USE_MASS_DEPENDENT_ZETA": False,
         "SUBCELL_RSD": False,
+        "APPLY_RSDS": True,
         "INHOMO_RECO": False,
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
@@ -665,15 +700,21 @@ class FlagOptions(StructWithDefaults):
     }
 
     @property
+    def SUBCELL_RSD(self):
+        """The SUBCELL_RSD flag is only effective if APPLY_RSDS is True."""
+        return self._SUBCELL_RSD and self.APPLY_RSDS
+
+    @property
     def USE_HALO_FIELD(self):
-        """Automatically setting USE_MASS_DEPENDENT_ZETA to False if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or not self._USE_HALO_FIELD:
-            return self._USE_HALO_FIELD
-        logger.warning(
-            "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
-            "Automatically setting USE_HALO_FIELD to False."
-        )
-        return False
+        """Automatically setting USE_HALO_FIELD to False if USE_MINI_HALOS."""
+        if self._USE_HALO_FIELD and self.USE_MINI_HALOS:
+            logger.warn(
+                "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
+                "Automatically setting USE_HALO_FIELD to False."
+            )
+            self._USE_HALO_FIELD = False
+
+        return self._USE_HALO_FIELD
 
     @property
     def M_MIN_in_Mass(self):
@@ -683,46 +724,46 @@ class FlagOptions(StructWithDefaults):
     @property
     def USE_MASS_DEPENDENT_ZETA(self):
         """Automatically setting USE_MASS_DEPENDENT_ZETA to True if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or self._USE_MASS_DEPENDENT_ZETA:
-            return self._USE_MASS_DEPENDENT_ZETA
-        logger.warning(
-            "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA to False! "
-            "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
-        )
-        return True
+        if self.USE_MINI_HALOS and not self._USE_MASS_DEPENDENT_ZETA:
+            logger.warn(
+                "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False! "
+                "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
+            )
+            self._USE_MASS_DEPENDENT_ZETA = True
+        return self._USE_MASS_DEPENDENT_ZETA
 
     @property
     def INHOMO_RECO(self):
         """Automatically setting INHOMO_RECO to True if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or self._INHOMO_RECO:
-            return self._INHOMO_RECO
-        logger.warning(
-            "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
-            "Automatically setting INHOMO_RECO to True."
-        )
-        return True
+        if self.USE_MINI_HALOS and not self._INHOMO_RECO:
+            warnings.warn(
+                "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
+                "Automatically setting INHOMO_RECO to True."
+            )
+            self._INHOMO_RECO = True
+        return self._INHOMO_RECO
 
     @property
     def USE_TS_FLUCT(self):
         """Automatically setting USE_TS_FLUCT to True if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or self._USE_TS_FLUCT:
-            return self._USE_TS_FLUCT
-        logger.warning(
-            "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
-            "Automatically setting USE_TS_FLUCT to True."
-        )
-        return True
+        if self.USE_MINI_HALOS and not self._USE_TS_FLUCT:
+            logger.warn(
+                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
+                "Automatically setting USE_TS_FLUCT to True."
+            )
+            self._USE_TS_FLUCT = True
+        return self._USE_TS_FLUCT
 
     @property
     def PHOTON_CONS(self):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
-        if not self.USE_MINI_HALOS or not self._PHOTON_CONS:
-            return self._PHOTON_CONS
-        logger.warning(
-            "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
-            "Automatically setting PHOTON_CONS to False."
-        )
-        return False
+        if self.USE_MINI_HALOS and self._PHOTON_CONS:
+            logger.warn(
+                "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
+                "Automatically setting PHOTON_CONS to False."
+            )
+            self._PHOTON_CONS = False
+        return self._PHOTON_CONS
 
 
 class AstroParams(StructWithDefaults):
@@ -879,7 +920,7 @@ class AstroParams(StructWithDefaults):
         if not self._R_BUBBLE_MAX:
             return 50.0 if self.INHOMO_RECO else 15.0
         if self.INHOMO_RECO and self._R_BUBBLE_MAX != 50:
-            logger.warning(
+            logger.warn(
                 "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
                 "This is non-standard (but allowed), and usually occurs upon manual "
                 "update of INHOMO_RECO"
@@ -963,7 +1004,7 @@ def validate_all_inputs(
             )
 
             if config["ignore_R_BUBBLE_MAX_error"]:
-                warnings.warn(msg)
+                logger.warn(msg)
             else:
                 raise ValueError(msg)
 
@@ -972,6 +1013,6 @@ def validate_all_inputs(
         and not user_params.USE_RELATIVE_VELOCITIES
         and not flag_options.FIX_VCB_AVG
     ):
-        logger.warning(
+        logger.warn(
             "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
         )

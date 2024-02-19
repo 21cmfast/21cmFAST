@@ -33,6 +33,7 @@ from py21cmfast import (
     run_coeval,
     run_lightcone,
 )
+from py21cmfast.lightcones import RectilinearLightconer
 
 logger = logging.getLogger("py21cmfast")
 logging.basicConfig()
@@ -51,22 +52,21 @@ DEFAULT_ZPRIME_STEP_FACTOR = 1.04
 LIGHTCONE_FIELDS = [
     "density",
     "velocity",
-    "xH_box",
     "Ts_box",
-    "z_re_box",
     "Gamma12_box",
     "dNrec_box",
     "x_e_box",
     "Tk_box",
     "J_21_LW_box",
+    "xH_box",
+    "z_re_box",
     "brightness_temp",
 ]
 
-COEVAL_FIELDS = [
-    "lowres_density",
-    "lowres_vx_2LPT",
-    "lowres_vx",
-] + LIGHTCONE_FIELDS
+COEVAL_FIELDS = LIGHTCONE_FIELDS.copy()
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("Ts_box"), "lowres_density")
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("Ts_box"), "lowres_vx_2LPT")
+COEVAL_FIELDS.insert(COEVAL_FIELDS.index("Ts_box"), "lowres_vx")
 
 OPTIONS = {
     "simple": [12, {}],
@@ -337,18 +337,35 @@ def produce_coeval_power_spectra(redshift, **kwargs):
 
 def produce_lc_power_spectra(redshift, **kwargs):
     options = get_all_options(redshift, **kwargs)
+
+    # NOTE: this is here only so that we get the same answer as previous versions,
+    #       which have a bug where the max_redshift gets set higher than it needs to be.
+    flag_options = FlagOptions(options.pop("flag_options"))
+    if flag_options.INHOMO_RECO or flag_options.USE_TS_FLUCT:
+        max_redshift = options.get("z_heat_max", global_params.Z_HEAT_MAX)
+        del options["redshift"]
+    else:
+        max_redshift = options.pop("redshift") + 2
+
+    lcn = RectilinearLightconer.with_equal_cdist_slices(
+        min_redshift=redshift,
+        max_redshift=max_redshift,
+        quantities=[
+            k
+            for k in LIGHTCONE_FIELDS
+            if (
+                flag_options.USE_TS_FLUCT
+                or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
+            )
+        ],
+        resolution=UserParams(options["user_params"]).cell_size,
+    )
+
     with config.use(ignore_R_BUBBLE_MAX_error=True):
         lightcone = run_lightcone(
-            max_redshift=options["redshift"] + 2,
-            lightcone_quantities=[
-                k
-                for k in LIGHTCONE_FIELDS
-                if (
-                    options["flag_options"].get("USE_TS_FLUCT", False)
-                    or k not in ("Ts_box", "x_e_box", "Tk_box", "J_21_LW_box")
-                )
-            ],
+            lightconer=lcn,
             write=write_ics_only_hook,
+            flag_options=flag_options,
             **options,
         )
 

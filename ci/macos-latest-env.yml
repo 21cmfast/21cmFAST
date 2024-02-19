@@ -17,7 +17,7 @@ dependencies:
   - pip
   - gsl
   - fftw
-  - conda-forge/label/cf201901::gcc
+  #- gcc
   - pip:
     - powerbox
     - cached_property

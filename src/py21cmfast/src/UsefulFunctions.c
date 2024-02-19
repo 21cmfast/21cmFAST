@@ -613,7 +613,7 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
             }
         }
 
-        LOG_SUPER_DEBUG("%sCorners: %f %f %f %f %f %f %f %f",
+        LOG_SUPER_DEBUG("%sCorners: %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
             indent,
             corners[0], corners[1], corners[2], corners[3],
             corners[4], corners[5], corners[6], corners[7]
@@ -631,7 +631,7 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
         }
         mean=sum/(size*size*((int)(size*ncf)));
 
-        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %f, %f, %f, %f", indent, sum, mean, mn, mx);
+        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
     }
 }
 
@@ -654,7 +654,7 @@ void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
             }
         }
 
-        LOG_SUPER_DEBUG("%sCorners: %lf %lf %lf %lf %lf %lf %lf %lf",
+        LOG_SUPER_DEBUG("%sCorners: %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
             indent,
             corners[0], corners[1], corners[2], corners[3],
             corners[4], corners[5], corners[6], corners[7]
@@ -672,7 +672,7 @@ void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
         }
         mean=sum/(size*size*((int)(size*ncf)));
 
-        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %lf, %lf, %lf, %lf", indent, sum, mean, mn, mx);
+        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
     }
 }
 
@@ -694,8 +694,13 @@ void debugSummarizePerturbField(struct PerturbedField *x, int HII_DIM, float NCF
     LOG_SUPER_DEBUG("Summary of PerturbedField:");
     LOG_SUPER_DEBUG("  density: ");
     debugSummarizeBox(x->density, HII_DIM, NCF, "    ");
-    LOG_SUPER_DEBUG("  velocity: ");
-    debugSummarizeBox(x->velocity, HII_DIM, NCF, "    ");
+    LOG_SUPER_DEBUG("  velocity_x: ");
+    debugSummarizeBox(x->velocity_x, HII_DIM, NCF, "    ");
+    LOG_SUPER_DEBUG("  velocity_y: ");
+    debugSummarizeBox(x->velocity_y, HII_DIM, NCF, "    ");
+    LOG_SUPER_DEBUG("  velocity_z: ");
+    debugSummarizeBox(x->velocity_z, HII_DIM, NCF, "    ");
+
 }
 void inspectInitialConditions(struct InitialConditions *x, int print_pid, int print_corners, int print_first,
                               int HII_DIM, float NCF){
@@ -755,7 +760,19 @@ void inspectPerturbedField(struct PerturbedField *x, int print_pid, int print_co
 
         printf("%s\t\tvelocity: ", pid);
         for(i=0;i<10;i++){
-            printf("%f, ", x->velocity[i]);
+            printf("%f, ", x->velocity_x[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tvelocity: ", pid);
+        for(i=0;i<10;i++){
+            printf("%f, ", x->velocity_y[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tvelocity: ", pid);
+        for(i=0;i<10;i++){
+            printf("%f, ", x->velocity_z[i]);
         }
         printf("\n");
 
@@ -768,7 +785,13 @@ void inspectPerturbedField(struct PerturbedField *x, int print_pid, int print_co
         print_corners_real(x->density, HII_DIM, NCF);
 
         printf("%s\t\tvelocity: ", pid);
-        print_corners_real(x->velocity, HII_DIM, NCF);
+        print_corners_real(x->velocity_x, HII_DIM, NCF);
+
+        printf("%s\t\tvelocity: ", pid);
+        print_corners_real(x->velocity_y, HII_DIM, NCF);
+
+        printf("%s\t\tvelocity: ", pid);
+        print_corners_real(x->velocity_z, HII_DIM, NCF);
     }
 
 }
@@ -950,4 +973,10 @@ int FunctionThatCatches(bool sub_func, bool pass, double *result){
     }
     *result = 5.0;
     return 0;
+}
+
+float clip(float x, float min, float max){
+    if(x<min) return min;
+    if(x>max) return max;
+    return x;
 }

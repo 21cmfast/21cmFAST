@@ -15,5 +15,7 @@ dependencies:
     - sphinx-rtd-theme
     - setuptools_scm
     - bidict
+    - cosmotile
     - nbsphinx
     - nbconvert>=6.4.5
+    - cffi
