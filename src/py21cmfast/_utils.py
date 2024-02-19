@@ -1,4 +1,5 @@
 """Utilities that help with wrapping various C structures."""
+
 import glob
 import h5py
 import logging
@@ -1289,17 +1290,21 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 self._name
                 + "("
                 + "; ".join(
-                    repr(v)
-                    if isinstance(v, StructWithDefaults)
-                    else (
-                        v.filtered_repr(self._filter_params)
-                        if isinstance(v, StructInstanceWrapper)
-                        else k.lstrip("_")
-                        + ":"
-                        + (
-                            float_to_string_precision(v, config["cache_param_sigfigs"])
-                            if isinstance(v, (float, np.float32))
-                            else repr(v)
+                    (
+                        repr(v)
+                        if isinstance(v, StructWithDefaults)
+                        else (
+                            v.filtered_repr(self._filter_params)
+                            if isinstance(v, StructInstanceWrapper)
+                            else k.lstrip("_")
+                            + ":"
+                            + (
+                                float_to_string_precision(
+                                    v, config["cache_param_sigfigs"]
+                                )
+                                if isinstance(v, (float, np.float32))
+                                else repr(v)
+                            )
                         )
                     )
                     for k, v in [
@@ -1320,9 +1325,11 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             self._name
             + "("
             + ";\n\t".join(
-                repr(v)
-                if isinstance(v, StructWithDefaults)
-                else k.lstrip("_") + ":" + repr(v)
+                (
+                    repr(v)
+                    if isinstance(v, StructWithDefaults)
+                    else k.lstrip("_") + ":" + repr(v)
+                )
                 for k, v in [(k, getattr(self, k)) for k in self._inputs]
             )
         ) + ")"
