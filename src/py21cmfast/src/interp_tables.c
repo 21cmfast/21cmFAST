@@ -585,21 +585,11 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                     Throw(TableGenerationError);
                 }
 
-                //There are time where we have gone over the probability (machine precision) limit before reaching the mass limit
+                //There are times where we have gone over the probability (machine precision) limit before reaching the mass limit
                 if(!update){
                     if(prob == 0.){
-                        prob = global_params.MIN_LOGPROB - 1.; //to make sure we go over the limit we extrapolate to here
-                        //if we have at least 2 probabilities, we extrapolate to the next mass before hitting zero
-                        if(k<np-2){
-                            y = Nhalo_inv_table.z_arr[i][k+1] +
-                                (prob-pa[k+1]) *
-                                (Nhalo_inv_table.z_arr[i][k+1]-Nhalo_inv_table.z_arr[i][k+2]) /
-                                (pa[k+1]-pa[k+2]);
-                        }
-                        //the k==np-2 case remains unchanged, one probability target was hit, we go straight down from the current mass
-                        else if(k==np-1){
-                            y = ymin; //we've hit zero on the first probabilty target, this is a delta ~ -1 cell which will not produce halos
-                        }
+                        prob = global_params.MIN_LOGPROB; //to make sure we go over the limit we extrapolate to here
+                        if(y > lnM_cond) y = lnM_cond;
                     }
                     else prob = log(prob);
                 }

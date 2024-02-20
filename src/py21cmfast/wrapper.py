@@ -2977,9 +2977,7 @@ def run_coeval(
 
         # Now we can purge init_box further.
         try:
-            init_box.prepare_for_spin_temp(
-                flag_options=flag_options, force=always_purge
-            )
+            init_box.prepare_for_halos(flag_options=flag_options, force=always_purge)
         except OSError:
             pass
 
@@ -3052,6 +3050,14 @@ def run_coeval(
 
             # reverse to get the right redshift order
             pt_halos = pt_halos[::-1]
+
+        # Now we can purge init_box further.
+        try:
+            init_box.prepare_for_spin_temp(
+                flag_options=flag_options, force=always_purge
+            )
+        except OSError:
+            pass
 
         if (
             flag_options.PHOTON_CONS
@@ -3566,6 +3572,12 @@ def run_lightcone(
 
         global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
         pf = None
+
+        # Now we can purge init_box further.
+        try:
+            init_box.prepare_for_halos(flag_options=flag_options, force=always_purge)
+        except OSError:
+            pass
 
         # we explicitly pass the descendant halos here since we have a redshift list prior
         #   this will generate the extra fields if STOC_MINIMUM_Z is given

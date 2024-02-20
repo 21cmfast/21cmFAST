@@ -92,8 +92,8 @@ class InitialConditions(_OutputStruct):
 
     def prepare_for_perturb(self, flag_options: FlagOptions, force: bool = False):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
-        keep = ["hires_density"] 
-        
+        keep = ["hires_density"]
+
         if flag_options.HALO_STOCHASTICITY:
             keep.append("lowres_density")
 
@@ -121,6 +121,15 @@ class InitialConditions(_OutputStruct):
         if self.user_params.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
 
+        self.prepare(keep=keep, force=force)
+
+    def prepare_for_halos(self, flag_options: FlagOptions, force: bool = False):
+        """Ensure ICs have all boxes required for the halos, and no more."""
+        keep = []
+        if flag_options.HALO_STOCHASTICITY:
+            keep.append("lowres_density")
+        if self.user_params.USE_RELATIVE_VELOCITIES:
+            keep.append("lowres_vcb")
         self.prepare(keep=keep, force=force)
 
     def prepare_for_spin_temp(self, flag_options: FlagOptions, force: bool = False):
