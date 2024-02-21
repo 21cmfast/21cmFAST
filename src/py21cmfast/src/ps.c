@@ -1051,7 +1051,7 @@ double get_frac_limit(double M, double norm, double alpha, double limit, bool mi
     if ((alpha > 0. && M > limit) || (alpha < 0. && M < limit))
         return 1/norm;
 
-    return pow(M/1e10,alpha);
+    return pow(M/pivot,alpha);
 }
 
 double cmf_function(double growthf, double lnM, double delta, double sigma, int HMF){
@@ -1122,7 +1122,7 @@ double c_nion_integrand_mini(double lnM, void *param_struct){
     double Fstar = get_frac_limit(M,f_starn,a_star,Mlim_star,true);
     double Fesc = get_frac_limit(M,f_escn,a_esc,Mlim_esc,true);
 
-    return M * Fstar * Fesc * exp(-M_turn_lower/M) * exp(-M/M_turn_upper) * c_mf_integrand(lnM,param_struct);
+    return M * Fstar * Fesc * exp(-M_turn_lower/M - M/M_turn_upper) * c_mf_integrand(lnM,param_struct);
 }
 
 double umf_function(double growthf, double lnM, double z, int HMF){
@@ -1198,10 +1198,10 @@ double u_nion_integrand_mini(double lnM, void *param_struct){
 
     double M = exp(lnM);
 
-    double Fstar = get_frac_limit(M,f_starn,a_star,Mlim_star,false);
-    double Fesc = get_frac_limit(M,f_escn,a_esc,Mlim_esc,false);
+    double Fstar = get_frac_limit(M,f_starn,a_star,Mlim_star,true);
+    double Fesc = get_frac_limit(M,f_escn,a_esc,Mlim_esc,true);
 
-    return M * Fstar * Fesc * exp(-M_turn_lower/M) * exp(-M/M_turn_upper) * u_mf_integrand(lnM,param_struct);
+    return M * Fstar * Fesc * exp(-M_turn_lower/M - M/M_turn_upper) * u_mf_integrand(lnM,param_struct);
 }
 
 ///// INTEGRATION ROUTINES BELOW /////

@@ -364,13 +364,8 @@ void setup_z_edges(double zp){
         dzpp_list[R_ct] = dzpp_for_evolve; //z bin width
         dtdz_list[R_ct] = dtdz(zpp); // dt/dz''
 
-        M_min_R[R_ct] = minimum_source_mass(zpp_for_evolve_list[R_ct],astro_params,flag_options);
+        M_min_R[R_ct] = minimum_source_mass(zpp_for_evolve_list[R_ct],astro_params_ts,flag_options_ts);
         M_max_R[R_ct] = RtoM(R_values[R_ct]);
-        sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]),0,NULL);
-        sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]),0,NULL);
-
-        LOG_ULTRA_DEBUG("R %d = %.2e z %.2e || M = [%.2e, %.2e] sig [%.2e %.2e]",R_ct,R_values[R_ct],
-                    zpp_for_evolve_list[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
 
         R *= R_factor;
     }
@@ -745,12 +740,20 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
 //NOTE: these have always been interpolation tables in x_e, regardless of flags
 //NOTE: Frequency integrals are based on PREVIOUS x_e_ave
 //  The x_e tables are not regular, hence the precomputation of indices/interp points
-void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_zp, double *log10_Mcrit_LW_ave){
+void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_zp, double *log10_Mcrit_LW_ave, int R_mm){
     double lower_int_limit;
     int x_e_ct,R_ct;
+    int R_start, R_end;
     double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
-    //TODO: Move the bisections to some static context param struct so they're calculated once
-    //  However since this is only used for non-interptable cases it's hardly going to affect much
+    //if we minimize mem these arrays are filled one by one
+    if(user_params_ts->MINIMIZE_MEMORY){
+        R_start = R_mm;
+        R_end = R_mm+1;
+    }
+    else{
+        R_start = 0;
+        R_end = global_params.NUM_FILTER_STEPS_FOR_Ts;
+    }
 #pragma omp parallel private(R_ct,x_e_ct,lower_int_limit) num_threads(user_params_ts->N_THREADS)
     {
 #pragma omp for
@@ -759,9 +762,9 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         //TODO: For now, I will (kind of) mimic this behaviour by providing average Mcrit_LW at zp from the HaloBox
         //  However I want to replace this with the REAL ionised fraction which occured at the previous timesteps
         //  i.e real global history structures rather than passing averages at zpp or zhat
-        for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
+        for (R_ct=R_start; R_ct<R_end; R_ct++){
             if(flag_options_ts->USE_MINI_HALOS){
-                // LOG_SUPER_DEBUG("Starting freqint R=%.2f zpp %.2f l10McritLW %.2e",R_values[R_ct],zpp_for_evolve_list[R_ct],log10_Mcrit_LW_ave[R_ct]);
+                LOG_SUPER_DEBUG("Starting freqint R=%.2f zpp %.2f l10McritLW %.2e",R_values[R_ct],zpp_for_evolve_list[R_ct],log10_Mcrit_LW_ave[R_ct]);
                 lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
                                                         log10_Mcrit_LW_ave[R_ct], Mlim_Fstar_g, Mlim_Fesc_g, Mlim_Fstar_MINI_g,
                                                         Mlim_Fesc_MINI_g), (astro_params_ts->NU_X_THRESH)*NU_over_EV);
@@ -847,10 +850,9 @@ void init_first_Ts(struct TsBox * box, float *dens, float z, float zp, double *x
 //  and be used in conjunction with a function which computes the box sums to do adjustment
 //  e.g: global_reion -> if(!NO_LIGHT) -> sum_box -> source *= global/box_avg
 //  either globally or at each R/zpp
-int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_ave, double *mean_sfr_zpp, double *mean_sfr_zpp_mini){
+int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_ave, double *mean_sfr_zpp, double *mean_sfr_zpp_mini, double *Q_HI){
     int R_ct;
     double sum_nion=0,sum_sfr=0,sum_mass=0,sum_nion_mini=0;
-    double Q_HI;
     double zpp;
 
     double log10_Mcrit_width = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
@@ -895,7 +897,6 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         }
     }
 
-    LOG_DEBUG("init z tables done");
     //For consistency between halo and non-halo based, the NO_LIGHT and filling_factor_zp
     //  are based on the expected global Nion. as mentioned above it would be nice to
     //  change this to a saved reionisation/sfrd history from previous snapshots
@@ -906,15 +907,6 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
 
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)",sum_nion,sum_nion_mini);
 
-    //Now global SFRD at (R_ct) for the mean fixing
-    for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
-        zpp = zpp_for_evolve_list[R_ct];
-        mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp,Mlim_Fstar_g);
-        if(flag_options_ts->USE_MINI_HALOS){
-            mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp,log10_Mcrit_LW_ave[R_ct],Mlim_Fstar_MINI_g);
-        }
-    }
-
     //TODO: change to use global_params.Pop in no minihalo case?, this variable is pretty inconsistently used
     //  throughout the rest of the code mostly just assuming Pop2. Otherwise I should remove the global parameter
     double ION_EFF_FACTOR,ION_EFF_FACTOR_MINI;
@@ -922,10 +914,21 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     ION_EFF_FACTOR_MINI = astro_params_ts->F_STAR7_MINI * astro_params_ts->F_ESC7_MINI * global_params.Pop3_ion;
 
     //NOTE: only used without MASS_DEPENDENT_ZETA
-    Q_HI = 1 - ( ION_EFF_FACTOR * sum_nion + ION_EFF_FACTOR_MINI * sum_nion_mini )/ (1.0 - x_e_ave);
+    *Q_HI = 1 - ( ION_EFF_FACTOR * sum_nion + ION_EFF_FACTOR_MINI * sum_nion_mini )/ (1.0 - x_e_ave);
 
     //Initialise freq tables & prefactors (x_e by R tables)
-    fill_freqint_tables(zp,x_e_ave,Q_HI,log10_Mcrit_LW_ave);
+    if(!user_params_ts->MINIMIZE_MEMORY){
+        //Now global SFRD at (R_ct) for the mean fixing
+        for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
+            LOG_SUPER_DEBUG("R %d Mcrit %.2e",R_ct,log10_Mcrit_LW_ave[R_ct]);
+            zpp = zpp_for_evolve_list[R_ct];
+            mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp,Mlim_Fstar_g);
+            if(flag_options_ts->USE_MINI_HALOS){
+                mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp,log10_Mcrit_LW_ave[R_ct],Mlim_Fstar_MINI_g);
+            }
+        }
+        fill_freqint_tables(zp,x_e_ave,*Q_HI,log10_Mcrit_LW_ave,0);
+    }
 
     //We don't use the global tables after this
     //This is safe since allocation is checked in the freeing function
@@ -1330,6 +1333,15 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
     if(user_params->USE_INTERPOLATION_TABLES)
         initialiseSigmaMInterpTable(M_MIN_tb/2,1e20);
 
+    //now that we have the sigma table we can assign the sigma arrays
+    for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
+        sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]),0,NULL);
+        sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]),0,NULL);
+    }
+
+    LOG_ULTRA_DEBUG("R %d = %.2e z %.2e || M = [%.2e, %.2e] sig [%.2e %.2e]",R_ct,R_values[R_ct],
+                zpp_for_evolve_list[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
+
     //As far as I can tell, the only thing used from this is the X_e array
     init_heat();
     //TODO: z ~> zmax case and first_box setting should be done in wrapper initialisation
@@ -1380,35 +1392,11 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
             }
         }
         else{
-            //Previously with MINIMIZE_MEMORY, the entire FFT sequence was done JUST to get the density limits at each R
-            //  I can either: Just use the limits at R_ct == 0, mulitplied by the growth factor, in which case the tables
-            //  will be coarser than required (filtering should never widen limits). OR: initialise one table within the R loop,
-            //  which might be slower, but surely not as slow as doing the whole FFT loop
-            //TODO: I'm trying the first but will revisit
-            #pragma omp parallel for private(box_ct,curr_dens) num_threads(user_params->N_THREADS) reduction(max:max_buf) reduction(min:min_buf)
-            for(box_ct=0;box_ct<HII_TOT_NUM_PIXELS;box_ct++){
-                //TODO: I could definitely find these limits in prepare_filter_boxes(), and apply the constants there instead of in fill_Rbox_table()
-                //  The only thing to worry about is that the minima (which should be applied each R after c2r) has been applied BEFORE the constant
-                //  i.e delta has a minima of -1 at z=0 BEFORE the inverse growth factor is applied (TODO: check if this is right, surely the minima should be
-                //  applied at perturbed_redshift, not z=0? since it's linear growth)
-                curr_dens = perturbed_field->density[box_ct] * inverse_growth_factor_z;
-                if(flag_options->USE_MINI_HALOS){
-                    if(!flag_options->FIX_VCB_AVG && user_params->USE_RELATIVE_VELOCITIES){
-                        curr_vcb = ini_boxes->lowres_vcb[box_ct];
-                        log10_Mcrit_mol += log10(lyman_werner_threshold(zp, curr_vcb, previous_spin_temp->J_21_LW_box[box_ct],astro_params)); //minimum turnover NOTE: should be zpp?
-                    }
-                }
-                if(max_buf < curr_dens)
-                    max_buf = curr_dens;
-                if(min_buf > curr_dens)
-                    min_buf = curr_dens;
-            }
-            for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
-                max_densities[R_ct] = max_buf;
-                min_densities[R_ct] = min_buf;
-                if(flag_options->USE_MINI_HALOS){
-                    ave_log10_MturnLW[R_ct] = log10_Mcrit_mol / HII_TOT_NUM_PIXELS; //similarly using R=0 box for avg
-                }
+            //we still need the average Mturn at R_ct==0 for NO_LIGHT
+            //TODO: Remove this and come up with a better way to get NO_LIGHT
+            if(flag_options->USE_MINI_HALOS){
+                fill_Rbox_table(log10_Mcrit_LW,log10_Mcrit_LW_unfiltered,&(R_values[0]),1,0,1,
+                                &min_log10_MturnLW[0],&ave_log10_MturnLW[0],&max_log10_MturnLW[0]);
             }
         }
         LOG_DEBUG("Constructed filtered boxes.");
@@ -1421,10 +1409,6 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                 Mcrit_atom_interp_table[R_ct] = atomic_cooling_threshold(zpp_for_evolve_list[R_ct]);
             else
                 Mcrit_atom_interp_table[R_ct] = astro_params->M_TURN;
-            //adjust table limits for growth
-            max_densities[R_ct] = max_densities[R_ct]*zpp_growth[R_ct] + 0.001;
-            min_densities[R_ct] = min_densities[R_ct]*zpp_growth[R_ct] - 0.001;
-            // LOG_SUPER_DEBUG("R_ct %d [min,max] = [%.2e,%.2e] Ma %.2e D %.2e",R_ct,min_densities[R_ct],max_densities[R_ct],Mcrit_atom_interp_table[R_ct],zpp_growth[R_ct]);
         }
 
         //These are still re-calculated internally in each table initialisation
@@ -1468,7 +1452,8 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
     //this should initialise and use the global tables (given box average turnovers)
     //  and use them to give: Filling factor at zp (only used for !MASS_DEPENDENT_ZETA to get ion_eff)
     //  global SFRD at each filter radius (numerator of ST_over_PS factor)
-    NO_LIGHT = global_reion_properties(redshift,x_e_ave_p,log10_Mcrit_LW_ave_zpp,mean_sfr_zpp,mean_sfr_zpp_mini);
+    double Q_HI_zp;
+    NO_LIGHT = global_reion_properties(redshift,x_e_ave_p,log10_Mcrit_LW_ave_zpp,mean_sfr_zpp,mean_sfr_zpp_mini,&Q_HI_zp);
 
     #pragma omp parallel private(box_ct) num_threads(user_params->N_THREADS)
     {
@@ -1544,10 +1529,19 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                 if(user_params->MINIMIZE_MEMORY) {
                     //we call the filtering functions once here per R
                     //This unnecessarily allocates and frees a fftwf box every time but surely that's not a bottleneck
-                    fill_Rbox_table(delNL0,delta_unfiltered,&(R_values[R_ct]),1,-1,inverse_growth_factor_z,&min_d_buf,&ave_d_buf,&max_d_buf);
+                    fill_Rbox_table(delNL0,delta_unfiltered,&(R_values[R_ct]),1,-1,inverse_growth_factor_z,
+                                    &min_densities[R_ct],&ave_dens[R_ct],&max_densities[R_ct]);
                     if(flag_options->USE_MINI_HALOS){
-                        fill_Rbox_table(log10_Mcrit_LW,log10_Mcrit_LW_unfiltered,&(R_values[R_ct]),1,0,1,min_log10_MturnLW,ave_log10_MturnLW,max_log10_MturnLW);
+                        fill_Rbox_table(log10_Mcrit_LW,log10_Mcrit_LW_unfiltered,&(R_values[R_ct]),1,0,1,
+                                        &min_log10_MturnLW[R_ct],&ave_log10_MturnLW[R_ct],&max_log10_MturnLW[R_ct]);
                     }
+                    //get the global things we missed before
+                    mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp_for_evolve_list[R_ct],Mlim_Fstar_g);
+                    if(flag_options_ts->USE_MINI_HALOS){
+                        mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp_for_evolve_list[R_ct],ave_log10_MturnLW[R_ct],Mlim_Fstar_MINI_g);
+                    }
+                    //fill one row of the interp tables
+                    fill_freqint_tables(zp,x_e_ave,Q_HI_zp,ave_log10_MturnLW,R_ct);
                 }
                 //set input pointers (doing things this way helps with flag flexibility)
                 delta_box_input = delNL0[R_index];

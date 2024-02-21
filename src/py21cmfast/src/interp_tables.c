@@ -360,7 +360,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
     float Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
     int i,j,k,i_tot;
 
-    LOG_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
+    // LOG_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));

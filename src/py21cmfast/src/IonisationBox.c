@@ -826,6 +826,8 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             sigmaMmax = sigma_z0(massofscaleR);
 
             if (!flag_options->USE_HALO_FIELD) {
+                if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || user_params->INTEGRATION_METHOD_MINI == 1)
+                    initialise_GL(NGL_INT, log(M_MIN), log(massofscaleR));
                 if (flag_options->USE_MASS_DEPENDENT_ZETA) {
 
                     min_density = max_density = 0.0;
@@ -922,9 +924,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                             log10Mturn_bin_width_inv_MINI = 1./log10Mturn_bin_width_MINI;
                         }
                     }
-
-                    if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || user_params->INTEGRATION_METHOD_MINI == 1)
-                        initialise_GL(NGL_INT, log(M_MIN), log(massofscaleR));
 
                     LOG_ULTRA_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
                                     min_density,max_density,M_MIN,massofscaleR,log10Mturn_min,log10Mturn_max,

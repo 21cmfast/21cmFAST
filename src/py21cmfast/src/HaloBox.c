@@ -129,7 +129,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
     double Mlim_Fstar = Mass_limit_bisection(M_min, M_cell, alpha_star, norm_star);
     double Mlim_Fesc = Mass_limit_bisection(M_min, M_cell, alpha_esc, norm_esc);
 
-    double Mlim_Fstar_mini = Mass_limit_bisection(M_min, M_cell, alpha_star, norm_star * pow(1e3,alpha_esc));
+    double Mlim_Fstar_mini = Mass_limit_bisection(M_min, M_cell, alpha_star, norm_star * pow(1e3,alpha_star_mini));
     double Mlim_Fesc_mini = Mass_limit_bisection(M_min, M_cell, alpha_esc, norm_esc_mini * pow(1e3,alpha_esc));
 
     double hm_avg=0, nion_avg=0, sfr_avg=0, sfr_avg_mini=0, wsfr_avg=0;
@@ -271,7 +271,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                     if(flag_options_stoc->USE_MINI_HALOS){
                         nion_mini = Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_cell,
                                                             dens, M_turn_m, M_turn_a, alpha_star_mini,
-                                                            alpha_esc, norm_star_mini, norm_esc, Mlim_Fstar_mini,
+                                                            alpha_esc, norm_star_mini, norm_esc_mini, Mlim_Fstar_mini,
                                                             Mlim_Fesc_mini, user_params_stoc->INTEGRATION_METHOD_MINI);
 
                         sfr_mini = Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_cell,
@@ -301,6 +301,18 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                                             , user_params_stoc->INTEGRATION_METHOD_ATOMIC));
                 LOG_SUPER_DEBUG("Cell 0 grids: count %d mass %.2e nion %.2e sfr %.2e", grids->count[i],
                                     grids->halo_mass[i],grids->n_ion[i],grids->halo_sfr[i]);
+                if(flag_options_stoc->USE_MINI_HALOS){
+                    LOG_SUPER_DEBUG("MINI tables: nion %.2e sfr %.2e",nion_mini,sfr_mini);
+                    LOG_SUPER_DEBUG("MINI intgrl: nion %.2e sfr %.2e",
+                                    Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_cell,
+                                                            dens, M_turn_m, M_turn_a, alpha_star_mini,
+                                                            alpha_esc, norm_star_mini, norm_esc_mini, Mlim_Fstar_mini,
+                                                            Mlim_Fesc_mini, user_params_stoc->INTEGRATION_METHOD_MINI),
+                                    Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_cell,
+                                                dens, M_turn_m, M_turn_a, alpha_star_mini,
+                                                0., norm_star_mini, 1., Mlim_Fstar_mini, 0.,
+                                                user_params_stoc->INTEGRATION_METHOD_MINI));
+                }
             }
 
             hm_avg += grids->halo_mass[i];
@@ -368,7 +380,7 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
 
     double Mlim_Fstar = Mass_limit_bisection(M_min, M_max, alpha_star, norm_star);
     double Mlim_Fesc = Mass_limit_bisection(M_min, M_max, alpha_esc, norm_esc);
-    double Mlim_Fstar_mini = Mass_limit_bisection(M_min, M_max, alpha_star, norm_star * pow(1e3,alpha_esc));
+    double Mlim_Fstar_mini = Mass_limit_bisection(M_min, M_max, alpha_star, norm_star * pow(1e3,alpha_star_mini));
     double Mlim_Fesc_mini = Mass_limit_bisection(M_min, M_max, alpha_esc, norm_esc_mini * pow(1e3,alpha_esc));
 
     struct parameters_gsl_MF_integrals params = {
@@ -381,7 +393,7 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
         initialise_GL(NGL_INT, lnMmin, lnMmax);
 
     //NOTE: we use the atomic method for all halo mass/count here
-    hm_expected = IntegratedNdM(lnMmin,lnMmax,params,1,user_params_stoc->INTEGRATION_METHOD_ATOMIC);
+    hm_expected = IntegratedNdM(lnMmin,lnMmax,params,2,user_params_stoc->INTEGRATION_METHOD_ATOMIC);
     nion_expected = Nion_General(redshift, M_min, M_max, M_turn_a, alpha_star, alpha_esc, norm_star,
                                  norm_esc, Mlim_Fstar, Mlim_Fesc,user_params_stoc->INTEGRATION_METHOD_ATOMIC) * prefactor_nion;
     sfr_expected = Nion_General(redshift, M_min, M_max, M_turn_a, alpha_star, 0., norm_star, 1.,
@@ -432,7 +444,6 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             grids->whalo_sfr[idx] = 0.0;
             grids->count[idx] = 0;
         }
-        grids->log10_Mcrit_LW_ave = log10(lyman_werner_threshold(redshift, 0., 0.,astro_params));
 
         LOG_DEBUG("Gridding %d halos...",halos->n_halos);
 
@@ -463,6 +474,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         double M_turn_a = M_turn_a_store;
         double M_turn_m = M_turn_m_store;
         double M_turn_r = 0.;
+        grids->log10_Mcrit_LW_ave = M_turn_m_store;
 
         double averages_box[7], averages_global[5], averages_subsampler[5];
 
@@ -566,6 +578,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
 
                     if(x+y+z == 0){
                         LOG_SUPER_DEBUG("Cell 0 Halo %d: HM: %.2e SM: %.2e (%.2e) NI: %.2e SF: %.2e (%.2e) WS: %.2e",i_halo,m,stars,stars_mini,nion,sfr,sfr_mini,wsfr);
+                        LOG_SUPER_DEBUG("Mturn_a %.2e Mturn_m %.2e",M_turn_a,M_turn_m);
                     }
 
                     //feed back the calculated properties to PerturbHaloField
@@ -611,6 +624,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->n_ion[idx] /= cell_volume;
                     grids->halo_sfr[idx] /= cell_volume;
                     grids->halo_sfr_mini[idx] /= cell_volume;
+                    grids->halo_stars[idx] /= cell_volume;
+                    grids->halo_stars_mini[idx] /= cell_volume;
                     grids->whalo_sfr[idx] /= cell_volume;
 
                     //cell averages for debug
