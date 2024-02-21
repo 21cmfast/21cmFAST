@@ -202,4 +202,3 @@ double EvaluateRGTable2D_f(double x, double y, struct RGTable2D_f *table){
 
     return result;
 }
-

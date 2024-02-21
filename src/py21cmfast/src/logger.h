@@ -32,7 +32,7 @@
 //          For finding bugs which occur only with certain conditions or if you need to check quantities for a single cell
 //      LOG_ULTRA_DEBUG: For where you need to print quantities in multiple individual cells.
 //          For when you're at your wits end finding very tricky bugs which only occur in some cells
-//          This should really only be done with very small test runs (small box or short duration) or calling C functions directly from the library 
+//          This should really only be done with very small test runs (small box or short duration) or calling C functions directly from the library
 
 #ifndef __MACROLOGGER_H__
 #define __MACROLOGGER_H__
