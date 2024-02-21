@@ -1631,17 +1631,16 @@ def halo_box(
                 )
             else:
                 # Otherwise recursively create new previous box.
-                if prev_z < global_params.Z_HEAT_MAX:
-                    previous_spin_temp = spin_temperature(
-                        init_boxes=init_boxes,
-                        astro_params=astro_params,
-                        flag_options=flag_options,
-                        redshift=prev_z,
-                        regenerate=regenerate,
-                        hooks=hooks,
-                        direc=direc,
-                        cleanup=False,  # we know we'll need the memory again
-                    )
+                previous_spin_temp = spin_temperature(
+                    init_boxes=init_boxes,
+                    astro_params=astro_params,
+                    flag_options=flag_options,
+                    redshift=prev_z,
+                    regenerate=regenerate,
+                    hooks=hooks,
+                    direc=direc,
+                    cleanup=False,  # we know we'll need the memory again
+                )
         if (
             not isinstance(previous_ionize_box, IonizedBox)
             or not previous_ionize_box.is_computed
@@ -1757,7 +1756,7 @@ def interp_haloboxes(hbox_arr, fields, z_halos, z_target) -> HaloBox:
             state.computed_in_mem = True
     # logger.info(f'C-level struct (first 3 halo mass cells) {asarray(getattr(hbox_out._cstruct, "halo_mass"), 3)}')
 
-    return hbox_out
+    return hbox_out, idx_desc, interp_param
 
 
 # NOTE: the current implementation of this box is very hacky, since I have trouble figuring out a way to _compute()
@@ -1900,9 +1899,14 @@ def xray_source(
                 box.filtered_sfr[i, ...] = 0
                 continue
 
-            hbox_interp = interp_haloboxes(
-                hboxes[::-1], ["halo_sfr", "halo_sfr_mini"], z_halos[::-1], zpp_avg[i]
+            hbox_interp, idx_desc, interp_param = interp_haloboxes(
+                hboxes[::-1],
+                ["halo_sfr", "halo_sfr_mini", "log10_Mcrit_LW_ave"],
+                z_halos[::-1],
+                zpp_avg[i],
             )
+            # also interpolate the log10 average mcrit
+            # hbox_interp.log10_Mcrit_LW_ave = ((1 - interp_param) * hboxes[idx_desc].log10_Mcrit_LW_ave) + (interp_param*hboxes[idx_desc + 1].log10_Mcrit_LW_ave)
 
             # if we have no halos we ignore the whole shell
             if np.all(hbox_interp.halo_sfr + hbox_interp.halo_sfr_mini == 0):
@@ -3160,7 +3164,7 @@ def run_coeval(
             # remember that in this case len(halobox) == len(redshifts+1)
             if flag_options.PHOTON_CONS and flag_options.USE_HALO_FIELD:
                 z_target, _, _ = get_photoncons_dz(astro_params, flag_options, z)
-                hbox_ionize = interp_haloboxes(
+                hbox_ionize, _, _ = interp_haloboxes(
                     halobox[::-1], ["n_ion", "whalo_sfr"], z_halos[::-1], z_target
                 )
                 hbox_ionize.redshift = z
@@ -3734,7 +3738,7 @@ def run_lightcone(
                 logger.info(
                     f"interpolating {z_target} onto {z_halos[-1]},{z_halos[0]} {len(hboxes)},{len(z_halos)}"
                 )
-                hbox_ionize = interp_haloboxes(
+                hbox_ionize, _, _ = interp_haloboxes(
                     hboxes[::-1], ["n_ion", "whalo_sfr"], z_halos[::-1], z_target
                 )
                 hbox_ionize.redshift = z

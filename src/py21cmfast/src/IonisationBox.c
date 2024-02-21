@@ -1236,7 +1236,8 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 
                             f_coll = ST_over_PS * Splined_Fcoll;
 
-                            if (flag_options->USE_MINI_HALOS){
+                            //MINIHALOS are already included in the halo model
+                            if (flag_options->USE_MINI_HALOS && !flag_options->USE_HALO_FIELD){
                                 Splined_Fcoll_MINI = box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                                 f_coll_MINI = ST_over_PS_MINI * Splined_Fcoll_MINI;
                             }

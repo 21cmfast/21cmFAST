@@ -1332,6 +1332,8 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
         LOG_DEBUG("Setting z constants. %.3f %.3f",z_out,z_in);
         stoc_set_consts_z(hs_constants,z_out,z_in);
 
+        print_hs_consts(hs_constants);
+
         LOG_DEBUG("SINGLE SAMPLE: z = (%.2f,%.2f), Mmin = %.3e, cond(%d)=[%.2e,%.2e,%.2e...]",z_out,z_in,hs_constants->M_min,
                                                                         n_condition,conditions[0],conditions[1],conditions[2]);
         //Since the conditional MF is press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
@@ -1367,6 +1369,7 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
             for(j=0;j<n_condition;j++){
                 cond = conditions[j];
                 stoc_set_consts_cond(&hs_constants_priv,cond);
+                if(j==0) print_hs_consts(&hs_constants_priv);
                 stoc_sample(&hs_constants_priv, rng_stoc[omp_get_thread_num()], &n_halo, out_hm);
 
                 n_halo_cond = 0;
@@ -1391,6 +1394,7 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
                             out_halo_coords[3*n_halo_tot + 2] = out_crd[2];
                         }
                         n_halo_tot++;
+                        // LOG_DEBUG("cond %d halo %d",i,n_halo_tot);
                     }
                 }
                 //output descendant statistics

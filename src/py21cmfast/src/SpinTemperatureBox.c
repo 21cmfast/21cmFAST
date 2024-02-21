@@ -107,7 +107,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
  * variables with static structs, so that things are scoped properly.*/
 
 //OTHER NOTES:
-//Assuming that the same redshift (or within 0.0001) isn't called twice in a row (which it shouldn't be because caching), the global tables (Nion,SFRD)
+//Assuming that the same redshift (or within 0.0001) isn't called twice in a row (which it shouldn't be because caching),
+//  The global SFRD Table doesn't do much, and the Nion table is only used in nu_tau_one
 //  We may want to not use tables for global SFRD and Nion (would require a change in nu_tau_one)
 //I rely on the default behaviour of OpenMP scoping (everything shared unless its a stack variable defined in the parallel region)
 //  so I can avoid making massive directives, this breaks from the style of the remainder of the code but I find it much more readable
@@ -362,9 +363,16 @@ void setup_z_edges(double zp){
         zpp_growth[R_ct] = dicke(zpp); //growth factors
         dzpp_list[R_ct] = dzpp_for_evolve; //z bin width
         dtdz_list[R_ct] = dtdz(zpp); // dt/dz''
+
+        M_min_R[R_ct] = minimum_source_mass(zpp_for_evolve_list[R_ct],astro_params,flag_options);
+        M_max_R[R_ct] = RtoM(R_values[R_ct]);
+        sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]),0,NULL);
+        sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]),0,NULL);
+
+        LOG_ULTRA_DEBUG("R %d = %.2e z %.2e || M = [%.2e, %.2e] sig [%.2e %.2e]",R_ct,R_values[R_ct],
+                    zpp_for_evolve_list[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
+
         R *= R_factor;
-        // LOG_DEBUG("edge: R: %.3e D: %.3e z: %.3e (%.3e) dt: %.3e"
-        //    ,R_values[R_ct],zpp_growth[R_ct],zpp,zpp_edge[R_ct],dtdz_list[R_ct]);
     }
     LOG_DEBUG("%d steps R range [%.2e,%.2e] z range [%.2f,%.2f]",R_ct,R_values[0],R_values[R_ct-1],zp,zpp_edge[R_ct-1]);
 }
@@ -481,12 +489,12 @@ void calculate_spectral_factors(double zp){
         //TODO: compared to Mesinger+2011, which has (1+zpp)^3, same as const_zp_prefactor, figure out why
         zpp_integrand = ( pow(1+zp,2)*(1+zpp) );
         dstarlya_dt_prefactor[R_ct] = zpp_integrand * sum_lyn_val;
-        LOG_SUPER_DEBUG("z: %.2e R: %.2e int %.2e starlya: %.4e",zpp,R_values[R_ct],zpp_integrand,dstarlya_dt_prefactor[R_ct]);
+        LOG_ULTRA_DEBUG("z: %.2e R: %.2e int %.2e starlya: %.4e",zpp,R_values[R_ct],zpp_integrand,dstarlya_dt_prefactor[R_ct]);
 
         if(flag_options_ts->USE_LYA_HEATING){
             dstarlya_cont_dt_prefactor[R_ct] = zpp_integrand * sum_ly2_val;
             dstarlya_inj_dt_prefactor[R_ct] = zpp_integrand * sum_lynto2_val;
-            LOG_SUPER_DEBUG("cont %.2e inj %.2e",dstarlya_cont_dt_prefactor[R_ct],dstarlya_inj_dt_prefactor[R_ct]);
+            LOG_ULTRA_DEBUG("cont %.2e inj %.2e",dstarlya_cont_dt_prefactor[R_ct],dstarlya_inj_dt_prefactor[R_ct]);
         }
         if(flag_options_ts->USE_MINI_HALOS){
             dstarlya_dt_prefactor_MINI[R_ct]  = zpp_integrand * sum_lyn_val_MINI;
@@ -497,10 +505,10 @@ void calculate_spectral_factors(double zp){
                 dstarlya_inj_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_lynto2_val_MINI;
             }
 
-            LOG_SUPER_DEBUG("starmini: %.2e LW: %.2e LWmini: %.2e",dstarlya_dt_prefactor_MINI[R_ct],
+            LOG_ULTRA_DEBUG("starmini: %.2e LW: %.2e LWmini: %.2e",dstarlya_dt_prefactor_MINI[R_ct],
                                                         dstarlyLW_dt_prefactor[R_ct],
                                                         dstarlyLW_dt_prefactor_MINI[R_ct]);
-            LOG_SUPER_DEBUG("cont mini %.2e inj mini %.2e",dstarlya_cont_dt_prefactor_MINI[R_ct],dstarlya_inj_dt_prefactor_MINI[R_ct]);
+            LOG_ULTRA_DEBUG("cont mini %.2e inj mini %.2e",dstarlya_cont_dt_prefactor_MINI[R_ct],dstarlya_inj_dt_prefactor_MINI[R_ct]);
         }
 
         sum_lyn_prev = sum_lyn_val;
@@ -715,7 +723,8 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
         if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1){
             LOG_DEBUG("finished XraySourceBox");
         }
-        // LOG_DEBUG("R = %8.3f | mean sfr = %10.3e (%10.3e MINI)",R_outer,fsfr_avg/HII_TOT_NUM_PIXELS,fsfr_avg_mini/HII_TOT_NUM_PIXELS);
+        LOG_SUPER_DEBUG("R = %8.3f | mean sfr = %10.3e (%10.3e MINI) mean log10McritLW %.4e",
+                            R_outer,fsfr_avg/HII_TOT_NUM_PIXELS,fsfr_avg_mini/HII_TOT_NUM_PIXELS,source_box->mean_log10_Mcrit_LW[R_ct]);
 
         fftwf_free(filtered_box);
         fftwf_free(unfiltered_box);
@@ -752,6 +761,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         //  i.e real global history structures rather than passing averages at zpp or zhat
         for (R_ct=0; R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct++){
             if(flag_options_ts->USE_MINI_HALOS){
+                // LOG_SUPER_DEBUG("Starting freqint R=%.2f zpp %.2f l10McritLW %.2e",R_values[R_ct],zpp_for_evolve_list[R_ct],log10_Mcrit_LW_ave[R_ct]);
                 lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
                                                         log10_Mcrit_LW_ave[R_ct], Mlim_Fstar_g, Mlim_Fesc_g, Mlim_Fstar_MINI_g,
                                                         Mlim_Fesc_MINI_g), (astro_params_ts->NU_X_THRESH)*NU_over_EV);
@@ -773,7 +783,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
                     freq_int_lya_tbl_diff[x_e_ct-1][R_ct] = freq_int_lya_tbl[x_e_ct][R_ct] - freq_int_lya_tbl[x_e_ct-1][R_ct];
                 }
             }
-            LOG_SUPER_DEBUG("%d of %d heat: %.3e %.3e %.3e ion: %.3e %.3e %.3e lya: %.3e %.3e %.3e lower %.3e"
+            LOG_ULTRA_DEBUG("%d of %d heat: %.3e %.3e %.3e ion: %.3e %.3e %.3e lya: %.3e %.3e %.3e lower %.3e"
                 ,R_ct,global_params.NUM_FILTER_STEPS_FOR_Ts
                 ,freq_int_heat_tbl[0][R_ct],freq_int_heat_tbl[x_int_NXHII/2][R_ct],freq_int_heat_tbl[x_int_NXHII-1][R_ct]
                 ,freq_int_ion_tbl[0][R_ct],freq_int_ion_tbl[x_int_NXHII/2][R_ct],freq_int_ion_tbl[x_int_NXHII-1][R_ct]
@@ -885,6 +895,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         }
     }
 
+    LOG_DEBUG("init z tables done");
     //For consistency between halo and non-halo based, the NO_LIGHT and filling_factor_zp
     //  are based on the expected global Nion. as mentioned above it would be nice to
     //  change this to a saved reionisation/sfrd history from previous snapshots
@@ -1311,15 +1322,13 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
     //setup the R_ct 1D arrays
     setup_z_edges(zp);
 
-    double M_MIN;
-    //with the TtoM limit, we use the largest redshift, to cover the whole range
-    //This M_MIN just sets the sigma table range, the minimum mass for the integrals is set per radius in setup_z_edges
-    M_MIN = minimum_source_mass(zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts - 1],astro_params,flag_options);
-    if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2) M_MIN = fmin(MMIN_FAST,M_MIN);
 
-    LOG_SUPER_DEBUG("Minimum Source Mass %.6e (log) %.6e",M_MIN,log(M_MIN));
+    //with the TtoM limit, we use the largest redshift, to cover the whole range
+    double M_MIN_tb = M_min_R[global_params.NUM_FILTER_STEPS_FOR_Ts - 1];
+    //This M_MIN just sets the sigma table range, the minimum mass for the integrals is set per radius in setup_z_edges
+    if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2) M_MIN_tb = fmin(MMIN_FAST,M_MIN_tb);
     if(user_params->USE_INTERPOLATION_TABLES)
-        initialiseSigmaMInterpTable(M_MIN/2,1e20);
+        initialiseSigmaMInterpTable(M_MIN_tb/2,1e20);
 
     //As far as I can tell, the only thing used from this is the X_e array
     init_heat();
@@ -1350,19 +1359,6 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
     double log10_Mcrit_mol, curr_vcb;
     double max_buf=-1e20, min_buf=1e20, curr_dens;
     curr_vcb = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
-
-    //These limits are used in the no table case, in the FgtrM tables, and in certain debug messages
-    //      So it makes sense to always calculate them
-    //NOTE: there was no FAST_FCOLL here, i'm not sure if that's correct
-    for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
-        M_min_R[R_ct] = minimum_source_mass(zpp_for_evolve_list[R_ct],astro_params,flag_options);
-        M_max_R[R_ct] = RtoM(R_values[R_ct]);
-        sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]),0,NULL);
-        sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]),0,NULL);
-
-        LOG_SUPER_DEBUG("R %d = %.2e z %.2e || M = [%.2e, %.2e] sig [%.2e %.2e]",R_ct,R_values[R_ct],
-                    zpp_for_evolve_list[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
-    }
 
     //TODO: I want to move this part of the box assignment to an XraySourceBox for consistency between
     //  halo/nohalo flags and options to use the proper perturbfield/SFRD and annular filters
@@ -1504,7 +1500,6 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
             }
         }
     }
-    LOG_DEBUG("done init.");
 
     //MAIN LOOP: SFR -> heating terms with freq integrals
     double z_edge_factor, dzpp_for_evolve, zpp, xray_R_factor;
@@ -1550,8 +1545,6 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                     //we call the filtering functions once here per R
                     //This unnecessarily allocates and frees a fftwf box every time but surely that's not a bottleneck
                     fill_Rbox_table(delNL0,delta_unfiltered,&(R_values[R_ct]),1,-1,inverse_growth_factor_z,&min_d_buf,&ave_d_buf,&max_d_buf);
-                    // LOG_DEBUG("R=%d, min,max,avg delta = (%.2e,%.2e,%.2e)",R_ct,min_d_buf,ave_d_buf,max_d_buf);
-                    // LOG_DEBUG("Table bounds = (%.2e,%.2e)",min_densities[R_ct],max_densities[R_ct]);
                     if(flag_options->USE_MINI_HALOS){
                         fill_Rbox_table(log10_Mcrit_LW,log10_Mcrit_LW_unfiltered,&(R_values[R_ct]),1,0,1,min_log10_MturnLW,ave_log10_MturnLW,max_log10_MturnLW);
                     }
@@ -1561,7 +1554,6 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                 if(flag_options->USE_MINI_HALOS){
                     Mcrit_box_input = log10_Mcrit_LW[R_index];
                 }
-                // LOG_SUPER_DEBUG("Calculating sfrd at zpp %.2e edge %.2e",zpp, z_edge_factor);
                 calculate_sfrd_from_grid(R_ct,delta_box_input,Mcrit_box_input,del_fcoll_Rct,del_fcoll_Rct_MINI,&ave_fcoll,&ave_fcoll_MINI);
                 avg_fix_term = mean_sfr_zpp[R_ct]/ave_fcoll;
                 avg_fix_term_MINI = mean_sfr_zpp[R_ct]/ave_fcoll_MINI;
@@ -1755,11 +1747,11 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
         }
     }
 
-    if (flag_options->USE_MINI_HALOS){
-        fftwf_free(log10_Mcrit_LW_unfiltered);
-    }
     if(!flag_options->USE_HALO_FIELD){
         fftwf_free(delta_unfiltered);
+        if (flag_options->USE_MINI_HALOS){
+            fftwf_free(log10_Mcrit_LW_unfiltered);
+        }
         fftwf_forget_wisdom();
         fftwf_cleanup_threads();
         fftwf_cleanup();
