@@ -929,14 +929,6 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         fill_freqint_tables(zp,x_e_ave,*Q_HI,log10_Mcrit_LW_ave,0);
     }
 
-    //We don't use the global tables after this
-    //This is safe since allocation is checked in the freeing function
-    free_RGTable1D(&Nion_z_table);
-    free_RGTable2D(&Nion_z_table_MINI);
-    free_RGTable1D(&fcoll_z_table);
-
-    //NOTE: FOR MINIMIZE_MEMORY WE FREE SFRD LATER
-
     LOG_DEBUG("Done.");
 
     return sum_nion + sum_nion_mini > 1e-15 ? 0 : 1; //NO_LIGHT returned
@@ -1649,6 +1641,9 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
     //Having these free's here just for MINIMIZE_MEMORY is not ideal, but the log10Mturn average is needed
     free_RGTable1D(&SFRD_z_table);
     free_RGTable2D(&SFRD_z_table_MINI);
+    free_RGTable1D(&Nion_z_table);
+    free_RGTable2D(&Nion_z_table_MINI);
+    free_RGTable1D(&fcoll_z_table);
 
     //R==0 part
 #pragma omp parallel private(box_ct)
