@@ -1116,7 +1116,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                 box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = Splined_Fcoll;
                                 f_coll += Splined_Fcoll;
                             }
-                            if(x+y+z == 0 && LAST_FILTER_STEP){
+                            if(x+y+z == 0 && LAST_FILTER_STEP && !flag_options->USE_HALO_FIELD){
                                 LOG_SUPER_DEBUG("Cell 0: R=%.1f | d %.4e | fcoll (%.4e == %.4e)",
                                                     R,curr_dens,Splined_Fcoll,\
                                                     Nion_ConditionalM(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,curr_dens,
@@ -1284,7 +1284,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                 xHII_from_xrays = 0.;
                             }
 
-                            if(x+y+z == 0){
+                            if(x+y+z == 0 && !flag_options->USE_HALO_FIELD){
                                 //reusing variables (i know its not log10)
                                 if(flag_options->USE_MINI_HALOS){
                                     log10_Mturnover = pow(10,*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)));
