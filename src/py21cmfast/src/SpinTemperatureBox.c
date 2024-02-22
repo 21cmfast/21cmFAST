@@ -920,7 +920,6 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     if(!user_params_ts->MINIMIZE_MEMORY){
         //Now global SFRD at (R_ct) for the mean fixing
         for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
-            LOG_SUPER_DEBUG("R %d Mcrit %.2e",R_ct,log10_Mcrit_LW_ave[R_ct]);
             zpp = zpp_for_evolve_list[R_ct];
             mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp,Mlim_Fstar_g);
             if(flag_options_ts->USE_MINI_HALOS){
@@ -933,10 +932,10 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //We don't use the global tables after this
     //This is safe since allocation is checked in the freeing function
     free_RGTable1D(&Nion_z_table);
-    free_RGTable1D(&SFRD_z_table);
     free_RGTable2D(&Nion_z_table_MINI);
-    free_RGTable2D(&SFRD_z_table_MINI);
     free_RGTable1D(&fcoll_z_table);
+
+    //NOTE: FOR MINIMIZE_MEMORY WE FREE SFRD LATER
 
     LOG_DEBUG("Done.");
 
@@ -1387,7 +1386,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
             fill_Rbox_table(delNL0,delta_unfiltered,R_values,global_params.NUM_FILTER_STEPS_FOR_Ts,-1,inverse_growth_factor_z,min_densities,ave_dens,max_densities);
             if(flag_options->USE_MINI_HALOS){
                 //NOTE: we are using previous_zp LW threshold for all zpp, inconsistent with the halo model
-                log10_Mcrit_mol = log10(lyman_werner_threshold(zp, 0., 0.,astro_params)); //minimum turnover NOTE: should be zpp?
+                log10_Mcrit_mol = log10(lyman_werner_threshold(zp, 0., 0.,astro_params)); //minimum turnover NOTE: should be zpp_max?
                 fill_Rbox_table(log10_Mcrit_LW,log10_Mcrit_LW_unfiltered,R_values,global_params.NUM_FILTER_STEPS_FOR_Ts,log10_Mcrit_mol,1,min_log10_MturnLW,ave_log10_MturnLW,max_log10_MturnLW);
             }
         }
@@ -1645,6 +1644,12 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
             }
         }
     }
+
+    //we definitely don't need these tables anymore
+    //Having these free's here just for MINIMIZE_MEMORY is not ideal, but the log10Mturn average is needed
+    free_RGTable1D(&SFRD_z_table);
+    free_RGTable2D(&SFRD_z_table_MINI);
+
     //R==0 part
 #pragma omp parallel private(box_ct)
     {
