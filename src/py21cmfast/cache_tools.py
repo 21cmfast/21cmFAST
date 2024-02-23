@@ -10,7 +10,7 @@ from . import outputs, wrapper
 from ._cfg import config
 from .wrapper import global_params
 
-logger = logging.getLogger("21cmFAST")
+logger = logging.getLogger(__name__)
 
 
 def readbox(

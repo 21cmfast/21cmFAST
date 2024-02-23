@@ -618,7 +618,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                         M_turn_m_nofb_avg += M_turn_m_nofb;
                     }
                 }
-#pragma omp for reduction(+:M_turn_a_avg_cell,M_turn_m_avg_cell,M_turn_r_avg_cell)
+#pragma omp for
                 for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
                     grids->halo_mass[idx] /= cell_volume;
                     grids->n_ion[idx] /= cell_volume;

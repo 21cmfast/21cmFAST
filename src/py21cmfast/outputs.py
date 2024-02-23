@@ -33,7 +33,7 @@ from ._utils import _check_compatible_inputs
 from .c_21cmfast import ffi, lib
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
 
-logger = logging.getLogger("21cmFAST")
+logger = logging.getLogger(__name__)
 
 
 class _OutputStruct(_BaseOutputStruct):

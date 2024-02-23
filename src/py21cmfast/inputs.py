@@ -26,7 +26,7 @@ from ._data import DATA_PATH
 from ._utils import StructInstanceWrapper, StructWithDefaults
 from .c_21cmfast import ffi, lib
 
-logger = logging.getLogger("21cmFAST")
+logger = logging.getLogger(__name__)
 
 # Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
 # Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
