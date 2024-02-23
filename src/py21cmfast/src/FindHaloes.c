@@ -65,8 +65,6 @@ LOG_DEBUG("redshift=%f", redshift);
         //store highly used parameters
         int grid_dim = user_params->DIM;
         int z_dim = D_PARA;
-        int num_pixels = TOT_NUM_PIXELS;
-        int k_num_pixels = KSPACE_NUM_PIXELS;
 
         //set minimum source mass
         M_MIN = minimum_source_mass(redshift, astro_params, flag_options);
@@ -78,17 +76,17 @@ LOG_DEBUG("redshift=%f", redshift);
             M_MIN = fmax(M_MIN,RtoM(L_FACTOR*user_params->BOX_LEN/grid_dim));
 
         // allocate array for the k-space box
-        density_field = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*k_num_pixels);
-        density_field_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*k_num_pixels);
+        density_field = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+        density_field_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
         // allocate memory for the boolean in_halo box
-        in_halo = (char *) malloc(sizeof(char)*num_pixels);
+        in_halo = (char *) malloc(sizeof(char)*TOT_NUM_PIXELS);
 
         // initialize
-        memset(in_halo, 0, sizeof(char)*num_pixels);
+        memset(in_halo, 0, sizeof(char)*TOT_NUM_PIXELS);
 
         if(global_params.OPTIMIZE) {
-            forbidden = (char *) malloc(sizeof(char)*num_pixels);
+            forbidden = (char *) malloc(sizeof(char)*TOT_NUM_PIXELS);
         }
 
         unsigned long long int nhalo_threads[user_params->N_THREADS];
@@ -131,7 +129,7 @@ LOG_DEBUG("redshift=%f", redshift);
         dft_r2c_cube(user_params->USE_FFTW_WISDOM, grid_dim, z_dim, user_params->N_THREADS, density_field);
 
         // save a copy of the k-space density field
-        memcpy(density_field_saved, density_field, sizeof(fftwf_complex)*k_num_pixels);
+        memcpy(density_field_saved, density_field, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
         // ***************** END INITIALIZATION ***************** //
 
@@ -162,7 +160,7 @@ LOG_DEBUG("redshift=%f", redshift);
             halos_dexm = halos;
         }
 
-        float *halo_field = calloc(num_pixels, sizeof(float));
+        float *halo_field = calloc(TOT_NUM_PIXELS, sizeof(float));
 
         while ((R > 0.5*Delta_R) && (RtoM(R) >= M_MIN)){ // filter until we get to half the pixel size or M_MIN
             M = RtoM(R);
@@ -202,7 +200,7 @@ LOG_DEBUG("redshift=%f", redshift);
                 continue;
             }
 
-            memcpy(density_field, density_field_saved, sizeof(fftwf_complex)*k_num_pixels);
+            memcpy(density_field, density_field_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
             // now filter the box on scale R
             // 0 = top hat in real space, 1 = top hat in k space
@@ -215,7 +213,7 @@ LOG_DEBUG("redshift=%f", redshift);
             // to optimize speed, if the filter size is large (switch to collapse fraction criteria later)
             if(global_params.OPTIMIZE) {
                 if(M > global_params.OPTIMIZE_MIN_MASS) {
-                    memset(forbidden, 0, sizeof(char)*num_pixels);
+                    memset(forbidden, 0, sizeof(char)*TOT_NUM_PIXELS);
                     // now go through the list of existing halos and paint on the no-go region onto <forbidden>
 
 #pragma omp parallel shared(forbidden,R) private(x,y,z,R_temp) num_threads(user_params->N_THREADS)
@@ -246,10 +244,10 @@ LOG_DEBUG("redshift=%f", redshift);
             for (x=0; x<grid_dim; x++){
                 for (y=0; y<grid_dim; y++){
                     for (z=0; z<z_dim; z++){
-                        delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / num_pixels;
-
+                        delta_m = *((float *)density_field + R_FFT_INDEX(x,y,z)) * growth_factor / TOT_NUM_PIXELS;
+                        // LOG_ULTRA_DEBUG("Cell (%d,%d,%d) idx %d got delta %.6e",x,y,z,R_INDEX(x,y,z),delta_m);
+                        // LOG_ULTRA_DEBUG("in halo %c OPTIMIZE %d",in_halo[R_INDEX(x,y,z)],global_params.OPTIMIZE);
                         // if not within a larger halo, and radii don't overlap, update in_halo box
-                        //TODO: something to remove the criticals (see above note)
                         // *****************  BEGIN OPTIMIZATION ***************** //
                         if(global_params.OPTIMIZE && (M > global_params.OPTIMIZE_MIN_MASS)) {
                             if ( (delta_m > delta_crit) && !forbidden[R_INDEX(x,y,z)]){
@@ -265,15 +263,21 @@ LOG_DEBUG("redshift=%f", redshift);
                         }
                         // *****************  END OPTIMIZATION ***************** //
                         else {
-                            if ((delta_m > delta_crit) && !in_halo[R_INDEX(x,y,z)] && !check_halo(in_halo, user_params, R, x,y,z,1)){ // we found us a "new" halo!
-                                // LOG_ULTRA_DEBUG("Halo found at (%d,%d,%d), delta = %.4f",x,y,z,delta_m);
-                                check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
+                            if ((delta_m > delta_crit)){
+                                LOG_ULTRA_DEBUG("delta peak found at (%d,%d,%d), delta = %.4f",x,y,z,delta_m);
+                                if(!in_halo[R_INDEX(x,y,z)]){
+                                    LOG_ULTRA_DEBUG("Not in halo",in_halo[R_INDEX(x,y,z)]);
+                                    if(!check_halo(in_halo, user_params, R, x,y,z,1)){ // we found us a "new" halo!
+                                        check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
+                                        LOG_ULTRA_DEBUG("Flagged Pixels");
 
-                                halo_field[R_INDEX(x,y,z)] = M;
+                                        halo_field[R_INDEX(x,y,z)] = M;
 
-                                dn++; // keep track of the number of halos
-                                n++;
-                                total_halo_num++;
+                                        dn++; // keep track of the number of halos
+                                        n++;
+                                        total_halo_num++;
+                                    }
+                                }
                             }
                         }
                     }
@@ -368,7 +372,7 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
     int x_curr, y_curr, z_curr, x_min, x_max, y_min, y_max, z_min, z_max, R_index;
     float Rsq_curr_index, xsq, xplussq, xminsq, ysq, yplussq, yminsq, zsq, zplussq, zminsq;
     int x_index, y_index, z_index;
-    int curr_index;
+    long long unsigned int curr_index;
 
     if(check_type==1) {
         // scale R to a effective overlap size, using R_OVERLAP_FACTOR
@@ -377,7 +381,6 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
 
     int grid_dim = user_params->DIM;
     int z_dim = D_PARA;
-    int num_pixels = TOT_NUM_PIXELS;
 
     // convert R to index units
     R_index = ceil(R/user_params->BOX_LEN*grid_dim);
@@ -390,6 +393,7 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
     y_max = y+R_index;
     z_min = z-R_index;
     z_max = z+R_index;
+    LOG_ULTRA_DEBUG("Starting check from (%d,%d,%d) to (%d,%d,%d)",x_min,y_min,z_min,x_max,y_max,z_max);
 
     for (x_curr=x_min; x_curr<=x_max; x_curr++){
         for (y_curr=y_min; y_curr<=y_max; y_curr++){
@@ -406,6 +410,7 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
                 else if (z_index>=z_dim) {z_index -= z_dim;}
 
                 curr_index = R_INDEX(x_index,y_index,z_index);
+                LOG_ULTRA_DEBUG("current point (%d,%d,%d) idx %d",x_curr,y_curr,z_curr,curr_index);
 
                 if(check_type==1) {
                     if ( in_halo[curr_index] &&

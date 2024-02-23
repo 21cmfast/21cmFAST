@@ -888,7 +888,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
         //dexm overlap variables
         double halo_dist,halo_r,intersect_vol;
         double intersect_x,cap_hlarge,cap_hsmall;
-        double mass_defc=1;
+        double mass_defc;
 
         //buffers per cell
         float hm_buf[MAX_HALO_CELL];
@@ -928,6 +928,9 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                 for (z=0; z<HII_D_PARA; z++){
                     delta = dens_field[HII_R_INDEX(x,y,z)] * growthf;
                     stoc_set_consts_cond(&hs_constants_priv,delta);
+                    if((x+y+z) == 0){
+                        print_hs_consts(&hs_constants_priv);
+                    }
                     //Subtract mass from cells near big halos
                     mass_defc = 0.;
                     //TODO: put in a function
@@ -986,9 +989,6 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                         }
                     }
                     total_volume_excluded += mass_defc;
-                    if((x+y+z) == 0){
-                        print_hs_consts(&hs_constants_priv);
-                    }
                     //TODO: the ps_ratio part will need to be moved when other CMF scalings are finished
                     hs_constants_priv.expected_M *= (1.-mass_defc)/ps_ratio;
                     hs_constants_priv.expected_N *= (1.-mass_defc)/ps_ratio;
