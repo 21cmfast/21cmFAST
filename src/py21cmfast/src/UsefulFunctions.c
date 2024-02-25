@@ -705,7 +705,7 @@ void print_corners_real(float *x, int size, float ncf){
     for(i=0;i<size;i=i+s){
         for(j=0;j<size;j=j+s){
             for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                printf("%f, ", x[k + (int)(size*ncf)*(j + size*i)]);
+                printf("%f, ", x[k + (long long unsigned int)(size*ncf)*(j + size*i)]);
             }
         }
     }
@@ -725,7 +725,7 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
         for(i=0;i<size;i=i+s){
             for(j=0;j<size;j=j+s){
                 for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                    corners[counter] =  box[k + (int)(size*ncf)*(j + size*i)];
+                    corners[counter] =  box[k + (long long unsigned int)(size*ncf)*(j + size*i)];
                     counter++;
                 }
             }
@@ -766,7 +766,7 @@ void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
         for(i=0;i<size;i=i+s){
             for(j=0;j<size;j=j+s){
                 for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                    corners[counter] =  box[k + (int)(size*ncf)*(j + size*i)];
+                    corners[counter] =  box[k + (long long unsigned int)(size*ncf)*(j + size*i)];
                     counter++;
                 }
             }
