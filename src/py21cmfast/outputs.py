@@ -343,7 +343,6 @@ class HaloField(_AllParamsBox):
             )
         return required
 
-    # TODO, it doesn't like when I specify the HaloField type here for the previous field (seems similar in the Ts box)
     def compute(
         self, *, halos_desc, ics: InitialConditions, random_seed: int, hooks: dict
     ):
@@ -407,7 +406,6 @@ class PerturbHaloField(_AllParamsBox):
 
         return required
 
-    # TODO: We should check here that the buffer size is >= halo_field.n_halos
     def compute(self, *, ics: InitialConditions, halo_field: HaloField, hooks: dict):
         """Compute the function."""
         return self._compute(

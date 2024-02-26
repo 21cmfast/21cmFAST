@@ -1,6 +1,5 @@
 
 //calculates halo properties from astro parameters plus the correlated rng
-//TODO: make the input and output labeled structs
 //The inputs include all properties with a separate RNG
 //The outputs include all halo properties PLUS all properties which cannot be recovered when mixing all the halos together
 //  i.e escape fraction weighting, minihalo stuff that has separate parameters
@@ -63,7 +62,6 @@ void set_halo_properties(float halo_mass, float M_turn_a, float M_turn_m, float 
     f_rng = exp(-sigma_star*sigma_star/2 + input[0]*sigma_star);
 
     //This clipping is normally done with the mass_limit_bisection root find. hard to do with stochastic
-    //TODO: Interpolation tables for all the mean relations? (is this really faster than a coulple pow and exp calls?)
     f_sample = fmin(fstar_mean * f_rng,1);
     f_sample_mini = fmin(fstar_mean_mini * f_rng,1);
 
@@ -95,8 +93,6 @@ void set_halo_properties(float halo_mass, float M_turn_a, float M_turn_m, float 
 //Fixed halo grids, where each property is set as the integral of the CMF on the EULERIAN cell scale
 //As per default 21cmfast (strange pretending that the lagrangian density is eulerian and then *(1+delta))
 //This outputs the UN-NORMALISED grids (before mean-adjustment)
-//TODO: add minihalos
-//TODO: use the interpolation tables (Fixed grids are currently slow but a debug case so this is low priority)
 int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M_min, double M_max, struct InitialConditions * ini_boxes,
                     struct PerturbedField * perturbed_field, struct TsBox *previous_spin_temp,
                     struct IonizedBox *previous_ionize_box, struct HaloBox *grids, double *averages){
@@ -354,9 +350,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
 }
 
 //Expected global averages for box quantities for mean adjustment
-//TODO: use the global interpolation tables (only one integral per property per snapshot so this is low priority)
 //WARNING: THESE AVERAGE BOXES ARE WRONG, CHECK THEM
-//TODO: Use the functions from SpinTemperature.c Instead with the tables
 int get_box_averages(double redshift, double norm_esc, double alpha_esc, double M_min, double M_max, double M_turn_a, double M_turn_m, double *averages){
     double alpha_star = astro_params_stoc->ALPHA_STAR;
     double norm_star = astro_params_stoc->F_STAR10;
@@ -426,11 +420,7 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
     return 0;
 }
 
-//This, for the moment, grids the PERTURBED halo catalogue.
-//TODO: make a way to output both types by making 2 wrappers to this function that pass in arrays rather than structs
-//NOTE: this function is quite slow to generate fixed halo boxes, however I don't mind since it's a debug case
-//  If we want to make it faster just replace the integrals with the existing interpolation tables
-//TODO: I should also probably completely separate the fixed and sampled grids into two functions which this calls
+//We grid a PERTURBED halofield into the necessary quantities for calculating radiative backgrounds
 int ComputeHaloBox(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
                     struct FlagOptions * flag_options, struct InitialConditions *ini_boxes, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos,
                     struct TsBox *previous_spin_temp, struct IonizedBox *previous_ionize_box, struct HaloBox *grids){
@@ -438,12 +428,14 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
     Try{
 
         int idx;
-        //TODO: Check if this initialisation is necessary. aren't they already zero'd in Python?
 #pragma omp parallel for num_threads(user_params->N_THREADS) private(idx)
         for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
             grids->halo_mass[idx] = 0.0;
             grids->n_ion[idx] = 0.0;
             grids->halo_sfr[idx] = 0.0;
+            grids->halo_sfr_mini[idx] = 0.0;
+            grids->halo_stars[idx] = 0.0;
+            grids->halo_stars_mini[idx] = 0.0;
             grids->whalo_sfr[idx] = 0.0;
             grids->count[idx] = 0;
         }
@@ -513,7 +505,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             if(global_params.AVG_BELOW_SAMPLER && M_min < global_params.SAMPLER_MIN_MASS){
                 set_fixed_grids(redshift, norm_esc, alpha_esc, M_min, global_params.SAMPLER_MIN_MASS, ini_boxes,
                                 perturbed_field, previous_spin_temp, previous_ionize_box, grids, averages_box);
-                //TODO: This is pretty redundant, but since the fixed grids have density units (X Mpc-3) I have to re-multiply before adding the halos.
+                //This is pretty redundant, but since the fixed grids have density units (X Mpc-3) I have to re-multiply before adding the halos.
                 //      I should instead have a flag to output the summed values in cell. (2*N_pixel > N_halo so generally i don't want to do it in the halo loop)
                 for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
                     grids->halo_mass[idx] *= cell_volume;
@@ -543,7 +535,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     x = halos->halo_coords[0+3*i_halo]; //NOTE:PerturbedHaloField is on HII_DIM, HaloField is on DIM
                     y = halos->halo_coords[1+3*i_halo];
                     z = halos->halo_coords[2+3*i_halo];
-                    //TODO: figure out if its faster to do these calculations n_halo times OR search a grid cell for halos and do them n_cell times
+
                     if(!flag_options_stoc->FIX_VCB_AVG && user_params->USE_RELATIVE_VELOCITIES){
                         curr_vcb = ini_boxes->lowres_vcb[HII_R_INDEX(x,y,z)];
                     }
@@ -580,12 +572,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                         LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e",M_turn_a,M_turn_m);
                     }
 
-                    //feed back the calculated properties to PerturbHaloField
-                    //TODO: move set_halo_properties to PertburbHaloField and move it forward in time
-                    //  This will require EITHER separating mini and regular halo components OR the ternary halo model (inactive,moleculer,atomic)
-                    //  OR directly storing all the grid components
 
-                    //TODO: is it possible to apply some sort of array reduction here with OpenMP instead of atomics?
 #pragma omp atomic update
                     grids->halo_mass[HII_R_INDEX(x, y, z)] += m;
 #pragma omp atomic update
@@ -601,6 +588,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
 #pragma omp atomic update
                     grids->whalo_sfr[HII_R_INDEX(x, y, z)] += wsfr;
                     //It can be convenient to remove halos from a catalogue by setting them to zero, don't count those here
+                    //  This won't happen in the usual method of running 21cmFAST but a user may wish to do so
                     if(m>0){
 #pragma omp atomic update
                         grids->count[HII_R_INDEX(x, y, z)] += 1;

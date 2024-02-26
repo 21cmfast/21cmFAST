@@ -900,8 +900,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             f = self._get_fname(direc)
             if path.exists(f) and self._check_parameters(f):
                 return f
-        # logger.info(f"filename {f} exists: {path.exists(f)}")
-        # logger.info(f"paramcheck: {self._check_parameters(f)}")
         return None
 
     def _check_parameters(self, fname):

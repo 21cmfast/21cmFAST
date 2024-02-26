@@ -19,10 +19,6 @@
 #include <gsl/gsl_spline.h>
 #include <gsl/gsl_spline2d.h>
 
-//Profiling tools
-//#include <gperftools/profiler.h>
-//#include <gperftools/heap-profiler.h>
-
 #include "21cmFAST.h"
 #include "exceptions.h"
 #include "logger.h"

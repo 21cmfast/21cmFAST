@@ -40,7 +40,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     omp_set_num_threads(user_params->N_THREADS);
 
     // Other parameters used in the code
-    //TODO: using both i,j,k and x,y,z allows very sneaky bugs to happen
     int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R, short_completely_ionised,i_halo;
     int counter, N_halos_in_cell;
     unsigned long long ct;
@@ -111,7 +110,6 @@ LOG_SUPER_DEBUG("defined parameters");
     }
 
     //escape fractions taken into account in halo field
-    //TODO: control this in a different way
     if(flag_options->USE_HALO_FIELD){
         ION_EFF_FACTOR = 1.;
         ION_EFF_FACTOR_MINI = 1.;
@@ -126,7 +124,6 @@ LOG_SUPER_DEBUG("defined parameters");
     }
 
     //Yuxiang's evolving Rmax for MFP in ionised regions
-    //TODO: this should be the adjusted redshift I think but make sure
     double exp_mfp;
     if(flag_options->USE_EXP_FILTER){
         if (redshift > 6)
@@ -961,7 +958,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                     }
                 }
                 else {
-                    //TODO: replace with Fcoll_z tables
                     erfc_denom = 2. * (pow(sigma_z0(M_MIN), 2) - pow(sigma_z0(massofscaleR), 2));
                     if (erfc_denom < 0) { // our filtering scale has become too small
                         break;
@@ -1054,7 +1050,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                     }
                                     Splined_Fcoll = EvaluateNion_Conditional(curr_dens,log10_Mturnover,growth_factor,M_MIN,massofscaleR,sigmaMmax,Mlim_Fstar,Mlim_Fesc,false);
                                 }
-                                else{ //TODO: replace with fcoll_z_table
+                                else{
                                     erfc_arg_val = (Deltac - curr_dens) * erfc_denom;
                                     if (erfc_arg_val < erfc_arg_min || erfc_arg_val > erfc_arg_max) {
                                         Splined_Fcoll = splined_erfc(erfc_arg_val);
@@ -1108,7 +1104,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                               *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)));
                                     LOG_DEBUG("%g,%g",previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
                                               previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)]);
-                                    //TODO: make a print_interp_error(array,x,y) function
                                     Throw(InfinityorNaNError);
                                 }
                             }

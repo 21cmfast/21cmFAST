@@ -127,9 +127,9 @@ struct HaloBox{
     float *n_ion; //weighted by F_ESC*PopN_ion
     float *halo_sfr; //for x-rays and Ts stuff
     float *halo_sfr_mini; //for x-rays and Ts stuff
-    float *whalo_sfr; //for Gamma12 TODO: replace with gamma12
+    float *whalo_sfr;
 
-    double log10_Mcrit_LW_ave; //TODO: remove when TauX uses global structures
+    double log10_Mcrit_LW_ave;
 };
 
 struct PerturbHaloField{
@@ -154,9 +154,9 @@ struct XraySourceBox{
     float *filtered_sfr;
     float *filtered_sfr_mini;
 
-    double *mean_log10_Mcrit_LW; //TODO: remove when TauX uses global structures
-    double *mean_sfr; //TODO: remove when TauX uses global structures
-    double *mean_sfr_mini; //TODO: remove when TauX uses global structures
+    double *mean_log10_Mcrit_LW;
+    double *mean_sfr;
+    double *mean_sfr_mini;
 };
 
 struct IonizedBox{
@@ -182,9 +182,9 @@ int ComputeInitialConditions(unsigned long long random_seed, struct UserParams *
 
 int ComputePerturbField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct InitialConditions *boxes, struct PerturbedField *perturbed_field);
 
-int ComputeHaloField(float redshift_prev, float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+int ComputeHaloField(float redshift_desc, float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                      struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                     struct InitialConditions *boxes, int random_seed, struct HaloField * halos_prev, struct HaloField *halos);
+                     struct InitialConditions *boxes, int random_seed, struct HaloField * halos_desc, struct HaloField *halos);
 
 int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                      struct AstroParams *astro_params, struct FlagOptions *flag_options,
@@ -193,7 +193,7 @@ int ComputePerturbHaloField(float redshift, struct UserParams *user_params, stru
 int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift,
                   short cleanup,
-                  struct PerturbedField *perturbed_field, struct XraySourceBox * souce_box, struct TsBox *previous_spin_temp, struct InitialConditions *ini_boxes,
+                  struct PerturbedField *perturbed_field, struct XraySourceBox * source_box, struct TsBox *previous_spin_temp, struct InitialConditions *ini_boxes,
                   struct TsBox *this_spin_temp);
 
 int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,

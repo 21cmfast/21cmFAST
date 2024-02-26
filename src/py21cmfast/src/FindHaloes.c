@@ -13,18 +13,18 @@ void init_halo_coords(struct HaloField *halos, int n_halos);
 int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index );
 void free_halo_field(struct HaloField *halos);
 
-int ComputeHaloField(float redshift_prev, float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
+int ComputeHaloField(float redshift_desc, float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                      struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                     struct InitialConditions *boxes, int random_seed, struct HaloField * halos_prev, struct HaloField *halos) {
+                     struct InitialConditions *boxes, int random_seed, struct HaloField * halos_desc, struct HaloField *halos) {
 
     int status;
 
     Try{ // This Try brackets the whole function, so we don't indent.
 
     //This happens if we are updating a halo field (no need to redo big halos)
-    if(flag_options->HALO_STOCHASTICITY && redshift_prev > 0){
-        LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %d halos...",halos_prev->n_halos);
-        stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_prev, redshift, boxes->lowres_density, halos_prev, halos);
+    if(flag_options->HALO_STOCHASTICITY && redshift_desc > 0){
+        LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %d halos...",halos_desc->n_halos);
+        stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_desc, redshift, boxes->lowres_density, halos_desc, halos);
         return 0;
     }
 
@@ -152,7 +152,7 @@ LOG_DEBUG("redshift=%f", redshift);
 
         struct HaloField *halos_dexm;
         if(flag_options->HALO_STOCHASTICITY){
-            //To save memory, we allocate the smaller (large mass) halofield here instead of using halos_prev
+            //To save memory, we allocate the smaller (large mass) halofield here instead of using halos_desc
             halos_dexm = malloc(sizeof(struct HaloField));
         }
         else{
@@ -170,7 +170,6 @@ LOG_DEBUG("redshift=%f", redshift);
             //      Sheth-Tormen mass function (as of right now, We do not even reproduce EPS results)
             delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
 
-            //TODO: throw in an init loop
             // if(global_params.DELTA_CRIT_MODE == 1){
             //     //This algorithm does not use the sheth tormen OR Jenkins parameters,
             //     //        rather it uses a reduced barrier to correct for some part of this algorithm,
@@ -238,7 +237,7 @@ LOG_DEBUG("redshift=%f", redshift);
             // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
             dn=0;
 
-            //TODO: Fix the race condition propertly to thread: it doesn't matter which thread finds the halo first
+            //THREADING: Fix the race condition propertly to thread: it doesn't matter which thread finds the halo first
             //  but if two threads find a halo in the same region simultaneously (before the first one updates in_halo) some halos could double-up
             //checking for overlaps in new halos after this loop could work, but I would have to calculate distances between all new halos which sounds slow
             for (x=0; x<grid_dim; x++){
@@ -264,12 +263,12 @@ LOG_DEBUG("redshift=%f", redshift);
                         // *****************  END OPTIMIZATION ***************** //
                         else {
                             if ((delta_m > delta_crit)){
-                                LOG_ULTRA_DEBUG("delta peak found at (%d,%d,%d), delta = %.4f",x,y,z,delta_m);
+                                // LOG_ULTRA_DEBUG("delta peak found at (%d,%d,%d), delta = %.4f",x,y,z,delta_m);
                                 if(!in_halo[R_INDEX(x,y,z)]){
-                                    LOG_ULTRA_DEBUG("Not in halo",in_halo[R_INDEX(x,y,z)]);
+                                    // LOG_ULTRA_DEBUG("Not in halo",in_halo[R_INDEX(x,y,z)]);
                                     if(!check_halo(in_halo, user_params, R, x,y,z,1)){ // we found us a "new" halo!
                                         check_halo(in_halo, user_params, R, x,y,z,2); // flag the pixels contained within this halo
-                                        LOG_ULTRA_DEBUG("Flagged Pixels");
+                                        // LOG_ULTRA_DEBUG("Flagged Pixels");
 
                                         halo_field[R_INDEX(x,y,z)] = M;
 
@@ -316,13 +315,12 @@ LOG_DEBUG("redshift=%f", redshift);
             }
         }
 
-        //add halo properties for ionisation TODO: add a flag
         add_properties_cat(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift, halos_dexm);
         LOG_DEBUG("Found %d DexM halos",total_halo_num);
 
         if(flag_options->HALO_STOCHASTICITY){
             LOG_DEBUG("Finding halos below grid resolution %.3e",M_MIN);
-            stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_prev, redshift, boxes->lowres_density, halos_dexm, halos);
+            stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_desc, redshift, boxes->lowres_density, halos_dexm, halos);
 
             //Here, halos_dexm is allocated in the C, so free it
             free_halo_field(halos_dexm);
@@ -393,7 +391,7 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
     y_max = y+R_index;
     z_min = z-R_index;
     z_max = z+R_index;
-    LOG_ULTRA_DEBUG("Starting check from (%d,%d,%d) to (%d,%d,%d)",x_min,y_min,z_min,x_max,y_max,z_max);
+    // LOG_ULTRA_DEBUG("Starting check from (%d,%d,%d) to (%d,%d,%d)",x_min,y_min,z_min,x_max,y_max,z_max);
 
     for (x_curr=x_min; x_curr<=x_max; x_curr++){
         for (y_curr=y_min; y_curr<=y_max; y_curr++){
@@ -410,7 +408,7 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
                 else if (z_index>=z_dim) {z_index -= z_dim;}
 
                 curr_index = R_INDEX(x_index,y_index,z_index);
-                LOG_ULTRA_DEBUG("current point (%d,%d,%d) idx %d",x_curr,y_curr,z_curr,curr_index);
+                // LOG_ULTRA_DEBUG("current point (%d,%d,%d) idx %d",x_curr,y_curr,z_curr,curr_index);
 
                 if(check_type==1) {
                     if ( in_halo[curr_index] &&

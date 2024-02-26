@@ -823,6 +823,70 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     return err;
 }
 
+double get_halo_overlap(int x, int y, int z, int n_halo, double *halo_pos, double *halo_r_array){
+    double crd_diff[3];
+    double mass_defc = 0.;
+    double cap_hlarge,cap_hsmall,intersect_x,intersect_vol;
+    //NOTE: the ratio is the same for z
+    int lo_dim = user_params_stoc->HII_DIM;
+    double halo_r;
+    double halo_dist;
+    int j;
+
+    for (j=0;j<n_halo;j++){
+        //convert to lowres coordinates
+        //check all reflections (distance to the closest reflection is L - x)
+        crd_diff[0] = fabs(halo_pos[0] - x);
+        crd_diff[0] = fmin(crd_diff[0],fabs(lo_dim-crd_diff[0]));
+        crd_diff[1] = fabs(halo_pos[1] - x);
+        crd_diff[1] = fmin(crd_diff[1],fabs(lo_dim-crd_diff[1]));
+        crd_diff[2] = fabs(halo_pos[2] - x);
+        crd_diff[2] = fmin(crd_diff[2],fabs(lo_dim-crd_diff[2]));
+
+        halo_r = halo_r_array[j]; //units of HII_DIM cell width
+
+        //exclude the cube first for slight speedup since sqrt can be called many times
+        if(crd_diff[0] > (halo_r + L_FACTOR) || crd_diff[1] > (halo_r + L_FACTOR) || crd_diff[2] > (halo_r + L_FACTOR))
+            continue;
+
+        //distance between the centres
+        halo_dist = sqrt(crd_diff[0]*crd_diff[0] + crd_diff[1]*crd_diff[1] + crd_diff[2]*crd_diff[2]);
+
+        //Cell is entirely outside of halo, move to the next halo
+        if(halo_dist - L_FACTOR > halo_r){
+            continue;
+        }
+        //Cell is entirely within halo, set mass to zero and
+        else if(halo_dist + L_FACTOR < halo_r){
+            mass_defc = 1.;
+            // LOG_ULTRA_DEBUG("Cell (%d %d %d) entirely within halo %d (%.3f %.3f %.3f) R %.2e",x,y,z,j,crd_large[0],crd_large[1],crd_large[2],halo_r);
+            break;
+        }
+        //partially inside halo, pretend cells are spheres to do the calculation much faster without too much error
+        //The coordinates are set such that the large sphere(halo) is at (0,0,0) and the small sphere (cell) is at (halo_dist,0,0)
+        //NOTE: THIS WILL BREAK IF WE LET DEXM GO BELOW THE CELL SIZE (halo_r < L_FACTOR), WHICH IS CURRENTLY IMPOSSIBLE BUT MAY BE ENABLED IN FUTURE
+        else{
+            intersect_x = (halo_dist*halo_dist - L_FACTOR*L_FACTOR + halo_r*halo_r)/(2*halo_dist); //intersection distance of the spheres
+            cap_hlarge = halo_r - intersect_x; //large radius cap height, always positive given the spheres intersect
+            cap_hsmall = L_FACTOR - (halo_dist - intersect_x); //small radius cap height, always positive given the spheres intersect
+            intersect_vol = 1./3. * PI * (cap_hlarge*cap_hlarge*(3*halo_r - cap_hlarge)
+                                            + cap_hsmall*cap_hsmall*(3*L_FACTOR - cap_hsmall)); //summed volume of the two caps
+
+            // intersect_vol = halo_dist*halo_dist + 2*halo_dist*L_FACTOR - 3*L_FACTOR*L_FACTOR;
+            // intersect_vol += 2*halo_dist*halo_r + 6*halo_r*L_FACTOR - 3*halo_r*halo_r;
+            // intersect_vol *= PI*(halo_r + L_FACTOR - halo_dist)*(halo_r + L_FACTOR - halo_dist) / (12*halo_dist); //volume in cell_width^3
+
+            mass_defc += intersect_vol; //since cell volume == 1, M*mass_defc should adjust the mass correctly
+            // LOG_ULTRA_DEBUG("Cell (%d %d %d) has %.2f fractional volume in halo %d (%.3f %.3f %.3f) R %.2e",
+            //                     x,y,z,intersect_vol,j,crd_large[0],crd_large[1],crd_large[2],halo_r);
+
+            //NOTE: it is possible for a single HII_DIM cells to be partially in two halos on the DIM grid
+            //      So we don't break here
+        }
+    }
+    return fmin(mass_defc,1.);
+}
+
 // will have to add properties here and output grids, instead of in perturbed
 int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struct HaloField *halofield_large, struct HaloField *halofield_out, struct HaloSamplingConstants *hs_constants){
     int lo_dim = user_params_stoc->HII_DIM;
@@ -870,8 +934,10 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
     }
 
     double *dexm_radii = calloc(nhalo_in,sizeof(double));
+    double *dexm_pos = calloc(nhalo_in*3,sizeof(double));
     double total_volume_excluded=0.;
     double total_volume_dexm=0.;
+    double vol_conversion = (double)user_params_stoc->HII_DIM / (double)user_params_stoc->DIM;
 
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
     {
@@ -883,11 +949,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
         double delta;
         float prop_buf[2], prop_dummy[2];
         int crd_hi[3];
-        double crd_diff[3], crd_large[3];
 
-        //dexm overlap variables
-        double halo_dist,halo_r,intersect_vol;
-        double intersect_x,cap_hlarge,cap_hsmall;
         double mass_defc;
 
         //buffers per cell
@@ -914,8 +976,15 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
             halofield_out->halo_coords[2 + 3*(istart+count)] = halofield_large->halo_coords[2 + 3*j];
 
             //To accelerate, I store the large-halo radii (units of HII_DIM cells)
-            total_volume_dexm += halofield_large->halo_masses[j] / (RHOcrit * cosmo_params_stoc->OMm) * pow(lo_dim/boxlen,3);
+            total_volume_dexm += halofield_large->halo_masses[j] / (RHOcrit * cosmo_params_stoc->OMm) * pow(vol_conversion,3);
             dexm_radii[j] = MtoR(halofield_large->halo_masses[j])/boxlen*lo_dim;
+
+            //to compare the centres of the cells at DIM and HII_DIM, we add 0.5 to the coordinate at each resolution
+            //subtracting 0.5 means we are in the coordinates where (0,0,0) is the CENTRE of the first cell,
+            // to directly compare with (x,y,z) on HII_DIM
+            dexm_pos[0] = (halofield_large->halo_coords[0 + 3*j] + 0.5) * vol_conversion - 0.5;
+            dexm_pos[1] = (halofield_large->halo_coords[1 + 3*j] + 0.5) * vol_conversion - 0.5;
+            dexm_pos[2] = (halofield_large->halo_coords[2 + 3*j] + 0.5) * vol_conversion - 0.5;
             count++;
         }
 
@@ -931,69 +1000,13 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                     if((x+y+z) == 0){
                         print_hs_consts(&hs_constants_priv);
                     }
-                    //Subtract mass from cells near big halos
-                    mass_defc = 0.;
-                    //TODO: put in a function
-                    for (j=0;j<nhalo_in;j++){
-                        //convert to lowres coordinates, no precision lost since its a double
-                        //We effectively add 0.5 to both centres in their native resolution to compare cell centres
-                        crd_large[0] = ((halofield_large->halo_coords[0 + 3*j] + 0.5) / (double)hi_dim * (double)lo_dim) - 0.5;
-                        crd_large[1] = ((halofield_large->halo_coords[1 + 3*j] + 0.5) / (double)hi_dim * (double)lo_dim) - 0.5;
-                        crd_large[2] = ((halofield_large->halo_coords[2 + 3*j] + 0.5) / (double)D_PARA * (double)HII_D_PARA) - 0.5;
 
-                        //check all reflections
-                        crd_diff[0] = fmin(fmin(fabs(crd_large[0] - x),fabs(crd_large[0] + lo_dim - x)),fabs(crd_large[0] - lo_dim - x));
-                        crd_diff[1] = fmin(fmin(fabs(crd_large[1] - y),fabs(crd_large[1] + lo_dim - y)),fabs(crd_large[1] - lo_dim - y));
-                        crd_diff[2] = fmin(fmin(fabs(crd_large[2] - z),fabs(crd_large[2] + HII_D_PARA - z)),fabs(crd_large[2] - HII_D_PARA - z));
-
-                        halo_r = dexm_radii[j]; //units of HII_DIM cell width
-
-                        //mass subtraction from cell, PRETENDING THEY ARE SPHERES OF RADIUS L_FACTOR in cell widths
-                        //exclude the cube first for slight speedup since sqrt can be called many times
-                        if(crd_diff[0] > (halo_r + L_FACTOR) || crd_diff[1] > (halo_r + L_FACTOR) || crd_diff[2] > (halo_r + L_FACTOR))
-                            continue;
-
-                        //distance between the centres
-                        halo_dist = sqrt(crd_diff[0]*crd_diff[0] + crd_diff[1]*crd_diff[1] + crd_diff[2]*crd_diff[2]);
-
-                        //Cell is entirely outside of halo
-                        if(halo_dist - L_FACTOR > halo_r){
-                            continue;
-                        }
-                        //Cell is entirely within halo
-                        else if(halo_dist + L_FACTOR < halo_r){
-                            mass_defc = 1.;
-                            // LOG_ULTRA_DEBUG("Cell (%d %d %d) entirely within halo %d (%.3f %.3f %.3f) R %.2e",x,y,z,j,crd_large[0],crd_large[1],crd_large[2],halo_r);
-                            break;
-                        }
-                        //partially inside halo, pretend cells are spheres to do the calculation much faster without too much error
-                        //The coordinates are set such that the large sphere(halo) is at (0,0,0) and the small sphere (cell) is at (halo_dist,0,0)
-                        //NOTE: THIS WILL BREAK IF WE LET DEXM GO BELOW THE CELL SIZE (halo_r < L_FACTOR), WHICH IS CURRENTLY IMPOSSIBLE BUT MAY BE ENABLED IN FUTURE
-                        else{
-                            intersect_x = (halo_dist*halo_dist - L_FACTOR*L_FACTOR + halo_r*halo_r)/(2*halo_dist); //intersection distance of the spheres
-                            cap_hlarge = halo_r - intersect_x; //large radius cap height, always positive given the spheres intersect
-                            cap_hsmall = L_FACTOR - (halo_dist - intersect_x); //small radius cap height, always positive given the spheres intersect
-                            intersect_vol = 1./3. * PI * (cap_hlarge*cap_hlarge*(3*halo_r - cap_hlarge)
-                                                            + cap_hsmall*cap_hsmall*(3*L_FACTOR - cap_hsmall)); //summed volume of the two caps
-
-                            // intersect_vol = halo_dist*halo_dist + 2*halo_dist*L_FACTOR - 3*L_FACTOR*L_FACTOR;
-                            // intersect_vol += 2*halo_dist*halo_r + 6*halo_r*L_FACTOR - 3*halo_r*halo_r;
-                            // intersect_vol *= PI*(halo_r + L_FACTOR - halo_dist)*(halo_r + L_FACTOR - halo_dist) / (12*halo_dist); //volume in cell_width^3
-
-                            mass_defc += intersect_vol; //since cell volume == 1, M*mass_defc should adjust the mass correctly
-                            // LOG_ULTRA_DEBUG("Cell (%d %d %d) has %.2f fractional volume in halo %d (%.3f %.3f %.3f) R %.2e",
-                            //                     x,y,z,intersect_vol,j,crd_large[0],crd_large[1],crd_large[2],halo_r);
-
-                            //NOTE: it is possible for a single HII_DIM cells to be partially in two halos on the DIM grid
-                            //      So we don't break here
-                        }
-                    }
+                    mass_defc = get_halo_overlap(x,y,z,nhalo_in,dexm_pos,dexm_radii);
                     total_volume_excluded += mass_defc;
+
                     //TODO: the ps_ratio part will need to be moved when other CMF scalings are finished
                     hs_constants_priv.expected_M *= (1.-mass_defc)/ps_ratio;
                     hs_constants_priv.expected_N *= (1.-mass_defc)/ps_ratio;
-                    // LOG_SUPER_DEBUG("Cell (%d,%d,%d) d %.3e N exp %.3e M exp %.3e md %.6f ps %.3e",
-                    //     x,y,z,delta,hs_constants_priv.expected_N,hs_constants_priv.expected_M,mass_defc,ps_ratio);
 
                     stoc_sample(&hs_constants_priv, rng_arr[threadnum], &nh_buf, hm_buf);
                     //output total halo number, catalogues of masses and positions
@@ -1040,6 +1053,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
 
     LOG_SUPER_DEBUG("Total dexm volume %.6e Total volume excluded %.6e (In units of HII_DIM cells)",total_volume_dexm,total_volume_excluded);
     free(dexm_radii);
+    free(dexm_pos);
 
     //Condense the sparse array
     //TODO: figure out a way to do this in parralel without overwriting elements before they are moved
