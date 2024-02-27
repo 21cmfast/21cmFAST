@@ -1923,12 +1923,8 @@ def xray_source(
                     state.computed_in_mem = False
 
             # we only want to call hooks at the end so we set a dummy hook here
-            # TODO: this is very silly try another way to get around the default save
-            dummy_hook = {do_nothing: {"param": None}}
-            hooks_in = (
-                hooks if i == global_params.NUM_FILTER_STEPS_FOR_Ts - 1 else dummy_hook
-            )
-            # logger.info(f'starting R = ({R_inner},{R_outer})')
+            hooks_in = hooks if i == global_params.NUM_FILTER_STEPS_FOR_Ts - 1 else {}
+
             box = box.compute(
                 halobox=hbox_interp,
                 R_inner=R_inner,
@@ -1944,12 +1940,6 @@ def xray_source(
                 state.computed_in_mem = True
 
         return box
-
-
-# TODO (see above dummy hook): find a better way to not call hooks without messing with the default (writing)
-def do_nothing(box, **kwargs):
-    """Does Nothing. Will be removed."""
-    return
 
 
 def ionize_box(
