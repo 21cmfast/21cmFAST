@@ -825,72 +825,8 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     return err;
 }
 
-double get_halo_overlap(int x, int y, int z, int n_halo, double *halo_pos, double *halo_r_array){
-    double crd_diff[3];
-    double mass_defc = 0.;
-    double cap_hlarge,cap_hsmall,intersect_x,intersect_vol;
-    //NOTE: the ratio is the same for z
-    int lo_dim = user_params_stoc->HII_DIM;
-    double halo_r;
-    double halo_dist;
-    int j;
-
-    for (j=0;j<n_halo;j++){
-        //convert to lowres coordinates
-        //check all reflections (distance to the closest reflection is L - x)
-        crd_diff[0] = fabs(halo_pos[0] - x);
-        crd_diff[0] = fmin(crd_diff[0],fabs(lo_dim-crd_diff[0]));
-        crd_diff[1] = fabs(halo_pos[1] - x);
-        crd_diff[1] = fmin(crd_diff[1],fabs(lo_dim-crd_diff[1]));
-        crd_diff[2] = fabs(halo_pos[2] - x);
-        crd_diff[2] = fmin(crd_diff[2],fabs(lo_dim-crd_diff[2]));
-
-        halo_r = halo_r_array[j]; //units of HII_DIM cell width
-
-        //exclude the cube first for slight speedup since sqrt can be called many times
-        if(crd_diff[0] > (halo_r + L_FACTOR) || crd_diff[1] > (halo_r + L_FACTOR) || crd_diff[2] > (halo_r + L_FACTOR))
-            continue;
-
-        //distance between the centres
-        halo_dist = sqrt(crd_diff[0]*crd_diff[0] + crd_diff[1]*crd_diff[1] + crd_diff[2]*crd_diff[2]);
-
-        //Cell is entirely outside of halo, move to the next halo
-        if(halo_dist - L_FACTOR > halo_r){
-            continue;
-        }
-        //Cell is entirely within halo, set mass to zero and
-        else if(halo_dist + L_FACTOR < halo_r){
-            mass_defc = 1.;
-            // LOG_ULTRA_DEBUG("Cell (%d %d %d) entirely within halo %d (%.3f %.3f %.3f) R %.2e",x,y,z,j,crd_large[0],crd_large[1],crd_large[2],halo_r);
-            break;
-        }
-        //partially inside halo, pretend cells are spheres to do the calculation much faster without too much error
-        //The coordinates are set such that the large sphere(halo) is at (0,0,0) and the small sphere (cell) is at (halo_dist,0,0)
-        //NOTE: THIS WILL BREAK IF WE LET DEXM GO BELOW THE CELL SIZE (halo_r < L_FACTOR), WHICH IS CURRENTLY IMPOSSIBLE BUT MAY BE ENABLED IN FUTURE
-        else{
-            intersect_x = (halo_dist*halo_dist - L_FACTOR*L_FACTOR + halo_r*halo_r)/(2*halo_dist); //intersection distance of the spheres
-            cap_hlarge = halo_r - intersect_x; //large radius cap height, always positive given the spheres intersect
-            cap_hsmall = L_FACTOR - (halo_dist - intersect_x); //small radius cap height, always positive given the spheres intersect
-            intersect_vol = 1./3. * PI * (cap_hlarge*cap_hlarge*(3*halo_r - cap_hlarge)
-                                            + cap_hsmall*cap_hsmall*(3*L_FACTOR - cap_hsmall)); //summed volume of the two caps
-
-            // intersect_vol = halo_dist*halo_dist + 2*halo_dist*L_FACTOR - 3*L_FACTOR*L_FACTOR;
-            // intersect_vol += 2*halo_dist*halo_r + 6*halo_r*L_FACTOR - 3*halo_r*halo_r;
-            // intersect_vol *= PI*(halo_r + L_FACTOR - halo_dist)*(halo_r + L_FACTOR - halo_dist) / (12*halo_dist); //volume in cell_width^3
-
-            mass_defc += intersect_vol; //since cell volume == 1, M*mass_defc should adjust the mass correctly
-            // LOG_ULTRA_DEBUG("Cell (%d %d %d) has %.2f fractional volume in halo %d (%.3f %.3f %.3f) R %.2e",
-            //                     x,y,z,intersect_vol,j,crd_large[0],crd_large[1],crd_large[2],halo_r);
-
-            //NOTE: it is possible for a single HII_DIM cells to be partially in two halos on the DIM grid
-            //      So we don't break here
-        }
-    }
-    return fmin(mass_defc,1.);
-}
-
 // will have to add properties here and output grids, instead of in perturbed
-int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struct HaloField *halofield_large, struct HaloField *halofield_out, struct HaloSamplingConstants *hs_constants){
+int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, float *halo_overlap_box, struct HaloField *halofield_large, struct HaloField *halofield_out, struct HaloSamplingConstants *hs_constants){
     int lo_dim = user_params_stoc->HII_DIM;
     int hi_dim = user_params_stoc->DIM;
     double boxlen = user_params_stoc->BOX_LEN;
@@ -1003,7 +939,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, struc
                         print_hs_consts(&hs_constants_priv);
                     }
 
-                    mass_defc = get_halo_overlap(x,y,z,nhalo_in,dexm_pos,dexm_radii);
+                    mass_defc = halo_overlap_box[HII_R_INDEX(x,y,z)];
                     total_volume_excluded += mass_defc;
 
                     //TODO: the ps_ratio part will need to be moved when other CMF scalings are finished
@@ -1216,7 +1152,7 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
 
 //function that talks between the structures (Python objects) and the sampling functions
 int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
-                        , int seed, float redshift_prev, float redshift, float *dens_field, struct HaloField *halos_prev, struct HaloField *halos){
+                        , int seed, float redshift_prev, float redshift, float *dens_field, float *halo_overlap_box, struct HaloField *halos_prev, struct HaloField *halos){
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
@@ -1241,7 +1177,7 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
     //NOTE:Halos prev in the first box corresponds to the large DexM halos
     if(redshift_prev < 0.){
         LOG_DEBUG("building first halo field at z=%.1f", redshift);
-        build_halo_cats(rng_stoc,redshift,dens_field,halos_prev,halos,&hs_constants);
+        build_halo_cats(rng_stoc,redshift,dens_field,halo_overlap_box,halos_prev,halos,&hs_constants);
     }
     else{
         LOG_DEBUG("updating halo field from z=%.1f to z=%.1f | %d", redshift_prev,redshift,halos_prev->n_halos);

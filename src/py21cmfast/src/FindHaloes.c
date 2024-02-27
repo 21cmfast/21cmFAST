@@ -24,7 +24,10 @@ int ComputeHaloField(float redshift_desc, float redshift, struct UserParams *use
     //This happens if we are updating a halo field (no need to redo big halos)
     if(flag_options->HALO_STOCHASTICITY && redshift_desc > 0){
         LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %d halos...",halos_desc->n_halos);
-        stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_desc, redshift, boxes->lowres_density, halos_desc, halos);
+        //this would hold the two boxes used in the halo sampler, but here we are taking the sample from a catalogue so we define a dummy here
+        float *dummy_box;
+        stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_desc,
+                            redshift, dummy_box, dummy_box, halos_desc, halos);
         return 0;
     }
 
@@ -320,11 +323,54 @@ LOG_DEBUG("redshift=%f", redshift);
 
         if(flag_options->HALO_STOCHASTICITY){
             LOG_DEBUG("Finding halos below grid resolution %.3e",M_MIN);
-            stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_desc, redshift, boxes->lowres_density, halos_dexm, halos);
+            //First we construct a grid which corresponds to how much of a HII_DIM cell is covered by halos
+            //  This is used in the sampler
+            //we don't need the density field anymore so we reuse it
+#pragma omp parallel private(i,j,k) num_threads(user_params->N_THREADS)
+            {
+#pragma omp for
+                for (i=0; i<grid_dim; i++){
+                    for (j=0; j<grid_dim; j++){
+                        for (k=0; k<z_dim; k++){
+                            *((float *)density_field + R_FFT_INDEX(i,j,k)) = in_halo[R_INDEX(i,j,k)] ? 1. : 0.;
+                        }
+                    }
+                }
+            }
+
+            dft_r2c_cube(user_params->USE_FFTW_WISDOM, grid_dim, z_dim, user_params->N_THREADS, density_field);
+            if (user_params->DIM != user_params->HII_DIM) {
+                //the tophat filter here will smoothe the grid to HII_DIM
+                filter_box(density_field, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            }
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, density_field);
+
+            float *halo_overlap_box = calloc(HII_TOT_NUM_PIXELS,sizeof(float));
+            float f_pixel_factor = user_params->DIM/(float)user_params->HII_DIM;
+            //Now downsample the highres grid to get the lowres version
+#pragma omp parallel private(i,j,k) num_threads(user_params->N_THREADS)
+            {
+#pragma omp for
+                for (i=0; i<user_params->HII_DIM; i++){
+                    for (j=0; j<user_params->HII_DIM; j++){
+                        for (k=0; k<HII_D_PARA; k++){
+                            halo_overlap_box[HII_R_INDEX(i,j,k)] =
+                            *((float *)density_field + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                            (unsigned long long)(j*f_pixel_factor+0.5),
+                                                            (unsigned long long)(k*f_pixel_factor+0.5)))/TOT_NUM_PIXELS;
+                            halo_overlap_box[HII_R_INDEX(i,j,k)] = fmin(fmax(halo_overlap_box[HII_R_INDEX(i,j,k)],0.),1); //cannot be below zero or above one
+                        }
+                    }
+                }
+            }
+
+            stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed,
+                                redshift_desc, redshift, boxes->lowres_density, halo_overlap_box, halos_dexm, halos);
 
             //Here, halos_dexm is allocated in the C, so free it
             free_halo_field(halos_dexm);
             free(halos_dexm);
+            free(halo_overlap_box);
         }
 
         LOG_DEBUG("Finished halo processing.");
