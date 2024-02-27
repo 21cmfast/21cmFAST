@@ -950,8 +950,8 @@ double dNdM_st(double growthf, double M){
 double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, double sigma_cond){
     double sigma1, dsigmasqdm, sigdiff_inv, del;
 
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma1 = EvaluateSigma(lnM);
+    dsigmasqdm = EvaluatedSigmasqdm(lnM);
 
     //limit setting
     if(sigma1 < sigma_cond) return 0.;
@@ -2118,7 +2118,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
                 else
                     f_duty_upper = exp(-(Mhalo_param[i]/Mcrit_atom));
 
-                log10phi[i + i_z*nbins] = log10( unconditional_mf(growthf,lnM_halo_i,z_LF[i_z],mf) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
+                log10phi[i + i_z*nbins] = log10( unconditional_mf(growthf,lnMhalo_i,z_LF[i_z],mf) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
 
                 if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.)
                     log10phi[i + i_z*nbins] = -30.;
