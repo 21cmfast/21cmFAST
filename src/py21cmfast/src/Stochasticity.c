@@ -230,7 +230,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
         initialiseSigmaMInterpTable(const_struct->M_min / 2,const_struct->M_max_tables);
     }
 
-    const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min,0,NULL);
+    const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min);
 
     if(redshift_prev >= 0){
         const_struct->t_h_prev = t_hubble(redshift_prev);
@@ -253,7 +253,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
         double M_cond = RHOcrit * cosmo_params_stoc->OMm * VOLUME / HII_TOT_NUM_PIXELS;
         const_struct->M_cond = M_cond;
         const_struct->lnM_cond = log(M_cond);
-        const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond,0,NULL);
+        const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond);
         //for the table limits
         double delta_crit = get_delta_crit(user_params_stoc->HMF,const_struct->sigma_cond,const_struct->growth_out);
         const_struct->update = 0;
@@ -273,7 +273,7 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     if(const_struct->update){
         const_struct->M_cond = cond_val;
         const_struct->lnM_cond = log(cond_val);
-        const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond,0,NULL);
+        const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond);
         //mean stellar mass of this halo mass, used for stellar z correlations
         const_struct->cond_val = const_struct->lnM_cond;
         //condition delta is the previous delta crit
@@ -585,7 +585,7 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     double x_min;
 
     while(M_remaining > global_params.SAMPLER_MIN_MASS){
-        sigma_r = EvaluateSigma(lnM_remaining,0,NULL);
+        sigma_r = EvaluateSigma(lnM_remaining);
         delta_current = (get_delta_crit(user_params_stoc->HMF,sigma_r,growthf) - d_cond)/(M_remaining/M_cond);
         del_term = delta_current*delta_current/growthf/growthf;
 
@@ -618,8 +618,8 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
 //TODO: make it work with non-EPS HMF, either with parameter setting OR implement directly
 int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
     double G0 = 1;
-    double gamma1 = 0;
-    double gamma2 = 0;
+    double gamma1 = 0.2;
+    double gamma2 = -0.4;
     double m_res = hs_constants->M_min;
     double lnm_res = hs_constants->lnM_min;
     double eps1 = 0.1;
@@ -655,7 +655,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     d_target = Deltac / growthf;
     n_points = 1;
 
-    sigma_res = EvaluateSigma(lnm_res, 0, NULL);
+    sigma_res = EvaluateSigma(lnm_res);
     sigmasq_res = sigma_res*sigma_res;
 
     // LOG_DEBUG("Starting split %.2e %.2e",d_points[0],m_points[0]);
@@ -669,9 +669,10 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
         // Compute useful quantites
         m_half = 0.5*m_start;
         lnm_half = log(m_half);
-        sigma_start = EvaluateSigma(lnm_start,0,NULL);
+        sigma_start = EvaluateSigma(lnm_start);
         sigmasq_start = sigma_start*sigma_start;
-        sigma_half = EvaluateSigma(lnm_half,1,&alpha_half);
+        sigma_half = EvaluateSigma(lnm_half);
+        alpha_half = EvaluatedSigmasqdm(lnm_half);
         //convert from d(sigma^2)/dm to -d(lnsigma)/d(lnm)
         alpha_half = -m_half/(2*sigma_half*sigma_half)*alpha_half;
         sigmasq_half = sigma_half*sigma_half;
@@ -724,7 +725,8 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
             if (gsl_rng_uniform(rng) < N_upper) {
                 q = pow(pow(q_res, eta) + pow_diff*gsl_rng_uniform(rng), 1./eta);
                 m_q = q*m_start;
-                sigma_q = EvaluateSigma(log(m_q),1,&alpha_q);
+                sigma_q = EvaluateSigma(log(m_q));
+                alpha_q = EvaluatedSigmasqdm(log(m_q));
                 //convert from d(sigma^2)/dm to -d(lnsigma)/d(lnm)
                 alpha_q = -m_q/(2*sigma_q*sigma_q)*alpha_q;
                 sigmasq_q = sigma_q*sigma_q;
@@ -1346,7 +1348,7 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
         LOG_DEBUG("Setting z constants. %.3f %.3f",z_out,z_in);
         stoc_set_consts_z(hs_constants,z_out,z_in);
 
-        print_hs_consts(hs_constants);
+        // print_hs_consts(hs_constants);
 
         LOG_DEBUG("SINGLE SAMPLE: z = (%.2f,%.2f), Mmin = %.3e, cond(%d)=[%.2e,%.2e,%.2e...]",z_out,z_in,hs_constants->M_min,
                                                                         n_condition,conditions[0],conditions[1],conditions[2]);

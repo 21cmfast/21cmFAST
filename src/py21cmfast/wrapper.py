@@ -1184,9 +1184,9 @@ def determine_halo_list(
             redshift=redshift,
         )
 
-        if user_params.HMF not in [0, 1, 4]:
+        if user_params.HMF != 1:
             logger.warning(
-                "DexM Halofinder is not confiugred with the given HMF, will use Deltacrit=1.68"
+                "DexM Halofinder Uses a fit to the Sheth-Tormen mass function. With HMF!=1 the Halos from DexM will not be from the same mass function"
             )
 
         min_z = (
@@ -2103,17 +2103,6 @@ def ionize_box(
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
     with global_params.use(**global_kwargs):
-        # TODO: remove this? (verify is called in setup)
-        # _verify_types(
-        #     init_boxes=init_boxes,
-        #     perturbed_field=perturbed_field,
-        #     previous_perturbed_field=previous_perturbed_field,
-        #     previous_ionize_box=previous_ionize_box,
-        #     spin_temp=spin_temp,
-        #     pt_halos=pt_halos,
-        #     halobox=halobox,
-        # )
-
         # Configure and check input/output parameters/structs
         (
             random_seed,
@@ -3077,11 +3066,10 @@ def run_coeval(
 
         ib_tracker = [0] * len(redshift)
         bt = [0] * len(redshift)
-        st, ib, pf = None, None, None  # At first we don't have any "previous" st or ib.
-        hb2, ph2 = (
-            None,
-            None,
-        )  # optional fields which remain None if their flags are off
+        # At first we don't have any "previous" st or ib.
+        st, ib, pf = None, None, None
+        # optional fields which remain None if their flags are off
+        hb2, ph2 = None, None
 
         perturb_min = perturb[np.argmin(redshift)]
 

@@ -14,7 +14,7 @@ struct RGTable1D{
     double x_width;
 
     double *y_arr;
-    int allocated;
+    bool allocated;
 };
 
 struct RGTable2D{
@@ -25,7 +25,7 @@ struct RGTable2D{
     double **z_arr;
 
     double saved_ll, saved_ul; //for future acceleration
-    int allocated;
+    bool allocated;
 };
 
 struct RGTable1D_f{
@@ -34,7 +34,7 @@ struct RGTable1D_f{
     double x_width;
 
     float *y_arr;
-    int allocated;
+    bool allocated;
 };
 
 struct RGTable2D_f{
@@ -45,7 +45,7 @@ struct RGTable2D_f{
     float **z_arr;
 
     double saved_ll, saved_ul; //for future acceleration
-    int allocated;
+    bool allocated;
 };
 
 void allocate_RGTable1D(int n_bin, struct RGTable1D * ptr){

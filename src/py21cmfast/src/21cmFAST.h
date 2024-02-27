@@ -272,9 +272,11 @@ void set_alphacons_params(double norm, double slope);
 double init_ps();
 double dicke(double z);
 double sigma_z0(double M);
+double dsigmasqdm_z0(double M);
 double get_delta_crit(int HMF, double sigma, double growthf);
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
-double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm);
+double EvaluateSigma(double lnM);
+double EvaluatedSigmasqdm(double lnM);
 
 void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Mmin, float Mmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI,
                              float mturn_a_const, bool minihalos);

@@ -31,6 +31,8 @@ OPTIONS_HMF = {
     # "Delos": [10, {"HMF": 4}],
 }
 
+R_PARAM_LIST = [1.5, 5, 10, 30, 60]
+
 options_ps = list(OPTIONS_PS.keys())
 options_hmf = list(OPTIONS_HMF.keys())
 
@@ -57,13 +59,16 @@ def test_sigma_table(name):
     mass_range = np.logspace(7, 14, num=100)
 
     sigma_ref = np.vectorize(lib.sigma_z0)(mass_range)
-    dummy_pointer = np.zeros(1).astype("f8")
-    sigma_table = np.vectorize(lib.EvaluateSigma)(
-        np.log(mass_range), 0, ffi.cast("double *", dummy_pointer.ctypes.data)
-    )
+    dsigmasq_ref = np.vectorize(lib.dsigmasqdm_z0)(mass_range)
+
+    sigma_table = np.vectorize(lib.EvaluateSigma)(np.log(mass_range))
+    dsigmasq_table = np.vectorize(lib.EvaluatedSigmasqdm)(np.log(mass_range))
 
     np.testing.assert_allclose(
         sigma_ref, sigma_table, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+    )
+    np.testing.assert_allclose(
+        dsigmasq_ref, dsigmasq_table, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 
@@ -272,8 +277,9 @@ def test_Massfunc_conditional_tables(name):
     )
 
 
+@pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
-def test_FgtrM_conditional_tables(name):
+def test_FgtrM_conditional_tables(name, R):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -294,65 +300,41 @@ def test_FgtrM_conditional_tables(name):
         "f4"
     )  # EPS is forced with FgtrM due to the erfc functions
 
-    # This is a strange linear axis utlising constants from IonisationBox AND SpinTemp, define it more properly
-    edges_R = np.linspace(
-        up.BOX_LEN / up.HII_DIM,
-        ap.R_BUBBLE_MAX,
-        num=global_params.NUM_FILTER_STEPS_FOR_Ts,
-    )
-
     lib.init_ps()
     lib.initialiseSigmaMInterpTable(M_min, M_max)
 
     growth_out = lib.dicke(redshift)
     sigma_min = lib.sigma_z0(M_min)
 
-    for R in edges_R:
-        up.update(USE_INTERPOLATION_TABLES=True)
-        lib.Broadcast_struct_global_PS(up(), cp())
-        lib.Broadcast_struct_global_UF(up(), cp())
-        lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+    cond_mass = (
+        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        .to("M_sun")
+        .value
+    )
+    sigma_cond = lib.sigma_z0(cond_mass)
+    # NOTE: Rather than keeping zp constant we keep zpp constant
+    lib.initialise_FgtrM_delta_table(
+        edges_d[0], edges_d[-1], redshift, growth_out, sigma_min, sigma_cond
+    )
 
-        cond_mass = (
-            (
-                4.0
-                / 3.0
-                * np.pi
-                * (R * u.Mpc) ** 3
-                * cp.cosmo.critical_density(0)
-                * cp.OMm
-            )
-            .to("M_sun")
-            .value
-        )
-        sigma_cond = lib.sigma_z0(cond_mass)
-        # initialise_FgtrM_delta_table(min_densities[R_ct], max_densities[R_ct], zpp_for_evolve_list[R_ct],
-        #  zpp_growth[R_ct], sigma_min[R_ct], sigma_max[R_ct]);
-        # NOTE: Rather than keeping zp constant we keep zpp constant
-        lib.initialise_FgtrM_delta_table(
-            edges_d[0], edges_d[-1], redshift, growth_out, sigma_min, sigma_cond
-        )
+    fcoll_tables = np.vectorize(lib.EvaluateFcoll_delta)(
+        edges_d[:-1], growth_out, sigma_min, sigma_cond
+    )
+    dfcoll_tables = np.vectorize(lib.EvaluatedFcolldz)(
+        edges_d[:-1], redshift, sigma_min, sigma_cond
+    )
 
-        # fcoll = EvaluateFcoll_delta(curr_dens,zpp_growth[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
-        # dfcoll = EvaluatedFcolldz(curr_dens,zpp_for_evolve_list[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
-        fcoll_tables = np.vectorize(lib.EvaluateFcoll_delta)(
-            edges_d[:-1], growth_out, sigma_min, sigma_cond
-        )
-        dfcoll_tables = np.vectorize(lib.EvaluatedFcolldz)(
-            edges_d[:-1], redshift, sigma_min, sigma_cond
-        )
+    up.update(USE_INTERPOLATION_TABLES=False)
+    lib.Broadcast_struct_global_PS(up(), cp())
+    lib.Broadcast_struct_global_UF(up(), cp())
+    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
 
-        up.update(USE_INTERPOLATION_TABLES=False)
-        lib.Broadcast_struct_global_PS(up(), cp())
-        lib.Broadcast_struct_global_UF(up(), cp())
-        lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
-
-        fcoll_integrals = np.vectorize(lib.EvaluateFcoll_delta)(
-            edges_d[:-1], growth_out, sigma_min, sigma_cond
-        )
-        dfcoll_integrals = np.vectorize(lib.EvaluatedFcolldz)(
-            edges_d[:-1], redshift, sigma_min, sigma_cond
-        )
+    fcoll_integrals = np.vectorize(lib.EvaluateFcoll_delta)(
+        edges_d[:-1], growth_out, sigma_min, sigma_cond
+    )
+    dfcoll_integrals = np.vectorize(lib.EvaluatedFcolldz)(
+        edges_d[:-1], redshift, sigma_min, sigma_cond
+    )
 
     np.testing.assert_allclose(
         fcoll_tables, fcoll_integrals, atol=1e-5, rtol=RELATIVE_TOLERANCE
@@ -370,8 +352,10 @@ def test_FgtrM_conditional_tables(name):
 #       Hence this is a worst case scenario
 #   While the EvaluateX() functions are useful in the main code to be agnostic to USE_INTERPOLATION_TABLES
 #       I do not use them here fully, instead calling the integrals directly to avoid parameter changes
+@pytest.mark.parametrize("mini", [True, False])
+@pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
-def test_Nion_conditional_tables(name):
+def test_Nion_conditional_tables(name, R, mini):
     abs_tol = 1e-17  # min = exp(-40) ~4e-18
 
     redshift, kwargs = OPTIONS_HMF[name]
@@ -383,7 +367,7 @@ def test_Nion_conditional_tables(name):
     fo = FlagOptions(opts["flag_options"])
 
     up.update(USE_INTERPOLATION_TABLES=True)
-    fo.update(USE_MINI_HALOS=True)
+    fo.update(USE_MINI_HALOS=mini)
     lib.Broadcast_struct_global_PS(up(), cp())
     lib.Broadcast_struct_global_UF(up(), cp())
     lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
@@ -394,15 +378,7 @@ def test_Nion_conditional_tables(name):
     edges_d = np.linspace(-1, 1.49, num=hist_size).astype("f4")
     edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
 
-    # This is a strange axis utlising constants from IonisationBox AND SpinTemp, define it more properly
-    edges_R = np.linspace(
-        up.BOX_LEN / up.HII_DIM,
-        ap.R_BUBBLE_MAX,
-        num=global_params.NUM_FILTER_STEPS_FOR_Ts,
-    )
-
     lib.init_ps()
-    lib.initialiseSigmaMInterpTable(M_min, M_max)
 
     if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
         lib.initialise_GL(100, np.log(M_min), np.log(M_max))
@@ -414,71 +390,77 @@ def test_Nion_conditional_tables(name):
     Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
     Mlim_Fesc_MINI = 1e7 * (10**ap.F_ESC7_MINI) ** (-1.0 / ap.ALPHA_ESC)
 
-    for R in edges_R:
-        cond_mass = (
-            (
-                4.0
-                / 3.0
-                * np.pi
-                * (R * u.Mpc) ** 3
-                * cp.cosmo.critical_density(0)
-                * cp.OMm
-            )
-            .to("M_sun")
-            .value
-        )
-        sigma_cond = lib.sigma_z0(cond_mass)
-        lib.initialise_Nion_Conditional_spline(
-            redshift,
-            ap.M_TURN,  # not the redshift dependent version in this test
-            edges_d[0],
-            edges_d[-1],
-            M_min,
-            M_max,
-            cond_mass,
-            np.log10(edges_m[0]),
-            np.log10(edges_m[-1]),
-            np.log10(edges_m[0]),
-            np.log10(edges_m[-1]),
-            ap.ALPHA_STAR,
-            ap.ALPHA_STAR_MINI,
-            ap.ALPHA_ESC,
-            10**ap.F_STAR10,
-            10**ap.F_ESC10,
-            Mlim_Fstar,
-            Mlim_Fesc,
-            10**ap.F_STAR7_MINI,
-            10**ap.F_ESC7_MINI,
-            Mlim_Fstar_MINI,
-            Mlim_Fesc_MINI,
-            up.INTEGRATION_METHOD_ATOMIC,
-            up.INTEGRATION_METHOD_MINI,
-            True,
-            False,
-        )
+    cond_mass = (
+        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        .to("M_sun")
+        .value
+    )
 
+    lib.initialiseSigmaMInterpTable(M_min, cond_mass)
+
+    sigma_cond = lib.sigma_z0(cond_mass)
+    lib.initialise_Nion_Conditional_spline(
+        redshift,
+        ap.M_TURN,  # not the redshift dependent version in this test
+        edges_d[0],
+        edges_d[-1],
+        M_min,
+        M_max,
+        cond_mass,
+        np.log10(edges_m[0]),
+        np.log10(edges_m[-1]),
+        np.log10(edges_m[0]),
+        np.log10(edges_m[-1]),
+        ap.ALPHA_STAR,
+        ap.ALPHA_STAR_MINI,
+        ap.ALPHA_ESC,
+        10**ap.F_STAR10,
+        10**ap.F_ESC10,
+        Mlim_Fstar,
+        Mlim_Fesc,
+        10**ap.F_STAR7_MINI,
+        10**ap.F_ESC7_MINI,
+        Mlim_Fstar_MINI,
+        Mlim_Fesc_MINI,
+        up.INTEGRATION_METHOD_ATOMIC,
+        up.INTEGRATION_METHOD_MINI,
+        mini,
+        False,
+    )
+
+    if mini:
         input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
-        Nion_tables = np.vectorize(lib.EvaluateNion_Conditional)(
-            input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
-        )
+    else:
+        input_arr = [edges_d[:-1], np.log10(ap.M_TURN)]
+
+    Nion_tables = np.vectorize(lib.EvaluateNion_Conditional)(
+        input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
+    )
+
+    Nion_integrals = np.vectorize(lib.Nion_ConditionalM)(
+        growth_out,
+        np.log(M_min),
+        np.log(M_max),
+        sigma_cond,
+        input_arr[0],
+        10 ** input_arr[1],
+        ap.ALPHA_STAR,
+        ap.ALPHA_ESC,
+        10**ap.F_STAR10,
+        10**ap.F_ESC10,
+        Mlim_Fstar,
+        Mlim_Fesc,
+        up.INTEGRATION_METHOD_ATOMIC,
+    )
+
+    #### FIRST ASSERT ####
+    np.testing.assert_allclose(
+        Nion_tables, Nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+    )
+
+    if mini:
         Nion_tables_mini = np.vectorize(lib.EvaluateNion_Conditional_MINI)(
             input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
-        )
-
-        Nion_integrals = np.vectorize(lib.Nion_ConditionalM)(
-            growth_out,
-            np.log(M_min),
-            np.log(M_max),
-            sigma_cond,
-            input_arr[0],
-            10 ** input_arr[1],
-            ap.ALPHA_STAR,
-            ap.ALPHA_ESC,
-            10**ap.F_STAR10,
-            10**ap.F_ESC10,
-            Mlim_Fstar,
-            Mlim_Fesc,
-            up.INTEGRATION_METHOD_ATOMIC,
         )
 
         Nion_integrals_mini = np.vectorize(lib.Nion_ConditionalM_MINI)(
@@ -498,16 +480,15 @@ def test_Nion_conditional_tables(name):
             up.INTEGRATION_METHOD_MINI,
         )
 
-        np.testing.assert_allclose(
-            Nion_tables, Nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
-        )
+        #### SECOND ASSERT (MINI) ####
         np.testing.assert_allclose(
             Nion_tables_mini, Nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
         )
 
 
+@pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
-def test_SFRD_conditional_table(name):
+def test_SFRD_conditional_table(name, R):
     abs_tol = 1e-21  # minimum = exp(-50) ~1e-22
 
     redshift, kwargs = OPTIONS_HMF[name]
@@ -530,15 +511,7 @@ def test_SFRD_conditional_table(name):
     edges_d = np.linspace(-1, 1.49, num=hist_size).astype("f4")
     edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
 
-    # This is a strange axis utlising constants from IonisationBox AND SpinTemp, define it more properly
-    edges_R = np.linspace(
-        up.BOX_LEN / up.HII_DIM,
-        ap.R_BUBBLE_MAX,
-        num=global_params.NUM_FILTER_STEPS_FOR_Ts,
-    )
-
     lib.init_ps()
-    lib.initialiseSigmaMInterpTable(M_min, M_max)
 
     if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
         lib.initialise_GL(100, np.log(M_min), np.log(M_max))
@@ -548,89 +521,83 @@ def test_SFRD_conditional_table(name):
     Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
     Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
 
-    for R in edges_R:
-        cond_mass = (
-            (
-                4.0
-                / 3.0
-                * np.pi
-                * (R * u.Mpc) ** 3
-                * cp.cosmo.critical_density(0)
-                * cp.OMm
-            )
-            .to("M_sun")
-            .value
-        )
-        sigma_cond = lib.sigma_z0(cond_mass)
+    cond_mass = (
+        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        .to("M_sun")
+        .value
+    )
 
-        lib.initialise_SFRD_Conditional_table(
-            edges_d[0],
-            edges_d[-1],
-            growth_out,
-            ap.M_TURN,
-            M_min,
-            M_max,
-            cond_mass,
-            ap.ALPHA_STAR,
-            ap.ALPHA_STAR_MINI,
-            10**ap.F_STAR10,
-            10**ap.F_STAR7_MINI,
-            up.INTEGRATION_METHOD_ATOMIC,
-            up.INTEGRATION_METHOD_MINI,
-            True,
-        )
-        # since the turnover mass table edges are hardcoded, we make sure we are within those limits
-        SFRD_tables = np.vectorize(lib.EvaluateSFRD_Conditional)(
-            edges_d[:-1], growth_out, M_min, M_max, sigma_cond, ap.M_TURN, Mlim_Fstar
-        )
-        input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
-        SFRD_tables_mini = np.vectorize(lib.EvaluateSFRD_Conditional_MINI)(
-            input_arr[0],
-            input_arr[1],
-            growth_out,
-            M_min,
-            M_max,
-            sigma_cond,
-            ap.M_TURN,
-            Mlim_Fstar_MINI,
-        )
+    lib.initialiseSigmaMInterpTable(M_min, cond_mass)
+    sigma_cond = lib.sigma_z0(cond_mass)
 
-        SFRD_integrals = np.vectorize(lib.Nion_ConditionalM)(
-            growth_out,
-            np.log(M_min),
-            np.log(M_max),
-            sigma_cond,
-            edges_d[:-1],
-            ap.M_TURN,
-            ap.ALPHA_STAR,
-            0.0,
-            10**ap.F_STAR10,
-            1.0,
-            Mlim_Fstar,
-            0.0,
-            up.INTEGRATION_METHOD_ATOMIC,
-        )
+    lib.initialise_SFRD_Conditional_table(
+        edges_d[0],
+        edges_d[-1],
+        growth_out,
+        ap.M_TURN,
+        M_min,
+        M_max,
+        cond_mass,
+        ap.ALPHA_STAR,
+        ap.ALPHA_STAR_MINI,
+        10**ap.F_STAR10,
+        10**ap.F_STAR7_MINI,
+        up.INTEGRATION_METHOD_ATOMIC,
+        up.INTEGRATION_METHOD_MINI,
+        True,
+    )
+    # since the turnover mass table edges are hardcoded, we make sure we are within those limits
+    SFRD_tables = np.vectorize(lib.EvaluateSFRD_Conditional)(
+        edges_d[:-1], growth_out, M_min, M_max, sigma_cond, ap.M_TURN, Mlim_Fstar
+    )
+    input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
+    SFRD_tables_mini = np.vectorize(lib.EvaluateSFRD_Conditional_MINI)(
+        input_arr[0],
+        input_arr[1],
+        growth_out,
+        M_min,
+        M_max,
+        sigma_cond,
+        ap.M_TURN,
+        Mlim_Fstar_MINI,
+    )
 
-        SFRD_integrals_mini = np.vectorize(lib.Nion_ConditionalM_MINI)(
-            growth_out,
-            np.log(M_min),
-            np.log(M_max),
-            sigma_cond,
-            input_arr[0],
-            10 ** input_arr[1],
-            ap.M_TURN,
-            ap.ALPHA_STAR_MINI,
-            0.0,
-            10**ap.F_STAR7_MINI,
-            1.0,
-            Mlim_Fstar_MINI,
-            0.0,
-            up.INTEGRATION_METHOD_MINI,
-        )
+    SFRD_integrals = np.vectorize(lib.Nion_ConditionalM)(
+        growth_out,
+        np.log(M_min),
+        np.log(M_max),
+        sigma_cond,
+        edges_d[:-1],
+        ap.M_TURN,
+        ap.ALPHA_STAR,
+        0.0,
+        10**ap.F_STAR10,
+        1.0,
+        Mlim_Fstar,
+        0.0,
+        up.INTEGRATION_METHOD_ATOMIC,
+    )
 
-        np.testing.assert_allclose(
-            SFRD_tables, SFRD_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
-        )
-        np.testing.assert_allclose(
-            SFRD_tables_mini, SFRD_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
-        )
+    SFRD_integrals_mini = np.vectorize(lib.Nion_ConditionalM_MINI)(
+        growth_out,
+        np.log(M_min),
+        np.log(M_max),
+        sigma_cond,
+        input_arr[0],
+        10 ** input_arr[1],
+        ap.M_TURN,
+        ap.ALPHA_STAR_MINI,
+        0.0,
+        10**ap.F_STAR7_MINI,
+        1.0,
+        Mlim_Fstar_MINI,
+        0.0,
+        up.INTEGRATION_METHOD_MINI,
+    )
+
+    np.testing.assert_allclose(
+        SFRD_tables, SFRD_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+    )
+    np.testing.assert_allclose(
+        SFRD_tables_mini, SFRD_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+    )

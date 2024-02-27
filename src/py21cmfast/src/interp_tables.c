@@ -2,7 +2,6 @@
    In order to allow them to use calculations based on other interpolation tables. Most importantly these fucntions require those from ps.c
    which requires the sigma(M) interpolation tables */
 
-//MOVE THESE WHEN YOU MOVE THE COND TABLES
 #define NDELTA 400
 #define NMTURN 50//100
 #define LOG10_MTURN_MAX ((double)(10))
@@ -26,16 +25,22 @@ void Broadcast_struct_global_IT(struct UserParams *user_params, struct CosmoPara
     flag_options_it = flag_options;
 }
 
-
 //Tables for the grids
-struct RGTable1D SFRD_z_table = {.allocated = false}, Nion_z_table = {.allocated = false};
-struct RGTable2D SFRD_z_table_MINI = {.allocated = false}, Nion_z_table_MINI = {.allocated = false};
-struct RGTable1D_f Nion_conditional_table1D = {.allocated = false}, SFRD_conditional_table = {.allocated = false};
-struct RGTable2D_f Nion_conditional_table2D = {.allocated = false}, Nion_conditional_table_MINI = {.allocated = false}, SFRD_conditional_table_MINI = {.allocated = false};
-struct RGTable2D_f Nion_conditional_table_prev = {.allocated = false}, Nion_conditional_table_MINI_prev = {.allocated = false};
+struct RGTable1D SFRD_z_table = {.allocated = false};
+struct RGTable1D Nion_z_table = {.allocated = false};
+struct RGTable2D SFRD_z_table_MINI = {.allocated = false};
+struct RGTable2D Nion_z_table_MINI = {.allocated = false};
+struct RGTable1D_f Nion_conditional_table1D = {.allocated = false};
+struct RGTable1D_f SFRD_conditional_table = {.allocated = false};
+struct RGTable2D_f Nion_conditional_table2D = {.allocated = false};
+struct RGTable2D_f Nion_conditional_table_MINI = {.allocated = false};
+struct RGTable2D_f SFRD_conditional_table_MINI = {.allocated = false};
+struct RGTable2D_f Nion_conditional_table_prev = {.allocated = false};
+struct RGTable2D_f Nion_conditional_table_MINI_prev = {.allocated = false};
 
 //Tables for the catalogues
-struct RGTable1D Nhalo_table = {.allocated = false}, Mcoll_table = {.allocated = false};
+struct RGTable1D Nhalo_table = {.allocated = false};
+struct RGTable1D Mcoll_table = {.allocated = false};
 struct RGTable2D Nhalo_inv_table = {.allocated = false};
 
 //Tables for the old parametrization
@@ -248,7 +253,7 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
     Mmin = log(Mmin);
     Mmax = log(Mmax);
 
-    sigma2 = EvaluateSigma(log(Mcond),0,NULL);
+    sigma2 = EvaluateSigma(log(Mcond));
 
     if(prev){
         table_2d = &Nion_conditional_table_prev;
@@ -391,7 +396,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
 
     double lnMmin = log(Mmin);
     double lnMmax = log(Mmax);
-    sigma2 = EvaluateSigma(lnM_condition,0,NULL); //sigma is always the condition, whereas lnMmax is just the integral limit
+    sigma2 = EvaluateSigma(lnM_condition); //sigma is always the condition, whereas lnMmax is just the integral limit
 
 #pragma omp parallel private(i,k) num_threads(user_params_it->N_THREADS)
     {
@@ -404,8 +409,8 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
             SFRD_conditional_table.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,sigma2,curr_dens,\
                                             Mcrit_atom,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., user_params_it->INTEGRATION_METHOD_ATOMIC));
 
-            if(SFRD_conditional_table.y_arr[i] < -50.)
-                SFRD_conditional_table.y_arr[i] = -50.;
+            if(SFRD_conditional_table.y_arr[i] < -40.)
+                SFRD_conditional_table.y_arr[i] = -40.;
 
             if(!minihalos) continue;
 
@@ -414,8 +419,8 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
                                             curr_dens,MassTurnover[k],Mcrit_atom,\
                                             Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., user_params_it->INTEGRATION_METHOD_MINI));
 
-                if(SFRD_conditional_table_MINI.z_arr[i][k] < -50.)
-                    SFRD_conditional_table_MINI.z_arr[i][k] = -50.;
+                if(SFRD_conditional_table_MINI.z_arr[i][k] < -40.)
+                    SFRD_conditional_table_MINI.z_arr[i][k] = -40.;
             }
         }
     }
@@ -437,17 +442,17 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
 
 //This table is N(>M | M_in), the CDF of dNdM_conditional
 //NOTE: Assumes you give it ymin as the minimum mass TODO: add another argument for Mmin
-void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool update){
+void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool from_catalog){
     int nx,ny,np;
     double lnM_cond,delta_crit;
-    int k_lim = update ? 1 : 0;
+    int k_lim = from_catalog ? 1 : 0;
     double sigma_cond;
     LOG_DEBUG("Initialising dNdM Table from [[%.2e,%.2e],[%.2e,%.2e]]",xmin,xmax,ymin,ymax);
-    LOG_DEBUG("D_out %.2e P %.2e up %d",growth1,param,update);
+    LOG_DEBUG("D_out %.2e P %.2e up %d",growth1,param,from_catalog);
 
-    if(!update){
+    if(!from_catalog){
         lnM_cond = param;
-        sigma_cond = EvaluateSigma(lnM_cond,0,NULL);
+        sigma_cond = EvaluateSigma(lnM_cond);
         //current barrier at the condition for bounds checking
         delta_crit = get_delta_crit(user_params_it->HMF,sigma_cond,growth1);
         if(xmin < DELTA_MIN || xmax > MAX_DELTAC_FRAC*delta_crit){
@@ -466,7 +471,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*((double)i)/((double)nx-1);
     for(j=0;j<ny;j++) ya[j] = ymin + (ymax - ymin)*((double)j)/((double)ny-1);
     for(k=0;k<np;k++){
-        if(update)
+        if(from_catalog)
             pa[k] = (double)k/(double)(np-1);
         else
             pa[k] = global_params.MIN_LOGPROB*(1 - (double)k/(double)(np-1));
@@ -511,10 +516,10 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
         for(i=0;i<nx;i++){
             x = xa[i];
             //set the condition
-            if(update){
+            if(from_catalog){
                 lnM_cond = x;
                 //barrier at given mass
-                sigma_cond = EvaluateSigma(lnM_cond,0,NULL);
+                sigma_cond = EvaluateSigma(lnM_cond);
                 delta = get_delta_crit(user_params_it->HMF,sigma_cond,param)/param*growth1;
             }
             else{
@@ -558,7 +563,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
 
             //reset probability finding
             k=np-1;
-            p_prev = update ? 1. : 0; //start with p==1 from the ymin integral, (logp==0)
+            p_prev = from_catalog ? 1. : 0; //start with p==1 from the ymin integral, (logp==0)
             for(j=1;j<ny;j++){
                 //done with inverse table
                 if(k < k_lim) break;
@@ -586,14 +591,14 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 }
 
                 //There are times where we have gone over the probability (machine precision) limit before reaching the mass limit
-                if(!update){
+                if(!from_catalog){
                     if(prob == 0.){
                         prob = global_params.MIN_LOGPROB; //to make sure we go over the limit we extrapolate to here
                         if(y > lnM_cond) y = lnM_cond;
                     }
                     else prob = log(prob);
                 }
-                // LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",update ? exp(x) : x,i,exp(y),j,prob,p_prev);
+                // LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",from_catalog ? exp(x) : x,i,exp(y),j,prob,p_prev);
                 //loop through the remaining spaces in the inverse table and fill them
                 while(prob <= pa[k] && k >= k_lim){
                     //since we go ascending in y, prob > prob_prev
@@ -601,7 +606,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                     lnM_p = (p_prev-pa[k])*(y - lnM_prev)/(p_prev-prob) + lnM_prev;
                     Nhalo_inv_table.z_arr[i][k] = lnM_p;
 
-                    // LOG_ULTRA_DEBUG("Found c: %.2e p: (%.2e,%.2e,%.2e) (c %d, m %d, p %d) z: %.5e",update ? exp(x) : x,p_prev,pa[k],prob,i,j,k,exp(lnM_p));
+                    // LOG_ULTRA_DEBUG("Found c: %.2e p: (%.2e,%.2e,%.2e) (c %d, m %d, p %d) z: %.5e",from_catalog ? exp(x) : x,p_prev,pa[k],prob,i,j,k,exp(lnM_p));
 
                     k--;
                 }

@@ -1306,8 +1306,8 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
 
     //now that we have the sigma table we can assign the sigma arrays
     for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
-        sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]),0,NULL);
-        sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]),0,NULL);
+        sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]));
+        sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]));
     }
 
     LOG_ULTRA_DEBUG("R %d = %.2e z %.2e || M = [%.2e, %.2e] sig [%.2e %.2e]",R_ct,R_values[R_ct],

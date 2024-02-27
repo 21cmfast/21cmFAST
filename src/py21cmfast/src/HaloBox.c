@@ -114,7 +114,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
     double lnMcell = log(M_cell);
     double lnMmax = log(M_max);
 
-    double sigma_cell = EvaluateSigma(lnMcell,0,NULL);
+    double sigma_cell = EvaluateSigma(lnMcell);
 
     double prefactor_mass = RHOcrit * cosmo_params_stoc->OMm;
     double prefactor_nion = RHOcrit * cosmo_params_stoc->OMb * norm_star * norm_esc * global_params.Pop2_ion;

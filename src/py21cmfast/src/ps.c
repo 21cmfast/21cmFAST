@@ -78,7 +78,8 @@ double *deriv, *lnM_temp, *deriv_temp;
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 void freeSigmaMInterpTable();
 
-double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm);
+double EvaluateSigma(double lnM);
+double EvaluatedSigmasqdm(double lnM);
 
 float Mass_limit (float logM, float PL, float FRAC);
 void bisection(float *x, float xlow, float xup, int *iter);
@@ -811,7 +812,8 @@ double dNdlnM_Delos(double growthf, double lnM){
     const double index_nu = 0.582;
     const double exp_factor = -0.469;
 
-    sigma = EvaluateSigma(lnM,1,&dsigmadm);
+    sigma = EvaluateSigma(lnM);
+    dsigmadm = EvaluatedSigmasqdm(lnM);
     sigma_inv = 1/(sigma);
     dsigmadm = dsigmadm * 0.5 * sigma_inv;
 
@@ -833,7 +835,8 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
     const double index_nu = 0.582;
     const double exp_factor = -0.469;
 
-    sigma = EvaluateSigma(lnM,1,&dsigmadm);
+    sigma = EvaluateSigma(lnM);
+    dsigmadm = EvaluatedSigmasqdm(lnM);
     if(sigma < sigma_cond) return 0.;
     sigdiff_inv = sigma == sigma_cond ? 1e6 : 1/(sigma*sigma - sigma_cond*sigma_cond);
 
@@ -900,7 +903,8 @@ double st_taylor_factor(double sig, double sig_cond, double delta_cond, double g
 double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double sigma_cond){
     double sigma1, dsigmasqdm, Barrier, factor, sigdiff_inv, result;
     double delta_0 = delta_cond / growthf;
-    sigma1 = EvaluateSigma(lnM,1,&dsigmasqdm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
+    sigma1 = EvaluateSigma(lnM);
+    dsigmasqdm = EvaluatedSigmasqdm(lnM);
     if(sigma1 < sigma_cond) return 0.;
 
     Barrier = sheth_delc_fixed(Deltac/growthf,sigma1);
@@ -931,7 +935,8 @@ double dNdM_st(double growthf, double M){
     float MassBinLow;
     int MassBin;
 
-    sigma = EvaluateSigma(log(M),1,&dsigmadm);
+    sigma = EvaluateSigma(log(M));
+    dsigmadm = EvaluatedSigmasqdm(log(M));
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
@@ -944,7 +949,9 @@ double dNdM_st(double growthf, double M){
 //Conditional Extended Press-Schechter Mass function, with constant barrier delta=1.682 and sharp-k window function
 double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, double sigma_cond){
     double sigma1, dsigmasqdm, sigdiff_inv, del;
-    sigma1 = EvaluateSigma(lnM,1,&dsigmasqdm); //WARNING: THE SIGMA TABLE IS STILL SINGLE PRECISION
+
+    sigma = EvaluateSigma(lnM);
+    dsigmadm = EvaluatedSigmasqdm(lnM);
 
     //limit setting
     if(sigma1 < sigma_cond) return 0.;
@@ -966,12 +973,13 @@ double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, doubl
 
  Reference: Padmanabhan, pg. 214
  */
-double dNdM(double growthf, double M){
+double dNdM_PS(double growthf, double M){
     double sigma, dsigmadm;
     float MassBinLow;
     int MassBin;
 
-    sigma = EvaluateSigma(log(M),1,&dsigmadm);
+    sigma = EvaluateSigma(log(M));
+    dsigmadm = EvaluatedSigmasqdm(log(M));
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
@@ -999,7 +1007,8 @@ double dNdM_WatsonFOF(double growthf, double M){
     float MassBinLow;
     int MassBin;
 
-    sigma = EvaluateSigma(log(M),1,&dsigmadm);
+    sigma = EvaluateSigma(log(M));
+    dsigmadm = EvaluatedSigmasqdm(log(M));
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
@@ -1027,7 +1036,8 @@ double dNdM_WatsonFOF_z(double z, double growthf, double M){
     float MassBinLow;
     int MassBin;
 
-    sigma = EvaluateSigma(log(M),1,&dsigmadm);
+    sigma = EvaluateSigma(log(M));
+    dsigmadm = EvaluatedSigmasqdm(log(M));
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
@@ -1054,7 +1064,7 @@ double get_frac_limit(double M, double norm, double alpha, double limit, bool mi
     return pow(M/pivot,alpha);
 }
 
-double cmf_function(double growthf, double lnM, double delta, double sigma, int HMF){
+double conditional_mf(double growthf, double lnM, double delta, double sigma, int HMF){
     //dNdlnM = dfcoll/dM * M / M * constants
     if(HMF==0) {
         return dNdM_conditional_EPS(growthf,lnM,delta,sigma);
@@ -1080,7 +1090,7 @@ double c_mf_integrand(double lnM, void *param_struct){
     double sigma2 = params.sigma_cond;
     int HMF = params.HMF;
 
-    return cmf_function(growthf,lnM,delta,sigma2,HMF);
+    return conditional_mf(growthf,lnM,delta,sigma2,HMF);
 }
 
 double c_fcoll_integrand(double lnM, void *param_struct){
@@ -1125,14 +1135,14 @@ double c_nion_integrand_mini(double lnM, void *param_struct){
     return M * Fstar * Fesc * exp(-M_turn_lower/M - M/M_turn_upper) * c_mf_integrand(lnM,param_struct);
 }
 
-double umf_function(double growthf, double lnM, double z, int HMF){
+double unconditional_mf(double growthf, double lnM, double z, int HMF){
     double M_exp = exp(lnM);
 
     //most of the UMFs are defined with M, but we integrate over lnM
     //TODO: rewrite the old MFs as dNdlnM
     //NOTE: HMF > 4 or < 0 gets caught earlier, so unless some strange change is made this is fine
     if(HMF==0) {
-        return dNdM(growthf, M_exp) * M_exp;
+        return dNdM_PS(growthf, M_exp) * M_exp;
     }
     if(HMF==1) {
         return dNdM_st(growthf, M_exp) * M_exp;
@@ -1159,7 +1169,7 @@ double u_mf_integrand(double lnM, void *param_struct){
     double z = params.redshift;
     int HMF = params.HMF;
 
-    return umf_function(growthf,lnM,z,HMF);
+    return unconditional_mf(growthf,lnM,z,HMF);
 }
 
 double u_fcoll_integrand(double lnM, void *param_struct){
@@ -1211,21 +1221,21 @@ double u_nion_integrand_mini(double lnM, void *param_struct){
 //Currently the scheme is to use negative numbers for conditionals, and (1,2,3,4) for (number,mass,n_ion,n_ion_mini)
 double (*get_integrand_function(int type))(double,void*){
     if(type==1)
-        return &u_mf_integrand; //Condtional mass function integral
+        return &u_mf_integrand; //Unondtional mass function integral
     if(type==2)
-        return &u_fcoll_integrand; //Collapsed fraction integral
+        return &u_fcoll_integrand; //Unconditional collapsed fraction integral
     if(type==3)
-        return &u_nion_integrand;
+        return &u_nion_integrand; //Unconditional N_ion integral (two power-laws and one exponential)
     if(type==4)
-        return &u_nion_integrand_mini;
+        return &u_nion_integrand_mini; //Unconditional N_ion minihalo integral (two power-laws and two exponentials)
     if(type==-1)
-        return &c_mf_integrand; //Unconditional mass function integral
+        return &c_mf_integrand; //Conditional mass function integral
     if(type==-2)
-        return &c_fcoll_integrand; //Unconditional mass function integral
+        return &c_fcoll_integrand; //Conditional collapsed fraction integral
     if(type==-3)
-        return &c_nion_integrand;
+        return &c_nion_integrand; //Conditional N_ion integral (two power-laws and one exponential)
     if(type==-4)
-        return &c_nion_integrand_mini;
+        return &c_nion_integrand_mini; //Conditional N_ion minihalo integral (two power-laws and two exponentials)
 
     LOG_ERROR("Invalid type %d for MF integral");
     Throw(ValueError);
@@ -1408,8 +1418,8 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
         lnM_lower = fmax(lnMp1,lnM_lo_limit);
         lnM_higher = lnM_hi_limit;
 
-        sigma_lower = EvaluateSigma(lnM_lower,0,NULL);
-        sigma_higher = EvaluateSigma(lnM_higher,0,NULL);
+        sigma_lower = EvaluateSigma(lnM_lower);
+        sigma_higher = EvaluateSigma(lnM_higher);
 
         //The upper limit is usually the condition mass, this prevents the nan
         if(sigma_higher == sigma_c)
@@ -1432,8 +1442,8 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     if(lnM_hi_limit > lnMp2 || lnM_lo_limit < lnMp1){
         lnM_lower = fmax(lnMp2,lnM_lo_limit);
         lnM_higher = fmin(lnMp1,lnM_hi_limit);
-        sigma_lower = EvaluateSigma(lnM_lower,0,NULL);
-        sigma_higher = EvaluateSigma(lnM_higher,0,NULL);
+        sigma_lower = EvaluateSigma(lnM_lower);
+        sigma_higher = EvaluateSigma(lnM_higher);
 
         if(sigma_higher == sigma_c)
             sigdiff_inv = 1e6;
@@ -1452,8 +1462,8 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     if(lnM_lo_limit < lnMp2){
         lnM_lower = lnM_lo_limit;
         lnM_higher = fmin(lnMp2,lnM_hi_limit);
-        sigma_lower = EvaluateSigma(lnM_lower,0,NULL);
-        sigma_higher = EvaluateSigma(lnM_higher,0,NULL);
+        sigma_lower = EvaluateSigma(lnM_lower);
+        sigma_higher = EvaluateSigma(lnM_higher);
 
         if(sigma_higher == sigma_c)
             sigdiff_inv = 1e6;
@@ -1882,7 +1892,7 @@ double sigmaparam_FgtrM_bias(float z, float sigsmallR, float del_bias, float sig
 }
 
 double FgtrM_bias(double z, double M, double del_bias, double sig_bias){
-    return sigmaparam_FgtrM_bias(z,EvaluateSigma(log(M),0,NULL),del_bias,sig_bias);
+    return sigmaparam_FgtrM_bias(z,EvaluateSigma(log(M)),del_bias,sig_bias);
 }
 
 //  Redshift derivative of the conditional collapsed fraction
@@ -2107,22 +2117,9 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
                     f_duty_upper = 1.;
                 else
                     f_duty_upper = exp(-(Mhalo_param[i]/Mcrit_atom));
-                if(mf==0) {
-                    log10phi[i + i_z*nbins] = log10( dNdM(growthf, exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
-                }
-                else if(mf==1) {
-                    log10phi[i + i_z*nbins] = log10( dNdM_st(growthf, exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
-                }
-                else if(mf==2) {
-                    log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF(growthf, exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
-                }
-                else if(mf==3) {
-                    log10phi[i + i_z*nbins] = log10( dNdM_WatsonFOF_z(z_LF[i_z], growthf, exp(lnMhalo_i)) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
-                }
-                else{
-                    LOG_ERROR("HMF should be between 0-3, got %d", mf);
-                    Throw(ValueError);
-                }
+
+                log10phi[i + i_z*nbins] = log10( unconditional_mf(growthf,lnM_halo_i,z_LF[i_z],mf) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
+
                 if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.)
                     log10phi[i + i_z*nbins] = -30.;
             }
@@ -2179,18 +2176,7 @@ int ComputeLF(int nbins, struct UserParams *user_params, struct CosmoParams *cos
                 else
                     f_duty_upper = exp(-(Mhalo_param[i]/Mcrit_atom));
 
-                if(mf==0)
-                    dndm = dNdM(growthf, Mhalo_param[i]);
-                else if(mf==1)
-                    dndm = dNdM_st(growthf, Mhalo_param[i]);
-                else if(mf==2)
-                    dndm = dNdM_WatsonFOF(growthf, Mhalo_param[i]);
-                else if(mf==3)
-                    dndm = dNdM_WatsonFOF_z(z_LF[i_z], growthf, Mhalo_param[i]);
-                else{
-                    LOG_ERROR("HMF should be between 0-3, got %d", mf);
-                    Throw(ValueError);
-                }
+                dndm = unconditional_mf(growthf, log(Mhalo_param[i]),z_LF[i_z], mf);
                 log10phi[i + i_z*nbins] = log10(dndm * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / deriv[i]);
                 if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.)
                     log10phi[i + i_z*nbins] = -30.;
@@ -3175,29 +3161,20 @@ double get_alpha_fit(double redshift){
     return alpha_fit;
 }
 
-//Modularisation for the evaluation of sigma
-double EvaluateSigma(double lnM, int calc_ds, double *dsigmadm){
+double EvaluateSigma(double lnM){
     //using log units to make the fast option faster and the slow option slower
-    double sigma;
-    double dsigma_val;
-
-    //all this stuff is defined in ps.c and initialised with InitialiseSigmaInterpTable
-    //NOTE: The interpolation tables are `float` in ps.c
     if(user_params_ps->USE_INTERPOLATION_TABLES) {
-        sigma = EvaluateRGTable1D_f(lnM, &Sigma_InterpTable);
-
-        if(calc_ds){
-            dsigma_val = EvaluateRGTable1D_f(lnM, &dSigmasqdm_InterpTable);
-            //NOTE: This is d(sigma squared)/dm
-            *dsigmadm = -pow(10.,dsigma_val); //this may be slow, figure out why the dsigmadm table is in log10
-        }
+        return EvaluateRGTable1D_f(lnM, &Sigma_InterpTable);
     }
-    else {
-        sigma = sigma_z0(exp(lnM));
-        if(calc_ds) *dsigmadm = dsigmasqdm_z0(exp(lnM));
-    }
+    return sigma_z0(exp(lnM));
+}
 
-    return sigma;
+double EvaluatedSigmasqdm(double lnM){
+    //this may be slow, figure out why the dsigmadm table is in log10
+    if(user_params_ps->USE_INTERPOLATION_TABLES){
+        return -pow(10., EvaluateRGTable1D_f(lnM, &dSigmasqdm_InterpTable));
+    }
+    return dsigmasqdm_z0(exp(lnM));
 }
 
 //set the minimum source mass for the integrals, If we have an exponential cutoff we go below the chosen mass by a factor of 50
