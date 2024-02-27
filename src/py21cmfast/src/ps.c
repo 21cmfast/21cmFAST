@@ -1607,6 +1607,9 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double s
         .sigma_cond = sigma2,
         .delta = delta2,
     };
+
+    // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e Mtu=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e hmf=%d sig=%.2e del=%.2e",
+    //     growthf,MassTurnover,MassTurnover_upper,Alpha_star,Alpha_esc,Fstar7,Fesc7,Mlim_Fstar,Mlim_Fesc,0,sigma2,delta2);
     return IntegratedNdM(lnM1,lnM2,params,-4,method);
 }
 

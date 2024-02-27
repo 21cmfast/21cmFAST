@@ -12,7 +12,10 @@ from . import produce_integration_test_data as prd
 # NOTE: The relative tolerance is set to cover the inaccuracy in interpolaton
 #       Whereas absolute tolerances are set to avoid issues with minima
 #       i.e the SFRD table has a forced minima of exp(-50)
-RELATIVE_TOLERANCE = 1e-2
+#       Currently (with the #defined bin numbers) the minihalo tables have a ~1.5 % error maximum
+#       With >1% error in less than 4% of bins (at the high turnover mass where fcoll is tiny)
+#       The rest of the tables (apart from the xfail inverse tables) are well under 1% error
+RELATIVE_TOLERANCE = 2e-2
 
 OPTIONS_PS = {
     "EH": [10, {"POWER_SPECTRUM": 0}],
@@ -31,16 +34,23 @@ OPTIONS_HMF = {
     # "Delos": [10, {"HMF": 4}],
 }
 
+OPTIONS_INTMETHOD = {
+    "QAG": 0,
+    "GL": 1,
+    # "FFCOLL": 2,
+}
+
 R_PARAM_LIST = [1.5, 5, 10, 30, 60]
 
 options_ps = list(OPTIONS_PS.keys())
 options_hmf = list(OPTIONS_HMF.keys())
+options_intmethod = list(OPTIONS_INTMETHOD.keys())
 
 
 # TODO: write tests for the redshift interpolation tables (global Nion, SFRD, FgtrM)
 @pytest.mark.parametrize("name", options_ps)
 def test_sigma_table(name):
-    abs_tol = 1e-12
+    abs_tol = 0
 
     redshift, kwargs = OPTIONS_PS[name]
     opts = prd.get_all_options(redshift, **kwargs)
@@ -250,29 +260,30 @@ def test_Massfunc_conditional_tables(name):
     )  # LOG MASS, evaluated at the probabilities given by the integral
 
     # NOTE: The tables get inaccurate in the smallest halo bin where the condition mass approaches the minimum
-    #       We set the absolute tolerance to be insiginificant in sampler terms (~1% of a halo)
+    #       We set the absolute tolerance to be insiginificant in sampler terms (~1% of the smallest halo)
+    abs_tol_halo = 1e-2
     np.testing.assert_allclose(
-        N_cmf_halo, N_exp_halo, atol=1e-2, rtol=RELATIVE_TOLERANCE
+        N_cmf_halo, N_exp_halo, atol=abs_tol_halo, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        N_cmf_cell, N_exp_cell, atol=1e-2, rtol=RELATIVE_TOLERANCE
+        N_cmf_cell, N_exp_cell, atol=abs_tol_halo, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        M_cmf_halo, M_exp_halo, atol=edges[0] * 1e-2, rtol=RELATIVE_TOLERANCE
+        M_cmf_halo, M_exp_halo, atol=edges[0] * abs_tol_halo, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        M_cmf_cell, M_exp_cell, atol=edges[0] * 1e-2, rtol=RELATIVE_TOLERANCE
+        M_cmf_cell, M_exp_cell, atol=edges[0] * abs_tol_halo, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
         np.exp(arg_list_inv_d[1][mask_cell]),
         np.exp(N_inverse_cell[mask_cell]),
-        atol=edges[0] * 1e-2,
+        atol=edges[0] * abs_tol_halo,
         rtol=RELATIVE_TOLERANCE,
     )
     np.testing.assert_allclose(
         np.exp(arg_list_inv_m[1][mask_halo]),
         np.exp(N_inverse_halo[mask_halo]),
-        atol=edges[0] * 1e-2,
+        atol=edges[0] * abs_tol_halo,
         rtol=RELATIVE_TOLERANCE,
     )
 
@@ -336,11 +347,12 @@ def test_FgtrM_conditional_tables(name, R):
         edges_d[:-1], redshift, sigma_min, sigma_cond
     )
 
+    abs_tol = 0.0
     np.testing.assert_allclose(
-        fcoll_tables, fcoll_integrals, atol=1e-5, rtol=RELATIVE_TOLERANCE
+        fcoll_tables, fcoll_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        dfcoll_tables, dfcoll_integrals, atol=1e-5, rtol=RELATIVE_TOLERANCE
+        dfcoll_tables, dfcoll_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 
@@ -352,11 +364,12 @@ def test_FgtrM_conditional_tables(name, R):
 #       Hence this is a worst case scenario
 #   While the EvaluateX() functions are useful in the main code to be agnostic to USE_INTERPOLATION_TABLES
 #       I do not use them here fully, instead calling the integrals directly to avoid parameter changes
-@pytest.mark.parametrize("mini", [True, False])
+@pytest.mark.parametrize("mini", ["mini", "acg"])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
-def test_Nion_conditional_tables(name, R, mini):
-    abs_tol = 1e-17  # min = exp(-40) ~4e-18
+@pytest.mark.parametrize("intmethod", options_intmethod)
+def test_Nion_conditional_tables(name, R, mini, intmethod):
+    mini_flag = mini == "mini"
 
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
@@ -366,8 +379,17 @@ def test_Nion_conditional_tables(name, R, mini):
     ap = AstroParams(opts["astro_params"])
     fo = FlagOptions(opts["flag_options"])
 
-    up.update(USE_INTERPOLATION_TABLES=True)
-    fo.update(USE_MINI_HALOS=mini)
+    up.update(
+        USE_INTERPOLATION_TABLES=True,
+        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
+    )
+    fo.update(
+        USE_MINI_HALOS=mini_flag,
+        USE_MASS_DEPENDENT_ZETA=True,
+        INHOMO_RECO=True,
+        USE_TS_FLUCT=True,
+    )
     lib.Broadcast_struct_global_PS(up(), cp())
     lib.Broadcast_struct_global_UF(up(), cp())
     lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
@@ -396,12 +418,12 @@ def test_Nion_conditional_tables(name, R, mini):
         .value
     )
 
-    lib.initialiseSigmaMInterpTable(M_min, cond_mass)
-
+    lib.initialiseSigmaMInterpTable(M_min, max(cond_mass, M_max))
     sigma_cond = lib.sigma_z0(cond_mass)
+
     lib.initialise_Nion_Conditional_spline(
         redshift,
-        ap.M_TURN,  # not the redshift dependent version in this test
+        10**ap.M_TURN,  # not the redshift dependent version in this test
         edges_d[0],
         edges_d[-1],
         M_min,
@@ -424,14 +446,14 @@ def test_Nion_conditional_tables(name, R, mini):
         Mlim_Fesc_MINI,
         up.INTEGRATION_METHOD_ATOMIC,
         up.INTEGRATION_METHOD_MINI,
-        mini,
+        mini_flag,
         False,
     )
 
-    if mini:
+    if mini_flag:
         input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
     else:
-        input_arr = [edges_d[:-1], np.log10(ap.M_TURN)]
+        input_arr = [edges_d[:-1], ap.M_TURN]  # mturn already in log10
 
     Nion_tables = np.vectorize(lib.EvaluateNion_Conditional)(
         input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
@@ -454,11 +476,12 @@ def test_Nion_conditional_tables(name, R, mini):
     )
 
     #### FIRST ASSERT ####
+    abs_tol = 0  # min = exp(-40) ~4e-18
     np.testing.assert_allclose(
         Nion_tables, Nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
-    if mini:
+    if mini_flag:
         Nion_tables_mini = np.vectorize(lib.EvaluateNion_Conditional_MINI)(
             input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
         )
@@ -470,7 +493,7 @@ def test_Nion_conditional_tables(name, R, mini):
             sigma_cond,
             input_arr[0],
             10 ** input_arr[1],
-            ap.M_TURN,
+            10**ap.M_TURN,
             ap.ALPHA_STAR_MINI,
             ap.ALPHA_ESC,
             10**ap.F_STAR7_MINI,
@@ -488,9 +511,8 @@ def test_Nion_conditional_tables(name, R, mini):
 
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
-def test_SFRD_conditional_table(name, R):
-    abs_tol = 1e-21  # minimum = exp(-50) ~1e-22
-
+@pytest.mark.parametrize("intmethod", options_intmethod)
+def test_SFRD_conditional_table(name, R, intmethod):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -499,8 +521,17 @@ def test_SFRD_conditional_table(name, R):
     ap = AstroParams(opts["astro_params"])
     fo = FlagOptions(opts["flag_options"])
 
-    up.update(USE_INTERPOLATION_TABLES=True)
-    fo.update(USE_MINI_HALOS=True)
+    up.update(
+        USE_INTERPOLATION_TABLES=True,
+        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
+    )
+    fo.update(
+        USE_MINI_HALOS=True,
+        USE_MASS_DEPENDENT_ZETA=True,
+        INHOMO_RECO=True,
+        USE_TS_FLUCT=True,
+    )
     lib.Broadcast_struct_global_PS(up(), cp())
     lib.Broadcast_struct_global_UF(up(), cp())
     lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
@@ -527,14 +558,14 @@ def test_SFRD_conditional_table(name, R):
         .value
     )
 
-    lib.initialiseSigmaMInterpTable(M_min, cond_mass)
+    lib.initialiseSigmaMInterpTable(M_min, max(cond_mass, M_max))
     sigma_cond = lib.sigma_z0(cond_mass)
 
     lib.initialise_SFRD_Conditional_table(
         edges_d[0],
         edges_d[-1],
         growth_out,
-        ap.M_TURN,
+        10**ap.M_TURN,
         M_min,
         M_max,
         cond_mass,
@@ -548,7 +579,7 @@ def test_SFRD_conditional_table(name, R):
     )
     # since the turnover mass table edges are hardcoded, we make sure we are within those limits
     SFRD_tables = np.vectorize(lib.EvaluateSFRD_Conditional)(
-        edges_d[:-1], growth_out, M_min, M_max, sigma_cond, ap.M_TURN, Mlim_Fstar
+        edges_d[:-1], growth_out, M_min, M_max, sigma_cond, 10**ap.M_TURN, Mlim_Fstar
     )
     input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
     SFRD_tables_mini = np.vectorize(lib.EvaluateSFRD_Conditional_MINI)(
@@ -558,7 +589,7 @@ def test_SFRD_conditional_table(name, R):
         M_min,
         M_max,
         sigma_cond,
-        ap.M_TURN,
+        10**ap.M_TURN,
         Mlim_Fstar_MINI,
     )
 
@@ -568,7 +599,7 @@ def test_SFRD_conditional_table(name, R):
         np.log(M_max),
         sigma_cond,
         edges_d[:-1],
-        ap.M_TURN,
+        10**ap.M_TURN,
         ap.ALPHA_STAR,
         0.0,
         10**ap.F_STAR10,
@@ -585,7 +616,7 @@ def test_SFRD_conditional_table(name, R):
         sigma_cond,
         input_arr[0],
         10 ** input_arr[1],
-        ap.M_TURN,
+        10**ap.M_TURN,
         ap.ALPHA_STAR_MINI,
         0.0,
         10**ap.F_STAR7_MINI,
@@ -595,6 +626,7 @@ def test_SFRD_conditional_table(name, R):
         up.INTEGRATION_METHOD_MINI,
     )
 
+    abs_tol = 0  # minimum = exp(-50) ~1e-22
     np.testing.assert_allclose(
         SFRD_tables, SFRD_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
