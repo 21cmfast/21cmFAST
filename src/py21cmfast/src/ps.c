@@ -1355,9 +1355,10 @@ double Fcollapprox (double numin, double beta){
 double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, int type){
     //variables used in the calculation
     double lnM_higher, lnM_lower;
-    double sigma_higher,sigma_lower;
+    double sigma_higher,sigma_lower,sigma_pivot;
     double nu_higher,nu_lower;
-    double beta,sigdiff_inv;
+    double beta;
+    double f_above_range;
     double fcoll1=0.,fcoll2=0.,fcoll3=0.;
 
     //parameters unpacked from the struct
@@ -1394,11 +1395,17 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     //The below limit setting is done simply so that variables which do not conern particular integrals
     //      can be left undefined, rather than explicitly set to some value (0 or 1e20)
     //Mass and number integrals set the lower cutoff to the integral limit
-    if(fabs(type) >= 2 && lnMturn_l > lnM_lo_limit)
+    if(fabs(type) >= 3 && lnMturn_l > lnM_lo_limit)
         lnM_lo_limit = lnMturn_l;
     //non-minihalo integrals set the upper cutoff to the integral limit
-    if(fabs(type) == 3 && lnMturn_u < lnM_hi_limit)
+    if(fabs(type) == 4 && lnMturn_u < lnM_hi_limit)
         lnM_hi_limit = lnMturn_u;
+
+    //it is possible for the lower turnover (LW crit or reion feedback)
+    //   to be higher than the upper limit (atomic limit) or the condition
+    if(lnM_lo_limit >= lnM_hi_limit || EvaluateSigma(lnM_lo_limit) <= sigma_c){
+        return 0.;
+    }
 
     //n_ion or MINI
     if(fabs(type) >= 3)
@@ -1412,70 +1419,74 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
 
     double delta_arg = pow((Deltac - delta)/growthf, 2);
 
-    LOG_ULTRA_DEBUG("Starting Fcoll approx [%.3e %.3e] cond %.3e",lnM_lo,lnM_hi,sigma_c);
     //If we need the first (high-mass) segment:
-    if(lnM_hi_limit > lnMp1){
+    sigma_pivot = EvaluateSigma(lnMp1);
+    if(lnM_hi_limit > lnMp1 && sigma_pivot > sigma_c){
         lnM_lower = fmax(lnMp1,lnM_lo_limit);
         lnM_higher = lnM_hi_limit;
 
         sigma_lower = EvaluateSigma(lnM_lower);
         sigma_higher = EvaluateSigma(lnM_higher);
 
-        //The upper limit is usually the condition mass, this prevents the nan
-        if(sigma_higher == sigma_c)
-            sigdiff_inv = 1e6;
-        else
-            sigdiff_inv = 1/(sigma_higher*sigma_higher - sigma_c*sigma_c);
+        //If the condition is contained within this range, there's no reason to
+        //  evaluate the upper gamma function
+        beta = (index_base) * AINDEX1 * (0.5);
+        if(sigma_higher > sigma_c){
+            nu_higher = delta_arg/(sigma_higher*sigma_higher - sigma_c*sigma_c);
+            f_above_range = Fcollapprox(nu_higher,beta);
+        }
+        else{
+            f_above_range = 0;
+        }
 
         nu_lower = delta_arg/(sigma_lower*sigma_lower - sigma_c*sigma_c);
-        nu_higher = delta_arg*sigdiff_inv;
 
-        beta = (index_base) * AINDEX1 * (0.5);
-
-        fcoll1 = (Fcollapprox(nu_lower,beta) - Fcollapprox(nu_higher,beta))*pow(nu_lower,-beta);
-
-        LOG_ULTRA_DEBUG("Fcoll approx high mass [%.2e %.2e] sigma [%.2e %.2e] nu [%.2e %.2e] %.6e",
-                    lnM_lower,lnM_higher,sigma_lower,sigma_higher,nu_lower,nu_higher,fcoll1);
+        fcoll1 = (Fcollapprox(nu_lower,beta) - f_above_range)*pow(nu_lower,-beta);
     }
 
     //If we need the second (mid-mass) segment
-    if(lnM_hi_limit > lnMp2 || lnM_lo_limit < lnMp1){
+    sigma_pivot = EvaluateSigma(lnMp2);
+    if((lnM_hi_limit > lnMp2 && lnM_lo_limit < lnMp1) && sigma_pivot > sigma_c){
         lnM_lower = fmax(lnMp2,lnM_lo_limit);
         lnM_higher = fmin(lnMp1,lnM_hi_limit);
         sigma_lower = EvaluateSigma(lnM_lower);
         sigma_higher = EvaluateSigma(lnM_higher);
 
-        if(sigma_higher == sigma_c)
-            sigdiff_inv = 1e6;
-        else
-            sigdiff_inv = 1/(sigma_higher*sigma_higher - sigma_c*sigma_c);
+        beta = (index_base) * AINDEX2 * (0.5);
+
+        if(sigma_higher > sigma_c){
+            nu_higher = delta_arg/(sigma_higher*sigma_higher - sigma_c*sigma_c);
+            f_above_range = Fcollapprox(nu_higher,beta);
+        }
+        else{
+            f_above_range = 0;
+        }
 
         nu_lower = delta_arg/(sigma_lower*sigma_lower - sigma_c*sigma_c);
-        nu_higher = delta_arg*sigdiff_inv;
-        beta = (index_base) * AINDEX2 * (0.5);
-        fcoll2 = (Fcollapprox(nu_lower,beta) - Fcollapprox(nu_higher,beta))*pow(nu_lower,-beta);
-        LOG_ULTRA_DEBUG("Fcoll approx mid  mass [%.2e %.2e] sigma [%.2e %.2e] nu [%.2e %.2e] %.6e",
-                    lnM_lower,lnM_higher,sigma_lower,sigma_higher,nu_lower,nu_higher,fcoll2);
+
+        fcoll2 = (Fcollapprox(nu_lower,beta) - f_above_range)*pow(nu_lower,-beta);
     }
 
     //If we need the third (low-mass) segment
-    if(lnM_lo_limit < lnMp2){
+    sigma_pivot = EvaluateSigma(lnM_lo_limit);
+    if(lnM_lo_limit < lnMp2 && sigma_pivot > sigma_c){
         lnM_lower = lnM_lo_limit;
         lnM_higher = fmin(lnMp2,lnM_hi_limit);
         sigma_lower = EvaluateSigma(lnM_lower);
         sigma_higher = EvaluateSigma(lnM_higher);
 
-        if(sigma_higher == sigma_c)
-            sigdiff_inv = 1e6;
-        else
-            sigdiff_inv = 1/(sigma_higher*sigma_higher - sigma_c*sigma_c);
+        beta = (index_base) * AINDEX3 * (0.5);
+        if(sigma_higher > sigma_c){
+            nu_higher = delta_arg/(sigma_higher*sigma_higher - sigma_c*sigma_c);
+            f_above_range = Fcollapprox(nu_higher,beta);
+        }
+        else{
+            f_above_range = 0;
+        }
 
         nu_lower = delta_arg/(sigma_lower*sigma_lower - sigma_c*sigma_c);
-        nu_higher = delta_arg*sigdiff_inv;
-        beta = (index_base) * AINDEX3 * (0.5);
-        fcoll3 = (Fcollapprox(nu_lower,beta) - Fcollapprox(nu_higher,beta))*pow(nu_lower,-beta);
-        LOG_ULTRA_DEBUG("Fcoll approx low  mass [%.2e %.2e] sigma [%.2e %.2e] nu [%.2e %.2e] %.6e",
-                    lnM_lower,lnM_higher,sigma_lower,sigma_higher,nu_lower,nu_higher,fcoll3);
+
+        fcoll3 = (Fcollapprox(nu_lower,beta) - f_above_range)*pow(nu_lower,-beta);
     }
 
     return fcoll1 + fcoll2 + fcoll3;

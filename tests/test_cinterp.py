@@ -15,6 +15,8 @@ from . import produce_integration_test_data as prd
 #       Currently (with the #defined bin numbers) the minihalo tables have a ~1.5 % error maximum
 #       With >1% error in less than 4% of bins (at the high turnover mass where fcoll is tiny)
 #       The rest of the tables (apart from the xfail inverse tables) are well under 1% error
+
+# The tables are much better than 2% but there are some problem bins (very high density, very small mass ranges)
 RELATIVE_TOLERANCE = 2e-2
 
 OPTIONS_PS = {
@@ -37,7 +39,12 @@ OPTIONS_HMF = {
 OPTIONS_INTMETHOD = {
     "QAG": 0,
     "GL": 1,
-    # "FFCOLL": 2,
+    "FFCOLL": pytest.param(
+        2,
+        marks=pytest.mark.xfail(
+            reason="Fast Fcoll tables fail when M_turn_lower is close to M_turn_upper"
+        ),
+    ),
 }
 
 R_PARAM_LIST = [1.5, 5, 10, 30, 60]
@@ -397,7 +404,7 @@ def test_Nion_conditional_tables(name, R, mini, intmethod):
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
-    edges_d = np.linspace(-1, 1.49, num=hist_size).astype("f4")
+    edges_d = np.linspace(-1, 1.6, num=hist_size).astype("f4")
     edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
 
     lib.init_ps()
@@ -453,7 +460,10 @@ def test_Nion_conditional_tables(name, R, mini, intmethod):
     if mini_flag:
         input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
     else:
-        input_arr = [edges_d[:-1], ap.M_TURN]  # mturn already in log10
+        input_arr = [
+            edges_d[:-1],
+            np.full_like(edges_d[:-1], ap.M_TURN),
+        ]  # mturn already in log10
 
     Nion_tables = np.vectorize(lib.EvaluateNion_Conditional)(
         input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
@@ -476,7 +486,24 @@ def test_Nion_conditional_tables(name, R, mini, intmethod):
     )
 
     #### FIRST ASSERT ####
-    abs_tol = 0  # min = exp(-40) ~4e-18
+    abs_tol = 5e-18  # min = exp(-40) ~4e-18
+    sel_failed = np.fabs(Nion_integrals - Nion_tables) > (
+        abs_tol + np.fabs(Nion_integrals) * RELATIVE_TOLERANCE
+    )
+    if sel_failed.sum() > 0:
+        print(
+            f"ACG: subcube of failures [xmin,ymin] [xmax,ymax] {np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
+        )
+        print(
+            f"failure range of inputs {input_arr[0][sel_failed].min()} {input_arr[0][sel_failed].max()} {10**input_arr[1][sel_failed].min():.6e} {10**input_arr[1][sel_failed].max():.6e}"
+        )
+        print(
+            f"failure range integrals ({Nion_integrals[sel_failed].min()},{Nion_integrals[sel_failed].max()}) tables ({Nion_tables[sel_failed].min()},{Nion_tables[sel_failed].max()})"
+        )
+        print(
+            f"max abs diff of failures {np.fabs(Nion_integrals - Nion_tables)[sel_failed].max()} relative {(np.fabs(Nion_integrals - Nion_tables)/Nion_tables)[sel_failed].max()}"
+        )
+
     np.testing.assert_allclose(
         Nion_tables, Nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
@@ -502,6 +529,23 @@ def test_Nion_conditional_tables(name, R, mini, intmethod):
             Mlim_Fesc_MINI,
             up.INTEGRATION_METHOD_MINI,
         )
+
+        sel_failed = np.fabs(Nion_integrals_mini - Nion_tables_mini) > (
+            abs_tol + np.fabs(Nion_integrals_mini) * RELATIVE_TOLERANCE
+        )
+        if sel_failed.sum() > 0:
+            print(
+                f"MINI: subcube of failures [xmin,ymin] [xmax,ymax] {np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
+            )
+            print(
+                f"failure range of inputs {input_arr[0][sel_failed].min()} {input_arr[0][sel_failed].max()} {10**input_arr[1][sel_failed].min():.6e} {10**input_arr[1][sel_failed].max():.6e}"
+            )
+            print(
+                f"failure range integrals ({Nion_integrals_mini[sel_failed].min()},{Nion_integrals_mini[sel_failed].max()}) tables ({Nion_tables_mini[sel_failed].min()},{Nion_tables_mini[sel_failed].max()})"
+            )
+            print(
+                f"max abs diff of failures {np.fabs(Nion_integrals_mini - Nion_tables_mini)[sel_failed].max()} relative {(np.fabs(Nion_integrals_mini - Nion_tables_mini)/Nion_tables_mini)[sel_failed].max()}"
+            )
 
         #### SECOND ASSERT (MINI) ####
         np.testing.assert_allclose(
@@ -539,7 +583,7 @@ def test_SFRD_conditional_table(name, R, intmethod):
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
-    edges_d = np.linspace(-1, 1.49, num=hist_size).astype("f4")
+    edges_d = np.linspace(-1, 1.6, num=hist_size).astype("f4")
     edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
 
     lib.init_ps()
@@ -626,7 +670,41 @@ def test_SFRD_conditional_table(name, R, intmethod):
         up.INTEGRATION_METHOD_MINI,
     )
 
-    abs_tol = 0  # minimum = exp(-50) ~1e-22
+    abs_tol = 5e-18  # minimum = exp(-40) ~1e-18
+    sel_failed = np.fabs(SFRD_integrals_mini - SFRD_tables_mini) > (
+        abs_tol + np.fabs(SFRD_integrals_mini) * RELATIVE_TOLERANCE
+    )
+    if sel_failed.sum() > 0:
+        print(
+            f"MINI: subcube of failures [xmin,ymin] [xmax,ymax] {np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
+        )
+        print(
+            f"failure range of inputs {input_arr[0][sel_failed].min()} {input_arr[0][sel_failed].max()} {10**input_arr[1][sel_failed].min():.6e} {10**input_arr[1][sel_failed].max():.6e}"
+        )
+        print(
+            f"failure range integrals ({SFRD_integrals_mini[sel_failed].min()},{SFRD_integrals_mini[sel_failed].max()}) tables ({SFRD_tables_mini[sel_failed].min()},{SFRD_tables_mini[sel_failed].max()})"
+        )
+        print(
+            f"max abs diff of failures {np.fabs(SFRD_integrals_mini - SFRD_tables_mini)[sel_failed].max()} relative {(np.fabs(SFRD_integrals_mini - SFRD_tables_mini)/SFRD_tables_mini)[sel_failed].max()}"
+        )
+
+    sel_failed = np.fabs(SFRD_integrals - SFRD_tables) > (
+        abs_tol + np.fabs(SFRD_integrals) * RELATIVE_TOLERANCE
+    )
+    if sel_failed.sum() > 0:
+        print(
+            f"ACG: subcube of failures [xmin,ymin] [xmax,ymax] {np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
+        )
+        print(
+            f"failure range of inputs {input_arr[0][sel_failed].min()} {input_arr[0][sel_failed].max()} {10**input_arr[1][sel_failed].min():.6e} {10**input_arr[1][sel_failed].max():.6e}"
+        )
+        print(
+            f"failure range integrals ({SFRD_integrals[sel_failed].min()},{SFRD_integrals[sel_failed].max()}) tables ({SFRD_tables[sel_failed].min()},{SFRD_tables[sel_failed].max()})"
+        )
+        print(
+            f"max abs diff of failures {np.fabs(SFRD_integrals - SFRD_tables)[sel_failed].max()} relative {(np.fabs(SFRD_integrals - SFRD_tables)/SFRD_tables)[sel_failed].max()}"
+        )
+
     np.testing.assert_allclose(
         SFRD_tables, SFRD_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
