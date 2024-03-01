@@ -1508,8 +1508,8 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                 avg_fix_term = mean_sfr_zpp[R_ct]/ave_fcoll;
                 avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
-                LOG_SUPER_DEBUG("z %6.2f ave sfrd (mini) val %.3e (%.3e) global %.3e (%.3e)",zpp_for_evolve_list[R_ct],ave_fcoll,
-                                    ave_fcoll_MINI,mean_sfr_zpp[R_ct],mean_sfr_zpp_mini[R_ct]);
+                LOG_SUPER_DEBUG("z %6.2f ave sfrd (mini) val %.3e (%.3e) global %.3e (%.3e) ratio %.4e z_edge %.4e",zpp_for_evolve_list[R_ct],ave_fcoll,
+                                    ave_fcoll_MINI,mean_sfr_zpp[R_ct],mean_sfr_zpp_mini[R_ct],avg_fix_term,z_edge_factor);
             }
 
             //minihalo factors should be separated since they may not be allocated
@@ -1581,10 +1581,10 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                                                         * avg_fix_term * astro_params->F_STAR10;
                         }
 
-                        LOG_SUPER_DEBUG("Cell 0: R=%.1f (%.3f) | SFR %.4e | integral %.4e",
-                                            R_values[R_ct],zpp_for_evolve_list[R_ct],sfr_term,integral_db);
+                        LOG_SUPER_DEBUG("Cell 0: R=%.1f (%.3f) | SFR %.4e | integral %.4e | delta %.4e",
+                                            R_values[R_ct],zpp_for_evolve_list[R_ct],sfr_term,integral_db,delNL0[R_index][box_ct]);
                         if(flag_options->USE_MINI_HALOS)
-                            LOG_SUPER_DEBUG("Cell 0: MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],\
+                            LOG_SUPER_DEBUG("MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],\
                                             delNL0[R_index][box_ct]*zpp_growth[R_ct],pow(10,log10_Mcrit_LW[R_ct][box_ct]),Mcrit_atom_interp_table[R_ct],\
                                             astro_params->ALPHA_STAR_MINI,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI_g, 0., user_params->INTEGRATION_METHOD_MINI) \
                                              * z_edge_factor * (1+delNL0[R_index][box_ct]*zpp_growth[R_ct]) * avg_fix_term_MINI * astro_params->F_STAR7_MINI);
