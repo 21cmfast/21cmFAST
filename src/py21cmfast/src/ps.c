@@ -3196,8 +3196,8 @@ double EvaluatedSigmasqdm(double lnM){
 //      from M_MIN_INTEGRAL
 //TODO: *sometimes* we need to initialise tables slightly lower than the integral, this is solved ad-hoc in each file that calls this function
 //      I should make a proper fix
-double minimum_source_mass(double redshift, struct AstroParams *astro_params, struct FlagOptions *flag_options){
-    double Mmin,min_factor,ion_factor;
+double minimum_source_mass(double redshift, bool xray, struct AstroParams *astro_params, struct FlagOptions *flag_options){
+    double Mmin,min_factor,mu_factor,t_vir_min;
     if(flag_options->USE_MASS_DEPENDENT_ZETA && !flag_options->USE_MINI_HALOS)
         min_factor = 50.; // small lower bound to cover far below the turnover
     else
@@ -3209,11 +3209,15 @@ double minimum_source_mass(double redshift, struct AstroParams *astro_params, st
     }
     // automatically true if USE_MASS_DEPENDENT_ZETA
     else if(flag_options->M_MIN_in_Mass) {
+         //NOTE: previously this divided Mturn by 50 in spin temperature, but not in the ionised box
+         //     which I think is a bug with M_MIN_in_Mass, since there is a sharp cutoff
         Mmin = astro_params->M_TURN;
     }
     else {
-        ion_factor = astro_params->ION_Tvir_MIN < 9.99999e3 ? 1.22 : 0.6;
-        Mmin = TtoM(redshift, astro_params->ION_Tvir_MIN, ion_factor);
+        //if the virial temp minimum is set below ionisation we need to set mu accordingly
+        t_vir_min = xray ? astro_params->X_RAY_Tvir_MIN : astro_params->ION_Tvir_MIN;
+        mu_factor = t_vir_min < 9.99999e3 ? 1.22 : 0.6;
+        Mmin = TtoM(redshift, t_vir_min, mu_factor);
     }
 
     //I doubt this will be used much but previously

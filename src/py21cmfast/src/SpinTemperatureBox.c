@@ -362,7 +362,7 @@ void setup_z_edges(double zp){
         dzpp_list[R_ct] = dzpp_for_evolve; //z bin width
         dtdz_list[R_ct] = dtdz(zpp); // dt/dz''
 
-        M_min_R[R_ct] = minimum_source_mass(zpp_for_evolve_list[R_ct],astro_params_ts,flag_options_ts);
+        M_min_R[R_ct] = minimum_source_mass(zpp_for_evolve_list[R_ct],true,astro_params_ts,flag_options_ts);
         M_max_R[R_ct] = RtoM(R_values[R_ct]);
 
         R *= R_factor;
@@ -851,8 +851,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
 
     double log10_Mcrit_width = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
 
-    double M_min = minimum_source_mass(zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts-1],
-                                        astro_params_ts,flag_options_ts);
+    double M_min = M_min_R[global_params.NUM_FILTER_STEPS_FOR_Ts - 1];
 
     //TODO: only do this when we select GL integration
     if(user_params_ts->INTEGRATION_METHOD_ATOMIC == 1 || user_params_ts->INTEGRATION_METHOD_MINI == 1)
@@ -876,6 +875,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         //  The Nion table is used in nu_tau_one a lot but I think there's a better way to do that
         if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
             /* initialise interpolation of the mean collapse fraction for global reionization.*/
+            //NOTE: all of these have fixed M_min so we pass it into the function
             initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, M_min, global_params.M_MAX_INTEGRAL,
                                         astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->ALPHA_ESC,
                                         astro_params_ts->F_STAR10, astro_params_ts->F_ESC10, astro_params_ts->F_STAR7_MINI, astro_params_ts->F_ESC7_MINI,
@@ -887,7 +887,8 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
                                     flag_options_ts->USE_MINI_HALOS);
         }
         else{
-            init_FcollTable(determine_zpp_min,determine_zpp_max,M_min);
+            //NOTE: this does not necessarily have fixed M_min so it is calculated in the function
+            init_FcollTable(determine_zpp_min,determine_zpp_max,true);
         }
     }
 
@@ -1508,8 +1509,11 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                 avg_fix_term = mean_sfr_zpp[R_ct]/ave_fcoll;
                 avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
-                LOG_SUPER_DEBUG("z %6.2f ave sfrd (mini) val %.3e (%.3e) global %.3e (%.3e) ratio %.4e z_edge %.4e",zpp_for_evolve_list[R_ct],ave_fcoll,
-                                    ave_fcoll_MINI,mean_sfr_zpp[R_ct],mean_sfr_zpp_mini[R_ct],avg_fix_term,z_edge_factor);
+                LOG_SUPER_DEBUG("z %6.2f ave sfrd (mini) val %.3e (%.3e) global %.3e (%.3e) integral %.3e erfc %.3e Mmin %.3e ratio %.4e z_edge %.4e",zpp_for_evolve_list[R_ct],ave_fcoll,
+                                    ave_fcoll_MINI,mean_sfr_zpp[R_ct],mean_sfr_zpp_mini[R_ct],
+                                    FgtrM_General(zpp_for_evolve_list[R_ct], M_min_R[R_ct],user_params_it->INTEGRATION_METHOD_ATOMIC),
+                                    FgtrM(zpp_for_evolve_list[R_ct], M_min_R[R_ct]),
+                                    M_min_R[R_ct],avg_fix_term,z_edge_factor);
             }
 
             //minihalo factors should be separated since they may not be allocated

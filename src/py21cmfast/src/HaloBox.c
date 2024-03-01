@@ -454,7 +454,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         }
         double hm_avg=0,nion_avg=0,sfr_avg=0,wsfr_avg=0,sfr_avg_mini=0;
 
-        double M_min = minimum_source_mass(redshift,astro_params,flag_options);
+        double M_min = minimum_source_mass(redshift,false,astro_params,flag_options);
         double t_h = t_hubble(redshift);
         double cell_volume = VOLUME/HII_TOT_NUM_PIXELS;
         double M_cell = cosmo_params->OMm*RHOcrit*cell_volume;

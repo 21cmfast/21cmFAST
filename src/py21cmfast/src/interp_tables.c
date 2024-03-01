@@ -207,14 +207,14 @@ void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, 
 }
 
 //TODO: change to same z-bins as other global 1D tables
-void init_FcollTable(double zmin, double zmax, double M_min){
+void init_FcollTable(double zmin, double zmax, bool x_ray){
     int i;
-    double z_val;
+    double z_val,M_min;
 
     fcoll_z_table.x_min = zmin;
     fcoll_z_table.x_width = 0.1;
 
-    int n_z = (int)ceil((zmax - zmin)/fcoll_z_table.x_width);
+    int n_z = (int)ceil((zmax - zmin)/fcoll_z_table.x_width) + 1;
 
     if(!fcoll_z_table.allocated){
         allocate_RGTable1D(n_z,&fcoll_z_table);
@@ -222,8 +222,13 @@ void init_FcollTable(double zmin, double zmax, double M_min){
 
     for(i=0;i<n_z;i++){
         z_val = fcoll_z_table.x_min + i*fcoll_z_table.x_width;
-        //NOTE: previously this divided Mturn by 50 which I think is a bug with M_MIN_in_Mass, since there is a sharp cutoff
-        fcoll_z_table.y_arr[i] = FgtrM(z_val, M_min);
+        M_min = minimum_source_mass(z_val,x_ray,astro_params_it,flag_options_it);
+
+        //if we are press-schechter we can save time by calling the erfc
+        if(user_params_it->HMF == 0)
+            fcoll_z_table.y_arr[i] = FgtrM(z_val, M_min);
+        else
+            fcoll_z_table.y_arr[i] = FgtrM_General(z_val, M_min, user_params_it->INTEGRATION_METHOD_ATOMIC);
     }
 }
 
@@ -629,7 +634,7 @@ void free_dNdM_tables(){
 }
 
 //JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
-//TODO: Better organisation of the functions here and in spintemp, I should split the interptable case
+//NOTE: with !USE_MASS_DEPENDENT_ZETA both EvaluateNionTs and EvaluateSFRD return Fcoll
 double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
     //differences in turnover are handled by table setup
     if(user_params_it->USE_INTERPOLATION_TABLES){
@@ -646,7 +651,9 @@ double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
         return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_it->M_TURN, astro_params_it->ALPHA_STAR, astro_params_it->ALPHA_ESC,
                             astro_params_it->F_STAR10, astro_params_it->F_ESC10, Mlim_Fstar, Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC);
 
-    return FgtrM_General(redshift, minimum_source_mass(redshift,astro_params_it,flag_options_it), user_params_it->INTEGRATION_METHOD_ATOMIC);
+    //Currently assuming this is only called in the X-ray/spintemp calculation, this will only affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass
+    //      and only if the minimum virial temperatures ION_Tvir_min and X_RAY_Tvir_min are different
+    return FgtrM_General(redshift, minimum_source_mass(redshift,true,astro_params_it,flag_options_it), user_params_it->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
@@ -678,7 +685,9 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar){
     //NOTE: Previously, with M_MIN_IN_MASS, the FgtrM function used M_turn/50, which seems like a bug
     // since it goes against the assumption of sharp cutoff
 
-    return FgtrM_General(redshift, minimum_source_mass(redshift,astro_params_it,flag_options_it),user_params_it->INTEGRATION_METHOD_ATOMIC);
+    //Currently assuming this is only called in the X-ray/spintemp calculation, this will only affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass
+    //      and only if the minimum virial temperatures ION_Tvir_min and X_RAY_Tvir_min are different
+    return FgtrM_General(redshift, minimum_source_mass(redshift,true,astro_params_it,flag_options_it),user_params_it->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI){

@@ -332,7 +332,7 @@ LOG_DEBUG("first redshift, do some initialization");
             previous_ionize_box->dNrec_box   = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     }
     //set the minimum source mass
-    M_MIN = minimum_source_mass(redshift,astro_params,flag_options);
+    M_MIN = minimum_source_mass(redshift,false,astro_params,flag_options);
     LOG_SUPER_DEBUG("minimum source mass has been set: %f", M_MIN);
 
     //Find the mass limits and average turnovers

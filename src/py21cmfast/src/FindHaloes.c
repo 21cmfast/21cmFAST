@@ -70,7 +70,7 @@ LOG_DEBUG("redshift=%f", redshift);
         int z_dim = D_PARA;
 
         //set minimum source mass
-        M_MIN = minimum_source_mass(redshift, astro_params, flag_options);
+        M_MIN = minimum_source_mass(redshift, false, astro_params, flag_options);
         //if we use the sampler we want to stop at the HII cell mass
         if(flag_options->HALO_STOCHASTICITY || flag_options->FIXED_HALO_GRIDS)
             M_MIN = fmax(M_MIN,RtoM(L_FACTOR*user_params->BOX_LEN/user_params->HII_DIM));
