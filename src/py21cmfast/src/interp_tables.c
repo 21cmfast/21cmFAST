@@ -50,11 +50,13 @@ struct RGTable1D_f dfcoll_conditional_table = {.allocated = false,};
 
 //NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to assign ST_over_PS in Spintemp.
 //  It may be better to just do the integrals at each R
-void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Mmin, float Mmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI,
+void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI,
                              float mturn_a_const, bool minihalos){
     int i,j;
     float Mlim_Fstar, Mlim_Fstar_MINI;
     double z_val, mturn_val;
+    double Mmin = global_params.M_MIN_INTEGRAL;
+    double Mmax = global_params.M_MAX_INTEGRAL;
 
     LOG_DEBUG("initing SFRD spline from %.2f to %.2f",zmin,zmax);
 
@@ -83,7 +85,11 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Mmin, float 
         #pragma omp for
         for (i=0; i<Nbin; i++){
             z_val = SFRD_z_table.x_min + i*SFRD_z_table.x_width; //both tables will have the same values here
+            Mmin = minimum_source_mass(z_val,true,astro_params_it,flag_options_it);
             if(minihalos)Mcrit_atom_val = atomic_cooling_threshold(z_val);
+
+            if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || user_params_it->INTEGRATION_METHOD_MINI == 1)
+                initialise_GL(NGL_INT,log(Mmin),log(Mmax));
 
             SFRD_z_table.y_arr[i] = Nion_General(z_val, Mmin, Mmax, Mcrit_atom_val, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.,user_params_it->INTEGRATION_METHOD_ATOMIC);
             if(minihalos){
@@ -113,12 +119,14 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Mmin, float 
 }
 
 //Unlike the SFRD spline, this one is used more due to the nu_tau_one() rootfind
-void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Mmin, float Mmax, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10,
+void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10,
                                 float Fesc10, float Fstar7_MINI, float Fesc7_MINI, float mturn_a_const, bool minihalos){
     int i,j;
     float Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI;
     LOG_DEBUG("initing Nion spline from %.2f to %.2f",zmin,zmax);
     double z_val, mturn_val;
+    double Mmin = global_params.M_MIN_INTEGRAL;
+    double Mmax = global_params.M_MAX_INTEGRAL;
 
     if (!Nion_z_table.allocated){
         allocate_RGTable1D(Nbin,&Nion_z_table);
@@ -146,7 +154,12 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Mmin, flo
 #pragma omp for
         for (i=0; i<Nbin; i++){
             z_val = Nion_z_table.x_min + i*Nion_z_table.x_width; //both tables will have the same values here
+            //Minor note: while this is called in xray, we use it to estimate ionised fraction, do we use ION_Tvir_MIN if applicable?
+            Mmin = minimum_source_mass(z_val,true,astro_params_it,flag_options_it);
             if(minihalos)Mcrit_atom_val = atomic_cooling_threshold(z_val);
+
+            if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || user_params_it->INTEGRATION_METHOD_MINI == 1)
+                initialise_GL(NGL_INT,log(Mmin),log(Mmax));
 
             Nion_z_table.y_arr[i] = Nion_General(z_val, Mmin, Mmax, Mcrit_atom_val, Alpha_star, Alpha_esc, Fstar10, Fesc10,
                                              Mlim_Fstar, Mlim_Fesc, user_params_it->INTEGRATION_METHOD_ATOMIC);
@@ -227,8 +240,11 @@ void init_FcollTable(double zmin, double zmax, bool x_ray){
         //if we are press-schechter we can save time by calling the erfc
         if(user_params_it->HMF == 0)
             fcoll_z_table.y_arr[i] = FgtrM(z_val, M_min);
-        else
+        else{
+            if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || user_params_it->INTEGRATION_METHOD_MINI == 1)
+                initialise_GL(NGL_INT,log(M_min),log(fmax(global_params.M_MAX_INTEGRAL, M_min*100)));//upper limit to match FgtrM_General
             fcoll_z_table.y_arr[i] = FgtrM_General(z_val, M_min, user_params_it->INTEGRATION_METHOD_ATOMIC);
+        }
     }
 }
 

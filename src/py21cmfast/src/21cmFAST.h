@@ -278,9 +278,9 @@ void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 double EvaluateSigma(double lnM);
 double EvaluatedSigmasqdm(double lnM);
 
-void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Mmin, float Mmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI,
+void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI,
                              float mturn_a_const, bool minihalos);
-void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Mmin, float Mmax, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10,
+void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10,
                                 float Fesc10, float Fstar7_MINI, float Fesc7_MINI, float mturn_a_const, bool minihalos);
 void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, double growth_zpp, double smin_zpp, double smax_zpp);
 void init_FcollTable(double zmin, double zmax, bool x_ray);
