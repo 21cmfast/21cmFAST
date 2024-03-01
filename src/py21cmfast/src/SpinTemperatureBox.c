@@ -1506,7 +1506,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                 }
                 calculate_sfrd_from_grid(R_ct,delta_box_input,Mcrit_box_input,del_fcoll_Rct,del_fcoll_Rct_MINI,&ave_fcoll,&ave_fcoll_MINI);
                 avg_fix_term = mean_sfr_zpp[R_ct]/ave_fcoll;
-                avg_fix_term_MINI = mean_sfr_zpp[R_ct]/ave_fcoll_MINI;
+                avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
                 LOG_SUPER_DEBUG("z %6.2f ave sfrd (mini) val %.3e (%.3e) global %.3e (%.3e)",zpp_for_evolve_list[R_ct],ave_fcoll,
                                     ave_fcoll_MINI,mean_sfr_zpp[R_ct],mean_sfr_zpp_mini[R_ct]);
@@ -1576,7 +1576,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                                             * avg_fix_term * astro_params->F_STAR10;
                         }
                         else{
-                            integral_db = FgtrM_bias_fast(zpp_growth[R_ct], delNL0[R_index][box_ct]*zpp_growth[R_ct], sigma_min[R_ct], sigma_max[R_ct])
+                            integral_db = dfcoll_dz(zpp_for_evolve_list[R_ct], sigma_min[R_ct], delNL0[R_index][box_ct]*zpp_growth[R_ct], sigma_max[R_ct])
                                                         * z_edge_factor * (1+delNL0[R_index][box_ct]*zpp_growth[R_ct])
                                                         * avg_fix_term * astro_params->F_STAR10;
                         }
