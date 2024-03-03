@@ -1111,21 +1111,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                 box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = Splined_Fcoll;
                                 f_coll += Splined_Fcoll;
                             }
-                            if(x+y+z == 0 && LAST_FILTER_STEP && !flag_options->USE_HALO_FIELD){
-                                LOG_SUPER_DEBUG("Cell 0: R=%.1f | d %.4e | fcoll (%.4e == %.4e)",
-                                                    R,curr_dens,Splined_Fcoll,\
-                                                    Nion_ConditionalM(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,curr_dens,
-                                                        pow(10,log10_Mturnover),
-                                                        astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                        astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC));
-                                if(flag_options->USE_MINI_HALOS){
-                                    LOG_SUPER_DEBUG("mini (%.4e == %.4e)", Splined_Fcoll_MINI,\
-                                                    Nion_ConditionalM_MINI(growth_factor,log(M_MIN),log(massofscaleR),sigmaMmax,curr_dens,
-                                                        pow(10,log10_Mturnover_MINI),Mcrit_atom,
-                                                        astro_params->ALPHA_STAR_MINI,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,
-                                                        astro_params->F_ESC7_MINI,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_MINI));
-                                }
-                            }
                         }
                     }
                 }
