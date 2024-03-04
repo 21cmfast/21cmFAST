@@ -520,7 +520,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
     int i,j,k,ct;
     double curr_vcb,curr_j21,M_buf;
 
-    //TODO: Meraxes just applies a pointer cast box = (fftwf_complex *) input. Figure out why this works,
+    //NOTE: Meraxes just applies a pointer cast box = (fftwf_complex *) input. Figure out why this works,
     //      They pad the input by a factor of 2 to cover the complex part, but from the type I thought it would be stored [(r,c),(r,c)...]
     //      Not [(r,r,r,r....),(c,c,c....)] so the alignment should be wrong, right?
     #pragma omp parallel for private(i,j,k) num_threads(user_params_ts->N_THREADS) collapse(3)
@@ -840,10 +840,6 @@ void init_first_Ts(struct TsBox * box, float *dens, float z, float zp, double *x
 
 //calculate the global properties used for making the frequency integrals,
 //  used for filling factor, ST_OVER_PS, and NO_LIGHT
-//TODO: in future, this function should calculate global expected values at each zpp
-//  and be used in conjunction with a function which computes the box sums to do adjustment
-//  e.g: global_reion -> if(!NO_LIGHT) -> sum_box -> source *= global/box_avg
-//  either globally or at each R/zpp
 int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_ave, double *mean_sfr_zpp, double *mean_sfr_zpp_mini, double *Q_HI){
     int R_ct;
     double sum_nion=0,sum_sfr=0,sum_mass=0,sum_nion_mini=0;
@@ -894,8 +890,6 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
 
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)",sum_nion,sum_nion_mini);
 
-    //TODO: change to use global_params.Pop in no minihalo case?, this variable is pretty inconsistently used
-    //  throughout the rest of the code mostly just assuming Pop2. Otherwise I should remove the global parameter
     double ION_EFF_FACTOR,ION_EFF_FACTOR_MINI;
     ION_EFF_FACTOR = astro_params_ts->F_STAR10 * astro_params_ts->F_ESC10 * global_params.Pop2_ion;
     ION_EFF_FACTOR_MINI = astro_params_ts->F_STAR7_MINI * astro_params_ts->F_ESC7_MINI * global_params.Pop3_ion;
@@ -921,9 +915,6 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     return sum_nion + sum_nion_mini > 1e-15 ? 0 : 1; //NO_LIGHT returned
 }
 
-//TODO: probably reuse the input grids since they aren't used again
-//      apart from unfiltered density
-//TODO: pass arguments to this function instead of using R_ct and globals
 void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid, float *sfrd_grid,
                              float *sfrd_grid_mini, double *ave_sfrd, double *ave_sfrd_mini){
     double ave_sfrd_buf=0;
@@ -966,7 +957,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
             }
             else if(curr_dens > Deltac*0.99){
                 //NOTE: default behaviour Fcoll==1 at exactly 1e10/1e7 solar mass
-                //TODO: doesn't this double count the mass?
+                //      This double counts the mass, mini should probably be at zero
                 sfrd_grid[box_ct] = 1.;
                 ave_sfrd_buf += 1.;
                 if(flag_options_ts->USE_MINI_HALOS){
@@ -1113,9 +1104,6 @@ struct Ts_cell{
 
 //Function for calculating the Ts box outputs quickly by using pre-calculated constants
 //  as much as possible
-//TODO: unpack the structures at the start?
-//  BUT surely any compiler should optimise it....
-//TODO: Move more constants out of the loop
 struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefactors *consts, struct Box_rad_terms *rad){
     // Now we can solve the evolution equations  //
     struct Ts_cell output;
@@ -1535,7 +1523,6 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                     }
                     else{
                         //NOTE: for !USE_MASS_DEPENDENT_ZETA, F_STAR10 is still used for constant stellar fraction
-                        //TODO: check if this was intended since it is nowhere else in the code
                         sfr_term = del_fcoll_Rct[box_ct] * z_edge_factor * avg_fix_term * astro_params->F_STAR10;
                     }
                     if(flag_options->USE_MINI_HALOS){
@@ -1614,8 +1601,8 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
         #pragma omp for reduction(+:J_alpha_ave,xheat_ave,xion_ave,Ts_ave,Tk_ave,x_e_ave,eps_lya_cont_ave,eps_lya_inj_ave)
         for(box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
             curr_delta = perturbed_field->density[box_ct] * growth_factor_zp * inverse_growth_factor_z;
-            //this corrected for aliasing before, but sometimes there are still some delta==-1 cells
-            //  which breaks the adiabatic part, TODO: check out the perturbed field calculations to find out why
+            //NOTE: this corrected for aliasing before, but sometimes there are still some delta==-1 cells
+            //  which breaks the adiabatic part
             if (curr_delta <= -1){
                 curr_delta = -1+FRACT_FLOAT_ERR;
             }

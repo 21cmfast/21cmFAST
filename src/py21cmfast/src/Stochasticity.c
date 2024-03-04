@@ -2,10 +2,6 @@
  * i.e sampling the halo mass function and
  * other halo relations.*/
 
-//BIG TODO: sort out single/double precision all the way through
-//TODO: the USE_INTERPOLATION_TABLES flag may need to be forced, it's in a strange position here
-//  where it only affects the sigma table.
-//NOTE: for the future discrete tables this does make sense
 //TODO: Don't have every error be a ValueError
 
 //max number of attempts for mass tolerance before failure
@@ -66,7 +62,6 @@ void print_hs_consts(struct HaloSamplingConstants * c){
     LOG_DEBUG("update %d z_in %.2f z_out %.2f d_in %.2f d_out %.2f",c->update,c->z_in,c->z_out,c->growth_in,c->growth_out);
     LOG_DEBUG("t_h %.2e t_h_prev %.2e M_min %.2e (%.2e) (%.2f) M_max %.2e (%.2e)",c->t_h,c->t_h_prev,c->M_min,c->lnM_min,c->sigma_min,c->M_max_tables,c->lnM_max_tb);
     LOG_DEBUG("Corr Star %.2e SFR %.2e",c->corr_star,c->corr_sfr);
-    //TODO: change formatting based on c->update to make it clear what is z-dependent or condition-dependent
     LOG_DEBUG("CONDITION DEPENDENT STUFF (may not be set)");
     LOG_DEBUG("delta %.2e M_c %.2e (%.2e) (%.2e) cond %.2e",c->delta,c->M_cond,c->lnM_cond,c->sigma_cond,c->cond_val);
     LOG_DEBUG("exp N %.2f exp M %.2e",c->expected_N,c->expected_M);
@@ -74,7 +69,6 @@ void print_hs_consts(struct HaloSamplingConstants * c){
 }
 
 //The sigma interp table is regular in log mass, not sigma so we need to loop ONLY FOR METHOD=3
-//TODO: make a new RGI from the sigma tables if we take the partition method seriously.
 double EvaluateSigmaInverse(double sigma, struct RGTable1D_f *s_table){
     int idx;
     for(idx=0;idx<NMass;idx++){
@@ -85,7 +79,7 @@ double EvaluateSigmaInverse(double sigma, struct RGTable1D_f *s_table){
         Throw(TableEvaluationError);
     }
     double table_val_0 = s_table->x_min + idx*s_table->x_width;
-    double table_val_1 = s_table->x_min + (idx-1)*s_table->x_width; //TODO:CHECK
+    double table_val_1 = s_table->x_min + (idx-1)*s_table->x_width;
     double interp_point = (sigma - table_val_0)/(table_val_1-table_val_0);
 
     return table_val_0*(1-interp_point) + table_val_1*(interp_point);
@@ -96,72 +90,6 @@ void Broadcast_struct_global_STOC(struct UserParams *user_params, struct CosmoPa
     user_params_stoc = user_params;
     astro_params_stoc = astro_params;
     flag_options_stoc = flag_options;
-}
-
-// TODO: this should probably be in UsefulFunctions.c
-void seed_rng_threads(gsl_rng * rng_arr[], int seed){
-    // setting tbe random seeds (copied from GenerateICs.c)
-    gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
-
-    gsl_rng_set(rseed, seed);
-
-    unsigned int seeds[user_params_stoc->N_THREADS];
-
-    // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
-    int num_int = INT_MAX/256; //JD: this was taking a few seconds per snapshot so i reduced the number TODO: init the RNG once
-    int i, thread_num;
-    unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int*sizeof(unsigned int))); // Some large number of possible integers
-    for (i=0; i<num_int; i++) {
-        many_ints[i] = i;
-    }
-
-    gsl_ran_choose(rseed, seeds, user_params_stoc->N_THREADS, many_ints, num_int, sizeof(unsigned int)); // Populate the seeds array from the large list of integers
-    gsl_ran_shuffle(rseed, seeds, user_params_stoc->N_THREADS, sizeof(unsigned int)); // Shuffle the randomly selected integers
-
-    int checker;
-
-    checker = 0;
-    // seed the random number generators
-    for (thread_num = 0; thread_num < user_params_stoc->N_THREADS; thread_num++){
-        switch (checker){
-            case 0:
-                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
-                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
-                break;
-            case 1:
-                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_gfsr4);
-                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
-                break;
-            case 2:
-                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_cmrg);
-                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
-                break;
-            case 3:
-                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_mrg);
-                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
-                break;
-            case 4:
-                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_taus2);
-                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
-                break;
-        } // end switch
-
-        checker += 1;
-
-        if(checker==5) {
-            checker = 0;
-        }
-    }
-
-    gsl_rng_free(rseed);
-    free(many_ints);
-}
-
-void free_rng_threads(gsl_rng * rng_arr[]){
-    int ii;
-    for(ii=0;ii<user_params_stoc->N_THREADS;ii++){
-        gsl_rng_free(rng_arr[ii]);
-    }
 }
 
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the entire box
@@ -197,8 +125,6 @@ double expected_nhalo(double redshift, struct UserParams *user_params, struct Co
     return result;
 }
 
-//TODO: Speedtest the RGI interpolation present in Spintemp etc...
-//  Save the X/Y/Z from the table builder and apply the Minihalo 2D interpolation
 //NOTE: if p(x) is uniform, p(log(1-x)) follows the exponential distribution
 //  But the gsl_ran_exponential function does the exact same thing but adds a mean
 double sample_dndM_inverse(double condition, struct HaloSamplingConstants * hs_constants, gsl_rng * rng){
@@ -245,7 +171,6 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
             const_struct->corr_star = 0;
 
         const_struct->update = 1;
-        //TODO: change the table functions to accept the structure
         initialise_dNdM_tables(const_struct->lnM_min, const_struct->lnM_max_tb,const_struct->lnM_min, const_struct->lnM_max_tb,
                                 const_struct->growth_out, const_struct->growth_in, true);
     }
@@ -436,7 +361,6 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, 
     return 0;
 }
 
-//TODO: this may not need its own function and passing around the pointers can be annoying
 double remove_random_halo(gsl_rng * rng, int n_halo, int *idx, double *M_prog, float *M_out){
     double last_M_del;
     int random_idx;
@@ -490,11 +414,11 @@ int fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_p
         }
     }
     return n_removed;
-    //FUTURE "fixes"
-    //TODO: try different target / trigger, which could overcome the M > exp_M issues better than a delta
+    //Possible future improvements
+    //  Try different target / trigger, which could overcome the M > exp_M issues better than a delta
     //  e.g: set trigger for the check at exp_M - (M_Max - exp_M), target at exp_M
     //  This provides a range of trigger points which can be absorbed into the below-resolution values
-    // Obviously breaks for exp_M < 0.5 M, think of other thresholds.
+    //  Obviously breaks for exp_M < 0.5 M, think of other thresholds.
 
 }
 
@@ -505,7 +429,6 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
     //lnMmin only used for sampling, apply factor here
     double mass_tol = global_params.STOC_MASS_TOL;
     double exp_M = hs_constants->expected_M;
-    //TODO:make this a globalparam
     if(hs_constants->update)exp_M *= 1.; //fudge factor for assuming that internal lagrangian volumes are independent
 
     int n_halo_sampled, n_failures=0;
@@ -577,8 +500,8 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     double tbl_arg = hs_constants->cond_val;
     n_halo_sampled = 0;
     // LOG_ULTRA_DEBUG("Start: M %.2e (%.2e) d %.2e",M_cond,exp_M,d_cond);
-    //set initial amount (subtract unresolved)
-    //TODO: check if I should even do this
+
+    //set initial amount (subtracted unresolved Mass)
     M_remaining = exp_M;
     lnM_remaining = log(M_remaining);
 
@@ -614,8 +537,7 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
 //binary splitting with small internal steps based on Parkinson+08, Bensen+16, Qiu+20 (Darkforest)
 //This code was mostly taken from Darkforest (Qiu+20)
 //NOTE: some unused variables here
-//TODO: optimize sqrt 2 etc
-//TODO: make it work with non-EPS HMF, either with parameter setting OR implement directly
+//Only works with adjusted EPS
 int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
     double G0 = 1;
     double gamma1 = 0.2;
@@ -645,7 +567,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     int idx = 0;
 
     double growthf = hs_constants->growth_out;
-    //TODO_finish growth of d (i.e use the J function to speed up)
+    //Can Accelerate (i.e use the J function to speed up)
     double growth_d = 0;
     float d_points[MAX_HALO_CELL], m_points[MAX_HALO_CELL];
     int n_points;
@@ -687,8 +609,6 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
                 dd = dd_target;
                 save = 1;
             }
-            //TODO: look at the J function in Parkinson+08 for a speedup
-            //F = ComputeFraction(sigma_start, sigmasq_start, sigmasq_res, G1, dd, kit_sp);
             growth_d = Deltac/(d_start + dd);
             F = 1 - FgtrM_bias_fast(growth_d,d_start,sigma_res,sigma_start);
         }
@@ -718,7 +638,6 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
             }
             N_upper = dN_dd*dd;
             // Compute F
-            //TODO: look at the J function in Parkinson+08 for a speedup
             growth_d = Deltac/(d_start + dd);
             F = 1 - FgtrM_bias_fast(growth_d,d_start,sigma_res,sigma_start);
             // Generate random numbers and split the tree
@@ -756,8 +675,8 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
         //We don't need the point at idx anymore, so we can put the first progenitor
         //at the start point, and the second at the end
         //since the first is always more massive, this saves memory
-        //TODO: this still drifts by the number of saved halos, figure out how to
-        //  keep the active halo at zero until the end, but that's minor as it should only drift a few dozen
+        //NOTE: this still drifts by the number of saved halos, figure out how to
+        //   keep the active halo at zero until the end, but that's minor as it should only drift a few dozen
         else {
             if (m_prog1 > m_res){
                 d_points[idx] = dd + d_start;
@@ -831,7 +750,6 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, float
     int hi_dim = user_params_stoc->DIM;
     double boxlen = user_params_stoc->BOX_LEN;
 
-    //TODO: rewrite function agruments so I don't need to unpack here
     double Mcell = hs_constants->M_cond;
     double lnMcell = hs_constants->lnM_cond;
     double Mmax_tb = hs_constants->M_max_tables;
@@ -853,7 +771,6 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, float
     LOG_DEBUG("Total Array Size %llu, array size per thread %llu (~%.3e GB total)",arraysize_total,arraysize_local,6.*arraysize_total*sizeof(int)/1e9);
 
     //Since the conditional MF is extended press-schecter, we rescale by a factor equal to the ratio of the collapsed fractions (n_order == 1) of the UMF
-    //TODO: do this ONLY if we choose to normalise (i.e flesh out all of the CMF options (rescaling, normalising, adjusting, matching))
 
     double ps_ratio = 1.;
     if(user_params_stoc->HMF>1 && user_params_stoc->HMF<4){
@@ -899,7 +816,6 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, float
         double M_cell=0.;
 
         //we need a private version
-        //TODO: its probably better to split condition and z constants
         struct HaloSamplingConstants hs_constants_priv;
         hs_constants_priv = *hs_constants;
 
@@ -942,7 +858,6 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, float
                     mass_defc = halo_overlap_box[HII_R_INDEX(x,y,z)];
                     total_volume_excluded += mass_defc;
 
-                    //TODO: the ps_ratio part will need to be moved when other CMF scalings are finished
                     hs_constants_priv.expected_M *= (1.-mass_defc)/ps_ratio;
                     hs_constants_priv.expected_N *= (1.-mass_defc)/ps_ratio;
 
@@ -993,8 +908,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, float
     free(dexm_radii);
     free(dexm_pos);
 
-    //Condense the sparse array
-    //TODO: figure out a way to do this in parralel without overwriting elements before they are moved
+    //Condense the sparse array (serial)
     int i=0;
     unsigned long long int count_total = 0;
     for(i=0;i<user_params_stoc->N_THREADS;i++){
@@ -1016,7 +930,7 @@ int build_halo_cats(gsl_rng **rng_arr, double redshift, float *dens_field, float
     return 0;
 }
 
-//TODO: there's a lot of repeated code here and in build_halo_cats, find a way to merge
+//NOTE: there's a lot of repeated code here and in build_halo_cats, find a way to merge
 int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField *halofield_in, struct HaloField *halofield_out, struct HaloSamplingConstants *hs_constants){
     int nhalo_in = halofield_in->n_halos;
     if(z_in >= z_out){
@@ -1024,7 +938,6 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
         Throw(ValueError);
     }
 
-    //TODO: rewrite function agruments so I don't need to unpack here
     double growth_in = hs_constants->growth_in;
     double growth_out = hs_constants->growth_out;
     int lo_dim = user_params_stoc->HII_DIM;
@@ -1065,7 +978,6 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
         unsigned long long int istart = threadnum * arraysize_local;
 
         //we need a private version
-        //TODO: its probably better to split condition and z constants
         //also the naming convention should be better between structs/struct pointers
         struct HaloSamplingConstants hs_constants_priv;
         hs_constants_priv = *hs_constants;
@@ -1129,7 +1041,6 @@ int halo_update(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField 
     }
 
     //Condense the sparse array
-    //TODO: figure out a way to do this in parralel without overwriting elements before they are moved
     int i=0;
     unsigned long long int count_total = 0;
     for(i=0;i<user_params_stoc->N_THREADS;i++){
@@ -1314,7 +1225,6 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
             int n_halo,n_halo_cond;
             double cond;
             //we need a private version
-            //TODO: its probably better to split condition and z constants
             struct HaloSamplingConstants hs_constants_priv;
             hs_constants_priv = *hs_constants;
             #pragma omp for
