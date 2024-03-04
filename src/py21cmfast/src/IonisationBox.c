@@ -1156,6 +1156,8 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             else{
                 ST_over_PS = box->mean_f_coll/f_coll;
                 ST_over_PS_MINI = box->mean_f_coll_MINI/f_coll_MINI;
+                LOG_SUPER_DEBUG("global mean fcoll %.4e box mean fcoll %.4e ratio %.4e",box->mean_f_coll,f_coll,ST_over_PS);
+                LOG_SUPER_DEBUG("MINI: global mean fcoll %.4e box mean fcoll %.4e ratio %.4e",box->mean_f_coll_MINI,f_coll_MINI,ST_over_PS_MINI);
             }
             //saved for debug
             f_total = f_coll;
