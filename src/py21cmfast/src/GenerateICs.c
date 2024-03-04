@@ -43,72 +43,6 @@
 #include "FindHaloes.c"
 #include "PerturbHaloField.c"
 
-//This should be in another file but the #include organisation above makes this necessary
-void seed_rng_threads(gsl_rng * rng_arr[], int seed){
-    // setting tbe random seeds
-    gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
-
-    gsl_rng_set(rseed, seed);
-
-    unsigned int seeds[user_params_stoc->N_THREADS];
-
-    // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
-    int num_int = INT_MAX/256; //JD: this was taking a few seconds per snapshot so i reduced the number TODO: init the RNG once
-    int i, thread_num;
-    unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int*sizeof(unsigned int))); // Some large number of possible integers
-    for (i=0; i<num_int; i++) {
-        many_ints[i] = i;
-    }
-
-    gsl_ran_choose(rseed, seeds, user_params_stoc->N_THREADS, many_ints, num_int, sizeof(unsigned int)); // Populate the seeds array from the large list of integers
-    gsl_ran_shuffle(rseed, seeds, user_params_stoc->N_THREADS, sizeof(unsigned int)); // Shuffle the randomly selected integers
-
-    int checker;
-
-    checker = 0;
-    // seed the random number generators
-    for (thread_num = 0; thread_num < user_params_stoc->N_THREADS; thread_num++){
-        switch (checker){
-            case 0:
-                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
-                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
-                break;
-            case 1:
-                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_gfsr4);
-                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
-                break;
-            case 2:
-                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_cmrg);
-                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
-                break;
-            case 3:
-                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_mrg);
-                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
-                break;
-            case 4:
-                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_taus2);
-                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
-                break;
-        } // end switch
-
-        checker += 1;
-
-        if(checker==5) {
-            checker = 0;
-        }
-    }
-
-    gsl_rng_free(rseed);
-    free(many_ints);
-}
-
-void free_rng_threads(gsl_rng * rng_arr[]){
-    int ii;
-    for(ii=0;ii<user_params_stoc->N_THREADS;ii++){
-        gsl_rng_free(rng_arr[ii]);
-    }
-}
-
 void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, struct CosmoParams *cosmo_params){
     /*****  Adjust the complex conjugate relations for a real array  *****/
 
@@ -191,6 +125,7 @@ int ComputeInitialConditions(
 
     gsl_rng * r[user_params->N_THREADS];
     seed_rng_threads(r,random_seed);
+    LOG_DEBUG("seeded.");
 
     omp_set_num_threads(user_params->N_THREADS);
 
@@ -212,9 +147,6 @@ int ComputeInitialConditions(
     fftwf_complex *HIRES_box_vcb_saved;
     // HIRES_box_vcb_saved may be needed if FFTW_Wisdom doesn't exist -- currently unused
     // but I am not going to allocate it until I am certain I needed it.
-
-
-
 
     // find factor of HII pixel size / deltax pixel size
     f_pixel_factor = user_params->DIM/(float)user_params->HII_DIM;
