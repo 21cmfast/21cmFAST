@@ -1592,6 +1592,16 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double sigma,
         .sigma_cond = sigma,
         .delta = delta,
     };
+
+    //return 1 halo if delta is exceeded
+    //NOTE: should be 1/condition_mass to give 1 halo, meaning this will give the wrong answer when
+    //      the condition is above the critical and the upper limit is not equal to the condition mass
+    //      This would be fixed by passing the condition mass explicity, but this is only needed for this limit
+    //      (and would make Fcoll_Approx more convenient). Currently this function is only used for testing
+    //      so this is low priority.
+    if(delta > get_delta_crit(user_params_ps->HMF,sigma,growthf))
+        return 1./exp(lnM2);
+
     return IntegratedNdM(lnM1,lnM2,params,-1, method);
 }
 
@@ -1602,6 +1612,11 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double sigma,
         .sigma_cond = sigma,
         .delta = delta,
     };
+
+    //return 1 if delta is exceeded
+    if(delta > get_delta_crit(user_params_ps->HMF,sigma,growthf))
+        return 1.;
+
     return IntegratedNdM(lnM1,lnM2,params,-2, method);
 }
 
@@ -1623,6 +1638,13 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double s
         .sigma_cond = sigma2,
         .delta = delta2,
     };
+
+    //return 1 if delta is exceeded
+    //NOTE: this effectively assumes all mass is at the pivot point (1e7)
+    //      This reproduces the previous behaviour, HOWEVER this means that cells above
+    //      critical density have 100% of their mass in 1e10 halos AND 100% of their mass in 1e7 halos
+    if(delta2 > get_delta_crit(user_params_ps->HMF,sigma2,growthf))
+        return 1.; //0.
 
     // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e Mtu=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e hmf=%d sig=%.2e del=%.2e",
     //     growthf,MassTurnover,MassTurnover_upper,Alpha_star,Alpha_esc,Fstar7,Fesc7,Mlim_Fstar,Mlim_Fesc,0,sigma2,delta2);
@@ -1646,6 +1668,11 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double sigma2
         .sigma_cond = sigma2,
         .delta = delta2,
     };
+
+    //return 1 if delta is exceeded
+    if(delta2 > get_delta_crit(user_params_ps->HMF,sigma2,growthf))
+        return 1.; //NOTE: this effectively assumes all mass is at the pivot point (1e7)
+
     return IntegratedNdM(lnM1,lnM2,params,-3, method);
 }
 
