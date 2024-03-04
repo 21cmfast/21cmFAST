@@ -735,7 +735,6 @@ double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double g
 
 double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min, double M_max, double sigma_max,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev){
-    // LOG_SUPER_DEBUG("Evaluating Nion C d %.2e l10M %.2e",delta,log10Mturn);
     struct RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
     if(user_params_it->USE_INTERPOLATION_TABLES){
         if(flag_options_it->USE_MINI_HALOS)

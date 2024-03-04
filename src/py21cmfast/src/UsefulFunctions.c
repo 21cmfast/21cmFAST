@@ -27,7 +27,7 @@ void seed_rng_threads(gsl_rng * rng_arr[], int seed){
     unsigned int seeds[user_params_ufunc->N_THREADS];
 
     // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
-    int num_int = INT_MAX/256; //JD: this was taking a few seconds per snapshot so i reduced the number TODO: init the RNG once
+    int num_int = INT_MAX/16; //JD: this was taking a few seconds per snapshot so i reduced the number TODO: init the RNG once
     int i, thread_num;
     unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int*sizeof(unsigned int))); // Some large number of possible integers
     for (i=0; i<num_int; i++) {
