@@ -54,7 +54,6 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
                              float mturn_a_const, bool minihalos){
     int i,j;
     float Mlim_Fstar, Mlim_Fstar_MINI;
-    double z_val, mturn_val;
     double Mmin = global_params.M_MIN_INTEGRAL;
     double Mmax = global_params.M_MAX_INTEGRAL;
 
@@ -81,12 +80,14 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
 
     #pragma omp parallel private(i,j) num_threads(user_params_it->N_THREADS)
     {
-        float Mcrit_atom_val = mturn_a_const;
+        double Mcrit_atom_val = mturn_a_const;
+        double mturn_val;
+        double z_val;
         #pragma omp for
         for (i=0; i<Nbin; i++){
             z_val = SFRD_z_table.x_min + i*SFRD_z_table.x_width; //both tables will have the same values here
             Mmin = minimum_source_mass(z_val,true,astro_params_it,flag_options_it);
-            if(minihalos)Mcrit_atom_val = atomic_cooling_threshold(z_val);
+            if(minihalos) Mcrit_atom_val = atomic_cooling_threshold(z_val);
 
             if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || user_params_it->INTEGRATION_METHOD_MINI == 1)
                 initialise_GL(NGL_INT,log(Mmin),log(Mmax));
@@ -124,7 +125,6 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
     int i,j;
     float Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI;
     LOG_DEBUG("initing Nion spline from %.2f to %.2f",zmin,zmax);
-    double z_val, mturn_val;
     double Mmin = global_params.M_MIN_INTEGRAL;
     double Mmax = global_params.M_MAX_INTEGRAL;
 
@@ -150,13 +150,15 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
 
 #pragma omp parallel private(i,j) num_threads(user_params_it->N_THREADS)
     {
-        float Mcrit_atom_val = mturn_a_const;
+        double Mcrit_atom_val = mturn_a_const;
+        double mturn_val;
+        double z_val;
 #pragma omp for
         for (i=0; i<Nbin; i++){
             z_val = Nion_z_table.x_min + i*Nion_z_table.x_width; //both tables will have the same values here
             //Minor note: while this is called in xray, we use it to estimate ionised fraction, do we use ION_Tvir_MIN if applicable?
             Mmin = minimum_source_mass(z_val,true,astro_params_it,flag_options_it);
-            if(minihalos)Mcrit_atom_val = atomic_cooling_threshold(z_val);
+            if(minihalos) Mcrit_atom_val = atomic_cooling_threshold(z_val);
 
             if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || user_params_it->INTEGRATION_METHOD_MINI == 1)
                 initialise_GL(NGL_INT,log(Mmin),log(Mmax));

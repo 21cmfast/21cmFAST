@@ -758,7 +758,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         //  density -> volume weighted cell average || halo -> halo weighted average
         for (R_ct=R_start; R_ct<R_end; R_ct++){
             if(flag_options_ts->USE_MINI_HALOS){
-                LOG_SUPER_DEBUG("Starting freqint R=%.2f zpp %.2f l10McritLW %.2e",R_values[R_ct],zpp_for_evolve_list[R_ct],log10_Mcrit_LW_ave[R_ct]);
+                // LOG_SUPER_DEBUG("Starting freqint R=%.2f zpp %.2f l10McritLW %.2e",R_values[R_ct],zpp_for_evolve_list[R_ct],log10_Mcrit_LW_ave[R_ct]);
                 lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
                                                         log10_Mcrit_LW_ave[R_ct], Mlim_Fstar_g, Mlim_Fesc_g, Mlim_Fstar_MINI_g,
                                                         Mlim_Fesc_MINI_g), (astro_params_ts->NU_X_THRESH)*NU_over_EV);
@@ -852,6 +852,10 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //so it needs the QHII in a range [zp,zpp]. I want to replace this whole thing with a global history struct but
     //I will need to change the Tau function chain.
     double determine_zpp_max;
+
+    if(user_params_ts->INTEGRATION_METHOD_ATOMIC == 1 || user_params_ts->INTEGRATION_METHOD_MINI == 1)
+        initialise_GL(NGL_INT,log(global_params.M_MIN_INTEGRAL),log(global_params.M_MAX_INTEGRAL));
+
     if(user_params_ts->USE_INTERPOLATION_TABLES){
         determine_zpp_min = zp*0.999; //global
         //NOTE: must be called after setup_z_edges for this line
@@ -1366,6 +1370,11 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                                                 astro_params->F_ESC7_MINI * pow(1e3, astro_params->ALPHA_ESC));
         }
     }
+    else{
+        for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++){
+            ave_log10_MturnLW[i] = source_box->mean_log10_Mcrit_LW[i];
+        }
+    }
     //set the constants calculated once per snapshot
     struct spintemp_from_sfr_prefactors zp_consts;
     set_zp_consts(redshift,&zp_consts);
@@ -1387,15 +1396,11 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
     double mean_sfr_zpp[global_params.NUM_FILTER_STEPS_FOR_Ts];
     double mean_sfr_zpp_mini[global_params.NUM_FILTER_STEPS_FOR_Ts];
 
-    //a bit of an awkward assignment, should be fixed when I move the no-halo filtering to an XraySourceBox
-    double *log10_Mcrit_LW_ave_zpp;
-    log10_Mcrit_LW_ave_zpp = flag_options->USE_HALO_FIELD ? source_box->mean_log10_Mcrit_LW : ave_log10_MturnLW;
-
     //this should initialise and use the global tables (given box average turnovers)
     //  and use them to give: Filling factor at zp (only used for !MASS_DEPENDENT_ZETA to get ion_eff)
     //  global SFRD at each filter radius (numerator of ST_over_PS factor)
     double Q_HI_zp;
-    NO_LIGHT = global_reion_properties(redshift,x_e_ave_p,log10_Mcrit_LW_ave_zpp,mean_sfr_zpp,mean_sfr_zpp_mini,&Q_HI_zp);
+    NO_LIGHT = global_reion_properties(redshift,x_e_ave_p,ave_log10_MturnLW,mean_sfr_zpp,mean_sfr_zpp_mini,&Q_HI_zp);
 
     #pragma omp parallel private(box_ct) num_threads(user_params->N_THREADS)
     {
@@ -1490,10 +1495,21 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                 avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
 
-                LOG_SUPER_DEBUG("z %6.2f ave sfrd (mini) val %.3e (%.3e) global %.3e (%.3e) Mmin %.3e ratio %.4e z_edge %.4e",
-                                    zpp_for_evolve_list[R_ct],ave_fcoll,
-                                    ave_fcoll_MINI,mean_sfr_zpp[R_ct],mean_sfr_zpp_mini[R_ct],
+                LOG_SUPER_DEBUG("z %6.2f ave sfrd (mini) val %.3e global %.3e (int %.3e) Mmin %.3e ratio %.4e z_edge %.4e",
+                                    zpp_for_evolve_list[R_ct],ave_fcoll,mean_sfr_zpp[R_ct],
+                                    Nion_General(zpp_for_evolve_list[R_ct], global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL,
+                                                    Mcrit_atom_interp_table[R_ct], astro_params_it->ALPHA_STAR, 0.,
+                                                    astro_params_it->F_STAR10, 1., Mlim_Fstar_g, 0, 0),
                                     M_min_R[R_ct],avg_fix_term,z_edge_factor);
+                if(flag_options_ts->USE_MINI_HALOS){
+                    LOG_SUPER_DEBUG("MINI sfrd val %.3e global %.3e (int %.3e) ratio %.3e log10McritLW %.3e Mlim %.3e",
+                                    ave_fcoll_MINI,mean_sfr_zpp_mini[R_ct],
+                                    Nion_General_MINI(zpp_for_evolve_list[R_ct], global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL,
+                                                        pow(10.,ave_log10_MturnLW[R_ct]), Mcrit_atom_interp_table[R_ct],
+                                                        astro_params_ts->ALPHA_STAR_MINI, 0., astro_params_ts->F_STAR7_MINI,
+                                                        1., Mlim_Fstar_MINI_g, 0., 0),
+                                    avg_fix_term_MINI,ave_log10_MturnLW[R_ct],Mlim_Fstar_MINI_g);
+                }
             }
 
             //minihalo factors should be separated since they may not be allocated

@@ -1062,6 +1062,7 @@ double get_frac_limit(double M, double norm, double alpha, double limit, bool mi
     if ((alpha > 0. && M > limit) || (alpha < 0. && M < limit))
         return 1/norm;
 
+    //if alpha is zero, this returns 1 as expected (note strict inequalities above)
     return pow(M/pivot,alpha);
 }
 

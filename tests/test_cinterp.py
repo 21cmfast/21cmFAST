@@ -1,5 +1,6 @@
 import pytest
 
+import matplotlib as mpl
 import numpy as np
 from astropy import constants as c
 from astropy import units as u
@@ -57,7 +58,7 @@ options_intmethod[2] = pytest.param("FFCOLL", marks=pytest.mark.xfail)
 
 # TODO: write tests for the redshift interpolation tables (global Nion, SFRD, FgtrM)
 @pytest.mark.parametrize("name", options_ps)
-def test_sigma_table(name):
+def test_sigma_table(name, plt):
     abs_tol = 0
 
     redshift, kwargs = OPTIONS_PS[name]
@@ -82,6 +83,17 @@ def test_sigma_table(name):
     sigma_table = np.vectorize(lib.EvaluateSigma)(np.log(mass_range))
     dsigmasq_table = np.vectorize(lib.EvaluatedSigmasqdm)(np.log(mass_range))
 
+    if plt == mpl.pyplot:
+        make_table_comparison_plot(
+            mass_range,
+            np.array([0]),
+            sigma_table,
+            dsigmasq_table[..., None],
+            sigma_ref,
+            dsigmasq_ref[..., None],
+            plt,
+        )
+
     np.testing.assert_allclose(
         sigma_ref, sigma_table, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
@@ -95,7 +107,7 @@ def test_sigma_table(name):
 #   for now this is acceptable
 @pytest.mark.xfail
 @pytest.mark.parametrize("name", options_hmf)
-def test_Massfunc_conditional_tables(name):
+def test_Massfunc_conditional_tables(name, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -298,7 +310,7 @@ def test_Massfunc_conditional_tables(name):
 
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
-def test_FgtrM_conditional_tables(name, R):
+def test_FgtrM_conditional_tables(name, R, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -355,6 +367,17 @@ def test_FgtrM_conditional_tables(name, R):
         edges_d[:-1], redshift, sigma_min, sigma_cond
     )
 
+    if plt == mpl.pyplot:
+        make_table_comparison_plot(
+            edges_d[:-1],
+            np.array([0]),
+            fcoll_tables,
+            dfcoll_tables[..., None],
+            fcoll_integrals,
+            dfcoll_integrals[..., None],
+            plt,
+        )
+
     abs_tol = 0.0
     np.testing.assert_allclose(
         fcoll_tables, fcoll_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
@@ -364,8 +387,196 @@ def test_FgtrM_conditional_tables(name, R):
     )
 
 
+@pytest.mark.parametrize("name", options_hmf)
+@pytest.mark.parametrize("intmethod", options_intmethod)
+def test_SFRD_z_tables(name, intmethod, plt):
+    redshift, kwargs = OPTIONS_HMF[name]
+    opts = prd.get_all_options(redshift, **kwargs)
+
+    up = UserParams(opts["user_params"])
+    cp = CosmoParams(opts["cosmo_params"])
+    ap = AstroParams(opts["astro_params"])
+    fo = FlagOptions(opts["flag_options"])
+
+    up.update(
+        USE_INTERPOLATION_TABLES=True,
+        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
+    )
+    fo.update(
+        USE_MINI_HALOS=True,
+        USE_MASS_DEPENDENT_ZETA=True,
+        INHOMO_RECO=True,
+        USE_TS_FLUCT=True,
+    )
+    lib.Broadcast_struct_global_PS(up(), cp())
+    lib.Broadcast_struct_global_UF(up(), cp())
+    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+
+    hist_size = 1000
+    M_min = global_params.M_MIN_INTEGRAL
+    M_max = global_params.M_MAX_INTEGRAL
+    z_array = np.linspace(6, 40, num=hist_size)
+    edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
+
+    lib.init_ps()
+
+    if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
+        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+
+    Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
+    Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
+
+    lib.initialiseSigmaMInterpTable(M_min, M_max)
+
+    lib.initialise_SFRD_spline(
+        400,
+        z_array[0],
+        z_array[-1],
+        ap.ALPHA_STAR,
+        ap.ALPHA_STAR_MINI,
+        ap.F_STAR10,
+        ap.F_STAR7_MINI,
+        ap.M_TURN,
+        True,
+    )
+
+    input_arr = np.meshgrid(z_array[:-1], np.log10(edges_m[:-1]), indexing="ij")
+
+    SFRD_tables = np.vectorize(lib.EvaluateSFRD)(z_array[:-1], Mlim_Fstar)
+    SFRD_tables_mini = np.vectorize(lib.EvaluateSFRD_MINI)(
+        input_arr[0], input_arr[1], Mlim_Fstar_MINI
+    )
+
+    up.update(USE_INTERPOLATION_TABLES=False)
+    lib.Broadcast_struct_global_PS(up(), cp())
+    lib.Broadcast_struct_global_UF(up(), cp())
+    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+
+    SFRD_integrals = np.vectorize(lib.EvaluateSFRD)(z_array[:-1], Mlim_Fstar)
+    SFRD_integrals_mini = np.vectorize(lib.EvaluateSFRD_MINI)(
+        input_arr[0], input_arr[1], Mlim_Fstar_MINI
+    )
+
+    if plt == mpl.pyplot:
+        sel_m = np.array([0, hist_size / 20, hist_size / 10 - 2]).astype(int)
+        make_table_comparison_plot(
+            z_array[:-1],
+            edges_m[sel_m],
+            SFRD_tables,
+            SFRD_tables_mini[..., sel_m],
+            SFRD_integrals,
+            SFRD_integrals_mini[..., sel_m],
+            plt,
+        )
+
+    np.testing.assert_allclose(
+        SFRD_tables, SFRD_integrals, atol=0, rtol=RELATIVE_TOLERANCE
+    )
+    np.testing.assert_allclose(
+        SFRD_tables_mini, SFRD_integrals_mini, atol=0, rtol=RELATIVE_TOLERANCE
+    )
+
+
+@pytest.mark.parametrize("name", options_hmf)
+@pytest.mark.parametrize("intmethod", options_intmethod)
+def test_Nion_z_tables(name, intmethod, plt):
+    redshift, kwargs = OPTIONS_HMF[name]
+    opts = prd.get_all_options(redshift, **kwargs)
+
+    up = UserParams(opts["user_params"])
+    cp = CosmoParams(opts["cosmo_params"])
+    ap = AstroParams(opts["astro_params"])
+    fo = FlagOptions(opts["flag_options"])
+
+    up.update(
+        USE_INTERPOLATION_TABLES=True,
+        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
+    )
+    fo.update(
+        USE_MINI_HALOS=True,
+        USE_MASS_DEPENDENT_ZETA=True,
+        INHOMO_RECO=True,
+        USE_TS_FLUCT=True,
+    )
+    lib.Broadcast_struct_global_PS(up(), cp())
+    lib.Broadcast_struct_global_UF(up(), cp())
+    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+
+    hist_size = 1000
+    M_min = global_params.M_MIN_INTEGRAL
+    M_max = global_params.M_MAX_INTEGRAL
+    z_array = np.linspace(6, 40, num=hist_size)
+    edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
+
+    lib.init_ps()
+
+    if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
+        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+
+    Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
+    Mlim_Fesc = 1e10 * (10**ap.F_ESC10) ** (-1.0 / ap.ALPHA_ESC)
+    Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
+    Mlim_Fesc_MINI = 1e7 * (10**ap.F_ESC7_MINI) ** (-1.0 / ap.ALPHA_ESC)
+
+    lib.initialiseSigmaMInterpTable(M_min, M_max)
+
+    lib.initialise_Nion_Ts_spline(
+        400,
+        z_array[0],
+        z_array[-1],
+        ap.ALPHA_STAR,
+        ap.ALPHA_STAR_MINI,
+        ap.ALPHA_ESC,
+        ap.F_STAR10,
+        ap.F_ESC10,
+        ap.F_STAR7_MINI,
+        ap.F_ESC7_MINI,
+        ap.M_TURN,
+        True,
+    )
+
+    input_arr = np.meshgrid(z_array[:-1], np.log10(edges_m[:-1]), indexing="ij")
+
+    Nion_tables = np.vectorize(lib.EvaluateNionTs)(z_array[:-1], Mlim_Fstar, Mlim_Fesc)
+    Nion_tables_mini = np.vectorize(lib.EvaluateNionTs_MINI)(
+        input_arr[0], input_arr[1], Mlim_Fstar_MINI, Mlim_Fesc_MINI
+    )
+
+    up.update(USE_INTERPOLATION_TABLES=False)
+    lib.Broadcast_struct_global_PS(up(), cp())
+    lib.Broadcast_struct_global_UF(up(), cp())
+    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+
+    Nion_integrals = np.vectorize(lib.EvaluateNionTs)(
+        z_array[:-1], Mlim_Fstar, Mlim_Fesc
+    )
+    Nion_integrals_mini = np.vectorize(lib.EvaluateNionTs_MINI)(
+        input_arr[0], input_arr[1], Mlim_Fstar_MINI, Mlim_Fesc_MINI
+    )
+
+    if plt == mpl.pyplot:
+        sel_m = np.array([0, hist_size / 20, hist_size / 10 - 2]).astype(int)
+        make_table_comparison_plot(
+            z_array[:-1],
+            edges_m[sel_m],
+            Nion_tables,
+            Nion_tables_mini[..., sel_m],
+            Nion_integrals,
+            Nion_integrals_mini[..., sel_m],
+            plt,
+        )
+
+    np.testing.assert_allclose(
+        Nion_tables, Nion_integrals, atol=0, rtol=RELATIVE_TOLERANCE
+    )
+    np.testing.assert_allclose(
+        Nion_tables_mini, Nion_integrals_mini, atol=0, rtol=RELATIVE_TOLERANCE
+    )
+
+
 # A few notes on this test function:
-#   Minihalos are set to true to test both tables
 #   Mass limits are set explicitly using the param values
 #       and #defines are copied to hard code (not ideal)
 #   Density and Mturn limits are set to their maxima since we don't have cubes.
@@ -376,7 +587,7 @@ def test_FgtrM_conditional_tables(name, R):
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
-def test_Nion_conditional_tables(name, R, mini, intmethod):
+def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
     mini_flag = mini == "mini"
 
     redshift, kwargs = OPTIONS_HMF[name]
@@ -505,10 +716,6 @@ def test_Nion_conditional_tables(name, R, mini, intmethod):
             f"max abs diff of failures {np.fabs(Nion_integrals - Nion_tables)[sel_failed].max()} relative {(np.fabs(Nion_integrals - Nion_tables)/Nion_tables)[sel_failed].max()}"
         )
 
-    np.testing.assert_allclose(
-        Nion_tables, Nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
-    )
-
     if mini_flag:
         Nion_tables_mini = np.vectorize(lib.EvaluateNion_Conditional_MINI)(
             input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
@@ -547,17 +754,41 @@ def test_Nion_conditional_tables(name, R, mini, intmethod):
             print(
                 f"max abs diff of failures {np.fabs(Nion_integrals_mini - Nion_tables_mini)[sel_failed].max()} relative {(np.fabs(Nion_integrals_mini - Nion_tables_mini)/Nion_tables_mini)[sel_failed].max()}"
             )
+    else:
+        Nion_tables_mini = np.zeros((hist_size - 1, int(hist_size / 10)))
+        Nion_integrals_mini = np.zeros((hist_size - 1, int(hist_size / 10)))
 
-        #### SECOND ASSERT (MINI) ####
-        np.testing.assert_allclose(
-            Nion_tables_mini, Nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+    if plt == mpl.pyplot:
+        sel_m = np.array([0, hist_size / 20, hist_size / 10 - 2]).astype(int)
+        if mini_flag:
+            Nion_tb_plot = Nion_tables[..., sel_m]
+            Nion_il_plot = Nion_integrals[..., sel_m]
+        else:
+            Nion_tb_plot = Nion_tables
+            Nion_il_plot = Nion_integrals
+        make_table_comparison_plot(
+            edges_d[:-1],
+            edges_m[sel_m],
+            Nion_tb_plot,
+            Nion_tables_mini[..., sel_m],
+            Nion_il_plot,
+            Nion_integrals_mini[..., sel_m],
+            plt,
         )
+
+    np.testing.assert_allclose(
+        Nion_tables, Nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+    )
+
+    np.testing.assert_allclose(
+        Nion_tables_mini, Nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+    )
 
 
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
-def test_SFRD_conditional_table(name, R, intmethod):
+def test_SFRD_conditional_table(name, R, intmethod, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -707,9 +938,81 @@ def test_SFRD_conditional_table(name, R, intmethod):
             f"max abs diff of failures {np.fabs(SFRD_integrals - SFRD_tables)[sel_failed].max()} relative {(np.fabs(SFRD_integrals - SFRD_tables)/SFRD_tables)[sel_failed].max()}"
         )
 
+    if plt == mpl.pyplot:
+        sel_m = np.array([0, hist_size / 20, hist_size / 10 - 2]).astype(int)
+        make_table_comparison_plot(
+            edges_d[:-1],
+            edges_m[sel_m],
+            SFRD_tables,
+            SFRD_tables_mini[..., sel_m],
+            SFRD_integrals,
+            SFRD_integrals_mini[..., sel_m],
+            plt,
+        )
+
     np.testing.assert_allclose(
         SFRD_tables, SFRD_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
         SFRD_tables_mini, SFRD_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
+
+
+def make_table_comparison_plot(x1, x2, table_1d, table_2d, intgrl_1d, intgrl_2d, plt):
+    # rows = values,fracitonal diff, cols = 1d table, 2d table
+    fig, axs = plt.subplots(nrows=2, ncols=2)
+    make_comparison_plot(
+        x1,
+        intgrl_1d,
+        table_1d,
+        ax=axs[:, 0],
+        xlab="delta",
+        ylab="MF integral",
+        logx=False,
+        color="C0",
+    )
+
+    for i in range(x2.size):
+        make_comparison_plot(
+            x1,
+            intgrl_2d[:, i],
+            table_2d[:, i],
+            ax=axs[:, 1],
+            xlab="delta",
+            ylab="MF integral mini",
+            label_base=f"Mt = {x2[i]:.1e}",
+            logx=False,
+            color=f"C{i:d}",
+        )
+
+
+# copied and expanded from test_integration_features.py
+def make_comparison_plot(
+    x,
+    true,
+    test,
+    ax,
+    logx=True,
+    logy=True,
+    xlab=None,
+    ylab=None,
+    label_base="",
+    **kwargs,
+):
+    ax[0].plot(x, true, label=label_base + " True", linestyle="-", **kwargs)
+    ax[0].plot(
+        x, test, label=label_base + " Test", linestyle=":", linewidth=3, **kwargs
+    )
+    if logx:
+        ax[0].set_xscale("log")
+    if logy:
+        ax[0].set_yscale("log")
+    if xlab:
+        ax[0].set_xlabel(xlab)
+    if ylab:
+        ax[0].set_ylabel(ylab)
+
+    ax[0].legend()
+
+    ax[1].plot(x, (test - true) / true, **kwargs)
+    ax[1].set_ylabel("Fractional Difference")
