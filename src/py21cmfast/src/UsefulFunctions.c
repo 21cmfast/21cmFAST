@@ -156,9 +156,7 @@ void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
                     kl = k_mag*mfp;
 
                     //Davies & Furlanetto MFP-eps(r) window function
-                    //TODO: optimize
                     //The filter no longer approaches 1 at k->0, so we can't use the limit
-                    //TODO: find the limit in terms of k,R,mfp and use it to optimize
                     if (kR > 1e-4){
                         //build the filter
                         f = (kl*kl*R + 2*mfp + R)*kl*cos(kR);

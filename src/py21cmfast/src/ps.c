@@ -858,7 +858,6 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
 
 //Sheth Tormen 2002 fit for the CMF, while the moving barrier does not allow for a simple rescaling, it has been found
 //That a taylor expansion of the barrier shape around the point of interest well approximates the simulations
-//TODO: Count the growth factors needed in each term, also move to ps.c
 double st_taylor_factor(double sig, double sig_cond, double delta_cond, double growthf){
     int i;
     // double a = SHETH_a;
@@ -1079,8 +1078,6 @@ double conditional_mf(double growthf, double lnM, double delta, double sigma, in
     }
     //NOTE: Normalisation scaling is currently applied outside the integral, per condition
     //This will be the rescaled EPS CMF,
-    //TODO: put rescaling options here (normalised EPS, rescaled EPS, local/global scalings of UMFs from Tramonte+17)
-    //Filter CMF type by CMF_MODE parameter (==1 for set CMF, ==2 for resnormalised, ==3 for rescaled EPS, ==4 for Tramonte local, ==5 for Tramonte global etc)
     return dNdM_conditional_EPS(growthf,lnM,delta,sigma);
 
 }
@@ -1390,11 +1387,10 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
 
     double lnM_lo_limit = lnM_lo;
     double lnM_hi_limit = lnM_hi;
-    //these might be nan but aren't used in those cases
-    //TODO (Speed): by passing in log(M_turnover) i can avoid these 2 log calls
+    //(Speed): by passing in log(M_turnover) i can avoid these 2 log calls
     double lnMturn_l = log(params.Mturn);
     double lnMturn_u = log(params.Mturn_upper);
-    //TODO (speed): LOG(MPIVOTn) can be pre-defined
+    //(Speed): LOG(MPIVOTn) can be pre-defined
     double lnMp1 = log(MPIVOT1);
     double lnMp2 = log(MPIVOT2);
 
@@ -1733,10 +1729,8 @@ void initialiseSigmaMInterpTable(float M_min, float M_max){
 #pragma omp for
         for(i=0;i<NMass;i++) {
             Mass = exp(Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width);
-            // LOG_DEBUG("i %d lnM %.2e M %.2e",i, Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width, Mass);
             Sigma_InterpTable.y_arr[i] = sigma_z0(Mass);
-            dSigmasqdm_InterpTable.y_arr[i] = log10(-dsigmasqdm_z0(Mass)); //TODO: look into if log/linear is better
-            // LOG_DEBUG("S %.2e dS %.2e", Sigma_InterpTable.y_arr[i], dSigmasqdm_InterpTable.y_arr[i]);
+            dSigmasqdm_InterpTable.y_arr[i] = log10(-dsigmasqdm_z0(Mass));
         }
     }
 
@@ -1943,7 +1937,6 @@ double FgtrM_bias(double z, double M, double del_bias, double sig_bias){
 }
 
 //  Redshift derivative of the conditional collapsed fraction
-//  TODO: change to use linear growth ddicke_dz, dsigmadz since we have these tabulated?
 float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias)
 {
     double dz,z1,z2;
@@ -3227,8 +3220,6 @@ double EvaluatedSigmasqdm(double lnM){
 //set the minimum source mass for the integrals, If we have an exponential cutoff we go below the chosen mass by a factor of 50
 //NOTE: previously, with USE_MINI_HALOS, the sigma table was initialised with M_MIN_INTEGRAL/50, but then all integrals perofmed
 //      from M_MIN_INTEGRAL
-//TODO: *sometimes* we need to initialise tables slightly lower than the integral, this is solved ad-hoc in each file that calls this function
-//      I should make a proper fix
 double minimum_source_mass(double redshift, bool xray, struct AstroParams *astro_params, struct FlagOptions *flag_options){
     double Mmin,min_factor,mu_factor,t_vir_min;
     if(flag_options->USE_MASS_DEPENDENT_ZETA && !flag_options->USE_MINI_HALOS)

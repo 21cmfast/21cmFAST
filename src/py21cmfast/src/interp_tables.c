@@ -191,13 +191,6 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
     }
 }
 
-//TODO: I'm not 100% sure the tables do much since there are no integrals (maybe erfc is slow?), look into it
-//This table is a lot simpler than the one that existed previously, which was a R_ct x 2D table, with
-//  loads of precomputed interpolation points. This may have been from a point where the table was generated only once
-//  and needed both an R and zpp axis.
-//NOTE: both here and for the conditional tables it says "log spacing is desired", but I can't see why.
-//  TODO: make a plot of Fcoll vs delta, and Fcoll vs log(1+delta) to see which binning is better
-//      but I would expect linear in delta to be fine
 void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, double growth_zpp, double smin_zpp, double smax_zpp){
     int i,j;
     double dens;
@@ -221,7 +214,6 @@ void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, 
     }
 }
 
-//TODO: change to same z-bins as other global 1D tables
 void init_FcollTable(double zmin, double zmax, bool x_ray){
     int i;
     double z_val,M_min;
@@ -253,10 +245,8 @@ void init_FcollTable(double zmin, double zmax, bool x_ray){
 //NOTE: since reionisation feedback is not included in the Ts calculation, the SFRD spline
 //  is Rx1D unlike the Mini table, which is Rx2D
 //NOTE: SFRD tables have fixed Mturn range, Nion tables vary
-//TODO: fix the confusing Mmax=log(Mmax) naming
-//TODO: it would be slightly less accurate but maybe faster to tabulate in linear delta, linear Fcoll
+//NOTE: it would be slightly less accurate but maybe faster to tabulate in linear delta, linear Fcoll
 //  rather than linear-log, check the profiles
-
 void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_density, float max_density,
                                      float Mmin, float Mmax, float Mcond, float log10Mturn_min, float log10Mturn_max,
                                      float log10Mturn_min_MINI, float log10Mturn_max_MINI, float Alpha_star,
@@ -273,8 +263,8 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
     // LOG_DEBUG("Initialising Nion conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
 
     growthf = dicke(z);
-    Mmin = log(Mmin);
-    Mmax = log(Mmax);
+    double lnMmin = log(Mmin);
+    double lnMmax = log(Mmax);
 
     sigma2 = EvaluateSigma(log(Mcond));
 
@@ -330,7 +320,7 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
         for(i=0;i<NDELTA;i++){
             if(!minihalos){
                 //pass constant M_turn as minimum
-                Nion_conditional_table1D.y_arr[i] = log(Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,
+                Nion_conditional_table1D.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,sigma2,
                                                 overdense_table[i],Mcrit_atom,Alpha_star,Alpha_esc,
                                                 Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC));
                 if(Nion_conditional_table1D.y_arr[i] < -40.)
@@ -339,14 +329,14 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
                 continue;
             }
             for (j=0; j<NMTURN; j++){
-                table_2d->z_arr[i][j] = log(Nion_ConditionalM(growthf,Mmin,Mmax,sigma2,
+                table_2d->z_arr[i][j] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,sigma2,
                                                 overdense_table[i],mturns[j],Alpha_star,Alpha_esc,
                                                 Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC));
 
                 if(table_2d->z_arr[i][j] < -40.)
                     table_2d->z_arr[i][j] = -40.;
 
-                table_mini->z_arr[i][j] = log(Nion_ConditionalM_MINI(growthf,Mmin,Mmax,sigma2,overdense_table[i],
+                table_mini->z_arr[i][j] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,sigma2,overdense_table[i],
                                                     mturns_MINI[j],Mcrit_atom,Alpha_star_mini,Alpha_esc,Fstar7_MINI,Fesc7_MINI,
                                                     Mlim_Fstar_MINI,Mlim_Fesc_MINI,user_params_it->INTEGRATION_METHOD_MINI));
 
@@ -464,7 +454,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
 }
 
 //This table is N(>M | M_in), the CDF of dNdM_conditional
-//NOTE: Assumes you give it ymin as the minimum mass TODO: add another argument for Mmin
+//NOTE: Assumes you give it ymin as the minimum mass
 void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool from_catalog){
     int nx,ny,np;
     double lnM_cond,delta_crit;
@@ -563,7 +553,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 continue;
             }
 
-            //BIG TODO: THIS IS SUPER INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
+            //TODO: THIS IS SUPER INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
             //      GL seems to require smoothness in the whole interval so we cannot use ymax for everything (TEST THIS)
             if(user_params_it->INTEGRATION_METHOD_HALOS == 1)
                 initialise_GL(NGL_INT, ymin, lnM_cond);
@@ -591,7 +581,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 //done with inverse table
                 if(k < k_lim) break;
 
-                //BIG TODO: THIS IS EVEN MORE INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
+                //TODO: THIS IS EVEN MORE INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
                 //      i.e reverse the loop if we have to define for every condition, OR initialise in arrays
                 if(user_params_it->INTEGRATION_METHOD_HALOS == 1)
                     initialise_GL(NGL_INT, y, lnM_cond);
@@ -641,8 +631,6 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     }
     LOG_DEBUG("Done.");
 }
-
-//TODO: start rootfind tables again by copying the above and replacing the interpolation with a false positive rootfind
 
 void free_dNdM_tables(){
     int i;

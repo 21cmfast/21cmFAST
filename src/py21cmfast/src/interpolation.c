@@ -1,13 +1,7 @@
 //New file to store functions that deal with the interpolation tables, since they are used very often.
 //  We use regular grid tables since they are faster to evaluate (we always know which bin we are in)
 //  So I'm making a general function for the 1D and 2D cases
-//TODO: find out if the compiler optimizes this if it's called with the same x or y, (first 3 points are the same)
-//  Because there are some points such as the frequency integral tables where we evaluate an entire column of one 2D table
-//  Otherwise write a function which saves the left_edge and right_edge for faster evaluation
-//TODO: make a print_interp_error(array,x,y) function which prints the cell corners, interpolation points etc
 
-//TODO: for the moment the tables are still in global arrays, but will move to these structs soon
-//TODO: sort out if we actually need single precision tables
 struct RGTable1D{
     int n_bin;
     double x_min;

@@ -27,13 +27,9 @@ void set_halo_properties(float halo_mass, float M_turn_a, float M_turn_m, float 
     double sm_sample_mini, sfr_sample_mini;
     double fesc,fesc_mini;
 
-    //TODO: It could save some `pow` calls with F_esc if I compute a mass limit for fesc outside the loop
-    //NOTE: I can only do this if f_esc remains non-stochastic, this will also be irrelevant with mean property interptables
     fesc = fmin(norm_esc_var*pow(halo_mass/1e10,alpha_esc_var),1);
 
-    //A flattening of the high-mass FSTAR, HACKY VERSION FOR NOW
-    //TODO: code it properly with new parameters and pivot point defined somewhere
-    //NOTE: we don't want an upturn even with a negative ALPHA_STAR
+    //We don't want an upturn even with a negative ALPHA_STAR
     if(astro_params_stoc->ALPHA_STAR > -0.61){
         fstar_mean = f10 * exp(-M_turn_a/halo_mass) * pow(2.6e11/1e10,astro_params_stoc->ALPHA_STAR);
         fstar_mean /= pow(halo_mass/2.8e11,-astro_params_stoc->ALPHA_STAR) + pow(halo_mass/2.8e11,0.61);
@@ -42,12 +38,6 @@ void set_halo_properties(float halo_mass, float M_turn_a, float M_turn_m, float 
         fstar_mean = f10 * pow(halo_mass/1e10,fa) * exp(-M_turn_a/halo_mass);
     }
 
-    //TODO: apply some version of the Mcrit smoothing which happens in the minihalo model
-    //NOTE: that smoothing is a trapezoidal integration (assuming constant Mturn in the step)
-    //  This has some implications for my model, the halo history SHOULD matter in terms of Nion
-    //  i.e the turnover mass HISTORY of a halo should change its total n_ion.
-    //  However it is not clear to me how this can be implemented, since I would need not only the
-    //  previous M_turn grids but also a previous halo mass (with possibly many progenitors)
     if(flag_options_stoc->USE_MINI_HALOS){
         fesc_mini = fmin(fesc7*pow(halo_mass/1e7,alpha_esc_var),1);
         fstar_mean_mini = f7 * pow(halo_mass/1e7,fa_m) * exp(-M_turn_m/halo_mass - halo_mass/M_turn_a);
@@ -146,7 +136,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
 
     double M_turn_a_nofb = flag_options_stoc->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params_stoc->M_TURN;
 
-    //TODO: These tables are coarser than needed, I should do an initial loop to find delta and Mturn limits
+    //These tables are coarser than needed, an initial loop to find limits may help
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
         if(user_params_stoc->INTEGRATION_METHOD_ATOMIC == 1 || user_params_stoc->INTEGRATION_METHOD_MINI == 1){
             initialise_GL(NGL_INT, lnMmin, lnMmax);
