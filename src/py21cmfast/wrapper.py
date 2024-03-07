@@ -1611,9 +1611,6 @@ def halo_box(
         # NOTE: due to the order, we use the previous spintemp here, like spin_temperature,
         #       but UNLIKE ionize_box, which uses the current box
         # TODO: think about the inconsistency here
-        # NOTE: I didn't make checks for prev_z since it isn't used in any equations, we simply use the last timestep
-        #   to calculate critical masses at the current timestep. The rest of the flag situations (INHOMO_RECO, USE_SPIN_TEMP) should be handled
-        #   by the other funcitons
         # NOTE: if USE_MINI_HALOS is TRUE, so is USE_TS_FLUCT and INHOMO_RECO
         if (
             not isinstance(previous_spin_temp, TsBox)
@@ -1678,7 +1675,7 @@ def halo_box(
     return result
 
 
-# TODO: make this more general
+# TODO: make this more general and probably combine with the lightcone interp function
 def interp_haloboxes(hbox_arr, fields, z_halos, z_target) -> HaloBox:
     """
     Interpolate HaloBox history to the desired redshift.
@@ -1915,9 +1912,6 @@ def xray_source(
 
             # HACK: so that I can compute in the loop multiple times
             # since the array state is initialized already it shouldn't re-initialise
-            # TODO: in future I should separate compute() into three parts:
-            # initialize(memory), update (calculate on R), finalize (save&hooks)
-            # TODO: should I call _setup_inputs here again to verify the loaded hboxes?
             for k, state in box._array_state.items():
                 if state.initialized:
                     state.computed_in_mem = False
@@ -1934,7 +1928,7 @@ def xray_source(
             )
 
         # HACK: sometimes we don't compute (if the first zpp > z_max or there are no halos)
-        # in which case the array is not marked as computed, TODO: force a compute on cell scale
+        # in which case the array is not marked as computed
         for k, state in box._array_state.items():
             if state.initialized:
                 state.computed_in_mem = True
@@ -3563,9 +3557,6 @@ def run_lightcone(
 
         # we explicitly pass the descendant halos here since we have a redshift list prior
         #   this will generate the extra fields if STOC_MINIMUM_Z is given
-        # TODO: with feedback, we cannot only store the HaloBox. Storing every halofield is silly
-        #   and purging C-allocated fields causes a crash. Find a better way to organise this
-        #   The easiest way to fix this is probably to move the HaloField to a python-allocated struct
         pt_halos = []
         if flag_options.USE_HALO_FIELD:
             halos_desc = None
@@ -3578,8 +3569,6 @@ def run_lightcone(
                 z_halos.append(z_target)
                 logger.info(f"calculating additional halo field at z={z_halos[-1]}")
                 # we also need a perturb field for mean boxes.
-                # TODO: separate halo_box from the mean boxes since one only needs the perturbfield
-                #   and the other needs pt_halos, this does some unneccessary calculation
                 p = perturb_field(
                     redshift=z_target,
                     init_boxes=init_box,
@@ -4236,6 +4225,7 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
         # find the analytic curve wth that alpha
         # TODO: Theres a small memory leak here since global arrays are allocated (for some reason)
         # TODO: use ffi to free them?
+        #       This will be fixed by moving the photoncons to python
         _init_photon_conservation_correction(
             user_params=user_params,
             cosmo_params=cosmo_params,
@@ -4286,7 +4276,6 @@ def photoncons_alpha(cosmo_params, user_params, astro_params, flag_options):
         [roots_ratio_idx, roots_diff_idx, roots_reverse_idx],
         [alpha_estimate_ratio, alpha_estimate_diff, alpha_estimate_reverse],
     ):
-        # TODO: vectorize?
         last_alpha = astro_params.ALPHA_ESC
         # logger.info('calculating alpha roots')
         for i in range(z.size)[::-1]:
@@ -4382,7 +4371,6 @@ def photoncons_fesc(cosmo_params, user_params, astro_params, flag_options):
     Adjusts the normalisation of the escape fraction to match a global evolution.
     """
     # HACK: I need to allocate the deltaz arrays so I can return the other ones properly, this isn't a great solution
-    # TODO: Move the deltaz interp tables to python
     if not lib.photon_cons_allocated:
         lib.determine_deltaz_for_photoncons()
         lib.photon_cons_allocated = ffi.cast("bool", True)

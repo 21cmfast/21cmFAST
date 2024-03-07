@@ -714,8 +714,6 @@ class FlagOptions(StructWithDefaults):
         (0,0): DexM only,
         (0,1): Halo Sampler,
         (1,?): FFRT-P fixed halo grids
-
-        TODO:add an ESF-L Method (perturb halo mass grids after fixed Lagrangian Fcoll)
     CELL_RECOMB: bool, optional
         An alternate way of counting recombinations based on the local cell rather than the filter region.
         This is part of the perspective shift (see Davies & Furlanetto 2021) from counting photons/atoms in a sphere and flagging a central
