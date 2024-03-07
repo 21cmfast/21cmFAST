@@ -125,7 +125,6 @@ int ComputeInitialConditions(
 
     gsl_rng * r[user_params->N_THREADS];
     seed_rng_threads(r,random_seed);
-    LOG_DEBUG("seeded.");
 
     omp_set_num_threads(user_params->N_THREADS);
 

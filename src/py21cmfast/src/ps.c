@@ -929,21 +929,21 @@ double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double
 
  Reference: Sheth, Mo, Torman 2001
  */
-double dNdM_st(double growthf, double M){
+double dNdlnM_st(double growthf, double lnM){
     double sigma, dsigmadm, nuhat;
 
     float MassBinLow;
     int MassBin;
 
-    sigma = EvaluateSigma(log(M));
-    dsigmadm = EvaluatedSigmasqdm(log(M));
+    sigma = EvaluateSigma(lnM);
+    dsigmadm = EvaluatedSigmasqdm(lnM);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
 
     nuhat = sqrt(SHETH_a) * Deltac / sigma;
 
-    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * sqrt(2./PI)*SHETH_A * (1+ pow(nuhat, -2*SHETH_p)) * nuhat * pow(E, -nuhat*nuhat/2.0);
+    return (-(cosmo_params_ps->OMm)*RHOcrit) * (dsigmadm/sigma) * sqrt(2./PI)*SHETH_A * (1+ pow(nuhat, -2*SHETH_p)) * nuhat * pow(E, -nuhat*nuhat/2.0);
 }
 
 //Conditional Extended Press-Schechter Mass function, with constant barrier delta=1.682 and sharp-k window function
@@ -973,18 +973,15 @@ double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, doubl
 
  Reference: Padmanabhan, pg. 214
  */
-double dNdM_PS(double growthf, double M){
+double dNdlnM_PS(double growthf, double lnM){
     double sigma, dsigmadm;
-    float MassBinLow;
-    int MassBin;
 
-    sigma = EvaluateSigma(log(M));
-    dsigmadm = EvaluatedSigmasqdm(log(M));
+    sigma = EvaluateSigma(lnM);
+    dsigmadm = EvaluatedSigmasqdm(lnM);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
-
-    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * sqrt(2/PI) * (Deltac/(sigma*sigma)) * dsigmadm * pow(E, -(Deltac*Deltac)/(2*sigma*sigma));
+    return (-(cosmo_params_ps->OMm)*RHOcrit) * sqrt(2/PI) * (Deltac/(sigma*sigma)) * dsigmadm * exp(-(Deltac*Deltac)/(2*sigma*sigma));
 }
 
 //The below mass functions do not have a CMF given
@@ -1000,22 +997,19 @@ double dNdM_PS(double growthf, double M){
 
  Reference: Watson et al. 2013
  */
-double dNdM_WatsonFOF(double growthf, double M){
+double dNdlnM_WatsonFOF(double growthf, double lnM){
 
     double sigma, dsigmadm, f_sigma;
 
-    float MassBinLow;
-    int MassBin;
-
-    sigma = EvaluateSigma(log(M));
-    dsigmadm = EvaluatedSigmasqdm(log(M));
+    sigma = EvaluateSigma(lnM);
+    dsigmadm = EvaluatedSigmasqdm(lnM);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
 
     f_sigma = Watson_A * ( pow( Watson_beta/sigma, Watson_alpha) + 1. ) * exp( - Watson_gamma/(sigma*sigma) );
 
-    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * f_sigma;
+    return (-(cosmo_params_ps->OMm)*RHOcrit) * (dsigmadm/sigma) * f_sigma;
 }
 
 /*
@@ -1030,14 +1024,11 @@ double dNdM_WatsonFOF(double growthf, double M){
 
  Reference: Watson et al. 2013
  */
-double dNdM_WatsonFOF_z(double z, double growthf, double M){
-
+double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM){
     double sigma, dsigmadm, A_z, alpha_z, beta_z, Omega_m_z, f_sigma;
-    float MassBinLow;
-    int MassBin;
 
-    sigma = EvaluateSigma(log(M));
-    dsigmadm = EvaluatedSigmasqdm(log(M));
+    sigma = EvaluateSigma(lnM);
+    dsigmadm = EvaluatedSigmasqdm(lnM);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
@@ -1050,7 +1041,7 @@ double dNdM_WatsonFOF_z(double z, double growthf, double M){
 
     f_sigma = A_z * ( pow(beta_z/sigma, alpha_z) + 1. ) * exp( - Watson_gamma_z/(sigma*sigma) );
 
-    return (-(cosmo_params_ps->OMm)*RHOcrit/M) * (dsigmadm/sigma) * f_sigma;
+    return (-(cosmo_params_ps->OMm)*RHOcrit) * (dsigmadm/sigma) * f_sigma;
 }
 
 ///////MASS FUNCTION INTEGRANDS BELOW//////
@@ -1135,25 +1126,22 @@ double c_nion_integrand_mini(double lnM, void *param_struct){
 }
 
 double unconditional_mf(double growthf, double lnM, double z, int HMF){
-    double M_exp = exp(lnM);
-
     //most of the UMFs are defined with M, but we integrate over lnM
-    //TODO: rewrite the old MFs as dNdlnM
     //NOTE: HMF > 4 or < 0 gets caught earlier, so unless some strange change is made this is fine
     if(HMF==0) {
-        return dNdM_PS(growthf, M_exp) * M_exp;
+        return dNdlnM_PS(growthf, lnM);
     }
     if(HMF==1) {
-        return dNdM_st(growthf, M_exp) * M_exp;
+        return dNdlnM_st(growthf, lnM);
     }
     if(HMF==2) {
-        return dNdM_WatsonFOF(growthf, M_exp) * M_exp;
+        return dNdlnM_WatsonFOF(growthf, lnM);
     }
     if(HMF==3) {
-        return dNdM_WatsonFOF_z(z, growthf, M_exp) * M_exp;
+        return dNdlnM_WatsonFOF_z(z, growthf, lnM);
     }
     if(HMF==4) {
-        return dNdlnM_Delos(growthf, lnM); //NOTE: dNdlogM
+        return dNdlnM_Delos(growthf, lnM);
     }
     else{
         LOG_ERROR("Invalid HMF %d",HMF);
@@ -1246,7 +1234,7 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
-    double rel_tol = 1e-4; //<- relative tolerance
+    double rel_tol = 1e-3; //<- relative tolerance
     int w_size = 1000;
     gsl_integration_workspace * w
     = gsl_integration_workspace_alloc (w_size);
@@ -1264,7 +1252,11 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     if(status!=0) {
         LOG_ERROR("gsl integration error occured!");
         LOG_ERROR("(function argument): lower_limit=%.3e upper_limit=%.3e (%.3e) rel_tol=%.3e result=%.3e error=%.3e",lower_limit,upper_limit,exp(upper_limit),rel_tol,result,error);
-        LOG_ERROR("data: growthf=%.3e delta=%.3e sigma2=%.3e HMF=%d type=%d ",params.growthf,params.delta,params.sigma_cond,params.HMF,type);
+        LOG_ERROR("data: z=%.3e growthf=%.3e  HMF=%d type=%d ",params.redshift,params.growthf,params.HMF,type);
+        LOG_ERROR("sigma=%.3e delta=%.3e",params.sigma_cond,params.delta);
+        LOG_ERROR("Mturn_lo=%.3e f*=%.3e a*=%.3e Mlim*=%.3e",params.Mturn,params.f_star_norm,params.alpha_star,params.Mlim_star);
+        LOG_ERROR("f_escn=%.3e a_esc=%.3e Mlim_esc=%.3e",params.f_esc_norm,params.alpha_esc,params.Mlim_esc);
+        LOG_ERROR("Mturn_hi %.3e",params.Mturn_upper);
         GSL_ERROR(status);
     }
 
@@ -1332,7 +1324,7 @@ double IntegratedNdM_GL(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_i
     int i;
     double integral = 0;
     if((float)lnM_lo != (float)GL_limit[0] || (float)lnM_hi != (float)GL_limit[1]){
-        LOG_ERROR("Integral limits [%.8e %.8e] do not match Gauss Legendre limits [%.8e %.8e]!",lnM_lo,lnM_hi,GL_limit[0],GL_limit[1]);
+        LOG_ERROR("Integral limits [%.8e %.8e] do not match Gauss Legendre limits [%.8e %.8e]!",exp(lnM_lo),exp(lnM_hi),GL_limit[0],GL_limit[1]);
         Throw(TableGenerationError);
     }
 
@@ -1545,7 +1537,7 @@ double FgtrM_General(double z, double M, int method){
     return IntegratedNdM(lower_limit, upper_limit, integral_params, 2, method) / (cosmo_params_ps->OMm*RHOcrit);
 }
 
-double Nion_General(double z, double M_Min, double M_Max, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10,
+double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10,
                      double Fesc10, double Mlim_Fstar, double Mlim_Fesc, int method){
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
@@ -1559,12 +1551,10 @@ double Nion_General(double z, double M_Min, double M_Max, double MassTurnover, d
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_ps->HMF,
     };
-    // LOG_DEBUG("Nion_General: M[%.2e %.2e] z=%.2f Turn %.2e fs (%.2e %.2e) fe (%.2e %.2e) lims (%.2e %.2e)",
-    //             M_Min,M_Max,z,MassTurnover,Fstar10,Alpha_star,Fesc10,Alpha_esc,Mlim_Fstar,Mlim_Fesc);
-    return IntegratedNdM(log(M_Min),log(M_Max),params,3,method) / ((cosmo_params_ps->OMm)*RHOcrit);
+    return IntegratedNdM(lnM_Min,lnM_Max,params,3,method) / ((cosmo_params_ps->OMm)*RHOcrit);
 }
 
-double Nion_General_MINI(double z, double M_Min, double M_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
+double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
                          double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc, int method){
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
@@ -1579,7 +1569,7 @@ double Nion_General_MINI(double z, double M_Min, double M_Max, double MassTurnov
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_ps->HMF,
     };
-    return IntegratedNdM(log(M_Min),log(M_Max),params,4,method) / ((cosmo_params_ps->OMm)*RHOcrit);
+    return IntegratedNdM(lnM_Min,lnM_Max,params,4,method) / ((cosmo_params_ps->OMm)*RHOcrit);
 }
 
 double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double sigma, double delta, int method){
@@ -1920,10 +1910,10 @@ double FgtrM_bias_fast(float growthf, float del_bias, float sig_small, float sig
     del = (Deltac - del_bias)/growthf;
 
     //if the density is above critical on this scale, it is collapsed
-    //NOTE: should we allow del < 0???
-    if(del < FRACT_FLOAT_ERR){
-        return 1.;
-    }
+    //NOTE: should we allow del < 0??? We would need to change dfcolldz to prevent zero dfcoll
+    // if(del < FRACT_FLOAT_ERR){
+    //     return 1.;
+    // }
     return splined_erfc(del / (sqrt(2)*sig));
 }
 
@@ -2271,6 +2261,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
     //     (2) With the fiducial parameter set,
     //     the difference for the redshift where the reionization end (Q = 1) is ~0.2 % compared with accurate calculation.
     float ION_EFF_FACTOR,M_MIN,M_MIN_z0,M_MIN_z1,Mlim_Fstar, Mlim_Fesc;
+    double lnMmin, lnMmax;
     double a_start = 0.03, a_end = 1./(1. + global_params.PhotonConsEndCalibz); // Scale factors of 0.03 and 0.17 correspond to redshifts of ~32 and ~5.0, respectively.
     double C_HII = 3., T_0 = 2e4;
     double reduce_ratio = 1.003;
@@ -2297,6 +2288,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
         else{
           initialiseSigmaMInterpTable(M_MIN,1e20);
         }
+        lnMmin = log(M_MIN);
+        lnMmax = log(global_params.M_MAX_INTEGRAL);
     }
     else {
         ION_EFF_FACTOR = astro_params->HII_EFF_FACTOR;
@@ -2341,10 +2334,10 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
             // Ionizing emissivity (num of photons per baryon)
             //We Force QAG due to the changing limits and messy implementation which I will fix later (hopefully move the whole thing to python)
             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-                Nion0 = ION_EFF_FACTOR*Nion_General(z0, astro_params->M_TURN/50., global_params.M_MAX_INTEGRAL, astro_params->M_TURN, astro_params->ALPHA_STAR,
+                Nion0 = ION_EFF_FACTOR*Nion_General(z0, lnMmin, lnMmax, astro_params->M_TURN, astro_params->ALPHA_STAR,
                                                 astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
                                                 Mlim_Fstar, Mlim_Fesc, 0);
-                Nion1 = ION_EFF_FACTOR*Nion_General(z1, astro_params->M_TURN/50., global_params.M_MAX_INTEGRAL, astro_params->M_TURN, astro_params->ALPHA_STAR,
+                Nion1 = ION_EFF_FACTOR*Nion_General(z1, lnMmin, lnMmax, astro_params->M_TURN, astro_params->ALPHA_STAR,
                                                 astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
                                                 Mlim_Fstar, Mlim_Fesc, 0);
             }

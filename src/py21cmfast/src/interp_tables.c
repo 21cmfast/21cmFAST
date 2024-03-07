@@ -56,6 +56,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
     float Mlim_Fstar, Mlim_Fstar_MINI;
     double Mmin = global_params.M_MIN_INTEGRAL;
     double Mmax = global_params.M_MAX_INTEGRAL;
+    double lnMmax = log(Mmax);
 
     LOG_DEBUG("initing SFRD spline from %.2f to %.2f",zmin,zmax);
 
@@ -82,21 +83,23 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
     {
         double Mcrit_atom_val = mturn_a_const;
         double mturn_val;
+        double lnMmin;
         double z_val;
         #pragma omp for
         for (i=0; i<Nbin; i++){
             z_val = SFRD_z_table.x_min + i*SFRD_z_table.x_width; //both tables will have the same values here
             Mmin = minimum_source_mass(z_val,true,astro_params_it,flag_options_it);
+            lnMmin = log(Mmin);
             if(minihalos) Mcrit_atom_val = atomic_cooling_threshold(z_val);
 
             if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || user_params_it->INTEGRATION_METHOD_MINI == 1)
                 initialise_GL(NGL_INT,log(Mmin),log(Mmax));
 
-            SFRD_z_table.y_arr[i] = Nion_General(z_val, Mmin, Mmax, Mcrit_atom_val, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.,user_params_it->INTEGRATION_METHOD_ATOMIC);
+            SFRD_z_table.y_arr[i] = Nion_General(z_val, lnMmin, lnMmax, Mcrit_atom_val, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.,user_params_it->INTEGRATION_METHOD_ATOMIC);
             if(minihalos){
                 for (j=0; j<NMTURN; j++){
                     mturn_val = pow(10,SFRD_z_table_MINI.y_min + j*SFRD_z_table_MINI.y_width);
-                    SFRD_z_table_MINI.z_arr[i][j] = Nion_General_MINI(z_val, Mmin, Mmax, mturn_val, Mcrit_atom_val, Alpha_star_mini,
+                    SFRD_z_table_MINI.z_arr[i][j] = Nion_General_MINI(z_val, lnMmin, lnMmax, mturn_val, Mcrit_atom_val, Alpha_star_mini,
                                                                  0., Fstar7_MINI, 1.,Mlim_Fstar_MINI,0.,user_params_it->INTEGRATION_METHOD_MINI);
                 }
             }
@@ -127,6 +130,7 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
     LOG_DEBUG("initing Nion spline from %.2f to %.2f",zmin,zmax);
     double Mmin = global_params.M_MIN_INTEGRAL;
     double Mmax = global_params.M_MAX_INTEGRAL;
+    double lnMmax = log(Mmax);
 
     if (!Nion_z_table.allocated){
         allocate_RGTable1D(Nbin,&Nion_z_table);
@@ -153,22 +157,25 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
         double Mcrit_atom_val = mturn_a_const;
         double mturn_val;
         double z_val;
+        double lnMmin;
 #pragma omp for
         for (i=0; i<Nbin; i++){
             z_val = Nion_z_table.x_min + i*Nion_z_table.x_width; //both tables will have the same values here
             //Minor note: while this is called in xray, we use it to estimate ionised fraction, do we use ION_Tvir_MIN if applicable?
             Mmin = minimum_source_mass(z_val,true,astro_params_it,flag_options_it);
+            lnMmin = log(Mmin);
             if(minihalos) Mcrit_atom_val = atomic_cooling_threshold(z_val);
 
             if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || user_params_it->INTEGRATION_METHOD_MINI == 1)
                 initialise_GL(NGL_INT,log(Mmin),log(Mmax));
 
-            Nion_z_table.y_arr[i] = Nion_General(z_val, Mmin, Mmax, Mcrit_atom_val, Alpha_star, Alpha_esc, Fstar10, Fesc10,
+            Nion_z_table.y_arr[i] = Nion_General(z_val, lnMmin, lnMmax, Mcrit_atom_val, Alpha_star, Alpha_esc, Fstar10, Fesc10,
                                              Mlim_Fstar, Mlim_Fesc, user_params_it->INTEGRATION_METHOD_ATOMIC);
+
             if(minihalos){
                 for (j=0; j<NMTURN; j++){
                     mturn_val = pow(10,Nion_z_table_MINI.y_min + j*Nion_z_table_MINI.y_width);
-                    Nion_z_table_MINI.z_arr[i][j] = Nion_General_MINI(z_val, Mmin, Mmax, mturn_val, Mcrit_atom_val, Alpha_star_mini, Alpha_esc,
+                    Nion_z_table_MINI.z_arr[i][j] = Nion_General_MINI(z_val, lnMmin, lnMmax, mturn_val, Mcrit_atom_val, Alpha_star_mini, Alpha_esc,
                                                      Fstar7_MINI, Fesc7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI, user_params_it->INTEGRATION_METHOD_MINI);
                 }
             }
@@ -195,6 +202,8 @@ void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, 
     int i,j;
     double dens;
 
+    LOG_SUPER_DEBUG("Initialising FgtrM table between delta %.3e and %.3e, sigma %.3e and %.3e",min_dens,max_dens,smin_zpp,smax_zpp);
+
     if(!fcoll_conditional_table.allocated){
         allocate_RGTable1D(dens_Ninterp,&fcoll_conditional_table);
     }
@@ -203,8 +212,8 @@ void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, 
     if(!dfcoll_conditional_table.allocated){
         allocate_RGTable1D(dens_Ninterp,&dfcoll_conditional_table);
     }
-    dfcoll_conditional_table.x_min = min_dens;
-    dfcoll_conditional_table.x_width = (max_dens - min_dens)/(dens_Ninterp - 1.);
+    dfcoll_conditional_table.x_min = fcoll_conditional_table.x_min;
+    dfcoll_conditional_table.x_width = fcoll_conditional_table.x_width;
 
     //dens_Ninterp is a global define, probably shouldn't be
     for(j=0;j<dens_Ninterp;j++){
@@ -378,7 +387,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
     float Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
     int i,j,k,i_tot;
 
-    // LOG_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
+    LOG_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
 
     Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
     Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
@@ -649,17 +658,19 @@ double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
         return EvaluateRGTable1D(redshift,&fcoll_z_table);
     }
 
-    //minihalos uses a different turnover mass
-    if(flag_options_it->USE_MINI_HALOS)
-        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_it->ALPHA_STAR, astro_params_it->ALPHA_ESC,
-                            astro_params_it->F_STAR10, astro_params_it->F_ESC10, Mlim_Fstar, Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC);
-    if(flag_options_it->USE_MASS_DEPENDENT_ZETA)
-        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_it->M_TURN, astro_params_it->ALPHA_STAR, astro_params_it->ALPHA_ESC,
-                            astro_params_it->F_STAR10, astro_params_it->F_ESC10, Mlim_Fstar, Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC);
-
     //Currently assuming this is only called in the X-ray/spintemp calculation, this will only affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass
     //      and only if the minimum virial temperatures ION_Tvir_min and X_RAY_Tvir_min are different
-    return FgtrM_General(redshift, minimum_source_mass(redshift,true,astro_params_it,flag_options_it), user_params_it->INTEGRATION_METHOD_ATOMIC);
+    double lnMmin = log(minimum_source_mass(redshift,true,astro_params_it,flag_options_it));
+
+    //minihalos uses a different turnover mass
+    if(flag_options_it->USE_MINI_HALOS)
+        return Nion_General(redshift, lnMmin, log(global_params.M_MAX_INTEGRAL), atomic_cooling_threshold(redshift), astro_params_it->ALPHA_STAR, astro_params_it->ALPHA_ESC,
+                            astro_params_it->F_STAR10, astro_params_it->F_ESC10, Mlim_Fstar, Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC);
+    if(flag_options_it->USE_MASS_DEPENDENT_ZETA)
+        return Nion_General(redshift, lnMmin, log(global_params.M_MAX_INTEGRAL), astro_params_it->M_TURN, astro_params_it->ALPHA_STAR, astro_params_it->ALPHA_ESC,
+                            astro_params_it->F_STAR10, astro_params_it->F_ESC10, Mlim_Fstar, Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC);
+
+    return FgtrM_General(redshift, lnMmin, user_params_it->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
@@ -667,7 +678,7 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Ml
         return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,&Nion_z_table_MINI);
     }
 
-    return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
+    return Nion_General_MINI(redshift, log(global_params.M_MIN_INTEGRAL), log(global_params.M_MAX_INTEGRAL), pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
                             astro_params_it->ALPHA_STAR_MINI, astro_params_it->ALPHA_ESC, astro_params_it->F_STAR7_MINI,
                             astro_params_it->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI,user_params_it->INTEGRATION_METHOD_MINI);
 }
@@ -679,14 +690,18 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar){
         return EvaluateRGTable1D(redshift,&fcoll_z_table);
     }
 
+    //Currently assuming this is only called in the X-ray/spintemp calculation, this will only affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass
+    //      and only if the minimum virial temperatures ION_Tvir_min and X_RAY_Tvir_min are different
+    double lnMmin = log(minimum_source_mass(redshift,true,astro_params_it,flag_options_it));
+
     //minihalos uses a different turnover mass
     if(flag_options_it->USE_MINI_HALOS)
-        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, atomic_cooling_threshold(redshift), astro_params_it->ALPHA_STAR, 0.,
-                            astro_params_it->F_STAR10, 1., Mlim_Fstar, 0, user_params_it->INTEGRATION_METHOD_ATOMIC);
+        return Nion_General(redshift, lnMmin, log(global_params.M_MAX_INTEGRAL), atomic_cooling_threshold(redshift), astro_params_it->ALPHA_STAR, 0.,
+                            astro_params_it->F_STAR10, 1., Mlim_Fstar, 0., user_params_it->INTEGRATION_METHOD_ATOMIC);
 
     if(flag_options_it->USE_MASS_DEPENDENT_ZETA)
-        return Nion_General(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, astro_params_it->M_TURN, astro_params_it->ALPHA_STAR, astro_params_it->ALPHA_ESC,
-                            astro_params_it->F_STAR10, astro_params_it->F_ESC10, Mlim_Fstar, 0, user_params_it->INTEGRATION_METHOD_ATOMIC);
+        return Nion_General(redshift, lnMmin, log(global_params.M_MAX_INTEGRAL), astro_params_it->M_TURN, astro_params_it->ALPHA_STAR, 0.,
+                            astro_params_it->F_STAR10, 1., Mlim_Fstar, 0., user_params_it->INTEGRATION_METHOD_ATOMIC);
 
     //NOTE: Previously, with M_MIN_IN_MASS, the FgtrM function used M_turn/50, which seems like a bug
     // since it goes against the assumption of sharp cutoff
@@ -700,7 +715,7 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim
     if(user_params_it->USE_INTERPOLATION_TABLES){
         return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,&SFRD_z_table_MINI);
     }
-    return Nion_General_MINI(redshift, global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
+    return Nion_General_MINI(redshift, log(global_params.M_MIN_INTEGRAL), log(global_params.M_MAX_INTEGRAL), pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
                             astro_params_it->ALPHA_STAR_MINI, 0., astro_params_it->F_STAR7_MINI,
                             1., Mlim_Fstar_MINI, 0., user_params_it->INTEGRATION_METHOD_MINI);
 }

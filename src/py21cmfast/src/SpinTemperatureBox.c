@@ -854,7 +854,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     double determine_zpp_max;
 
     if(user_params_ts->INTEGRATION_METHOD_ATOMIC == 1 || user_params_ts->INTEGRATION_METHOD_MINI == 1)
-        initialise_GL(NGL_INT,log(global_params.M_MIN_INTEGRAL),log(global_params.M_MAX_INTEGRAL));
+        initialise_GL(NGL_INT,log(M_min_R[R_ct]),log(global_params.M_MAX_INTEGRAL));
 
     if(user_params_ts->USE_INTERPOLATION_TABLES){
         determine_zpp_min = zp*0.999; //global
@@ -928,15 +928,15 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
 
     if(user_params_ts->USE_INTERPOLATION_TABLES){
         if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
-            initialise_SFRD_Conditional_table(min_densities[R_ct],
-                                                    max_densities[R_ct]*1.001,zpp_growth[R_ct],Mcrit_atom_interp_table[R_ct],
+            initialise_SFRD_Conditional_table(min_densities[R_ct]*zpp_growth[R_ct],
+                                                    max_densities[R_ct]*zpp_growth[R_ct]*1.001,zpp_growth[R_ct],Mcrit_atom_interp_table[R_ct],
                                                     M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],
                                                     astro_params_ts->ALPHA_STAR, astro_params_ts->ALPHA_STAR_MINI, astro_params_ts->F_STAR10,
                                                     astro_params_ts->F_STAR7_MINI, user_params_ts->INTEGRATION_METHOD_ATOMIC, user_params_ts->INTEGRATION_METHOD_MINI,
                                                     flag_options_ts->USE_MINI_HALOS);
         }
         else{
-            initialise_FgtrM_delta_table(min_densities[R_ct], max_densities[R_ct], zpp_for_evolve_list[R_ct],
+            initialise_FgtrM_delta_table(min_densities[R_ct]*zpp_growth[R_ct], max_densities[R_ct]*zpp_growth[R_ct], zpp_for_evolve_list[R_ct],
                                              zpp_growth[R_ct], sigma_min[R_ct], sigma_max[R_ct]);
         }
     }
@@ -945,7 +945,8 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     {
         int box_ct;
         double curr_dens,curr_mcrit;
-        double fcoll, fcoll_MINI, dfcoll;
+        double fcoll, dfcoll;
+        double fcoll_MINI=0;
 
         #pragma omp for reduction(+:ave_sfrd_buf,ave_sfrd_buf_mini)
         for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
@@ -1285,18 +1286,19 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
     //with the TtoM limit, we use the largest redshift, to cover the whole range
     double M_MIN_tb = M_min_R[global_params.NUM_FILTER_STEPS_FOR_Ts - 1];
     //This M_MIN just sets the sigma table range, the minimum mass for the integrals is set per radius in setup_z_edges
-    if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2) M_MIN_tb = fmin(MMIN_FAST,M_MIN_tb);
+    if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2)
+        M_MIN_tb = fmin(MMIN_FAST,M_MIN_tb);
+
     if(user_params->USE_INTERPOLATION_TABLES)
-        initialiseSigmaMInterpTable(M_MIN_tb/2,1e20);
+        initialiseSigmaMInterpTable(M_MIN_tb/2,1e20); //we need a larger table here due to the large radii
 
     //now that we have the sigma table we can assign the sigma arrays
     for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
         sigma_min[R_ct] = EvaluateSigma(log(M_min_R[R_ct]));
         sigma_max[R_ct] = EvaluateSigma(log(M_max_R[R_ct]));
+        LOG_ULTRA_DEBUG("R %d = %.2e z %.2e || M = [%.2e, %.2e] sig [%.2e %.2e]",R_ct,R_values[R_ct],
+                    zpp_for_evolve_list[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
     }
-
-    LOG_ULTRA_DEBUG("R %d = %.2e z %.2e || M = [%.2e, %.2e] sig [%.2e %.2e]",R_ct,R_values[R_ct],
-                zpp_for_evolve_list[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
 
     //As far as I can tell, the only thing used from this is the X_e array
     init_heat();
@@ -1495,16 +1497,16 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                 avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
 
-                LOG_SUPER_DEBUG("z %6.2f ave sfrd (mini) val %.3e global %.3e (int %.3e) Mmin %.3e ratio %.4e z_edge %.4e",
+                LOG_SUPER_DEBUG("z %6.2f ave sfrd val %.3e global %.3e (int %.3e) Mmin %.3e ratio %.4e z_edge %.4e",
                                     zpp_for_evolve_list[R_ct],ave_fcoll,mean_sfr_zpp[R_ct],
-                                    Nion_General(zpp_for_evolve_list[R_ct], global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL,
+                                    Nion_General(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(global_params.M_MAX_INTEGRAL),
                                                     Mcrit_atom_interp_table[R_ct], astro_params_it->ALPHA_STAR, 0.,
-                                                    astro_params_it->F_STAR10, 1., Mlim_Fstar_g, 0, 0),
+                                                    astro_params_it->F_STAR10, 1., Mlim_Fstar_g, 0., 0),
                                     M_min_R[R_ct],avg_fix_term,z_edge_factor);
                 if(flag_options_ts->USE_MINI_HALOS){
                     LOG_SUPER_DEBUG("MINI sfrd val %.3e global %.3e (int %.3e) ratio %.3e log10McritLW %.3e Mlim %.3e",
                                     ave_fcoll_MINI,mean_sfr_zpp_mini[R_ct],
-                                    Nion_General_MINI(zpp_for_evolve_list[R_ct], global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL,
+                                    Nion_General_MINI(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(global_params.M_MAX_INTEGRAL),
                                                         pow(10.,ave_log10_MturnLW[R_ct]), Mcrit_atom_interp_table[R_ct],
                                                         astro_params_ts->ALPHA_STAR_MINI, 0., astro_params_ts->F_STAR7_MINI,
                                                         1., Mlim_Fstar_MINI_g, 0., 0),

@@ -381,18 +381,17 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
 
     //NOTE: we use the atomic method for all halo mass/count here
     hm_expected = IntegratedNdM(lnMmin,lnMmax,params,2,user_params_stoc->INTEGRATION_METHOD_ATOMIC);
-    nion_expected = Nion_General(redshift, M_min, M_max, M_turn_a, alpha_star, alpha_esc, norm_star,
+    nion_expected = Nion_General(redshift, lnMmin, lnMmax, M_turn_a, alpha_star, alpha_esc, norm_star,
                                  norm_esc, Mlim_Fstar, Mlim_Fesc,user_params_stoc->INTEGRATION_METHOD_ATOMIC) * prefactor_nion;
-    sfr_expected = Nion_General(redshift, M_min, M_max, M_turn_a, alpha_star, 0., norm_star, 1.,
+    sfr_expected = Nion_General(redshift, lnMmin, lnMmax, M_turn_a, alpha_star, 0., norm_star, 1.,
                                  Mlim_Fstar, 0.,user_params_stoc->INTEGRATION_METHOD_ATOMIC) * prefactor_sfr;
-    // wsfr_expected = Nion_General(redshift, M_min, M_turn_a, alpha_star, alpha_esc, norm_star, norm_esc, Mlim_Fstar, Mlim_Fesc);
     if(flag_options_stoc->USE_MINI_HALOS){
-        nion_expected += Nion_General_MINI(redshift, M_min, M_max, M_turn_m, M_turn_a,
+        nion_expected += Nion_General_MINI(redshift, lnMmin, lnMmax, M_turn_m, M_turn_a,
                                             alpha_star_mini, alpha_esc, norm_star_mini,
                                             norm_esc_mini, Mlim_Fstar_mini, Mlim_Fesc_mini,
                                             user_params_stoc->INTEGRATION_METHOD_MINI) * prefactor_nion_mini;
 
-        sfr_expected_mini = Nion_General_MINI(redshift, M_min, M_max, M_turn_m, M_turn_a,
+        sfr_expected_mini = Nion_General_MINI(redshift, lnMmin, lnMmax, M_turn_m, M_turn_a,
                                             alpha_star_mini, 0., norm_star_mini,
                                             1., Mlim_Fstar_mini, 0.,
                                             user_params_stoc->INTEGRATION_METHOD_MINI) * prefactor_sfr_mini;

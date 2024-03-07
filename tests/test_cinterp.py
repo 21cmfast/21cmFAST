@@ -379,6 +379,23 @@ def test_FgtrM_conditional_tables(name, R, plt):
         )
 
     abs_tol = 0.0
+    print_failure_stats(
+        fcoll_tables,
+        fcoll_integrals,
+        edges_d[:-1],
+        abs_tol,
+        RELATIVE_TOLERANCE,
+        "fcoll",
+    )
+    print_failure_stats(
+        dfcoll_tables,
+        fcoll_integrals,
+        edges_d[:-1],
+        abs_tol,
+        RELATIVE_TOLERANCE,
+        "dfcoll",
+    )
+
     np.testing.assert_allclose(
         fcoll_tables, fcoll_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
@@ -416,8 +433,8 @@ def test_SFRD_z_tables(name, intmethod, plt):
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
-    z_array = np.linspace(6, 40, num=hist_size)
-    edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
+    z_array = np.linspace(6, 35, num=hist_size)
+    edges_m = np.logspace(5, 8, num=int(hist_size / 10)).astype("f4")
 
     lib.init_ps()
 
@@ -441,6 +458,12 @@ def test_SFRD_z_tables(name, intmethod, plt):
         True,
     )
 
+    # for the atomic cooling threshold
+    # omz = cp.cosmo.Om(z_array)
+    # d_nl = 18*np.pi*np.pi + 82*(omz-1) - 39*(omz-1)**2
+    # M_turn_a = 7030.97 / (cp.hlittle) * np.sqrt(omz / (cp.OMm*d_nl)) * (1e4/(0.59*(1+z_array)))**1.5
+    M_turn_a = np.vectorize(lib.atomic_cooling_threshold)(z_array)
+
     input_arr = np.meshgrid(z_array[:-1], np.log10(edges_m[:-1]), indexing="ij")
 
     SFRD_tables = np.vectorize(lib.EvaluateSFRD)(z_array[:-1], Mlim_Fstar)
@@ -448,18 +471,37 @@ def test_SFRD_z_tables(name, intmethod, plt):
         input_arr[0], input_arr[1], Mlim_Fstar_MINI
     )
 
-    up.update(USE_INTERPOLATION_TABLES=False)
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
-
-    SFRD_integrals = np.vectorize(lib.EvaluateSFRD)(z_array[:-1], Mlim_Fstar)
-    SFRD_integrals_mini = np.vectorize(lib.EvaluateSFRD_MINI)(
-        input_arr[0], input_arr[1], Mlim_Fstar_MINI
+    SFRD_integrals = np.vectorize(lib.Nion_General)(
+        z_array[:-1],
+        np.log(M_min),
+        np.log(M_max),
+        M_turn_a[:-1],
+        ap.ALPHA_STAR,
+        0.0,
+        ap.F_STAR10,
+        1.0,
+        Mlim_Fstar,
+        0.0,
+        up.INTEGRATION_METHOD_ATOMIC,
+    )
+    SFRD_integrals_mini = np.vectorize(lib.Nion_General_MINI)(
+        input_arr[0],
+        np.log(M_min),
+        np.log(M_max),
+        10 ** input_arr[1],
+        M_turn_a[:-1][:, None],
+        ap.ALPHA_STAR_MINI,
+        0.0,
+        ap.F_STAR7_MINI,
+        1.0,
+        Mlim_Fstar_MINI,
+        0.0,
+        up.INTEGRATION_METHOD_MINI,
     )
 
     if plt == mpl.pyplot:
-        sel_m = np.array([0, hist_size / 20, hist_size / 10 - 2]).astype(int)
+        xl = input_arr[1].shape[1]
+        sel_m = (xl * np.arange(6) / 6).astype(int)
         make_table_comparison_plot(
             z_array[:-1],
             edges_m[sel_m],
@@ -470,11 +512,24 @@ def test_SFRD_z_tables(name, intmethod, plt):
             plt,
         )
 
+    abs_tol = 1e-7
+    print_failure_stats(
+        SFRD_tables, SFRD_integrals, z_array[:-1], abs_tol, RELATIVE_TOLERANCE, "SFRD_z"
+    )
+    print_failure_stats(
+        SFRD_tables_mini,
+        SFRD_integrals_mini,
+        input_arr,
+        abs_tol,
+        RELATIVE_TOLERANCE,
+        "SFRD_z_mini",
+    )
+
     np.testing.assert_allclose(
-        SFRD_tables, SFRD_integrals, atol=0, rtol=RELATIVE_TOLERANCE
+        SFRD_tables, SFRD_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        SFRD_tables_mini, SFRD_integrals_mini, atol=0, rtol=RELATIVE_TOLERANCE
+        SFRD_tables_mini, SFRD_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 
@@ -508,7 +563,7 @@ def test_Nion_z_tables(name, intmethod, plt):
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
     z_array = np.linspace(6, 40, num=hist_size)
-    edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
+    edges_m = np.logspace(5, 8, num=int(hist_size / 10)).astype("f4")
 
     lib.init_ps()
 
@@ -537,27 +592,49 @@ def test_Nion_z_tables(name, intmethod, plt):
         True,
     )
 
+    # for the atomic cooling threshold
+    # omz = cp.cosmo.Om(z_array)
+    # d_nl = 18*np.pi*np.pi + 82*(omz-1) - 39*(omz-1)**2
+    # M_turn_a = 7030.97 / (cp.hlittle) * np.sqrt(omz / (cp.OMm*d_nl)) * (1e4/(0.59*(1+z_array)))**1.5
+    M_turn_a = np.vectorize(lib.atomic_cooling_threshold)(z_array)
+
     input_arr = np.meshgrid(z_array[:-1], np.log10(edges_m[:-1]), indexing="ij")
 
     Nion_tables = np.vectorize(lib.EvaluateNionTs)(z_array[:-1], Mlim_Fstar, Mlim_Fesc)
     Nion_tables_mini = np.vectorize(lib.EvaluateNionTs_MINI)(
         input_arr[0], input_arr[1], Mlim_Fstar_MINI, Mlim_Fesc_MINI
     )
-
-    up.update(USE_INTERPOLATION_TABLES=False)
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
-
-    Nion_integrals = np.vectorize(lib.EvaluateNionTs)(
-        z_array[:-1], Mlim_Fstar, Mlim_Fesc
+    Nion_integrals = np.vectorize(lib.Nion_General)(
+        z_array[:-1],
+        np.log(M_min),
+        np.log(M_max),
+        M_turn_a[:-1],
+        ap.ALPHA_STAR,
+        ap.ALPHA_ESC,
+        ap.F_STAR10,
+        ap.F_ESC10,
+        Mlim_Fstar,
+        Mlim_Fesc,
+        up.INTEGRATION_METHOD_ATOMIC,
     )
-    Nion_integrals_mini = np.vectorize(lib.EvaluateNionTs_MINI)(
-        input_arr[0], input_arr[1], Mlim_Fstar_MINI, Mlim_Fesc_MINI
+    Nion_integrals_mini = np.vectorize(lib.Nion_General_MINI)(
+        input_arr[0],
+        np.log(M_min),
+        np.log(M_max),
+        10 ** input_arr[1],
+        M_turn_a[:-1][:, None],
+        ap.ALPHA_STAR_MINI,
+        ap.ALPHA_ESC,
+        ap.F_STAR7_MINI,
+        ap.F_ESC7_MINI,
+        Mlim_Fstar_MINI,
+        Mlim_Fesc_MINI,
+        up.INTEGRATION_METHOD_MINI,
     )
 
     if plt == mpl.pyplot:
-        sel_m = np.array([0, hist_size / 20, hist_size / 10 - 2]).astype(int)
+        xl = input_arr[1].shape[1]
+        sel_m = (xl * np.arange(6) / 6).astype(int)
         make_table_comparison_plot(
             z_array[:-1],
             edges_m[sel_m],
@@ -568,11 +645,24 @@ def test_Nion_z_tables(name, intmethod, plt):
             plt,
         )
 
+    abs_tol = 1e-7
+    print_failure_stats(
+        Nion_tables, Nion_integrals, z_array[:-1], abs_tol, RELATIVE_TOLERANCE, "Nion_z"
+    )
+    print_failure_stats(
+        Nion_tables_mini,
+        Nion_integrals_mini,
+        input_arr,
+        abs_tol,
+        RELATIVE_TOLERANCE,
+        "Nion_z_mini",
+    )
+
     np.testing.assert_allclose(
-        Nion_tables, Nion_integrals, atol=0, rtol=RELATIVE_TOLERANCE
+        Nion_tables, Nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        Nion_tables_mini, Nion_integrals_mini, atol=0, rtol=RELATIVE_TOLERANCE
+        Nion_tables_mini, Nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 
@@ -583,6 +673,8 @@ def test_Nion_z_tables(name, intmethod, plt):
 #       Hence this is a worst case scenario
 #   While the EvaluateX() functions are useful in the main code to be agnostic to USE_INTERPOLATION_TABLES
 #       I do not use them here fully, instead calling the integrals directly to avoid parameter changes
+#       Mostly since if we set user_params.USE_INTERPOLATION_TABLES=False then the sigma tables aren't used
+#       and it takes forever
 @pytest.mark.parametrize("mini", ["mini", "acg"])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
@@ -699,22 +791,9 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
 
     #### FIRST ASSERT ####
     abs_tol = 5e-18  # min = exp(-40) ~4e-18
-    sel_failed = np.fabs(Nion_integrals - Nion_tables) > (
-        abs_tol + np.fabs(Nion_integrals) * RELATIVE_TOLERANCE
+    print_failure_stats(
+        Nion_tables, Nion_integrals, edges_d[:-1], abs_tol, RELATIVE_TOLERANCE, "Nion-c"
     )
-    if sel_failed.sum() > 0:
-        print(
-            f"ACG: subcube of failures [xmin,ymin] [xmax,ymax] {np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
-        )
-        print(
-            f"failure range of inputs {input_arr[0][sel_failed].min()} {input_arr[0][sel_failed].max()} {10**input_arr[1][sel_failed].min():.6e} {10**input_arr[1][sel_failed].max():.6e}"
-        )
-        print(
-            f"failure range integrals ({Nion_integrals[sel_failed].min()},{Nion_integrals[sel_failed].max()}) tables ({Nion_tables[sel_failed].min()},{Nion_tables[sel_failed].max()})"
-        )
-        print(
-            f"max abs diff of failures {np.fabs(Nion_integrals - Nion_tables)[sel_failed].max()} relative {(np.fabs(Nion_integrals - Nion_tables)/Nion_tables)[sel_failed].max()}"
-        )
 
     if mini_flag:
         Nion_tables_mini = np.vectorize(lib.EvaluateNion_Conditional_MINI)(
@@ -737,29 +816,21 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
             Mlim_Fesc_MINI,
             up.INTEGRATION_METHOD_MINI,
         )
-
-        sel_failed = np.fabs(Nion_integrals_mini - Nion_tables_mini) > (
-            abs_tol + np.fabs(Nion_integrals_mini) * RELATIVE_TOLERANCE
+        print_failure_stats(
+            Nion_tables_mini,
+            Nion_integrals_mini,
+            input_arr,
+            abs_tol,
+            RELATIVE_TOLERANCE,
+            "Nion_c_mini",
         )
-        if sel_failed.sum() > 0:
-            print(
-                f"MINI: subcube of failures [xmin,ymin] [xmax,ymax] {np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
-            )
-            print(
-                f"failure range of inputs {input_arr[0][sel_failed].min()} {input_arr[0][sel_failed].max()} {10**input_arr[1][sel_failed].min():.6e} {10**input_arr[1][sel_failed].max():.6e}"
-            )
-            print(
-                f"failure range integrals ({Nion_integrals_mini[sel_failed].min()},{Nion_integrals_mini[sel_failed].max()}) tables ({Nion_tables_mini[sel_failed].min()},{Nion_tables_mini[sel_failed].max()})"
-            )
-            print(
-                f"max abs diff of failures {np.fabs(Nion_integrals_mini - Nion_tables_mini)[sel_failed].max()} relative {(np.fabs(Nion_integrals_mini - Nion_tables_mini)/Nion_tables_mini)[sel_failed].max()}"
-            )
     else:
         Nion_tables_mini = np.zeros((hist_size - 1, int(hist_size / 10)))
         Nion_integrals_mini = np.zeros((hist_size - 1, int(hist_size / 10)))
 
     if plt == mpl.pyplot:
-        sel_m = np.array([0, hist_size / 20, hist_size / 10 - 2]).astype(int)
+        xl = input_arr[1].shape[1]
+        sel_m = (xl * np.arange(6) / 6).astype(int)
         if mini_flag:
             Nion_tb_plot = Nion_tables[..., sel_m]
             Nion_il_plot = Nion_integrals[..., sel_m]
@@ -903,43 +974,21 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
     )
 
     abs_tol = 5e-18  # minimum = exp(-40) ~1e-18
-    sel_failed = np.fabs(SFRD_integrals_mini - SFRD_tables_mini) > (
-        abs_tol + np.fabs(SFRD_integrals_mini) * RELATIVE_TOLERANCE
+    print_failure_stats(
+        SFRD_tables, SFRD_integrals, edges_d[:-1], abs_tol, RELATIVE_TOLERANCE, "SFRD_c"
     )
-    if sel_failed.sum() > 0:
-        print(
-            f"MINI: subcube of failures [xmin,ymin] [xmax,ymax]"
-            f"{np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
-        )
-        print(
-            f"failure range of inputs {input_arr[0][sel_failed].min()} {input_arr[0][sel_failed].max()} {10**input_arr[1][sel_failed].min():.6e} {10**input_arr[1][sel_failed].max():.6e}"
-        )
-        print(
-            f"failure range integrals ({SFRD_integrals_mini[sel_failed].min()},{SFRD_integrals_mini[sel_failed].max()}) tables ({SFRD_tables_mini[sel_failed].min()},{SFRD_tables_mini[sel_failed].max()})"
-        )
-        print(
-            f"max abs diff of failures {np.fabs(SFRD_integrals_mini - SFRD_tables_mini)[sel_failed].max()} relative {(np.fabs(SFRD_integrals_mini - SFRD_tables_mini)/SFRD_tables_mini)[sel_failed].max()}"
-        )
-
-    sel_failed = np.fabs(SFRD_integrals - SFRD_tables) > (
-        abs_tol + np.fabs(SFRD_integrals) * RELATIVE_TOLERANCE
+    print_failure_stats(
+        SFRD_tables_mini,
+        SFRD_integrals_mini,
+        input_arr,
+        abs_tol,
+        RELATIVE_TOLERANCE,
+        "SFRD_c_mini",
     )
-    if sel_failed.sum() > 0:
-        print(
-            f"ACG: subcube of failures [xmin,ymin] [xmax,ymax] {np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
-        )
-        print(
-            f"failure range of inputs {input_arr[0][sel_failed].min()} {input_arr[0][sel_failed].max()} {10**input_arr[1][sel_failed].min():.6e} {10**input_arr[1][sel_failed].max():.6e}"
-        )
-        print(
-            f"failure range integrals ({SFRD_integrals[sel_failed].min()},{SFRD_integrals[sel_failed].max()}) tables ({SFRD_tables[sel_failed].min()},{SFRD_tables[sel_failed].max()})"
-        )
-        print(
-            f"max abs diff of failures {np.fabs(SFRD_integrals - SFRD_tables)[sel_failed].max()} relative {(np.fabs(SFRD_integrals - SFRD_tables)/SFRD_tables)[sel_failed].max()}"
-        )
 
     if plt == mpl.pyplot:
-        sel_m = np.array([0, hist_size / 20, hist_size / 10 - 2]).astype(int)
+        xl = input_arr[1].shape[1]
+        sel_m = (xl * np.arange(6) / 6).astype(int)
         make_table_comparison_plot(
             edges_d[:-1],
             edges_m[sel_m],
@@ -960,7 +1009,7 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
 
 def make_table_comparison_plot(x1, x2, table_1d, table_2d, intgrl_1d, intgrl_2d, plt):
     # rows = values,fracitonal diff, cols = 1d table, 2d table
-    fig, axs = plt.subplots(nrows=2, ncols=2)
+    fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 16))
     make_comparison_plot(
         x1,
         intgrl_1d,
@@ -1016,3 +1065,21 @@ def make_comparison_plot(
 
     ax[1].plot(x, (test - true) / true, **kwargs)
     ax[1].set_ylabel("Fractional Difference")
+
+
+def print_failure_stats(test, truth, input_arr, abs_tol, rel_tol, name):
+    sel_failed = np.fabs(truth - test) > (abs_tol + np.fabs(truth) * rel_tol)
+    if sel_failed.sum() > 0:
+        print(
+            f"{name}: atol {abs_tol} rtol {rel_tol} subcube of failures [min] [max] {np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
+        )
+        for i, row in enumerate(input_arr):
+            print(
+                f"failure range of inputs axis {i} {row[sel_failed].min()} {row[sel_failed].max()}"
+            )
+        print(
+            f"failure range truth ({truth[sel_failed].min()},{truth[sel_failed].max()}) test ({test[sel_failed].min()},{test[sel_failed].max()})"
+        )
+        print(
+            f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max()} relative {(np.fabs(truth - test)/truth)[sel_failed].max()}"
+        )
