@@ -1501,7 +1501,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                                     zpp_for_evolve_list[R_ct],ave_fcoll,mean_sfr_zpp[R_ct],
                                     Nion_General(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(global_params.M_MAX_INTEGRAL),
                                                     Mcrit_atom_interp_table[R_ct], astro_params_it->ALPHA_STAR, 0.,
-                                                    astro_params_it->F_STAR10, 1., Mlim_Fstar_g, 0., 0),
+                                                    astro_params_it->F_STAR10, 1., Mlim_Fstar_g, 0.),
                                     M_min_R[R_ct],avg_fix_term,z_edge_factor);
                 if(flag_options_ts->USE_MINI_HALOS){
                     LOG_SUPER_DEBUG("MINI sfrd val %.3e global %.3e (int %.3e) ratio %.3e log10McritLW %.3e Mlim %.3e",
@@ -1509,7 +1509,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                                     Nion_General_MINI(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(global_params.M_MAX_INTEGRAL),
                                                         pow(10.,ave_log10_MturnLW[R_ct]), Mcrit_atom_interp_table[R_ct],
                                                         astro_params_ts->ALPHA_STAR_MINI, 0., astro_params_ts->F_STAR7_MINI,
-                                                        1., Mlim_Fstar_MINI_g, 0., 0),
+                                                        1., Mlim_Fstar_MINI_g, 0.),
                                     avg_fix_term_MINI,ave_log10_MturnLW[R_ct],Mlim_Fstar_MINI_g);
                 }
             }

@@ -534,46 +534,46 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
         if (flag_options->USE_MINI_HALOS){
             if (previous_ionize_box->mean_f_coll * ION_EFF_FACTOR < 1e-4){
                 box->mean_f_coll = Nion_General(redshift,lnMmin,lnMmax,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
-                                                astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC);
+                                                astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
             }
             else{
                 box->mean_f_coll = previous_ionize_box->mean_f_coll + \
                                     Nion_General(redshift,lnMmin,lnMmax,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
-                                                 astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC) - \
+                                                 astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc) - \
                                     Nion_General(prev_redshift,lnMmin,lnMmax,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
-                                                 astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC);
+                                                 astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
             }
             if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI < 1e-4){
                 box->mean_f_coll_MINI = Nion_General_MINI(redshift,lnMmin,lnMmax,Mturnover_MINI,Mcrit_atom,
                                                           astro_params->ALPHA_STAR_MINI,alpha_esc_var,astro_params->F_STAR7_MINI,
-                                                          astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI,user_params->INTEGRATION_METHOD_MINI);
+                                                          astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
             }
             else{
                 box->mean_f_coll_MINI = previous_ionize_box->mean_f_coll_MINI + \
                                         Nion_General_MINI(redshift,lnMmin,lnMmax,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
                                                           alpha_esc_var,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI
-                                                          ,Mlim_Fstar_MINI,Mlim_Fesc_MINI,user_params->INTEGRATION_METHOD_MINI) - \
+                                                          ,Mlim_Fstar_MINI,Mlim_Fesc_MINI) - \
                                         Nion_General_MINI(prev_redshift,lnMmin,lnMmax,Mturnover_MINI,Mcrit_atom,astro_params->ALPHA_STAR_MINI,
                                                           alpha_esc_var,astro_params->F_STAR7_MINI,astro_params->F_ESC7_MINI,
-                                                          Mlim_Fstar_MINI,Mlim_Fesc_MINI,user_params->INTEGRATION_METHOD_MINI);
+                                                          Mlim_Fstar_MINI,Mlim_Fesc_MINI);
             }
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,lnMmin,lnMmax,Mturnover,astro_params->ALPHA_STAR,
-                                      alpha_esc_var,astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC);
+                                      alpha_esc_var,astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
             f_coll_min_MINI = Nion_General_MINI(global_params.Z_HEAT_MAX,lnMmin,lnMmax,Mturnover_MINI,Mcrit_atom,
                                                 astro_params->ALPHA_STAR_MINI,alpha_esc_var,astro_params->F_STAR7_MINI,
-                                                astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI,user_params->INTEGRATION_METHOD_MINI);
+                                                astro_params->F_ESC7_MINI,Mlim_Fstar_MINI,Mlim_Fesc_MINI);
         }
         else{
             box->mean_f_coll = Nion_General(redshift,lnMmin,lnMmax,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
-                                            astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC);
+                                            astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
             box->mean_f_coll_MINI = 0.;
 
             f_coll_min = Nion_General(global_params.Z_HEAT_MAX,lnMmin,lnMmax,Mturnover,astro_params->ALPHA_STAR,alpha_esc_var,
-                                      astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC);
+                                      astro_params->F_STAR10,norm_esc_var,Mlim_Fstar,Mlim_Fesc);
         }
     }
     else {
-        box->mean_f_coll = FgtrM_General(redshift, M_MIN, user_params->INTEGRATION_METHOD_ATOMIC);
+        box->mean_f_coll = FgtrM_General(redshift, M_MIN);
     }
 
     if(isfinite(box->mean_f_coll)==0) {

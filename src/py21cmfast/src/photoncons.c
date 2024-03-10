@@ -136,10 +136,10 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
             if (flag_options->USE_MASS_DEPENDENT_ZETA) {
                 Nion0 = ION_EFF_FACTOR*Nion_General(z0, lnMmin, lnMmax, astro_params->M_TURN, astro_params->ALPHA_STAR,
                                                 astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
-                                                Mlim_Fstar, Mlim_Fesc, 0);
+                                                Mlim_Fstar, Mlim_Fesc);
                 Nion1 = ION_EFF_FACTOR*Nion_General(z1, lnMmin, lnMmax, astro_params->M_TURN, astro_params->ALPHA_STAR,
                                                 astro_params->ALPHA_ESC, astro_params->F_STAR10, astro_params->F_ESC10,
-                                                Mlim_Fstar, Mlim_Fesc, 0);
+                                                Mlim_Fstar, Mlim_Fesc);
             }
             else {
                 //set the minimum source mass
@@ -169,8 +169,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
                   }
                 }
 
-                Nion0 = ION_EFF_FACTOR*FgtrM_General(z0,M_MIN_z0,0);
-                Nion1 = ION_EFF_FACTOR*FgtrM_General(z1,M_MIN_z1,0);
+                Nion0 = ION_EFF_FACTOR*FgtrM_General(z0,M_MIN_z0);
+                Nion1 = ION_EFF_FACTOR*FgtrM_General(z1,M_MIN_z1);
                 freeSigmaMInterpTable();
             }
 

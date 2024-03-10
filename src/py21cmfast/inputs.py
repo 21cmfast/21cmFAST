@@ -477,17 +477,18 @@ class UserParams(StructWithDefaults):
         If True, calculates and evaluates quantites using interpolation tables, which
         is considerably faster than when performing integrals explicitly.
     INTEGRATION_METHOD_ATOMIC: int, optional
-        The integration method to use for all HMF integrals of atomic halos in the grids:
+        The integration method to use for conditional MF integrals of atomic halos in the grids:
+        NOTE: global integrals will use GSL QAG adaptive integration
         0: GSL QAG adaptive integration,
         1: Gauss-Legendre integration, previously forced in the interpolation tables,
         2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
     INTEGRATION_METHOD_MINI: int, optional
-        The integration method to use for all HMF integrals of minihalos in the grids:
+        The integration method to use for conditional MF integrals of minihalos in the grids:
         0: GSL QAG adaptive integration,
         1: Gauss-Legendre integration, previously forced in the interpolation tables,
         2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
     INTEGRATION_METHOD_HALOS: int, optional
-        The integration method to use for all HMF integrals for halos from the sampler catalogues:
+        The integration method to use for all conditional MF integrals for halos from the sampler catalogues:
         0: GSL QAG adaptive integration,
         1: Gauss-Legendre integration, previously forced in the interpolation tables,
         2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS

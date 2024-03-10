@@ -148,7 +148,7 @@ double FgtrM_wsigma(double z, double sig);
 double FgtrM_st(double z, double M);
 double FgtrM_Watson(double growthf, double M);
 double FgtrM_Watson_z(double z, double growthf, double M);
-double FgtrM_General(double z, double M, int method);
+double FgtrM_General(double z, double M);
 
 float erfcc(float x);
 double splined_erfc(double x);
@@ -1497,7 +1497,7 @@ double FgtrM_wsigma(double z, double sig){
     return splined_erfc(del / (sqrt(2)*sig));
 }
 
-double FgtrM_General(double z, double M, int method){
+double FgtrM_General(double z, double M){
     double lower_limit, upper_limit, growthf;
 
     growthf = dicke(z);
@@ -1508,11 +1508,11 @@ double FgtrM_General(double z, double M, int method){
                 .growthf = growthf,
                 .HMF = user_params_ps->HMF,
     };
-    return IntegratedNdM(lower_limit, upper_limit, integral_params, 2, method) / (cosmo_params_ps->OMm*RHOcrit);
+    return IntegratedNdM(lower_limit, upper_limit, integral_params, 2, 0) / (cosmo_params_ps->OMm*RHOcrit);
 }
 
 double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10,
-                     double Fesc10, double Mlim_Fstar, double Mlim_Fesc, int method){
+                     double Fesc10, double Mlim_Fstar, double Mlim_Fesc){
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
@@ -1525,11 +1525,11 @@ double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_ps->HMF,
     };
-    return IntegratedNdM(lnM_Min,lnM_Max,params,3,method) / ((cosmo_params_ps->OMm)*RHOcrit);
+    return IntegratedNdM(lnM_Min,lnM_Max,params,3,0) / ((cosmo_params_ps->OMm)*RHOcrit);
 }
 
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
-                         double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc, int method){
+                         double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc){
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
@@ -1543,7 +1543,7 @@ double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTu
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_ps->HMF,
     };
-    return IntegratedNdM(lnM_Min,lnM_Max,params,4,method) / ((cosmo_params_ps->OMm)*RHOcrit);
+    return IntegratedNdM(lnM_Min,lnM_Max,params,4,0) / ((cosmo_params_ps->OMm)*RHOcrit);
 }
 
 double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double sigma, double delta, int method){
