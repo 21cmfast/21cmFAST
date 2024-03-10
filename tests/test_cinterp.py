@@ -200,7 +200,6 @@ def test_Massfunc_conditional_tables(name, plt):
     )
 
     # Cell Tables
-    # initialise_dNdM_tables(DELTA_MIN, MAX_DELTAC_FRAC*delta_crit, const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->growth_out, const_struct->lnM_cond, false);
     lib.initialise_dNdM_tables(
         edges_d[0],
         edges_d[-1],

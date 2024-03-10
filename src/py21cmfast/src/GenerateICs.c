@@ -28,6 +28,7 @@
 #include "UsefulFunctions.c"
 #include "interpolation.c"
 #include "ps.c"
+#include "photoncons.c"
 #include "interp_tables.c"
 #include "dft.c"
 #include "PerturbField.c"

@@ -99,12 +99,12 @@ OPTIONS = {
         },
     ],
     "nthreads": [8, {"N_THREADS": 2}],
-    "photoncons": [10, {"PHOTON_CONS": True}],
+    "photoncons": [10, {"PHOTON_CONS_TYPE": 1}],
     "mdz_and_photoncons": [
         8.5,
         {
             "USE_MASS_DEPENDENT_ZETA": True,
-            "PHOTON_CONS": True,
+            "PHOTON_CONS_TYPE": 1,
             "z_heat_max": 25,
             "zprime_step_factor": 1.1,
         },
@@ -115,7 +115,7 @@ OPTIONS = {
             "USE_MASS_DEPENDENT_ZETA": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
-            "PHOTON_CONS": True,
+            "PHOTON_CONS_TYPE": 1,
             "z_heat_max": 25,
             "zprime_step_factor": 1.1,
         },
@@ -126,7 +126,7 @@ OPTIONS = {
             "USE_MASS_DEPENDENT_ZETA": True,
             "USE_TS_FLUCT": True,
             "INHOMO_RECO": True,
-            "PHOTON_CONS": True,
+            "PHOTON_CONS_TYPE": 1,
             "z_heat_max": 25,
             "zprime_step_factor": 1.1,
             "MINIMIZE_MEMORY": True,
@@ -140,7 +140,7 @@ OPTIONS = {
             "USE_MASS_DEPENDENT_ZETA": True,
             "INHOMO_RECO": True,
             "USE_TS_FLUCT": True,
-            "PHOTON_CONS": True,
+            "PHOTON_CONS_TYPE": 1,
             "z_heat_max": 25,
             "zprime_step_factor": 1.1,
         },
@@ -207,11 +207,19 @@ OPTIONS = {
     ],
     "fast_fcoll_hiz": [
         18,
-        {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True},
+        {
+            "N_THREADS": 4,
+            "INTEGRATION_METHOD_MINI": 2,
+            "USE_INTERPOLATION_TABLES": True,
+        },
     ],
     "fast_fcoll_lowz": [
         8,
-        {"N_THREADS": 4, "FAST_FCOLL_TABLES": True, "USE_INTERPOLATION_TABLES": True},
+        {
+            "N_THREADS": 4,
+            "INTEGRATION_METHOD_MINI": 2,
+            "USE_INTERPOLATION_TABLES": True,
+        },
     ],
     "relvel": [
         18,
@@ -222,7 +230,7 @@ OPTIONS = {
             "N_THREADS": 4,
             "NUM_FILTER_STEPS_FOR_Ts": 8,
             "USE_INTERPOLATION_TABLES": True,
-            "FAST_FCOLL_TABLES": True,
+            "INTEGRATION_METHOD_MINI": 2,
             "USE_RELATIVE_VELOCITIES": True,
         },
     ],
@@ -233,6 +241,14 @@ OPTIONS = {
     "cmb_heating": [
         8,
         {"N_THREADS": 4, "USE_LYA_HEATING": False},
+    ],
+    "halo_sampling": [
+        12,
+        {
+            "USE_HALO_FIELD": True,
+            "HALO_STOCHASTICITY": True,
+            "USE_MASS_DEPENDENT_ZETA": True,
+        },
     ],
 }
 

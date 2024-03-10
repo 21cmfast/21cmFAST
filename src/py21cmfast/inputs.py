@@ -690,11 +690,16 @@ class FlagOptions(StructWithDefaults):
         Whether the minimum halo mass (for ionization) is defined by
         mass or virial temperature. Automatically True if `USE_MASS_DEPENDENT_ZETA`
         is True.
-    PHOTON_CONS : bool, optional
+    PHOTON_CONS_TYPE : int, optional
         Whether to perform a small correction to account for the inherent
-        photon non-conservation.
-    PHOTON_CONS_ALPHA : bool, optional
-        Do the photon conservation correction in ALPHA_ESC rather than redshift
+        photon non-conservation. This can be one of three types of correction:
+
+        0: No photon cosnervation correction,
+        1: Photon conservation correction by adjusting the redshift of the N_ion source field (Park+22)
+        2: Adjustment to the escape fraction power-law slope, based on fiducial results in Park+22, This runs a
+        series of global xH evolutions and one calibration simulation to find the adjustment as a function of xH
+        3: Adjustment to the escape fraction normalisation, runs one calibration simulation to find the
+        adjustment as a function of xH where f'/f = xH_global/xH_calibration
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
     USE_VELS_AUX: bool, optional
@@ -734,13 +739,12 @@ class FlagOptions(StructWithDefaults):
         "INHOMO_RECO": False,
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
-        "PHOTON_CONS": False,
-        "PHOTON_CONS_ALPHA": False,
         "FIX_VCB_AVG": False,
         "HALO_STOCHASTICITY": False,
         "USE_EXP_FILTER": False,
         "FIXED_HALO_GRIDS": False,
         "CELL_RECOMB": False,
+        "PHOTON_CONS_TYPE": 0,  # Should these all be boolean?
     }
 
     @property
@@ -794,18 +798,18 @@ class FlagOptions(StructWithDefaults):
         return True
 
     @property
-    def PHOTON_CONS(self):
+    def PHOTON_CONS_TYPE(self):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
-        if (
-            not (self.USE_MINI_HALOS and self.PHOTON_CONS_ALPHA)
-            or not self._PHOTON_CONS
-        ):
-            return self._PHOTON_CONS
-        logger.warning(
-            "USE_MINI_HALOS and PHOTON_CONS_ALPHA are not compatible with PHOTON_CONS! "
-            "Automatically setting PHOTON_CONS to False."
-        )
-        return False
+        if self.USE_MINI_HALOS and self._PHOTON_CONS_TYPE == 1:
+            logger.warning(
+                "USE_MINI_HALOS are not compatible with the redshift-based photon conservation corrections! "
+                "Automatically setting PHOTON_CONS_TYPE to zero."
+            )
+            return 0
+        if self._PHOTON_CONS_TYPE < 0 or self._PHOTON_CONS_TYPE > 3:
+            raise ValueError("PHOTON_CONS_TYPE must be between 0 and 3 inclusive")
+
+        return self._PHOTON_CONS_TYPE
 
     @property
     def HALO_STOCHASTICITY(self):

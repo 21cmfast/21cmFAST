@@ -104,10 +104,14 @@ LOG_SUPER_DEBUG("defined parameters");
 
     double alpha_esc_var = astro_params->ALPHA_ESC;
     double norm_esc_var = astro_params->F_ESC10;
-    //TODO: cleanup the alpha/norm fits
-    if(flag_options->PHOTON_CONS_ALPHA){
-        //alpha_esc_var = get_alpha_fit(redshift);
-        norm_esc_var = get_alpha_fit(redshift);
+
+    if(flag_options->PHOTON_CONS_TYPE == 2){
+        alpha_esc_var = get_fesc_fit(redshift);
+        LOG_DEBUG("PHOTONCONS: ALPHA ESC %.2e --> %.2e",astro_params->ALPHA_ESC,alpha_esc_var);
+    }
+    else if(flag_options->PHOTON_CONS_TYPE == 3){
+        norm_esc_var = get_fesc_fit(redshift);
+        LOG_DEBUG("PHOTONCONS: F_ESC10 %.2e --> %.2e",astro_params->F_ESC10,norm_esc_var);
     }
 
     //escape fractions taken into account in halo field
@@ -176,7 +180,7 @@ LOG_SUPER_DEBUG("defined parameters");
 
     // Modify the current sampled redshift to a redshift which matches the expected filling factor given our astrophysical parameterisation.
     // This is the photon non-conservation correction
-    if(flag_options->PHOTON_CONS) {
+    if(flag_options->PHOTON_CONS_TYPE == 1) {
         adjust_redshifts_for_photoncons(astro_params,flag_options,&redshift,&stored_redshift,&absolute_delta_z);
         LOG_DEBUG("PhotonCons data:");
         LOG_DEBUG("original redshift=%f, updated redshift=%f delta-z = %f", stored_redshift, redshift, absolute_delta_z);
@@ -275,7 +279,7 @@ LOG_SUPER_DEBUG("erfc interpolation done");
     }
 
     // Calculate the density field for this redshift if the initial conditions/cosmology are changing
-    if(flag_options->PHOTON_CONS) {
+    if(flag_options->PHOTON_CONS_TYPE == 1) {
         adjustment_factor = dicke(redshift)/dicke(stored_redshift);
     }
     else {
@@ -1168,7 +1172,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 
             Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
             Gamma_R_prefactor_MINI = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR_MINI / 1.0e-12;
-            if(flag_options->PHOTON_CONS) {
+            if(flag_options->PHOTON_CONS_TYPE == 1) {
                 // Used for recombinations, which means we want to use the original redshift not the adjusted redshift
                 Gamma_R_prefactor *= pow(1+stored_redshift, 2);
                 Gamma_R_prefactor_MINI *= pow(1+stored_redshift, 2);
@@ -1465,7 +1469,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                             curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x, y, z)]);
                             z_eff = pow(curr_dens, 1.0 / 3.0);
 
-                            if (flag_options->PHOTON_CONS) {
+                            if (flag_options->PHOTON_CONS_TYPE == 1) {
                                 z_eff *= (1 + stored_redshift);
                             } else {
                                 z_eff *= (1 + redshift);

@@ -438,9 +438,11 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
 
         double alpha_esc = astro_params->ALPHA_ESC;
         double norm_esc = astro_params->F_ESC10;
-        if(flag_options->PHOTON_CONS_ALPHA){
-            norm_esc = get_alpha_fit(redshift);
-        }
+        if(flag_options->PHOTON_CONS_TYPE == 2)
+            alpha_esc = get_fesc_fit(redshift);
+        else if(flag_options->PHOTON_CONS_TYPE == 3)
+            norm_esc = get_fesc_fit(redshift);
+
         double hm_avg=0,nion_avg=0,sfr_avg=0,wsfr_avg=0,sfr_avg_mini=0;
 
         double M_min = minimum_source_mass(redshift,false,astro_params,flag_options);

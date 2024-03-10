@@ -84,13 +84,12 @@ struct FlagOptions{
     bool INHOMO_RECO;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
-    bool PHOTON_CONS;
-    bool PHOTON_CONS_ALPHA; //not used in C
     bool FIX_VCB_AVG;
     bool HALO_STOCHASTICITY;
     bool USE_EXP_FILTER;
     bool FIXED_HALO_GRIDS;
     bool CELL_RECOMB;
+    int PHOTON_CONS_TYPE;
 };
 
 
