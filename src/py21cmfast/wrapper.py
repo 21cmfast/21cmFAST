@@ -1261,8 +1261,10 @@ def perturb_halo_list(
             redshift=redshift,
         )
 
-        if user_params.HMF != 1 and not flag_options.HALO_STOCHASTICITY:
-            raise ValueError("USE_HALO_FIELD (with DexM) is only valid for HMF = 1")
+        if user_params.HMF != 1:
+            logger.warning(
+                "DexM Halofinder Uses a fit to the Sheth-Tormen mass function. With HMF!=1 the Halos from DexM will not be from the same mass function"
+            )
 
         if halo_field is None or not halo_field.is_computed:
             # find the buffer size from expected halos in the box
