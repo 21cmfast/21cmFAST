@@ -136,6 +136,8 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
 
     double M_turn_a_nofb = flag_options_stoc->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params_stoc->M_TURN;
 
+    LOG_DEBUG("Mean halo boxes || M = [%.2e %.2e] | Mcell = %.2e (s=%.2e) | z = %.2e | D = %.2e | cellvol = %.2e",M_min,M_max,M_cell,sigma_cell,redshift,growth_z,cell_volume);
+
     //These tables are coarser than needed, an initial loop to find limits may help
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
         if(user_params_stoc->INTEGRATION_METHOD_ATOMIC == 1 || user_params_stoc->INTEGRATION_METHOD_MINI == 1){
@@ -163,7 +165,6 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
         initialise_dNdM_tables(min_density, max_density, lnMmin, lnMmax, growth_z, lnMcell, false);
     }
 
-    LOG_DEBUG("Mean halo boxes || M = [%.2e %.2e] | Mcell = %.2e (s=%.2e) | z = %.2e | D = %.2e | cellvol = %.2e",M_min,M_max,M_cell,sigma_cell,redshift,growth_z,cell_volume);
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
     {
         int i;

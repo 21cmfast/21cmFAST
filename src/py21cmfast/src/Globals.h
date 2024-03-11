@@ -81,9 +81,10 @@ struct GlobalParams{
 
     float VAVG;
 
+    //Stochasticity Options
     float STOC_MASS_TOL;
     float SAMPLER_MIN_MASS;
-    float MAXHALO_FACTOR; //safety factor in halo arrays (accounts for imbalance and oversampling)
+    float MAXHALO_FACTOR;
     int N_MASS_INTERP;
     int N_COND_INTERP;
     int N_PROB_INTERP;

@@ -334,9 +334,14 @@ class HaloField(_AllParamsBox):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, InitialConditions):
-            required += ["hires_density"]
             if self.flag_options.HALO_STOCHASTICITY:
-                required += ["lowres_density"]  # only needed for first sample
+                # when the sampler is on, the grids are only needed for the first sample
+                if self.desc_redshift < 0:
+                    required += ["hires_density"]
+                    required += ["lowres_density"]
+            # without the sampler, dexm needs the hires density at each redshift
+            else:
+                required += ["hires_density"]
         elif isinstance(input_box, HaloField):
             required += ["halo_masses", "halo_coords", "star_rng", "sfr_rng"]
         else:

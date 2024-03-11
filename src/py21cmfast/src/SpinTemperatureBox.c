@@ -758,7 +758,6 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         //  density -> volume weighted cell average || halo -> halo weighted average
         for (R_ct=R_start; R_ct<R_end; R_ct++){
             if(flag_options_ts->USE_MINI_HALOS){
-                // LOG_SUPER_DEBUG("Starting freqint R=%.2f zpp %.2f l10McritLW %.2e",R_values[R_ct],zpp_for_evolve_list[R_ct],log10_Mcrit_LW_ave[R_ct]);
                 lower_int_limit = fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
                                                         log10_Mcrit_LW_ave[R_ct], Mlim_Fstar_g, Mlim_Fesc_g, Mlim_Fstar_MINI_g,
                                                         Mlim_Fesc_MINI_g), (astro_params_ts->NU_X_THRESH)*NU_over_EV);

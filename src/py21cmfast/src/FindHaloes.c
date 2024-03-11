@@ -49,13 +49,11 @@ LOG_DEBUG("redshift=%f", redshift);
 
         fftwf_complex *density_field, *density_field_saved;
 
-        float growth_factor, R, delta_m, dm, dlnm, M, Delta_R, delta_crit;
-        double fgtrm, dfgtrm;
-        unsigned long long ct;
+        float growth_factor, R, delta_m, M, Delta_R, delta_crit;
         char *in_halo, *forbidden;
-        int i,j,k,x,y,z,dn,n;
-        int total_halo_num;
-        float R_temp, x_temp, y_temp, z_temp, dummy, M_MIN;
+        int i,j,k,x,y,z;
+        int total_halo_num, r_halo_num;
+        float R_temp, M_MIN;
 
         LOG_DEBUG("Begin Initialisation");
 
@@ -140,9 +138,6 @@ LOG_DEBUG("redshift=%f", redshift);
 
         // lets filter it now
         // set initial R value
-
-        fgtrm=dfgtrm=0;
-        n=0;
         Delta_R = L_FACTOR*2.*user_params->BOX_LEN/(grid_dim+0.0);
 
         total_halo_num = 0;
@@ -238,7 +233,7 @@ LOG_DEBUG("redshift=%f", redshift);
             }
             // *****************  END OPTIMIZATION ***************** //
             // now lets scroll through the box, flagging all pixels with delta_m > delta_crit
-            dn=0;
+            r_halo_num=0;
 
             //THREADING: Fix the race condition propertly to thread: it doesn't matter which thread finds the halo first
             //  but if two threads find a halo in the same region simultaneously (before the first one updates in_halo) some halos could double-up
@@ -258,9 +253,7 @@ LOG_DEBUG("redshift=%f", redshift);
 
                                 halo_field[R_INDEX(x,y,z)] = M;
 
-                                dn++; // keep track of the number of halos
-                                n++;
-                                total_halo_num++;
+                                r_halo_num++; // keep track of the number of halos
                             }
                         }
                         // *****************  END OPTIMIZATION ***************** //
@@ -275,9 +268,7 @@ LOG_DEBUG("redshift=%f", redshift);
 
                                         halo_field[R_INDEX(x,y,z)] = M;
 
-                                        dn++; // keep track of the number of halos
-                                        n++;
-                                        total_halo_num++;
+                                        r_halo_num++;
                                     }
                                 }
                             }
@@ -285,17 +276,19 @@ LOG_DEBUG("redshift=%f", redshift);
                     }
                 }
             }
-
-            LOG_SUPER_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", dn, n, growth_factor, delta_crit);
+            total_halo_num += r_halo_num;
+            LOG_SUPER_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", r_halo_num, total_halo_num, growth_factor, delta_crit);
 
             R /= global_params.DELTA_R_FACTOR;
         }
 
-        LOG_DEBUG("Obtained halo masses and positions, now saving to HaloField struct.");
+        LOG_DEBUG("Obtained %d halo masses and positions, now saving to HaloField struct.",total_halo_num);
 
         //Allocate the Halo Mass and Coordinate Fields (non-wrapper structure)
         if(flag_options->HALO_STOCHASTICITY)
             init_halo_coords(halos_dexm, total_halo_num);
+        else
+            halos_dexm->n_halos = total_halo_num;
 
         //Assign to the struct
         //NOTE: To thread this part, we would need to keep track of how many halos are in each thread before
@@ -319,7 +312,7 @@ LOG_DEBUG("redshift=%f", redshift);
         }
 
         add_properties_cat(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift, halos_dexm);
-        LOG_DEBUG("Found %d DexM halos",total_halo_num);
+        LOG_DEBUG("Found %d DexM halos",halos_dexm->n_halos);
 
         if(flag_options->HALO_STOCHASTICITY){
             LOG_DEBUG("Finding halos below grid resolution %.3e",M_MIN);
