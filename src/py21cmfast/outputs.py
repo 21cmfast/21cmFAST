@@ -335,6 +335,8 @@ class HaloField(_AllParamsBox):
         required = []
         if isinstance(input_box, InitialConditions):
             required += ["hires_density"]
+            if self.flag_options.HALO_STOCHASTICITY:
+                required += ["lowres_density"]  # only needed for first sample
         elif isinstance(input_box, HaloField):
             required += ["halo_masses", "halo_coords", "star_rng", "sfr_rng"]
         else:
