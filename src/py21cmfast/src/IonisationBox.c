@@ -479,7 +479,7 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
         if(user_params->INTEGRATION_METHOD_ATOMIC == 2 || user_params->INTEGRATION_METHOD_MINI == 2){
             initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
         }
-        else if(!flag_options->USE_TS_FLUCT) {
+        else{
             initialiseSigmaMInterpTable(M_MIN,1e20);
         }
 
@@ -573,6 +573,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
         }
     }
     else {
+        LOG_DEBUG("Setting mean collapse fraction");
         box->mean_f_coll = FgtrM_General(redshift, M_MIN);
     }
 

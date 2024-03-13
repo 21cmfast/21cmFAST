@@ -79,9 +79,7 @@ def _init_photon_conservation_correction(
     user_params = UserParams(user_params)
     cosmo_params = CosmoParams(cosmo_params)
     astro_params = AstroParams(astro_params)
-    flag_options = FlagOptions(
-        flag_options, USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
-    )
+    flag_options = FlagOptions(flag_options)
 
     return lib.InitialisePhotonCons(
         user_params(), cosmo_params(), astro_params(), flag_options()
@@ -107,16 +105,9 @@ def _calibrate_photon_conservation_correction(
 def _calc_zstart_photon_cons():
     # gets the starting redshift of the z-based photon conservation model
     #   Set by neutral fraction global_params.PhotonConsStart
-    z = np.array(
-        [
-            0.0,
-        ],
-        dtype="float64",
-    )
-    errcode = lib.ComputeZstart_PhotonCons(ffi.cast("double *", ffi.from_buffer(z)))
+    from .wrapper import _call_c_simple
 
-    _process_exitcode(errcode, lib.ObtainPhotonConsData, ())
-    return z[0]
+    return _call_c_simple(lib.ComputeZstart_PhotonCons)
 
 
 def _get_photon_nonconservation_data():
@@ -199,15 +190,14 @@ def _get_photon_nonconservation_data():
 
 
 def setup_photon_cons(
-    user_params,
-    cosmo_params,
     astro_params,
     flag_options,
-    init_box,
     regenerate,
-    write,
-    direc,
     hooks,
+    direc,
+    init_boxes=None,
+    user_params=None,
+    cosmo_params=None,
     **global_kwargs,
 ):
     r"""
@@ -232,7 +222,7 @@ def setup_photon_cons(
     flag_options: :class:`~FlagOptions`, optional
         Options concerning how the reionization process is run, eg. if spin temperature
         fluctuations are required.
-    init_box : :class:`~InitialConditions`, optional
+    init_boxes : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
     \*\*global_kwargs :
@@ -245,20 +235,32 @@ def setup_photon_cons(
     regenerate, write
         See docs of :func:`initial_conditions` for more information.
     """
+    from .wrapper import _get_config_options
+
+    direc, regenerate, hooks = _get_config_options(direc, regenerate, None, hooks)
+
     if flag_options.PHOTON_CONS_TYPE == 0:
         return
 
+    if init_boxes is not None:
+        cosmo_params = init_boxes.cosmo_params
+        user_params = init_boxes.user_params
+
+    if cosmo_params is None or user_params is None:
+        raise ValueError(
+            "user_params and cosmo_params must be given if init_boxes is not"
+        )
+
     # calculate global and calibration simulation xH histories and save them in C
     calibrate_photon_cons(
-        user_params,
-        cosmo_params,
-        astro_params,
-        flag_options,
-        init_box,
-        regenerate,
-        write,
-        direc,
-        hooks,
+        astro_params=astro_params,
+        flag_options=flag_options,
+        regenerate=regenerate,
+        hooks=hooks,
+        direc=direc,
+        init_boxes=init_boxes,
+        user_params=user_params,
+        cosmo_params=cosmo_params,
         **global_kwargs,
     )
 
@@ -280,15 +282,14 @@ def setup_photon_cons(
 
 
 def calibrate_photon_cons(
-    user_params,
-    cosmo_params,
     astro_params,
     flag_options,
-    init_box,
     regenerate,
-    write,
-    direc,
     hooks,
+    direc,
+    init_boxes=None,
+    user_params=None,
+    cosmo_params=None,
     **global_kwargs,
 ):
     r"""
@@ -305,7 +306,7 @@ def calibrate_photon_cons(
     flag_options: :class:`~FlagOptions`, optional
         Options concerning how the reionization process is run, eg. if spin temperature
         fluctuations are required.
-    init_box : :class:`~InitialConditions`, optional
+    init_boxes : :class:`~InitialConditions`, optional
         If given, the user and cosmo params will be set from this object, and it will not be
         re-calculated.
     \*\*global_kwargs :
@@ -329,7 +330,6 @@ def calibrate_photon_cons(
         flag_options_photoncons = FlagOptions(
             USE_MASS_DEPENDENT_ZETA=flag_options.USE_MASS_DEPENDENT_ZETA,
             M_MIN_in_Mass=flag_options.M_MIN_in_Mass,
-            USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES,
         )
 
         ib = None
@@ -358,7 +358,7 @@ def calibrate_photon_cons(
             # turned off.
             this_perturb = perturb_field(
                 redshift=z,
-                init_boxes=init_box,
+                init_boxes=init_boxes,
                 regenerate=regenerate,
                 hooks=hooks,
                 direc=direc,
@@ -367,7 +367,7 @@ def calibrate_photon_cons(
             ib2 = ionize_box(
                 redshift=z,
                 previous_ionize_box=ib,
-                init_boxes=init_box,
+                init_boxes=init_boxes,
                 perturbed_field=this_perturb,
                 previous_perturbed_field=prev_perturb,
                 astro_params=astro_params_photoncons,

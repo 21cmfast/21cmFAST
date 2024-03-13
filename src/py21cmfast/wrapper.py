@@ -84,21 +84,24 @@ interpolated onto the lightcone cells):
 
 >>> lightcone = p21.run_lightcone(redshift=z2, max_redshift=z2, z_step_factor=1.03)
 """
+
 from __future__ import annotations
 
 import logging
 import numpy as np
 import os
 import warnings
-from astropy import units
+from astropy import units as un
 from astropy.cosmology import z_at_value
 from copy import deepcopy
+from pathlib import Path
 from scipy.interpolate import interp1d
 from typing import Any, Callable, Sequence
 
 from ._cfg import config
 from ._utils import OutputStruct, _check_compatible_inputs, _process_exitcode, asarray
 from .c_21cmfast import ffi, lib
+from .cache_tools import get_boxes_at_redshift
 from .inputs import (
     AstroParams,
     CosmoParams,
@@ -107,7 +110,9 @@ from .inputs import (
     global_params,
     validate_all_inputs,
 )
+from .lightcones import Lightconer, RectilinearLightconer
 from .outputs import (
+    AngularLightcone,
     BrightnessTemp,
     Coeval,
     HaloBox,
@@ -219,8 +224,12 @@ def configure_redshift(redshift, *structs):
     zs = {s.redshift for s in structs if s is not None and hasattr(s, "redshift")}
     zs = list(zs)
 
-    if len(zs) > 1 or (len(zs) == 1 and redshift is not None and zs[0] != redshift):
-        raise ValueError(f"Incompatible redshifts in inputs {zs} != {redshift}")
+    if len(zs) > 1 or (
+        len(zs) == 1
+        and redshift is not None
+        and not np.isclose(zs[0], redshift, atol=1e-5)
+    ):
+        raise ValueError("Incompatible redshifts in inputs")
     elif len(zs) == 1:
         return zs[0]
     elif redshift is None:
@@ -322,10 +331,8 @@ def _setup_inputs(
     params["cosmo_params"] = CosmoParams(params["cosmo_params"])
 
     if "flag_options" in params:
-        params["flag_options"] = FlagOptions(
-            params["flag_options"],
-            USE_VELS_AUX=params["user_params"].USE_RELATIVE_VELOCITIES,
-        )
+        params["flag_options"] = FlagOptions(params["flag_options"])
+
     if "astro_params" in params:
         params["astro_params"] = AstroParams(
             params["astro_params"], INHOMO_RECO=params["flag_options"].INHOMO_RECO
@@ -576,9 +583,7 @@ def compute_luminosity_function(
                 return None, None, None
 
     else:
-        mturnovers = (
-            np.zeros(len(redshifts), dtype="float32") + 10**astro_params.M_TURN
-        )
+        mturnovers = np.zeros(len(redshifts), dtype="float32") + 10**astro_params.M_TURN
         component = 1
 
     if component == 0:
@@ -1453,18 +1458,29 @@ def halo_box(
 
         # Dynamically produce the halo list.
         # This uses default descendant behaviour, stepping from STOC_MINIMUM_Z to redshift
-        if not flag_options.FIXED_HALO_GRIDS:
-            if (
-                not isinstance(perturbed_field, PerturbedField)
-                or not perturbed_field.is_computed
-            ):
+        if (
+            not isinstance(perturbed_field, PerturbedField)
+            or not perturbed_field.is_computed
+        ):
+            if flag_options.FIXED_HALO_GRIDS or global_params.AVG_BELOW_SAMPLER:
+                perturbed_field = perturb_field(
+                    user_params=user_params,
+                    cosmo_params=cosmo_params,
+                    init_boxes=init_boxes,
+                    redshift=redshift,
+                    regenerate=regenerate,
+                    hooks=hooks,
+                    direc=direc,
+                )
+            else:
                 perturbed_field = PerturbedField(
                     redshift=0,
                     user_params=user_params,
                     cosmo_params=cosmo_params,
                     dummy=True,
                 )
-            if not isinstance(pt_halos, PerturbHaloField) or not pt_halos.is_computed:
+        if not isinstance(pt_halos, PerturbHaloField) or not pt_halos.is_computed:
+            if flag_options.FIXED_HALO_GRIDS:
                 pt_halos = perturb_halo_list(
                     redshift=redshift,
                     init_boxes=init_boxes,
@@ -1477,8 +1493,7 @@ def halo_box(
                     hooks=hooks,
                     direc=direc,
                 )
-        else:
-            if not isinstance(pt_halos, PerturbHaloField) or not pt_halos.is_computed:
+            else:
                 pt_halos = PerturbHaloField(
                     redshift=0,
                     user_params=user_params,
@@ -1486,19 +1501,6 @@ def halo_box(
                     astro_params=astro_params,
                     flag_options=flag_options,
                     dummy=True,
-                )
-            if (
-                not isinstance(perturbed_field, PerturbedField)
-                or not perturbed_field.is_computed
-            ):
-                perturbed_field = perturb_field(
-                    user_params=user_params,
-                    cosmo_params=cosmo_params,
-                    init_boxes=init_boxes,
-                    redshift=redshift,
-                    regenerate=regenerate,
-                    hooks=hooks,
-                    direc=direc,
                 )
 
         # NOTE: due to the order, we use the previous spintemp here, like spin_temperature,
@@ -1708,6 +1710,10 @@ def xray_source(
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
     with global_params.use(**global_kwargs):
         # Configure and check input/output parameters/structs
+        # NOTE: Since we pass a list of halo boxes at various redshifts,
+        #       We only require that the final box is at the same redshift
+        #       The init boxes are unused in the computation but are part of
+        #       the convenient keywords and are used for verifying parameters
         (
             random_seed,
             user_params,
@@ -1723,7 +1729,7 @@ def xray_source(
                 "astro_params": astro_params,
                 "flag_options": flag_options,
             },
-            {},
+            {"init_boxes": init_boxes, "halobox": hboxes[-1]},
             redshift=redshift,
         )
 
@@ -1764,7 +1770,7 @@ def xray_source(
         R_factor = (global_params.R_XLy_MAX / R_min) ** (
             R_steps / global_params.NUM_FILTER_STEPS_FOR_Ts
         )
-        R_range = units.Mpc * R_min * R_factor
+        R_range = un.Mpc * R_min * R_factor
         cmd_edges = cmd_zp + R_range  # comoving distance edges
         # NOTE(jdavies) added the 'bounded' method since it seems there are some compatibility issues with astropy and scipy
         # where astropy gives default bounds to a function with default unbounded minimization
@@ -2427,9 +2433,11 @@ def spin_temperature(
             flag_options=flag_options,
             random_seed=random_seed,
             prev_spin_redshift=prev_z,
-            perturbed_field_redshift=perturbed_field.redshift
-            if (perturbed_field is not None and perturbed_field.is_computed)
-            else redshift,
+            perturbed_field_redshift=(
+                perturbed_field.redshift
+                if (perturbed_field is not None and perturbed_field.is_computed)
+                else redshift
+            ),
         )
 
         # Construct FFTW wisdoms. Only if required
@@ -2755,14 +2763,14 @@ def run_coeval(
         if use_interp_perturb_field and flag_options.USE_MINI_HALOS:
             raise ValueError("Cannot use an interpolated perturb field with minihalos!")
 
+        iokw = {"regenerate": regenerate, "hooks": hooks, "direc": direc}
+
         if init_box is None:
             init_box = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
                 random_seed=random_seed,
-                hooks=hooks,
-                regenerate=regenerate,
-                direc=direc,
+                **iokw,
             )
 
         # We can go ahead and purge some of the stuff in the init_box, but only if
@@ -2787,19 +2795,17 @@ def run_coeval(
         ):
             raise ValueError("Input redshifts do not match the halo field redshifts")
 
+        kw = {
+            **{
+                "astro_params": astro_params,
+                "flag_options": flag_options,
+                "init_boxes": init_box,
+            },
+            **iokw,
+        }
         photon_nonconservation_data = None
         if flag_options.PHOTON_CONS_TYPE != 0:
-            photon_nonconservation_data = setup_photon_cons(
-                user_params,
-                cosmo_params,
-                astro_params,
-                flag_options,
-                init_box,
-                regenerate,
-                write,
-                direc,
-                hooks,
-            )
+            photon_nonconservation_data = setup_photon_cons(**kw)
 
         if not hasattr(redshift, "__len__"):
             singleton = True
@@ -2819,13 +2825,7 @@ def run_coeval(
         perturb_ = []
         for z in redshifts:
             p = (
-                perturb_field(
-                    redshift=z,
-                    init_boxes=init_box,
-                    regenerate=regenerate,
-                    hooks=hooks,
-                    direc=direc,
-                )
+                perturb_field(redshift=z, init_boxes=init_box, **iokw)
                 if z not in pz
                 else perturb[pz.index(z)]
             )
@@ -2851,60 +2851,12 @@ def run_coeval(
         if flag_options.USE_HALO_FIELD and not halobox:
             generate_halobox = True
             halos_desc = None
-            z_halos = redshifts.copy()
-            # Photon conservaiton requires one lower redshift for the interpolation
-            if flag_options.PHOTON_CONS_TYPE == 1:
-                z_target, _, _ = get_photoncons_dz(
-                    astro_params, flag_options, z_halos[-1]
-                )
-                z_halos.append(z_target)
-                logger.info(f"calculating additional halo field at z={z_halos[-1]}")
-                # we also need a perturb field for mean boxes.
-                p = perturb_field(
-                    redshift=z_target,
-                    init_boxes=init_box,
-                    regenerate=regenerate,
-                    direc=direc,
-                    hooks=hooks,
-                )
-
-                if user_params.MINIMIZE_MEMORY:
-                    try:
-                        p.purge(force=always_purge)
-                    except OSError:
-                        pass
-                # As far as I can tell adding to the list won't affect anything else down the line
-                perturb.append(p)
 
             pt_halos = []
-            for i, z in enumerate(z_halos[::-1]):
+            for i, z in enumerate(redshifts[::-1]):
                 if not flag_options.FIXED_HALO_GRIDS:
-                    halos = determine_halo_list(
-                        redshift=z,
-                        init_boxes=init_box,
-                        cosmo_params=cosmo_params,
-                        user_params=user_params,
-                        astro_params=astro_params,
-                        flag_options=flag_options,
-                        regenerate=regenerate,
-                        halos_desc=halos_desc,
-                        hooks=hooks,
-                        direc=direc,
-                    )
-                    pt_halos += [
-                        perturb_halo_list(
-                            redshift=z,
-                            init_boxes=init_box,
-                            halo_field=halos,
-                            cosmo_params=cosmo_params,
-                            user_params=user_params,
-                            astro_params=astro_params,
-                            flag_options=flag_options,
-                            regenerate=regenerate,
-                            hooks=hooks,
-                            direc=direc,
-                        )
-                    ]
+                    halos = determine_halo_list(redshift=z, halos_desc=halos_desc**kw)
+                    pt_halos += [perturb_halo_list(redshift=z, halo_field=halos, **kw)]
 
                     # we never want to store every halofield
                     try:
@@ -2966,18 +2918,11 @@ def run_coeval(
                     ph2 = pt_halos[iz]
                     hb2 = halo_box(
                         redshift=z,
-                        astro_params=astro_params,
-                        flag_options=flag_options,
-                        cosmo_params=cosmo_params,
-                        user_params=user_params,
-                        regenerate=regenerate,
-                        init_boxes=init_box,
                         pt_halos=ph2,
                         perturbed_field=pf2,
                         previous_ionize_box=ib,
                         previous_spin_temp=st,
-                        hooks=hooks,
-                        direc=direc,
+                        **kw,
                     )
                     # append the halo redshift array so we have all halo boxes [z,zmax]
                     z_halos += [z]
@@ -2990,14 +2935,9 @@ def run_coeval(
                 if flag_options.USE_HALO_FIELD:
                     sourcebox = xray_source(
                         redshift=z,
-                        astro_params=astro_params,
-                        flag_options=flag_options,
-                        cosmo_params=cosmo_params,
-                        user_params=user_params,
-                        random_seed=random_seed,  # needed since no boxes in memory
                         z_halos=z_halos,
-                        regenerate=regenerate,
                         hboxes=hbox_arr,
+                        **kw,
                     )
 
                 st2 = spin_temperature(
@@ -3005,50 +2945,25 @@ def run_coeval(
                     previous_spin_temp=st,
                     perturbed_field=perturb_min if use_interp_perturb_field else pf2,
                     sourcebox=sourcebox if flag_options.USE_HALO_FIELD else None,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    regenerate=regenerate,
-                    init_boxes=init_box,
-                    hooks=hooks,
-                    direc=direc,
-                    cleanup=(
-                        cleanup and z == redshifts[-1]
-                    ),  # cleanup if its the last time through
+                    **kw,
+                    cleanup=(cleanup and z == redshifts[-1]),
                 )
 
                 if z not in redshift:
                     st = st2
 
-            # find photon cons redshift
-            # HACK: There should be a better way to get the right delta z
-            # remember that in this case len(halobox) == len(redshifts+1)
-            if flag_options.PHOTON_CONS_TYPE == 1 and flag_options.USE_HALO_FIELD:
-                z_target, _, _ = get_photoncons_dz(astro_params, flag_options, z)
-                hbox_ionize, _, _ = interp_haloboxes(
-                    halobox[::-1], ["n_ion", "whalo_sfr"], z_halos[::-1], z_target
-                )
-                hbox_ionize.redshift = z
-            else:
-                hbox_ionize = hb2
-
             ib2 = ionize_box(
                 redshift=z,
                 previous_ionize_box=ib,
-                init_boxes=init_box,
                 perturbed_field=pf2,
                 # perturb field *not* interpolated here.
                 previous_perturbed_field=pf,
-                halobox=hbox_ionize,
-                astro_params=astro_params,
-                flag_options=flag_options,
+                halobox=hb2,
                 spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
-                regenerate=regenerate,
                 z_heat_max=global_params.Z_HEAT_MAX,
-                hooks=hooks,
-                direc=direc,
-                cleanup=(
-                    cleanup and z == redshifts[-1]
-                ),  # cleanup if its the last time through
+                # cleanup if its the last time through
+                cleanup=cleanup and z == redshifts[-1],
+                **kw,
             )
 
             if pf is not None:
@@ -3074,9 +2989,7 @@ def run_coeval(
                     ionized_box=ib2,
                     perturbed_field=pf2,
                     spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
-                    hooks=hooks,
-                    direc=direc,
-                    regenerate=regenerate,
+                    **iokw,
                 )
 
                 bt[redshift.index(z)] = _bt
@@ -3163,15 +3076,16 @@ def _get_required_redshifts_coeval(flag_options, redshift) -> list[float]:
 
 def run_lightcone(
     *,
-    redshift=None,
-    max_redshift=None,
+    redshift: float = None,
+    max_redshift: float = None,
+    lightcone_quantities=("brightness_temp",),
+    lightconer: Lightconer | None = None,
     user_params=None,
     cosmo_params=None,
     astro_params=None,
     flag_options=None,
     regenerate=None,
     write=None,
-    lightcone_quantities=("brightness_temp",),
     global_quantities=("brightness_temp", "xH_box"),
     direc=None,
     init_box=None,
@@ -3183,6 +3097,8 @@ def run_lightcone(
     cleanup=True,
     hooks=None,
     always_purge: bool = False,
+    lightcone_filename: str | Path = None,
+    return_at_z: float = 0.0,
     **global_kwargs,
 ):
     r"""
@@ -3255,6 +3171,15 @@ def run_lightcone(
         If switched on, the routine will do all it can to minimize peak memory usage.
         This will be at the cost of disk I/O and CPU time. Recommended to only set this
         if you are running particularly large boxes, or have low RAM.
+    lightcone_filename
+        The filename to which to save the lightcone. The lightcone is returned in
+        memory, and can be saved manually later, but including this filename will
+        save the lightcone on each iteration, which can be helpful for checkpointing.
+    return_at_z
+        If given, evaluation of the lightcone will be stopped at the given redshift,
+        and the partial lightcone object will be returned. Lightcone evaluation can
+        continue if the returned lightcone is saved to file, and this file is passed
+        as `lightcone_filename`.
     \*\*global_kwargs :
         Any attributes for :class:`~py21cmfast.inputs.GlobalParams`. This will
         *temporarily* set global attributes for the duration of the function. Note that
@@ -3273,14 +3198,19 @@ def run_lightcone(
         See docs of :func:`initial_conditions` for more information.
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
+
+    if cosmo_params is None and lightconer is not None:
+        cosmo_params = CosmoParams.from_astropy(lightconer.cosmo)
+
     with global_params.use(**global_kwargs):
+        # First, get the parameters OTHER than redshift...
+
         (
             random_seed,
             user_params,
             cosmo_params,
             flag_options,
             astro_params,
-            redshift,
         ) = _setup_inputs(
             {
                 "random_seed": random_seed,
@@ -3290,33 +3220,70 @@ def run_lightcone(
                 "astro_params": astro_params,
             },
             {"init_box": init_box, "perturb": perturb},
-            redshift=redshift,
         )
 
-        # JD: I don't think this has any effect, passing write=None still caches everything but trips this error
+        if redshift is None and perturb is None:
+            if lightconer is None:
+                raise ValueError(
+                    "You must provide either redshift, perturb or lightconer"
+                )
+            else:
+                redshift = lightconer.lc_redshifts.min()
+
+        elif redshift is None:
+            redshift = perturb.redshift
+        elif redshift is not None:
+            warnings.warn(
+                "passing redshift directly is deprecated, please use the Lightconer interface instead",
+                category=DeprecationWarning,
+            )
+
         if user_params.MINIMIZE_MEMORY and not write:
             raise ValueError(
                 "If trying to minimize memory usage, you must be caching. Set write=True!"
             )
-        # Ensure passed quantities are appropriate
-        _fld_names = _get_interpolation_outputs(
-            list(lightcone_quantities), list(global_quantities), flag_options
-        )
 
         max_redshift = (
             global_params.Z_HEAT_MAX
             if (
                 flag_options.INHOMO_RECO
                 or flag_options.USE_TS_FLUCT
-                or max_redshift is None
+                or (max_redshift is None and lightconer is None)
             )
-            else max_redshift
+            else (
+                max_redshift
+                if max_redshift is not None
+                else lightconer.lc_redshifts.max()
+            )
         )
 
+        if lightconer is None:
+            lightconer = RectilinearLightconer.with_equal_cdist_slices(
+                min_redshift=redshift,
+                max_redshift=max_redshift,
+                resolution=user_params.cell_size,
+                cosmo=cosmo_params.cosmo,
+                quantities=lightcone_quantities,
+                get_los_velocity=not flag_options.APPLY_RSDS,
+            )
+        lightconer.validate_options(user_params, flag_options)
+
         # Get the redshift through which we scroll and evaluate the ionization field.
-        scrollz = _logscroll_redshifts(
-            redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift
+        scrollz = np.array(
+            _logscroll_redshifts(
+                redshift, global_params.ZPRIME_STEP_FACTOR, max_redshift
+            )
         )
+
+        lcz = lightconer.lc_redshifts
+        if not np.all(min(scrollz) * 0.99 < lcz) and np.all(lcz < max(scrollz) * 1.01):
+            # We have a 1% tolerance on the redshifts, because the lightcone redshifts are
+            # computed via inverse fitting the comoving_distance.
+            raise ValueError(
+                "The lightcone redshifts are not compatible with the given redshift."
+                f"The range of computed redshifts is {min(scrollz)} to {max(scrollz)}, "
+                f"while the lightcone redshift range is {lcz.min()} to {lcz.max()}."
+            )
 
         if (
             flag_options.PHOTON_CONS_TYPE == 1
@@ -3337,14 +3304,14 @@ def run_lightcone(
             scrollz, coeval_callback, coeval_callback_redshifts
         )
 
+        iokw = {"hooks": hooks, "regenerate": regenerate, "direc": direc}
+
         if init_box is None:  # no need to get cosmo, user params out of it.
             init_box = initial_conditions(
                 user_params=user_params,
                 cosmo_params=cosmo_params,
-                hooks=hooks,
-                regenerate=regenerate,
-                direc=direc,
                 random_seed=random_seed,
+                **iokw,
             )
 
         # We can go ahead and purge some of the stuff in the init_box, but only if
@@ -3356,6 +3323,52 @@ def run_lightcone(
         except OSError:
             pass
 
+        if lightcone_filename and Path(lightcone_filename).exists():
+            lightcone = LightCone.read(lightcone_filename)
+            scrollz = scrollz[scrollz < lightcone._current_redshift]
+            if len(scrollz) == 0:
+                # The entire lightcone is already full!
+                logger.info(
+                    f"Lightcone already full at z={lightcone._current_redshift}. Returning."
+                )
+                return lightcone
+            lc = lightcone.lightcones
+        else:
+            lcn_cls = (
+                LightCone
+                if isinstance(lightconer, RectilinearLightconer)
+                else AngularLightcone
+            )
+            lc = {
+                quantity: np.zeros(
+                    lightconer.get_shape(user_params),
+                    dtype=np.float32,
+                )
+                for quantity in lightconer.quantities
+            }
+
+            # Special case: AngularLightconer can also save los_velocity
+            if getattr(lightconer, "get_los_velocity", False):
+                lc["los_velocity"] = np.zeros(
+                    lightconer.get_shape(user_params), dtype=np.float32
+                )
+
+            lightcone = lcn_cls(
+                redshift,
+                lightconer.lc_distances,
+                user_params,
+                cosmo_params,
+                astro_params,
+                flag_options,
+                init_box.random_seed,
+                lc,
+                node_redshifts=scrollz,
+                global_quantities={
+                    quantity: np.zeros(len(scrollz)) for quantity in global_quantities
+                },
+                _globals=dict(global_params.items()),
+            )
+
         if perturb is None:
             zz = scrollz
         else:
@@ -3363,13 +3376,7 @@ def run_lightcone(
 
         perturb_ = []
         for z in zz:
-            p = perturb_field(
-                redshift=z,
-                init_boxes=init_box,
-                regenerate=regenerate,
-                direc=direc,
-                hooks=hooks,
-            )
+            p = perturb_field(redshift=z, init_boxes=init_box, **iokw)
             if user_params.MINIMIZE_MEMORY:
                 try:
                     p.purge(force=always_purge)
@@ -3383,50 +3390,62 @@ def run_lightcone(
         perturb = perturb_
         perturb_min = perturb[np.argmin(scrollz)]
 
+        # Now that we've got all the perturb fields, we can purge init more.
+        try:
+            init_box.prepare_for_spin_temp(
+                flag_options=flag_options, force=always_purge
+            )
+        except OSError:
+            pass
+
+        kw = {
+            **{
+                "init_boxes": init_box,
+                "astro_params": astro_params,
+                "flag_options": flag_options,
+            },
+            **iokw,
+        }
+
         photon_nonconservation_data = None
         if flag_options.PHOTON_CONS_TYPE != 0:
-            photon_nonconservation_data = setup_photon_cons(
-                user_params,
-                cosmo_params,
-                astro_params,
-                flag_options,
-                init_box,
-                regenerate,
-                write,
-                direc,
-                hooks,
+            setup_photon_cons(**kw)
+
+        if return_at_z > lightcone.redshift and not write:
+            raise ValueError(
+                "Returning before the final redshift requires caching in order to "
+                "continue the simulation later. Set write=True!"
             )
-
-        d_at_redshift, lc_distances, n_lightcone = _setup_lightcone(
-            cosmo_params,
-            max_redshift,
-            redshift,
-            scrollz,
-            user_params,
-            global_params.ZPRIME_STEP_FACTOR,
-        )
-
-        scroll_distances = (
-            cosmo_params.cosmo.comoving_distance(scrollz).value - d_at_redshift
-        )
 
         # Iterate through redshift from top to bottom
-        st, ib, bt = None, None, None
-        lc_index = 0
-        box_index = 0
-        lc = {
-            quantity: np.zeros(
-                (user_params.HII_DIM, user_params.HII_DIM, n_lightcone),
-                dtype=np.float32,
+        if lightcone.redshift != lightcone._current_redshift:
+            logger.info(
+                f"Finding boxes at z={lightcone._current_redshift} with seed {lightcone.random_seed} and direc={direc}"
             )
-            for quantity in lightcone_quantities
-        }
+            cached_boxes = get_boxes_at_redshift(
+                redshift=lightcone._current_redshift,
+                seed=lightcone.random_seed,
+                direc=direc,
+                user_params=user_params,
+                cosmo_params=cosmo_params,
+                flag_options=flag_options,
+                astro_params=astro_params,
+            )
+            try:
+                st = cached_boxes["TsBox"][0] if flag_options.USE_TS_FLUCT else None
+                prev_perturb = cached_boxes["PerturbedField"][0]
+                ib = cached_boxes["IonizedBox"][0]
+            except (KeyError, IndexError):
+                raise OSError(
+                    f"No component boxes found at z={lightcone._current_redshift} with "
+                    f"seed {lightcone.random_seed} and direc={direc}. You need to have "
+                    "run with write=True to continue from a checkpoint."
+                )
+            pf = prev_perturb
+        else:
+            st, ib, prev_perturb = None, None, None
+            pf = None
 
-        interp_functions = {
-            "z_re_box": "mean_max",
-        }
-
-        global_q = {quantity: np.zeros(len(scrollz)) for quantity in global_quantities}
         pf = None
 
         # Now we can purge init_box further.
@@ -3440,59 +3459,16 @@ def run_lightcone(
         pt_halos = []
         if flag_options.USE_HALO_FIELD:
             halos_desc = None
-            z_halos = scrollz.copy()
-            # Photon conservaiton requires one lower redshift for the interpolation
-            if flag_options.PHOTON_CONS_TYPE == 1:
-                z_target, _, _ = get_photoncons_dz(
-                    astro_params, flag_options, scrollz[-1]
-                )
-                z_halos.append(z_target)
-                logger.info(f"calculating additional halo field at z={z_halos[-1]}")
-                # we also need a perturb field for mean boxes.
-                p = perturb_field(
-                    redshift=z_target,
-                    init_boxes=init_box,
-                    regenerate=regenerate,
-                    direc=direc,
-                    hooks=hooks,
-                )
-
-                if user_params.MINIMIZE_MEMORY:
-                    try:
-                        p.purge(force=always_purge)
-                    except OSError:
-                        pass
-                # As far as I can tell adding to the list won't affect anything else down the line
-                perturb.append(p)
-
-            for iz, z in enumerate(z_halos[::-1]):
+            for iz, z in enumerate(scrollz[::-1]):
                 if not flag_options.FIXED_HALO_GRIDS:
                     halo_field = determine_halo_list(
                         redshift=z,
-                        init_boxes=init_box,
-                        cosmo_params=cosmo_params,
-                        user_params=user_params,
-                        astro_params=astro_params,
-                        flag_options=flag_options,
-                        regenerate=regenerate,
-                        hooks=hooks,
                         halos_desc=halos_desc,
-                        direc=direc,
+                        **kw,
                     )
                     halos_desc = halo_field
                     pt_halos += [
-                        perturb_halo_list(
-                            redshift=z,
-                            init_boxes=init_box,
-                            cosmo_params=cosmo_params,
-                            user_params=user_params,
-                            astro_params=astro_params,
-                            flag_options=flag_options,
-                            halo_field=halo_field,
-                            regenerate=regenerate,
-                            hooks=hooks,
-                            direc=direc,
-                        )
+                        perturb_halo_list(redshift=z, halo_field=halo_field, **kw)
                     ]
 
                     # we never want to store every halofield
@@ -3512,7 +3488,6 @@ def run_lightcone(
         except OSError:
             pass
 
-        hbox = None
         ph = None
 
         perturb_files = []
@@ -3525,7 +3500,17 @@ def run_lightcone(
         log10_mturnovers_mini = np.zeros(len(scrollz))
         hboxes = []
         z_halos = []
+        coeval = None
+        prev_coeval = None
+        st2 = None
+        hbox2 = None
+
+        if lightcone_filename and not Path(lightcone_filename).exists():
+            lightcone.save(lightcone_filename)
+
         for iz, z in enumerate(scrollz):
+            logger.info(f"Computing Redshift {z} ({iz+1}/{len(scrollz)}) iterations.")
+
             # Best to get a perturb for this redshift, to pass to brightness_temperature
             pf2 = perturb[iz]
             # This ensures that all the arrays that are required for spin_temp are there,
@@ -3534,18 +3519,14 @@ def run_lightcone(
             if flag_options.USE_HALO_FIELD:
                 ph = pt_halos[iz]
                 ph.load_all()
+
                 hbox2 = halo_box(
                     redshift=z,
-                    init_boxes=init_box,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    cosmo_params=cosmo_params,
-                    user_params=user_params,
-                    regenerate=regenerate,
                     pt_halos=ph,
                     previous_ionize_box=ib,
                     previous_spin_temp=st,
                     perturbed_field=pf2,
+                    **kw,
                 )
                 z_halos.append(z)
                 hboxes.append(hbox2)
@@ -3553,59 +3534,30 @@ def run_lightcone(
                 if flag_options.USE_TS_FLUCT:
                     sourcebox = xray_source(
                         redshift=z,
-                        astro_params=astro_params,
-                        flag_options=flag_options,
-                        cosmo_params=cosmo_params,
-                        user_params=user_params,
-                        random_seed=random_seed,  # needed since no boxes in memory
                         z_halos=z_halos,
-                        regenerate=regenerate,
                         hboxes=hboxes,
+                        **kw,
                     )
 
             if flag_options.USE_TS_FLUCT:
                 st2 = spin_temperature(
                     redshift=z,
                     previous_spin_temp=st,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
                     perturbed_field=perturb_min if use_interp_perturb_field else pf2,
                     sourcebox=sourcebox if flag_options.USE_HALO_FIELD else None,
-                    regenerate=regenerate,
-                    init_boxes=init_box,
-                    hooks=hooks,
-                    direc=direc,
                     cleanup=(cleanup and iz == (len(scrollz) - 1)),
+                    **kw,
                 )
-
-            # find photon cons redshift
-            # HACK: There should be a better way to get the right delta z
-            if flag_options.PHOTON_CONS_TYPE == 1 and flag_options.USE_HALO_FIELD:
-                z_target, _, _ = get_photoncons_dz(astro_params, flag_options, z)
-                logger.info(
-                    f"interpolating {z_target} onto {z_halos[-1]},{z_halos[0]} {len(hboxes)},{len(z_halos)}"
-                )
-                hbox_ionize, _, _ = interp_haloboxes(
-                    hboxes[::-1], ["n_ion", "whalo_sfr"], z_halos[::-1], z_target
-                )
-                hbox_ionize.redshift = z
-            else:
-                hbox_ionize = hbox2 if flag_options.USE_HALO_FIELD else None
 
             ib2 = ionize_box(
                 redshift=z,
                 previous_ionize_box=ib,
-                init_boxes=init_box,
                 perturbed_field=pf2,
-                previous_perturbed_field=pf,
-                astro_params=astro_params,
-                flag_options=flag_options,
-                spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
-                halobox=hbox_ionize if flag_options.USE_HALO_FIELD else None,
-                regenerate=regenerate,
-                hooks=hooks,
-                direc=direc,
+                previous_perturbed_field=prev_perturb,
+                spin_temp=st2,
+                halobox=hbox2,
                 cleanup=(cleanup and iz == (len(scrollz) - 1)),
+                **kw,
             )
             log10_mturnovers[iz] = ib2.log10_Mturnover_ave
             log10_mturnovers_mini[iz] = ib2.log10_Mturnover_MINI_ave
@@ -3613,26 +3565,23 @@ def run_lightcone(
             bt2 = brightness_temperature(
                 ionized_box=ib2,
                 perturbed_field=pf2,
-                spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
-                hooks=hooks,
-                direc=direc,
-                regenerate=regenerate,
+                spin_temp=st2,
+                **iokw,
+            )
+
+            coeval = Coeval(
+                redshift=z,
+                initial_conditions=init_box,
+                perturbed_field=pf2,
+                ionized_box=ib2,
+                brightness_temp=bt2,
+                ts_box=st2,
+                halobox=hbox2,
+                photon_nonconservation_data=photon_nonconservation_data,
+                _globals=None,
             )
 
             if coeval_callback is not None and compute_coeval_callback[iz]:
-                coeval = Coeval(
-                    redshift=z,
-                    initial_conditions=init_box,
-                    perturbed_field=pf2,
-                    halobox=hbox2 if flag_options.USE_HALO_FIELD else None,
-                    ionized_box=ib2,
-                    brightness_temp=bt2,
-                    ts_box=st2 if flag_options.USE_TS_FLUCT else None,
-                    photon_nonconservation_data=_get_photon_nonconservation_data()
-                    if flag_options.PHOTON_CONS == 1
-                    else None,
-                    _globals=None,
-                )
                 try:
                     coeval_callback_output.append(coeval_callback(coeval))
                 except Exception as e:
@@ -3654,49 +3603,33 @@ def run_lightcone(
             ionize_files.append((z, os.path.join(direc, ib2.filename)))
             brightness_files.append((z, os.path.join(direc, bt2.filename)))
 
-            outs = {
-                "PerturbedField": (pf, pf2),
-                "IonizedBox": (ib, ib2),
-                "BrightnessTemp": (bt, bt2),
-            }
-            if flag_options.USE_TS_FLUCT:
-                outs["TsBox"] = (st, st2)
-            if flag_options.USE_HALO_FIELD:
-                outs["HaloBox"] = (hbox, hbox2)
-
             # Save mean/global quantities
             for quantity in global_quantities:
-                global_q[quantity][iz] = np.mean(
-                    getattr(outs[_fld_names[quantity]][1], quantity)
+                lightcone.global_quantities[quantity][iz] = np.mean(
+                    getattr(coeval, quantity)
                 )
 
-            # Interpolate the lightcone
-            if z < max_redshift:
-                for quantity in lightcone_quantities:
-                    data1, data2 = outs[_fld_names[quantity]]
-                    fnc = interp_functions.get(quantity, "mean")
+            # Get lightcone slices
+            if prev_coeval is not None:
+                for quantity, idx, this_lc in lightconer.make_lightcone_slices(
+                    coeval, prev_coeval
+                ):
+                    if this_lc is not None:
+                        lightcone.lightcones[quantity][..., idx] = this_lc
+                        lc_index = idx
 
-                    n = _interpolate_in_redshift(
-                        iz,
-                        box_index,
-                        lc_index,
-                        n_lightcone,
-                        scroll_distances,
-                        lc_distances,
-                        data1,
-                        data2,
-                        quantity,
-                        lc[quantity],
-                        fnc,
+                if lightcone_filename:
+                    lightcone.make_checkpoint(
+                        lightcone_filename, redshift=z, index=lc_index
                     )
-                lc_index += n
-                box_index += n
 
             # Save current ones as old ones.
             if flag_options.USE_TS_FLUCT:
                 st = st2
             ib = ib2
-            bt = bt2
+            if flag_options.USE_MINI_HALOS:
+                prev_perturb = pf2
+            prev_coeval = coeval
 
             if pf is not None:
                 try:
@@ -3711,8 +3644,10 @@ def run_lightcone(
                     pass
 
             pf = pf2
-            if flag_options.USE_HALO_FIELD:
-                hbox = hbox2
+
+            if z <= return_at_z:
+                # Optionally return when the lightcone is only partially filled
+                break
 
         if flag_options.PHOTON_CONS_TYPE == 1:
             photon_nonconservation_data = _get_photon_nonconservation_data()
@@ -3720,43 +3655,34 @@ def run_lightcone(
         if lib.photon_cons_allocated:
             lib.FreePhotonConsMemory()
 
-        out = (
-            LightCone(
-                redshift,
-                user_params,
-                cosmo_params,
-                astro_params,
-                flag_options,
-                init_box.random_seed,
-                lc,
-                node_redshifts=scrollz,
-                global_quantities=global_q,
-                photon_nonconservation_data=photon_nonconservation_data,
-                _globals=dict(global_params.items()),
-                cache_files={
-                    "init": [(0, os.path.join(direc, init_box.filename))],
-                    "perturb_field": perturb_files,
-                    "ionized_box": ionize_files,
-                    "brightness_temp": brightness_files,
-                    "spin_temp": spin_temp_files,
-                    "halobox": hbox_files,
-                    "pt_halos": pth_files,
-                },
-                log10_mturnovers=log10_mturnovers,
-                log10_mturnovers_mini=log10_mturnovers_mini,
-            ),
-            coeval_callback_output,
-        )
+        if isinstance(lightcone, AngularLightcone) and lightconer.get_los_velocity:
+            lightcone.compute_rsds(
+                fname=lightcone_filename, n_subcells=astro_params.N_RSD_STEPS
+            )
+
+        # Append some info to the lightcone before we return
+        lightcone.photon_nonconservation_data = photon_nonconservation_data
+        lightcone.cache_files = {
+            "init": [(0, os.path.join(direc, init_box.filename))],
+            "perturb_field": perturb_files,
+            "ionized_box": ionize_files,
+            "brightness_temp": brightness_files,
+            "spin_temp": spin_temp_files,
+            "halobox": hbox_files,
+            "pt_halos": pth_files,
+        }
+
         if coeval_callback is None:
-            return out[0]
+            return lightcone
         else:
-            return out
+            return lightcone, coeval_callback_output
 
 
 def _get_coeval_callbacks(
     scrollz: list[float], coeval_callback, coeval_callback_redshifts
 ) -> list[bool]:
-    compute_coeval_callback = [False for i in range(len(scrollz))]
+    compute_coeval_callback = [False] * len(scrollz)
+
     if coeval_callback is not None:
         if isinstance(coeval_callback_redshifts, (list, np.ndarray)):
             for coeval_z in coeval_callback_redshifts:
@@ -3778,125 +3704,3 @@ def _get_coeval_callbacks(
             raise ValueError("coeval_callback_redshifts has to be list or integer > 0.")
 
     return compute_coeval_callback
-
-
-def _get_interpolation_outputs(
-    lightcone_quantities: Sequence,
-    global_quantities: Sequence,
-    flag_options: FlagOptions,
-) -> dict[str, str]:
-    _fld_names = get_all_fieldnames(arrays_only=True, lightcone_only=True, as_dict=True)
-
-    incorrect_lc = [q for q in lightcone_quantities if q not in _fld_names.keys()]
-    if incorrect_lc:
-        raise ValueError(
-            f"The following lightcone_quantities are not available: {incorrect_lc}"
-        )
-
-    incorrect_gl = [q for q in global_quantities if q not in _fld_names.keys()]
-    if incorrect_gl:
-        raise ValueError(
-            f"The following global_quantities are not available: {incorrect_gl}"
-        )
-
-    if not flag_options.USE_TS_FLUCT and any(
-        _fld_names[q] == "TsBox" for q in lightcone_quantities + global_quantities
-    ):
-        raise ValueError(
-            "TsBox quantity found in lightcone_quantities or global_quantities, "
-            "but not running spin_temp!"
-        )
-
-    return _fld_names
-
-
-def _interpolate_in_redshift(
-    z_index,
-    box_index,
-    lc_index,
-    n_lightcone,
-    scroll_distances,
-    lc_distances,
-    output_obj,
-    output_obj2,
-    quantity,
-    lc,
-    kind="mean",
-):
-    try:
-        array = getattr(output_obj, quantity)
-        array2 = getattr(output_obj2, quantity)
-    except AttributeError:
-        raise AttributeError(
-            f"{quantity} is not a valid field of {output_obj.__class__.__name__}"
-        )
-
-    assert array.__class__ == array2.__class__
-
-    # Do linear interpolation only.
-    prev_d = scroll_distances[z_index - 1]
-    this_d = scroll_distances[z_index]
-
-    # Get the cells that need to be filled on this iteration.
-    these_distances = lc_distances[
-        np.logical_and(lc_distances < prev_d, lc_distances >= this_d)
-    ]
-
-    n = len(these_distances)
-    ind = np.arange(-(box_index + n), -box_index)
-
-    sub_array = array.take(ind + n_lightcone, axis=2, mode="wrap")
-    sub_array2 = array2.take(ind + n_lightcone, axis=2, mode="wrap")
-
-    out = (
-        np.abs(this_d - these_distances) * sub_array
-        + np.abs(prev_d - these_distances) * sub_array2
-    ) / (np.abs(prev_d - this_d))
-    if kind == "mean_max":
-        flag = sub_array * sub_array2 < 0
-        out[flag] = np.maximum(sub_array, sub_array2)[flag]
-    elif kind != "mean":
-        raise ValueError("kind must be 'mean' or 'mean_max'")
-
-    lc[:, :, -(lc_index + n) : n_lightcone - lc_index] = out
-    return n
-
-
-def _setup_lightcone(
-    cosmo_params, max_redshift, redshift, scrollz, user_params, z_step_factor
-):
-    # Here set up the lightcone box.
-    # Get a length of the lightcone (bigger than it needs to be at first).
-    d_at_redshift = cosmo_params.cosmo.comoving_distance(redshift).value
-    Ltotal = (
-        cosmo_params.cosmo.comoving_distance(scrollz[0] * z_step_factor).value
-        - d_at_redshift
-    )
-    lc_distances = np.arange(0, Ltotal, user_params.BOX_LEN / user_params.HII_DIM)
-
-    # Use max_redshift to get the actual distances we require.
-    Lmax = cosmo_params.cosmo.comoving_distance(max_redshift).value - d_at_redshift
-    first_greater = np.argwhere(lc_distances > Lmax)[0][0]
-
-    # Get *at least* as far as max_redshift
-    lc_distances = lc_distances[: (first_greater + 1)]
-
-    n_lightcone = len(lc_distances)
-    return d_at_redshift, lc_distances, n_lightcone
-
-
-def _get_lightcone_redshifts(
-    cosmo_params, max_redshift, redshift, user_params, z_step_factor
-):
-    scrollz = _logscroll_redshifts(redshift, z_step_factor, max_redshift)
-    lc_distances = _setup_lightcone(
-        cosmo_params, max_redshift, redshift, scrollz, user_params, z_step_factor
-    )[1]
-    lc_distances += cosmo_params.cosmo.comoving_distance(redshift).value
-
-    return np.array(
-        [
-            z_at_value(cosmo_params.cosmo.comoving_distance, d * units.Mpc)
-            for d in lc_distances
-        ]
-    )

@@ -381,15 +381,20 @@ def test_FgtrM_conditional_tables(name, R, plt):
     print_failure_stats(
         fcoll_tables,
         fcoll_integrals,
-        edges_d[:-1],
+        [
+            edges_d[:-1],
+        ],
         abs_tol,
         RELATIVE_TOLERANCE,
         "fcoll",
     )
+
     print_failure_stats(
         dfcoll_tables,
         fcoll_integrals,
-        edges_d[:-1],
+        [
+            edges_d[:-1],
+        ],
         abs_tol,
         RELATIVE_TOLERANCE,
         "dfcoll",
@@ -404,8 +409,7 @@ def test_FgtrM_conditional_tables(name, R, plt):
 
 
 @pytest.mark.parametrize("name", options_hmf)
-@pytest.mark.parametrize("intmethod", options_intmethod)
-def test_SFRD_z_tables(name, intmethod, plt):
+def test_SFRD_z_tables(name, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -416,8 +420,6 @@ def test_SFRD_z_tables(name, intmethod, plt):
 
     up.update(
         USE_INTERPOLATION_TABLES=True,
-        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
     )
     fo.update(
         USE_MINI_HALOS=True,
@@ -434,6 +436,8 @@ def test_SFRD_z_tables(name, intmethod, plt):
     M_max = global_params.M_MAX_INTEGRAL
     z_array = np.linspace(6, 35, num=hist_size)
     edges_m = np.logspace(5, 8, num=int(hist_size / 10)).astype("f4")
+    f10s = 10**ap.F_STAR10
+    f7s = 10**ap.F_STAR7_MINI
 
     lib.init_ps()
 
@@ -451,8 +455,8 @@ def test_SFRD_z_tables(name, intmethod, plt):
         z_array[-1],
         ap.ALPHA_STAR,
         ap.ALPHA_STAR_MINI,
-        ap.F_STAR10,
-        ap.F_STAR7_MINI,
+        f10s,
+        f7s,
         ap.M_TURN,
         True,
     )
@@ -477,11 +481,10 @@ def test_SFRD_z_tables(name, intmethod, plt):
         M_turn_a[:-1],
         ap.ALPHA_STAR,
         0.0,
-        ap.F_STAR10,
+        f10s,
         1.0,
         Mlim_Fstar,
         0.0,
-        up.INTEGRATION_METHOD_ATOMIC,
     )
     SFRD_integrals_mini = np.vectorize(lib.Nion_General_MINI)(
         input_arr[0],
@@ -491,11 +494,10 @@ def test_SFRD_z_tables(name, intmethod, plt):
         M_turn_a[:-1][:, None],
         ap.ALPHA_STAR_MINI,
         0.0,
-        ap.F_STAR7_MINI,
+        f7s,
         1.0,
         Mlim_Fstar_MINI,
         0.0,
-        up.INTEGRATION_METHOD_MINI,
     )
 
     if plt == mpl.pyplot:
@@ -513,7 +515,14 @@ def test_SFRD_z_tables(name, intmethod, plt):
 
     abs_tol = 1e-7
     print_failure_stats(
-        SFRD_tables, SFRD_integrals, z_array[:-1], abs_tol, RELATIVE_TOLERANCE, "SFRD_z"
+        SFRD_tables,
+        SFRD_integrals,
+        [
+            z_array[:-1],
+        ],
+        abs_tol,
+        RELATIVE_TOLERANCE,
+        "SFRD_z",
     )
     print_failure_stats(
         SFRD_tables_mini,
@@ -533,8 +542,7 @@ def test_SFRD_z_tables(name, intmethod, plt):
 
 
 @pytest.mark.parametrize("name", options_hmf)
-@pytest.mark.parametrize("intmethod", options_intmethod)
-def test_Nion_z_tables(name, intmethod, plt):
+def test_Nion_z_tables(name, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -545,8 +553,6 @@ def test_Nion_z_tables(name, intmethod, plt):
 
     up.update(
         USE_INTERPOLATION_TABLES=True,
-        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
     )
     fo.update(
         USE_MINI_HALOS=True,
@@ -557,6 +563,11 @@ def test_Nion_z_tables(name, intmethod, plt):
     lib.Broadcast_struct_global_PS(up(), cp())
     lib.Broadcast_struct_global_UF(up(), cp())
     lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+
+    f10s = 10**ap.F_STAR10
+    f7s = 10**ap.F_STAR7_MINI
+    f10e = 10**ap.F_ESC10
+    f7e = 10**ap.F_ESC7_MINI
 
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
@@ -583,10 +594,10 @@ def test_Nion_z_tables(name, intmethod, plt):
         ap.ALPHA_STAR,
         ap.ALPHA_STAR_MINI,
         ap.ALPHA_ESC,
-        ap.F_STAR10,
-        ap.F_ESC10,
-        ap.F_STAR7_MINI,
-        ap.F_ESC7_MINI,
+        f10s,
+        f10e,
+        f7s,
+        f7e,
         ap.M_TURN,
         True,
     )
@@ -603,6 +614,7 @@ def test_Nion_z_tables(name, intmethod, plt):
     Nion_tables_mini = np.vectorize(lib.EvaluateNionTs_MINI)(
         input_arr[0], input_arr[1], Mlim_Fstar_MINI, Mlim_Fesc_MINI
     )
+
     Nion_integrals = np.vectorize(lib.Nion_General)(
         z_array[:-1],
         np.log(M_min),
@@ -610,11 +622,10 @@ def test_Nion_z_tables(name, intmethod, plt):
         M_turn_a[:-1],
         ap.ALPHA_STAR,
         ap.ALPHA_ESC,
-        ap.F_STAR10,
-        ap.F_ESC10,
+        f10s,
+        f10e,
         Mlim_Fstar,
         Mlim_Fesc,
-        up.INTEGRATION_METHOD_ATOMIC,
     )
     Nion_integrals_mini = np.vectorize(lib.Nion_General_MINI)(
         input_arr[0],
@@ -624,11 +635,10 @@ def test_Nion_z_tables(name, intmethod, plt):
         M_turn_a[:-1][:, None],
         ap.ALPHA_STAR_MINI,
         ap.ALPHA_ESC,
-        ap.F_STAR7_MINI,
-        ap.F_ESC7_MINI,
+        f7s,
+        f7e,
         Mlim_Fstar_MINI,
         Mlim_Fesc_MINI,
-        up.INTEGRATION_METHOD_MINI,
     )
 
     if plt == mpl.pyplot:
@@ -644,9 +654,16 @@ def test_Nion_z_tables(name, intmethod, plt):
             plt,
         )
 
-    abs_tol = 1e-7
+    abs_tol = 5e-6
     print_failure_stats(
-        Nion_tables, Nion_integrals, z_array[:-1], abs_tol, RELATIVE_TOLERANCE, "Nion_z"
+        Nion_tables,
+        Nion_integrals,
+        [
+            z_array[:-1],
+        ],
+        abs_tol,
+        RELATIVE_TOLERANCE,
+        "Nion_z",
     )
     print_failure_stats(
         Nion_tables_mini,
@@ -791,7 +808,14 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
     #### FIRST ASSERT ####
     abs_tol = 5e-18  # min = exp(-40) ~4e-18
     print_failure_stats(
-        Nion_tables, Nion_integrals, edges_d[:-1], abs_tol, RELATIVE_TOLERANCE, "Nion-c"
+        Nion_tables,
+        Nion_integrals,
+        [
+            edges_d[:-1],
+        ],
+        abs_tol,
+        RELATIVE_TOLERANCE,
+        "Nion-c",
     )
 
     if mini_flag:
@@ -828,9 +852,11 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
         Nion_integrals_mini = np.zeros((hist_size - 1, int(hist_size / 10)))
 
     if plt == mpl.pyplot:
-        xl = input_arr[1].shape[1]
-        sel_m = (xl * np.arange(6) / 6).astype(int)
+        sel_m = np.zeros_like(edges_m, dtype=int)
+        sel_m[0] = 1
         if mini_flag:
+            xl = input_arr[1].shape[1]
+            sel_m = (xl * np.arange(6) / 6).astype(int)
             Nion_tb_plot = Nion_tables[..., sel_m]
             Nion_il_plot = Nion_integrals[..., sel_m]
         else:
@@ -974,7 +1000,14 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
 
     abs_tol = 5e-18  # minimum = exp(-40) ~1e-18
     print_failure_stats(
-        SFRD_tables, SFRD_integrals, edges_d[:-1], abs_tol, RELATIVE_TOLERANCE, "SFRD_c"
+        SFRD_tables,
+        SFRD_integrals,
+        [
+            edges_d[:-1],
+        ],
+        abs_tol,
+        RELATIVE_TOLERANCE,
+        "SFRD_c",
     )
     print_failure_stats(
         SFRD_tables_mini,

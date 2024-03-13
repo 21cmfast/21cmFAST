@@ -1,0 +1,111 @@
+name: Tests
+
+# Test on all pushes, except when the push is literally just a tag (because we
+# tag automatically via CI, and therefore there's no extra code in that push).
+# Also, only test on pull requests into master/production.
+on:
+  push:
+    tags-ignore:
+      - 'v*'
+  pull_request:
+    branches:
+      - 'master'
+      - 'production'
+
+
+jobs:
+  tests:
+    if: "!contains(github.event.pull_request.labels.*.name, 'auto-pr')"
+    env:
+      ENV_NAME: tests
+      PYTHON: ${{ matrix.python-version }}
+      OS: ${{ matrix.os }}
+      CC: gcc
+    name: Testing
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.11"]
+        tutorial: ["coeval_cubes", "gather_data", "lightcones"]
+    defaults:
+     run:
+       # Adding -l {0} ensures conda can be found properly in each step
+       shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Print head git commit message
+        id: get_head_commit_message
+        run: echo "commit_message=$(git show -s --format=%s)" >> "$GITHUB_ENV"
+
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          # auto-update-conda: true
+          mamba-version: "*"
+          channels: conda-forge,defaults
+          python-version: ${{ matrix.python-version }}
+          environment-file: ci/${{ matrix.os }}-env.yml
+          activate-environment: tests
+          channel-priority: true
+
+      - name: Conda Info
+        run: |
+          conda info -a
+          conda list
+          conda config --show-sources
+          conda config --show
+          printenv | sort
+
+      - name: Make it a Debug Run
+        if: "contains(env.commit_message, 'ci debug')"
+        run: |
+          echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
+
+      - name: Make it a Normal Run
+        if: "!contains(env.commit_message, 'ci debug')"
+        run: |
+          echo "log_level=INFO" >> $GITHUB_ENV
+
+      - name: Get C Libraries Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get install libfftw3-dev
+          sudo apt-get install libgsl0-dev
+
+      - name: Setup GCC
+        uses: Dup4/actions-setup-gcc@v1
+        with:
+          version: latest
+
+      - name: Install 21cmFAST Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          LOG_LEVEL=${{ env.log_level }} pip install .
+
+      - name: Install 21cmFAST MacOS
+        if: matrix.os == 'macos-latest'
+        run: |
+          LOG_LEVEL=${{ env.log_level }} CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
+
+      - name: Setup papermill
+        run: |
+          pip install papermill
+          pip install ipykernel
+          python -m ipykernel install --user --name=tests
+
+      - name: Run
+        run: |
+            TEST_RUN=True papermill -k tests --request-save-on-cell-execute docs/tutorials/${{ matrix.tutorial }}.ipynb ${{ matrix.tutorial }}.ipynb
+
+      - name: Archive Notebooks
+        uses: actions/upload-artifact@v3
+        with:
+          name: tutorials-${{ matrix.tutorial }}
+          path: |
+            ${{ matrix.tutorial }}.ipynb

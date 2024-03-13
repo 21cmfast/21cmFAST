@@ -3,6 +3,7 @@
 A modification of the basic YAML and astropy.io.misc.yaml to be able to load/dump
 objects with astropy quantities in them.
 """
+
 import yaml
 from astropy.io.misc import yaml as ayaml
 

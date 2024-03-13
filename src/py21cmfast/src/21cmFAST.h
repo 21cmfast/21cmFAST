@@ -34,6 +34,7 @@ struct UserParams{
     int INTEGRATION_METHOD_HALOS;
     bool USE_2LPT;
     bool MINIMIZE_MEMORY;
+    bool KEEP_3D_VELOCITIES;
 };
 
 struct AstroParams{
@@ -81,6 +82,7 @@ struct FlagOptions{
     bool USE_LYA_HEATING; //Lya Heating Flag
     bool USE_MASS_DEPENDENT_ZETA;
     bool SUBCELL_RSD;
+    bool APPLY_RSDS;
     bool INHOMO_RECO;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
@@ -100,7 +102,7 @@ struct InitialConditions{
 };
 
 struct PerturbedField{
-    float *density, *velocity;
+    float *density, *velocity_x, *velocity_y, *velocity_z;
 };
 
 struct HaloField{

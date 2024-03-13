@@ -3,7 +3,6 @@
 Useful for preparing it to be diff'ed against another log to check where things went wrong.
 """
 
-
 import sys
 
 fname = sys.argv[1]

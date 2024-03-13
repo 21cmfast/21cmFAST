@@ -51,3 +51,64 @@ def test_readbox_nohash(ic, tmpdirec):
         cache_tools.readbox(
             kind="InitialConditions", seed=ic.random_seed, direc=str(tmpdirec)
         )
+
+
+def test_get_boxes_at_redshift(redshift, tmpdirec, perturbed_field):
+    boxes = cache_tools.get_boxes_at_redshift(redshift, direc=tmpdirec)
+    assert len(boxes["PerturbedField"]) == 1
+    assert boxes["PerturbedField"][0].redshift == redshift
+    assert boxes["PerturbedField"][0] == perturbed_field
+
+
+def test_get_boxes_at_redshift_range(redshift, tmpdirec, perturbed_field):
+    boxes = cache_tools.get_boxes_at_redshift(
+        (redshift - 3, redshift + 3), direc=tmpdirec
+    )
+    assert len(boxes["PerturbedField"]) == 1
+    assert boxes["PerturbedField"][0].redshift == redshift
+    assert boxes["PerturbedField"][0] == perturbed_field
+
+    # But at a different range...
+    boxes = cache_tools.get_boxes_at_redshift(
+        (redshift - 3, redshift - 1), direc=tmpdirec
+    )
+    assert len(boxes["PerturbedField"]) == 0
+
+
+def test_get_boxes_at_redshift_badfile(redshift, tmpdirec, perturbed_field):
+    # Add a file that should not be read
+    badpath = tmpdirec / "I_am_a_bad_file.h5"
+    badpath.touch()
+
+    # And it still works fine.
+    boxes = cache_tools.get_boxes_at_redshift(redshift, direc=tmpdirec)
+    assert len(boxes["PerturbedField"]) == 1
+    assert boxes["PerturbedField"][0].redshift == redshift
+    assert boxes["PerturbedField"][0] == perturbed_field
+
+
+def test_get_boxes_at_redshift_seed(redshift, tmpdirec, perturbed_field):
+    boxes = cache_tools.get_boxes_at_redshift(redshift, seed=12, direc=tmpdirec)
+    assert len(boxes["PerturbedField"]) == 1
+    assert boxes["PerturbedField"][0].redshift == redshift
+    assert boxes["PerturbedField"][0] == perturbed_field
+
+    # Use a different seed...
+    boxes = cache_tools.get_boxes_at_redshift(redshift, seed=13, direc=tmpdirec)
+    assert len(boxes["PerturbedField"]) == 0
+
+
+def test_get_boxes_at_redshift_with_params(
+    redshift, tmpdirec, default_user_params, perturbed_field
+):
+    boxes = cache_tools.get_boxes_at_redshift(
+        redshift, direc=tmpdirec, user_params=default_user_params
+    )
+    assert len(boxes["PerturbedField"]) == 1
+    assert boxes["PerturbedField"][0].redshift == redshift
+    assert boxes["PerturbedField"][0] == perturbed_field
+
+    # Use a different set of params
+    new = default_user_params.clone(DIM=2 * default_user_params.DIM)
+    boxes = cache_tools.get_boxes_at_redshift(redshift, direc=tmpdirec, user_params=new)
+    assert len(boxes["PerturbedField"]) == 0

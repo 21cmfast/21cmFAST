@@ -40,6 +40,7 @@
 #include "Stochasticity.c"
 #include "HaloBox.c"
 #include "SpinTemperatureBox.c"
+#include "subcell_rsds.c"
 #include "BrightnessTemperatureBox.c"
 #include "FindHaloes.c"
 #include "PerturbHaloField.c"

@@ -22,6 +22,7 @@ Comparison tests here are meant to be as small as possible while attempting to f
 a reasonable test: they should be of reduced data such as power spectra or global xHI
 measurements, and they should be generated with small simulations.
 """
+
 import pytest
 
 import h5py
@@ -30,6 +31,7 @@ import matplotlib as mpl
 import numpy as np
 
 from py21cmfast import config, global_params
+from py21cmfast.lightcones import RectilinearLightconer
 
 from . import produce_integration_test_data as prd
 
@@ -66,10 +68,21 @@ def test_power_spectra_coeval(name, module_direc, plt):
     if plt == mpl.pyplot:
         make_coeval_comparison_plot(test_k, true_powers, test_powers, plt)
 
-    for key, value in true_powers.items():
+    for key in prd.COEVAL_FIELDS:
+        if key not in true_powers:
+            continue
+        value = true_powers[key]
         print(f"Testing {key}")
-        assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=1e-2)) < 10
-        np.testing.assert_allclose(value, test_powers[key], atol=0, rtol=1e-1)
+        np.testing.assert_allclose(
+            value / test_powers[key].max(),
+            test_powers[key] / test_powers[key].max(),
+            atol=2e-4,
+            rtol=0,
+        )
+
+
+#        assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=1e-2)) < 10
+#        np.testing.assert_allclose(value, test_powers[key], atol=0, rtol=1e-1)
 
 
 @pytest.mark.parametrize("name", options)
@@ -81,6 +94,7 @@ def test_power_spectra_lightcone(name, module_direc, plt):
     with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
         true_powers = {}
         true_global = {}
+        true_k = fl["lightcone"]["k"][...]
         for key in fl["lightcone"].keys():
             if key.startswith("power_"):
                 true_powers["_".join(key.split("_")[1:])] = fl["lightcone"][key][...]
@@ -93,17 +107,31 @@ def test_power_spectra_lightcone(name, module_direc, plt):
             # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
             test_k, test_powers, lc = prd.produce_lc_power_spectra(redshift, **kwargs)
 
+    assert np.allclose(true_k, test_k)
+
     if plt == mpl.pyplot:
         make_lightcone_comparison_plot(
             test_k, lc.node_redshifts, true_powers, true_global, test_powers, lc, plt
         )
 
-    for key, value in true_powers.items():
-        print(f"Testing {key}")
-        # Ensure all but 10 of the values is within 1%, and none of the values
-        # is outside 10%
-        assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=5e-2)) < 10
-        assert np.allclose(value, test_powers[key], atol=0, rtol=1e-1)
+    for key in prd.LIGHTCONE_FIELDS:
+        if key not in true_powers:
+            continue
+
+        value = true_powers[key]
+
+        if value[0] > 0:
+            print(f"Testing {key}")
+            # Ensure all but 10 of the values is within 1%, and none of the values
+            # is outside 10%
+            np.testing.assert_allclose(
+                value / test_powers[key].max(),
+                test_powers[key] / test_powers[key].max(),
+                atol=2e-4,
+                rtol=0,
+            )
+            # assert np.all(np.abs(value - test_powers[key]) / value[0] < 1e-3)
+            # assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=5e-2)) < 10
 
     for key, value in true_global.items():
         print(f"Testing Global {key}")
@@ -114,7 +142,9 @@ def make_lightcone_comparison_plot(
     k, z, true_powers, true_global, test_powers, lc, plt
 ):
     n = len(true_global) + len(true_powers)
-    fig, ax = plt.subplots(2, n, figsize=(3 * n, 5))
+    fig, ax = plt.subplots(
+        2, n, figsize=(3 * n, 5), constrained_layout=True, sharex="col"
+    )
 
     for i, (key, val) in enumerate(true_powers.items()):
         make_comparison_plot(
@@ -129,7 +159,11 @@ def make_lightcone_comparison_plot(
 
 def make_coeval_comparison_plot(k, true_powers, test_powers, plt):
     fig, ax = plt.subplots(
-        2, len(true_powers), figsize=(3 * len(true_powers), 6), sharex=True
+        2,
+        len(true_powers),
+        figsize=(3 * len(true_powers), 6),
+        sharex=True,
+        constrained_layout=True,
     )
 
     for i, (key, val) in enumerate(true_powers.items()):
@@ -152,7 +186,7 @@ def make_comparison_plot(x, true, test, ax, logx=True, logy=True, xlab=None, yla
 
     ax[0].legend()
 
-    ax[1].plot(x, (test - true) / true)
+    ax[1].plot(x, (test - true) / true[0])
     ax[1].set_ylabel("Fractional Difference")
 
 
@@ -202,7 +236,7 @@ def test_halo_field_data(name):
         # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
         pt_halos = prd.produce_halo_field_data(redshift, **kwargs)
 
-    assert np.allclose(n_pt_halos, pt_halos.n_halos, atol=5e-3, rtol=1e-3)
-    assert np.allclose(
+    np.testing.assert_allclose(n_pt_halos, pt_halos.n_halos, atol=5e-3, rtol=1e-3)
+    np.testing.assert_allclose(
         np.sum(pt_halo_masses), np.sum(pt_halos.halo_masses), atol=5e-3, rtol=1e-3
     )

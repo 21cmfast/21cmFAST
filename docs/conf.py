@@ -25,10 +25,6 @@ MOCK_MODULES = [
     "click",
     "tqdm",
     "pyyaml",
-    "scipy",
-    "scipy.interpolate",
-    "scipy.integrate",
-    "scipy.special",
     "h5py",
     "cached_property",
 ]

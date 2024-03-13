@@ -4,6 +4,42 @@ Changelog
 dev-version
 -----------
 
+Deprecations
+~~~~~~~~~~~~
+
+* Python <3.9 is no longer supported.
+
+Fixed
+~~~~~
+
+* Fixed small issue in ``Lightcone.lightcone_coords``.
+
+Added
+~~~~~
+
+* New ``Lightconer`` base class with user-facing classes ``RectilinearLightconer`` and
+  ``AngularLightconer``. These are now the recommended way to define how lightcones
+  should be created. Note that these are *not* the final lightcone object, but simply a
+  "definition" for how to create the lightcone.
+* The ``Lightcone`` class still exists, but is now joined by an ``AngularLightcone``
+  class that is the output lightcone when using the ``AngularLightconer`` definition.
+* New ``KEEP_3D_VELOCITIES`` user-param. This is *required* to be True if you want to
+  apply RSDs to an ``AngularLightcone``.
+* Ability to check-point lightcone creation, so that it can be resumed later. Simply
+  pass the ``lightcone_fname`` argument to ``run_lightcone``.
+* New ``cache_tools.get_boxes_at_redshift`` function to get all boxes at a given
+  redshift, regardless of the parameters used to create them.
+* New ``CosmoParams.from_astropy()`` classmethod for constructing a cosmo params object
+  directly from an astropy cosmology.
+
+
+Internals
+~~~~~~~~~
+
+* Refactored RSDs to the ``subcell_rsds.c`` C-module.
+* Added CI testing of the docs tutorials.
+* More precise debugging summaries of boxes in the C code.
+
 Fixed
 ~~~~~
 

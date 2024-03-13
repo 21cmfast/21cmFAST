@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: [3.7, 3.8, 3.9, "3.10"]
+        python-version: [3.9, "3.10", "3.11"]
     defaults:
      run:
        # Adding -l {0} ensures conda can be found properly in each step
@@ -43,15 +43,15 @@ jobs:
         run: echo "commit_message=$(git show -s --format=%s)" >> "$GITHUB_ENV"
 
       - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v2.1.1
+        uses: conda-incubator/setup-miniconda@v3
         with:
           # auto-update-conda: true
-          miniconda-version: "latest"
+          mamba-version: "*"
+          channels: conda-forge,defaults
           python-version: ${{ matrix.python-version }}
           environment-file: ci/${{ matrix.os }}-env.yml
           activate-environment: tests
-          channel-priority: strict
-          use-only-tar-bz2: true
+          channel-priority: true
 
       - name: Conda Info
         run: |
@@ -78,6 +78,11 @@ jobs:
         run: |
           sudo apt-get install libfftw3-dev
           sudo apt-get install libgsl0-dev
+
+      - name: Setup GCC
+        uses: Dup4/actions-setup-gcc@v1
+        with:
+          version: latest
 
       - name: Install 21cmFAST Linux
         if: matrix.os == 'ubuntu-latest'
