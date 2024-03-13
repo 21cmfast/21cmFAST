@@ -1558,14 +1558,14 @@ def halo_box(
                     direc=direc,
                 )
 
-    result = box.compute(
-        init_boxes=init_boxes,
-        pt_halos=pt_halos,
-        perturbed_field=perturbed_field,
-        previous_ionize_box=previous_ionize_box,
-        previous_spin_temp=previous_spin_temp,
-        hooks=hooks,
-    )
+        result = box.compute(
+            init_boxes=init_boxes,
+            pt_halos=pt_halos,
+            perturbed_field=perturbed_field,
+            previous_ionize_box=previous_ionize_box,
+            previous_spin_temp=previous_spin_temp,
+            hooks=hooks,
+        )
 
     return result
 

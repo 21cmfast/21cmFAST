@@ -414,6 +414,10 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     struct TsBox *previous_spin_temp, struct IonizedBox *previous_ionize_box, struct HaloBox *grids){
     int status;
     Try{
+        //get parameters
+        Broadcast_struct_global_UF(user_params,cosmo_params);
+        Broadcast_struct_global_PS(user_params,cosmo_params);
+        Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
 
         int idx;
 #pragma omp parallel for num_threads(user_params->N_THREADS) private(idx)
@@ -429,11 +433,6 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         }
 
         LOG_DEBUG("Gridding %d halos...",halos->n_halos);
-
-        //get parameters
-        Broadcast_struct_global_UF(user_params,cosmo_params);
-        Broadcast_struct_global_PS(user_params,cosmo_params);
-        Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
 
         double alpha_esc = astro_params->ALPHA_ESC;
         double norm_esc = astro_params->F_ESC10;
@@ -645,7 +644,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             }
         }
 
-        if(user_params->USE_INTERPOLATION_TABLES && (flag_options->FIXED_HALO_GRIDS || LOG_LEVEL >= DEBUG_LEVEL)){
+        if(user_params->USE_INTERPOLATION_TABLES){
                 freeSigmaMInterpTable();
         }
 
