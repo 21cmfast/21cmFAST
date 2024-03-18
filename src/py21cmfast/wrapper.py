@@ -1081,10 +1081,9 @@ def determine_halo_list(
         )
 
         if user_params.HMF != 1:
-            logger.warning(
+            warnings.warn(
                 "DexM Halofinder Uses a fit to the Sheth-Tormen mass function."
                 "With HMF!=1 the Halos from DexM will not be from the same mass function",
-                norepeat=True,
             )
 
         min_z = (
