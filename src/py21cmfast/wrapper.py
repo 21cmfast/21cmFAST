@@ -252,7 +252,7 @@ def _verify_types(**kwargs):
                 "halo_field",
                 "pt_halos",
                 "halobox",
-                "sourcebox",
+                "xray_source_box",
             ]
         ):
             if kk in k:
@@ -1082,7 +1082,9 @@ def determine_halo_list(
 
         if user_params.HMF != 1:
             logger.warning(
-                "DexM Halofinder Uses a fit to the Sheth-Tormen mass function. With HMF!=1 the Halos from DexM will not be from the same mass function"
+                "DexM Halofinder Uses a fit to the Sheth-Tormen mass function."
+                "With HMF!=1 the Halos from DexM will not be from the same mass function",
+                norepeat=True,
             )
 
         min_z = (
@@ -1265,11 +1267,6 @@ def perturb_halo_list(
             {"init_boxes": init_boxes, "halo_field": halo_field},
             redshift=redshift,
         )
-
-        if user_params.HMF != 1:
-            logger.warning(
-                "DexM Halofinder Uses a fit to the Sheth-Tormen mass function. With HMF!=1 the Halos from DexM will not be from the same mass function"
-            )
 
         if halo_field is None or not halo_field.is_computed:
             # find the buffer size from expected halos in the box
@@ -2239,7 +2236,7 @@ def spin_temperature(
     flag_options=None,
     redshift=None,
     perturbed_field=None,
-    sourcebox=None,
+    xray_source_box=None,
     previous_spin_temp=None,
     init_boxes=None,
     cosmo_params=None,
@@ -2380,7 +2377,7 @@ def spin_temperature(
                 "init_boxes": init_boxes,
                 "perturbed_field": perturbed_field,
                 "previous_spin_temp": previous_spin_temp,
-                "sourcebox": sourcebox,
+                "xray_source_box": xray_source_box,
             },
         )
 
@@ -2499,14 +2496,14 @@ def spin_temperature(
         # Generate halos if needed
         if flag_options.USE_HALO_FIELD:
             # TODO: this doesn't work with the recursion at all, move to a list of needed snapshots like the lightcone
-            if sourcebox is None or not sourcebox.is_computed:
+            if xray_source_box is None or not xray_source_box.is_computed:
                 raise NotImplementedError(
                     "Automatic generation of Xray source box from halos not yet implemented, \
                                              Use run_coeval, run_lightcone or explicitly generate the source box"
                 )
             # The entire halo history is generated via similar (but backwards) recursion to the spintemp
         else:
-            sourcebox = XraySourceBox(
+            xray_source_box = XraySourceBox(
                 redshift=0,
                 user_params=user_params,
                 cosmo_params=cosmo_params,
@@ -2529,7 +2526,7 @@ def spin_temperature(
         return box.compute(
             cleanup=cleanup,
             perturbed_field=perturbed_field,
-            sourcebox=sourcebox,
+            xray_source_box=xray_source_box,
             prev_spin_temp=previous_spin_temp,
             ics=init_boxes,
             hooks=hooks,
@@ -2933,7 +2930,7 @@ def run_coeval(
 
             if flag_options.USE_TS_FLUCT:
                 if flag_options.USE_HALO_FIELD:
-                    sourcebox = xray_source(
+                    xray_source_box = xray_source(
                         redshift=z,
                         z_halos=z_halos,
                         hboxes=hbox_arr,
@@ -2944,7 +2941,9 @@ def run_coeval(
                     redshift=z,
                     previous_spin_temp=st,
                     perturbed_field=perturb_min if use_interp_perturb_field else pf2,
-                    sourcebox=sourcebox if flag_options.USE_HALO_FIELD else None,
+                    xray_source_box=(
+                        xray_source_box if flag_options.USE_HALO_FIELD else None
+                    ),
                     **kw,
                     cleanup=(cleanup and z == redshifts[-1]),
                 )
@@ -3532,7 +3531,7 @@ def run_lightcone(
                 hboxes.append(hbox2)
 
                 if flag_options.USE_TS_FLUCT:
-                    sourcebox = xray_source(
+                    xray_source_box = xray_source(
                         redshift=z,
                         z_halos=z_halos,
                         hboxes=hboxes,
@@ -3544,7 +3543,9 @@ def run_lightcone(
                     redshift=z,
                     previous_spin_temp=st,
                     perturbed_field=perturb_min if use_interp_perturb_field else pf2,
-                    sourcebox=sourcebox if flag_options.USE_HALO_FIELD else None,
+                    xray_source_box=(
+                        xray_source_box if flag_options.USE_HALO_FIELD else None
+                    ),
                     cleanup=(cleanup and iz == (len(scrollz) - 1)),
                     **kw,
                 )

@@ -852,8 +852,6 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
         Nion_integrals_mini = np.zeros((hist_size - 1, int(hist_size / 10)))
 
     if plt == mpl.pyplot:
-        sel_m = np.zeros_like(edges_m, dtype=int)
-        sel_m[0] = 1
         if mini_flag:
             xl = input_arr[1].shape[1]
             sel_m = (xl * np.arange(6) / 6).astype(int)
@@ -862,6 +860,8 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
         else:
             Nion_tb_plot = Nion_tables
             Nion_il_plot = Nion_integrals
+            sel_m = np.array([0]).astype(int)
+
         make_table_comparison_plot(
             edges_d[:-1],
             edges_m[sel_m],
@@ -947,7 +947,7 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
         10**ap.F_STAR7_MINI,
         up.INTEGRATION_METHOD_ATOMIC,
         up.INTEGRATION_METHOD_MINI,
-        True,
+        fo.USE_MINI_HALOS,
     )
     # since the turnover mass table edges are hardcoded, we make sure we are within those limits
     SFRD_tables = np.vectorize(lib.EvaluateSFRD_Conditional)(
@@ -1039,6 +1039,143 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
     )
 
 
+INTEGRAND_OPTIONS = ["sfrd", "n_ion"]
+
+
+@pytest.mark.parametrize("R", R_PARAM_LIST)
+@pytest.mark.parametrize("name", options_hmf)
+@pytest.mark.parametrize("integrand", INTEGRAND_OPTIONS)
+# @pytest.mark.xfail
+def test_conditional_integral_methods(R, name, integrand, plt):
+    redshift, kwargs = OPTIONS_HMF[name]
+    opts = prd.get_all_options(redshift, **kwargs)
+
+    up = UserParams(opts["user_params"])
+    cp = CosmoParams(opts["cosmo_params"])
+    ap = AstroParams(opts["astro_params"])
+    fo = FlagOptions(opts["flag_options"])
+
+    up.update(
+        USE_INTERPOLATION_TABLES=True,
+    )
+    fo.update(
+        USE_MINI_HALOS=True,
+        USE_MASS_DEPENDENT_ZETA=True,
+        INHOMO_RECO=True,
+        USE_TS_FLUCT=True,
+    )
+    if "sfr" in integrand:
+        ap.update(F_ESC10=0.0, F_ESC7_MINI=0.0, ALPHA_ESC=0.0)  # F_ESCX is in log10
+
+    lib.Broadcast_struct_global_PS(up(), cp())
+    lib.Broadcast_struct_global_UF(up(), cp())
+    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+
+    hist_size = 1000
+    M_min = global_params.M_MIN_INTEGRAL
+    M_max = global_params.M_MAX_INTEGRAL
+    edges_d = np.linspace(-1, 1.6, num=hist_size).astype("f4")
+    edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
+
+    lib.init_ps()
+
+    if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
+        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+
+    growth_out = lib.dicke(redshift)
+
+    Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
+    Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
+    if ap.ALPHA_ESC != 0.0:
+        Mlim_Fesc = 1e10 * (10**ap.F_ESC10) ** (-1.0 / ap.ALPHA_ESC)
+        Mlim_Fesc_MINI = 1e7 * (10**ap.F_ESC7_MINI) ** (-1.0 / ap.ALPHA_ESC)
+    else:
+        Mlim_Fesc = 0.0
+        Mlim_Fesc_MINI = 0.0
+
+    cond_mass = (
+        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        .to("M_sun")
+        .value
+    )
+
+    lib.initialiseSigmaMInterpTable(M_min, max(cond_mass, M_max))
+    sigma_cond = lib.sigma_z0(cond_mass)
+
+    integrals = []
+    integrals_mini = []
+    input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
+    for method in range(0, 3):
+        up.update(INTEGRATION_METHOD_ATOMIC=method, INTEGRATION_METHOD_MINI=method)
+
+        lib.Broadcast_struct_global_PS(up(), cp())
+        lib.Broadcast_struct_global_UF(up(), cp())
+        lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+
+        integrals.append(
+            np.vectorize(lib.Nion_ConditionalM)(
+                growth_out,
+                np.log(M_min),
+                np.log(M_max),
+                sigma_cond,
+                edges_d[:-1],
+                10**ap.M_TURN,
+                ap.ALPHA_STAR,
+                ap.ALPHA_ESC,
+                10**ap.F_STAR10,
+                10**ap.F_ESC10,
+                Mlim_Fstar,
+                Mlim_Fesc,
+                up.INTEGRATION_METHOD_ATOMIC,
+            )
+        )
+        integrals_mini.append(
+            np.vectorize(lib.Nion_ConditionalM_MINI)(
+                growth_out,
+                np.log(M_min),
+                np.log(M_max),
+                sigma_cond,
+                input_arr[0],
+                10 ** input_arr[1],
+                10**ap.M_TURN,
+                ap.ALPHA_STAR_MINI,
+                ap.ALPHA_ESC,
+                10**ap.F_STAR7_MINI,
+                10**ap.F_ESC7_MINI,
+                Mlim_Fstar_MINI,
+                Mlim_Fesc_MINI,
+                up.INTEGRATION_METHOD_MINI,
+            )
+        )
+
+    abs_tol = 5e-18  # minimum = exp(-40) ~1e-18
+    if plt == mpl.pyplot:
+        xl = input_arr[1].shape[1]
+        sel_m = (xl * np.arange(6) / 6).astype(int)
+        iplot_mini = [i[..., sel_m] for i in integrals_mini]
+        print(sel_m, flush=True)
+        make_integral_comparison_plot(
+            edges_d[:-1],
+            edges_m[sel_m],
+            integrals,
+            iplot_mini,
+            plt,
+        )
+
+    np.testing.assert_allclose(
+        integrals[1], integrals[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
+    )
+    np.testing.assert_allclose(
+        integrals_mini[1], integrals_mini[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
+    )
+    np.testing.assert_allclose(
+        integrals[2], integrals[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
+    )
+    np.testing.assert_allclose(
+        integrals_mini[2], integrals_mini[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
+    )
+
+
 def make_table_comparison_plot(x1, x2, table_1d, table_2d, intgrl_1d, intgrl_2d, plt):
     # rows = values,fracitonal diff, cols = 1d table, 2d table
     fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 16))
@@ -1065,6 +1202,32 @@ def make_table_comparison_plot(x1, x2, table_1d, table_2d, intgrl_1d, intgrl_2d,
             logx=False,
             color=f"C{i:d}",
         )
+
+
+# slightly different from comparison plot since each integral shares a "truth"
+def make_integral_comparison_plot(x1, x2, integral_list, integral_list_second, plt):
+    fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 8))
+
+    styles = ["-", ":", "--"]
+    for i, (i_first, i_second) in enumerate(zip(integral_list, integral_list_second)):
+        axs[0, 0].semilogy(
+            x1, i_first, color=f"C{i:d}", linewidth=2, label="Method {i}"
+        )
+        axs[1, 0].semilogy(x1, i_first / integral_list[0], color=f"C{i:d}", linewidth=2)
+
+        for j in range(x2.size):
+            axs[0, 1].semilogy(x1, i_second[:, j], color=f"C{j:d}", linestyle=styles[i])
+            axs[1, 1].semilogy(
+                x1,
+                i_second[:, j] / integral_list_second[0][:, j],
+                color=f"C{j:d}",
+                linestyle=styles[i],
+            )
+
+    axs[1, 0].set_xlabel("delta")
+    axs[1, 1].set_xlabel("delta")
+    axs[1, 0].set_ylabel("Integral")
+    axs[0, 0].set_ylabel("Integral")
 
 
 # copied and expanded from test_integration_features.py

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as un
@@ -26,6 +27,7 @@ eor_colour = colors.LinearSegmentedColormap.from_list(
     ],
 )
 plt.register_cmap(cmap=eor_colour)
+logger = logging.getLogger(__name__)
 
 
 def _imshow_slice(
@@ -277,11 +279,14 @@ def lightcone_sliceplot(
         lightcone.lightcone_dimensions[axis_dct["x"]],
         lightcone.lightcone_dimensions[axis_dct["y"]],
     ]
+
     plot_sel = Ellipsis
     if z_max is not None and slice_axis in (0, 1):
         zmax_idx = np.argmin(np.fabs(z_max - lightcone.lightcone_redshifts))
         plot_shape[1 if vertical else 0] = zmax_idx
-        plot_crd[1 if vertical else 0] = lightcone.lightcone_coords[zmax_idx]
+        plot_crd[1 if vertical else 0] = (
+            lightcone.lightcone_coords[zmax_idx].to("Mpc").value
+        )
         plot_sel = slice(0, zmax_idx, 1)
 
     if fig is None and ax is None:

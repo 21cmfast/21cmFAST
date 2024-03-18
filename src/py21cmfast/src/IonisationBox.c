@@ -825,10 +825,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             massofscaleR = RtoM(R);
             lnM_cond = log(massofscaleR);
 
-            LOG_ULTRA_DEBUG("checking densities: N_b0 sim %.5e | mass/vol %.5e | rhocrit %.5e",N_b0*(CMperMPC*CMperMPC*CMperMPC)/Msun * m_p
-                        ,(massofscaleR) / (4/3.0)*PI*pow(R,3) * (cosmo_params->OMb / cosmo_params->OMm)
-                        ,RHOcrit * cosmo_params->OMb);
-
             sigmaMmax = sigma_z0(massofscaleR);
 
             if (!flag_options->USE_HALO_FIELD) {

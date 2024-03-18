@@ -98,32 +98,6 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
     return(0);
 }
 
-/* JDAVIES: I'm setting up a refactor here for the Halo option, but plan to move over the rest afterwards
- * This is convenient because calculating TS from the Halo Field won't use most of the previous code, which is
- * dedicated to setting up the HMF integrals. I abstract into smaller parts e.g: filling tables, nu integrals
- * so that each flag case can allocate and use what it needs while staying readable.
- * Afterwards I would also want to replace most of the global
- * variables with static structs, so that things are scoped properly.*/
-
-//OTHER NOTES:
-//Assuming that the same redshift (or within 0.0001) isn't called twice in a row (which it shouldn't be because caching),
-//  The global SFRD Table doesn't do much, and the Nion table is only used in nu_tau_one
-//  We may want to not use tables for global SFRD and Nion (would require a change in nu_tau_one)
-//I rely on the default behaviour of OpenMP scoping (everything shared unless its a stack variable defined in the parallel region)
-//  so I can avoid making massive directives, this breaks from the style of the remainder of the code but I find it much more readable
-//  the only downside is when there are a lot of re-used private variables which is rarely the case and can be specially placed in a private clause
-//The perturbed density field can be at a different redshift, it is linearly extrapolated to zp
-//  I honestly don't know why this is an option, since perturbfields are almost always generated at the same redshift and it's
-//  forced to be the same in _setup_redshift()
-//z-INTEPROLATIONS: perturb field is linearly extrapolated to zp or zpp, local Nion calculations are based on this
-//  globals are simply linearly interpolated to zpp
-//Tau integrals are based on global Nion estimates. I want to change this to depend on the source field
-
-//NOTE: The ionisation box has a final delta dependence of (1+delta_source)/(1+delta_absorber) which makes sense
-//  But here it's just (1+delta_source).
-//NOTE: This turns out to be for photon conservation. If we assume mean density attenuation, we HAVE to assume mean density absorption
-//  otherwise we do not conserve photons
-
 static struct AstroParams *astro_params_ts;
 static struct CosmoParams *cosmo_params_ts;
 static struct UserParams *user_params_ts;
@@ -1238,19 +1212,6 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
 }
 
 //outer-level function for calculating Ts based on the Halo boxes
-//NOTE: some single-value floats have been changed to doubles resulting in 5th decimal place differences
-//THE !USE_MASS_DEPENDENT_ZETA case used to differ in a few ways, I'm logging them here just in case:
-//  - The delNL0 array was reversed [box_ct][R_ct], i.e it was filled in a strided manner and the
-//      R loop for the Ts calculation was inner. There are two implications, the first being that it's
-//      likely slower to fill/sum this way (it would be ~100 byte strided), and the second is that it's incompatible with MINIMIZE_MEMORY,
-//      since the dxdt[box_ct] grids can't function on an inner R-loop.
-//  - There was a huge R_ct x 2D list of interpolation tables allocated, I'm guessing there was a time when this was allocated
-//      once at the start of the run, but this no longer seems to be the case (we don't interpolate on zpp).
-//      I replace this with R_ct x 1D tables here. The Fcoll table is used for the ST_over_PS sum and dFcolldz is used for the rates.
-//  - Essentially, rather than being a totally separate program, I will make this flag simply the option to forgo all power-laws
-//      and exponentials in order to fill in the SFRD tables with ERFC instead of integrating, speeding things up.
-//  - The density tables were spaced in log10 between 1e-6 and the maximum, all density tables are now linear in density
-//      which testing shows to be more accurate for all delta > -0.9 (also faster)
 void ts_main(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift, short cleanup,
                   struct PerturbedField *perturbed_field, struct XraySourceBox *source_box, struct TsBox *previous_spin_temp,
@@ -1453,15 +1414,12 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
         for(R_ct=global_params.NUM_FILTER_STEPS_FOR_Ts; R_ct--;){
             dzpp_for_evolve = dzpp_list[R_ct];
             zpp = zpp_for_evolve_list[R_ct];
-            //TODO: also remove the fabs and make sure signs are correct following
-            //  dzpp is negative, as should dtdz be, look in get_Ts_fast()
-            //TODO: hubble array instead of call
             if(flag_options->USE_HALO_FIELD)
                 z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]); //dtdz'' dz'' -> dR for the radius sum (C included in constants)
             else if(flag_options->USE_MASS_DEPENDENT_ZETA)
                 z_edge_factor = fabs(dzpp_for_evolve * dtdz_list[R_ct]) * hubble(zpp) / astro_params->t_STAR;
             else
-                z_edge_factor = dzpp_for_evolve;
+                z_edge_factor = dzpp_for_evolve; //in this case we use dfcoll/dz'' so we do not need dtdz
 
             xray_R_factor = pow(1+zpp,-(astro_params->X_RAY_SPEC_INDEX));
 
@@ -1520,8 +1478,11 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                 lyainj_factor_mini = dstarlya_inj_dt_prefactor_MINI[R_ct];
             }
 
-            //in ComputeTS, there are prefactors which depend on the sum of stellar mass (to do the ST_OVER_PS part) so they have to be computed and stored separately
-            //I don't need those here (although ST_OVER_PS hides some R-dependent factors which I define above)
+
+            //NOTE: The ionisation box has a final delta dependence of (1+delta_source)/(1+delta_absorber)
+            //  But here it's just (1+delta_source). This is for photon conservation.
+            //  If we assume attenuation at mean density as we do in nu_tau_one(), we HAVE to assume mean density absorption
+            //  otherwise we do not conserve photons
             #pragma omp parallel private(box_ct) num_threads(user_params->N_THREADS)
             {
                 //private variables
@@ -1533,7 +1494,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                     //sum each R contribution together
                     //The dxdt boxes exist for two reasons. Firstly it allows the MINIMIZE_MEMORY to work (replaces ~40*NUM_PIXELS with ~4-16*NUM_PIXELS),
                     //  as the FFT is done in the R-loop.
-                    //Secondly, it is *likely* faster to fill these boxes, convert to SFRD, and sum with a outer R loop than an inner one.
+                    //Secondly, it is *likely* faster to fill these boxes, and sum with a outer R loop than an inner one.
 
                     if(flag_options->USE_HALO_FIELD){
                         sfr_term = source_box->filtered_sfr[R_index*HII_TOT_NUM_PIXELS + box_ct] * z_edge_factor;

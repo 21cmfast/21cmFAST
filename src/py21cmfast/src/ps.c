@@ -1324,13 +1324,7 @@ double Fcollapprox (double numin, double beta){
 double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, int type){
     //variables used in the calculation
     double lnM_higher, lnM_lower;
-    double sigma_higher,sigma_lower,sigma_pivot;
-    double nu_higher,nu_lower;
-    double beta;
-    double f_above_range;
-    double fcoll1=0.,fcoll2=0.,fcoll3=0.;
 
-    //parameters unpacked from the struct
     double delta,sigma_c;
     double index_base;
 
@@ -1356,7 +1350,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     //(Speed): by passing in log(M_turnover) i can avoid these 2 log calls
     double lnMturn_l = log(params.Mturn);
     double lnMturn_u = log(params.Mturn_upper);
-    //(Speed): LOG(MPIVOTn) can be pre-defined
+    //(Speed): LOG(MPIVOTn) can be pre-defined via macro
     double lnMp1 = log(MPIVOT1);
     double lnMp2 = log(MPIVOT2);
 
@@ -1386,78 +1380,78 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
         index_base = -1.;
 
     double delta_arg = pow((Deltac - delta)/growthf, 2);
+    double beta1 = index_base * AINDEX1 * 0.5; //exponent for Fcollapprox for nu>nupivot1 (large M)
+    double beta2 = index_base * AINDEX2 * 0.5; //exponent for Fcollapprox for nupivot2<nu<nupivot1 (small M)
+    double beta3 = index_base * AINDEX3 * 0.5; //exponent for Fcollapprox for nu<nupivot2 (smallest M)
 
-    //If we need the first (high-mass) segment:
-    sigma_pivot = EvaluateSigma(lnMp1);
-    if(lnM_hi_limit > lnMp1 && sigma_pivot > sigma_c){
-        lnM_lower = fmax(lnMp1,lnM_lo_limit);
-        lnM_higher = lnM_hi_limit;
+    // There are 5 nu(M) points of interest: the two power-law pivot points, the lower and upper integral limits
+    // and the condition.
+    //NOTE: Since sigma(M) is approximated as a power law, not (sigma(M)^2 - sigma_cond^2), this is not a simple gamma function.
+    //  note especially which nu subtracts the condition sigma and not, see Appendix B of Munoz+22 (2110.13919)
+    double sigma_pivot1 = EvaluateSigma(lnMp1);
+    double sigma_pivot2 = EvaluateSigma(lnMp2);
+    double sigma_lo_limit = EvaluateSigma(lnM_lo_limit);
+    double sigma_hi_limit = EvaluateSigma(lnM_hi_limit);
 
-        sigma_lower = EvaluateSigma(lnM_lower);
-        sigma_higher = EvaluateSigma(lnM_higher);
+    //These nu use the CMF delta (subtracted the condition delta), but not the condition sigma
+    double nu_pivot1 = delta_arg / (sigma_pivot1*sigma_pivot1);
+    double nu_pivot2 = delta_arg / (sigma_pivot2*sigma_pivot2);
+    double nu_condition = delta_arg / (sigma_c*sigma_c);
 
-        //If the condition is contained within this range, there's no reason to
-        //  evaluate the upper gamma function
-        beta = (index_base) * AINDEX1 * (0.5);
-        if(sigma_higher > sigma_c){
-            nu_higher = delta_arg/(sigma_higher*sigma_higher - sigma_c*sigma_c);
-            f_above_range = Fcollapprox(nu_higher,beta);
+    //These nu subtract the condition sigma as in the CMF
+    double nu_lo_limit = delta_arg / (sigma_lo_limit*sigma_lo_limit - sigma_c*sigma_c);
+    double nu_hi_limit = delta_arg / (sigma_hi_limit*sigma_hi_limit - sigma_c*sigma_c);
+
+    double fcoll = 0.;
+
+    //THE FOLLOWING WAS COPIED STRAIGHT FROM GaussLegendreQuad_Nion AND GaussLegendreQuad_Nion_MINI
+    //TODO: finish deriving the quantities from Munoz+22 and see how they relate to this algorithm
+    //NOTES: the minihalos ignore the condition mass limit and ACGs ignore the upper mass limit
+    //  The minihalos also assume we never get into the high mass power law (beta1)
+    if(fabs(type) == 4){
+      // re-written for further speedups
+      if (nu_hi_limit <= nu_pivot2){ //if both are below pivot2 don't bother adding and subtracting the high contribution
+        fcoll += (Fcollapprox(nu_lo_limit,beta3))*pow(nu_pivot2,-beta3);
+        fcoll -= (Fcollapprox(nu_hi_limit,beta3))*pow(nu_pivot2,-beta3);
+      }
+      else {
+        fcoll -= (Fcollapprox(nu_hi_limit,beta2))*pow(nu_pivot1,-beta2);
+        if (nu_lo_limit > nu_pivot2){
+            fcoll += (Fcollapprox(nu_lo_limit,beta2))*pow(nu_pivot1,-beta2);
+        }
+        else {
+            fcoll += (Fcollapprox(nu_pivot2,beta2))*pow(nu_pivot1,-beta2);
+            fcoll += (Fcollapprox(nu_lo_limit,beta3)-Fcollapprox(nu_pivot2,beta3) )*pow(nu_pivot2,-beta3);
+        }
+      }
+    }
+    else{
+        if(nu_lo_limit >= nu_condition){ //fully in the flat part of sigma(nu), M^alpha is nu-independent.
+            return 1e-40;
+        }
+        else{ //we subtract the contribution from high nu, since the HMF is set to 0 if sigma2>sigma1
+            fcoll -= Fcollapprox(nu_condition,beta1)*pow(nu_pivot1,-beta1);
+        }
+        if(nu_lo_limit >= nu_pivot1){
+            fcoll += Fcollapprox(nu_lo_limit,beta1)*pow(nu_pivot1,-beta1);
         }
         else{
-            f_above_range = 0;
+            fcoll += Fcollapprox(nu_pivot1,beta1)*pow(nu_pivot1,-beta1);
+            if (nu_lo_limit > nu_pivot2){
+                fcoll += (Fcollapprox(nu_lo_limit,beta2)-Fcollapprox(nu_pivot1,beta2))*pow(nu_pivot1,-beta2);
+            }
+            else {
+                fcoll += (Fcollapprox(nu_pivot2,beta2)-Fcollapprox(nu_pivot1,beta2) )*pow(nu_pivot1,-beta2);
+                fcoll += (Fcollapprox(nu_lo_limit,beta3)-Fcollapprox(nu_pivot2,beta3) )*pow(nu_pivot2,-beta3);
+            }
         }
-
-        nu_lower = delta_arg/(sigma_lower*sigma_lower - sigma_c*sigma_c);
-
-        fcoll1 = (Fcollapprox(nu_lower,beta) - f_above_range)*pow(nu_lower,-beta);
     }
 
-    //If we need the second (mid-mass) segment
-    sigma_pivot = EvaluateSigma(lnMp2);
-    if((lnM_hi_limit > lnMp2 && lnM_lo_limit < lnMp1) && sigma_pivot > sigma_c){
-        lnM_lower = fmax(lnMp2,lnM_lo_limit);
-        lnM_higher = fmin(lnMp1,lnM_hi_limit);
-        sigma_lower = EvaluateSigma(lnM_lower);
-        sigma_higher = EvaluateSigma(lnM_higher);
-
-        beta = (index_base) * AINDEX2 * (0.5);
-
-        if(sigma_higher > sigma_c){
-            nu_higher = delta_arg/(sigma_higher*sigma_higher - sigma_c*sigma_c);
-            f_above_range = Fcollapprox(nu_higher,beta);
-        }
-        else{
-            f_above_range = 0;
-        }
-
-        nu_lower = delta_arg/(sigma_lower*sigma_lower - sigma_c*sigma_c);
-
-        fcoll2 = (Fcollapprox(nu_lower,beta) - f_above_range)*pow(nu_lower,-beta);
+    if (fcoll<=0.0){
+        LOG_DEBUG("Negative fcoll? fc=%.1le Mt=%.1le \n",fcollres, MassTurnover);
+        fcoll=1e-40;
     }
-
-    //If we need the third (low-mass) segment
-    sigma_pivot = EvaluateSigma(lnM_lo_limit);
-    if(lnM_lo_limit < lnMp2 && sigma_pivot > sigma_c){
-        lnM_lower = lnM_lo_limit;
-        lnM_higher = fmin(lnMp2,lnM_hi_limit);
-        sigma_lower = EvaluateSigma(lnM_lower);
-        sigma_higher = EvaluateSigma(lnM_higher);
-
-        beta = (index_base) * AINDEX3 * (0.5);
-        if(sigma_higher > sigma_c){
-            nu_higher = delta_arg/(sigma_higher*sigma_higher - sigma_c*sigma_c);
-            f_above_range = Fcollapprox(nu_higher,beta);
-        }
-        else{
-            f_above_range = 0;
-        }
-
-        nu_lower = delta_arg/(sigma_lower*sigma_lower - sigma_c*sigma_c);
-
-        fcoll3 = (Fcollapprox(nu_lower,beta) - f_above_range)*pow(nu_lower,-beta);
-    }
-
-    return fcoll1 + fcoll2 + fcoll3;
+    return fcoll;
 }
 
 double IntegratedNdM(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, int type, int method){
@@ -1633,6 +1627,11 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double sigma2
     //return 1 if delta is exceeded
     if(delta2 > get_delta_crit(user_params_ps->HMF,sigma2,growthf))
         return 1.; //NOTE: this effectively assumes all mass is at the pivot point (1e7)
+
+    // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e sig=%.2e del=%.2e",
+    //     growthf,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,sigma2,delta2);
+
+    // LOG_ULTRA_DEBUG("--> %.8e",IntegratedNdM(lnM1,lnM2,params,-3, method));
 
     return IntegratedNdM(lnM1,lnM2,params,-3, method);
 }

@@ -381,9 +381,6 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
 
     LOG_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
 
-    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
-    Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
-
     double lnM_condition = log(Mcond);
 
     float MassTurnover[NMTURN];
@@ -397,6 +394,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
     }
     SFRD_conditional_table.x_min = min_density;
     SFRD_conditional_table.x_width = (max_density - min_density)/(NDELTA-1.);
+    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
 
     if(minihalos){
         if(!SFRD_conditional_table_MINI.allocated){
@@ -406,6 +404,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
         SFRD_conditional_table_MINI.x_width = (max_density - min_density)/(NDELTA-1.);
         SFRD_conditional_table_MINI.y_min = LOG10_MTURN_MIN;
         SFRD_conditional_table_MINI.y_width = (LOG10_MTURN_MAX - LOG10_MTURN_MIN)/(NMTURN-1.);
+        Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
     }
 
     double lnMmin = log(Mmin);
@@ -554,7 +553,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 continue;
             }
 
-            //TODO: THIS IS SUPER INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
+            //TODO: THIS IS SUPER INEFFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
             //      GL seems to require smoothness in the whole interval so we cannot use ymax for everything (TEST THIS)
             if(user_params_it->INTEGRATION_METHOD_HALOS == 1)
                 initialise_GL(NGL_INT, ymin, lnM_cond);

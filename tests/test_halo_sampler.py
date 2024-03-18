@@ -8,7 +8,7 @@ from py21cmfast import AstroParams, CosmoParams, FlagOptions, UserParams, global
 from py21cmfast.c_21cmfast import ffi, lib
 
 from . import produce_integration_test_data as prd
-from . import test_cinterp as cint
+from . import test_c_interpolation_tables as cint
 
 RELATIVE_TOLERANCE = 1e-1
 

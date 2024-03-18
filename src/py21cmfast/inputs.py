@@ -744,7 +744,6 @@ class FlagOptions(StructWithDefaults):
     USE_EXP_FILTER: bool, optional
         Use the exponential filter (MFP-epsilon(r) from Davies & Furlanetto 2021) when calculating ionising emissivity fields
         NOTE: this does not affect other field filters, and should probably be used with HII_FILTER==0 (real-space top-hat)
-        TODO: add a warning when you use HII_FILTER != 0 with this option
     FIXED_HALO_GRIDS: bool, optional
         When USE_HALO_FIELD is True, this flag bypasses the sampler, and calculates fixed grids of halo mass, stellar mass etc
         analagous to FFRT-P (Davies & Furlanetto 2021) or ESF-E (Trac et al 2021), This flag has no effect is USE_HALO_FIELD is False
@@ -758,7 +757,6 @@ class FlagOptions(StructWithDefaults):
         This is part of the perspective shift (see Davies & Furlanetto 2021) from counting photons/atoms in a sphere and flagging a central
         pixel to counting photons which we expect to reach the central pixel, and taking the ratio of atoms in the pixel.
         This flag simply turns off the filtering of N_rec grids, and takes the recombinations in the central cell.
-        TODO: make sure this is on when USE_EXP_FILTER and INHOMO_RECO are on.
     """
 
     _ffi = ffi
@@ -856,13 +854,23 @@ class FlagOptions(StructWithDefaults):
     def HALO_STOCHASTICITY(self):
         """Automatically setting HALO_STOCHASTICITY to False if not USE_HALO_FIELD."""
         if not self.USE_HALO_FIELD and self._HALO_STOCHASTICITY:
-            logger.warn(
+            logger.warning(
                 "HALO_STOCHASTICITY must be used with USE_HALO_FIELD"
                 "Turning off Stochastic Halos..."
             )
             return False
 
         return self._HALO_STOCHASTICITY
+
+    @property
+    def CELL_RECOMB(self):
+        """Automatically setting CELL_RECOMB if USE_EXP_FILTER is active."""
+        if self.USE_EXP_FILTER:
+            logger.warning(
+                "CELL_RECOMB is automatically set to True if USE_EXP_FILTER is True."
+            )
+            return True
+        return self._CELL_RECOMB
 
 
 class AstroParams(StructWithDefaults):
@@ -1125,11 +1133,29 @@ def validate_all_inputs(
             else:
                 raise ValueError(msg)
 
-    if flag_options is not None and (
-        flag_options.USE_MINI_HALOS
-        and not user_params.USE_RELATIVE_VELOCITIES
-        and not flag_options.FIX_VCB_AVG
-    ):
-        logger.warn(
-            "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
-        )
+    if flag_options is not None:
+        if (
+            flag_options.USE_MINI_HALOS
+            and not user_params.USE_RELATIVE_VELOCITIES
+            and not flag_options.FIX_VCB_AVG
+        ):
+            logger.warn(
+                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
+            )
+
+        if flag_options.HALO_STOCHASTICITY and user_params.PERTURB_ON_HIGH_RES:
+            msg = (
+                "Since the lowres density fields are required for the halo sampler"
+                "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
+                "Simultaneously."
+            )
+            raise NotImplementedError(msg)
+
+        if flag_options.USE_EXP_FILTER and not flag_options.USE_HALO_FIELD:
+            logger.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
+
+        if flag_options.USE_EXP_FILTER and global_params.HII_FILTER != 0:
+            logger.warn(
+                "USE_EXP_FILTER can only be used with a tophat HII_FILTER, setting HII_FILTER = 0"
+            )
+            global_params.HII_FILTER = 0
