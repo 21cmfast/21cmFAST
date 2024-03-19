@@ -604,6 +604,9 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
                   double R_inner, double R_outer, int R_ct, struct XraySourceBox *source_box){
     int status;
     Try{
+        //the indexing needs these
+        Broadcast_struct_global_UF(user_params,cosmo_params);
+
         int i,j,k,ct;
         fftwf_complex *filtered_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -614,6 +617,8 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
         }
         double fsfr_avg = 0;
         double fsfr_avg_mini = 0;
+        double sfr_avg = 0;
+        double sfr_avg_mini = 0;
 
     #pragma omp parallel private(i,j,k) num_threads(user_params->N_THREADS)
         {
@@ -623,10 +628,14 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
                     for (k=0; k<user_params->HII_DIM; k++){
                         *((float *)unfiltered_box + HII_R_FFT_INDEX(i,j,k)) = halobox->halo_sfr[HII_R_INDEX(i,j,k)];
                         *((float *)unfiltered_box_mini + HII_R_FFT_INDEX(i,j,k)) = halobox->halo_sfr_mini[HII_R_INDEX(i,j,k)];
+                        sfr_avg += halobox->halo_sfr[HII_R_INDEX(i,j,k)];
+                        sfr_avg_mini +=halobox->halo_sfr_mini[HII_R_INDEX(i,j,k)];
                     }
                 }
             }
         }
+        sfr_avg /= HII_TOT_NUM_PIXELS;
+        sfr_avg_mini /= HII_TOT_NUM_PIXELS;
 
         ////////////////// Transform unfiltered box to k-space to prepare for filtering /////////////////
         //this would normally only be done once but we're using a different redshift for each R now
@@ -681,14 +690,18 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
                 }
             }
         }
+
+        fsfr_avg /= HII_TOT_NUM_PIXELS;
+        fsfr_avg_mini /= HII_TOT_NUM_PIXELS;
+
         source_box->mean_sfr[R_ct] = fsfr_avg;
         source_box->mean_sfr_mini[R_ct] = fsfr_avg_mini;
         source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_LW_ave;
         if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1){
             LOG_DEBUG("finished XraySourceBox");
         }
-        LOG_SUPER_DEBUG("R = %8.3f | mean sfr = %10.3e (%10.3e MINI) mean log10McritLW %.4e",
-                            R_outer,fsfr_avg/HII_TOT_NUM_PIXELS,fsfr_avg_mini/HII_TOT_NUM_PIXELS,source_box->mean_log10_Mcrit_LW[R_ct]);
+        LOG_SUPER_DEBUG("R = %8.3f | mean sfr = %10.3e (%10.3e MINI) Unfiltered %10.3e (%10.3e MINI) mean log10McritLW %.4e",
+                            R_outer,fsfr_avg,fsfr_avg_mini,sfr_avg,sfr_avg_mini,source_box->mean_log10_Mcrit_LW[R_ct]);
 
         fftwf_free(filtered_box);
         fftwf_free(unfiltered_box);

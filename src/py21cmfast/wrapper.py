@@ -1633,9 +1633,15 @@ def interp_haloboxes(hbox_arr, fields, z_halos, z_target) -> HaloBox:
         ) + interp_param * getattr(hbox_prog, field)
         setattr(hbox_out, field, interp_field)
 
-    # logger.info(f'interpolated to z={z_target} between [{z_desc},{z_prog}] ({interp_param})')
-    # logger.info(f'SFR averages desc {idx_desc}: {hbox_desc.halo_sfr.mean()} interp {hbox_out.halo_sfr.mean()} prog ({idx_prog}) {hbox_prog.halo_sfr.mean()}')
-    # logger.info(f'top-level struct (first 3 halo mass cells) {hbox_out.halo_mass[0,0,0]}, {hbox_out.halo_mass[0,0,1]}, {hbox_out.halo_mass[0,0,2]}')
+    logger.debug(
+        f"interpolated to z={z_target} between [{z_desc},{z_prog}] ({interp_param})"
+    )
+    logger.debug(
+        f"SFR averages desc {idx_desc}: {hbox_desc.halo_sfr.mean()} interp {hbox_out.halo_sfr.mean()} prog ({idx_prog}) {hbox_prog.halo_sfr.mean()}"
+    )
+    logger.debug(
+        f"top-level struct min-max-mean {hbox_out.halo_sfr.min()}, {hbox_out.halo_sfr.max()}, {hbox_out.halo_sfr.mean()}"
+    )
     # pass the arrays to the c struct by calling again
     hbox_out()
     # HACK: Since we don't compute, we have to mark the struct as computed
@@ -1785,8 +1791,6 @@ def xray_source(
             R_inner = R_range[i - 1].to("Mpc").value if i > 0 else 0
             R_outer = R_range[i].to("Mpc").value
 
-            # logger.info(f'Starting zp={redshift}, R=[{R_inner},{R_outer}] zpp=[{zpp_avg[i]},{zpp_edges[i]}]')
-
             if zpp_avg[i] >= z_max:
                 box.filtered_sfr[i, ...] = 0
                 continue
@@ -1797,12 +1801,11 @@ def xray_source(
                 z_halos[::-1],
                 zpp_avg[i],
             )
-            # also interpolate the log10 average mcrit
-            # hbox_interp.log10_Mcrit_LW_ave = ((1 - interp_param) * hboxes[idx_desc].log10_Mcrit_LW_ave) + (interp_param*hboxes[idx_desc + 1].log10_Mcrit_LW_ave)
 
             # if we have no halos we ignore the whole shell
             if np.all(hbox_interp.halo_sfr + hbox_interp.halo_sfr_mini == 0):
                 box.filtered_sfr[i, ...] = 0
+                logger.debug(f"ignoring Radius {i} due to no stars")
                 continue
 
             # HACK: so that I can compute in the loop multiple times

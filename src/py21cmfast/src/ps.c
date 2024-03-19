@@ -1448,7 +1448,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     }
 
     if (fcoll<=0.0){
-        LOG_DEBUG("Negative fcoll? fc=%.1le Mt=%.1le \n",fcollres, MassTurnover);
+        LOG_DEBUG("Negative fcoll? fc=%.1le\n",fcoll);
         fcoll=1e-40;
     }
     return fcoll;
