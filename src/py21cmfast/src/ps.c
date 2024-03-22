@@ -1394,9 +1394,12 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     double sigma_hi_limit = EvaluateSigma(lnM_hi_limit);
 
     //These nu use the CMF delta (subtracted the condition delta), but not the condition sigma
-    double nu_pivot1 = delta_arg / (sigma_pivot1*sigma_pivot1);
-    double nu_pivot2 = delta_arg / (sigma_pivot2*sigma_pivot2);
+    double nu_pivot1_umf = delta_arg / (sigma_pivot1*sigma_pivot1);
+    double nu_pivot2_umf = delta_arg / (sigma_pivot2*sigma_pivot2);
     double nu_condition = delta_arg / (sigma_c*sigma_c);
+
+    double nu_pivot1 = delta_arg / (sigma_pivot1*sigma_pivot1 - sigma_c*sigma_c);
+    double nu_pivot2 = delta_arg / (sigma_pivot2*sigma_pivot2 - sigma_c*sigma_c);
 
     //These nu subtract the condition sigma as in the CMF
     double nu_lo_limit = delta_arg / (sigma_lo_limit*sigma_lo_limit - sigma_c*sigma_c);
@@ -1411,17 +1414,17 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     if(fabs(type) == 4){
       // re-written for further speedups
       if (nu_hi_limit <= nu_pivot2){ //if both are below pivot2 don't bother adding and subtracting the high contribution
-        fcoll += (Fcollapprox(nu_lo_limit,beta3))*pow(nu_pivot2,-beta3);
-        fcoll -= (Fcollapprox(nu_hi_limit,beta3))*pow(nu_pivot2,-beta3);
+        fcoll += (Fcollapprox(nu_lo_limit,beta3))*pow(nu_pivot2_umf,-beta3);
+        fcoll -= (Fcollapprox(nu_hi_limit,beta3))*pow(nu_pivot2_umf,-beta3);
       }
       else {
-        fcoll -= (Fcollapprox(nu_hi_limit,beta2))*pow(nu_pivot1,-beta2);
+        fcoll -= (Fcollapprox(nu_hi_limit,beta2))*pow(nu_pivot1_umf,-beta2);
         if (nu_lo_limit > nu_pivot2){
-            fcoll += (Fcollapprox(nu_lo_limit,beta2))*pow(nu_pivot1,-beta2);
+            fcoll += (Fcollapprox(nu_lo_limit,beta2))*pow(nu_pivot1_umf,-beta2);
         }
         else {
-            fcoll += (Fcollapprox(nu_pivot2,beta2))*pow(nu_pivot1,-beta2);
-            fcoll += (Fcollapprox(nu_lo_limit,beta3)-Fcollapprox(nu_pivot2,beta3) )*pow(nu_pivot2,-beta3);
+            fcoll += (Fcollapprox(nu_pivot2,beta2))*pow(nu_pivot1_umf,-beta2);
+            fcoll += (Fcollapprox(nu_lo_limit,beta3)-Fcollapprox(nu_pivot2,beta3) )*pow(nu_pivot2_umf,-beta3);
         }
       }
     }
@@ -1429,20 +1432,18 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
         if(nu_lo_limit >= nu_condition){ //fully in the flat part of sigma(nu), M^alpha is nu-independent.
             return 1e-40;
         }
-        else{ //we subtract the contribution from high nu, since the HMF is set to 0 if sigma2>sigma1
-            fcoll -= Fcollapprox(nu_condition,beta1)*pow(nu_pivot1,-beta1);
-        }
+
         if(nu_lo_limit >= nu_pivot1){
-            fcoll += Fcollapprox(nu_lo_limit,beta1)*pow(nu_pivot1,-beta1);
+            fcoll += Fcollapprox(nu_lo_limit,beta1)*pow(nu_pivot1_umf,-beta1);
         }
         else{
-            fcoll += Fcollapprox(nu_pivot1,beta1)*pow(nu_pivot1,-beta1);
+            fcoll += Fcollapprox(nu_pivot1,beta1)*pow(nu_pivot1_umf,-beta1);
             if (nu_lo_limit > nu_pivot2){
-                fcoll += (Fcollapprox(nu_lo_limit,beta2)-Fcollapprox(nu_pivot1,beta2))*pow(nu_pivot1,-beta2);
+                fcoll += (Fcollapprox(nu_lo_limit,beta2)-Fcollapprox(nu_pivot1,beta2))*pow(nu_pivot1_umf,-beta2);
             }
             else {
-                fcoll += (Fcollapprox(nu_pivot2,beta2)-Fcollapprox(nu_pivot1,beta2) )*pow(nu_pivot1,-beta2);
-                fcoll += (Fcollapprox(nu_lo_limit,beta3)-Fcollapprox(nu_pivot2,beta3) )*pow(nu_pivot2,-beta3);
+                fcoll += (Fcollapprox(nu_pivot2,beta2)-Fcollapprox(nu_pivot1,beta2) )*pow(nu_pivot1_umf,-beta2);
+                fcoll += (Fcollapprox(nu_lo_limit,beta3)-Fcollapprox(nu_pivot2,beta3) )*pow(nu_pivot2_umf,-beta3);
             }
         }
     }

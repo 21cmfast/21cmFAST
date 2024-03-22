@@ -329,6 +329,7 @@ double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
                      double Fesc10, double Mlim_Fstar, double Mlim_Fesc);
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
                          double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc);
+double FgtrM_General(double z, double M);
 double unconditional_mf(double growthf, double lnM, double z, int HMF);
 double conditional_mf(double growthf, double lnM, double delta_cond, double sigma_cond, int HMF);
 double atomic_cooling_threshold(float z);

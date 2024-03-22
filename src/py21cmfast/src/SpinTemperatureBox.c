@@ -620,12 +620,12 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
         double sfr_avg = 0;
         double sfr_avg_mini = 0;
 
-    #pragma omp parallel private(i,j,k) num_threads(user_params->N_THREADS)
+    #pragma omp parallel private(i,j,k) num_threads(user_params->N_THREADS) reduction(+:sfr_avg,sfr_avg_mini)
         {
     #pragma omp for
             for (i=0; i<user_params->HII_DIM; i++){
                 for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<user_params->HII_DIM; k++){
+                    for (k=0; k<HII_D_PARA; k++){
                         *((float *)unfiltered_box + HII_R_FFT_INDEX(i,j,k)) = halobox->halo_sfr[HII_R_INDEX(i,j,k)];
                         *((float *)unfiltered_box_mini + HII_R_FFT_INDEX(i,j,k)) = halobox->halo_sfr_mini[HII_R_INDEX(i,j,k)];
                         sfr_avg += halobox->halo_sfr[HII_R_INDEX(i,j,k)];
@@ -669,13 +669,13 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
         dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, filtered_box_mini);
 
         // copy over the values
-    #pragma omp parallel private(i,j,k) num_threads(user_params->N_THREADS) reduction(+:fsfr_avg)
+    #pragma omp parallel private(i,j,k) num_threads(user_params->N_THREADS) reduction(+:fsfr_avg,fsfr_avg_mini)
         {
             float curr,curr_mini;
     #pragma omp for
             for (i=0;i<user_params->HII_DIM; i++){
                 for (j=0;j<user_params->HII_DIM; j++){
-                    for (k=0;k<user_params->HII_DIM; k++){
+                    for (k=0;k<HII_D_PARA; k++){
                         curr = *((float *)filtered_box + HII_R_FFT_INDEX(i,j,k));
                         curr_mini = *((float *)filtered_box_mini + HII_R_FFT_INDEX(i,j,k));
                         // correct for aliasing in the filtering step
@@ -700,7 +700,7 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
         if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1){
             LOG_DEBUG("finished XraySourceBox");
         }
-        LOG_SUPER_DEBUG("R = %8.3f | mean sfr = %10.3e (%10.3e MINI) Unfiltered %10.3e (%10.3e MINI) mean log10McritLW %.4e",
+        LOG_SUPER_DEBUG("R = %8.3f | mean filtered sfr = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e MINI) mean log10McritLW %.4e",
                             R_outer,fsfr_avg,fsfr_avg_mini,sfr_avg,sfr_avg_mini,source_box->mean_log10_Mcrit_LW[R_ct]);
 
         fftwf_free(filtered_box);

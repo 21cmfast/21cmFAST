@@ -839,7 +839,7 @@ class FlagOptions(StructWithDefaults):
     def PHOTON_CONS_TYPE(self):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
         if (self.USE_MINI_HALOS or self.USE_HALO_FIELD) and self._PHOTON_CONS_TYPE == 1:
-            logger.warn(
+            warnings.warn(
                 "USE_MINI_HALOS and USE_HALO_FIELD are not compatible with the redshift-based"
                 " photon conservation corrections (PHOTON_CONS_TYPE==1)! "
                 " Automatically setting PHOTON_CONS_TYPE to zero."
@@ -854,7 +854,7 @@ class FlagOptions(StructWithDefaults):
     def HALO_STOCHASTICITY(self):
         """Automatically setting HALO_STOCHASTICITY to False if not USE_HALO_FIELD."""
         if not self.USE_HALO_FIELD and self._HALO_STOCHASTICITY:
-            logger.warning(
+            warnings.warn(
                 "HALO_STOCHASTICITY must be used with USE_HALO_FIELD"
                 "Turning off Stochastic Halos..."
             )
@@ -866,7 +866,7 @@ class FlagOptions(StructWithDefaults):
     def CELL_RECOMB(self):
         """Automatically setting CELL_RECOMB if USE_EXP_FILTER is active."""
         if self.USE_EXP_FILTER:
-            logger.warning(
+            warnings.warn(
                 "CELL_RECOMB is automatically set to True if USE_EXP_FILTER is True."
             )
             return True

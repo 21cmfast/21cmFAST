@@ -1436,6 +1436,8 @@ class LightCone(_HighLevelOutput):
 
             f["node_redshifts"] = self.node_redshifts
             f["distances"] = self.lightcone_distances
+            f["log10_mturnovers"] = self.log10_mturnovers
+            f["log10_mturnovers_mini"] = self.log10_mturnovers_mini
 
     def make_checkpoint(self, fname, index: int, redshift: float):
         """Write updated lightcone data to file."""
@@ -1490,6 +1492,9 @@ class LightCone(_HighLevelOutput):
 
             kwargs["node_redshifts"] = fl["node_redshifts"][...]
             kwargs["distances"] = fl["distances"][...]
+
+            kwargs["log10_mturnovers"] = fl["log10_mturnovers"][...]
+            kwargs["log10_mturnovers_mini"] = fl["log10_mturnovers_mini"][...]
 
         return kwargs
 

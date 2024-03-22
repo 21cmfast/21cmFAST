@@ -1786,12 +1786,13 @@ def xray_source(
 
         # call the box the initialize the memory, since I give some values before computing
         box()
-
+        final_box_computed = False
         for i in range(global_params.NUM_FILTER_STEPS_FOR_Ts):
             R_inner = R_range[i - 1].to("Mpc").value if i > 0 else 0
             R_outer = R_range[i].to("Mpc").value
 
             if zpp_avg[i] >= z_max:
+                logger.debug(f"ignoring Radius {i} which is above Z_HEAT_MAX")
                 box.filtered_sfr[i, ...] = 0
                 continue
 
@@ -1824,12 +1825,21 @@ def xray_source(
                 R_ct=i,
                 hooks=hooks_in,
             )
+            if i == global_params.NUM_FILTER_STEPS_FOR_Ts - 1:
+                final_box_computed = True
 
-        # HACK: sometimes we don't compute (if the first zpp > z_max or there are no halos)
+        # HACK: sometimes we don't compute on the last step
+        # (if the first zpp > z_max or there are no halos at max R)
         # in which case the array is not marked as computed
-        for k, state in box._array_state.items():
-            if state.initialized:
-                state.computed_in_mem = True
+        if not final_box_computed:
+            # we need to pass the memory to C, mark it as computed and call the hooks
+            box()
+
+            for k, state in box._array_state.items():
+                if state.initialized:
+                    state.computed_in_mem = True
+
+            box._call_hooks(hooks)
 
         return box
 
@@ -2149,54 +2159,6 @@ def ionize_box(
             raise NotImplementedError(
                 "Automatic generation of halo boxes not yet implemented, \
                                             Use run_coeval, run_lightcone or explicitly generate the box"
-            )
-            if not flag_options.FIXED_HALO_GRIDS:
-                # determine_halo_list will generate the descendant fields
-                # perturb and box only generate the current redshift
-                halo_field = determine_halo_list(
-                    redshift=redshift,
-                    init_boxes=init_boxes,
-                    cosmo_params=cosmo_params,
-                    user_params=user_params,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    regenerate=regen_halos,
-                    hooks=hooks,
-                    direc=direc,
-                )
-                pt_halos = perturb_halo_list(
-                    redshift=redshift,
-                    init_boxes=init_boxes,
-                    cosmo_params=cosmo_params,
-                    user_params=user_params,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    halo_field=halo_field,
-                    regenerate=regenerate,
-                    hooks=hooks,
-                    direc=direc,
-                )
-            else:
-                pt_halos = PerturbHaloField(
-                    redshift=0,
-                    user_params=user_params,
-                    cosmo_params=cosmo_params,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    dummy=True,
-                )
-
-            halobox = halo_box(
-                redshift=redshift,
-                init_boxes=init_boxes,
-                astro_params=astro_params,
-                flag_options=flag_options,
-                cosmo_params=cosmo_params,
-                user_params=user_params,
-                regenerate=regenerate,
-                pt_halos=pt_halos,
-                perturbed_field=perturbed_field,
-                previous_ionize_box=previous_ionize_box,
             )
 
         # Set empty spin temp box if necessary.
@@ -2646,7 +2608,6 @@ def run_coeval(
     init_box=None,
     perturb=None,
     use_interp_perturb_field=False,
-    halobox=None,
     random_seed=None,
     cleanup=True,
     hooks=None,
@@ -2689,9 +2650,6 @@ def run_coeval(
         to determine all spin temperature fields. If so, this field is interpolated in
         the underlying C-code to the correct redshift. This is less accurate (and no more
         efficient), but provides compatibility with older versions of 21cmFAST.
-    halobox : list of :class: `~HaloBox`, optional
-        If given, must be compatible with init_box. It will merely negate the necessity
-        of re-calculating the halo fields.
     cleanup : bool, optional
         A flag to specify whether the C routine cleans up its memory before returning.
         Typically, if `spin_temperature` is called directly, you will want this to be
@@ -2729,19 +2687,6 @@ def run_coeval(
         elif not hasattr(perturb, "__len__"):
             perturb = [perturb]
             singleton = True
-
-        # Ensure perturbed halo field is a list of boxes, not just one.
-        if flag_options is None or halobox is None:
-            halobox = []
-
-        elif (
-            flag_options["USE_HALO_FIELD"]
-            if isinstance(flag_options, dict)
-            else flag_options.USE_HALO_FIELD
-        ):
-            halobox = [halobox] if not hasattr(halobox, "__len__") else []
-        else:
-            halobox = []
 
         (
             random_seed,
@@ -2786,13 +2731,6 @@ def run_coeval(
                 raise ValueError("Input redshifts do not match perturb field redshifts")
             else:
                 redshift = [p.redshift for p in perturb]
-
-        if (
-            flag_options.USE_HALO_FIELD
-            and halobox
-            and any(p.redshift != z for p, z in zip(halobox, redshift))
-        ):
-            raise ValueError("Input redshifts do not match the halo field redshifts")
 
         kw = {
             **{
@@ -2846,9 +2784,7 @@ def run_coeval(
             pass
 
         # get the halos (reverse redshift order)
-        generate_halobox = False
-        if flag_options.USE_HALO_FIELD and not halobox:
-            generate_halobox = True
+        if flag_options.USE_HALO_FIELD:
             halos_desc = None
 
             pt_halos = []
@@ -2913,22 +2849,18 @@ def run_coeval(
             pf2.load_all()
 
             if flag_options.USE_HALO_FIELD:
-                if generate_halobox:
-                    ph2 = pt_halos[iz]
-                    hb2 = halo_box(
-                        redshift=z,
-                        pt_halos=ph2,
-                        perturbed_field=pf2,
-                        previous_ionize_box=ib,
-                        previous_spin_temp=st,
-                        **kw,
-                    )
-                    # append the halo redshift array so we have all halo boxes [z,zmax]
-                    z_halos += [z]
-                    hbox_arr += [hb2]
-                # if haloboxes have been provided with correct redshifts...
-                else:
-                    z_halos = redshifts
+                ph2 = pt_halos[iz]
+                hb2 = halo_box(
+                    redshift=z,
+                    pt_halos=ph2,
+                    perturbed_field=pf2,
+                    previous_ionize_box=ib,
+                    previous_spin_temp=st,
+                    **kw,
+                )
+                # append the halo redshift array so we have all halo boxes [z,zmax]
+                z_halos += [z]
+                hbox_arr += [hb2]
 
             if flag_options.USE_TS_FLUCT:
                 if flag_options.USE_HALO_FIELD:
@@ -3674,6 +3606,9 @@ def run_lightcone(
             "halobox": hbox_files,
             "pt_halos": pth_files,
         }
+
+        lightcone.log10_mturnovers = log10_mturnovers
+        lightcone.log10_mturnovers_mini = log10_mturnovers_mini
 
         if coeval_callback is None:
             return lightcone
