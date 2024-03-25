@@ -37,7 +37,7 @@ static gsl_spline *erfc_spline;
 #define Mhalo_min (double)(1e6)
 #define Mhalo_max (double)(1e16)
 
-#define MAX_DELTAC_FRAC (float)0.995 //max delta/deltac for the mass function integrals
+#define MAX_DELTAC_FRAC (float)0.99 //max delta/deltac for the mass function integrals
 
 bool initialised_ComputeLF = false;
 
@@ -1458,7 +1458,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
 }
 
 double IntegratedNdM(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, int type, int method){
-    if(method==0)
+    if(method==0 || (method==1 && params.delta > global_params.CRIT_DENS_TRANSITION))
         return IntegratedNdM_QAG(lnM_lo, lnM_hi, params, type);
     if(method==1)
         return IntegratedNdM_GL(lnM_lo, lnM_hi, params, type);
