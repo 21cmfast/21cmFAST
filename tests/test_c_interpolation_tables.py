@@ -154,7 +154,7 @@ def test_Massfunc_conditional_tables(name, plt):
         * growth_out
         / growth_in
     )
-    edges_d = np.linspace(-1, delta_crit * 0.98, num=hist_size).astype("f4")
+    edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
 
     # Cell Integrals
     arg_list_inv_d = np.meshgrid(edges_d[:-1], edges_ln[:-1], indexing="ij")
@@ -271,8 +271,14 @@ def test_Massfunc_conditional_tables(name, plt):
         growth_in,
         True,
     )
-    M_exp_halo = np.vectorize(lib.EvaluateMcoll)(edges_ln[:-1]) * edges[:-1]
-    N_exp_halo = np.vectorize(lib.EvaluateNhalo)(edges_ln[:-1]) * edges[:-1]
+    M_exp_halo = (
+        np.vectorize(lib.EvaluateMcoll)(edges_ln[:-1], 0.0, 0.0, 0.0, 0.0, 0.0)
+        * edges[:-1]
+    )
+    N_exp_halo = (
+        np.vectorize(lib.EvaluateNhalo)(edges_ln[:-1], 0.0, 0.0, 0.0, 0.0, 0.0)
+        * edges[:-1]
+    )
 
     N_inverse_halo = np.vectorize(lib.EvaluateNhaloInv)(
         arg_list_inv_m[0], N_cmfi_halo
@@ -326,9 +332,6 @@ def test_FgtrM_conditional_tables(name, R, plt):
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
-    edges_d = np.linspace(-1, 1.65, num=hist_size).astype(
-        "f4"
-    )  # EPS is forced with FgtrM due to the erfc functions
 
     lib.init_ps()
     lib.initialiseSigmaMInterpTable(M_min, M_max)
@@ -342,6 +345,12 @@ def test_FgtrM_conditional_tables(name, R, plt):
         .value
     )
     sigma_cond = lib.sigma_z0(cond_mass)
+    delta_crit = lib.get_delta_crit(up.HMF, sigma_cond, growth_out)
+
+    edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype(
+        "f4"
+    )  # EPS is forced with FgtrM due to the erfc functions
+
     # NOTE: Rather than keeping zp constant we keep zpp constant
     lib.initialise_FgtrM_delta_table(
         edges_d[0], edges_d[-1], redshift, growth_out, sigma_min, sigma_cond
@@ -724,8 +733,6 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
-    edges_d = np.linspace(-1, 1.6, num=hist_size).astype("f4")
-    edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
 
     lib.init_ps()
 
@@ -733,20 +740,23 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
         lib.initialise_GL(100, np.log(M_min), np.log(M_max))
 
     growth_out = lib.dicke(redshift)
+    cond_mass = (
+        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        .to("M_sun")
+        .value
+    )
+    sigma_cond = lib.sigma_z0(cond_mass)
+    delta_crit = lib.get_delta_crit(up.HMF, sigma_cond, growth_out)
+
+    edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
+    edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
 
     Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
     Mlim_Fesc = 1e10 * (10**ap.F_ESC10) ** (-1.0 / ap.ALPHA_ESC)
     Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
     Mlim_Fesc_MINI = 1e7 * (10**ap.F_ESC7_MINI) ** (-1.0 / ap.ALPHA_ESC)
 
-    cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
-        .to("M_sun")
-        .value
-    )
-
     lib.initialiseSigmaMInterpTable(M_min, max(cond_mass, M_max))
-    sigma_cond = lib.sigma_z0(cond_mass)
 
     lib.initialise_Nion_Conditional_spline(
         redshift,
@@ -810,12 +820,10 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
     print_failure_stats(
         Nion_tables,
         Nion_integrals,
-        [
-            edges_d[:-1],
-        ],
+        input_arr if mini_flag else input_arr[:1],
         abs_tol,
         RELATIVE_TOLERANCE,
-        "Nion-c",
+        "Nion_c",
     )
 
     if mini_flag:
@@ -911,8 +919,6 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
-    edges_d = np.linspace(-1, 1.6, num=hist_size).astype("f4")
-    edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
 
     lib.init_ps()
 
@@ -920,18 +926,21 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
         lib.initialise_GL(100, np.log(M_min), np.log(M_max))
 
     growth_out = lib.dicke(redshift)
-
-    Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
-    Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
-
     cond_mass = (
         (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
         .to("M_sun")
         .value
     )
+    sigma_cond = lib.sigma_z0(cond_mass)
+    delta_crit = lib.get_delta_crit(up.HMF, sigma_cond, growth_out)
+
+    edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
+    edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
+
+    Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
+    Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
 
     lib.initialiseSigmaMInterpTable(M_min, max(cond_mass, M_max))
-    sigma_cond = lib.sigma_z0(cond_mass)
 
     lib.initialise_SFRD_Conditional_table(
         edges_d[0],
@@ -1074,8 +1083,6 @@ def test_conditional_integral_methods(R, name, integrand, plt):
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
     M_max = global_params.M_MAX_INTEGRAL
-    edges_d = np.linspace(-1, 1.6, num=hist_size).astype("f4")
-    edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
 
     lib.init_ps()
 
@@ -1083,6 +1090,16 @@ def test_conditional_integral_methods(R, name, integrand, plt):
         lib.initialise_GL(100, np.log(M_min), np.log(M_max))
 
     growth_out = lib.dicke(redshift)
+    cond_mass = (
+        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
+        .to("M_sun")
+        .value
+    )
+    sigma_cond = lib.sigma_z0(cond_mass)
+    delta_crit = lib.get_delta_crit(up.HMF, sigma_cond, growth_out)
+
+    edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
+    edges_m = np.logspace(5, 10, num=int(hist_size / 10)).astype("f4")
 
     Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
     Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
@@ -1093,14 +1110,7 @@ def test_conditional_integral_methods(R, name, integrand, plt):
         Mlim_Fesc = 0.0
         Mlim_Fesc_MINI = 0.0
 
-    cond_mass = (
-        (4.0 / 3.0 * np.pi * (R * u.Mpc) ** 3 * cp.cosmo.critical_density(0) * cp.OMm)
-        .to("M_sun")
-        .value
-    )
-
     lib.initialiseSigmaMInterpTable(M_min, max(cond_mass, M_max))
-    sigma_cond = lib.sigma_z0(cond_mass)
 
     integrals = []
     integrals_mini = []
@@ -1168,11 +1178,26 @@ def test_conditional_integral_methods(R, name, integrand, plt):
     np.testing.assert_allclose(
         integrals_mini[1], integrals_mini[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
+
+    # for the FAST_FFCOLL integrals, only the delta-Mturn behaviour matters (because of the mean fixing), so we divide by
+    # the value at delta=0 (mturn ~ 5e7 for minihalos) and set a wider tolerance
+    sel_deltazero = np.argmin(np.fabs(edges_d))
+    sel_mturn = np.argmin(np.fabs(edges_m - 5e7))
+    ffcoll_deltazero = integrals[2][sel_deltazero]
+    ffcoll_deltazero_mini = integrals[2][sel_deltazero, sel_mturn]
+    qag_deltazero = integrals[0][sel_deltazero]
+    qag_deltazero_mini = integrals[0][sel_deltazero, sel_mturn]
     np.testing.assert_allclose(
-        integrals[2], integrals[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        integrals[2] / ffcoll_deltazero,
+        integrals[0] / qag_deltazero,
+        atol=abs_tol,
+        rtol=1e-1,
     )
     np.testing.assert_allclose(
-        integrals_mini[2], integrals_mini[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        integrals_mini[2] / ffcoll_deltazero_mini[None, :],
+        integrals_mini[0] / qag_deltazero_mini[None, :],
+        atol=abs_tol,
+        rtol=1e-1,
     )
 
 

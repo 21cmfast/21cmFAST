@@ -309,8 +309,8 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev);
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max,
                                     double Mturn_a, double Mlim_Fstar, double Mlim_Fesc, bool prev);
-double EvaluateNhalo(double condition);
-double EvaluateMcoll(double condition);
+double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double sigma, double delta);
+double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double sigma, double delta);
 double EvaluateNhaloInv(double condition, double prob);
 double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max);
 double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double sigma_max);

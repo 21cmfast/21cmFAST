@@ -216,10 +216,12 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
         }
     }
 
-    //Get expected N from interptable
-    n_exp = EvaluateRGTable1D(const_struct->cond_val,&Nhalo_table);
-    //NOTE: while the most common mass functions have simpler expressions for f(<M) (erfc based) this will be general, and shouldn't impact compute time much
-    m_exp = EvaluateRGTable1D(const_struct->cond_val,&Mcoll_table);
+    //Get expected N and M from interptables
+    // double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double sigma, double delta)
+    n_exp = EvaluateNhalo(const_struct->cond_val,const_struct->growth_out,const_struct->lnM_min
+                            ,const_struct->lnM_max_tb,const_struct->sigma_cond,const_struct->delta);
+    m_exp = EvaluateMcoll(const_struct->cond_val,const_struct->growth_out,const_struct->lnM_min
+                            ,const_struct->lnM_max_tb,const_struct->sigma_cond,const_struct->delta);
     const_struct->expected_N = n_exp * const_struct->M_cond;
     const_struct->expected_M = m_exp * const_struct->M_cond;
     return;
@@ -703,9 +705,7 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     if(hs_constants->delta > MAX_DELTAC_FRAC*get_delta_crit(user_params_stoc->HMF,hs_constants->sigma_cond,hs_constants->growth_out)){
         *n_halo_out = 1;
 
-        //using expected instead of overlap here, since the expected fraction approaches 100% for delta -> Detlac
-        // the only time this matters is when the cell has overlap with a DexM halo
-        //hm_buf[0] = hs_constants->M_cond;
+        //Expected mass takes into account potential dexm overlap
         M_out[0] = hs_constants->expected_M;
         return 0;
     }
@@ -1245,7 +1245,6 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
                             out_halo_coords[3*n_halo_tot + 2] = out_crd[2];
                         }
                         n_halo_tot++;
-                        // LOG_SUPER_DEBUG("cond %d halo %d (%d of %d)",j,n_halo_tot,i,n_halo);
                     }
                 }
                 //output descendant statistics

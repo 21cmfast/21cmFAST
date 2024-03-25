@@ -10,8 +10,6 @@
 //we need to define a density minimum for the tables, since we are in lagrangian density / linear growth it's possible to go below -1
 //so we explicitly set a minimum here which sets table limits and puts no halos in cells below that (Lagrangian) density
 #define DELTA_MIN -1
-#define MAX_DELTAC_FRAC (float)0.999 //max delta/deltac for interpolation tables / integrals
-
 
 static struct UserParams * user_params_it;
 static struct CosmoParams * cosmo_params_it;
@@ -422,8 +420,8 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
             SFRD_conditional_table.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,sigma2,curr_dens,\
                                             Mcrit_atom,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., user_params_it->INTEGRATION_METHOD_ATOMIC));
 
-            if(SFRD_conditional_table.y_arr[i] < -40.)
-                SFRD_conditional_table.y_arr[i] = -40.;
+            if(SFRD_conditional_table.y_arr[i] < -50.)
+                SFRD_conditional_table.y_arr[i] = -50.;
 
             if(!minihalos) continue;
 
@@ -432,8 +430,8 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
                                             curr_dens,MassTurnover[k],Mcrit_atom,\
                                             Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., user_params_it->INTEGRATION_METHOD_MINI));
 
-                if(SFRD_conditional_table_MINI.z_arr[i][k] < -40.)
-                    SFRD_conditional_table_MINI.z_arr[i][k] = -40.;
+                if(SFRD_conditional_table_MINI.z_arr[i][k] < -50.)
+                    SFRD_conditional_table_MINI.z_arr[i][k] = -50.;
             }
         }
     }
@@ -468,10 +466,6 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
         sigma_cond = EvaluateSigma(lnM_cond);
         //current barrier at the condition for bounds checking
         delta_crit = get_delta_crit(user_params_it->HMF,sigma_cond,growth1);
-        if(xmin < DELTA_MIN || xmax > MAX_DELTAC_FRAC*delta_crit){
-            LOG_ERROR("Invalid delta [%.5f,%.5f] Either too close to critical density (> 0.999 * %.5f) OR negative mass",xmin,xmax,delta_crit);
-            Throw(ValueError);
-        }
     }
     nx = global_params.N_COND_INTERP;
     ny = global_params.N_MASS_INTERP;
@@ -510,19 +504,14 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     Nhalo_inv_table.x_width = (xmax - xmin)/((double)nx-1);
     Nhalo_inv_table.y_min = pa[0];
     Nhalo_inv_table.y_width = pa[1] - pa[0];
-    struct parameters_gsl_MF_integrals integral_params = {
-                .growthf = growth1,
-                .HMF = user_params_it->HMF,
-    };
 
-    #pragma omp parallel num_threads(user_params_it->N_THREADS) private(i,j,k) firstprivate(delta_crit,integral_params,sigma_cond,lnM_cond)
+    #pragma omp parallel num_threads(user_params_it->N_THREADS) private(i,j,k) firstprivate(delta_crit,sigma_cond,lnM_cond)
     {
         double x,y,buf;
         double norm,fcoll;
         double lnM_prev,lnM_p;
         double prob;
         double p_prev,p_target;
-        double k_next;
         double delta;
 
         #pragma omp for
@@ -534,13 +523,11 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 //barrier at given mass
                 sigma_cond = EvaluateSigma(lnM_cond);
                 delta = get_delta_crit(user_params_it->HMF,sigma_cond,param)/param*growth1;
+                delta_crit = get_delta_crit(user_params_it->HMF,sigma_cond,growth1);
             }
             else{
                 delta = x;
             }
-
-            integral_params.delta = delta;
-            integral_params.sigma_cond = sigma_cond;
 
             lnM_prev = ymin;
             p_prev = 0;
@@ -552,14 +539,22 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                     Nhalo_inv_table.z_arr[i][k] = ymin;
                 continue;
             }
+            //shortcut to skip calculation
+            if(delta >= MAX_DELTAC_FRAC*delta_crit){
+                Nhalo_table.y_arr[i] = 1/(exp(lnM_cond)); //one halo
+                Mcoll_table.y_arr[i] = 1.;//both this and Nhalo_table are multiplied by condition mass
+                for(k=1;k<np-1;k++)
+                    Nhalo_inv_table.z_arr[i][k] = lnM_cond;
+                continue;
+            }
 
             //TODO: THIS IS SUPER INEFFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
             //      GL seems to require smoothness in the whole interval so we cannot use ymax for everything (TEST THIS)
             if(user_params_it->INTEGRATION_METHOD_HALOS == 1)
                 initialise_GL(NGL_INT, ymin, lnM_cond);
 
-            norm = IntegratedNdM(ymin, ymax, integral_params,-1, user_params_it->INTEGRATION_METHOD_HALOS);
-            fcoll = IntegratedNdM(ymin, ymax, integral_params, -2, user_params_it->INTEGRATION_METHOD_HALOS);
+            norm = Nhalo_Conditional(growth1,ymin,ymax,sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS);
+            fcoll = Mcoll_Conditional(growth1,ymin,ymax,sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS);
             Nhalo_table.y_arr[i] = norm;
             Mcoll_table.y_arr[i] = fcoll;
             // LOG_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);
@@ -593,13 +588,13 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                     buf = 0.;
                 }
                 else{
-                    buf = IntegratedNdM(y, ymax, integral_params, -1, user_params_it->INTEGRATION_METHOD_HALOS); //Number density between ymin and y
+                    buf = Nhalo_Conditional(growth1,y,ymax,sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS); //Number density between ymin and y
                 }
 
                 prob = buf / norm;
                 //catch some norm errors
                 if(prob != prob){
-                    LOG_ERROR("Normalisation error in table generation");
+                    LOG_ERROR("Normalisation error in inverse halo table generation");
                     Throw(TableGenerationError);
                 }
 
@@ -712,12 +707,6 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim
 }
 
 double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max, double sigma_max, double Mturn_a, double Mlim_Fstar){
-    if(delta > MAX_DELTAC_FRAC*Deltac){
-        return 1.;
-    }
-    if(delta <= -1){
-        return 0.;
-    }
     if(user_params_it->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable1D_f(delta,&SFRD_conditional_table));
     }
@@ -726,12 +715,6 @@ double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, doub
 }
 
 double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max, double Mturn_a, double Mlim_Fstar){
-    if(delta > MAX_DELTAC_FRAC*Deltac){
-        return 1.;//0.
-    }
-    if(delta <= -1){
-        return 0.;
-    }
     if(user_params_it->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,&SFRD_conditional_table_MINI));
     }
@@ -742,12 +725,6 @@ double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double g
 
 double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min, double M_max, double sigma_max,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev){
-    if(delta > MAX_DELTAC_FRAC*Deltac){
-        return 1.;
-    }
-    if(delta <= -1){
-        return 0.;
-    }
     struct RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
     if(user_params_it->USE_INTERPOLATION_TABLES){
         if(flag_options_it->USE_MINI_HALOS)
@@ -762,12 +739,6 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
 
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max,
                                     double Mturn_a, double Mlim_Fstar, double Mlim_Fesc, bool prev){
-    if(delta > MAX_DELTAC_FRAC*Deltac){
-        return 1.;//0.
-    }
-    if(delta <= -1){
-        return 0.;
-    }
     struct RGTable2D_f *table = prev ? &Nion_conditional_table_MINI_prev : &Nion_conditional_table_MINI;
     if(user_params_it->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,table));
@@ -792,15 +763,19 @@ double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double 
     return dfcoll_dz(redshift,sigma_min,delta,sigma_max);
 }
 
-//These tables are always allocated so we do not need to combine tables and non-tables into a single evaluation function
-double EvaluateNhalo(double condition){
-    return EvaluateRGTable1D(condition,&Nhalo_table);
+double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double sigma, double delta){
+    if(user_params_it->USE_INTERPOLATION_TABLES)
+        return EvaluateRGTable1D(condition,&Nhalo_table);
+    return Nhalo_Conditional(growthf, lnMmin, lnMmax, sigma, delta, user_params_it->INTEGRATION_METHOD_HALOS);
 }
 
-double EvaluateMcoll(double condition){
-    return EvaluateRGTable1D(condition,&Mcoll_table);
+double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double sigma, double delta){
+    if(user_params_it->USE_INTERPOLATION_TABLES)
+        return EvaluateRGTable1D(condition,&Mcoll_table);
+    return Nhalo_Conditional(growthf, lnMmax, lnMmax, sigma, delta, user_params_it->INTEGRATION_METHOD_HALOS);
 }
 
+//This one is always a table
 double EvaluateNhaloInv(double condition, double prob){
     return EvaluateRGTable2D(condition,prob,&Nhalo_inv_table);
 }
