@@ -940,24 +940,6 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
             if(flag_options_ts->USE_MINI_HALOS)
                 curr_mcrit = Mcrit_R_grid[box_ct];
 
-            //boundary cases
-            if(curr_dens <= -1.){
-                sfrd_grid[box_ct] = 0;
-                if(flag_options_ts->USE_MINI_HALOS) sfrd_grid_mini[box_ct] = 0;
-                continue;
-            }
-            else if(curr_dens > Deltac*0.99){
-                //NOTE: default behaviour Fcoll==1 at exactly 1e10/1e7 solar mass
-                //      This double counts the mass, mini should probably be at zero
-                sfrd_grid[box_ct] = 1.;
-                ave_sfrd_buf += 1.;
-                if(flag_options_ts->USE_MINI_HALOS){
-                    sfrd_grid_mini[box_ct] = 1.;
-                    ave_sfrd_buf_mini += 1.;
-                }
-                continue;
-            }
-
             if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
                     fcoll = EvaluateSFRD_Conditional(curr_dens,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_max[R_ct],
                                                     Mcrit_atom_interp_table[R_ct],Mlim_Fstar_g);

@@ -1225,6 +1225,7 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
                 n_halo_cond = 0;
                 M_prog = 0;
                 for(i=0;i<n_halo;i++){
+                    if(out_hm[i] < global_params.SAMPLER_MIN_MASS) continue;
                     M_prog += out_hm[i];
                     n_halo_cond++;
 
@@ -1244,7 +1245,7 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
                             out_halo_coords[3*n_halo_tot + 2] = out_crd[2];
                         }
                         n_halo_tot++;
-                        // LOG_DEBUG("cond %d halo %d",i,n_halo_tot);
+                        // LOG_SUPER_DEBUG("cond %d halo %d (%d of %d)",j,n_halo_tot,i,n_halo);
                     }
                 }
                 //output descendant statistics

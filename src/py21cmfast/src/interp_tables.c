@@ -712,15 +712,26 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim
 }
 
 double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max, double sigma_max, double Mturn_a, double Mlim_Fstar){
+    if(delta > MAX_DELTAC_FRAC*Deltac){
+        return 1.;
+    }
+    if(delta <= -1){
+        return 0.;
+    }
     if(user_params_it->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable1D_f(delta,&SFRD_conditional_table));
     }
-
     return Nion_ConditionalM(growthf,log(M_min),log(M_max),sigma_max,delta,Mturn_a,
                                 astro_params_it->ALPHA_STAR,0.,astro_params_it->F_STAR10,1.,Mlim_Fstar,0., user_params_it->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max, double Mturn_a, double Mlim_Fstar){
+    if(delta > MAX_DELTAC_FRAC*Deltac){
+        return 1.;//0.
+    }
+    if(delta <= -1){
+        return 0.;
+    }
     if(user_params_it->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,&SFRD_conditional_table_MINI));
     }
@@ -731,6 +742,12 @@ double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double g
 
 double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min, double M_max, double sigma_max,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev){
+    if(delta > MAX_DELTAC_FRAC*Deltac){
+        return 1.;
+    }
+    if(delta <= -1){
+        return 0.;
+    }
     struct RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
     if(user_params_it->USE_INTERPOLATION_TABLES){
         if(flag_options_it->USE_MINI_HALOS)
@@ -745,6 +762,12 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
 
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max,
                                     double Mturn_a, double Mlim_Fstar, double Mlim_Fesc, bool prev){
+    if(delta > MAX_DELTAC_FRAC*Deltac){
+        return 1.;//0.
+    }
+    if(delta <= -1){
+        return 0.;
+    }
     struct RGTable2D_f *table = prev ? &Nion_conditional_table_MINI_prev : &Nion_conditional_table_MINI;
     if(user_params_it->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,table));
