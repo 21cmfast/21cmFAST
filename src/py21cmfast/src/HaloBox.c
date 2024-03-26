@@ -224,13 +224,13 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                 }
             }
             else{
-                h_count = EvaluateNhalo(dens, growth_z, lnMmin, lnMmax, sigma_cell, dens);
-                mass = EvaluateMcoll(dens, growth_z, lnMmin, lnMmax, sigma_cell, dens);
-                nion = EvaluateNion_Conditional(dens,log10(M_turn_a),growth_z,M_min,M_max,sigma_cell,Mlim_Fstar,Mlim_Fesc,false);
-                sfr = EvaluateSFRD_Conditional(dens,growth_z,M_min,M_max,sigma_cell,log10(M_turn_a),Mlim_Fstar);
+                h_count = EvaluateNhalo(dens, growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens);
+                mass = EvaluateMcoll(dens, growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens);
+                nion = EvaluateNion_Conditional(dens,log10(M_turn_a),growth_z,M_min,M_max,M_cell,sigma_cell,Mlim_Fstar,Mlim_Fesc,false);
+                sfr = EvaluateSFRD_Conditional(dens,growth_z,M_min,M_max,M_cell,sigma_cell,log10(M_turn_a),Mlim_Fstar);
                 if(flag_options_stoc->USE_MINI_HALOS){
-                    sfr_mini = EvaluateSFRD_Conditional_MINI(dens,log10(M_turn_m),growth_z,M_min,M_max,sigma_cell,log10(M_turn_a),Mlim_Fstar);
-                    nion_mini = EvaluateNion_Conditional_MINI(dens,log10(M_turn_m),growth_z,M_min,M_max,sigma_cell,log10(M_turn_a),Mlim_Fstar,Mlim_Fesc,false);
+                    sfr_mini = EvaluateSFRD_Conditional_MINI(dens,log10(M_turn_m),growth_z,M_min,M_max,M_cell,sigma_cell,log10(M_turn_a),Mlim_Fstar);
+                    nion_mini = EvaluateNion_Conditional_MINI(dens,log10(M_turn_m),growth_z,M_min,M_max,M_cell,sigma_cell,log10(M_turn_a),Mlim_Fstar,Mlim_Fesc,false);
                 }
             }
             grids->halo_mass[i] = mass * prefactor_mass * (1+dens);
@@ -245,10 +245,10 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                 LOG_SUPER_DEBUG("Cell 0 intgrl: count %.2e mass %.2e nion %.2e sfr %.2e",
                                 IntegratedNdM(lnMmin,lnMmax,params,-1,user_params_stoc->INTEGRATION_METHOD_ATOMIC),
                                 IntegratedNdM(lnMmin,lnMmax,params,-2,user_params_stoc->INTEGRATION_METHOD_ATOMIC),
-                                Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, dens, M_turn_a
+                                Nion_ConditionalM(growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens, M_turn_a
                                             , astro_params_stoc->ALPHA_STAR, alpha_esc, astro_params_stoc->F_STAR10, norm_esc
                                             , Mlim_Fstar, Mlim_Fesc, user_params_stoc->INTEGRATION_METHOD_ATOMIC),
-                                Nion_ConditionalM(growth_z, lnMmin, lnMmax, sigma_cell, dens, M_turn_a
+                                Nion_ConditionalM(growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens, M_turn_a
                                             , alpha_star, 0., norm_star, 1., Mlim_Fstar, 0.
                                             , user_params_stoc->INTEGRATION_METHOD_ATOMIC));
                 LOG_SUPER_DEBUG("Cell 0 grids: count %d mass %.2e nion %.2e sfr %.2e", grids->count[i],
@@ -256,11 +256,11 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                 if(flag_options_stoc->USE_MINI_HALOS){
                     LOG_SUPER_DEBUG("MINI tables: nion %.2e sfr %.2e",nion_mini,sfr_mini);
                     LOG_SUPER_DEBUG("MINI intgrl: nion %.2e sfr %.2e",
-                                    Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_cell,
+                                    Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, M_cell, sigma_cell,
                                                             dens, M_turn_m, M_turn_a, alpha_star_mini,
                                                             alpha_esc, norm_star_mini, norm_esc_mini, Mlim_Fstar_mini,
                                                             Mlim_Fesc_mini, user_params_stoc->INTEGRATION_METHOD_MINI),
-                                    Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, sigma_cell,
+                                    Nion_ConditionalM_MINI(growth_z, lnMmin, lnMmax, M_cell, sigma_cell,
                                                 dens, M_turn_m, M_turn_a, alpha_star_mini,
                                                 0., norm_star_mini, 1., Mlim_Fstar_mini, 0.,
                                                 user_params_stoc->INTEGRATION_METHOD_MINI));

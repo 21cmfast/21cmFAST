@@ -1035,15 +1035,15 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                         log10_Mturnover_MINI = *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z));
 
                                         Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(curr_dens,log10_Mturnover_MINI,growth_factor,M_MIN,
-                                                                                            massofscaleR,sigmaMmax,Mcrit_atom,Mlim_Fstar,Mlim_Fesc,false);
+                                                                                            massofscaleR,massofscaleR,sigmaMmax,Mcrit_atom,Mlim_Fstar,Mlim_Fesc,false);
 
                                         prev_dens = *((float *)prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
                                         if (previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4){
                                             prev_Splined_Fcoll = EvaluateNion_Conditional(prev_dens,log10_Mturnover,prev_growth_factor,M_MIN,massofscaleR,
-                                                                                                sigmaMmax,Mlim_Fstar,Mlim_Fesc,true);
+                                                                                                massofscaleR,sigmaMmax,Mlim_Fstar,Mlim_Fesc,true);
                                             prev_Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(prev_dens,log10_Mturnover_MINI,prev_growth_factor,M_MIN,
-                                                                                                massofscaleR,sigmaMmax,Mcrit_atom,Mlim_Fstar,Mlim_Fesc,true);
+                                                                                                massofscaleR,massofscaleR,sigmaMmax,Mcrit_atom,Mlim_Fstar,Mlim_Fesc,true);
                                         }
                                         else{
                                             prev_Splined_Fcoll = 0.;
@@ -1053,7 +1053,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                     else{
                                         log10_Mturnover = log10(astro_params->M_TURN);
                                     }
-                                    Splined_Fcoll = EvaluateNion_Conditional(curr_dens,log10_Mturnover,growth_factor,M_MIN,massofscaleR,sigmaMmax,Mlim_Fstar,Mlim_Fesc,false);
+                                    Splined_Fcoll = EvaluateNion_Conditional(curr_dens,log10_Mturnover,growth_factor,M_MIN,massofscaleR,massofscaleR,sigmaMmax,Mlim_Fstar,Mlim_Fesc,false);
                                 }
                                 else{
                                     erfc_arg_val = (Deltac - curr_dens) * erfc_denom;
@@ -1282,13 +1282,13 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                 }
                                 LOG_SUPER_DEBUG("Cell 0: R=%.1f | d %.4e | fcoll (s %.4e f %.4e i %.4e) | rec %.4e | X %.4e",
                                                     R,curr_dens,Splined_Fcoll,f_coll,\
-                                                    Nion_ConditionalM(growth_factor,lnMmin,lnM_cond,sigmaMmax,curr_dens,
+                                                    Nion_ConditionalM(growth_factor,lnMmin,lnM_cond,massofscaleR,sigmaMmax,curr_dens,
                                                         log10_Mturnover,
                                                         astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
                                                         astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC),rec,xHII_from_xrays);
                                 if(flag_options->USE_MINI_HALOS){
                                     LOG_SUPER_DEBUG("Mini (s %.4e f %.4e i %.4e)",Splined_Fcoll_MINI,f_coll_MINI,\
-                                                    Nion_ConditionalM_MINI(growth_factor,lnMmin,lnM_cond,sigmaMmax,curr_dens,
+                                                    Nion_ConditionalM_MINI(growth_factor,lnMmin,lnM_cond,massofscaleR,sigmaMmax,curr_dens,
                                                         log10_Mturnover_MINI,Mcrit_atom,
                                                         astro_params->ALPHA_STAR_MINI,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,
                                                         astro_params->F_ESC7_MINI,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_MINI));

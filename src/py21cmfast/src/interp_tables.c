@@ -319,7 +319,7 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
         for(i=0;i<NDELTA;i++){
             if(!minihalos){
                 //pass constant M_turn as minimum
-                Nion_conditional_table1D.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,sigma2,
+                Nion_conditional_table1D.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,
                                                 overdense_table[i],Mcrit_atom,Alpha_star,Alpha_esc,
                                                 Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC));
                 if(Nion_conditional_table1D.y_arr[i] < -40.)
@@ -328,14 +328,14 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
                 continue;
             }
             for (j=0; j<NMTURN; j++){
-                table_2d->z_arr[i][j] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,sigma2,
+                table_2d->z_arr[i][j] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,
                                                 overdense_table[i],mturns[j],Alpha_star,Alpha_esc,
                                                 Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC));
 
                 if(table_2d->z_arr[i][j] < -40.)
                     table_2d->z_arr[i][j] = -40.;
 
-                table_mini->z_arr[i][j] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,sigma2,overdense_table[i],
+                table_mini->z_arr[i][j] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,Mcond,sigma2,overdense_table[i],
                                                     mturns_MINI[j],Mcrit_atom,Alpha_star_mini,Alpha_esc,Fstar7_MINI,Fesc7_MINI,
                                                     Mlim_Fstar_MINI,Mlim_Fesc_MINI,user_params_it->INTEGRATION_METHOD_MINI));
 
@@ -417,7 +417,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
             curr_dens = min_density + (float)i/((float)NDELTA-1.)*(max_density - min_density);
 
             // LOG_DEBUG("starting d %.2e M [%.2e %.2e] s %.2e",curr_dens, exp(lnMmin),exp(lnMmax),sigma2);
-            SFRD_conditional_table.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,sigma2,curr_dens,\
+            SFRD_conditional_table.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,curr_dens,\
                                             Mcrit_atom,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., user_params_it->INTEGRATION_METHOD_ATOMIC));
 
             if(SFRD_conditional_table.y_arr[i] < -50.)
@@ -426,7 +426,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
             if(!minihalos) continue;
 
             for (k=0; k<NMTURN; k++){
-                SFRD_conditional_table_MINI.z_arr[i][k] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,sigma2,\
+                SFRD_conditional_table_MINI.z_arr[i][k] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,Mcond,sigma2,\
                                             curr_dens,MassTurnover[k],Mcrit_atom,\
                                             Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., user_params_it->INTEGRATION_METHOD_MINI));
 
@@ -553,8 +553,8 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             if(user_params_it->INTEGRATION_METHOD_HALOS == 1)
                 initialise_GL(NGL_INT, ymin, lnM_cond);
 
-            norm = Nhalo_Conditional(growth1,ymin,ymax,sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS);
-            fcoll = Mcoll_Conditional(growth1,ymin,ymax,sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS);
+            norm = Nhalo_Conditional(growth1,ymin,ymax,exp(lnM_cond),sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS);
+            fcoll = Mcoll_Conditional(growth1,ymin,ymax,exp(lnM_cond),sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS);
             Nhalo_table.y_arr[i] = norm;
             Mcoll_table.y_arr[i] = fcoll;
             // LOG_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);
@@ -588,7 +588,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                     buf = 0.;
                 }
                 else{
-                    buf = Nhalo_Conditional(growth1,y,ymax,sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS); //Number density between ymin and y
+                    buf = Nhalo_Conditional(growth1,y,ymax,exp(lnM_cond),sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS); //Number density between ymin and y
                 }
 
                 prob = buf / norm;
@@ -706,24 +706,24 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim
                             1., Mlim_Fstar_MINI, 0.);
 }
 
-double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max, double sigma_max, double Mturn_a, double Mlim_Fstar){
+double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max, double M_cond, double sigma_max, double Mturn_a, double Mlim_Fstar){
     if(user_params_it->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable1D_f(delta,&SFRD_conditional_table));
     }
-    return Nion_ConditionalM(growthf,log(M_min),log(M_max),sigma_max,delta,Mturn_a,
+    return Nion_ConditionalM(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,Mturn_a,
                                 astro_params_it->ALPHA_STAR,0.,astro_params_it->F_STAR10,1.,Mlim_Fstar,0., user_params_it->INTEGRATION_METHOD_ATOMIC);
 }
 
-double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max, double Mturn_a, double Mlim_Fstar){
+double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max, double Mturn_a, double Mlim_Fstar){
     if(user_params_it->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,&SFRD_conditional_table_MINI));
     }
 
-    return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_it->ALPHA_STAR_MINI,
+    return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_it->ALPHA_STAR_MINI,
                                 0.,astro_params_it->F_STAR7_MINI,1.,Mlim_Fstar, 0., user_params_it->INTEGRATION_METHOD_MINI);
 }
 
-double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min, double M_max, double sigma_max,
+double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev){
     struct RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
     if(user_params_it->USE_INTERPOLATION_TABLES){
@@ -732,19 +732,19 @@ double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf,
         return exp(EvaluateRGTable1D_f(delta, &Nion_conditional_table1D));
     }
 
-    return Nion_ConditionalM(growthf,log(M_min),log(M_max),sigma_max,delta,pow(10,log10Mturn),
+    return Nion_ConditionalM(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,pow(10,log10Mturn),
                                 astro_params_it->ALPHA_STAR,astro_params_it->ALPHA_ESC,astro_params_it->F_STAR10,
                                 astro_params_it->F_ESC10,Mlim_Fstar,Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC);
 }
 
-double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max,
+double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                     double Mturn_a, double Mlim_Fstar, double Mlim_Fesc, bool prev){
     struct RGTable2D_f *table = prev ? &Nion_conditional_table_MINI_prev : &Nion_conditional_table_MINI;
     if(user_params_it->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,table));
     }
 
-    return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_it->ALPHA_STAR_MINI,
+    return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_it->ALPHA_STAR_MINI,
                                 astro_params_it->ALPHA_ESC,astro_params_it->F_STAR7_MINI,astro_params_it->F_ESC7_MINI,Mlim_Fstar,
                                 Mlim_Fesc,user_params_it->INTEGRATION_METHOD_MINI);
 }
@@ -763,16 +763,16 @@ double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double 
     return dfcoll_dz(redshift,sigma_min,delta,sigma_max);
 }
 
-double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double sigma, double delta){
+double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta){
     if(user_params_it->USE_INTERPOLATION_TABLES)
         return EvaluateRGTable1D(condition,&Nhalo_table);
-    return Nhalo_Conditional(growthf, lnMmin, lnMmax, sigma, delta, user_params_it->INTEGRATION_METHOD_HALOS);
+    return Nhalo_Conditional(growthf, lnMmin, lnMmax, M_cond, sigma, delta, user_params_it->INTEGRATION_METHOD_HALOS);
 }
 
-double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double sigma, double delta){
+double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta){
     if(user_params_it->USE_INTERPOLATION_TABLES)
         return EvaluateRGTable1D(condition,&Mcoll_table);
-    return Nhalo_Conditional(growthf, lnMmax, lnMmax, sigma, delta, user_params_it->INTEGRATION_METHOD_HALOS);
+    return Nhalo_Conditional(growthf, lnMmax, lnMmax, M_cond, sigma, delta, user_params_it->INTEGRATION_METHOD_HALOS);
 }
 
 //This one is always a table

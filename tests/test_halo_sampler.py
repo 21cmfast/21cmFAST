@@ -15,7 +15,7 @@ RELATIVE_TOLERANCE = 1e-1
 options_hmf = list(cint.OPTIONS_HMF.keys())
 
 
-@pytest.mark.xfail
+# @pytest.mark.xfail
 @pytest.mark.parametrize("name", options_hmf)
 def test_sampler(name, plt):
     redshift, kwargs = cint.OPTIONS_HMF[name]
@@ -118,6 +118,7 @@ def test_sampler(name, plt):
             growthf,
             np.log(bin_minima),
             np.log(bin_maxima),
+            cell_mass,
             sigma_cond_d[i],
             delta_cond_d[i],
             up.INTEGRATION_METHOD_HALOS,

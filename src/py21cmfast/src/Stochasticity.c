@@ -209,7 +209,7 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
             const_struct->expected_N = 1;
             return;
         }
-        if(cond_val < DELTA_MIN){
+        if(cond_val <= DELTA_MIN){
             const_struct->expected_M = 0;
             const_struct->expected_N = 0;
             return;
@@ -219,9 +219,9 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     //Get expected N and M from interptables
     // double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double sigma, double delta)
     n_exp = EvaluateNhalo(const_struct->cond_val,const_struct->growth_out,const_struct->lnM_min
-                            ,const_struct->lnM_max_tb,const_struct->sigma_cond,const_struct->delta);
+                            ,const_struct->lnM_max_tb,const_struct->M_cond,const_struct->sigma_cond,const_struct->delta);
     m_exp = EvaluateMcoll(const_struct->cond_val,const_struct->growth_out,const_struct->lnM_min
-                            ,const_struct->lnM_max_tb,const_struct->sigma_cond,const_struct->delta);
+                            ,const_struct->lnM_max_tb,const_struct->M_cond,const_struct->sigma_cond,const_struct->delta);
     const_struct->expected_N = n_exp * const_struct->M_cond;
     const_struct->expected_M = m_exp * const_struct->M_cond;
     return;
@@ -692,7 +692,6 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     //The mass sample underperforms at low exp_M/M_max by excluding stochasticity in the total collapsed fraction
     //  and excluding larger halos (e.g if exp_M is 0.1*M_max we can effectively never sample the large halos)
     //i.e there is some case for a delta cut between these two methods however I have no intuition for the exact levels
-    //TODO: try something like if(exp_N > 10 && exp_M < 0.9*M_cond) stoc_halo_sample();
 
     int err;
     //If the expected mass is below our minimum saved mass, don't bother calculating
@@ -857,6 +856,11 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
                         //sometimes halos are subtracted from the sample (set to zero)
                         //we do not want to save these
                         if(hm_buf[i] < global_params.SAMPLER_MIN_MASS) continue;
+
+                        if(count >= arraysize_local){
+                            LOG_ERROR("Too many halos to fit in buffer, try raising global_params.MAXHALO_FACTOR");
+                            Throw(ValueError);
+                        }
 
                         set_prop_rng(rng_arr[threadnum], 0, prop_dummy, prop_dummy, prop_buf);
                         place_on_hires_grid(x,y,z,crd_hi,rng_arr[threadnum]);

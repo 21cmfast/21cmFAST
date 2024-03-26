@@ -941,12 +941,12 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
                 curr_mcrit = Mcrit_R_grid[box_ct];
 
             if(flag_options_ts->USE_MASS_DEPENDENT_ZETA){
-                    fcoll = EvaluateSFRD_Conditional(curr_dens,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_max[R_ct],
+                    fcoll = EvaluateSFRD_Conditional(curr_dens,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],sigma_max[R_ct],
                                                     Mcrit_atom_interp_table[R_ct],Mlim_Fstar_g);
                     sfrd_grid[box_ct] = (1.+curr_dens)*fcoll;
 
                     if (flag_options_ts->USE_MINI_HALOS){
-                        fcoll_MINI = EvaluateSFRD_Conditional_MINI(curr_dens,curr_mcrit,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],
+                        fcoll_MINI = EvaluateSFRD_Conditional_MINI(curr_dens,curr_mcrit,zpp_growth[R_ct],M_min_R[R_ct],M_max_R[R_ct],M_max_R[R_ct],
                                                                     sigma_max[R_ct],Mcrit_atom_interp_table[R_ct],Mlim_Fstar_MINI_g);
                         sfrd_grid_mini[box_ct] = (1.+curr_dens)*fcoll_MINI;
                     }
@@ -1525,7 +1525,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                     if(box_ct==0 && !flag_options->USE_HALO_FIELD){
                         double integral_db;
                         if(flag_options->USE_MASS_DEPENDENT_ZETA){
-                            integral_db = Nion_ConditionalM(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],
+                            integral_db = Nion_ConditionalM(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),M_max_R[R_ct],sigma_max[R_ct],
                                             delNL0[R_index][box_ct]*zpp_growth[R_ct],
                                             Mcrit_atom_interp_table[R_ct],astro_params->ALPHA_STAR,0.,astro_params->F_STAR10,1.,Mlim_Fstar_g,0.,
                                             user_params->INTEGRATION_METHOD_ATOMIC) * z_edge_factor * (1+delNL0[R_index][box_ct]*zpp_growth[R_ct])
@@ -1540,7 +1540,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                         LOG_SUPER_DEBUG("Cell 0: R=%.1f (%.3f) | SFR %.4e | integral %.4e | delta %.4e",
                                             R_values[R_ct],zpp_for_evolve_list[R_ct],sfr_term,integral_db,delNL0[R_index][box_ct]);
                         if(flag_options->USE_MINI_HALOS)
-                            LOG_SUPER_DEBUG("MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),sigma_max[R_ct],\
+                            LOG_SUPER_DEBUG("MINI SFR %.4e | integral %.4e",sfr_term_mini,Nion_ConditionalM_MINI(zpp_growth[R_ct],log(M_min_R[R_ct]),log(M_max_R[R_ct]),M_max_R[R_ct],sigma_max[R_ct],\
                                             delNL0[R_index][box_ct]*zpp_growth[R_ct],pow(10,log10_Mcrit_LW[R_ct][box_ct]),Mcrit_atom_interp_table[R_ct],\
                                             astro_params->ALPHA_STAR_MINI,0.,astro_params->F_STAR7_MINI,1.,Mlim_Fstar_MINI_g, 0., user_params->INTEGRATION_METHOD_MINI) \
                                              * z_edge_factor * (1+delNL0[R_index][box_ct]*zpp_growth[R_ct]) * avg_fix_term_MINI * astro_params->F_STAR7_MINI);

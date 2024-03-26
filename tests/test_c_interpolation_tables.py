@@ -53,7 +53,7 @@ options_intmethod = list(OPTIONS_INTMETHOD.keys())
 # the minihalo ffcoll tables have some bins (when Mturn -> M_turn_upper) which go above 10% error compared to their "integrals"
 #    they can pass by doubling the number of M_turn bins and setting relative error to 5% but I think this
 #    is better left for later
-options_intmethod[2] = pytest.param("FFCOLL", marks=pytest.mark.xfail)
+# options_intmethod[2] = pytest.param("FFCOLL", marks=pytest.mark.xfail)
 
 
 # TODO: write tests for the redshift interpolation tables (global Nion, SFRD, FgtrM)
@@ -105,7 +105,7 @@ def test_sigma_table(name, plt):
 # NOTE: This test currently fails (~10% differences in mass in <1% of bins)
 #   I don't want to relax the tolerance yet since it can be improved, but
 #   for now this is acceptable
-@pytest.mark.xfail
+# @pytest.mark.xfail
 @pytest.mark.parametrize("name", options_hmf)
 def test_Massfunc_conditional_tables(name, plt):
     redshift, kwargs = OPTIONS_HMF[name]
@@ -162,6 +162,7 @@ def test_Massfunc_conditional_tables(name, plt):
         growth_out,
         arg_list_inv_d[1],  # lnM
         edges_ln[-1],  # integrate to max mass
+        cell_mass,
         sigma_cond_cell,
         arg_list_inv_d[0],  # density
         up.INTEGRATION_METHOD_HALOS,
@@ -181,6 +182,7 @@ def test_Massfunc_conditional_tables(name, plt):
             growth_out,
             edges_ln[0],
             edges_ln[-1],
+            cell_mass,
             sigma_cond_cell,
             edges_d[:-1],
             up.INTEGRATION_METHOD_HALOS,
@@ -192,6 +194,7 @@ def test_Massfunc_conditional_tables(name, plt):
             growth_out,
             edges_ln[0],
             edges_ln[-1],
+            cell_mass,
             sigma_cond_cell,
             edges_d[:-1],
             up.INTEGRATION_METHOD_HALOS,
@@ -210,8 +213,14 @@ def test_Massfunc_conditional_tables(name, plt):
         False,
     )
 
-    M_exp_cell = np.vectorize(lib.EvaluateMcoll)(edges_d[:-1]) * cell_mass
-    N_exp_cell = np.vectorize(lib.EvaluateNhalo)(edges_d[:-1]) * cell_mass
+    M_exp_cell = (
+        np.vectorize(lib.EvaluateMcoll)(edges_d[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        * cell_mass
+    )
+    N_exp_cell = (
+        np.vectorize(lib.EvaluateNhalo)(edges_d[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        * cell_mass
+    )
 
     N_inverse_cell = np.vectorize(lib.EvaluateNhaloInv)(
         arg_list_inv_d[0], N_cmfi_cell
@@ -223,6 +232,7 @@ def test_Massfunc_conditional_tables(name, plt):
         growth_out,
         arg_list_inv_m[1],
         edges_ln[-1],
+        edges[:-1, None],
         sigma_cond_halo[:-1, None],  # (condition,masslimit)
         delta_update[:-1, None],
         up.INTEGRATION_METHOD_HALOS,
@@ -241,6 +251,7 @@ def test_Massfunc_conditional_tables(name, plt):
             growth_out,
             edges_ln[0],
             edges_ln[-1],
+            edges[:-1],
             sigma_cond_halo[:-1],
             delta_update[:-1],
             up.INTEGRATION_METHOD_HALOS,
@@ -252,6 +263,7 @@ def test_Massfunc_conditional_tables(name, plt):
             growth_out,
             edges_ln[0],
             edges_ln[-1],
+            edges[:-1],
             sigma_cond_halo[:-1],
             delta_update[:-1],
             up.INTEGRATION_METHOD_HALOS,
@@ -272,11 +284,11 @@ def test_Massfunc_conditional_tables(name, plt):
         True,
     )
     M_exp_halo = (
-        np.vectorize(lib.EvaluateMcoll)(edges_ln[:-1], 0.0, 0.0, 0.0, 0.0, 0.0)
+        np.vectorize(lib.EvaluateMcoll)(edges_ln[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         * edges[:-1]
     )
     N_exp_halo = (
-        np.vectorize(lib.EvaluateNhalo)(edges_ln[:-1], 0.0, 0.0, 0.0, 0.0, 0.0)
+        np.vectorize(lib.EvaluateNhalo)(edges_ln[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         * edges[:-1]
     )
 
@@ -796,13 +808,14 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
         ]  # mturn already in log10
 
     Nion_tables = np.vectorize(lib.EvaluateNion_Conditional)(
-        input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
+        input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
     )
 
     Nion_integrals = np.vectorize(lib.Nion_ConditionalM)(
         growth_out,
         np.log(M_min),
         np.log(M_max),
+        cond_mass,
         sigma_cond,
         input_arr[0],
         10 ** input_arr[1],
@@ -828,13 +841,14 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
 
     if mini_flag:
         Nion_tables_mini = np.vectorize(lib.EvaluateNion_Conditional_MINI)(
-            input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
+            input_arr[0], input_arr[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, False
         )
 
         Nion_integrals_mini = np.vectorize(lib.Nion_ConditionalM_MINI)(
             growth_out,
             np.log(M_min),
             np.log(M_max),
+            cond_mass,
             sigma_cond,
             input_arr[0],
             10 ** input_arr[1],
@@ -960,24 +974,26 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
     )
     # since the turnover mass table edges are hardcoded, we make sure we are within those limits
     SFRD_tables = np.vectorize(lib.EvaluateSFRD_Conditional)(
-        edges_d[:-1], growth_out, M_min, M_max, sigma_cond, 10**ap.M_TURN, Mlim_Fstar
+        edges_d[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
     )
     input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
     SFRD_tables_mini = np.vectorize(lib.EvaluateSFRD_Conditional_MINI)(
         input_arr[0],
         input_arr[1],
-        growth_out,
-        M_min,
-        M_max,
-        sigma_cond,
-        10**ap.M_TURN,
-        Mlim_Fstar_MINI,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
     )
 
     SFRD_integrals = np.vectorize(lib.Nion_ConditionalM)(
         growth_out,
         np.log(M_min),
         np.log(M_max),
+        cond_mass,
         sigma_cond,
         edges_d[:-1],
         10**ap.M_TURN,
@@ -994,6 +1010,7 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
         growth_out,
         np.log(M_min),
         np.log(M_max),
+        cond_mass,
         sigma_cond,
         input_arr[0],
         10 ** input_arr[1],
@@ -1127,6 +1144,7 @@ def test_conditional_integral_methods(R, name, integrand, plt):
                 growth_out,
                 np.log(M_min),
                 np.log(M_max),
+                cond_mass,
                 sigma_cond,
                 edges_d[:-1],
                 10**ap.M_TURN,
@@ -1144,6 +1162,7 @@ def test_conditional_integral_methods(R, name, integrand, plt):
                 growth_out,
                 np.log(M_min),
                 np.log(M_max),
+                cond_mass,
                 sigma_cond,
                 input_arr[0],
                 10 ** input_arr[1],

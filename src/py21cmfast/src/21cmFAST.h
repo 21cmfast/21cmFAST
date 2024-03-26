@@ -303,26 +303,26 @@ double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc);
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI);
 double EvaluateSFRD(double redshift, double Mlim_Fstar);
 double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI);
-double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max, double sigma_max, double Mturn_a, double Mlim_Fstar);
-double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max, double Mturn_a, double Mlim_Fstar);
-double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min, double M_max, double sigma_max,
+double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max, double M_cond, double sigma_max, double Mturn_a, double Mlim_Fstar);
+double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max, double Mturn_a, double Mlim_Fstar);
+double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev);
-double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double sigma_max,
+double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                     double Mturn_a, double Mlim_Fstar, double Mlim_Fesc, bool prev);
-double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double sigma, double delta);
-double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double sigma, double delta);
+double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta);
+double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta);
 double EvaluateNhaloInv(double condition, double prob);
 double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max);
 double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double sigma_max);
 
 //integrals
 void initialise_GL(int n, float lnM_Min, float lnM_Max);
-double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double sigma, double delta, int method);
-double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double sigma, double delta, int method);
-double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double sigma2, double delta2, double MassTurnover,
+double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond, double sigma, double delta, int method);
+double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond, double sigma, double delta, int method);
+double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2, double MassTurnover,
                         double Alpha_star, double Alpha_esc, double Fstar10, double Fesc10, double Mlim_Fstar,
                         double Mlim_Fesc, int method);
-double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double sigma2, double delta2, double MassTurnover,
+double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M_cond, double sigma2, double delta2, double MassTurnover,
                             double MassTurnover_upper, double Alpha_star, double Alpha_esc, double Fstar7,
                             double Fesc7, double Mlim_Fstar, double Mlim_Fesc, int method);
 double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10,
