@@ -1184,9 +1184,9 @@ def test_conditional_integral_methods(R, name, integrand, plt):
     sel_deltazero = np.argmin(np.fabs(edges_d))
     sel_mturn = np.argmin(np.fabs(edges_m - 5e7))
     ffcoll_deltazero = integrals[2][sel_deltazero]
-    ffcoll_deltazero_mini = integrals[2][sel_deltazero, sel_mturn]
+    ffcoll_deltazero_mini = integrals_mini[2][sel_deltazero, sel_mturn]
     qag_deltazero = integrals[0][sel_deltazero]
-    qag_deltazero_mini = integrals[0][sel_deltazero, sel_mturn]
+    qag_deltazero_mini = integrals_mini[0][sel_deltazero, sel_mturn]
     np.testing.assert_allclose(
         integrals[2] / ffcoll_deltazero,
         integrals[0] / qag_deltazero,

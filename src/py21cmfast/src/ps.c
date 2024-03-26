@@ -1313,10 +1313,18 @@ double IntegratedNdM_GL(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_i
 
 #include <gsl/gsl_sf_gamma.h>
 //JBM: Integral of a power-law times exponential for EPS: \int dnu nu^beta * exp(-nu/2)/sqrt(nu) from numin to infty.
-double Fcollapprox (double numin, double beta){
+double Fcollapprox(double numin, double beta){
 //nu is deltacrit^2/sigma^2, corrected by delta(R) and sigma(R)
   double gg = gsl_sf_gamma_inc(0.5+beta,0.5*numin);
   return gg*pow(2,0.5+beta)*pow(2.0*PI,-0.5);
+}
+
+//This takes into account the last approximation in Munoz+22, where erfc (beta=0) is used
+//NOTE: even though nu_condition is defined in the unconditional (no sigma_cond), here it
+//  represents where nu_tilde == nu_condition (effectively a final pivot point)
+//NOTE: This assumes numin < nucondition, otherise it fails
+double Fcollapprox_condition(double numin, double nucondition, double beta){
+    return (Fcollapprox(numin,beta) - Fcollapprox(nucondition,beta)) + Fcollapprox(nucondition,0.)*pow(nucondition,beta);
 }
 
 //This routine assumes sharp cutoffs for each turnover rather than exponential, assumes a triple power-law form for sigma(M)
@@ -1410,9 +1418,9 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     double fcoll = 0.;
 
     //THE FOLLOWING WAS COPIED STRAIGHT FROM GaussLegendreQuad_Nion AND GaussLegendreQuad_Nion_MINI
-    //TODO: finish deriving the quantities from Munoz+22 and see how they relate to this algorithm
-    //NOTES: the minihalos ignore the condition mass limit and ACGs ignore the upper mass limit
-    //  The minihalos also assume we never get into the high mass power law (beta1)
+    //NOTES: For speed the minihalos ignore the condition mass limit (assuming nu_hi_limit(tilde) < nu_condition (no tilde))
+    //    and never get into the high mass power law (nu_hi_limit < nu_pivot1 (both tilde))
+    //ACGs ignore the upper mass limit (no upper turnover), both assume the condition is above the highest pivot
     if(fabs(type) == 4){
       // re-written for further speedups
       if (nu_hi_limit <= nu_pivot2){ //if both are below pivot2 don't bother adding and subtracting the high contribution
@@ -1432,14 +1440,19 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     }
     else{
         if(nu_lo_limit >= nu_condition){ //fully in the flat part of sigma(nu), M^alpha is nu-independent.
-            return 1e-40;
+            // return 1e-40;
+            // This is just an erfc, remembering that the conditional nu can be higher than the unconditional nu of the condition
+            return Fcollapprox(nu_lo_limit,0.);
         }
 
         if(nu_lo_limit >= nu_pivot1){
-            fcoll += Fcollapprox(nu_lo_limit,beta1)*pow(nu_pivot1_umf,-beta1);
+            // fcoll += Fcollapprox(nu_lo_limit,beta1)*pow(nu_pivot1_umf,-beta1);
+            //We use the condition version wherever the nu range may intersect nu_condition (i.e beta1)
+            fcoll += Fcollapprox_condition(nu_lo_limit,nu_condition,beta1)*pow(nu_pivot1_umf,-beta1);
         }
         else{
-            fcoll += Fcollapprox(nu_pivot1,beta1)*pow(nu_pivot1_umf,-beta1);
+            // fcoll += Fcollapprox(nu_pivot1,beta1)*pow(nu_pivot1_umf,-beta1);
+            fcoll += Fcollapprox_condition(nu_pivot1,nu_condition,beta1)*pow(nu_pivot1_umf,-beta1);
             if (nu_lo_limit > nu_pivot2){
                 fcoll += (Fcollapprox(nu_lo_limit,beta2)-Fcollapprox(nu_pivot1,beta2))*pow(nu_pivot1_umf,-beta2);
             }
