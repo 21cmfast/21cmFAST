@@ -307,7 +307,9 @@ class StructWrapper:
     @classmethod
     def get_pointer_fields(cls, cstruct=None) -> List[str]:
         """Obtain all pointer fields of the struct (typically simulation boxes)."""
-        return [f for f, t in cls.get_fields(cstruct) if t.type.kind == "pointer"]
+        return [
+            f for f, t in cls.get_fields(cstruct).items() if t.type.kind == "pointer"
+        ]
 
     @property
     def fields(self) -> Dict[str, Any]:
@@ -1122,7 +1124,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             pth = self.find_existing(direc)
 
             if pth is None:
-                raise OSError("No boxes exist for these parameters.")
+                raise OSError(f"No boxes exist for these parameters. {pth} {direc}")
         else:
             direc = Path(direc or config["direc"]).expanduser()
             fname = Path(fname)
@@ -1522,6 +1524,8 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def __del__(self):
         """Safely delete the object and its C-allocated memory."""
+        # TODO: figure out why this breaks the C memory if purged, _remove_array should set .initialised to false,
+        #       which should make .c_has_active_memory false
         for k in self._c_based_pointers:
             if self._array_state[k].c_has_active_memory:
                 lib.free(getattr(self._cstruct, k))

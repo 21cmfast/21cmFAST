@@ -47,7 +47,7 @@ options_halo = list(prd.OPTIONS_HALO.keys())
 @pytest.mark.parametrize("name", options)
 def test_power_spectra_coeval(name, module_direc, plt):
     redshift, kwargs = prd.OPTIONS[name]
-    print(f"Options used for the test at z={redshift}: ", kwargs)
+    print(f"Options used for the test at z={redshift}: ", kwargs, flush=True)
 
     # First get pre-made data
     with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
@@ -236,7 +236,7 @@ def test_halo_field_data(name):
         # Note that if zprime_step_factor is set in kwargs, it will over-ride this.
         pt_halos = prd.produce_halo_field_data(redshift, **kwargs)
 
-    assert np.allclose(n_pt_halos, pt_halos.n_halos, atol=5e-3, rtol=1e-3)
-    assert np.allclose(
+    np.testing.assert_allclose(n_pt_halos, pt_halos.n_halos, atol=5e-3, rtol=1e-3)
+    np.testing.assert_allclose(
         np.sum(pt_halo_masses), np.sum(pt_halos.halo_masses), atol=5e-3, rtol=1e-3
     )

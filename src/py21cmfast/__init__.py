@@ -25,11 +25,13 @@ from .cache_tools import query_cache
 from .lightcones import AngularLightconer, RectilinearLightconer
 from .outputs import (
     Coeval,
+    HaloBox,
     InitialConditions,
     IonizedBox,
     LightCone,
     PerturbedField,
     TsBox,
+    XraySourceBox,
 )
 from .wrapper import (
     AstroParams,
@@ -46,6 +48,7 @@ from .wrapper import (
     determine_halo_list,
     get_all_fieldnames,
     global_params,
+    halo_box,
     initial_conditions,
     ionize_box,
     perturb_field,
@@ -53,6 +56,7 @@ from .wrapper import (
     run_coeval,
     run_lightcone,
     spin_temperature,
+    xray_source,
 )
 
 configure_logging()

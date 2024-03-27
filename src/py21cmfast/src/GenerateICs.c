@@ -17,6 +17,7 @@
 #include <gsl/gsl_roots.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_spline.h>
+#include <gsl/gsl_spline2d.h>
 
 #include "21cmFAST.h"
 #include "exceptions.h"
@@ -25,7 +26,10 @@
 #include "Globals.h"
 #include "indexing.c"
 #include "UsefulFunctions.c"
+#include "interpolation.c"
 #include "ps.c"
+#include "photoncons.c"
+#include "interp_tables.c"
 #include "dft.c"
 #include "PerturbField.c"
 #include "bubble_helper_progs.c"
@@ -33,12 +37,13 @@
 #include "heating_helper_progs.c"
 #include "recombinations.c"
 #include "IonisationBox.c"
+#include "Stochasticity.c"
+#include "HaloBox.c"
 #include "SpinTemperatureBox.c"
 #include "subcell_rsds.c"
 #include "BrightnessTemperatureBox.c"
 #include "FindHaloes.c"
 #include "PerturbHaloField.c"
-
 
 void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, struct CosmoParams *cosmo_params){
     /*****  Adjust the complex conjugate relations for a real array  *****/
@@ -121,9 +126,7 @@ int ComputeInitialConditions(
     float f_pixel_factor;
 
     gsl_rng * r[user_params->N_THREADS];
-    gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
-
-    gsl_rng_set(rseed, random_seed);
+    seed_rng_threads(r,random_seed);
 
     omp_set_num_threads(user_params->N_THREADS);
 
@@ -137,55 +140,6 @@ int ComputeInitialConditions(
     }
 
     // ************  INITIALIZATION ********************** //
-    unsigned int seeds[user_params->N_THREADS];
-
-    // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
-    int num_int = INT_MAX/16;
-    unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int*sizeof(unsigned int))); // Some large number of possible integers
-    for (i=0; i<num_int; i++) {
-        many_ints[i] = i;
-    }
-
-    gsl_ran_choose(rseed, seeds, user_params->N_THREADS, many_ints, num_int, sizeof(unsigned int)); // Populate the seeds array from the large list of integers
-    gsl_ran_shuffle(rseed, seeds, user_params->N_THREADS, sizeof(unsigned int)); // Shuffle the randomly selected integers
-
-    int checker;
-
-    checker = 0;
-    // seed the random number generators
-    for (thread_num = 0; thread_num < user_params->N_THREADS; thread_num++){
-        switch (checker){
-            case 0:
-                r[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
-                gsl_rng_set(r[thread_num], seeds[thread_num]);
-                break;
-            case 1:
-                r[thread_num] = gsl_rng_alloc(gsl_rng_gfsr4);
-                gsl_rng_set(r[thread_num], seeds[thread_num]);
-                break;
-            case 2:
-                r[thread_num] = gsl_rng_alloc(gsl_rng_cmrg);
-                gsl_rng_set(r[thread_num], seeds[thread_num]);
-                break;
-            case 3:
-                r[thread_num] = gsl_rng_alloc(gsl_rng_mrg);
-                gsl_rng_set(r[thread_num], seeds[thread_num]);
-                break;
-            case 4:
-                r[thread_num] = gsl_rng_alloc(gsl_rng_taus2);
-                gsl_rng_set(r[thread_num], seeds[thread_num]);
-                break;
-        } // end switch
-
-        checker += 1;
-
-        if(checker==5) {
-            checker = 0;
-        }
-    }
-
-    free(many_ints);
-
     // allocate array for the k-space and real-space boxes
     fftwf_complex *HIRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
     fftwf_complex *HIRES_box_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
@@ -194,9 +148,6 @@ int ComputeInitialConditions(
     fftwf_complex *HIRES_box_vcb_saved;
     // HIRES_box_vcb_saved may be needed if FFTW_Wisdom doesn't exist -- currently unused
     // but I am not going to allocate it until I am certain I needed it.
-
-
-
 
     // find factor of HII pixel size / deltax pixel size
     f_pixel_factor = user_params->DIM/(float)user_params->HII_DIM;
@@ -884,10 +835,7 @@ int ComputeInitialConditions(
 
     free_ps();
 
-    for (i=0; i<user_params->N_THREADS; i++) {
-        gsl_rng_free (r[i]);
-    }
-    gsl_rng_free(rseed);
+    free_rng_threads(r);
     LOG_DEBUG("Cleaned Up.");
     } // End of Try{}
 

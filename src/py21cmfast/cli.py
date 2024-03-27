@@ -746,7 +746,7 @@ def pr_feature(
     import powerbox
 
     lvl = [logging.WARNING, logging.INFO, logging.DEBUG][verbose]
-    logger = logging.getLogger("21cmFAST")
+    logger = logging.getLogger(__name__)
     logger.setLevel(lvl)
     value = getattr(builtins, vtype)(value)
 

@@ -28,7 +28,7 @@ from ._data import DATA_PATH
 from ._utils import StructInstanceWrapper, StructWithDefaults
 from .c_21cmfast import ffi, lib
 
-logger = logging.getLogger("21cmFAST")
+logger = logging.getLogger(__name__)
 
 # Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
 # Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
@@ -209,10 +209,12 @@ class GlobalParams(StructInstanceWrapper):
         If positive, then overwrite default boundary conditions for the evolution
         equations with this value. The default is to use the value obtained from RECFAST.
         See also `XION_at_Z_HEAT_MAX`.
+        JD: This has been removed in the C code, RECFAST is always called
     XION_at_Z_HEAT_MAX : float
         If positive, then overwrite default boundary conditions for the evolution
         equations with this value. The default is to use the value obtained from RECFAST.
         See also `TK_at_Z_HEAT_MAX`.
+        JD: This has been removed in the C code, RECFAST is always called
     Pop : int
         Stellar Population responsible for early heating (2 or 3)
     Pop2_ion : float
@@ -288,6 +290,31 @@ class GlobalParams(StructInstanceWrapper):
         The peak gas temperatures behind the supersonic ionization fronts during reionization.
     VAVG:
         Avg value of the DM-b relative velocity [im km/s], ~0.9*SIGMAVCB (=25.86 km/s) normally.
+    STOC_MASS_TOL:
+        Mass tolerance for the stochastic halo sampling, a sample will be rejected if its mass sum falls
+        outside of the expected mass * (1 +- STOC_MASS_TOL)
+    SAMPLER_MIN_MASS:
+        Sets the minimum mass used by the halo sampler, halos below this mass will have the average contriubution
+        based on the integral of the given CMF. Greatly affects performance and memory usage.
+    MAXHALO_FACTOR:
+        Safety factor to multiply halo array sizes, total (all threads) array size will be UMF integral * MAXHALO_FACTOR
+    N_MASS_INTERP:
+        Number of mass bins for the sampler interpolation tables.
+    N_DELTA_INTERP:
+        Number of delta bins for the sampler interpolation tables.
+    N_PROB_INTERP:
+        Number of probability bins for the sampler interpolation tables.
+    MIN_LOGPROB:
+        Lower limit (in log probability) of the inverse CDF table.
+    SAMPLE_METHOD:
+        Sampling method to use for stochastic halos:
+            0: Mass sampling from CMF
+            1: N_halo sampling from CMF
+            2: Sheth & Lemson 99 Fcoll sampling
+            3: Darkforest (Qiu+20) binary splitting
+    AVG_BELOW_SAMPLER:
+        int flag to add the average halo proeprties in each cell between the source mass limit
+        and the mass sampled by the halo sampler
     """
 
     def __init__(self, wrapped, ffi):
@@ -445,6 +472,7 @@ class UserParams(StructWithDefaults):
         1: ST (Sheth-Tormen)
         2: Watson (Watson FOF)
         3: Watson-z (Watson FOF-z)
+        3: Delos (Delos+23)
     USE_RELATIVE_VELOCITIES: int, optional
         Flag to decide whether to use relative velocities.
         If True, POWER_SPECTRUM is automatically set to 5. Default False.
@@ -471,8 +499,22 @@ class UserParams(StructWithDefaults):
     USE_INTERPOLATION_TABLES: bool, optional
         If True, calculates and evaluates quantites using interpolation tables, which
         is considerably faster than when performing integrals explicitly.
-    FAST_FCOLL_TABLES: bool, optional
-        Whether to use fast Fcoll tables, as described in Appendix of Muñoz+21 (2110.13919). Significant speedup for minihaloes.
+    INTEGRATION_METHOD_ATOMIC: int, optional
+        The integration method to use for conditional MF integrals of atomic halos in the grids:
+        NOTE: global integrals will use GSL QAG adaptive integration
+        0: GSL QAG adaptive integration,
+        1: Gauss-Legendre integration, previously forced in the interpolation tables,
+        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+    INTEGRATION_METHOD_MINI: int, optional
+        The integration method to use for conditional MF integrals of minihalos in the grids:
+        0: GSL QAG adaptive integration,
+        1: Gauss-Legendre integration, previously forced in the interpolation tables,
+        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
+    INTEGRATION_METHOD_HALOS: int, optional
+        The integration method to use for all conditional MF integrals for halos from the sampler catalogues:
+        0: GSL QAG adaptive integration,
+        1: Gauss-Legendre integration, previously forced in the interpolation tables,
+        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
     USE_2LPT: bool, optional
         Whether to use second-order Lagrangian perturbation theory (2LPT).
         Set this to True if the density field or the halo positions are extrapolated to
@@ -482,6 +524,14 @@ class UserParams(StructWithDefaults):
     MINIMIZE_MEMORY: bool, optional
         If set, the code will run in a mode that minimizes memory usage, at the expense
         of some CPU/disk-IO. Good for large boxes / small computers.
+    STOC_MINIMUM_Z: float, optional
+        The minimum (first) redshift at which to calculate the halo boxes, will behave as follows:
+        If STOC_MINIMUM_Z is set, we step DOWN from the requested redshift by ZPRIME_STEP_FACTOR
+        until we get to STOC_MINIMUM_Z, where the last z-step will be shorter to be exactly at
+        STOC_MINIMUM_Z, we then build the halo boxes from low to high redshift.
+        If STOC_MINIMUM_Z is not provided, we simply sample at the given redshift, unless
+        USE_TS_FLUCT is given or we want a lightcone, in which case the minimum redshift is set
+        to the minimum redshift of those fields.
     """
 
     _ffi = ffi
@@ -499,13 +549,16 @@ class UserParams(StructWithDefaults):
         "PERTURB_ON_HIGH_RES": False,
         "NO_RNG": False,
         "USE_INTERPOLATION_TABLES": None,
-        "FAST_FCOLL_TABLES": False,
+        "INTEGRATION_METHOD_ATOMIC": 1,
+        "INTEGRATION_METHOD_MINI": 1,
+        "INTEGRATION_METHOD_HALOS": 0,
         "USE_2LPT": True,
         "MINIMIZE_MEMORY": False,
+        "STOC_MINIMUM_Z": None,
         "KEEP_3D_VELOCITIES": False,
     }
 
-    _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z"]
+    _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
     _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
 
     @property
@@ -615,14 +668,13 @@ class UserParams(StructWithDefaults):
         return self._power_models[self.POWER_SPECTRUM]
 
     @property
-    def FAST_FCOLL_TABLES(self):
-        """Check that USE_INTERPOLATION_TABLES is True."""
-        if not self._FAST_FCOLL_TABLES or self.USE_INTERPOLATION_TABLES:
-            return self._FAST_FCOLL_TABLES
-        logger.warn(
-            "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES."
-        )
-        return False
+    def INTEGRATION_METHOD_HALOS(self):
+        """The integration methods other than QAG do not yet work for halos."""
+        if self._INTEGRATION_METHOD_HALOS != 0:
+            warnings.warn(
+                "Only the QAG integrator currently works for the halo sampler, setting to 1 or 2 is for testing only"
+            )
+        return self._INTEGRATION_METHOD_HALOS
 
     @property
     def cell_size(self) -> un.Quantity[un.Mpc]:
@@ -674,13 +726,37 @@ class FlagOptions(StructWithDefaults):
         Whether the minimum halo mass (for ionization) is defined by
         mass or virial temperature. Automatically True if `USE_MASS_DEPENDENT_ZETA`
         is True.
-    PHOTON_CONS : bool, optional
+    PHOTON_CONS_TYPE : int, optional
         Whether to perform a small correction to account for the inherent
-        photon non-conservation.
+        photon non-conservation. This can be one of three types of correction:
+
+        0: No photon cosnervation correction,
+        1: Photon conservation correction by adjusting the redshift of the N_ion source field (Park+22)
+        2: Adjustment to the escape fraction power-law slope, based on fiducial results in Park+22, This runs a
+        series of global xH evolutions and one calibration simulation to find the adjustment as a function of xH
+        3: Adjustment to the escape fraction normalisation, runs one calibration simulation to find the
+        adjustment as a function of xH where f'/f = xH_global/xH_calibration
     FIX_VCB_AVG: bool, optional
         Determines whether to use a fixed vcb=VAVG (*regardless* of USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not its fluctuations. See Muñoz+21 (2110.13919).
-    USE_VELS_AUX: bool, optional
-        Auxiliary variable (not input) to check if minihaloes are being used without relative velocities and complain
+    HALO_STOCHASTICITY: bool, optional
+        Sample the Conditional Halo Mass Function and sum over the sample instead of integrating it.
+        This allows us to include stochasticity in other properties
+    USE_EXP_FILTER: bool, optional
+        Use the exponential filter (MFP-epsilon(r) from Davies & Furlanetto 2021) when calculating ionising emissivity fields
+        NOTE: this does not affect other field filters, and should probably be used with HII_FILTER==0 (real-space top-hat)
+    FIXED_HALO_GRIDS: bool, optional
+        When USE_HALO_FIELD is True, this flag bypasses the sampler, and calculates fixed grids of halo mass, stellar mass etc
+        analagous to FFRT-P (Davies & Furlanetto 2021) or ESF-E (Trac et al 2021), This flag has no effect is USE_HALO_FIELD is False
+        With USE_HALO_FIELD: (FIXED_HALO_GRIDS,HALO_STOCHASTICITY):
+
+        (0,0): DexM only,
+        (0,1): Halo Sampler,
+        (1,?): FFRT-P fixed halo grids
+    CELL_RECOMB: bool, optional
+        An alternate way of counting recombinations based on the local cell rather than the filter region.
+        This is part of the perspective shift (see Davies & Furlanetto 2021) from counting photons/atoms in a sphere and flagging a central
+        pixel to counting photons which we expect to reach the central pixel, and taking the ratio of atoms in the pixel.
+        This flag simply turns off the filtering of N_rec grids, and takes the recombinations in the central cell.
     """
 
     _ffi = ffi
@@ -696,8 +772,12 @@ class FlagOptions(StructWithDefaults):
         "INHOMO_RECO": False,
         "USE_TS_FLUCT": False,
         "M_MIN_in_Mass": False,
-        "PHOTON_CONS": False,
         "FIX_VCB_AVG": False,
+        "HALO_STOCHASTICITY": False,
+        "USE_EXP_FILTER": False,
+        "FIXED_HALO_GRIDS": False,
+        "CELL_RECOMB": False,
+        "PHOTON_CONS_TYPE": 0,  # Should these all be boolean?
     }
 
     @property
@@ -707,13 +787,13 @@ class FlagOptions(StructWithDefaults):
 
     @property
     def USE_HALO_FIELD(self):
-        """Automatically setting USE_HALO_FIELD to False if USE_MINI_HALOS."""
-        if self._USE_HALO_FIELD and self.USE_MINI_HALOS:
+        """Automatically setting USE_HALO_FIELD to False if not USE_MASS_DEPENDENT_ZETA."""
+        if not self.USE_MASS_DEPENDENT_ZETA and self._USE_HALO_FIELD:
             logger.warn(
-                "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True! "
+                "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
                 "Automatically setting USE_HALO_FIELD to False."
             )
-            self._USE_HALO_FIELD = False
+            return False
 
         return self._USE_HALO_FIELD
 
@@ -756,15 +836,41 @@ class FlagOptions(StructWithDefaults):
         return self._USE_TS_FLUCT
 
     @property
-    def PHOTON_CONS(self):
+    def PHOTON_CONS_TYPE(self):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and self._PHOTON_CONS:
-            logger.warn(
-                "USE_MINI_HALOS is not compatible with PHOTON_CONS! "
-                "Automatically setting PHOTON_CONS to False."
+        if (self.USE_MINI_HALOS or self.USE_HALO_FIELD) and self._PHOTON_CONS_TYPE == 1:
+            warnings.warn(
+                "USE_MINI_HALOS and USE_HALO_FIELD are not compatible with the redshift-based"
+                " photon conservation corrections (PHOTON_CONS_TYPE==1)! "
+                " Automatically setting PHOTON_CONS_TYPE to zero."
             )
-            self._PHOTON_CONS = False
-        return self._PHOTON_CONS
+            return 0
+        if self._PHOTON_CONS_TYPE < 0 or self._PHOTON_CONS_TYPE > 3:
+            raise ValueError("PHOTON_CONS_TYPE must be between 0 and 3 inclusive")
+
+        return self._PHOTON_CONS_TYPE
+
+    @property
+    def HALO_STOCHASTICITY(self):
+        """Automatically setting HALO_STOCHASTICITY to False if not USE_HALO_FIELD."""
+        if not self.USE_HALO_FIELD and self._HALO_STOCHASTICITY:
+            warnings.warn(
+                "HALO_STOCHASTICITY must be used with USE_HALO_FIELD"
+                "Turning off Stochastic Halos..."
+            )
+            return False
+
+        return self._HALO_STOCHASTICITY
+
+    @property
+    def CELL_RECOMB(self):
+        """Automatically setting CELL_RECOMB if USE_EXP_FILTER is active."""
+        if self.USE_EXP_FILTER:
+            warnings.warn(
+                "CELL_RECOMB is automatically set to True if USE_EXP_FILTER is True."
+            )
+            return True
+        return self._CELL_RECOMB
 
 
 class AstroParams(StructWithDefaults):
@@ -803,6 +909,20 @@ class AstroParams(StructWithDefaults):
     ALPHA_STAR_MINI : float, optional
         Power-law index of fraction of galactic gas in stars as a function of halo mass, for MCGs.
         See Sec 2 of Muñoz+21 (2110.13919).
+    SIGMA_STAR : float, optional
+        Lognormal scatter of the halo mass to stellar mass relation.
+        Uniform across all masses and redshifts.
+    CORR_STAR : float, optional
+        Self-correlation length used for updating halo properties. Properties are interpolated between
+        a random sample at the current halo mass and one matching the point in the PDF of the
+        previous sample, the interpolation point in [0,1] is given by exp(-dz/CORR_STAR)
+    SIGMA_SFR : float, optional
+        Lognormal scatter of the stellar mass to SFR relation.
+        Uniform across all masses and redshifts.
+    CORR_SFR : float, optional
+        Self-correlation length used for updating halo properties. Properties are interpolated between
+        a random sample at the current halo mass and one matching the point in the PDF of the
+        previous sample, the interpolation point in [0,1] is given by exp(-dz/CORR_STAR)
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
         IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization,
@@ -870,6 +990,10 @@ class AstroParams(StructWithDefaults):
         "F_STAR7_MINI": -2.0,
         "ALPHA_STAR": 0.5,
         "ALPHA_STAR_MINI": 0.5,
+        "SIGMA_STAR": 0.0,
+        "CORR_STAR": 0.5,
+        "SIGMA_SFR": 0.0,
+        "CORR_SFR": 0.2,
         "F_ESC10": -1.0,
         "F_ESC7_MINI": -2.0,
         "ALPHA_ESC": -0.5,
@@ -1009,11 +1133,29 @@ def validate_all_inputs(
             else:
                 raise ValueError(msg)
 
-    if flag_options is not None and (
-        flag_options.USE_MINI_HALOS
-        and not user_params.USE_RELATIVE_VELOCITIES
-        and not flag_options.FIX_VCB_AVG
-    ):
-        logger.warn(
-            "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
-        )
+    if flag_options is not None:
+        if (
+            flag_options.USE_MINI_HALOS
+            and not user_params.USE_RELATIVE_VELOCITIES
+            and not flag_options.FIX_VCB_AVG
+        ):
+            logger.warn(
+                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
+            )
+
+        if flag_options.HALO_STOCHASTICITY and user_params.PERTURB_ON_HIGH_RES:
+            msg = (
+                "Since the lowres density fields are required for the halo sampler"
+                "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
+                "Simultaneously."
+            )
+            raise NotImplementedError(msg)
+
+        if flag_options.USE_EXP_FILTER and not flag_options.USE_HALO_FIELD:
+            logger.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
+
+        if flag_options.USE_EXP_FILTER and global_params.HII_FILTER != 0:
+            logger.warn(
+                "USE_EXP_FILTER can only be used with a tophat HII_FILTER, setting HII_FILTER = 0"
+            )
+            global_params.HII_FILTER = 0

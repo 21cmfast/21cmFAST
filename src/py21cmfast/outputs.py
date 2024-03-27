@@ -15,6 +15,7 @@ parameter objects necessary to define it.
 from __future__ import annotations
 
 import h5py
+import logging
 import numpy as np
 import os
 import warnings
@@ -33,6 +34,8 @@ from ._utils import OutputStruct as _BaseOutputStruct
 from ._utils import _check_compatible_inputs
 from .c_21cmfast import ffi, lib
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+
+logger = logging.getLogger(__name__)
 
 
 class _OutputStruct(_BaseOutputStruct):
@@ -93,6 +96,9 @@ class InitialConditions(_OutputStruct):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
         keep = ["hires_density"]
 
+        if flag_options.HALO_STOCHASTICITY:
+            keep.append("lowres_density")
+
         if not self.user_params.PERTURB_ON_HIGH_RES:
             keep.append("lowres_density")
             keep.append("lowres_vx")
@@ -104,8 +110,6 @@ class InitialConditions(_OutputStruct):
                 keep.append("lowres_vy_2LPT")
                 keep.append("lowres_vz_2LPT")
 
-            if flag_options.USE_HALO_FIELD:
-                keep.append("hires_density")
         else:
             keep.append("hires_vx")
             keep.append("hires_vy")
@@ -119,6 +123,15 @@ class InitialConditions(_OutputStruct):
         if self.user_params.USE_RELATIVE_VELOCITIES:
             keep.append("lowres_vcb")
 
+        self.prepare(keep=keep, force=force)
+
+    def prepare_for_halos(self, flag_options: FlagOptions, force: bool = False):
+        """Ensure ICs have all boxes required for the halos, and no more."""
+        keep = ["hires_density"]  # for dexm
+        if flag_options.HALO_STOCHASTICITY:
+            keep.append("lowres_density")  # for the sampler
+        if self.user_params.USE_RELATIVE_VELOCITIES:
+            keep.append("lowres_vcb")
         self.prepare(keep=keep, force=force)
 
     def prepare_for_spin_temp(self, flag_options: FlagOptions, force: bool = False):
@@ -300,49 +313,69 @@ class _AllParamsBox(_OutputStructZ):
 class HaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
-    _c_based_pointers = (
-        "halo_masses",
-        "halo_coords",
-        "mass_bins",
-        "fgtrm",
-        "sqrt_dfgtrm",
-        "dndlm",
-        "sqrtdn_dlm",
+    _meta = False
+    _inputs = _AllParamsBox._inputs + (
+        "desc_redshift",
+        "buffer_size",
     )
     _c_compute_function = lib.ComputeHaloField
 
-    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        return {}
+    def __init__(
+        self,
+        *,
+        desc_redshift: float | None = None,
+        buffer_size: int = 0.0,
+        **kwargs,
+    ):
+        self.desc_redshift = desc_redshift
+        self.buffer_size = buffer_size
 
-    def _c_shape(self, cstruct):
-        return {
-            "halo_masses": (cstruct.n_halos,),
-            "halo_coords": (cstruct.n_halos, 3),
-            "mass_bins": (cstruct.n_mass_bins,),
-            "fgtrm": (cstruct.n_mass_bins,),
-            "sqrt_dfgtrm": (cstruct.n_mass_bins,),
-            "dndlm": (cstruct.n_mass_bins,),
-            "sqrtdn_dlm": (cstruct.n_mass_bins,),
+        super().__init__(**kwargs)
+
+    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
+        out = {
+            "halo_masses": (self.buffer_size,),
+            "star_rng": (self.buffer_size,),
+            "sfr_rng": (self.buffer_size,),
+            "halo_coords": (self.buffer_size, 3),
         }
+
+        return out
 
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
+        required = []
         if isinstance(input_box, InitialConditions):
-            return ["hires_density"]
+            if self.flag_options.HALO_STOCHASTICITY:
+                # when the sampler is on, the grids are only needed for the first sample
+                if self.desc_redshift < 0:
+                    required += ["hires_density"]
+                    required += ["lowres_density"]
+            # without the sampler, dexm needs the hires density at each redshift
+            else:
+                required += ["hires_density"]
+        elif isinstance(input_box, HaloField):
+            required += ["halo_masses", "halo_coords", "star_rng", "sfr_rng"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for HaloField!"
             )
+        return required
 
-    def compute(self, *, ics: InitialConditions, hooks: dict):
+    def compute(
+        self, *, halos_desc, ics: InitialConditions, random_seed: int, hooks: dict
+    ):
         """Compute the function."""
         return self._compute(
+            self.desc_redshift,
             self.redshift,
             self.user_params,
             self.cosmo_params,
             self.astro_params,
             self.flag_options,
             ics,
+            random_seed,
+            halos_desc,
             hooks=hooks,
         )
 
@@ -351,16 +384,26 @@ class PerturbHaloField(_AllParamsBox):
     """A class containing all fields related to halos."""
 
     _c_compute_function = lib.ComputePerturbHaloField
-    _c_based_pointers = ("halo_masses", "halo_coords")
+    _meta = False
+    _inputs = _AllParamsBox._inputs + ("buffer_size",)
+
+    def __init__(
+        self,
+        buffer_size: int = 0.0,
+        **kwargs,
+    ):
+        self.buffer_size = buffer_size
+        super().__init__(**kwargs)
 
     def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
-        return {}
-
-    def _c_shape(self, cstruct):
-        return {
-            "halo_masses": (cstruct.n_halos,),
-            "halo_coords": (cstruct.n_halos, 3),
+        out = {
+            "halo_masses": (self.buffer_size,),
+            "star_rng": (self.buffer_size,),
+            "sfr_rng": (self.buffer_size,),
+            "halo_coords": (self.buffer_size, 3),
         }
+
+        return out
 
     def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
@@ -392,6 +435,142 @@ class PerturbHaloField(_AllParamsBox):
             self.flag_options,
             ics,
             halo_field,
+            hooks=hooks,
+        )
+
+
+class HaloBox(_AllParamsBox):
+    """A class containing all gridded halo properties."""
+
+    _meta = False
+    _c_compute_function = lib.ComputeHaloBox
+    _inputs = _AllParamsBox._inputs
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
+        shape = (self.user_params.HII_DIM,) * 2 + (
+            int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),
+        )
+
+        out = {
+            "halo_mass": shape,
+            "halo_stars": shape,
+            "halo_stars_mini": shape,
+            "count": shape,
+            "halo_sfr": shape,
+            "halo_sfr_mini": shape,
+            "n_ion": shape,
+            "whalo_sfr": shape,
+        }
+
+        return out
+
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, PerturbHaloField):
+            if not self.flag_options.FIXED_HALO_GRIDS:
+                required += ["halo_coords", "halo_masses", "star_rng", "sfr_rng"]
+
+        elif isinstance(input_box, PerturbedField):
+            if self.flag_options.FIXED_HALO_GRIDS or global_params.AVG_BELOW_SAMPLER:
+                required += ["density"]
+        elif isinstance(input_box, TsBox):
+            required += ["J_21_LW_box"]
+        elif isinstance(input_box, IonizedBox):
+            required += ["Gamma12_box", "z_re_box"]
+        elif isinstance(input_box, InitialConditions):
+            if self.user_params.USE_RELATIVE_VELOCITIES:
+                required += ["lowres_vcb"]
+        else:
+            raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
+
+        return required
+
+    def compute(
+        self,
+        *,
+        init_boxes: InitialConditions,
+        pt_halos: PerturbHaloField,
+        perturbed_field: PerturbedField,
+        previous_spin_temp: TsBox,
+        previous_ionize_box: IonizedBox,
+        hooks: dict,
+    ):
+        """Compute the function."""
+        return self._compute(
+            self.redshift,
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            init_boxes,
+            perturbed_field,
+            pt_halos,
+            previous_spin_temp,
+            previous_ionize_box,
+            hooks=hooks,
+        )
+
+
+class XraySourceBox(_AllParamsBox):
+    """A class containing the filtered sfr grids."""
+
+    _meta = False
+    _c_compute_function = lib.UpdateXraySourceBox
+    _inputs = _AllParamsBox._inputs
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def _get_box_structures(self) -> dict[str, dict | tuple[int]]:
+        shape = (
+            (global_params.NUM_FILTER_STEPS_FOR_Ts,)
+            + (self.user_params.HII_DIM,) * 2
+            + (int(self.user_params.NON_CUBIC_FACTOR * self.user_params.HII_DIM),)
+        )
+
+        out = {
+            "filtered_sfr": shape,
+            "filtered_sfr_mini": shape,
+            "mean_sfr": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
+            "mean_sfr_mini": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
+            "mean_log10_Mcrit_LW": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
+        }
+
+        return out
+
+    def get_required_input_arrays(self, input_box: _BaseOutputStruct) -> list[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, HaloBox):
+            required += ["halo_sfr", "halo_sfr_mini"]
+        else:
+            raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
+
+        return required
+
+    def compute(
+        self,
+        *,
+        halobox: HaloBox,
+        R_inner,
+        R_outer,
+        R_ct,
+        hooks: dict,
+    ):
+        """Compute the function."""
+        return self._compute(
+            self.user_params,
+            self.cosmo_params,
+            self.astro_params,
+            self.flag_options,
+            halobox,
+            R_inner,
+            R_outer,
+            R_ct,
             hooks=hooks,
         )
 
@@ -470,6 +649,11 @@ class TsBox(_AllParamsBox):
             required += ["Tk_box", "x_e_box", "Ts_box"]
             if self.flag_options.USE_MINI_HALOS:
                 required += ["J_21_LW_box"]
+        elif isinstance(input_box, XraySourceBox):
+            if self.flag_options.USE_HALO_FIELD:
+                required += ["filtered_sfr"]
+                if self.flag_options.USE_MINI_HALOS:
+                    required += ["filtered_sfr_mini"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for PerturbHaloField!"
@@ -482,6 +666,7 @@ class TsBox(_AllParamsBox):
         *,
         cleanup: bool,
         perturbed_field: PerturbedField,
+        xray_source_box: XraySourceBox,
         prev_spin_temp,
         ics: InitialConditions,
         hooks: dict,
@@ -497,6 +682,7 @@ class TsBox(_AllParamsBox):
             self.perturbed_field_redshift,
             cleanup,
             perturbed_field,
+            xray_source_box,
             prev_spin_temp,
             ics,
             hooks=hooks,
@@ -591,8 +777,8 @@ class IonizedBox(_AllParamsBox):
                 and self.flag_options.USE_MINI_HALOS
             ):
                 required += ["Fcoll", "Fcoll_MINI"]
-        elif isinstance(input_box, PerturbHaloField):
-            required += ["halo_coords", "halo_masses"]
+        elif isinstance(input_box, HaloBox):
+            required += ["n_ion", "whalo_sfr"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for IonizedBox!"
@@ -607,7 +793,7 @@ class IonizedBox(_AllParamsBox):
         prev_perturbed_field: PerturbedField,
         prev_ionize_box,
         spin_temp: TsBox,
-        pt_halos: PerturbHaloField,
+        halobox: HaloBox,
         ics: InitialConditions,
         hooks: dict,
     ):
@@ -623,7 +809,7 @@ class IonizedBox(_AllParamsBox):
             prev_perturbed_field,
             prev_ionize_box,
             spin_temp,
-            pt_halos,
+            halobox,
             ics,
             hooks=hooks,
         )
@@ -743,6 +929,7 @@ class _HighLevelOutput:
         kinds = {
             "init": InitialConditions,
             "perturb_field": PerturbedField,
+            "halobox": HaloBox,
             "ionized_box": IonizedBox,
             "spin_temp": TsBox,
             "brightness_temp": BrightnessTemp,
@@ -762,6 +949,7 @@ class _HighLevelOutput:
         kinds = kinds or [
             "init",
             "perturb_field",
+            "halobox",
             "ionized_box",
             "spin_temp",
             "brightness_temp",
@@ -988,6 +1176,7 @@ class Coeval(_HighLevelOutput):
         ionized_box: IonizedBox,
         brightness_temp: BrightnessTemp,
         ts_box: TsBox | None = None,
+        halobox: HaloBox | None = None,
         cache_files: dict | None = None,
         photon_nonconservation_data=None,
         _globals=None,
@@ -995,6 +1184,7 @@ class Coeval(_HighLevelOutput):
         _check_compatible_inputs(
             initial_conditions,
             perturbed_field,
+            halobox,
             ionized_box,
             brightness_temp,
             ts_box,
@@ -1006,6 +1196,7 @@ class Coeval(_HighLevelOutput):
         self.perturb_struct = perturbed_field
         self.ionization_struct = ionized_box
         self.brightness_temp_struct = brightness_temp
+        self.halobox_struct = halobox
         self.spin_temp_struct = ts_box
 
         self.cache_files = cache_files
@@ -1018,6 +1209,7 @@ class Coeval(_HighLevelOutput):
         for box in [
             initial_conditions,
             perturbed_field,
+            halobox,
             ionized_box,
             brightness_temp,
             ts_box,
@@ -1032,7 +1224,7 @@ class Coeval(_HighLevelOutput):
             self.velocity = self.velocity_z
 
     @classmethod
-    def get_fields(cls, spin_temp: bool = True) -> list[str]:
+    def get_fields(cls, spin_temp: bool = True, hbox: bool = True) -> list[str]:
         """Obtain a list of name of simulation boxes saved in the Coeval object."""
         pointer_fields = []
         for cls in [InitialConditions, PerturbedField, IonizedBox, BrightnessTemp]:
@@ -1040,6 +1232,9 @@ class Coeval(_HighLevelOutput):
 
         if spin_temp:
             pointer_fields += TsBox.get_pointer_fields()
+
+        if hbox:
+            pointer_fields += HaloBox.get_pointer_fields()
 
         return pointer_fields
 
@@ -1241,6 +1436,8 @@ class LightCone(_HighLevelOutput):
 
             f["node_redshifts"] = self.node_redshifts
             f["distances"] = self.lightcone_distances
+            f["log10_mturnovers"] = self.log10_mturnovers
+            f["log10_mturnovers_mini"] = self.log10_mturnovers_mini
 
     def make_checkpoint(self, fname, index: int, redshift: float):
         """Write updated lightcone data to file."""
@@ -1295,6 +1492,9 @@ class LightCone(_HighLevelOutput):
 
             kwargs["node_redshifts"] = fl["node_redshifts"][...]
             kwargs["distances"] = fl["distances"][...]
+
+            kwargs["log10_mturnovers"] = fl["log10_mturnovers"][...]
+            kwargs["log10_mturnovers_mini"] = fl["log10_mturnovers_mini"][...]
 
         return kwargs
 

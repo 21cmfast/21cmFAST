@@ -215,7 +215,8 @@ int ComputePerturbField(
 
     double *resampled_box;
 
-    debugSummarizeIC(boxes, user_params->HII_DIM, user_params->DIM, user_params->NON_CUBIC_FACTOR);
+    //TODO: debugSummarizeIC is bugged when not all the fields are in memory
+    // debugSummarizeIC(boxes, user_params->HII_DIM, user_params->DIM, user_params->NON_CUBIC_FACTOR);
     LOG_SUPER_DEBUG("growth_factor=%f, displacemet_factor_2LPT=%f, dDdt=%f, init_growth_factor=%f, init_displacement_factor_2LPT=%f, mass_factor=%f",
                     growth_factor, displacement_factor_2LPT, dDdt, init_growth_factor, init_displacement_factor_2LPT, mass_factor);
 

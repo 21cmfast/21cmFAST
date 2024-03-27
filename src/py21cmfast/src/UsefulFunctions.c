@@ -18,6 +18,71 @@ void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoPara
     user_params_ufunc = user_params;
 }
 
+void seed_rng_threads(gsl_rng * rng_arr[], int seed){
+    // setting tbe random seeds
+    gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
+
+    gsl_rng_set(rseed, seed);
+
+    unsigned int seeds[user_params_ufunc->N_THREADS];
+
+    // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
+    int num_int = INT_MAX/16; //JD: this was taking a few seconds per snapshot so i reduced the number TODO: init the RNG once
+    int i, thread_num;
+    unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int*sizeof(unsigned int))); // Some large number of possible integers
+    for (i=0; i<num_int; i++) {
+        many_ints[i] = i;
+    }
+
+    gsl_ran_choose(rseed, seeds, user_params_ufunc->N_THREADS, many_ints, num_int, sizeof(unsigned int)); // Populate the seeds array from the large list of integers
+    gsl_ran_shuffle(rseed, seeds, user_params_ufunc->N_THREADS, sizeof(unsigned int)); // Shuffle the randomly selected integers
+
+    int checker;
+
+    checker = 0;
+    // seed the random number generators
+    for (thread_num = 0; thread_num < user_params_ufunc->N_THREADS; thread_num++){
+        switch (checker){
+            case 0:
+                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
+                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
+                break;
+            case 1:
+                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_gfsr4);
+                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
+                break;
+            case 2:
+                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_cmrg);
+                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
+                break;
+            case 3:
+                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_mrg);
+                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
+                break;
+            case 4:
+                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_taus2);
+                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
+                break;
+        } // end switch
+
+        checker += 1;
+
+        if(checker==5) {
+            checker = 0;
+        }
+    }
+
+    gsl_rng_free(rseed);
+    free(many_ints);
+}
+
+void free_rng_threads(gsl_rng * rng_arr[]){
+    int ii;
+    for(ii=0;ii<user_params_ufunc->N_THREADS;ii++){
+        gsl_rng_free(rng_arr[ii]);
+    }
+}
+
 float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
     // z_re: the redshift of reionization
     // z:    the current redshift
@@ -49,6 +114,121 @@ float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
     if (res_xH>=1) return T_HI;
 
     return T_HI * res_xH + global_params.T_RE * (1. - res_xH);
+}
+
+//filter_box, filter_box_annulus and filter_box_mfp should be combined in a better way, they require different inputs
+//and they are run on different subsets of the boxes but they contain a lot of the same math
+void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
+    int n_x, n_z, n_y, dimension,midpoint;
+    float k_x, k_y, k_z, k_mag, f, kR, kl;
+    float const1;
+    const1 = exp(-R/mfp); //independent of k, move it out of the loop
+    // LOG_DEBUG("Filtering box with R=%.2e, L=%.2e",R,mfp);
+
+    switch(RES) {
+        case 0:
+            dimension = user_params_ufunc->DIM;
+            midpoint = MIDDLE;
+            break;
+        case 1:
+            dimension = user_params_ufunc->HII_DIM;
+            midpoint = HII_MIDDLE;
+            break;
+    }
+    // loop through k-box
+
+#pragma omp parallel shared(box) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,kR,kl,f) num_threads(user_params_ufunc->N_THREADS)
+    {
+#pragma omp for
+        for (n_x=0; n_x<dimension; n_x++){
+            if (n_x>midpoint) {k_x =(n_x-dimension) * DELTA_K;}
+            else {k_x = n_x * DELTA_K;}
+
+            for (n_y=0; n_y<dimension; n_y++){
+                if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
+                else {k_y = n_y * DELTA_K;}
+                for (n_z=0; n_z<=(unsigned long long)(user_params_ufunc->NON_CUBIC_FACTOR*midpoint); n_z++){
+                    k_z = n_z * DELTA_K_PARA;
+
+                    k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
+
+                    kR = k_mag*R;
+                    kl = k_mag*mfp;
+
+                    //Davies & Furlanetto MFP-eps(r) window function
+                    //The filter no longer approaches 1 at k->0, so we can't use the limit
+                    if (kR > 1e-4){
+                        //build the filter
+                        f = (kl*kl*R + 2*mfp + R)*kl*cos(kR);
+                        f += (-kl*kl*mfp + kl*kl*R + mfp + R)*sin(kR);
+                        f *= const1;
+                        f -= 2*kl*mfp;
+                        f *= -3.0*mfp/(kR*R*R*(kl*kl+1)*(kl*kl+1));
+                    }
+                    else{
+                        // k-> 0 limit
+                        f = 2*mfp*mfp + 2*mfp*R + R*R;
+                        f *= -const1;
+                        f += 2*mfp*mfp;
+                        f *= 3*mfp/(R*R*R);
+                    }
+                    if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= f; }
+                    if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= f; }
+                }
+            }
+        } // end looping through k box
+    }
+    return;
+}
+
+void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_outer){
+    int n_x, n_z, n_y, dimension,midpoint;
+    float k_x, k_y, k_z, k_mag, kRinner, kRouter;
+    float f_inner, f_outer;
+
+    switch(RES) {
+        case 0:
+            dimension = user_params_ufunc->DIM;
+            midpoint = MIDDLE;
+            break;
+        case 1:
+            dimension = user_params_ufunc->HII_DIM;
+            midpoint = HII_MIDDLE;
+            break;
+    }
+    // loop through k-box
+
+#pragma omp parallel shared(box) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,kRinner,kRouter,f_inner,f_outer) num_threads(user_params_ufunc->N_THREADS)
+    {
+#pragma omp for
+        for (n_x=0; n_x<dimension; n_x++){
+            if (n_x>midpoint) {k_x =(n_x-dimension) * DELTA_K;}
+            else {k_x = n_x * DELTA_K;}
+
+            for (n_y=0; n_y<dimension; n_y++){
+                if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
+                else {k_y = n_y * DELTA_K;}
+
+                for (n_z=0; n_z<=(unsigned long long)(user_params_ufunc->NON_CUBIC_FACTOR*midpoint); n_z++){
+                    k_z = n_z * DELTA_K_PARA;
+
+                    k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
+
+                    kRinner = k_mag*R_inner;
+                    kRouter = k_mag*R_outer;
+
+                    if (kRinner > 1e-4){
+                        f_inner = 3.0/(pow(kRouter, 3) - pow(kRinner, 3)) * (sin(kRinner) - cos(kRinner)*kRinner);
+                        f_outer = 3.0/(pow(kRouter, 3) - pow(kRinner, 3)) * (sin(kRouter) - cos(kRouter)*kRouter);
+                        if(RES==1) { box[HII_C_INDEX(n_x, n_y, n_z)] *= (f_outer - f_inner); }
+                        if(RES==0) { box[C_INDEX(n_x, n_y, n_z)] *= (f_outer - f_inner); }
+                    }
+
+                }
+            }
+        } // end looping through k box
+    }
+    return;
 }
 
 void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
@@ -537,8 +717,8 @@ float ComputeTau(struct UserParams *user_params, struct CosmoParams *cosmo_param
 
 
 void writeUserParams(struct UserParams *p){
-    LOG_INFO("UserParams: [HII_DIM=%d, DIM=%d, BOX_LEN=%f, NON_CUBIC_FACTOR=%f, HMF=%d, POWER_SPECTRUM=%d, USE_RELATIVE_VELOCITIES=%d, N_THREADS=%d, PERTURB_ON_HIGH_RES=%d, NO_RNG=%d, USE_FFTW_WISDOM=%d, USE_INTERPOLATION_TABLES=%d, FAST_FCOLL_TABLES=%d]",
-             p->HII_DIM, p->DIM, p->BOX_LEN, p->NON_CUBIC_FACTOR, p->HMF, p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->N_THREADS, p->PERTURB_ON_HIGH_RES, p->NO_RNG, p->USE_FFTW_WISDOM, p->USE_INTERPOLATION_TABLES, p->FAST_FCOLL_TABLES);
+    LOG_INFO("UserParams: [HII_DIM=%d, DIM=%d, BOX_LEN=%f, NON_CUBIC_FACTOR=%f, HMF=%d, POWER_SPECTRUM=%d, USE_RELATIVE_VELOCITIES=%d, N_THREADS=%d, PERTURB_ON_HIGH_RES=%d, NO_RNG=%d, USE_FFTW_WISDOM=%d, USE_INTERPOLATION_TABLES=%d]",
+             p->HII_DIM, p->DIM, p->BOX_LEN, p->NON_CUBIC_FACTOR, p->HMF, p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->N_THREADS, p->PERTURB_ON_HIGH_RES, p->NO_RNG, p->USE_FFTW_WISDOM, p->USE_INTERPOLATION_TABLES);
 }
 
 void writeCosmoParams(struct CosmoParams *p){
@@ -549,9 +729,10 @@ void writeCosmoParams(struct CosmoParams *p){
 void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p){
 
     if(fo->USE_MASS_DEPENDENT_ZETA) {
-        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, ALPHA_STAR_MINI=%f, F_ESC10=%f (F_ESC7_MINI=%f), ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%e (L_X_MINI=%e), NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f (F_STAR7_MINI=%f), t_STAR=%f, N_RSD_STEPS=%f]",
+        LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ALPHA_STAR=%f, ALPHA_STAR_MINI=%f, F_ESC10=%f (F_ESC7_MINI=%f), ALPHA_ESC=%f, M_TURN=%f, R_BUBBLE_MAX=%f, L_X=%e (L_X_MINI=%e), NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f (F_STAR7_MINI=%f), t_STAR=%f, N_RSD_STEPS=%f, SIGMA_STAR=%f, SIGMA_SFR %f CORR_STAR %f CORR_SFR %f]",
              p->HII_EFF_FACTOR, p->ALPHA_STAR, p->ALPHA_STAR_MINI, p->F_ESC10,p->F_ESC7_MINI, p->ALPHA_ESC, p->M_TURN,
-             p->R_BUBBLE_MAX, p->L_X, p->L_X_MINI, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->F_STAR7_MINI, p->t_STAR, p->N_RSD_STEPS);
+             p->R_BUBBLE_MAX, p->L_X, p->L_X_MINI, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX, p->F_STAR10, p->F_STAR7_MINI, p->t_STAR, p->N_RSD_STEPS,
+             p->SIGMA_STAR, p->SIGMA_SFR, p->CORR_STAR, p->CORR_SFR);
     }
     else {
         LOG_INFO("AstroParams: [HII_EFF_FACTOR=%f, ION_Tvir_MIN=%f, X_RAY_Tvir_MIN=%f, R_BUBBLE_MAX=%f, L_X=%e, NU_X_THRESH=%f, X_RAY_SPEC_INDEX=%f, F_STAR10=%f, t_STAR=%f, N_RSD_STEPS=%f]",
@@ -561,8 +742,8 @@ void writeAstroParams(struct FlagOptions *fo, struct AstroParams *p){
 }
 
 void writeFlagOptions(struct FlagOptions *p){
-    LOG_INFO("FlagOptions: [USE_HALO_FIELD=%d, USE_MINI_HALOS=%d, USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d, M_MIN_in_Mass=%d, PHOTON_CONS=%d]",
-           p->USE_HALO_FIELD, p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->PHOTON_CONS);
+    LOG_INFO("FlagOptions: [USE_HALO_FIELD=%d, USE_MINI_HALOS=%d, USE_MASS_DEPENDENT_ZETA=%d, SUBCELL_RSD=%d, INHOMO_RECO=%d, USE_TS_FLUCT=%d, M_MIN_in_Mass=%d, PHOTON_CONS=%d, HALO_STOCHASTICITY=%d, FIXED_HALO_GRIDS=%d, USE_EXP_FILTER=%d]",
+           p->USE_HALO_FIELD, p->USE_MINI_HALOS, p->USE_MASS_DEPENDENT_ZETA, p->SUBCELL_RSD, p->INHOMO_RECO, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->PHOTON_CONS_TYPE, p->HALO_STOCHASTICITY, p->FIXED_HALO_GRIDS, p->USE_EXP_FILTER);
 }
 
 
@@ -587,7 +768,7 @@ void print_corners_real(float *x, int size, float ncf){
     for(i=0;i<size;i=i+s){
         for(j=0;j<size;j=j+s){
             for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                printf("%f, ", x[k + (int)(size*ncf)*(j + size*i)]);
+                printf("%f, ", x[k + (long long unsigned int)(size*ncf)*(j + size*i)]);
             }
         }
     }
@@ -607,7 +788,7 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
         for(i=0;i<size;i=i+s){
             for(j=0;j<size;j=j+s){
                 for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                    corners[counter] =  box[k + (int)(size*ncf)*(j + size*i)];
+                    corners[counter] =  box[k + (long long unsigned int)(size*ncf)*(j + size*i)];
                     counter++;
                 }
             }
@@ -648,7 +829,7 @@ void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
         for(i=0;i<size;i=i+s){
             for(j=0;j<size;j=j+s){
                 for(k=0;k<(int)(size*ncf);k=k+s_ncf){
-                    corners[counter] =  box[k + (int)(size*ncf)*(j + size*i)];
+                    corners[counter] =  box[k + (long long unsigned int)(size*ncf)*(j + size*i)];
                     counter++;
                 }
             }

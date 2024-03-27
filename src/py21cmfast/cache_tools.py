@@ -12,7 +12,7 @@ from typing import Tuple, Union
 from . import outputs
 from ._cfg import config
 
-logger = logging.getLogger("21cmFAST")
+logger = logging.getLogger(__name__)
 
 
 def readbox(

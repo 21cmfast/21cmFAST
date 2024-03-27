@@ -57,6 +57,7 @@
 
 // STRUCTURE //
 #define Deltac (1.68) // at z=0, density excess at virialization
+#define DELTAC_DELOS (1.5)
 #define N_nu (1.0) // # of heavy neutrinos (for EH trasfer function)
 #define BODE_e (0.361) // Epsilon parameter in Bode et al. 2000 trans. funct.
 #define BODE_n (5.0) // Eda parameter in Bode et al. 2000 trans. funct.
@@ -193,19 +194,20 @@
 #define CLASS_LENGTH  150 //length of the CLASS transfer function
 #define KBOT_CLASS (float) (1e-5) //max and min k in  CLASS transfer function, temporary until interfaced properly
 #define KTOP_CLASS (float) (1e3)
+
 //parameters for the M(sigma) power-law relation for FAST_FCOLL_TABLES
 #define MPIVOT1 (double) (1.5e9) //pivot masses
 #define MPIVOT2 (double) (5.3e5)
-#define AINDEX1 (double) (9.0) //power-law indices for low, intermediate, and high masses
-#define AINDEX2 (double) (13.6)
-#define AINDEX3 (double) (21.0)
-#define MMIN_FAST (double) (1e5) // min mass at which the sigma table is computed if FAST_FCOLL_TABLES is turned on. Has to be below MPIVOT2
+#define AINDEX1 (double) (9.0) //power-law index of nu(M) between MPIVOT1 and infinite
+#define AINDEX2 (double) (13.6) //power-law index of nu(M) between MPIVOT2 and MPIVOT1
+#define AINDEX3 (double) (21.0) //power-law index of nu(M) between 0 and MPIVOT2
+#define MMIN_FAST (double) (1e5) //min mass at which the sigma table is computed if FAST_FCOLL_TABLES is turned on. Has to be below MPIVOT2
+
 //parameters for DM-baryon relative velocity effect on the power spectrum
 #define KP_VCB_PM (300.0) //Mpc-1
 #define A_VCB_PM (0.24)
 #define SIGMAK_VCB_PM (0.9)
 //this is for vcb=vrms at z=20. It scales roughly as sqrt(v) and (1+z)^(-1/6.)
-
 
 // ----------------------------------------------------------------------------------------- //
 

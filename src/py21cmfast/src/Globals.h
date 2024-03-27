@@ -38,6 +38,7 @@ struct GlobalParams{
     float PhotonConsEnd;
     float PhotonConsAsymptoteTo;
     float PhotonConsEndCalibz;
+    int PhotonConsSmoothing;
 
     int HEAT_FILTER;
     double CLUMPING_FACTOR;
@@ -80,7 +81,17 @@ struct GlobalParams{
 
     float VAVG;
 
-    bool USE_FAST_ATOMIC; //whether to apply the fast fcoll tables for atomic cooling haloes, usually turned off as it's not a big computational cost and those can deviate ~5-10% at z<10.
+    //Stochasticity Options
+    float STOC_MASS_TOL;
+    float SAMPLER_MIN_MASS;
+    float MAXHALO_FACTOR;
+    int N_MASS_INTERP;
+    int N_COND_INTERP;
+    int N_PROB_INTERP;
+    double MIN_LOGPROB;
+    int SAMPLE_METHOD;
+    int AVG_BELOW_SAMPLER;
+
     bool USE_ADIABATIC_FLUCTUATIONS;
 };
 
@@ -114,6 +125,7 @@ extern struct GlobalParams global_params = {
     .PhotonConsEnd = 0.3,
     .PhotonConsAsymptoteTo = 0.01,
     .PhotonConsEndCalibz = 3.5,
+    .PhotonConsSmoothing = 1,
 
     .HEAT_FILTER = 0,
     .CLUMPING_FACTOR = 2.,
@@ -141,6 +153,8 @@ extern struct GlobalParams global_params = {
     .OMtot = 1.0,
     .Y_He = 0.245,
     .wl = -1.0,
+    // .SHETH_b = 0.485, //In the literature this is 0.485 (RM08) or 0.5 (SMT01) Master 21cmFAST currently has 0.15
+    // .SHETH_c = 0.615, //In the literature this is 0.615 (RM08) or 0.6 (SMT01) Master 21cmFAST currently has 0.05
     .SHETH_b = 0.15,
     .SHETH_c = 0.05,
     .Zreion_HeII = 3.0,
@@ -153,6 +167,15 @@ extern struct GlobalParams global_params = {
 
     .VAVG=25.86,
 
-    .USE_FAST_ATOMIC = 0,
+    .STOC_MASS_TOL = 5.0, //effectively infinite, mass tolerance semi-deprecated
+    .SAMPLER_MIN_MASS = 5e7,
+    .MAXHALO_FACTOR = 2,
+    .N_MASS_INTERP = 200,
+    .N_COND_INTERP = 200,
+    .N_PROB_INTERP = 200,
+    .MIN_LOGPROB = -16,
+    .SAMPLE_METHOD = 0,
+    .AVG_BELOW_SAMPLER = 0,
+
     .USE_ADIABATIC_FLUCTUATIONS = 1,
 };

@@ -156,15 +156,6 @@ def test_globals():
     assert global_params.Z_HEAT_MAX == orig
 
 
-def test_fcoll_on(caplog):
-    f = UserParams(FAST_FCOLL_TABLES=True, USE_INTERPOLATION_TABLES=False)
-    assert not f.FAST_FCOLL_TABLES
-    assert (
-        "You cannot turn on FAST_FCOLL_TABLES without USE_INTERPOLATION_TABLES"
-        in caplog.text
-    )
-
-
 @pytest.mark.xfail(
     __version__ >= "4.0.0", reason="the warning can be removed in v4", strict=True
 )
@@ -218,13 +209,10 @@ def test_user_params():
 
 
 def test_flag_options(caplog):
-    flg = FlagOptions(USE_HALO_FIELD=True, USE_MINI_HALOS=True)
+    flg = FlagOptions(USE_HALO_FIELD=True, USE_MASS_DEPENDENT_ZETA=False)
     assert not flg.USE_HALO_FIELD
-    assert (
-        "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True"
-        in caplog.text
-    )
+    assert "Automatically setting USE_HALO_FIELD to False." in caplog.text
 
-    flg = FlagOptions(PHOTON_CONS=True, USE_MINI_HALOS=True)
-    assert not flg.PHOTON_CONS
-    assert "USE_MINI_HALOS is not compatible with PHOTON_CONS" in caplog.text
+    flg = FlagOptions(PHOTON_CONS_TYPE=1, USE_MINI_HALOS=True)
+    assert flg.PHOTON_CONS_TYPE == 0
+    assert "Automatically setting PHOTON_CONS_TYPE to zero." in caplog.text

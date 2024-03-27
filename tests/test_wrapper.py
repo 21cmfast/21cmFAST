@@ -588,12 +588,12 @@ def test_lc_pass_redshift_deprecation(rectlcn, ic):
 def test_coeval_lowerz_than_photon_cons(ic):
     with pytest.raises(ValueError, match="You have passed a redshift"):
         wrapper.run_coeval(
-            init_box=ic, redshift=2.0, flag_options={"PHOTON_CONS": True}
+            init_box=ic, redshift=2.0, flag_options={"PHOTON_CONS_TYPE": 1}
         )
 
 
 def test_lc_lowerz_than_photon_cons(rectlcn, ic):
     with pytest.raises(ValueError, match="You have passed a redshift"):
         wrapper.run_lightcone(
-            init_box=ic, redshift=2.0, flag_options={"PHOTON_CONS": True}
+            init_box=ic, redshift=2.0, flag_options={"PHOTON_CONS_TYPE": 1}
         )

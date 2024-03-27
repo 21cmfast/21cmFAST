@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as un
@@ -26,6 +27,7 @@ eor_colour = colors.LinearSegmentedColormap.from_list(
     ],
 )
 plt.register_cmap(cmap=eor_colour)
+logger = logging.getLogger(__name__)
 
 
 def _imshow_slice(
@@ -97,18 +99,33 @@ def _imshow_slice(
         slc = slc.T
 
     if cmap == "EoR":
-        imshow_kw["vmin"] = -150
-        imshow_kw["vmax"] = 30
+        imshow_kw["norm"] = colors.Normalize(vmin=-150, vmax=30)
 
     norm_kw = {k: imshow_kw.pop(k) for k in ["vmin", "vmax"] if k in imshow_kw}
-    norm = imshow_kw.get(
+    norm = imshow_kw.pop(
         "norm", colors.LogNorm(**norm_kw) if log else colors.Normalize(**norm_kw)
     )
     plt.imshow(slc, origin="lower", cmap=cmap, norm=norm, **imshow_kw)
 
     if cbar:
+        ax_long = np.amax(slc.shape)
+        ax_short = np.amin(slc.shape)
+        asp = 40 if cbar_horizontal == rotate else 10
+        if cbar_horizontal == rotate:
+            # long edge colorbar
+            frac = ax_long / (asp * ax_short + ax_long)
+            pad = 0.10
+        else:
+            # short edge colorbar
+            frac = ax_short / (asp * ax_long + ax_short)
+            pad = 0.05
+
         cb = plt.colorbar(
-            orientation="horizontal" if cbar_horizontal else "vertical", aspect=40
+            orientation="horizontal" if cbar_horizontal else "vertical",
+            aspect=asp,
+            ax=ax,
+            fraction=frac,
+            pad=pad,
         )
         cb.outline.set_edgecolor(None)
 
@@ -211,6 +228,7 @@ def lightcone_sliceplot(
     zticks: str = "redshift",
     fig: plt.Figure | None = None,
     ax: plt.Axes | None = None,
+    z_max=None,
     **kwargs,
 ):
     """Create a 2D plot of a slice through a lightcone.
@@ -256,14 +274,28 @@ def lightcone_sliceplot(
         "y": 2 if z_axis == "y" else [1, 0, 1][slice_axis],
     }
 
+    plot_shape = [lightcone.shape[axis_dct["x"]], lightcone.shape[axis_dct["y"]]]
+    plot_crd = [
+        lightcone.lightcone_dimensions[axis_dct["x"]],
+        lightcone.lightcone_dimensions[axis_dct["y"]],
+    ]
+
+    plot_sel = Ellipsis
+    if z_max is not None and slice_axis in (0, 1):
+        zmax_idx = np.argmin(np.fabs(z_max - lightcone.lightcone_redshifts))
+        plot_shape[1 if vertical else 0] = zmax_idx
+        plot_crd[1 if vertical else 0] = (
+            lightcone.lightcone_coords[zmax_idx].to("Mpc").value
+        )
+        plot_sel = slice(0, zmax_idx, 1)
+
     if fig is None and ax is None:
         fig, ax = plt.subplots(
             1,
             1,
             figsize=(
-                lightcone.shape[axis_dct["x"]] * 0.015 + 0.5,
-                lightcone.shape[axis_dct["y"]] * 0.015
-                + (2.5 if kwargs.get("cbar", True) else 0.05),
+                plot_shape[0] * 0.015 + 0.5,
+                plot_shape[1] * 0.015 + (2.5 if kwargs.get("cbar", True) else 0.05),
             ),
         )
     elif fig is None:
@@ -283,41 +315,43 @@ def lightcone_sliceplot(
 
     extent = (
         0,
-        lightcone.lightcone_dimensions[axis_dct["x"]],
+        plot_crd[0],
         0,
-        lightcone.lightcone_dimensions[axis_dct["y"]],
+        plot_crd[1],
     )
 
+    cmap = kwargs.pop("cmap", "EoR" if kind == "brightness_temp" else "viridis")
+    cbar_horizontal = kwargs.pop("cbar_horizontal", not vertical)
     if lightcone2 is None:
         fig, ax = _imshow_slice(
-            getattr(lightcone, kind),
+            getattr(lightcone, kind)[:, :, plot_sel],
             extent=extent,
             slice_axis=slice_axis,
             rotate=not vertical,
-            cbar_horizontal=not vertical,
-            cmap=kwargs.get("cmap", "EoR" if kind == "brightness_temp" else "viridis"),
+            cbar_horizontal=cbar_horizontal,
+            cmap=cmap,
             fig=fig,
             ax=ax,
             **kwargs,
         )
     else:
-        d = getattr(lightcone, kind) - getattr(lightcone2, kind)
+        d = (getattr(lightcone, kind)[:, :, plot_sel] - getattr(lightcone2, kind))[
+            :, :, plot_sel
+        ]
         fig, ax = _imshow_slice(
             d,
             extent=extent,
             slice_axis=slice_axis,
             rotate=not vertical,
-            cbar_horizontal=not vertical,
+            cbar_horizontal=cbar_horizontal,
             cmap=kwargs.pop("cmap", "bwr"),
-            vmin=-np.abs(d.max()),
-            vmax=np.abs(d.max()),
             fig=fig,
             ax=ax,
             **kwargs,
         )
 
     if z_axis:
-        zlabel = _set_zaxis_ticks(ax, lightcone, zticks, z_axis)
+        zlabel = _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_max)
 
     if ylabel != "":
         ax.set_ylabel(ylabel or zlabel)
@@ -329,22 +363,32 @@ def lightcone_sliceplot(
     if cbar_label is None:
         if kind == "brightness_temp":
             cbar_label = r"Brightness Temperature, $\delta T_B$ [mK]"
-        elif kind == "xH":
+        elif kind == "xH_box":
             cbar_label = r"Neutral fraction"
+        else:
+            cbar_label = kind
 
-    if vertical:
-        cbar.ax.set_ylabel(cbar_label)
-    else:
+    if cbar_horizontal:
         cbar.ax.set_xlabel(cbar_label)
+    else:
+        cbar.ax.set_ylabel(cbar_label)
 
     return fig, ax
 
 
-def _set_zaxis_ticks(ax, lightcone, zticks, z_axis):
+def _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_max):
+    if zticks == "none":
+        getattr(ax, f"set_{z_axis}ticks")([])
+        getattr(ax, f"set_{z_axis}ticklabels")([])
+        return ""
+
     if zticks != "distance":
+        if z_max is None:
+            z_max = lightcone.lightcone_redshifts.max()
+
         loc = AutoLocator()
         # Get redshift ticks.
-        lc_z = lightcone.lightcone_redshifts
+        lc_z = lightcone.lightcone_redshifts[lightcone.lightcone_redshifts < z_max]
 
         if zticks == "redshift":
             coords = lc_z
@@ -400,6 +444,8 @@ def plot_global_history(
     ylabel: str | None = None,
     ylog: bool = False,
     ax: plt.Axes | None = None,
+    zmax: float | None = None,
+    **kwargs,
 ):
     """
     Plot the global history of a given quantity from a lightcone.
@@ -419,7 +465,7 @@ def plot_global_history(
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(7, 4))
     else:
-        fig = ax._gci().figure
+        fig = ax.get_figure()
 
     if kind is None:
         kind = list(lightcone.global_quantities.keys())[0]
@@ -437,7 +483,9 @@ def plot_global_history(
     else:
         value = getattr(lightcone, "global_" + kind)
 
-    ax.plot(lightcone.node_redshifts, value)
+    sel = np.array(lightcone.node_redshifts) < zmax if zmax is not None else Ellipsis
+
+    ax.plot(np.array(lightcone.node_redshifts)[sel], value[sel], **kwargs)
     ax.set_xlabel("Redshift")
     if ylabel is None:
         ylabel = kind
