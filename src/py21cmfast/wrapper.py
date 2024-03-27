@@ -2790,7 +2790,7 @@ def run_coeval(
             pt_halos = []
             for i, z in enumerate(redshifts[::-1]):
                 if not flag_options.FIXED_HALO_GRIDS:
-                    halos = determine_halo_list(redshift=z, halos_desc=halos_desc**kw)
+                    halos = determine_halo_list(redshift=z, halos_desc=halos_desc, **kw)
                     pt_halos += [perturb_halo_list(redshift=z, halo_field=halos, **kw)]
 
                     # we never want to store every halofield
@@ -3296,6 +3296,8 @@ def run_lightcone(
                 init_box.random_seed,
                 lc,
                 node_redshifts=scrollz,
+                log10_mturnovers=np.zeros_like(scrollz),
+                log10_mturnovers_mini=np.zeros_like(scrollz),
                 global_quantities={
                     quantity: np.zeros(len(scrollz)) for quantity in global_quantities
                 },

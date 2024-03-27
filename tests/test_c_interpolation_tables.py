@@ -87,10 +87,10 @@ def test_sigma_table(name, plt):
         make_table_comparison_plot(
             mass_range,
             np.array([0]),
-            sigma_table,
-            dsigmasq_table[..., None],
-            sigma_ref,
-            dsigmasq_ref[..., None],
+            sigma_table[:, None],
+            dsigmasq_table[:, None],
+            sigma_ref[:, None],
+            dsigmasq_ref[:, None],
             plt,
         )
 
@@ -107,7 +107,7 @@ def test_sigma_table(name, plt):
 #   for now this is acceptable
 # @pytest.mark.xfail
 @pytest.mark.parametrize("name", options_hmf)
-def test_Massfunc_conditional_tables(name, plt):
+def test_Massfunc_conditional_tables(name):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -271,8 +271,6 @@ def test_Massfunc_conditional_tables(name, plt):
         * edges[:-1]
     )
 
-    # initialise_dNdM_tables(const_struct->lnM_min, const_struct->lnM_max_tb,const_struct->lnM_min, const_struct->lnM_max_tb,
-    #                         const_struct->growth_out, const_struct->growth_in, true);
     # Halo Tables
     lib.initialise_dNdM_tables(
         edges_ln[0],
@@ -391,10 +389,10 @@ def test_FgtrM_conditional_tables(name, R, plt):
         make_table_comparison_plot(
             edges_d[:-1],
             np.array([0]),
-            fcoll_tables,
-            dfcoll_tables[..., None],
-            fcoll_integrals,
-            dfcoll_integrals[..., None],
+            fcoll_tables[:, None],
+            dfcoll_tables[:, None],
+            fcoll_integrals[:, None],
+            dfcoll_integrals[:, None],
             plt,
         )
 
@@ -527,9 +525,9 @@ def test_SFRD_z_tables(name, plt):
         make_table_comparison_plot(
             z_array[:-1],
             edges_m[sel_m],
-            SFRD_tables,
+            SFRD_tables[:, None],
             SFRD_tables_mini[..., sel_m],
-            SFRD_integrals,
+            SFRD_integrals[:, None],
             SFRD_integrals_mini[..., sel_m],
             plt,
         )
@@ -668,9 +666,9 @@ def test_Nion_z_tables(name, plt):
         make_table_comparison_plot(
             z_array[:-1],
             edges_m[sel_m],
-            Nion_tables,
+            Nion_tables[:, None],
             Nion_tables_mini[..., sel_m],
-            Nion_integrals,
+            Nion_integrals[:, None],
             Nion_integrals_mini[..., sel_m],
             plt,
         )
@@ -880,8 +878,8 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
             Nion_tb_plot = Nion_tables[..., sel_m]
             Nion_il_plot = Nion_integrals[..., sel_m]
         else:
-            Nion_tb_plot = Nion_tables
-            Nion_il_plot = Nion_integrals
+            Nion_tb_plot = Nion_tables[:, None]
+            Nion_il_plot = Nion_integrals[:, None]
             sel_m = np.array([0]).astype(int)
 
         make_table_comparison_plot(
@@ -1050,9 +1048,9 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
         make_table_comparison_plot(
             edges_d[:-1],
             edges_m[sel_m],
-            SFRD_tables,
+            SFRD_tables[:, None],
             SFRD_tables_mini[..., sel_m],
-            SFRD_integrals,
+            SFRD_integrals[:, None],
             SFRD_integrals_mini[..., sel_m],
             plt,
         )
@@ -1223,16 +1221,18 @@ def test_conditional_integral_methods(R, name, integrand, plt):
 def make_table_comparison_plot(x1, x2, table_1d, table_2d, intgrl_1d, intgrl_2d, plt):
     # rows = values,fracitonal diff, cols = 1d table, 2d table
     fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 16))
-    make_comparison_plot(
-        x1,
-        intgrl_1d,
-        table_1d,
-        ax=axs[:, 0],
-        xlab="delta",
-        ylab="MF integral",
-        logx=False,
-        color="C0",
-    )
+    for i in range(x1.size):
+        make_comparison_plot(
+            x1,
+            intgrl_1d[:, i],
+            table_1d[:, i],
+            ax=axs[:, 0],
+            xlab="delta",
+            ylab="MF integral",
+            label_base=f"Mt = {x2[i]:.1e}" if x1.size > 1 else "",
+            logx=False,
+            color=f"C{i:d}",
+        )
 
     for i in range(x2.size):
         make_comparison_plot(
@@ -1242,7 +1242,7 @@ def make_table_comparison_plot(x1, x2, table_1d, table_2d, intgrl_1d, intgrl_2d,
             ax=axs[:, 1],
             xlab="delta",
             ylab="MF integral mini",
-            label_base=f"Mt = {x2[i]:.1e}",
+            label_base=f"Mt = {x2[i]:.1e}" if x2.size > 1 else "",
             logx=False,
             color=f"C{i:d}",
         )

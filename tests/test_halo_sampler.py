@@ -17,7 +17,7 @@ options_hmf = list(cint.OPTIONS_HMF.keys())
 
 # @pytest.mark.xfail
 @pytest.mark.parametrize("name", options_hmf)
-def test_sampler(name, plt):
+def test_sampler(name):
     redshift, kwargs = cint.OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
