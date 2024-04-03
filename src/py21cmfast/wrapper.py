@@ -2832,6 +2832,7 @@ def run_coeval(
 
         perturb_min = perturb[np.argmin(redshift)]
 
+        hb_tracker = [None] * len(redshift)
         st_tracker = [None] * len(redshift)
 
         spin_temp_files = []
@@ -2918,6 +2919,10 @@ def run_coeval(
                     st2 if flag_options.USE_TS_FLUCT else None
                 )
 
+                hb_tracker[redshift.index(z)] = (
+                    hb2 if flag_options.USE_HALO_FIELD else None
+                )
+
                 _bt = brightness_temperature(
                     ionized_box=ib2,
                     perturbed_field=pf2,
@@ -2957,7 +2962,7 @@ def run_coeval(
                 ionized_box=ib,
                 brightness_temp=_bt,
                 ts_box=st,
-                halobox=hb2 if flag_options.USE_HALO_FIELD else None,
+                halobox=hb if flag_options.USE_HALO_FIELD else None,
                 photon_nonconservation_data=photon_nonconservation_data,
                 cache_files={
                     "init": [(0, os.path.join(direc, init_box.filename))],
@@ -2969,7 +2974,7 @@ def run_coeval(
                     "pt_halos": pth_files,
                 },
             )
-            for z, ib, _bt, st in zip(redshift, ib_tracker, bt, st_tracker)
+            for z, ib, _bt, st, hb in zip(redshift, ib_tracker, bt, st_tracker, hb_tracker)
         ]
 
         # If a single redshift was passed, then pass back singletons.
