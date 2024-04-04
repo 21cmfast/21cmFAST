@@ -2974,7 +2974,9 @@ def run_coeval(
                     "pt_halos": pth_files,
                 },
             )
-            for z, ib, _bt, st, hb in zip(redshift, ib_tracker, bt, st_tracker, hb_tracker)
+            for z, ib, _bt, st, hb in zip(
+                redshift, ib_tracker, bt, st_tracker, hb_tracker
+            )
         ]
 
         # If a single redshift was passed, then pass back singletons.
