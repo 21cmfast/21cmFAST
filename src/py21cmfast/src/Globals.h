@@ -91,6 +91,8 @@ struct GlobalParams{
     double MIN_LOGPROB;
     int SAMPLE_METHOD;
     int AVG_BELOW_SAMPLER;
+    double UPPER_STELLAR_TURNOVER_MASS;
+    double UPPER_STELLAR_TURNOVER_INDEX;
 
     bool USE_ADIABATIC_FLUCTUATIONS;
 };
@@ -176,6 +178,8 @@ extern struct GlobalParams global_params = {
     .MIN_LOGPROB = -16,
     .SAMPLE_METHOD = 0,
     .AVG_BELOW_SAMPLER = 0,
+    .UPPER_STELLAR_TURNOVER_MASS = 2.8e11,
+    .UPPER_STELLAR_TURNOVER_INDEX = -0.61,
 
     .USE_ADIABATIC_FLUCTUATIONS = 1,
 };

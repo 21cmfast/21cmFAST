@@ -315,6 +315,12 @@ class GlobalParams(StructInstanceWrapper):
     AVG_BELOW_SAMPLER:
         int flag to add the average halo proeprties in each cell between the source mass limit
         and the mass sampled by the halo sampler
+    UPPER_STELLAR_TURNOVER_MASS:
+        The pivot mass associated with the optional upper mass power-law of the stellar-halo mass relation
+        (see FlagOptions.USE_UPPER_STELLAR_TURNOVER)
+    UPPER_STELLAR_TURNOVER_INDEX:
+        The power-law index associated with the optional upper mass power-law of the stellar-halo mass relation
+        (see FlagOptions.USE_UPPER_STELLAR_TURNOVER)
     """
 
     def __init__(self, wrapped, ffi):
@@ -757,6 +763,10 @@ class FlagOptions(StructWithDefaults):
         This is part of the perspective shift (see Davies & Furlanetto 2021) from counting photons/atoms in a sphere and flagging a central
         pixel to counting photons which we expect to reach the central pixel, and taking the ratio of atoms in the pixel.
         This flag simply turns off the filtering of N_rec grids, and takes the recombinations in the central cell.
+    USE_UPPER_STELLAR_TURNOVER: bool, optional
+        Whether to use an additional powerlaw in stellar mass fraction at high halo mass. The pivot mass scale and power-law index are
+        controlled by two global parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
+        This is currently only implemented in the halo model (USE_HALO_FIELD=True), and has no effect otherwise.
     """
 
     _ffi = ffi
@@ -778,6 +788,7 @@ class FlagOptions(StructWithDefaults):
         "FIXED_HALO_GRIDS": False,
         "CELL_RECOMB": False,
         "PHOTON_CONS_TYPE": 0,  # Should these all be boolean?
+        "USE_UPPER_STELLAR_TURNOVER": True,
     }
 
     @property
