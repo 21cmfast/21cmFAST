@@ -30,10 +30,10 @@ void set_halo_properties(float halo_mass, float M_turn_a, float M_turn_m, float 
     fesc = fmin(norm_esc_var*pow(halo_mass/1e10,alpha_esc_var),1);
 
     //We don't want an upturn even with a negative ALPHA_STAR
-    if(flag_options_stoc->USE_UPPER_STELLAR_TURNOVER && (astro_params_stoc->ALPHA_STAR > global_params.UPPER_STELLAR_TURNOVER_INDEX)){
-        fstar_mean = f10 * exp(-M_turn_a/halo_mass) * pow(global_params.UPPER_STELLAR_TURNOVER_MASS/1e10,astro_params_stoc->ALPHA_STAR);
-        fstar_mean /= pow(halo_mass/global_params.UPPER_STELLAR_TURNOVER_MASS,-astro_params_stoc->ALPHA_STAR)
-                        + pow(halo_mass/global_params.UPPER_STELLAR_TURNOVER_MASS,-global_params.UPPER_STELLAR_TURNOVER_INDEX);
+    if(flag_options_stoc->USE_UPPER_STELLAR_TURNOVER && (astro_params_stoc->ALPHA_STAR > astro_params_stoc->UPPER_STELLAR_TURNOVER_INDEX)){
+        fstar_mean = f10 * exp(-M_turn_a/halo_mass) * pow(astro_params_stoc->UPPER_STELLAR_TURNOVER_MASS/1e10,astro_params_stoc->ALPHA_STAR);
+        fstar_mean /= pow(halo_mass/astro_params_stoc->UPPER_STELLAR_TURNOVER_MASS,-astro_params_stoc->ALPHA_STAR)
+                        + pow(halo_mass/astro_params_stoc->UPPER_STELLAR_TURNOVER_MASS,-astro_params_stoc->UPPER_STELLAR_TURNOVER_INDEX);
     }
     else{
         fstar_mean = f10 * pow(halo_mass/1e10,fa) * exp(-M_turn_a/halo_mass);

@@ -71,6 +71,9 @@ struct AstroParams{
     float t_STAR;
 
     int N_RSD_STEPS;
+
+    double UPPER_STELLAR_TURNOVER_MASS;
+    double UPPER_STELLAR_TURNOVER_INDEX;
 };
 
 struct FlagOptions{
