@@ -170,7 +170,7 @@ def test_Massfunc_conditional_tables(name):
     )
 
     max_in_d = N_cmfi_cell[:, :1]
-    max_in_d[:,0] = 1. #fix delta=-1
+    max_in_d[edges_d[:-1] == -1, :] = 1.0  # fix delta=-1 where all entries are zero
     N_cmfi_cell = (
         N_cmfi_cell / max_in_d
     )  # to get P(>M) since the y-axis is the lower integral limit
@@ -1226,7 +1226,9 @@ def test_conditional_integral_methods(R, name, integrand, plt):
     )
 
 
-def make_table_comparison_plot(x1, tb1_z, tb2_z, table_1d, table_2d, intgrl_1d, intgrl_2d, plt):
+def make_table_comparison_plot(
+    x1, tb1_z, tb2_z, table_1d, table_2d, intgrl_1d, intgrl_2d, plt
+):
     # rows = values,fracitonal diff, cols = 1d table, 2d table
     fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 16))
     for i in range(tb1_z.size):
