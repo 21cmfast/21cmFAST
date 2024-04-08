@@ -149,11 +149,9 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
     LOG_DEBUG("Mean halo boxes || M = [%.2e %.2e] | Mcell = %.2e (s=%.2e) | z = %.2e | D = %.2e | cellvol = %.2e",M_min,M_max,M_cell,sigma_cell,redshift,growth_z,cell_volume);
     LOG_DEBUG("Power law limits || Fstar = %.4e | Fesc =  %.4e",Mlim_Fstar,Mlim_Fesc);
 
-    //These tables are coarser than needed, an initial loop to find limits may help
+    //These tables are coarser than needed, an initial loop for Mturn to find limits may help
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
         if(user_params_stoc->INTEGRATION_METHOD_ATOMIC == 1 || user_params_stoc->INTEGRATION_METHOD_MINI == 1){
-            M_max = M_cell; //we need these to be the same for the "smoothness" assumption of the GL integration
-            lnMmax = lnMcell;
             initialise_GL(NGL_INT, lnMmin, lnMmax);
         }
 
@@ -209,7 +207,6 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                 M_turn_m = M_turn_r > M_turn_m_nofb ? M_turn_r : M_turn_m_nofb;
             }
 
-            
             h_count = EvaluateNhalo(dens, growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens);
             mass = EvaluateMcoll(dens, growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens);
             nion = EvaluateNion_Conditional(dens,log10(M_turn_a),growth_z,M_min,M_max,M_cell,sigma_cell,Mlim_Fstar,Mlim_Fesc,false);
@@ -333,7 +330,7 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
         initialise_GL(NGL_INT, lnMmin, lnMmax);
 
     //NOTE: we use the atomic method for all halo mass/count here
-    hm_expected = IntegratedNdM(lnMmin,lnMmax,params,2,user_params_stoc->INTEGRATION_METHOD_ATOMIC);
+    hm_expected = FgtrM_General(redshift,M_min) * prefactor_mass;
     nion_expected = Nion_General(redshift, lnMmin, lnMmax, M_turn_a, alpha_star, alpha_esc, norm_star,
                                  norm_esc, Mlim_Fstar, Mlim_Fesc) * prefactor_nion;
     sfr_expected = Nion_General(redshift, lnMmin, lnMmax, M_turn_a, alpha_star, 0., norm_star, 1.,
@@ -348,7 +345,6 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
                                             1., Mlim_Fstar_mini, 0.) * prefactor_sfr_mini;
     }
 
-    // hm_expected *= prefactor_mass; //for non-CMF, the factors are already there
     wsfr_expected = nion_expected / t_star / t_h; //same integral, different prefactors, different in the stochastic grids due to scatter
 
     averages[0] = hm_expected;

@@ -169,8 +169,10 @@ def test_Massfunc_conditional_tables(name):
         up.INTEGRATION_METHOD_HALOS,
     )
 
+    max_in_d = N_cmfi_cell[:, :1]
+    max_in_d[:,0] = 1. #fix delta=-1
     N_cmfi_cell = (
-        N_cmfi_cell / N_cmfi_cell[:, :1]
+        N_cmfi_cell / max_in_d
     )  # to get P(>M) since the y-axis is the lower integral limit
     mask_cell = N_cmfi_cell > np.exp(
         global_params.MIN_LOGPROB
