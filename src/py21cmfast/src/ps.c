@@ -1552,7 +1552,7 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond
 
     //return 1 halo AT THE CONDITION MASS if delta is exceeded
     if(delta > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma,growthf)){
-        if(M_cond*0.99 <= exp(lnM2)) //this limit is not ideal, but covers floating point errors when we set lnM2 == log(M_cond)
+        if(M_cond*(1-FRACT_FLOAT_ERR) <= exp(lnM2)) //this limit is not ideal, but covers floating point errors when we set lnM2 == log(M_cond)
             return 1./M_cond;
         else
             return 0.;
@@ -1573,7 +1573,7 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond
 
     //return 100% of mass AT THE CONDITION MASS if delta is exceeded
     if(delta > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma,growthf)){
-        if(M_cond*0.99 <= exp(lnM2)) //this limit is not ideal, but covers floating point errors when we set lnM2 == log(M_cond)
+        if(M_cond*(1-FRACT_FLOAT_ERR) <= exp(lnM2)) //this limit is not ideal, but covers floating point errors when we set lnM2 == log(M_cond)
             return 1.;
         else
             return 0.;
@@ -1607,7 +1607,7 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M
     //NOTE: this will almost always be zero, due to the upper turover,
     // however this replaces an integral so it won't be slow
     if(delta2 > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma2,growthf)){
-        if(M_cond*0.99 <= exp(lnM2)) //this limit is not ideal, but covers floating point errors when we set lnM2 == log(M_cond)
+        if(M_cond*(1-FRACT_FLOAT_ERR) <= exp(lnM2)) //this limit is not ideal, but covers floating point errors when we set lnM2 == log(M_cond)
             return nion_fraction_mini(M_cond,&params); //NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
         else
             return 0.;
@@ -1640,7 +1640,7 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
 
     //return 1 halo at the condition mass if delta is exceeded
     if(delta2 > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma2,growthf)){
-        if(M_cond*0.99 <= exp(lnM2))
+        if(M_cond*(1-FRACT_FLOAT_ERR) <= exp(lnM2))
             return nion_fraction(M_cond,&params); //NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
         else
             return 0.;
