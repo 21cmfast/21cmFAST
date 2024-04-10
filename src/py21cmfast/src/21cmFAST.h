@@ -71,6 +71,9 @@ struct AstroParams{
     float t_STAR;
 
     int N_RSD_STEPS;
+
+    double UPPER_STELLAR_TURNOVER_MASS;
+    double UPPER_STELLAR_TURNOVER_INDEX;
 };
 
 struct FlagOptions{
@@ -92,6 +95,7 @@ struct FlagOptions{
     bool FIXED_HALO_GRIDS;
     bool CELL_RECOMB;
     int PHOTON_CONS_TYPE;
+    bool USE_UPPER_STELLAR_TURNOVER;
 };
 
 

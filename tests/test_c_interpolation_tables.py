@@ -87,6 +87,7 @@ def test_sigma_table(name, plt):
         make_table_comparison_plot(
             mass_range,
             np.array([0]),
+            np.array([0]),
             sigma_table[:, None],
             dsigmasq_table[:, None],
             sigma_ref[:, None],
@@ -168,8 +169,10 @@ def test_Massfunc_conditional_tables(name):
         up.INTEGRATION_METHOD_HALOS,
     )
 
+    max_in_d = N_cmfi_cell[:, :1]
+    max_in_d[edges_d[:-1] == -1, :] = 1.0  # fix delta=-1 where all entries are zero
     N_cmfi_cell = (
-        N_cmfi_cell / N_cmfi_cell[:, :1]
+        N_cmfi_cell / max_in_d
     )  # to get P(>M) since the y-axis is the lower integral limit
     mask_cell = N_cmfi_cell > np.exp(
         global_params.MIN_LOGPROB
@@ -389,6 +392,7 @@ def test_FgtrM_conditional_tables(name, R, plt):
         make_table_comparison_plot(
             edges_d[:-1],
             np.array([0]),
+            np.array([0]),
             fcoll_tables[:, None],
             dfcoll_tables[:, None],
             fcoll_integrals[:, None],
@@ -524,6 +528,7 @@ def test_SFRD_z_tables(name, plt):
         sel_m = (xl * np.arange(6) / 6).astype(int)
         make_table_comparison_plot(
             z_array[:-1],
+            np.array([0]),
             edges_m[sel_m],
             SFRD_tables[:, None],
             SFRD_tables_mini[..., sel_m],
@@ -665,6 +670,7 @@ def test_Nion_z_tables(name, plt):
         sel_m = (xl * np.arange(6) / 6).astype(int)
         make_table_comparison_plot(
             z_array[:-1],
+            np.array([0]),
             edges_m[sel_m],
             Nion_tables[:, None],
             Nion_tables_mini[..., sel_m],
@@ -885,6 +891,7 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
         make_table_comparison_plot(
             edges_d[:-1],
             edges_m[sel_m],
+            edges_m[sel_m],
             Nion_tb_plot,
             Nion_tables_mini[..., sel_m],
             Nion_il_plot,
@@ -1047,6 +1054,7 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
         sel_m = (xl * np.arange(6) / 6).astype(int)
         make_table_comparison_plot(
             edges_d[:-1],
+            np.array([0]),
             edges_m[sel_m],
             SFRD_tables[:, None],
             SFRD_tables_mini[..., sel_m],
@@ -1218,10 +1226,12 @@ def test_conditional_integral_methods(R, name, integrand, plt):
     )
 
 
-def make_table_comparison_plot(x1, x2, table_1d, table_2d, intgrl_1d, intgrl_2d, plt):
+def make_table_comparison_plot(
+    x1, tb1_z, tb2_z, table_1d, table_2d, intgrl_1d, intgrl_2d, plt
+):
     # rows = values,fracitonal diff, cols = 1d table, 2d table
     fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 16))
-    for i in range(x1.size):
+    for i in range(tb1_z.size):
         make_comparison_plot(
             x1,
             intgrl_1d[:, i],
@@ -1229,12 +1239,12 @@ def make_table_comparison_plot(x1, x2, table_1d, table_2d, intgrl_1d, intgrl_2d,
             ax=axs[:, 0],
             xlab="delta",
             ylab="MF integral",
-            label_base=f"Mt = {x2[i]:.1e}" if x1.size > 1 else "",
+            label_base=f"Mt = {tb1_z[i]:.1e}" if tb1_z.size > 1 else "",
             logx=False,
             color=f"C{i:d}",
         )
 
-    for i in range(x2.size):
+    for i in range(tb2_z.size):
         make_comparison_plot(
             x1,
             intgrl_2d[:, i],
@@ -1242,7 +1252,7 @@ def make_table_comparison_plot(x1, x2, table_1d, table_2d, intgrl_1d, intgrl_2d,
             ax=axs[:, 1],
             xlab="delta",
             ylab="MF integral mini",
-            label_base=f"Mt = {x2[i]:.1e}" if x2.size > 1 else "",
+            label_base=f"Mt = {tb2_z[i]:.1e}" if tb2_z.size > 1 else "",
             logx=False,
             color=f"C{i:d}",
         )

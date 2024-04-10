@@ -757,6 +757,10 @@ class FlagOptions(StructWithDefaults):
         This is part of the perspective shift (see Davies & Furlanetto 2021) from counting photons/atoms in a sphere and flagging a central
         pixel to counting photons which we expect to reach the central pixel, and taking the ratio of atoms in the pixel.
         This flag simply turns off the filtering of N_rec grids, and takes the recombinations in the central cell.
+    USE_UPPER_STELLAR_TURNOVER: bool, optional
+        Whether to use an additional powerlaw in stellar mass fraction at high halo mass. The pivot mass scale and power-law index are
+        controlled by two global parameters, UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
+        This is currently only implemented in the halo model (USE_HALO_FIELD=True), and has no effect otherwise.
     """
 
     _ffi = ffi
@@ -778,6 +782,7 @@ class FlagOptions(StructWithDefaults):
         "FIXED_HALO_GRIDS": False,
         "CELL_RECOMB": False,
         "PHOTON_CONS_TYPE": 0,  # Should these all be boolean?
+        "USE_UPPER_STELLAR_TURNOVER": True,
     }
 
     @property
@@ -980,6 +985,12 @@ class AstroParams(StructWithDefaults):
         Impact of the LW feedback on Mturn for minihaloes. Default is 22.8685 and 0.47 following Machacek+01, respectively. Latest simulations suggest 2.0 and 0.6. See Sec 2 of Muñoz+21 (2110.13919).
     A_VCB, BETA_VCB: float, optional
         Impact of the DM-baryon relative velocities on Mturn for minihaloes. Default is 1.0 and 1.8, and agrees between different sims. See Sec 2 of Muñoz+21 (2110.13919).
+    UPPER_STELLAR_TURNOVER_MASS:
+        The pivot mass associated with the optional upper mass power-law of the stellar-halo mass relation
+        (see FlagOptions.USE_UPPER_STELLAR_TURNOVER)
+    UPPER_STELLAR_TURNOVER_INDEX:
+        The power-law index associated with the optional upper mass power-law of the stellar-halo mass relation
+        (see FlagOptions.USE_UPPER_STELLAR_TURNOVER)
     """
 
     _ffi = ffi
@@ -1012,6 +1023,8 @@ class AstroParams(StructWithDefaults):
         "BETA_LW": 0.6,
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
+        "UPPER_STELLAR_TURNOVER_MASS": 11.447,  # 2.8e11
+        "UPPER_STELLAR_TURNOVER_INDEX": -0.61,
     }
 
     def __init__(
@@ -1034,6 +1047,7 @@ class AstroParams(StructWithDefaults):
             "L_X",
             "L_X_MINI",
             "X_RAY_Tvir_MIN",
+            "UPPER_STELLAR_TURNOVER_MASS",
         ]:
             return 10**val
         else:

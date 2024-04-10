@@ -30,9 +30,10 @@ void set_halo_properties(float halo_mass, float M_turn_a, float M_turn_m, float 
     fesc = fmin(norm_esc_var*pow(halo_mass/1e10,alpha_esc_var),1);
 
     //We don't want an upturn even with a negative ALPHA_STAR
-    if(astro_params_stoc->ALPHA_STAR > -0.61){
-        fstar_mean = f10 * exp(-M_turn_a/halo_mass) * pow(2.6e11/1e10,astro_params_stoc->ALPHA_STAR);
-        fstar_mean /= pow(halo_mass/2.8e11,-astro_params_stoc->ALPHA_STAR) + pow(halo_mass/2.8e11,0.61);
+    if(flag_options_stoc->USE_UPPER_STELLAR_TURNOVER && (astro_params_stoc->ALPHA_STAR > astro_params_stoc->UPPER_STELLAR_TURNOVER_INDEX)){
+        fstar_mean = f10 * exp(-M_turn_a/halo_mass) * pow(astro_params_stoc->UPPER_STELLAR_TURNOVER_MASS/1e10,astro_params_stoc->ALPHA_STAR);
+        fstar_mean /= pow(halo_mass/astro_params_stoc->UPPER_STELLAR_TURNOVER_MASS,-astro_params_stoc->ALPHA_STAR)
+                        + pow(halo_mass/astro_params_stoc->UPPER_STELLAR_TURNOVER_MASS,-astro_params_stoc->UPPER_STELLAR_TURNOVER_INDEX);
     }
     else{
         fstar_mean = f10 * pow(halo_mass/1e10,fa) * exp(-M_turn_a/halo_mass);
@@ -112,20 +113,29 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
     double prefactor_sfr = RHOcrit * cosmo_params_stoc->OMb * norm_star / t_star / t_h;
     double prefactor_sfr_mini = RHOcrit * cosmo_params_stoc->OMb * norm_star_mini / t_star / t_h;
 
-    double Mlim_Fstar = Mass_limit_bisection(M_min, M_cell, alpha_star, norm_star);
-    double Mlim_Fesc = Mass_limit_bisection(M_min, M_cell, alpha_esc, norm_esc);
+    double Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, alpha_star, norm_star);
+    double Mlim_Fesc = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, alpha_esc, norm_esc);
 
-    double Mlim_Fstar_mini = Mass_limit_bisection(M_min, M_cell, alpha_star_mini, norm_star_mini * pow(1e3,alpha_star_mini));
-    double Mlim_Fesc_mini = Mass_limit_bisection(M_min, M_cell, alpha_esc, norm_esc_mini * pow(1e3,alpha_esc));
+    double Mlim_Fstar_mini = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, alpha_star_mini, norm_star_mini * pow(1e3,alpha_star_mini));
+    double Mlim_Fesc_mini = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, alpha_esc, norm_esc_mini * pow(1e3,alpha_esc));
 
     double hm_avg=0, nion_avg=0, sfr_avg=0, sfr_avg_mini=0, wsfr_avg=0;
     double Mlim_a_avg=0, Mlim_m_avg=0, Mlim_r_avg=0;
 
-    //interptable variables
-    double min_density = -1;
-    double max_density = MAX_DELTAC_FRAC*Deltac;
-
-    double delta_crit = get_delta_crit(user_params_stoc->HMF,sigma_cell,growth_z);
+    //find density grid limits
+    double min_density = 0.;
+    double max_density = 0.;
+    #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
+    {
+        int i;
+        double dens;
+        #pragma omp for reduction(min:min_density) reduction(max:max_density)
+        for(i=0;i<HII_TOT_NUM_PIXELS;i++){
+            dens = perturbed_field->density[i];
+            if(dens > max_density) max_density = dens;
+            if(dens < min_density) min_density = dens;
+        }
+    }
 
     struct parameters_gsl_MF_integrals params = {
             .redshift = redshift,
@@ -137,12 +147,11 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
     double M_turn_a_nofb = flag_options_stoc->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params_stoc->M_TURN;
 
     LOG_DEBUG("Mean halo boxes || M = [%.2e %.2e] | Mcell = %.2e (s=%.2e) | z = %.2e | D = %.2e | cellvol = %.2e",M_min,M_max,M_cell,sigma_cell,redshift,growth_z,cell_volume);
+    LOG_DEBUG("Power law limits || Fstar = %.4e | Fesc =  %.4e",Mlim_Fstar,Mlim_Fesc);
 
-    //These tables are coarser than needed, an initial loop to find limits may help
+    //These tables are coarser than needed, an initial loop for Mturn to find limits may help
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
         if(user_params_stoc->INTEGRATION_METHOD_ATOMIC == 1 || user_params_stoc->INTEGRATION_METHOD_MINI == 1){
-            M_max = M_cell; //we need these to be the same for the "smoothness" assumption of the GL integration
-            lnMmax = lnMcell;
             initialise_GL(NGL_INT, lnMmin, lnMmax);
         }
 
@@ -170,7 +179,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
     {
         int i;
-        double dens=0;
+        double dens;
         double mass=0, nion=0, sfr=0, h_count=0;
         double nion_mini=0, sfr_mini=0;
         double wsfr=0;
@@ -198,41 +207,15 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                 M_turn_m = M_turn_r > M_turn_m_nofb ? M_turn_r : M_turn_m_nofb;
             }
 
-            //ignore very low density NOTE:not using DELTA_MIN since it's perturbed (Eulerian)
-            if(dens <= -1){
-                mass = 0.;
-                nion = 0.;
-                sfr = 0.;
-                h_count = 0;
+            h_count = EvaluateNhalo(dens, growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens);
+            mass = EvaluateMcoll(dens, growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens);
+            nion = EvaluateNion_Conditional(dens,log10(M_turn_a),growth_z,M_min,M_max,M_cell,sigma_cell,Mlim_Fstar,Mlim_Fesc,false);
+            sfr = EvaluateSFRD_Conditional(dens,growth_z,M_min,M_max,M_cell,sigma_cell,log10(M_turn_a),Mlim_Fstar);
+            if(flag_options_stoc->USE_MINI_HALOS){
+                sfr_mini = EvaluateSFRD_Conditional_MINI(dens,log10(M_turn_m),growth_z,M_min,M_max,M_cell,sigma_cell,log10(M_turn_a),Mlim_Fstar);
+                nion_mini = EvaluateNion_Conditional_MINI(dens,log10(M_turn_m),growth_z,M_min,M_max,M_cell,sigma_cell,log10(M_turn_a),Mlim_Fstar,Mlim_Fesc,false);
             }
-            //turn into one large halo if we exceed the critical
-            //Since these are perturbed (Eulerian) grids, I use the total cell mass (1+dens)
-            else if(dens>=MAX_DELTAC_FRAC*delta_crit){
-                if(M_cell <= M_max){
-                    mass = M_cell * (1+dens) / cell_volume;
-                    nion = prefactor_nion * M_cell * (1+dens) / cosmo_params_stoc->OMm / RHOcrit * pow(M_cell*(1+dens)/1e10,alpha_star) * pow(M_cell*(1+dens)/1e10,alpha_esc) / cell_volume;
-                    sfr = prefactor_sfr * M_cell * (1+dens) / cosmo_params_stoc->OMm / RHOcrit * pow(M_cell*(1+dens)/1e10,alpha_star) / cell_volume;
-                    h_count = 1;
-                }
-                else{
-                    //here the cell delta is above critical, but the integrals do not include the cell mass, so we set to zero
-                    //NOTE: this function gives integral [M_min,M_limit] given a cell
-                    mass = 0.;
-                    nion = 0.;
-                    sfr = 0.;
-                    h_count = 0;
-                }
-            }
-            else{
-                h_count = EvaluateNhalo(dens, growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens);
-                mass = EvaluateMcoll(dens, growth_z, lnMmin, lnMmax, M_cell, sigma_cell, dens);
-                nion = EvaluateNion_Conditional(dens,log10(M_turn_a),growth_z,M_min,M_max,M_cell,sigma_cell,Mlim_Fstar,Mlim_Fesc,false);
-                sfr = EvaluateSFRD_Conditional(dens,growth_z,M_min,M_max,M_cell,sigma_cell,log10(M_turn_a),Mlim_Fstar);
-                if(flag_options_stoc->USE_MINI_HALOS){
-                    sfr_mini = EvaluateSFRD_Conditional_MINI(dens,log10(M_turn_m),growth_z,M_min,M_max,M_cell,sigma_cell,log10(M_turn_a),Mlim_Fstar);
-                    nion_mini = EvaluateNion_Conditional_MINI(dens,log10(M_turn_m),growth_z,M_min,M_max,M_cell,sigma_cell,log10(M_turn_a),Mlim_Fstar,Mlim_Fesc,false);
-                }
-            }
+
             grids->halo_mass[i] = mass * prefactor_mass * (1+dens);
             grids->n_ion[i] = (nion*prefactor_nion + nion_mini*prefactor_nion_mini) * (1+dens);
             grids->halo_sfr[i] = (sfr*prefactor_sfr) * (1+dens);
@@ -264,8 +247,8 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                                                 dens, M_turn_m, M_turn_a, alpha_star_mini,
                                                 0., norm_star_mini, 1., Mlim_Fstar_mini, 0.,
                                                 user_params_stoc->INTEGRATION_METHOD_MINI));
-                    LOG_SUPER_DEBUG("ACG MTURN %.3e (%.3e) MCG MTURN %.3e (%.3e) REION %.3e",M_turn_a_nofb,M_turn_a,M_turn_m_nofb,M_turn_m,M_turn_r);
                 }
+                LOG_SUPER_DEBUG("ACG MTURN %.3e (%.3e) MCG MTURN %.3e (%.3e) REION %.3e",M_turn_a_nofb,M_turn_a,M_turn_m_nofb,M_turn_m,M_turn_r);
             }
 
             hm_avg += grids->halo_mass[i];
@@ -347,7 +330,7 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
         initialise_GL(NGL_INT, lnMmin, lnMmax);
 
     //NOTE: we use the atomic method for all halo mass/count here
-    hm_expected = IntegratedNdM(lnMmin,lnMmax,params,2,user_params_stoc->INTEGRATION_METHOD_ATOMIC);
+    hm_expected = FgtrM_General(redshift,M_min) * prefactor_mass;
     nion_expected = Nion_General(redshift, lnMmin, lnMmax, M_turn_a, alpha_star, alpha_esc, norm_star,
                                  norm_esc, Mlim_Fstar, Mlim_Fesc) * prefactor_nion;
     sfr_expected = Nion_General(redshift, lnMmin, lnMmax, M_turn_a, alpha_star, 0., norm_star, 1.,
@@ -362,7 +345,6 @@ int get_box_averages(double redshift, double norm_esc, double alpha_esc, double 
                                             1., Mlim_Fstar_mini, 0.) * prefactor_sfr_mini;
     }
 
-    // hm_expected *= prefactor_mass; //for non-CMF, the factors are already there
     wsfr_expected = nion_expected / t_star / t_h; //same integral, different prefactors, different in the stochastic grids due to scatter
 
     averages[0] = hm_expected;

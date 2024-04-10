@@ -1550,9 +1550,15 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond
         .delta = delta,
     };
 
-    //return 1 halo if delta is exceeded
-    if(delta > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma,growthf))
-        return 1./M_cond;
+    //return 1 halo AT THE CONDITION MASS if delta is exceeded
+    if(delta > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma,growthf)){
+        if(M_cond*(1-FRACT_FLOAT_ERR) <= exp(lnM2)) //this limit is not ideal, but covers floating point errors when we set lnM2 == log(M_cond)
+            return 1./M_cond;
+        else
+            return 0.;
+    }
+    if(delta <= -1.)
+        return 0.;
 
     return IntegratedNdM(lnM1,lnM2,params,-1, method);
 }
@@ -1565,9 +1571,15 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond
         .delta = delta,
     };
 
-    //return 100% of mass if delta is exceeded
-    if(delta > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma,growthf))
-        return 1.;
+    //return 100% of mass AT THE CONDITION MASS if delta is exceeded
+    if(delta > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma,growthf)){
+        if(M_cond*(1-FRACT_FLOAT_ERR) <= exp(lnM2)) //this limit is not ideal, but covers floating point errors when we set lnM2 == log(M_cond)
+            return 1.;
+        else
+            return 0.;
+    }
+    if(delta <= -1.)
+        return 0.;
 
     return IntegratedNdM(lnM1,lnM2,params,-2, method);
 }
@@ -1594,8 +1606,14 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M
     //return 1 halo at the condition mass if delta is exceeded
     //NOTE: this will almost always be zero, due to the upper turover,
     // however this replaces an integral so it won't be slow
-    if(delta2 > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma2,growthf))
-        return nion_fraction_mini(M_cond,&params); //NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
+    if(delta2 > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma2,growthf)){
+        if(M_cond*(1-FRACT_FLOAT_ERR) <= exp(lnM2)) //this limit is not ideal, but covers floating point errors when we set lnM2 == log(M_cond)
+            return nion_fraction_mini(M_cond,&params); //NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
+        else
+            return 0.;
+    }
+    if(delta2 <= -1.)
+        return 0.;
 
     // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e Mtu=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e hmf=%d sig=%.2e del=%.2e",
     //     growthf,MassTurnover,MassTurnover_upper,Alpha_star,Alpha_esc,Fstar7,Fesc7,Mlim_Fstar,Mlim_Fesc,0,sigma2,delta2);
@@ -1621,8 +1639,14 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
     };
 
     //return 1 halo at the condition mass if delta is exceeded
-    if(delta2 > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma2,growthf))
-        return nion_fraction(M_cond,&params); //NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
+    if(delta2 > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma2,growthf)){
+        if(M_cond*(1-FRACT_FLOAT_ERR) <= exp(lnM2))
+            return nion_fraction(M_cond,&params); //NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
+        else
+            return 0.;
+    }
+    if(delta2 <= -1.)
+        return 0.;
 
     // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e sig=%.2e del=%.2e",
     //     growthf,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,sigma2,delta2);

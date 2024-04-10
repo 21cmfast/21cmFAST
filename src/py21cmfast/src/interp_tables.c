@@ -392,7 +392,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
     }
     SFRD_conditional_table.x_min = min_density;
     SFRD_conditional_table.x_width = (max_density - min_density)/(NDELTA-1.);
-    Mlim_Fstar = Mass_limit_bisection(Mmin, Mmax, Alpha_star, Fstar10);
+    Mlim_Fstar = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, Alpha_star, Fstar10);
 
     if(minihalos){
         if(!SFRD_conditional_table_MINI.allocated){
@@ -402,7 +402,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
         SFRD_conditional_table_MINI.x_width = (max_density - min_density)/(NDELTA-1.);
         SFRD_conditional_table_MINI.y_min = LOG10_MTURN_MIN;
         SFRD_conditional_table_MINI.y_width = (LOG10_MTURN_MAX - LOG10_MTURN_MIN)/(NMTURN-1.);
-        Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
+        Mlim_Fstar_MINI = Mass_limit_bisection(global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
     }
 
     double lnMmin = log(Mmin);
@@ -416,7 +416,6 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
         for (i=0; i<NDELTA; i++){
             curr_dens = min_density + (float)i/((float)NDELTA-1.)*(max_density - min_density);
 
-            // LOG_DEBUG("starting d %.2e M [%.2e %.2e] s %.2e",curr_dens, exp(lnMmin),exp(lnMmax),sigma2);
             SFRD_conditional_table.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,curr_dens,\
                                             Mcrit_atom,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., user_params_it->INTEGRATION_METHOD_ATOMIC));
 
@@ -772,7 +771,7 @@ double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnM
 double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta){
     if(user_params_it->USE_INTERPOLATION_TABLES)
         return EvaluateRGTable1D(condition,&Mcoll_table);
-    return Nhalo_Conditional(growthf, lnMmax, lnMmax, M_cond, sigma, delta, user_params_it->INTEGRATION_METHOD_HALOS);
+    return Mcoll_Conditional(growthf, lnMmax, lnMmax, M_cond, sigma, delta, user_params_it->INTEGRATION_METHOD_HALOS);
 }
 
 //This one is always a table
