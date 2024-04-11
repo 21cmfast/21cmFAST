@@ -172,8 +172,7 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                                 user_params_stoc->INTEGRATION_METHOD_MINI,
                                 flag_options_stoc->USE_MINI_HALOS, false);
 
-        //TODO: disable inverse table generation here with a flag or split up the functions
-        initialise_dNdM_tables(min_density, max_density, lnMmin, lnMmax, growth_z, lnMcell, false);
+        initialise_dNdM_tables(min_density, max_density, lnMmin, lnMmax, growth_z, lnMcell, false, false);
     }
 
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)

@@ -1200,7 +1200,7 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
-    double rel_tol = 1e-3; //<- relative tolerance
+    double rel_tol = 1e-4; //<- relative tolerance
     int w_size = 1000;
     gsl_integration_workspace * w
     = gsl_integration_workspace_alloc (w_size);
@@ -1557,7 +1557,7 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond
         else
             return 0.;
     }
-    if(delta <= -1.)
+    if(delta <= -1. || lnM1 >= log(M_cond))
         return 0.;
 
     return IntegratedNdM(lnM1,lnM2,params,-1, method);
@@ -1578,7 +1578,7 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond
         else
             return 0.;
     }
-    if(delta <= -1.)
+    if(delta <= -1. || lnM1 >= log(M_cond))
         return 0.;
 
     return IntegratedNdM(lnM1,lnM2,params,-2, method);
@@ -1612,7 +1612,7 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M
         else
             return 0.;
     }
-    if(delta2 <= -1.)
+    if(delta2 <= -1. || lnM1 >= log(M_cond))
         return 0.;
 
     // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e Mtu=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e hmf=%d sig=%.2e del=%.2e",
@@ -1645,7 +1645,7 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
         else
             return 0.;
     }
-    if(delta2 <= -1.)
+    if(delta2 <= -1. || lnM1 >= log(M_cond))
         return 0.;
 
     // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e sig=%.2e del=%.2e",

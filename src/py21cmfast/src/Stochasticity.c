@@ -118,15 +118,11 @@ double expected_nhalo(double redshift, struct UserParams *user_params, struct Co
     return result;
 }
 
-//NOTE: if p(x) is uniform, p(log(1-x)) follows the exponential distribution
-//  But the gsl_ran_exponential function does the exact same thing but adds a mean
 double sample_dndM_inverse(double condition, struct HaloSamplingConstants * hs_constants, gsl_rng * rng){
     double p_in, min_prob;
     p_in = gsl_rng_uniform(rng);
-    if(!hs_constants->from_catalog){
-        p_in = log(p_in);
-        if(p_in < global_params.MIN_LOGPROB) p_in = global_params.MIN_LOGPROB;
-    }
+    p_in = log(p_in);
+    if(p_in < global_params.MIN_LOGPROB) p_in = global_params.MIN_LOGPROB;
     return EvaluateRGTable2D(condition,p_in,&Nhalo_inv_table);
 }
 
@@ -163,7 +159,10 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
         const_struct->from_catalog = 1;
         initialise_dNdM_tables(const_struct->lnM_min, const_struct->lnM_max_tb,const_struct->lnM_min, const_struct->lnM_max_tb,
-                                const_struct->growth_out, const_struct->growth_in, true);
+                                const_struct->growth_out, const_struct->growth_in, true, true);
+        if(global_params.SAMPLE_METHOD == 3){
+            initialise_J_split_table(200,0.,20.,0.2);
+        }
     }
     else {
         double M_cond = RHOcrit * cosmo_params_stoc->OMm * VOLUME / HII_TOT_NUM_PIXELS;
@@ -173,7 +172,8 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
         //for the table limits
         double delta_crit = get_delta_crit(user_params_stoc->HMF,const_struct->sigma_cond,const_struct->growth_out);
         const_struct->from_catalog = 0;
-        initialise_dNdM_tables(DELTA_MIN, MAX_DELTAC_FRAC*delta_crit, const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->growth_out, const_struct->lnM_cond, false);
+        initialise_dNdM_tables(DELTA_MIN, MAX_DELTAC_FRAC*delta_crit, const_struct->lnM_min, const_struct->lnM_max_tb,
+                                 const_struct->growth_out, const_struct->lnM_cond, false, true);
     }
 
     LOG_DEBUG("Done.");
@@ -405,12 +405,6 @@ int fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_p
         }
     }
     return n_removed;
-    //Possible future improvements
-    //  Try different target / trigger, which could overcome the M > exp_M issues better than a delta
-    //  e.g: set trigger for the check at exp_M - (M_Max - exp_M), target at exp_M
-    //  This provides a range of trigger points which can be absorbed into the below-resolution values
-    //  Obviously breaks for exp_M < 0.5 M, think of other thresholds.
-
 }
 
 /* Creates a realisation of halo properties by sampling the halo mass function and
@@ -525,6 +519,14 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     return 0;
 }
 
+double ComputeFraction_split(
+    double sigma_start, double sigmasq_start, double sigmasq_res,
+    double G1, double dd
+) {
+    double u_res = sigma_start*pow(sigmasq_res - sigmasq_start, -.5);
+    return sqrt(2*PI.)*EvaluateJ(u_res)*G1/sigma_start*dd;
+}
+
 //binary splitting with small internal steps based on Parkinson+08, Bensen+16, Qiu+20 (Darkforest)
 //This code was mostly taken from Darkforest (Qiu+20)
 //NOTE: some unused variables here
@@ -601,7 +603,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
                 save = 1;
             }
             growth_d = Deltac/(d_start + dd);
-            F = 1 - FgtrM_bias_fast(growth_d,d_start,sigma_res,sigma_start);
+            F = ComputeFraction_split(sigma_start, sigmasq_start, sigmasq_res, G1, dd);
         }
         else {
             // Compute B and beta
@@ -630,7 +632,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
             N_upper = dN_dd*dd;
             // Compute F
             growth_d = Deltac/(d_start + dd);
-            F = 1 - FgtrM_bias_fast(growth_d,d_start,sigma_res,sigma_start);
+            F = F = ComputeFraction_split(sigma_start, sigmasq_start, sigmasq_res, G1, dd);
             // Generate random numbers and split the tree
             if (gsl_rng_uniform(rng) < N_upper) {
                 q = pow(pow(q_res, eta) + pow_diff*gsl_rng_uniform(rng), 1./eta);
