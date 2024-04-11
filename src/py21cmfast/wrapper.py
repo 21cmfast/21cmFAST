@@ -3446,6 +3446,7 @@ def run_lightcone(
         prev_coeval = None
         st2 = None
         hbox2 = None
+        hbox = None
 
         if lightcone_filename and not Path(lightcone_filename).exists():
             lightcone.save(lightcone_filename)
@@ -3471,9 +3472,9 @@ def run_lightcone(
                     **kw,
                 )
                 z_halos.append(z)
-                hboxes.append(hbox2)
 
                 if flag_options.USE_TS_FLUCT:
+                    hboxes.append(hbox2)
                     xray_source_box = xray_source(
                         redshift=z,
                         z_halos=z_halos,
@@ -3587,7 +3588,15 @@ def run_lightcone(
                 except OSError:
                     pass
 
+            # we only need the SFR fields at previous redshifts for XraySourceBox
+            if hbox is not None:
+                try:
+                    hbox.prepare(keep=["halo_sfr", "halo_sfr_mini"])
+                except OSError:
+                    pass
+
             pf = pf2
+            hbox = hbox2
 
             if z <= return_at_z:
                 # Optionally return when the lightcone is only partially filled
