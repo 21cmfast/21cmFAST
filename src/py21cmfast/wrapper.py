@@ -3591,7 +3591,9 @@ def run_lightcone(
             # we only need the SFR fields at previous redshifts for XraySourceBox
             if hbox is not None:
                 try:
-                    hbox.prepare(keep=["halo_sfr", "halo_sfr_mini"])
+                    hbox.prepare(
+                        keep=["halo_sfr", "halo_sfr_mini", "log10_Mcrit_LW_ave"]
+                    )
                 except OSError:
                     pass
 
