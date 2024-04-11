@@ -3592,7 +3592,8 @@ def run_lightcone(
             if hbox is not None:
                 try:
                     hbox.prepare(
-                        keep=["halo_sfr", "halo_sfr_mini", "log10_Mcrit_LW_ave"]
+                        keep=["halo_sfr", "halo_sfr_mini", "log10_Mcrit_LW_ave"],
+                        force=always_purge,
                     )
                 except OSError:
                     pass
