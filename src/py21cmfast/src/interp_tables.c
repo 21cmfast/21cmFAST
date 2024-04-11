@@ -459,7 +459,6 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
 void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool from_catalog, bool make_inverse){
     int nx,ny,np;
     double lnM_cond,delta_crit;
-    int k_lim = 0;
     double sigma_cond;
     LOG_DEBUG("Initialising dNdM Tables from [[%.2e,%.2e],[%.2e,%.2e]]",xmin,xmax,ymin);
     LOG_DEBUG("D_out %.2e P %.2e up %d",growth1,param,from_catalog);
@@ -601,14 +600,12 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 }
 
                 //There are times where we have gone over the probability (machine precision) limit before reaching the mass limit
-                if(prob == 0.){
-                    prob = global_params.MIN_LOGPROB; //to make sure we go over the limit we extrapolate to here
-                    if(y > lnM_cond) y = lnM_cond;
-                }
-                else prob = log(prob);
-                // LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",from_catalog ? exp(x) : x,i,exp(y),j,prob,p_prev);
+                //  Here we simply go to the minimum probability
+                prob = prob == 0 ? global_params.MIN_LOGPROB : log(prob);
+
+                //LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",from_catalog ? exp(x) : x,i,exp(y),j,prob,p_prev);
                 //loop through the remaining spaces in the inverse table and fill them
-                while(prob <= pa[k] && k >= k_lim){
+                while(prob <= pa[k] && k >= 0){
                     //since we go ascending in y, prob > prob_prev
                     //NOTE: linear interpolation in (lnM,log(p)|p)
                     lnM_p = (p_prev-pa[k])*(y - lnM_prev)/(p_prev-prob) + lnM_prev;
