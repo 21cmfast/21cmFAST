@@ -38,6 +38,9 @@ static gsl_spline *erfc_spline;
 #define Mhalo_max (double)(1e16)
 
 #define MAX_DELTAC_FRAC (float)0.99 //max delta/deltac for the mass function integrals
+#define JENKINS_a (0.73) //Jenkins+01, SMT has 0.707
+#define JENKINS_b (0.34) //Jenkins+01 fit from Barkana+01, SMT has 0.5
+#define JENKINS_c (0.81) //Jenkins+01 from from Barkana+01, SMT has 0.6
 
 bool initialised_ComputeLF = false;
 
@@ -738,16 +741,13 @@ double dsigmasqdm_z0(double M){
 ////MASS FUNCTIONS BELOW//////
 
 /* sheth correction to delta crit */
-double sheth_delc(double del, double sig){
+double sheth_delc_dexm(double del, double sig){
     return sqrt(SHETH_a)*del*(1. + global_params.SHETH_b*pow(sig*sig/(SHETH_a*del*del), global_params.SHETH_c));
 }
 
 /*DexM uses a fit to this barrier to acheive MF similar to ST, Here I use the fixed version for the sampler*/
 double sheth_delc_fixed(double del, double sig){
-    double a = 0.707;
-    double sheth_b = 0.485;
-    double sheth_c = 0.615;
-    return sqrt(a)*del*(1. + sheth_b*pow(sig*sig/(a*del*del), sheth_c));
+    return sqrt(JENKINS_a)*del*(1. + JENKINS_b*pow(sig*sig/(JENKINS_a*del*del), JENKINS_c));
 }
 
 //Get the relevant excursion set barrier density given the user-specified HMF
@@ -822,15 +822,14 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
 double st_taylor_factor(double sig, double sig_cond, double delta_cond, double growthf){
     int i;
     // double a = SHETH_a;
-    double a = 0.707;
-    double alpha = 0.615; //fixed instead of global_params.SHETH_c bc of DexM corrections
-    double beta = 0.485; //fixed instead of global_params.SHETH_b
+    double a = JENKINS_a;
+    double alpha = JENKINS_c; //fixed instead of global_params.SHETH_c bc of DexM corrections
+    double beta = JENKINS_b; //fixed instead of global_params.SHETH_b
 
     double del = Deltac/growthf;
 
     double sigsq = sig*sig;
     double sigcsq = sig_cond*sig_cond;
-    //See note below
     double sigdiff = sig == sig_cond ? 1e-6 : sigsq - sigcsq;
     double dn_const = sqrt(a)*del*beta*pow(a*del*del,-alpha);
 
@@ -846,15 +845,16 @@ double st_taylor_factor(double sig, double sig_cond, double delta_cond, double g
     }
 
     double result = 0.;
+    //we do this instead of pow(sigsq,alpha-i) in the loop to save pow calls
+    // this function is called *many* times so any optimisation will be worth it
+    double ssq_save = pow(sigsq,alpha-6);
     //Taylor expansion of the x^a part around (sigsq - sigcondsq) (summing small to large)
     for(i=5;i>=1;i--){
-        result += s_fac[i]/n_fac[i] * pow(sigsq,alpha-i)*a_fac[i];
+        ssq_save *= sigsq;
+        result += s_fac[i]/n_fac[i] * ssq_save*a_fac[i];
         // LOG_ULTRA_DEBUG("%d term %.2e",i,result);
     }
     result *= dn_const;
-    //add the constant terms from the 0th derivative of the barrier (condition delta independent of halo sigma)
-    // result += sqrt(a)*delta_crit - delta_cond;
-
     return result;
 }
 
@@ -1550,6 +1550,8 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond
         .delta = delta,
     };
 
+    if(delta <= -1. || lnM1 >= log(M_cond))
+        return 0.;
     //return 1 halo AT THE CONDITION MASS if delta is exceeded
     if(delta > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma,growthf)){
         if(M_cond*(1-FRACT_FLOAT_ERR) <= exp(lnM2)) //this limit is not ideal, but covers floating point errors when we set lnM2 == log(M_cond)
@@ -1557,8 +1559,6 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond
         else
             return 0.;
     }
-    if(delta <= -1. || lnM1 >= log(M_cond))
-        return 0.;
 
     return IntegratedNdM(lnM1,lnM2,params,-1, method);
 }
@@ -1571,6 +1571,8 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond
         .delta = delta,
     };
 
+    if(delta <= -1. || lnM1 >= log(M_cond))
+        return 0.;
     //return 100% of mass AT THE CONDITION MASS if delta is exceeded
     if(delta > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma,growthf)){
         if(M_cond*(1-FRACT_FLOAT_ERR) <= exp(lnM2)) //this limit is not ideal, but covers floating point errors when we set lnM2 == log(M_cond)
@@ -1578,8 +1580,6 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond
         else
             return 0.;
     }
-    if(delta <= -1. || lnM1 >= log(M_cond))
-        return 0.;
 
     return IntegratedNdM(lnM1,lnM2,params,-2, method);
 }
@@ -1603,6 +1603,8 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M
         .delta = delta2,
     };
 
+    if(delta2 <= -1. || lnM1 >= log(M_cond))
+        return 0.;
     //return 1 halo at the condition mass if delta is exceeded
     //NOTE: this will almost always be zero, due to the upper turover,
     // however this replaces an integral so it won't be slow
@@ -1612,8 +1614,6 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M
         else
             return 0.;
     }
-    if(delta2 <= -1. || lnM1 >= log(M_cond))
-        return 0.;
 
     // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e Mtu=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e hmf=%d sig=%.2e del=%.2e",
     //     growthf,MassTurnover,MassTurnover_upper,Alpha_star,Alpha_esc,Fstar7,Fesc7,Mlim_Fstar,Mlim_Fesc,0,sigma2,delta2);
@@ -1638,6 +1638,8 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
         .delta = delta2,
     };
 
+    if(delta2 <= -1. || lnM1 >= log(M_cond))
+        return 0.;
     //return 1 halo at the condition mass if delta is exceeded
     if(delta2 > MAX_DELTAC_FRAC*get_delta_crit(params.HMF,sigma2,growthf)){
         if(M_cond*(1-FRACT_FLOAT_ERR) <= exp(lnM2))
@@ -1645,8 +1647,6 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
         else
             return 0.;
     }
-    if(delta2 <= -1. || lnM1 >= log(M_cond))
-        return 0.;
 
     // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e sig=%.2e del=%.2e",
     //     growthf,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,sigma2,delta2);

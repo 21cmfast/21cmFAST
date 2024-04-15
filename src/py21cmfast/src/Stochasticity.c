@@ -121,8 +121,10 @@ double expected_nhalo(double redshift, struct UserParams *user_params, struct Co
 double sample_dndM_inverse(double condition, struct HaloSamplingConstants * hs_constants, gsl_rng * rng){
     double p_in, min_prob;
     p_in = gsl_rng_uniform(rng);
-    p_in = log(p_in);
-    if(p_in < global_params.MIN_LOGPROB) p_in = global_params.MIN_LOGPROB;
+    if(!hs_constants->from_catalog){
+        p_in = log(p_in);
+        if(p_in < global_params.MIN_LOGPROB) p_in = global_params.MIN_LOGPROB;
+    }
     return EvaluateRGTable2D(condition,p_in,&Nhalo_inv_table);
 }
 
@@ -161,7 +163,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
         initialise_dNdM_tables(const_struct->lnM_min, const_struct->lnM_max_tb,const_struct->lnM_min, const_struct->lnM_max_tb,
                                 const_struct->growth_out, const_struct->growth_in, true, true);
         if(global_params.SAMPLE_METHOD == 3){
-            initialise_J_split_table(200,0.,20.,0.2);
+            initialise_J_split_table(200,1e-4,20.,0.2);
         }
     }
     else {
@@ -342,7 +344,7 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, 
 
     //technically I don't need the if statement but it might be confusing otherwise
     if(n_failures >= MAX_ITERATIONS){
-        LOG_ERROR("passed max iter in sample, last attempt M=%.3e [%.3e, %.3e] Me %.3e Mt %.3e cond %.3e",tbl_arg,M_prog,exp_M*(1-mass_tol),exp_M*(1+mass_tol),exp_M);
+        LOG_ERROR("passed max iter in sample, last attempt cond %.3e M=%.3e [%.3e, %.3e] Me %.3e Mt %.3e",tbl_arg,M_prog,exp_M*(1-mass_tol),exp_M*(1+mass_tol),exp_M,mass_tol);
         Throw(ValueError);
     }
 
@@ -521,10 +523,10 @@ int stoc_sheth_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
 
 double ComputeFraction_split(
     double sigma_start, double sigmasq_start, double sigmasq_res,
-    double G1, double dd
+    double G1, double dd, double gamma1
 ) {
     double u_res = sigma_start*pow(sigmasq_res - sigmasq_start, -.5);
-    return sqrt(2*PI.)*EvaluateJ(u_res)*G1/sigma_start*dd;
+    return sqrt(2.*PI)*EvaluateJ(u_res,gamma1)*G1/sigma_start*dd;
 }
 
 //binary splitting with small internal steps based on Parkinson+08, Bensen+16, Qiu+20 (Darkforest)
@@ -603,7 +605,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
                 save = 1;
             }
             growth_d = Deltac/(d_start + dd);
-            F = ComputeFraction_split(sigma_start, sigmasq_start, sigmasq_res, G1, dd);
+            F = ComputeFraction_split(sigma_start, sigmasq_start, sigmasq_res, G1, dd, gamma1);
         }
         else {
             // Compute B and beta
@@ -632,7 +634,7 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
             N_upper = dN_dd*dd;
             // Compute F
             growth_d = Deltac/(d_start + dd);
-            F = F = ComputeFraction_split(sigma_start, sigmasq_start, sigmasq_res, G1, dd);
+            F = ComputeFraction_split(sigma_start, sigmasq_start, sigmasq_res, G1, dd ,gamma1);
             // Generate random numbers and split the tree
             if (gsl_rng_uniform(rng) < N_upper) {
                 q = pow(pow(q_res, eta) + pow_diff*gsl_rng_uniform(rng), 1./eta);
@@ -703,7 +705,7 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
         return 0;
     }
     //if delta is above critical, form one big halo
-    if(hs_constants->delta > MAX_DELTAC_FRAC*get_delta_crit(user_params_stoc->HMF,hs_constants->sigma_cond,hs_constants->growth_out)){
+    if(hs_constants->delta >= MAX_DELTAC_FRAC*get_delta_crit(user_params_stoc->HMF,hs_constants->sigma_cond,hs_constants->growth_out)){
         *n_halo_out = 1;
 
         //Expected mass takes into account potential dexm overlap

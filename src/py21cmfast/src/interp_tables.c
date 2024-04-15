@@ -40,6 +40,7 @@ struct RGTable2D_f Nion_conditional_table_MINI_prev = {.allocated = false};
 struct RGTable1D Nhalo_table = {.allocated = false};
 struct RGTable1D Mcoll_table = {.allocated = false};
 struct RGTable2D Nhalo_inv_table = {.allocated = false};
+bool inv_table_log = false; //placeholder for a better implementation of log/linear probability
 
 //Tables for the old parametrization
 struct RGTable1D fcoll_z_table = {.allocated = false};
@@ -458,16 +459,14 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
 // `param` is either the constant log condition mass for the grid case (!from_catalog) OR the descendant growth factor with from_catalog
 void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool from_catalog, bool make_inverse){
     int nx,ny,np;
-    double lnM_cond,delta_crit;
+    double lnM_cond;
     double sigma_cond;
-    LOG_DEBUG("Initialising dNdM Tables from [[%.2e,%.2e],[%.2e,%.2e]]",xmin,xmax,ymin);
+    LOG_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Min. %.2e)",xmin,xmax,ymin);
     LOG_DEBUG("D_out %.2e P %.2e up %d",growth1,param,from_catalog);
 
     if(!from_catalog){
         lnM_cond = param;
         sigma_cond = EvaluateSigma(lnM_cond);
-        //current barrier at the condition for bounds checking
-        delta_crit = get_delta_crit(user_params_it->HMF,sigma_cond,growth1);
     }
     nx = global_params.N_COND_INTERP;
     ny = global_params.N_MASS_INTERP;
@@ -479,7 +478,10 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     //set up coordinate grids
     for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*((double)i)/((double)nx-1);
     for(k=0;k<np;k++){
-        pa[k] = global_params.MIN_LOGPROB*(1 - (double)k/(double)(np-1));
+        if(from_catalog)
+            pa[k] = (double)k/(double)(np-1);
+        else
+            pa[k] = global_params.MIN_LOGPROB*(1 - (double)k/(double)(np-1));
     }
 
     //allocate tables
@@ -505,7 +507,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
         Nhalo_inv_table.y_width = pa[1] - pa[0];
     }
 
-    #pragma omp parallel num_threads(user_params_it->N_THREADS) private(i,j,k) firstprivate(delta_crit,sigma_cond,lnM_cond)
+    #pragma omp parallel num_threads(user_params_it->N_THREADS) private(i,j,k) firstprivate(sigma_cond,lnM_cond)
     {
         double x,y,buf;
         double norm,fcoll;
@@ -524,7 +526,6 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 //barrier at given mass
                 sigma_cond = EvaluateSigma(lnM_cond);
                 delta = get_delta_crit(user_params_it->HMF,sigma_cond,param)/param*growth1;
-                delta_crit = get_delta_crit(user_params_it->HMF,sigma_cond,growth1);
             }
             else{
                 delta = x;
@@ -533,22 +534,6 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             lnM_prev = ymin;
             p_prev = 0;
             M_cond = exp(lnM_cond);
-
-            if(ymin >= lnM_cond){
-                Nhalo_table.y_arr[i] = 0.;
-                Mcoll_table.y_arr[i] = 0.;
-                for(k=1;k<np-1;k++)
-                    Nhalo_inv_table.z_arr[i][k] = ymin;
-                continue;
-            }
-            //shortcut to skip calculation
-            if(delta >= MAX_DELTAC_FRAC*delta_crit){
-                Nhalo_table.y_arr[i] = 1/(exp(lnM_cond)); //one halo
-                Mcoll_table.y_arr[i] = 1.;//both this and Nhalo_table are multiplied by condition mass
-                for(k=1;k<np-1;k++)
-                    Nhalo_inv_table.z_arr[i][k] = lnM_cond;
-                continue;
-            }
 
             //TODO: THIS IS SUPER INEFFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
             if(user_params_it->INTEGRATION_METHOD_HALOS == 1){
@@ -559,7 +544,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             fcoll = Mcoll_Conditional(growth1,ymin,lnM_cond,M_cond,sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS);
             Nhalo_table.y_arr[i] = norm;
             Mcoll_table.y_arr[i] = fcoll;
-            // LOG_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);
+            LOG_ULTRA_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);
 
             //if we don't need the inverse tables keep going
             if(!make_inverse)
@@ -572,15 +557,14 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 continue;
             }
             //inverse table limits
-            Nhalo_inv_table.z_arr[i][0] = lnM_cond; //will be overwritten in grid
             Nhalo_inv_table.z_arr[i][np-1] = ymin;
 
             //reset probability finding
             k=np-1;
             p_prev = 0.; //start with p==1 from the ymin integral, (logp==0)
             for(j=1;j<ny;j++){
-                //done with inverse table
-                if(k < k_lim) break;
+                //If we go below zero, we are done with inverse table
+                if(k < 0.) break;
 
                 //TODO: THIS IS EVEN MORE INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
                 if(user_params_it->INTEGRATION_METHOD_HALOS == 1)
@@ -590,7 +574,8 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 //as a result we can gain some extra precision by setting the maximum to the condition
                 y = ymin + (lnM_cond - ymin)*((double)j)/((double)ny-1);
 
-                buf = Nhalo_Conditional(growth1,y,lnM_cond,M_cond,sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS); //Number density between ymin and y
+                buf = Nhalo_Conditional(growth1,y,lnM_cond,M_cond,sigma_cond,delta,
+                                            user_params_it->INTEGRATION_METHOD_HALOS); //Number density between ymin and y
 
                 prob = buf / norm;
                 //catch some norm errors
@@ -599,19 +584,24 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                     Throw(TableGenerationError);
                 }
 
-                //There are times where we have gone over the probability (machine precision) limit before reaching the mass limit
+                //There are times where we have gone over the probability limit before reaching the mass limit
                 //  Here we simply go to the minimum probability
-                prob = prob == 0 ? global_params.MIN_LOGPROB : log(prob);
+                if(!from_catalog)
+                    prob = prob == 0 ? global_params.MIN_LOGPROB : log(prob);
 
-                //LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",from_catalog ? exp(x) : x,i,exp(y),j,prob,p_prev);
+                LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",from_catalog ? exp(x) : x,i,exp(y),j,prob,p_prev);
+
                 //loop through the remaining spaces in the inverse table and fill them
                 while(prob <= pa[k] && k >= 0){
+                    if(p_prev - prob == 0)
+                        break; //if we are in a flat region we move to the next limit
                     //since we go ascending in y, prob > prob_prev
                     //NOTE: linear interpolation in (lnM,log(p)|p)
                     lnM_p = (p_prev-pa[k])*(y - lnM_prev)/(p_prev-prob) + lnM_prev;
                     Nhalo_inv_table.z_arr[i][k] = lnM_p;
 
-                    // LOG_ULTRA_DEBUG("Found c: %.2e p: (%.2e,%.2e,%.2e) (c %d, m %d, p %d) z: %.5e",from_catalog ? exp(x) : x,p_prev,pa[k],prob,i,j,k,exp(lnM_p));
+                    LOG_ULTRA_DEBUG("Found c: %.2e p: (%.2e,%.2e,%.2e) (c %d, m %d, p %d) z: %.5e",
+                            from_catalog ? exp(x) : x,p_prev,pa[k],prob,i,j,k,exp(lnM_p),Nhalo_inv_table.z_arr[i][k]);
 
                     k--;
                 }
@@ -649,6 +639,7 @@ double integrate_J(double u_res, double gamma1){
 
     if(status!=0) {
         LOG_ERROR("gsl integration error occured!");
+        LOG_ERROR("J: gamma1 = %.4e u_res = %.4e");
         GSL_ERROR(status);
     }
 
@@ -664,7 +655,6 @@ void initialise_J_split_table(int Nbin, double umin, double umax, double gamma1)
 
     J_split_table.x_min = 0.;
     J_split_table.x_width = (umax - umin)/((double)Nbin-1);
-    J_split_table.n_x = Nbin;
 
     for(i=0;i<Nbin;i++){
         J_split_table.y_arr[i] = integrate_J(J_split_table.x_min + i*J_split_table.x_width,gamma1);
@@ -826,12 +816,12 @@ double EvaluateNhaloInv(double condition, double prob){
 }
 
 double EvaluateJ(double u_res,double gamma1){
-    if(fabs(gamma1) < FLOAT_REL_TOL)
+    if(fabs(gamma1) < FRACT_FLOAT_ERR)
         return u_res;
     //small u approximation
     if(u_res < J_split_table.x_min)
         return pow(u_res, 1. - gamma1)/(1. - gamma1);
-    double u_max = J_split_table.x_min + (J_split_table.n_bin-1)*J_split_table.x_width
+    double u_max = J_split_table.x_min + (J_split_table.n_bin-1)*J_split_table.x_width;
     //asymptotic expansion
     if(u_res > u_max)
         return u_res - 0.5*gamma1*(1./u_res - 1./u_max);

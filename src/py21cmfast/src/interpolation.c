@@ -144,9 +144,9 @@ double EvaluateRGTable2D(double x, double y, struct RGTable2D *table){
 
     double left_edge, right_edge, result;
 
-    // LOG_DEBUG("2D Interp: val (%.2e,%.2e) min (%.2e,%.2e) wid (%.2e,%.2e)",x,y,x_min,y_min,x_width,y_width);
-    // LOG_DEBUG("2D Interp: idx (%d,%d) tbl (%.2e,%.2e) itp (%.2e,%.2e)",x_idx,y_idx,x_table,y_table,interp_point_x,interp_point_y);
-    // LOG_DEBUG("2D Interp: table corners (%.2e,%.2e,%.2e,%.2e)",table->z_arr[x_idx][y_idx],table->z_arr[x_idx][y_idx+1],table->z_arr[x_idx+1][y_idx],table->z_arr[x_idx+1][y_idx+1]);
+    // LOG_ULTRA_DEBUG("2D Interp: val (%.2e,%.2e) min (%.2e,%.2e) wid (%.2e,%.2e)",x,y,x_min,y_min,x_width,y_width);
+    // LOG_ULTRA_DEBUG("2D Interp: idx (%d,%d) tbl (%.2e,%.2e) itp (%.2e,%.2e)",x_idx,y_idx,x_table,y_table,interp_point_x,interp_point_y);
+    // LOG_ULTRA_DEBUG("2D Interp: table cell corners (%.2e,%.2e,%.2e,%.2e)",table->z_arr[x_idx][y_idx],table->z_arr[x_idx][y_idx+1],table->z_arr[x_idx+1][y_idx],table->z_arr[x_idx+1][y_idx+1]);
 
     left_edge = table->z_arr[x_idx][y_idx]*(1-interp_point_y) + table->z_arr[x_idx][y_idx+1]*(interp_point_y);
     right_edge = table->z_arr[x_idx+1][y_idx]*(1-interp_point_y) + table->z_arr[x_idx+1][y_idx+1]*(interp_point_y);
