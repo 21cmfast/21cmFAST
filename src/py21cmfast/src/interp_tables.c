@@ -478,10 +478,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     //set up coordinate grids
     for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*((double)i)/((double)nx-1);
     for(k=0;k<np;k++){
-        if(from_catalog)
-            pa[k] = (double)k/(double)(np-1);
-        else
-            pa[k] = global_params.MIN_LOGPROB*(1 - (double)k/(double)(np-1));
+        pa[k] = global_params.MIN_LOGPROB*(1 - (double)k/(double)(np-1));
     }
 
     //allocate tables
@@ -586,8 +583,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
 
                 //There are times where we have gone over the probability limit before reaching the mass limit
                 //  Here we simply go to the minimum probability
-                if(!from_catalog)
-                    prob = prob == 0 ? global_params.MIN_LOGPROB : log(prob);
+                prob = prob == 0 ? global_params.MIN_LOGPROB : log(prob);
 
                 LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",from_catalog ? exp(x) : x,i,exp(y),j,prob,p_prev);
 

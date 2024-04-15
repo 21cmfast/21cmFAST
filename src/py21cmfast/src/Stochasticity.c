@@ -9,6 +9,9 @@
 #define MAX_ITER_N 1e2 //for stoc_halo_sample (select N halos) how many tries for one N, this should be large to enforce a near-possion p(N)
 #define MMAX_TABLES 1e14
 
+//We need to go below the minimum saved halo mass in order to allow some stochasticity in total mass and prevent halos getting stuck at the lower limit
+#define SAMPLE_BUFFER 2
+
 //buffer size (per cell of arbitrary size) in the sampling function
 #define MAX_HALO_CELL (int)1e5
 
@@ -98,7 +101,7 @@ double expected_nhalo(double redshift, struct UserParams *user_params, struct Co
 
     init_ps();
     if(user_params->USE_INTERPOLATION_TABLES)
-        initialiseSigmaMInterpTable(M_min/2,M_max);
+        initialiseSigmaMInterpTable(M_min,M_max);
 
     struct parameters_gsl_MF_integrals params = {
         .redshift = redshift,
@@ -121,10 +124,8 @@ double expected_nhalo(double redshift, struct UserParams *user_params, struct Co
 double sample_dndM_inverse(double condition, struct HaloSamplingConstants * hs_constants, gsl_rng * rng){
     double p_in, min_prob;
     p_in = gsl_rng_uniform(rng);
-    if(!hs_constants->from_catalog){
-        p_in = log(p_in);
-        if(p_in < global_params.MIN_LOGPROB) p_in = global_params.MIN_LOGPROB;
-    }
+    p_in = log(p_in);
+    if(p_in < global_params.MIN_LOGPROB) p_in = global_params.MIN_LOGPROB;
     return EvaluateRGTable2D(condition,p_in,&Nhalo_inv_table);
 }
 
@@ -135,7 +136,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     const_struct->z_out = redshift;
     const_struct->z_in = redshift_desc;
 
-    const_struct->M_min = global_params.SAMPLER_MIN_MASS;
+    const_struct->M_min = global_params.SAMPLER_MIN_MASS / SAMPLE_BUFFER;
     const_struct->lnM_min = log(const_struct->M_min);
     const_struct->M_max_tables = global_params.M_MAX_INTEGRAL;
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
@@ -143,7 +144,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     init_ps();
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        initialiseSigmaMInterpTable(const_struct->M_min / 2,const_struct->M_max_tables);
+        initialiseSigmaMInterpTable(const_struct->M_min,const_struct->M_max_tables);
     }
 
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min);
@@ -160,7 +161,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
             const_struct->corr_star = 0;
 
         const_struct->from_catalog = 1;
-        initialise_dNdM_tables(const_struct->lnM_min, const_struct->lnM_max_tb,const_struct->lnM_min, const_struct->lnM_max_tb,
+        initialise_dNdM_tables(const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->lnM_min, const_struct->lnM_max_tb,
                                 const_struct->growth_out, const_struct->growth_in, true, true);
         if(global_params.SAMPLE_METHOD == 3){
             initialise_J_split_table(200,1e-4,20.,0.2);
@@ -380,7 +381,9 @@ int fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_p
     int random_idx;
     int n_removed = 0;
     double last_M_del;
-    if(gsl_rng_uniform_int(rng,2)){
+    int sel = gsl_rng_uniform_int(rng,2);
+    // int sel = 1;
+    if(sel){
         //LOG_ULTRA_DEBUG("Deciding to keep last halo M %.3e tot %.3e exp %.3e",M_out[*n_halo_pt-1],*M_tot_pt,exp_M);
         if(fabs(*M_tot_pt - M_out[*n_halo_pt-1] - exp_M) < fabs(*M_tot_pt - exp_M)){
             //LOG_ULTRA_DEBUG("removed");
@@ -416,7 +419,7 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
     //lnMmin only used for sampling, apply factor here
     double mass_tol = global_params.STOC_MASS_TOL;
     double exp_M = hs_constants->expected_M;
-    if(hs_constants->from_catalog)exp_M *= 1.; //fudge factor for assuming that internal lagrangian volumes are independent
+    if(hs_constants->from_catalog)exp_M *= 1; //fudge factor for assuming that internal lagrangian volumes are independent
 
     int n_halo_sampled, n_failures=0;
     double M_prog=0;
@@ -431,6 +434,7 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
         while(M_prog < exp_M){
             M_sample = sample_dndM_inverse(tbl_arg,hs_constants,rng);
             M_sample = exp(M_sample);
+            // if(M_sample > exp_M) M_sample = exp_M;
 
             M_prog += M_sample;
             M_out[n_halo_sampled++] = M_sample;
@@ -457,6 +461,9 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
     }
 
     found_halo_sample: *n_halo_out = n_halo_sampled;
+    // if(n_halo_sampled == 1){
+    //     M_out[0] = exp_M;
+    // }
     // LOG_ULTRA_DEBUG("Got %d (exp.%.2e) halos mass %.2e (exp. %.2e) %.2f | %d att",
     //                 n_halo_sampled,hs_constants->expected_N,M_prog,exp_M,M_prog/exp_M - 1,n_failures);
     return 0;
