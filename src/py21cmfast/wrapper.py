@@ -2826,7 +2826,7 @@ def run_coeval(
         ib_tracker = [0] * len(redshift)
         bt = [0] * len(redshift)
         # At first we don't have any "previous" st or ib.
-        st, ib, pf = None, None, None
+        st, ib, pf, hb = None, None, None, None
         # optional fields which remain None if their flags are off
         hb2, ph2 = None, None
 
@@ -2859,11 +2859,11 @@ def run_coeval(
                     previous_spin_temp=st,
                     **kw,
                 )
+
+            if flag_options.USE_TS_FLUCT:
                 # append the halo redshift array so we have all halo boxes [z,zmax]
                 z_halos += [z]
                 hbox_arr += [hb2]
-
-            if flag_options.USE_TS_FLUCT:
                 if flag_options.USE_HALO_FIELD:
                     xray_source_box = xray_source(
                         redshift=z,
@@ -2912,6 +2912,16 @@ def run_coeval(
                 except OSError:
                     pass
 
+            # we only need the SFR fields at previous redshifts for XraySourceBox
+            if hb is not None:
+                try:
+                    hb.prepare(
+                        keep=["halo_sfr", "halo_sfr_mini", "log10_Mcrit_LW_ave"],
+                        force=always_purge,
+                    )
+                except OSError:
+                    pass
+
             if z in redshift:
                 logger.debug(f"PID={os.getpid()} doing brightness temp for z={z}")
                 ib_tracker[redshift.index(z)] = ib2
@@ -2936,6 +2946,7 @@ def run_coeval(
                 ib = ib2
                 pf = pf2
                 _bt = None
+                hb = hb2
 
             perturb_files.append((z, os.path.join(direc, pf2.filename)))
             if flag_options.USE_HALO_FIELD:
@@ -3471,9 +3482,9 @@ def run_lightcone(
                     perturbed_field=pf2,
                     **kw,
                 )
-                z_halos.append(z)
 
                 if flag_options.USE_TS_FLUCT:
+                    z_halos.append(z)
                     hboxes.append(hbox2)
                     xray_source_box = xray_source(
                         redshift=z,
