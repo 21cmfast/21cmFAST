@@ -171,7 +171,7 @@ extern struct GlobalParams global_params = {
     .N_MASS_INTERP = 200,
     .N_COND_INTERP = 200,
     .N_PROB_INTERP = 200,
-    .MIN_LOGPROB = -16,
+    .MIN_LOGPROB = -16, //corresponds to ~ 1e-7 in probability
     .SAMPLE_METHOD = 0,
     .AVG_BELOW_SAMPLER = 0,
 

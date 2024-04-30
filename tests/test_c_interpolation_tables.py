@@ -217,7 +217,14 @@ def test_Massfunc_conditional_tables(name, plt):
         growth_out,
         np.log(cell_mass),
         False,
-        True,
+    )
+    lib.initialise_dNdM_inverse_table(
+        edges_d[0],
+        edges_d[-1],
+        edges_ln[0],
+        growth_out,
+        np.log(cell_mass),
+        False,
     )
 
     M_exp_cell = (
@@ -290,8 +297,16 @@ def test_Massfunc_conditional_tables(name, plt):
         growth_out,
         growth_in,
         True,
+    )
+    lib.initialise_dNdM_inverse_table(
+        edges_ln[0],
+        edges_ln[-1],
+        edges_ln[0],
+        growth_out,
+        growth_in,
         True,
     )
+
     M_exp_halo = (
         np.vectorize(lib.EvaluateMcoll)(edges_ln[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         * edges[:-1]

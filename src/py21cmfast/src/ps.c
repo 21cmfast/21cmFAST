@@ -775,16 +775,14 @@ double dNdlnM_Delos(double growthf, double lnM){
     const double exp_factor = -0.469;
 
     sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
-    sigma_inv = 1/(sigma);
-    dsigmadm = dsigmadm * 0.5 * sigma_inv;
+    sigma_inv = 1/sigma;
+    dsigmadm = EvaluatedSigmasqdm(lnM) * (0.5*sigma_inv); //d(s^2)/dm z0 to dsdm
 
     nu = DELTAC_DELOS*sigma_inv/growthf;
 
     dfdnu = coeff_nu*pow(nu,index_nu)*exp(exp_factor*nu*nu);
     dfdM = dfdnu * fabs(dsigmadm) * sigma_inv;
 
-    //NOTE: unlike the other UMFs this is dNdlogM
     //NOTE: dfdM == constants*dNdlnM
     return dfdM*cosmo_params_ps->OMm*RHOcrit;
 }
@@ -798,17 +796,14 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
     const double exp_factor = -0.469;
 
     sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
     if(sigma < sigma_cond) return 0.;
+    dsigmadm = EvaluatedSigmasqdm(lnM) * 0.5; //d(s^2)/dm to s*dsdm
     sigdiff_inv = sigma == sigma_cond ? 1e6 : 1/(sigma*sigma - sigma_cond*sigma_cond);
-
-    sigma_inv = 1/sigma;
-    dsigmadm = dsigmadm * (0.5*sigma_inv); //d(s^2)/dm z0 to dsdm
 
     nu = (DELTAC_DELOS - delta_cond)*sqrt(sigdiff_inv)/growthf;
 
     dfdnu = coeff_nu*pow(nu,index_nu)*exp(exp_factor*nu*nu);
-    dfdM = dfdnu * fabs(dsigmadm) * sigma_inv * sigma * sigma * sigdiff_inv;
+    dfdM = dfdnu * fabs(dsigmadm) * sigdiff_inv;
 
     //NOTE: like the other CMFs this is dNdlogM and leaves out
     //   the (cosmo_params_ps->OMm)*RHOcrit
@@ -821,7 +816,6 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
 //That a taylor expansion of the barrier shape around the point of interest well approximates the simulations
 double st_taylor_factor(double sig, double sig_cond, double delta_cond, double growthf){
     int i;
-    // double a = SHETH_a;
     double a = JENKINS_a;
     double alpha = JENKINS_c; //fixed instead of global_params.SHETH_c bc of DexM corrections
     double beta = JENKINS_b; //fixed instead of global_params.SHETH_b
@@ -1199,8 +1193,8 @@ double (*get_integrand_function(int type))(double,void*){
 double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, int type){
     double result, error, lower_limit, upper_limit;
     gsl_function F;
-    // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
-    double rel_tol = 1e-4; //<- relative tolerance
+    double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
+    // double rel_tol = 1e-4; //<- relative tolerance
     int w_size = 1000;
     gsl_integration_workspace * w
     = gsl_integration_workspace_alloc (w_size);
@@ -1580,7 +1574,6 @@ double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond
         else
             return 0.;
     }
-
     return IntegratedNdM(lnM1,lnM2,params,-2, method);
 }
 

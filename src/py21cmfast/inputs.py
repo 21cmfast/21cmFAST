@@ -305,7 +305,7 @@ class GlobalParams(StructInstanceWrapper):
     N_PROB_INTERP:
         Number of probability bins for the sampler interpolation tables.
     MIN_LOGPROB:
-        Lower limit (in log probability) of the inverse CDF table.
+        Lower limit (in log probability) of the inverse CDF table. This is a ceiling in case the algorithm can't find a suitable lower limit
     SAMPLE_METHOD:
         Sampling method to use for stochastic halos:
             0: Mass sampling from CMF
@@ -510,11 +510,6 @@ class UserParams(StructWithDefaults):
         0: GSL QAG adaptive integration,
         1: Gauss-Legendre integration, previously forced in the interpolation tables,
         2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
-    INTEGRATION_METHOD_HALOS: int, optional
-        The integration method to use for all conditional MF integrals for halos from the sampler catalogues:
-        0: GSL QAG adaptive integration,
-        1: Gauss-Legendre integration, previously forced in the interpolation tables,
-        2: Approximate integration, assuming sharp cutoffs and a triple power-law for sigma(M) based on EPS
     USE_2LPT: bool, optional
         Whether to use second-order Lagrangian perturbation theory (2LPT).
         Set this to True if the density field or the halo positions are extrapolated to
@@ -551,7 +546,6 @@ class UserParams(StructWithDefaults):
         "USE_INTERPOLATION_TABLES": None,
         "INTEGRATION_METHOD_ATOMIC": 1,
         "INTEGRATION_METHOD_MINI": 1,
-        "INTEGRATION_METHOD_HALOS": 0,
         "USE_2LPT": True,
         "MINIMIZE_MEMORY": False,
         "STOC_MINIMUM_Z": None,
@@ -666,15 +660,6 @@ class UserParams(StructWithDefaults):
     def power_spectrum_model(self):
         """String representation of the power spectrum model used."""
         return self._power_models[self.POWER_SPECTRUM]
-
-    @property
-    def INTEGRATION_METHOD_HALOS(self):
-        """The integration methods other than QAG do not yet work for halos."""
-        if self._INTEGRATION_METHOD_HALOS != 0:
-            warnings.warn(
-                "Only the QAG integrator currently works for the halo sampler, setting to 1 or 2 is for testing only"
-            )
-        return self._INTEGRATION_METHOD_HALOS
 
     @property
     def cell_size(self) -> un.Quantity[un.Mpc]:

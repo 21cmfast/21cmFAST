@@ -31,7 +31,6 @@ struct UserParams{
     bool USE_INTERPOLATION_TABLES;
     int INTEGRATION_METHOD_ATOMIC;
     int INTEGRATION_METHOD_MINI;
-    int INTEGRATION_METHOD_HALOS;
     bool USE_2LPT;
     bool MINIMIZE_MEMORY;
     bool KEEP_3D_VELOCITIES;
@@ -300,7 +299,8 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
                                     float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
                                     float Fstar10, float Fstar7_MINI, int method, int method_mini, bool minihalos);
 
-void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool from_catalog, bool make_inverse);
+void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool from_catalog);
+void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, double growth1, double param, bool from_catalog);
 
 //evaluation of tables
 double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc);

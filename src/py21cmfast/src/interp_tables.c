@@ -6,6 +6,7 @@
 #define NMTURN 50//100
 #define LOG10_MTURN_MAX ((double)(10))
 #define LOG10_MTURN_MIN ((double)(5.-9e-8))
+#define MAX_ITER_RF 200
 
 //we need to define a density minimum for the tables, since we are in lagrangian density / linear growth it's possible to go below -1
 //so we explicitly set a minimum here which sets table limits and puts no halos in cells below that (Lagrangian) density
@@ -454,32 +455,24 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
     }
 }
 
-//This table is N(>M | M_in), the CDF of dNdM_conditional
-//NOTE: Assumes you give it ymin as the minimum lower-integral limit, (ymax currently not used)
-// `param` is either the constant log condition mass for the grid case (!from_catalog) OR the descendant growth factor with from_catalog
-void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1, double param, bool from_catalog, bool make_inverse){
-    int nx,ny,np;
+void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth_out, double param, bool from_catalog){
+    int nx;
     double lnM_cond;
     double sigma_cond;
-    LOG_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Min. %.2e)",xmin,xmax,ymin);
-    LOG_DEBUG("D_out %.2e P %.2e up %d",growth1,param,from_catalog);
+    LOG_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Limits %.2e %.2e)",xmin,xmax,ymin,ymax);
+    LOG_DEBUG("D_out %.2e P %.2e from_cat %d",growth_out,param,from_catalog);
 
     if(!from_catalog){
         lnM_cond = param;
         sigma_cond = EvaluateSigma(lnM_cond);
     }
+
     nx = global_params.N_COND_INTERP;
-    ny = global_params.N_MASS_INTERP;
-    np = global_params.N_PROB_INTERP;
 
-    double xa[nx], pa[np];
-
-    int i,j,k;
+    double xa[nx];
+    int i;
     //set up coordinate grids
     for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*((double)i)/((double)nx-1);
-    for(k=0;k<np;k++){
-        pa[k] = global_params.MIN_LOGPROB*(1 - (double)k/(double)(np-1));
-    }
 
     //allocate tables
     if(!Nhalo_table.allocated)
@@ -494,23 +487,9 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     Mcoll_table.x_min = xmin;
     Mcoll_table.x_width = (xmax - xmin)/((double)nx-1);
 
-    if(make_inverse){
-        if(!Nhalo_inv_table.allocated)
-            allocate_RGTable2D(nx,np,&Nhalo_inv_table);
-
-        Nhalo_inv_table.x_min = xmin;
-        Nhalo_inv_table.x_width = (xmax - xmin)/((double)nx-1);
-        Nhalo_inv_table.y_min = pa[0];
-        Nhalo_inv_table.y_width = pa[1] - pa[0];
-    }
-
-    #pragma omp parallel num_threads(user_params_it->N_THREADS) private(i,j,k) firstprivate(sigma_cond,lnM_cond)
+    #pragma omp parallel num_threads(user_params_it->N_THREADS) private(i) firstprivate(sigma_cond,lnM_cond)
     {
-        double x,y,buf;
-        double norm,fcoll;
-        double lnM_prev,lnM_p;
-        double prob;
-        double p_prev,p_target;
+        double x;
         double delta;
         double M_cond;
 
@@ -520,61 +499,133 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             //set the condition
             if(from_catalog){
                 lnM_cond = x;
-                //barrier at given mass
                 sigma_cond = EvaluateSigma(lnM_cond);
-                delta = get_delta_crit(user_params_it->HMF,sigma_cond,param)/param*growth1;
+                //barrier at descendant mass
+                delta = get_delta_crit(user_params_it->HMF,sigma_cond,param)/param*growth_out;
             }
             else{
                 delta = x;
             }
 
-            lnM_prev = ymin;
+            M_cond = exp(lnM_cond);
+            Nhalo_table.y_arr[i] = Nhalo_Conditional(growth_out,ymin,ymax,M_cond,sigma_cond,delta,0);
+            Mcoll_table.y_arr[i] = Mcoll_Conditional(growth_out,ymin,ymax,M_cond,sigma_cond,delta,0);
+        }
+    }
+    LOG_DEBUG("Done.");
+
+}
+
+//For small timesteps (high delta) we often find sharp drops in the CMF at relatively high probabilities
+//This finds a reasonable lower probability limit for the tables so we can maximise the precision per bin
+double find_minlp(double lnM_min, double lnM_max, double growth_in, double growth_out){
+    double lnM_factor = 0.9999;
+    double sigma_max = EvaluateSigma(lnM_max);
+    double delta = get_delta_crit(user_params_it->HMF,sigma_max,growth_in)/growth_in*growth_out;
+    double norm_maxcond = Nhalo_Conditional(growth_out,lnM_min,lnM_max,exp(lnM_max),sigma_max,delta,0);
+    double val_maxcond = Nhalo_Conditional(growth_out,lnM_factor*lnM_max,lnM_max,exp(lnM_max),sigma_max,delta,0);
+    double result = fmax(global_params.MIN_LOGPROB,log(val_maxcond/norm_maxcond));
+
+    LOG_DEBUG("Table Construction: Minimum log probability == %.6e",result);
+
+    return result;
+}
+
+//This table is N(>M | M_in), the CDF of dNdM_conditional
+//NOTE: Assumes you give it ymin as the minimum lower-integral limit, and ymax as the maximum
+// `param` is either the constant log condition mass for the grid case (!from_catalog) OR the descendant growth factor with from_catalog
+void initialise_dNdM_inverse_table_interp(double xmin, double xmax, double lnM_min, double growth_out, double param, bool from_catalog){
+    LOG_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Min. %.2e)",xmin,xmax,lnM_min);
+    LOG_DEBUG("D_out %.2e P %.2e up %d",growth_out,param,from_catalog);
+
+    int nx = global_params.N_COND_INTERP;
+    int ny = global_params.N_MASS_INTERP;
+    int np = global_params.N_PROB_INTERP;
+    double xa[nx], pa[np];
+
+    double lnM_cond;
+    double sigma_cond;
+    double min_lp;
+    if(!from_catalog){
+        lnM_cond = param;
+        sigma_cond = EvaluateSigma(lnM_cond);
+        min_lp = global_params.MIN_LOGPROB;
+    }
+    else{
+        min_lp = find_minlp(lnM_min,lnM_cond,param,growth_out);
+    }
+
+    int i,j,k;
+    //set up coordinate grids
+    for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*((double)i)/((double)nx-1);
+    xa[nx-1] = xmax; //avoiding floating point errors in final bin due to the hard boundary at Deltac
+    for(k=0;k<np;k++){
+        pa[k] = min_lp*(1 - (double)k/(double)(np-1));
+    }
+
+    if(!Nhalo_inv_table.allocated)
+        allocate_RGTable2D(nx,np,&Nhalo_inv_table);
+
+    Nhalo_inv_table.x_min = xmin;
+    Nhalo_inv_table.x_width = xa[1] - xa[0];
+    Nhalo_inv_table.y_min = pa[0];
+    Nhalo_inv_table.y_width = pa[1] - pa[0];
+
+    #pragma omp parallel num_threads(user_params_it->N_THREADS) private(i,j,k) firstprivate(sigma_cond,lnM_cond)
+    {
+        double x,y,buf;
+        double norm;
+        double lnM_prev,lnM_p;
+        double prob,p_prev;
+        double delta;
+        double M_cond;
+
+        #pragma omp for
+        for(i=0;i<nx;i++){
+            x = xa[i];
+            //set the condition
+            if(from_catalog){
+                lnM_cond = x;
+                sigma_cond = EvaluateSigma(lnM_cond);
+                //Barrier at descendant mass scaled to progenitor redshift
+                delta = get_delta_crit(user_params_it->HMF,sigma_cond,param)/param*growth_out;
+            }
+            else{
+                delta = x;
+            }
+
             p_prev = 0;
             M_cond = exp(lnM_cond);
 
-            //TODO: THIS IS SUPER INEFFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
-            if(user_params_it->INTEGRATION_METHOD_HALOS == 1){
-                initialise_GL(NGL_INT, ymin, lnM_cond);
-            }
+            //NOTE: The total number density and collapsed fraction must be
+            norm = Nhalo_Conditional(growth_out,lnM_min,lnM_cond,M_cond,sigma_cond,delta,0);
+            LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.2f D %.2f n %d ==> %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
 
-            norm = Nhalo_Conditional(growth1,ymin,lnM_cond,M_cond,sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS);
-            fcoll = Mcoll_Conditional(growth1,ymin,lnM_cond,M_cond,sigma_cond,delta,user_params_it->INTEGRATION_METHOD_HALOS);
-            Nhalo_table.y_arr[i] = norm;
-            Mcoll_table.y_arr[i] = fcoll;
-            LOG_ULTRA_DEBUG("cond x: %.2e M [%.2e,%.2e] %.2e d %.2f D %.2f n %d ==> %.8e / %.8e",x,exp(ymin),exp(ymax),exp(lnM_cond),delta,growth1,i,norm,fcoll);
-
-            //if we don't need the inverse tables keep going
-            if(!make_inverse)
-                continue;
-
-            //if the condition has no halos set the dndm table directly since norm==0 breaks things
+            //if the condition has no halos set the dndm table directly to avoid integration and divide by zero
             if(norm==0){
                 for(k=1;k<np-1;k++)
-                    Nhalo_inv_table.z_arr[i][k] = ymin;
+                    Nhalo_inv_table.z_arr[i][k] = lnM_min;
                 continue;
             }
-            //inverse table limits
-            Nhalo_inv_table.z_arr[i][np-1] = ymin;
+
+            Nhalo_inv_table.z_arr[i][np-1] = lnM_min;
 
             //reset probability finding
-            k=np-1;
-            p_prev = 0.; //start with p==1 from the ymin integral, (logp==0)
+            k=np-2;
+            p_prev = 0.; //start with p==1 for N(>M)
+            lnM_prev = lnM_min;
             for(j=1;j<ny;j++){
                 //If we go below zero, we are done with inverse table
-                if(k < 0.) break;
-
-                //TODO: THIS IS EVEN MORE INNEFICIENT, IF THE GL INTEGRATION WORKS FOR THE HALOS I WILL FIND A WAY TO ONLY INITIALISE WHEN I NEED TO
-                if(user_params_it->INTEGRATION_METHOD_HALOS == 1)
-                    initialise_GL(NGL_INT, y, lnM_cond);
+                if(k < 0) break;
 
                 //since we are building the inverse tables, we don't have to have the same y-axis at each x
                 //as a result we can gain some extra precision by setting the maximum to the condition
-                y = ymin + (lnM_cond - ymin)*((double)j)/((double)ny-1);
+                y = lnM_min + (lnM_cond - lnM_min)*((double)j)/((double)ny-1);
 
-                buf = Nhalo_Conditional(growth1,y,lnM_cond,M_cond,sigma_cond,delta,
-                                            user_params_it->INTEGRATION_METHOD_HALOS); //Number density between ymin and y
+                buf = Nhalo_Conditional(growth_out,y,lnM_cond,M_cond,sigma_cond,delta,
+                                            0); //Number density between the mass limits
+                prob = buf / norm; //divide by the whole mass range to get probability
 
-                prob = buf / norm;
                 //catch some norm errors
                 if(prob != prob){
                     LOG_ERROR("Normalisation error in inverse halo table generation");
@@ -583,8 +634,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
 
                 //There are times where we have gone over the probability limit before reaching the mass limit
                 //  Here we simply go to the minimum probability
-                prob = prob == 0 ? global_params.MIN_LOGPROB : log(prob);
-
+                prob = prob == 0 ? min_lp : log(prob);
                 LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",from_catalog ? exp(x) : x,i,exp(y),j,prob,p_prev);
 
                 //loop through the remaining spaces in the inverse table and fill them
@@ -608,6 +658,160 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
         }
     }
     LOG_DEBUG("Done.");
+}
+
+struct rf_inv_params{
+    double growthf;
+    double lnM_cond;
+    double M_cond;
+    double delta;
+    double sigma;
+
+    double rf_norm;
+    double rf_target;
+};
+
+double dndm_inv_f(double lnM_min, void * params){
+    struct rf_inv_params *p = (struct rf_inv_params *)params;
+    double integral = Nhalo_Conditional(p->growthf,lnM_min,p->lnM_cond,p->M_cond,p->sigma,p->delta,0);
+    //This ensures that we never find the root if the ratio is zero, since that will set to M_cond
+    double result = integral == 0 ? 2*global_params.MIN_LOGPROB : log(integral / p->rf_norm);
+
+    return result - p->rf_target;
+}
+
+void initialise_dNdM_inverse_table_rf(double xmin, double xmax, double lnM_min, double growth_out, double param, bool from_catalog){
+    LOG_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Min. %.2e)",xmin,xmax,lnM_min);
+    LOG_DEBUG("D_out %.2e P %.2e up %d",growth_out,param,from_catalog);
+
+    int nx = global_params.N_COND_INTERP;
+    int np = global_params.N_PROB_INTERP;
+    double xa[nx], pa[np];
+    double rf_tol_m = 1e-4;
+
+    double lnM_cond;
+    double sigma_cond;
+    double min_lp;
+    if(!from_catalog){
+        lnM_cond = param;
+        sigma_cond = EvaluateSigma(lnM_cond);
+        min_lp = global_params.MIN_LOGPROB;
+    }
+    else{
+        min_lp = find_minlp(lnM_min,lnM_cond,param,growth_out);
+    }
+
+    int i,j,k;
+    //set up coordinate grids
+    for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*((double)i)/((double)nx-1);
+    xa[nx-1] = xmax; //avoiding floating point errors in final bin due to the hard boundary at Deltac
+    for(k=0;k<np;k++){
+        pa[k] = min_lp*(1 - (double)k/(double)(np-1));
+    }
+
+    if(!Nhalo_inv_table.allocated)
+        allocate_RGTable2D(nx,np,&Nhalo_inv_table);
+
+    Nhalo_inv_table.x_min = xmin;
+    Nhalo_inv_table.x_width = xa[1] - xa[0];
+    Nhalo_inv_table.y_min = pa[0];
+    Nhalo_inv_table.y_width = pa[1] - pa[0];
+
+    #pragma omp parallel num_threads(user_params_it->N_THREADS) private(i,j,k) firstprivate(sigma_cond,lnM_cond)
+    {
+        double x;
+        double norm;
+        double lnM_lo,lnM_hi,lnM_guess;
+        double delta;
+        double M_cond;
+        double lnM_init;
+
+        //RF stuff
+        int status, iter;
+        const gsl_root_fsolver_type *T;
+        gsl_root_fsolver *solver;
+        gsl_function F;
+        struct rf_inv_params params_rf;
+        params_rf.growthf = growth_out;
+
+        F.function = &dndm_inv_f;
+        F.params = &params_rf;
+
+        T = gsl_root_fsolver_brent;
+        solver = gsl_root_fsolver_alloc(T);
+
+        #pragma omp for
+        for(i=0;i<nx;i++){
+            x = xa[i];
+            //set the condition
+            if(from_catalog){
+                lnM_cond = x;
+                sigma_cond = EvaluateSigma(lnM_cond);
+                //Barrier at descendant mass scaled to progenitor redshift
+                delta = get_delta_crit(user_params_it->HMF,sigma_cond,param)/param*growth_out;
+            }
+            else{
+                delta = x;
+            }
+
+            M_cond = exp(lnM_cond);
+
+            params_rf.M_cond = M_cond;
+            params_rf.lnM_cond = lnM_cond;
+            params_rf.delta = delta;
+            params_rf.sigma = sigma_cond;
+
+            //NOTE: The total number density and collapsed fraction must be
+            norm = Nhalo_Conditional(growth_out,lnM_min,lnM_cond,M_cond,sigma_cond,delta,0);
+            LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.2f D %.2f n %d ==> %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
+            params_rf.rf_norm = norm;
+
+            //if the condition has no halos set the dndm table directly to avoid integration and divide by zero
+            if(norm==0){
+                for(k=1;k<np-1;k++)
+                    Nhalo_inv_table.z_arr[i][k] = lnM_min;
+                continue;
+            }
+
+            Nhalo_inv_table.z_arr[i][np-1] = lnM_min;
+            lnM_init = lnM_min;
+            for(k=np-2;k>=0;k--){
+                iter = 0;
+                lnM_hi = lnM_cond;
+                params_rf.rf_target = pa[k];
+                LOG_ULTRA_DEBUG("Target %.6e",pa[k]);
+                gsl_root_fsolver_set(solver, &F, lnM_init, lnM_cond);
+                do{
+                    iter++;
+                    status = gsl_root_fsolver_iterate(solver);
+                    lnM_guess = gsl_root_fsolver_root(solver);
+                    lnM_lo = gsl_root_fsolver_x_lower(solver);
+                    lnM_hi = gsl_root_fsolver_x_upper(solver);
+                    status = gsl_root_test_interval(lnM_lo, lnM_hi, rf_tol_m, 0.);
+
+                    LOG_ULTRA_DEBUG("Current step %d | [%.6e,%.6e] - %.6e",iter,lnM_lo,lnM_hi,lnM_guess);
+
+                    if (status == GSL_SUCCESS){
+                        lnM_init = lnM_lo;
+                        Nhalo_inv_table.z_arr[i][k] = lnM_guess;
+                        LOG_ULTRA_DEBUG("Found %6.e",lnM_guess);
+                    }
+
+                }while((status == GSL_CONTINUE) && (iter < MAX_ITER_RF));
+                if(status!=GSL_SUCCESS) {
+                    LOG_ERROR("gsl RF error occured! %d",status);
+                    GSL_ERROR(status);
+                }
+            }
+        }
+        gsl_root_fsolver_free(solver);
+    }
+    LOG_DEBUG("Done.");
+}
+
+void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, double growth_out, double param, bool from_catalog){
+    // initialise_dNdM_inverse_table_interp(xmin, xmax, lnM_min, growth_out, param, from_catalog);
+    initialise_dNdM_inverse_table_rf(xmin, xmax, lnM_min, growth_out, param, from_catalog);
 }
 
 double J_integrand(double u, void *params){
@@ -635,7 +839,7 @@ double integrate_J(double u_res, double gamma1){
 
     if(status!=0) {
         LOG_ERROR("gsl integration error occured!");
-        LOG_ERROR("J: gamma1 = %.4e u_res = %.4e");
+        LOG_ERROR("J: gamma1 = %.4e u_res = %.4e",gamma1,u_res);
         GSL_ERROR(status);
     }
 
@@ -649,7 +853,7 @@ void initialise_J_split_table(int Nbin, double umin, double umax, double gamma1)
     if(!J_split_table.allocated)
         allocate_RGTable1D(Nbin,&J_split_table);
 
-    J_split_table.x_min = 0.;
+    J_split_table.x_min = 1e-3;
     J_split_table.x_width = (umax - umin)/((double)Nbin-1);
 
     for(i=0;i<Nbin;i++){
@@ -797,13 +1001,13 @@ double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double 
 double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta){
     if(user_params_it->USE_INTERPOLATION_TABLES)
         return EvaluateRGTable1D(condition,&Nhalo_table);
-    return Nhalo_Conditional(growthf, lnMmin, lnMmax, M_cond, sigma, delta, user_params_it->INTEGRATION_METHOD_HALOS);
+    return Nhalo_Conditional(growthf, lnMmin, lnMmax, M_cond, sigma, delta, 0);
 }
 
 double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta){
     if(user_params_it->USE_INTERPOLATION_TABLES)
         return EvaluateRGTable1D(condition,&Mcoll_table);
-    return Mcoll_Conditional(growthf, lnMmax, lnMmax, M_cond, sigma, delta, user_params_it->INTEGRATION_METHOD_HALOS);
+    return Mcoll_Conditional(growthf, lnMmin, lnMmax, M_cond, sigma, delta, 0);
 }
 
 //This one is always a table
