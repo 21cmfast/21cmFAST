@@ -84,6 +84,7 @@ struct GlobalParams{
     //Stochasticity Options
     float STOC_MASS_TOL;
     float SAMPLER_MIN_MASS;
+    double SAMPLER_BUFFER_FACTOR;
     float MAXHALO_FACTOR;
     int N_MASS_INTERP;
     int N_COND_INTERP;
@@ -167,6 +168,7 @@ extern struct GlobalParams global_params = {
 
     .STOC_MASS_TOL = 5.0, //effectively infinite, mass tolerance semi-deprecated
     .SAMPLER_MIN_MASS = 5e7,
+    .SAMPLER_BUFFER_FACTOR = 2,
     .MAXHALO_FACTOR = 2,
     .N_MASS_INTERP = 200,
     .N_COND_INTERP = 200,
@@ -174,6 +176,7 @@ extern struct GlobalParams global_params = {
     .MIN_LOGPROB = -16, //corresponds to ~ 1e-7 in probability
     .SAMPLE_METHOD = 0,
     .AVG_BELOW_SAMPLER = 0,
+
 
     .USE_ADIABATIC_FLUCTUATIONS = 1,
 };

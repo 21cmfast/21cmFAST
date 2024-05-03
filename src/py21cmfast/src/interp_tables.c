@@ -516,21 +516,6 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
 
 }
 
-//For small timesteps (high delta) we often find sharp drops in the CMF at relatively high probabilities
-//This finds a reasonable lower probability limit for the tables so we can maximise the precision per bin
-double find_minlp(double lnM_min, double lnM_max, double growth_in, double growth_out){
-    double lnM_factor = 0.9999;
-    double sigma_max = EvaluateSigma(lnM_max);
-    double delta = get_delta_crit(user_params_it->HMF,sigma_max,growth_in)/growth_in*growth_out;
-    double norm_maxcond = Nhalo_Conditional(growth_out,lnM_min,lnM_max,exp(lnM_max),sigma_max,delta,0);
-    double val_maxcond = Nhalo_Conditional(growth_out,lnM_factor*lnM_max,lnM_max,exp(lnM_max),sigma_max,delta,0);
-    double result = fmax(global_params.MIN_LOGPROB,log(val_maxcond/norm_maxcond));
-
-    LOG_DEBUG("Table Construction: Minimum log probability == %.6e",result);
-
-    return result;
-}
-
 //This table is N(>M | M_in), the CDF of dNdM_conditional
 //NOTE: Assumes you give it ymin as the minimum lower-integral limit, and ymax as the maximum
 // `param` is either the constant log condition mass for the grid case (!from_catalog) OR the descendant growth factor with from_catalog
@@ -545,14 +530,10 @@ void initialise_dNdM_inverse_table_interp(double xmin, double xmax, double lnM_m
 
     double lnM_cond;
     double sigma_cond;
-    double min_lp;
+    double min_lp = global_params.MIN_LOGPROB;
     if(!from_catalog){
         lnM_cond = param;
         sigma_cond = EvaluateSigma(lnM_cond);
-        min_lp = global_params.MIN_LOGPROB;
-    }
-    else{
-        min_lp = find_minlp(lnM_min,lnM_cond,param,growth_out);
     }
 
     int i,j,k;
@@ -563,8 +544,9 @@ void initialise_dNdM_inverse_table_interp(double xmin, double xmax, double lnM_m
         pa[k] = min_lp*(1 - (double)k/(double)(np-1));
     }
 
-    if(!Nhalo_inv_table.allocated)
+    if(!Nhalo_inv_table.allocated){
         allocate_RGTable2D(nx,np,&Nhalo_inv_table);
+    }
 
     Nhalo_inv_table.x_min = xmin;
     Nhalo_inv_table.x_width = xa[1] - xa[0];
@@ -599,7 +581,7 @@ void initialise_dNdM_inverse_table_interp(double xmin, double xmax, double lnM_m
 
             //NOTE: The total number density and collapsed fraction must be
             norm = Nhalo_Conditional(growth_out,lnM_min,lnM_cond,M_cond,sigma_cond,delta,0);
-            LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.2f D %.2f n %d ==> %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
+            // LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.2f D %.2f n %d ==> %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
 
             //if the condition has no halos set the dndm table directly to avoid integration and divide by zero
             if(norm==0){
@@ -635,7 +617,7 @@ void initialise_dNdM_inverse_table_interp(double xmin, double xmax, double lnM_m
                 //There are times where we have gone over the probability limit before reaching the mass limit
                 //  Here we simply go to the minimum probability
                 prob = prob == 0 ? min_lp : log(prob);
-                LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",from_catalog ? exp(x) : x,i,exp(y),j,prob,p_prev);
+                // LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",from_catalog ? exp(x) : x,i,exp(y),j,prob,p_prev);
 
                 //loop through the remaining spaces in the inverse table and fill them
                 while(prob <= pa[k] && k >= 0){
@@ -646,8 +628,8 @@ void initialise_dNdM_inverse_table_interp(double xmin, double xmax, double lnM_m
                     lnM_p = (p_prev-pa[k])*(y - lnM_prev)/(p_prev-prob) + lnM_prev;
                     Nhalo_inv_table.z_arr[i][k] = lnM_p;
 
-                    LOG_ULTRA_DEBUG("Found c: %.2e p: (%.2e,%.2e,%.2e) (c %d, m %d, p %d) z: %.5e",
-                            from_catalog ? exp(x) : x,p_prev,pa[k],prob,i,j,k,exp(lnM_p),Nhalo_inv_table.z_arr[i][k]);
+                    // LOG_ULTRA_DEBUG("Found c: %.2e p: (%.2e,%.2e,%.2e) (c %d, m %d, p %d) z: %.5e",
+                    //         from_catalog ? exp(x) : x,p_prev,pa[k],prob,i,j,k,exp(lnM_p),Nhalo_inv_table.z_arr[i][k]);
 
                     k--;
                 }
@@ -687,18 +669,15 @@ void initialise_dNdM_inverse_table_rf(double xmin, double xmax, double lnM_min, 
     int nx = global_params.N_COND_INTERP;
     int np = global_params.N_PROB_INTERP;
     double xa[nx], pa[np];
-    double rf_tol_m = 1e-4;
+    double rf_tol_abs = 1e-4;
+    double rf_tol_rel = 0.;
 
     double lnM_cond;
     double sigma_cond;
-    double min_lp;
+    double min_lp = global_params.MIN_LOGPROB;
     if(!from_catalog){
         lnM_cond = param;
         sigma_cond = EvaluateSigma(lnM_cond);
-        min_lp = global_params.MIN_LOGPROB;
-    }
-    else{
-        min_lp = find_minlp(lnM_min,lnM_cond,param,growth_out);
     }
 
     int i,j,k;
@@ -763,7 +742,7 @@ void initialise_dNdM_inverse_table_rf(double xmin, double xmax, double lnM_min, 
 
             //NOTE: The total number density and collapsed fraction must be
             norm = Nhalo_Conditional(growth_out,lnM_min,lnM_cond,M_cond,sigma_cond,delta,0);
-            LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.2f D %.2f n %d ==> %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
+            // LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.2f D %.2f n %d ==> %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
             params_rf.rf_norm = norm;
 
             //if the condition has no halos set the dndm table directly to avoid integration and divide by zero
@@ -779,7 +758,7 @@ void initialise_dNdM_inverse_table_rf(double xmin, double xmax, double lnM_min, 
                 iter = 0;
                 lnM_hi = lnM_cond;
                 params_rf.rf_target = pa[k];
-                LOG_ULTRA_DEBUG("Target %.6e",pa[k]);
+                // LOG_ULTRA_DEBUG("Target %.6e",pa[k]);
                 gsl_root_fsolver_set(solver, &F, lnM_init, lnM_cond);
                 do{
                     iter++;
@@ -787,14 +766,14 @@ void initialise_dNdM_inverse_table_rf(double xmin, double xmax, double lnM_min, 
                     lnM_guess = gsl_root_fsolver_root(solver);
                     lnM_lo = gsl_root_fsolver_x_lower(solver);
                     lnM_hi = gsl_root_fsolver_x_upper(solver);
-                    status = gsl_root_test_interval(lnM_lo, lnM_hi, rf_tol_m, 0.);
+                    status = gsl_root_test_interval(lnM_lo, lnM_hi, rf_tol_abs, rf_tol_rel);
 
-                    LOG_ULTRA_DEBUG("Current step %d | [%.6e,%.6e] - %.6e",iter,lnM_lo,lnM_hi,lnM_guess);
+                    // LOG_ULTRA_DEBUG("Current step %d | [%.6e,%.6e] - %.6e",iter,lnM_lo,lnM_hi,lnM_guess);
 
                     if (status == GSL_SUCCESS){
                         lnM_init = lnM_lo;
                         Nhalo_inv_table.z_arr[i][k] = lnM_guess;
-                        LOG_ULTRA_DEBUG("Found %6.e",lnM_guess);
+                        // LOG_ULTRA_DEBUG("Found %.6e",lnM_guess);
                     }
 
                 }while((status == GSL_CONTINUE) && (iter < MAX_ITER_RF));
@@ -1010,9 +989,29 @@ double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnM
     return Mcoll_Conditional(growthf, lnMmin, lnMmax, M_cond, sigma, delta, 0);
 }
 
+//extrapolation function for log-probability based tables
+double extrapolate_dNdM_inverse(double condition, double lnp){
+    double x_min = Nhalo_inv_table.x_min;
+    double x_width = Nhalo_inv_table.x_width;
+    int x_idx = (int)floor((condition - x_min)/x_width);
+    double x_table = x_min + x_idx*x_width;
+    double interp_point_x = (condition - x_table)/x_width;
+
+    //find the log-mass at the edge of the table for this condition
+    double xlimit = Nhalo_inv_table.z_arr[x_idx][0]*(interp_point_x)
+                    + Nhalo_inv_table.z_arr[x_idx+1][0]*(1-interp_point_x);
+    // double xlimit_m1 = Nhalo_inv_table.z_arr[x_idx][1]*(interp_point_x)
+    //                 + Nhalo_inv_table.z_arr[x_idx+1][1]*(1-interp_point_x);
+
+    return xlimit;
+}
+
 //This one is always a table
 double EvaluateNhaloInv(double condition, double prob){
-    return EvaluateRGTable2D(condition,prob,&Nhalo_inv_table);
+    double lnp = log(prob);
+    if(lnp < global_params.MIN_LOGPROB)
+        return extrapolate_dNdM_inverse(condition,lnp);
+    return EvaluateRGTable2D(condition,lnp,&Nhalo_inv_table);
 }
 
 double EvaluateJ(double u_res,double gamma1){
@@ -1024,6 +1023,6 @@ double EvaluateJ(double u_res,double gamma1){
     double u_max = J_split_table.x_min + (J_split_table.n_bin-1)*J_split_table.x_width;
     //asymptotic expansion
     if(u_res > u_max)
-        return u_res - 0.5*gamma1*(1./u_res - 1./u_max);
+        return J_split_table.y_arr[J_split_table.n_bin - 1] + u_res - 0.5*gamma1*(1./u_res - 1./u_max);
     return EvaluateRGTable1D(u_res,&J_split_table);
 }

@@ -1193,8 +1193,8 @@ double (*get_integrand_function(int type))(double,void*){
 double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, int type){
     double result, error, lower_limit, upper_limit;
     gsl_function F;
-    double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
-    // double rel_tol = 1e-4; //<- relative tolerance
+    // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
+    double rel_tol = 1e-4; //<- relative tolerance
     int w_size = 1000;
     gsl_integration_workspace * w
     = gsl_integration_workspace_alloc (w_size);

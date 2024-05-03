@@ -294,8 +294,11 @@ class GlobalParams(StructInstanceWrapper):
         Mass tolerance for the stochastic halo sampling, a sample will be rejected if its mass sum falls
         outside of the expected mass * (1 +- STOC_MASS_TOL)
     SAMPLER_MIN_MASS:
-        Sets the minimum mass used by the halo sampler, halos below this mass will have the average contriubution
+        Sets the minimum mass of halo saved by the halo sampler, halos below this mass will have the average contriubution
         based on the integral of the given CMF. Greatly affects performance and memory usage.
+    SAMPLER_BUFFER_FACTOR:
+        Sets factor below the minimum mass sampled by the halo sampler, halos below SAMPLER_MIN_MASS are not saved however this
+        allows some stochasticity in total mass and helps with some boundary effects.
     MAXHALO_FACTOR:
         Safety factor to multiply halo array sizes, total (all threads) array size will be UMF integral * MAXHALO_FACTOR
     N_MASS_INTERP:
