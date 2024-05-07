@@ -119,7 +119,8 @@ double sample_dndM_inverse(double condition, struct HaloSamplingConstants * hs_c
     double p_in, min_prob, result;
     p_in = gsl_rng_uniform(rng);
     result = EvaluateNhaloInv(condition,p_in);
-    result = fmin(hs_constants->lnM_cond,fmax(hs_constants->lnM_min,result)); //clip in case of extrapolation
+    result = fmin(1,fmax(0,result)); //clip in case of extrapolation
+    result = result * hs_constants->M_cond;
     return result;
 }
 
@@ -331,7 +332,6 @@ int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, 
             halo_count = 0;
             for(ii=0;ii<nh;ii++){
                 hm_sample = sample_dndM_inverse(tbl_arg,hs_constants,rng);
-                hm_sample = exp(hm_sample);
                 M_prog += hm_sample;
                 M_out[halo_count++] = hm_sample;
                 // LOG_ULTRA_DEBUG("Sampled %.3e | %.3e",hm_sample,M_prog);
@@ -427,7 +427,6 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
 
     while(M_prog < exp_M){
         M_sample = sample_dndM_inverse(tbl_arg,hs_constants,rng);
-        M_sample = exp(M_sample);
 
         M_prog += M_sample;
         M_out[n_halo_sampled++] = M_sample;

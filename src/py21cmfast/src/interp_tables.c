@@ -742,17 +742,17 @@ void initialise_dNdM_inverse_table_rf(double xmin, double xmax, double lnM_min, 
 
             //NOTE: The total number density and collapsed fraction must be
             norm = Nhalo_Conditional(growth_out,lnM_min,lnM_cond,M_cond,sigma_cond,delta,0);
-            // LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.2f D %.2f n %d ==> %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
+            // LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.4f D %.2f n %d ==> %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
             params_rf.rf_norm = norm;
 
             //if the condition has no halos set the dndm table directly to avoid integration and divide by zero
             if(norm==0){
                 for(k=1;k<np-1;k++)
-                    Nhalo_inv_table.z_arr[i][k] = lnM_min;
+                    Nhalo_inv_table.z_arr[i][k] = exp(lnM_min)/M_cond;
                 continue;
             }
 
-            Nhalo_inv_table.z_arr[i][np-1] = lnM_min;
+            Nhalo_inv_table.z_arr[i][np-1] = exp(lnM_min)/M_cond;
             lnM_init = lnM_min;
             for(k=np-2;k>=0;k--){
                 iter = 0;
@@ -772,8 +772,8 @@ void initialise_dNdM_inverse_table_rf(double xmin, double xmax, double lnM_min, 
 
                     if (status == GSL_SUCCESS){
                         lnM_init = lnM_lo;
-                        Nhalo_inv_table.z_arr[i][k] = lnM_guess;
-                        // LOG_ULTRA_DEBUG("Found %.6e",lnM_guess);
+                        Nhalo_inv_table.z_arr[i][k] = exp(lnM_guess)/M_cond;
+                        // LOG_ULTRA_DEBUG("Found %.6e --> %.6e",lnM_guess,exp(lnM_guess)/M_cond);
                     }
 
                 }while((status == GSL_CONTINUE) && (iter < MAX_ITER_RF));
@@ -990,6 +990,8 @@ double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnM
 }
 
 //extrapolation function for log-probability based tables
+//NOTE: this is very similar to the EvaluateRGTableX function,
+//  it may be worth allowing extrapolation there by simply setting the indices to the min/max
 double extrapolate_dNdM_inverse(double condition, double lnp){
     double x_min = Nhalo_inv_table.x_min;
     double x_width = Nhalo_inv_table.x_width;
@@ -997,13 +999,17 @@ double extrapolate_dNdM_inverse(double condition, double lnp){
     double x_table = x_min + x_idx*x_width;
     double interp_point_x = (condition - x_table)/x_width;
 
+    double extrap_point_y = (lnp - global_params.MIN_LOGPROB)/Nhalo_inv_table.y_width;
+
     //find the log-mass at the edge of the table for this condition
     double xlimit = Nhalo_inv_table.z_arr[x_idx][0]*(interp_point_x)
                     + Nhalo_inv_table.z_arr[x_idx+1][0]*(1-interp_point_x);
-    // double xlimit_m1 = Nhalo_inv_table.z_arr[x_idx][1]*(interp_point_x)
-    //                 + Nhalo_inv_table.z_arr[x_idx+1][1]*(1-interp_point_x);
+    double xlimit_m1 = Nhalo_inv_table.z_arr[x_idx][1]*(interp_point_x)
+                    + Nhalo_inv_table.z_arr[x_idx+1][1]*(1-interp_point_x);
 
-    return xlimit;
+    double result = xlimit + (xlimit_m1 - xlimit)*(extrap_point_y);
+
+    return result;
 }
 
 //This one is always a table

@@ -746,6 +746,7 @@ double sheth_delc_dexm(double del, double sig){
 }
 
 /*DexM uses a fit to this barrier to acheive MF similar to ST, Here I use the fixed version for the sampler*/
+//NOTE: if I made this a table it would save a pow call per condition in the sampler
 double sheth_delc_fixed(double del, double sig){
     return sqrt(JENKINS_a)*del*(1. + JENKINS_b*pow(sig*sig/(JENKINS_a*del*del), JENKINS_c));
 }
@@ -814,7 +815,7 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
 
 //Sheth Tormen 2002 fit for the CMF, while the moving barrier does not allow for a simple rescaling, it has been found
 //That a taylor expansion of the barrier shape around the point of interest well approximates the simulations
-double st_taylor_factor(double sig, double sig_cond, double delta_cond, double growthf){
+double st_taylor_factor(double sig, double sig_cond, double growthf, double *zeroth_order){
     int i;
     double a = JENKINS_a;
     double alpha = JENKINS_c; //fixed instead of global_params.SHETH_c bc of DexM corrections
@@ -823,32 +824,28 @@ double st_taylor_factor(double sig, double sig_cond, double delta_cond, double g
     double del = Deltac/growthf;
 
     double sigsq = sig*sig;
+    double sigsq_inv = 1./sigsq;
     double sigcsq = sig_cond*sig_cond;
     double sigdiff = sig == sig_cond ? 1e-6 : sigsq - sigcsq;
-    double dn_const = sqrt(a)*del*beta*pow(a*del*del,-alpha);
 
-    //define arrays of factors to save time and math calls
-    int n_fac[6] = {1,1,2,6,24,120};
-    double a_fac[6];
-    double s_fac[6];
-    a_fac[0] = 1;
-    s_fac[0] = 1;
-    for(i=1;i<=5;i++){
-        a_fac[i] = a_fac[i-1] * (alpha-i+1);
-        s_fac[i] = s_fac[i-1] * (-sigdiff);
-    }
+    // This array cumulatively builds the taylor series terms
+    // sigdiff^n / n! * df/dsigma (polynomial w alpha)
+    double t_array[6];
+    t_array[0] = 1.;
+    for(i=1;i<6;i++)
+        t_array[i] = t_array[i-1] * (-sigdiff) / i * (alpha-i+1) * sigsq_inv;
 
+    //Sum small to large
     double result = 0.;
-    //we do this instead of pow(sigsq,alpha-i) in the loop to save pow calls
-    // this function is called *many* times so any optimisation will be worth it
-    double ssq_save = pow(sigsq,alpha-6);
-    //Taylor expansion of the x^a part around (sigsq - sigcondsq) (summing small to large)
-    for(i=5;i>=1;i--){
-        ssq_save *= sigsq;
-        result += s_fac[i]/n_fac[i] * ssq_save*a_fac[i];
-        // LOG_ULTRA_DEBUG("%d term %.2e",i,result);
+    for(i=5;i>=0;i--){
+        result += t_array[i];
     }
-    result *= dn_const;
+
+    double prefactor_1 = sqrt(a)*del;
+    double prefactor_2 = beta*pow(sigsq_inv*(a*del*del),-alpha);
+
+    result = prefactor_1*(1 + prefactor_2*result);
+    *zeroth_order = prefactor_1*(1+prefactor_2); //0th order term gives the barrier for efficiency
     return result;
 }
 
@@ -862,8 +859,7 @@ double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double
     dsigmasqdm = EvaluatedSigmasqdm(lnM);
     if(sigma1 < sigma_cond) return 0.;
 
-    Barrier = sheth_delc_fixed(Deltac/growthf,sigma1);
-    factor = st_taylor_factor(sigma1,sigma_cond,delta_0,growthf) + (Barrier - delta_0);
+    factor = st_taylor_factor(sigma1,sigma_cond,growthf,&Barrier) - delta_0;
 
     sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1/(sigma1*sigma1 - sigma_cond*sigma_cond);
 
