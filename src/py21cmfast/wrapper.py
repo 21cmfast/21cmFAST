@@ -106,6 +106,7 @@ from .inputs import (
     CosmoParams,
     FlagOptions,
     UserParams,
+    convert_input_dicts,
     global_params,
     validate_all_inputs,
 )
@@ -177,7 +178,8 @@ def _configure_inputs(
 
         if val is not None and data_val is not None and data_val != val:
             raise ValueError(
-                f"{key} has an inconsistent value with {dataset.__class__.__name__}"
+                f"{key} has an inconsistent value with {dataset.__class__.__name__}."
+                f"Expected:\n\n{val}\n\nGot:\n\n{data_val}."
             )
         if val is not None:
             output[i] = val
@@ -288,23 +290,17 @@ def _setup_inputs(
     if input_boxes:
         _verify_types(**input_boxes)
 
-    for k, v in input_params.items():
-        cls = {
-            "user_params": UserParams,
-            "cosmo_params": CosmoParams,
-            "flag_options": FlagOptions,
-        }.get(k)
+    keys = list(input_params.keys())
+    pkeys = ["user_params", "cosmo_params", "astro_params", "flag_options"]
 
-        if cls is not None:
-            input_params[k] = cls(v)
+    # Convert the input params into the correct classes, unless they are None.
+    outparams = convert_input_dicts(*[input_params.pop(k, None) for k in pkeys])
 
-    if "astro_params" in input_params:
-        input_params["astro_params"] = AstroParams(
-            input_params["astro_params"],
-            INHOMO_RECO=input_params["flag_options"].INHOMO_RECO,
-        )
-
-    params = _configure_inputs(list(input_params.items()), *list(input_boxes.values()))
+    # Get defaults from datasets where available
+    params = _configure_inputs(
+        list(zip(pkeys, outparams)) + list(input_params.items()),
+        *list(input_boxes.values()),
+    )
 
     if redshift != -1:
         redshift = configure_redshift(
@@ -316,14 +312,16 @@ def _setup_inputs(
             ],
         )
 
+    p = convert_input_dicts(*params[:4], defaults=True)
+
     # This turns params into a dict with all the input parameters in it.
-    params = dict(zip(input_params.keys(), params))
+    params = dict(zip(pkeys + list(input_params.keys()), list(p) + params[4:]))
 
     # Perform validation between different sets of inputs.
     validate_all_inputs(**{k: v for k, v in params.items() if k != "random_seed"})
 
     # Sort the params back into input order.
-    params = [params[k] for k in input_params]
+    params = [params[k] for k in keys]
 
     out = params
     if redshift != -1:

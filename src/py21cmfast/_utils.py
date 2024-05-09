@@ -392,7 +392,7 @@ class StructWithDefaults(StructWrapper):
             else:
                 raise TypeError(
                     f"optional positional argument for {self.__class__.__name__} must be"
-                    f" None, dict, or an instance of itself"
+                    f" None, dict, or an instance of itself. Got {type(args[0])}"
                 )
 
         for k, v in self._defaults_.items():
