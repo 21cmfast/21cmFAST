@@ -1120,7 +1120,7 @@ def determine_halo_list(
         hbuffer_size = lib.expected_nhalo(
             redshift, user_params(), cosmo_params(), astro_params(), flag_options()
         )
-        hbuffer_size = int((hbuffer_size + 1) * global_params.MAXHALO_FACTOR)
+        hbuffer_size = int((hbuffer_size + 1) * user_params.MAXHALO_FACTOR)
         # set a minimum in case of fluctuation at high z
         hbuffer_size = int(max(hbuffer_size, 1e6))
 
@@ -1272,7 +1272,7 @@ def perturb_halo_list(
             hbuffer_size = lib.expected_nhalo(
                 redshift, user_params(), cosmo_params(), astro_params(), flag_options()
             )
-            hbuffer_size = int((hbuffer_size + 1) * global_params.MAXHALO_FACTOR)
+            hbuffer_size = int((hbuffer_size + 1) * user_params.MAXHALO_FACTOR)
             # set a minimum in case of fluctuation at high z
             hbuffer_size = int(max(hbuffer_size, 1e3))
         else:
@@ -1458,7 +1458,7 @@ def halo_box(
             not isinstance(perturbed_field, PerturbedField)
             or not perturbed_field.is_computed
         ):
-            if flag_options.FIXED_HALO_GRIDS or global_params.AVG_BELOW_SAMPLER:
+            if flag_options.FIXED_HALO_GRIDS or user_params.AVG_BELOW_SAMPLER:
                 perturbed_field = perturb_field(
                     user_params=user_params,
                     cosmo_params=cosmo_params,

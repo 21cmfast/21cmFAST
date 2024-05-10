@@ -81,18 +81,6 @@ struct GlobalParams{
 
     float VAVG;
 
-    //Stochasticity Options
-    float STOC_MASS_TOL;
-    float SAMPLER_MIN_MASS;
-    double SAMPLER_BUFFER_FACTOR;
-    float MAXHALO_FACTOR;
-    int N_MASS_INTERP;
-    int N_COND_INTERP;
-    int N_PROB_INTERP;
-    double MIN_LOGPROB;
-    int SAMPLE_METHOD;
-    int AVG_BELOW_SAMPLER;
-
     bool USE_ADIABATIC_FLUCTUATIONS;
 };
 
@@ -165,18 +153,6 @@ extern struct GlobalParams global_params = {
     .T_RE = 2e4,
 
     .VAVG=25.86,
-
-    .STOC_MASS_TOL = 5.0, //effectively infinite, mass tolerance semi-deprecated
-    .SAMPLER_MIN_MASS = 5e7,
-    .SAMPLER_BUFFER_FACTOR = 2,
-    .MAXHALO_FACTOR = 2,
-    .N_MASS_INTERP = 200,
-    .N_COND_INTERP = 200,
-    .N_PROB_INTERP = 200,
-    .MIN_LOGPROB = -16, //corresponds to ~ 1e-7 in probability
-    .SAMPLE_METHOD = 0,
-    .AVG_BELOW_SAMPLER = 0,
-
 
     .USE_ADIABATIC_FLUCTUATIONS = 1,
 };

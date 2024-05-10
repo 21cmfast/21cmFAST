@@ -290,34 +290,6 @@ class GlobalParams(StructInstanceWrapper):
         The peak gas temperatures behind the supersonic ionization fronts during reionization.
     VAVG:
         Avg value of the DM-b relative velocity [im km/s], ~0.9*SIGMAVCB (=25.86 km/s) normally.
-    STOC_MASS_TOL:
-        Mass tolerance for the stochastic halo sampling, a sample will be rejected if its mass sum falls
-        outside of the expected mass * (1 +- STOC_MASS_TOL)
-    SAMPLER_MIN_MASS:
-        Sets the minimum mass of halo saved by the halo sampler, halos below this mass will have the average contriubution
-        based on the integral of the given CMF. Greatly affects performance and memory usage.
-    SAMPLER_BUFFER_FACTOR:
-        Sets factor below the minimum mass sampled by the halo sampler, halos below SAMPLER_MIN_MASS are not saved however this
-        allows some stochasticity in total mass and helps with some boundary effects.
-    MAXHALO_FACTOR:
-        Safety factor to multiply halo array sizes, total (all threads) array size will be UMF integral * MAXHALO_FACTOR
-    N_MASS_INTERP:
-        Number of mass bins for the sampler interpolation tables.
-    N_DELTA_INTERP:
-        Number of delta bins for the sampler interpolation tables.
-    N_PROB_INTERP:
-        Number of probability bins for the sampler interpolation tables.
-    MIN_LOGPROB:
-        Lower limit (in log probability) of the inverse CDF table. This is a ceiling in case the algorithm can't find a suitable lower limit
-    SAMPLE_METHOD:
-        Sampling method to use for stochastic halos:
-            0: Mass sampling from CMF
-            1: N_halo sampling from CMF
-            2: Sheth & Lemson 99 Fcoll sampling
-            3: Darkforest (Qiu+20) binary splitting
-    AVG_BELOW_SAMPLER:
-        int flag to add the average halo proeprties in each cell between the source mass limit
-        and the mass sampled by the halo sampler
     """
 
     def __init__(self, wrapped, ffi):
@@ -530,6 +502,33 @@ class UserParams(StructWithDefaults):
         If STOC_MINIMUM_Z is not provided, we simply sample at the given redshift, unless
         USE_TS_FLUCT is given or we want a lightcone, in which case the minimum redshift is set
         to the minimum redshift of those fields.
+    SAMPLER_MIN_MASS: float, optional
+        The minimum mass to sample in the halo sampler when USE_HALO_FIELD and HALO_STOCHASTICITY are true,
+        decreasing this can drastically increase both compute time and memory usage.
+    SAMPLER_BUFFER_FACTOR: float, optional
+        The arrays for the halo sampler will have size of SAMPLER_BUFFER_FACTOR multiplied by the expected
+        number of halos in the box. Ideally this should be close to unity but one may wish to increase it to
+        test alternative scenarios
+    N_COND_INTERP: int, optional
+        The number of condition bins in the interpolation tables. This covers both the condition (mass/delta) axis in the inverse CMF
+        tables for the sampler as well as the delta axis of the grid-based source tables.
+    N_PROB_INTERP: int, optional
+        The number of probability bins in the inverse CMF tables.
+    MIN_LOGPROB: float, optional
+        The minimum log-probability of the inverse CMF tables.
+    SAMPLE_METHOD: int, optional
+        The sampling method to use in the halo sampler when calculating progenitor populations:
+        0: Mass-limited CMF sampling, where samples are drawn until the expected mass is reached
+        1: Number-limited CMF sampling, where we select a number of halos from the Poisson distribution
+        and then sample the CMF that many times
+        2: Sheth et al 1999 Partition sampling, where the EPS collapsed fraction is sampled (gaussian tail)
+        and then the condition is updated using the conservation of mass.
+        3: Parkinsson et al 2008 Binary split model as in DarkForest (Qiu et al 2021) where the EPS merger rate
+        is sampled on small internal timesteps such that only binary splits can occur.
+        NOTE: Sampling from the density grid will ALWAYS use number-limited sampling (method 1)
+    AVG_BELOW_SAMPLER: bool, optional
+        When switched on, an integral is performed in each cell between the minimum source mass and SAMPLER_MIN_MASS,
+        effectively placing the average halo population in each HaloBox cell below the sampler resolution
     """
 
     _ffi = ffi
@@ -553,6 +552,14 @@ class UserParams(StructWithDefaults):
         "MINIMIZE_MEMORY": False,
         "STOC_MINIMUM_Z": None,
         "KEEP_3D_VELOCITIES": False,
+        "SAMPLER_MIN_MASS": 5e7,
+        "SAMPLER_BUFFER_FACTOR": 2.0,
+        "MAXHALO_FACTOR": 2.0,
+        "N_COND_INTERP": 200,
+        "N_PROB_INTERP": 400,
+        "MIN_LOGPROB": -12,
+        "SAMPLE_METHOD": 0,
+        "AVG_BELOW_SAMPLER": False,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]

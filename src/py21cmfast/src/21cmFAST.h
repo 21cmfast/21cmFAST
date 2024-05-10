@@ -34,6 +34,16 @@ struct UserParams{
     bool USE_2LPT;
     bool MINIMIZE_MEMORY;
     bool KEEP_3D_VELOCITIES;
+
+    //Halo Sampler Options
+    float SAMPLER_MIN_MASS;
+    double SAMPLER_BUFFER_FACTOR;
+    float MAXHALO_FACTOR;
+    int N_COND_INTERP;
+    int N_PROB_INTERP;
+    double MIN_LOGPROB;
+    int SAMPLE_METHOD;
+    bool AVG_BELOW_SAMPLER;
 };
 
 struct AstroParams{
@@ -131,7 +141,7 @@ struct HaloBox{
     float *n_ion; //weighted by F_ESC*PopN_ion
     float *halo_sfr; //for x-rays and Ts stuff
     float *halo_sfr_mini; //for x-rays and Ts stuff
-    float *whalo_sfr;
+    float *whalo_sfr; //SFR weighted by PopN_ion and F_ESC, used for Gamma12
 
     double log10_Mcrit_LW_ave;
 };

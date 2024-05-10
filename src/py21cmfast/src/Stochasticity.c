@@ -2,13 +2,6 @@
  * i.e sampling the halo mass function and
  * other halo relations.*/
 
-//TODO: Don't have every error be a ValueError
-
-//max number of attempts for mass tolerance before failure
-#define MAX_ITERATIONS 1e4
-#define MAX_ITER_N 1e2 //for stoc_halo_sample (select N halos) how many tries for one N, this should be large to enforce a near-possion p(N)
-#define MMAX_TABLES 1e14
-
 //buffer size (per cell of arbitrary size) in the sampling function
 #define MAX_HALO_CELL (int)1e5
 
@@ -61,22 +54,6 @@ void print_hs_consts(struct HaloSamplingConstants * c){
     return;
 }
 
-//The sigma interp table is regular in log mass, not sigma so we need to loop ONLY FOR METHOD=3
-double EvaluateSigmaInverse(double sigma, struct RGTable1D_f *s_table){
-    int idx;
-    for(idx=0;idx<NMass;idx++){
-        if(sigma < s_table->y_arr[idx]) break;
-    }
-    if(idx == NMass){
-        LOG_ERROR("sigma inverse out of bounds.");
-        Throw(TableEvaluationError);
-    }
-    double table_val_0 = s_table->x_min + idx*s_table->x_width;
-    double table_val_1 = s_table->x_min + (idx-1)*s_table->x_width;
-    double interp_point = (sigma - table_val_0)/(table_val_1-table_val_0);
-
-    return table_val_0*(1-interp_point) + table_val_1*(interp_point);
-}
 
 void Broadcast_struct_global_STOC(struct UserParams *user_params, struct CosmoParams *cosmo_params,struct AstroParams *astro_params, struct FlagOptions *flag_options){
     cosmo_params_stoc = cosmo_params;
@@ -90,7 +67,7 @@ double expected_nhalo(double redshift, struct UserParams *user_params, struct Co
     //minimum sampled mass
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_PS(user_params,cosmo_params);
-    double M_min = global_params.SAMPLER_MIN_MASS;
+    double M_min = user_params->SAMPLER_MIN_MASS;
     //maximum sampled mass
     double M_max = RHOcrit * cosmo_params->OMm * VOLUME / HII_TOT_NUM_PIXELS;
     double growthf = dicke(redshift);
@@ -131,14 +108,14 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
     const_struct->z_out = redshift;
     const_struct->z_in = redshift_desc;
 
-    const_struct->M_min = global_params.SAMPLER_MIN_MASS / global_params.SAMPLER_BUFFER_FACTOR;
+    const_struct->M_min = user_params_stoc->SAMPLER_MIN_MASS / user_params_stoc->SAMPLER_BUFFER_FACTOR;
     const_struct->lnM_min = log(const_struct->M_min);
     const_struct->M_max_tables = global_params.M_MAX_INTEGRAL;
     const_struct->lnM_max_tb = log(const_struct->M_max_tables);
 
     init_ps();
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        if(global_params.SAMPLE_METHOD == 3)
+        if(user_params_stoc->SAMPLE_METHOD == 3)
             initialiseSigmaMInterpTable(const_struct->M_min/2,const_struct->M_max_tables); //the binary split needs to go below the resolution
         else
             initialiseSigmaMInterpTable(const_struct->M_min,const_struct->M_max_tables);
@@ -158,13 +135,13 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
             const_struct->corr_star = 0;
 
         const_struct->from_catalog = 1;
-        initialise_dNdM_tables(log(global_params.SAMPLER_MIN_MASS), const_struct->lnM_max_tb, const_struct->lnM_min, const_struct->lnM_max_tb,
+        initialise_dNdM_tables(log(user_params_stoc->SAMPLER_MIN_MASS), const_struct->lnM_max_tb, const_struct->lnM_min, const_struct->lnM_max_tb,
                                 const_struct->growth_out, const_struct->growth_in, true);
-        if(global_params.SAMPLE_METHOD < 2){
-            initialise_dNdM_inverse_table(log(global_params.SAMPLER_MIN_MASS), const_struct->lnM_max_tb, const_struct->lnM_min,
+        if(user_params_stoc->SAMPLE_METHOD == 0 || user_params_stoc->SAMPLE_METHOD == 1){
+            initialise_dNdM_inverse_table(log(user_params_stoc->SAMPLER_MIN_MASS), const_struct->lnM_max_tb, const_struct->lnM_min,
                                     const_struct->growth_out, const_struct->growth_in, true);
         }
-        if(global_params.SAMPLE_METHOD == 3){
+        if(user_params_stoc->SAMPLE_METHOD == 3){
             initialise_J_split_table(200,1e-4,20.,0.2);
         }
     }
@@ -307,52 +284,20 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
 /* Creates a realisation of halo properties by sampling the halo mass function and
  * conditional property PDFs, the number of halos is poisson sampled from the integrated CMF*/
 int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
-    double M_min = hs_constants->M_min;
-    double mass_tol = global_params.STOC_MASS_TOL;
     double exp_N = hs_constants->expected_N;
-    double exp_M = hs_constants->expected_M;
-    double M_cond = hs_constants->M_cond;
 
-    double hm_sample, M_prog;
+    double hm_sample;
     int ii, nh;
-    int n_attempts=0, n_failures=0;
     int halo_count=0;
 
     double tbl_arg = hs_constants->cond_val;
 
-    for(n_failures=0;n_failures<MAX_ITERATIONS;n_failures++){
-        n_attempts = 0;
-        nh = gsl_ran_poisson(rng,exp_N);
-        //find an N which *could* fit the mass tolerance
-        while((nh*M_cond < exp_M*(1-mass_tol))||(M_min*nh > exp_M*(1+mass_tol))){
-            nh = gsl_ran_poisson(rng,exp_N);
-        }
-        for(n_attempts=0;n_attempts<MAX_ITER_N;n_attempts++){
-            M_prog = 0;
-            halo_count = 0;
-            for(ii=0;ii<nh;ii++){
-                hm_sample = sample_dndM_inverse(tbl_arg,hs_constants,rng);
-                M_prog += hm_sample;
-                M_out[halo_count++] = hm_sample;
-                // LOG_ULTRA_DEBUG("Sampled %.3e | %.3e",hm_sample,M_prog);
-            }
-            // LOG_ULTRA_DEBUG("attempt %d (%d halo) M=%.3e [%.3e, %.3e]",n_attempts,nh,M_prog,exp_M*(1-mass_tol),exp_M*(1+mass_tol));
-            if((M_prog < exp_M*(1+mass_tol)) && (M_prog > exp_M*(1-mass_tol))){
-                //using goto to break double loop
-                goto found_halo_sample;
-            }
-        }
+    nh = gsl_ran_poisson(rng,exp_N);
+    for(ii=0;ii<nh;ii++){
+        M_out[halo_count++] = sample_dndM_inverse(tbl_arg,hs_constants,rng);;
     }
 
-    //technically I don't need the if statement but it might be confusing otherwise
-    if(n_failures >= MAX_ITERATIONS){
-        LOG_ERROR("passed max iter in sample, last attempt cond %.3e M=%.3e [%.3e, %.3e] Me %.3e Mt %.3e",tbl_arg,M_prog,exp_M*(1-mass_tol),exp_M*(1+mass_tol),exp_M,mass_tol);
-        Throw(ValueError);
-    }
-
-    found_halo_sample: *n_halo_out = halo_count;
-    // LOG_ULTRA_DEBUG("Got %d (exp. %.2e) halos mass %.2e (exp. %.2e) %.2f | (%d,%d) att.",
-    //                 nh,exp_N,M_prog,exp_M,M_prog/exp_M - 1, n_failures, n_attempts);
+    *n_halo_out = halo_count;
     return 0;
 }
 
@@ -371,10 +316,10 @@ double remove_random_halo(gsl_rng * rng, int n_halo, int *idx, double *M_prog, f
     return last_M_del;
 }
 
-/*Convenience function to store all of the mass-based sample "corrections" i.e what we decide to do when the mass samples go above the trigger*/
+/*Function which "corrects" a mass sample after it exceeds the expected mass*/
 //CURRENT IMPLEMENTATION: half the time I keep/throw away the last halo based on which sample is closer to the expected mass.
 // However this introduces a bias since the last halo is likely larger than average So the other half the time,
-// I throw away random halos until we are again below exp_M, effectively the same process in reverse. which has the (exact?) opposite bias
+// I throw away random halos until we are again below exp_M, effectively the same process in reverse. which has the opposite bias
 void fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_pt, float *M_out){
     //Keep the last halo if it brings us closer to the expected mass
     //This is done by addition or subtraction over the limit to balance
@@ -413,11 +358,10 @@ void fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_
  * conditional property PDFs, Sampling is done until there is no more mass in the condition
  * Stochasticity is ignored below a certain mass threshold */
 int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
-    //lnMmin only used for sampling, apply factor here
-    double mass_tol = global_params.STOC_MASS_TOL;
     double exp_M = hs_constants->expected_M;
     //fudge factor for assuming that internal lagrangian volumes are independent
-    exp_M *= 0.90;
+    double totalmass_fudge_factor = 0.90;
+    exp_M *= totalmass_fudge_factor;
 
     int n_halo_sampled=0;
     double M_prog=0;
@@ -438,7 +382,7 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
     // LOG_ULTRA_DEBUG("After fix: %d %.3e",n_halo_sampled,M_prog);
 
     // LOG_ULTRA_DEBUG("Got %d (exp.%.2e) halos mass %.2e (exp. %.2e) %.2f",
-                    // n_halo_sampled,hs_constants->expected_N,M_prog,exp_M,M_prog/exp_M - 1);
+    //                 n_halo_sampled,hs_constants->expected_N,M_prog,exp_M,M_prog/exp_M - 1);
     *n_halo_out = n_halo_sampled;
     return 0;
 }
@@ -467,6 +411,7 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
     double tbl_arg = hs_constants->cond_val;
     n_halo_sampled = 0;
     // LOG_ULTRA_DEBUG("Start: M %.2e (%.2e) d %.2e",M_cond,exp_M,d_cond);
+    double sigma_fudge_factor = 0.90;
 
     //set initial amount (subtracted unresolved Mass)
     M_remaining = exp_M;
@@ -474,7 +419,7 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
 
     double x_min;
 
-    while(M_remaining > global_params.SAMPLER_MIN_MASS){
+    while(M_remaining > user_params_stoc->SAMPLER_MIN_MASS){
         sigma_r = EvaluateSigma(lnM_remaining);
         delta_current = (get_delta_crit(user_params_stoc->HMF,sigma_r,growthf) - d_cond)/(M_remaining/M_cond);
         del_term = delta_current*delta_current/growthf/growthf;
@@ -488,7 +433,8 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
         //we use the gaussian tail distribution to enforce our Mmin limit from the sigma tables
         x_sample = gsl_ran_ugaussian_tail(rng,x_min);
         sigma_sample = sqrt(del_term/(x_sample*x_sample) + sigma_r*sigma_r);
-        M_sample = EvaluateSigmaInverse(sigma_sample,&Sigma_InterpTable);
+        sigma_sample *= sigma_fudge_factor;
+        M_sample = EvaluateSigmaInverse(sigma_sample);
         M_sample = exp(M_sample);
 
         //LOG_ULTRA_DEBUG("found Mass %d %.2e",n_halo_sampled,M_sample);
@@ -515,9 +461,9 @@ double ComputeFraction_split(
 //NOTE: some unused variables here
 //Only works with adjusted EPS
 int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
-    double G0 = 0.8;
-    double gamma1 = 0.35;
-    double gamma2 = -0.35;
+    double G0 = 1;
+    double gamma1 = 0.4;
+    double gamma2 = -0.2;
     double m_res = hs_constants->M_min;
     double lnm_res = hs_constants->lnM_min;
     double eps1 = 0.1;
@@ -680,7 +626,7 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     int err;
     //If the expected mass is below our minimum saved mass, don't bother calculating
     //NOTE: some of these conditions are redundant with set_consts_cond()
-    if(hs_constants->delta <= DELTA_MIN || hs_constants->expected_M < global_params.SAMPLER_MIN_MASS){
+    if(hs_constants->delta <= DELTA_MIN || hs_constants->expected_M < user_params_stoc->SAMPLER_MIN_MASS){
         *n_halo_out = 0;
         return 0;
     }
@@ -694,16 +640,16 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
     }
 
     //We always use Number-Limited sampling for grid-based cases
-    if(global_params.SAMPLE_METHOD == 1 || !hs_constants->from_catalog){
+    if(user_params_stoc->SAMPLE_METHOD == 1 || !hs_constants->from_catalog){
         err = stoc_halo_sample(hs_constants, rng, n_halo_out, M_out);
     }
-    else if(global_params.SAMPLE_METHOD == 0){
+    else if(user_params_stoc->SAMPLE_METHOD == 0){
         err = stoc_mass_sample(hs_constants, rng, n_halo_out, M_out);
     }
-    else if(global_params.SAMPLE_METHOD == 2){
+    else if(user_params_stoc->SAMPLE_METHOD == 2){
         err = stoc_partition_sample(hs_constants, rng, n_halo_out, M_out);
     }
-    else if(global_params.SAMPLE_METHOD == 3){
+    else if(user_params_stoc->SAMPLE_METHOD == 3){
         err = stoc_split_sample(hs_constants, rng, n_halo_out, M_out);
     }
     else{
@@ -820,12 +766,12 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
                     for(i=0;i<nh_buf;i++){
                         //sometimes halos are subtracted from the sample (set to zero)
                         //we do not want to save these
-                        if(hm_buf[i] < global_params.SAMPLER_MIN_MASS) continue;
+                        if(hm_buf[i] < user_params_stoc->SAMPLER_MIN_MASS) continue;
 
                         if(count >= arraysize_local){
-                            LOG_ERROR("More than %d halos (expected %d) with buffer size factor %d",
-                                        arraysize_local,arraysize_local/global_params.MAXHALO_FACTOR,global_params.MAXHALO_FACTOR);
-                            LOG_ERROR("If you expected to have an above average halo number try raising global_params.MAXHALO_FACTOR");
+                            LOG_ERROR("More than %d halos (expected %.1f) with buffer size factor %d",
+                                        arraysize_local,arraysize_local/user_params_stoc->MAXHALO_FACTOR,user_params_stoc->MAXHALO_FACTOR);
+                            LOG_ERROR("If you expected to have an above average halo number try raising user_params->MAXHALO_FACTOR");
                             Throw(ValueError);
                         }
 
@@ -959,12 +905,12 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, struc
             for(jj=0;jj<n_prog;jj++){
                 //sometimes halos are subtracted from the sample (set to zero)
                 //we do not want to save these
-                if(prog_buf[jj] < global_params.SAMPLER_MIN_MASS) continue;
+                if(prog_buf[jj] < user_params_stoc->SAMPLER_MIN_MASS) continue;
 
                 if(count >= arraysize_local){
                     LOG_ERROR("More than %d halos (expected %d) with buffer size factor %d",
-                                arraysize_local,arraysize_local/global_params.MAXHALO_FACTOR,global_params.MAXHALO_FACTOR);
-                    LOG_ERROR("If you expected to have an above average halo number try raising global_params.MAXHALO_FACTOR");
+                                arraysize_local,arraysize_local/user_params_stoc->MAXHALO_FACTOR,user_params_stoc->MAXHALO_FACTOR);
+                    LOG_ERROR("If you expected to have an above average halo number try raising user_params_stoc->MAXHALO_FACTOR");
                     Throw(ValueError);
                 }
 
@@ -1186,7 +1132,7 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
                 n_halo_cond = 0;
                 M_prog = 0;
                 for(i=0;i<n_halo;i++){
-                    if(out_hm[i] < global_params.SAMPLER_MIN_MASS) continue;
+                    if(out_hm[i] < user_params->SAMPLER_MIN_MASS) continue;
                     M_prog += out_hm[i];
                     n_halo_cond++;
 
@@ -1220,12 +1166,12 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
 
         //get expected values from the saved mass range
         if(hs_constants->from_catalog){
-            initialise_dNdM_tables(log(global_params.SAMPLER_MIN_MASS), hs_constants->lnM_max_tb, log(global_params.SAMPLER_MIN_MASS),
+            initialise_dNdM_tables(log(user_params->SAMPLER_MIN_MASS), hs_constants->lnM_max_tb, log(user_params->SAMPLER_MIN_MASS),
                                  hs_constants->lnM_max_tb, hs_constants->growth_out, hs_constants->growth_in, true);
         }
         else{
             double delta_crit = get_delta_crit(user_params_stoc->HMF,hs_constants->sigma_cond,hs_constants->growth_out);
-            initialise_dNdM_tables(DELTA_MIN, MAX_DELTAC_FRAC*delta_crit, log(global_params.SAMPLER_MIN_MASS), hs_constants->lnM_max_tb,
+            initialise_dNdM_tables(DELTA_MIN, MAX_DELTAC_FRAC*delta_crit, log(user_params->SAMPLER_MIN_MASS), hs_constants->lnM_max_tb,
                                  hs_constants->growth_out, hs_constants->lnM_cond, false);
         }
         #pragma omp parallel

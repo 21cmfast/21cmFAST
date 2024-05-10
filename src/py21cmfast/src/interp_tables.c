@@ -41,7 +41,6 @@ struct RGTable2D_f Nion_conditional_table_MINI_prev = {.allocated = false};
 struct RGTable1D Nhalo_table = {.allocated = false};
 struct RGTable1D Mcoll_table = {.allocated = false};
 struct RGTable2D Nhalo_inv_table = {.allocated = false};
-bool inv_table_log = false; //placeholder for a better implementation of log/linear probability
 
 //Tables for the old parametrization
 struct RGTable1D fcoll_z_table = {.allocated = false};
@@ -467,7 +466,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
         sigma_cond = EvaluateSigma(lnM_cond);
     }
 
-    nx = global_params.N_COND_INTERP;
+    nx = user_params_it->N_COND_INTERP;
 
     double xa[nx];
     int i;
@@ -516,132 +515,6 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
 
 }
 
-//This table is N(>M | M_in), the CDF of dNdM_conditional
-//NOTE: Assumes you give it ymin as the minimum lower-integral limit, and ymax as the maximum
-// `param` is either the constant log condition mass for the grid case (!from_catalog) OR the descendant growth factor with from_catalog
-void initialise_dNdM_inverse_table_interp(double xmin, double xmax, double lnM_min, double growth_out, double param, bool from_catalog){
-    LOG_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Min. %.2e)",xmin,xmax,lnM_min);
-    LOG_DEBUG("D_out %.2e P %.2e up %d",growth_out,param,from_catalog);
-
-    int nx = global_params.N_COND_INTERP;
-    int ny = global_params.N_MASS_INTERP;
-    int np = global_params.N_PROB_INTERP;
-    double xa[nx], pa[np];
-
-    double lnM_cond;
-    double sigma_cond;
-    double min_lp = global_params.MIN_LOGPROB;
-    if(!from_catalog){
-        lnM_cond = param;
-        sigma_cond = EvaluateSigma(lnM_cond);
-    }
-
-    int i,j,k;
-    //set up coordinate grids
-    for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*((double)i)/((double)nx-1);
-    xa[nx-1] = xmax; //avoiding floating point errors in final bin due to the hard boundary at Deltac
-    for(k=0;k<np;k++){
-        pa[k] = min_lp*(1 - (double)k/(double)(np-1));
-    }
-
-    if(!Nhalo_inv_table.allocated){
-        allocate_RGTable2D(nx,np,&Nhalo_inv_table);
-    }
-
-    Nhalo_inv_table.x_min = xmin;
-    Nhalo_inv_table.x_width = xa[1] - xa[0];
-    Nhalo_inv_table.y_min = pa[0];
-    Nhalo_inv_table.y_width = pa[1] - pa[0];
-
-    #pragma omp parallel num_threads(user_params_it->N_THREADS) private(i,j,k) firstprivate(sigma_cond,lnM_cond)
-    {
-        double x,y,buf;
-        double norm;
-        double lnM_prev,lnM_p;
-        double prob,p_prev;
-        double delta;
-        double M_cond;
-
-        #pragma omp for
-        for(i=0;i<nx;i++){
-            x = xa[i];
-            //set the condition
-            if(from_catalog){
-                lnM_cond = x;
-                sigma_cond = EvaluateSigma(lnM_cond);
-                //Barrier at descendant mass scaled to progenitor redshift
-                delta = get_delta_crit(user_params_it->HMF,sigma_cond,param)/param*growth_out;
-            }
-            else{
-                delta = x;
-            }
-
-            p_prev = 0;
-            M_cond = exp(lnM_cond);
-
-            //NOTE: The total number density and collapsed fraction must be
-            norm = Nhalo_Conditional(growth_out,lnM_min,lnM_cond,M_cond,sigma_cond,delta,0);
-            // LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.2f D %.2f n %d ==> %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
-
-            //if the condition has no halos set the dndm table directly to avoid integration and divide by zero
-            if(norm==0){
-                for(k=1;k<np-1;k++)
-                    Nhalo_inv_table.z_arr[i][k] = lnM_min;
-                continue;
-            }
-
-            Nhalo_inv_table.z_arr[i][np-1] = lnM_min;
-
-            //reset probability finding
-            k=np-2;
-            p_prev = 0.; //start with p==1 for N(>M)
-            lnM_prev = lnM_min;
-            for(j=1;j<ny;j++){
-                //If we go below zero, we are done with inverse table
-                if(k < 0) break;
-
-                //since we are building the inverse tables, we don't have to have the same y-axis at each x
-                //as a result we can gain some extra precision by setting the maximum to the condition
-                y = lnM_min + (lnM_cond - lnM_min)*((double)j)/((double)ny-1);
-
-                buf = Nhalo_Conditional(growth_out,y,lnM_cond,M_cond,sigma_cond,delta,
-                                            0); //Number density between the mass limits
-                prob = buf / norm; //divide by the whole mass range to get probability
-
-                //catch some norm errors
-                if(prob != prob){
-                    LOG_ERROR("Normalisation error in inverse halo table generation");
-                    Throw(TableGenerationError);
-                }
-
-                //There are times where we have gone over the probability limit before reaching the mass limit
-                //  Here we simply go to the minimum probability
-                prob = prob == 0 ? min_lp : log(prob);
-                // LOG_ULTRA_DEBUG("Int || x: %.2e (%d) y: %.2e (%d) ==> %.8e / %.8e",from_catalog ? exp(x) : x,i,exp(y),j,prob,p_prev);
-
-                //loop through the remaining spaces in the inverse table and fill them
-                while(prob <= pa[k] && k >= 0){
-                    if(p_prev - prob == 0)
-                        break; //if we are in a flat region we move to the next limit
-                    //since we go ascending in y, prob > prob_prev
-                    //NOTE: linear interpolation in (lnM,log(p)|p)
-                    lnM_p = (p_prev-pa[k])*(y - lnM_prev)/(p_prev-prob) + lnM_prev;
-                    Nhalo_inv_table.z_arr[i][k] = lnM_p;
-
-                    // LOG_ULTRA_DEBUG("Found c: %.2e p: (%.2e,%.2e,%.2e) (c %d, m %d, p %d) z: %.5e",
-                    //         from_catalog ? exp(x) : x,p_prev,pa[k],prob,i,j,k,exp(lnM_p),Nhalo_inv_table.z_arr[i][k]);
-
-                    k--;
-                }
-                //keep the value at the previous mass bin for interpolation
-                p_prev = prob;
-                lnM_prev = y;
-            }
-        }
-    }
-    LOG_DEBUG("Done.");
-}
-
 struct rf_inv_params{
     double growthf;
     double lnM_cond;
@@ -657,24 +530,27 @@ double dndm_inv_f(double lnM_min, void * params){
     struct rf_inv_params *p = (struct rf_inv_params *)params;
     double integral = Nhalo_Conditional(p->growthf,lnM_min,p->lnM_cond,p->M_cond,p->sigma,p->delta,0);
     //This ensures that we never find the root if the ratio is zero, since that will set to M_cond
-    double result = integral == 0 ? 2*global_params.MIN_LOGPROB : log(integral / p->rf_norm);
+    double result = integral == 0 ? 2*user_params_it->MIN_LOGPROB : log(integral / p->rf_norm);
 
     return result - p->rf_target;
 }
 
-void initialise_dNdM_inverse_table_rf(double xmin, double xmax, double lnM_min, double growth_out, double param, bool from_catalog){
+//This table is N(>M | M_in), the CDF of dNdM_conditional
+//NOTE: Assumes you give it ymin as the minimum lower-integral limit, and ymax as the maximum
+// `param` is either the constant log condition mass for the grid case (!from_catalog) OR the descendant growth factor with from_catalog
+void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, double growth_out, double param, bool from_catalog){
     LOG_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Min. %.2e)",xmin,xmax,lnM_min);
     LOG_DEBUG("D_out %.2e P %.2e up %d",growth_out,param,from_catalog);
 
-    int nx = global_params.N_COND_INTERP;
-    int np = global_params.N_PROB_INTERP;
+    int nx = user_params_it->N_COND_INTERP;
+    int np = user_params_it->N_PROB_INTERP;
     double xa[nx], pa[np];
     double rf_tol_abs = 1e-4;
     double rf_tol_rel = 0.;
 
     double lnM_cond;
     double sigma_cond;
-    double min_lp = global_params.MIN_LOGPROB;
+    double min_lp = user_params_it->MIN_LOGPROB;
     if(!from_catalog){
         lnM_cond = param;
         sigma_cond = EvaluateSigma(lnM_cond);
@@ -786,11 +662,6 @@ void initialise_dNdM_inverse_table_rf(double xmin, double xmax, double lnM_min, 
         gsl_root_fsolver_free(solver);
     }
     LOG_DEBUG("Done.");
-}
-
-void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, double growth_out, double param, bool from_catalog){
-    // initialise_dNdM_inverse_table_interp(xmin, xmax, lnM_min, growth_out, param, from_catalog);
-    initialise_dNdM_inverse_table_rf(xmin, xmax, lnM_min, growth_out, param, from_catalog);
 }
 
 double J_integrand(double u, void *params){
@@ -999,7 +870,7 @@ double extrapolate_dNdM_inverse(double condition, double lnp){
     double x_table = x_min + x_idx*x_width;
     double interp_point_x = (condition - x_table)/x_width;
 
-    double extrap_point_y = (lnp - global_params.MIN_LOGPROB)/Nhalo_inv_table.y_width;
+    double extrap_point_y = (lnp - user_params_it->MIN_LOGPROB)/Nhalo_inv_table.y_width;
 
     //find the log-mass at the edge of the table for this condition
     double xlimit = Nhalo_inv_table.z_arr[x_idx][0]*(interp_point_x)
@@ -1015,7 +886,7 @@ double extrapolate_dNdM_inverse(double condition, double lnp){
 //This one is always a table
 double EvaluateNhaloInv(double condition, double prob){
     double lnp = log(prob);
-    if(lnp < global_params.MIN_LOGPROB)
+    if(lnp < user_params_it->MIN_LOGPROB)
         return extrapolate_dNdM_inverse(condition,lnp);
     return EvaluateRGTable2D(condition,lnp,&Nhalo_inv_table);
 }
@@ -1031,4 +902,26 @@ double EvaluateJ(double u_res,double gamma1){
     if(u_res > u_max)
         return J_split_table.y_arr[J_split_table.n_bin - 1] + u_res - 0.5*gamma1*(1./u_res - 1./u_max);
     return EvaluateRGTable1D(u_res,&J_split_table);
+}
+
+//The sigma interp table is regular in log mass, not sigma so we need to loop ONLY FOR SAMPLE_METHOD==2
+//NOTE: This should be improved with its own RGTable but we do not often use this method
+double EvaluateSigmaInverse(double sigma){
+    if(!user_params_it->USE_INTERPOLATION_TABLES){
+        LOG_ERROR("Cannot currently do sigma inverse without USE_INTERPOLATION_TABLES");
+        Throw(ValueError);
+    }
+    int idx;
+    for(idx=0;idx<NMass;idx++){
+        if(sigma < Sigma_InterpTable.y_arr[idx]) break;
+    }
+    if(idx == NMass){
+        LOG_ERROR("sigma inverse out of bounds.");
+        Throw(TableEvaluationError);
+    }
+    double table_val_0 = Sigma_InterpTable.x_min + idx*Sigma_InterpTable.x_width;
+    double table_val_1 = Sigma_InterpTable.x_min + (idx-1)*Sigma_InterpTable.x_width;
+    double interp_point = (sigma - table_val_0)/(table_val_1-table_val_0);
+
+    return table_val_0*(1-interp_point) + table_val_1*(interp_point);
 }
