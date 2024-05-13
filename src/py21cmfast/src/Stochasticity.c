@@ -273,8 +273,8 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
     gsl_rng * rng_stoc[user_params->N_THREADS];
     seed_rng_threads(rng_stoc,seed);
 
-    int nhalos = halos->n_halos;
-    LOG_DEBUG("adding stars to %d halos",halos->n_halos);
+    long long unsigned int nhalos = halos->n_halos;
+    LOG_DEBUG("adding stars to %llu halos",halos->n_halos);
 
     struct HaloSamplingConstants hs_constants;
     hs_constants.z_out = redshift;
@@ -744,10 +744,9 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
     double lnMmax_tb = hs_constants->lnM_max_tb;
     double Mmin = hs_constants->M_min;
     double lnMmin = hs_constants->lnM_min;
-
-    int nhalo_in = halofield_large->n_halos;
     double growthf = hs_constants->growth_out;
 
+    unsigned long long int nhalo_in = halofield_large->n_halos;
     unsigned long long int nhalo_threads[user_params_stoc->N_THREADS];
     unsigned long long int istart_threads[user_params_stoc->N_THREADS];
 
@@ -776,26 +775,25 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
         ps_ratio /= IntegratedNdM(lnMmin,lnMcell,params,2,user_params_stoc->INTEGRATION_METHOD_HALOS);
     }
 
-    double *dexm_radii = calloc(nhalo_in,sizeof(double));
-    double *dexm_pos = calloc(nhalo_in*3,sizeof(double));
     double total_volume_excluded=0.;
     double total_volume_dexm=0.;
-    double vol_conversion = (double)user_params_stoc->HII_DIM / (double)user_params_stoc->DIM;
+    double vol_conversion = pow((double)user_params_stoc->HII_DIM / (double)user_params_stoc->DIM,3);
 
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
     {
         //PRIVATE VARIABLES
-        int x,y,z,i,j;
+        int x,y,z,i;
+        unsigned long long int halo_idx;
         int threadnum = omp_get_thread_num();
 
-        int nh_buf=0;
+        int nh_buf;
         double delta;
         float prop_buf[2], prop_dummy[2];
         int crd_hi[3];
 
         double mass_defc;
 
-        //buffers per cell
+        //buffer per cell
         float hm_buf[MAX_HALO_CELL];
 
         unsigned long long int count=0;
@@ -809,24 +807,15 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
 
         //assign big halos into list first (split amongst ranks)
 #pragma omp for reduction(+:total_volume_dexm)
-        for (j=0;j<nhalo_in;j++){
-            halofield_out->halo_masses[istart+count] = halofield_large->halo_masses[j];
-            halofield_out->star_rng[istart+count] = halofield_large->star_rng[j];
-            halofield_out->sfr_rng[istart+count] = halofield_large->sfr_rng[j];
-            halofield_out->halo_coords[0 + 3*(istart+count)] = halofield_large->halo_coords[0 + 3*j];
-            halofield_out->halo_coords[1 + 3*(istart+count)] = halofield_large->halo_coords[1 + 3*j];
-            halofield_out->halo_coords[2 + 3*(istart+count)] = halofield_large->halo_coords[2 + 3*j];
+        for (halo_idx=0;halo_idx<nhalo_in;halo_idx++){
+            halofield_out->halo_masses[istart+count] = halofield_large->halo_masses[halo_idx];
+            halofield_out->star_rng[istart+count] = halofield_large->star_rng[halo_idx];
+            halofield_out->sfr_rng[istart+count] = halofield_large->sfr_rng[halo_idx];
+            halofield_out->halo_coords[0 + 3*(istart+count)] = halofield_large->halo_coords[0 + 3*halo_idx];
+            halofield_out->halo_coords[1 + 3*(istart+count)] = halofield_large->halo_coords[1 + 3*halo_idx];
+            halofield_out->halo_coords[2 + 3*(istart+count)] = halofield_large->halo_coords[2 + 3*halo_idx];
 
-            //To accelerate, I store the large-halo radii (units of HII_DIM cells)
-            total_volume_dexm += halofield_large->halo_masses[j] / (RHOcrit * cosmo_params_stoc->OMm) * pow(vol_conversion,3);
-            dexm_radii[j] = MtoR(halofield_large->halo_masses[j])/boxlen*lo_dim;
-
-            //to compare the centres of the cells at DIM and HII_DIM, we add 0.5 to the coordinate at each resolution
-            //subtracting 0.5 means we are in the coordinates where (0,0,0) is the CENTRE of the first cell,
-            // to directly compare with (x,y,z) on HII_DIM
-            dexm_pos[0] = (halofield_large->halo_coords[0 + 3*j] + 0.5) * vol_conversion - 0.5;
-            dexm_pos[1] = (halofield_large->halo_coords[1 + 3*j] + 0.5) * vol_conversion - 0.5;
-            dexm_pos[2] = (halofield_large->halo_coords[2 + 3*j] + 0.5) * vol_conversion - 0.5;
+            total_volume_dexm += halofield_large->halo_masses[halo_idx] / (RHOcrit * cosmo_params_stoc->OMm) * vol_conversion;
             count++;
         }
 
@@ -886,7 +875,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
                 }
             }
         }
-        LOG_SUPER_DEBUG("Thread %d found %d halos",threadnum,count);
+        LOG_SUPER_DEBUG("Thread %llu found %llu halos",threadnum,count);
 
         if(count >= arraysize_local){
             LOG_ERROR("Ran out of memory, with %llu halos and local size %llu",count,arraysize_local);
@@ -898,8 +887,6 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
     }
 
     LOG_SUPER_DEBUG("Total dexm volume %.6e Total volume excluded %.6e (In units of HII_DIM cells)",total_volume_dexm,total_volume_excluded);
-    free(dexm_radii);
-    free(dexm_pos);
 
     //Condense the sparse array (serial)
     int i=0;
@@ -909,7 +896,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
         memmove(&halofield_out->star_rng[count_total],&halofield_out->star_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
         memmove(&halofield_out->sfr_rng[count_total],&halofield_out->sfr_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
         memmove(&halofield_out->halo_coords[3*count_total],&halofield_out->halo_coords[3*istart_threads[i]],sizeof(int)*3*nhalo_threads[i]);
-        LOG_SUPER_DEBUG("Moved array (start,count) (%d, %d) to position %d",istart_threads[i],nhalo_threads[i],count_total);
+        LOG_SUPER_DEBUG("Moved array (start,count) (%llu, %llu) to position %llu",istart_threads[i],nhalo_threads[i],count_total);
         count_total += nhalo_threads[i];
     }
     halofield_out->n_halos = count_total;
@@ -919,14 +906,13 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
     memset(&halofield_out->halo_coords[3*count_total],0,3*(arraysize_total-count_total)*sizeof(int));
     memset(&halofield_out->star_rng[count_total],0,(arraysize_total-count_total)*sizeof(float));
     memset(&halofield_out->sfr_rng[count_total],0,(arraysize_total-count_total)*sizeof(float));
-    LOG_SUPER_DEBUG("Set %d elements beyond %d to zero",arraysize_total-count_total,count_total);
+    LOG_SUPER_DEBUG("Set %llu elements beyond %llu to zero",arraysize_total-count_total,count_total);
     return 0;
 }
 
 //NOTE: there's a lot of repeated code here and in build_halo_cats, find a way to merge
 int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, struct HaloField *halofield_in,
                              struct HaloField *halofield_out, struct HaloSamplingConstants *hs_constants){
-    int nhalo_in = halofield_in->n_halos;
     if(z_in >= z_out){
         LOG_ERROR("halo progenitors must go backwards in time!!! z_in = %.1f, z_out = %.1f",z_in,z_out);
         Throw(ValueError);
@@ -944,13 +930,14 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, struc
     double lnMmin = hs_constants->lnM_min;
     double delta = hs_constants->delta;
 
+    unsigned long long int nhalo_in = halofield_in->n_halos;
     unsigned long long int nhalo_threads[user_params_stoc->N_THREADS];
     unsigned long long int istart_threads[user_params_stoc->N_THREADS];
 
     unsigned long long int arraysize_total = halofield_out->buffer_size;
     unsigned long long int arraysize_local = arraysize_total / user_params_stoc->N_THREADS;
 
-    LOG_DEBUG("Beginning stochastic halo sampling of progenitors on %d halos",nhalo_in);
+    LOG_DEBUG("Beginning stochastic halo sampling of progenitors on %llu halos",nhalo_in);
     LOG_DEBUG("z = %f, Mmin = %e, d = %.3e",z_out,Mmin,delta);
     LOG_DEBUG("Total Array Size %llu, array size per thread %llu (~%.3e GB total)",arraysize_total,arraysize_local,6.*arraysize_total*sizeof(int)/1e9);
 
@@ -967,7 +954,8 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, struc
 
         int threadnum = omp_get_thread_num();
         double M2;
-        int ii,jj;
+        int jj;
+        unsigned long long int ii;
         unsigned long long int count=0;
         unsigned long long int istart = threadnum * arraysize_local;
 
@@ -1038,7 +1026,7 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, struc
     int i=0;
     unsigned long long int count_total = 0;
     for(i=0;i<user_params_stoc->N_THREADS;i++){
-        LOG_SUPER_DEBUG("Thread %d found %d Halos",i,nhalo_threads[i]);
+        LOG_SUPER_DEBUG("Thread %llu found %llu Halos",i,nhalo_threads[i]);
         memmove(&halofield_out->halo_masses[count_total],&halofield_out->halo_masses[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
         memmove(&halofield_out->star_rng[count_total],&halofield_out->star_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
         memmove(&halofield_out->sfr_rng[count_total],&halofield_out->sfr_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
@@ -1085,11 +1073,11 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
         sample_halo_grids(rng_stoc,redshift,dens_field,halo_overlap_box,halos_desc,halos,&hs_constants);
     }
     else{
-        LOG_DEBUG("Calculating halo progenitors from z=%.1f to z=%.1f | %d", redshift_desc,redshift,halos_desc->n_halos);
+        LOG_DEBUG("Calculating halo progenitors from z=%.1f to z=%.1f | %llu", redshift_desc,redshift,halos_desc->n_halos);
         sample_halo_progenitors(rng_stoc,redshift_desc,redshift,halos_desc,halos,&hs_constants);
     }
 
-    LOG_DEBUG("Found %d Halos", halos->n_halos);
+    LOG_DEBUG("Found %llu Halos", halos->n_halos);
 
     if(halos->n_halos > 3){
         LOG_DEBUG("First few Masses:  %11.3e %11.3e %11.3e",halos->halo_masses[0],halos->halo_masses[1],halos->halo_masses[2]);

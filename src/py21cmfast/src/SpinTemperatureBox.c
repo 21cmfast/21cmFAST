@@ -491,7 +491,8 @@ void calculate_spectral_factors(double zp){
 
 //fill fftwf boxes, do the r2c transform and normalise
 void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, float *input_j21, fftwf_complex *output_dens, fftwf_complex *output_LW){
-    int i,j,k,ct;
+    int i,j,k;
+    unsigned long long int ct;
     double curr_vcb,curr_j21,M_buf;
 
     //NOTE: Meraxes just applies a pointer cast box = (fftwf_complex *) input. Figure out why this works,
@@ -607,7 +608,8 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
         //the indexing needs these
         Broadcast_struct_global_UF(user_params,cosmo_params);
 
-        int i,j,k,ct;
+        int i,j,k;
+        unsigned long long int ct;
         fftwf_complex *filtered_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
         fftwf_complex *filtered_box_mini = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -793,7 +795,7 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
 //construct a Ts table above Z_HEAT_MAX, this can happen if we are computing the first box or if we
 //request a redshift above Z_HEAT_MAX
 void init_first_Ts(struct TsBox * box, float *dens, float z, float zp, double *x_e_ave, double *Tk_ave){
-    int box_ct;
+    unsigned long long int box_ct;
     //zp is the requested redshift, z is the perturbed field redshift
     float growth_factor_zp;
     float inverse_growth_factor_z;
@@ -929,7 +931,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
 
     #pragma omp parallel num_threads(user_params_ts->N_THREADS)
     {
-        int box_ct;
+        unsigned long long int box_ct;
         double curr_dens,curr_mcrit;
         double fcoll, dfcoll;
         double fcoll_MINI=0;
@@ -1211,7 +1213,8 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                   struct AstroParams *astro_params, struct FlagOptions *flag_options, float perturbed_field_redshift, short cleanup,
                   struct PerturbedField *perturbed_field, struct XraySourceBox *source_box, struct TsBox *previous_spin_temp,
                   struct InitialConditions *ini_boxes, struct TsBox *this_spin_temp){
-    int box_ct, R_ct, i, j, k;
+    int R_ct, i, j, k;
+    unsigned long long int box_ct;
     double x_e_ave_p, Tk_ave_p;
     double growth_factor_z, growth_factor_zp;
     double inverse_growth_factor_z;

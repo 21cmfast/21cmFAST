@@ -9,7 +9,7 @@
 // the virialized halos
 
 int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z, int check_type);
-void init_halo_coords(struct HaloField *halos, int n_halos);
+void init_halo_coords(struct HaloField *halos, long long unsigned int n_halos);
 int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index );
 void free_halo_field(struct HaloField *halos);
 
@@ -52,7 +52,7 @@ LOG_DEBUG("redshift=%f", redshift);
         float growth_factor, R, delta_m, M, Delta_R, delta_crit;
         char *in_halo, *forbidden;
         int i,j,k,x,y,z;
-        int total_halo_num, r_halo_num;
+        long long unsigned int total_halo_num, r_halo_num;
         float R_temp, M_MIN;
 
         LOG_DEBUG("Begin Initialisation");
@@ -277,7 +277,7 @@ LOG_DEBUG("redshift=%f", redshift);
                 }
             }
             total_halo_num += r_halo_num;
-            LOG_SUPER_DEBUG("n_halo = %d, total = %d , D = %.3f, delcrit = %.3f", r_halo_num, total_halo_num, growth_factor, delta_crit);
+            LOG_SUPER_DEBUG("n_halo = %llu, total = %llu , D = %.3f, delcrit = %.3f", r_halo_num, total_halo_num, growth_factor, delta_crit);
 
             R /= global_params.DELTA_R_FACTOR;
         }
@@ -383,7 +383,7 @@ LOG_DEBUG("redshift=%f", redshift);
         fftwf_forget_wisdom();
 
 LOG_DEBUG("Finished halo cleanup.");
-LOG_DEBUG("Found %d Halos", halos->n_halos);
+LOG_DEBUG("Found %llu Halos", halos->n_halos);
 if (halos->n_halos > 3)
     LOG_DEBUG("Halo Masses: %e %e %e %e", halos->halo_masses[0], halos->halo_masses[1], halos->halo_masses[2], halos->halo_masses[3]);
 
@@ -477,7 +477,7 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
     }
 }
 
-void init_halo_coords(struct HaloField *halos, int n_halos){
+void init_halo_coords(struct HaloField *halos, long long unsigned int n_halos){
     // Minimise memory usage by only storing the halo mass and positions
     halos->n_halos = n_halos;
     halos->halo_masses = (float *)calloc(n_halos,sizeof(float));
