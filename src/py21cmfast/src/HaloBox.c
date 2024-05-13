@@ -367,7 +367,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         Broadcast_struct_global_PS(user_params,cosmo_params);
         Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
 
-        int idx;
+        unsigned long long int idx;
 #pragma omp parallel for num_threads(user_params->N_THREADS) private(idx)
         for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
             grids->halo_mass[idx] = 0.0;
@@ -380,7 +380,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             grids->count[idx] = 0;
         }
 
-        LOG_DEBUG("Gridding %d halos...",halos->n_halos);
+        LOG_DEBUG("Gridding %llu halos...",halos->n_halos);
 
         double alpha_esc = astro_params->ALPHA_ESC;
         double norm_esc = astro_params->F_ESC10;
@@ -419,16 +419,14 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             M_turn_m_avg = averages_box[6];
             get_box_averages(redshift, norm_esc, alpha_esc, M_min, M_cell, M_turn_a_avg, M_turn_m_avg, averages_global);
             //This is the mean adjustment that happens in the rest of the code
-            int i;
-
             //NOTE: in the default mode, global averages are fixed separately for minihalo and regular parts
 #pragma omp parallel for num_threads(user_params->N_THREADS)
-            for(i=0;i<HII_TOT_NUM_PIXELS;i++){
-                grids->halo_mass[i] *= averages_global[0]/averages_box[0];
-                grids->halo_sfr[i] *= averages_global[1]/averages_box[1];
-                grids->halo_sfr_mini[i] *= averages_global[2]/averages_box[2];
-                grids->n_ion[i] *= averages_global[3]/averages_box[3];
-                grids->whalo_sfr[i] *= averages_global[4]/averages_box[4];
+            for(idx=0;idx<HII_TOT_NUM_PIXELS;idx++){
+                grids->halo_mass[idx] *= averages_global[0]/averages_box[0];
+                grids->halo_sfr[idx] *= averages_global[1]/averages_box[1];
+                grids->halo_sfr_mini[idx] *= averages_global[2]/averages_box[2];
+                grids->n_ion[idx] *= averages_global[3]/averages_box[3];
+                grids->whalo_sfr[idx] *= averages_global[4]/averages_box[4];
             }
 
             hm_avg = averages_global[0];
@@ -455,7 +453,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             }
 #pragma omp parallel num_threads(user_params->N_THREADS) private(idx)
             {
-                int i_halo,x,y,z;
+                int x,y,z;
+                unsigned long long int i_halo;
                 double m,nion,sfr,wsfr,sfr_mini,stars_mini,stars;
                 double J21_val, Gamma12_val, zre_val;
 
