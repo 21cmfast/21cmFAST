@@ -1330,5 +1330,5 @@ def print_failure_stats(test, truth, input_arr, abs_tol, rel_tol, name):
             f"failure range truth ({truth[sel_failed].min()},{truth[sel_failed].max()}) test ({test[sel_failed].min()},{test[sel_failed].max()})"
         )
         print(
-            f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max()} relative {(np.fabs(truth - test)/truth)[sel_failed].max()}"
+            f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max()} relative {(np.fabs(truth - test) / truth)[sel_failed].max()}"
         )

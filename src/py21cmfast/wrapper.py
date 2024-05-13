@@ -1601,7 +1601,7 @@ def interp_haloboxes(hbox_arr, fields, z_halos, z_target) -> HaloBox:
     idx_prog = np.searchsorted(z_halos, z_target, side="left")
 
     if idx_prog == 0 or idx_prog == len(z_halos):
-        logger.debug(f"z_target {z_target} beyond limits, {z_halos[0],z_halos[-1]}")
+        logger.debug(f"z_target {z_target} beyond limits, {z_halos[0], z_halos[-1]}")
         raise ValueError
 
     z_prog = z_halos[idx_prog]
