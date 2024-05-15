@@ -402,6 +402,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         double curr_vcb = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
 
         double averages_box[8], averages_global[5], averages_subsampler[5], averages_nofb[5], averages_nofb_sub[5];
+        unsigned long long int total_n_halos, n_halos_cut=0.;
 
         init_ps();
         if(user_params->USE_INTERPOLATION_TABLES){
@@ -466,7 +467,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                 float in_props[2];
                 float out_props[6];
 
-#pragma omp for reduction(+:hm_avg,nion_avg,sfr_avg,wsfr_avg,sfr_avg_mini,M_turn_a_avg,M_turn_m_avg,M_turn_r_avg,M_turn_m_nofb_avg)
+#pragma omp for reduction(+:hm_avg,nion_avg,sfr_avg,wsfr_avg,sfr_avg_mini,M_turn_a_avg,M_turn_m_avg,M_turn_r_avg,M_turn_m_nofb_avg,n_halos_cut)
                 for(i_halo=0; i_halo<halos->n_halos; i_halo++){
                     x = halos->halo_coords[0+3*i_halo]; //NOTE:PerturbedHaloField is on HII_DIM, HaloField is on DIM
                     y = halos->halo_coords[1+3*i_halo];
@@ -489,6 +490,13 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     }
 
                     m = halos->halo_masses[i_halo];
+
+                    //It is sometimes useful to make cuts to the halo catalogues before gridding.
+                    //  We implement this in a simple way, if the user sets a halo's mass to zero we skip it
+                    if(m == 0.){
+                        n_halos_cut++;
+                        continue;
+                    }
 
                     //these are the halo property RNG sequences
                     in_props[0] = halos->star_rng[i_halo];
@@ -523,12 +531,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->halo_sfr_mini[HII_R_INDEX(x, y, z)] += sfr_mini;
 #pragma omp atomic update
                     grids->whalo_sfr[HII_R_INDEX(x, y, z)] += wsfr;
-                    //It can be convenient to remove halos from a catalogue by setting them to zero, don't count those here
-                    //  This won't happen in the usual method of running 21cmFAST but a user may wish to do so
-                    if(m>0){
 #pragma omp atomic update
                         grids->count[HII_R_INDEX(x, y, z)] += 1;
-                    }
 
                     M_turn_m_avg += M_turn_m;
                     if(LOG_LEVEL >= DEBUG_LEVEL){
@@ -553,14 +557,15 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->whalo_sfr[idx] /= cell_volume;
                 }
             }
+            total_n_halos = halos->n_halos - n_halos_cut;
             LOG_SUPER_DEBUG("Cell 0: HM: %.2e SM: %.2e (%.2e) NI: %.2e SF: %.2e (%.2e) WS: %.2e ct : %d",grids->halo_mass[HII_R_INDEX(0,0,0)],
                                 grids->halo_stars[HII_R_INDEX(0,0,0)],grids->halo_stars_mini[HII_R_INDEX(0,0,0)],
                                 grids->n_ion[HII_R_INDEX(0,0,0)],grids->halo_sfr[HII_R_INDEX(0,0,0)],grids->halo_sfr_mini[HII_R_INDEX(0,0,0)],
                                 grids->whalo_sfr[HII_R_INDEX(0,0,0)],grids->count[HII_R_INDEX(0,0,0)]);
 
-            M_turn_m_avg = M_turn_m_avg / halos->n_halos;
+            M_turn_m_avg = M_turn_m_avg / total_n_halos;
             //If we have no halos, assume the turnover has no reion feedback & no LW
-            if(halos->n_halos == 0){
+            if(total_n_halos == 0){
                 M_turn_m_avg = lyman_werner_threshold(redshift, 0., flag_options_stoc->FIX_VCB_AVG ? global_params.VAVG : 0, astro_params);
                 M_turn_a_avg = flag_options_stoc->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params_stoc->M_TURN;
                 M_turn_r_avg = 0.;
@@ -578,10 +583,10 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                 //NOTE: There is an inconsistency here, the sampled grids use a halo-averaged turnover mass
                 //  whereas the fixed grids / default 21cmfast uses the volume averaged LOG10(turnover mass).
                 //  Neither of these are a perfect representation due to the nonlinear way turnover mass affects N_ion
-                if(halos->n_halos > 0){
-                    M_turn_r_avg /= halos->n_halos;
-                    M_turn_m_nofb_avg /= halos->n_halos;
-                    M_turn_a_avg /= halos->n_halos;
+                if(total_n_halos > 0){
+                    M_turn_r_avg /= total_n_halos;
+                    M_turn_m_nofb_avg /= total_n_halos;
+                    M_turn_a_avg /= total_n_halos;
                 }
 
                 get_box_averages(redshift, norm_esc, alpha_esc, global_params.SAMPLER_MIN_MASS, global_params.M_MAX_INTEGRAL, M_turn_a_avg, M_turn_m_avg, averages_global);
