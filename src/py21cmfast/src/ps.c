@@ -1584,8 +1584,7 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M
         .f_esc_norm = Fesc7,
         .Mlim_star = Mlim_Fstar,
         .Mlim_esc = Mlim_Fesc,
-        // .HMF = user_params_ps->HMF,
-        .HMF = 0, //FORCE EPS UNTIL THE OTHERS WORK
+        .HMF = user_params_ps->HMF,
         .sigma_cond = sigma2,
         .delta = delta2,
     };
@@ -1601,6 +1600,11 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M
         else
             return 0.;
     }
+
+    //If we don't have a corresponding CMF, use EPS and normalise
+    //NOTE: it's possible we may want to use another default
+    if(params.HMF != 0 && params.HMF != 1 && params.HMF != 4)
+        params.HMF = 0;
 
     // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e Mtu=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e hmf=%d sig=%.2e del=%.2e",
     //     growthf,MassTurnover,MassTurnover_upper,Alpha_star,Alpha_esc,Fstar7,Fesc7,Mlim_Fstar,Mlim_Fesc,0,sigma2,delta2);
@@ -1619,8 +1623,7 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
         .f_esc_norm = Fesc10,
         .Mlim_star = Mlim_Fstar,
         .Mlim_esc = Mlim_Fesc,
-        // .HMF = user_params_ps->HMF,
-        .HMF = 0, //FORCE EPS UNTIL THE OTHERS WORK
+        .HMF = user_params_ps->HMF,
         .sigma_cond = sigma2,
         .delta = delta2,
     };
@@ -1634,6 +1637,11 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
         else
             return 0.;
     }
+
+    //If we don't have a corresponding CMF, use EPS and normalise
+    //NOTE: it's possible we may want to use another default
+    if(params.HMF != 0 && params.HMF != 1 && params.HMF != 4)
+        params.HMF = 0;
 
     // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e sig=%.2e del=%.2e",
     //     growthf,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,sigma2,delta2);
