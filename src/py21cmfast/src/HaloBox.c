@@ -402,7 +402,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         double curr_vcb = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
 
         double averages_box[8], averages_global[5], averages_subsampler[5], averages_nofb[5], averages_nofb_sub[5];
-        int total_n_halos, n_halos_cut=0.;
+        unsigned long long int total_n_halos, n_halos_cut=0.;
 
         init_ps();
         if(user_params->USE_INTERPOLATION_TABLES){
