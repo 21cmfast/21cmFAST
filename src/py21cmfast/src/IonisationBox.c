@@ -48,12 +48,12 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
     omp_set_num_threads(user_params->N_THREADS);
 
     // Other parameters used in the code
-    int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R, short_completely_ionised,i_halo;
+    int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R, i_halo;
     int counter, N_halos_in_cell;
     unsigned long long ct;
 
     float growth_factor, pixel_mass, cell_length_factor, M_MIN, prev_growth_factor;
-    float erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR, growth_factor_dz;
+    float erfc_denom, res_xH, Splined_Fcoll, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR, growth_factor_dz;
     float Splined_Fcoll_MINI, prev_dens, ION_EFF_FACTOR_MINI, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI, prev_ION_EFF_FACTOR;
     float ave_M_coll_cell, ave_N_min_cell, pixel_volume, density_over_mean;
 
@@ -99,7 +99,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
 
     float stored_redshift, adjustment_factor, stored_F_ESC10_zterm;
     float stored_prev_redshift, prev_adjustment_factor, stored_prev_F_ESC10_zterm;
-    float R_BUBBLE_MAX;
+    float R_BUBBLE_MAX, R_BUBBLE_MAX_MAX, R_BUBBLE_MAX_tmp;
 
     gsl_rng * r[user_params->N_THREADS];
 
@@ -380,6 +380,10 @@ LOG_DEBUG("first redshift, do some initialization");
             R_BUBBLE_MAX = 25.483241248322766 / cosmo_params->hlittle;
         else
             R_BUBBLE_MAX = 112 / cosmo_params->hlittle * pow( (1.+redshift) / 5. , -4.4);
+		if (flag_options->USE_MINI_HALOS){
+			R_BUBBLE_MAX_MAX = astro_params->R_BUBBLE_MAX;
+			LOG_DEBUG("set max radius at this redshift as  %f vs all %f", R_BUBBLE_MAX,  R_BUBBLE_MAX_MAX);
+		}
     }
     else
         R_BUBBLE_MAX = astro_params->R_BUBBLE_MAX;
@@ -395,8 +399,12 @@ LOG_DEBUG("first redshift, do some initialization");
                 // really painful to get the length...
                 counter = 1;
                 R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
-                while ((R - fmin(R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ){
-                    if(R >= fmin(R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN)) {
+				if (flag_options->EVOLVING_R_BUBBLE_MAX)
+					R_BUBBLE_MAX_tmp = R_BUBBLE_MAX_MAX;
+				else
+					R_BUBBLE_MAX_tmp = R_BUBBLE_MAX;
+                while ((R - fmin(R_BUBBLE_MAX_tmp, L_FACTOR*user_params->BOX_LEN)) <= FRACT_FLOAT_ERR ){
+                    if(R >= fmin(R_BUBBLE_MAX_tmp, L_FACTOR*user_params->BOX_LEN)) {
                         stored_R = R/(global_params.DELTA_R_HII_FACTOR);
                     }
                     R*= global_params.DELTA_R_HII_FACTOR;
@@ -808,28 +816,28 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
         // set the max radius we will use, making sure we are always sampling the same values of radius
         // (this avoids aliasing differences w redshift)
 
-        short_completely_ionised = 0;
         // loop through the filter radii (in Mpc)
-        erfc_denom_cell = 1; //dummy value
-
         R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
 
-        while ((R - fmin(R_BUBBLE_MAX, L_FACTOR * user_params->BOX_LEN)) <= FRACT_FLOAT_ERR) {
+		if ((flag_options->EVOLVING_R_BUBBLE_MAX) && (flag_options->USE_MINI_HALOS))
+			R_BUBBLE_MAX_tmp = R_BUBBLE_MAX_MAX;
+		else
+			R_BUBBLE_MAX_tmp = R_BUBBLE_MAX;
+
+        while ((R - fmin(R_BUBBLE_MAX_tmp, L_FACTOR * user_params->BOX_LEN)) <= FRACT_FLOAT_ERR) {
             R *= global_params.DELTA_R_HII_FACTOR;
-            if (R >= fmin(R_BUBBLE_MAX, L_FACTOR * user_params->BOX_LEN)) {
+            if (R >= fmin(R_BUBBLE_MAX_tmp, L_FACTOR * user_params->BOX_LEN)) {
                 stored_R = R / (global_params.DELTA_R_HII_FACTOR);
             }
         }
 
         LOG_DEBUG("set max radius: %f", R);
 
-        R=fmin(R_BUBBLE_MAX, L_FACTOR*user_params->BOX_LEN);
+        R=fmin(R_BUBBLE_MAX_tmp, L_FACTOR*user_params->BOX_LEN);
 
         LAST_FILTER_STEP = 0;
 
         first_step_R = 1;
-
-        double R_temp = (double) (R_BUBBLE_MAX);
 
         counter = 0;
 
@@ -1406,6 +1414,10 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
 
                             // check if fully ionized!
                             if ( (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI> (1. - xHII_from_xrays)*(1.0+rec)) ){ //IONIZED!!
+								// This is for the evolving Rmax case in minihalo runs
+								// We need to make sure the filtering radii are consitent across all snapshots
+								// But we do not need, at higher redshift, to assign reionization for radius larger than the real Rmax
+								if (~((flag_options->EVOLVING_R_BUBBLE_MAX) && (flag_options->USE_MINI_HALOS) && (R > R_BUBBLE_MAX))){
                                 // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
                                 // this assumes photon-starved growth of HII regions...  breaks down post EoR
                                 if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
@@ -1427,6 +1439,7 @@ LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_M
                                 if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
                                     update_in_sphere(box->xH_box, user_params->HII_DIM, HII_D_PARA, R/(user_params->BOX_LEN), \
                                                      x/(user_params->HII_DIM+0.0), y/(user_params->HII_DIM+0.0), z/(HII_D_PARA+0.0));
+								}
                             } // end ionized
                                 // If not fully ionized, then assign partial ionizations
                             else if (LAST_FILTER_STEP && (box->xH_box[HII_R_INDEX(x, y, z)] > TINY)) {
