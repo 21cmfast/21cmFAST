@@ -527,11 +527,14 @@ class UserParams(StructWithDefaults):
         NOTE: Sampling from the density grid will ALWAYS use number-limited sampling (method 1)
     AVG_BELOW_SAMPLER: bool, optional
         When switched on, an integral is performed in each cell between the minimum source mass and SAMPLER_MIN_MASS,
-        effectively placing the average halo population in each HaloBox cell below the sampler resolution
+        effectively placing the average halo population in each HaloBox cell below the sampler resolution.
+        When switched off, all halos below SAMPLER_MIN_MASS are ignored. This flag saves memory for larger boxes,
+        while still including the effects of smaller sources, albeit without stochasticity.
     HALOMASS_CORRECTION: float, optional
         This provides a corrective factor to the mass-limited (SAMPLE_METHOD==0) sampling, which multiplies the
-        expected mass from a condition by this number.
-        This also is used in the partition (SAMPLE_METHOD==2) sampler, multiplying sigma(M) of each sample drawn.
+        expected mass from a condition by this number. The default value of 0.9 is calibrated to the mass-limited
+        sampling on a timestep of ZPRIME_STEP_FACTOR=1.02
+        This factor is also used in the partition (SAMPLE_METHOD==2) sampler, dividing nu(M) of each sample drawn.
     """
 
     _ffi = ffi
@@ -568,6 +571,8 @@ class UserParams(StructWithDefaults):
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
     _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
+    _sample_methods = ["MASS-LIMITED", "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT"]
+    _integral_methods = ["GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX"]
 
     @property
     def USE_INTERPOLATION_TABLES(self):
@@ -611,6 +616,38 @@ class UserParams(StructWithDefaults):
         """Total number of pixels in the low-res box."""
         return self.NON_CUBIC_FACTOR * self.HII_DIM**3
 
+    def _get_enum_property(self, prop, enum_list, propname=""):
+        """
+        Retrieve a value for a property with defined enum list (see UserParams._power_models etc.).
+
+        Arguments
+        ---------
+        prop: the hidden attribute to find in the enum list
+        enum_list: the list of parameter value strings
+        propname: the name of the property (for error messages)
+
+        Returns
+        -------
+        The index of prop within the parameter list, corresponding to it's integer value in
+        the C backend
+        """
+        # if it's a string we grab the index of the list
+        if isinstance(prop, str):
+            val = enum_list.index(prop.upper())
+        # otherwise it's a number so we leave it alone
+        else:
+            val = prop
+
+        try:
+            val = int(val)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"{val} is an invalid value for {propname}") from e
+
+        if not 0 <= val < len(enum_list):
+            raise ValueError(f"HMF must be an int between 0 and {len(enum_list) - 1}")
+
+        return val
+
     @property
     def POWER_SPECTRUM(self):
         """
@@ -630,17 +667,9 @@ class UserParams(StructWithDefaults):
                 self._POWER_SPECTRUM = 5
             return 5
         else:
-            if isinstance(self._POWER_SPECTRUM, str):
-                val = self._power_models.index(self._POWER_SPECTRUM.upper())
-            else:
-                val = self._POWER_SPECTRUM
-
-            if not 0 <= val < len(self._power_models):
-                raise ValueError(
-                    f"Power spectrum must be between 0 and {len(self._power_models) - 1}"
-                )
-
-            return val
+            return self._get_enum_property(
+                self._POWER_SPECTRUM, self._power_models, propname="POWER_SPECTRUM"
+            )
 
     @property
     def HMF(self):
@@ -648,22 +677,41 @@ class UserParams(StructWithDefaults):
 
         See hmf_model for a string representation.
         """
-        if isinstance(self._HMF, str):
-            val = self._hmf_models.index(self._HMF.upper())
-        else:
-            val = self._HMF
+        return self._get_enum_property(self._HMF, self._hmf_models, propname="HMF")
 
-        try:
-            val = int(val)
-        except (ValueError, TypeError) as e:
-            raise ValueError("Invalid value for HMF") from e
+    @property
+    def SAMPLE_METHOD(self):
+        """The SAMPLE_METHOD to use (an int, mapping to a given form).
 
-        if not 0 <= val < len(self._hmf_models):
-            raise ValueError(
-                f"HMF must be an int between 0 and {len(self._hmf_models) - 1}"
-            )
+        See sample_method for a string representation.
+        """
+        return self._get_enum_property(
+            self._SAMPLE_METHOD, self._sample_methods, propname="SAMPLE_METHOD"
+        )
 
-        return val
+    @property
+    def INTEGRATION_METHOD_ATOMIC(self):
+        """The Integration method to use for atomic halos (an int, mapping to a given form).
+
+        See integral_method_atomic for a string representation.
+        """
+        return self._get_enum_property(
+            self._INTEGRATION_METHOD_ATOMIC,
+            self._integral_methods,
+            propname="INTEGRATION_METHOD_ATOMIC",
+        )
+
+    @property
+    def INTEGRATION_METHOD_MINI(self):
+        """The Integration method to use for atomic halos (an int, mapping to a given form).
+
+        See integral_method_atomic for a string representation.
+        """
+        return self._get_enum_property(
+            self._INTEGRATION_METHOD_MINI,
+            self._integral_methods,
+            propname="INTEGRATION_METHOD_MINI",
+        )
 
     @property
     def hmf_model(self):
@@ -674,6 +722,21 @@ class UserParams(StructWithDefaults):
     def power_spectrum_model(self):
         """String representation of the power spectrum model used."""
         return self._power_models[self.POWER_SPECTRUM]
+
+    @property
+    def sample_method(self):
+        """String representation of the halo sampler method used."""
+        return self._sample_methods[self.SAMPLE_METHOD]
+
+    @property
+    def integration_method_atomic(self):
+        """String representation of the halo sampler method used."""
+        return self._integral_methods[self.INTEGRATION_METHOD_ATOMIC]
+
+    @property
+    def integration_method_mini(self):
+        """String representation of the halo sampler method used."""
+        return self._intregal_methods[self.INTEGRATION_METHOD_MINI]
 
     @property
     def cell_size(self) -> un.Quantity[un.Mpc]:

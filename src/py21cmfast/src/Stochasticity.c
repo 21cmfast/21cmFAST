@@ -360,7 +360,9 @@ void fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_
 int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
     double exp_M = hs_constants->expected_M;
 
-    //fudge factor for assuming that internal lagrangian volumes are independent
+    //The mass-limited sampling as-is has a slight bias to producing too many halos,
+    //  which is independent of density or halo mass,
+    //  this factor reduces the total expected mass to bring it into line with the CMF
     exp_M *= user_params_stoc->HALOMASS_CORRECTION;
 
     int n_halo_sampled=0;
@@ -1148,8 +1150,6 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
                     }
                 }
                 //output descendant statistics
-                // out_n_exp[j] = hs_constants_priv.expected_N;
-                // out_m_exp[j] = hs_constants_priv.expected_M;
                 out_n_cell[j] = n_halo_cond;
                 out_m_cell[j] = M_prog;
             }
