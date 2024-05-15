@@ -44,6 +44,7 @@ struct UserParams{
     double MIN_LOGPROB;
     int SAMPLE_METHOD;
     bool AVG_BELOW_SAMPLER;
+    double HALOMASS_CORRECTION;
 };
 
 struct AstroParams{

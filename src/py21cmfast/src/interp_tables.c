@@ -885,6 +885,8 @@ double extrapolate_dNdM_inverse(double condition, double lnp){
 
 //This one is always a table
 double EvaluateNhaloInv(double condition, double prob){
+    if(prob == 0.)
+        return 1.; //q == 1 -> condition mass
     double lnp = log(prob);
     if(lnp < user_params_it->MIN_LOGPROB)
         return extrapolate_dNdM_inverse(condition,lnp);
@@ -913,15 +915,18 @@ double EvaluateSigmaInverse(double sigma){
     }
     int idx;
     for(idx=0;idx<NMass;idx++){
-        if(sigma < Sigma_InterpTable.y_arr[idx]) break;
+        if(sigma > Sigma_InterpTable.y_arr[idx]) break;
     }
     if(idx == NMass){
         LOG_ERROR("sigma inverse out of bounds.");
         Throw(TableEvaluationError);
     }
-    double table_val_0 = Sigma_InterpTable.x_min + idx*Sigma_InterpTable.x_width;
-    double table_val_1 = Sigma_InterpTable.x_min + (idx-1)*Sigma_InterpTable.x_width;
-    double interp_point = (sigma - table_val_0)/(table_val_1-table_val_0);
+    double sigma_left = Sigma_InterpTable.y_arr[idx-1];
+    double sigma_right = Sigma_InterpTable.y_arr[idx];
+    double table_val_left = Sigma_InterpTable.x_min + (idx-1)*Sigma_InterpTable.x_width; //upper lnM
+    double table_val_right = Sigma_InterpTable.x_min + (idx)*Sigma_InterpTable.x_width; //upper lnM
 
-    return table_val_0*(1-interp_point) + table_val_1*(interp_point);
+    double interp_point = (sigma - sigma_left)/(sigma_right - sigma_left);
+
+    return table_val_left*(1-interp_point) + table_val_right*(interp_point);
 }

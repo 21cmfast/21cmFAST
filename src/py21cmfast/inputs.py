@@ -510,8 +510,7 @@ class UserParams(StructWithDefaults):
         number of halos in the box. Ideally this should be close to unity but one may wish to increase it to
         test alternative scenarios
     N_COND_INTERP: int, optional
-        The number of condition bins in the interpolation tables. This covers both the condition (mass/delta) axis in the inverse CMF
-        tables for the sampler as well as the delta axis of the grid-based source tables.
+        The number of condition bins in the inverse CMF tables.
     N_PROB_INTERP: int, optional
         The number of probability bins in the inverse CMF tables.
     MIN_LOGPROB: float, optional
@@ -529,6 +528,10 @@ class UserParams(StructWithDefaults):
     AVG_BELOW_SAMPLER: bool, optional
         When switched on, an integral is performed in each cell between the minimum source mass and SAMPLER_MIN_MASS,
         effectively placing the average halo population in each HaloBox cell below the sampler resolution
+    HALOMASS_CORRECTION: float, optional
+        This provides a corrective factor to the mass-limited (SAMPLE_METHOD==0) sampling, which multiplies the
+        expected mass from a condition by this number.
+        This also is used in the partition (SAMPLE_METHOD==2) sampler, multiplying sigma(M) of each sample drawn.
     """
 
     _ffi = ffi
@@ -560,6 +563,7 @@ class UserParams(StructWithDefaults):
         "MIN_LOGPROB": -12,
         "SAMPLE_METHOD": 0,
         "AVG_BELOW_SAMPLER": False,
+        "HALOMASS_CORRECTION": 0.9,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]

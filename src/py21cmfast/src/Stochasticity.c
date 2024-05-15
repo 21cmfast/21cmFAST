@@ -359,9 +359,9 @@ void fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_
  * Stochasticity is ignored below a certain mass threshold */
 int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
     double exp_M = hs_constants->expected_M;
+
     //fudge factor for assuming that internal lagrangian volumes are independent
-    double totalmass_fudge_factor = 0.90;
-    exp_M *= totalmass_fudge_factor;
+    exp_M *= user_params_stoc->HALOMASS_CORRECTION;
 
     int n_halo_sampled=0;
     double M_prog=0;
@@ -400,44 +400,40 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
     double M_cond = hs_constants->M_cond;
     double d_cond = hs_constants->delta;
     double growthf = hs_constants->growth_out;
-    double M_min = hs_constants->M_min;
     double sigma_min = hs_constants->sigma_min;
-    double lnM_min = hs_constants->lnM_min;
 
     int n_halo_sampled;
-    double x_sample, sigma_sample, M_sample, M_remaining, delta_current;
+    double nu_sample, sigma_sample, M_sample, M_remaining, delta_current;
     double lnM_remaining, sigma_r, del_term;
 
     double tbl_arg = hs_constants->cond_val;
     n_halo_sampled = 0;
-    // LOG_ULTRA_DEBUG("Start: M %.2e (%.2e) d %.2e",M_cond,exp_M,d_cond);
-    double sigma_fudge_factor = 0.90;
+    LOG_ULTRA_DEBUG("Start: M %.2e (%.2e) d %.2e",M_cond,exp_M,d_cond);
+    double sigma_fudge_factor = user_params_stoc->HALOMASS_CORRECTION;
 
     //set initial amount (subtracted unresolved Mass)
-    M_remaining = exp_M;
+    M_remaining = M_cond;
     lnM_remaining = log(M_remaining);
 
-    double x_min;
-
+    double nu_min;
     while(M_remaining > user_params_stoc->SAMPLER_MIN_MASS){
         sigma_r = EvaluateSigma(lnM_remaining);
+
         delta_current = (get_delta_crit(user_params_stoc->HMF,sigma_r,growthf) - d_cond)/(M_remaining/M_cond);
         del_term = delta_current*delta_current/growthf/growthf;
 
-        //Low x --> high sigma --> low mass, high x --> low sigma --> high mass
-        //|x| required to sample the smallest halo on the tables
-        x_min = sqrt(del_term/(sigma_min*sigma_min - sigma_r*sigma_r));
+        nu_min = sqrt(del_term/(sigma_min*sigma_min - sigma_r*sigma_r)); //nu at minimum progenitor
 
-        //LOG_ULTRA_DEBUG("M_rem %.2e d %.2e sigma %.2e min %.2e xmin %.2f",M_remaining,delta_current,sigma_r,sigma_min,x_min);
+        LOG_ULTRA_DEBUG("M_rem %.2e d %.2e sigma %.2e min %.2e numin %.2e",M_remaining,delta_current,sigma_r,sigma_min,nu_min);
 
         //we use the gaussian tail distribution to enforce our Mmin limit from the sigma tables
-        x_sample = gsl_ran_ugaussian_tail(rng,x_min);
-        sigma_sample = sqrt(del_term/(x_sample*x_sample) + sigma_r*sigma_r);
-        sigma_sample *= sigma_fudge_factor;
+        nu_sample = gsl_ran_ugaussian_tail(rng,nu_min)/sigma_fudge_factor;
+        sigma_sample = sqrt(del_term/(nu_sample*nu_sample) + sigma_r*sigma_r);
+        // sigma_sample *= sigma_fudge_factor;
         M_sample = EvaluateSigmaInverse(sigma_sample);
         M_sample = exp(M_sample);
 
-        //LOG_ULTRA_DEBUG("found Mass %d %.2e",n_halo_sampled,M_sample);
+        LOG_ULTRA_DEBUG("found Mass %d %.2e sigma %.2e nu %.2e dt %.2e",n_halo_sampled,M_sample,sigma_sample,nu_sample,del_term);
         M_out[n_halo_sampled++] = M_sample;
         M_remaining -= M_sample;
         lnM_remaining = log(M_remaining);
@@ -666,13 +662,10 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
 // will have to add properties here and output grids, instead of in perturbed
 int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, float *halo_overlap_box, struct HaloField *halofield_large, struct HaloField *halofield_out, struct HaloSamplingConstants *hs_constants){
     int lo_dim = user_params_stoc->HII_DIM;
-    int hi_dim = user_params_stoc->DIM;
     double boxlen = user_params_stoc->BOX_LEN;
 
     double Mcell = hs_constants->M_cond;
-    double lnMcell = hs_constants->lnM_cond;
     double Mmin = hs_constants->M_min;
-    double lnMmin = hs_constants->lnM_min;
 
     int nhalo_in = halofield_large->n_halos;
     double growthf = hs_constants->growth_out;
@@ -712,7 +705,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
         unsigned long long int count=0;
         unsigned long long int istart = threadnum * arraysize_local;
         //debug total
-        double M_cell=0.;
+        double M_tot_cell=0.;
 
         //we need a private version
         struct HaloSamplingConstants hs_constants_priv;
@@ -762,7 +755,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
 
                     stoc_sample(&hs_constants_priv, rng_arr[threadnum], &nh_buf, hm_buf);
                     //output total halo number, catalogues of masses and positions
-                    M_cell = 0;
+                    M_tot_cell = 0;
                     for(i=0;i<nh_buf;i++){
                         //sometimes halos are subtracted from the sample (set to zero)
                         //we do not want to save these
@@ -787,14 +780,14 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
                         halofield_out->sfr_rng[istart + count] = prop_buf[1];
                         count++;
 
-                        M_cell += hm_buf[i];
+                        M_tot_cell += hm_buf[i];
                         if((x+y+z) == 0){
                             LOG_ULTRA_DEBUG("Halo %d Mass %.2e Stellar %.2e SFR %.2e",i,hm_buf[i],prop_buf[0],prop_buf[1]);
                         }
                     }
                     if((x+y+z) == 0){
                         LOG_SUPER_DEBUG("Cell (%d %d %d): delta %.2f | N %d (exp. %.2e) | Total M %.2e (exp. %.2e) overlap defc %.2f",x,y,z,
-                                        delta,nh_buf,hs_constants_priv.expected_N,M_cell,hs_constants_priv.expected_M,mass_defc);
+                                        delta,nh_buf,hs_constants_priv.expected_N,M_tot_cell,hs_constants_priv.expected_M,mass_defc);
                     }
                 }
             }

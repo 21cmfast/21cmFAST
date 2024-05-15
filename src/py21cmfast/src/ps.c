@@ -849,9 +849,7 @@ double st_taylor_factor(double sig, double sig_cond, double growthf, double *zer
     return result;
 }
 
-//CMF Corresponding to the Sheth Mo Tormen HMF, here we assume that we are passing the correct delta2,
-//      which is the condition delta, the barrier delta1 is set by the mass, so it is passed usually as Deltac
-//NOTE: Currently broken and I don't know why
+//CMF Corresponding to the Sheth Mo Tormen HMF (Sheth+ 2002)
 double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double sigma_cond){
     double sigma1, dsigmasqdm, Barrier, factor, sigdiff_inv, result;
     double delta_0 = delta_cond / growthf;

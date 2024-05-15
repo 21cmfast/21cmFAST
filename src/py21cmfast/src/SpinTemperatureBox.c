@@ -1255,7 +1255,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                     zpp_for_evolve_list[R_ct],M_min_R[R_ct],M_max_R[R_ct],sigma_min[R_ct],sigma_max[R_ct]);
     }
 
-    //As far as I can tell, the only thing used from this is the X_e array
+    //Initialize heating interpolation arrays
     init_heat();
     if(redshift >= global_params.Z_HEAT_MAX){
         LOG_DEBUG("redshift greater than Z_HEAT_MAX");
