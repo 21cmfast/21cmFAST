@@ -533,7 +533,8 @@ class UserParams(StructWithDefaults):
     HALOMASS_CORRECTION: float, optional
         This provides a corrective factor to the mass-limited (SAMPLE_METHOD==0) sampling, which multiplies the
         expected mass from a condition by this number. The default value of 0.9 is calibrated to the mass-limited
-        sampling on a timestep of ZPRIME_STEP_FACTOR=1.02
+        sampling on a timestep of ZPRIME_STEP_FACTOR=1.02.
+        If ZPRIME_STEP_FACTOR is increased, this value should be set closer to 1.
         This factor is also used in the partition (SAMPLE_METHOD==2) sampler, dividing nu(M) of each sample drawn.
     """
 
