@@ -366,7 +366,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         Broadcast_struct_global_PS(user_params,cosmo_params);
         Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
 
-        int idx;
+        unsigned long long int idx;
 #pragma omp parallel for num_threads(user_params->N_THREADS) private(idx)
         for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
             grids->halo_mass[idx] = 0.0;
@@ -379,7 +379,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             grids->count[idx] = 0;
         }
 
-        LOG_DEBUG("Gridding %d halos...",halos->n_halos);
+        LOG_DEBUG("Gridding %llu halos...",halos->n_halos);
 
         double alpha_esc = astro_params->ALPHA_ESC;
         double norm_esc = astro_params->F_ESC10;
@@ -401,6 +401,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         double curr_vcb = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
 
         double averages_box[8], averages_global[5], averages_subsampler[5], averages_nofb[5], averages_nofb_sub[5];
+        unsigned long long int total_n_halos, n_halos_cut=0.;
 
         init_ps();
         if(user_params->USE_INTERPOLATION_TABLES){
@@ -418,16 +419,14 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             M_turn_m_avg = averages_box[6];
             get_box_averages(redshift, norm_esc, alpha_esc, M_min, M_cell, M_turn_a_avg, M_turn_m_avg, averages_global);
             //This is the mean adjustment that happens in the rest of the code
-            int i;
-
             //NOTE: in the default mode, global averages are fixed separately for minihalo and regular parts
 #pragma omp parallel for num_threads(user_params->N_THREADS)
-            for(i=0;i<HII_TOT_NUM_PIXELS;i++){
-                grids->halo_mass[i] *= averages_global[0]/averages_box[0];
-                grids->halo_sfr[i] *= averages_global[1]/averages_box[1];
-                grids->halo_sfr_mini[i] *= averages_global[2]/averages_box[2];
-                grids->n_ion[i] *= averages_global[3]/averages_box[3];
-                grids->whalo_sfr[i] *= averages_global[4]/averages_box[4];
+            for(idx=0;idx<HII_TOT_NUM_PIXELS;idx++){
+                grids->halo_mass[idx] *= averages_global[0]/averages_box[0];
+                grids->halo_sfr[idx] *= averages_global[1]/averages_box[1];
+                grids->halo_sfr_mini[idx] *= averages_global[2]/averages_box[2];
+                grids->n_ion[idx] *= averages_global[3]/averages_box[3];
+                grids->whalo_sfr[idx] *= averages_global[4]/averages_box[4];
             }
 
             hm_avg = averages_global[0];
@@ -454,7 +453,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             }
 #pragma omp parallel num_threads(user_params->N_THREADS) private(idx)
             {
-                int i_halo,x,y,z;
+                int x,y,z;
+                unsigned long long int i_halo;
                 double m,nion,sfr,wsfr,sfr_mini,stars_mini,stars;
                 double J21_val, Gamma12_val, zre_val;
 
@@ -466,7 +466,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                 float in_props[2];
                 float out_props[6];
 
-#pragma omp for reduction(+:hm_avg,nion_avg,sfr_avg,wsfr_avg,sfr_avg_mini,M_turn_a_avg,M_turn_m_avg,M_turn_r_avg,M_turn_m_nofb_avg)
+#pragma omp for reduction(+:hm_avg,nion_avg,sfr_avg,wsfr_avg,sfr_avg_mini,M_turn_a_avg,M_turn_m_avg,M_turn_r_avg,M_turn_m_nofb_avg,n_halos_cut)
                 for(i_halo=0; i_halo<halos->n_halos; i_halo++){
                     x = halos->halo_coords[0+3*i_halo]; //NOTE:PerturbedHaloField is on HII_DIM, HaloField is on DIM
                     y = halos->halo_coords[1+3*i_halo];
@@ -489,6 +489,13 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     }
 
                     m = halos->halo_masses[i_halo];
+
+                    //It is sometimes useful to make cuts to the halo catalogues before gridding.
+                    //  We implement this in a simple way, if the user sets a halo's mass to zero we skip it
+                    if(m == 0.){
+                        n_halos_cut++;
+                        continue;
+                    }
 
                     //these are the halo property RNG sequences
                     in_props[0] = halos->star_rng[i_halo];
@@ -523,12 +530,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->halo_sfr_mini[HII_R_INDEX(x, y, z)] += sfr_mini;
 #pragma omp atomic update
                     grids->whalo_sfr[HII_R_INDEX(x, y, z)] += wsfr;
-                    //It can be convenient to remove halos from a catalogue by setting them to zero, don't count those here
-                    //  This won't happen in the usual method of running 21cmFAST but a user may wish to do so
-                    if(m>0){
 #pragma omp atomic update
                         grids->count[HII_R_INDEX(x, y, z)] += 1;
-                    }
 
                     M_turn_m_avg += M_turn_m;
                     if(LOG_LEVEL >= DEBUG_LEVEL){
@@ -553,14 +556,15 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->whalo_sfr[idx] /= cell_volume;
                 }
             }
+            total_n_halos = halos->n_halos - n_halos_cut;
             LOG_SUPER_DEBUG("Cell 0: HM: %.2e SM: %.2e (%.2e) NI: %.2e SF: %.2e (%.2e) WS: %.2e ct : %d",grids->halo_mass[HII_R_INDEX(0,0,0)],
                                 grids->halo_stars[HII_R_INDEX(0,0,0)],grids->halo_stars_mini[HII_R_INDEX(0,0,0)],
                                 grids->n_ion[HII_R_INDEX(0,0,0)],grids->halo_sfr[HII_R_INDEX(0,0,0)],grids->halo_sfr_mini[HII_R_INDEX(0,0,0)],
                                 grids->whalo_sfr[HII_R_INDEX(0,0,0)],grids->count[HII_R_INDEX(0,0,0)]);
 
-            M_turn_m_avg = M_turn_m_avg / halos->n_halos;
+            M_turn_m_avg = M_turn_m_avg / total_n_halos;
             //If we have no halos, assume the turnover has no reion feedback & no LW
-            if(halos->n_halos == 0){
+            if(total_n_halos == 0){
                 M_turn_m_avg = lyman_werner_threshold(redshift, 0., flag_options_stoc->FIX_VCB_AVG ? global_params.VAVG : 0, astro_params);
                 M_turn_a_avg = flag_options_stoc->USE_MINI_HALOS ? atomic_cooling_threshold(redshift) : astro_params_stoc->M_TURN;
                 M_turn_r_avg = 0.;
@@ -578,10 +582,10 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                 //NOTE: There is an inconsistency here, the sampled grids use a halo-averaged turnover mass
                 //  whereas the fixed grids / default 21cmfast uses the volume averaged LOG10(turnover mass).
                 //  Neither of these are a perfect representation due to the nonlinear way turnover mass affects N_ion
-                if(halos->n_halos > 0){
-                    M_turn_r_avg /= halos->n_halos;
-                    M_turn_m_nofb_avg /= halos->n_halos;
-                    M_turn_a_avg /= halos->n_halos;
+                if(total_n_halos > 0){
+                    M_turn_r_avg /= total_n_halos;
+                    M_turn_m_nofb_avg /= total_n_halos;
+                    M_turn_a_avg /= total_n_halos;
                 }
 
                 get_box_averages(redshift, norm_esc, alpha_esc, user_params->SAMPLER_MIN_MASS, global_params.M_MAX_INTEGRAL, M_turn_a_avg, M_turn_m_avg, averages_global);

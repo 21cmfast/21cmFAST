@@ -29,8 +29,8 @@ LOG_DEBUG("redshift=%f", redshift);
         omp_set_num_threads(user_params->N_THREADS);
 
         float growth_factor, displacement_factor_2LPT, mass, xf, yf, zf, z, growth_factor_over_BOX_LEN,displacement_factor_2LPT_over_BOX_LEN;
-        int i,j,k, i_halo,xi, yi, zi, DI, dimension;
-        unsigned long long ct;
+        int i, j, k, xi, yi, zi, DI, dimension;
+        unsigned long long ct, i_halo;
         float dz = 1e-10;
 
 LOG_DEBUG("Begin Initialisation");
@@ -240,7 +240,7 @@ LOG_DEBUG("Begin Initialisation");
         fftwf_cleanup_threads();
         fftwf_cleanup();
         fftwf_forget_wisdom();
-        LOG_DEBUG("Perturbed positions of %d Halos", halos_perturbed->n_halos);
+        LOG_DEBUG("Perturbed positions of %llu Halos", halos_perturbed->n_halos);
 
     } // End of Try()
     Catch(status){

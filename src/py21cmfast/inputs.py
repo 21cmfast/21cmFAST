@@ -1202,7 +1202,7 @@ def validate_all_inputs(
         ):
             msg = (
                 "Your R_BUBBLE_MAX is > BOX_LEN/3 "
-                f"({astro_params.R_BUBBLE_MAX} > {user_params.BOX_LEN/3})."
+                f"({astro_params.R_BUBBLE_MAX} > {user_params.BOX_LEN / 3})."
             )
 
             if config["ignore_R_BUBBLE_MAX_error"]:
