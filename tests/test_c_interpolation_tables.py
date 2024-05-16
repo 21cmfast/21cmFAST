@@ -1414,7 +1414,7 @@ def print_failure_stats(test, truth, input_arr, abs_tol, rel_tol, name):
     sel_failed = np.fabs(truth - test) > (abs_tol + np.fabs(truth) * rel_tol)
     if sel_failed.sum() > 0:
         print(
-            f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum()/sel_failed.size*100:.4f}%"
+            f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f}%"
         )
         print(
             f"subcube of failures [min] [max] {np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
@@ -1427,7 +1427,7 @@ def print_failure_stats(test, truth, input_arr, abs_tol, rel_tol, name):
             f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})"
         )
         print(
-            f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test)/truth)[sel_failed].max():.4e}"
+            f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}"
         )
 
 
