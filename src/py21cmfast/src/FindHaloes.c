@@ -106,11 +106,7 @@ LOG_DEBUG("redshift=%f", redshift);
                 .HMF = user_params->HMF,
             };
 
-            if(user_params->INTEGRATION_METHOD_HALOS == 1){
-                initialise_GL(NGL_INT,log(M_MIN),log(Mmax_debug));
-            }
-
-            double nhalo_debug = IntegratedNdM(log(M_MIN), log(Mmax_debug), params, 1, user_params->INTEGRATION_METHOD_HALOS) * VOLUME;
+            double nhalo_debug = IntegratedNdM(log(M_MIN), log(Mmax_debug), params, 1, 0) * VOLUME;
             //expected halos above minimum filter mass
             LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e]",nhalo_debug,M_MIN,Mmax_debug);
         }
@@ -166,7 +162,7 @@ LOG_DEBUG("redshift=%f", redshift);
 
             //Pending a serious deep-dive into this algorithm, I will force DexM to use the fitted parameters to the
             //      Sheth-Tormen mass function (as of right now, We do not even reproduce EPS results)
-            delta_crit = growth_factor*sheth_delc(Deltac/growth_factor, sigma_z0(M));
+            delta_crit = growth_factor*sheth_delc_dexm(Deltac/growth_factor, sigma_z0(M));
 
             // if(global_params.DELTA_CRIT_MODE == 1){
             //     //This algorithm does not use the sheth tormen OR Jenkins parameters,

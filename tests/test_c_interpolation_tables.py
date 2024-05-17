@@ -108,7 +108,7 @@ def test_sigma_table(name, plt):
 #   for now this is acceptable
 # @pytest.mark.xfail
 @pytest.mark.parametrize("name", options_hmf)
-def test_Massfunc_conditional_tables(name):
+def test_Massfunc_conditional_tables(name, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -174,9 +174,12 @@ def test_Massfunc_conditional_tables(name):
     N_cmfi_cell = (
         N_cmfi_cell / max_in_d
     )  # to get P(>M) since the y-axis is the lower integral limit
-    mask_cell = N_cmfi_cell > np.exp(
-        global_params.MIN_LOGPROB
-    )  # we don't want to compare below the min prob
+    mask_cell = (
+        (N_cmfi_cell > np.exp(global_params.MIN_LOGPROB))
+        & (arg_list_inv_d[0] > -1)
+        & (arg_list_inv_d[0] < delta_crit)
+    )
+    # we don't want to compare below the min prob or outside our delta range
     N_cmfi_cell = np.clip(N_cmfi_cell, np.exp(global_params.MIN_LOGPROB), 1)
     N_cmfi_cell = np.log(N_cmfi_cell)
 
@@ -215,6 +218,14 @@ def test_Massfunc_conditional_tables(name):
         np.log(cell_mass),
         False,
     )
+    lib.initialise_dNdM_inverse_table(
+        edges_d[0],
+        edges_d[-1],
+        edges_ln[0],
+        growth_out,
+        np.log(cell_mass),
+        False,
+    )
 
     M_exp_cell = (
         np.vectorize(lib.EvaluateMcoll)(edges_d[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -245,9 +256,12 @@ def test_Massfunc_conditional_tables(name):
     N_cmfi_halo = N_cmfi_halo / (
         N_cmfi_halo[:, :1] + np.all(N_cmfi_halo == 0, axis=1)[:, None]
     )  # if all entries are zero, do not nan the row, just divide by 1
-    mask_halo = (
-        arg_list_inv_m[0] > arg_list_inv_m[1]
-    )  # we don't want to compare above the conditinos
+    mask_halo = (arg_list_inv_m[0] > arg_list_inv_m[1]) & (
+        N_cmfi_cell > np.exp(global_params.MIN_LOGPROB)
+    )  # we don't want to compare above the conditions or below min probability
+
+    N_cmfi_halo = np.clip(N_cmfi_halo, np.exp(global_params.MIN_LOGPROB), 1)
+    N_cmfi_halo = np.log(N_cmfi_halo)
 
     M_cmf_halo = (
         np.vectorize(lib.Mcoll_Conditional)(
@@ -284,6 +298,15 @@ def test_Massfunc_conditional_tables(name):
         growth_in,
         True,
     )
+    lib.initialise_dNdM_inverse_table(
+        edges_ln[0],
+        edges_ln[-1],
+        edges_ln[0],
+        growth_out,
+        growth_in,
+        True,
+    )
+
     M_exp_halo = (
         np.vectorize(lib.EvaluateMcoll)(edges_ln[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         * edges[:-1]
@@ -300,6 +323,77 @@ def test_Massfunc_conditional_tables(name):
     # NOTE: The tables get inaccurate in the smallest halo bin where the condition mass approaches the minimum
     #       We set the absolute tolerance to be insiginificant in sampler terms (~1% of the smallest halo)
     abs_tol_halo = 1e-2
+
+    if plt == mpl.pyplot:
+        xl = edges_d[:-1].size
+        sel = (xl * np.arange(6) / 6).astype(int)
+        massfunc_table_comparison_plot(
+            edges[:-1],
+            edges[sel],
+            np.exp(N_cmfi_halo[sel, :]),
+            np.exp(N_inverse_halo[sel, :]),
+            edges_d[sel],
+            np.exp(N_cmfi_cell[sel, :]),
+            np.exp(N_inverse_cell[sel, :]),
+            plt,
+        )
+
+    # mask out relevant quantities
+    print(mask_halo.shape, N_inverse_halo.shape, arg_list_inv_m[1].shape)
+    N_inverse_halo[~mask_halo] = arg_list_inv_m[1][~mask_halo]
+    N_inverse_cell[~mask_cell] = arg_list_inv_d[1][~mask_cell]
+
+    print_failure_stats(
+        N_cmf_halo,
+        N_exp_halo,
+        [edges[:-1]],
+        abs_tol_halo,
+        RELATIVE_TOLERANCE,
+        "expected N halo",
+    )
+    print_failure_stats(
+        M_cmf_halo,
+        M_exp_halo,
+        [edges[:-1]],
+        abs_tol_halo,
+        RELATIVE_TOLERANCE,
+        "expected M halo",
+    )
+
+    print_failure_stats(
+        N_cmf_cell,
+        N_exp_cell,
+        [edges_d[:-1]],
+        abs_tol_halo,
+        RELATIVE_TOLERANCE,
+        "expected N cell",
+    )
+    print_failure_stats(
+        M_cmf_cell,
+        M_exp_cell,
+        [edges_d[:-1]],
+        abs_tol_halo,
+        RELATIVE_TOLERANCE,
+        "expected M cell",
+    )
+
+    print_failure_stats(
+        np.exp(arg_list_inv_m[1]),
+        np.exp(N_inverse_halo),
+        arg_list_inv_d,
+        0.0,
+        RELATIVE_TOLERANCE,
+        "Inverse Halo",
+    )
+    print_failure_stats(
+        np.exp(arg_list_inv_d[1]),
+        np.exp(N_inverse_cell),
+        arg_list_inv_m,
+        0.0,
+        RELATIVE_TOLERANCE,
+        "Inverse cell",
+    )
+
     np.testing.assert_allclose(
         N_cmf_halo, N_exp_halo, atol=abs_tol_halo, rtol=RELATIVE_TOLERANCE
     )
@@ -1320,15 +1414,83 @@ def print_failure_stats(test, truth, input_arr, abs_tol, rel_tol, name):
     sel_failed = np.fabs(truth - test) > (abs_tol + np.fabs(truth) * rel_tol)
     if sel_failed.sum() > 0:
         print(
-            f"{name}: atol {abs_tol} rtol {rel_tol} subcube of failures [min] [max] {np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
+            f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f}%"
+        )
+        print(
+            f"subcube of failures [min] [max] {np.argwhere(sel_failed).min(axis=0)} {np.argwhere(sel_failed).max(axis=0)}"
         )
         for i, row in enumerate(input_arr):
             print(
-                f"failure range of inputs axis {i} {row[sel_failed].min()} {row[sel_failed].max()}"
+                f"failure range of inputs axis {i} {row[sel_failed].min():.2e} {row[sel_failed].max():.2e}"
             )
         print(
-            f"failure range truth ({truth[sel_failed].min()},{truth[sel_failed].max()}) test ({test[sel_failed].min()},{test[sel_failed].max()})"
+            f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})"
         )
         print(
-            f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max()} relative {(np.fabs(truth - test) / truth)[sel_failed].max()}"
+            f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}"
         )
+
+
+def massfunc_table_comparison_plot(
+    massbins,
+    conds_m,
+    N_cmfi_halo,
+    M_inverse_halo,
+    conds_d,
+    N_cmfi_cell,
+    M_inverse_cell,
+    plt,
+):
+    fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(16, 8))
+    for ax in axs:
+        ax.grid()
+        ax.set_xlabel("M_halo")
+        ax.set_xlim([1e7, 5e11])
+        ax.set_xscale("log")
+        ax.set_ylabel("P(>M)")
+        ax.set_ylim([1e-8, 1.2])
+        ax.set_yscale("log")
+
+    [
+        axs[0].plot(
+            massbins,
+            N_cmfi_halo[i, :],
+            color=f"C{i:d}",
+            linestyle="-",
+            label=f"M = {m:.3e}",
+        )
+        for i, m in enumerate(conds_m)
+    ]
+    [
+        axs[0].plot(
+            M_inverse_halo[i, :],
+            N_cmfi_halo[i, :],
+            color=f"C{i:d}",
+            linestyle=":",
+            linewidth=3,
+        )
+        for i, m in enumerate(conds_m)
+    ]
+    axs[0].legend()
+
+    [
+        axs[1].plot(
+            massbins,
+            N_cmfi_cell[i, :],
+            color=f"C{i:d}",
+            linestyle="-",
+            label=f"d = {d:.3f}",
+        )
+        for i, d in enumerate(conds_d)
+    ]
+    [
+        axs[1].plot(
+            M_inverse_cell[i, :],
+            N_cmfi_cell[i, :],
+            color=f"C{i:d}",
+            linestyle=":",
+            linewidth=3,
+        )
+        for i, m in enumerate(conds_d)
+    ]
+    axs[1].legend()

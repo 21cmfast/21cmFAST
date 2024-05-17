@@ -172,7 +172,6 @@ int set_fixed_grids(double redshift, double norm_esc, double alpha_esc, double M
                                 user_params_stoc->INTEGRATION_METHOD_MINI,
                                 flag_options_stoc->USE_MINI_HALOS, false);
 
-        //TODO: disable inverse table generation here with a flag or split up the functions
         initialise_dNdM_tables(min_density, max_density, lnMmin, lnMmax, growth_z, lnMcell, false);
     }
 
@@ -438,8 +437,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         }
         else{
             //set below-resolution properties
-            if(global_params.AVG_BELOW_SAMPLER && M_min < global_params.SAMPLER_MIN_MASS){
-                set_fixed_grids(redshift, norm_esc, alpha_esc, M_min, global_params.SAMPLER_MIN_MASS, ini_boxes,
+            if(user_params->AVG_BELOW_SAMPLER && M_min < user_params->SAMPLER_MIN_MASS){
+                set_fixed_grids(redshift, norm_esc, alpha_esc, M_min, user_params->SAMPLER_MIN_MASS, ini_boxes,
                                 perturbed_field, previous_spin_temp, previous_ionize_box, grids, averages_box);
                 //This is pretty redundant, but since the fixed grids have density units (X Mpc-3) I have to re-multiply before adding the halos.
                 //      I should instead have a flag to output the summed values in cell. (2*N_pixel > N_halo so generally i don't want to do it in the halo loop)
@@ -450,7 +449,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     grids->halo_sfr_mini[idx] *= cell_volume;
                     grids->whalo_sfr[idx] *= cell_volume;
                 }
-                LOG_DEBUG("finished subsampler M[%.2e %.2e]",M_min,global_params.SAMPLER_MIN_MASS);
+                LOG_DEBUG("finished subsampler M[%.2e %.2e]",M_min,user_params->SAMPLER_MIN_MASS);
             }
 #pragma omp parallel num_threads(user_params->N_THREADS) private(idx)
             {
@@ -589,10 +588,10 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                     M_turn_a_avg /= total_n_halos;
                 }
 
-                get_box_averages(redshift, norm_esc, alpha_esc, global_params.SAMPLER_MIN_MASS, global_params.M_MAX_INTEGRAL, M_turn_a_avg, M_turn_m_avg, averages_global);
-                get_box_averages(redshift, norm_esc, alpha_esc, M_min, global_params.SAMPLER_MIN_MASS, M_turn_a_avg, M_turn_m_avg, averages_subsampler);
-                get_box_averages(redshift, norm_esc, alpha_esc, global_params.SAMPLER_MIN_MASS, global_params.M_MAX_INTEGRAL, M_turn_a_nofb, M_turn_m_nofb_avg, averages_nofb);
-                get_box_averages(redshift, norm_esc, alpha_esc, M_min, global_params.SAMPLER_MIN_MASS, M_turn_a_nofb, M_turn_m_nofb_avg, averages_nofb_sub);
+                get_box_averages(redshift, norm_esc, alpha_esc, user_params->SAMPLER_MIN_MASS, global_params.M_MAX_INTEGRAL, M_turn_a_avg, M_turn_m_avg, averages_global);
+                get_box_averages(redshift, norm_esc, alpha_esc, M_min, user_params->SAMPLER_MIN_MASS, M_turn_a_avg, M_turn_m_avg, averages_subsampler);
+                get_box_averages(redshift, norm_esc, alpha_esc, user_params->SAMPLER_MIN_MASS, global_params.M_MAX_INTEGRAL, M_turn_a_nofb, M_turn_m_nofb_avg, averages_nofb);
+                get_box_averages(redshift, norm_esc, alpha_esc, M_min, user_params->SAMPLER_MIN_MASS, M_turn_a_nofb, M_turn_m_nofb_avg, averages_nofb_sub);
             }
         }
 
@@ -609,7 +608,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         LOG_DEBUG("Ratio:         (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",hm_avg/averages_global[0],nion_avg/averages_global[3],
                                                                                                     sfr_avg/averages_global[1],sfr_avg_mini/averages_global[2],
                                                                                                     wsfr_avg/averages_global[4]);
-        if(global_params.AVG_BELOW_SAMPLER && M_min < global_params.SAMPLER_MIN_MASS){
+        if(user_params->AVG_BELOW_SAMPLER && M_min < user_params->SAMPLER_MIN_MASS){
             LOG_DEBUG("SUB-SAMPLER",redshift);
             LOG_DEBUG("Exp. averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e, WSFR %11.3e)",averages_subsampler[0],averages_subsampler[3],averages_subsampler[1],
                                                                                                         averages_subsampler[2],averages_subsampler[4]);

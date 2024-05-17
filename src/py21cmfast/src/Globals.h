@@ -81,17 +81,6 @@ struct GlobalParams{
 
     float VAVG;
 
-    //Stochasticity Options
-    float STOC_MASS_TOL;
-    float SAMPLER_MIN_MASS;
-    float MAXHALO_FACTOR;
-    int N_MASS_INTERP;
-    int N_COND_INTERP;
-    int N_PROB_INTERP;
-    double MIN_LOGPROB;
-    int SAMPLE_METHOD;
-    int AVG_BELOW_SAMPLER;
-
     bool USE_ADIABATIC_FLUCTUATIONS;
 };
 
@@ -153,10 +142,8 @@ extern struct GlobalParams global_params = {
     .OMtot = 1.0,
     .Y_He = 0.245,
     .wl = -1.0,
-    // .SHETH_b = 0.485, //In the literature this is 0.485 (RM08) or 0.5 (SMT01) Master 21cmFAST currently has 0.15
-    // .SHETH_c = 0.615, //In the literature this is 0.615 (RM08) or 0.6 (SMT01) Master 21cmFAST currently has 0.05
-    .SHETH_b = 0.15,
-    .SHETH_c = 0.05,
+    .SHETH_b = 0.15, //In the literature this is 0.485 (RM08) or 0.5 (SMT01) or 0.34 (Barkana+01) Master 21cmFAST currently has 0.15
+    .SHETH_c = 0.05, //In the literature this is 0.615 (RM08) or 0.6 (SMT01) or 0.81 (Barkana+01) Master 21cmFAST currently has 0.05
     .Zreion_HeII = 3.0,
     .FILTER = 0,
     .R_BUBBLE_MIN = 0.620350491,
@@ -166,16 +153,6 @@ extern struct GlobalParams global_params = {
     .T_RE = 2e4,
 
     .VAVG=25.86,
-
-    .STOC_MASS_TOL = 5.0, //effectively infinite, mass tolerance semi-deprecated
-    .SAMPLER_MIN_MASS = 5e7,
-    .MAXHALO_FACTOR = 2,
-    .N_MASS_INTERP = 200,
-    .N_COND_INTERP = 200,
-    .N_PROB_INTERP = 200,
-    .MIN_LOGPROB = -16,
-    .SAMPLE_METHOD = 0,
-    .AVG_BELOW_SAMPLER = 0,
 
     .USE_ADIABATIC_FLUCTUATIONS = 1,
 };
