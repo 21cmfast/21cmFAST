@@ -473,9 +473,8 @@ class HaloBox(_AllParamsBox):
         if isinstance(input_box, PerturbHaloField):
             if not self.flag_options.FIXED_HALO_GRIDS:
                 required += ["halo_coords", "halo_masses", "star_rng", "sfr_rng"]
-
         elif isinstance(input_box, PerturbedField):
-            if self.flag_options.FIXED_HALO_GRIDS or global_params.AVG_BELOW_SAMPLER:
+            if self.flag_options.FIXED_HALO_GRIDS or self.user_params.AVG_BELOW_SAMPLER:
                 required += ["density"]
         elif isinstance(input_box, TsBox):
             required += ["J_21_LW_box"]
