@@ -1151,6 +1151,9 @@ class LightCone(_HighLevelOutput):
         self._current_redshift = current_redshift or redshift
         self.lightcone_distances = distances
 
+        if not hasattr(self.lightcone_distances, "unit"):
+            self.lightcone_distances = self.lightcone_distances * units.Mpc
+
         # A *copy* of the current global parameters.
         self.global_params = _globals or dict(global_params.items())
 
