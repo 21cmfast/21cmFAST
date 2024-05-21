@@ -62,7 +62,7 @@ def test_lightcone_roundtrip(test_direc, lc):
 
     assert lc == lc2
     assert lc.get_unique_filename() == lc2.get_unique_filename()
-    assert lc.lightcone_redshifts == lc2.lightcone_redshifts
+    assert np.allclose(lc.lightcone_redshifts, lc2.lightcone_redshifts)
     assert np.all(np.isclose(lc.brightness_temp, lc2.brightness_temp))
 
 
