@@ -137,8 +137,8 @@ def test_coeval_redshifts_outside_box(equal_cdist):
 
     q, idx, out = next(equal_cdist.make_lightcone_slices(z6, z7))
     assert q is None
-    assert idx is None
-    assert len(out) == 0
+    assert len(idx) == 0
+    assert out is None
 
 
 def test_bad_coeval_sizes_for_redshift_interp(equal_cdist):
