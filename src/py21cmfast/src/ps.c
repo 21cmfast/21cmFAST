@@ -1626,6 +1626,9 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
         .delta = delta2,
     };
 
+    // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e sig=%.2e del=%.2e",
+    //     growthf,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,sigma2,delta2);
+
     if(delta2 <= -1. || lnM1 >= log(M_cond))
         return 0.;
     //return 1 halo at the condition mass if delta is exceeded
@@ -1641,8 +1644,6 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
     if(params.HMF != 0 && params.HMF != 1 && params.HMF != 4)
         params.HMF = 0;
 
-    // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e sig=%.2e del=%.2e",
-    //     growthf,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,sigma2,delta2);
 
     // LOG_ULTRA_DEBUG("--> %.8e",IntegratedNdM(lnM1,lnM2,params,-3, method));
 

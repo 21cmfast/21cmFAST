@@ -240,7 +240,7 @@ void init_FcollTable(double zmin, double zmax, bool x_ray){
         if(user_params_it->HMF == 0)
             fcoll_z_table.y_arr[i] = FgtrM(z_val, M_min);
         else{
-            if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || user_params_it->INTEGRATION_METHOD_MINI == 1)
+            if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_it->USE_MINI_HALOS && user_params_it->INTEGRATION_METHOD_MINI == 1))
                 initialise_GL(NGL_INT,lnMmin,lnMmax);
             fcoll_z_table.y_arr[i] = Fcoll_General(z_val, lnMmin, lnMmax);
         }
@@ -421,7 +421,6 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
 #pragma omp for
         for (i=0; i<NDELTA; i++){
             curr_dens = min_density + (float)i/((float)NDELTA-1.)*(max_density - min_density);
-
             SFRD_conditional_table.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,curr_dens,\
                                             Mcrit_atom,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., user_params_it->INTEGRATION_METHOD_ATOMIC));
 

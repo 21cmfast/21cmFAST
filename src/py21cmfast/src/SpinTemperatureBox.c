@@ -847,7 +847,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     //I will need to change the Tau function chain.
     double determine_zpp_max;
 
-    if(user_params_ts->INTEGRATION_METHOD_ATOMIC == 1 || user_params_ts->INTEGRATION_METHOD_MINI == 1)
+    if(user_params_ts->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_ts->USE_MINI_HALOS && user_params_ts->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(NGL_INT,log(M_min_R[R_ct]),log(global_params.M_MAX_INTEGRAL));
 
     if(user_params_ts->USE_INTERPOLATION_TABLES){
@@ -917,7 +917,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
                              float *sfrd_grid_mini, double *ave_sfrd, double *ave_sfrd_mini){
     double ave_sfrd_buf=0;
     double ave_sfrd_buf_mini=0;
-    if(user_params_ts->INTEGRATION_METHOD_ATOMIC == 1 || user_params_ts->INTEGRATION_METHOD_MINI == 1)
+    if(user_params_ts->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_ts->USE_MINI_HALOS && user_params_ts->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(NGL_INT,log(M_min_R[R_ct]),log(M_max_R[R_ct]));
 
     if(user_params_ts->USE_INTERPOLATION_TABLES){
