@@ -162,11 +162,13 @@ class Lightconer(ABC):
 
         Returns
         -------
+        quantity
+            The field names of the quantities required by the lightcone.
+        lcidx
+            The indices of the lightcone to which these slices belong.
         scalar_field_slices
             The scalar fields evaluated on the "lightcone" slices that exist within
             the redshift range spanned by ``c1`` and ``c2``.
-        lcidx
-            The indices of the lightcone to which these slices belong.
         """
         if c1.user_params != c2.user_params:
             raise ValueError("c1 and c2 must have the same user parameters")
@@ -192,7 +194,7 @@ class Lightconer(ABC):
 
         # Return early if no lightcone indices are between the coeval distances.
         if len(lcidx) == 0:
-            yield None, None, lcidx
+            yield None, lcidx, None
 
         lc_distances = pixlcdist[lcidx]
 
