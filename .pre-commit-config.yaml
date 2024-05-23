@@ -2,7 +2,7 @@ exclude: '(^docs/conf.py|^src/py21cmfast/_data/|changethelog.py)'
 
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
-      rev: v4.5.0
+      rev: v4.6.0
       hooks:
           - id: trailing-whitespace
           - id: check-added-large-files
@@ -34,7 +34,7 @@ repos:
             - flake8-print
 
     - repo: https://github.com/psf/black-pre-commit-mirror
-      rev: 24.2.0
+      rev: 24.4.2
       hooks:
           - id: black
 
@@ -51,7 +51,7 @@ repos:
       - id: rst-inline-touching-normal
 
     - repo: https://github.com/asottile/pyupgrade
-      rev: v3.15.1
+      rev: v3.15.2
       hooks:
       - id: pyupgrade
         args: [--py36-plus]

@@ -1178,6 +1178,47 @@ class InputCrossValidationError(ValueError):
     pass
 
 
+def convert_input_dicts(
+    user_params: dict | UserParams | None = None,
+    cosmo_params: dict | CosmoParams | None = None,
+    astro_params: dict | UserParams | None = None,
+    flag_options: dict | FlagOptions | None = None,
+    *,
+    defaults: bool = False,
+):
+    """Convert a full set of input params structs/dicts into their actual classes.
+
+    The 4 parameters can be provided as either positional or keyword arguments. They
+    can be passed as a dict (which will be converted to the appropriate class), a
+    StructWithDefaults instance (in which case it will be left alone), or None (in
+    which case *either* the default struct will be returned, or None).
+
+    Returns
+    -------
+    user_params, cosmo_params, astro_params, flag_options : UserParams, CosmoParams, AstroParams, FlagOptions
+        The validated and converted input parameters.
+    """
+    if defaults:
+        user_params = UserParams(user_params)
+        cosmo_params = CosmoParams(cosmo_params)
+        flag_options = FlagOptions(flag_options)
+        astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+    else:
+        user_params = UserParams(user_params) if user_params else None
+        cosmo_params = CosmoParams(cosmo_params) if cosmo_params else None
+        flag_options = FlagOptions(flag_options) if flag_options else None
+        inhomo_reco = (
+            flag_options.INHOMO_RECO
+            if flag_options is not None
+            else FlagOptions().INHOMO_RECO
+        )
+        astro_params = (
+            AstroParams(astro_params, INHOMO_RECO=inhomo_reco) if astro_params else None
+        )
+
+    return user_params, cosmo_params, astro_params, flag_options
+
+
 def validate_all_inputs(
     user_params: UserParams,
     cosmo_params: CosmoParams,
