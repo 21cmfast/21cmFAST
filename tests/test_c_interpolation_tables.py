@@ -31,7 +31,7 @@ OPTIONS_PS = {
 
 OPTIONS_HMF = {
     "PS": [10, {"HMF": 0}],
-    # "ST": [10, {"HMF": 1}],
+    "ST": [10, {"HMF": 1}],
     # "Watson": [10, {"HMF": 2}],
     # "Watsonz": [10, {"HMF": 3}],
     # "Delos": [10, {"HMF": 4}],
@@ -85,13 +85,10 @@ def test_sigma_table(name, plt):
 
     if plt == mpl.pyplot:
         make_table_comparison_plot(
-            mass_range,
-            np.array([0]),
-            np.array([0]),
-            sigma_table[:, None],
-            dsigmasq_table[:, None],
-            sigma_ref[:, None],
-            dsigmasq_ref[:, None],
+            [mass_range, mass_range],
+            [np.array([0]), np.array([0])],
+            [sigma_table[:, None], dsigmasq_table[:, None]],
+            [sigma_ref[:, None], dsigmasq_ref[:, None]],
             plt,
         )
 
@@ -103,12 +100,8 @@ def test_sigma_table(name, plt):
     )
 
 
-# NOTE: This test currently fails (~10% differences in mass in <1% of bins)
-#   I don't want to relax the tolerance yet since it can be improved, but
-#   for now this is acceptable
-# @pytest.mark.xfail
 @pytest.mark.parametrize("name", options_hmf)
-def test_Massfunc_conditional_tables(name, plt):
+def test_inverse_cmf_tables(name, plt):
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -130,9 +123,6 @@ def test_Massfunc_conditional_tables(name, plt):
     lib.initialiseSigmaMInterpTable(
         global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
     )
-
-    if up.INTEGRATION_METHOD_HALOS == 1:
-        lib.initialise_GL(100, np.log(edges[0]), np.log(edges[-1]))
 
     growth_out = lib.dicke(redshift)
     growth_in = lib.dicke(redshift / global_params.ZPRIME_STEP_FACTOR)
@@ -166,7 +156,7 @@ def test_Massfunc_conditional_tables(name, plt):
         cell_mass,
         sigma_cond_cell,
         arg_list_inv_d[0],  # density
-        up.INTEGRATION_METHOD_HALOS,
+        0,
     )
 
     max_in_d = N_cmfi_cell[:, :1]
@@ -174,14 +164,156 @@ def test_Massfunc_conditional_tables(name, plt):
     N_cmfi_cell = (
         N_cmfi_cell / max_in_d
     )  # to get P(>M) since the y-axis is the lower integral limit
-    mask_cell = (
-        (N_cmfi_cell > np.exp(global_params.MIN_LOGPROB))
-        & (arg_list_inv_d[0] > -1)
-        & (arg_list_inv_d[0] < delta_crit)
+
+    lib.initialise_dNdM_inverse_table(
+        edges_d[0],
+        edges_d[-1],
+        edges_ln[0],
+        growth_out,
+        np.log(cell_mass),
+        False,
     )
-    # we don't want to compare below the min prob or outside our delta range
-    N_cmfi_cell = np.clip(N_cmfi_cell, np.exp(global_params.MIN_LOGPROB), 1)
-    N_cmfi_cell = np.log(N_cmfi_cell)
+
+    N_inverse_cell = (
+        np.vectorize(lib.EvaluateNhaloInv)(arg_list_inv_d[0], N_cmfi_cell) * cell_mass
+    )  # Mass evaluated at the probabilities given by the integral
+
+    # Halo Integrals
+    arg_list_inv_m = np.meshgrid(edges_ln[:-1], edges_ln[:-1], indexing="ij")
+    N_cmfi_halo = np.vectorize(lib.Nhalo_Conditional)(
+        growth_out,
+        arg_list_inv_m[1],
+        edges_ln[-1],
+        edges[:-1, None],
+        sigma_cond_halo[:-1, None],  # (condition,masslimit)
+        delta_update[:-1, None],
+        0,
+    )
+
+    # To get P(>M), NOTE that some conditions have no integral
+    N_cmfi_halo = N_cmfi_halo / (
+        N_cmfi_halo[:, :1] + np.all(N_cmfi_halo == 0, axis=1)[:, None]
+    )  # if all entries are zero, do not nan the row, just divide by 1
+
+    lib.initialise_dNdM_inverse_table(
+        edges_ln[0],
+        edges_ln[-1],
+        edges_ln[0],
+        growth_out,
+        growth_in,
+        True,
+    )
+
+    N_inverse_halo = (
+        np.vectorize(lib.EvaluateNhaloInv)(arg_list_inv_m[0], N_cmfi_halo)
+        * edges[:-1, None]
+    )  # LOG MASS, evaluated at the probabilities given by the integral
+
+    # NOTE: The tables get inaccurate in the smallest halo bin where the condition mass approaches the minimum
+    #       We set the absolute tolerance to be insiginificant in sampler terms (~1% of the smallest halo)
+    abs_tol_halo = 1e-2
+
+    if plt == mpl.pyplot:
+        xl = edges_d[:-1].size
+        sel = (xl * np.arange(6) / 6).astype(int)
+        massfunc_table_comparison_plot(
+            edges[:-1],
+            edges[sel],
+            N_cmfi_halo[sel, :],
+            N_inverse_halo[sel, :],
+            edges_d[sel],
+            N_cmfi_cell[sel, :],
+            N_inverse_cell[sel, :],
+            plt,
+        )
+
+    mask_halo_compare = arg_list_inv_m[1] < arg_list_inv_m[0]  # condtition > halo
+    mask_cell_compare = arg_list_inv_d[0] < delta_crit  # delta < delta_crit
+
+    N_inverse_halo[mask_halo_compare] = np.exp(arg_list_inv_m[1][mask_halo_compare])
+    N_inverse_cell[mask_cell_compare] = np.exp(arg_list_inv_d[1][mask_cell_compare])
+
+    print_failure_stats(
+        N_inverse_halo,
+        np.exp(arg_list_inv_m[1]),
+        arg_list_inv_m,
+        0.0,
+        RELATIVE_TOLERANCE,
+        "Inverse Halo",
+    )
+    print_failure_stats(
+        N_inverse_cell,
+        np.exp(arg_list_inv_d[1]),
+        arg_list_inv_d,
+        0.0,
+        RELATIVE_TOLERANCE,
+        "Inverse Cell",
+    )
+
+    np.testing.assert_allclose(
+        np.exp(arg_list_inv_d[1]),
+        N_inverse_cell,
+        atol=edges[0] * abs_tol_halo,
+        rtol=RELATIVE_TOLERANCE,
+    )
+    np.testing.assert_allclose(
+        np.exp(arg_list_inv_m[1]),
+        N_inverse_halo,
+        atol=edges[0] * abs_tol_halo,
+        rtol=RELATIVE_TOLERANCE,
+    )
+
+
+# NOTE: This test currently fails (~10% differences in mass in <1% of bins)
+#   I don't want to relax the tolerance yet since it can be improved, but
+#   for now this is acceptable
+# @pytest.mark.xfail
+@pytest.mark.parametrize("name", options_hmf)
+def test_Massfunc_conditional_tables(name, plt):
+    redshift, kwargs = OPTIONS_HMF[name]
+    opts = prd.get_all_options(redshift, **kwargs)
+
+    up = UserParams(opts["user_params"])
+    cp = CosmoParams(opts["cosmo_params"])
+    ap = AstroParams(opts["astro_params"])
+    fo = FlagOptions(opts["flag_options"])
+    up.update(USE_INTERPOLATION_TABLES=True)
+
+    hist_size = 1000
+    edges = np.logspace(7, 12, num=hist_size).astype("f4")
+    edges_ln = np.log(edges)
+
+    lib.Broadcast_struct_global_PS(up(), cp())
+    lib.Broadcast_struct_global_UF(up(), cp())
+    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+
+    lib.init_ps()
+    lib.initialiseSigmaMInterpTable(
+        global_params.M_MIN_INTEGRAL, global_params.M_MAX_INTEGRAL
+    )
+
+    growth_out = lib.dicke(redshift)
+    growth_in = lib.dicke(redshift / global_params.ZPRIME_STEP_FACTOR)
+    cell_mass = (
+        (
+            cp.cosmo.critical_density(0)
+            * cp.OMm
+            * u.Mpc**3
+            * (up.BOX_LEN / up.HII_DIM) ** 3
+        )
+        .to("M_sun")
+        .value
+    )
+
+    sigma_cond_cell = lib.sigma_z0(cell_mass)
+    sigma_cond_halo = np.vectorize(lib.sigma_z0)(edges)
+    delta_crit = lib.get_delta_crit(up.HMF, sigma_cond_cell, growth_in)
+    delta_update = (
+        np.vectorize(lib.get_delta_crit)(up.HMF, sigma_cond_halo, growth_in)
+        * growth_out
+        / growth_in
+    )
+    edges_d = np.linspace(-1, delta_crit * 1.1, num=hist_size).astype("f4")
 
     M_cmf_cell = (
         np.vectorize(lib.Mcoll_Conditional)(
@@ -191,7 +323,7 @@ def test_Massfunc_conditional_tables(name, plt):
             cell_mass,
             sigma_cond_cell,
             edges_d[:-1],
-            up.INTEGRATION_METHOD_HALOS,
+            0,
         )
         * cell_mass
     )
@@ -203,7 +335,7 @@ def test_Massfunc_conditional_tables(name, plt):
             cell_mass,
             sigma_cond_cell,
             edges_d[:-1],
-            up.INTEGRATION_METHOD_HALOS,
+            0,
         )
         * cell_mass
     )
@@ -218,14 +350,6 @@ def test_Massfunc_conditional_tables(name, plt):
         np.log(cell_mass),
         False,
     )
-    lib.initialise_dNdM_inverse_table(
-        edges_d[0],
-        edges_d[-1],
-        edges_ln[0],
-        growth_out,
-        np.log(cell_mass),
-        False,
-    )
 
     M_exp_cell = (
         np.vectorize(lib.EvaluateMcoll)(edges_d[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -236,33 +360,6 @@ def test_Massfunc_conditional_tables(name, plt):
         * cell_mass
     )
 
-    N_inverse_cell = np.vectorize(lib.EvaluateNhaloInv)(
-        arg_list_inv_d[0], N_cmfi_cell
-    )  # LOG MASS, evaluated at the probabilities given by the integral
-
-    # Halo Integrals
-    arg_list_inv_m = np.meshgrid(edges_ln[:-1], edges_ln[:-1], indexing="ij")
-    N_cmfi_halo = np.vectorize(lib.Nhalo_Conditional)(
-        growth_out,
-        arg_list_inv_m[1],
-        edges_ln[-1],
-        edges[:-1, None],
-        sigma_cond_halo[:-1, None],  # (condition,masslimit)
-        delta_update[:-1, None],
-        up.INTEGRATION_METHOD_HALOS,
-    )
-
-    # To get P(>M), NOTE that some conditions have no integral
-    N_cmfi_halo = N_cmfi_halo / (
-        N_cmfi_halo[:, :1] + np.all(N_cmfi_halo == 0, axis=1)[:, None]
-    )  # if all entries are zero, do not nan the row, just divide by 1
-    mask_halo = (arg_list_inv_m[0] > arg_list_inv_m[1]) & (
-        N_cmfi_cell > np.exp(global_params.MIN_LOGPROB)
-    )  # we don't want to compare above the conditions or below min probability
-
-    N_cmfi_halo = np.clip(N_cmfi_halo, np.exp(global_params.MIN_LOGPROB), 1)
-    N_cmfi_halo = np.log(N_cmfi_halo)
-
     M_cmf_halo = (
         np.vectorize(lib.Mcoll_Conditional)(
             growth_out,
@@ -271,7 +368,7 @@ def test_Massfunc_conditional_tables(name, plt):
             edges[:-1],
             sigma_cond_halo[:-1],
             delta_update[:-1],
-            up.INTEGRATION_METHOD_HALOS,
+            0,
         )
         * edges[:-1]
     )
@@ -283,7 +380,7 @@ def test_Massfunc_conditional_tables(name, plt):
             edges[:-1],
             sigma_cond_halo[:-1],
             delta_update[:-1],
-            up.INTEGRATION_METHOD_HALOS,
+            0,
         )
         * edges[:-1]
     )
@@ -298,15 +395,6 @@ def test_Massfunc_conditional_tables(name, plt):
         growth_in,
         True,
     )
-    lib.initialise_dNdM_inverse_table(
-        edges_ln[0],
-        edges_ln[-1],
-        edges_ln[0],
-        growth_out,
-        growth_in,
-        True,
-    )
-
     M_exp_halo = (
         np.vectorize(lib.EvaluateMcoll)(edges_ln[:-1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         * edges[:-1]
@@ -316,32 +404,28 @@ def test_Massfunc_conditional_tables(name, plt):
         * edges[:-1]
     )
 
-    N_inverse_halo = np.vectorize(lib.EvaluateNhaloInv)(
-        arg_list_inv_m[0], N_cmfi_halo
-    )  # LOG MASS, evaluated at the probabilities given by the integral
-
     # NOTE: The tables get inaccurate in the smallest halo bin where the condition mass approaches the minimum
     #       We set the absolute tolerance to be insiginificant in sampler terms (~1% of the smallest halo)
     abs_tol_halo = 1e-2
 
     if plt == mpl.pyplot:
-        xl = edges_d[:-1].size
-        sel = (xl * np.arange(6) / 6).astype(int)
-        massfunc_table_comparison_plot(
-            edges[:-1],
-            edges[sel],
-            np.exp(N_cmfi_halo[sel, :]),
-            np.exp(N_inverse_halo[sel, :]),
-            edges_d[sel],
-            np.exp(N_cmfi_cell[sel, :]),
-            np.exp(N_inverse_cell[sel, :]),
+        make_table_comparison_plot(
+            [edges[:-1], edges_d[:-1], edges[:-1], edges_d[:-1]],
+            [np.array([0]), np.array([0]), np.array([0]), np.array([0])],
+            [
+                N_exp_halo[:, None],
+                N_exp_cell[:, None],
+                M_exp_halo[:, None],
+                M_exp_cell[:, None],
+            ],
+            [
+                N_cmf_halo[:, None],
+                N_cmf_cell[:, None],
+                M_cmf_halo[:, None],
+                M_cmf_cell[:, None],
+            ],
             plt,
         )
-
-    # mask out relevant quantities
-    print(mask_halo.shape, N_inverse_halo.shape, arg_list_inv_m[1].shape)
-    N_inverse_halo[~mask_halo] = arg_list_inv_m[1][~mask_halo]
-    N_inverse_cell[~mask_cell] = arg_list_inv_d[1][~mask_cell]
 
     print_failure_stats(
         N_cmf_halo,
@@ -377,23 +461,6 @@ def test_Massfunc_conditional_tables(name, plt):
         "expected M cell",
     )
 
-    print_failure_stats(
-        np.exp(arg_list_inv_m[1]),
-        np.exp(N_inverse_halo),
-        arg_list_inv_d,
-        0.0,
-        RELATIVE_TOLERANCE,
-        "Inverse Halo",
-    )
-    print_failure_stats(
-        np.exp(arg_list_inv_d[1]),
-        np.exp(N_inverse_cell),
-        arg_list_inv_m,
-        0.0,
-        RELATIVE_TOLERANCE,
-        "Inverse cell",
-    )
-
     np.testing.assert_allclose(
         N_cmf_halo, N_exp_halo, atol=abs_tol_halo, rtol=RELATIVE_TOLERANCE
     )
@@ -405,18 +472,6 @@ def test_Massfunc_conditional_tables(name, plt):
     )
     np.testing.assert_allclose(
         M_cmf_cell, M_exp_cell, atol=edges[0] * abs_tol_halo, rtol=RELATIVE_TOLERANCE
-    )
-    np.testing.assert_allclose(
-        np.exp(arg_list_inv_d[1][mask_cell]),
-        np.exp(N_inverse_cell[mask_cell]),
-        atol=edges[0] * abs_tol_halo,
-        rtol=RELATIVE_TOLERANCE,
-    )
-    np.testing.assert_allclose(
-        np.exp(arg_list_inv_m[1][mask_halo]),
-        np.exp(N_inverse_halo[mask_halo]),
-        atol=edges[0] * abs_tol_halo,
-        rtol=RELATIVE_TOLERANCE,
     )
 
 
@@ -484,13 +539,10 @@ def test_FgtrM_conditional_tables(name, R, plt):
 
     if plt == mpl.pyplot:
         make_table_comparison_plot(
-            edges_d[:-1],
-            np.array([0]),
-            np.array([0]),
-            fcoll_tables[:, None],
-            dfcoll_tables[:, None],
-            fcoll_integrals[:, None],
-            dfcoll_integrals[:, None],
+            [edges_d[:-1], edges_d[:-1]],
+            [np.array([0]), np.array([0])],
+            [fcoll_tables[:, None], dfcoll_tables[:, None]],
+            [fcoll_integrals[:, None], dfcoll_integrals[:, None]],
             plt,
         )
 
@@ -621,13 +673,10 @@ def test_SFRD_z_tables(name, plt):
         xl = input_arr[1].shape[1]
         sel_m = (xl * np.arange(6) / 6).astype(int)
         make_table_comparison_plot(
-            z_array[:-1],
-            np.array([0]),
-            edges_m[sel_m],
-            SFRD_tables[:, None],
-            SFRD_tables_mini[..., sel_m],
-            SFRD_integrals[:, None],
-            SFRD_integrals_mini[..., sel_m],
+            [z_array[:-1], z_array[:-1]],
+            [np.array([0]), edges_m[sel_m]],
+            [SFRD_tables[:, None], SFRD_tables_mini[..., sel_m]],
+            [SFRD_integrals[:, None], SFRD_integrals_mini[..., sel_m]],
             plt,
         )
 
@@ -763,13 +812,10 @@ def test_Nion_z_tables(name, plt):
         xl = input_arr[1].shape[1]
         sel_m = (xl * np.arange(6) / 6).astype(int)
         make_table_comparison_plot(
-            z_array[:-1],
-            np.array([0]),
-            edges_m[sel_m],
-            Nion_tables[:, None],
-            Nion_tables_mini[..., sel_m],
-            Nion_integrals[:, None],
-            Nion_integrals_mini[..., sel_m],
+            [z_array[:-1], z_array[:-1]],
+            [np.array([0]), edges_m[sel_m]],
+            [Nion_tables[:, None], Nion_tables_mini[..., sel_m]],
+            [Nion_integrals[:, None], Nion_integrals_mini[..., sel_m]],
             plt,
         )
 
@@ -983,13 +1029,10 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
             sel_m = np.array([0]).astype(int)
 
         make_table_comparison_plot(
-            edges_d[:-1],
-            edges_m[sel_m],
-            edges_m[sel_m],
-            Nion_tb_plot,
-            Nion_tables_mini[..., sel_m],
-            Nion_il_plot,
-            Nion_integrals_mini[..., sel_m],
+            [edges_d[:-1], edges_d[:-1]],
+            [edges_m[sel_m], edges_m[sel_m]],
+            [Nion_tb_plot, Nion_tables_mini[..., sel_m]],
+            [Nion_il_plot, Nion_integrals_mini[..., sel_m]],
             plt,
         )
 
@@ -1147,13 +1190,10 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
         xl = input_arr[1].shape[1]
         sel_m = (xl * np.arange(6) / 6).astype(int)
         make_table_comparison_plot(
-            edges_d[:-1],
-            np.array([0]),
-            edges_m[sel_m],
-            SFRD_tables[:, None],
-            SFRD_tables_mini[..., sel_m],
-            SFRD_integrals[:, None],
-            SFRD_integrals_mini[..., sel_m],
+            [edges_d[:-1], edges_d[:-1]],
+            [np.array([0]), edges_m[sel_m]],
+            [SFRD_tables[:, None], SFRD_tables_mini[..., sel_m]],
+            [SFRD_integrals[:, None], SFRD_integrals_mini[..., sel_m]],
             plt,
         )
 
@@ -1321,35 +1361,50 @@ def test_conditional_integral_methods(R, name, integrand, plt):
 
 
 def make_table_comparison_plot(
-    x1, tb1_z, tb2_z, table_1d, table_2d, intgrl_1d, intgrl_2d, plt
+    x,
+    tb_z,
+    tables,
+    integrals,
+    plt,
+    **kwargs,
 ):
     # rows = values,fracitonal diff, cols = 1d table, 2d table
-    fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(16, 16))
-    for i in range(tb1_z.size):
-        make_comparison_plot(
-            x1,
-            intgrl_1d[:, i],
-            table_1d[:, i],
-            ax=axs[:, 0],
-            xlab="delta",
-            ylab="MF integral",
-            label_base=f"Mt = {tb1_z[i]:.1e}" if tb1_z.size > 1 else "",
-            logx=False,
-            color=f"C{i:d}",
-        )
-
-    for i in range(tb2_z.size):
-        make_comparison_plot(
-            x1,
-            intgrl_2d[:, i],
-            table_2d[:, i],
-            ax=axs[:, 1],
-            xlab="delta",
-            ylab="MF integral mini",
-            label_base=f"Mt = {tb2_z[i]:.1e}" if tb2_z.size > 1 else "",
-            logx=False,
-            color=f"C{i:d}",
-        )
+    fig, axs = plt.subplots(nrows=2, ncols=len(x), figsize=(16, 16 / len(x) * 2))
+    xlabels = kwargs.pop(
+        "xlabels",
+        [
+            "delta",
+        ]
+        * len(x),
+    )
+    ylabels = kwargs.pop(
+        "ylabels",
+        [
+            "MF_integral",
+        ]
+        * len(x),
+    )
+    zlabels = kwargs.pop(
+        "zlabels",
+        [
+            "Mturn",
+        ]
+        * len(x),
+    )
+    for j, z in enumerate(tb_z):
+        for i in range(z.size):
+            zlab = zlabels[j] + f" = {z[i]:.2e}"
+            make_comparison_plot(
+                x[j],
+                integrals[j][:, i],
+                tables[j][:, i],
+                ax=axs[:, j],
+                xlab=xlabels[j],
+                ylab=ylabels[j],
+                label_base=zlab,
+                logx=False,
+                color=f"C{i:d}",
+            )
 
 
 # slightly different from comparison plot since each integral shares a "truth"
@@ -1430,6 +1485,8 @@ def print_failure_stats(test, truth, input_arr, abs_tol, rel_tol, name):
             f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}"
         )
 
+        print(f"first 10 = {truth.flatten()[:10]} {test.flatten()[:10]}")
+
 
 def massfunc_table_comparison_plot(
     massbins,
@@ -1491,6 +1548,6 @@ def massfunc_table_comparison_plot(
             linestyle=":",
             linewidth=3,
         )
-        for i, m in enumerate(conds_d)
+        for i, d in enumerate(conds_d)
     ]
     axs[1].legend()
