@@ -49,6 +49,9 @@ double xion_RECFAST(float z, int flag);
 // * IGM temperature from RECFAST; includes Compton heating and adiabatic expansion only. * //
 double T_RECFAST(float z, int flag);
 
+// approximation for the adiabatic index at z=6-50 from 2302.08506
+float cT_approx(float z);
+
 // * returns the spin temperature * //
 float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float * curr_xalpha);
 
@@ -82,11 +85,18 @@ double species_weighted_x_ray_cross_section(double nu, double x_e);
 // * Returns the maximum redshift at which a Lyn transition contributes to Lya flux at z * //
 float zmax(float z, int n);
 
+//Lyman-Alpha heating functions
+int find_nearest_point(double min, double max, int n, double value);
+int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr);
+double interpolate_heating_efficiencies(double tk, double ts, double taugp, double *arrE);
+double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag);
+
 int init_heat()
 {
     kappa_10(1.0,1);
     kappa_10_elec(1.0,1);
     kappa_10_pH(1.0,1);
+
     if (T_RECFAST(100, 1) < 0)
         return -4;
     if (xion_RECFAST(100, 1) < 0)
@@ -97,8 +107,14 @@ int init_heat()
         return -2;
     if( kappa_10_pH(1.0,1) < 0)
         return -3;
-    LOG_SUPER_DEBUG("About to initialize interp arrays");
 
+    //Initialize interpolation array for Lya heating
+    LOG_DEBUG("Reading Lyman-alpha Heating File");
+    if (Energy_Lya_heating(1.0, 1.0, 3.0, 1)<0){
+        return -7;
+    }
+
+    LOG_SUPER_DEBUG("About to initialize interp arrays");
     initialize_interp_arrays();
 
     LOG_SUPER_DEBUG("Done initializing heat.");
@@ -296,6 +312,14 @@ double xion_RECFAST(float z, int flag)
     return ans;
 }
 
+// approximation for the adiabatic index at z=6-50 from 2302.08506 (also 1506.04152). Linear only, used to initialize the Tk box at high z so it's not homogeneous. Otherwise half of the adiabatic fluctuations are missing. Definition is \delta Tk = Tk * cT * \delta (at each z).
+float cT_approx(float z)
+{
+    if (global_params.USE_ADIABATIC_FLUCTUATIONS)
+        return 0.58 - 0.006*(z - 10.0);
+    else
+        return 0.0;
+}
 
 
 //* Returns recycling fraction (=fraction of photons converted into Lyalpha for Ly-n resonance * //
@@ -1309,4 +1333,139 @@ float zmax(float z, int n){
     num = 1 - pow(n+1, -2);
     denom = 1 - pow(n, -2);
     return (1+z)*num/denom - 1;
+}
+
+//Function to read \deltaE
+double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
+{
+    double ans;
+    static double dEC[nT * nT * ngp];
+    static double dEI[nT * nT * ngp];
+    double dummy_heat;
+    int ii, jj, kk, index;
+    FILE *F;
+
+    char filename[500];
+
+    if (flag == 1) {
+        //Read in the Lya heating table
+        sprintf(filename,"%s/%s",global_params.external_table_path,LYA_HEATING_FILENAME);
+
+        if ( !(F=fopen(filename, "r")) ){
+            LOG_ERROR("Energy_Lya_heating: Unable to open file: %s for reading.", filename);
+            Throw(IOError);
+        }
+
+        for (ii=0;ii<nT;ii++){
+            for (jj=0;jj<nT;jj++){
+                for (kk=0;kk<ngp;kk++){
+                    index = ii*nT*ngp + jj*ngp + kk;
+                    //fscanf(F,"%lf %lf %lf %lf %lf",&dummy_heat,&dummy_heat,&dummy_heat,&dEC[index],&dEI[index]);
+                    fscanf(F,"%lf %lf",&dEC[index],&dEI[index]);
+                }
+            }
+        }
+
+        fclose(F);
+        return 0;
+    }
+
+    if (flag == 2) {
+      ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEC); //For Continuum Flux
+    }
+    if (flag == 3) {
+      ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEI); //For Injected Flux
+    }
+    return ans;
+}
+
+// Useful functions for effeciently navigating through the heating interpolation tables
+//find the nearest value
+int find_nearest_point(double min, double max, int n, double value){
+    int pos=0;
+    double dn = (max - min)/(n-1);
+    if (value<=(min+dn)) pos=0;              // ensures we are in the first point
+    else if (value>=max) pos = n-2;          // ensures we cannot exceed the maximum point
+    else pos = (int)floor((value - min)/dn); // round it down to ensure we are always either side of the cell boundary
+    return pos;
+}
+
+//find x-y-z position in an 1D array
+//x=Tk, y=Ts, z=Tau_GP
+int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr){
+    int pxyz = xpos*len_yarr*len_zarr + ypos*len_zarr + zpos;
+    return pxyz;
+}
+
+
+//Tri-linear interpolation function for Lyman-alpha heating efficiencies
+double interpolate_heating_efficiencies(double tk, double ts, double taugp, double *arrE) {
+    tk = log10(tk);
+    // Check that the value doesn't exceed the bound of the table. If it does, set it to the edge value (do not interpolate)
+    if(tk < Tk_min) {
+        tk = Tk_min;
+    }
+    if(tk > Tk_max) {
+        tk = Tk_max;
+    }
+
+    ts = log10(ts);
+    if(ts < Ts_min) {
+        ts = Ts_min;
+    }
+    if(ts > Ts_max) {
+        ts = Ts_max;
+    }
+
+    taugp = log10(taugp);
+    if(taugp < taugp_min) {
+        taugp = taugp_min;
+    }
+    if(taugp > taugp_max) {
+        taugp = taugp_max;
+    }
+
+    int itk, its, itaugp, idec;
+    itk = find_nearest_point(Tk_min, Tk_max, nT, tk);
+    its = find_nearest_point(Ts_min, Ts_max, nT, ts);
+    itaugp = find_nearest_point(taugp_min, taugp_max, ngp, taugp);
+
+    idec = find_xyz_pos(itk, its, itaugp, nT, ngp);
+
+    double x0,x1,y0,y1,z0,z1,xd, yd, zd;
+    double c000, c100, c001, c101, c010, c110,c011,c111;
+    double c00,c01,c10,c11,c0,c1,c;
+
+    x0 =  Tk_min + itk*(Tk_max - Tk_min)/(nT-1);        // Making these (nT-1) ensures we reach the correct edge value
+    x1 =  Tk_min + (itk+1)*(Tk_max - Tk_min)/(nT-1);
+
+    y0 =  Ts_min + its*(Ts_max - Ts_min)/(nT-1);
+    y1 =  Ts_min + (its+1)*(Ts_max - Ts_min)/(nT-1);
+
+    z0 = taugp_min + itaugp*(taugp_max - taugp_min)/(ngp-1);
+    z1 = taugp_min + (itaugp+1)*(taugp_max - taugp_min)/(ngp-1);
+
+    xd = (tk - x0)/(x1 - x0);       // Above corrections ensure this remains in [0,1]
+    yd = (ts - y0)/(y1 - y0);
+    zd = (taugp - z0)/(z1 - z0);
+
+    c000 = arrE [find_xyz_pos(itk, its, itaugp, nT, ngp)];
+    c100 = arrE [find_xyz_pos(itk+1, its, itaugp, nT, ngp)];
+    c001 = arrE [find_xyz_pos(itk, its, itaugp+1, nT, ngp)];
+    c101 = arrE [find_xyz_pos(itk+1, its, itaugp+1, nT, ngp)];
+    c010 = arrE [find_xyz_pos(itk, its+1, itaugp, nT, ngp)];
+    c110 = arrE [find_xyz_pos(itk+1, its+1, itaugp, nT, ngp)];
+    c011 = arrE [find_xyz_pos(itk, its+1, itaugp+1, nT, ngp)];
+    c111 = arrE [find_xyz_pos(itk+1, its+1, itaugp+1, nT, ngp)];
+
+    c00 = c000*(1.-xd) + c100*xd;
+    c01 = c001*(1.-xd) + c101*xd;
+    c10 = c010*(1.-xd) + c110*xd;
+    c11 = c011*(1.-xd) + c111*xd;
+
+    c0 = c00*(1.-yd) + c10*yd;
+    c1 = c01*(1.-yd) + c11*yd;
+
+    c = c0*(1.-zd) + c1*zd;
+    return c;
 }

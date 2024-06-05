@@ -1,4 +1,5 @@
 """Simple script to simulate an MCMC-like routine to check for memory leaks."""
+
 import numpy as np
 import os
 import psutil

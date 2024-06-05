@@ -1,4 +1,5 @@
 """Run over output of logging to prepare for diffing."""
+
 import sys
 
 fname = sys.argv[1]

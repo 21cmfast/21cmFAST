@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: [3.7, 3.8, 3.9, "3.10"]
+        python-version: [3.9, "3.10", "3.11"]
     defaults:
      run:
        # Adding -l {0} ensures conda can be found properly in each step
@@ -35,17 +35,23 @@ jobs:
     steps:
       - uses: actions/checkout@master
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+
+      - name: Print head git commit message
+        id: get_head_commit_message
+        run: echo "commit_message=$(git show -s --format=%s)" >> "$GITHUB_ENV"
+
       - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v2.1.1
+        uses: conda-incubator/setup-miniconda@v3
         with:
           # auto-update-conda: true
-          miniconda-version: "latest"
+          mamba-version: "*"
+          channels: conda-forge,defaults
           python-version: ${{ matrix.python-version }}
           environment-file: ci/${{ matrix.os }}-env.yml
           activate-environment: tests
-          channel-priority: strict
-          use-only-tar-bz2: true
+          channel-priority: true
 
       - name: Conda Info
         run: |
@@ -55,22 +61,14 @@ jobs:
           conda config --show
           printenv | sort
 
-      - name: Logging
-        run: |
-          echo ${{ github.event.commits }}
-          echo ${{ github.event.commits[0] }}
-
       - name: Make it a Debug Run
-        if: "contains(github.event.payload.commits[0].message, 'ci debug')"
+        if: "contains(env.commit_message, 'ci debug')"
         run: |
           echo "log_level=ULTRA_DEBUG" >> $GITHUB_ENV
-          echo "extra_pytest_args='-s -k test_perturb_field_data --log-level-21=DEBUG'" >> $GITHUB_ENV
-
-      - name: 'Log Commit Message'
-        run: echo ${{ github.event.commits[0].message }}
+          echo "extra_pytest_args=-s -k "test_power_spectra_lightcone[mdz_tsfluct_nthreads]" --log-level-21=DEBUG" >> $GITHUB_ENV
 
       - name: Make it a Normal Run
-        if: "!contains(github.event.commits[0].message, 'ci debug')"
+        if: "!contains(env.commit_message, 'ci debug')"
         run: |
           echo "log_level=INFO" >> $GITHUB_ENV
           echo "extra_pytest_args=" >> $GITHUB_ENV
@@ -80,6 +78,11 @@ jobs:
         run: |
           sudo apt-get install libfftw3-dev
           sudo apt-get install libgsl0-dev
+
+      - name: Setup GCC
+        uses: Dup4/actions-setup-gcc@v1
+        with:
+          version: latest
 
       - name: Install 21cmFAST Linux
         if: matrix.os == 'ubuntu-latest'
@@ -93,9 +96,17 @@ jobs:
 
       - name: Run Tests
         run: |
-          python -m pytest -l --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 ${{ env.extra_pytest_args }}
+          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} --cov=py21cmfast --cov-config=.coveragerc -vv --cov-report xml:./coverage.xml --durations=25 --plots=testplots
 
-      - uses: codecov/codecov-action@v2
+      - name: Archive Integration Test Plots
+        if: always() && contains(env.commit_message, 'ci debug')
+        uses: actions/upload-artifact@v3
+        with:
+          name: integration-test-plots-${{ matrix.os }}-${{ matrix.python-version }}
+          path: |
+            testplots/*.pdf
+
+      - uses: codecov/codecov-action@v3
         if: matrix.os == 'ubuntu-latest' && success() && !contains(github.event.pull_request.labels.*.name, 'auto-pr')
         with:
           fail_ci_if_error: true

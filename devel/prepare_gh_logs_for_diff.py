@@ -3,7 +3,6 @@
 Useful for preparing it to be diff'ed against another log to check where things went wrong.
 """
 
-
 import sys
 
 fname = sys.argv[1]
@@ -18,7 +17,6 @@ threads = set()
 
 pid_map = {}
 with open(fname) as fl:
-
     lines = fl.readlines()
 
     # Get to the start of the testing

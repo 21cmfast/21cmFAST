@@ -1,14 +1,16 @@
 """A set of tools for reading/writing/querying the in-built cache."""
+
 import glob
-import h5py
 import logging
 import os
 import re
+import warnings
+from collections import defaultdict
 from os import path
+from typing import Tuple, Union
 
-from . import outputs, wrapper
+from . import outputs
 from ._cfg import config
-from .wrapper import global_params
 
 logger = logging.getLogger("21cmFAST")
 
@@ -185,6 +187,39 @@ def query_cache(
         yield file, cls
 
 
+def get_boxes_at_redshift(
+    redshift: Union[float, Tuple[float, float]], seed=None, direc=None, **params
+):
+    """Retrieve objects for each file in cache within given redshift bounds."""
+    if not hasattr(redshift, "__len__"):
+        redshift = (redshift / 1.001, redshift * 1.001)
+
+    out = defaultdict(list)
+    for file in list_datasets(direc=direc, seed=seed):
+        try:
+            obj = readbox(direc=direc, fname=file, load_data=False)
+        except OSError:
+            warnings.warn(f"Failed to read {file}")
+            pass
+
+        if not hasattr(obj, "redshift"):
+            logger.debug(f"{file} has no redshift")
+            continue
+        if not (redshift[0] <= obj.redshift < redshift[1]):
+            logger.debug(f"{file} redshift out of range: {obj.redshift}, {redshift}")
+            continue
+        for paramtype, paramobj in params.items():
+            if hasattr(obj, paramtype) and paramobj != getattr(obj, paramtype):
+                logger.debug(
+                    f"{file} {paramtype} don't match: {getattr(obj, paramtype)} vs. {paramobj}"
+                )
+                break
+        else:
+            out[obj.__class__.__name__].append(obj)
+
+    return out
+
+
 def clear_cache(**kwargs):
     """Delete datasets in the cache.
 
@@ -196,9 +231,12 @@ def clear_cache(**kwargs):
     kwargs :
         All options passed through to :func:`query_cache`.
     """
+    if "show" not in kwargs:
+        kwargs["show"] = False
+
     direc = kwargs.get("direc", path.expanduser(config["direc"]))
     number = 0
-    for fname, cls in query_cache(show=False, **kwargs):
+    for fname, _ in query_cache(**kwargs):
         if kwargs.get("show", True):
             logger.info(f"Removing {fname}")
         os.remove(path.join(direc, fname))

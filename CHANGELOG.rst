@@ -4,19 +4,75 @@ Changelog
 dev-version
 -----------
 
+Deprecations
+~~~~~~~~~~~~
+
+* Python <3.9 is no longer supported.
+
+Fixed
+~~~~~
+
+* Fixed small issue in ``Lightcone.lightcone_coords``.
+
+Added
+~~~~~
+
+* New ``Lightconer`` base class with user-facing classes ``RectilinearLightconer`` and
+  ``AngularLightconer``. These are now the recommended way to define how lightcones
+  should be created. Note that these are *not* the final lightcone object, but simply a
+  "definition" for how to create the lightcone.
+* The ``Lightcone`` class still exists, but is now joined by an ``AngularLightcone``
+  class that is the output lightcone when using the ``AngularLightconer`` definition.
+* New ``KEEP_3D_VELOCITIES`` user-param. This is *required* to be True if you want to
+  apply RSDs to an ``AngularLightcone``.
+* Ability to check-point lightcone creation, so that it can be resumed later. Simply
+  pass the ``lightcone_fname`` argument to ``run_lightcone``.
+* New ``cache_tools.get_boxes_at_redshift`` function to get all boxes at a given
+  redshift, regardless of the parameters used to create them.
+* New ``CosmoParams.from_astropy()`` classmethod for constructing a cosmo params object
+  directly from an astropy cosmology.
+
+
 Internals
----------
+~~~~~~~~~
+
+* Refactored RSDs to the ``subcell_rsds.c`` C-module.
+* Added CI testing of the docs tutorials.
+* More precise debugging summaries of boxes in the C code.
+
+Fixed
+~~~~~
+
+* Incorrect sign on adiabatic fluctuations.
+
+v3.3.1 [24 May 2023]
+----------------------
+
+Fixed
+~~~~~
+
+* Compilation of C code for some compilers (#330)
+
+v3.3.0 [17 May 2023]
+----------------------
+
+Internals
+~~~~~~~~~
 
 * Refactored setting up of inputs to high-level functions so that there is less code
   repetition.
 
 Fixed
------
+~~~~~
 
 * Running with ``R_BUBBLE_MAX`` too large auto-fixes it to be ``BOX_LEN`` (#112)
+* Bug in calling ``clear_cache``.
+* Inconsistency in the way that the very highest redshift of an evolution is handled
+  between low-level code (eg. ``spin_temperature()``) and high-level code (eg. ``run_coeval()``).
+
 
 Added
------
+~~~~~
 
 * New ``validate_all_inputs`` function that cross-references the four main input structs
   and ensures all the parameters make sense together. Mostly for internal use.
@@ -27,6 +83,7 @@ Added
   scenarios in line with current observations (#305)
 * Add in an initialisation check for the photon conservation to address some issues
   arising for early EOR histories (#311)
+* Added ``NON_CUBIC_FACTOR`` to ``UserParams`` to allow for non-cubic coeval boxes (#289)
 
 v3.2.1 [13 Sep 2022]
 ----------------------

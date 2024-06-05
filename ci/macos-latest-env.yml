@@ -5,6 +5,7 @@ dependencies:
   - pytest>=5.0
   - pytest-cov
   - pytest-remotedata>=0.3.2
+  - pytest-xdist
   - click
   - numpy
   - pyyaml
@@ -16,7 +17,7 @@ dependencies:
   - pip
   - gsl
   - fftw
-  - conda-forge/label/cf201901::gcc
+  #- gcc
   - pip:
     - powerbox
     - cached_property

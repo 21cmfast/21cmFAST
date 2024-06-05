@@ -1,4 +1,5 @@
 """Open and read the configuration file."""
+
 from __future__ import annotations
 
 import contextlib
@@ -30,7 +31,6 @@ class Config(dict):
     _aliases = {"direc": ("boxdir",)}
 
     def __init__(self, *args, write=True, file_name=None, **kwargs):
-
         super().__init__(*args, **kwargs)
         self.file_name = file_name
 

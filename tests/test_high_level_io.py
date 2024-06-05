@@ -13,6 +13,7 @@ from py21cmfast import (
     run_coeval,
     run_lightcone,
 )
+from py21cmfast.lightcones import AngularLightconer, RectilinearLightconer
 
 
 @pytest.fixture(scope="module")
@@ -24,12 +25,34 @@ def coeval(ic):
 
 @pytest.fixture(scope="module")
 def lightcone(ic):
+    lcn = RectilinearLightconer.with_equal_cdist_slices(
+        min_redshift=25.0,
+        max_redshift=35.0,
+        resolution=ic.user_params.cell_size,
+    )
+
     return run_lightcone(
-        max_redshift=35,
-        redshift=25.0,
+        lightconer=lcn,
         init_box=ic,
         write=True,
         flag_options={"USE_TS_FLUCT": True},
+    )
+
+
+@pytest.fixture(scope="module")
+def ang_lightcone(ic, lc):
+    lcn = AngularLightconer.like_rectilinear(
+        match_at_z=lc.lightcone_redshifts.min(),
+        max_redshift=lc.lightcone_redshifts.max(),
+        user_params=ic.user_params,
+        get_los_velocity=True,
+    )
+
+    return run_lightcone(
+        lightconer=lcn,
+        init_box=ic,
+        write=True,
+        flag_options={"APPLY_RSDS": False},
     )
 
 
@@ -39,6 +62,7 @@ def test_lightcone_roundtrip(test_direc, lc):
 
     assert lc == lc2
     assert lc.get_unique_filename() == lc2.get_unique_filename()
+    assert np.allclose(lc.lightcone_redshifts, lc2.lightcone_redshifts)
     assert np.all(np.isclose(lc.brightness_temp, lc2.brightness_temp))
 
 
@@ -122,6 +146,33 @@ def test_lightcone_cache(lightcone):
 
     with pytest.raises(IOError):
         lightcone.get_cached_data(kind="brightness_temp", redshift=25.1)
+
+
+def test_ang_lightcone(lc, ang_lightcone):
+    # we test that the fields are "highly correlated",
+    # and moreso in the one corner where the lightcones
+    # should be almost exactly the same, and less so in the other
+    # corners, and also less so at the highest redshifts.
+    rbt = lc.brightness_temp
+    abt = ang_lightcone.brightness_temp.reshape(rbt.shape)
+
+    fullcorr0 = np.corrcoef(rbt[:, :, 0].flatten(), abt[:, :, 0].flatten())
+    fullcorrz = np.corrcoef(rbt[:, :, -1].flatten(), abt[:, :, -1].flatten())
+
+    print("correlation at low z: ", fullcorr0)
+    print("correlation at highz: ", fullcorrz)
+    assert fullcorr0[0, 1] > fullcorrz[0, 1]  # 0,0 and 1,1 are autocorrs.
+    assert fullcorr0[0, 1] > 0.5
+
+    # check corners
+    n = rbt.shape[0]
+    topcorner = np.corrcoef(
+        rbt[: n // 2, : n // 2, 0].flatten(), abt[: n // 2, : n // 2, 0].flatten()
+    )
+    bottomcorner = np.corrcoef(
+        rbt[n // 2 :, n // 2 :, 0].flatten(), abt[n // 2 :, n // 2 :, 0].flatten()
+    )
+    assert topcorner[0, 1] > bottomcorner[0, 1]
 
 
 def test_write_to_group(ic, test_direc):

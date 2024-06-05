@@ -1,4 +1,5 @@
 """Utilities that help with wrapping various C structures."""
+
 import glob
 import h5py
 import logging
@@ -90,6 +91,17 @@ class ArrayState:
     def c_has_active_memory(self):
         """Whether C currently has initialized memory for this array."""
         return self.c_memory and self.initialized
+
+    def __str__(self):
+        """Returns a string representation of the ArrayState."""
+        if self.computed_in_mem:
+            return "computed (in mem)"
+        elif self.on_disk:
+            return "computed (on disk)"
+        elif self.initialized:
+            return "memory initialized (not computed)"
+        else:
+            return "uncomputed and uninitialized"
 
 
 class ParameterError(RuntimeError):
@@ -250,7 +262,6 @@ class StructWrapper:
     _ffi = None
 
     def __init__(self):
-
         # Set the name of this struct in the C code
         self._name = self._get_name()
 
@@ -365,9 +376,7 @@ class StructWithDefaults(StructWrapper):
     _defaults_ = {}
 
     def __init__(self, *args, **kwargs):
-
         super().__init__()
-
         if args:
             if len(args) > 1:
                 raise TypeError(
@@ -383,11 +392,10 @@ class StructWithDefaults(StructWrapper):
             else:
                 raise TypeError(
                     f"optional positional argument for {self.__class__.__name__} must be"
-                    f" None, dict, or an instance of itself"
+                    f" None, dict, or an instance of itself. Got {type(args[0])}"
                 )
 
         for k, v in self._defaults_.items():
-
             # Prefer arguments given to the constructor.
             _v = kwargs.pop(k, None)
 
@@ -401,7 +409,7 @@ class StructWithDefaults(StructWrapper):
                 setattr(self, "_" + k, v)
 
         if kwargs:
-            logger.warning(
+            warnings.warn(
                 "The following parameters to {thisclass} are not supported: {lst}".format(
                     thisclass=self.__class__.__name__, lst=list(kwargs.keys())
                 )
@@ -461,7 +469,6 @@ class StructWithDefaults(StructWrapper):
     def __call__(self):
         """Return a filled C Structure corresponding to this instance."""
         for key, val in self.pystruct.items():
-
             # Find the value of this key in the current class
             if isinstance(val, str):
                 # If it is a string, need to convert it to C string ourselves.
@@ -625,7 +632,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         self._random_seed = random_seed
 
         for k in self._inputs:
-
             if k not in self.__dict__:
                 try:
                     setattr(self, k, kwargs.pop(k))
@@ -661,7 +667,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             if pth.exists():
                 return pth
 
-        logger.info("All paths that defined {self} have been deleted on disk.")
+        logger.info(f"All paths that defined {self} have been deleted on disk.")
         return None
 
     @abstractmethod
@@ -693,10 +699,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     def _init_arrays(self):
         for k, state in self._array_state.items():
-            if k == "lowres_density":
-                logger.debug("THINKING ABOUT INITING LOWRES_DENSITY")
-                logger.debug(state.initialized, state.computed_in_mem, state.on_disk)
-
             # Don't initialize C-based pointers or already-inited stuff, or stuff
             # that's computed on disk (if it's on disk, accessing the array should
             # just give the computed version, which is what we would want, not a
@@ -801,8 +803,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
         if flush is not None and keep is None:
             keep = [k for k in self._array_state if k not in flush]
-        elif keep is not None and flush is None:
-            flush = [k for k in self._array_state if k not in keep]
+        elif flush is None:
+            flush = [
+                k
+                for k in self._array_state
+                if k not in keep and self._array_state[k].initialized
+            ]
 
         flush = flush or []
         keep = keep or []
@@ -817,7 +823,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
     def _remove_array(self, k, force=False):
         state = self._array_state[k]
 
-        if not state.initialized:
+        if not state.initialized and k in self._array_structure:
             warnings.warn(f"Trying to remove array that isn't yet created: {k}")
             return
 
@@ -1149,6 +1155,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         else:
             fl = fname
 
+        keys = keys or []
         try:
             try:
                 boxes = fl[self._name]
@@ -1160,9 +1167,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
             # Set our arrays.
             for k in boxes.keys():
-                if keys is None or k in keys:
+                self._array_state[k].on_disk = True
+                if k in keys:
                     setattr(self, k, boxes[k][...])
-                    self._array_state[k].on_disk = True
                     self._array_state[k].computed_in_mem = True
                     setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
 
@@ -1202,7 +1209,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     @classmethod
     def from_file(
-        cls, fname, direc=None, load_data=True, h5_group: Union[str, None] = None
+        cls,
+        fname,
+        direc=None,
+        load_data=True,
+        h5_group: Union[str, None] = None,
+        arrays_to_load=None,
     ):
         """Create an instance from a file on disk.
 
@@ -1226,18 +1238,19 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             fname = path.join(direc, fname)
 
         with h5py.File(fname, "r") as fl:
-
             if h5_group is not None:
                 self = cls(**cls._read_inputs(fl[h5_group]))
             else:
                 self = cls(**cls._read_inputs(fl))
 
-        if load_data:
-            if h5_group is not None:
-                with h5py.File(fname, "r") as fl:
-                    self.read(fname=fl[h5_group])
-            else:
-                self.read(fname=fname)
+        if not load_data:
+            arrays_to_load = []
+
+        if h5_group is not None:
+            with h5py.File(fname, "r") as fl:
+                self.read(fname=fl[h5_group], keys=arrays_to_load)
+        else:
+            self.read(fname=fname, keys=arrays_to_load)
 
         return self
 
@@ -1277,17 +1290,21 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 self._name
                 + "("
                 + "; ".join(
-                    repr(v)
-                    if isinstance(v, StructWithDefaults)
-                    else (
-                        v.filtered_repr(self._filter_params)
-                        if isinstance(v, StructInstanceWrapper)
-                        else k.lstrip("_")
-                        + ":"
-                        + (
-                            float_to_string_precision(v, config["cache_param_sigfigs"])
-                            if isinstance(v, (float, np.float32))
-                            else repr(v)
+                    (
+                        repr(v)
+                        if isinstance(v, StructWithDefaults)
+                        else (
+                            v.filtered_repr(self._filter_params)
+                            if isinstance(v, StructInstanceWrapper)
+                            else k.lstrip("_")
+                            + ":"
+                            + (
+                                float_to_string_precision(
+                                    v, config["cache_param_sigfigs"]
+                                )
+                                if isinstance(v, (float, np.float32))
+                                else repr(v)
+                            )
                         )
                     )
                     for k, v in [
@@ -1308,9 +1325,11 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             self._name
             + "("
             + ";\n\t".join(
-                repr(v)
-                if isinstance(v, StructWithDefaults)
-                else k.lstrip("_") + ":" + repr(v)
+                (
+                    repr(v)
+                    if isinstance(v, StructWithDefaults)
+                    else k.lstrip("_") + ":" + repr(v)
+                )
                 for k, v in [(k, getattr(self, k)) for k in self._inputs]
             )
         ) + ")"
@@ -1429,21 +1448,24 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 and not self.ensure_input_computed(arg, load=True)
             ):
                 raise ValueError(
-                    f"Trying to use {arg} to compute {self}, but some required arrays "
-                    f"are not computed!"
+                    f"Trying to use {arg.__class__.__name__} to compute "
+                    f"{self.__class__.__name__}, but some required arrays "
+                    f"are not computed!\nArrays required: "
+                    f"{self.get_required_input_arrays(arg)}\n"
+                    f"Current State: {[(k, str(v)) for k, v in self._array_state.items()]}"
                 )
 
     def _compute(
         self, *args, hooks: Optional[Dict[Union[str, Callable], Dict[str, Any]]] = None
     ):
         """Compute the actual function that fills this struct."""
-        # Write a detailed message about call arguments if debug turned on.
-        if logger.getEffectiveLevel() <= logging.DEBUG:
-            self._log_call_arguments(*args)
-
         # Check that all required inputs are really computed, and load them into memory
         # if they're not already.
         self._ensure_arguments_exist(*args)
+
+        # Write a detailed message about call arguments if debug turned on.
+        if logger.getEffectiveLevel() <= logging.DEBUG:
+            self._log_call_arguments(*args)
 
         # Construct the args. All StructWrapper objects need to actually pass their
         # underlying cstruct, rather than themselves. OutputStructs also pass the
@@ -1486,7 +1508,6 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             hooks = {"write": {"direc": config["direc"]}}
 
         for hook, params in hooks.items():
-
             if callable(hook):
                 hook(self, **params)
             else:

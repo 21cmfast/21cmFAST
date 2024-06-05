@@ -1,4 +1,5 @@
 """Build the C code with CFFI."""
+
 import os
 import sys
 from cffi import FFI

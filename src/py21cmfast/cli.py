@@ -1,4 +1,5 @@
 """Module that contains the command line app."""
+
 import builtins
 import click
 import inspect
@@ -7,11 +8,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 import yaml
+from astropy import units as un
 from os import path, remove
 from pathlib import Path
 
 from . import _cfg, cache_tools, global_params, plotting
 from . import wrapper as lib
+from .lightcones import RectilinearLightconer
 
 
 def _get_config(config=None):
@@ -271,9 +274,7 @@ def spin(ctx, redshift, prev_z, config, regen, direc, seed):
     # Set user/cosmo params from config.
     user_params = lib.UserParams(**cfg.get("user_params", {}))
     cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-    flag_options = lib.FlagOptions(
-        **cfg.get("flag_options", {}), USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
-    )
+    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
     astro_params = lib.AstroParams(
         **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
     )
@@ -358,7 +359,7 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     user_params = lib.UserParams(**cfg.get("user_params", {}))
     cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
     flag_options = lib.FlagOptions(
-        **cfg.get("flag_options", {}), USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
+        **cfg.get("flag_options", {}),
     )
     astro_params = lib.AstroParams(
         **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
@@ -452,9 +453,7 @@ def coeval(ctx, redshift, config, out, regen, direc, seed):
     # Set user/cosmo params from config.
     user_params = lib.UserParams(**cfg.get("user_params", {}))
     cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-    flag_options = lib.FlagOptions(
-        **cfg.get("flag_options", {}), USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
-    )
+    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
     astro_params = lib.AstroParams(
         **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
     )
@@ -529,8 +528,15 @@ def coeval(ctx, redshift, config, out, regen, direc, seed):
     default=None,
     help="specify a random seed for the initial conditions",
 )
+@click.option(
+    "--lq",
+    type=str,
+    multiple=True,
+    default=("brightness_temp",),
+    help="quantities to make lightcones out of",
+)
 @click.pass_context
-def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed):
+def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
     """Efficiently generate coeval cubes at a given redshift.
 
     Parameters
@@ -562,18 +568,24 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed):
     # Set user/cosmo params from config.
     user_params = lib.UserParams(**cfg.get("user_params", {}))
     cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-    flag_options = lib.FlagOptions(
-        **cfg.get("flag_options", {}), USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
-    )
+    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
     astro_params = lib.AstroParams(
         **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
     )
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
-    lc = lib.run_lightcone(
-        redshift=redshift,
+    # For now, always use the old default lightconing algorithm
+    lcn = RectilinearLightconer.with_equal_cdist_slices(
+        min_redshift=redshift,
         max_redshift=max_z,
+        resolution=user_params.cell_size,
+        cosmo=cosmo_params.cosmo,
+        quantities=lq,
+    )
+
+    lc = lib.run_lightcone(
+        lightconer=lcn,
         astro_params=astro_params,
         flag_options=flag_options,
         user_params=user_params,
