@@ -3,15 +3,28 @@
 import os
 import sys
 from cffi import FFI
+import sysconfig
+
+
+# Get the compiler. We support gcc and clang.
+_compiler = sysconfig.get_config_var("CC")
+
+if "gcc" in _compiler:
+    compiler = 'gcc'
+elif 'clang' in _compiler:
+    compiler = 'clang'
+else:
+    raise ValueError(f"Compiler {_compiler} not supported for 21cmFAST")
 
 ffi = FFI()
+
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 CLOC = os.path.join(LOCATION, "src", "py21cmfast", "src")
 include_dirs = [CLOC]
 
-# =================================================================
-# Set compilation arguments dependent on environment... a bit buggy
-# =================================================================
+# ==================================================
+# Set compilation arguments dependent on environment
+# ==================================================
 extra_compile_args = ["-w", "--verbose"]
 
 if "DEBUG" in os.environ:
@@ -20,8 +33,10 @@ else:
     extra_compile_args += ["-Ofast"]
 
 if sys.platform == "darwin":
-    extra_compile_args += ["-Xpreprocessor", "-fopenmp", "-lomp"]
-else:
+    extra_compile_args += ["-Xpreprocessor"]
+    if compiler == 'clang':
+        extra_compile_args += ["-Xclang", "-fopenmp"]
+else:  # linux
     extra_compile_args += ["-fopenmp"]
 
 # Set the C-code logging level.
@@ -58,6 +73,10 @@ for k, v in os.environ.items():
     elif "lib" in k.lower():
         library_dirs += [v]
 
+libraries=["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"]
+
+if compiler == 'clang':
+    libraries += ["omp"]
 
 # =================================================================
 
@@ -73,7 +92,7 @@ ffi.set_source(
     ),
     include_dirs=include_dirs,
     library_dirs=library_dirs,
-    libraries=["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"],
+    libraries=libraries,
     extra_compile_args=extra_compile_args,
 )
 
