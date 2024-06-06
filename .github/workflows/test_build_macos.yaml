@@ -67,7 +67,6 @@ jobs:
           version: latest
 
       - name: Install 21cmFAST
-        if: matrix.os == 'macos-latest'
         run: |
           CC=${{ matrix.compiler }} CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" pip install .
 

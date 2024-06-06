@@ -33,10 +33,8 @@ else:
 
 if sys.platform == "darwin":
     extra_compile_args += ["-Xpreprocessor"]
-    if compiler == "clang":
-        extra_compile_args += ["-Xclang", "-fopenmp"]
-else:  # linux
-    extra_compile_args += ["-fopenmp"]
+    
+extra_compile_args += ["-fopenmp"]
 
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,
