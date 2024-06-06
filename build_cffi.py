@@ -2,17 +2,16 @@
 
 import os
 import sys
-from cffi import FFI
 import sysconfig
-
+from cffi import FFI
 
 # Get the compiler. We support gcc and clang.
 _compiler = sysconfig.get_config_var("CC")
 
 if "gcc" in _compiler:
-    compiler = 'gcc'
-elif 'clang' in _compiler:
-    compiler = 'clang'
+    compiler = "gcc"
+elif "clang" in _compiler:
+    compiler = "clang"
 else:
     raise ValueError(f"Compiler {_compiler} not supported for 21cmFAST")
 
@@ -34,7 +33,7 @@ else:
 
 if sys.platform == "darwin":
     extra_compile_args += ["-Xpreprocessor"]
-    if compiler == 'clang':
+    if compiler == "clang":
         extra_compile_args += ["-Xclang", "-fopenmp"]
 else:  # linux
     extra_compile_args += ["-fopenmp"]
@@ -73,9 +72,9 @@ for k, v in os.environ.items():
     elif "lib" in k.lower():
         library_dirs += [v]
 
-libraries=["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"]
+libraries = ["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"]
 
-if compiler == 'clang':
+if compiler == "clang":
     libraries += ["omp"]
 
 # =================================================================

@@ -235,5 +235,3 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
 
     return(0);
 }
-
-
