@@ -33,7 +33,7 @@ else:
 
 if sys.platform == "darwin":
     extra_compile_args += ["-Xpreprocessor"]
-    
+
 extra_compile_args += ["-fopenmp"]
 
 # Set the C-code logging level.
