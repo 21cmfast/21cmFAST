@@ -1,6 +1,42 @@
 
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
 
+void get_velocity_gradient(struct UserParams *user_params, float *v, float *vel_gradient)
+{
+    memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, vel_gradient);
+
+    float k_x, k_y, k_z;
+    int n_x, n_y, n_z;
+#pragma omp parallel shared(vel_gradient) private(n_x,n_y,n_z,k_x,k_y,k_z) num_threads(user_params->N_THREADS)
+    {
+        #pragma omp for
+        for (n_x=0; n_x<user_params->HII_DIM; n_x++){
+            if (n_x>HII_MIDDLE)
+                k_x =(n_x-user_params->HII_DIM) * DELTA_K;  // wrap around for FFT convention
+            else
+                k_x = n_x * DELTA_K;
+
+            for (n_y=0; n_y<user_params->HII_DIM; n_y++){
+                if (n_y>HII_MIDDLE)
+                    k_y =(n_y-user_params->HII_DIM) * DELTA_K;
+                else
+                    k_y = n_y * DELTA_K;
+
+                for (n_z=0; n_z<=HII_MIDDLE_PARA; n_z++){
+                    k_z = n_z * DELTA_K;
+
+                    // take partial deriavative along the line of sight
+                    *((fftwf_complex *) vel_gradient + HII_C_INDEX(n_x,n_y,n_z)) *= k_z*I/(float)HII_TOT_NUM_PIXELS;
+                }
+            }
+        }
+    }
+
+    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, vel_gradient);
+}
+
 int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
                            struct AstroParams *astro_params, struct FlagOptions *flag_options,
                            struct TsBox *spin_temp, struct IonizedBox *ionized_box,
@@ -198,41 +234,4 @@ int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct
     }
 
     return(0);
-}
-
-
-void get_velocity_gradient(struct UserParams *user_params, float *v, float *vel_gradient)
-{
-    memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-
-    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, vel_gradient);
-
-    float k_x, k_y, k_z;
-    int n_x, n_y, n_z;
-#pragma omp parallel shared(vel_gradient) private(n_x,n_y,n_z,k_x,k_y,k_z) num_threads(user_params->N_THREADS)
-    {
-        #pragma omp for
-        for (n_x=0; n_x<user_params->HII_DIM; n_x++){
-            if (n_x>HII_MIDDLE)
-                k_x =(n_x-user_params->HII_DIM) * DELTA_K;  // wrap around for FFT convention
-            else
-                k_x = n_x * DELTA_K;
-
-            for (n_y=0; n_y<user_params->HII_DIM; n_y++){
-                if (n_y>HII_MIDDLE)
-                    k_y =(n_y-user_params->HII_DIM) * DELTA_K;
-                else
-                    k_y = n_y * DELTA_K;
-
-                for (n_z=0; n_z<=HII_MIDDLE_PARA; n_z++){
-                    k_z = n_z * DELTA_K;
-
-                    // take partial deriavative along the line of sight
-                    *((fftwf_complex *) vel_gradient + HII_C_INDEX(n_x,n_y,n_z)) *= k_z*I/(float)HII_TOT_NUM_PIXELS;
-                }
-            }
-        }
-    }
-
-    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, vel_gradient);
 }

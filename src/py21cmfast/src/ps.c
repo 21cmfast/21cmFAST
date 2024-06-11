@@ -84,7 +84,7 @@ float **log10_SFRD_z_low_table_MINI, **SFRD_z_high_table_MINI;
 double *lnMhalo_param, *Muv_param, *Mhalo_param;
 double *log10phi, *M_uv_z, *M_h_z;
 double *lnMhalo_param_MINI, *Muv_param_MINI, *Mhalo_param_MINI;
-double *log10phi_MINI; *M_uv_z_MINI, *M_h_z_MINI;
+double *log10phi_MINI, *M_uv_z_MINI, *M_h_z_MINI;
 double *deriv, *lnM_temp, *deriv_temp;
 
 double *z_val, *z_X_val, *Nion_z_val, *SFRD_val;
