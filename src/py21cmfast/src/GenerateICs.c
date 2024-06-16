@@ -247,6 +247,7 @@ int ComputeInitialConditions(
                     }
                     if(user_params->FIX_AND_PAIR){
                         b = -1.0 * b;
+                        a = -1.0 * a;
                     }
                     HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME*p/2.0) * (a + b*I);
 
