@@ -842,7 +842,7 @@ class FlagOptions(StructWithDefaults):
         "FIX_VCB_AVG": False,
         "HALO_STOCHASTICITY": True,
         "USE_EXP_FILTER": True,
-        "FIXED_HALO_GRIDS": True,
+        "FIXED_HALO_GRIDS": False,
         "CELL_RECOMB": True,
         "PHOTON_CONS_TYPE": 0,  # Should these all be boolean?
         "USE_UPPER_STELLAR_TURNOVER": True,
@@ -933,7 +933,7 @@ class FlagOptions(StructWithDefaults):
     @property
     def CELL_RECOMB(self):
         """Automatically setting CELL_RECOMB if USE_EXP_FILTER is active."""
-        if self.USE_EXP_FILTER:
+        if self.USE_EXP_FILTER and not self._CELL_RECOMB:
             warnings.warn(
                 "CELL_RECOMB is automatically set to True if USE_EXP_FILTER is True."
             )

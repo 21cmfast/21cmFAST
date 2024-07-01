@@ -1474,7 +1474,7 @@ def halo_box(
                     dummy=True,
                 )
         if not isinstance(pt_halos, PerturbHaloField) or not pt_halos.is_computed:
-            if flag_options.FIXED_HALO_GRIDS:
+            if not flag_options.FIXED_HALO_GRIDS:
                 pt_halos = perturb_halo_list(
                     redshift=redshift,
                     init_boxes=init_boxes,
@@ -2782,21 +2782,19 @@ def run_coeval(
             pass
 
         # get the halos (reverse redshift order)
-        if flag_options.USE_HALO_FIELD:
+        pt_halos = []
+        if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
             halos_desc = None
-
-            pt_halos = []
             for i, z in enumerate(redshifts[::-1]):
-                if not flag_options.FIXED_HALO_GRIDS:
-                    halos = determine_halo_list(redshift=z, halos_desc=halos_desc, **kw)
-                    pt_halos += [perturb_halo_list(redshift=z, halo_field=halos, **kw)]
+                halos = determine_halo_list(redshift=z, halos_desc=halos_desc, **kw)
+                pt_halos += [perturb_halo_list(redshift=z, halo_field=halos, **kw)]
 
-                    # we never want to store every halofield
-                    try:
-                        pt_halos[i].purge(force=always_purge)
-                    except OSError:
-                        pass
-                    halos_desc = halos
+                # we never want to store every halofield
+                try:
+                    pt_halos[i].purge(force=always_purge)
+                except OSError:
+                    pass
+                halos_desc = halos
 
             # reverse to get the right redshift order
             pt_halos = pt_halos[::-1]
@@ -2848,7 +2846,9 @@ def run_coeval(
             pf2.load_all()
 
             if flag_options.USE_HALO_FIELD:
-                ph2 = pt_halos[iz]
+                if not flag_options.FIXED_HALO_GRIDS:
+                    ph2 = pt_halos[iz]
+
                 hb2 = halo_box(
                     redshift=z,
                     pt_halos=ph2,
@@ -3408,25 +3408,22 @@ def run_lightcone(
         # we explicitly pass the descendant halos here since we have a redshift list prior
         #   this will generate the extra fields if STOC_MINIMUM_Z is given
         pt_halos = []
-        if flag_options.USE_HALO_FIELD:
+        if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
             halos_desc = None
             for iz, z in enumerate(scrollz[::-1]):
-                if not flag_options.FIXED_HALO_GRIDS:
-                    halo_field = determine_halo_list(
-                        redshift=z,
-                        halos_desc=halos_desc,
-                        **kw,
-                    )
-                    halos_desc = halo_field
-                    pt_halos += [
-                        perturb_halo_list(redshift=z, halo_field=halo_field, **kw)
-                    ]
+                halo_field = determine_halo_list(
+                    redshift=z,
+                    halos_desc=halos_desc,
+                    **kw,
+                )
+                halos_desc = halo_field
+                pt_halos += [perturb_halo_list(redshift=z, halo_field=halo_field, **kw)]
 
-                    # we never want to store every halofield
-                    try:
-                        pt_halos[iz].purge(force=always_purge)
-                    except OSError:
-                        pass
+                # we never want to store every halofield
+                try:
+                    pt_halos[iz].purge(force=always_purge)
+                except OSError:
+                    pass
 
             # reverse the halo lists to be in line with the redshift lists
             pt_halos = pt_halos[::-1]
@@ -3469,8 +3466,9 @@ def run_lightcone(
             # in case we dumped them from memory into file.
             pf2.load_all()
             if flag_options.USE_HALO_FIELD:
-                ph = pt_halos[iz]
-                ph.load_all()
+                if not flag_options.FIXED_HALO_GRIDS:
+                    ph = pt_halos[iz]
+                    ph.load_all()
 
                 hbox2 = halo_box(
                     redshift=z,
