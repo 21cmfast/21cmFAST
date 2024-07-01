@@ -933,7 +933,7 @@ class FlagOptions(StructWithDefaults):
     @property
     def CELL_RECOMB(self):
         """Automatically setting CELL_RECOMB if USE_EXP_FILTER is active."""
-        if self.USE_EXP_FILTER:
+        if self.USE_EXP_FILTER and not self._CELL_RECOMB:
             warnings.warn(
                 "CELL_RECOMB is automatically set to True if USE_EXP_FILTER is True."
             )
