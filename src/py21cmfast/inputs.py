@@ -842,7 +842,7 @@ class FlagOptions(StructWithDefaults):
         "FIX_VCB_AVG": False,
         "HALO_STOCHASTICITY": True,
         "USE_EXP_FILTER": True,
-        "FIXED_HALO_GRIDS": True,
+        "FIXED_HALO_GRIDS": False,
         "CELL_RECOMB": True,
         "PHOTON_CONS_TYPE": 0,  # Should these all be boolean?
         "USE_UPPER_STELLAR_TURNOVER": True,
