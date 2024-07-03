@@ -49,6 +49,8 @@ struct RGTable1D_f dfcoll_conditional_table = {.allocated = false,};
 
 //J table for binary split algorithm
 struct RGTable1D J_split_table = {.allocated = false};
+//Sigma inverse table for partition algorithm
+struct RGTable1D Sigma_inv_table = {.allocated = false};
 
 //NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to assign ST_over_PS in Spintemp.
 //  It may be better to just do the integrals at each R
@@ -717,6 +719,7 @@ void free_dNdM_tables(){
     free_RGTable1D(&Nhalo_table);
     free_RGTable1D(&Mcoll_table);
     free_RGTable1D(&J_split_table);
+    free_RGTable1D(&Sigma_inv_table);
 }
 
 void free_conditional_tables(){
@@ -928,25 +931,32 @@ double EvaluateJ(double u_res,double gamma1){
 
 //The sigma interp table is regular in log mass, not sigma so we need to loop ONLY FOR SAMPLE_METHOD==2
 //NOTE: This should be improved with its own RGTable but we do not often use this method
+void InitialiseSigmaInverseTable(){
+    if(!Sigma_InterpTable.allocated){
+        LOG_ERROR("Must construct the sigma table before the inverse table");
+        Throw(TableGenerationError);
+    }
+    int i;
+
+    double sigma_min = Sigma_InerpTable.y_arr[Sigma_InerpTable.n_bin-1];
+    double sigma_max = Sigma_InerpTable.y_arr[0];
+    int n_bin = Sigma_InerpTable.n_bin;
+
+    if(!Sigma_inv_table.allocated)
+        allocate_RGTable1D(n_bin,&Sigma_inv_table);
+
+    Sigma_inv_table.x_min = sigma_min
+    Sigma_inv_table.x_width = (sigma_max-sigma_min)/((double)Nbin-1);
+
+    for(i=0;i<n_bin;i++){
+        Sigma_inv_table.y_arr[i] = Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width;
+    }
+}
+
 double EvaluateSigmaInverse(double sigma){
     if(!user_params_it->USE_INTERPOLATION_TABLES){
         LOG_ERROR("Cannot currently do sigma inverse without USE_INTERPOLATION_TABLES");
         Throw(ValueError);
     }
-    int idx;
-    for(idx=0;idx<NMass;idx++){
-        if(sigma > Sigma_InterpTable.y_arr[idx]) break;
-    }
-    if(idx == NMass){
-        LOG_ERROR("sigma inverse out of bounds.");
-        Throw(TableEvaluationError);
-    }
-    double sigma_left = Sigma_InterpTable.y_arr[idx-1];
-    double sigma_right = Sigma_InterpTable.y_arr[idx];
-    double table_val_left = Sigma_InterpTable.x_min + (idx-1)*Sigma_InterpTable.x_width; //upper lnM
-    double table_val_right = Sigma_InterpTable.x_min + (idx)*Sigma_InterpTable.x_width; //upper lnM
-
-    double interp_point = (sigma - sigma_left)/(sigma_right - sigma_left);
-
-    return table_val_left*(1-interp_point) + table_val_right*(interp_point);
+    return EvaluateRGTable1D(sigma,&Sigma_inv_table);
 }

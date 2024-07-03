@@ -536,6 +536,15 @@ class UserParams(StructWithDefaults):
         sampling on a timestep of ZPRIME_STEP_FACTOR=1.02.
         If ZPRIME_STEP_FACTOR is increased, this value should be set closer to 1.
         This factor is also used in the partition (SAMPLE_METHOD==2) sampler, dividing nu(M) of each sample drawn.
+    PARKINSON_G0: float, optional
+        Only used when SAMPLE_METHOD==3, sets the normalisation of the correction to the extended press-schecter
+        used in Parkinson et al. 2008.
+    PARKINSON_y1: float, optional
+        Only used when SAMPLE_METHOD==3, sets the index of the sigma power-law term of the correction to the
+        extended Press-Schechter mass function used in Parkinson et al. 2008.
+    PARKINSON_y2: float, optional
+        Only used when SAMPLE_METHOD==3, sets the index of the delta power-law term of the correction to the
+        extended Press-Schechter mass function used in Parkinson et al. 2008.
     """
 
     _ffi = ffi
@@ -568,6 +577,9 @@ class UserParams(StructWithDefaults):
         "SAMPLE_METHOD": 0,
         "AVG_BELOW_SAMPLER": True,
         "HALOMASS_CORRECTION": 0.9,
+        "PARKINSON_G0": 1.0,
+        "PARKINSON_y1": 0.2,
+        "PARKINSON_y2": -0.4,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
