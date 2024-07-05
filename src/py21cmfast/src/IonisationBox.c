@@ -1559,11 +1559,7 @@ LOG_DEBUG("global_xH = %e",global_xH);
     }
 
     //These functions check for allocation
-    free_RGTable1D_f(&Nion_conditional_table1D);
-    free_RGTable2D_f(&Nion_conditional_table2D);
-    free_RGTable2D_f(&Nion_conditional_table_MINI);
-    free_RGTable2D_f(&Nion_conditional_table_prev);
-    free_RGTable2D_f(&Nion_conditional_table_MINI_prev);
+    free_conditional_tables();
 
     free(overdense_int_boundexceeded_threaded);
 

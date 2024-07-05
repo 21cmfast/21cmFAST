@@ -337,6 +337,7 @@ class HaloField(_AllParamsBox):
             "halo_masses": (self.buffer_size,),
             "star_rng": (self.buffer_size,),
             "sfr_rng": (self.buffer_size,),
+            "xray_rng": (self.buffer_size,),
             "halo_coords": (self.buffer_size, 3),
         }
 
@@ -400,6 +401,7 @@ class PerturbHaloField(_AllParamsBox):
             "halo_masses": (self.buffer_size,),
             "star_rng": (self.buffer_size,),
             "sfr_rng": (self.buffer_size,),
+            "xray_rng": (self.buffer_size,),
             "halo_coords": (self.buffer_size, 3),
         }
 
@@ -461,6 +463,7 @@ class HaloBox(_AllParamsBox):
             "count": shape,
             "halo_sfr": shape,
             "halo_sfr_mini": shape,
+            "halo_xray": shape,
             "n_ion": shape,
             "whalo_sfr": shape,
         }
@@ -534,6 +537,7 @@ class XraySourceBox(_AllParamsBox):
         out = {
             "filtered_sfr": shape,
             "filtered_sfr_mini": shape,
+            "filtered_xray": shape,
             "mean_sfr": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
             "mean_sfr_mini": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
             "mean_log10_Mcrit_LW": (global_params.NUM_FILTER_STEPS_FOR_Ts,),
@@ -545,7 +549,9 @@ class XraySourceBox(_AllParamsBox):
         """Return all input arrays required to compute this object."""
         required = []
         if isinstance(input_box, HaloBox):
-            required += ["halo_sfr", "halo_sfr_mini"]
+            required += ["halo_sfr", "halo_xray"]
+            if self.flag_options.USE_MINI_HALOS:
+                required += ["halo_sfr_mini"]
         else:
             raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
 
@@ -650,7 +656,7 @@ class TsBox(_AllParamsBox):
                 required += ["J_21_LW_box"]
         elif isinstance(input_box, XraySourceBox):
             if self.flag_options.USE_HALO_FIELD:
-                required += ["filtered_sfr"]
+                required += ["filtered_sfr", "filtered_xray"]
                 if self.flag_options.USE_MINI_HALOS:
                     required += ["filtered_sfr_mini"]
         else:

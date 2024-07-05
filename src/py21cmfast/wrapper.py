@@ -1796,7 +1796,7 @@ def xray_source(
 
             hbox_interp, idx_desc, interp_param = interp_haloboxes(
                 hboxes[::-1],
-                ["halo_sfr", "halo_sfr_mini", "log10_Mcrit_LW_ave"],
+                ["halo_sfr", "halo_xray", "halo_sfr_mini", "log10_Mcrit_LW_ave"],
                 z_halos[::-1],
                 zpp_avg[i],
             )
@@ -1804,6 +1804,8 @@ def xray_source(
             # if we have no halos we ignore the whole shell
             if np.all(hbox_interp.halo_sfr + hbox_interp.halo_sfr_mini == 0):
                 box.filtered_sfr[i, ...] = 0
+                box.filtered_sfr_mini[i, ...] = 0
+                box.filtered_xray[i, ...] = 0
                 logger.debug(f"ignoring Radius {i} due to no stars")
                 continue
 
@@ -2914,7 +2916,12 @@ def run_coeval(
             if hb is not None:
                 try:
                     hb.prepare(
-                        keep=["halo_sfr", "halo_sfr_mini", "log10_Mcrit_LW_ave"],
+                        keep=[
+                            "halo_sfr",
+                            "halo_sfr_mini",
+                            "halo_xray",
+                            "log10_Mcrit_LW_ave",
+                        ],
                         force=always_purge,
                     )
                 except OSError:

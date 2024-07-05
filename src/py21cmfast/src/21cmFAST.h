@@ -48,27 +48,40 @@ struct UserParams{
 };
 
 struct AstroParams{
-
     // Parameters taken from INIT_PARAMS.H
     float HII_EFF_FACTOR;
 
+    //SHMR
     float F_STAR10;
     float ALPHA_STAR;
     float ALPHA_STAR_MINI;
     float SIGMA_STAR;
-    float SIGMA_SFR;
     float CORR_STAR;
+    double UPPER_STELLAR_TURNOVER_MASS;
+    double UPPER_STELLAR_TURNOVER_INDEX;
+    float F_STAR7_MINI;
+
+    //SFMS
+    float t_STAR;
     float CORR_SFR;
+    double SFR_SIGMA_INDEX;
+    double SFR_SIGMA_LIM;
+
+    //L_X/SFR
+    double L_X;
+    double L_X_MINI;
+    double SIGMA_LX;
+    double CORR_LX;
+
+    //Escape Fraction
     float F_ESC10;
     float ALPHA_ESC;
-    float M_TURN;
-    float F_STAR7_MINI;
     float F_ESC7_MINI;
+
+    float M_TURN;
     float R_BUBBLE_MAX;
     float ION_Tvir_MIN;
     double F_H2_SHIELD;
-    double L_X;
-    double L_X_MINI;
     float NU_X_THRESH;
     float X_RAY_SPEC_INDEX;
     float X_RAY_Tvir_MIN;
@@ -78,12 +91,7 @@ struct AstroParams{
     double A_VCB;
     double BETA_VCB;
 
-    float t_STAR;
-
     int N_RSD_STEPS;
-
-    double UPPER_STELLAR_TURNOVER_MASS;
-    double UPPER_STELLAR_TURNOVER_INDEX;
 };
 
 struct FlagOptions{
@@ -128,6 +136,7 @@ struct HaloField{
     //Halo properties for stochastic model
     float *star_rng;
     float *sfr_rng;
+    float *xray_rng;
 };
 
 //gridded halo properties
@@ -141,6 +150,7 @@ struct HaloBox{
     //For IonisationBox.c and SpinTemperatureBox.c
     float *n_ion; //weighted by F_ESC*PopN_ion
     float *halo_sfr; //for x-rays and Ts stuff
+    float *halo_xray;
     float *halo_sfr_mini; //for x-rays and Ts stuff
     float *whalo_sfr; //SFR weighted by PopN_ion and F_ESC, used for Gamma12
 
@@ -156,6 +166,7 @@ struct PerturbHaloField{
     //Halo properties for stochastic model
     float *star_rng;
     float *sfr_rng;
+    float *xray_rng;
 };
 
 struct TsBox{
@@ -167,6 +178,7 @@ struct TsBox{
 
 struct XraySourceBox{
     float *filtered_sfr;
+    float *filtered_xray;
     float *filtered_sfr_mini;
 
     double *mean_log10_Mcrit_LW;

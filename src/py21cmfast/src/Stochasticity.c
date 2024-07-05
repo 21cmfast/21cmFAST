@@ -20,6 +20,7 @@ struct HaloSamplingConstants{
     int from_catalog; //flag for first box or updating halos
     double corr_sfr;
     double corr_star;
+    double corr_xray;
 
     double z_in;
     double z_out;
@@ -133,6 +134,10 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
             const_struct->corr_star = exp(-(redshift - redshift_desc)/astro_params_stoc->CORR_STAR);
         else
             const_struct->corr_star = 0;
+        if(astro_params_stoc->CORR_LX > 0)
+            const_struct->corr_xray = exp(-(redshift - redshift_desc)/astro_params_stoc->CORR_LX);
+        else
+            const_struct->corr_xray = 0;
 
         const_struct->from_catalog = 1;
         initialise_dNdM_tables(log(user_params_stoc->SAMPLER_MIN_MASS), const_struct->lnM_max_tb, const_struct->lnM_min, const_struct->lnM_max_tb,
@@ -232,6 +237,7 @@ int set_prop_rng(gsl_rng *rng, int from_catalog, double *interp, float * input, 
     //find log(property/variance) / mean
     double prop1 = gsl_ran_ugaussian(rng);
     double prop2 = gsl_ran_ugaussian(rng);
+    double prop3 = gsl_ran_ugaussian(rng);
 
     //Correlate properties by interpolating between the sampled and descendant gaussians
     //THIS ASSUMES THAT THE SELF-CORRELATION IS IN THE LOG PROPRETY, NOT THE PROPERTY ITSELF
@@ -239,10 +245,12 @@ int set_prop_rng(gsl_rng *rng, int from_catalog, double *interp, float * input, 
     if(from_catalog){
         prop1 = (1-interp[0])*prop1 + interp[0]*input[0];
         prop2 = (1-interp[1])*prop1 + interp[1]*input[1];
+        prop3 = (1-interp[2])*prop1 + interp[2]*input[2];
     }
 
     output[0] = prop1;
     output[1] = prop2;
+    output[2] = prop3;
 
     return;
 }
@@ -263,9 +271,9 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
 
     //loop through the halos and assign properties
     int i;
-    float buf[2];
+    float buf[3];
     //dummy
-    float inbuf[2];
+    float inbuf[3];
 #pragma omp parallel for private(buf)
     for(i=0;i<nhalos;i++){
         // LOG_ULTRA_DEBUG("halo %d hm %.2e crd %d %d %d",i,halos->halo_masses[i],halos->halo_coords[3*i+0],halos->halo_coords[3*i+1],halos->halo_coords[3*i+2]);
@@ -273,6 +281,7 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
         // LOG_ULTRA_DEBUG("stars %.2e sfr %.2e",buf[0],buf[1]);
         halos->star_rng[i] = buf[0];
         halos->sfr_rng[i] = buf[1];
+        halos->xray_rng[i] = buf[2];
     }
 
     free_rng_threads(rng_stoc);
@@ -695,7 +704,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
 
         int nh_buf;
         double delta;
-        float prop_buf[2], prop_dummy[2];
+        float prop_buf[3], prop_dummy[3];
         int crd_hi[3];
 
         double mass_defc;
@@ -767,6 +776,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
 
                         halofield_out->star_rng[istart + count] = prop_buf[0];
                         halofield_out->sfr_rng[istart + count] = prop_buf[1];
+                        halofield_out->xray_rng[istart + count] = prop_buf[2];
                         count++;
 
                         M_tot_cell += hm_buf[i];
@@ -796,6 +806,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
         memmove(&halofield_out->halo_masses[count_total],&halofield_out->halo_masses[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
         memmove(&halofield_out->star_rng[count_total],&halofield_out->star_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
         memmove(&halofield_out->sfr_rng[count_total],&halofield_out->sfr_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
+        memmove(&halofield_out->xray_rng[count_total],&halofield_out->xray_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
         memmove(&halofield_out->halo_coords[3*count_total],&halofield_out->halo_coords[3*istart_threads[i]],sizeof(int)*3*nhalo_threads[i]);
         LOG_SUPER_DEBUG("Moved array (start,count) (%llu, %llu) to position %llu",istart_threads[i],nhalo_threads[i],count_total);
         count_total += nhalo_threads[i];
@@ -807,6 +818,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
     memset(&halofield_out->halo_coords[3*count_total],0,3*(arraysize_total-count_total)*sizeof(int));
     memset(&halofield_out->star_rng[count_total],0,(arraysize_total-count_total)*sizeof(float));
     memset(&halofield_out->sfr_rng[count_total],0,(arraysize_total-count_total)*sizeof(float));
+    memset(&halofield_out->xray_rng[count_total],0,(arraysize_total-count_total)*sizeof(float));
     LOG_SUPER_DEBUG("Set %llu elements beyond %llu to zero",arraysize_total-count_total,count_total);
     return 0;
 }
@@ -842,7 +854,7 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, struc
     LOG_DEBUG("z = %f, Mmin = %e, d = %.3e",z_out,Mmin,delta);
     LOG_DEBUG("Total Array Size %llu, array size per thread %llu (~%.3e GB total)",arraysize_total,arraysize_local,6.*arraysize_total*sizeof(int)/1e9);
 
-    double corr_arr[2] = {hs_constants->corr_star,hs_constants->corr_sfr};
+    double corr_arr[3] = {hs_constants->corr_star,hs_constants->corr_sfr,hs_constants->corr_xray};
 
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
     {
@@ -850,8 +862,8 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, struc
         int n_prog;
         double M_prog;
 
-        float propbuf_in[2];
-        float propbuf_out[2];
+        float propbuf_in[3];
+        float propbuf_out[3];
 
         int threadnum = omp_get_thread_num();
         double M2;
@@ -880,6 +892,7 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, struc
 
             propbuf_in[0] = halofield_in->star_rng[ii];
             propbuf_in[1] = halofield_in->sfr_rng[ii];
+            propbuf_in[2] = halofield_in->xray_rng[ii];
 
             //place progenitors in local list
             M_prog = 0;
@@ -904,6 +917,7 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, struc
 
                 halofield_out->star_rng[istart + count] = propbuf_out[0];
                 halofield_out->sfr_rng[istart + count] = propbuf_out[1];
+                halofield_out->xray_rng[istart + count] = propbuf_out[2];
                 count++;
 
                 if(ii==0){

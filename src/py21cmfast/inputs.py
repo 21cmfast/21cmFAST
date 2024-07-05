@@ -978,15 +978,16 @@ class AstroParams(StructWithDefaults):
         Power-law index of fraction of galactic gas in stars as a function of halo mass, for MCGs.
         See Sec 2 of Muñoz+21 (2110.13919).
     SIGMA_STAR : float, optional
-        Lognormal scatter of the halo mass to stellar mass relation.
+        Lognormal scatter (dex) of the halo mass to stellar mass relation.
         Uniform across all masses and redshifts.
     CORR_STAR : float, optional
         Self-correlation length used for updating halo properties. Properties are interpolated between
         a random sample at the current halo mass and one matching the point in the PDF of the
         previous sample, the interpolation point in [0,1] is given by exp(-dz/CORR_STAR)
-    SIGMA_SFR : float, optional
-        Lognormal scatter of the stellar mass to SFR relation.
-        Uniform across all masses and redshifts.
+    SIGMA_SFR_LIM : float, optional
+        Lognormal scatter (dex) of the stellar mass to SFR relation above a stellar mass of 1e10 solar.
+    SIGMA_SFR_INDEX : float, optional
+        index of the power-law between SFMS scatter and stellar mass below 1e10 solar.
     CORR_SFR : float, optional
         Self-correlation length used for updating halo properties. Properties are interpolated between
         a random sample at the current halo mass and one matching the point in the PDF of the
@@ -1054,6 +1055,13 @@ class AstroParams(StructWithDefaults):
     UPPER_STELLAR_TURNOVER_INDEX:
         The power-law index associated with the optional upper mass power-law of the stellar-halo mass relation
         (see FlagOptions.USE_UPPER_STELLAR_TURNOVER)
+    SIGMA_LX: float, optional
+        Lognormal scatter (dex) of the Xray luminosity relation.
+        Uniform across all masses and redshifts.
+    CORR_LX : float, optional
+        Self-correlation length used for updating halo properties. Properties are interpolated between
+        a random sample at the current halo mass and one matching the point in the PDF of the
+        previous sample, the interpolation point in [0,1] is given by exp(-dz/CORR_STAR)
     """
 
     _ffi = ffi
@@ -1064,9 +1072,10 @@ class AstroParams(StructWithDefaults):
         "F_STAR7_MINI": -2.0,
         "ALPHA_STAR": 0.5,
         "ALPHA_STAR_MINI": 0.5,
-        "SIGMA_STAR": 0.5,
+        "SIGMA_STAR": 0.25,
         "CORR_STAR": 0.5,
-        "SIGMA_SFR": 0.6,
+        "SIGMA_SFR_LIM": 0.19,
+        "SIGMA_SFR_INDEX": -0.12,
         "CORR_SFR": 0.2,
         "F_ESC10": -1.0,
         "F_ESC7_MINI": -2.0,
@@ -1087,7 +1096,9 @@ class AstroParams(StructWithDefaults):
         "A_VCB": 1.0,
         "BETA_VCB": 1.8,
         "UPPER_STELLAR_TURNOVER_MASS": 11.447,  # 2.8e11
-        "UPPER_STELLAR_TURNOVER_INDEX": -0.61,
+        "UPPER_STELLAR_TURNOVER_INDEX": -0.6,
+        "SIGMA_LX": 0.5,
+        "CORR_LX": 0.2,  # NOTE (Jdavies): It's difficult to know what this should be, ASTRID doesn't have the xrays and I don't know which hydros do
     }
 
     def __init__(
@@ -1112,7 +1123,9 @@ class AstroParams(StructWithDefaults):
             "X_RAY_Tvir_MIN",
             "UPPER_STELLAR_TURNOVER_MASS",
         ]:
-            return 10**val
+            return 10**val  # log10 to linear conversion
+        if key in ["SIMGA_STAR" "SIGMA_SFR_LIM" "SIGMA_LX"]:
+            return 2.3025851 * val  # dex to base e conversion
         else:
             return val
 

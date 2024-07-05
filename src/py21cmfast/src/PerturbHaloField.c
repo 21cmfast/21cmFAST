@@ -199,6 +199,7 @@ LOG_DEBUG("Begin Initialisation");
                 halos_perturbed->halo_masses[i_halo] = halos->halo_masses[i_halo];
                 halos_perturbed->star_rng[i_halo] = halos->star_rng[i_halo];
                 halos_perturbed->sfr_rng[i_halo] = halos->sfr_rng[i_halo];
+                halos_perturbed->xray_rng[i_halo] = halos->xray_rng[i_halo];
             }
         }
 
@@ -255,6 +256,7 @@ void free_phf(struct PerturbHaloField* halos){
     free(halos->halo_coords);
     free(halos->star_rng);
     free(halos->sfr_rng);
+    free(halos->xray_rng);
     LOG_DEBUG("Done Freeing PerturbHaloField");
     halos->n_halos = 0;
 }

@@ -712,11 +712,22 @@ void initialise_J_split_table(int Nbin, double umin, double umax, double gamma1)
 }
 
 void free_dNdM_tables(){
-    int i;
     free_RGTable2D(&Nhalo_inv_table);
     free_RGTable1D(&Nhalo_table);
     free_RGTable1D(&Mcoll_table);
     free_RGTable1D(&J_split_table);
+}
+
+void free_conditional_tables(){
+    free_RGTable1D_f(&fcoll_conditional_table);
+    free_RGTable1D_f(&dfcoll_conditional_table);
+    free_RGTable1D_f(&SFRD_conditional_table);
+    free_RGTable2D_f(&SFRD_conditional_table_MINI);
+    free_RGTable1D_f(&Nion_conditional_table1D);
+    free_RGTable2D_f(&Nion_conditional_table2D);
+    free_RGTable2D_f(&Nion_conditional_table_MINI);
+    free_RGTable2D_f(&Nion_conditional_table_prev);
+    free_RGTable2D_f(&Nion_conditional_table_MINI_prev);
 }
 
 //JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
