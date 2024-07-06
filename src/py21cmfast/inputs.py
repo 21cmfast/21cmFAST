@@ -949,6 +949,10 @@ class AstroParams(StructWithDefaults):
     All parameters passed in the constructor are also saved as instance attributes which should
     be considered read-only. This is true of all input-parameter classes.
 
+    NB: All Mean scaling relations are defined in log-space, such that the lines they produce
+    give exp(<log(property)>), this means that increasing the lognormal scatter in these relations
+    will increase the <property> but not <log(property)>
+
     Parameters
     ----------
     INHOMO_RECO : bool, optional
@@ -981,17 +985,17 @@ class AstroParams(StructWithDefaults):
         Lognormal scatter (dex) of the halo mass to stellar mass relation.
         Uniform across all masses and redshifts.
     CORR_STAR : float, optional
-        Self-correlation length used for updating halo properties. Properties are interpolated between
-        a random sample at the current halo mass and one matching the point in the PDF of the
-        previous sample, the interpolation point in [0,1] is given by exp(-dz/CORR_STAR)
+        Self-correlation length used for updating halo properties. To model the correlation in the SHMR
+        between timesteps, we take two samples, one completely correlated (at the exact same percentile in the distribution)
+        and one completely uncorrelated. We interpolate between these two samples where
+        the interpolation point in [0,1] based on this parameter and the redshift difference between timesteps,
+        given by exp(-dz/CORR_STAR)
     SIGMA_SFR_LIM : float, optional
         Lognormal scatter (dex) of the stellar mass to SFR relation above a stellar mass of 1e10 solar.
     SIGMA_SFR_INDEX : float, optional
         index of the power-law between SFMS scatter and stellar mass below 1e10 solar.
     CORR_SFR : float, optional
-        Self-correlation length used for updating halo properties. Properties are interpolated between
-        a random sample at the current halo mass and one matching the point in the PDF of the
-        previous sample, the interpolation point in [0,1] is given by exp(-dz/CORR_STAR)
+        Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     F_ESC10 : float, optional
         The "escape fraction", i.e. the fraction of ionizing photons escaping into the
         IGM, for 10^10 solar mass haloes. Only used in the "new" parameterization,
@@ -1056,12 +1060,10 @@ class AstroParams(StructWithDefaults):
         The power-law index associated with the optional upper mass power-law of the stellar-halo mass relation
         (see FlagOptions.USE_UPPER_STELLAR_TURNOVER)
     SIGMA_LX: float, optional
-        Lognormal scatter (dex) of the Xray luminosity relation.
-        Uniform across all masses and redshifts.
+        Lognormal scatter (dex) of the Xray luminosity relation (a function of stellar mass, star formation rate and redshift).
+        This scatter is uniform across all halo properties and redshifts.
     CORR_LX : float, optional
-        Self-correlation length used for updating halo properties. Properties are interpolated between
-        a random sample at the current halo mass and one matching the point in the PDF of the
-        previous sample, the interpolation point in [0,1] is given by exp(-dz/CORR_STAR)
+        Self-correlation length used for updating xray luminosity, see "CORR_STAR" for details.
     """
 
     _ffi = ffi
@@ -1072,19 +1074,14 @@ class AstroParams(StructWithDefaults):
         "F_STAR7_MINI": -2.0,
         "ALPHA_STAR": 0.5,
         "ALPHA_STAR_MINI": 0.5,
-        "SIGMA_STAR": 0.25,
-        "CORR_STAR": 0.5,
-        "SIGMA_SFR_LIM": 0.19,
-        "SIGMA_SFR_INDEX": -0.12,
-        "CORR_SFR": 0.2,
         "F_ESC10": -1.0,
         "F_ESC7_MINI": -2.0,
         "ALPHA_ESC": -0.5,
         "M_TURN": 8.7,
         "R_BUBBLE_MAX": None,
         "ION_Tvir_MIN": 4.69897,
-        "L_X": 40.0,
-        "L_X_MINI": 40.0,
+        "L_X": 38.44,  # Nikolic et al. 2024 L_X at 10^10 solar
+        "L_X_MINI": 38.44,  # Nikolic et al. 2024
         "NU_X_THRESH": 500.0,
         "X_RAY_SPEC_INDEX": 1.0,
         "X_RAY_Tvir_MIN": None,
@@ -1097,7 +1094,14 @@ class AstroParams(StructWithDefaults):
         "BETA_VCB": 1.8,
         "UPPER_STELLAR_TURNOVER_MASS": 11.447,  # 2.8e11
         "UPPER_STELLAR_TURNOVER_INDEX": -0.6,
+        # Nikolic et al. 2024 lognormal scatter parameters
+        "SIGMA_STAR": 0.25,
         "SIGMA_LX": 0.5,
+        "SIGMA_SFR_LIM": 0.19,
+        "SIGMA_SFR_INDEX": -0.12,
+        # Self-Correlations based on cursory examination of Astrid-ES data (Davies et al 2023)
+        "CORR_STAR": 0.5,
+        "CORR_SFR": 0.2,
         "CORR_LX": 0.2,  # NOTE (Jdavies): It's difficult to know what this should be, ASTRID doesn't have the xrays and I don't know which hydros do
     }
 

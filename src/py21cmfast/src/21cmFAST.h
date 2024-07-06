@@ -64,8 +64,8 @@ struct AstroParams{
     //SFMS
     float t_STAR;
     float CORR_SFR;
-    double SFR_SIGMA_INDEX;
-    double SFR_SIGMA_LIM;
+    double SIGMA_SFR_INDEX;
+    double SIGMA_SFR_LIM;
 
     //L_X/SFR
     double L_X;
@@ -278,6 +278,10 @@ void free(void *ptr);
 int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options,
                         int seed, int n_condition, float *conditions, int *cond_crd, double z_out, double z_in, int *out_n_tot, int *out_n_cell, double *out_n_exp,
                         double *out_m_cell, double *out_m_exp, float *out_halo_masses, int *out_halo_coords);
+//test function for getting halo properties from the wrapper, can use a lot of memory for large catalogs
+int halo_props_exposed(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
+                    struct FlagOptions * flag_options, struct InitialConditions *ini_boxes, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos,
+                    struct TsBox *previous_spin_temp, struct IonizedBox *previous_ionize_box, float *halo_props);
 
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the box
 double expected_nhalo(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions * flag_options);

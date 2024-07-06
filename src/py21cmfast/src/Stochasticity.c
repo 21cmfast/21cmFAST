@@ -233,25 +233,23 @@ void place_on_hires_grid(int x, int y, int z, int *crd_hi, gsl_rng * rng){
 }
 
 //This function adds stochastic halo properties to an existing halo
-int set_prop_rng(gsl_rng *rng, int from_catalog, double *interp, float * input, float * output){
-    //find log(property/variance) / mean
-    double prop1 = gsl_ran_ugaussian(rng);
-    double prop2 = gsl_ran_ugaussian(rng);
-    double prop3 = gsl_ran_ugaussian(rng);
+int set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, float * input, float * output){
+    double rng_star,rng_sfr,rng_xray;
 
     //Correlate properties by interpolating between the sampled and descendant gaussians
-    //THIS ASSUMES THAT THE SELF-CORRELATION IS IN THE LOG PROPRETY, NOT THE PROPERTY ITSELF
-    //IF IT SHOULD BE IN LINEAR SPACE, EXPONENTIATE THE RANDOM VARIABLES
+    rng_star = astro_params_stoc->SIGMA_STAR > 0. ? gsl_ran_ugaussian(rng) : 0.;
+    rng_sfr = astro_params_stoc->SIGMA_SFR_LIM > 0. ? gsl_ran_ugaussian(rng) : 0.;
+    rng_xray = astro_params_stoc->SIGMA_LX > 0. ? gsl_ran_ugaussian(rng) : 0.;
+
     if(from_catalog){
-        prop1 = (1-interp[0])*prop1 + interp[0]*input[0];
-        prop2 = (1-interp[1])*prop1 + interp[1]*input[1];
-        prop3 = (1-interp[2])*prop1 + interp[2]*input[2];
+        rng_star = (1-interp[0])*rng_star + interp[0]*input[0];
+        rng_sfr = (1-interp[1])*rng_sfr + interp[1]*input[1];
+        rng_xray = (1-interp[2])*rng_xray + interp[2]*input[2];
     }
 
-    output[0] = prop1;
-    output[1] = prop2;
-    output[2] = prop3;
-
+    output[0] = rng_star;
+    output[1] = rng_sfr;
+    output[2] = rng_xray;
     return;
 }
 
@@ -263,21 +261,16 @@ int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo
     gsl_rng * rng_stoc[user_params->N_THREADS];
     seed_rng_threads(rng_stoc,seed);
 
-    long long unsigned int nhalos = halos->n_halos;
-    LOG_DEBUG("adding stars to %llu halos",halos->n_halos);
-
-    struct HaloSamplingConstants hs_constants;
-    hs_constants.z_out = redshift;
+    LOG_DEBUG("computing rng for %llu halos",halos->n_halos);
 
     //loop through the halos and assign properties
-    int i;
+    unsigned long long int i;
     float buf[3];
-    //dummy
-    float inbuf[3];
-#pragma omp parallel for private(buf)
-    for(i=0;i<nhalos;i++){
+    float dummy[3]; //we don't need interpolation here
+#pragma omp parallel for private(i,buf)
+    for(i=0;i<halos->n_halos;i++){
         // LOG_ULTRA_DEBUG("halo %d hm %.2e crd %d %d %d",i,halos->halo_masses[i],halos->halo_coords[3*i+0],halos->halo_coords[3*i+1],halos->halo_coords[3*i+2]);
-        set_prop_rng(rng_stoc[omp_get_thread_num()], 0, inbuf, inbuf, buf);
+        set_prop_rng(rng_stoc[omp_get_thread_num()], false, dummy, dummy, buf);
         // LOG_ULTRA_DEBUG("stars %.2e sfr %.2e",buf[0],buf[1]);
         halos->star_rng[i] = buf[0];
         halos->sfr_rng[i] = buf[1];
