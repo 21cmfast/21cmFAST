@@ -364,7 +364,7 @@ int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_bo
         double intgrl_fesc_weighted, intgrl_stars_only;
         double intgrl_fesc_weighted_mini=0., intgrl_stars_only_mini=0.;
 
-#pragma omp for reduction(+:hm_avg,nion_avg,sfr_avg,sfr_avg_mini,wsfr_avg,Mlim_a_avg,Mlim_m_avg)
+#pragma omp for reduction(+:hm_avg,sm_avg,sfr_avg,xray_avg,nion_avg,wsfr_avg,sm_avg_mini,wsfr_avg,Mlim_a_avg,Mlim_m_avg,Mlim_r_avg)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
             dens = perturbed_field->density[i];
             params.delta = dens;
@@ -426,22 +426,24 @@ int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_bo
     free_conditional_tables();
 
     hm_avg /= HII_TOT_NUM_PIXELS;
+    sm_avg /= HII_TOT_NUM_PIXELS;
+    sm_avg_mini /= HII_TOT_NUM_PIXELS;
     nion_avg /= HII_TOT_NUM_PIXELS;
     sfr_avg /= HII_TOT_NUM_PIXELS;
     sfr_avg_mini /= HII_TOT_NUM_PIXELS;
     wsfr_avg /= HII_TOT_NUM_PIXELS;
+    xray_avg /= HII_TOT_NUM_PIXELS;
     Mlim_a_avg /= HII_TOT_NUM_PIXELS;
     Mlim_m_avg /= HII_TOT_NUM_PIXELS;
     Mlim_r_avg /= HII_TOT_NUM_PIXELS;
 
-    double stellar_mass;
-    double stellar_mini;
-    double halo_xray;
-
     averages->halo_mass = hm_avg;
+    averages->stellar_mass = sm_avg;
+    averages->stellar_mini = sm_avg_mini
     averages->halo_sfr = sfr_avg;
     averages->sfr_mini = sfr_avg_mini;
     averages->n_ion = nion_avg;
+    averages->halo_xray = xray_avg
     averages->fescweighted_sfr = wsfr_avg;
     averages->m_turn_acg = Mlim_a_avg;
     averages->m_turn_mcg = Mlim_m_avg;
@@ -529,16 +531,20 @@ void halobox_debug_print_avg(struct HaloProperties *averages_box, struct HaloPro
     }
 
     LOG_DEBUG("HALO BOXES REDSHIFT %.2f",consts->redshift);
-    LOG_DEBUG("Exp. averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e)",averages_global.halo_mass,averages_global.n_ion,
-                                                                                                averages_global.halo_sfr,averages_global.sfr_mini);
-    LOG_DEBUG("Box  averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e)",averages_box->halo_mass,averages_box->n_ion,
-                                                                                                averages_box->halo_sfr,averages_box->sfr_mini);
+    LOG_DEBUG("Exp. averages: (HM %11.3e, SM %11.3e SM_MINI %11.3e SFR %11.3e, SFR_MINI %11.3e, XRAY %11.3e, NION %11.3e)",
+                averages_global.halo_mass,averages_global.stellar_mass, averages_global.stellar_mini, averages_global.halo_sfr,
+                averages_global.sfr_mini,averages_global.halo_xray,averages_global.n_ion);
+    LOG_DEBUG("Box. averages: (HM %11.3e, SM %11.3e SM_MINI %11.3e SFR %11.3e, SFR_MINI %11.3e, XRAY %11.3e, NION %11.3e)",
+                averages_box->halo_mass,averages_box->stellar_mass,averages_box->stellar_mini,averages_box->halo_sfr,
+                averages_box->sfr_mini,averages_box->halo_xray,averages_box->n_ion);
     if(user_params_stoc->AVG_BELOW_SAMPLER && M_min < user_params_stoc->SAMPLER_MIN_MASS){
         LOG_DEBUG("SUB-SAMPLER",consts->redshift);
-        LOG_DEBUG("Exp. averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e)",averages_sub_expected.halo_mass,averages_sub_expected.n_ion,
-                                                                                                averages_sub_expected.halo_sfr,averages_sub_expected.sfr_mini);
-        LOG_DEBUG("Box  averages: (HM %11.3e, NION %11.3e, SFR %11.3e, SFR_MINI %11.3e)",averages_subsampler->halo_mass,averages_subsampler->n_ion,
-                                                                                                averages_subsampler->halo_sfr,averages_subsampler->sfr_mini);
+    LOG_DEBUG("Exp. averages: (HM %11.3e, SM %11.3e SM_MINI %11.3e SFR %11.3e, SFR_MINI %11.3e, XRAY %11.3e, NION %11.3e)",
+                averages_sub_expected.halo_mass,averages_sub_expected.stellar_mass, averages_sub_expected.stellar_mini, averages_sub_expected.halo_sfr,
+                averages_sub_expected.sfr_mini,averages_sub_expected.halo_xray,averages_sub_expected.n_ion);
+    LOG_DEBUG("Box. averages: (HM %11.3e, SM %11.3e SM_MINI %11.3e SFR %11.3e, SFR_MINI %11.3e, XRAY %11.3e, NION %11.3e)",
+                averages_subsampler->halo_mass,averages_subsampler->stellar_mass, averages_subsampler->stellar_mini, averages_subsampler->halo_sfr,
+                averages_subsampler->sfr_mini,averages_subsampler->halo_xray,averages_subsampler->n_ion);
     }
     LOG_DEBUG("Turnovers: ACG %11.3e global %11.3e",averages_box->m_turn_acg,consts->mturn_a_nofb);
     LOG_DEBUG("MCG  %11.3e nofb %11.3e",averages_box->m_turn_acg,consts->mturn_m_nofb);
