@@ -272,8 +272,7 @@ void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m, dou
 int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_boxes,
                     struct PerturbedField *perturbed_field, struct TsBox *previous_spin_temp,
                     struct IonizedBox *previous_ionize_box, struct HaloBoxConstants *consts, struct HaloBox *grids, struct HaloProperties *averages){
-    double cell_volume = VOLUME / HII_TOT_NUM_PIXELS;
-    double M_cell = RHOcrit * cosmo_params_stoc->OMm * cell_volume; //mass in cell of mean dens
+    double M_cell = RHOcrit * cosmo_params_stoc->OMm * VOLUME / HII_TOT_NUM_PIXELS; //mass in cell of mean dens
     double growth_z = dicke(consts->redshift);
 
     double lnMmin = log(M_min);
@@ -399,7 +398,7 @@ int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_bo
                                                             log10(M_turn_a),consts->Mlim_Fstar,consts->Mlim_Fesc,false);
             }
 
-            grids->count[i] = (int)(h_count * prefactor_mass * (1+dens)); //NOTE: truncated
+            grids->count[i] = (int)(h_count * M_cell * (1+dens)); //NOTE: truncated
             grids->halo_mass[i] = mass_intgrl * prefactor_mass * (1+dens);
             grids->halo_sfr[i] = (intgrl_stars_only*prefactor_sfr) * (1+dens);
             grids->halo_sfr_mini[i] = intgrl_stars_only_mini*prefactor_sfr_mini * (1+dens);
@@ -776,8 +775,11 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             #pragma omp parallel for num_threads(user_params->N_THREADS)
             for(idx=0;idx<HII_TOT_NUM_PIXELS;idx++){
                 grids->halo_mass[idx] *= averages_global.halo_mass/averages_box.halo_mass;
+                grids->halo_stars[idx] *= averages_global.halo_stars/averages_box.halo_stars;
+                grids->halo_stars_mini[idx] *= averages_global.halo_stars_mini/averages_box.halo_stars_mini;
                 grids->halo_sfr[idx] *= averages_global.halo_sfr/averages_box.halo_sfr;
                 grids->halo_sfr_mini[idx] *= averages_global.sfr_mini/averages_box.sfr_mini;
+                grids->halo_xray[idx] *= averages_global.halo_xray/averages_box.halo_xray;
                 grids->n_ion[idx] *= averages_global.n_ion/averages_box.n_ion;
                 grids->whalo_sfr[idx] *= averages_global.fescweighted_sfr/averages_box.fescweighted_sfr;
             }
@@ -792,6 +794,9 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
                 //      I should instead have a flag to output the summed values in cell. (2*N_pixel > N_halo so generally i don't want to do it in the halo loop)
                 for (idx=0; idx<HII_TOT_NUM_PIXELS; idx++) {
                     grids->halo_mass[idx] *= cell_volume;
+                    grids->halo_stars[idx] *= cell_volume;
+                    grids->halo_stars_mini[idx] *= cell_volume;
+                    grids->halo_xray[idx] *= cell_volume;
                     grids->n_ion[idx] *= cell_volume;
                     grids->halo_sfr[idx] *= cell_volume;
                     grids->halo_sfr_mini[idx] *= cell_volume;
