@@ -708,8 +708,10 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
         if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1){
             LOG_DEBUG("finished XraySourceBox");
         }
-        LOG_SUPER_DEBUG("R = %8.3f | mean filtered sfr = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e MINI) mean log10McritLW %.4e",
+        LOG_SUPER_DEBUG("R = %8.3f | mean filtered sfr  = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e MINI) mean log10McritLW %.4e",
                             R_outer,fsfr_avg,fsfr_avg_mini,sfr_avg,sfr_avg_mini,source_box->mean_log10_Mcrit_LW[R_ct]);
+        LOG_SUPER_DEBUG("R = %8.3f | mean filtered xray = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e MINI)",
+                            fxray_avg,fxray_avg_mini,xray_avg,xray_avg_mini);
 
         fftwf_forget_wisdom();
         fftwf_cleanup_threads();

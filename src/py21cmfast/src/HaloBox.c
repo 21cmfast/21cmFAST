@@ -226,7 +226,8 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_
 void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m, double M_turn_r,
                          struct HaloBoxConstants *consts, double *input_rng, struct HaloProperties *output){
     double n_ion_sample, wsfr_sample;
-    double fesc,fesc_mini;
+    double fesc;
+    double fesc_mini=0.;
 
     //do reionization feedback
     if(flag_options_stoc->USE_MINI_HALOS){
@@ -248,7 +249,9 @@ void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m, dou
 
     //no rng for escape fraction yet
     fesc = fmin(consts->fesc_10*pow(halo_mass/1e10,consts->alpha_esc),1);
-    fesc_mini = fmin(consts->fesc_7*pow(halo_mass/1e7,consts->alpha_esc),1);
+    if(flag_options_stoc->USE_MINI_HALOS)
+        fesc_mini = fmin(consts->fesc_7*pow(halo_mass/1e7,consts->alpha_esc),1);
+
     n_ion_sample = stellar_mass*global_params.Pop2_ion*fesc + stellar_mass_mini*global_params.Pop3_ion*fesc_mini;
     wsfr_sample = sfr*global_params.Pop2_ion*fesc + sfr_mini*global_params.Pop3_ion*fesc_mini;
 
@@ -320,8 +323,8 @@ int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_bo
 
     double M_turn_a_nofb = consts->mturn_a_nofb;
 
-    LOG_DEBUG("Mean halo boxes || M = [%.2e %.2e] | Mcell = %.2e (s=%.2e) | z = %.2e | D = %.2e | cellvol = %.2e",M_min,M_max,M_cell,sigma_cell,
-                consts->redshift,growth_z,cell_volume);
+    LOG_DEBUG("Mean halo boxes || M = [%.2e %.2e] | Mcell = %.2e (s=%.2e) | z = %.2e | D = %.2e",M_min,M_max,M_cell,sigma_cell,
+                consts->redshift,growth_z);
 
     //These tables are coarser than needed, an initial loop for Mturn to find limits may help
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
@@ -363,7 +366,7 @@ int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_bo
         double intgrl_fesc_weighted, intgrl_stars_only;
         double intgrl_fesc_weighted_mini=0., intgrl_stars_only_mini=0.;
 
-#pragma omp for reduction(+:hm_avg,sm_avg,sfr_avg,xray_avg,nion_avg,wsfr_avg,sm_avg_mini,wsfr_avg,Mlim_a_avg,Mlim_m_avg,Mlim_r_avg)
+#pragma omp for reduction(+:hm_avg,sm_avg,sfr_avg,xray_avg,nion_avg,wsfr_avg,sm_avg_mini,Mlim_a_avg,Mlim_m_avg,Mlim_r_avg)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
             dens = perturbed_field->density[i];
             params.delta = dens;
@@ -438,11 +441,11 @@ int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_bo
 
     averages->halo_mass = hm_avg;
     averages->stellar_mass = sm_avg;
-    averages->stellar_mini = sm_avg_mini
+    averages->stellar_mini = sm_avg_mini;
     averages->halo_sfr = sfr_avg;
     averages->sfr_mini = sfr_avg_mini;
     averages->n_ion = nion_avg;
-    averages->halo_xray = xray_avg
+    averages->halo_xray = xray_avg;
     averages->fescweighted_sfr = wsfr_avg;
     averages->m_turn_acg = Mlim_a_avg;
     averages->m_turn_mcg = Mlim_m_avg;
@@ -487,9 +490,9 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
 
     //NOTE: we use the atomic method for all halo mass/count here
     mass_intgrl = FgtrM_General(consts->redshift,M_min);
-    intgrl_fesc_weighted = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_a, consts->alpha_star, consts->alpha_esc, consts->fesc_10,
+    intgrl_fesc_weighted = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_a, consts->alpha_star, consts->alpha_esc, consts->fstar_10,
                                  consts->fesc_10, consts->Mlim_Fstar, consts->Mlim_Fesc);
-    intgrl_stars_only = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_a, consts->alpha_star, 0., consts->fesc_10, 1.,
+    intgrl_stars_only = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_a, consts->alpha_star, 0., consts->fstar_10, 1.,
                                  consts->Mlim_Fstar, 0.);
     if(flag_options_stoc->USE_MINI_HALOS){
         intgrl_fesc_weighted_mini = Nion_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_m, M_turn_a,
@@ -538,12 +541,12 @@ void halobox_debug_print_avg(struct HaloProperties *averages_box, struct HaloPro
                 averages_box->sfr_mini,averages_box->halo_xray,averages_box->n_ion);
     if(user_params_stoc->AVG_BELOW_SAMPLER && M_min < user_params_stoc->SAMPLER_MIN_MASS){
         LOG_DEBUG("SUB-SAMPLER",consts->redshift);
-    LOG_DEBUG("Exp. averages: (HM %11.3e, SM %11.3e SM_MINI %11.3e SFR %11.3e, SFR_MINI %11.3e, XRAY %11.3e, NION %11.3e)",
-                averages_sub_expected.halo_mass,averages_sub_expected.stellar_mass, averages_sub_expected.stellar_mini, averages_sub_expected.halo_sfr,
-                averages_sub_expected.sfr_mini,averages_sub_expected.halo_xray,averages_sub_expected.n_ion);
-    LOG_DEBUG("Box. averages: (HM %11.3e, SM %11.3e SM_MINI %11.3e SFR %11.3e, SFR_MINI %11.3e, XRAY %11.3e, NION %11.3e)",
-                averages_subsampler->halo_mass,averages_subsampler->stellar_mass, averages_subsampler->stellar_mini, averages_subsampler->halo_sfr,
-                averages_subsampler->sfr_mini,averages_subsampler->halo_xray,averages_subsampler->n_ion);
+        LOG_DEBUG("Exp. averages: (HM %11.3e, SM %11.3e SM_MINI %11.3e SFR %11.3e, SFR_MINI %11.3e, XRAY %11.3e, NION %11.3e)",
+                    averages_sub_expected.halo_mass,averages_sub_expected.stellar_mass, averages_sub_expected.stellar_mini, averages_sub_expected.halo_sfr,
+                    averages_sub_expected.sfr_mini,averages_sub_expected.halo_xray,averages_sub_expected.n_ion);
+        LOG_DEBUG("Box. averages: (HM %11.3e, SM %11.3e SM_MINI %11.3e SFR %11.3e, SFR_MINI %11.3e, XRAY %11.3e, NION %11.3e)",
+                    averages_subsampler->halo_mass,averages_subsampler->stellar_mass, averages_subsampler->stellar_mini, averages_subsampler->halo_sfr,
+                    averages_subsampler->sfr_mini,averages_subsampler->halo_xray,averages_subsampler->n_ion);
     }
     LOG_DEBUG("Turnovers: ACG %11.3e global %11.3e",averages_box->m_turn_acg,consts->mturn_a_nofb);
     LOG_DEBUG("MCG  %11.3e nofb %11.3e",averages_box->m_turn_acg,consts->mturn_m_nofb);
@@ -775,8 +778,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             #pragma omp parallel for num_threads(user_params->N_THREADS)
             for(idx=0;idx<HII_TOT_NUM_PIXELS;idx++){
                 grids->halo_mass[idx] *= averages_global.halo_mass/averages_box.halo_mass;
-                grids->halo_stars[idx] *= averages_global.halo_stars/averages_box.halo_stars;
-                grids->halo_stars_mini[idx] *= averages_global.halo_stars_mini/averages_box.halo_stars_mini;
+                grids->halo_stars[idx] *= averages_global.stellar_mass/averages_box.stellar_mass;
+                grids->halo_stars_mini[idx] *= averages_global.stellar_mini/averages_box.stellar_mini;
                 grids->halo_sfr[idx] *= averages_global.halo_sfr/averages_box.halo_sfr;
                 grids->halo_sfr_mini[idx] *= averages_global.sfr_mini/averages_box.sfr_mini;
                 grids->halo_xray[idx] *= averages_global.halo_xray/averages_box.halo_xray;
