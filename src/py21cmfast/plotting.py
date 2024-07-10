@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as un
 from astropy.cosmology import z_at_value
-from matplotlib import colors, colormaps
+from matplotlib import colormaps, colors
 from matplotlib.ticker import AutoLocator
 from typing import Optional, Union
 
