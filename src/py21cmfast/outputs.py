@@ -809,7 +809,7 @@ class _HighLevelOutput:
         return "{name}_z{redshift:.4}_{{hash}}_r{seed}.h5".format(
             name=self.__class__.__name__,
             redshift=float(self.redshift),
-            seed=self.random_seed,
+            seed=int(self.random_seed),
         )
 
     def _input_rep(self):
@@ -1278,7 +1278,7 @@ class LightCone(_HighLevelOutput):
             ]:
                 grp = fl[k]
                 kwargs[k] = kls(dict(grp.attrs))
-            kwargs["random_seed"] = fl.attrs["random_seed"]
+            kwargs["random_seed"] = int(fl.attrs["random_seed"])
             kwargs["current_redshift"] = fl.attrs.get("current_redshift", None)
             kwargs["current_index"] = fl.attrs.get("current_index", None)
 
