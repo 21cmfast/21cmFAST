@@ -687,6 +687,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
     double total_volume_excluded=0.;
     double total_volume_dexm=0.;
     double vol_conversion = pow((double)user_params_stoc->HII_DIM / (double)user_params_stoc->DIM,3);
+    double cell_volume = VOLUME / pow((double)user_params_stoc->HII_DIM,3);
 
 #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
     {
@@ -724,7 +725,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
             halofield_out->halo_coords[1 + 3*(istart+count)] = halofield_large->halo_coords[1 + 3*halo_idx];
             halofield_out->halo_coords[2 + 3*(istart+count)] = halofield_large->halo_coords[2 + 3*halo_idx];
 
-            total_volume_dexm += halofield_large->halo_masses[halo_idx] / (RHOcrit * cosmo_params_stoc->OMm) * vol_conversion;
+            total_volume_dexm += halofield_large->halo_masses[halo_idx] / (RHOcrit * cosmo_params_stoc->OMm) / cell_volume;
             count++;
         }
 
@@ -992,8 +993,8 @@ int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cos
 
     if(halos->n_halos > 3){
         LOG_DEBUG("First few Masses:  %11.3e %11.3e %11.3e",halos->halo_masses[0],halos->halo_masses[1],halos->halo_masses[2]);
-        LOG_DEBUG("First few Stellar: %11.3e %11.3e %11.3e",halos->star_rng[0],halos->star_rng[1],halos->star_rng[2]);
-        LOG_DEBUG("First few SFR:     %11.3e %11.3e %11.3e",halos->sfr_rng[0],halos->sfr_rng[1],halos->sfr_rng[2]);
+        LOG_DEBUG("First few Stellar RNG: %11.3e %11.3e %11.3e",halos->star_rng[0],halos->star_rng[1],halos->star_rng[2]);
+        LOG_DEBUG("First few SFR RNG:     %11.3e %11.3e %11.3e",halos->sfr_rng[0],halos->sfr_rng[1],halos->sfr_rng[2]);
     }
 
     if(user_params_stoc->USE_INTERPOLATION_TABLES){

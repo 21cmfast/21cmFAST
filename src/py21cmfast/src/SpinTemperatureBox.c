@@ -672,6 +672,9 @@ double one_annular_filter(float *input_box, float *output_box, double R_inner, d
     unfiltered_avg /= HII_TOT_NUM_PIXELS;
     filtered_avg /= HII_TOT_NUM_PIXELS;
 
+    *u_avg = unfiltered_avg;
+    *f_avg = filtered_avg;
+
     fftwf_free(filtered_box);
     fftwf_free(unfiltered_box);
 }
@@ -687,9 +690,8 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
         Broadcast_struct_global_UF(user_params,cosmo_params);
         Broadcast_struct_global_TS(user_params,cosmo_params,astro_params,flag_options);
 
-        if(R_ct == 0){
-            LOG_DEBUG("starting XraySourceBox");
-        }
+        //only print once, since this is called for every R
+        if(R_ct == 0) LOG_DEBUG("starting XraySourceBox");
 
         double sfr_avg,fsfr_avg,sfr_avg_mini,fsfr_avg_mini;
         double xray_avg,fxray_avg;
@@ -705,13 +707,13 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
         source_box->mean_sfr[R_ct] = fsfr_avg;
         source_box->mean_sfr_mini[R_ct] = fsfr_avg_mini;
         source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_LW_ave;
-        if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1){
-            LOG_DEBUG("finished XraySourceBox");
-        }
-        LOG_SUPER_DEBUG("R = %8.3f | mean filtered sfr  = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e MINI) mean log10McritLW %.4e",
-                            R_outer,fsfr_avg,fsfr_avg_mini,sfr_avg,sfr_avg_mini,source_box->mean_log10_Mcrit_LW[R_ct]);
-        LOG_SUPER_DEBUG("R = %8.3f | mean filtered xray = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e MINI)",
-                            fxray_avg,fxray_avg_mini,xray_avg,xray_avg_mini);
+
+        if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1) LOG_DEBUG("finished XraySourceBox");
+
+        LOG_SUPER_DEBUG("R_inner = %8.3f | mean filtered sfr  = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e MINI) mean log10McritLW %.4e",
+                            R_inner,fsfr_avg,fsfr_avg_mini,sfr_avg,sfr_avg_mini,source_box->mean_log10_Mcrit_LW[R_ct]);
+        LOG_SUPER_DEBUG("R_outer = %8.3f | mean filtered xray = %10.3e unfiltered %10.3e",R_outer,
+                            fxray_avg,xray_avg);
 
         fftwf_forget_wisdom();
         fftwf_cleanup_threads();
@@ -1012,7 +1014,7 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts){
                                         (1 - (astro_params_ts->X_RAY_SPEC_INDEX));
     }
     // Finally, convert to the correct units. NU_over_EV*hplank as only want to divide by eV -> erg (owing to the definition of Luminosity)
-    luminosity_converstion_factor *= (3.1556226e7)/(hplank);
+    luminosity_converstion_factor /= (hplank);
 
     //for halos, we just want the SFR -> X-ray part
     //NOTE: compared to Mesinger+11: (1+zpp)^2 (1+zp) -> (1+zp)^3
@@ -1496,12 +1498,13 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
 
                     if(flag_options->USE_HALO_FIELD){
                         sfr_term = source_box->filtered_sfr[R_index*HII_TOT_NUM_PIXELS + box_ct] * z_edge_factor;
-                        xray_sfr = source_box->filtered_xray[R_index*HII_TOT_NUM_PIXELS + box_ct] * z_edge_factor * xray_R_factor;
+                        //Minihalos and s->yr conversion are included here, but multiplied by the ratio of L_X_MINI to L_X
+                        xray_sfr = source_box->filtered_xray[R_index*HII_TOT_NUM_PIXELS + box_ct] * z_edge_factor * xray_R_factor * astro_params->L_X;
                     }
                     else{
                         //NOTE: for !USE_MASS_DEPENDENT_ZETA, F_STAR10 is still used for constant stellar fraction
                         sfr_term = del_fcoll_Rct[box_ct] * z_edge_factor * avg_fix_term * astro_params->F_STAR10;
-                        xray_sfr = sfr_term * astro_params->L_X * xray_R_factor;
+                        xray_sfr = sfr_term * astro_params->L_X * xray_R_factor * SperYR; //SperYR previously (3.1556226e7) (31556925.9747 in constants???)
                     }
                     if(flag_options->USE_MINI_HALOS){
                         if(flag_options->USE_HALO_FIELD){
@@ -1509,7 +1512,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                         }
                         else{
                             sfr_term_mini = del_fcoll_Rct_MINI[box_ct] * z_edge_factor * avg_fix_term_MINI * astro_params->F_STAR7_MINI;
-                            xray_sfr += sfr_term_mini * astro_params->L_X_MINI * xray_R_factor;
+                            xray_sfr += sfr_term_mini * astro_params->L_X_MINI * xray_R_factor * SperYR;
                         }
                         dstarlyLW_dt_box[box_ct] += sfr_term*dstarlyLW_dt_prefactor[R_ct] + sfr_term_mini*dstarlyLW_dt_prefactor_MINI[R_ct];
                     }

@@ -260,6 +260,8 @@ LOG_SUPER_DEBUG("erfc interpolation done");
     fftwf_complex *stars_unfiltered,*stars_filtered;
     fftwf_complex *sfr_unfiltered,*sfr_filtered;
 
+    //NOTE FOR REFACTOR: These don't need to be allocated/filtered if (USE_HALO FIELD && CELL_RECOMB)
+    // Also, I don't think deltax_unfiltered_original is useful at all since we have the PerturbedField
     deltax_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     deltax_unfiltered_original = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     deltax_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -574,7 +576,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
     }
     else {
         LOG_DEBUG("Setting mean collapse fraction");
-        box->mean_f_coll = FgtrM_General(redshift, M_MIN);
+        box->mean_f_coll = Fcoll_General(redshift, lnMmin, lnMmax);
     }
 
     if(isfinite(box->mean_f_coll)==0) {
@@ -1210,7 +1212,13 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                     for (y = 0; y < user_params->HII_DIM; y++) {
                         for (z = 0; z < HII_D_PARA; z++) {
 
-                            curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                            //Use unfiltered density for CELL_RECOMB case, since the "Fcoll" represents photons
+                            //  reaching the central cell rather than photons in the entire sphere
+                            if(flag_options->CELL_RECOMB)
+                                curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+                            else
+                                curr_dens = perturbed_field->density[HII_R_INDEX(x,y,z)];
+
 
                             Splined_Fcoll = box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
 
@@ -1251,16 +1259,14 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                             }
 
                             if (flag_options->INHOMO_RECO) {
-                                if(flag_options->CELL_RECOMB){
+                                if(flag_options->CELL_RECOMB)
                                     rec = previous_ionize_box->dNrec_box[HII_R_INDEX(x,y,z)];
-                                    rec /= (1 + perturbed_field->density[HII_R_INDEX(x,y,z)]);
-                                }
-                                else{
-                                    rec = (*((float *) N_rec_filtered +
-                                            HII_R_FFT_INDEX(x, y, z))); // number of recombinations per mean baryon
-                                    rec /= (1. + curr_dens); // number of recombinations per baryon inside cell/filter
-                                }
-                            } else {
+                                else
+                                    rec = (*((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z))); // number of recombinations per mean baryon
+
+                                rec /= (1. + curr_dens); // number of recombinations per baryon inside cell/filter
+                            }
+                            else {
                                 rec = 0.;
                             }
 

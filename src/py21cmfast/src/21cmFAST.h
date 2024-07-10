@@ -279,7 +279,7 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
                         int seed, int n_condition, float *conditions, int *cond_crd, double z_out, double z_in, int *out_n_tot, int *out_n_cell, double *out_n_exp,
                         double *out_m_cell, double *out_m_exp, float *out_halo_masses, int *out_halo_coords);
 //test function for getting halo properties from the wrapper, can use a lot of memory for large catalogs
-int halo_props_exposed(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
+int test_halo_props(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
                     struct FlagOptions * flag_options, struct InitialConditions *ini_boxes, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos,
                     struct TsBox *previous_spin_temp, struct IonizedBox *previous_ionize_box, float *halo_props);
 
@@ -360,7 +360,7 @@ double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
                      double Fesc10, double Mlim_Fstar, double Mlim_Fesc);
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
                          double Alpha_esc, double Fstar7_MINI, double Fesc7_MINI, double Mlim_Fstar, double Mlim_Fesc);
-double FgtrM_General(double z, double M);
+double Fcoll_General(double z, double lnM_min, double lnM_max);
 double unconditional_mf(double growthf, double lnM, double z, int HMF);
 double conditional_mf(double growthf, double lnM, double delta_cond, double sigma_cond, int HMF);
 double atomic_cooling_threshold(float z);

@@ -138,7 +138,7 @@ double FgtrM_wsigma(double z, double sig);
 double FgtrM_st(double z, double M);
 double FgtrM_Watson(double growthf, double M);
 double FgtrM_Watson_z(double z, double growthf, double M);
-double FgtrM_General(double z, double M);
+double Fcoll_General(double z, double lnM_min, double lnM_max);
 
 float erfcc(float x);
 double splined_erfc(double x);
@@ -1188,7 +1188,7 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     double result, error, lower_limit, upper_limit;
     gsl_function F;
     // double rel_tol = FRACT_FLOAT_ERR*128; //<- relative tolerance
-    double rel_tol = 1e-4; //<- relative tolerance
+    double rel_tol = 1e-3; //<- relative tolerance
     int w_size = 1000;
     gsl_integration_workspace * w
     = gsl_integration_workspace_alloc (w_size);
@@ -1481,18 +1481,16 @@ double FgtrM_wsigma(double z, double sig){
     return splined_erfc(del / (sqrt(2)*sig));
 }
 
-double FgtrM_General(double z, double M){
+double Fcoll_General(double z, double lnM_min, double lnM_max){
     double lower_limit, upper_limit, growthf;
 
     growthf = dicke(z);
-    lower_limit = log(M);
-    upper_limit = log(fmax(global_params.M_MAX_INTEGRAL, M*100));
     struct parameters_gsl_MF_integrals integral_params = {
                 .redshift = z,
                 .growthf = growthf,
                 .HMF = user_params_ps->HMF,
     };
-    return IntegratedNdM(lower_limit, upper_limit, integral_params, 2, 0) / (cosmo_params_ps->OMm*RHOcrit);
+    return IntegratedNdM(lnM_min, lnM_max, integral_params, 2, 0) / (cosmo_params_ps->OMm*RHOcrit);
 }
 
 double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10,
