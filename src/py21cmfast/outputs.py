@@ -50,6 +50,10 @@ class _OutputStruct(_BaseOutputStruct):
 class _OutputStructZ(_OutputStruct):
     _inputs = _OutputStruct._inputs + ("redshift",)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.redshift = float(self.redshift)
+
 
 class InitialConditions(_OutputStruct):
     """A class containing all initial conditions boxes."""
