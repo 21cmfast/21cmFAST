@@ -241,11 +241,12 @@ void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m, dou
     double sfr,sfr_mini;
     get_halo_sfr(stellar_mass,stellar_mass_mini,input_rng[1],consts,&sfr,&sfr_mini);
 
-    double metallicity;
-    get_halo_metallicity(sfr+sfr_mini,stellar_mass+stellar_mass_mini,consts->redshift,&metallicity);
-
-    double xray_lum;
-    get_halo_xray(sfr,sfr_mini,metallicity,input_rng[2],consts,&xray_lum);
+    double metallicity=0;
+    double xray_lum=0;
+    if(flag_options_stoc->USE_TS_FLUCT){
+        get_halo_metallicity(sfr+sfr_mini,stellar_mass+stellar_mass_mini,consts->redshift,&metallicity);
+        get_halo_xray(sfr,sfr_mini,metallicity,input_rng[2],consts,&xray_lum);
+    }
 
     //no rng for escape fraction yet
     fesc = fmin(consts->fesc_10*pow(halo_mass/1e10,consts->alpha_esc),1);
@@ -564,7 +565,7 @@ void sum_halos_onto_grid(struct InitialConditions *ini_boxes, struct TsBox *prev
     {
         int x,y,z;
         unsigned long long int i_halo,i_cell;
-        double m,nion,sfr,wsfr,sfr_mini,stars_mini,stars,xray;
+        double hmass,nion,sfr,wsfr,sfr_mini,stars_mini,stars,xray;
         double J21_val, Gamma12_val, zre_val;
 
         double curr_vcb = consts->vcb_norel;
@@ -577,10 +578,10 @@ void sum_halos_onto_grid(struct InitialConditions *ini_boxes, struct TsBox *prev
 
     #pragma omp for reduction(+:hm_avg,sm_avg,sm_avg_mini,sfr_avg,sfr_avg_mini,n_ion_avg,xray_avg,wsfr_avg,M_turn_a_avg,M_turn_m_avg,M_turn_r_avg,n_halos_cut)
         for(i_halo=0; i_halo<halos->n_halos; i_halo++){
-            m = halos->halo_masses[i_halo];
+            hmass = halos->halo_masses[i_halo];
             //It is sometimes useful to make cuts to the halo catalogues before gridding.
             //  We implement this in a simple way, if the user sets a halo's mass to zero we skip it
-            if(m == 0.){
+            if(hmass == 0.){
                 n_halos_cut++;
                 continue;
             }
@@ -611,7 +612,7 @@ void sum_halos_onto_grid(struct InitialConditions *ini_boxes, struct TsBox *prev
             in_props[1] = halos->sfr_rng[i_halo];
             in_props[2] = halos->xray_rng[i_halo];
 
-            set_halo_properties(halos->halo_masses[i_halo],M_turn_a,M_turn_m,M_turn_r,consts,in_props,&out_props);
+            set_halo_properties(hmass,M_turn_a,M_turn_m,M_turn_r,consts,in_props,&out_props);
 
             sfr = out_props.halo_sfr;
             sfr_mini = out_props.sfr_mini;
@@ -630,7 +631,7 @@ void sum_halos_onto_grid(struct InitialConditions *ini_boxes, struct TsBox *prev
 
             //update the grids
             #pragma omp atomic update
-            grids->halo_mass[i_cell] += m;
+            grids->halo_mass[i_cell] += hmass;
             #pragma omp atomic update
             grids->halo_stars[i_cell] += stars;
             #pragma omp atomic update
@@ -649,7 +650,7 @@ void sum_halos_onto_grid(struct InitialConditions *ini_boxes, struct TsBox *prev
             grids->count[i_cell] += 1;
 
             M_turn_m_avg += M_turn_m;
-            hm_avg += m;
+            hm_avg += hmass;
             sfr_avg += sfr;
             sfr_avg_mini += sfr_mini;
             sm_avg += stars;
