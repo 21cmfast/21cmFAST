@@ -940,7 +940,7 @@ class _HighLevelOutput:
         kwargs = {}
         with h5py.File(fname, "r") as fl:
             glbls = dict(fl["_globals"].attrs)
-            kwargs["redshift"] = fl.attrs["redshift"]
+            kwargs["redshift"] = float(fl.attrs["redshift"])
 
             if "photon_nonconservation_data" in fl.keys():
                 d = fl["photon_nonconservation_data"]
@@ -1005,7 +1005,7 @@ class Coeval(_HighLevelOutput):
             ignore=[],
         )
 
-        self.redshift = redshift
+        self.redshift = float(redshift)
         self.init_struct = initial_conditions
         self.perturb_struct = perturbed_field
         self.ionization_struct = ionized_box
@@ -1142,8 +1142,8 @@ class LightCone(_HighLevelOutput):
         current_redshift=None,
         current_index=None,
     ):
-        self.redshift = redshift
-        self.random_seed = random_seed
+        self.redshift = float(redshift)
+        self.random_seed = int(random_seed)
         self.user_params = user_params
         self.cosmo_params = cosmo_params
         self.astro_params = astro_params
@@ -1152,7 +1152,7 @@ class LightCone(_HighLevelOutput):
         self.cache_files = cache_files
         self.log10_mturnovers = log10_mturnovers
         self.log10_mturnovers_mini = log10_mturnovers_mini
-        self._current_redshift = current_redshift or redshift
+        self._current_redshift = float(current_redshift or redshift)
         self.lightcone_distances = distances
 
         if not hasattr(self.lightcone_distances, "unit"):
