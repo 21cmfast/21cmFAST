@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: [3.9, "3.10", "3.11"]
+        python-version: [3.9, "3.10", "3.11", "3.12"]
     defaults:
      run:
        # Adding -l {0} ensures conda can be found properly in each step
@@ -112,5 +112,3 @@ jobs:
           fail_ci_if_error: true
           verbose: true
           token: ${{ secrets.CODECOV_TOKEN }}
-
-# CC=$HOME/miniconda/envs/$ENV_NAME/bin/gcc
