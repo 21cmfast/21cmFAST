@@ -25,7 +25,6 @@ struct HaloBoxConstants{
 
     double l_x;
     double l_x_mini;
-    double lx_mini_ratio;
     double sigma_xray;
 
     double fesc_10;
@@ -79,11 +78,8 @@ void set_hbox_constants(double redshift, struct AstroParams *astro_params, struc
     consts->sigma_sfr_lim = astro_params->SIGMA_SFR_LIM;
     consts->sigma_sfr_idx = astro_params->SIGMA_SFR_INDEX;
 
-    consts->l_x = astro_params->L_X;
-    consts->l_x_mini = astro_params->L_X_MINI;
-    //The single precision grids do not like numbers ~1e40 so we do everything as a ratio of L_X
-    //  We cannot use log units since we have to sum them.
-    consts->lx_mini_ratio = consts->l_x_mini/consts->l_x;
+    consts->l_x = astro_params->L_X * 1e-40; //setting units to 1e40 erg s -1 so we can store in float
+    consts->l_x_mini = astro_params->L_X_MINI * 1e-40;
     consts->sigma_xray = astro_params->SIGMA_LX;
 
     consts->alpha_esc = astro_params->ALPHA_ESC;
@@ -175,7 +171,7 @@ void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
     //We use the total stellar mass (MCG + ACG) NOTE: it might be better to separate later
     double sigma_sfr=0.;
     if(sigma_sfr_lim > 0.){
-        sigma_sfr = sigma_sfr_idx * log((stellar_mass+stellar_mass_mini)/1e10) + sigma_sfr_lim;
+        sigma_sfr = sigma_sfr_idx * log10((stellar_mass+stellar_mass_mini)/1e10) + sigma_sfr_lim;
         if(sigma_sfr < sigma_sfr_lim) sigma_sfr = sigma_sfr_lim;
     }
     sfr_mean = stellar_mass / (consts->t_star * consts->t_h);
@@ -205,17 +201,17 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
 void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng, struct HaloBoxConstants *consts, double *xray_out){
     //Hardcoded for now (except the lx normalisation and the scatter): 3 extra fit parameters in the equation
     double xray, xray_mini;
-    double lnz = log(metallicity);
-    xray = (-0.11*lnz + 1.30)*log(sfr*SperYR) - 0.31*lnz;
-    xray = exp(xray + xray_rng*consts->sigma_xray);
+    double l10z = log10(metallicity);
+    xray = (-0.11*l10z + 1.30)*log10(sfr*SperYR) - 0.31*l10z;
+    xray = exp(LN10*xray + xray_rng*consts->sigma_xray);
 
     xray_mini = 0.;
     if(flag_options_stoc->USE_MINI_HALOS){
-        xray_mini = (-0.11*lnz + 1.30)*log(sfr_mini*SperYR) - 0.31*lnz;
-        xray_mini = exp(xray_mini + xray_rng*consts->sigma_xray);
+        xray_mini = (-0.11*l10z + 1.30)*log10(sfr_mini*SperYR) - 0.31*l10z;
+        xray_mini = exp(LN10*xray_mini + xray_rng*consts->sigma_xray);
     }
 
-    *xray_out = xray + xray_mini*consts->lx_mini_ratio;
+    *xray_out = xray*consts->l_x + xray_mini*consts->l_x_mini;
 }
 
 //calculates halo properties from astro parameters plus the correlated rng
@@ -298,8 +294,8 @@ int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_bo
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * global_params.Pop3_ion;
     double prefactor_wsfr = prefactor_sfr * consts->fesc_10;
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7;
-    double prefactor_xray = prefactor_sfr * SperYR;
-    double prefactor_xray_mini = prefactor_sfr_mini * consts->lx_mini_ratio * SperYR;
+    double prefactor_xray = prefactor_sfr * SperYR * consts->l_x;
+    double prefactor_xray_mini = prefactor_sfr_mini * consts->l_x_mini * SperYR;
 
     double hm_avg=0, nion_avg=0, sfr_avg=0, sfr_avg_mini=0, wsfr_avg=0, xray_avg=0;
     double Mlim_a_avg=0, Mlim_m_avg=0, Mlim_r_avg=0, sm_avg=0, sm_avg_mini=0;
@@ -476,8 +472,8 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     double prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * global_params.Pop3_ion;
     double prefactor_wsfr = prefactor_sfr * consts->fesc_10;
     double prefactor_wsfr_mini = prefactor_sfr_mini * consts->fesc_7;
-    double prefactor_xray = prefactor_sfr * SperYR;
-    double prefactor_xray_mini = prefactor_sfr_mini * consts->lx_mini_ratio * SperYR;
+    double prefactor_xray = prefactor_sfr * SperYR * consts->l_x;
+    double prefactor_xray_mini = prefactor_sfr_mini * consts->l_x_mini * SperYR;
 
     double mass_intgrl, h_count;
     double intgrl_fesc_weighted, intgrl_stars_only;
@@ -521,7 +517,7 @@ void halobox_debug_print_avg(struct HaloProperties *averages_box, struct HaloPro
         return;
     struct HaloProperties averages_sub_expected, averages_global;
     LOG_DEBUG("HALO BOXES REDSHIFT %.2f [%.2e %.2e]",consts->redshift,M_min,M_cell);
-    if(!flag_options_stoc->FIXED_HALO_GRIDS){
+    if(flag_options_stoc->FIXED_HALO_GRIDS){
         get_box_averages(M_min, M_cell, averages_box->m_turn_acg, averages_box->m_turn_mcg, consts, &averages_global);
     }
     else{
@@ -890,16 +886,21 @@ int test_halo_props(double redshift, struct UserParams *user_params, struct Cosm
 
                 set_halo_properties(m,M_turn_a,M_turn_m,M_turn_r,&hbox_consts,in_props,&out_props);
 
-                halo_props[10*i_halo + 0] = out_props.stellar_mass;
-                halo_props[10*i_halo + 1] = out_props.halo_sfr;
-                halo_props[10*i_halo + 2] = out_props.halo_xray;
-                halo_props[10*i_halo + 3] = out_props.n_ion;
-                halo_props[10*i_halo + 4] = out_props.fescweighted_sfr;
-                halo_props[10*i_halo + 5] = out_props.stellar_mass_mini;
-                halo_props[10*i_halo + 6] = out_props.sfr_mini;
-                halo_props[10*i_halo + 7] = out_props.m_turn_acg;
-                halo_props[10*i_halo + 8] = out_props.m_turn_mcg;
-                halo_props[10*i_halo + 9] = out_props.m_turn_reion;
+                halo_props[12*i_halo +  0] = out_props.halo_mass;
+                halo_props[12*i_halo +  1] = out_props.stellar_mass;
+                halo_props[12*i_halo +  2] = out_props.halo_sfr;
+
+                halo_props[12*i_halo +  3] = out_props.halo_xray;
+                halo_props[12*i_halo +  4] = out_props.n_ion;
+                halo_props[12*i_halo +  5] = out_props.fescweighted_sfr;
+
+                halo_props[12*i_halo +  6] = out_props.stellar_mass_mini;
+                halo_props[12*i_halo +  7] = out_props.sfr_mini;
+
+                halo_props[12*i_halo +  8] = out_props.m_turn_acg;
+                halo_props[12*i_halo +  9] = out_props.m_turn_mcg;
+                halo_props[12*i_halo + 10] = out_props.m_turn_reion;
+                halo_props[12*i_halo + 11] = out_props.metallicity;
 
                 // LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e",m,out_props.stellar_mass,out_props.halo_sfr,out_props.n_ion,out_props.halo_xray);
                 // LOG_ULTRA_DEBUG("MINI: SM %.2e SF %.2e WSF %.2e Mta %.2e Mtm %.2e Mtr %.2e",out_props.stellar_mass_mini,out_props.sfr_mini,out_props.fescweighted_sfr,

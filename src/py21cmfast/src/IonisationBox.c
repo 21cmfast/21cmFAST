@@ -1215,10 +1215,9 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                             //Use unfiltered density for CELL_RECOMB case, since the "Fcoll" represents photons
                             //  reaching the central cell rather than photons in the entire sphere
                             if(flag_options->CELL_RECOMB)
-                                curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
-                            else
                                 curr_dens = perturbed_field->density[HII_R_INDEX(x,y,z)];
-
+                            else
+                                curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
                             Splined_Fcoll = box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
 

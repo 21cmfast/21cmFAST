@@ -1498,8 +1498,8 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
 
                     if(flag_options->USE_HALO_FIELD){
                         sfr_term = source_box->filtered_sfr[R_index*HII_TOT_NUM_PIXELS + box_ct] * z_edge_factor;
-                        //Minihalos and s->yr conversion are included here, but multiplied by the ratio of L_X_MINI to L_X
-                        xray_sfr = source_box->filtered_xray[R_index*HII_TOT_NUM_PIXELS + box_ct] * z_edge_factor * xray_R_factor * astro_params->L_X;
+                        //Minihalos and s->yr conversion are already included here
+                        xray_sfr = source_box->filtered_xray[R_index*HII_TOT_NUM_PIXELS + box_ct] * z_edge_factor * xray_R_factor * 1e40;
                     }
                     else{
                         //NOTE: for !USE_MASS_DEPENDENT_ZETA, F_STAR10 is still used for constant stellar fraction
