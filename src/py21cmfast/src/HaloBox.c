@@ -26,6 +26,8 @@ struct HaloBoxConstants{
     double l_x;
     double l_x_mini;
     double sigma_xray;
+    double l_x_param_adjustment;
+    double l_x_param_adjustment_mini;
 
     double fesc_10;
     double alpha_esc;
@@ -59,6 +61,63 @@ struct HaloProperties{
     double m_turn_reion;
 };
 
+//The mean Lx_over_SFR given by Lehmer+2021, by integrating analyitically over their double power-law + exponential Luminosity function
+//NOTE: this relation is fit to low-z, and there is a PEAK of Lx/SFR around 10% solar due to the critical L term
+double lx_on_sfr_Lehmer(double metallicity){
+    double l10z = log10(metallicity);
+
+    //LF parameters from Lehmer+2021
+    double slope_low = 1.74;
+    double slope_high = 1.16 + 1.34*l10z;
+    double xray_norm = 1.29;
+    double l10break_L = 38.54 - 38.; //the -38 written explicitly for clarity on our units
+    double l10crit_L = 39.98 - 38. + 0.6*l10z;
+    double L_ratio = pow(10,l10break_L - l10crit_L);
+
+    //The double power-law + exponential integrates to an upper and lower incomplete Gamma function
+    //since the slope is < 2 we don't need to set a lower limit, but this can be done by replacing
+    //gamma(2-y_low) with gamma_inc(2-y_low,L_lower/L_crit)
+    double prefactor_low = pow(10,l10crit_L*(2-slope_low));
+    double prefactor_high = pow(10,l10crit_L*(2-slope_high) + l10break_L*(slope_high-slope_low));
+    double gamma_low = gsl_sf_gamma(2-slope_low) - gsl_sf_gamma_inc(2-slope_low,L_ratio);
+    double gamma_high = gsl_sf_gamma_inc(2-slope_high,L_ratio);
+
+    double lx_over_sfr = xray_norm*(prefactor_low*gamma_low + prefactor_high*gamma_high);
+
+    return lx_over_sfr;
+}
+
+//first order power law Lx (e.g Kaur+22, Nikolic+24)
+double lx_on_sfr_PL(double sfr, double metallicity){
+    //Hardcoded for now (except the lx normalisation and the scatter): 3 extra fit parameters in the equation
+    //taking values from Kaur+22, constant factors controlled by astro_params->L_X
+    double sfr_index = 0.03;
+    double z_index = -0.64;
+    double cross_index = 0.0;
+    double l10z = log10(metallicity);
+
+    double lx_over_sfr = (cross_index*l10z + sfr_index)*log10(sfr*SperYR) + z_index*l10z;
+    return pow(10,lx_over_sfr);
+}
+
+//Schechter function from Kaur+22
+double lx_on_sfr_Schechter(double metallicity){
+    //Hardcoded for now (except the lx normalisation and the scatter): 3 extra fit parameters in the equation
+    //taking values from Kaur+22, constant factors controlled by astro_params->L_X
+    double z_turn = 8e-3/0.02; //convert to solar
+    double logz_index = 0.3;
+    double l10z = log10(metallicity/z_turn);
+
+    double lx_over_sfr = logz_index*l10z - metallicity/z_turn;
+    return pow(10,lx_over_sfr);
+}
+
+double get_lx_on_sfr(double sfr, double metallicity){
+    // return lx_on_sfr_Lehmer(metallicity);
+    // return lx_on_sfr_Schechter(metallicity);
+    return lx_on_sfr_PL(sfr,metallicity);
+}
+
 void set_hbox_constants(double redshift, struct AstroParams *astro_params, struct FlagOptions *flag_options, struct HaloBoxConstants *consts){
     consts->redshift = redshift;
 
@@ -78,9 +137,15 @@ void set_hbox_constants(double redshift, struct AstroParams *astro_params, struc
     consts->sigma_sfr_lim = astro_params->SIGMA_SFR_LIM;
     consts->sigma_sfr_idx = astro_params->SIGMA_SFR_INDEX;
 
-    consts->l_x = astro_params->L_X * 1e-40; //setting units to 1e40 erg s -1 so we can store in float
-    consts->l_x_mini = astro_params->L_X_MINI * 1e-40;
+    consts->l_x = astro_params->L_X * 1e-38; //setting units to 1e38 erg s -1 so we can store in float
+    consts->l_x_mini = astro_params->L_X_MINI * 1e-38;
     consts->sigma_xray = astro_params->SIGMA_LX;
+
+    //Since we have a few models, it's easiest to say that the parameter
+    //  is LX/SFR at solar metallicity and 1 Msun/yr and force it using a prefactor
+    double lx_zsun = get_lx_on_sfr(1.,1.);
+    consts->l_x_param_adjustment = consts->l_x/lx_zsun;
+    consts->l_x_param_adjustment_mini = consts->l_x_mini/lx_zsun;
 
     consts->alpha_esc = astro_params->ALPHA_ESC;
     consts->fesc_10= astro_params->F_ESC10;
@@ -199,19 +264,15 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
 }
 
 void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng, struct HaloBoxConstants *consts, double *xray_out){
-    //Hardcoded for now (except the lx normalisation and the scatter): 3 extra fit parameters in the equation
-    double xray, xray_mini;
-    double l10z = log10(metallicity);
-    xray = (-0.11*l10z + 1.30)*log10(sfr*SperYR) - 0.31*l10z;
-    xray = exp(LN10*xray + xray_rng*consts->sigma_xray);
+    double lx_over_sfr = get_lx_on_sfr(sfr,metallicity);
+    double xray = lx_over_sfr*(sfr*SperYR)*exp(xray_rng*consts->sigma_xray)*consts->l_x_param_adjustment;
 
-    xray_mini = 0.;
     if(flag_options_stoc->USE_MINI_HALOS){
-        xray_mini = (-0.11*l10z + 1.30)*log10(sfr_mini*SperYR) - 0.31*l10z;
-        xray_mini = exp(LN10*xray_mini + xray_rng*consts->sigma_xray);
+        lx_over_sfr = get_lx_on_sfr(sfr_mini,metallicity); //Since there *are* some SFR-dependent models, this is done separately
+        xray += lx_over_sfr*(sfr_mini*SperYR)*exp(xray_rng*consts->sigma_xray)*consts->l_x_param_adjustment_mini;
     }
 
-    *xray_out = xray*consts->l_x + xray_mini*consts->l_x_mini;
+    *xray_out = xray ;
 }
 
 //calculates halo properties from astro parameters plus the correlated rng
