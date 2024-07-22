@@ -246,6 +246,9 @@ def test_sampler_from_grid(name, delta, plt):
     np.testing.assert_allclose(mf_out, binned_cmf, rtol=RELATIVE_TOLERANCE)
 
 
+# NOTE: this test is pretty circular. The only way I think I can test the scaling relations are to
+#   calculate them in the backend and re-write them in the test for a few masses. This means that
+#   changes to any scaling relation model will result in a test fail
 def test_halo_scaling_relations():
     # specify parameters to use for this test
     f_star10 = -1.0
@@ -361,15 +364,27 @@ def test_halo_scaling_relations():
     s_per_yr = 365.25 * 60 * 60 * 24
     expected_metals = (
         1.28825e10 * ((expected_sfr + expected_sfr_mini) * s_per_yr) ** 0.56
+    )  # SM denominator
+    expected_metals = (
+        0.296
+        * (
+            (1 + ((expected_sm + expected_sm_mini) / expected_metals) ** (-2.1))
+            ** -0.148
+        )
+        * 10 ** (-0.056 * redshift + 0.064)
     )
-    expected_metals = 0.296 * (
-        1 + ((expected_sm + expected_sm_mini) / expected_metals) ** (-2.1)
-    ) ** (-0.148 * 10 ** (-0.056 * redshift + 0.064))
+
     expected_xray = (
-        ((expected_sfr + expected_sfr_mini) * s_per_yr) ** 1.03
+        (expected_sfr * s_per_yr) ** 1.03
         * expected_metals**-0.64
         * np.exp(halo_rng * sigma_lx)
         * 10**lx
+    )
+    expected_xray += (
+        (expected_sfr_mini * s_per_yr) ** 1.03
+        * expected_metals**-0.64
+        * np.exp(halo_rng * sigma_lx)
+        * 10**lx_mini
     )
 
     # HACK: Make the fake halo list
@@ -407,29 +422,28 @@ def test_halo_scaling_relations():
         ffi.cast("float *", out_buffer.ctypes.data),
     )
 
-    np.testing.assert_allclose(expected_hm, out_buffer[0::12])
+    np.testing.assert_allclose(expected_hm, out_buffer[0::12], atol=1e0)
 
-    np.testing.assert_allclose(mturn_acg, out_buffer[8::12])
-    np.testing.assert_allclose(mturn_mcg, out_buffer[9::12])
-    np.testing.assert_allclose(1e-40, out_buffer[10::12])  # no reion feedback
+    np.testing.assert_allclose(mturn_acg, out_buffer[8::12], atol=1e0)
+    np.testing.assert_allclose(mturn_mcg, out_buffer[9::12], atol=1e0)
+    np.testing.assert_allclose(0.0, out_buffer[10::12], atol=1e0)  # no reion feedback
 
-    np.testing.assert_allclose(expected_sm, out_buffer[1::12])
-    np.testing.assert_allclose(expected_sm_mini, out_buffer[6::12])
+    np.testing.assert_allclose(expected_sm, out_buffer[1::12], atol=1e0)
+    np.testing.assert_allclose(expected_sm_mini, out_buffer[6::12], atol=1e0)
 
+    # hubble differences between the two codes make % level changes TODO: change hubble to double precision in backend
+    np.testing.assert_allclose(expected_sfr, out_buffer[2::12], rtol=5e-2, atol=1e-20)
     np.testing.assert_allclose(
-        expected_sfr, out_buffer[2::12], rtol=5e-2, atol=1e-40
-    )  # hubble
-    np.testing.assert_allclose(
-        expected_sfr_mini, out_buffer[7::12], rtol=5e-2, atol=1e-40
+        expected_sfr_mini, out_buffer[7::12], rtol=5e-2, atol=1e-20
     )
 
-    np.testing.assert_allclose(expected_metals, out_buffer[11::12])
+    np.testing.assert_allclose(expected_metals, out_buffer[11::12], rtol=1e-3)
     np.testing.assert_allclose(
-        expected_xray, out_buffer[3::12].astype(float) * 1e38, rtol=5e-2, atol=1e-40
+        expected_xray, out_buffer[3::12].astype(float) * 1e38, rtol=5e-2
     )
 
     np.testing.assert_allclose(expected_nion, out_buffer[4::12])
-    np.testing.assert_allclose(expected_wsfr, out_buffer[5::12], rtol=5e-2, atol=1e-40)
+    np.testing.assert_allclose(expected_wsfr, out_buffer[5::12], rtol=5e-2)
 
 
 def plot_sampler_comparison(

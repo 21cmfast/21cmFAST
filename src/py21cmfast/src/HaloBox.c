@@ -143,7 +143,7 @@ void set_hbox_constants(double redshift, struct AstroParams *astro_params, struc
 
     //Since we have a few models, it's easiest to say that the parameter
     //  is LX/SFR at solar metallicity and 1 Msun/yr and force it using a prefactor
-    double lx_zsun = get_lx_on_sfr(1.,1.);
+    double lx_zsun = get_lx_on_sfr(1./SperYR,1.);
     consts->l_x_param_adjustment = consts->l_x/lx_zsun;
     consts->l_x_param_adjustment_mini = consts->l_x_mini/lx_zsun;
 
@@ -217,7 +217,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
         return;
     }
 
-    f_sample_mini = pow(halo_mass/1e7,f_a_mini) * f_7 * exp(-mturn_mcg/halo_mass - halo_mass/mturn_acg + star_rng);
+    f_sample_mini = pow(halo_mass/1e7,f_a_mini) * f_7 * exp(-mturn_mcg/halo_mass - halo_mass/mturn_acg + star_rng*sigma_star);
     if(f_sample_mini > 1.) f_sample_mini = 1.;
 
     sm_sample_mini = f_sample_mini * halo_mass * baryon_ratio;
@@ -370,8 +370,6 @@ int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_bo
     min_density = min_density*1.001;
     max_density = max_density*1.001;
 
-    double M_turn_a_nofb = consts->mturn_a_nofb;
-
     LOG_DEBUG("Mean halo boxes || M = [%.2e %.2e] | Mcell = %.2e (s=%.2e) | z = %.2e | D = %.2e",M_min,M_max,M_cell,sigma_cell,
                 consts->redshift,growth_z);
 
@@ -429,7 +427,7 @@ int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_bo
                     Gamma12_val = previous_ionize_box->Gamma12_box[i];
                     zre_val = previous_ionize_box->z_re_box[i];
                 }
-                M_turn_a = M_turn_a_nofb;
+                M_turn_a = consts->mturn_a_nofb;
                 M_turn_m = lyman_werner_threshold(consts->redshift, J21_val, curr_vcb, astro_params_stoc);
                 M_turn_r = reionization_feedback(consts->redshift, Gamma12_val, zre_val);
                 M_turn_a = fmax(M_turn_a,fmax(M_turn_r,astro_params_stoc->M_TURN));
@@ -649,9 +647,10 @@ void sum_halos_onto_grid(struct InitialConditions *ini_boxes, struct TsBox *prev
                     Gamma12_val = previous_ionize_box->Gamma12_box[i_cell];
                     zre_val = previous_ionize_box->z_re_box[i_cell];
                 }
+
+                M_turn_a = consts->mturn_a_nofb;
                 M_turn_m = lyman_werner_threshold(redshift, J21_val, curr_vcb, astro_params_stoc);
                 M_turn_r = reionization_feedback(redshift, Gamma12_val, zre_val);
-
                 M_turn_a = fmax(M_turn_a,fmax(M_turn_r,astro_params_stoc->M_TURN));
                 M_turn_m = fmax(M_turn_m,fmax(M_turn_r,astro_params_stoc->M_TURN));
             }
@@ -884,7 +883,8 @@ int test_halo_props(double redshift, struct UserParams *user_params, struct Cosm
         struct HaloBoxConstants hbox_consts;
         set_hbox_constants(redshift,astro_params,flag_options,&hbox_consts);
 
-        LOG_DEBUG("Getting props for %llu halos at z=%.2f, (th = %.6e)...",halos->n_halos,redshift,hbox_consts.t_h);
+        LOG_DEBUG("Getting props for %llu halos at z=%.2f, (th = %.6e)... lxp %.6e lx %.6e",halos->n_halos,redshift,hbox_consts.t_h,
+                hbox_consts.l_x_param_adjustment,hbox_consts.l_x);
 
         #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
         {
@@ -926,8 +926,11 @@ int test_halo_props(double redshift, struct UserParams *user_params, struct Cosm
                         Gamma12_val = Gamma12_ion_grid[i_cell];
                         zre_val = z_re_grid[i_cell];
                     }
+                    M_turn_a = hbox_consts.mturn_a_nofb;
                     M_turn_m = lyman_werner_threshold(redshift, J21_val, curr_vcb, astro_params_stoc);
                     M_turn_r = reionization_feedback(redshift, Gamma12_val, zre_val);
+                    M_turn_a = fmax(M_turn_a,fmax(M_turn_r,astro_params_stoc->M_TURN));
+                    M_turn_m = fmax(M_turn_m,fmax(M_turn_r,astro_params_stoc->M_TURN));
                 }
 
                 //these are the halo property RNG sequences
@@ -948,9 +951,9 @@ int test_halo_props(double redshift, struct UserParams *user_params, struct Cosm
                 halo_props_out[12*i_halo +  6] = out_props.stellar_mass_mini;
                 halo_props_out[12*i_halo +  7] = out_props.sfr_mini;
 
-                halo_props_out[12*i_halo +  8] = out_props.m_turn_acg;
-                halo_props_out[12*i_halo +  9] = out_props.m_turn_mcg;
-                halo_props_out[12*i_halo + 10] = out_props.m_turn_reion;
+                halo_props_out[12*i_halo +  8] = M_turn_a;
+                halo_props_out[12*i_halo +  9] = M_turn_m;
+                halo_props_out[12*i_halo + 10] = M_turn_r;
                 halo_props_out[12*i_halo + 11] = out_props.metallicity;
 
                 LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e",out_props.halo_mass,out_props.stellar_mass,out_props.halo_sfr,out_props.n_ion,out_props.halo_xray);
