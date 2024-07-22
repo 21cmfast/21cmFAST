@@ -1073,13 +1073,13 @@ class AstroParams(StructWithDefaults):
     _defaults_ = {
         "HII_EFF_FACTOR": 30.0,
         "F_STAR10": -1.3,
-        "F_STAR7_MINI": -2.0,
+        "F_STAR7_MINI": None,
         "ALPHA_STAR": 0.5,
-        "ALPHA_STAR_MINI": 0.5,
+        "ALPHA_STAR_MINI": None,
         "F_ESC10": -1.0,
         "F_ESC7_MINI": -2.0,
         "ALPHA_ESC": -0.5,
-        "M_TURN": 8.7,
+        "M_TURN": None,
         "R_BUBBLE_MAX": None,
         "ION_Tvir_MIN": 4.69897,
         "L_X": 39.46,  # Kaur+22 and Brorby+16
@@ -1108,11 +1108,16 @@ class AstroParams(StructWithDefaults):
     }
 
     def __init__(
-        self, *args, INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"], **kwargs
+        self,
+        *args,
+        INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"],
+        USE_MINI_HALOS=FlagOptions._defaults_["USE_MINI_HALOS"],
+        **kwargs,
     ):
         # TODO: should try to get inhomo_reco out of here... just needed for default of
         #  R_BUBBLE_MAX.
         self.INHOMO_RECO = INHOMO_RECO
+        self.USE_MINI_HALOS = USE_MINI_HALOS
         super().__init__(*args, **kwargs)
 
     def convert(self, key, val):
@@ -1141,12 +1146,56 @@ class AstroParams(StructWithDefaults):
         if not self._R_BUBBLE_MAX:
             return 50.0 if self.INHOMO_RECO else 15.0
         if self.INHOMO_RECO and self._R_BUBBLE_MAX != 50:
-            logger.warn(
-                "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
+            warnings.warn(
+                f"You are setting R_BUBBLE_MAX {self._R_BUBBLE_MAX} != 50 when INHOMO_RECO=True. "
                 "This is non-standard (but allowed), and usually occurs upon manual "
                 "update of INHOMO_RECO"
             )
         return self._R_BUBBLE_MAX
+
+    @property
+    def M_TURN(self):
+        """The minimum turnover mass for halos which host stars, (set dynamically based on USE_MINI_HALOS)."""
+        if self._M_TURN is None:
+            return 5 if self.USE_MINI_HALOS else 8.7
+        return self._M_TURN
+
+    # set the default of the minihalo scalings to continue the same PL
+    @property
+    def F_STAR7_MINI(self):
+        """
+        The stellar-to-halo mass ratio at 1e7 Solar Masses for Molecularly cooled galaxies.
+
+        If the MCG scaling relations are not provided, we extend the ACG ones
+        """
+        if self._F_STAR7_MINI is None:
+            return self.F_STAR10 - 3 * self.ALPHA_STAR  # -3*alpha since 1e7/1e10 = 1e-3
+        return self._F_STAR7_MINI
+
+    # NOTE: Currently the default is not `None`, so this would normally do nothing.
+    #   We need to examine the MCG/ACG connection to popII/popIII stars and
+    #   discuss what this model should be.
+    @property
+    def F_ESC7_MINI(self):
+        """
+        The stellar-to-halo mass ratio at 1e7 Solar Masses for Molecularly cooled galaxies.
+
+        If set to `None`, we extend the ACG ones
+        """
+        if self._F_ESC7_MINI is None:
+            return self.F_ESC10 - 3 * self.ALPHA_ESC  # -3*alpha since 1e7/1e10 = 1e-3
+        return self._F_ESC7_MINI
+
+    @property
+    def ALPHA_STAR_MINI(self):
+        """
+        The power law index of the SHMR for Molecularly cooled galaxies.
+
+        If the MCG scaling relations are not provided, we extend the ACG ones
+        """
+        if self._ALPHA_STAR_MINI is None:
+            return self.ALPHA_STAR
+        return self._ALPHA_STAR_MINI
 
     @property
     def X_RAY_Tvir_MIN(self):
@@ -1221,7 +1270,11 @@ def convert_input_dicts(
         user_params = UserParams(user_params)
         cosmo_params = CosmoParams(cosmo_params)
         flag_options = FlagOptions(flag_options)
-        astro_params = AstroParams(astro_params, INHOMO_RECO=flag_options.INHOMO_RECO)
+        astro_params = AstroParams(
+            astro_params,
+            INHOMO_RECO=flag_options.INHOMO_RECO,
+            USE_MINI_HALOS=flag_options.USE_MINI_HALOS,
+        )
     else:
         user_params = UserParams(user_params) if user_params else None
         cosmo_params = CosmoParams(cosmo_params) if cosmo_params else None
@@ -1231,8 +1284,15 @@ def convert_input_dicts(
             if flag_options is not None
             else FlagOptions().INHOMO_RECO
         )
+        minihalos = (
+            flag_options.USE_MINI_HALOS
+            if flag_options is not None
+            else FlagOptions().USE_MINI_HALOS
+        )
         astro_params = (
-            AstroParams(astro_params, INHOMO_RECO=inhomo_reco) if astro_params else None
+            AstroParams(astro_params, INHOMO_RECO=inhomo_reco, USE_MINI_HALOS=minihalos)
+            if astro_params
+            else None
         )
 
     return user_params, cosmo_params, astro_params, flag_options
@@ -1276,7 +1336,7 @@ def validate_all_inputs(
             and not user_params.USE_RELATIVE_VELOCITIES
             and not flag_options.FIX_VCB_AVG
         ):
-            logger.warn(
+            warnings.warn(
                 "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
             )
 
@@ -1289,10 +1349,10 @@ def validate_all_inputs(
             raise NotImplementedError(msg)
 
         if flag_options.USE_EXP_FILTER and not flag_options.USE_HALO_FIELD:
-            logger.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
+            warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
 
         if flag_options.USE_EXP_FILTER and global_params.HII_FILTER != 0:
-            logger.warn(
+            warnings.warn(
                 "USE_EXP_FILTER can only be used with a tophat HII_FILTER, setting HII_FILTER = 0"
             )
             global_params.HII_FILTER = 0
