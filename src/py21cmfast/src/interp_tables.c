@@ -265,7 +265,7 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
     double mturns[NMTURN], mturns_MINI[NMTURN];
     struct RGTable2D_f *table_2d, *table_mini;
 
-    LOG_DEBUG("Initialising Nion conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
+    LOG_SUPER_DEBUG("Initialising Nion conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
 
     growthf = dicke(z);
     double lnMmin = log(Mmin);
@@ -383,7 +383,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
     float Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
     int i,j,k,i_tot;
 
-    LOG_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
+    LOG_SUPER_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
 
     double lnM_condition = log(Mcond);
 

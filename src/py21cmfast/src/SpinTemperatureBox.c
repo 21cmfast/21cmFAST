@@ -515,7 +515,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
 
     if(flag_options_ts->USE_MINI_HALOS){
         curr_vcb = flag_options_ts->FIX_VCB_AVG ? global_params.VAVG : 0;
-        #pragma omp parallel for firstprivate(curr_vcb) private(i,j,k,curr_j21) num_threads(user_params_ts->N_THREADS) collapse(3)
+        #pragma omp parallel for firstprivate(curr_vcb) private(i,j,k,curr_j21,M_buf) num_threads(user_params_ts->N_THREADS) collapse(3)
         for(i=0;i<user_params_ts->HII_DIM;i++){
             for(j=0;j<user_params_ts->HII_DIM;j++){
                 for(k=0;k<HII_D_PARA;k++){
@@ -524,9 +524,10 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
                     }
                     curr_j21 = input_j21[HII_R_INDEX(i,j,k)];
                     //NOTE: we don't use reionization_feedback here, I assume it wouldn't do much but it's inconsistent
-                    M_buf = log10(lyman_werner_threshold(redshift,
-                                curr_j21, curr_vcb, astro_params_ts));
-                    *((float *)output_LW + HII_R_FFT_INDEX(i,j,k)) = M_buf;
+                    M_buf = lyman_werner_threshold(redshift,
+                                curr_j21, curr_vcb, astro_params_ts);
+                    M_buf = fmax(M_buf,astro_params_ts->M_TURN);
+                    *((float *)output_LW + HII_R_FFT_INDEX(i,j,k)) = log10(M_buf);
                 }
             }
         }

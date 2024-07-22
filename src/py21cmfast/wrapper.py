@@ -187,7 +187,7 @@ def _configure_inputs(
         if val is not None and data_val is not None and data_val != val:
             raise ValueError(
                 f"{key} has an inconsistent value with {dataset.__class__.__name__}."
-                f"Expected:\n\n{val}\n\nGot:\n\n{data_val}."
+                f" Expected:\n\n{val}\n\nGot:\n\n{data_val}."
             )
         if val is not None:
             output[i] = val

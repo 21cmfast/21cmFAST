@@ -445,7 +445,9 @@ LOG_SUPER_DEBUG("Calculating and outputting Mcrit boxes for atomic and molecular
                             //*((float *)Mcrit_RE_grid + HII_R_FFT_INDEX(x,y,z)) = Mcrit_RE;
                             //*((float *)Mcrit_LW_grid + HII_R_FFT_INDEX(x,y,z)) = Mcrit_LW;
                             Mturnover            = Mcrit_RE > Mcrit_atom ? Mcrit_RE : Mcrit_atom;
+                            Mturnover            = fmax(Mturnover,astro_params->M_TURN);
                             Mturnover_MINI       = Mcrit_RE > Mcrit_LW   ? Mcrit_RE : Mcrit_LW;
+                            Mturnover_MINI       = fmax(Mturnover_MINI,astro_params->M_TURN);
                             log10_Mturnover      = log10(Mturnover);
                             log10_Mturnover_MINI = log10(Mturnover_MINI);
 
