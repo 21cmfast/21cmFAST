@@ -685,7 +685,7 @@ void sum_halos_onto_grid(struct InitialConditions *ini_boxes, struct TsBox *prev
 
             #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
             if(x+y+z == 0){
-                LOG_ULTRA_DEBUG("Cell 0 Halo %d: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e Z %.2e",i_halo,m,stars,stars_mini,sfr,sfr_mini,xray,nion,wsfr,out_props.metallicity);
+                LOG_ULTRA_DEBUG("Cell 0 Halo %d: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e Z %.2e",i_halo,hmass,stars,stars_mini,sfr,sfr_mini,xray,nion,wsfr,out_props.metallicity);
                 LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e",M_turn_a,M_turn_m);
             }
             #endif
@@ -883,8 +883,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
 
 //test function for getting halo properties from the wrapper, can use a lot of memory for large catalogs
 int test_halo_props(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
-                    struct FlagOptions * flag_options, struct InitialConditions *ini_boxes, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos,
-                    struct TsBox *previous_spin_temp, struct IonizedBox *previous_ionize_box, float *halo_props){
+                    struct FlagOptions * flag_options, float * vcb_grid, float *J21_LW_grid, float *z_re_grid, float *Gamma12_ion_grid,
+                    struct PerturbHaloField *halos, float *halo_props_out){
     int status;
     Try{
         //get parameters
@@ -895,7 +895,7 @@ int test_halo_props(double redshift, struct UserParams *user_params, struct Cosm
         struct HaloBoxConstants hbox_consts;
         set_hbox_constants(redshift,astro_params,flag_options,&hbox_consts);
 
-        LOG_DEBUG("Getting props for %llu halos...",halos->n_halos);
+        LOG_DEBUG("Getting props for %llu halos at z=%.2f, (th = %.6e)...",halos->n_halos,redshift,hbox_consts.t_h);
 
         #pragma omp parallel num_threads(user_params_stoc->N_THREADS)
         {
@@ -929,13 +929,13 @@ int test_halo_props(double redshift, struct UserParams *user_params, struct Cosm
                 //NOTE: I could easily apply reionization feedback without minihalos but this was not done previously
                 if(flag_options_stoc->USE_MINI_HALOS){
                     if(!flag_options_stoc->FIX_VCB_AVG && user_params_stoc->USE_RELATIVE_VELOCITIES)
-                        curr_vcb = ini_boxes->lowres_vcb[i_cell];
+                        curr_vcb = vcb_grid[i_cell];
 
                     J21_val=Gamma12_val=zre_val=0.;
                     if(redshift < global_params.Z_HEAT_MAX){
-                        J21_val = previous_spin_temp->J_21_LW_box[i_cell];
-                        Gamma12_val = previous_ionize_box->Gamma12_box[i_cell];
-                        zre_val = previous_ionize_box->z_re_box[i_cell];
+                        J21_val = J21_LW_grid[i_cell];
+                        Gamma12_val = Gamma12_ion_grid[i_cell];
+                        zre_val = z_re_grid[i_cell];
                     }
                     M_turn_m = lyman_werner_threshold(redshift, J21_val, curr_vcb, astro_params_stoc);
                     M_turn_r = reionization_feedback(redshift, Gamma12_val, zre_val);
@@ -948,31 +948,27 @@ int test_halo_props(double redshift, struct UserParams *user_params, struct Cosm
 
                 set_halo_properties(m,M_turn_a,M_turn_m,M_turn_r,&hbox_consts,in_props,&out_props);
 
-                halo_props[12*i_halo +  0] = out_props.halo_mass;
-                halo_props[12*i_halo +  1] = out_props.stellar_mass;
-                halo_props[12*i_halo +  2] = out_props.halo_sfr;
+                halo_props_out[12*i_halo +  0] = out_props.halo_mass;
+                halo_props_out[12*i_halo +  1] = out_props.stellar_mass;
+                halo_props_out[12*i_halo +  2] = out_props.halo_sfr;
 
-                halo_props[12*i_halo +  3] = out_props.halo_xray;
-                halo_props[12*i_halo +  4] = out_props.n_ion;
-                halo_props[12*i_halo +  5] = out_props.fescweighted_sfr;
+                halo_props_out[12*i_halo +  3] = out_props.halo_xray;
+                halo_props_out[12*i_halo +  4] = out_props.n_ion;
+                halo_props_out[12*i_halo +  5] = out_props.fescweighted_sfr;
 
-                halo_props[12*i_halo +  6] = out_props.stellar_mass_mini;
-                halo_props[12*i_halo +  7] = out_props.sfr_mini;
+                halo_props_out[12*i_halo +  6] = out_props.stellar_mass_mini;
+                halo_props_out[12*i_halo +  7] = out_props.sfr_mini;
 
-                halo_props[12*i_halo +  8] = out_props.m_turn_acg;
-                halo_props[12*i_halo +  9] = out_props.m_turn_mcg;
-                halo_props[12*i_halo + 10] = out_props.m_turn_reion;
-                halo_props[12*i_halo + 11] = out_props.metallicity;
+                halo_props_out[12*i_halo +  8] = out_props.m_turn_acg;
+                halo_props_out[12*i_halo +  9] = out_props.m_turn_mcg;
+                halo_props_out[12*i_halo + 10] = out_props.m_turn_reion;
+                halo_props_out[12*i_halo + 11] = out_props.metallicity;
 
-                // LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e",m,out_props.stellar_mass,out_props.halo_sfr,out_props.n_ion,out_props.halo_xray);
-                // LOG_ULTRA_DEBUG("MINI: SM %.2e SF %.2e WSF %.2e Mta %.2e Mtm %.2e Mtr %.2e",out_props.stellar_mass_mini,out_props.sfr_mini,out_props.fescweighted_sfr,
-                //                 out_props.m_turn_acg,out_props.m_turn_mcg,out_props.m_turn_reion);
-                // LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e",in_props[0],in_props[1],in_props[2]);
+                LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e",out_props.halo_mass,out_props.stellar_mass,out_props.halo_sfr,out_props.n_ion,out_props.halo_xray);
+                LOG_ULTRA_DEBUG("MINI: SM %.2e SF %.2e WSF %.2e Mta %.2e Mtm %.2e Mtr %.2e",out_props.stellar_mass_mini,out_props.sfr_mini,out_props.fescweighted_sfr,
+                                out_props.m_turn_acg,out_props.m_turn_mcg,out_props.m_turn_reion);
+                LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e",in_props[0],in_props[1],in_props[2]);
             }
-        }
-
-        if(user_params->USE_INTERPOLATION_TABLES){
-            freeSigmaMInterpTable();
         }
     }
     Catch(status){

@@ -3,7 +3,14 @@ import pytest
 import matplotlib as mpl
 import numpy as np
 
-from py21cmfast import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+from py21cmfast import (
+    AstroParams,
+    CosmoParams,
+    FlagOptions,
+    PerturbHaloField,
+    UserParams,
+    global_params,
+)
 from py21cmfast.c_21cmfast import ffi, lib
 
 from . import produce_integration_test_data as prd
@@ -14,7 +21,7 @@ RELATIVE_TOLERANCE = 1e-1
 options_hmf = list(cint.OPTIONS_HMF.keys())
 
 options_delta = [-0.9, 0, 1, 1.6]  # cell densities to draw samples from
-options_mass = [1e8, 1e9, 1e10, 1e11, 1e12]  # halo masses to draw samples from
+options_mass = [1e9, 1e10, 1e11, 1e12]  # halo masses to draw samples from
 
 
 @pytest.mark.parametrize("name", options_hmf)
@@ -33,7 +40,7 @@ def test_sampler_from_catalog(name, mass, plt):
     lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
     lib.Broadcast_struct_global_STOC(up(), cp(), ap(), fo())
 
-    l10min = np.log10(global_params.SAMPLER_MIN_MASS)
+    l10min = np.log10(up.SAMPLER_MIN_MASS)
     l10max = np.log10(mass)
     edges = np.logspace(l10min, l10max, num=int(10 * (l10max - l10min)))
     bin_minima = edges[:-1]
@@ -104,7 +111,7 @@ def test_sampler_from_catalog(name, mass, plt):
         mass,
         sigma_cond_m,
         delta_cond_m,
-        up.INTEGRATION_METHOD_HALOS,
+        0,
     )
 
     hist, _ = np.histogram(halomass_out, edges)
@@ -159,7 +166,7 @@ def test_sampler_from_grid(name, delta, plt):
     cellvol = (up.BOX_LEN / up.HII_DIM) ** 3
     cell_mass = cellvol * mass_dens
 
-    l10min = np.log10(global_params.SAMPLER_MIN_MASS)
+    l10min = np.log10(up.SAMPLER_MIN_MASS)
     l10max = np.log10(cell_mass)
     edges = np.logspace(l10min, l10max, num=int(10 * (l10max - l10min)))
     bin_minima = edges[:-1]
@@ -214,7 +221,7 @@ def test_sampler_from_grid(name, delta, plt):
         cell_mass,
         sigma_cond,
         delta,
-        up.INTEGRATION_METHOD_HALOS,
+        0,
     )
 
     hist, _ = np.histogram(halomass_out, edges)
@@ -237,6 +244,192 @@ def test_sampler_from_grid(name, delta, plt):
     np.testing.assert_allclose(N_out.mean(), exp_N[0], rtol=RELATIVE_TOLERANCE)
     np.testing.assert_allclose(M_out.mean(), exp_M[0], rtol=RELATIVE_TOLERANCE)
     np.testing.assert_allclose(mf_out, binned_cmf, rtol=RELATIVE_TOLERANCE)
+
+
+def test_halo_scaling_relations():
+    # specify parameters to use for this test
+    f_star10 = -1.0
+    f_star7 = -2.0
+    a_star = 1.0
+    a_star_mini = 1.0
+    t_star = 0.5
+    f_esc10 = -1.0
+    f_esc7 = -1.0
+    a_esc = -0.5  # for the test we don't want a_esc = -a_star
+    lx = 40.0
+    lx_mini = 40.0
+    sigma_star = 0.3
+    sigma_sfr_lim = 0.2
+    sigma_sfr_index = -0.12
+    sigma_lx = 0.5
+
+    redshift = 10.0
+
+    # setup specific parameters that so we know what the outcome should be
+    up = UserParams()
+    cp = CosmoParams()
+    ap = AstroParams(
+        F_STAR10=f_star10,
+        F_STAR7_MINI=f_star7,
+        ALPHA_STAR=a_star,
+        ALPHA_STAR_MINI=a_star_mini,
+        F_ESC10=f_esc10,
+        F_ESC7_MINI=f_esc7,
+        ALPHA_ESC=a_esc,
+        L_X=lx,
+        L_X_MINI=lx_mini,
+        SIGMA_STAR=sigma_star,
+        SIGMA_SFR_LIM=sigma_sfr_lim,
+        SIGMA_SFR_INDEX=sigma_sfr_index,
+        SIGMA_LX=sigma_lx,
+        t_STAR=0.5,
+        M_TURN=6.0,
+    )
+    # NOTE: Not using upper turnover, this test should be extended
+    fo = FlagOptions(
+        USE_MINI_HALOS=True,
+        USE_HALO_FIELD=True,
+        FIXED_HALO_GRIDS=False,
+        HALO_STOCHASTICITY=True,
+        USE_UPPER_STELLAR_TURNOVER=False,
+    )
+
+    lib.Broadcast_struct_global_UF(up(), cp())
+    mturn_acg = np.maximum(lib.atomic_cooling_threshold(redshift), 10**ap.M_TURN)
+    mturn_mcg = (
+        10**ap.M_TURN
+    )  # I don't want to test the LW or reionisation feedback here
+
+    print(f"turnovers [{mturn_acg},{mturn_mcg}]")
+    print(f"z={redshift} th = {1/cp.cosmo.H(redshift).to('s-1').value}")
+
+    # setup the halo masses to test
+    halo_masses = np.array([1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12])
+    halo_rng = np.ones_like(
+        halo_masses
+    )  # we set the RNG to one sigma above for the test
+
+    # independently calculate properties for the halos from our scaling relations
+    exp_fstar = (10**f_star10) * (halo_masses / 1e10) ** a_star
+    exp_fesc = np.minimum((10**f_esc10) * (halo_masses / 1e10) ** a_esc, 1)
+    exp_fstar_mini = (10**f_star7) * (halo_masses / 1e7) ** a_star_mini
+    exp_fesc_mini = np.minimum((10**f_esc7) * (halo_masses / 1e7) ** a_esc, 1)
+    b_r = cp.OMb / cp.OMm
+    acg_turnover = np.exp(-mturn_acg / halo_masses)
+    mcg_turnovers = np.exp(-halo_masses / mturn_acg) * np.exp(-mturn_mcg / halo_masses)
+
+    expected_hm = halo_masses
+    expected_sm = (
+        np.minimum(exp_fstar * np.exp(halo_rng * sigma_star) * acg_turnover, 1)
+        * halo_masses
+        * b_r
+    )
+    expected_sm_mini = (
+        np.minimum(exp_fstar_mini * np.exp(halo_rng * sigma_star) * mcg_turnovers, 1)
+        * halo_masses
+        * b_r
+    )
+
+    sigma_sfr = (
+        sigma_sfr_index * np.log10((expected_sm + expected_sm_mini) / 1e10)
+        + sigma_sfr_lim
+    )
+    sigma_sfr = np.maximum(sigma_sfr, sigma_sfr_lim)
+    expected_sfr = (
+        expected_sm
+        / t_star
+        * cp.cosmo.H(redshift).to("s-1").value
+        * np.exp(halo_rng * sigma_sfr)
+    )
+    expected_sfr_mini = (
+        expected_sm_mini
+        / t_star
+        * cp.cosmo.H(redshift).to("s-1").value
+        * np.exp(halo_rng * sigma_sfr)
+    )
+
+    expected_nion = (
+        expected_sm * exp_fesc * global_params.Pop2_ion
+        + expected_sm_mini * exp_fesc_mini * global_params.Pop3_ion
+    )
+    expected_wsfr = (
+        expected_sfr * exp_fesc * global_params.Pop2_ion
+        + expected_sfr_mini * exp_fesc_mini * global_params.Pop3_ion
+    )
+
+    # NOTE: These are currently hardcoded in the backend, changes will result in this test failing
+    s_per_yr = 365.25 * 60 * 60 * 24
+    expected_metals = (
+        1.28825e10 * ((expected_sfr + expected_sfr_mini) * s_per_yr) ** 0.56
+    )
+    expected_metals = 0.296 * (
+        1 + ((expected_sm + expected_sm_mini) / expected_metals) ** (-2.1)
+    ) ** (-0.148 * 10 ** (-0.056 * redshift + 0.064))
+    expected_xray = (
+        ((expected_sfr + expected_sfr_mini) * s_per_yr) ** 1.03
+        * expected_metals**-0.64
+        * np.exp(halo_rng * sigma_lx)
+        * 10**lx
+    )
+
+    # HACK: Make the fake halo list
+    fake_pthalos = PerturbHaloField(
+        redshift=redshift,
+        buffer_size=halo_masses.size,
+        user_params=up,
+        cosmo_params=cp,
+        astro_params=ap,
+        flag_options=fo,
+    )
+    fake_pthalos()  # initialise memory
+    fake_pthalos.halo_masses = halo_masses.astype("f4")
+    fake_pthalos.halo_corods = np.zeros(halo_masses.size * 3).astype("i4")
+    fake_pthalos.star_rng = halo_rng.astype("f4")
+    fake_pthalos.sfr_rng = halo_rng.astype("f4")
+    fake_pthalos.xray_rng = halo_rng.astype("f4")
+    fake_pthalos.n_halos = halo_masses.size
+
+    # single element zero array to act as the grids (vcb, J_21_LW, z_reion, Gamma12)
+    zero_array = ffi.cast("float *", np.zeros(1).ctypes.data)
+
+    out_buffer = np.zeros(12 * halo_masses.size).astype("f4")
+    lib.test_halo_props(
+        redshift,
+        up(),
+        cp(),
+        ap(),
+        fo(),
+        zero_array,
+        zero_array,
+        zero_array,
+        zero_array,
+        fake_pthalos(),
+        ffi.cast("float *", out_buffer.ctypes.data),
+    )
+
+    np.testing.assert_allclose(expected_hm, out_buffer[0::12])
+
+    np.testing.assert_allclose(mturn_acg, out_buffer[8::12])
+    np.testing.assert_allclose(mturn_mcg, out_buffer[9::12])
+    np.testing.assert_allclose(1e-40, out_buffer[10::12])  # no reion feedback
+
+    np.testing.assert_allclose(expected_sm, out_buffer[1::12])
+    np.testing.assert_allclose(expected_sm_mini, out_buffer[6::12])
+
+    np.testing.assert_allclose(
+        expected_sfr, out_buffer[2::12], rtol=5e-2, atol=1e-40
+    )  # hubble
+    np.testing.assert_allclose(
+        expected_sfr_mini, out_buffer[7::12], rtol=5e-2, atol=1e-40
+    )
+
+    np.testing.assert_allclose(expected_metals, out_buffer[11::12])
+    np.testing.assert_allclose(
+        expected_xray, out_buffer[3::12].astype(float) * 1e38, rtol=5e-2, atol=1e-40
+    )
+
+    np.testing.assert_allclose(expected_nion, out_buffer[4::12])
+    np.testing.assert_allclose(expected_wsfr, out_buffer[5::12], rtol=5e-2, atol=1e-40)
 
 
 def plot_sampler_comparison(

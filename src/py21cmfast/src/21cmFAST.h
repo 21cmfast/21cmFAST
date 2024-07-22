@@ -280,8 +280,8 @@ int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo
                         double *out_m_cell, double *out_m_exp, float *out_halo_masses, int *out_halo_coords);
 //test function for getting halo properties from the wrapper, can use a lot of memory for large catalogs
 int test_halo_props(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params,
-                    struct FlagOptions * flag_options, struct InitialConditions *ini_boxes, struct PerturbedField * perturbed_field, struct PerturbHaloField *halos,
-                    struct TsBox *previous_spin_temp, struct IonizedBox *previous_ionize_box, float *halo_props);
+                    struct FlagOptions * flag_options, float * vcb_grid, float *J21_LW_grid, float *z_re_grid, float *Gamma12_ion_grid,
+                    struct PerturbHaloField *halos, float *halo_props_out);
 
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the box
 double expected_nhalo(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions * flag_options);
