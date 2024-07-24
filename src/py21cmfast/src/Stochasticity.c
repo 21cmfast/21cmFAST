@@ -401,7 +401,7 @@ bool partition_rejection(double sigma_m, double sigma_min, double sigma_cond, do
         return false;
     }
     else if(user_params_stoc->HMF == 1){
-        test1 = st_taylor_factor(sigma_m,sigma_cond,growthf,NULL) - del_c; //barrier term at
+        test1 = st_taylor_factor(sigma_m,sigma_cond,growthf,NULL) - del_c; //maximum barrier term in mass range
         test2 = st_taylor_factor(sigma_min,sigma_cond,growthf,NULL) - del_c;
         randval = gsl_rng_uniform(rng);
         return randval > (test2/test1);
@@ -436,8 +436,9 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
     LOG_ULTRA_DEBUG("Start: M %.2e (%.2e) d %.2e",M_cond,exp_M,d_cond);
     double nu_fudge_factor = user_params_stoc->HALOMASS_CORRECTION;
 
-    //set initial amount (subtracted unresolved Mass)
-    M_remaining = M_cond;
+    //set initial amount
+    // M_remaining = M_cond; // full condition
+    M_remaining = exp_M; //subtract unresolved mass
     lnM_remaining = log(M_remaining);
 
     double nu_min;
@@ -455,7 +456,7 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
         do{
             nu_sample = gsl_ran_ugaussian_tail(rng,nu_min)*nu_fudge_factor;
             sigma_sample = sqrt(del_term/(nu_sample*nu_sample) + sigma_r*sigma_r);
-        } while partition_rejection(sigma_sample,sigma_min,sigma_r,delta_current/growthf,growthf,rng);
+        } while(partition_rejection(sigma_sample,sigma_min,sigma_r,delta_current/growthf,growthf,rng));
 
         M_sample = EvaluateSigmaInverse(sigma_sample);
         M_sample = exp(M_sample);

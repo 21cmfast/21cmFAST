@@ -929,8 +929,6 @@ double EvaluateJ(double u_res,double gamma1){
     return EvaluateRGTable1D(u_res,&J_split_table);
 }
 
-//The sigma interp table is regular in log mass, not sigma so we need to loop ONLY FOR SAMPLE_METHOD==2
-//NOTE: This should be improved with its own RGTable but we do not often use this method
 void InitialiseSigmaInverseTable(){
     if(!Sigma_InterpTable.allocated){
         LOG_ERROR("Must construct the sigma table before the inverse table");
@@ -938,15 +936,15 @@ void InitialiseSigmaInverseTable(){
     }
     int i;
 
-    double sigma_min = Sigma_InerpTable.y_arr[Sigma_InerpTable.n_bin-1];
-    double sigma_max = Sigma_InerpTable.y_arr[0];
-    int n_bin = Sigma_InerpTable.n_bin;
+    int n_bin = Sigma_InterpTable.n_bin;
+    double sigma_min = Sigma_InterpTable.y_arr[n_bin-1];
+    double sigma_max = Sigma_InterpTable.y_arr[0];
 
     if(!Sigma_inv_table.allocated)
         allocate_RGTable1D(n_bin,&Sigma_inv_table);
 
-    Sigma_inv_table.x_min = sigma_min
-    Sigma_inv_table.x_width = (sigma_max-sigma_min)/((double)Nbin-1);
+    Sigma_inv_table.x_min = sigma_min;
+    Sigma_inv_table.x_width = (sigma_max-sigma_min)/((double)n_bin-1);
 
     for(i=0;i<n_bin;i++){
         Sigma_inv_table.y_arr[i] = Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width;

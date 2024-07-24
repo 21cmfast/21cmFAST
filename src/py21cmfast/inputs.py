@@ -1374,3 +1374,8 @@ def validate_all_inputs(
 
         if flag_options.USE_EXP_FILTER and not flag_options.USE_HALO_FIELD:
             warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
+
+        if flag_options.USE_EXP_FILTER and global_params.HII_FILTER != 0:
+            raise ValueError(
+                "USE_EXP_FILTER can only be used with a tophat HII_FILTER==0"
+            )
