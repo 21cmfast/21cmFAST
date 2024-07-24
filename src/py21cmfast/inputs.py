@@ -931,11 +931,23 @@ class FlagOptions(StructWithDefaults):
         return self._HALO_STOCHASTICITY
 
     @property
+    def USE_EXP_FILTER(self):
+        """Automatically setting USE_EXP_FILTER to False if not HII_FILTER==0."""
+        if self._USE_EXP_FILTER and global_params.HII_FILTER != 0:
+            warnings.warn(
+                "USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0"
+                "Setting USE_EXP_FILTER to False"
+            )
+            return False
+        return self._USE_EXP_FILTER
+
+    @property
     def CELL_RECOMB(self):
         """Automatically setting CELL_RECOMB if USE_EXP_FILTER is active."""
         if self.USE_EXP_FILTER and not self._CELL_RECOMB:
             warnings.warn(
                 "CELL_RECOMB is automatically set to True if USE_EXP_FILTER is True."
+                "setting CELL_RECOMB to True"
             )
             return True
         return self._CELL_RECOMB
@@ -1350,9 +1362,3 @@ def validate_all_inputs(
 
         if flag_options.USE_EXP_FILTER and not flag_options.USE_HALO_FIELD:
             warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
-
-        if flag_options.USE_EXP_FILTER and global_params.HII_FILTER != 0:
-            warnings.warn(
-                "USE_EXP_FILTER can only be used with a tophat HII_FILTER, setting HII_FILTER = 0"
-            )
-            global_params.HII_FILTER = 0
