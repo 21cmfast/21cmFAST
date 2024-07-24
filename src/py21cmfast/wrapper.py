@@ -336,11 +336,14 @@ def _setup_inputs(
     # This turns params into a dict with all the input parameters in it.
     params = dict(zip(pkeys + list(input_params.keys()), list(p) + params[4:]))
 
+    # Sort the params back into input order and ignore params not in input_params.
+    params = dict(zip(keys, [params[k] for k in keys]))
+
     # Perform validation between different sets of inputs.
     validate_all_inputs(**{k: v for k, v in params.items() if k != "random_seed"})
 
-    # Sort the params back into input order.
-    params = [params[k] for k in keys]
+    # return as list of values
+    params = list(params.values())
 
     out = params
     if redshift != -1:
