@@ -388,7 +388,7 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     averages_out->sfr_mini = intgrl_stars_only_mini * prefactor_sfr_mini;
     averages_out->n_ion = intgrl_fesc_weighted*prefactor_nion + intgrl_fesc_weighted_mini*prefactor_nion_mini;
     averages_out->fescweighted_sfr = intgrl_fesc_weighted*prefactor_wsfr + intgrl_fesc_weighted_mini*prefactor_wsfr_mini;
-    averages_out->halo_xray = intgrl_stars_only*prefactor_xray + intgrl_stars_only*prefactor_xray_mini;
+    averages_out->halo_xray = intgrl_stars_only*prefactor_xray + intgrl_stars_only_mini*prefactor_xray_mini;
     averages_out->m_turn_acg = M_turn_a;
     averages_out->m_turn_mcg = M_turn_m;
 
@@ -511,7 +511,7 @@ int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_bo
         double intgrl_fesc_weighted, intgrl_stars_only;
         double intgrl_fesc_weighted_mini=0., intgrl_stars_only_mini=0.;
 
-#pragma omp for reduction(+:hm_avg,sm_avg,sfr_avg,xray_avg,nion_avg,wsfr_avg,sm_avg_mini,l10_mlim_m_avg,l10_mlim_a_avg,l10_mlim_r_avg)
+#pragma omp for reduction(+:hm_avg,sm_avg,sm_avg_mini,sfr_avg,sfr_avg_mini,xray_avg,nion_avg,wsfr_avg,l10_mlim_m_avg,l10_mlim_a_avg,l10_mlim_r_avg)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
             dens = perturbed_field->density[i];
 
@@ -610,16 +610,16 @@ int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_bo
     return 0;
 }
 
-void halobox_debug_print_avg(struct HaloProperties *averages_box, struct HaloProperties *averages_subsampler, struct HaloBoxConstants *consts, double M_min, double M_cell){
+void halobox_debug_print_avg(struct HaloProperties *averages_box, struct HaloProperties *averages_subsampler, struct HaloBoxConstants *consts, double M_min, double M_max){
     if(LOG_LEVEL < DEBUG_LEVEL)
         return;
     struct HaloProperties averages_sub_expected, averages_global;
-    LOG_DEBUG("HALO BOXES REDSHIFT %.2f [%.2e %.2e]",consts->redshift,M_min,M_cell);
+    LOG_DEBUG("HALO BOXES REDSHIFT %.2f [%.2e %.2e]",consts->redshift,M_min,M_max);
     if(flag_options_stoc->FIXED_HALO_GRIDS){
-        get_box_averages(M_min, M_cell, averages_box->m_turn_acg, averages_box->m_turn_mcg, consts, &averages_global);
+        get_box_averages(M_min, M_max, averages_box->m_turn_acg, averages_box->m_turn_mcg, consts, &averages_global);
     }
     else{
-        get_box_averages(user_params_stoc->SAMPLER_MIN_MASS, M_cell, averages_box->m_turn_acg, averages_box->m_turn_mcg, consts, &averages_global);
+        get_box_averages(user_params_stoc->SAMPLER_MIN_MASS, M_max, averages_box->m_turn_acg, averages_box->m_turn_mcg, consts, &averages_global);
         if(user_params_stoc->AVG_BELOW_SAMPLER && M_min < user_params_stoc->SAMPLER_MIN_MASS){
             get_box_averages(M_min, user_params_stoc->SAMPLER_MIN_MASS, averages_box->m_turn_acg, averages_box->m_turn_mcg, consts, &averages_sub_expected);
         }
@@ -646,8 +646,8 @@ void halobox_debug_print_avg(struct HaloProperties *averages_box, struct HaloPro
 //We need the mean log10 turnover masses for comparison with expected global Nion and SFRD.
 //Sometimes we don't calculate these on the grid (if we use halos and no sub-sampler)
 //So this function simply returns the volume-weighted average log10 turnover mass
-void get_mean_log10_turnovers(struct InitialConditions *ini_boxes, struct TsBox *previous_spin_temp, struct IonizedBox * previous_ionize_box,
-                                struct PerturbedField perturbed_field, double turnovers[3]){
+void get_mean_log10_turnovers(struct InitialConditions *ini_boxes, struct TsBox *previous_spin_temp, struct IonizedBox *previous_ionize_box,
+                                struct PerturbedField *perturbed_field, struct HaloBoxConstants *consts, double turnovers[3]){
     if(!flag_options_stoc->USE_MINI_HALOS){
         turnovers[0] = log10(consts->mturn_a_nofb); //ACG
         turnovers[1] = log10(consts->mturn_m_nofb); //MCG
@@ -666,7 +666,7 @@ void get_mean_log10_turnovers(struct InitialConditions *ini_boxes, struct TsBox 
         double M_turn_a = consts->mturn_a_nofb;
         double M_turn_r;
 
-    #pragma omp for reduction(+:hm_avg,sm_avg,sfr_avg,xray_avg,nion_avg,wsfr_avg,sm_avg_mini,l10_mlim_m_avg,l10_mlim_a_avg,l10_mlim_r_avg)
+    #pragma omp for reduction(+:l10_mturn_m_avg,l10_mturn_a_avg,l10_mturn_r_avg)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
             dens = perturbed_field->density[i];
             if(!flag_options_stoc->FIX_VCB_AVG && user_params_stoc->USE_RELATIVE_VELOCITIES){
@@ -900,8 +900,8 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         LOG_DEBUG("Gridding %llu halos...",halos->n_halos);
 
         double M_min = minimum_source_mass(redshift,false,astro_params,flag_options);
+        double M_max = global_params.M_MAX_INTEGRAL;
         double cell_volume = VOLUME/HII_TOT_NUM_PIXELS;
-        double M_cell = cosmo_params->OMm*RHOcrit*cell_volume;
 
         double M_turn_a_global, M_turn_m_global;
         double turnovers[3];
@@ -919,7 +919,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         //Since we need the average turnover masses before we can calculate the global means, we do the CMF integrals first
         //Then we calculate the expected UMF integrals before doing the adjustment
         if(flag_options->FIXED_HALO_GRIDS){
-            set_fixed_grids(M_min, M_cell, ini_boxes, perturbed_field, previous_spin_temp, previous_ionize_box, &hbox_consts, grids, &averages_box);
+            set_fixed_grids(M_min, M_max, ini_boxes, perturbed_field, previous_spin_temp, previous_ionize_box, &hbox_consts, grids, &averages_box);
         }
         else{
             //set below-resolution properties
@@ -944,14 +944,14 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
             }
             else{
                 //we still need the average turnovers for global values in spintemp, so get them here
-                get_mean_log10_turnovers(ini_boxes, previous_spin_temp, previous_ionize_box, perturbed_field,turnovers);
+                get_mean_log10_turnovers(ini_boxes, previous_spin_temp, previous_ionize_box, perturbed_field, &hbox_consts, turnovers);
                 grids->log10_Mcrit_ACG_ave = turnovers[0];
                 grids->log10_Mcrit_MCG_ave = turnovers[1];
             }
             sum_halos_onto_grid(ini_boxes, previous_spin_temp, previous_ionize_box,
                                 halos, &hbox_consts, grids, &averages_box);
         }
-        halobox_debug_print_avg(&averages_box,&averages_subsampler,&hbox_consts,M_min,M_cell);
+        halobox_debug_print_avg(&averages_box,&averages_subsampler,&hbox_consts,M_min,M_max);
 
         //NOTE: the density-grid based calculations (!USE_HALO_FIELD)
         // use the cell-weighted average of the log10(Mturn) (see issue #369)
