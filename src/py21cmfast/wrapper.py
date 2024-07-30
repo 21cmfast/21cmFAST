@@ -1799,7 +1799,7 @@ def xray_source(
 
             hbox_interp, idx_desc, interp_param = interp_haloboxes(
                 hboxes[::-1],
-                ["halo_sfr", "halo_xray", "halo_sfr_mini", "log10_Mcrit_LW_ave"],
+                ["halo_sfr", "halo_xray", "halo_sfr_mini", "log10_Mcrit_MCG_ave"],
                 z_halos[::-1],
                 zpp_avg[i],
             )
@@ -2923,7 +2923,7 @@ def run_coeval(
                             "halo_sfr",
                             "halo_sfr_mini",
                             "halo_xray",
-                            "log10_Mcrit_LW_ave",
+                            "log10_Mcrit_MCG_ave",
                         ],
                         force=always_purge,
                     )
@@ -3609,7 +3609,12 @@ def run_lightcone(
             if hbox is not None:
                 try:
                     hbox.prepare(
-                        keep=["halo_sfr", "halo_sfr_mini", "log10_Mcrit_LW_ave"],
+                        keep=[
+                            "halo_sfr",
+                            "halo_sfr_mini",
+                            "halo_xray",
+                            "log10_Mcrit_MCG_ave",
+                        ],
                         force=always_purge,
                     )
                 except OSError:

@@ -80,7 +80,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
-    Broadcast_struct_global_HF(user_params,cosmo_params,astro_params, flag_options);
+    Broadcast_struct_global_HF(user_params,cosmo_params,astro_params,flag_options);
     Broadcast_struct_global_TS(user_params,cosmo_params,astro_params,flag_options);
     Broadcast_struct_global_IT(user_params,cosmo_params,astro_params,flag_options);
     omp_set_num_threads(user_params->N_THREADS);
@@ -707,7 +707,7 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
 
         source_box->mean_sfr[R_ct] = fsfr_avg;
         source_box->mean_sfr_mini[R_ct] = fsfr_avg_mini;
-        source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_LW_ave;
+        source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_MCG_ave;
 
         if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1) LOG_DEBUG("finished XraySourceBox");
 
@@ -1281,7 +1281,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
     double ave_dens[global_params.NUM_FILTER_STEPS_FOR_Ts];
     fftwf_complex *log10_Mcrit_LW_unfiltered;
     fftwf_complex *delta_unfiltered;
-    double log10_Mcrit_mol, curr_vcb;
+    double log10_Mcrit_limit, curr_vcb;
     double max_buf=-1e20, min_buf=1e20, curr_dens;
     curr_vcb = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
 
@@ -1298,8 +1298,8 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
             fill_Rbox_table(delNL0,delta_unfiltered,R_values,global_params.NUM_FILTER_STEPS_FOR_Ts,-1,inverse_growth_factor_z,min_densities,ave_dens,max_densities);
             if(flag_options->USE_MINI_HALOS){
                 //NOTE: we are using previous_zp LW threshold for all zpp, inconsistent with the halo model
-                log10_Mcrit_mol = log10(lyman_werner_threshold(redshift, 0., 0.,astro_params)); //minimum turnover NOTE: should be zpp_max?
-                fill_Rbox_table(log10_Mcrit_LW,log10_Mcrit_LW_unfiltered,R_values,global_params.NUM_FILTER_STEPS_FOR_Ts,log10_Mcrit_mol,1,min_log10_MturnLW,ave_log10_MturnLW,max_log10_MturnLW);
+                log10_Mcrit_limit = log10(lyman_werner_threshold(redshift, 0., 0.,astro_params)); //minimum turnover NOTE: should be zpp_max?
+                fill_Rbox_table(log10_Mcrit_LW,log10_Mcrit_LW_unfiltered,R_values,global_params.NUM_FILTER_STEPS_FOR_Ts,log10_Mcrit_limit,1,min_log10_MturnLW,ave_log10_MturnLW,max_log10_MturnLW);
             }
         }
         else{
@@ -1452,7 +1452,6 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                 }
                 calculate_sfrd_from_grid(R_ct,delta_box_input,Mcrit_box_input,del_fcoll_Rct,del_fcoll_Rct_MINI,&ave_fcoll,&ave_fcoll_MINI);
                 avg_fix_term = mean_sfr_zpp[R_ct]/ave_fcoll;
-                avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
 
                 LOG_SUPER_DEBUG("z %6.2f ave sfrd val %.3e global %.3e (int %.3e) Mmin %.3e ratio %.4e z_edge %.4e",

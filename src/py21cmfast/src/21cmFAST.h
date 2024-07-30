@@ -154,7 +154,9 @@ struct HaloBox{
     float *halo_sfr_mini; //for x-rays and Ts stuff
     float *whalo_sfr; //SFR weighted by PopN_ion and F_ESC, used for Gamma12
 
-    double log10_Mcrit_LW_ave;
+    //Average volume-weighted log10 Turnover masses are kept in order to compare with the expected MF integrals
+    double log10_Mcrit_ACG_ave;
+    double log10_Mcrit_MCG_ave;
 };
 
 struct PerturbHaloField{

@@ -1037,12 +1037,12 @@ class AstroParams(StructWithDefaults):
         Given in log10 units.
     L_X : float, optional
         The specific X-ray luminosity per unit star formation escaping host galaxies.
-        Cf. Eq. 6 of Greig+2018. Given in log10 units. For models which use metallicity this gives
-        the value at solar metallicity.
+        Cf. Eq. 6 of Greig+2018. Given in log10 units. For the double power-law used in the Halo Model
+        This gives the low-z limite.
     L_X_MINI: float, optional
         The specific X-ray luminosity per unit star formation escaping host galaxies for
-        minihalos. Cf. Eq. 23 of Qin+2020. Given in log10 units. For models which use metallicity this gives
-        the value at solar metallicity.
+        minihalos. Cf. Eq. 23 of Qin+2020. Given in log10 units. For the double power-law used in the Halo Model
+        This gives the low-z limite.
     NU_X_THRESH : float, optional
         X-ray energy threshold for self-absorption by host galaxies (in eV). Also called
         E_0 (cf. Sec 4.1 of Greig+2018). Typical range is (100, 1500).
@@ -1094,8 +1094,8 @@ class AstroParams(StructWithDefaults):
         "M_TURN": None,
         "R_BUBBLE_MAX": None,
         "ION_Tvir_MIN": 4.69897,
-        "L_X": 39.46,  # Kaur+22 and Brorby+16
-        "L_X_MINI": 39.46,
+        "L_X": 40.5,  # Kaur+22
+        "L_X_MINI": 40.5,
         "NU_X_THRESH": 500.0,
         "X_RAY_SPEC_INDEX": 1.0,
         "X_RAY_Tvir_MIN": None,

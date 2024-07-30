@@ -760,6 +760,12 @@ double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
 
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
     if(user_params_it->USE_INTERPOLATION_TABLES){
+        // LOG_SUPER_DEBUG("z %.3f l10M %.3e result %.3e",redshift,log10_Mturn_LW_ave,EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,&Nion_z_table_MINI));
+        // LOG_SUPER_DEBUG("Table N (%d,%d) min (%.2e %.2e) width (%.2e %.2e) max (%.2e %.2e)",Nion_z_table.nx_bin,Nion_z_table.ny_bin,
+        //                 Nion_z_table.x_min,Nion_z_table.y_min,
+        //                 Nion_z_table.x_width,Nion_z_table.y_width,
+        //                 Nion_z_table.x_min + (Nion_z_table.nx_bin-1)*Nion_z_table.x_width,
+        //                 Nion_z_table.y_min + (Nion_z_table.ny_bin-1)*Nion_z_table.y_width);
         return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,&Nion_z_table_MINI);
     }
 
