@@ -126,19 +126,13 @@ def test_c_struct_update():
     assert _c != c()
 
 
-def test_update_inhomo_reco(caplog):
+def test_update_inhomo_reco():
     ap = AstroParams(R_BUBBLE_MAX=25)
-
-    ap.update(INHOMO_RECO=True)
-
-    msg = (
-        "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
-        + "This is non-standard (but allowed), and usually occurs upon manual update of INHOMO_RECO"
-    )
-
-    ap.R_BUBBLE_MAX
-
-    assert msg in caplog.text
+    # regex
+    msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
+    with pytest.warns(UserWarning, match=msg):
+        ap.update(INHOMO_RECO=True)
+        ap.R_BUBBLE_MAX
 
 
 def test_mmin():
@@ -208,11 +202,54 @@ def test_user_params():
     assert up.cell_size / up.cell_size_hires == up.DIM / up.HII_DIM
 
 
-def test_flag_options(caplog):
-    flg = FlagOptions(USE_HALO_FIELD=True, USE_MASS_DEPENDENT_ZETA=False)
-    assert not flg.USE_HALO_FIELD
-    assert "Automatically setting USE_HALO_FIELD to False." in caplog.text
+# Testing all the FlagOptions dependencies, including emitted warnings
+def test_flag_options():
+    flg = FlagOptions(SUBCELL_RSD=True, APPLY_RSDS=False)
+    assert not flg.SUBCELL_RSD
 
-    flg = FlagOptions(PHOTON_CONS_TYPE=1, USE_MINI_HALOS=True)
+    flg = FlagOptions(M_MIN_in_Mass=False, USE_MASS_DEPENDENT_ZETA=True)
+    assert flg.M_MIN_in_Mass
+
+    with pytest.warns(UserWarning, match="Automatically setting INHOMO_RECO to True."):
+        flg = FlagOptions(USE_MINI_HALOS=True, INHOMO_RECO=False)
+        flg.INHOMO_RECO
+    assert flg.INHOMO_RECO
+
+    with pytest.warns(UserWarning, match="Automatically setting USE_TS_FLUCT to True."):
+        flg = FlagOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=False)
+        flg.USE_TS_FLUCT
+    assert flg.USE_TS_FLUCT
+
+    with pytest.warns(
+        UserWarning, match="Automatically setting USE_MASS_DEPENDENT_ZETA to True."
+    ):
+        flg = FlagOptions(USE_MINI_HALOS=True, USE_MASS_DEPENDENT_ZETA=False)
+        flg.USE_MASS_DEPENDENT_ZETA
+    assert flg.USE_MASS_DEPENDENT_ZETA
+
+    with pytest.warns(
+        UserWarning, match="Automatically setting USE_HALO_FIELD to False."
+    ):
+        flg = FlagOptions(USE_HALO_FIELD=True, USE_MASS_DEPENDENT_ZETA=False)
+        flg.USE_HALO_FIELD
+    assert not flg.USE_HALO_FIELD
+
+    with pytest.warns(UserWarning, match="Automatically setting CELL_RECOMB to true."):
+        flg = FlagOptions(USE_EXP_FILTER=True, CELL_RECOMB=False)
+        flg.CELL_RECOMB
+    assert flg.CELL_RECOMB
+
+    with global_params.use(HII_FILTER=1):
+        with pytest.warns(
+            UserWarning, match="Automatically setting USE_EXP_FILTER to False."
+        ):
+            flg = FlagOptions(USE_EXP_FILTER=True)
+            flg.USE_EXP_FILTER
+        assert not flg.USE_EXP_FILTER
+
+    with pytest.warns(
+        UserWarning, match="Automatically setting PHOTON_CONS_TYPE to zero."
+    ):
+        flg = FlagOptions(PHOTON_CONS_TYPE=1, USE_MINI_HALOS=True)
+        flg.PHOTON_CONS_TYPE
     assert flg.PHOTON_CONS_TYPE == 0
-    assert "Automatically setting PHOTON_CONS_TYPE to zero." in caplog.text

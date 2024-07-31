@@ -2853,6 +2853,7 @@ def run_coeval(
             if flag_options.USE_HALO_FIELD:
                 if not flag_options.FIXED_HALO_GRIDS:
                     ph2 = pt_halos[iz]
+                    ph2.load_all()
 
                 hb2 = halo_box(
                     redshift=z,

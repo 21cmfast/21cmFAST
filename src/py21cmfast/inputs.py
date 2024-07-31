@@ -673,7 +673,7 @@ class UserParams(StructWithDefaults):
                 isinstance(self._POWER_SPECTRUM, str)
                 and self._POWER_SPECTRUM.upper() != "CLASS"
             ):
-                logger.warn(
+                warnings.warn(
                     "Automatically setting POWER_SPECTRUM to 5 (CLASS) as you are using "
                     "relative velocities"
                 )
@@ -869,7 +869,7 @@ class FlagOptions(StructWithDefaults):
     def USE_HALO_FIELD(self):
         """Automatically setting USE_HALO_FIELD to False if not USE_MASS_DEPENDENT_ZETA."""
         if not self.USE_MASS_DEPENDENT_ZETA and self._USE_HALO_FIELD:
-            logger.warn(
+            warnings.warn(
                 "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
                 "Automatically setting USE_HALO_FIELD to False."
             )
@@ -886,7 +886,7 @@ class FlagOptions(StructWithDefaults):
     def USE_MASS_DEPENDENT_ZETA(self):
         """Automatically setting USE_MASS_DEPENDENT_ZETA to True if USE_MINI_HALOS."""
         if self.USE_MINI_HALOS and not self._USE_MASS_DEPENDENT_ZETA:
-            logger.warn(
+            warnings.warn(
                 "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False! "
                 "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
             )
@@ -908,7 +908,7 @@ class FlagOptions(StructWithDefaults):
     def USE_TS_FLUCT(self):
         """Automatically setting USE_TS_FLUCT to True if USE_MINI_HALOS."""
         if self.USE_MINI_HALOS and not self._USE_TS_FLUCT:
-            logger.warn(
+            warnings.warn(
                 "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
                 "Automatically setting USE_TS_FLUCT to True."
             )
@@ -931,24 +931,12 @@ class FlagOptions(StructWithDefaults):
         return self._PHOTON_CONS_TYPE
 
     @property
-    def HALO_STOCHASTICITY(self):
-        """Automatically setting HALO_STOCHASTICITY to False if not USE_HALO_FIELD."""
-        if not self.USE_HALO_FIELD and self._HALO_STOCHASTICITY:
-            warnings.warn(
-                "HALO_STOCHASTICITY must be used with USE_HALO_FIELD"
-                "Turning off Stochastic Halos..."
-            )
-            return False
-
-        return self._HALO_STOCHASTICITY
-
-    @property
     def USE_EXP_FILTER(self):
         """Automatically setting USE_EXP_FILTER to False if not HII_FILTER==0."""
         if self._USE_EXP_FILTER and global_params.HII_FILTER != 0:
             warnings.warn(
                 "USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0"
-                "Setting USE_EXP_FILTER to False"
+                "Automatically setting USE_EXP_FILTER to False."
             )
             return False
         return self._USE_EXP_FILTER
@@ -959,7 +947,7 @@ class FlagOptions(StructWithDefaults):
         if self.USE_EXP_FILTER and not self._CELL_RECOMB:
             warnings.warn(
                 "CELL_RECOMB is automatically set to True if USE_EXP_FILTER is True."
-                "setting CELL_RECOMB to True"
+                "Automatically setting CELL_RECOMB to true."
             )
             return True
         return self._CELL_RECOMB
@@ -1350,7 +1338,7 @@ def validate_all_inputs(
             )
 
             if config["ignore_R_BUBBLE_MAX_error"]:
-                logger.warn(msg)
+                warnings.warn(msg)
             else:
                 raise ValueError(msg)
 
