@@ -80,7 +80,7 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_UF(user_params,cosmo_params);
-    Broadcast_struct_global_HF(user_params,cosmo_params,astro_params, flag_options);
+    Broadcast_struct_global_HF(user_params,cosmo_params,astro_params,flag_options);
     Broadcast_struct_global_TS(user_params,cosmo_params,astro_params,flag_options);
     Broadcast_struct_global_IT(user_params,cosmo_params,astro_params,flag_options);
     omp_set_num_threads(user_params->N_THREADS);
@@ -515,7 +515,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
 
     if(flag_options_ts->USE_MINI_HALOS){
         curr_vcb = flag_options_ts->FIX_VCB_AVG ? global_params.VAVG : 0;
-        #pragma omp parallel for firstprivate(curr_vcb) private(i,j,k,curr_j21) num_threads(user_params_ts->N_THREADS) collapse(3)
+        #pragma omp parallel for firstprivate(curr_vcb) private(i,j,k,curr_j21,M_buf) num_threads(user_params_ts->N_THREADS) collapse(3)
         for(i=0;i<user_params_ts->HII_DIM;i++){
             for(j=0;j<user_params_ts->HII_DIM;j++){
                 for(k=0;k<HII_D_PARA;k++){
@@ -524,9 +524,10 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
                     }
                     curr_j21 = input_j21[HII_R_INDEX(i,j,k)];
                     //NOTE: we don't use reionization_feedback here, I assume it wouldn't do much but it's inconsistent
-                    M_buf = log10(lyman_werner_threshold(redshift,
-                                curr_j21, curr_vcb, astro_params_ts));
-                    *((float *)output_LW + HII_R_FFT_INDEX(i,j,k)) = M_buf;
+                    M_buf = lyman_werner_threshold(redshift,
+                                curr_j21, curr_vcb, astro_params_ts);
+                    M_buf = fmax(M_buf,astro_params_ts->M_TURN);
+                    *((float *)output_LW + HII_R_FFT_INDEX(i,j,k)) = log10(M_buf);
                 }
             }
         }
@@ -598,6 +599,87 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double * R_a
     fftwf_free(box);
 }
 
+//NOTE: I've moved this to a function to help in simplicity, it is not clear whether it is faster
+//  to do all of one radii at once (more clustered FFT and larger thread blocks) or all of one box (better memory locality)
+double one_annular_filter(float *input_box, float *output_box, double R_inner, double R_outer, double *u_avg, double *f_avg){
+    int i,j,k;
+    unsigned long long int ct;
+    double unfiltered_avg=0;
+    double filtered_avg=0;
+
+    fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    fftwf_complex *filtered_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+    #pragma omp parallel private(i,j,k) num_threads(user_params_ts->N_THREADS) reduction(+:unfiltered_avg)
+    {
+        float curr_val;
+    #pragma omp for
+        for (i=0; i<user_params_ts->HII_DIM; i++){
+            for (j=0; j<user_params_ts->HII_DIM; j++){
+                for (k=0; k<HII_D_PARA; k++){
+                    curr_val = input_box[HII_R_INDEX(i,j,k)];
+                    *((float *)unfiltered_box + HII_R_FFT_INDEX(i,j,k)) = curr_val;
+                    unfiltered_avg += curr_val;
+                }
+            }
+        }
+    }
+
+    ////////////////// Transform unfiltered box to k-space to prepare for filtering /////////////////
+    //this would normally only be done once but we're using a different redshift for each R now
+    dft_r2c_cube(user_params_ts->USE_FFTW_WISDOM, user_params_ts->HII_DIM, HII_D_PARA, user_params_ts->N_THREADS, unfiltered_box);
+
+    // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
+    // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
+    #pragma omp parallel num_threads(user_params_ts->N_THREADS)
+    {
+    #pragma omp for
+        for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
+            unfiltered_box[ct] /= (float)HII_TOT_NUM_PIXELS;
+        }
+    }
+
+    // Smooth the density field, at the same time store the minimum and maximum densities for their usage in the interpolation tables
+    // copy over unfiltered box
+    memcpy(filtered_box, unfiltered_box, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+    // Don't filter on the cell scale
+    if(R_inner > 0){
+        filter_box_annulus(filtered_box, 1, R_inner, R_outer);
+    }
+
+    // now fft back to real space
+    dft_c2r_cube(user_params_ts->USE_FFTW_WISDOM, user_params_ts->HII_DIM, HII_D_PARA, user_params_ts->N_THREADS, filtered_box);
+
+    // copy over the values
+    #pragma omp parallel private(i,j,k) num_threads(user_params_ts->N_THREADS) reduction(+:filtered_avg)
+    {
+        float curr_val;
+    #pragma omp for
+        for (i=0;i<user_params_ts->HII_DIM; i++){
+            for (j=0;j<user_params_ts->HII_DIM; j++){
+                for (k=0;k<HII_D_PARA; k++){
+                    curr_val = *((float *)filtered_box + HII_R_FFT_INDEX(i,j,k));
+                    // correct for aliasing in the filtering step
+                    if(curr_val < 0.) curr_val = 0.;
+
+                    output_box[HII_R_INDEX(i,j,k)] = curr_val;
+                    filtered_avg += curr_val;
+                }
+            }
+        }
+    }
+
+    unfiltered_avg /= HII_TOT_NUM_PIXELS;
+    filtered_avg /= HII_TOT_NUM_PIXELS;
+
+    *u_avg = unfiltered_avg;
+    *f_avg = filtered_avg;
+
+    fftwf_free(filtered_box);
+    fftwf_free(unfiltered_box);
+}
+
 //fill a box[R_ct][box_ct] array for use in TS by filtering on different scales and storing results
 //Similar to fill_Rbox_table but called using different redshifts for each scale
 int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosmo_params,
@@ -607,108 +689,32 @@ int UpdateXraySourceBox(struct UserParams *user_params, struct CosmoParams *cosm
     Try{
         //the indexing needs these
         Broadcast_struct_global_UF(user_params,cosmo_params);
+        Broadcast_struct_global_TS(user_params,cosmo_params,astro_params,flag_options);
 
-        int i,j,k;
-        unsigned long long int ct;
-        fftwf_complex *filtered_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        fftwf_complex *unfiltered_box = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        fftwf_complex *filtered_box_mini = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        fftwf_complex *unfiltered_box_mini = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        if(R_ct == 0){
-            LOG_DEBUG("starting XraySourceBox");
+        //only print once, since this is called for every R
+        if(R_ct == 0) LOG_DEBUG("starting XraySourceBox");
+
+        double sfr_avg,fsfr_avg,sfr_avg_mini,fsfr_avg_mini;
+        double xray_avg,fxray_avg;
+        one_annular_filter(halobox->halo_sfr,&(source_box->filtered_sfr[R_ct*HII_TOT_NUM_PIXELS]),
+                            R_inner,R_outer,&sfr_avg,&fsfr_avg);
+        one_annular_filter(halobox->halo_xray,&(source_box->filtered_xray[R_ct*HII_TOT_NUM_PIXELS]),
+                            R_inner,R_outer,&xray_avg,&fxray_avg);
+        if(flag_options->USE_MINI_HALOS){
+            one_annular_filter(halobox->halo_sfr_mini,&(source_box->filtered_sfr_mini[R_ct*HII_TOT_NUM_PIXELS]),
+                                R_inner,R_outer,&sfr_avg_mini,&fsfr_avg_mini);
         }
-        double fsfr_avg = 0;
-        double fsfr_avg_mini = 0;
-        double sfr_avg = 0;
-        double sfr_avg_mini = 0;
-
-    #pragma omp parallel private(i,j,k) num_threads(user_params->N_THREADS) reduction(+:sfr_avg,sfr_avg_mini)
-        {
-    #pragma omp for
-            for (i=0; i<user_params->HII_DIM; i++){
-                for (j=0; j<user_params->HII_DIM; j++){
-                    for (k=0; k<HII_D_PARA; k++){
-                        *((float *)unfiltered_box + HII_R_FFT_INDEX(i,j,k)) = halobox->halo_sfr[HII_R_INDEX(i,j,k)];
-                        *((float *)unfiltered_box_mini + HII_R_FFT_INDEX(i,j,k)) = halobox->halo_sfr_mini[HII_R_INDEX(i,j,k)];
-                        sfr_avg += halobox->halo_sfr[HII_R_INDEX(i,j,k)];
-                        sfr_avg_mini +=halobox->halo_sfr_mini[HII_R_INDEX(i,j,k)];
-                    }
-                }
-            }
-        }
-        sfr_avg /= HII_TOT_NUM_PIXELS;
-        sfr_avg_mini /= HII_TOT_NUM_PIXELS;
-
-        ////////////////// Transform unfiltered box to k-space to prepare for filtering /////////////////
-        //this would normally only be done once but we're using a different redshift for each R now
-        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA,user_params->N_THREADS, unfiltered_box);
-        dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA,user_params->N_THREADS, unfiltered_box_mini);
-
-        // remember to add the factor of VOLUME/TOT_NUM_PIXELS when converting from real space to k-space
-        // Note: we will leave off factor of VOLUME, in anticipation of the inverse FFT below
-    #pragma omp parallel num_threads(user_params->N_THREADS)
-        {
-    #pragma omp for
-            for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
-                unfiltered_box[ct] /= (float)HII_TOT_NUM_PIXELS;
-                unfiltered_box_mini[ct] /= (float)HII_TOT_NUM_PIXELS;
-            }
-        }
-
-        // Smooth the density field, at the same time store the minimum and maximum densities for their usage in the interpolation tables
-        // copy over unfiltered box
-        memcpy(filtered_box, unfiltered_box, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        memcpy(filtered_box_mini, unfiltered_box_mini, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-
-        // Don't filter on the cell scale
-        if(R_ct > 0){
-            filter_box_annulus(filtered_box, 1, R_inner, R_outer);
-            filter_box_annulus(filtered_box_mini, 1, R_inner, R_outer);
-        }
-
-        // now fft back to real space
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, filtered_box);
-        dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, filtered_box_mini);
-
-        // copy over the values
-    #pragma omp parallel private(i,j,k) num_threads(user_params->N_THREADS) reduction(+:fsfr_avg,fsfr_avg_mini)
-        {
-            float curr,curr_mini;
-    #pragma omp for
-            for (i=0;i<user_params->HII_DIM; i++){
-                for (j=0;j<user_params->HII_DIM; j++){
-                    for (k=0;k<HII_D_PARA; k++){
-                        curr = *((float *)filtered_box + HII_R_FFT_INDEX(i,j,k));
-                        curr_mini = *((float *)filtered_box_mini + HII_R_FFT_INDEX(i,j,k));
-                        // correct for aliasing in the filtering step
-                        if(curr < 0.) curr = 0.;
-                        if(curr_mini < 0.) curr_mini = 0.;
-
-                        source_box->filtered_sfr[R_ct * HII_TOT_NUM_PIXELS + HII_R_INDEX(i,j,k)] = curr;
-                        source_box->filtered_sfr_mini[R_ct * HII_TOT_NUM_PIXELS + HII_R_INDEX(i,j,k)] = curr_mini;
-                        fsfr_avg += curr;
-                        fsfr_avg_mini += curr_mini;
-                    }
-                }
-            }
-        }
-
-        fsfr_avg /= HII_TOT_NUM_PIXELS;
-        fsfr_avg_mini /= HII_TOT_NUM_PIXELS;
 
         source_box->mean_sfr[R_ct] = fsfr_avg;
         source_box->mean_sfr_mini[R_ct] = fsfr_avg_mini;
-        source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_LW_ave;
-        if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1){
-            LOG_DEBUG("finished XraySourceBox");
-        }
-        LOG_SUPER_DEBUG("R = %8.3f | mean filtered sfr = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e MINI) mean log10McritLW %.4e",
-                            R_outer,fsfr_avg,fsfr_avg_mini,sfr_avg,sfr_avg_mini,source_box->mean_log10_Mcrit_LW[R_ct]);
+        source_box->mean_log10_Mcrit_LW[R_ct] = halobox->log10_Mcrit_MCG_ave;
 
-        fftwf_free(filtered_box);
-        fftwf_free(unfiltered_box);
-        fftwf_free(filtered_box_mini);
-        fftwf_free(unfiltered_box_mini);
+        if(R_ct == global_params.NUM_FILTER_STEPS_FOR_Ts - 1) LOG_DEBUG("finished XraySourceBox");
+
+        LOG_SUPER_DEBUG("R_inner = %8.3f | mean filtered sfr  = %10.3e (%10.3e MINI) unfiltered %10.3e (%10.3e MINI) mean log10McritLW %.4e",
+                            R_inner,fsfr_avg,fsfr_avg_mini,sfr_avg,sfr_avg_mini,source_box->mean_log10_Mcrit_LW[R_ct]);
+        LOG_SUPER_DEBUG("R_outer = %8.3f | mean filtered xray = %10.3e unfiltered %10.3e",R_outer,
+                            fxray_avg,xray_avg);
 
         fftwf_forget_wisdom();
         fftwf_cleanup_threads();
@@ -966,10 +972,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     *ave_sfrd_mini = ave_sfrd_buf_mini/HII_TOT_NUM_PIXELS;
 
     //These functions check for allocation
-    free_RGTable1D_f(&SFRD_conditional_table);
-    free_RGTable2D_f(&SFRD_conditional_table_MINI);
-    free_RGTable1D_f(&fcoll_conditional_table);
-    free_RGTable1D_f(&dfcoll_conditional_table);
+    free_conditional_tables();
 }
 
 //These are factors which only need to be calculated once per redshift
@@ -1012,7 +1015,7 @@ void set_zp_consts(double zp, struct spintemp_from_sfr_prefactors *consts){
                                         (1 - (astro_params_ts->X_RAY_SPEC_INDEX));
     }
     // Finally, convert to the correct units. NU_over_EV*hplank as only want to divide by eV -> erg (owing to the definition of Luminosity)
-    luminosity_converstion_factor *= (3.1556226e7)/(hplank);
+    luminosity_converstion_factor /= (hplank);
 
     //for halos, we just want the SFR -> X-ray part
     //NOTE: compared to Mesinger+11: (1+zpp)^2 (1+zp) -> (1+zp)^3
@@ -1278,7 +1281,7 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
     double ave_dens[global_params.NUM_FILTER_STEPS_FOR_Ts];
     fftwf_complex *log10_Mcrit_LW_unfiltered;
     fftwf_complex *delta_unfiltered;
-    double log10_Mcrit_mol, curr_vcb;
+    double log10_Mcrit_limit, curr_vcb;
     double max_buf=-1e20, min_buf=1e20, curr_dens;
     curr_vcb = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
 
@@ -1295,8 +1298,8 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
             fill_Rbox_table(delNL0,delta_unfiltered,R_values,global_params.NUM_FILTER_STEPS_FOR_Ts,-1,inverse_growth_factor_z,min_densities,ave_dens,max_densities);
             if(flag_options->USE_MINI_HALOS){
                 //NOTE: we are using previous_zp LW threshold for all zpp, inconsistent with the halo model
-                log10_Mcrit_mol = log10(lyman_werner_threshold(redshift, 0., 0.,astro_params)); //minimum turnover NOTE: should be zpp_max?
-                fill_Rbox_table(log10_Mcrit_LW,log10_Mcrit_LW_unfiltered,R_values,global_params.NUM_FILTER_STEPS_FOR_Ts,log10_Mcrit_mol,1,min_log10_MturnLW,ave_log10_MturnLW,max_log10_MturnLW);
+                log10_Mcrit_limit = log10(lyman_werner_threshold(redshift, 0., 0.,astro_params)); //minimum turnover NOTE: should be zpp_max?
+                fill_Rbox_table(log10_Mcrit_LW,log10_Mcrit_LW_unfiltered,R_values,global_params.NUM_FILTER_STEPS_FOR_Ts,log10_Mcrit_limit,1,min_log10_MturnLW,ave_log10_MturnLW,max_log10_MturnLW);
             }
         }
         else{
@@ -1449,7 +1452,6 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                 }
                 calculate_sfrd_from_grid(R_ct,delta_box_input,Mcrit_box_input,del_fcoll_Rct,del_fcoll_Rct_MINI,&ave_fcoll,&ave_fcoll_MINI);
                 avg_fix_term = mean_sfr_zpp[R_ct]/ave_fcoll;
-                avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
                 if(flag_options->USE_MINI_HALOS) avg_fix_term_MINI = mean_sfr_zpp_mini[R_ct]/ave_fcoll_MINI;
 
                 LOG_SUPER_DEBUG("z %6.2f ave sfrd val %.3e global %.3e (int %.3e) Mmin %.3e ratio %.4e z_edge %.4e",
@@ -1496,10 +1498,13 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
 
                     if(flag_options->USE_HALO_FIELD){
                         sfr_term = source_box->filtered_sfr[R_index*HII_TOT_NUM_PIXELS + box_ct] * z_edge_factor;
+                        //Minihalos and s->yr conversion are already included here
+                        xray_sfr = source_box->filtered_xray[R_index*HII_TOT_NUM_PIXELS + box_ct] * z_edge_factor * xray_R_factor * 1e38;
                     }
                     else{
                         //NOTE: for !USE_MASS_DEPENDENT_ZETA, F_STAR10 is still used for constant stellar fraction
                         sfr_term = del_fcoll_Rct[box_ct] * z_edge_factor * avg_fix_term * astro_params->F_STAR10;
+                        xray_sfr = sfr_term * astro_params->L_X * xray_R_factor * SperYR; //SperYR previously (3.1556226e7) (31556925.9747 in constants???)
                     }
                     if(flag_options->USE_MINI_HALOS){
                         if(flag_options->USE_HALO_FIELD){
@@ -1507,16 +1512,15 @@ void ts_main(float redshift, float prev_redshift, struct UserParams *user_params
                         }
                         else{
                             sfr_term_mini = del_fcoll_Rct_MINI[box_ct] * z_edge_factor * avg_fix_term_MINI * astro_params->F_STAR7_MINI;
+                            xray_sfr += sfr_term_mini * astro_params->L_X_MINI * xray_R_factor * SperYR;
                         }
                         dstarlyLW_dt_box[box_ct] += sfr_term*dstarlyLW_dt_prefactor[R_ct] + sfr_term_mini*dstarlyLW_dt_prefactor_MINI[R_ct];
                     }
-
-                    xray_sfr = (sfr_term*astro_params->L_X + sfr_term_mini*astro_params->L_X_MINI);
                     xidx = m_xHII_low_box[box_ct];
                     ival = inverse_val_box[box_ct];
-                    dxheat_dt_box[box_ct] += xray_sfr * xray_R_factor * (freq_int_heat_tbl_diff[xidx][R_ct] * ival + freq_int_heat_tbl[xidx][R_ct]);
-                    dxion_source_dt_box[box_ct] += xray_sfr * xray_R_factor * (freq_int_ion_tbl_diff[xidx][R_ct] * ival + freq_int_ion_tbl[xidx][R_ct]);
-                    dxlya_dt_box[box_ct] += xray_sfr * xray_R_factor * (freq_int_lya_tbl_diff[xidx][R_ct] * ival + freq_int_lya_tbl[xidx][R_ct]);
+                    dxheat_dt_box[box_ct] += xray_sfr * (freq_int_heat_tbl_diff[xidx][R_ct] * ival + freq_int_heat_tbl[xidx][R_ct]);
+                    dxion_source_dt_box[box_ct] += xray_sfr * (freq_int_ion_tbl_diff[xidx][R_ct] * ival + freq_int_ion_tbl[xidx][R_ct]);
+                    dxlya_dt_box[box_ct] += xray_sfr * (freq_int_lya_tbl_diff[xidx][R_ct] * ival + freq_int_lya_tbl[xidx][R_ct]);
                     dstarlya_dt_box[box_ct] += sfr_term*dstarlya_dt_prefactor[R_ct] + sfr_term_mini*starlya_factor_mini; //the MINI factors might not be allocated
                     if(flag_options->USE_LYA_HEATING){
                         dstarlya_cont_dt_box[box_ct] += sfr_term*dstarlya_cont_dt_prefactor[R_ct] + sfr_term_mini*lyacont_factor_mini;

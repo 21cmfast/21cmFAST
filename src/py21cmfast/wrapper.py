@@ -187,7 +187,7 @@ def _configure_inputs(
         if val is not None and data_val is not None and data_val != val:
             raise ValueError(
                 f"{key} has an inconsistent value with {dataset.__class__.__name__}."
-                f"Expected:\n\n{val}\n\nGot:\n\n{data_val}."
+                f" Expected:\n\n{val}\n\nGot:\n\n{data_val}."
             )
         if val is not None:
             output[i] = val
@@ -336,11 +336,14 @@ def _setup_inputs(
     # This turns params into a dict with all the input parameters in it.
     params = dict(zip(pkeys + list(input_params.keys()), list(p) + params[4:]))
 
+    # Sort the params back into input order and ignore params not in input_params.
+    params = dict(zip(keys, [params[k] for k in keys]))
+
     # Perform validation between different sets of inputs.
     validate_all_inputs(**{k: v for k, v in params.items() if k != "random_seed"})
 
-    # Sort the params back into input order.
-    params = [params[k] for k in keys]
+    # return as list of values
+    params = list(params.values())
 
     out = params
     if redshift != -1:
@@ -1796,7 +1799,7 @@ def xray_source(
 
             hbox_interp, idx_desc, interp_param = interp_haloboxes(
                 hboxes[::-1],
-                ["halo_sfr", "halo_sfr_mini", "log10_Mcrit_LW_ave"],
+                ["halo_sfr", "halo_xray", "halo_sfr_mini", "log10_Mcrit_MCG_ave"],
                 z_halos[::-1],
                 zpp_avg[i],
             )
@@ -1804,6 +1807,8 @@ def xray_source(
             # if we have no halos we ignore the whole shell
             if np.all(hbox_interp.halo_sfr + hbox_interp.halo_sfr_mini == 0):
                 box.filtered_sfr[i, ...] = 0
+                box.filtered_sfr_mini[i, ...] = 0
+                box.filtered_xray[i, ...] = 0
                 logger.debug(f"ignoring Radius {i} due to no stars")
                 continue
 
@@ -2914,7 +2919,12 @@ def run_coeval(
             if hb is not None:
                 try:
                     hb.prepare(
-                        keep=["halo_sfr", "halo_sfr_mini", "log10_Mcrit_LW_ave"],
+                        keep=[
+                            "halo_sfr",
+                            "halo_sfr_mini",
+                            "halo_xray",
+                            "log10_Mcrit_MCG_ave",
+                        ],
                         force=always_purge,
                     )
                 except OSError:
@@ -3547,7 +3557,7 @@ def run_lightcone(
                         )
 
             perturb_files.append((z, os.path.join(direc, pf2.filename)))
-            if flag_options.USE_HALO_FIELD:
+            if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
                 hbox_files.append((z, os.path.join(direc, hbox2.filename)))
                 pth_files.append((z, os.path.join(direc, ph.filename)))
             if flag_options.USE_TS_FLUCT:
@@ -3599,7 +3609,12 @@ def run_lightcone(
             if hbox is not None:
                 try:
                     hbox.prepare(
-                        keep=["halo_sfr", "halo_sfr_mini", "log10_Mcrit_LW_ave"],
+                        keep=[
+                            "halo_sfr",
+                            "halo_sfr_mini",
+                            "halo_xray",
+                            "log10_Mcrit_MCG_ave",
+                        ],
                         force=always_purge,
                     )
                 except OSError:

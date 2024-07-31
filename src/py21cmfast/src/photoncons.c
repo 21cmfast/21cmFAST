@@ -169,8 +169,8 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
                   }
                 }
 
-                Nion0 = ION_EFF_FACTOR*FgtrM_General(z0,M_MIN_z0);
-                Nion1 = ION_EFF_FACTOR*FgtrM_General(z1,M_MIN_z1);
+                Nion0 = ION_EFF_FACTOR*Fcoll_General(z0,log(M_MIN_z0),lnMmax);
+                Nion1 = ION_EFF_FACTOR*Fcoll_General(z1,log(M_MIN_z1),lnMmax);
                 freeSigmaMInterpTable();
             }
 

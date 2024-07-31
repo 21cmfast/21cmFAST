@@ -219,7 +219,8 @@ void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, 
 
 void init_FcollTable(double zmin, double zmax, bool x_ray){
     int i;
-    double z_val,M_min;
+    double z_val, M_min, lnMmin;
+    double lnMmax = log(fmax(global_params.M_MAX_INTEGRAL, M_min*100));
 
     fcoll_z_table.x_min = zmin;
     fcoll_z_table.x_width = 0.1;
@@ -233,14 +234,15 @@ void init_FcollTable(double zmin, double zmax, bool x_ray){
     for(i=0;i<n_z;i++){
         z_val = fcoll_z_table.x_min + i*fcoll_z_table.x_width;
         M_min = minimum_source_mass(z_val,x_ray,astro_params_it,flag_options_it);
+        lnMmin = log(M_min);
 
         //if we are press-schechter we can save time by calling the erfc
         if(user_params_it->HMF == 0)
             fcoll_z_table.y_arr[i] = FgtrM(z_val, M_min);
         else{
             if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || user_params_it->INTEGRATION_METHOD_MINI == 1)
-                initialise_GL(NGL_INT,log(M_min),log(fmax(global_params.M_MAX_INTEGRAL, M_min*100)));//upper limit to match FgtrM_General
-            fcoll_z_table.y_arr[i] = FgtrM_General(z_val, M_min);
+                initialise_GL(NGL_INT,lnMmin,lnMmax);
+            fcoll_z_table.y_arr[i] = Fcoll_General(z_val, lnMmin, lnMmax);
         }
     }
 }
@@ -263,7 +265,7 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
     double mturns[NMTURN], mturns_MINI[NMTURN];
     struct RGTable2D_f *table_2d, *table_mini;
 
-    LOG_DEBUG("Initialising Nion conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
+    LOG_SUPER_DEBUG("Initialising Nion conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
 
     growthf = dicke(z);
     double lnMmin = log(Mmin);
@@ -381,7 +383,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
     float Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
     int i,j,k,i_tot;
 
-    LOG_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
+    LOG_SUPER_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
 
     double lnM_condition = log(Mcond);
 
@@ -712,11 +714,22 @@ void initialise_J_split_table(int Nbin, double umin, double umax, double gamma1)
 }
 
 void free_dNdM_tables(){
-    int i;
     free_RGTable2D(&Nhalo_inv_table);
     free_RGTable1D(&Nhalo_table);
     free_RGTable1D(&Mcoll_table);
     free_RGTable1D(&J_split_table);
+}
+
+void free_conditional_tables(){
+    free_RGTable1D_f(&fcoll_conditional_table);
+    free_RGTable1D_f(&dfcoll_conditional_table);
+    free_RGTable1D_f(&SFRD_conditional_table);
+    free_RGTable2D_f(&SFRD_conditional_table_MINI);
+    free_RGTable1D_f(&Nion_conditional_table1D);
+    free_RGTable2D_f(&Nion_conditional_table2D);
+    free_RGTable2D_f(&Nion_conditional_table_MINI);
+    free_RGTable2D_f(&Nion_conditional_table_prev);
+    free_RGTable2D_f(&Nion_conditional_table_MINI_prev);
 }
 
 //JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
@@ -732,20 +745,27 @@ double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
     //Currently assuming this is only called in the X-ray/spintemp calculation, this will only affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass
     //      and only if the minimum virial temperatures ION_Tvir_min and X_RAY_Tvir_min are different
     double lnMmin = log(minimum_source_mass(redshift,true,astro_params_it,flag_options_it));
+    double lnMmax = log(global_params.M_MAX_INTEGRAL);
 
     //minihalos uses a different turnover mass
     if(flag_options_it->USE_MINI_HALOS)
-        return Nion_General(redshift, lnMmin, log(global_params.M_MAX_INTEGRAL), atomic_cooling_threshold(redshift), astro_params_it->ALPHA_STAR, astro_params_it->ALPHA_ESC,
+        return Nion_General(redshift, lnMmin, lnMmax, atomic_cooling_threshold(redshift), astro_params_it->ALPHA_STAR, astro_params_it->ALPHA_ESC,
                             astro_params_it->F_STAR10, astro_params_it->F_ESC10, Mlim_Fstar, Mlim_Fesc);
     if(flag_options_it->USE_MASS_DEPENDENT_ZETA)
-        return Nion_General(redshift, lnMmin, log(global_params.M_MAX_INTEGRAL), astro_params_it->M_TURN, astro_params_it->ALPHA_STAR, astro_params_it->ALPHA_ESC,
+        return Nion_General(redshift, lnMmin, lnMmax, astro_params_it->M_TURN, astro_params_it->ALPHA_STAR, astro_params_it->ALPHA_ESC,
                             astro_params_it->F_STAR10, astro_params_it->F_ESC10, Mlim_Fstar, Mlim_Fesc);
 
-    return FgtrM_General(redshift, lnMmin);
+    return Fcoll_General(redshift, lnMmin, lnMmax);
 }
 
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
     if(user_params_it->USE_INTERPOLATION_TABLES){
+        // LOG_SUPER_DEBUG("z %.3f l10M %.3e result %.3e",redshift,log10_Mturn_LW_ave,EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,&Nion_z_table_MINI));
+        // LOG_SUPER_DEBUG("Table N (%d,%d) min (%.2e %.2e) width (%.2e %.2e) max (%.2e %.2e)",Nion_z_table.nx_bin,Nion_z_table.ny_bin,
+        //                 Nion_z_table.x_min,Nion_z_table.y_min,
+        //                 Nion_z_table.x_width,Nion_z_table.y_width,
+        //                 Nion_z_table.x_min + (Nion_z_table.nx_bin-1)*Nion_z_table.x_width,
+        //                 Nion_z_table.y_min + (Nion_z_table.ny_bin-1)*Nion_z_table.y_width);
         return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,&Nion_z_table_MINI);
     }
 
@@ -764,14 +784,15 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar){
     //Currently assuming this is only called in the X-ray/spintemp calculation, this will only affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass
     //      and only if the minimum virial temperatures ION_Tvir_min and X_RAY_Tvir_min are different
     double lnMmin = log(minimum_source_mass(redshift,true,astro_params_it,flag_options_it));
+    double lnMmax = log(global_params.M_MAX_INTEGRAL);
 
     //minihalos uses a different turnover mass
     if(flag_options_it->USE_MINI_HALOS)
-        return Nion_General(redshift, lnMmin, log(global_params.M_MAX_INTEGRAL), atomic_cooling_threshold(redshift), astro_params_it->ALPHA_STAR, 0.,
+        return Nion_General(redshift, lnMmin, lnMmax, atomic_cooling_threshold(redshift), astro_params_it->ALPHA_STAR, 0.,
                             astro_params_it->F_STAR10, 1., Mlim_Fstar, 0.);
 
     if(flag_options_it->USE_MASS_DEPENDENT_ZETA)
-        return Nion_General(redshift, lnMmin, log(global_params.M_MAX_INTEGRAL), astro_params_it->M_TURN, astro_params_it->ALPHA_STAR, 0.,
+        return Nion_General(redshift, lnMmin, lnMmax, astro_params_it->M_TURN, astro_params_it->ALPHA_STAR, 0.,
                             astro_params_it->F_STAR10, 1., Mlim_Fstar, 0.);
 
     //NOTE: Previously, with M_MIN_IN_MASS, the FgtrM function used M_turn/50, which seems like a bug
@@ -779,7 +800,7 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar){
 
     //Currently assuming this is only called in the X-ray/spintemp calculation, this will only affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass
     //      and only if the minimum virial temperatures ION_Tvir_min and X_RAY_Tvir_min are different
-    return FgtrM_General(redshift, minimum_source_mass(redshift,true,astro_params_it,flag_options_it));
+    return Fcoll_General(redshift, lnMmin, lnMmax);
 }
 
 double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI){

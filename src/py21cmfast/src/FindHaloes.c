@@ -70,7 +70,7 @@ LOG_DEBUG("redshift=%f", redshift);
         //set minimum source mass
         M_MIN = minimum_source_mass(redshift, false, astro_params, flag_options);
         //if we use the sampler we want to stop at the HII cell mass
-        if(flag_options->HALO_STOCHASTICITY || flag_options->FIXED_HALO_GRIDS)
+        if(flag_options->HALO_STOCHASTICITY)
             M_MIN = fmax(M_MIN,RtoM(L_FACTOR*user_params->BOX_LEN/user_params->HII_DIM));
         //otherwise we stop at the cell mass
         else
@@ -481,6 +481,7 @@ void init_halo_coords(struct HaloField *halos, long long unsigned int n_halos){
 
     halos->star_rng = (float *) calloc(n_halos,sizeof(float));
     halos->sfr_rng = (float *) calloc(n_halos,sizeof(float));
+    halos->xray_rng = (float *) calloc(n_halos,sizeof(float));
 }
 
 void free_halo_field(struct HaloField *halos){
@@ -489,6 +490,7 @@ void free_halo_field(struct HaloField *halos){
     free(halos->halo_coords);
     free(halos->star_rng);
     free(halos->sfr_rng);
+    free(halos->xray_rng);
     halos->n_halos = 0;
 }
 
