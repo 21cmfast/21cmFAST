@@ -5,7 +5,6 @@ import os
 from typing import Any
 
 from .._cfg import config
-from ..wrapper._utils import _check_compatible_inputs
 from ..wrapper.inputs import convert_input_dicts, validate_all_inputs
 from ..wrapper.outputs import OutputStruct
 
@@ -214,3 +213,49 @@ def _get_config_options(
         bool(config["regenerate"] if regenerate is None else regenerate),
         hooks,
     )
+
+
+def _check_compatible_inputs(*datasets, ignore=["redshift"]):
+    """Ensure that all defined input parameters for the provided datasets are equal.
+
+    Parameters
+    ----------
+    datasets : list of :class:`~_utils.OutputStruct`
+        A number of output datasets to cross-check.
+    ignore : list of str
+        Attributes to ignore when ensuring that parameter inputs are the same.
+
+    Raises
+    ------
+    ValueError :
+        If datasets are not compatible.
+    """
+    done = []  # keeps track of inputs we've checked so we don't double check.
+
+    for i, d in enumerate(datasets):
+        # If a dataset is None, just ignore and move on.
+        if d is None:
+            continue
+
+        # noinspection PyProtectedMember
+        for inp in d._inputs:
+            # Skip inputs that we want to ignore
+            if inp in ignore:
+                continue
+
+            if inp not in done:
+                for j, d2 in enumerate(datasets[(i + 1) :]):
+                    if d2 is None:
+                        continue
+
+                    # noinspection PyProtectedMember
+                    if inp in d2._inputs and getattr(d, inp) != getattr(d2, inp):
+                        raise ValueError(
+                            f"""
+                            {d.__class__.__name__} and {d2.__class__.__name__} are incompatible.
+                            {inp}: {getattr(d, inp)}
+                            vs.
+                            {inp}: {getattr(d2, inp)}
+                            """
+                        )
+                done += [inp]
