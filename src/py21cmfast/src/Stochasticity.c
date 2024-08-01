@@ -64,7 +64,7 @@ void Broadcast_struct_global_STOC(struct UserParams *user_params, struct CosmoPa
 }
 
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the entire box
-double expected_nhalo(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions * flag_options){
+double expected_nhalo(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params){
     //minimum sampled mass
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_PS(user_params,cosmo_params);

@@ -14,8 +14,8 @@ from os import makedirs, path
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
-from . import __version__
-from ._cfg import config
+from .. import __version__
+from .._cfg import config
 from .c_21cmfast import lib
 
 _ffi = FFI()

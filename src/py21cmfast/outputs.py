@@ -28,12 +28,18 @@ from pathlib import Path
 from typing import Sequence
 
 from . import __version__
-from . import _utils as _ut
 from ._cfg import config
-from ._utils import OutputStruct as _BaseOutputStruct
-from ._utils import _check_compatible_inputs
 from .c_21cmfast import ffi, lib
-from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
+from .wrapper import _utils as _ut
+from .wrapper._utils import OutputStruct as _BaseOutputStruct
+from .wrapper._utils import _check_compatible_inputs
+from .wrapper.inputs import (
+    AstroParams,
+    CosmoParams,
+    FlagOptions,
+    UserParams,
+    global_params,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -364,7 +370,7 @@ class HaloField(_AllParamsBox):
         return required
 
     def compute(
-        self, *, halos_desc, ics: InitialConditions, random_seed: int, hooks: dict
+        self, *, descendant_halos: HaloField, ics: InitialConditions, hooks: dict
     ):
         """Compute the function."""
         return self._compute(
@@ -375,8 +381,8 @@ class HaloField(_AllParamsBox):
             self.astro_params,
             self.flag_options,
             ics,
-            random_seed,
-            halos_desc,
+            ics.random_seed,
+            descendant_halos,
             hooks=hooks,
         )
 
