@@ -18,7 +18,7 @@ void Broadcast_struct_global_UF(struct UserParams *user_params, struct CosmoPara
     user_params_ufunc = user_params;
 }
 
-void seed_rng_threads(gsl_rng * rng_arr[], int seed){
+void seed_rng_threads(gsl_rng * rng_arr[], unsigned long long int seed){
     // setting tbe random seeds
     gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
 

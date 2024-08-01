@@ -1,26 +1,4 @@
 /* Written by Steven Furlanetto */
-//#include "stdio.h"
-//#include "stdlib.h"
-//#include "math.h"
-// Below gives grid sizes for the interpolation arrays
-
-// Initialization; must be called once to
-void initialize_interp_arrays();
-
-// Primary functions to compute heating fractions and number of Lya photons or ionization produced,
-// Note that En is the energy of the *primary* photon, so the energy in the initial ionization is
-// included in all these.
-// All energies are in eV.
-// xHII_call is the desired ionized fraction.
-float interp_fheat(float En, float xHII_call);
-float interp_n_Lya(float En, float xHII_call);
-float interp_nion_HI(float En, float xHII_call);
-float interp_nion_HeI(float En, float xHII_call);
-float interp_nion_HeII(float En, float xHII_call);
-
-int locate_energy_index(float En);
-int locate_xHII_index(float xHII_call);
-
 
 // Functions to interpolate the energy deposition fractions of high-energy secondary electrons
 // in the IGM.
@@ -36,13 +14,12 @@ int locate_xHII_index(float xHII_call);
 
 // The interpolation arrays.  Note all are defined in global scope, but x_int_ prefix should
 // ensure no conflicts with other code
-float x_int_Energy[x_int_NENERGY];
-float x_int_XHII[x_int_NXHII];
-float x_int_fheat[x_int_NXHII][x_int_NENERGY];
-float x_int_n_Lya[x_int_NXHII][x_int_NENERGY];
-float x_int_nion_HI[x_int_NXHII][x_int_NENERGY];
-float x_int_nion_HeI[x_int_NXHII][x_int_NENERGY];
-float x_int_nion_HeII[x_int_NXHII][x_int_NENERGY];
+static float x_int_Energy[x_int_NENERGY];
+static float x_int_fheat[x_int_NXHII][x_int_NENERGY];
+static float x_int_n_Lya[x_int_NXHII][x_int_NENERGY];
+static float x_int_nion_HI[x_int_NXHII][x_int_NENERGY];
+static float x_int_nion_HeI[x_int_NXHII][x_int_NENERGY];
+static float x_int_nion_HeII[x_int_NXHII][x_int_NENERGY];
 
 void skipline(FILE *fl, int n){
     int i;

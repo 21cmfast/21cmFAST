@@ -25,32 +25,36 @@ void Broadcast_struct_global_IT(struct UserParams *user_params, struct CosmoPara
 }
 
 //Tables for the grids
-struct RGTable1D SFRD_z_table = {.allocated = false};
-struct RGTable1D Nion_z_table = {.allocated = false};
-struct RGTable2D SFRD_z_table_MINI = {.allocated = false};
-struct RGTable2D Nion_z_table_MINI = {.allocated = false};
-struct RGTable1D_f Nion_conditional_table1D = {.allocated = false};
-struct RGTable1D_f SFRD_conditional_table = {.allocated = false};
-struct RGTable2D_f Nion_conditional_table2D = {.allocated = false};
-struct RGTable2D_f Nion_conditional_table_MINI = {.allocated = false};
-struct RGTable2D_f SFRD_conditional_table_MINI = {.allocated = false};
-struct RGTable2D_f Nion_conditional_table_prev = {.allocated = false};
-struct RGTable2D_f Nion_conditional_table_MINI_prev = {.allocated = false};
+static struct RGTable1D SFRD_z_table = {.allocated = false};
+static struct RGTable1D Nion_z_table = {.allocated = false};
+static struct RGTable2D SFRD_z_table_MINI = {.allocated = false};
+static struct RGTable2D Nion_z_table_MINI = {.allocated = false};
+static struct RGTable1D_f Nion_conditional_table1D = {.allocated = false};
+static struct RGTable1D_f SFRD_conditional_table = {.allocated = false};
+static struct RGTable2D_f Nion_conditional_table2D = {.allocated = false};
+static struct RGTable2D_f Nion_conditional_table_MINI = {.allocated = false};
+static struct RGTable2D_f SFRD_conditional_table_MINI = {.allocated = false};
+static struct RGTable2D_f Nion_conditional_table_prev = {.allocated = false};
+static struct RGTable2D_f Nion_conditional_table_MINI_prev = {.allocated = false};
 
 //Tables for the catalogues
-struct RGTable1D Nhalo_table = {.allocated = false};
-struct RGTable1D Mcoll_table = {.allocated = false};
-struct RGTable2D Nhalo_inv_table = {.allocated = false};
+static struct RGTable1D Nhalo_table = {.allocated = false};
+static struct RGTable1D Mcoll_table = {.allocated = false};
+static struct RGTable2D Nhalo_inv_table = {.allocated = false};
 
 //Tables for the old parametrization
-struct RGTable1D fcoll_z_table = {.allocated = false};
-struct RGTable1D_f fcoll_conditional_table = {.allocated = false,};
-struct RGTable1D_f dfcoll_conditional_table = {.allocated = false,};
+static struct RGTable1D fcoll_z_table = {.allocated = false};
+static struct RGTable1D_f fcoll_conditional_table = {.allocated = false,};
+static struct RGTable1D_f dfcoll_conditional_table = {.allocated = false,};
 
 //J table for binary split algorithm
-struct RGTable1D J_split_table = {.allocated = false};
+static struct RGTable1D J_split_table = {.allocated = false};
 //Sigma inverse table for partition algorithm
-struct RGTable1D Sigma_inv_table = {.allocated = false};
+static struct RGTable1D Sigma_inv_table = {.allocated = false};
+
+//Sigma interpolation tables
+struct RGTable1D_f Sigma_InterpTable = {.allocated = false,};
+struct RGTable1D_f dSigmasqdm_InterpTable = {.allocated = false,};
 
 //NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to assign ST_over_PS in Spintemp.
 //  It may be better to just do the integrals at each R
@@ -957,4 +961,41 @@ double EvaluateSigmaInverse(double sigma){
         Throw(ValueError);
     }
     return EvaluateRGTable1D(sigma,&Sigma_inv_table);
+}
+
+void initialiseSigmaMInterpTable(float M_min, float M_max){
+    int i;
+
+    if(!Sigma_InterpTable.allocated)
+        allocate_RGTable1D_f(NMass,&Sigma_InterpTable);
+    if(!dSigmasqdm_InterpTable.allocated)
+        allocate_RGTable1D_f(NMass,&dSigmasqdm_InterpTable);
+
+    Sigma_InterpTable.x_min = log(M_min);
+    Sigma_InterpTable.x_width = (log(M_max) - log(M_min))/(NMass-1.);
+    dSigmasqdm_InterpTable.x_min = log(M_min);
+    dSigmasqdm_InterpTable.x_width = (log(M_max) - log(M_min))/(NMass-1.);
+
+#pragma omp parallel private(i) num_threads(user_params_ps->N_THREADS)
+    {
+        float Mass;
+#pragma omp for
+        for(i=0;i<NMass;i++) {
+            Mass = exp(Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width);
+            Sigma_InterpTable.y_arr[i] = sigma_z0(Mass);
+            dSigmasqdm_InterpTable.y_arr[i] = log10(-dsigmasqdm_z0(Mass));
+        }
+    }
+
+    for(i=0;i<NMass;i++) {
+        if(isfinite(Sigma_InterpTable.y_arr[i]) == 0 || isfinite(dSigmasqdm_InterpTable.y_arr[i]) == 0){
+            LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
+            Throw(TableGenerationError);
+        }
+    }
+}
+
+void freeSigmaMInterpTable(){
+    free_RGTable1D_f(&Sigma_InterpTable);
+    free_RGTable1D_f(&dSigmasqdm_InterpTable);
 }

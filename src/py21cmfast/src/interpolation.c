@@ -2,46 +2,6 @@
 //  We use regular grid tables since they are faster to evaluate (we always know which bin we are in)
 //  So I'm making a general function for the 1D and 2D cases
 
-struct RGTable1D{
-    int n_bin;
-    double x_min;
-    double x_width;
-
-    double *y_arr;
-    bool allocated;
-};
-
-struct RGTable2D{
-    int nx_bin, ny_bin;
-    double x_min, y_min;
-    double x_width, y_width;
-
-    double **z_arr;
-
-    double saved_ll, saved_ul; //for future acceleration
-    bool allocated;
-};
-
-struct RGTable1D_f{
-    int n_bin;
-    double x_min;
-    double x_width;
-
-    float *y_arr;
-    bool allocated;
-};
-
-struct RGTable2D_f{
-    int nx_bin, ny_bin;
-    double x_min, y_min;
-    double x_width, y_width;
-
-    float **z_arr;
-
-    double saved_ll, saved_ul; //for future acceleration
-    bool allocated;
-};
-
 void allocate_RGTable1D(int n_bin, struct RGTable1D * ptr){
     ptr->n_bin = n_bin;
     ptr->y_arr = calloc(n_bin,sizeof(double));
@@ -118,12 +78,9 @@ double EvaluateRGTable1D(double x, struct RGTable1D *table){
     int idx = (int)floor((x - x_min)/x_width);
     double table_val = x_min + x_width*(double)idx;
     double interp_point = (x - table_val)/x_width;
-    // LOG_DEBUG("1D: x %.6e (min %.2e wid %.2e) -> idx %d -> tbl %.6e -> itp %.6e",x, x_min, x_width,idx,table_val,interp_point);
 
     //a + f(a-b) is one fewer operation but less precise
     double result = table->y_arr[idx]*(1-interp_point) + table->y_arr[idx+1]*(interp_point);
-
-    // LOG_DEBUG("-> result %.2e",result);
 
     return result;
 }
@@ -144,15 +101,10 @@ double EvaluateRGTable2D(double x, double y, struct RGTable2D *table){
 
     double left_edge, right_edge, result;
 
-    // LOG_ULTRA_DEBUG("2D Interp: val (%.2e,%.2e) min (%.2e,%.2e) wid (%.2e,%.2e)",x,y,x_min,y_min,x_width,y_width);
-    // LOG_ULTRA_DEBUG("2D Interp: idx (%d,%d) tbl (%.2e,%.2e) itp (%.2e,%.2e)",x_idx,y_idx,x_table,y_table,interp_point_x,interp_point_y);
-    // LOG_ULTRA_DEBUG("2D Interp: table cell corners (%.2e,%.2e,%.2e,%.2e)",table->z_arr[x_idx][y_idx],table->z_arr[x_idx][y_idx+1],table->z_arr[x_idx+1][y_idx],table->z_arr[x_idx+1][y_idx+1]);
-
     left_edge = table->z_arr[x_idx][y_idx]*(1-interp_point_y) + table->z_arr[x_idx][y_idx+1]*(interp_point_y);
     right_edge = table->z_arr[x_idx+1][y_idx]*(1-interp_point_y) + table->z_arr[x_idx+1][y_idx+1]*(interp_point_y);
 
     result = left_edge*(1-interp_point_x) + right_edge*(interp_point_x);
-    // LOG_DEBUG("result %.6e",result);
 
     return result;
 }
@@ -184,15 +136,10 @@ double EvaluateRGTable2D_f(double x, double y, struct RGTable2D_f *table){
 
     double left_edge, right_edge, result;
 
-    // LOG_DEBUG("2D Interp: val (%.2e,%.2e) min (%.2e,%.2e) wid (%.2e,%.2e)",x,y,x_min,y_min,x_width,y_width);
-    // LOG_DEBUG("2D Interp: idx (%d,%d) tbl (%.2e,%.2e) itp (%.2e,%.2e)",x_idx,y_idx,x_table,y_table,interp_point_x,interp_point_y);
-    // LOG_DEBUG("2D Interp: table corners (%.2e,%.2e,%.2e,%.2e)",z_arr[x_idx][y_idx],z_arr[x_idx][y_idx+1],z_arr[x_idx+1][y_idx],z_arr[x_idx+1][y_idx+1]);
-
     left_edge = table->z_arr[x_idx][y_idx]*(1-interp_point_y) + table->z_arr[x_idx][y_idx+1]*(interp_point_y);
     right_edge = table->z_arr[x_idx+1][y_idx]*(1-interp_point_y) + table->z_arr[x_idx+1][y_idx+1]*(interp_point_y);
 
     result = left_edge*(1-interp_point_x) + right_edge*(interp_point_x);
-    // LOG_DEBUG("result %.6e",result);
 
     return result;
 }

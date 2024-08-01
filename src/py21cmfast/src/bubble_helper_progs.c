@@ -4,6 +4,7 @@
 /*
   all lengths are in units of the box size
   (x,y,z) is the closest reflection of (x2,y2,z2) to (x1, y1, z1)
+  JD: this is UNUSED Currently
 */
 float distance_coord(float x1, float y1, float z1,
 		     float x2, float y2, float z2,
@@ -146,6 +147,7 @@ float distance_coord(float x1, float y1, float z1,
 
 /*
   all lengths are in units of the box size
+  JD: This is UNUSED currently
 */
 float distance(float x1, float y1, float z1, float x2, float y2, float z2){
   float minimumsq, xsq, ysq, zsq, xplussq, yplussq, zplussq, xminsq, yminsq, zminsq;

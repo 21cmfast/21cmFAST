@@ -8,6 +8,9 @@
     NOTE: Not all 21cmFAST variables will be found below. Only those useful for 21CMMC
 
  */
+#ifndef _CONSTANTS_H
+#define _CONSTANTS_H
+//TODO: sort out these constants into groups and make separate files
 
 // ----------------------------------------------------------------------------------------- //
 
@@ -16,14 +19,6 @@
 // ----------------------------------------------------------------------------------------- //
 
 #define L_FACTOR (float) (0.620350491) // factor relating cube length to filter radius = (4PI/3)^(-1/3)
-
-// ----------------------------------------------------------------------------------------- //
-
-// Taken from elec_interp.c
-
-// ----------------------------------------------------------------------------------------- //
-
-
 
 /*
  Filenames of the appropriate output from RECFAST to be used as boundary conditions in Ts.c
@@ -177,12 +172,6 @@
 // ----------------------------------------------------------------------------------------- //
 
 
-
-#define x_int_NXHII  14
-#define x_int_NENERGY  258
-
-
-
 // ----------------------------------------------------------------------------------------- //
 
 // From ps.c (temporary way to including transfer function from CLASS
@@ -221,3 +210,5 @@
 #define REION_SM13_B  (double) -2.1
 #define REION_SM13_C  (double) 2.0
 #define REION_SM13_D  (double) 2.5
+
+#endif

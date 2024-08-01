@@ -258,7 +258,7 @@ int set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, float * input,
 
 //This is the function called to assign halo properties to an entire catalogue, used for DexM halos
 int add_properties_cat(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
-                        , int seed, float redshift, struct HaloField *halos){
+                        , unsigned long long int seed, float redshift, struct HaloField *halos){
     Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
     //set up the rng
     gsl_rng * rng_stoc[user_params->N_THREADS];
@@ -970,7 +970,7 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, struc
 
 //function that talks between the structures (Python objects) and the sampling functions
 int stochastic_halofield(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options
-                        , int seed, float redshift_desc, float redshift, float *dens_field, float *halo_overlap_box, struct HaloField *halos_desc, struct HaloField *halos){
+                        , unsigned long long int seed, float redshift_desc, float redshift, float *dens_field, float *halo_overlap_box, struct HaloField *halos_desc, struct HaloField *halos){
     Broadcast_struct_global_UF(user_params,cosmo_params);
     Broadcast_struct_global_PS(user_params,cosmo_params);
     Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
@@ -1074,7 +1074,8 @@ int test_mfp_filter(struct UserParams *user_params, struct CosmoParams *cosmo_pa
 //This is a test function which takes a list of conditions (cells or halos) and samples them to produce a descendant list
 //      as well as per-condition number and mass counts
 int single_test_sample(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                        int seed, int n_condition, float *conditions, int *cond_crd, double z_out, double z_in, int *out_n_tot, int *out_n_cell, double *out_n_exp,
+                        unsigned long long int seed, int n_condition, float *conditions, int *cond_crd, double z_out, double z_in,
+                        int *out_n_tot, int *out_n_cell, double *out_n_exp,
                         double *out_m_cell, double *out_m_exp, float *out_halo_masses, int *out_halo_coords){
     int status;
     Try{

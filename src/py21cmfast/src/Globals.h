@@ -9,6 +9,9 @@
 
  */
 
+#ifndef _GLOBALS_H
+#define _GLOBALS_H
+
 struct GlobalParams{
     float ALPHA_UVB;
     int EVOLVE_DENSITY_LINEARLY;
@@ -156,3 +159,5 @@ extern struct GlobalParams global_params = {
 
     .USE_ADIABATIC_FLUCTUATIONS = 1,
 };
+
+#endif

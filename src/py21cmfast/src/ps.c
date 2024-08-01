@@ -59,10 +59,6 @@ double sigma_norm, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_
 
 double sigmaparam_FgtrM_bias(float z, float sigsmallR, float del_bias, float sig_bias);
 
-//Sigma interpolation tables are defined here instead of interp_tables.c since they are used in their construction
-struct RGTable1D_f Sigma_InterpTable = {.allocated = false,};
-struct RGTable1D_f dSigmasqdm_InterpTable = {.allocated = false,};
-
 //These arrays hold the points and weights for the Gauss-Legendre integration routine
 //(JD) Since these were always malloc'd one at a time with fixed length ~100, I've changed them to fixed-length arrays
 float xi_GL[NGL_INT+1], wi_GL[NGL_INT+1];
@@ -74,12 +70,6 @@ double *log10phi, *M_uv_z, *M_h_z;
 double *lnMhalo_param_MINI, *Muv_param_MINI, *Mhalo_param_MINI;
 double *log10phi_MINI; *M_uv_z_MINI, *M_h_z_MINI;
 double *deriv, *lnM_temp, *deriv_temp;
-
-void initialiseSigmaMInterpTable(float M_Min, float M_Max);
-void freeSigmaMInterpTable();
-
-double EvaluateSigma(double lnM);
-double EvaluatedSigmasqdm(double lnM);
 
 //JBM: Exact integral for power-law indices non zero (for zero it's erfc)
 double Fcollapprox (double numin, double beta);
@@ -1675,45 +1665,6 @@ double splined_erfc(double x){
     else
         return exp(gsl_spline_eval(erfc_spline, x, erfc_acc));
 }
-
-
-void initialiseSigmaMInterpTable(float M_min, float M_max){
-    int i;
-
-    if(!Sigma_InterpTable.allocated)
-        allocate_RGTable1D_f(NMass,&Sigma_InterpTable);
-    if(!dSigmasqdm_InterpTable.allocated)
-        allocate_RGTable1D_f(NMass,&dSigmasqdm_InterpTable);
-
-    Sigma_InterpTable.x_min = log(M_min);
-    Sigma_InterpTable.x_width = (log(M_max) - log(M_min))/(NMass-1.);
-    dSigmasqdm_InterpTable.x_min = log(M_min);
-    dSigmasqdm_InterpTable.x_width = (log(M_max) - log(M_min))/(NMass-1.);
-
-#pragma omp parallel private(i) num_threads(user_params_ps->N_THREADS)
-    {
-        float Mass;
-#pragma omp for
-        for(i=0;i<NMass;i++) {
-            Mass = exp(Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width);
-            Sigma_InterpTable.y_arr[i] = sigma_z0(Mass);
-            dSigmasqdm_InterpTable.y_arr[i] = log10(-dsigmasqdm_z0(Mass));
-        }
-    }
-
-    for(i=0;i<NMass;i++) {
-        if(isfinite(Sigma_InterpTable.y_arr[i]) == 0 || isfinite(dSigmasqdm_InterpTable.y_arr[i]) == 0){
-            LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
-            Throw(TableGenerationError);
-        }
-    }
-}
-
-void freeSigmaMInterpTable(){
-    free_RGTable1D_f(&Sigma_InterpTable);
-    free_RGTable1D_f(&dSigmasqdm_InterpTable);
-}
-
 
 void nrerror(char error_text[])
 {
