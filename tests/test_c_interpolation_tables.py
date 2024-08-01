@@ -861,6 +861,9 @@ def test_Nion_z_tables(name, plt):
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
 def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
+    if name != "PS" and intmethod == "FFCOLL":
+        pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
+
     mini_flag = mini == "mini"
 
     redshift, kwargs = OPTIONS_HMF[name]
@@ -1049,6 +1052,8 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
 def test_SFRD_conditional_table(name, R, intmethod, plt):
+    if name != "PS" and intmethod == "FFCOLL":
+        pytest.skip("FAST FFCOLL INTEGRALS WORK ONLY WITH EPS")
     redshift, kwargs = OPTIONS_HMF[name]
     opts = prd.get_all_options(redshift, **kwargs)
 
@@ -1273,6 +1278,8 @@ def test_conditional_integral_methods(R, name, integrand, plt):
     integrals_mini = []
     input_arr = np.meshgrid(edges_d[:-1], np.log10(edges_m[:-1]), indexing="ij")
     for method in range(0, 3):
+        if name != "PS" and method == 2:
+            continue
         up.update(INTEGRATION_METHOD_ATOMIC=method, INTEGRATION_METHOD_MINI=method)
 
         lib.Broadcast_struct_global_PS(up(), cp())
@@ -1370,27 +1377,9 @@ def make_table_comparison_plot(
 ):
     # rows = values,fracitonal diff, cols = 1d table, 2d table
     fig, axs = plt.subplots(nrows=2, ncols=len(x), figsize=(16, 16 / len(x) * 2))
-    xlabels = kwargs.pop(
-        "xlabels",
-        [
-            "delta",
-        ]
-        * len(x),
-    )
-    ylabels = kwargs.pop(
-        "ylabels",
-        [
-            "MF_integral",
-        ]
-        * len(x),
-    )
-    zlabels = kwargs.pop(
-        "zlabels",
-        [
-            "Mturn",
-        ]
-        * len(x),
-    )
+    xlabels = kwargs.pop("xlabels", ["delta"] * len(x))
+    ylabels = kwargs.pop("ylabels", ["MF_integral"] * len(x))
+    zlabels = kwargs.pop("zlabels", ["Mturn"] * len(x))
     for j, z in enumerate(tb_z):
         for i in range(z.size):
             zlab = zlabels[j] + f" = {z[i]:.2e}"

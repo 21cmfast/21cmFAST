@@ -311,7 +311,6 @@ double remove_random_halo(gsl_rng * rng, int n_halo, int *idx, double *M_prog, f
     int random_idx;
     do {
         random_idx = gsl_rng_uniform_int(rng,n_halo);
-        //LOG_ULTRA_DEBUG("Want to remove halo %d of %d Mass %.3e",random_idx,M_out[random_idx],n_halo);
     } while(M_out[random_idx] == 0);
     last_M_del = M_out[random_idx];
     *M_prog -= last_M_del;
@@ -334,9 +333,7 @@ void fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_
     bool sel = gsl_rng_uniform_int(rng,2);
     // int sel = 1;
     if(sel){
-        //LOG_ULTRA_DEBUG("Deciding to keep last halo M %.3e tot %.3e exp %.3e",M_out[*n_halo_pt-1],*M_tot_pt,exp_M);
         if(fabs(*M_tot_pt - M_out[*n_halo_pt-1] - exp_M) < fabs(*M_tot_pt - exp_M)){
-            //LOG_ULTRA_DEBUG("removed");
             *M_tot_pt -= M_out[*n_halo_pt-1];
             //here we remove by setting the counter one lower so it isn't read
             (*n_halo_pt)--; //increment has preference over dereference
@@ -346,14 +343,12 @@ void fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_
         while(*M_tot_pt > exp_M){
             //here we remove by setting halo mass to zero, skipping it during the consolidation
             last_M_del = remove_random_halo(rng,*n_halo_pt,&random_idx,M_tot_pt,M_out);
-            //LOG_ULTRA_DEBUG("Removed halo %d M %.3e tot %.3e",random_idx,last_M_del,*M_tot_pt);
         }
 
         // if the sample with the last subtracted halo is closer to the expected mass, keep it
         // LOG_ULTRA_DEBUG("Deciding to keep last halo M %.3e tot %.3e exp %.3e",last_M_del,*M_tot_pt,exp_M);
         if(fabs(*M_tot_pt + last_M_del - exp_M) < fabs(*M_tot_pt - exp_M)){
             M_out[random_idx] = last_M_del;
-            // LOG_ULTRA_DEBUG("kept.");
             *M_tot_pt += last_M_del;
         }
     }
@@ -381,15 +376,10 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
 
         M_prog += M_sample;
         M_out[n_halo_sampled++] = M_sample;
-        // LOG_ULTRA_DEBUG("Sampled %.3e | %.3e %d",M_sample,M_prog,n_halo_sampled);
     }
-    // LOG_ULTRA_DEBUG("Before fix: %d %.3e",n_halo_sampled,M_prog);
     //The above sample is above the expected mass, by up to 100%. I wish to make the average mass equal to exp_M
     fix_mass_sample(rng,exp_M,&n_halo_sampled,&M_prog,M_out);
-    // LOG_ULTRA_DEBUG("After fix: %d %.3e",n_halo_sampled,M_prog);
 
-    // LOG_ULTRA_DEBUG("Got %d (exp.%.2e) halos mass %.2e (exp. %.2e) %.2f",
-    //                 n_halo_sampled,hs_constants->expected_N,M_prog,exp_M,M_prog/exp_M - 1);
     *n_halo_out = n_halo_sampled;
     return 0;
 }
@@ -433,7 +423,6 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
 
     double tbl_arg = hs_constants->cond_val;
     n_halo_sampled = 0;
-    LOG_ULTRA_DEBUG("Start: M %.2e (%.2e) d %.2e",M_cond,exp_M,d_cond);
     double nu_fudge_factor = user_params_stoc->HALOMASS_CORRECTION;
 
     //set initial amount
@@ -450,8 +439,6 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
 
         nu_min = sqrt(del_term/(sigma_min*sigma_min - sigma_r*sigma_r)); //nu at minimum progenitor
 
-        LOG_ULTRA_DEBUG("M_rem %.2e d %.2e sigma %.2e min %.2e numin %.2e",M_remaining,delta_current,sigma_r,sigma_min,nu_min);
-
         //we use the gaussian tail distribution to enforce our Mmin limit from the sigma tables
         do{
             nu_sample = gsl_ran_ugaussian_tail(rng,nu_min)*nu_fudge_factor;
@@ -461,7 +448,6 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
         M_sample = EvaluateSigmaInverse(sigma_sample);
         M_sample = exp(M_sample);
 
-        LOG_ULTRA_DEBUG("found Mass %d %.2e sigma %.2e nu %.2e dt %.2e",n_halo_sampled,M_sample,sigma_sample,nu_sample,del_term);
         M_out[n_halo_sampled++] = M_sample;
         M_remaining -= M_sample;
         lnM_remaining = log(M_remaining);
@@ -476,7 +462,6 @@ double ComputeFraction_split(
     double G1, double dd, double gamma1
 ) {
     double u_res = sigma_start*pow(sigmasq_res - sigmasq_start, -.5);
-    // LOG_ULTRA_DEBUG("Frac: u_res = %.2e, dd=%.2e, J=%.2e",u_res,dd,EvaluateJ(u_res,gamma1));
     return sqrt(2./PI)*EvaluateJ(u_res,gamma1)*G1/sigma_start*dd;
 }
 

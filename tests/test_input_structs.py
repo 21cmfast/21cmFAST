@@ -165,7 +165,7 @@ def test_interpolation_table_warning():
 def test_validation():
     c = CosmoParams()
     a = AstroParams(R_BUBBLE_MAX=100)
-    f = FlagOptions()
+    f = FlagOptions(USE_EXP_FILTER=False)  # needed for HII_FILTER checks
     u = UserParams(BOX_LEN=50)
 
     with global_params.use(HII_FILTER=2):
@@ -204,52 +204,71 @@ def test_user_params():
 
 # Testing all the FlagOptions dependencies, including emitted warnings
 def test_flag_options():
-    flg = FlagOptions(SUBCELL_RSD=True, APPLY_RSDS=False)
-    assert not flg.SUBCELL_RSD
-
-    flg = FlagOptions(M_MIN_in_Mass=False, USE_MASS_DEPENDENT_ZETA=True)
-    assert flg.M_MIN_in_Mass
-
-    with pytest.warns(UserWarning, match="Automatically setting INHOMO_RECO to True."):
-        flg = FlagOptions(USE_MINI_HALOS=True, INHOMO_RECO=False)
-        flg.INHOMO_RECO
-    assert flg.INHOMO_RECO
-
-    with pytest.warns(UserWarning, match="Automatically setting USE_TS_FLUCT to True."):
-        flg = FlagOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=False)
-        flg.USE_TS_FLUCT
-    assert flg.USE_TS_FLUCT
-
-    with pytest.warns(
-        UserWarning, match="Automatically setting USE_MASS_DEPENDENT_ZETA to True."
+    with pytest.raises(
+        ValueError, match="You have set SUBCELL_RSD to True but APPLY_RSDS is False"
     ):
-        flg = FlagOptions(USE_MINI_HALOS=True, USE_MASS_DEPENDENT_ZETA=False)
+        flg = FlagOptions(SUBCELL_RSD=True, APPLY_RSDS=False)
+        flg.SUBCELL_RSD
+
+    with pytest.raises(
+        ValueError, match="USE_HALO_FIELD requires USE_MASS_DEPENDENT_ZETA"
+    ):
+        flg = FlagOptions(USE_MASS_DEPENDENT_ZETA=False, USE_HALO_FIELD=True)
         flg.USE_MASS_DEPENDENT_ZETA
-    assert flg.USE_MASS_DEPENDENT_ZETA
-
-    with pytest.warns(
-        UserWarning, match="Automatically setting USE_HALO_FIELD to False."
+    with pytest.raises(
+        ValueError, match="USE_MINI_HALOS requires USE_MASS_DEPENDENT_ZETA"
     ):
-        flg = FlagOptions(USE_HALO_FIELD=True, USE_MASS_DEPENDENT_ZETA=False)
-        flg.USE_HALO_FIELD
-    assert not flg.USE_HALO_FIELD
+        flg = FlagOptions(
+            USE_MASS_DEPENDENT_ZETA=False,
+            USE_HALO_FIELD=False,
+            USE_MINI_HALOS=True,
+            INHOMO_RECO=True,
+            USE_TS_FLUCT=True,
+        )
+        flg.USE_MASS_DEPENDENT_ZETA
+    with pytest.raises(
+        ValueError,
+        match="You have set USE_MASS_DEPENDENT_ZETA to True but M_Min_in_Mass is False!",
+    ):
+        flg = FlagOptions(USE_MASS_DEPENDENT_ZETA=True, M_MIN_in_Mass=False)
+        flg.USE_MASS_DEPENDENT_ZETA
 
-    with pytest.warns(UserWarning, match="Automatically setting CELL_RECOMB to true."):
+    with pytest.raises(ValueError, match="USE_MINI_HALOS requires INHOMO_RECO"):
+        flg = FlagOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=False)
+        flg.USE_MINI_HALOS
+    with pytest.raises(ValueError, match="USE_MINI_HALOS requires USE_TS_FLUCT"):
+        flg = FlagOptions(USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=False)
+        flg.USE_MINI_HALOS
+
+    with pytest.raises(
+        ValueError, match="USE_MINI_HALOS and USE_HALO_FIELD are not compatible"
+    ):
+        flg = FlagOptions(
+            PHOTON_CONS_TYPE=1, USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=True
+        )
+        flg.PHOTON_CONS_TYPE
+    with pytest.raises(
+        ValueError, match="USE_MINI_HALOS and USE_HALO_FIELD are not compatible"
+    ):
+        flg = FlagOptions(PHOTON_CONS_TYPE=1, USE_HALO_FIELD=True)
+        flg.PHOTON_CONS_TYPE
+
+    with pytest.raises(
+        ValueError, match="HALO_STOCHASTICITY must be used with USE_HALO_FIELD"
+    ):
+        flg = FlagOptions(USE_HALO_FIELD=False, HALO_STOCHASTICITY=True)
+        flg.HALO_STOCHASTICITY
+
+    with pytest.raises(
+        ValueError, match="USE_EXP_FILTER can only be used with CELL_RECOMB"
+    ):
         flg = FlagOptions(USE_EXP_FILTER=True, CELL_RECOMB=False)
-        flg.CELL_RECOMB
-    assert flg.CELL_RECOMB
+        flg.USE_EXP_FILTER
 
     with global_params.use(HII_FILTER=1):
-        with pytest.warns(
-            UserWarning, match="Automatically setting USE_EXP_FILTER to False."
+        with pytest.raises(
+            ValueError,
+            match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
         ):
             flg = FlagOptions(USE_EXP_FILTER=True)
             flg.USE_EXP_FILTER
-        assert not flg.USE_EXP_FILTER
-
-    with pytest.warns(
-        UserWarning, match="Automatically setting PHOTON_CONS_TYPE to zero."
-    ):
-        flg = FlagOptions(PHOTON_CONS_TYPE=1, USE_MINI_HALOS=True)
-        flg.PHOTON_CONS_TYPE
-    assert flg.PHOTON_CONS_TYPE == 0

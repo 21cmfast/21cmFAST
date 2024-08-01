@@ -809,7 +809,6 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
     //NOTE: like the other CMFs this is dNdlogM and leaves out
     //   the (cosmo_params_ps->OMm)*RHOcrit
     //NOTE: dfdM == constants*dNdlnM
-    // LOG_ULTRA_DEBUG("M = %.3e Barrier = %.3f || dndlnM= %.6e",exp(lnM),DELTAC_DELOS,dfdM);
     return dfdM;
 }
 
@@ -862,7 +861,6 @@ double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double
     sigdiff_inv = sigma1 == sigma_cond ? 1e6 : 1/(sigma1*sigma1 - sigma_cond*sigma_cond);
 
     result = -dsigmasqdm*factor*pow(sigdiff_inv,1.5)*exp(-(Barrier - delta_0)*(Barrier - delta_0)*0.5*(sigdiff_inv))/sqrt(2.*PI);
-    // LOG_ULTRA_DEBUG("M = %.3e T = %.3e Barrier = %.3f || dndlnM= %.6e",exp(lnM),factor,Barrier,result);
     return result;
 }
 
@@ -1604,8 +1602,6 @@ double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double M
     if(params.HMF != 0 && params.HMF != 1 && params.HMF != 4)
         params.HMF = 0;
 
-    // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e Mtu=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e hmf=%d sig=%.2e del=%.2e",
-    //     growthf,MassTurnover,MassTurnover_upper,Alpha_star,Alpha_esc,Fstar7,Fesc7,Mlim_Fstar,Mlim_Fesc,0,sigma2,delta2);
     return IntegratedNdM(lnM1,lnM2,params,-4,method);
 }
 
@@ -1626,9 +1622,6 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
         .delta = delta2,
     };
 
-    // LOG_ULTRA_DEBUG("params: D=%.2e Mtl=%.2e as=%.2e ae=%.2e fs=%.2e fe=%.2e Ms=%.2e Me=%.2e sig=%.2e del=%.2e",
-    //     growthf,MassTurnover,Alpha_star,Alpha_esc,Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,sigma2,delta2);
-
     if(delta2 <= -1. || lnM1 >= log(M_cond))
         return 0.;
     //return 1 halo at the condition mass if delta is exceeded
@@ -1643,9 +1636,6 @@ double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double M_cond
     //NOTE: it's possible we may want to use another default
     if(params.HMF != 0 && params.HMF != 1 && params.HMF != 4)
         params.HMF = 0;
-
-
-    // LOG_ULTRA_DEBUG("--> %.8e",IntegratedNdM(lnM1,lnM2,params,-3, method));
 
     return IntegratedNdM(lnM1,lnM2,params,-3, method);
 }
