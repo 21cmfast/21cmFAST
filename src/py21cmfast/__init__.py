@@ -18,21 +18,11 @@ except ModuleNotFoundError:  # pragma: no cover
 from os import mkdir as _mkdir
 from os import path
 
-from . import cache_tools, inputs, lightcones, outputs, plotting, wrapper
+from . import cache_tools, lightcones, plotting, wrapper
 from ._cfg import config
 from ._logging import configure_logging
 from .cache_tools import query_cache
 from .lightcones import AngularLightconer, RectilinearLightconer
-from .outputs import (
-    Coeval,
-    HaloBox,
-    InitialConditions,
-    IonizedBox,
-    LightCone,
-    PerturbedField,
-    TsBox,
-    XraySourceBox,
-)
 from .wrapper import (
     AstroParams,
     BrightnessTemp,
@@ -50,13 +40,25 @@ from .wrapper import (
     global_params,
     halo_box,
     initial_conditions,
+    inputs,
     ionize_box,
+    outputs,
     perturb_field,
     perturb_halo_list,
     run_coeval,
     run_lightcone,
     spin_temperature,
     xray_source,
+)
+from .wrapper.outputs import (
+    Coeval,
+    HaloBox,
+    InitialConditions,
+    IonizedBox,
+    LightCone,
+    PerturbedField,
+    TsBox,
+    XraySourceBox,
 )
 
 configure_logging()

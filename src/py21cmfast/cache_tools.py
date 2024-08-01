@@ -9,8 +9,8 @@ from collections import defaultdict
 from os import path
 from typing import Tuple, Union
 
-from . import outputs
 from ._cfg import config
+from .wrapper import outputs
 
 logger = logging.getLogger(__name__)
 

@@ -15,17 +15,6 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Callable
 
-from ..outputs import (
-    BrightnessTemp,
-    HaloBox,
-    HaloField,
-    InitialConditions,
-    IonizedBox,
-    PerturbedField,
-    PerturbHaloField,
-    TsBox,
-    XraySourceBox,
-)
 from ..wrapper import (
     _check_compatible_inputs,
     _get_config_options,
@@ -40,6 +29,17 @@ from ..wrapper.inputs import (
     FlagOptions,
     UserParams,
     global_params,
+)
+from ..wrapper.outputs import (
+    BrightnessTemp,
+    HaloBox,
+    HaloField,
+    InitialConditions,
+    IonizedBox,
+    PerturbedField,
+    PerturbHaloField,
+    TsBox,
+    XraySourceBox,
 )
 
 logger = logging.getLogger(__name__)
@@ -1057,21 +1057,18 @@ def compute_ionization_field(
     )
 
 
+@set_globals
 def spin_temperature(
     *,
-    astro_params=None,
-    flag_options=None,
-    redshift=None,
-    perturbed_field=None,
-    xray_source_box=None,
-    previous_spin_temp=None,
-    init_boxes=None,
-    cosmo_params=None,
-    user_params=None,
+    astro_params: AstroParams | dict | None = None,
+    flag_options: FlagOptions | dict | None = None,
+    initial_conditions: InitialConditions,
+    perturbed_field: PerturbedField,
+    xray_source_box: XraySourceBox | None = None,
+    previous_spin_temp: TsBox | None = None,
     regenerate=None,
     write=None,
     direc=None,
-    random_seed=None,
     cleanup=True,
     hooks=None,
     **global_kwargs,
@@ -1087,11 +1084,8 @@ def spin_temperature(
         The astrophysical parameters defining the course of reionization.
     flag_options : :class:`~FlagOptions`, optional
         Some options passed to the reionization routine.
-    redshift : float, optional
-        The redshift at which to compute the ionized box. If not given, the redshift from
-        `perturbed_field` will be used. Either `redshift`, `perturbed_field`, or
-        `previous_spin_temp` must be given. See notes on `perturbed_field` for how it affects the
-        given redshift if both are given.
+    initial_conditions : :class:`~InitialConditions`
+        The initial conditions
     perturbed_field : :class:`~PerturbField`, optional
         If given, this field will be used, otherwise it will be generated. To be generated,
         either `init_boxes` and `redshift` must be given, or `user_params`, `cosmo_params` and
@@ -1101,10 +1095,6 @@ def spin_temperature(
         actually computing it at the desired redshift.
     previous_spin_temp : :class:`TsBox` or None
         The previous spin temperature box.
-    init_boxes : :class:`~InitialConditions`, optional
-        If given, and `perturbed_field` *not* given, these initial conditions boxes will be used
-        to generate the perturbed field, otherwise initial conditions will be generated on the fly.
-        If given, the user and cosmo params will be set from this object.
     user_params : :class:`~UserParams`, optional
         Defines the overall options and parameters of the run.
     cosmo_params : :class:`~CosmoParams`, optional
@@ -1184,189 +1174,108 @@ def spin_temperature(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
-    with global_params.use(**global_kwargs):
-        # Configure and check input/output parameters/structs
-        (
-            random_seed,
-            user_params,
-            cosmo_params,
-            astro_params,
-            flag_options,
-        ) = _setup_inputs(
-            {
-                "random_seed": random_seed,
-                "user_params": user_params,
-                "cosmo_params": cosmo_params,
-                "astro_params": astro_params,
-                "flag_options": flag_options,
-            },
-            {
-                "init_boxes": init_boxes,
-                "perturbed_field": perturbed_field,
-                "previous_spin_temp": previous_spin_temp,
-                "xray_source_box": xray_source_box,
-            },
+    # Configure and check input/output parameters/structs
+    (
+        random_seed,
+        user_params,
+        cosmo_params,
+        astro_params,
+        flag_options,
+    ) = _setup_inputs(
+        {
+            "astro_params": astro_params,
+            "flag_options": flag_options,
+        },
+        {
+            "init_boxes": initial_conditions,
+            "perturbed_field": perturbed_field,
+            "previous_spin_temp": previous_spin_temp,
+            "xray_source_box": xray_source_box,
+        },
+    )
+    redshift = perturbed_field.redshift
+
+    # Explicitly set this flag to True, though it shouldn't be required!
+    flag_options.update(USE_TS_FLUCT=True)
+
+    # Get the previous redshift
+    if previous_spin_temp is not None:
+        prev_z = previous_spin_temp.redshift
+    elif redshift < global_params.Z_HEAT_MAX:
+        raise ValueError(
+            "previous_spin_temp is required when the redshift is lower than Z_HEAT_MAX"
+        )
+    else:
+        # Set prev_z to anything, since we don't need it.
+        prev_z = np.inf
+
+    # Ensure the previous spin temperature has a higher redshift than this one.
+    if prev_z <= redshift:
+        raise ValueError(
+            "Previous spin temperature box must have a higher redshift than "
+            "that being evaluated."
         )
 
-        # Try to determine redshift from other inputs, if required.
-        # Note that perturb_field does not need to match redshift here.
-        if redshift is None:
-            if perturbed_field is not None:
-                redshift = perturbed_field.redshift
-            elif previous_spin_temp is not None:
-                redshift = (
-                    previous_spin_temp.redshift + 1
-                ) / global_params.ZPRIME_STEP_FACTOR - 1
-            else:
-                raise ValueError(
-                    "Either the redshift, perturbed_field or previous_spin_temp must be given."
-                )
+    if flag_options.USE_HALO_FIELD and xray_source_box is None:
+        raise ValueError("xray_source_box is required when USE_HALO_FIELD is True")
 
-        # Explicitly set this flag to True, though it shouldn't be required!
-        flag_options.update(USE_TS_FLUCT=True)
+    # Set up the box without computing anything.
+    box = TsBox(
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        redshift=redshift,
+        astro_params=astro_params,
+        flag_options=flag_options,
+        random_seed=random_seed,
+        prev_spin_redshift=prev_z,
+    )
 
-        # Get the previous redshift
-        if previous_spin_temp is not None:
-            prev_z = previous_spin_temp.redshift
-        else:
-            if redshift < global_params.Z_HEAT_MAX:
-                # In general runs, we only compute the spin temperature *below* Z_HEAT_MAX.
-                # Above this, we don't need a prev_z at all, because we can calculate
-                # directly at whatever redshift it is.
-                prev_z = min(
-                    global_params.Z_HEAT_MAX,
-                    (1 + redshift) * global_params.ZPRIME_STEP_FACTOR - 1,
-                )
-            else:
-                # Set prev_z to anything, since we don't need it.
-                prev_z = np.inf
+    # Construct FFTW wisdoms. Only if required
+    construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
 
-        # Ensure the previous spin temperature has a higher redshift than this one.
-        if prev_z <= redshift:
-            raise ValueError(
-                "Previous spin temperature box must have a higher redshift than "
-                "that being evaluated."
+    # Check whether the boxes already exist on disk.
+    if not regenerate:
+        with contextlib.suppress(OSError):
+            box.read(direc)
+            logger.info(
+                f"Existing z={redshift} spin_temp boxes found and read in "
+                f"(seed={box.random_seed})."
             )
+            return box
 
-        # Set up the box without computing anything.
-        box = TsBox(
-            user_params=user_params,
-            cosmo_params=cosmo_params,
-            redshift=redshift,
+    # Create appropriate previous_spin_temp. We've already checked that if it is None,
+    # we're above the Z_HEAT_MAX.
+    if previous_spin_temp is None:
+        # We end up never even using this box, just need to define it
+        # unallocated to be able to send into the C code.
+        previous_spin_temp = TsBox(
+            redshift=prev_z,  # redshift here is ignored
+            user_params=initial_conditions.user_params,
+            cosmo_params=initial_conditions.cosmo_params,
             astro_params=astro_params,
             flag_options=flag_options,
-            random_seed=random_seed,
-            prev_spin_redshift=prev_z,
-            perturbed_field_redshift=(
-                perturbed_field.redshift
-                if (perturbed_field is not None and perturbed_field.is_computed)
-                else redshift
-            ),
+            dummy=True,
         )
 
-        # Construct FFTW wisdoms. Only if required
-        construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
-
-        # Check whether the boxes already exist on disk.
-        if not regenerate:
-            try:
-                box.read(direc)
-                logger.info(
-                    f"Existing z={redshift} spin_temp boxes found and read in "
-                    f"(seed={box.random_seed})."
-                )
-                return box
-            except OSError:
-                pass
-
-        # EVERYTHING PAST THIS POINT ONLY HAPPENS IF THE BOX DOESN'T ALREADY EXIST
-        # ------------------------------------------------------------------------
-        # Dynamically produce the initial conditions.
-        if init_boxes is None or not init_boxes.is_computed:
-            init_boxes = initial_conditions(
-                user_params=user_params,
-                cosmo_params=cosmo_params,
-                regenerate=regenerate,
-                hooks=hooks,
-                direc=direc,
-                random_seed=random_seed,
-            )
-
-            # Need to update random seed
-            box._random_seed = init_boxes.random_seed
-
-        # Create appropriate previous_spin_temp
-        if previous_spin_temp is None:
-            if redshift >= global_params.Z_HEAT_MAX:
-                # We end up never even using this box, just need to define it
-                # unallocated to be able to send into the C code.
-                previous_spin_temp = TsBox(
-                    redshift=prev_z,  # redshift here is ignored
-                    user_params=init_boxes.user_params,
-                    cosmo_params=init_boxes.cosmo_params,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    dummy=True,
-                )
-            else:
-                previous_spin_temp = spin_temperature(
-                    init_boxes=init_boxes,
-                    astro_params=astro_params,
-                    flag_options=flag_options,
-                    redshift=prev_z,
-                    regenerate=regenerate,
-                    hooks=hooks,
-                    direc=direc,
-                    cleanup=False,  # we know we'll need the memory again
-                )
-
-        # Generate halos if needed
-        if flag_options.USE_HALO_FIELD:
-            # TODO: this doesn't work with the recursion at all, move to a list of needed snapshots like the lightcone
-            if xray_source_box is None or not xray_source_box.is_computed:
-                raise NotImplementedError(
-                    "Automatic generation of Xray source box from halos not yet implemented, \
-                                             Use run_coeval, run_lightcone or explicitly generate the source box"
-                )
-            # The entire halo history is generated via similar (but backwards) recursion to the spintemp
-        else:
-            xray_source_box = XraySourceBox(
-                redshift=0,
-                user_params=user_params,
-                cosmo_params=cosmo_params,
-                astro_params=astro_params,
-                flag_options=flag_options,
-                dummy=True,
-            )
-
-        # Dynamically produce the perturbed field.
-        if perturbed_field is None or not perturbed_field.is_computed:
-            perturbed_field = perturb_field(
-                redshift=redshift,
-                init_boxes=init_boxes,
-                regenerate=regenerate,
-                hooks=hooks,
-                direc=direc,
-            )
-
-        # Run the C Code
-        return box.compute(
-            cleanup=cleanup,
-            perturbed_field=perturbed_field,
-            xray_source_box=xray_source_box,
-            prev_spin_temp=previous_spin_temp,
-            ics=init_boxes,
-            hooks=hooks,
-        )
+    # Run the C Code
+    return box.compute(
+        cleanup=cleanup,
+        perturbed_field=perturbed_field,
+        xray_source_box=xray_source_box,
+        prev_spin_temp=previous_spin_temp,
+        ics=initial_conditions,
+        hooks=hooks,
+    )
 
 
+@set_globals
 def brightness_temperature(
     *,
-    ionized_box,
-    perturbed_field,
-    spin_temp=None,
+    ionized_box: IonizedBox,
+    perturbed_field: PerturbedField,
+    spin_temp: TsBox | None = None,
     write=None,
-    regenerate=None,
+    regenerate: bool | None = None,
     direc=None,
     hooks=None,
     **global_kwargs,
@@ -1402,11 +1311,6 @@ def brightness_temperature(
     # don't ignore redshift here
     _check_compatible_inputs(ionized_box, perturbed_field, spin_temp, ignore=[])
 
-    # ensure ionized_box and perturbed_field aren't None, as we don't do
-    # any dynamic calculations here.
-    if ionized_box is None or perturbed_field is None:
-        raise ValueError("both ionized_box and perturbed_field must be specified.")
-
     if spin_temp is None:
         if ionized_box.flag_options.USE_TS_FLUCT:
             raise ValueError(
@@ -1432,14 +1336,12 @@ def brightness_temperature(
 
     # Check whether the boxes already exist on disk.
     if not regenerate:
-        try:
+        with contextlib.suppress(OSError):
             box.read(direc)
             logger.info(
                 f"Existing brightness_temp box found and read in (seed={box.random_seed})."
             )
             return box
-        except OSError:
-            pass
 
     return box.compute(
         spin_temp=spin_temp,

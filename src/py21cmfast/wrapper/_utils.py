@@ -8,7 +8,6 @@ import warnings
 from abc import ABCMeta, abstractmethod
 from bidict import bidict
 from cffi import FFI
-from enum import IntEnum
 from hashlib import md5
 from os import makedirs, path
 from pathlib import Path
@@ -16,7 +15,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from .. import __version__
 from .._cfg import config
-from .c_21cmfast import lib
+from .c_21cmfast import ffi, lib
 
 _ffi = FFI()
 
@@ -1642,3 +1641,18 @@ def _check_compatible_inputs(*datasets, ignore=["redshift"]):
                             """
                         )
                 done += [inp]
+
+
+def _call_c_simple(fnc, *args):
+    """Call a simple C function that just returns an object.
+
+    Any such function should be defined such that the last argument is an int pointer generating
+    the status.
+    """
+    # Parse the function to get the type of the last argument
+    cdata = str(ffi.addressof(lib, fnc.__name__))
+    kind = cdata.split("(")[-1].split(")")[0].split(",")[-1]
+    result = ffi.new(kind)
+    status = fnc(*args, result)
+    _process_exitcode(status, fnc, args)
+    return result[0]

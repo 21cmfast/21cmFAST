@@ -29,9 +29,9 @@ import numpy as np
 from copy import deepcopy
 from scipy.optimize import curve_fit
 
-from ._utils import _process_exitcode
 from .c_21cmfast import ffi, lib
-from .inputs import (
+from .wrapper._utils import _process_exitcode
+from .wrapper.inputs import (
     AstroParams,
     CosmoParams,
     FlagOptions,
