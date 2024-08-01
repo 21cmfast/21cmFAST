@@ -45,6 +45,9 @@ struct UserParams{
     int SAMPLE_METHOD;
     bool AVG_BELOW_SAMPLER;
     double HALOMASS_CORRECTION;
+    double PARKINSON_G0;
+    double PARKINSON_y1;
+    double PARKINSON_y2;
 };
 
 struct AstroParams{

@@ -536,6 +536,15 @@ class UserParams(StructWithDefaults):
         sampling on a timestep of ZPRIME_STEP_FACTOR=1.02.
         If ZPRIME_STEP_FACTOR is increased, this value should be set closer to 1.
         This factor is also used in the partition (SAMPLE_METHOD==2) sampler, dividing nu(M) of each sample drawn.
+    PARKINSON_G0: float, optional
+        Only used when SAMPLE_METHOD==3, sets the normalisation of the correction to the extended press-schecter
+        used in Parkinson et al. 2008.
+    PARKINSON_y1: float, optional
+        Only used when SAMPLE_METHOD==3, sets the index of the sigma power-law term of the correction to the
+        extended Press-Schechter mass function used in Parkinson et al. 2008.
+    PARKINSON_y2: float, optional
+        Only used when SAMPLE_METHOD==3, sets the index of the delta power-law term of the correction to the
+        extended Press-Schechter mass function used in Parkinson et al. 2008.
     """
 
     _ffi = ffi
@@ -568,6 +577,9 @@ class UserParams(StructWithDefaults):
         "SAMPLE_METHOD": 0,
         "AVG_BELOW_SAMPLER": True,
         "HALOMASS_CORRECTION": 0.9,
+        "PARKINSON_G0": 1.0,
+        "PARKINSON_y1": 0.2,
+        "PARKINSON_y2": -0.4,
     }
 
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
@@ -661,7 +673,7 @@ class UserParams(StructWithDefaults):
                 isinstance(self._POWER_SPECTRUM, str)
                 and self._POWER_SPECTRUM.upper() != "CLASS"
             ):
-                logger.warn(
+                warnings.warn(
                     "Automatically setting POWER_SPECTRUM to 5 (CLASS) as you are using "
                     "relative velocities"
                 )
@@ -838,7 +850,7 @@ class FlagOptions(StructWithDefaults):
         "APPLY_RSDS": True,
         "INHOMO_RECO": False,
         "USE_TS_FLUCT": False,
-        "M_MIN_in_Mass": False,
+        "M_MIN_in_Mass": True,
         "FIX_VCB_AVG": False,
         "HALO_STOCHASTICITY": True,
         "USE_EXP_FILTER": True,
@@ -851,68 +863,53 @@ class FlagOptions(StructWithDefaults):
     @property
     def SUBCELL_RSD(self):
         """The SUBCELL_RSD flag is only effective if APPLY_RSDS is True."""
-        return self._SUBCELL_RSD and self.APPLY_RSDS
-
-    @property
-    def USE_HALO_FIELD(self):
-        """Automatically setting USE_HALO_FIELD to False if not USE_MASS_DEPENDENT_ZETA."""
-        if not self.USE_MASS_DEPENDENT_ZETA and self._USE_HALO_FIELD:
-            logger.warn(
-                "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
-                "Automatically setting USE_HALO_FIELD to False."
-            )
-            return False
-
-        return self._USE_HALO_FIELD
-
-    @property
-    def M_MIN_in_Mass(self):
-        """Whether minimum halo mass is defined in mass or virial temperature."""
-        return True if self.USE_MASS_DEPENDENT_ZETA else self._M_MIN_in_Mass
+        if not self.APPLY_RSDS and self._SUBCELL_RSD:
+            raise ValueError("You have set SUBCELL_RSD to True but APPLY_RSDS is False")
+        return self._SUBCELL_RSD
 
     @property
     def USE_MASS_DEPENDENT_ZETA(self):
-        """Automatically setting USE_MASS_DEPENDENT_ZETA to True if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and not self._USE_MASS_DEPENDENT_ZETA:
-            logger.warn(
-                "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False! "
-                "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
+        """USE_MASS_DEPENDENT_ZETA is required for several other flags, this raises an error if any are incompatible."""
+        if not self._USE_MASS_DEPENDENT_ZETA and self.USE_HALO_FIELD:
+            raise ValueError(
+                "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True!"
+                " USE_HALO_FIELD requires USE_MASS_DEPENDENT_ZETA"
             )
-            self._USE_MASS_DEPENDENT_ZETA = True
+        if not self._USE_MASS_DEPENDENT_ZETA and self.USE_MINI_HALOS:
+            raise ValueError(
+                "You have set USE_MASS_DEPENDENT_ZETA to False but USE_MINI_HALOS is True!"
+                " USE_MINI_HALOS requires USE_MASS_DEPENDENT_ZETA"
+            )
+        if self._USE_MASS_DEPENDENT_ZETA and not self.M_MIN_in_Mass:
+            raise ValueError(
+                "You have set USE_MASS_DEPENDENT_ZETA to True but M_Min_in_Mass is False!"
+            )
         return self._USE_MASS_DEPENDENT_ZETA
 
     @property
-    def INHOMO_RECO(self):
-        """Automatically setting INHOMO_RECO to True if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and not self._INHOMO_RECO:
-            warnings.warn(
-                "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
-                "Automatically setting INHOMO_RECO to True."
+    def USE_MINI_HALOS(self):
+        """USE_MINI_HALOS requires inhomogeneous recombinations and spin temperatures to run properly."""
+        if self._USE_MINI_HALOS and not self.INHOMO_RECO:
+            raise ValueError(
+                "You have set USE_MINI_HALOS to True but INHOMO_RECO is False!"
+                " USE_MINI_HALOS requires INHOMO_RECO"
             )
-            self._INHOMO_RECO = True
-        return self._INHOMO_RECO
+        if self._USE_MINI_HALOS and not self.USE_TS_FLUCT:
+            raise ValueError(
+                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False!"
+                " USE_MINI_HALOS requires USE_TS_FLUCT"
+            )
 
-    @property
-    def USE_TS_FLUCT(self):
-        """Automatically setting USE_TS_FLUCT to True if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and not self._USE_TS_FLUCT:
-            logger.warn(
-                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
-                "Automatically setting USE_TS_FLUCT to True."
-            )
-            self._USE_TS_FLUCT = True
-        return self._USE_TS_FLUCT
+        return self._USE_MINI_HALOS
 
     @property
     def PHOTON_CONS_TYPE(self):
-        """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
+        """The z-dependent photon conservation model (PHOTON_CONS_TYPE==1) works poorly with the halo model or minihalos."""
         if (self.USE_MINI_HALOS or self.USE_HALO_FIELD) and self._PHOTON_CONS_TYPE == 1:
-            warnings.warn(
+            raise ValueError(
                 "USE_MINI_HALOS and USE_HALO_FIELD are not compatible with the redshift-based"
                 " photon conservation corrections (PHOTON_CONS_TYPE==1)! "
-                " Automatically setting PHOTON_CONS_TYPE to zero."
             )
-            return 0
         if self._PHOTON_CONS_TYPE < 0 or self._PHOTON_CONS_TYPE > 3:
             raise ValueError("PHOTON_CONS_TYPE must be between 0 and 3 inclusive")
 
@@ -920,37 +917,23 @@ class FlagOptions(StructWithDefaults):
 
     @property
     def HALO_STOCHASTICITY(self):
-        """Automatically setting HALO_STOCHASTICITY to False if not USE_HALO_FIELD."""
+        """Raise an error if HALO_STOCHASTICITY is set without USE_HALO_FIELD."""
         if not self.USE_HALO_FIELD and self._HALO_STOCHASTICITY:
-            warnings.warn(
-                "HALO_STOCHASTICITY must be used with USE_HALO_FIELD"
-                "Turning off Stochastic Halos..."
-            )
-            return False
+            raise ValueError("HALO_STOCHASTICITY must be used with USE_HALO_FIELD")
 
         return self._HALO_STOCHASTICITY
 
     @property
     def USE_EXP_FILTER(self):
-        """Automatically setting USE_EXP_FILTER to False if not HII_FILTER==0."""
+        """Raise an error if the exponential filter is used without cell recombinations or realspace top-hat filter."""
         if self._USE_EXP_FILTER and global_params.HII_FILTER != 0:
-            warnings.warn(
+            raise ValueError(
                 "USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0"
-                "Setting USE_EXP_FILTER to False"
             )
-            return False
-        return self._USE_EXP_FILTER
+        if self._USE_EXP_FILTER and not self.CELL_RECOMB:
+            raise ValueError("USE_EXP_FILTER can only be used with CELL_RECOMB")
 
-    @property
-    def CELL_RECOMB(self):
-        """Automatically setting CELL_RECOMB if USE_EXP_FILTER is active."""
-        if self.USE_EXP_FILTER and not self._CELL_RECOMB:
-            warnings.warn(
-                "CELL_RECOMB is automatically set to True if USE_EXP_FILTER is True."
-                "setting CELL_RECOMB to True"
-            )
-            return True
-        return self._CELL_RECOMB
+        return self._USE_EXP_FILTER
 
 
 class AstroParams(StructWithDefaults):
@@ -1338,7 +1321,7 @@ def validate_all_inputs(
             )
 
             if config["ignore_R_BUBBLE_MAX_error"]:
-                logger.warn(msg)
+                warnings.warn(msg)
             else:
                 raise ValueError(msg)
 
@@ -1362,3 +1345,8 @@ def validate_all_inputs(
 
         if flag_options.USE_EXP_FILTER and not flag_options.USE_HALO_FIELD:
             warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
+
+        if flag_options.USE_EXP_FILTER and global_params.HII_FILTER != 0:
+            raise ValueError(
+                "USE_EXP_FILTER can only be used with a tophat HII_FILTER==0"
+            )

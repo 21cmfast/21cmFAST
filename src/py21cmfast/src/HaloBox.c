@@ -472,7 +472,7 @@ int set_fixed_grids(double M_min, double M_max, struct InitialConditions *ini_bo
 
     //These tables are coarser than needed, an initial loop for Mturn to find limits may help
     if(user_params_stoc->USE_INTERPOLATION_TABLES){
-        if(user_params_stoc->INTEGRATION_METHOD_ATOMIC == 1 || user_params_stoc->INTEGRATION_METHOD_MINI == 1){
+        if(user_params_stoc->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_stoc->USE_MINI_HALOS && user_params_stoc->INTEGRATION_METHOD_MINI == 1)){
             initialise_GL(NGL_INT, lnMmin, lnMmax);
         }
 
@@ -877,6 +877,7 @@ int ComputeHaloBox(double redshift, struct UserParams *user_params, struct Cosmo
         //get parameters
         Broadcast_struct_global_UF(user_params,cosmo_params);
         Broadcast_struct_global_PS(user_params,cosmo_params);
+        Broadcast_struct_global_IT(user_params,cosmo_params,astro_params,flag_options);
         Broadcast_struct_global_STOC(user_params,cosmo_params,astro_params,flag_options);
         Broadcast_struct_global_IT(user_params,cosmo_params,astro_params,flag_options);
 

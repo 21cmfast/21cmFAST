@@ -126,19 +126,13 @@ def test_c_struct_update():
     assert _c != c()
 
 
-def test_update_inhomo_reco(caplog):
+def test_update_inhomo_reco():
     ap = AstroParams(R_BUBBLE_MAX=25)
-
-    ap.update(INHOMO_RECO=True)
-
-    msg = (
-        "You are setting R_BUBBLE_MAX != 50 when INHOMO_RECO=True. "
-        + "This is non-standard (but allowed), and usually occurs upon manual update of INHOMO_RECO"
-    )
-
-    ap.R_BUBBLE_MAX
-
-    assert msg in caplog.text
+    # regex
+    msg = r"This is non\-standard \(but allowed\), and usually occurs upon manual update of INHOMO_RECO"
+    with pytest.warns(UserWarning, match=msg):
+        ap.update(INHOMO_RECO=True)
+        ap.R_BUBBLE_MAX
 
 
 def test_mmin():
@@ -171,7 +165,7 @@ def test_interpolation_table_warning():
 def test_validation():
     c = CosmoParams()
     a = AstroParams(R_BUBBLE_MAX=100)
-    f = FlagOptions()
+    f = FlagOptions(USE_EXP_FILTER=False)  # needed for HII_FILTER checks
     u = UserParams(BOX_LEN=50)
 
     with global_params.use(HII_FILTER=2):
@@ -208,11 +202,73 @@ def test_user_params():
     assert up.cell_size / up.cell_size_hires == up.DIM / up.HII_DIM
 
 
-def test_flag_options(caplog):
-    flg = FlagOptions(USE_HALO_FIELD=True, USE_MASS_DEPENDENT_ZETA=False)
-    assert not flg.USE_HALO_FIELD
-    assert "Automatically setting USE_HALO_FIELD to False." in caplog.text
+# Testing all the FlagOptions dependencies, including emitted warnings
+def test_flag_options():
+    with pytest.raises(
+        ValueError, match="You have set SUBCELL_RSD to True but APPLY_RSDS is False"
+    ):
+        flg = FlagOptions(SUBCELL_RSD=True, APPLY_RSDS=False)
+        flg.SUBCELL_RSD
 
-    flg = FlagOptions(PHOTON_CONS_TYPE=1, USE_MINI_HALOS=True)
-    assert flg.PHOTON_CONS_TYPE == 0
-    assert "Automatically setting PHOTON_CONS_TYPE to zero." in caplog.text
+    with pytest.raises(
+        ValueError, match="USE_HALO_FIELD requires USE_MASS_DEPENDENT_ZETA"
+    ):
+        flg = FlagOptions(USE_MASS_DEPENDENT_ZETA=False, USE_HALO_FIELD=True)
+        flg.USE_MASS_DEPENDENT_ZETA
+    with pytest.raises(
+        ValueError, match="USE_MINI_HALOS requires USE_MASS_DEPENDENT_ZETA"
+    ):
+        flg = FlagOptions(
+            USE_MASS_DEPENDENT_ZETA=False,
+            USE_HALO_FIELD=False,
+            USE_MINI_HALOS=True,
+            INHOMO_RECO=True,
+            USE_TS_FLUCT=True,
+        )
+        flg.USE_MASS_DEPENDENT_ZETA
+    with pytest.raises(
+        ValueError,
+        match="You have set USE_MASS_DEPENDENT_ZETA to True but M_Min_in_Mass is False!",
+    ):
+        flg = FlagOptions(USE_MASS_DEPENDENT_ZETA=True, M_MIN_in_Mass=False)
+        flg.USE_MASS_DEPENDENT_ZETA
+
+    with pytest.raises(ValueError, match="USE_MINI_HALOS requires INHOMO_RECO"):
+        flg = FlagOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=True, INHOMO_RECO=False)
+        flg.USE_MINI_HALOS
+    with pytest.raises(ValueError, match="USE_MINI_HALOS requires USE_TS_FLUCT"):
+        flg = FlagOptions(USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=False)
+        flg.USE_MINI_HALOS
+
+    with pytest.raises(
+        ValueError, match="USE_MINI_HALOS and USE_HALO_FIELD are not compatible"
+    ):
+        flg = FlagOptions(
+            PHOTON_CONS_TYPE=1, USE_MINI_HALOS=True, INHOMO_RECO=True, USE_TS_FLUCT=True
+        )
+        flg.PHOTON_CONS_TYPE
+    with pytest.raises(
+        ValueError, match="USE_MINI_HALOS and USE_HALO_FIELD are not compatible"
+    ):
+        flg = FlagOptions(PHOTON_CONS_TYPE=1, USE_HALO_FIELD=True)
+        flg.PHOTON_CONS_TYPE
+
+    with pytest.raises(
+        ValueError, match="HALO_STOCHASTICITY must be used with USE_HALO_FIELD"
+    ):
+        flg = FlagOptions(USE_HALO_FIELD=False, HALO_STOCHASTICITY=True)
+        flg.HALO_STOCHASTICITY
+
+    with pytest.raises(
+        ValueError, match="USE_EXP_FILTER can only be used with CELL_RECOMB"
+    ):
+        flg = FlagOptions(USE_EXP_FILTER=True, CELL_RECOMB=False)
+        flg.USE_EXP_FILTER
+
+    with global_params.use(HII_FILTER=1):
+        with pytest.raises(
+            ValueError,
+            match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
+        ):
+            flg = FlagOptions(USE_EXP_FILTER=True)
+            flg.USE_EXP_FILTER

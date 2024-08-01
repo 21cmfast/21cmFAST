@@ -530,7 +530,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
     // lets check if we are going to bother with computing the inhmogeneous field at all...
     global_xH = 0.0;
 
-    if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || user_params->INTEGRATION_METHOD_MINI == 1)
+    if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options->USE_MINI_HALOS && user_params->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(NGL_INT, lnMmin, lnMmax);
 
     // Determine the normalisation for the excursion set algorithm
@@ -832,7 +832,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             sigmaMmax = sigma_z0(massofscaleR);
 
             if (!flag_options->USE_HALO_FIELD) {
-                if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || user_params->INTEGRATION_METHOD_MINI == 1)
+                if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options->USE_MINI_HALOS && user_params->INTEGRATION_METHOD_MINI == 1))
                     initialise_GL(NGL_INT, lnMmin, lnM_cond);
                 if (flag_options->USE_MASS_DEPENDENT_ZETA) {
 

@@ -2853,6 +2853,7 @@ def run_coeval(
             if flag_options.USE_HALO_FIELD:
                 if not flag_options.FIXED_HALO_GRIDS:
                     ph2 = pt_halos[iz]
+                    ph2.load_all()
 
                 hb2 = halo_box(
                     redshift=z,
@@ -3559,7 +3560,8 @@ def run_lightcone(
             perturb_files.append((z, os.path.join(direc, pf2.filename)))
             if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
                 hbox_files.append((z, os.path.join(direc, hbox2.filename)))
-                pth_files.append((z, os.path.join(direc, ph.filename)))
+                if not flag_options.FIXED_HALO_GRIDS:
+                    pth_files.append((z, os.path.join(direc, ph.filename)))
             if flag_options.USE_TS_FLUCT:
                 spin_temp_files.append((z, os.path.join(direc, st2.filename)))
             ionize_files.append((z, os.path.join(direc, ib2.filename)))
