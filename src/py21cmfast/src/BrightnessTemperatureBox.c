@@ -25,7 +25,7 @@ void get_velocity_gradient(struct UserParams *user_params, float *v, float *vel_
                     k_y = n_y * DELTA_K;
 
                 for (n_z=0; n_z<=HII_MIDDLE_PARA; n_z++){
-                    k_z = n_z * DELTA_K;
+                    k_z = n_z * DELTA_K_PARA;
 
                     // take partial deriavative along the line of sight
                     *((fftwf_complex *) vel_gradient + HII_C_INDEX(n_x,n_y,n_z)) *= k_z*I/(float)HII_TOT_NUM_PIXELS;
