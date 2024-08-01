@@ -16,7 +16,7 @@ dependencies:
   - matplotlib
   - pip
   - pip:
-    - powerbox
+    - powerbox<0.8
     - cached_property
     - pre-commit
     - pytest-plt
