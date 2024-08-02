@@ -1,0 +1,23 @@
+#ifndef _SUBCELL_RSD_H
+#define _SUBCELL_RSD_H
+
+#include "InputParamters.h"
+#include "IonisationBox.h"
+#include "BrightnessTemperatureBox.h"
+#include "SpinTemperatureBox.h"
+
+double apply_subcell_rsds(
+    UserParams *user_params,
+    CosmoParams *cosmo_params,
+    FlagOptions *flag_options,
+    AstroParams *astro_params,
+    IonizedBox *ionized_box,
+    BrightnessTemp *box,
+    float redshift,
+    SpinTemperature *spin_temp,
+    float T_rad,
+    float *v,
+    float H
+)
+
+#endif
