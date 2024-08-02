@@ -12,6 +12,8 @@ ignore =
     N806
     # Naming upper/lowercase -- too hard right now.
     N802
+    # Naming mixed case
+    N815
     # Docstring in imperative mood. This should *not* be the case for @property's, but can't ignore them atm.
     D401
 max-line-length = 88

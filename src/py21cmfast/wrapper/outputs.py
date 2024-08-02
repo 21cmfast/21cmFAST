@@ -27,19 +27,13 @@ from hashlib import md5
 from pathlib import Path
 from typing import Sequence
 
-from . import __version__
-from ._cfg import config
+from .. import __version__
+from .._cfg import config
+from . import _utils as _ut
+from ._utils import OutputStruct as _BaseOutputStruct
+from ._utils import _check_compatible_inputs
 from .c_21cmfast import ffi, lib
-from .wrapper import _utils as _ut
-from .wrapper._utils import OutputStruct as _BaseOutputStruct
-from .wrapper._utils import _check_compatible_inputs
-from .wrapper.inputs import (
-    AstroParams,
-    CosmoParams,
-    FlagOptions,
-    UserParams,
-    global_params,
-)
+from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
 
 logger = logging.getLogger(__name__)
 

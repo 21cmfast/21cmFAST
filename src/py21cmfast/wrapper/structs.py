@@ -1,5 +1,8 @@
 """Data structure wrappers for the C code."""
 
+from __future__ import annotations
+
+import attrs
 import contextlib
 import h5py
 import logging
@@ -7,6 +10,7 @@ import numpy as np
 import warnings
 from abc import ABCMeta, abstractmethod
 from bidict import bidict
+from functools import cached_property
 from hashlib import md5
 from pathlib import Path
 from typing import Any, Sequence
@@ -22,6 +26,7 @@ from .exceptions import _process_exitcode
 logger = logging.getLogger(__name__)
 
 
+@attrs.define
 class StructWrapper:
     """
     A base-class python wrapper for C structures (not instances of them).
@@ -33,63 +38,25 @@ class StructWrapper:
     object), *or* use an arbitrary name, but set the ``_name`` attribute to the C struct name.
     """
 
-    _name = None
+    _name: str = attrs.field(converter=str)
+
     _ffi = None
 
-    def __init__(self):
-        # Set the name of this struct in the C code
-        self._name = self._get_name()
+    def __attrs_post_init__(self):
+        """Post-initializion actions.
 
-    @classmethod
-    def _get_name(cls):
-        return cls._name or cls.__name__
-
-    @property
-    def _cstruct(self):
+        This instantiates the memory associated with the C struct, attached to this inst.
         """
-        The actual structure which needs to be passed around to C functions.
-
-        .. note:: This is best accessed by calling the instance (see __call__).
-
-        The reason it is defined as this (manual) cached property is so that it can be created
-        dynamically, but not lost. It must not be lost, or else C functions which use it will lose
-        access to its memory. But it also must be created dynamically so that it can be recreated
-        after pickling (pickle can't handle CData).
-        """
-        try:
-            return self.__cstruct
-        except AttributeError:
-            self.__cstruct = self._new()
-            return self.__cstruct
+        self.cstruct = self._new()
 
     def _new(self):
         """Return a new empty C structure corresponding to this class."""
         return self._ffi.new(f"struct {self._name}*")
 
-    @classmethod
-    def get_fields(cls, cstruct=None) -> dict[str, Any]:
-        """Obtain the C-side fields of this struct."""
-        if cstruct is None:
-            cstruct = cls._ffi.new(f"struct {cls._get_name()}*")
-        return dict(cls._ffi.typeof(cstruct[0]).fields)
-
-    @classmethod
-    def get_fieldnames(cls, cstruct=None) -> list[str]:
-        """Obtain the C-side field names of this struct."""
-        fields = cls.get_fields(cstruct)
-        return [f for f, t in fields]
-
-    @classmethod
-    def get_pointer_fields(cls, cstruct=None) -> list[str]:
-        """Obtain all pointer fields of the struct (typically simulation boxes)."""
-        return [
-            f for f, t in cls.get_fields(cstruct).items() if t.type.kind == "pointer"
-        ]
-
     @property
     def fields(self) -> dict[str, Any]:
         """A list of fields of the underlying C struct (a list of tuples of "name, type")."""
-        return self.get_fields(self._cstruct)
+        return self.get_fields(self.cstruct)
 
     @property
     def fieldnames(self) -> list[str]:
@@ -109,22 +76,12 @@ class StructWrapper:
     def __getstate__(self):
         """Return the current state of the class without pointers."""
         return {
-            k: v
-            for k, v in self.__dict__.items()
-            if k not in ["_strings", "_StructWrapper__cstruct"]
+            k: v for k, v in self.__dict__.items() if k not in ["_strings", "cstruct"]
         }
 
-    def refresh_cstruct(self):
-        """Delete the underlying C object, forcing it to be rebuilt."""
-        with contextlib.suppress(AttributeError):
-            del self.__cstruct
 
-    def __call__(self):
-        """Return an instance of the C struct."""
-        pass
-
-
-class StructWithDefaults(StructWrapper):
+@attrs.define(frozen=True, kw_only=True)
+class InputStruct(StructWrapper):
     """
     A convenient interface to create a C structure with defaults specified.
 
@@ -148,180 +105,99 @@ class StructWithDefaults(StructWrapper):
         The ffi object from any cffi-wrapped library.
     """
 
-    _defaults_ = {}
-
-    def __init__(self, *args, **kwargs):
-        super().__init__()
-        if args:
-            if len(args) > 1:
-                raise TypeError(
-                    f"{self.__class__.__name__} takes up to one position argument, "
-                    f"{len(args)} were given"
-                )
-            elif args[0] is None:
-                pass
-            elif isinstance(args[0], self.__class__):
-                kwargs |= args[0].self
-            elif isinstance(args[0], dict):
-                kwargs |= args[0]
-            else:
-                raise TypeError(
-                    f"optional positional argument for {self.__class__.__name__} must be"
-                    f" None, dict, or an instance of itself. Got {type(args[0])}"
-                )
-
-        for k, v in self._defaults_.items():
-            # Prefer arguments given to the constructor.
-            _v = kwargs.pop(k, None)
-
-            if _v is not None:
-                v = _v
-
-            try:
-                setattr(self, k, v)
-            except AttributeError:
-                # The attribute has been defined as a property, save it as a hidden variable
-                setattr(self, f"_{k}", v)
-
-        if kwargs:
-            warnings.warn(
-                "The following parameters to {thisclass} are not supported: {lst}".format(
-                    thisclass=self.__class__.__name__, lst=list(kwargs.keys())
-                )
-            )
-
-    def convert(self, key, val):
-        """Make any conversions of values before saving to the instance."""
-        return val
-
-    def update(self, **kwargs):
+    @classmethod
+    def new(cls, x: dict | InputStruct | None):
         """
-        Update the parameters of an existing class structure.
-
-        This should always be used instead of attempting to *assign* values to instance attributes.
-        It consistently re-generates the underlying C memory space and sets some book-keeping
-        variables.
+        Create a new instance of the struct.
 
         Parameters
         ----------
-        kwargs:
-            Any argument that may be passed to the class constructor.
+        x : dict | InputStruct | None
+            Initial values for the struct. If `x` is a dictionary, it should map field
+            names to their corresponding values. If `x` is an instance of this class,
+            its attributes will be used as initial values. If `x` is None, the
+            struct will be initialised with default values.
         """
-        # Start a fresh cstruct.
-        if kwargs:
-            self.refresh_cstruct()
-
-        for k in self._defaults_:
-            # Prefer arguments given to the constructor.
-            if k in kwargs:
-                v = kwargs.pop(k)
-
-                try:
-                    setattr(self, k, v)
-                except AttributeError:
-                    # The attribute has been defined as a property, save it as a hidden variable
-                    setattr(self, f"_{k}", v)
-
-        # Also ensure that parameters that are part of the class, but not the defaults, are set
-        # this will fail if these parameters cannot be set for some reason, hence doing it
-        # last.
-        for k in list(kwargs.keys()):
-            if hasattr(self, k):
-                setattr(self, k, kwargs.pop(k))
-
-        if kwargs:
-            warnings.warn(
-                f"The following arguments to be updated are not compatible with this class: {kwargs}"
+        if isinstance(x, dict):
+            return cls(**x)
+        elif isinstance(x, InputStruct):
+            return x
+        elif isinstance(x, None):
+            return cls()
+        else:
+            raise ValueError(
+                f"Cannot instantiate {cls.__name__} with type {x.__class__}"
             )
+
+    @cached_property
+    def struct(self) -> StructWrapper:
+        """The python-wrapped struct associated with this input object."""
+        return StructWrapper(name=self.__class__.__name__)
+
+    @cached_property
+    def cstruct(self) -> StructWrapper:
+        """The object pointing to the memory accessed by C-code for this struct."""
+        cdict = self.cdict
+        for k in self.struct.fieldnames:
+            val = cdict[k]
+
+            if isinstance(val, str):
+                # If it is a string, need to convert it to C string ourselves.
+                val = self.ffi.new("char[]", val.encode())
+
+            setattr(self.struct.cstruct, k, val)
+
+        return self.struct.cstruct
 
     def clone(self, **kwargs):
         """Make a fresh copy of the instance with arbitrary parameters updated."""
-        new = self.__class__(self.self)
-        new.update(**kwargs)
-        return new
+        return attrs.evolve(self, **kwargs)
 
-    def __call__(self):
-        """Return a filled C Structure corresponding to this instance."""
-        for key, val in self.pystruct.items():
-            # Find the value of this key in the current class
-            if isinstance(val, str):
-                # If it is a string, need to convert it to C string ourselves.
-                val = self.ffi.new("char[]", getattr(self, key).encode())
+    def asdict(self) -> dict:
+        """Return a dict representation of the instance.
 
-            try:
-                setattr(self._cstruct, key, val)
-            except TypeError:
-                logger.info(f"For key {key}, value {val}:")
-                raise
+        Examples
+        --------
+        This dict should be such that doing the following should work, i.e. it can be
+        used exactly to construct a new instance of the same object::
 
-        return self._cstruct
+        >>> inp = InputStruct(**params)
+        >>> newinp =InputStruct(**inp.asdict())
+        >>> inp == newinp
+        """
+        return attrs.asdict(self)
 
     @property
-    def pystruct(self):
-        """A pure-python dictionary representation of the corresponding C structure."""
-        return {fld: self.convert(fld, getattr(self, fld)) for fld in self.fieldnames}
+    def cdict(self) -> dict:
+        """A python dictionary containing the properties of the wrapped C-struct.
 
-    @property
-    def defining_dict(self):
-        """
-        Pure python dictionary representation of this class, as it would appear in C.
+        The memory pointed to by this dictionary is *not* owned by the wrapped C-struct,
+        but is rather just a python dict. However, in contrast to :meth:`asdict`, this
+        method transforms the properties to what they should be in C (e.g. linear space
+        vs. log-space) before putting them into the dict.
 
-        .. note:: This is not the same as :attr:`pystruct`, as it omits all variables that don't
-                  need to be passed to the constructor, but appear in the C struct (some can be
-                  calculated dynamically based on the inputs). It is also not the same as
-                  :attr:`self`, as it includes the 'converted' values for each variable, which are
-                  those actually passed to the C code.
+        This dict also contains *only* the properties of the wrapped C-struct, rather
+        than all properties of the :class:`InputStruct` instance (some attributes of the
+        python instance are there only to guide setting of defaults, and don't appear
+        in the C-struct at all).
         """
-        return {k: self.convert(k, getattr(self, k)) for k in self._defaults_}
-
-    @property
-    def self(self):
-        """
-        A dict which if passed to its own constructor will yield an identical copy.
-
-        .. note:: This differs from :attr:`pystruct` and :attr:`defining_dict` in that it uses the
-                  hidden variable value, if it exists, instead of the exposed one. This prevents
-                  from, for example, passing a value which is 10**10**val (and recurring!).
-        """
-        return {
-            k: (getattr(self, f"_{k}") if hasattr(self, f"_{k}") else getattr(self, k))
-            for k in self._defaults_
+        fields = attrs.fields(self.__class__)
+        transformers = {
+            field.name: field.metadata.get("transformer", None) for field in fields
         }
 
-    def __repr__(self):
-        """Full unique representation of the instance."""
-        return (
-            self.__class__.__name__
-            + "("
-            + ", ".join(
-                sorted(
-                    k
-                    + ":"
-                    + (
-                        float_to_string_precision(v, config["cache_redshift_sigfigs"])
-                        if isinstance(v, (float, np.float32))
-                        else str(v)
-                    )
-                    for k, v in self.defining_dict.items()
-                )
-            )
-            + ")"
-        )
-
-    def __eq__(self, other):
-        """Check whether this instance is equal to another object (by checking the __repr__)."""
-        return self.__repr__() == repr(other)
-
-    def __hash__(self):
-        """Generate a unique hsh for the instance."""
-        return hash(self.__repr__())
+        out = {}
+        for k in self.struct.fieldnames:
+            val = getattr(self, k)
+            trns = transformers[k]
+            out[k] = val if trns is None else trns(val)
+        return out
 
     def __str__(self):
         """Human-readable string representation of the object."""
-        biggest_k = max(len(k) for k in self.defining_dict)
-        params = "\n    ".join(
-            sorted(f"{k:<{biggest_k}}: {v}" for k, v in self.defining_dict.items())
-        )
+        d = self.asdict()
+        biggest_k = max(len(k) for k in d)
+        params = "\n    ".join(sorted(f"{k:<{biggest_k}}: {v}" for k, v in d.items()))
         return f"""{self.__class__.__name__}:
     {params}
     """
@@ -474,11 +350,11 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             # to unnecessarily load things in. We leave it to the user to ensure that all
             # required arrays are loaded into memory before calling this function.
             if state.initialized:
-                setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
+                setattr(self.cstruct, k, self._ary2buf(getattr(self, k)))
 
         for k in self.primitive_fields:
             with contextlib.suppress(AttributeError):
-                setattr(self._cstruct, k, getattr(self, k))
+                setattr(self.cstruct, k, getattr(self, k))
 
     def _ary2buf(self, ary):
         if not isinstance(ary, np.ndarray):
@@ -492,12 +368,12 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         if not self.dummy:
             self._init_cstruct()
 
-        return self._cstruct
+        return self.cstruct
 
     def __expose(self):
         """Expose the non-array primitives of the ctype to the top-level object."""
         for k in self.primitive_fields:
-            setattr(self, k, getattr(self._cstruct, k))
+            setattr(self, k, getattr(self.cstruct, k))
 
     @property
     def _fname_skeleton(self):
@@ -564,7 +440,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             )
 
         if state.c_has_active_memory:
-            lib.free(getattr(self._cstruct, k))
+            lib.free(getattr(self.cstruct, k))
 
         delattr(self, k)
         state.initialized = False
@@ -659,15 +535,15 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                     continue
 
                 if (
-                    not isinstance(q, StructWithDefaults)
+                    not isinstance(q, InputStruct)
                     and not isinstance(q, StructInstanceWrapper)
                     and f.attrs[kfile] != q
                 ):
                     return False
-                elif isinstance(q, (StructWithDefaults, StructInstanceWrapper)):
+                elif isinstance(q, (InputStruct, StructInstanceWrapper)):
                     grp = f[kfile]
 
-                    dct = q.self if isinstance(q, StructWithDefaults) else q
+                    dct = q.self if isinstance(q, InputStruct) else q
                     for kk, v in dct.items():
                         if kk not in self._filter_params:
                             file_v = grp.attrs[kk]
@@ -753,9 +629,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
                         kfile = k.lstrip("_")
 
-                        if isinstance(q, (StructWithDefaults, StructInstanceWrapper)):
+                        if isinstance(q, (InputStruct, StructInstanceWrapper)):
                             grp = fl.create_group(kfile)
-                            dct = q.self if isinstance(q, StructWithDefaults) else q
+                            dct = q.self if isinstance(q, InputStruct) else q
                             for kk, v in dct.items():
                                 if kk not in self._filter_params:
                                     try:
@@ -901,7 +777,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 if k in keys:
                     setattr(self, k, boxes[k][...])
                     self._array_state[k].computed_in_mem = True
-                    setattr(self._cstruct, k, self._ary2buf(getattr(self, k)))
+                    setattr(self.cstruct, k, self._ary2buf(getattr(self, k)))
 
             for k in boxes.attrs.keys():
                 if k == "version":
@@ -920,7 +796,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
                 setattr(self, k, boxes.attrs[k])
                 with contextlib.suppress(AttributeError):
-                    setattr(self._cstruct, k, getattr(self, k))
+                    setattr(self.cstruct, k, getattr(self, k))
 
             # Need to make sure that the seed is set to the one that's read in.
             seed = fl.attrs["random_seed"]
@@ -985,7 +861,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
     @classmethod
     def _read_inputs(cls, grp: h5py.File | h5py.Group):
-        input_classes = [c.__name__ for c in StructWithDefaults.__subclasses__()]
+        input_classes = [c.__name__ for c in InputStruct.__subclasses__()]
 
         # Read the input parameter dictionaries from file.
         kwargs = {}
@@ -994,7 +870,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             input_class_name = snake_to_camel(kfile)
 
             if input_class_name in input_classes:
-                input_class = StructWithDefaults.__subclasses__()[
+                input_class = InputStruct.__subclasses__()[
                     input_classes.index(input_class_name)
                 ]
                 subgrp = grp[kfile]
@@ -1021,7 +897,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 + "; ".join(
                     (
                         repr(v)
-                        if isinstance(v, StructWithDefaults)
+                        if isinstance(v, InputStruct)
                         else (
                             v.filtered_repr(self._filter_params)
                             if isinstance(v, StructInstanceWrapper)
@@ -1056,7 +932,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             + ";\n\t".join(
                 (
                     repr(v)
-                    if isinstance(v, StructWithDefaults)
+                    if isinstance(v, InputStruct)
                     else k.lstrip("_") + ":" + repr(v)
                 )
                 for k, v in [(k, getattr(self, k)) for k in self._inputs]
@@ -1163,7 +1039,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
             if isinstance(arg, OutputStruct):
                 for line in arg.summarize(indent=1).split("\n"):
                     logger.debug(line)
-            elif isinstance(arg, StructWithDefaults):
+            elif isinstance(arg, InputStruct):
                 for line in str(arg).split("\n"):
                     logger.debug(f"    {line}")
             else:
@@ -1243,9 +1119,9 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
                 getattr(self, hook)(**params)
 
     def __memory_map(self):
-        shapes = self._c_shape(self._cstruct)
+        shapes = self._c_shape(self.cstruct)
         for item in self._c_based_pointers:
-            setattr(self, item, asarray(getattr(self._cstruct, item), shapes[item]))
+            setattr(self, item, asarray(getattr(self.cstruct, item), shapes[item]))
             self._array_state[item].c_memory = True
             self._array_state[item].computed_in_mem = True
 
@@ -1255,7 +1131,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
         #       which should make .c_has_active_memory false
         for k in self._c_based_pointers:
             if self._array_state[k].c_has_active_memory:
-                lib.free(getattr(self._cstruct, k))
+                lib.free(getattr(self.cstruct, k))
 
 
 class StructInstanceWrapper:
@@ -1283,10 +1159,8 @@ class StructInstanceWrapper:
 
     def __setattr__(self, name, value):
         """Set an attribute of the instance, attempting to change it in the C struct as well."""
-        try:
+        with contextlib.suppress(AttributeError):
             setattr(self._cobj, name, value)
-        except AttributeError:
-            pass
         object.__setattr__(self, name, value)
 
     def items(self):
@@ -1303,7 +1177,7 @@ class StructInstanceWrapper:
         return (
             self._ctype
             + "("
-            + ";".join(k + "=" + str(v) for k, v in sorted(self.items()))
+            + ";".join(f"{k}={str(v)}" for k, v in sorted(self.items()))
         ) + ")"
 
     def filtered_repr(self, filter_params):
@@ -1318,7 +1192,7 @@ class StructInstanceWrapper:
             self._ctype
             + "("
             + ";".join(
-                k + "=" + str(v)
+                f"{k}={str(v)}"
                 for k, v in sorted(self.items())
                 if k not in filter_params
             )

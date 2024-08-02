@@ -19,14 +19,60 @@ import logging
 import warnings
 from astropy import units as un
 from astropy.cosmology import FLRW, Planck15
+from attrs import define
+from attrs import field as _field
+from attrs import validators
 
 from .._cfg import config
 from .._data import DATA_PATH
 from ._utils import StructInstanceWrapper, StructWithDefaults
 from .c_21cmfast import ffi, lib
 from .globals import global_params
+from .structs import InputStruct
 
 logger = logging.getLogger(__name__)
+
+
+def field(*, transformer=None, **kw):
+    """Define an attrs field with a 'transformer' property.
+
+    The transformer, if given, should be a function of a single variable, which will
+    be the attribute's value. It will be used to transform the value before usage in
+    C-code (e.g. by transformin from log to linear space).
+    """
+    return _field(metadata={"transformer": transformer}, **kw)
+
+
+def logtransformer(x):
+    """An attrs field transformer that converts from log to linear space."""
+    return 10**x
+
+
+def dex2exp_transformer(x):
+    """An attrs transformer that converts from dex to exponential space."""
+    return 2.3025851 * x
+
+
+def choice_transformer(choices):
+    """A factory function that produces a transformer that converts a string to int.
+
+    The function must be passed a list of string choices. The resulting int is the
+    index of the choice made.
+    """
+
+    def transformer(choice) -> int:
+        return choices.index(choice)
+
+    return transformer
+
+
+def between(mn, mx):
+    """An attrs validator for validating that a value is between two values."""
+
+    def vld(inst, att, val):
+        if val < mn or val > mx:
+            raise ValueError(f"{att.name} must be between {mn} and {mx}")
+
 
 # Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
 # Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
@@ -38,7 +84,8 @@ Planck18 = Planck15.clone(
 )
 
 
-class CosmoParams(StructWithDefaults):
+@define(frozen=True, kw_only=True)
+class CosmoParams(InputStruct):
     """
     Cosmological parameters (with defaults) which translates to a C struct.
 
@@ -63,19 +110,14 @@ class CosmoParams(StructWithDefaults):
         Spectral index of the power spectrum.
     """
 
-    def __init__(self, *args, _base_cosmo=Planck18, **kwargs):
-        self._base_cosmo = _base_cosmo
-        super().__init__(*args, **kwargs)
-
     _ffi = ffi
 
-    _defaults_ = {
-        "SIGMA_8": 0.8102,
-        "hlittle": Planck18.h,
-        "OMm": Planck18.Om0,
-        "OMb": Planck18.Ob0,
-        "POWER_INDEX": 0.9665,
-    }
+    _base_cosmo = field(default=Planck18, validator=validators.instance_of(FLRW))
+    SIGMA_8 = field(default=0.8102, converter=float, validator=validators.gt(0))
+    hlittle = field(default=Planck18.h, converter=float, validator=validators.gt(0))
+    OMm = field(default=Planck18.Om0, converter=float, validator=validators.gt(0))
+    OMb = field(default=Planck18.OMb, converter=float, validator=validators.gt(0))
+    POWER_INDEX = field(default=0.9665, converter=float, validator=validators.gt(0))
 
     @property
     def OMl(self):
@@ -84,7 +126,7 @@ class CosmoParams(StructWithDefaults):
 
     @property
     def cosmo(self):
-        """Return an astropy cosmology object for this cosmology."""
+        """An astropy cosmology object for this cosmology."""
         return self._base_cosmo.clone(
             name=self._base_cosmo.name,
             H0=self.hlittle * 100,
@@ -104,13 +146,10 @@ class CosmoParams(StructWithDefaults):
         )
 
 
-class UserParams(StructWithDefaults):
+@define(frozen=True, kw_only=True)
+class UserParams(InputStruct):
     """
     Structure containing user parameters (with defaults).
-
-    To see default values for each parameter, use ``UserParams._defaults_``.
-    All parameters passed in the constructor are also saved as instance attributes which should
-    be considered read-only. This is true of all input-parameter classes.
 
     Parameters
     ----------
@@ -226,204 +265,103 @@ class UserParams(StructWithDefaults):
 
     _ffi = ffi
 
-    _defaults_ = {
-        "BOX_LEN": 300.0,
-        "DIM": None,
-        "HII_DIM": 200,
-        "NON_CUBIC_FACTOR": 1.0,
-        "USE_FFTW_WISDOM": False,
-        "HMF": 1,
-        "USE_RELATIVE_VELOCITIES": False,
-        "POWER_SPECTRUM": 0,
-        "N_THREADS": 1,
-        "PERTURB_ON_HIGH_RES": False,
-        "NO_RNG": False,
-        "USE_INTERPOLATION_TABLES": None,
-        "INTEGRATION_METHOD_ATOMIC": 1,
-        "INTEGRATION_METHOD_MINI": 1,
-        "USE_2LPT": True,
-        "MINIMIZE_MEMORY": False,
-        "STOC_MINIMUM_Z": None,
-        "KEEP_3D_VELOCITIES": False,
-        "SAMPLER_MIN_MASS": 1e8,
-        "SAMPLER_BUFFER_FACTOR": 2.0,
-        "MAXHALO_FACTOR": 2.0,
-        "N_COND_INTERP": 200,
-        "N_PROB_INTERP": 400,
-        "MIN_LOGPROB": -12,
-        "SAMPLE_METHOD": 0,
-        "AVG_BELOW_SAMPLER": True,
-        "HALOMASS_CORRECTION": 0.9,
-    }
-
     _hmf_models = ["PS", "ST", "WATSON", "WATSON-Z", "DELOS"]
     _power_models = ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
     _sample_methods = ["MASS-LIMITED", "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT"]
     _integral_methods = ["GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX"]
 
-    @property
-    def USE_INTERPOLATION_TABLES(self):
-        """Whether to use interpolation tables for integrals, speeding things up."""
-        if self._USE_INTERPOLATION_TABLES is None:
-            warnings.warn(
-                "The USE_INTERPOLATION_TABLES setting has changed in v3.1.2 to be "
-                "default True. You can likely ignore this warning, but if you relied on"
-                "having USE_INTERPOLATION_TABLES=False by *default*, please set it "
-                "explicitly. To silence this warning, set it explicitly to True. This"
-                "warning will be removed in v4."
-            )
-            self._USE_INTERPOLATION_TABLES = True
+    BOX_LEN = field(default=300.0, converter=float, validator=validators.gt(0))
+    HII_DIM = field(default=200, converter=int, validator=validators.gt(0))
+    DIM = field(converter=int)
+    NON_CUBIC_FACTOR = field(default=1.0, converter=float, validator=validators.gt(0))
+    USE_FFTW_WISDOM = field(default=False, converter=bool)
+    HMF = field(
+        default="PS",
+        converter=str,
+        validator=validators.in_(_hmf_models),
+        transformer=choice_transformer(_hmf_models),
+    )
+    USE_RELATIVE_VELOCITIES = field(default=False, converter=bool)
+    POWER_SPECTRUM = field(
+        converter=int,
+        validator=validators.in_(_power_models),
+        transformer=choice_transformer(_power_models),
+    )
+    N_THREADS = field(default=1, converter=int, validator=validators.gt(0))
+    PERTURB_ON_HIGH_RES = field(default=False, converter=bool)
+    NO_RNG = field(default=False, converter=bool)
+    USE_INTERPOLATION_TABLES = field(default=True, converter=bool)
+    INTEGRATION_METHOD_ATOMIC = field(
+        default="GAUSS-LEGENDRE",
+        converter=str,
+        validator=validators.in_(_integral_methods),
+        transformer=choice_transformer(_integral_methods),
+    )
+    INTEGRATION_METHOD_MINI = field(
+        default="GAUSS-LEGENDRE",
+        converter=str,
+        validator=validators.in_(_integral_methods),
+        transformer=choice_transformer(_integral_methods),
+    )
+    USE_2LPT = field(default=True, converter=bool)
+    MINIMIZE_MEMORY = field(default=False, converter=bool)
+    KEEP_3D_VELOCITIES = field(default=False, converter=bool)
+    SAMPLER_MIN_MASS = field(default=1e8, converter=float, validator=validators.gt(0))
+    SAMPLER_BUFFER_FACTOR = field(default=2.0, converter=float)
+    MAXHALO_FACTOR = field(default=2.0, converter=float)
+    N_COND_INTERP = field(default=200, converter=int)
+    N_PROB_INTERP = field(default=400, converter=int)
+    MIN_LOGPROB = field(default=-12, converter=float)
+    SAMPLE_METHOD = field(
+        default="MASS-LIMITED",
+        validator=validators.in_(_sample_methods),
+        transformer=choice_transformer(_sample_methods),
+    )
+    AVG_BELOW_SAPMLER = field(default=True, converter=bool)
+    HALOMASS_CORRECTION = field(
+        default=0.9, converter=float, validator=validators.gt(0)
+    )
 
-        return self._USE_INTERPOLATION_TABLES
-
-    @property
-    def DIM(self):
+    @DIM.default
+    def _dim_default(self):
         """Number of cells for the high-res box (sampling ICs) along a principal axis."""
-        return self._DIM or 3 * self.HII_DIM
+        return 3 * self.HII_DIM
 
-    @property
-    def NON_CUBIC_FACTOR(self):
+    @NON_CUBIC_FACTOR.validator
+    def _NON_CUBIC_FACTOR_validator(self, att, val):
         """Factor to shorten/lengthen the line-of-sight dimension (non-cubic boxes)."""
-        dcf = self.DIM * self._NON_CUBIC_FACTOR
-        hdcf = self.HII_DIM * self._NON_CUBIC_FACTOR
+        dcf = self.DIM * val
+        hdcf = self.HII_DIM * val
         if dcf % int(dcf) or hdcf % int(hdcf):
             raise ValueError(
                 "NON_CUBIC_FACTOR * DIM and NON_CUBIC_FACTOR * HII_DIM must be integers"
             )
-        else:
-            return self._NON_CUBIC_FACTOR
 
     @property
     def tot_fft_num_pixels(self):
         """Total number of pixels in the high-res box."""
-        return self.NON_CUBIC_FACTOR * self.DIM**3
+        return int(self.NON_CUBIC_FACTOR * self.DIM**3)
 
     @property
     def HII_tot_num_pixels(self):
         """Total number of pixels in the low-res box."""
-        return self.NON_CUBIC_FACTOR * self.HII_DIM**3
+        return int(self.NON_CUBIC_FACTOR * self.HII_DIM**3)
 
-    def _get_enum_property(self, prop, enum_list, propname=""):
-        """
-        Retrieve a value for a property with defined enum list (see UserParams._power_models etc.).
+    @POWER_SPECTRUM.default
+    def _ps_default(self):
+        return "CLASS" if self.USE_RELATIVE_VELOCITIES else "EH"
 
-        Arguments
-        ---------
-        prop: the hidden attribute to find in the enum list
-        enum_list: the list of parameter value strings
-        propname: the name of the property (for error messages)
-
-        Returns
-        -------
-        The index of prop within the parameter list, corresponding to it's integer value in
-        the C backend
-        """
-        # if it's a string we grab the index of the list
-        if isinstance(prop, str):
-            val = enum_list.index(prop.upper())
-        # otherwise it's a number so we leave it alone
-        else:
-            val = prop
-
-        try:
-            val = int(val)
-        except (ValueError, TypeError) as e:
-            raise ValueError(f"{val} is an invalid value for {propname}") from e
-
-        if not 0 <= val < len(enum_list):
-            raise ValueError(f"HMF must be an int between 0 and {len(enum_list) - 1}")
-
-        return val
-
-    @property
-    def POWER_SPECTRUM(self):
+    @POWER_SPECTRUM.validator
+    def _POWER_SPECTRUM_vld(self, att, val):
         """
         The power spectrum generator to use, as an integer.
 
         See :func:`power_spectrum_model` for a string representation.
         """
-        if self.USE_RELATIVE_VELOCITIES:
-            if self._POWER_SPECTRUM != 5 or (
-                isinstance(self._POWER_SPECTRUM, str)
-                and self._POWER_SPECTRUM.upper() != "CLASS"
-            ):
-                logger.warn(
-                    "Automatically setting POWER_SPECTRUM to 5 (CLASS) as you are using "
-                    "relative velocities"
-                )
-                self._POWER_SPECTRUM = 5
-            return 5
-        else:
-            return self._get_enum_property(
-                self._POWER_SPECTRUM, self._power_models, propname="POWER_SPECTRUM"
+        if self.USE_RELATIVE_VELOCITIES and self.POWER_SPECTRUM != "CLASS":
+            raise ValueError(
+                "Can only use 'CLASS' power spectrum with relative velocities"
             )
-
-    @property
-    def HMF(self):
-        """The HMF to use (an int, mapping to a given form).
-
-        See hmf_model for a string representation.
-        """
-        return self._get_enum_property(self._HMF, self._hmf_models, propname="HMF")
-
-    @property
-    def SAMPLE_METHOD(self):
-        """The SAMPLE_METHOD to use (an int, mapping to a given form).
-
-        See sample_method for a string representation.
-        """
-        return self._get_enum_property(
-            self._SAMPLE_METHOD, self._sample_methods, propname="SAMPLE_METHOD"
-        )
-
-    @property
-    def INTEGRATION_METHOD_ATOMIC(self):
-        """The Integration method to use for atomic halos (an int, mapping to a given form).
-
-        See integral_method_atomic for a string representation.
-        """
-        return self._get_enum_property(
-            self._INTEGRATION_METHOD_ATOMIC,
-            self._integral_methods,
-            propname="INTEGRATION_METHOD_ATOMIC",
-        )
-
-    @property
-    def INTEGRATION_METHOD_MINI(self):
-        """The Integration method to use for atomic halos (an int, mapping to a given form).
-
-        See integral_method_atomic for a string representation.
-        """
-        return self._get_enum_property(
-            self._INTEGRATION_METHOD_MINI,
-            self._integral_methods,
-            propname="INTEGRATION_METHOD_MINI",
-        )
-
-    @property
-    def hmf_model(self):
-        """String representation of the HMF model used."""
-        return self._hmf_models[self.HMF]
-
-    @property
-    def power_spectrum_model(self):
-        """String representation of the power spectrum model used."""
-        return self._power_models[self.POWER_SPECTRUM]
-
-    @property
-    def sample_method(self):
-        """String representation of the halo sampler method used."""
-        return self._sample_methods[self.SAMPLE_METHOD]
-
-    @property
-    def integration_method_atomic(self):
-        """String representation of the halo sampler method used."""
-        return self._integral_methods[self.INTEGRATION_METHOD_ATOMIC]
-
-    @property
-    def integration_method_mini(self):
-        """String representation of the halo sampler method used."""
-        return self._intregal_methods[self.INTEGRATION_METHOD_MINI]
 
     @property
     def cell_size(self) -> un.Quantity[un.Mpc]:
@@ -436,13 +374,10 @@ class UserParams(StructWithDefaults):
         return (self.BOX_LEN / self.DIM) * un.Mpc
 
 
+@define(frozen=True, kw_only=True)
 class FlagOptions(StructWithDefaults):
     """
     Flag-style options for the ionization routines.
-
-    To see default values for each parameter, use ``FlagOptions._defaults_``.
-    All parameters passed in the constructor are also saved as instance attributes
-    which should be considered read-only. This is true of all input-parameter classes.
 
     Note that all flags are set to False by default, giving the simplest "vanilla"
     version of 21cmFAST.
@@ -513,139 +448,91 @@ class FlagOptions(StructWithDefaults):
     """
 
     _ffi = ffi
+    USE_MINI_HALOS = field(default=False, converter=bool)
+    USE_CMB_HEATING = field(default=True, converter=bool)
+    USE_LYA_HEATING = field(default=True, converter=bool)
+    USE_MASS_DEPENDENT_ZETA = field(default=True, converter=bool)
+    USE_HALO_FIELD = field(default=True, converter=bool)
+    APPLY_RSDS = field(default=True, converter=bool)
+    SUBCELL_RSD = field(default=False, converter=bool)
+    INHOMO_RECO = field(default=False, converter=bool)
+    USE_TS_FLUCT = field(default=False, converter=bool)
+    FIX_VCB_AVG = field(default=False, converter=bool)
+    HALO_STOCHASTICITY = field(default=True, converter=bool)
+    USE_EXP_FILTER = field(default=True, converter=bool)
+    FIXED_HALO_GRIDS = field(default=False, converter=bool)
+    CELL_RECOMB = field(default=True, converter=bool)
+    PHOTON_CONS_TYPE = field(
+        default=0, converter=int, validator=validators.in_((0, 1, 2, 3))
+    )
+    USE_UPPER_STELLAR_TURNOVER = field(default=True, converter=bool)
 
-    _defaults_ = {
-        "USE_HALO_FIELD": True,
-        "USE_MINI_HALOS": False,
-        "USE_CMB_HEATING": True,
-        "USE_LYA_HEATING": True,
-        "USE_MASS_DEPENDENT_ZETA": True,
-        "SUBCELL_RSD": False,
-        "APPLY_RSDS": True,
-        "INHOMO_RECO": False,
-        "USE_TS_FLUCT": False,
-        "M_MIN_in_Mass": False,
-        "FIX_VCB_AVG": False,
-        "HALO_STOCHASTICITY": True,
-        "USE_EXP_FILTER": True,
-        "FIXED_HALO_GRIDS": False,
-        "CELL_RECOMB": True,
-        "PHOTON_CONS_TYPE": 0,  # Should these all be boolean?
-        "USE_UPPER_STELLAR_TURNOVER": True,
-    }
-
-    @property
-    def SUBCELL_RSD(self):
+    @SUBCELL_RSD.validator
+    def _SUBCELL_RSD_vld(self, att, val):
         """The SUBCELL_RSD flag is only effective if APPLY_RSDS is True."""
-        return self._SUBCELL_RSD and self.APPLY_RSDS
+        if val and not self.APPLY_RSDS:
+            raise ValueError(
+                "The SUBCELL_RSD flag is only effective if APPLY_RSDS is True."
+            )
 
-    @property
-    def USE_HALO_FIELD(self):
+    @USE_HALO_FIELD.validator
+    def _USE_HALO_FIELD_vld(self, att, val):
         """Automatically setting USE_HALO_FIELD to False if not USE_MASS_DEPENDENT_ZETA."""
-        if not self.USE_MASS_DEPENDENT_ZETA and self._USE_HALO_FIELD:
-            logger.warn(
+        if val and not self.USE_MASS_DEPENDENT_ZETA:
+            raise ValueError(
                 "You have set USE_MASS_DEPENDENT_ZETA to False but USE_HALO_FIELD is True! "
-                "Automatically setting USE_HALO_FIELD to False."
             )
-            return False
 
-        return self._USE_HALO_FIELD
-
-    @property
-    def M_MIN_in_Mass(self):
-        """Whether minimum halo mass is defined in mass or virial temperature."""
-        return True if self.USE_MASS_DEPENDENT_ZETA else self._M_MIN_in_Mass
-
-    @property
-    def USE_MASS_DEPENDENT_ZETA(self):
+    @USE_MINI_HALOS.validator
+    def _USE_MINI_HALOS_vald(self, att, val):
         """Automatically setting USE_MASS_DEPENDENT_ZETA to True if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and not self._USE_MASS_DEPENDENT_ZETA:
-            logger.warn(
+        if val and not self.USE_MASS_DEPENDENT_ZETA:
+            raise ValueError(
                 "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False! "
-                "Automatically setting USE_MASS_DEPENDENT_ZETA to True."
             )
-            self._USE_MASS_DEPENDENT_ZETA = True
-        return self._USE_MASS_DEPENDENT_ZETA
-
-    @property
-    def INHOMO_RECO(self):
-        """Automatically setting INHOMO_RECO to True if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and not self._INHOMO_RECO:
-            warnings.warn(
-                "You have set USE_MINI_HALOS to True but INHOMO_RECO to False! "
-                "Automatically setting INHOMO_RECO to True."
+        if val and not self.INHOMO_RECO:
+            raise ValueError(
+                "You have set USE_MINI_HALOS to True but INHOMO_RECO is False! "
             )
-            self._INHOMO_RECO = True
-        return self._INHOMO_RECO
-
-    @property
-    def USE_TS_FLUCT(self):
-        """Automatically setting USE_TS_FLUCT to True if USE_MINI_HALOS."""
-        if self.USE_MINI_HALOS and not self._USE_TS_FLUCT:
-            logger.warn(
-                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT to False! "
-                "Automatically setting USE_TS_FLUCT to True."
+        if val and not self.USE_TS_FLUCT:
+            raise ValueError(
+                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False! "
             )
-            self._USE_TS_FLUCT = True
-        return self._USE_TS_FLUCT
+        raise ValueError(
+            "You have set USE_MINI_HALOS to True but USE_MASS_DEPENDENT_ZETA is False! "
+        )
 
-    @property
-    def PHOTON_CONS_TYPE(self):
+    @PHOTON_CONS_TYPE.validator
+    def _PHOTON_CONS_TYPE_vld(self, att, val):
         """Automatically setting PHOTON_CONS to False if USE_MINI_HALOS."""
-        if (self.USE_MINI_HALOS or self.USE_HALO_FIELD) and self._PHOTON_CONS_TYPE == 1:
-            warnings.warn(
+        if (self.USE_MINI_HALOS or self.USE_HALO_FIELD) and val == 1:
+            raise ValueError(
                 "USE_MINI_HALOS and USE_HALO_FIELD are not compatible with the redshift-based"
                 " photon conservation corrections (PHOTON_CONS_TYPE==1)! "
-                " Automatically setting PHOTON_CONS_TYPE to zero."
             )
-            return 0
-        if self._PHOTON_CONS_TYPE < 0 or self._PHOTON_CONS_TYPE > 3:
-            raise ValueError("PHOTON_CONS_TYPE must be between 0 and 3 inclusive")
 
-        return self._PHOTON_CONS_TYPE
-
-    @property
-    def HALO_STOCHASTICITY(self):
+    @HALO_STOCHASTICITY.validator
+    def _HALO_STOCHASTICITY_vld(self, att, val):
         """Automatically setting HALO_STOCHASTICITY to False if not USE_HALO_FIELD."""
-        if not self.USE_HALO_FIELD and self._HALO_STOCHASTICITY:
-            warnings.warn(
-                "HALO_STOCHASTICITY must be used with USE_HALO_FIELD"
-                "Turning off Stochastic Halos..."
-            )
-            return False
+        if val and not self.USE_HALO_FIELD:
+            raise ValueError("HALO_STOCHASTICITY is True but USE_HALO_FIELD is False")
 
-        return self._HALO_STOCHASTICITY
-
-    @property
-    def USE_EXP_FILTER(self):
+    @USE_EXP_FILTER.validator
+    def _USE_EXP_FILTER_vld(self, att, val):
         """Automatically setting USE_EXP_FILTER to False if not HII_FILTER==0."""
-        if self._USE_EXP_FILTER and global_params.HII_FILTER != 0:
-            warnings.warn(
+        if val and global_params.HII_FILTER != 0:
+            raise ValueError(
                 "USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0"
-                "Setting USE_EXP_FILTER to False"
             )
-            return False
-        return self._USE_EXP_FILTER
 
-    @property
-    def CELL_RECOMB(self):
-        """Automatically setting CELL_RECOMB if USE_EXP_FILTER is active."""
-        if self.USE_EXP_FILTER and not self._CELL_RECOMB:
-            warnings.warn(
-                "CELL_RECOMB is automatically set to True if USE_EXP_FILTER is True."
-                "setting CELL_RECOMB to True"
-            )
-            return True
-        return self._CELL_RECOMB
+        if val and not self.CELL_RECOMB:
+            raise ValueError("USE_EXP_FILTER is True but CELL_RECOMB is False")
 
 
+@define(frozen=True, kw_only=True)
 class AstroParams(StructWithDefaults):
     """
     Astrophysical parameters.
-
-    To see default values for each parameter, use ``AstroParams._defaults_``.
-    All parameters passed in the constructor are also saved as instance attributes which should
-    be considered read-only. This is true of all input-parameter classes.
 
     NB: All Mean scaling relations are defined in log-space, such that the lines they produce
     give exp(<log(property)>), this means that increasing the lognormal scatter in these relations
@@ -767,175 +654,149 @@ class AstroParams(StructWithDefaults):
     """
 
     _ffi = ffi
+    INHOMO_RECO = field(converter=bool)
+    USE_MINI_HALOS = field(converter=bool)
 
-    _defaults_ = {
-        "HII_EFF_FACTOR": 30.0,
-        "F_STAR10": -1.3,
-        "F_STAR7_MINI": None,
-        "ALPHA_STAR": 0.5,
-        "ALPHA_STAR_MINI": None,
-        "F_ESC10": -1.0,
-        "F_ESC7_MINI": -2.0,
-        "ALPHA_ESC": -0.5,
-        "M_TURN": None,
-        "R_BUBBLE_MAX": None,
-        "ION_Tvir_MIN": 4.69897,
-        "L_X": 40.5,  # Kaur+22
-        "L_X_MINI": 40.5,
-        "NU_X_THRESH": 500.0,
-        "X_RAY_SPEC_INDEX": 1.0,
-        "X_RAY_Tvir_MIN": None,
-        "F_H2_SHIELD": 0.0,
-        "t_STAR": 0.5,
-        "N_RSD_STEPS": 20,
-        "A_LW": 2.00,
-        "BETA_LW": 0.6,
-        "A_VCB": 1.0,
-        "BETA_VCB": 1.8,
-        "UPPER_STELLAR_TURNOVER_MASS": 11.447,  # 2.8e11
-        "UPPER_STELLAR_TURNOVER_INDEX": -0.6,
-        # Nikolic et al. 2024 lognormal scatter parameters
-        "SIGMA_STAR": 0.25,
-        "SIGMA_LX": 0.5,
-        "SIGMA_SFR_LIM": 0.19,
-        "SIGMA_SFR_INDEX": -0.12,
-        # Self-Correlations based on cursory examination of Astrid-ES data (Davies et al 2023)
-        "CORR_STAR": 0.5,
-        "CORR_SFR": 0.2,
-        "CORR_LX": 0.2,  # NOTE (Jdavies): It's difficult to know what this should be, ASTRID doesn't have the xrays and I don't know which hydros do
-    }
+    HII_EFF_FACTOR = field(default=30.0, converter=float, validator=validators.gt(0))
+    F_STAR10 = field(
+        default=-1.3,
+        converter=float,
+        validator=between(-3.0, 0.0),
+        transformer=logtransformer,
+    )
+    F_STAR7_MINI = field(converter=float, transformer=logtransformer)
+    ALPHA_STAR = field(
+        default=0.5,
+        converter=float,
+    )
+    ALPHA_STAR_MINI = field(converter=float)
+    F_ESC10 = field(
+        default=-1.0,
+        converter=float,
+        validator=between(-3.0, 0.0),
+        transformer=logtransformer,
+    )
+    F_ESC7_MINI = field(
+        default=-2.0,
+        converter=float,
+        validator=between(-3.0, 0.0),
+        transformer=logtransformer,
+    )
+    ALPHA_ESC = field(
+        default=-0.5,
+        converter=float,
+    )
+    M_TURN = field(
+        converter=float, validator=validators.gt(0), transformer=logtransformer
+    )
+    R_BUBBLE_MAX = field(converter=float, validators=validators.gt(0))
+    ION_Tvir_MIN = field(
+        default=4.69897,
+        converter=float,
+        validator=validators.gt(0),
+        transformer=logtransformer,
+    )
+    L_X = field(
+        default=40.5,
+        converter=float,
+        validator=validators.gt(0),
+        transformer=logtransformer,
+    )
+    L_X_MINI = field(
+        converter=float, validator=validators.gt(0), transformer=logtransformer
+    )
+    NU_X_THRESH = field(default=500.0, converter=float, validator=validators.gt(0))
+    X_RAY_SPEC_INDEX = field(default=1.0, converter=float)
+    X_RAY_Tvir_MIN = field(
+        converter=float, validator=validators.gt(0), transformer=logtransformer
+    )
+    F_H2_SHIELD = field(default=0.0, converter=float)
+    t_STAR = field(default=0.5, converter=float, validator=between(0, 1))
+    N_RSD_STEPS = field(default=20, converter=int, validator=validators.gt(0))
+    A_LW = field(default=2.0, converter=float, validator=validators.gt(0))
+    BETA_LW = field(default=0.6, converter=float)
+    A_VCB = field(default=1.0, converter=float)
+    BETA_VCB = field(default=1.8, converter=float)
+    UPPER_STELLAR_TURNOVER_MASS = field(
+        default=11.447, converter=float, transformer=logtransformer
+    )
+    UPPER_STELLAR_TURNOVER_INDEX = field(default=-0.6, converter=float)
+    SIGMA_STAR = field(default=0.25, converter=float, transformer=dex2exp_transformer)
+    SIGMA_LX = field(default=0.5, converter=float, transformer=dex2exp_transformer)
+    SIGMA_SFR_LIM = field(
+        default=0.19, converter=float, transformer=dex2exp_transformer
+    )
+    SIGMA_SFR_INDEX = field(default=-0.12, converter=float)
+    CORR_STAR = field(default=0.5, converter=float)
+    CORR_SFR = field(default=0.2, converter=float)
+    # NOTE (Jdavies): It's difficult to know what this should be, ASTRID doesn't have
+    # the xrays and I don't know which hydros do
+    CORR_LX = field(default=0.2, converter=float)
 
-    def __init__(
-        self,
-        *args,
-        INHOMO_RECO=FlagOptions._defaults_["INHOMO_RECO"],
-        USE_MINI_HALOS=FlagOptions._defaults_["USE_MINI_HALOS"],
-        **kwargs,
-    ):
-        # TODO: should try to get inhomo_reco out of here... just needed for default of
-        #  R_BUBBLE_MAX.
-        self.INHOMO_RECO = INHOMO_RECO
-        self.USE_MINI_HALOS = USE_MINI_HALOS
-        super().__init__(*args, **kwargs)
-
-    def convert(self, key, val):
-        """Convert a given attribute before saving it the instance."""
-        if key in [
-            "F_STAR10",
-            "F_ESC10",
-            "F_STAR7_MINI",
-            "F_ESC7_MINI",
-            "M_TURN",
-            "ION_Tvir_MIN",
-            "L_X",
-            "L_X_MINI",
-            "X_RAY_Tvir_MIN",
-            "UPPER_STELLAR_TURNOVER_MASS",
-        ]:
-            return 10**val  # log10 to linear conversion
-        if key in ["SIMGA_STAR" "SIGMA_SFR_LIM" "SIGMA_LX"]:
-            return 2.3025851 * val  # dex to base e conversion
-        else:
-            return val
-
-    @property
-    def R_BUBBLE_MAX(self):
+    @R_BUBBLE_MAX.default
+    def _R_BUBBLE_MAX_default(self):
         """Maximum radius of bubbles to be searched. Set dynamically."""
-        if not self._R_BUBBLE_MAX:
-            return 50.0 if self.INHOMO_RECO else 15.0
-        if self.INHOMO_RECO and self._R_BUBBLE_MAX != 50:
-            warnings.warn(
-                f"You are setting R_BUBBLE_MAX {self._R_BUBBLE_MAX} != 50 when INHOMO_RECO=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of INHOMO_RECO"
-            )
-        return self._R_BUBBLE_MAX
+        return 50.0 if self.INHOMO_RECO else 15.0
 
-    @property
-    def M_TURN(self):
+    @M_TURN.default
+    def _M_TURN_default(self):
         """The minimum turnover mass for halos which host stars, (set dynamically based on USE_MINI_HALOS)."""
-        if self._M_TURN is None:
-            return 5 if self.USE_MINI_HALOS else 8.7
-        return self._M_TURN
+        return 5 if self.USE_MINI_HALOS else 8.7
 
     # set the default of the minihalo scalings to continue the same PL
-    @property
-    def F_STAR7_MINI(self):
+    @F_STAR7_MINI.default
+    def _F_STAR7_MINI_default(self):
         """
         The stellar-to-halo mass ratio at 1e7 Solar Masses for Molecularly cooled galaxies.
 
         If the MCG scaling relations are not provided, we extend the ACG ones
         """
-        if self._F_STAR7_MINI is None:
-            return self.F_STAR10 - 3 * self.ALPHA_STAR  # -3*alpha since 1e7/1e10 = 1e-3
-        return self._F_STAR7_MINI
+        return self.F_STAR10 - 3 * self.ALPHA_STAR  # -3*alpha since 1e7/1e10 = 1e-3
 
     # NOTE: Currently the default is not `None`, so this would normally do nothing.
     #   We need to examine the MCG/ACG connection to popII/popIII stars and
     #   discuss what this model should be.
-    @property
-    def F_ESC7_MINI(self):
-        """
-        The stellar-to-halo mass ratio at 1e7 Solar Masses for Molecularly cooled galaxies.
+    @F_ESC7_MINI.default
+    def _F_ESC7_MINI_default(self):
+        """The stellar-to-halo mass ratio at 1e7 Solar Masses for Molecularly cooled galaxies."""
+        return self.F_ESC10 - 3 * self.ALPHA_ESC  # -3*alpha since 1e7/1e10 = 1e-3
 
-        If set to `None`, we extend the ACG ones
-        """
-        if self._F_ESC7_MINI is None:
-            return self.F_ESC10 - 3 * self.ALPHA_ESC  # -3*alpha since 1e7/1e10 = 1e-3
-        return self._F_ESC7_MINI
-
-    @property
-    def ALPHA_STAR_MINI(self):
+    @ALPHA_STAR_MINI.default
+    def _ALPHA_STAR_MINI_default(self):
         """
         The power law index of the SHMR for Molecularly cooled galaxies.
 
         If the MCG scaling relations are not provided, we extend the ACG ones
         """
-        if self._ALPHA_STAR_MINI is None:
-            return self.ALPHA_STAR
-        return self._ALPHA_STAR_MINI
+        return self.ALPHA_STAR
 
-    @property
-    def X_RAY_Tvir_MIN(self):
+    @X_RAY_Tvir_MIN.default
+    def _X_RAY_Tvir_MIN_default(self):
         """Minimum virial temperature of X-ray emitting sources (unlogged and set dynamically)."""
-        return self._X_RAY_Tvir_MIN or self.ION_Tvir_MIN
+        return self.ION_Tvir_MIN
 
-    @property
-    def NU_X_THRESH(self):
+    @NU_X_THRESH.validator
+    def _NU_X_THRESH_vld(self, att, val):
         """Check if the choice of NU_X_THRESH is sensible."""
-        if self._NU_X_THRESH < 100.0:
+        if val < 100.0:
             raise ValueError(
                 "Chosen NU_X_THRESH is < 100 eV. NU_X_THRESH must be above 100 eV as it describes X-ray photons"
             )
-        elif self._NU_X_THRESH >= global_params.NU_X_BAND_MAX:
+        elif val >= global_params.NU_X_BAND_MAX:
             raise ValueError(
-                """
-                Chosen NU_X_THRESH > {}, which is the upper limit of the adopted X-ray band
+                f"""
+                Chosen NU_X_THRESH > {global_params.NU_X_BAND_MAX}, which is the upper limit of the adopted X-ray band
                 (fiducially the soft band 0.5 - 2.0 keV). If you know what you are doing with this
-                choice, please modify the global parameter: NU_X_BAND_MAX""".format(
-                    global_params.NU_X_BAND_MAX
-                )
+                choice, please modify the global parameter: NU_X_BAND_MAX"""
             )
-        else:
-            if global_params.NU_X_BAND_MAX > global_params.NU_X_MAX:
-                raise ValueError(
-                    """
-                    Chosen NU_X_BAND_MAX > {}, which is the upper limit of X-ray integrals (fiducially 10 keV)
-                    If you know what you are doing, please modify the global parameter:
-                    NU_X_MAX""".format(
-                        global_params.NU_X_MAX
-                    )
-                )
-            else:
-                return self._NU_X_THRESH
-
-    @property
-    def t_STAR(self):
-        """Check if the choice of NU_X_THRESH is sensible."""
-        if self._t_STAR <= 0.0 or self._t_STAR > 1.0:
-            raise ValueError("t_STAR must be above zero and less than or equal to one")
-        else:
-            return self._t_STAR
+        elif global_params.NU_X_BAND_MAX > global_params.NU_X_MAX:
+            raise ValueError(
+                f"""
+                Chosen NU_X_BAND_MAX > {global_params.NU_X_MAX}, which is the upper limit of X-ray integrals (fiducially 10 keV)
+                If you know what you are doing, please modify the global parameter:
+                NU_X_MAX
+                """
+            )
 
 
 class InputCrossValidationError(ValueError):
