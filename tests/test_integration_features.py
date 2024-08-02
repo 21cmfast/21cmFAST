@@ -56,6 +56,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
             for key, value in fl["coeval"].items()
             if key.startswith("power_")
         }
+        true_k = fl["coeval"]["k"][()]
 
     # Now compute the Coeval object
     with config.use(direc=module_direc, regenerate=False, write=True):
@@ -66,7 +67,9 @@ def test_power_spectra_coeval(name, module_direc, plt):
             )
 
     if plt == mpl.pyplot:
-        make_coeval_comparison_plot(test_k, true_powers, test_powers, plt)
+        make_coeval_comparison_plot(
+            true_k, test_k * np.sqrt(3), true_powers, test_powers, plt
+        )
 
     for key in prd.COEVAL_FIELDS:
         if key not in true_powers:
@@ -79,10 +82,6 @@ def test_power_spectra_coeval(name, module_direc, plt):
             atol=2e-4,
             rtol=0,
         )
-
-
-#        assert np.sum(~np.isclose(value, test_powers[key], atol=0, rtol=1e-2)) < 10
-#        np.testing.assert_allclose(value, test_powers[key], atol=0, rtol=1e-1)
 
 
 @pytest.mark.parametrize("name", options)
@@ -111,7 +110,14 @@ def test_power_spectra_lightcone(name, module_direc, plt):
 
     if plt == mpl.pyplot:
         make_lightcone_comparison_plot(
-            test_k, lc.node_redshifts, true_powers, true_global, test_powers, lc, plt
+            true_k,
+            test_k,
+            lc.node_redshifts,
+            true_powers,
+            true_global,
+            test_powers,
+            lc,
+            plt,
         )
 
     for key in prd.LIGHTCONE_FIELDS:
@@ -139,7 +145,7 @@ def test_power_spectra_lightcone(name, module_direc, plt):
 
 
 def make_lightcone_comparison_plot(
-    k, z, true_powers, true_global, test_powers, lc, plt
+    true_k, k, z, true_powers, true_global, test_powers, lc, plt
 ):
     n = len(true_global) + len(true_powers)
     fig, ax = plt.subplots(
@@ -148,7 +154,7 @@ def make_lightcone_comparison_plot(
 
     for i, (key, val) in enumerate(true_powers.items()):
         make_comparison_plot(
-            k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
+            true_k, k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
         )
 
     for i, (key, val) in enumerate(true_global.items(), start=i + 1):
@@ -157,7 +163,7 @@ def make_lightcone_comparison_plot(
         )
 
 
-def make_coeval_comparison_plot(k, true_powers, test_powers, plt):
+def make_coeval_comparison_plot(true_k, k, true_powers, test_powers, plt):
     fig, ax = plt.subplots(
         2,
         len(true_powers),
@@ -168,12 +174,14 @@ def make_coeval_comparison_plot(k, true_powers, test_powers, plt):
 
     for i, (key, val) in enumerate(true_powers.items()):
         make_comparison_plot(
-            k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
+            true_k, k, val, test_powers[key], ax[:, i], xlab="k", ylab=f"{key} Power"
         )
 
 
-def make_comparison_plot(x, true, test, ax, logx=True, logy=True, xlab=None, ylab=None):
-    ax[0].plot(x, true, label="True")
+def make_comparison_plot(
+    xtrue, x, true, test, ax, logx=True, logy=True, xlab=None, ylab=None
+):
+    ax[0].plot(xtrue, true, label="True")
     ax[0].plot(x, test, label="Test")
     if logx:
         ax[0].set_xscale("log")
