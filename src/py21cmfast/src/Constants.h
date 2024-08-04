@@ -212,3 +212,15 @@
 #define REION_SM13_D  (double) 2.5
 
 #endif
+
+// -------------------------------------------------------------------------------------
+// Taken from COSMOLOGY.H
+// -------------------------------------------------------------------------------------
+#define Ho  (double) (cosmo_params_global->hlittle*3.2407e-18) // s^-1 at z=0
+#define RHOcrit (double) ( (3.0*Ho*Ho / (8.0*PI*G)) * (CMperMPC*CMperMPC*CMperMPC)/Msun) // Msun Mpc^-3 ---- at z=0
+#define RHOcrit_cgs (double) (3.0*Ho*Ho / (8.0*PI*G)) // g pcm^-3 ---- at z=0
+#define No  (double) (RHOcrit_cgs*cosmo_params_global->OMb*(1-global_params.Y_He)/m_p)  //  current hydrogen number density estimate  (#/cm^3)  ~1.92e-7
+#define He_No (double) (RHOcrit_cgs*cosmo_params_global->OMb*global_params.Y_He/(4.0*m_p)) //  current helium number density estimate
+#define N_b0 (double) (No+He_No) // present-day baryon num density, H + He
+#define f_H (double) (No/(No+He_No))  // hydrogen number fraction
+#define f_He (double) (He_No/(No+He_No))  // helium number fraction

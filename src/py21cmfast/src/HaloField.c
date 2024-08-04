@@ -7,16 +7,34 @@
 // Virialized halos are defined according to the linear critical overdensity.
 // ComputeHaloField outputs a cube with non-zero elements containing the Mass of
 // the virialized halos
+#include <stdlib.h>
+#include <stdio.h>
+#include <omp.h>
+#include <fftw3.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
 
-int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z, int check_type);
-void init_halo_coords(struct HaloField *halos, long long unsigned int n_halos);
+#include "Constants.h"
+#include "Globals.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+#include "cosmology.h"
+#include "indexing.h"
+#include "hmf.h"
+#include "interp_tables.h"
+
+#include "HaloField.h"
+
+int check_halo(char * in_halo, UserParams *user_params, float R, int x, int y, int z, int check_type);
+void init_halo_coords(HaloField *halos, long long unsigned int n_halos);
 int pixel_in_halo(int grid_dim, int z_dim, int x, int x_index, int y, int y_index, int z, int z_index, float Rsq_curr_index );
-void free_halo_field(struct HaloField *halos);
+void free_halo_field(HaloField *halos);
 
-int ComputeHaloField(float redshift_desc, float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                     struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                     struct InitialConditions *boxes, unsigned long long int random_seed,
-                     struct HaloField * halos_desc, struct HaloField *halos) {
+int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_params, CosmoParams *cosmo_params,
+                     AstroParams *astro_params, FlagOptions *flag_options,
+                     InitialConditions *boxes, unsigned long long int random_seed,
+                     HaloField * halos_desc, HaloField *halos) {
 
     int status;
 
@@ -43,8 +61,7 @@ LOG_DEBUG("redshift=%f", redshift);
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
-        Broadcast_struct_global_PS(user_params,cosmo_params);
-        Broadcast_struct_global_UF(user_params,cosmo_params);
+        Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
 
         omp_set_num_threads(user_params->N_THREADS);
 
@@ -101,13 +118,7 @@ LOG_DEBUG("redshift=%f", redshift);
         if(LOG_LEVEL >= DEBUG_LEVEL){
             double Mmax_debug = 1e16;
             initialiseSigmaMInterpTable(M_MIN*0.9,Mmax_debug*1.1);
-            struct parameters_gsl_MF_integrals params = {
-                .redshift = redshift,
-                .growthf = growth_factor,
-                .HMF = user_params->HMF,
-            };
-
-            double nhalo_debug = IntegratedNdM(log(M_MIN), log(Mmax_debug), params, 1, 0) * VOLUME;
+            double nhalo_debug = Nhalo_General(redshift, log(M_MIN), log(Mmax_debug)) * VOLUME;
             //expected halos above minimum filter mass
             LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e]",nhalo_debug,M_MIN,Mmax_debug);
         }
@@ -145,10 +156,10 @@ LOG_DEBUG("redshift=%f", redshift);
         while (R < L_FACTOR*user_params->BOX_LEN)
             R*=global_params.DELTA_R_FACTOR;
 
-        struct HaloField *halos_dexm;
+        HaloField *halos_dexm;
         if(flag_options->HALO_STOCHASTICITY){
             //To save memory, we allocate the smaller (large mass) halofield here instead of using halos_desc
-            halos_dexm = malloc(sizeof(struct HaloField));
+            halos_dexm = malloc(sizeof(HaloField));
         }
         else{
             //assign directly to the output field instead
@@ -308,7 +319,7 @@ LOG_DEBUG("redshift=%f", redshift);
             }
         }
 
-        add_properties_cat(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift, halos_dexm);
+        add_properties_cat(random_seed, redshift, halos_dexm);
         LOG_DEBUG("Found %d DexM halos",halos_dexm->n_halos);
 
         if(flag_options->HALO_STOCHASTICITY){
@@ -394,7 +405,7 @@ if (halos->n_halos > 3)
 
 // Function check_halo combines the original two functions overlap_halo and update_in_halo
 // from the original 21cmFAST. Lots of redundant code, hence reduced into a single function
-int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, int y, int z, int check_type) {
+int check_halo(char * in_halo, UserParams *user_params, float R, int x, int y, int z, int check_type) {
 
     // if check_type == 1 (perform original overlap halo)
     //          Funtion OVERLAP_HALO checks if the would be halo with radius R
@@ -474,7 +485,7 @@ int check_halo(char * in_halo, struct UserParams *user_params, float R, int x, i
     }
 }
 
-void init_halo_coords(struct HaloField *halos, long long unsigned int n_halos){
+void init_halo_coords(HaloField *halos, long long unsigned int n_halos){
     // Minimise memory usage by only storing the halo mass and positions
     halos->n_halos = n_halos;
     halos->halo_masses = (float *)calloc(n_halos,sizeof(float));
@@ -485,7 +496,7 @@ void init_halo_coords(struct HaloField *halos, long long unsigned int n_halos){
     halos->xray_rng = (float *) calloc(n_halos,sizeof(float));
 }
 
-void free_halo_field(struct HaloField *halos){
+void free_halo_field(HaloField *halos){
     LOG_DEBUG("Freeing HaloField instance.");
     free(halos->halo_masses);
     free(halos->halo_coords);

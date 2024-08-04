@@ -1,3 +1,5 @@
+#include "recombinations.h"
+
 
 #define A_NPTS (int) (60) /*Warning: the calculation of the MHR model parameters is valid only from redshift 2 to A_NPTS+2*/
 static double A_table[A_NPTS], A_params[A_NPTS];
@@ -22,29 +24,6 @@ static gsl_spline *beta_spline;
 static double RR_table[RR_Z_NPTS][RR_lnGamma_NPTS], lnGamma_values[RR_lnGamma_NPTS];
 static gsl_interp_accel *RR_acc[RR_Z_NPTS];
 static gsl_spline *RR_spline[RR_Z_NPTS];
-
-
-/***  FUNCTION PROTOTYPES ***/
-double splined_recombination_rate(double z_eff, double gamma12_bg); // assumes T=1e4 and case B
-
-double recombination_rate(double z_eff, double gamma12_bg, double T4, int usecaseB);
-void init_MHR(); /*initializes the lookup table for the PDF density integral in MHR00 model at redshift z*/
-void free_MHR(); /* deallocates the gsl structures from init_MHR */
-double Gamma_SS(double Gamma_bg, double Delta, double T_4, double z);//ionization rate w. self shielding
-double MHR_rr (double del, void *params);
-double A_MHR(double z); /*returns the A parameter in MHR00model*/
-double C_MHR(double z); /*returns the C parameter in MHR00model*/
-double beta_MHR(double z); /*returns the beta parameter in MHR00model*/
-double splined_A_MHR(double z); /*returns the splined A parameter in MHR00model*/
-double splined_C_MHR(double z); /*returns the splined C parameter in MHR00model*/
-double splined_beta_MHR(double z);/*returns the splined beta parameter in MHR00*/
-void free_A_MHR(); /* deallocates the gsl structures from init_A */
-void free_C_MHR(); /* deallocates the gsl structures from init_C */
-void free_beta_MHR(); /* deallocates the gsl structures from init_beta */
-void init_A_MHR(); /*initializes the lookup table for the A paremeter in MHR00 model*/
-void init_C_MHR(); /*initializes the lookup table for the C paremeter in MHR00 model*/
-void init_beta_MHR(); /*initializes the lookup table for the beta paremeter in MHR00 model*/
-
 
 double splined_recombination_rate(double z_eff, double gamma12_bg){
   int z_ct = (int) (z_eff / RR_DEL_Z + 0.5); // round to nearest int

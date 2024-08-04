@@ -289,13 +289,13 @@ class StructWrapper:
 
     def _new(self):
         """Return a new empty C structure corresponding to this class."""
-        return self._ffi.new("struct " + self._name + "*")
+        return self._ffi.new(self._name + "*")
 
     @classmethod
     def get_fields(cls, cstruct=None) -> Dict[str, Any]:
         """Obtain the C-side fields of this struct."""
         if cstruct is None:
-            cstruct = cls._ffi.new("struct " + cls._get_name() + "*")
+            cstruct = cls._ffi.new(cls._get_name() + "*")
         return dict(cls._ffi.typeof(cstruct[0]).fields)
 
     @classmethod

@@ -1,5 +1,7 @@
-#ifndef _BUBBLE_HELPERS_
-#define _BUBBLE_HELPERS_
+#include <math.h>
+
+#include "bubble_helper_progs.h"
+#include "indexing.h"
 
 /*
   all lengths are in units of the box size
@@ -384,6 +386,3 @@ void update_in_sphere(float * box, int dimensions, int dimensions_ncf, float R, 
   check_region(box, dimensions, dimensions_ncf, Rsq_curr_index, x,y,z, xb_min, xb_max, yb_min, yb_max, zb_min, zl_min);
   check_region(box, dimensions, dimensions_ncf, Rsq_curr_index, x,y,z, xb_min, xb_max, yb_min, yb_max, zl_max, zb_max);
 }
-
-
-#endif

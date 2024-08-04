@@ -1,6 +1,8 @@
 #ifndef _PARAMSTRUCTURES_H
 #define _PARAMSTRUCTURES_H
 
+#include <stdbool.h>
+
 typedef struct CosmoParams{
 
     float SIGMA_8;
@@ -114,5 +116,23 @@ typedef struct FlagOptions{
     int PHOTON_CONS_TYPE;
     bool USE_UPPER_STELLAR_TURNOVER;
 } FlagOptions;
+
+/* Previously, we had a few structures spread throughout the code e.g user_params_ufunc which 
+   were all globally defined and separately broadcast at different times. Several of these were used 
+   across different files and some inside #defines (e.g indexing.h), so for now I've combined
+   the parameter structures to avoid confusion (we shouldn't have the possibility of two files using
+   different parameters).
+
+   In future we should have a parameter structure in each .c file containing ONLY parameters relevant to it
+   (look at HaloBox.c), and force the broadcast at each _compute() step (or even decorate any library call) 
+   However this would require us to be very careful about initialising the globals when ANY function from that
+   file is called */
+UserParams *user_params_global;
+CosmoParams *cosmo_params_global;
+AstroParams *astro_params_global;
+FlagOptions *flag_options_global;
+
+void Broadcast_struct_global_all(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options);
+void Broadcast_struct_global_noastro(UserParams *user_params, CosmoParams *cosmo_params);
 
 #endif

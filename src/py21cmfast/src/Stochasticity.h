@@ -1,11 +1,8 @@
 #ifndef _STOCHASTICITY_H
 #define _STOCHASTICITY_H
 
-#include "InputParamters.h"
-#include "InitialConditions.h"
-#include "HaloField.h"
-
-void Broadcast_struct_global_STOC(UserParams *user_params, CosmoParams *cosmo_params,AstroParams *astro_params, FlagOptions *flag_options);
+#include "InputParameters.h"
+#include "OutputStructs.h"
 
 int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options
                         , unsigned long long int seed, float redshift_desc, float redshift, float *dens_field, float *halo_overlap_box,

@@ -14,6 +14,8 @@
 // or find z at a given Q -> z_at_Q(Q, &(z)).
 // 3) free memory allocation -> free_Q_value()
 
+#include "photoncons.h"
+
 //These globals hold values relevant for the photon conservation (z-shift) model
 float calibrated_NF_min;
 double *deltaz, *deltaz_smoothed, *NeutralFractions, *z_Q, *Q_value, *nf_vals, *z_vals;
@@ -40,8 +42,8 @@ void z_at_NFHist(double xHI_Hist, double *splined_value);
 void NFHist_at_z(double z, double *splined_value);
 
 //   Set up interpolation table for the volume filling factor, Q, at a given redshift z and redshift at a given Q.
-int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                         struct AstroParams *astro_params, struct FlagOptions *flag_options)
+int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
+                         AstroParams *astro_params, FlagOptions *flag_options)
 {
 
     /*
@@ -50,8 +52,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
 
     int status;
     Try{  // this try wraps the whole function.
-    Broadcast_struct_global_PS(user_params,cosmo_params);
-    Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
     init_ps();
     //     To solve differentail equation, uses Euler's method.
     //     NOTE:
@@ -179,7 +180,7 @@ int InitialisePhotonCons(struct UserParams *user_params, struct CosmoParams *cos
                 Q1 = Q0 + ((Nion0-Nion1)/2/delta_a)*da; // No Recombination
             }
             else {
-                dadt = Ho*sqrt(cosmo_params_ps->OMm/a + global_params.OMr/a/a + cosmo_params_ps->OMl*a*a); // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
+                dadt = Ho*sqrt(cosmo_params->OMm/a + global_params.OMr/a/a + cosmo_params->OMl*a*a); // da/dt = Ho*a*sqrt(OMm/a^3 + OMr/a^4 + OMl)
                 Trec = 0.93 * 1e9 * SperYR * pow(C_HII/3.,-1) * pow(T_0/2e4,0.7) * pow((1.+zi)/7.,-3);
                 Q1 = Q0 + ((Nion0-Nion1)/2./delta_a - Q0/Trec/dadt)*da;
             }
@@ -638,7 +639,7 @@ void determine_deltaz_for_photoncons() {
 
 
 float adjust_redshifts_for_photoncons(
-    struct AstroParams *astro_params, struct FlagOptions *flag_options, float *redshift,
+    AstroParams *astro_params, FlagOptions *flag_options, float *redshift,
     float *stored_redshift, float *absolute_delta_z
 ) {
 

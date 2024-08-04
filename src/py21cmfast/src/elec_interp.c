@@ -14,6 +14,12 @@
 
 // The interpolation arrays.  Note all are defined in global scope, but x_int_ prefix should
 // ensure no conflicts with other code
+
+#include <stdlib.h>
+#include <stdio.h>
+
+#include "elec_interp.h"
+
 static float x_int_Energy[x_int_NENERGY];
 static float x_int_fheat[x_int_NXHII][x_int_NENERGY];
 static float x_int_n_Lya[x_int_NXHII][x_int_NENERGY];

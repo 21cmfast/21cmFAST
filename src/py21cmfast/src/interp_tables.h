@@ -5,7 +5,6 @@
 
 //Functions within interp_tables.c need the parameter structures, but we don't want to pass them all down the chain, so we broadcast them
 //TODO: in future it would be better to use a context struct. See `HaloBox.c`
-void Broadcast_struct_global_IT(UserParams *user_params,  CosmoParams *cosmo_params,  AstroParams *astro_params,  FlagOptions *flag_options);
 
 void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI,
                              float mturn_a_const, bool minihalos);

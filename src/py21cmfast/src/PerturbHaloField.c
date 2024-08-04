@@ -4,9 +4,11 @@
 // ComputePerturbHaloField reads in the linear velocity field, and uses
 // it to update halo locations with a corresponding displacement field
 
-int ComputePerturbHaloField(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                            struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                            struct InitialConditions *boxes, struct HaloField *halos, struct PerturbHaloField *halos_perturbed) {
+#include "PerturbHaloField.h"
+
+int ComputePerturbHaloField(float redshift, UserParams *user_params, CosmoParams *cosmo_params,
+                            AstroParams *astro_params, FlagOptions *flag_options,
+                            InitialConditions *boxes, HaloField *halos, PerturbHaloField *halos_perturbed) {
 
     int status;
 
@@ -23,8 +25,7 @@ LOG_DEBUG("redshift=%f", redshift);
 
         // Makes the parameter structs visible to a variety of functions/macros
         // Do each time to avoid Python garbage collection issues
-        Broadcast_struct_global_PS(user_params,cosmo_params);
-        Broadcast_struct_global_UF(user_params,cosmo_params);
+        Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
 
         omp_set_num_threads(user_params->N_THREADS);
 
@@ -250,7 +251,7 @@ LOG_DEBUG("Begin Initialisation");
     return(0);
 }
 
-void free_phf(struct PerturbHaloField* halos){
+void free_phf(PerturbHaloField* halos){
     LOG_DEBUG("Freeing PerturbHaloField");
     free(halos->halo_masses);
     free(halos->halo_coords);

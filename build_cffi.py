@@ -7,6 +7,8 @@ ffi = FFI()
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 CLOC = os.path.join(LOCATION, "src", "py21cmfast", "src")
 include_dirs = [CLOC]
+c_files = [os.path.join("src","py21cmfast","src",f) for f in os.listdir(CLOC) if f.endswith(".c")]
+print(f"INCLUDED C FILES: {c_files}",flush=True)
 
 # =================================================================
 # Set compilation arguments dependent on environment... a bit buggy
@@ -67,22 +69,24 @@ ffi.set_source(
     """
     #define LOG_LEVEL {log_level}
 
-    #include "GenerateICs.c"
+    #include "21cmFAST.h"
+    #include "Globals.h"
     """.format(
         log_level=log_level
     ),
+    sources=c_files,
     include_dirs=include_dirs,
     library_dirs=library_dirs,
     libraries=libraries,
     extra_compile_args=extra_compile_args,
 )
 
-# This is the Header file
-with open(os.path.join(CLOC, "21cmFAST.h")) as f:
-    ffi.cdef(f.read())
+# # This is the Header file
+# with open(os.path.join(CLOC, "21cmFAST.h")) as f:
+#     ffi.cdef(f.read())
 
-with open(os.path.join(CLOC, "Globals.h")) as f:
-    ffi.cdef(f.read())
+# with open(os.path.join(CLOC, "Globals.h")) as f:
+#     ffi.cdef(f.read())
 
 if __name__ == "__main__":
     ffi.compile()

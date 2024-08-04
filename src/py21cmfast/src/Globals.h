@@ -12,6 +12,8 @@
 #ifndef _GLOBALS_H
 #define _GLOBALS_H
 
+#include <stdbool.h>
+
 struct GlobalParams{
     float ALPHA_UVB;
     int EVOLVE_DENSITY_LINEARLY;

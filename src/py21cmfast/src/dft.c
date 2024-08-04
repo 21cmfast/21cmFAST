@@ -1,3 +1,21 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <gsl/gsl_rng.h>
+#include <complex.h>
+#include <fftw3.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+
+#include "Constants.h"
+#include "Globals.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+#include "cosmology.h"
+#include "indexing.h"
+
+#include "dft.h"
+
 int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_complex *box){
     char wisdom_filename[500];
     unsigned flag = FFTW_ESTIMATE;
@@ -54,14 +72,14 @@ int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
     return(0);
 }
 
-int CreateFFTWWisdoms(struct UserParams *user_params, struct CosmoParams *cosmo_params) {
+int CreateFFTWWisdoms(UserParams *user_params, CosmoParams *cosmo_params) {
 
     int status;
     char *wisdom_string;
 
     Try{ // This Try wraps the entire function so we don't indent.
 
-        Broadcast_struct_global_UF(user_params,cosmo_params);
+        Broadcast_struct_global_noastro(user_params,cosmo_params);
 
         fftwf_plan plan;
 

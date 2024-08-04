@@ -1,72 +1,17 @@
 
-struct UserParams *user_params_hf;
-struct CosmoParams *cosmo_params_hf;
-struct AstroParams *astro_params_hf;
-struct FlagOptions *flag_options_hf;
+#include <stdlib.h>
+#include <stdio.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
 
-float determine_zpp_min, zpp_bin_width;
+#include "Constants.h"
+#include "Globals.h"
+#include "InputParameters.h"
 
-double BinWidth_pH,inv_BinWidth_pH,BinWidth_elec,inv_BinWidth_elec,BinWidth_10,inv_BinWidth_10,PS_ION_EFF;
+#include "heating_helper_progs.h"
 
-void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options){
-
-    user_params_hf = user_params;
-    cosmo_params_hf = cosmo_params;
-    astro_params_hf = astro_params;
-    flag_options_hf = flag_options;
-}
-
-// * initialization routine * //
-// int init_heat();
-
-/* destruction/deallocation routine */
-void destruct_heat();
-
-// * returns the spectral emissity * //
-double spectral_emissivity(double nu_norm, int flag, int Population);
-
-// * Ionization fraction from RECFAST. * //
-double xion_RECFAST(float z, int flag);
-
-// * IGM temperature from RECFAST; includes Compton heating and adiabatic expansion only. * //
-double T_RECFAST(float z, int flag);
-
-// approximation for the adiabatic index at z=6-50 from 2302.08506
-float cT_approx(float z);
-
-// * returns the spin temperature * //
-float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float * curr_xalpha);
-
-//* Returns recycling fraction (=fraction of photons converted into Lyalpha for Ly-n resonance * //
-double frecycle(int n);
-
-// * Returns frequency of Lyman-n, in units of Lyman-alpha * //
-double nu_n(int n);
-
-double kappa_10_pH(double T, int flag);
-double kappa_10_elec(double T, int flag);
-double kappa_10(double TK, int flag);
-
-double xcoll(double z, double TK, double delta, double xe);
-double xcoll_HI(double z, double TK, double delta, double xe);
-double xcoll_elec(double z, double TK, double delta, double xe);
-double xcoll_prot(double z, double TK, double delta, double xe);
-
-double xalpha_tilde(double z, double Jalpha, double TK, double TS, double delta, double xe);
-double Tc_eff(double TK, double TS);
-double Salpha_tilde(double TK, double TS, double tauGP);
-double taugp(double z, double delta, double xe);
-
-double species_weighted_x_ray_cross_section(double nu, double x_e);
-
-// * Returns the maximum redshift at which a Lyn transition contributes to Lya flux at z * //
-float zmax(float z, int n);
-
-//Lyman-Alpha heating functions
-int find_nearest_point(double min, double max, int n, double value);
-int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr);
-double interpolate_heating_efficiencies(double tk, double ts, double taugp, double *arrE);
-double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag);
+static double BinWidth_pH,inv_BinWidth_pH,BinWidth_elec,inv_BinWidth_elec,BinWidth_10,inv_BinWidth_10,PS_ION_EFF;
 
 int init_heat()
 {
@@ -703,7 +648,7 @@ double integrand_in_nu_heat_integral(double nu, void * params){
     species_sum += interp_fheat((nu - HeII_NUIONIZATION)/NU_over_EV, x_e)
     * hplank*(nu - HeII_NUIONIZATION) * f_He * x_e * HeII_ion_crosssec(nu);
 
-    return species_sum * pow(nu/((astro_params_hf->NU_X_THRESH)*NU_over_EV), -(astro_params_hf->X_RAY_SPEC_INDEX)-1);
+    return species_sum * pow(nu/((astro_params_global->NU_X_THRESH)*NU_over_EV), -(astro_params_global->X_RAY_SPEC_INDEX)-1);
 }
 
 double integrand_in_nu_ion_integral(double nu, void * params){
@@ -728,7 +673,7 @@ double integrand_in_nu_ion_integral(double nu, void * params){
     interp_nion_HeII((nu - HeII_NUIONIZATION)/NU_over_EV, x_e) + 1;
     species_sum += F_i * f_He * x_e * HeII_ion_crosssec(nu);
 
-    return species_sum * pow(nu/((astro_params_hf->NU_X_THRESH)*NU_over_EV), -(astro_params_hf->X_RAY_SPEC_INDEX)-1);
+    return species_sum * pow(nu/((astro_params_global->NU_X_THRESH)*NU_over_EV), -(astro_params_global->X_RAY_SPEC_INDEX)-1);
 }
 
 double integrand_in_nu_lya_integral(double nu, void * params){
@@ -747,7 +692,7 @@ double integrand_in_nu_lya_integral(double nu, void * params){
     species_sum += interp_n_Lya((nu - HeII_NUIONIZATION)/NU_over_EV, x_e)
     * f_He * (double)x_e * HeII_ion_crosssec(nu);
 
-    return species_sum * pow(nu/((astro_params_hf->NU_X_THRESH)*NU_over_EV), -(astro_params_hf->X_RAY_SPEC_INDEX)-1);
+    return species_sum * pow(nu/((astro_params_global->NU_X_THRESH)*NU_over_EV), -(astro_params_global->X_RAY_SPEC_INDEX)-1);
 }
 
 double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, int FLAG){
@@ -863,8 +808,8 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, d
     p.nu_0 = nu/(1+zp);
     p.x_e = x_e;
     p.x_e_ave = x_e_ave;
-    p.ion_eff = global_params.Pop2_ion*astro_params_hf->F_STAR10*astro_params_hf->F_ESC10;
-    p.ion_eff_MINI = global_params.Pop3_ion*astro_params_hf->F_STAR7_MINI*astro_params_hf->F_ESC7_MINI;
+    p.ion_eff = global_params.Pop2_ion*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
+    p.ion_eff_MINI = global_params.Pop3_ion*astro_params_global->F_STAR7_MINI*astro_params_global->F_ESC7_MINI;
     p.log10_Mturn_MINI = log10_Mturn_MINI;
     p.Mlim_Fstar = Mlim_Fstar;
     p.Mlim_Fesc = Mlim_Fesc;
@@ -906,8 +851,8 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
     p.Mlim_Fstar = Mlim_Fstar;
     p.Mlim_Fesc = Mlim_Fesc;
 
-    if(flag_options_hf->USE_MASS_DEPENDENT_ZETA) {
-        p.ion_eff = global_params.Pop2_ion*astro_params_hf->F_STAR10*astro_params_hf->F_ESC10;
+    if(flag_options_global->USE_MASS_DEPENDENT_ZETA) {
+        p.ion_eff = global_params.Pop2_ion*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
     }
     else {
         //if we don't have an explicit ionising efficiency, we estimate one by using the values at zp
@@ -974,7 +919,7 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
     // check if too ionized
     if (x_e > 0.9999){
 //        LOG_ERROR("x_e value is too close to 1 for convergence.");
-        return astro_params_hf->NU_X_THRESH;
+        return astro_params_global->NU_X_THRESH;
     }
 
     // select solver and allocate memory
@@ -1047,7 +992,7 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
     // check if too ionized
     if (x_e > 0.9999){
 //        LOG_ERROR("x_e value is too close to 1 for convergence.");
-        return astro_params_hf->NU_X_THRESH;
+        return astro_params_global->NU_X_THRESH;
     }
 
     // select solver and allocate memory

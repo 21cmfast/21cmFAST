@@ -3,16 +3,15 @@
 #define _INITCONDITIONS_H
 
 #include "InputParameters.h"
-
-typedef struct InitialConditions{
-    float *lowres_density, *lowres_vx, *lowres_vy, *lowres_vz, *lowres_vx_2LPT, *lowres_vy_2LPT, *lowres_vz_2LPT;
-    float *hires_density, *hires_vx, *hires_vy, *hires_vz, *hires_vx_2LPT, *hires_vy_2LPT, *hires_vz_2LPT; //cw addition
-    float *lowres_vcb;
-} InitialConditions;
+#include "OutputStructs.h"
+#include <gsl/gsl_rng.h>
 
 int ComputeInitialConditions(
     unsigned long long random_seed, UserParams *user_params,
     CosmoParams *cosmo_params, InitialConditions *boxes
 );
+
+void seed_rng_threads(gsl_rng * rng_arr[], unsigned long long int seed);
+void free_rng_threads(gsl_rng * rng_arr[]);
 
 #endif

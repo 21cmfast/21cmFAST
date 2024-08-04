@@ -2,6 +2,8 @@
 //  We use regular grid tables since they are faster to evaluate (we always know which bin we are in)
 //  So I'm making a general function for the 1D and 2D cases
 
+#include "interpolation.h"
+
 void allocate_RGTable1D(int n_bin, struct RGTable1D * ptr){
     ptr->n_bin = n_bin;
     ptr->y_arr = calloc(n_bin,sizeof(double));

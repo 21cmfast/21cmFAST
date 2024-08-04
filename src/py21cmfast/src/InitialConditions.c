@@ -1,50 +1,90 @@
-#include <math.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <ctype.h>
 #include <stdlib.h>
-#include <time.h>
-#include <string.h>
+#include <stdio.h>
+#include <limits.h>
 #include <omp.h>
+#include <gsl/gsl_rng.h>
 #include <complex.h>
 #include <fftw3.h>
-#include <gsl/gsl_interp.h>
-#include <gsl/gsl_integration.h>
-#include <gsl/gsl_rng.h>
-#include <gsl/gsl_randist.h>
-#include <gsl/gsl_roots.h>
-#include <gsl/gsl_errno.h>
-#include <gsl/gsl_spline.h>
-#include <gsl/gsl_spline2d.h>
-
-#include "21cmFAST.h"
+#include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
+
 #include "Constants.h"
 #include "Globals.h"
-#include "indexing.c"
-#include "UsefulFunctions.c"
-#include "interpolation.c"
-#include "ps.c"
-#include "photoncons.c"
-#include "interp_tables.c"
-#include "dft.c"
-#include "PerturbField.c"
-#include "bubble_helper_progs.c"
-#include "elec_interp.c"
-#include "heating_helper_progs.c"
-#include "recombinations.c"
-#include "IonisationBox.c"
-#include "Stochasticity.c"
-#include "HaloBox.c"
-#include "SpinTemperatureBox.c"
-#include "subcell_rsds.c"
-#include "BrightnessTemperatureBox.c"
-#include "FindHaloes.c"
-#include "PerturbHaloField.c"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+#include "cosmology.h"
+#include "indexing.h"
 
-void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, struct CosmoParams *cosmo_params){
+#include "InitialConditions.h"
+
+void seed_rng_threads(gsl_rng * rng_arr[], unsigned long long int seed){
+    // setting tbe random seeds
+    gsl_rng * rseed = gsl_rng_alloc(gsl_rng_mt19937); // An RNG for generating seeds for multithreading
+
+    gsl_rng_set(rseed, seed);
+
+    unsigned int seeds[user_params_global->N_THREADS];
+
+    // For multithreading, seeds for the RNGs are generated from an initial RNG (based on the input random_seed) and then shuffled (Author: Fred Davies)
+    // int num_int = INT_MAX/16;
+    int num_int = INT_MAX/256; //JD: this was taking a few seconds per snapshot so i reduced the number TODO: init the RNG once
+    int i, thread_num;
+    unsigned int *many_ints = (unsigned int *)malloc((size_t)(num_int*sizeof(unsigned int))); // Some large number of possible integers
+    for (i=0; i<num_int; i++) {
+        many_ints[i] = i;
+    }
+
+    gsl_ran_choose(rseed, seeds, user_params_global->N_THREADS, many_ints, num_int, sizeof(unsigned int)); // Populate the seeds array from the large list of integers
+    gsl_ran_shuffle(rseed, seeds, user_params_global->N_THREADS, sizeof(unsigned int)); // Shuffle the randomly selected integers
+
+    int checker;
+
+    checker = 0;
+    // seed the random number generators
+    for (thread_num = 0; thread_num < user_params_global->N_THREADS; thread_num++){
+        switch (checker){
+            case 0:
+                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_mt19937);
+                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
+                break;
+            case 1:
+                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_gfsr4);
+                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
+                break;
+            case 2:
+                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_cmrg);
+                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
+                break;
+            case 3:
+                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_mrg);
+                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
+                break;
+            case 4:
+                rng_arr[thread_num] = gsl_rng_alloc(gsl_rng_taus2);
+                gsl_rng_set(rng_arr[thread_num], seeds[thread_num]);
+                break;
+        } // end switch
+
+        checker += 1;
+
+        if(checker==5) {
+            checker = 0;
+        }
+    }
+
+    gsl_rng_free(rseed);
+    free(many_ints);
+}
+
+void free_rng_threads(gsl_rng * rng_arr[]){
+    int ii;
+    for(ii=0;ii<user_params_global->N_THREADS;ii++){
+        gsl_rng_free(rng_arr[ii]);
+    }
+}
+
+void adj_complex_conj(fftwf_complex *HIRES_box, UserParams *user_params, CosmoParams *cosmo_params){
     /*****  Adjust the complex conjugate relations for a real array  *****/
 
     int i, j, k;
@@ -98,8 +138,8 @@ void adj_complex_conj(fftwf_complex *HIRES_box, struct UserParams *user_params, 
 // Re-write of init.c for original 21cmFAST
 
 int ComputeInitialConditions(
-    unsigned long long random_seed, struct UserParams *user_params,
-    struct CosmoParams *cosmo_params, struct InitialConditions *boxes
+    unsigned long long random_seed, UserParams *user_params,
+    CosmoParams *cosmo_params, InitialConditions *boxes
 ){
 
 //     Generates the initial conditions: gaussian random density field (user_params->DIM^3) as well as the equal or lower resolution velocity fields, and smoothed density field (user_params->HII_DIM^3).
@@ -113,8 +153,7 @@ int ComputeInitialConditions(
 
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
-    Broadcast_struct_global_PS(user_params,cosmo_params);
-    Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_noastro(user_params,cosmo_params);
 
     unsigned long long ct;
     int n_x, n_y, n_z, i, j, k, ii, thread_num, dimension;

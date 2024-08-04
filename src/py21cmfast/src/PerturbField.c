@@ -1,7 +1,9 @@
 // Re-write of perturb_field.c for being accessible within the MCMC
+#include "PerturbField.h"
+
 void compute_perturbed_velocities(
     unsigned short axis,
-    struct UserParams *user_params,
+    UserParams *user_params,
     fftwf_complex *HIRES_density_perturb,
     fftwf_complex *HIRES_density_perturb_saved,
     fftwf_complex *LOWRES_density_perturb,
@@ -137,8 +139,8 @@ void compute_perturbed_velocities(
 }
 
 int ComputePerturbField(
-    float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-    struct InitialConditions *boxes, struct PerturbedField *perturbed_field
+    float redshift, UserParams *user_params, CosmoParams *cosmo_params,
+    InitialConditions *boxes, PerturbedField *perturbed_field
 ){
     /*
      ComputePerturbField uses the first-order Langragian displacement field to move the
@@ -153,8 +155,7 @@ int ComputePerturbField(
 
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
-    Broadcast_struct_global_PS(user_params,cosmo_params);
-    Broadcast_struct_global_UF(user_params,cosmo_params);
+    Broadcast_struct_global_noastro(user_params,cosmo_params);
 
     omp_set_num_threads(user_params->N_THREADS);
 

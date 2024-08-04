@@ -1,4 +1,26 @@
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
+#include <stdlib.h>
+#include <stdio.h>
+#include <omp.h>
+#include <complex.h>
+#include <fftw3.h>
+#include <gsl/gsl_rng.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+
+#include "Constants.h"
+#include "Globals.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+#include "cosmology.h"
+#include "hmf.h"
+#include "indexing.h"
+#include "dft.h"
+
+#include "IonisationBox.h"
+
+#define LOG10_MTURN_MAX ((double)(10)) //maximum mturn limit enforced on grids
 
 int INIT_ERFC_INTERPOLATION = 1;
 int INIT_RECOMBINATIONS = 1;
@@ -9,15 +31,15 @@ float absolute_delta_z;
 
 float thistk;
 
-int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
-                       struct AstroParams *astro_params, struct FlagOptions *flag_options,
-                       struct PerturbedField *perturbed_field,
-                       struct PerturbedField *previous_perturbed_field,
-                       struct IonizedBox *previous_ionize_box,
-                       struct TsBox *spin_temp,
-                       struct HaloBox *halos,
-                       struct InitialConditions *ini_boxes,
-                       struct IonizedBox *box) {
+int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_params, CosmoParams *cosmo_params,
+                       AstroParams *astro_params, FlagOptions *flag_options,
+                       PerturbedField *perturbed_field,
+                       PerturbedField *previous_perturbed_field,
+                       IonizedBox *previous_ionize_box,
+                       TsBox *spin_temp,
+                       HaloBox *halos,
+                       InitialConditions *ini_boxes,
+                       IonizedBox *box) {
 
     int status;
 
@@ -33,9 +55,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, struct UserParams *us
 
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
-    Broadcast_struct_global_PS(user_params,cosmo_params);
-    Broadcast_struct_global_UF(user_params,cosmo_params);
-    Broadcast_struct_global_IT(user_params,cosmo_params,astro_params,flag_options);
+    Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
 
     omp_set_num_threads(user_params->N_THREADS);
 
@@ -307,6 +327,7 @@ LOG_SUPER_DEBUG("erfc interpolation done");
     i=0;
 
     // Newer setup to be performed in parallel
+    // TODO: examine this RNG model, seed properly with seed_rng_threads() from ICs
     int thread_num;
     for(thread_num = 0; thread_num < user_params->N_THREADS; thread_num++){
         // Original defaults with gsl_rng_mt19937 and SEED = 0, thus start with this and iterate for all other threads by their thread number
@@ -531,7 +552,7 @@ LOG_SUPER_DEBUG("sigma table has been initialised");
     global_xH = 0.0;
 
     if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options->USE_MINI_HALOS && user_params->INTEGRATION_METHOD_MINI == 1))
-        initialise_GL(NGL_INT, lnMmin, lnMmax);
+        initialise_GL(lnMmin, lnMmax);
 
     // Determine the normalisation for the excursion set algorithm
     if (flag_options->USE_MASS_DEPENDENT_ZETA) {
@@ -833,7 +854,7 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 
             if (!flag_options->USE_HALO_FIELD) {
                 if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options->USE_MINI_HALOS && user_params->INTEGRATION_METHOD_MINI == 1))
-                    initialise_GL(NGL_INT, lnMmin, lnM_cond);
+                    initialise_GL(lnMmin, lnM_cond);
                 if (flag_options->USE_MASS_DEPENDENT_ZETA) {
 
                     min_density = max_density = 0.0;
@@ -923,11 +944,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                             log10Mturn_max = log10Mturn_max *1.01;
                             log10Mturn_min_MINI = log10Mturn_min_MINI *0.99;
                             log10Mturn_max_MINI = log10Mturn_max_MINI *1.01;
-
-                            log10Mturn_bin_width = (log10Mturn_max - log10Mturn_min) / (float)(NMTURN-1);
-                            log10Mturn_bin_width_inv = 1./log10Mturn_bin_width;
-                            log10Mturn_bin_width_MINI = (log10Mturn_max_MINI - log10Mturn_min_MINI) / (float)(NMTURN-1);
-                            log10Mturn_bin_width_inv_MINI = 1./log10Mturn_bin_width_MINI;
                         }
                     }
 
@@ -940,8 +956,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                         max_density += 0.001;
                         prev_min_density -= 0.001;
                         prev_max_density += 0.001;
-                        density_bin_width = (max_density - min_density)/((double)NDELTA-1);
-                        prev_density_bin_width = (prev_max_density - prev_min_density)/((double)NDELTA-1);
                         initialise_Nion_Conditional_spline(redshift,Mcrit_atom,min_density,max_density,M_MIN,massofscaleR,massofscaleR,
                                                 log10Mturn_min,log10Mturn_max,log10Mturn_min_MINI,log10Mturn_max_MINI,
                                                 astro_params->ALPHA_STAR, astro_params->ALPHA_STAR_MINI,
@@ -986,8 +1000,8 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
             // renormalize the collapse fraction so that the mean matches ST,
             // since we are using the evolved (non-linear) density field
 #pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded_threaded,erfc_denom,erfc_arg_min,\
-                            erfc_arg_max,InvArgBinWidth,ArgBinWidth,ERFC_VALS_DIFF,ERFC_VALS,log10_Mturnover_filtered,log10Mturn_min,log10Mturn_bin_width_inv, \
-                            log10_Mturnover_MINI_filtered,log10Mturn_bin_width_inv_MINI,prev_deltax_filtered,previous_ionize_box,ION_EFF_FACTOR,\
+                            erfc_arg_max,InvArgBinWidth,ArgBinWidth,ERFC_VALS_DIFF,ERFC_VALS,log10_Mturnover_filtered,log10Mturn_min, \
+                            log10_Mturnover_MINI_filtered,prev_deltax_filtered,previous_ionize_box,ION_EFF_FACTOR,\
                             box,counter,stars_filtered,massofscaleR,pixel_volume,sigmaMmax,\
                             M_MIN,growth_factor,Mlim_Fstar,Mlim_Fesc,Mcrit_atom,Mlim_Fstar_MINI,Mlim_Fesc_MINI,prev_growth_factor) \
                     private(x,y,z,curr_dens,Splined_Fcoll,Splined_Fcoll_MINI,dens_val,overdense_int,erfc_arg_val,erfc_arg_val_index,log10_Mturnover,\
