@@ -56,6 +56,6 @@ void free_RGTable2D_f(RGTable2D_f * ptr);
 double EvaluateRGTable1D(double x, RGTable1D *table);
 double EvaluateRGTable2D(double x, double y, RGTable2D *table);
 double EvaluateRGTable1D_f(double x, RGTable1D_f *table);
-double EvaluateRGTable2D_f(double x, double y, RGTable2D_f *table)
+double EvaluateRGTable2D_f(double x, double y, RGTable2D_f *table);
 
 #endif

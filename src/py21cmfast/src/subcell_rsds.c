@@ -1,8 +1,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "Constants.h"
+
 #include "InputParameters.h"
 #include "OutputStructs.h"
+#include "indexing.h"
 
 #include "subcell_rsds.h"
 

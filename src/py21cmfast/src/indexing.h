@@ -20,6 +20,7 @@
         to do the FFT, the extra spaces don't actually get used, and the indexing
         macros (eg. R_FFT_INDEX) skip these extra bits to index the truly used array.
 */
+#include "InputParameters.h"
 
 // -------------------------------------------------------------------------------------
 // Convenience Constants

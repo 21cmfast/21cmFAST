@@ -1,9 +1,23 @@
 /* This file defines specific interpolation table initialisation functions, kept separate from the general interpolation table routines
    In order to allow them to use calculations based on other interpolation tables. Most importantly these fucntions require those from ps.c
    which requires the sigma(M) interpolation tables */
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_roots.h>
+#include <gsl/gsl_interp.h>
+#include <gsl/gsl_spline.h>
 
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+#include "Constants.h"
+#include "Globals.h"
 #include "InputParameters.h"
 #include "hmf.h"
+#include "interpolation.h"
 
 #include "interp_tables.h"
 
@@ -13,12 +27,10 @@
 #define LOG10_MTURN_MAX ((double)(10))
 #define LOG10_MTURN_MIN ((double)(5.-9e-8))
 #define MAX_ITER_RF 200
-
 #define N_MASS_INTERP 300
 
 //we need to define a density minimum for the tables, since we are in lagrangian density / linear growth it's possible to go below -1
 //so we explicitly set a minimum here which sets table limits and puts no halos in cells below that (Lagrangian) density
-#define DELTA_MIN -1
 
 //Tables for the grids
 static RGTable1D SFRD_z_table = {.allocated = false};
@@ -45,8 +57,14 @@ static RGTable1D_f dfcoll_conditional_table = {.allocated = false,};
 
 //J table for binary split algorithm
 static RGTable1D J_split_table = {.allocated = false};
+
 //Sigma inverse table for partition algorithm
-static RGTable1D Sigma_inv_table = {.allocated = false};
+//Since we want to easily construct it from the sigma table, it won't be uniform so use GSL
+//TODO: Consider a rootfind on the integrals for accuracy and speed if we want an RGTable
+//      It should only need one calculation per run
+static gsl_spline *Sigma_inv_table;
+static gsl_interp_accel *Sigma_inv_table_acc;
+#pragma omp threadprivate(Sigma_inv_table_acc)
 
 //Sigma interpolation tables
 static RGTable1D_f Sigma_InterpTable = {.allocated = false,};
@@ -243,7 +261,7 @@ void init_FcollTable(double zmin, double zmax, bool x_ray){
             fcoll_z_table.y_arr[i] = FgtrM(z_val, M_min);
         else{
             if(user_params_global->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_global->USE_MINI_HALOS && user_params_global->INTEGRATION_METHOD_MINI == 1))
-                initialise_GL(NGL_INT,lnMmin,lnMmax);
+                initialise_GL(lnMmin,lnMmax);
             fcoll_z_table.y_arr[i] = Fcoll_General(z_val, lnMmin, lnMmax);
         }
     }
@@ -719,7 +737,13 @@ void free_dNdM_tables(){
     free_RGTable1D(&Nhalo_table);
     free_RGTable1D(&Mcoll_table);
     free_RGTable1D(&J_split_table);
-    free_RGTable1D(&Sigma_inv_table);
+    if(user_params_global->SAMPLE_METHOD == 2){
+        gsl_spline_free(&Sigma_inv_table);
+        #pragma omp parallel num_threads(user_params_global->N_THREADS)
+        {
+            gsl_interp_accel_free(&Sigma_inv_table_acc);
+        }
+    }
 }
 
 void free_conditional_tables(){
@@ -732,6 +756,14 @@ void free_conditional_tables(){
     free_RGTable2D_f(&Nion_conditional_table_MINI);
     free_RGTable2D_f(&Nion_conditional_table_prev);
     free_RGTable2D_f(&Nion_conditional_table_MINI_prev);
+}
+
+void free_global_tables(){
+    free_RGTable1D(&SFRD_z_table);
+    free_RGTable2D(&SFRD_z_table_MINI);
+    free_RGTable1D(&Nion_z_table);
+    free_RGTable2D(&Nion_z_table_MINI);
+    free_RGTable1D(&fcoll_z_table);
 }
 
 //JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
@@ -935,25 +967,21 @@ void InitialiseSigmaInverseTable(){
         Throw(TableGenerationError);
     }
     int i;
-
     int n_bin = Sigma_InterpTable.n_bin;
     double sigma_min = Sigma_InterpTable.y_arr[n_bin-1];
     double sigma_max = Sigma_InterpTable.y_arr[0];
-    double sigma;
 
-    if(!Sigma_inv_table.allocated)
-        allocate_RGTable1D(n_bin,&Sigma_inv_table);
+    int xa[n_bin], ya[n_bin];
 
-    Sigma_inv_table.x_min = sigma_min;
-    Sigma_inv_table.x_width = (sigma_max-sigma_min)/((double)n_bin-1);
+    Sigma_inv_table = gsl_spline_alloc(gsl_interp_linear,n_bin);
+    Sigma_inv_table_acc = gsl_interp_accel_alloc();
 
-    //inital guess for rootfind
-    double lnM_prev = Sigma_InterpTable.x_min;
     for(i=0;i<n_bin;i++){
-        sigma = Sigma_inv_table.x_min + i*Sigma_inv_table.x_width;
-        Sigma_inv_table.y_arr[i] = sigma_inverse(sigma,lnM_prev);
-        sigma_prev = Sigma_inv_table.y_arr[i];
+        xa[i] = Sigma_InterpTable.y_arr[n_bin-i-1];
+        ya[i] = Sigma_InterpTable.x_min + (n_bin-i-1)*Sigma_InterpTable.x_width;
     }
+
+    gsl_spline_init(Sigma_inv_table,xa,ya,n_bin);
 }
 
 double EvaluateSigmaInverse(double sigma){

@@ -1,4 +1,20 @@
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
+#include <stdlib.h>
+#include <stdio.h>
+#include <complex.h>
+#include <fftw3.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+#include "Constants.h"
+#include "Globals.h"
+#include "indexing.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+#include "heating_helper_progs.h"
+#include "elec_interp.h"
+#include "interp_tables.h"
+
 #include "SpinTemperatureBox.h"
 
 void ts_main(float redshift, float prev_redshift, UserParams *user_params, CosmoParams *cosmo_params,
@@ -717,7 +733,6 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
     double lower_int_limit;
     int x_e_ct,R_ct;
     int R_start, R_end;
-    double LOG10_MTURN_INT = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
     //if we minimize mem these arrays are filled one by one
     if(user_params_global->MINIMIZE_MEMORY){
         R_start = R_mm;
@@ -822,22 +837,16 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     double sum_nion=0,sum_sfr=0,sum_mass=0,sum_nion_mini=0;
     double zpp;
 
-    double log10_Mcrit_width = (double) ((LOG10_MTURN_MAX - LOG10_MTURN_MIN)) / ((double) (NMTURN - 1.));
-
     //For a lot of global evolution, this code uses Nion_general. We can replace this with the halo field
     //at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1 barrier
     //so it needs the QHII in a range [zp,zpp]. I want to replace this whole thing with a global history struct but
     //I will need to change the Tau function chain.
-    double determine_zpp_max;
-
-    if(user_params_global->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_global->USE_MINI_HALOS && user_params_global->INTEGRATION_METHOD_MINI == 1))
-        initialise_GL(NGL_INT,log(M_min_R[R_ct]),log(global_params.M_MAX_INTEGRAL));
+    double determine_zpp_max, determine_zpp_min;
 
     if(user_params_global->USE_INTERPOLATION_TABLES){
         determine_zpp_min = zp*0.999; //global
         //NOTE: must be called after setup_z_edges for this line
         determine_zpp_max = zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts-1]*1.001;
-        zpp_bin_width = (determine_zpp_max - determine_zpp_min)/((float)zpp_interp_points_SFR-1.0); //global
 
         //We need the tables for the frequency integrals & mean fixing
         //NOTE: These global tables confuse me, we do ~400 (x50 for mini) integrals to build the table, despite only having
@@ -901,7 +910,7 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     double ave_sfrd_buf=0;
     double ave_sfrd_buf_mini=0;
     if(user_params_global->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_global->USE_MINI_HALOS && user_params_global->INTEGRATION_METHOD_MINI == 1))
-        initialise_GL(NGL_INT,log(M_min_R[R_ct]),log(M_max_R[R_ct]));
+        initialise_GL(log(M_min_R[R_ct]),log(M_max_R[R_ct]));
 
     if(user_params_global->USE_INTERPOLATION_TABLES){
         if(flag_options_global->USE_MASS_DEPENDENT_ZETA){
@@ -1549,11 +1558,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     //we definitely don't need these tables anymore
     //Having these free's here instead of after global_reion_properties just for MINIMIZE_MEMORY is not ideal,
     //   but the log10Mturn average is needed
-    free_RGTable1D(&SFRD_z_table);
-    free_RGTable2D(&SFRD_z_table_MINI);
-    free_RGTable1D(&Nion_z_table);
-    free_RGTable2D(&Nion_z_table_MINI);
-    free_RGTable1D(&fcoll_z_table);
+    free_global_tables();
 
     //R==0 part
 #pragma omp parallel private(box_ct)

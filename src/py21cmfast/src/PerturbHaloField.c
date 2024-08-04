@@ -4,6 +4,18 @@
 // ComputePerturbHaloField reads in the linear velocity field, and uses
 // it to update halo locations with a corresponding displacement field
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <complex.h>
+#include <fftw3.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+#include "Constants.h"
+#include "indexing.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+
 #include "PerturbHaloField.h"
 
 int ComputePerturbHaloField(float redshift, UserParams *user_params, CosmoParams *cosmo_params,

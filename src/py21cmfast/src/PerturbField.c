@@ -1,4 +1,17 @@
 // Re-write of perturb_field.c for being accessible within the MCMC
+#include <stdlib.h>
+#include <stdio.h>
+#include <complex.h>
+#include <fftw3.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+#include "Constants.h"
+#include "Globals.h"
+#include "indexing.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+
 #include "PerturbField.h"
 
 void compute_perturbed_velocities(

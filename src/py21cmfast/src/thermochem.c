@@ -1,3 +1,15 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_errno.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+
+#include "Constants.h"
+#include "Globals.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
 #include "thermochem.h"
 
 float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
@@ -187,7 +199,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
 
     if (zstart >= zend){
         LOG_ERROR("in tau_e: First parameter must be smaller than the second.\n");
-        Throw ValueError;
+        Throw(ValueError);
     }
 
     F.function = &dtau_e_dz;

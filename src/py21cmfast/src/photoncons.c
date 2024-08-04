@@ -14,6 +14,19 @@
 // or find z at a given Q -> z_at_Q(Q, &(z)).
 // 3) free memory allocation -> free_Q_value()
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_interp.h>
+#include <gsl/gsl_spline.h>
+
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+#include "Constants.h"
+#include "Globals.h"
+#include "InputParameters.h"
+
 #include "photoncons.h"
 
 //These globals hold values relevant for the photon conservation (z-shift) model

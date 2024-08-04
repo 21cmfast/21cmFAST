@@ -10,7 +10,9 @@
  */
 #ifndef _CONSTANTS_H
 #define _CONSTANTS_H
+
 //TODO: sort out these constants into groups and make separate files
+#include "Globals.h"
 
 // ----------------------------------------------------------------------------------------- //
 

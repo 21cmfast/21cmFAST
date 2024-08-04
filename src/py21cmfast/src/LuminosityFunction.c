@@ -1,6 +1,20 @@
 //     Luv/SFR = 1 / 1.15 x 10^-28 [M_solar yr^-1/erg s^-1 Hz^-1]
 //     G. Sun and S. R. Furlanetto (2016) MNRAS, 417, 33
 
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <gsl/gsl_interp.h>
+#include <gsl/gsl_spline.h>
+#include <gsl/gsl_errno.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+#include "Constants.h"
+#include "Globals.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+
 #include "LuminosityFunction.h"
 
 #define Luv_over_SFR (double)(1./1.15/1e-28)

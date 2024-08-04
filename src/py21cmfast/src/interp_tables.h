@@ -53,6 +53,7 @@ double EvaluatedSigmasqdm(double lnM);
 
 void freeSigmaMInterpTable();
 void free_conditional_tables();
+void free_global_tables();
 void free_dNdM_tables();
 
 #endif

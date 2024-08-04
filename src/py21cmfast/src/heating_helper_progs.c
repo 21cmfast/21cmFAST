@@ -1,6 +1,11 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_roots.h>
+#include <gsl/gsl_interp.h>
+#include <gsl/gsl_spline.h>
+#include <gsl/gsl_errno.h>
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
@@ -8,6 +13,7 @@
 #include "Constants.h"
 #include "Globals.h"
 #include "InputParameters.h"
+#include "indexing.h"
 
 #include "heating_helper_progs.h"
 

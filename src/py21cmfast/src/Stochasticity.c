@@ -1,8 +1,22 @@
 /*functions which deal with stochasticity
  * i.e sampling the halo mass function and
  * other halo relations.*/
-#include "Stochasticity.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+#include "Constants.h"
+#include "Globals.h"
+#include "indexing.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+#include "interp_tables.h"
+#include "hmf.h"
 
+#include "Stochasticity.h"
 //buffer size (per cell of arbitrary size) in the sampling function
 #define MAX_HALO_CELL (int)1e5
 
@@ -141,6 +155,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
         //for the table limits
         double delta_crit = get_delta_crit(user_params_global->HMF,const_struct->sigma_cond,const_struct->growth_out);
         const_struct->from_catalog = 0;
+        //TODO: determine the minimum density in the field and pass it in (<-1 is fine for Lagrangian)
         initialise_dNdM_tables(DELTA_MIN, MAX_DELTAC_FRAC*delta_crit, const_struct->lnM_min, const_struct->lnM_max_tb,
                                 const_struct->growth_out, const_struct->lnM_cond, false);
         initialise_dNdM_inverse_table(DELTA_MIN, MAX_DELTAC_FRAC*delta_crit, const_struct->lnM_min,
@@ -997,57 +1012,6 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
     return 0;
 }
 
-int test_mfp_filter(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options
-                    , float *input_box, double R, double mfp, double *result){
-    int i,j,k;
-    //setup the box
-
-    fftwf_complex *box_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    fftwf_complex *box_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    LOG_DEBUG("Allocated");
-
-    for (i=0; i<user_params->HII_DIM; i++)
-        for (j=0; j<user_params->HII_DIM; j++)
-            for (k=0; k<HII_D_PARA; k++)
-                *((float *)box_unfiltered + HII_R_FFT_INDEX(i,j,k)) = input_box[HII_R_INDEX(i,j,k)];
-    LOG_DEBUG("Inited");
-
-
-    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box_unfiltered);
-
-    LOG_DEBUG("FFT'd");
-
-    //QUESTION: why do this here instead of at the end?
-    for(i=0;i<HII_KSPACE_NUM_PIXELS;i++){
-        box_unfiltered[i] /= (double)HII_TOT_NUM_PIXELS;
-    }
-
-    memcpy(box_filtered,box_unfiltered,sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-    LOG_DEBUG("Copied");
-
-    if(flag_options->USE_EXP_FILTER)
-        filter_box_mfp(box_filtered, 1, R, mfp);
-    else
-        filter_box(box_filtered,1,global_params.HII_FILTER,R);
-
-
-    LOG_DEBUG("Filtered");
-    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box_filtered);
-    LOG_DEBUG("IFFT'd");
-
-    for (i=0; i<user_params->HII_DIM; i++)
-        for (j=0; j<user_params->HII_DIM; j++)
-            for (k=0; k<HII_D_PARA; k++)
-                    result[HII_R_INDEX(i,j,k)] = fmaxf(*((float *)box_filtered + HII_R_FFT_INDEX(i,j,k)) , 0.0);
-
-    LOG_DEBUG("Assigned");
-
-    fftwf_free(box_unfiltered);
-    fftwf_free(box_filtered);
-
-    return 0;
-}
-
 //This is a test function which takes a list of conditions (cells or halos) and samples them to produce a descendant list
 //      as well as per-condition number and mass counts
 int single_test_sample(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options,
@@ -1079,12 +1043,6 @@ int single_test_sample(UserParams *user_params, CosmoParams *cosmo_params, Astro
 
         LOG_DEBUG("SINGLE SAMPLE: z = (%.2f,%.2f), Mmin = %.3e, cond(%d)=[%.2e,%.2e,%.2e...]",z_out,z_in,hs_constants->M_min,
                                                                         n_condition,conditions[0],conditions[1],conditions[2]);
-
-        struct parameters_gsl_MF_integrals integral_params = {
-                .redshift = z_out,
-                .growthf = hs_constants->growth_out,
-                .HMF = user_params->HMF,
-        };
 
         //halo catalogues + cell sums from multiple conditions, given M as cell descendant halos/cells
         //the result mapping is n_halo_total (1) (exp_n,exp_m,n_prog,m_prog) (n_desc) M_cat (n_prog_total)

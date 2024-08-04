@@ -4,6 +4,9 @@
 #include "InputParameters.h"
 //integrals
 
+#define MAX_DELTAC_FRAC (float)0.99 //max delta/deltac for the mass function integrals
+#define DELTA_MIN -1 //minimum delta for Lagrangian mass function integrals
+
 //Parameters used for gsl integral on the mass function
 struct parameters_gsl_MF_integrals{
     //parameters for all MF integrals

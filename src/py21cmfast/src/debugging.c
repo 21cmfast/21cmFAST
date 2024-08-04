@@ -8,7 +8,9 @@
 
 #include "cexcept.h"
 #include "exceptions.h"
+#include "logger.h"
 #include "InputParameters.h"
+#include "OutputStructs.h"
 
 #include "debugging.h"
 

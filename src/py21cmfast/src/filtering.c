@@ -79,6 +79,48 @@ void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
     return;
 }
 
+int test_mfp_filter(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options
+                    , float *input_box, double R, double mfp, double *result){
+    int i,j,k;
+    //setup the box
+
+    fftwf_complex *box_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    fftwf_complex *box_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+
+    for (i=0; i<user_params->HII_DIM; i++)
+        for (j=0; j<user_params->HII_DIM; j++)
+            for (k=0; k<HII_D_PARA; k++)
+                *((float *)box_unfiltered + HII_R_FFT_INDEX(i,j,k)) = input_box[HII_R_INDEX(i,j,k)];
+
+
+    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box_unfiltered);
+
+    //QUESTION: why do this here instead of at the end?
+    for(i=0;i<HII_KSPACE_NUM_PIXELS;i++){
+        box_unfiltered[i] /= (double)HII_TOT_NUM_PIXELS;
+    }
+
+    memcpy(box_filtered,box_unfiltered,sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+
+    if(flag_options->USE_EXP_FILTER)
+        filter_box_mfp(box_filtered, 1, R, mfp);
+    else
+        filter_box(box_filtered,1,global_params.HII_FILTER,R);
+
+
+    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, box_filtered);
+
+    for (i=0; i<user_params->HII_DIM; i++)
+        for (j=0; j<user_params->HII_DIM; j++)
+            for (k=0; k<HII_D_PARA; k++)
+                    result[HII_R_INDEX(i,j,k)] = fmaxf(*((float *)box_filtered + HII_R_FFT_INDEX(i,j,k)) , 0.0);
+
+    fftwf_free(box_unfiltered);
+    fftwf_free(box_filtered);
+
+    return 0;
+}
+
 void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_outer){
     int n_x, n_z, n_y, dimension,midpoint;
     float k_x, k_y, k_z, k_mag, kRinner, kRouter;
@@ -204,4 +246,3 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
 
     return;
 }
-

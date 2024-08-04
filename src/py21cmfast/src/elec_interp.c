@@ -18,6 +18,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "Globals.h"
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+
 #include "elec_interp.h"
 
 static float x_int_Energy[x_int_NENERGY];

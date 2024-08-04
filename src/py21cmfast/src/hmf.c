@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_errno.h>
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
@@ -16,6 +18,8 @@
 
 #define EPS2 3.0e-11 //small number limit for GL integration
 
+//Gauss-Legendre integration constants
+#define NGL_INT 100 // 100
 //These arrays hold the points and weights for the Gauss-Legendre integration routine
 //(JD) Since these were always malloc'd one at a time with fixed length ~100, I've changed them to fixed-length arrays
 static float xi_GL[NGL_INT+1], wi_GL[NGL_INT+1];

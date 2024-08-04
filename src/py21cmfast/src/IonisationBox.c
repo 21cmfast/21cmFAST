@@ -17,6 +17,7 @@
 #include "hmf.h"
 #include "indexing.h"
 #include "dft.h"
+#include "recombinations.h"
 
 #include "IonisationBox.h"
 

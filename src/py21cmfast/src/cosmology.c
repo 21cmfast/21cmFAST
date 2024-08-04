@@ -2,18 +2,21 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <omp.h>
-#include <gsl_integration.h>
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_interp.h>
+#include <gsl/gsl_spline.h>
+#include <gsl/gsl_roots.h>
+#include <gsl/gsl_errno.h>
 
+#include "Constants.h"
+#include "Globals.h"
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
+#include "InputParameters.h"
 
 #include "cosmology.h"
 
-//Gauss-Legendre integration constants
-#define NGL_INT 100 // 100
-
-#define MAX_DELTAC_FRAC (float)0.99 //max delta/deltac for the mass function integrals
 #define JENKINS_a (0.73) //Jenkins+01, SMT has 0.707
 #define JENKINS_b (0.34) //Jenkins+01 fit from Barkana+01, SMT has 0.5
 #define JENKINS_c (0.81) //Jenkins+01 from from Barkana+01, SMT has 0.6
@@ -248,47 +251,6 @@ double sigma_z0(double M){
 
     return sigma_norm * sqrt(result);
 }
-
-//NOTE: There's certainly a better way to do this
-double sigma_inverse(double sigma, double lnM_init){
-        double rf_tol_abs = 1e-4;
-        double rf_tol_rel = 0.;
-        int status, iter;
-        const gsl_root_fsolver_type *T;
-        gsl_root_fsolver *solver;
-        gsl_function F;
-        params_rf.growthf = growth_out;
-
-        F.function = &sigma_z0; //Maybe EvaluateSigma for speed?
-        F.params = NULL;
-
-        double lnM_low,lnM_high,lnM_guess;
-
-        T = gsl_root_fsolver_brent;
-        solver = gsl_root_fsolver_alloc(T);
-        gsl_root_fsolver_set(solver, &F, lnM_init, lnM_cond);
-        do{
-            iter++;
-            status = gsl_root_fsolver_iterate(solver);
-            lnM_guess = gsl_root_fsolver_root(solver);
-            lnM_lo = gsl_root_fsolver_x_lower(solver);
-            lnM_hi = gsl_root_fsolver_x_upper(solver);
-            status = gsl_root_test_interval(lnM_lo, lnM_hi, rf_tol_abs, rf_tol_rel);
-
-            if (status == GSL_SUCCESS){
-                lnM_init = lnM_lo;
-                break;
-            }
-
-        }while((status == GSL_CONTINUE) && (iter < MAX_ITER_RF));
-        if(status!=GSL_SUCCESS) {
-            LOG_ERROR("gsl RF error occured! %d",status);
-            GSL_ERROR(status);
-        }
-        gsl_root_fsolver_free(solver);
-        return lnM_guess;
-}
-
 
 // FUNCTION TFmdm is the power spectrum transfer function from Eisenstein & Hu ApJ, 1999, 511, 5
 double TFmdm(double k){
@@ -929,7 +891,7 @@ double MtoR(double M){
         return pow( M/(pow(2*PI, 1.5) * cosmo_params_global->OMm * RHOcrit), 1.0/3.0 );
     else // filter not defined
         LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
-    Throw(alueError);
+    Throw(ValueError);
 }
 
 /* R in Mpc, M in Msun */
@@ -941,7 +903,7 @@ double RtoM(double R){
         return pow(2*PI, 1.5) * cosmo_params_global->OMm*RHOcrit * pow(R, 3);
     else // filter not defined
         LOG_ERROR("No such filter = %i. Results are bogus.", global_params.FILTER);
-    Throw ValueError;
+    Throw(ValueError);
 }
 
 /*
@@ -1018,11 +980,11 @@ double dicke(double z){
     }
     else if ( (cosmo_params_global->OMl > (-tiny)) && (fabs(global_params.OMtot-1.0) < tiny) && (fabs(global_params.wl+1) > tiny) ){
         LOG_WARNING("IN WANG.");
-        Throw ValueError;
+        Throw(ValueError);
     }
 
     LOG_ERROR("No growth function!");
-    Throw ValueError;
+    Throw(ValueError);
 }
 
 /* function DTDZ returns the value of dt/dz at the redshift parameter z. */
@@ -1062,7 +1024,7 @@ double ddickedt(double z){
     }
 
     LOG_ERROR("No growth function!");
-    Throw ValueError;
+    Throw(ValueError);
 }
 
 /* returns the hubble "constant" (in 1/sec) at z */
