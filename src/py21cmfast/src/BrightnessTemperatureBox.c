@@ -5,7 +5,7 @@ void get_velocity_gradient(struct UserParams *user_params, float *v, float *vel_
 {
     memcpy(vel_gradient, v, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
-    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, vel_gradient);
+    dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, (fftwf_complex *)vel_gradient);
 
     float k_x, k_y, k_z;
     int n_x, n_y, n_z;
@@ -34,7 +34,7 @@ void get_velocity_gradient(struct UserParams *user_params, float *v, float *vel_
         }
     }
 
-    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, vel_gradient);
+    dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, (fftwf_complex *)vel_gradient);
 }
 
 int ComputeBrightnessTemp(float redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params,
