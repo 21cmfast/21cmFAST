@@ -159,7 +159,7 @@ def make_lightcone_comparison_plot(
 
     for i, (key, val) in enumerate(true_global.items(), start=i + 1):
         make_comparison_plot(
-            z, val, getattr(lc, key), ax[:, i], xlab="z", ylab=f"{key}"
+            z, z, val, getattr(lc, key), ax[:, i], xlab="z", ylab=f"{key}"
         )
 
 
