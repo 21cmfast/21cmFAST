@@ -3,6 +3,7 @@
 //  So I'm making a general function for the 1D and 2D cases
 
 #include "interpolation.h"
+#include "logger.h"
 
 void allocate_RGTable1D(int n_bin, struct RGTable1D * ptr){
     ptr->n_bin = n_bin;
@@ -118,6 +119,9 @@ double EvaluateRGTable1D_f(double x, struct RGTable1D_f *table){
     int idx = (int)floor((x - x_min)/x_width);
     double table_val = x_min + x_width*(float)idx;
     double interp_point = (x - table_val)/x_width;
+
+    LOG_DEBUG("RG1Df: x = %.4e idx = %d val = %.4e itp %.4e",x,idx,table_val,interp_point);
+    LOG_DEBUG("Result ==> %.4e",table->y_arr[idx]*(1-interp_point) + table->y_arr[idx+1]*(interp_point));
 
     return table->y_arr[idx]*(1-interp_point) + table->y_arr[idx+1]*(interp_point);
 }

@@ -83,12 +83,21 @@ ffi.set_source(
     extra_compile_args=extra_compile_args,
 )
 
-# # This is the Header file
-# with open(os.path.join(CLOC, "21cmFAST.h")) as f:
-#     ffi.cdef(f.read())
+# Header files containing types, globals and function prototypes
+with open(os.path.join(CLOC, "_inputparams_wrapper.h")) as f:
+    ffi.cdef(f.read())
+with open(os.path.join(CLOC, "_outputstructs_wrapper.h")) as f:
+    ffi.cdef(f.read())
+with open(os.path.join(CLOC, "_functionprototypes_wrapper.h")) as f:
+    ffi.cdef(f.read())
 
-# with open(os.path.join(CLOC, "Globals.h")) as f:
-#     ffi.cdef(f.read())
+# CFFI needs to be able to access a free function to make the __del__ method for OutputStruct fields
+#  This will expose the standard free() function to the wrapper so it can be used
+ffi.cdef(
+    """
+        void free(void *ptr);
+        """
+)
 
 if __name__ == "__main__":
     ffi.compile()

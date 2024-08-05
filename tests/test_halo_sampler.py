@@ -35,10 +35,7 @@ def test_sampler_from_catalog(name, mass, plt):
     ap = AstroParams(opts["astro_params"])
     fo = FlagOptions(opts["flag_options"])
     up.update(USE_INTERPOLATION_TABLES=True)
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
-    lib.Broadcast_struct_global_STOC(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
     l10min = np.log10(up.SAMPLER_MIN_MASS)
     l10max = np.log10(mass)
@@ -147,10 +144,7 @@ def test_sampler_from_grid(name, delta, plt):
     ap = AstroParams(opts["astro_params"])
     fo = FlagOptions(opts["flag_options"])
     up.update(USE_INTERPOLATION_TABLES=True)
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
-    lib.Broadcast_struct_global_STOC(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
     lib.init_ps()
     lib.initialiseSigmaMInterpTable(
@@ -297,7 +291,7 @@ def test_halo_scaling_relations():
         USE_UPPER_STELLAR_TURNOVER=False,
     )
 
-    lib.Broadcast_struct_global_UF(up(), cp())
+    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
     mturn_acg = np.maximum(lib.atomic_cooling_threshold(redshift), 10**ap.M_TURN)
     mturn_mcg = (
         10**ap.M_TURN

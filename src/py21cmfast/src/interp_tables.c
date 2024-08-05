@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <math.h>
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_roots.h>
@@ -14,6 +15,7 @@
 #include "exceptions.h"
 #include "logger.h"
 #include "Constants.h"
+#include "cosmology.h"
 #include "InputParameters.h"
 #include "hmf.h"
 #include "interpolation.h"
@@ -1010,8 +1012,11 @@ void initialiseSigmaMInterpTable(float M_min, float M_max){
 #pragma omp for
         for(i=0;i<N_MASS_INTERP;i++) {
             Mass = exp(Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width);
+            LOG_ERROR("LOG LEVEL %d",LOG_LEVEL);
+            LOG_ERROR("M = %.4e",Mass);
             Sigma_InterpTable.y_arr[i] = sigma_z0(Mass);
             dSigmasqdm_InterpTable.y_arr[i] = log10(-dsigmasqdm_z0(Mass));
+            LOG_ERROR(" Sigma = %.4e dsigma = %.4e",Sigma_InterpTable.y_arr[i],dSigmasqdm_InterpTable.y_arr[i]);
         }
     }
 
@@ -1028,9 +1033,9 @@ void freeSigmaMInterpTable(){
     free_RGTable1D_f(&dSigmasqdm_InterpTable);
 }
 
-
 double EvaluateSigma(double lnM){
     //using log units to make the fast option faster and the slow option slower
+    LOG_DEBUG("Starting Evaluate Sigma LnM = %.4e Tables %d",lnM,user_params_global->USE_INTERPOLATION_TABLES)
     if(user_params_global->USE_INTERPOLATION_TABLES) {
         return EvaluateRGTable1D_f(lnM, &Sigma_InterpTable);
     }

@@ -1,8 +1,9 @@
 /*  */
 #include <stdlib.h>
 #include <stdio.h>
-#include <omp.h>
 #include <stdbool.h>
+#include <math.h>
+#include <omp.h>
 #include <complex.h>
 #include <fftw3.h>
 #include "cexcept.h"

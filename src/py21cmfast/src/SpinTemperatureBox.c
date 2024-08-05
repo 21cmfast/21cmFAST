@@ -1,8 +1,11 @@
 // Re-write of find_HII_bubbles.c for being accessible within the MCMC
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
+#include <math.h>
 #include <complex.h>
 #include <fftw3.h>
+
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"

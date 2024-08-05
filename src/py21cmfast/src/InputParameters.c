@@ -18,7 +18,7 @@ CosmoParams *cosmo_params_global;
 AstroParams *astro_params_global;
 FlagOptions *flag_options_global;
 
-struct GlobalParams global_params = {
+GlobalParams global_params = {
     .ALPHA_UVB = 5.0,
     .EVOLVE_DENSITY_LINEARLY = 0,
     .SMOOTH_EVOLVED_DENSITY_FIELD = 0,
