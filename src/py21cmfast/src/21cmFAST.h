@@ -8,7 +8,6 @@
 //  some of these lines should be replaced by *only* the functions I want
 //  exposed to the wrapper
 #include "BrightnessTemperatureBox.h"
-#include "Globals.h"
 #include "HaloBox.h"
 #include "HaloField.h"
 #include "InitialConditions.h"

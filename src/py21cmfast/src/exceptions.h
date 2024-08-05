@@ -4,9 +4,9 @@
 #include "cexcept.h"
 
 define_exception_type(int);
-extern struct exception_context the_exception_context[1];
 
-struct exception_context the_exception_context[1];
+//NOTE: declaration here, definition in debugging.c
+extern struct exception_context the_exception_context[1];
 
 // Our own error codes
 #define SUCCESS 0

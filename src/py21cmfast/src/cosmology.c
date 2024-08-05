@@ -9,7 +9,6 @@
 #include <gsl/gsl_errno.h>
 
 #include "Constants.h"
-#include "Globals.h"
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"

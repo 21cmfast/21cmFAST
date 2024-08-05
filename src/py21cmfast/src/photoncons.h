@@ -1,9 +1,13 @@
 #ifndef _PHOTONCONS_H
 #define _PHOTONCONS_H
 
+#include <stdbool.h>
 #include "InputParameters.h"
 
-bool photon_cons_allocated = false;
+//This is directly accessed in the wrapper currently
+//TODO: remove this global declaration and make an internal checking function
+extern bool photon_cons_allocated;
+
 int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
                          AstroParams *astro_params, FlagOptions *flag_options);
 

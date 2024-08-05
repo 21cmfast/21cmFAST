@@ -24,16 +24,16 @@
 #include "exceptions.h"
 #include "logger.h"
 #include "Constants.h"
-#include "Globals.h"
 #include "InputParameters.h"
 
 #include "photoncons.h"
 
+bool photon_cons_allocated = false;
 //These globals hold values relevant for the photon conservation (z-shift) model
-float calibrated_NF_min;
-double *deltaz, *deltaz_smoothed, *NeutralFractions, *z_Q, *Q_value, *nf_vals, *z_vals;
-int N_NFsamples,N_extrapolated, N_analytic, N_calibrated, N_deltaz;
-double FinalNF_Estimate, FirstNF_Estimate;
+static float calibrated_NF_min;
+static double *deltaz, *deltaz_smoothed, *NeutralFractions, *z_Q, *Q_value, *nf_vals, *z_vals;
+static int N_NFsamples,N_extrapolated, N_analytic, N_calibrated, N_deltaz;
+static double FinalNF_Estimate, FirstNF_Estimate;
 
 static gsl_interp_accel *Q_at_z_spline_acc;
 static gsl_spline *Q_at_z_spline;

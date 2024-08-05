@@ -14,7 +14,6 @@
 #include "exceptions.h"
 #include "logger.h"
 #include "Constants.h"
-#include "Globals.h"
 #include "InputParameters.h"
 #include "hmf.h"
 #include "interpolation.h"

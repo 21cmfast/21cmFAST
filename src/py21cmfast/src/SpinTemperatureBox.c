@@ -7,7 +7,6 @@
 #include "exceptions.h"
 #include "logger.h"
 #include "Constants.h"
-#include "Globals.h"
 #include "indexing.h"
 #include "InputParameters.h"
 #include "OutputStructs.h"

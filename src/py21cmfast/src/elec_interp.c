@@ -18,13 +18,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "Globals.h"
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
+#include "InputParameters.h"
 
 #include "elec_interp.h"
 
+float x_int_XHII[x_int_NXHII];
 static float x_int_Energy[x_int_NENERGY];
 static float x_int_fheat[x_int_NXHII][x_int_NENERGY];
 static float x_int_n_Lya[x_int_NXHII][x_int_NENERGY];

@@ -117,20 +117,97 @@ typedef struct FlagOptions{
     bool USE_UPPER_STELLAR_TURNOVER;
 } FlagOptions;
 
-/* Previously, we had a few structures spread throughout the code e.g user_params_ufunc which 
-   were all globally defined and separately broadcast at different times. Several of these were used 
+struct GlobalParams{
+    float ALPHA_UVB;
+    int EVOLVE_DENSITY_LINEARLY;
+    int SMOOTH_EVOLVED_DENSITY_FIELD;
+    float R_smooth_density;
+    float HII_ROUND_ERR;
+    int FIND_BUBBLE_ALGORITHM;
+    int N_POISSON;
+    int T_USE_VELOCITIES;
+    float MAX_DVDR;
+    float DELTA_R_HII_FACTOR;
+    float DELTA_R_FACTOR;
+    int HII_FILTER;
+    float INITIAL_REDSHIFT;
+    float R_OVERLAP_FACTOR;
+    int DELTA_CRIT_MODE;
+    int HALO_FILTER;
+    int OPTIMIZE;
+    float OPTIMIZE_MIN_MASS;
+
+
+    float CRIT_DENS_TRANSITION;
+    float MIN_DENSITY_LOW_LIMIT;
+
+    int RecombPhotonCons;
+    float PhotonConsStart;
+    float PhotonConsEnd;
+    float PhotonConsAsymptoteTo;
+    float PhotonConsEndCalibz;
+    int PhotonConsSmoothing;
+
+    int HEAT_FILTER;
+    double CLUMPING_FACTOR;
+    float Z_HEAT_MAX;
+    float R_XLy_MAX;
+    int NUM_FILTER_STEPS_FOR_Ts;
+    float ZPRIME_STEP_FACTOR;
+    double TK_at_Z_HEAT_MAX;
+    double XION_at_Z_HEAT_MAX;
+    int Pop;
+    float Pop2_ion;
+    float Pop3_ion;
+
+    float NU_X_BAND_MAX;
+    float NU_X_MAX;
+
+    int NBINS_LF;
+
+    int P_CUTOFF;
+    float M_WDM;
+    float g_x;
+    float OMn;
+    float OMk;
+    float OMr;
+    float OMtot;
+    float Y_He;
+    float wl;
+    float SHETH_b;
+    float SHETH_c;
+    double Zreion_HeII;
+    int FILTER;
+
+    char *external_table_path;
+    char *wisdoms_path;
+    float R_BUBBLE_MIN;
+    float M_MIN_INTEGRAL;
+    float M_MAX_INTEGRAL;
+
+    float T_RE;
+
+    float VAVG;
+
+    bool USE_ADIABATIC_FLUCTUATIONS;
+};
+
+/* Previously, we had a few structures spread throughout the code e.g user_params_ufunc which
+   were all globally defined and separately broadcast at different times. Several of these were used
    across different files and some inside #defines (e.g indexing.h), so for now I've combined
    the parameter structures to avoid confusion (we shouldn't have the possibility of two files using
    different parameters).
 
    In future we should have a parameter structure in each .c file containing ONLY parameters relevant to it
-   (look at HaloBox.c), and force the broadcast at each _compute() step (or even decorate any library call) 
+   (look at HaloBox.c), and force the broadcast at each _compute() step (or even decorate any library call)
    However this would require us to be very careful about initialising the globals when ANY function from that
    file is called */
-UserParams *user_params_global;
-CosmoParams *cosmo_params_global;
-AstroParams *astro_params_global;
-FlagOptions *flag_options_global;
+extern UserParams *user_params_global;
+extern CosmoParams *cosmo_params_global;
+extern AstroParams *astro_params_global;
+extern FlagOptions *flag_options_global;
+
+extern struct GlobalParams global_params;
 
 void Broadcast_struct_global_all(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options);
 void Broadcast_struct_global_noastro(UserParams *user_params, CosmoParams *cosmo_params);

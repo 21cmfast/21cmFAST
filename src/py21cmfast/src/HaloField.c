@@ -16,7 +16,6 @@
 #include "logger.h"
 
 #include "Constants.h"
-#include "Globals.h"
 #include "InputParameters.h"
 #include "OutputStructs.h"
 #include "cosmology.h"

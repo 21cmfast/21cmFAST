@@ -14,6 +14,9 @@
 
 #include "debugging.h"
 
+//definition of the global exception context
+struct exception_context the_exception_context[1];
+
 void FunctionThatThrows(){
     Throw(PhotonConsError);
 }

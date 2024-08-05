@@ -21,8 +21,8 @@ float interp_nion_HeII(float En, float xHII_call);
 int locate_energy_index(float En);
 int locate_xHII_index(float xHII_call);
 
-// this array is currently used in SpinTemperatureBox.c
+// this array is currently used in SpinTemperatureBox.c and passed into heating_helper_progs.c functions
 // TODO: remove it and make it static in elec_interp.c
-float x_int_XHII[x_int_NXHII];
+extern float x_int_XHII[x_int_NXHII];
 
 #endif

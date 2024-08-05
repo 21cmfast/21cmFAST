@@ -7,8 +7,11 @@ ffi = FFI()
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 CLOC = os.path.join(LOCATION, "src", "py21cmfast", "src")
 include_dirs = [CLOC]
-c_files = [os.path.join("src","py21cmfast","src",f) for f in os.listdir(CLOC) if f.endswith(".c")]
-print(f"INCLUDED C FILES: {c_files}",flush=True)
+c_files = [
+    os.path.join("src", "py21cmfast", "src", f)
+    for f in os.listdir(CLOC)
+    if f.endswith(".c")
+]
 
 # =================================================================
 # Set compilation arguments dependent on environment... a bit buggy
@@ -70,7 +73,6 @@ ffi.set_source(
     #define LOG_LEVEL {log_level}
 
     #include "21cmFAST.h"
-    #include "Globals.h"
     """.format(
         log_level=log_level
     ),
