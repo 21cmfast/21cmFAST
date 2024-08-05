@@ -28,29 +28,17 @@ double frecycle(int n);
 // * Returns frequency of Lyman-n, in units of Lyman-alpha * //
 double nu_n(int n);
 
+//TODO: these are only called once in spintemp and could probably be moved internally
 double kappa_10_pH(double T, int flag);
 double kappa_10_elec(double T, int flag);
 double kappa_10(double TK, int flag);
-
-double xcoll(double z, double TK, double delta, double xe);
-double xcoll_HI(double z, double TK, double delta, double xe);
-double xcoll_elec(double z, double TK, double delta, double xe);
-double xcoll_prot(double z, double TK, double delta, double xe);
-
-double xalpha_tilde(double z, double Jalpha, double TK, double TS, double delta, double xe);
-double Tc_eff(double TK, double TS);
-double Salpha_tilde(double TK, double TS, double tauGP);
 double taugp(double z, double delta, double xe);
-
-double species_weighted_x_ray_cross_section(double nu, double x_e);
+//---------------
 
 // * Returns the maximum redshift at which a Lyn transition contributes to Lya flux at z * //
 float zmax(float z, int n);
 
 //Lyman-Alpha heating functions
-int find_nearest_point(double min, double max, int n, double value);
-int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr);
-double interpolate_heating_efficiencies(double tk, double ts, double taugp, double *arrE);
 double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag);
 
 #endif

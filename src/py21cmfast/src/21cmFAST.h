@@ -8,16 +8,23 @@
 //  some of these lines should be replaced by *only* the functions I want
 //  exposed to the wrapper
 #include "BrightnessTemperatureBox.h"
+#include "cosmology.h"
+#include "debugging.h"
+#include "filtering.h"
 #include "HaloBox.h"
 #include "HaloField.h"
 #include "InitialConditions.h"
 #include "IonisationBox.h"
 #include "InputParameters.h"
+#include "interp_tables.h"
+#include "LuminosityFunction.h"
+#include "OutputStructs.h"
 #include "PerturbField.h"
 #include "PerturbHaloField.h"
-#include "SpinTemperatureBox.h"
 #include "photoncons.h"
-#include "hmf.h"
+#include "SpinTemperatureBox.h"
+#include "Stochasticity.h"
+#include "thermochem.h"
 
 //CFFI needs to be able to access a free function to make the __del__ method for OutputStruct fields
 //  This will expose the standard free() function to the wrapper so it can be used

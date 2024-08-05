@@ -54,31 +54,6 @@ void destruct_heat()
   xion_RECFAST(100.0,2);
 }
 
-float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float * curr_xalpha){
-    double Trad,xc,xa_tilde;
-    double TS,TSold,TSinv;
-    double Tceff;
-
-    Trad = T_cmb*(1.0+z);
-    xc = xcoll(z,TK,delta,xe);
-    if (Jalpha > 1.0e-20) { // * Must use WF effect * //
-        TS = Trad;
-        TSold = 0.0;
-        while (fabs(TS-TSold)/TS > 1.0e-3) {
-            TSold = TS;
-            xa_tilde = xalpha_tilde(z,Jalpha,TK,TS,delta,xe);
-            Tceff = Tc_eff(1./TK,1./TS);
-            TS = (1.0+xa_tilde+xc)/(1.0/Trad+xa_tilde/Tceff + xc/TK);
-        }
-        *curr_xalpha = xa_tilde;
-    } else { // * Collisions only * //
-        TS = (1.0 + xc)/(1.0/Trad + xc/TK);
-        *curr_xalpha = 0;
-    }
-
-    return TS;
-}
-
 // ******************************************************************** //
 // ************************ RECFAST quantities ************************ //
 // ******************************************************************** //
@@ -351,59 +326,6 @@ double spectral_emissivity(double nu_norm, int flag, int Population)
     }
 }
 
-
-double xcoll(double z, double TK, double delta, double xe){
-    return xcoll_HI(z,TK,delta,xe) + xcoll_elec(z,TK,delta,xe) + xcoll_prot(z,TK,delta,xe);
-}
-
-double xcoll_HI(double z, double TK, double delta, double xe)
-{
-    double krate,nH,Trad;
-    double xcoll;
-
-    Trad = T_cmb*(1.0+z);
-    nH = (1.0-xe)*No*pow(1.0+z,3.0)*(1.0+delta);
-    krate = kappa_10(TK,0);
-    xcoll = T21/Trad*nH*krate/A10_HYPERFINE;
-    return xcoll;
-}
-
-// Note that this assumes Helium ionized same as Hydrogen //
-double xcoll_elec(double z, double TK, double delta, double xe)
-{
-    double krate,ne,Trad;
-    double xcoll;
-
-    Trad = T_cmb*(1.0+z);
-    ne = xe*N_b0*pow(1.0+z,3.0)*(1.0+delta);
-    krate = kappa_10_elec(TK,0);
-    xcoll = T21/Trad*ne*krate/A10_HYPERFINE;
-    return xcoll;
-}
-
-double xcoll_prot(double z, double TK, double delta, double xe)
-{
-    double krate,np,Trad;
-    double xcoll;
-
-    Trad = T_cmb*(1.0+z);
-    np = xe*No*pow(1.0+z,3.0)*(1.0+delta);
-    krate = kappa_10_pH(TK,0);
-    xcoll = T21/Trad*np*krate/A10_HYPERFINE;
-    return xcoll;
-}
-
-double Salpha_tilde(double TK, double TS, double tauGP)
-{
-    double xi;
-    double ans;
-
-    xi = pow(1.0e-7*tauGP*TK*TK, 1.0/3.0);
-    ans = (1.0 - 0.0631789*TK + 0.115995*TK*TK - 0.401403*TS*TK + 0.336463*TS*TK*TK)/(1.0 + 2.98394*xi + 1.53583*xi*xi + 3.85289*xi*xi*xi);
-    return ans;
-}
-
-
 // * Returns frequency of Lyman-n, in units of Lyman-alpha * //
 double nu_n(int n)
 {
@@ -604,6 +526,21 @@ double kappa_10_elec(double T, int flag)
 // ********************* Wouthuysen-Field Coupling ******************** //
 // ******************************************************************** //
 
+// Compute the Gunn-Peterson optical depth.
+double taugp(double z, double delta, double xe){
+    return 1.342881e-7 / hubble(z)*No*pow(1+z,3) * (1.0+delta)*(1.0-xe);
+}
+
+double Salpha_tilde(double TK, double TS, double tauGP)
+{
+    double xi;
+    double ans;
+
+    xi = pow(1.0e-7*tauGP*TK*TK, 1.0/3.0);
+    ans = (1.0 - 0.0631789*TK + 0.115995*TK*TK - 0.401403*TS*TK + 0.336463*TS*TK*TK)/(1.0 + 2.98394*xi + 1.53583*xi*xi + 3.85289*xi*xi*xi);
+    return ans;
+}
+
 // NOTE Jalpha is by number //
 double xalpha_tilde(double z, double Jalpha, double TK, double TS,
                     double delta, double xe){
@@ -615,9 +552,45 @@ double xalpha_tilde(double z, double Jalpha, double TK, double TS,
     return x;
 }
 
-// Compute the Gunn-Peterson optical depth.
-double taugp(double z, double delta, double xe){
-    return 1.342881e-7 / hubble(z)*No*pow(1+z,3) * (1.0+delta)*(1.0-xe);
+double xcoll_HI(double z, double TK, double delta, double xe)
+{
+    double krate,nH,Trad;
+    double xcoll;
+
+    Trad = T_cmb*(1.0+z);
+    nH = (1.0-xe)*No*pow(1.0+z,3.0)*(1.0+delta);
+    krate = kappa_10(TK,0);
+    xcoll = T21/Trad*nH*krate/A10_HYPERFINE;
+    return xcoll;
+}
+
+// Note that this assumes Helium ionized same as Hydrogen //
+double xcoll_elec(double z, double TK, double delta, double xe)
+{
+    double krate,ne,Trad;
+    double xcoll;
+
+    Trad = T_cmb*(1.0+z);
+    ne = xe*N_b0*pow(1.0+z,3.0)*(1.0+delta);
+    krate = kappa_10_elec(TK,0);
+    xcoll = T21/Trad*ne*krate/A10_HYPERFINE;
+    return xcoll;
+}
+
+double xcoll_prot(double z, double TK, double delta, double xe)
+{
+    double krate,np,Trad;
+    double xcoll;
+
+    Trad = T_cmb*(1.0+z);
+    np = xe*No*pow(1.0+z,3.0)*(1.0+delta);
+    krate = kappa_10_pH(TK,0);
+    xcoll = T21/Trad*np*krate/A10_HYPERFINE;
+    return xcoll;
+}
+
+double xcoll(double z, double TK, double delta, double xe){
+    return xcoll_HI(z,TK,delta,xe) + xcoll_elec(z,TK,delta,xe) + xcoll_prot(z,TK,delta,xe);
 }
 
 double Tc_eff(double TK, double TS)
@@ -626,6 +599,31 @@ double Tc_eff(double TK, double TS)
 
     ans = 1.0/(TK + 0.405535*TK*(TS - TK));
     return ans;
+}
+
+float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float * curr_xalpha){
+    double Trad,xc,xa_tilde;
+    double TS,TSold,TSinv;
+    double Tceff;
+
+    Trad = T_cmb*(1.0+z);
+    xc = xcoll(z,TK,delta,xe);
+    if (Jalpha > 1.0e-20) { // * Must use WF effect * //
+        TS = Trad;
+        TSold = 0.0;
+        while (fabs(TS-TSold)/TS > 1.0e-3) {
+            TSold = TS;
+            xa_tilde = xalpha_tilde(z,Jalpha,TK,TS,delta,xe);
+            Tceff = Tc_eff(1./TK,1./TS);
+            TS = (1.0+xa_tilde+xc)/(1.0/Trad+xa_tilde/Tceff + xc/TK);
+        }
+        *curr_xalpha = xa_tilde;
+    } else { // * Collisions only * //
+        TS = (1.0 + xc)/(1.0/Trad + xc/TK);
+        *curr_xalpha = 0;
+    }
+
+    return TS;
 }
 
 //
@@ -736,6 +734,20 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
     //     fprintf(stderr, "We have a NaN in the intergrator with calling params: %g,%g,%g,%i\n", zp, local_x_e, lower_int_limit, FLAG);
 
     return result;
+}
+
+//  The total weighted HI + HeI + HeII  cross-section in pcm^-2
+//  technically, the x_e should be local, line of sight (not global) here,
+//  but that would be very slow...
+
+double species_weighted_x_ray_cross_section(double nu, double x_e){
+    double HI_factor, HeI_factor, HeII_factor;
+
+    HI_factor = f_H * (1-x_e) * HI_ion_crosssec(nu);
+    HeI_factor = f_He * (1-x_e) * HeI_ion_crosssec(nu);
+    HeII_factor = f_He * x_e * HeII_ion_crosssec(nu);
+
+    return HI_factor + HeI_factor + HeII_factor;
 }
 
 // Calculates the optical depth for a photon arriving at z = zp with frequency nu,
@@ -1052,22 +1064,6 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
     return r;
 }
 
-
-//  The total weighted HI + HeI + HeII  cross-section in pcm^-2
-//  technically, the x_e should be local, line of sight (not global) here,
-//  but that would be very slow...
-
-double species_weighted_x_ray_cross_section(double nu, double x_e){
-    double HI_factor, HeI_factor, HeII_factor;
-
-    HI_factor = f_H * (1-x_e) * HI_ion_crosssec(nu);
-    HeI_factor = f_He * (1-x_e) * HeI_ion_crosssec(nu);
-    HeII_factor = f_He * x_e * HeII_ion_crosssec(nu);
-
-    return HI_factor + HeI_factor + HeII_factor;
-}
-
-
 // * Returns the maximum redshift at which a Lyn transition contributes to Lya flux at z * //
 float zmax(float z, int n){
     double num, denom;
@@ -1075,69 +1071,6 @@ float zmax(float z, int n){
     denom = 1 - pow(n, -2);
     return (1+z)*num/denom - 1;
 }
-
-//Function to read \deltaE
-double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
-{
-    double ans;
-    static double dEC[nT * nT * ngp];
-    static double dEI[nT * nT * ngp];
-    double dummy_heat;
-    int ii, jj, kk, index;
-    FILE *F;
-
-    char filename[500];
-
-    if (flag == 1) {
-        //Read in the Lya heating table
-        sprintf(filename,"%s/%s",global_params.external_table_path,LYA_HEATING_FILENAME);
-
-        if ( !(F=fopen(filename, "r")) ){
-            LOG_ERROR("Energy_Lya_heating: Unable to open file: %s for reading.", filename);
-            Throw(IOError);
-        }
-
-        for (ii=0;ii<nT;ii++){
-            for (jj=0;jj<nT;jj++){
-                for (kk=0;kk<ngp;kk++){
-                    index = ii*nT*ngp + jj*ngp + kk;
-                    //fscanf(F,"%lf %lf %lf %lf %lf",&dummy_heat,&dummy_heat,&dummy_heat,&dEC[index],&dEI[index]);
-                    fscanf(F,"%lf %lf",&dEC[index],&dEI[index]);
-                }
-            }
-        }
-
-        fclose(F);
-        return 0;
-    }
-
-    if (flag == 2) {
-      ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEC); //For Continuum Flux
-    }
-    if (flag == 3) {
-      ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEI); //For Injected Flux
-    }
-    return ans;
-}
-
-// Useful functions for effeciently navigating through the heating interpolation tables
-//find the nearest value
-int find_nearest_point(double min, double max, int n, double value){
-    int pos=0;
-    double dn = (max - min)/(n-1);
-    if (value<=(min+dn)) pos=0;              // ensures we are in the first point
-    else if (value>=max) pos = n-2;          // ensures we cannot exceed the maximum point
-    else pos = (int)floor((value - min)/dn); // round it down to ensure we are always either side of the cell boundary
-    return pos;
-}
-
-//find x-y-z position in an 1D array
-//x=Tk, y=Ts, z=Tau_GP
-int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr){
-    int pxyz = xpos*len_yarr*len_zarr + ypos*len_zarr + zpos;
-    return pxyz;
-}
-
 
 //Tri-linear interpolation function for Lyman-alpha heating efficiencies
 double interpolate_heating_efficiencies(double tk, double ts, double taugp, double *arrE) {
@@ -1209,4 +1142,66 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
 
     c = c0*(1.-zd) + c1*zd;
     return c;
+}
+
+//Function to read \deltaE
+double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
+{
+    double ans;
+    static double dEC[nT * nT * ngp];
+    static double dEI[nT * nT * ngp];
+    double dummy_heat;
+    int ii, jj, kk, index;
+    FILE *F;
+
+    char filename[500];
+
+    if (flag == 1) {
+        //Read in the Lya heating table
+        sprintf(filename,"%s/%s",global_params.external_table_path,LYA_HEATING_FILENAME);
+
+        if ( !(F=fopen(filename, "r")) ){
+            LOG_ERROR("Energy_Lya_heating: Unable to open file: %s for reading.", filename);
+            Throw(IOError);
+        }
+
+        for (ii=0;ii<nT;ii++){
+            for (jj=0;jj<nT;jj++){
+                for (kk=0;kk<ngp;kk++){
+                    index = ii*nT*ngp + jj*ngp + kk;
+                    //fscanf(F,"%lf %lf %lf %lf %lf",&dummy_heat,&dummy_heat,&dummy_heat,&dEC[index],&dEI[index]);
+                    fscanf(F,"%lf %lf",&dEC[index],&dEI[index]);
+                }
+            }
+        }
+
+        fclose(F);
+        return 0;
+    }
+
+    if (flag == 2) {
+      ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEC); //For Continuum Flux
+    }
+    if (flag == 3) {
+      ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEI); //For Injected Flux
+    }
+    return ans;
+}
+
+// Useful functions for effeciently navigating through the heating interpolation tables
+//find the nearest value
+int find_nearest_point(double min, double max, int n, double value){
+    int pos=0;
+    double dn = (max - min)/(n-1);
+    if (value<=(min+dn)) pos=0;              // ensures we are in the first point
+    else if (value>=max) pos = n-2;          // ensures we cannot exceed the maximum point
+    else pos = (int)floor((value - min)/dn); // round it down to ensure we are always either side of the cell boundary
+    return pos;
+}
+
+//find x-y-z position in an 1D array
+//x=Tk, y=Ts, z=Tau_GP
+int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr){
+    int pxyz = xpos*len_yarr*len_zarr + ypos*len_zarr + zpos;
+    return pxyz;
 }

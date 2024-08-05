@@ -30,6 +30,22 @@ static double sigma_norm, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha
   similar to built-in function "double T_RECFAST(float z, int flag)"
 */
 
+// FUNCTION TFmdm is the power spectrum transfer function from Eisenstein & Hu ApJ, 1999, 511, 5
+double TFmdm(double k){
+    double q, gamma_eff, q_eff, TF_m, q_nu;
+
+    q = k*pow(theta_cmb,2)/omhh;
+    gamma_eff=sqrt(alpha_nu) + (1.0-sqrt(alpha_nu))/(1.0+pow(0.43*k*sound_horizon, 4));
+    q_eff = q/gamma_eff;
+    TF_m= log(E+1.84*beta_c*sqrt(alpha_nu)*q_eff);
+    TF_m /= TF_m + pow(q_eff,2) * (14.4 + 325.0/(1.0+60.5*pow(q_eff,1.11)));
+    q_nu = 3.92*q/sqrt(f_nu/N_nu);
+    TF_m *= 1.0 + (1.2*pow(f_nu,0.64)*pow(N_nu,0.3+0.6*f_nu)) /
+    (pow(q_nu,-1.6)+pow(q_nu,0.8));
+
+    return TF_m;
+}
+
 double TF_CLASS(double k, int flag_int, int flag_dv)
 {
     static double kclass[CLASS_LENGTH], Tmclass[CLASS_LENGTH], Tvclass_vcb[CLASS_LENGTH];
@@ -250,23 +266,6 @@ double sigma_z0(double M){
 
     return sigma_norm * sqrt(result);
 }
-
-// FUNCTION TFmdm is the power spectrum transfer function from Eisenstein & Hu ApJ, 1999, 511, 5
-double TFmdm(double k){
-    double q, gamma_eff, q_eff, TF_m, q_nu;
-
-    q = k*pow(theta_cmb,2)/omhh;
-    gamma_eff=sqrt(alpha_nu) + (1.0-sqrt(alpha_nu))/(1.0+pow(0.43*k*sound_horizon, 4));
-    q_eff = q/gamma_eff;
-    TF_m= log(E+1.84*beta_c*sqrt(alpha_nu)*q_eff);
-    TF_m /= TF_m + pow(q_eff,2) * (14.4 + 325.0/(1.0+60.5*pow(q_eff,1.11)));
-    q_nu = 3.92*q/sqrt(f_nu/N_nu);
-    TF_m *= 1.0 + (1.2*pow(f_nu,0.64)*pow(N_nu,0.3+0.6*f_nu)) /
-    (pow(q_nu,-1.6)+pow(q_nu,0.8));
-
-    return TF_m;
-}
-
 
 void TFset_parameters(){
     double z_drag, R_drag, R_equality, p_c, p_cb, f_c, f_cb, f_nub, k_equality;
@@ -905,6 +904,21 @@ double RtoM(double R){
     Throw(ValueError);
 }
 
+/* Omega matter at redshift z */
+double omega_mz(float z){
+    return cosmo_params_global->OMm*pow(1+z,3) / (cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMl + global_params.OMr*pow(1+z,4) + global_params.OMk*pow(1+z, 2));
+}
+
+/* Physical (non-linear) overdensity at virialization (relative to critical density)
+ i.e. answer is rho / rho_crit
+ In Einstein de sitter model = 178
+ (fitting formula from Bryan & Norman 1998) */
+double Deltac_nonlinear(float z){
+    double d;
+    d = omega_mz(z) - 1.0;
+    return 18*PI*PI + 82*d - 39*d*d;
+}
+
 /*
  T in K, M in Msun, mu is mean molecular weight
  from Barkana & Loeb 2001
@@ -928,22 +942,6 @@ double TtoM(double z, double T, double mu){
      pow( VcirtoT(v_ss, mu) /(mu * (1+z)), 1.5 );
      */
 }
-
-/* Physical (non-linear) overdensity at virialization (relative to critical density)
- i.e. answer is rho / rho_crit
- In Einstein de sitter model = 178
- (fitting formula from Bryan & Norman 1998) */
-double Deltac_nonlinear(float z){
-    double d;
-    d = omega_mz(z) - 1.0;
-    return 18*PI*PI + 82*d - 39*d*d;
-}
-
-/* Omega matter at redshift z */
-double omega_mz(float z){
-    return cosmo_params_global->OMm*pow(1+z,3) / (cosmo_params_global->OMm*pow(1+z,3) + cosmo_params_global->OMl + global_params.OMr*pow(1+z,4) + global_params.OMk*pow(1+z, 2));
-}
-
 
 /*
  FUNCTION dicke(z)

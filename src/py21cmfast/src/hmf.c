@@ -744,8 +744,7 @@ double FgtrM_bias(double z, double M, double del_bias, double sig_bias){
 }
 
 //  Redshift derivative of the conditional collapsed fraction
-float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias)
-{
+float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias){
     double dz,z1,z2;
     double fc1,fc2,ans;
 

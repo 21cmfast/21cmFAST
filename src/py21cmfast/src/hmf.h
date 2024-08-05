@@ -33,6 +33,7 @@ struct parameters_gsl_MF_integrals{
     double Mturn_upper;
 };
 
+/* HMF Integrals */
 void initialise_GL(float lnM_Min, float lnM_Max);
 double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond, double sigma, double delta, int method);
 double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double M_cond, double sigma, double delta, int method);
@@ -50,6 +51,12 @@ double Nhalo_General(double z, double lnM_min, double lnM_max);
 double Fcoll_General(double z, double lnM_min, double lnM_max);
 double unconditional_mf(double growthf, double lnM, double z, int HMF);
 double conditional_mf(double growthf, double lnM, double delta_cond, double sigma_cond, int HMF);
+
+/* erfc-based HMF integrals (!USE_MASS_DEPENDENT_ZETA and EPS) */
+double FgtrM(double z, double M);
+double FgtrM_bias_fast(float growthf, float del_bias, float sig_small, float sig_large);
+float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias);
+double splined_erfc(double x);
 
 double atomic_cooling_threshold(float z);
 double minimum_soruce_mass(double redshift, bool xray, AstroParams *astro_params, FlagOptions *flag_options);
