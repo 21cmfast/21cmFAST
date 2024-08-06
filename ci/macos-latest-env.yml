@@ -17,9 +17,8 @@ dependencies:
   - pip
   - gsl
   - fftw
-  #- gcc
   - pip:
-    - powerbox
+    - powerbox<0.8.1
     - cached_property
     - pre-commit
     - pytest-plt

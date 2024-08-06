@@ -6,7 +6,7 @@ double apply_subcell_rsds(
     struct IonizedBox *ionized_box,
     struct BrightnessTemp *box,
     float redshift,
-    struct SpinTemperature *spin_temp,
+    struct TsBox *spin_temp,
     float T_rad,
     float *v,
     float H
