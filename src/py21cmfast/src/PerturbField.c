@@ -88,7 +88,7 @@ void compute_perturbed_velocities(
     }
 
     LOG_SUPER_DEBUG("density_perturb after modification by dDdt: ");
-    debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
+    debugSummarizeBoxComplex(LOWRES_density_perturb, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
 
     if(user_params->PERTURB_ON_HIGH_RES) {
 
@@ -507,9 +507,9 @@ int ComputePerturbField(
 
         LOG_SUPER_DEBUG("density_perturb: ");
         if(user_params->PERTURB_ON_HIGH_RES){
-            debugSummarizeBox(HIRES_density_perturb, dimension, user_params->NON_CUBIC_FACTOR, "  ");
+            debugSummarizeBoxComplex(HIRES_density_perturb, dimension, user_params->NON_CUBIC_FACTOR, "  ");
         }else{
-            debugSummarizeBox(LOWRES_density_perturb, dimension, user_params->NON_CUBIC_FACTOR, "  ");
+            debugSummarizeBoxComplex(LOWRES_density_perturb, dimension, user_params->NON_CUBIC_FACTOR, "  ");
         }
 
         // deallocate
@@ -620,7 +620,7 @@ int ComputePerturbField(
     }
 
     LOG_SUPER_DEBUG("LOWRES_density_perturb: ");
-    debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
+    debugSummarizeBoxComplex(LOWRES_density_perturb, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
 
     // transform to k-space
     dft_r2c_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, LOWRES_density_perturb);
@@ -631,7 +631,7 @@ int ComputePerturbField(
     }
 
     LOG_SUPER_DEBUG("LOWRES_density_perturb after smoothing: ");
-    debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
+    debugSummarizeBoxComplex(LOWRES_density_perturb, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
 
     // save a copy of the k-space density field
     memcpy(LOWRES_density_perturb_saved, LOWRES_density_perturb, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
@@ -639,7 +639,7 @@ int ComputePerturbField(
     dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->HII_DIM, HII_D_PARA, user_params->N_THREADS, LOWRES_density_perturb);
 
     LOG_SUPER_DEBUG("LOWRES_density_perturb back in real space: ");
-    debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
+    debugSummarizeBoxComplex(LOWRES_density_perturb, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
 
     // normalize after FFT
     int bad_count=0;
@@ -664,7 +664,7 @@ int ComputePerturbField(
     }
     if(bad_count>=5) LOG_WARNING("Total number of bad indices for LOW_density_perturb: %d", bad_count);
     LOG_SUPER_DEBUG("LOWRES_density_perturb back in real space (normalized): ");
-    debugSummarizeBox(LOWRES_density_perturb, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
+    debugSummarizeBoxComplex(LOWRES_density_perturb, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
 
 
 #pragma omp parallel shared(perturbed_field,LOWRES_density_perturb) private(i,j,k) num_threads(user_params->N_THREADS)
