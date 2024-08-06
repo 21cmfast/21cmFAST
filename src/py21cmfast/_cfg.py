@@ -91,8 +91,7 @@ class Config(dict):
 
     def write(self, fname: str | Path | None = None):
         """Write current configuration to file to make it permanent."""
-        fname = Path(fname or self.file_name)
-        if fname:
+        if fname := Path(fname or self.file_name):
             if not fname.parent.exists():
                 fname.parent.mkdir(parents=True)
 
@@ -113,7 +112,7 @@ class Config(dict):
                 cfg = yaml.load(fl)
             return cls(cfg, file_name=file_name)
         else:
-            return cls(write=False)
+            return cls(write=True)
 
 
 config = Config.load(Path("~/.21cmfast/config.yml"))
