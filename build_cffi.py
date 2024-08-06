@@ -13,22 +13,6 @@ c_files = [
     if f.endswith(".c")
 ]
 
-# =================================================================
-# Set compilation arguments dependent on environment... a bit buggy
-# =================================================================
-if "DEBUG" in os.environ:
-    extra_compile_args = ["-fopenmp", "-w", "-g", "-O0", "--verbose"]
-else:
-    extra_compile_args = ["-fopenmp", "-Ofast", "-w", "--verbose"]
-
-libraries = ["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"]
-
-# stuff for gperftools
-if "PROFILE" in os.environ:
-    libraries += ["profiler", "tcmalloc"]
-    # we need this even if DEBUG is off
-    extra_compile_args += ["-g"]
-
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,
 # we set it to the level just above no logging at all.
@@ -56,6 +40,23 @@ except ValueError:
         "of {}".format(available_levels)
     )
 
+# =================================================================
+# Set compilation arguments dependent on environment... a bit buggy
+# =================================================================
+extra_compile_args = ["-fopenmp", "-w", "--verbose", f"-DLOG_LEVEL={log_level:d}"]
+if "DEBUG" in os.environ:
+    extra_compile_args += ["-g", "-O0"]
+else:
+    extra_compile_args += ["-Ofast"]
+
+libraries = ["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"]
+
+# stuff for gperftools
+if "PROFILE" in os.environ:
+    libraries += ["profiler", "tcmalloc"]
+    # we need this even if DEBUG is off
+    extra_compile_args += ["-g"]
+
 library_dirs = []
 for k, v in os.environ.items():
     if "inc" in k.lower():
@@ -70,12 +71,8 @@ for k, v in os.environ.items():
 ffi.set_source(
     "py21cmfast.c_21cmfast",  # Name/Location of shared library module
     """
-    #define LOG_LEVEL {log_level}
-
     #include "21cmFAST.h"
-    """.format(
-        log_level=log_level
-    ),
+    """,
     sources=c_files,
     include_dirs=include_dirs,
     library_dirs=library_dirs,
@@ -96,7 +93,7 @@ with open(os.path.join(CLOC, "_functionprototypes_wrapper.h")) as f:
 ffi.cdef(
     """
         void free(void *ptr);
-        """
+    """
 )
 
 if __name__ == "__main__":

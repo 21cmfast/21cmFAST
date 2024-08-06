@@ -5,7 +5,6 @@ double init_ps();
 double dicke(double z);
 double sigma_z0(double M);
 double dsigmasqdm_z0(double M);
-double get_delta_crit(int HMF, double sigma, double growthf);
 
 double MtoR(double M);
 double RtoM(double R);

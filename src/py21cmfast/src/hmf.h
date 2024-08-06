@@ -58,6 +58,7 @@ double FgtrM_bias_fast(float growthf, float del_bias, float sig_small, float sig
 float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias);
 double splined_erfc(double x);
 
+double get_delta_crit(int HMF, double sigma, double growthf);
 double atomic_cooling_threshold(float z);
 double minimum_soruce_mass(double redshift, bool xray, AstroParams *astro_params, FlagOptions *flag_options);
 
