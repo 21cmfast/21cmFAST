@@ -635,6 +635,60 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
     }
 }
 
+void debugSummarizeBoxComplex(fftwf_complex *box, int size, float ncf, char *indent){
+    if(LOG_LEVEL >= SUPER_DEBUG_LEVEL){
+
+        float corners_real[8];
+        float corners_imag[8];
+
+        int i,j,k, counter;
+        int s = size-1;
+        int s_ncf = size*ncf-1;
+
+        counter = 0;
+        for(i=0;i<size;i=i+s){
+            for(j=0;j<size;j=j+s){
+                for(k=0;k<(int)(size*ncf);k=k+s_ncf){
+                    corners_real[counter] =  creal(box[k + (int)(size*ncf)*(j + size*i)]);
+                    corners_imag[counter] =  cimag(box[k + (int)(size*ncf)*(j + size*i)]);
+
+                    counter++;
+                }
+            }
+        }
+
+        LOG_SUPER_DEBUG("%sCorners (Real Part): %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
+            indent,
+            corners_real[0], corners_real[1], corners_real[2], corners_real[3],
+            corners_real[4], corners_real[5], corners_real[6], corners_real[7]
+        );
+
+        LOG_SUPER_DEBUG("%sCorners (Imag Part): %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
+            indent,
+            corners_imag[0], corners_imag[1], corners_imag[2], corners_imag[3],
+            corners_imag[4], corners_imag[5], corners_imag[6], corners_imag[7]
+        );
+
+
+        complex sum, mean, mn, mx;
+        sum=0+I;
+        mn=box[0];
+        mx=box[0];
+
+        for (i=0; i<size*size*((int)(size*ncf)); i++){
+            sum+=box[i];
+            mn=fminf(mn, box[i]);
+            mx = fmaxf(mx, box[i]);
+        }
+        mean=sum/(size*size*((int)(size*ncf)));
+
+        LOG_SUPER_DEBUG(
+            "%sSum/Mean/Min/Max: %.4e+%.4ei, %.4e+%.4ei, %.4e+%.4ei, %.4e+%.4ei",
+            indent, creal(sum), cimag(sum), creal(mean), cimag(mean), creal(mn), cimag(mn),
+            creal(mx), cimag(mx));
+    }
+}
+
 void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
     if(LOG_LEVEL >= SUPER_DEBUG_LEVEL){
 
