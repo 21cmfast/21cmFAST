@@ -39,7 +39,10 @@ class Config(dict):
         for k, v in self._defaults.items():
             if k not in self:
                 if k not in self._aliases:
-                    warnings.warn("Your configuration file is out of date. Updating...")
+                    if self.file_name:
+                        warnings.warn(
+                            "Your configuration file is out of date. Updating..."
+                        )
                     do_write = True
                     self[k] = v
 
@@ -55,9 +58,10 @@ class Config(dict):
                             del self[alias]
                             break
                     else:
-                        warnings.warn(
-                            "Your configuration file is out of date. Updating..."
-                        )
+                        if self.file_name:
+                            warnings.warn(
+                                "Your configuration file is out of date. Updating..."
+                            )
                         do_write = True
                         self[k] = v
 
@@ -70,7 +74,10 @@ class Config(dict):
         self["direc"] = Path(self["direc"]).expanduser().absolute()
 
         if do_write and write and self.file_name:
-            self.write()
+            try:
+                self.write()
+            except Exception:
+                pass
 
     @contextlib.contextmanager
     def use(self, **kwargs):
