@@ -11,7 +11,7 @@ Performance
 ~~~~~~~~~~~
 
 * When reading in data from cache, only read the necessary fields.
-*
+
 Deprecations
 ~~~~~~~~~~~~
 
