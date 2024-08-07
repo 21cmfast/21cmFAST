@@ -4,6 +4,9 @@ Changelog
 dev-version
 -----------
 
+v3.4.0 [07 Aug 2024]
+----------------------
+
 Performance
 ~~~~~~~~~~~
 
