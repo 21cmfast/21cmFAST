@@ -464,7 +464,7 @@ double (*get_integrand_function(int type))(double,void*){
     if(type==-4)
         return &c_nion_integrand_mini; //Conditional N_ion minihalo integral (two power-laws and two exponentials)
 
-    LOG_ERROR("Invalid type %d for MF integral");
+    LOG_ERROR("Invalid type %d for MF integral",type);
     Throw(ValueError);
 }
 
@@ -737,6 +737,9 @@ double IntegratedNdM(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_inte
         return IntegratedNdM_GL(lnM_lo, lnM_hi, params, type);
     if(method==2)
         return MFIntegral_Approx(lnM_lo, lnM_hi, params, type);
+
+    LOG_ERROR("Invalid integration method %d",method);
+    Throw(ValueError);
 }
 
 //Some wrappers over the integration functions for specific integrals//

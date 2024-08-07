@@ -18,6 +18,7 @@
 #include "interp_tables.h"
 #include "thermochem.h"
 #include "hmf.h"
+#include "photoncons.h"
 
 #include "HaloBox.h"
 //Parameters for the halo box calculations

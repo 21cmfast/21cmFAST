@@ -47,9 +47,15 @@ double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnM
 void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, double growth1, double param, bool from_catalog);
 double EvaluateNhaloInv(double condition, double prob);
 
+void initialise_J_split_table(int Nbin, double umin, double umax, double gamma1);
+double EvaluateJ(double u_res,double gamma1);
+
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
 double EvaluateSigma(double lnM);
 double EvaluatedSigmasqdm(double lnM);
+
+void InitialiseSigmaInverseTable();
+double EvaluateSigmaInverse(double sigma);
 
 void freeSigmaMInterpTable();
 void free_conditional_tables();

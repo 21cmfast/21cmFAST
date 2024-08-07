@@ -47,7 +47,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
 
     //This happens if we are updating a halo field (no need to redo big halos)
     if(flag_options->HALO_STOCHASTICITY && redshift_desc > 0){
-        LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %d halos...",halos_desc->n_halos);
+        LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %llu halos...",halos_desc->n_halos);
         //this would hold the two boxes used in the halo sampler, but here we are taking the sample from a catalogue so we define a dummy here
         float *dummy_box = NULL;
         stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_desc,
@@ -486,9 +486,9 @@ int check_halo(char * in_halo, UserParams *user_params, float R, int x, int y, i
             }
         }
     }
-    if(check_type==1) {
-        return 0;
-    }
+    //if check_type==1, we found no halos
+    //if check_type==2, we don't use the return value
+    return 0;
 }
 
 void init_halo_coords(HaloField *halos, long long unsigned int n_halos){

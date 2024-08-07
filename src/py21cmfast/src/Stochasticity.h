@@ -16,4 +16,7 @@ int single_test_sample(UserParams *user_params, CosmoParams *cosmo_params, Astro
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the box
 double expected_nhalo(double redshift, UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions * flag_options);
 
+//used in HaloField.c to assign rng to DexM halos
+int add_properties_cat(unsigned long long int seed, float redshift, HaloField *halos);
+
 #endif

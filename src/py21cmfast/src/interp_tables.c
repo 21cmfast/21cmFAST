@@ -220,12 +220,12 @@ void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, 
     LOG_SUPER_DEBUG("Initialising FgtrM table between delta %.3e and %.3e, sigma %.3e and %.3e",min_dens,max_dens,smin_zpp,smax_zpp);
 
     if(!fcoll_conditional_table.allocated){
-        allocate_RGTable1D(dens_Ninterp,&fcoll_conditional_table);
+        allocate_RGTable1D_f(dens_Ninterp,&fcoll_conditional_table);
     }
     fcoll_conditional_table.x_min = min_dens;
     fcoll_conditional_table.x_width = (max_dens - min_dens)/(dens_Ninterp - 1.);
     if(!dfcoll_conditional_table.allocated){
-        allocate_RGTable1D(dens_Ninterp,&dfcoll_conditional_table);
+        allocate_RGTable1D_f(dens_Ninterp,&dfcoll_conditional_table);
     }
     dfcoll_conditional_table.x_min = fcoll_conditional_table.x_min;
     dfcoll_conditional_table.x_width = fcoll_conditional_table.x_width;
@@ -240,8 +240,7 @@ void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, 
 
 void init_FcollTable(double zmin, double zmax, bool x_ray){
     int i;
-    double z_val, M_min, lnMmin;
-    double lnMmax = log(fmax(global_params.M_MAX_INTEGRAL, M_min*100));
+    double z_val, M_min, lnMmin, lnMmax;
 
     fcoll_z_table.x_min = zmin;
     fcoll_z_table.x_width = 0.1;
@@ -256,6 +255,7 @@ void init_FcollTable(double zmin, double zmax, bool x_ray){
         z_val = fcoll_z_table.x_min + i*fcoll_z_table.x_width;
         M_min = minimum_source_mass(z_val,x_ray,astro_params_global,flag_options_global);
         lnMmin = log(M_min);
+        lnMmax = log(fmax(global_params.M_MAX_INTEGRAL, M_min*100));
 
         //if we are press-schechter we can save time by calling the erfc
         if(user_params_global->HMF == 0)
@@ -739,10 +739,10 @@ void free_dNdM_tables(){
     free_RGTable1D(&Mcoll_table);
     free_RGTable1D(&J_split_table);
     if(user_params_global->SAMPLE_METHOD == 2){
-        gsl_spline_free(&Sigma_inv_table);
+        gsl_spline_free(Sigma_inv_table);
         #pragma omp parallel num_threads(user_params_global->N_THREADS)
         {
-            gsl_interp_accel_free(&Sigma_inv_table_acc);
+            gsl_interp_accel_free(Sigma_inv_table_acc);
         }
     }
 }
@@ -969,10 +969,8 @@ void InitialiseSigmaInverseTable(){
     }
     int i;
     int n_bin = Sigma_InterpTable.n_bin;
-    double sigma_min = Sigma_InterpTable.y_arr[n_bin-1];
-    double sigma_max = Sigma_InterpTable.y_arr[0];
 
-    int xa[n_bin], ya[n_bin];
+    double xa[n_bin], ya[n_bin];
 
     Sigma_inv_table = gsl_spline_alloc(gsl_interp_linear,n_bin);
     Sigma_inv_table_acc = gsl_interp_accel_alloc();
@@ -990,7 +988,7 @@ double EvaluateSigmaInverse(double sigma){
         LOG_ERROR("Cannot currently do sigma inverse without USE_INTERPOLATION_TABLES");
         Throw(ValueError);
     }
-    return EvaluateRGTable1D(sigma,&Sigma_inv_table);
+    return gsl_spline_eval(Sigma_inv_table,sigma,Sigma_inv_table_acc);
 }
 
 void initialiseSigmaMInterpTable(float M_min, float M_max){

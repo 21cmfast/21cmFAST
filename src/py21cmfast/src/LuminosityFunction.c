@@ -4,15 +4,21 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include <gsl/gsl_interp.h>
 #include <gsl/gsl_spline.h>
 #include <gsl/gsl_errno.h>
+
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
 #include "Constants.h"
 #include "InputParameters.h"
 #include "OutputStructs.h"
+#include "cosmology.h"
+#include "interp_tables.h"
+#include "thermochem.h"
+#include "hmf.h"
 
 #include "LuminosityFunction.h"
 
@@ -32,8 +38,6 @@ gsl_spline *deriv_spline;
 
 double *lnMhalo_param, *Muv_param, *Mhalo_param;
 double *log10phi, *M_uv_z, *M_h_z;
-double *lnMhalo_param_MINI, *Muv_param_MINI, *Mhalo_param_MINI;
-double *log10phi_MINI; *M_uv_z_MINI, *M_h_z_MINI;
 double *deriv, *lnM_temp, *deriv_temp;
 
 int initialise_ComputeLF(int nbins, UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options) {

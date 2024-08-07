@@ -14,6 +14,10 @@
 #include "Constants.h"
 #include "InputParameters.h"
 #include "indexing.h"
+#include "elec_interp.h"
+#include "cosmology.h"
+#include "thermochem.h"
+#include "interp_tables.h"
 
 #include "heating_helper_progs.h"
 
@@ -1073,6 +1077,24 @@ float zmax(float z, int n){
     return (1+z)*num/denom - 1;
 }
 
+// Useful functions for effeciently navigating through the heating interpolation tables
+//find the nearest value
+int find_nearest_point(double min, double max, int n, double value){
+    int pos=0;
+    double dn = (max - min)/(n-1);
+    if (value<=(min+dn)) pos=0;              // ensures we are in the first point
+    else if (value>=max) pos = n-2;          // ensures we cannot exceed the maximum point
+    else pos = (int)floor((value - min)/dn); // round it down to ensure we are always either side of the cell boundary
+    return pos;
+}
+
+//find x-y-z position in an 1D array
+//x=Tk, y=Ts, z=Tau_GP
+int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr){
+    int pxyz = xpos*len_yarr*len_zarr + ypos*len_zarr + zpos;
+    return pxyz;
+}
+
 //Tri-linear interpolation function for Lyman-alpha heating efficiencies
 double interpolate_heating_efficiencies(double tk, double ts, double taugp, double *arrE) {
     tk = log10(tk);
@@ -1187,22 +1209,4 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
       ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEI); //For Injected Flux
     }
     return ans;
-}
-
-// Useful functions for effeciently navigating through the heating interpolation tables
-//find the nearest value
-int find_nearest_point(double min, double max, int n, double value){
-    int pos=0;
-    double dn = (max - min)/(n-1);
-    if (value<=(min+dn)) pos=0;              // ensures we are in the first point
-    else if (value>=max) pos = n-2;          // ensures we cannot exceed the maximum point
-    else pos = (int)floor((value - min)/dn); // round it down to ensure we are always either side of the cell boundary
-    return pos;
-}
-
-//find x-y-z position in an 1D array
-//x=Tk, y=Ts, z=Tau_GP
-int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr){
-    int pxyz = xpos*len_yarr*len_zarr + ypos*len_zarr + zpos;
-    return pxyz;
 }

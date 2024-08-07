@@ -16,6 +16,12 @@
 #include "heating_helper_progs.h"
 #include "elec_interp.h"
 #include "interp_tables.h"
+#include "debugging.h"
+#include "cosmology.h"
+#include "hmf.h"
+#include "dft.h"
+#include "filtering.h"
+#include "thermochem.h"
 
 #include "SpinTemperatureBox.h"
 
@@ -114,7 +120,7 @@ int ComputeTsBox(float redshift, float prev_redshift, UserParams *user_params, C
 }
 
 void alloc_global_arrays(){
-    int i,j;
+    int i;
     //z-edges
     zpp_for_evolve_list = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
     zpp_growth = calloc(global_params.NUM_FILTER_STEPS_FOR_Ts,sizeof(double));
@@ -208,7 +214,7 @@ void alloc_global_arrays(){
 }
 
 void free_ts_global_arrays(){
-    int i,j;
+    int i;
     //frequency integrals
     for(i=0;i<x_int_NXHII;i++) {
         free(freq_int_heat_tbl[i]);
@@ -352,7 +358,7 @@ void calculate_spectral_factors(double zp){
     double trial_zpp_max,trial_zpp_min,trial_zpp;
     int counter,ii;
     int n_pts_radii=1000;
-    double weight;
+    double weight=0.;
     int R_ct, n_ct;
     double zpp,zpp_integrand;
 
@@ -388,7 +394,7 @@ void calculate_spectral_factors(double zp){
                     nuprime = NU_LW_THRESH / NUIONIZATION;
                 //NOTE: are we comparing nuprime at z' and z'' correctly here?
                 //  currently: emitted frequency >= received frequency of next n
-                if (nuprime >= nu_n(n_ct + 1))
+                if (nuprime >= nu_n(2 + 1))
                     continue;
 
                 sum_lyLW_val  += (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
@@ -603,7 +609,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double * R_a
 
 //NOTE: I've moved this to a function to help in simplicity, it is not clear whether it is faster
 //  to do all of one radii at once (more clustered FFT and larger thread blocks) or all of one box (better memory locality)
-double one_annular_filter(float *input_box, float *output_box, double R_inner, double R_outer, double *u_avg, double *f_avg){
+void one_annular_filter(float *input_box, float *output_box, double R_inner, double R_outer, double *u_avg, double *f_avg){
     int i,j,k;
     unsigned long long int ct;
     double unfiltered_avg=0;
@@ -820,7 +826,7 @@ void init_first_Ts(TsBox * box, float *dens, float z, float zp, double *x_e_ave,
 #pragma omp parallel private(box_ct) num_threads(user_params_global->N_THREADS)
     {
         double gdens;
-        double curr_xalpha;
+        float curr_xalpha;
 #pragma omp for
         for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
             gdens = dens[box_ct]*inverse_growth_factor_z*growth_factor_zp;
@@ -932,7 +938,8 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
     #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
         unsigned long long int box_ct;
-        double curr_dens,curr_mcrit;
+        double curr_dens;
+        double curr_mcrit = 0.;
         double fcoll, dfcoll;
         double fcoll_MINI=0;
 
@@ -1651,7 +1658,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     for (box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){
         if(isfinite(this_spin_temp->Ts_box[box_ct])==0) {
             LOG_ERROR("Estimated spin temperature is either infinite of NaN!"
-                "idx %d delta %.3e dxheat %.3e dxion %.3e dxlya %.3e dstarlya %.3e",box_ct,perturbed_field->density[box_ct]
+                "idx %llu delta %.3e dxheat %.3e dxion %.3e dxlya %.3e dstarlya %.3e",box_ct,perturbed_field->density[box_ct]
                             ,dxheat_dt_box[box_ct],dxion_source_dt_box[box_ct],dxlya_dt_box[box_ct],dstarlya_dt_box[box_ct]);
 //                Throw(ParameterError);
             Throw(InfinityorNaNError);

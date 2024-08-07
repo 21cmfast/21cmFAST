@@ -9,6 +9,8 @@
 #include "Constants.h"
 #include "InputParameters.h"
 #include "OutputStructs.h"
+#include "cosmology.h"
+
 #include "thermochem.h"
 
 float ComputeFullyIoinizedTemperature(float z_re, float z, float delta){
@@ -43,14 +45,6 @@ float ComputePartiallyIoinizedTemperature(float T_HI, float res_xH){
 
     return T_HI * res_xH + global_params.T_RE * (1. - res_xH);
 }
-
-double alpha_A(double T);
-/* returns the case B hydrogen recombination coefficient (Spitzer 1978) in cm^3 s^-1*/
-double alpha_B(double T);
-
-double HeI_ion_crosssec(double nu);
-double HeII_ion_crosssec(double nu);
-double HI_ion_crosssec(double nu);
 
 /* returns the case A hydrogen recombination coefficient (Abel et al. 1997) in cm^3 s^-1*/
 double alpha_A(double T){

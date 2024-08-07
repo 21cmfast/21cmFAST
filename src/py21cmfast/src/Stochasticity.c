@@ -3,6 +3,7 @@
  * other halo relations.*/
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 #include "cexcept.h"
@@ -14,6 +15,8 @@
 #include "OutputStructs.h"
 #include "interp_tables.h"
 #include "hmf.h"
+#include "cosmology.h"
+#include "InitialConditions.h"
 
 #include "Stochasticity.h"
 //buffer size (per cell of arbitrary size) in the sampling function
@@ -230,7 +233,7 @@ void place_on_hires_grid(int x, int y, int z, int *crd_hi, gsl_rng * rng){
 }
 
 //This function adds stochastic halo properties to an existing halo
-int set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, float * input, float * output){
+void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, double * input, double * output){
     double rng_star,rng_sfr,rng_xray;
 
     //Correlate properties by interpolating between the sampled and descendant gaussians
@@ -260,8 +263,8 @@ int add_properties_cat(unsigned long long int seed, float redshift, HaloField *h
 
     //loop through the halos and assign properties
     unsigned long long int i;
-    float buf[3];
-    float dummy[3]; //we don't need interpolation here
+    double buf[3];
+    double dummy[3]; //we don't need interpolation here
 #pragma omp parallel for private(i,buf)
     for(i=0;i<halos->n_halos;i++){
         // LOG_ULTRA_DEBUG("halo %d hm %.2e crd %d %d %d",i,halos->halo_masses[i],halos->halo_coords[3*i+0],halos->halo_coords[3*i+1],halos->halo_coords[3*i+2]);
@@ -691,7 +694,6 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
 
     double total_volume_excluded=0.;
     double total_volume_dexm=0.;
-    double vol_conversion = pow((double)user_params_global->HII_DIM / (double)user_params_global->DIM,3);
     double cell_volume = VOLUME / pow((double)user_params_global->HII_DIM,3);
 
 #pragma omp parallel num_threads(user_params_global->N_THREADS)
@@ -703,7 +705,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
 
         int nh_buf;
         double delta;
-        float prop_buf[3], prop_dummy[3];
+        double prop_buf[3], prop_dummy[3];
         int crd_hi[3];
 
         double mass_defc;
@@ -759,7 +761,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
                         if(hm_buf[i] < user_params_global->SAMPLER_MIN_MASS) continue;
 
                         if(count >= arraysize_local){
-                            LOG_ERROR("More than %d halos (expected %.1f) with buffer size factor %d",
+                            LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
                                         arraysize_local,arraysize_local/user_params_global->MAXHALO_FACTOR,user_params_global->MAXHALO_FACTOR);
                             LOG_ERROR("If you expected to have an above average halo number try raising user_params->MAXHALO_FACTOR");
                             Throw(ValueError);
@@ -790,7 +792,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
                 }
             }
         }
-        LOG_SUPER_DEBUG("Thread %llu found %llu halos",threadnum,count);
+        LOG_SUPER_DEBUG("Thread %d found %llu halos",threadnum,count);
 
         istart_threads[threadnum] = istart;
         nhalo_threads[threadnum] = count;
@@ -861,8 +863,8 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, HaloF
         int n_prog;
         double M_prog;
 
-        float propbuf_in[3];
-        float propbuf_out[3];
+        double propbuf_in[3];
+        double propbuf_out[3];
 
         int threadnum = omp_get_thread_num();
         double M2;
@@ -880,7 +882,7 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, HaloF
         for(ii=0;ii<nhalo_in;ii++){
             M2 = halofield_in->halo_masses[ii];
             if(M2 < Mmin || M2 > Mmax_tb){
-                LOG_ERROR("Input Mass = %.2e at %d of %d, something went wrong in the input catalogue",M2,ii,nhalo_in);
+                LOG_ERROR("Input Mass = %.2e at %llu of %llu, something went wrong in the input catalogue",M2,ii,nhalo_in);
                 Throw(ValueError);
             }
             //set condition-dependent variables for sampling
@@ -901,7 +903,7 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, HaloF
                 if(prog_buf[jj] < user_params_global->SAMPLER_MIN_MASS) continue;
 
                 if(count >= arraysize_local){
-                    LOG_ERROR("More than %d halos (expected %d) with buffer size factor %d",
+                    LOG_ERROR("More than %llu halos (expected %.1e) with buffer size factor %.1f",
                                 arraysize_local,arraysize_local/user_params_global->MAXHALO_FACTOR,user_params_global->MAXHALO_FACTOR);
                     LOG_ERROR("If you expected to have an above average halo number try raising user_params_global->MAXHALO_FACTOR");
                     Throw(ValueError);
@@ -943,7 +945,7 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, HaloF
     int i=0;
     unsigned long long int count_total = 0;
     for(i=0;i<user_params_global->N_THREADS;i++){
-        LOG_SUPER_DEBUG("Thread %llu found %llu Halos",i,nhalo_threads[i]);
+        LOG_SUPER_DEBUG("Thread %d found %llu Halos",i,nhalo_threads[i]);
         memmove(&halofield_out->halo_masses[count_total],&halofield_out->halo_masses[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
         memmove(&halofield_out->star_rng[count_total],&halofield_out->star_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);
         memmove(&halofield_out->sfr_rng[count_total],&halofield_out->sfr_rng[istart_threads[i]],sizeof(float)*nhalo_threads[i]);

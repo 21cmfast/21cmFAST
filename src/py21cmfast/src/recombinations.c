@@ -10,6 +10,7 @@
 #include "logger.h"
 #include "Constants.h"
 #include "InputParameters.h"
+#include "thermochem.h"
 
 #include "recombinations.h"
 

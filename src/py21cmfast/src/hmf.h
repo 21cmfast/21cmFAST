@@ -60,8 +60,10 @@ double splined_erfc(double x);
 
 /* Other values required in other files */
 double get_delta_crit(int HMF, double sigma, double growthf);
+double st_taylor_factor(double sig, double sig_cond, double growthf, double *zeroth_order);
 double atomic_cooling_threshold(float z);
 double minimum_source_mass(double redshift, bool xray, AstroParams *astro_params, FlagOptions *flag_options);
 double sheth_delc_dexm(double del, double sig);
+float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC);
 
 #endif

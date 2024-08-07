@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include <complex.h>
 #include <fftw3.h>
 #include "cexcept.h"
@@ -15,6 +16,8 @@
 #include "indexing.h"
 #include "InputParameters.h"
 #include "OutputStructs.h"
+#include "debugging.h"
+#include "cosmology.h"
 
 #include "PerturbHaloField.h"
 
@@ -42,7 +45,7 @@ LOG_DEBUG("redshift=%f", redshift);
         omp_set_num_threads(user_params->N_THREADS);
 
         float growth_factor, displacement_factor_2LPT, mass, xf, yf, zf, z, growth_factor_over_BOX_LEN,displacement_factor_2LPT_over_BOX_LEN;
-        int i, j, k, xi, yi, zi, DI, dimension;
+        unsigned long long int i, j, k, DI, dimension;
         unsigned long long ct, i_halo;
         float dz = 1e-10;
 
@@ -134,7 +137,6 @@ LOG_DEBUG("Begin Initialisation");
 
         float mean_correction = 0.0, mean_correction_2LPT = 0.0, mean_ratio = 0.0;
         float max_correction = 1e-10, max_correction_2LPT = 1e-10, max_ratio = 1e-10;
-        int den = 0;
 
 #pragma omp parallel shared(boxes,halos,halos_perturbed) \
                     private(i_halo,i,j,k,xf,yf,zf) num_threads(user_params->N_THREADS)

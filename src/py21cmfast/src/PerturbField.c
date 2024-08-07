@@ -15,6 +15,8 @@
 #include "OutputStructs.h"
 #include "cosmology.h"
 #include "dft.h"
+#include "debugging.h"
+#include "filtering.h"
 
 #include "PerturbField.h"
 
@@ -33,8 +35,8 @@ void compute_perturbed_velocities(
 ){
 
     float k_x, k_y, k_z, k_sq;
-    int n_x, n_y, n_z;
-    int i,j,k;
+    unsigned long long int n_x, n_y, n_z;
+    unsigned long long int i,j,k;
 
     float kvec[3];
 
@@ -701,8 +703,7 @@ int ComputePerturbField(
     // ****  Convert to velocities ***** //
     LOG_DEBUG("Generate velocity fields");
 
-    float k_x, k_y, k_z, k_sq, dDdt_over_D;
-    int n_x, n_y, n_z;
+    float dDdt_over_D;
 
     dDdt_over_D = dDdt/growth_factor;
 

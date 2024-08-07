@@ -16,6 +16,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_interp.h>
 #include <gsl/gsl_spline.h>
@@ -25,6 +26,10 @@
 #include "logger.h"
 #include "Constants.h"
 #include "InputParameters.h"
+#include "cosmology.h"
+#include "hmf.h"
+#include "interp_tables.h"
+#include "debugging.h"
 
 #include "photoncons.h"
 
@@ -651,7 +656,7 @@ void determine_deltaz_for_photoncons() {
 }
 
 
-float adjust_redshifts_for_photoncons(
+void adjust_redshifts_for_photoncons(
     AstroParams *astro_params, FlagOptions *flag_options, float *redshift,
     float *stored_redshift, float *absolute_delta_z
 ) {
