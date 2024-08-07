@@ -3,13 +3,16 @@
 import logging
 import numpy as np
 import os
+from pathlib import Path
+from typing import Any
 
 from ..c_21cmfast import lib
 from ..photoncons import _get_photon_nonconservation_data, setup_photon_cons
 from ..wrapper.globals import global_params
-from ..wrapper.outputs import Coeval
+from ..wrapper.inputs import AstroParams, CosmoParams, FlagOptions, UserParams
+from ..wrapper.outputs import Coeval, InitialConditions, PerturbedField
 from . import single_field as sf
-from .param_config import _get_config_options, _setup_inputs
+from .param_config import InputParameters, _get_config_options, _setup_inputs
 from .single_field import set_globals
 
 logger = logging.getLogger(__name__)
@@ -27,20 +30,19 @@ def get_logspaced_redshifts(min_redshift: float, z_step_factor: float, zmax: flo
 @set_globals
 def run_coeval(
     *,
-    redshift: float = None,
-    user_params=None,
-    cosmo_params=None,
-    astro_params=None,
-    flag_options=None,
-    regenerate=None,
-    write=None,
-    direc=None,
-    init_box=None,
-    perturb=None,
-    use_interp_perturb_field=False,
-    random_seed=None,
-    cleanup=True,
-    hooks=None,
+    redshift: float | np.ndarray | None = None,
+    user_params: UserParams | dict | None = None,
+    cosmo_params: CosmoParams | dict | None = None,
+    flag_options: FlagOptions | dict | None = None,
+    astro_params: AstroParams | dict | None = None,
+    regenerate: bool | None = None,
+    write: bool | None = None,
+    direc: str | Path | None = None,
+    initial_conditions: InitialConditions | None = None,
+    perturbed_field: PerturbedField | None = None,
+    random_seed: int | None = None,
+    cleanup: bool = True,
+    hooks: dict[callable, dict[str, Any]] | None = None,
     always_purge: bool = False,
     **global_kwargs,
 ):
@@ -104,334 +106,325 @@ def run_coeval(
     regenerate, write, direc, random_seed :
         See docs of :func:`initial_conditions` for more information.
     """
-    with global_params.use(**global_kwargs):
-        if redshift is None and perturb is None:
-            raise ValueError("Either redshift or perturb must be given")
+    if redshift is None and perturbed_field is None:
+        raise ValueError("Either redshift or perturb must be given")
 
-        direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
+    direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
-        singleton = False
-        # Ensure perturb is a list of boxes, not just one.
-        if perturb is None:
-            perturb = []
-        elif not hasattr(perturb, "__len__"):
-            perturb = [perturb]
-            singleton = True
+    singleton = False
+    # Ensure perturb is a list of boxes, not just one.
+    if perturbed_field is None:
+        perturbed_field = []
+    elif not hasattr(perturbed_field, "__len__"):
+        perturbed_field = [perturbed_field]
+        singleton = True
 
-        (
-            random_seed,
-            user_params,
-            cosmo_params,
-            astro_params,
-            flag_options,
-        ) = _setup_inputs(
-            {
-                "random_seed": random_seed,
-                "user_params": user_params,
-                "cosmo_params": cosmo_params,
-                "astro_params": astro_params,
-                "flag_options": flag_options,
-            },
+    random_seed = (
+        initial_conditions.random_seed
+        if initial_conditions is not None
+        else random_seed
+    )
+
+    inputs = InputParameters(
+        user_params=user_params,
+        cosmo_params=cosmo_params,
+        astro_params=astro_params,
+        flag_options=flag_options,
+    )
+
+    iokw = {"regenerate": regenerate, "hooks": hooks, "direc": direc}
+
+    if initial_conditions is None:
+        initial_conditions = sf.initial_conditions(
+            user_params=inputs.user_params,
+            cosmo_params=inputs.cosmo_params,
+            random_seed=random_seed,
+            **iokw,
         )
 
-        if use_interp_perturb_field and flag_options.USE_MINI_HALOS:
-            raise ValueError("Cannot use an interpolated perturb field with minihalos!")
+    # We can go ahead and purge some of the stuff in the init_box, but only if
+    # it is cached -- otherwise we could be losing information.
+    try:
+        initial_conditions.prepare_for_perturb(
+            flag_options=flag_options, force=always_purge
+        )
+    except OSError:
+        pass
 
-        iokw = {"regenerate": regenerate, "hooks": hooks, "direc": direc}
-
-        if init_box is None:
-            init_box = sf.initial_conditions(
-                user_params=user_params,
-                cosmo_params=cosmo_params,
-                random_seed=random_seed,
-                **iokw,
-            )
-
-        # We can go ahead and purge some of the stuff in the init_box, but only if
-        # it is cached -- otherwise we could be losing information.
-        try:
-            init_box.prepare_for_perturb(flag_options=flag_options, force=always_purge)
-        except OSError:
-            pass
-
-        if perturb:
-            if redshift is not None and any(
-                p.redshift != z for p, z in zip(perturb, redshift)
-            ):
-                raise ValueError("Input redshifts do not match perturb field redshifts")
-            else:
-                redshift = [p.redshift for p in perturb]
-
-        kw = {
-            **{
-                "astro_params": astro_params,
-                "flag_options": flag_options,
-                "init_boxes": init_box,
-            },
-            **iokw,
-        }
-        photon_nonconservation_data = None
-        if flag_options.PHOTON_CONS_TYPE != 0:
-            photon_nonconservation_data = setup_photon_cons(**kw)
-
-        if not hasattr(redshift, "__len__"):
-            singleton = True
-            redshift = [redshift]
-
-        if isinstance(redshift, np.ndarray):
-            redshift = redshift.tolist()
-
-        # Get the list of redshift we need to scroll through.
-        redshifts = _get_required_redshifts_coeval(flag_options, redshift)
-
-        # Get all the perturb boxes early. We need to get the perturb at every
-        # redshift, even if we are interpolating the perturb field, because the
-        # ionize box needs it.
-
-        pz = [p.redshift for p in perturb]
-        perturb_ = []
-        for z in redshifts:
-            p = (
-                sf.perturb_field(redshift=z, init_boxes=init_box, **iokw)
-                if z not in pz
-                else perturb[pz.index(z)]
-            )
-
-            if user_params.MINIMIZE_MEMORY:
-                try:
-                    p.purge(force=always_purge)
-                except OSError:
-                    pass
-
-            perturb_.append(p)
-
-        perturb = perturb_
-
-        # Now we can purge init_box further.
-        try:
-            init_box.prepare_for_halos(flag_options=flag_options, force=always_purge)
-        except OSError:
-            pass
-
-        # get the halos (reverse redshift order)
-        pt_halos = []
-        if flag_options.USE_HALO_FIELD and not flag_options.FIXED_HALO_GRIDS:
-            halos_desc = None
-            for i, z in enumerate(redshifts[::-1]):
-                halos = sf.determine_halo_list(redshift=z, halos_desc=halos_desc, **kw)
-                pt_halos += [sf.perturb_halo_list(redshift=z, halo_field=halos, **kw)]
-
-                # we never want to store every halofield
-                try:
-                    pt_halos[i].purge(force=always_purge)
-                except OSError:
-                    pass
-                halos_desc = halos
-
-            # reverse to get the right redshift order
-            pt_halos = pt_halos[::-1]
-
-        # Now we can purge init_box further.
-        try:
-            init_box.prepare_for_spin_temp(
-                flag_options=flag_options, force=always_purge
-            )
-        except OSError:
-            pass
-
-        if (
-            flag_options.PHOTON_CONS_TYPE == 1
-            and np.amin(redshifts) < global_params.PhotonConsEndCalibz
+    if perturbed_field:
+        if redshift is not None and any(
+            p.redshift != z for p, z in zip(perturbed_field, redshift)
         ):
-            raise ValueError(
-                f"You have passed a redshift (z = {np.amin(redshifts)}) that is lower than"
-                "the endpoint of the photon non-conservation correction"
-                f"(global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz})."
-                "If this behaviour is desired then set global_params.PhotonConsEndCalibz"
-                f"to a value lower than z = {np.amin(redshifts)}."
-            )
+            raise ValueError("Input redshifts do not match perturb field redshifts")
+        else:
+            redshift = [p.redshift for p in perturbed_field]
 
-        ib_tracker = [0] * len(redshift)
-        bt = [0] * len(redshift)
-        # At first we don't have any "previous" st or ib.
-        st, ib, pf, hb = None, None, None, None
-        # optional fields which remain None if their flags are off
-        hb2, ph2 = None, None
+    kw = {
+        **{
+            "astro_params": inputs.astro_params,
+            "flag_options": inputs.flag_options,
+            "init_boxes": initial_conditions,
+        },
+        **iokw,
+    }
+    photon_nonconservation_data = None
+    if flag_options.PHOTON_CONS_TYPE != 0:
+        photon_nonconservation_data = setup_photon_cons(**kw)
 
-        perturb_min = perturb[np.argmin(redshift)]
+    if not hasattr(redshift, "__len__"):
+        singleton = True
+        redshift = [redshift]
 
-        hb_tracker = [None] * len(redshift)
-        st_tracker = [None] * len(redshift)
+    if isinstance(redshift, np.ndarray):
+        redshift = redshift.tolist()
 
-        spin_temp_files = []
-        hbox_files = []
-        perturb_files = []
-        ionize_files = []
-        brightness_files = []
-        pth_files = []
+    # Get the list of redshift we need to scroll through.
+    redshifts = _get_required_redshifts_coeval(flag_options, redshift)
 
-        # Iterate through redshift from top to bottom
-        z_halos = []
-        hbox_arr = []
-        for iz, z in enumerate(redshifts):
-            pf2 = perturb[iz]
-            pf2.load_all()
+    # Get all the perturb boxes early. We need to get the perturb at every
+    # redshift.
+    pz = [p.redshift for p in perturbed_field]
+    perturb_ = []
+    for z in redshifts:
+        p = (
+            sf.perturb_field(redshift=z, init_boxes=initial_conditions, **iokw)
+            if z not in pz
+            else perturbed_field[pz.index(z)]
+        )
 
-            if flag_options.USE_HALO_FIELD:
-                if not flag_options.FIXED_HALO_GRIDS:
-                    ph2 = pt_halos[iz]
+        if user_params.MINIMIZE_MEMORY:
+            try:
+                p.purge(force=always_purge)
+            except OSError:
+                pass
 
-                hb2 = sf.compute_halo_grid(
-                    redshift=z,
-                    pt_halos=ph2,
-                    perturbed_field=pf2,
-                    previous_ionize_box=ib,
-                    previous_spin_temp=st,
-                    **kw,
-                )
+        perturb_.append(p)
 
-            if flag_options.USE_TS_FLUCT:
-                # append the halo redshift array so we have all halo boxes [z,zmax]
-                z_halos += [z]
-                hbox_arr += [hb2]
-                if flag_options.USE_HALO_FIELD:
-                    xray_source_box = sf.compute_xray_source_field(
-                        redshift=z,
-                        z_halos=z_halos,
-                        hboxes=hbox_arr,
-                        **kw,
-                    )
+    perturbed_field = perturb_
 
-                st2 = sf.spin_temperature(
-                    redshift=z,
-                    previous_spin_temp=st,
-                    perturbed_field=perturb_min if use_interp_perturb_field else pf2,
-                    xray_source_box=(
-                        xray_source_box if flag_options.USE_HALO_FIELD else None
-                    ),
-                    **kw,
-                    cleanup=(cleanup and z == redshifts[-1]),
-                )
+    # Now we can purge init_box further.
+    try:
+        initial_conditions.prepare_for_halos(
+            flag_options=flag_options, force=always_purge
+        )
+    except OSError:
+        pass
 
-                if z not in redshift:
-                    st = st2
+    # get the halos (reverse redshift order)
+    pt_halos = []
+    if inputs.flag_options.USE_HALO_FIELD and not inputs.flag_options.FIXED_HALO_GRIDS:
+        halos_desc = None
+        for i, z in enumerate(redshifts[::-1]):
+            halos = sf.determine_halo_list(redshift=z, halos_desc=halos_desc, **kw)
+            pt_halos += [sf.perturb_halo_list(redshift=z, halo_field=halos, **kw)]
 
-            ib2 = sf.compute_ionization_field(
+            # we never want to store every halofield
+            try:
+                pt_halos[i].purge(force=always_purge)
+            except OSError:
+                pass
+            halos_desc = halos
+
+        # reverse to get the right redshift order
+        pt_halos = pt_halos[::-1]
+
+    # Now we can purge init_box further.
+    try:
+        initial_conditions.prepare_for_spin_temp(
+            flag_options=flag_options, force=always_purge
+        )
+    except OSError:
+        pass
+
+    if (
+        flag_options.PHOTON_CONS_TYPE == 1
+        and np.amin(redshifts) < global_params.PhotonConsEndCalibz
+    ):
+        raise ValueError(
+            f"You have passed a redshift (z = {np.amin(redshifts)}) that is lower than"
+            "the endpoint of the photon non-conservation correction"
+            f"(global_params.PhotonConsEndCalibz = {global_params.PhotonConsEndCalibz})."
+            "If this behaviour is desired then set global_params.PhotonConsEndCalibz"
+            f"to a value lower than z = {np.amin(redshifts)}."
+        )
+
+    ib_tracker = [0] * len(redshift)
+    bt = [0] * len(redshift)
+    # At first we don't have any "previous" st or ib.
+    st, ib, pf, hb = None, None, None, None
+    # optional fields which remain None if their flags are off
+    hb2, ph2 = None, None
+
+    hb_tracker = [None] * len(redshift)
+    st_tracker = [None] * len(redshift)
+
+    spin_temp_files = []
+    hbox_files = []
+    perturb_files = []
+    ionize_files = []
+    brightness_files = []
+    pth_files = []
+
+    # Iterate through redshift from top to bottom
+    z_halos = []
+    hbox_arr = []
+    for iz, z in enumerate(redshifts):
+        pf2 = perturbed_field[iz]
+        pf2.load_all()
+
+        if flag_options.USE_HALO_FIELD:
+            if not flag_options.FIXED_HALO_GRIDS:
+                ph2 = pt_halos[iz]
+
+            hb2 = sf.compute_halo_grid(
                 redshift=z,
-                previous_ionize_box=ib,
+                pt_halos=ph2,
                 perturbed_field=pf2,
-                # perturb field *not* interpolated here.
-                previous_perturbed_field=pf,
-                halobox=hb2,
-                spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
-                z_heat_max=global_params.Z_HEAT_MAX,
-                # cleanup if its the last time through
-                cleanup=cleanup and z == redshifts[-1],
+                previous_ionize_box=ib,
+                previous_spin_temp=st,
                 **kw,
             )
 
-            if pf is not None:
-                try:
-                    pf.purge(force=always_purge)
-                except OSError:
-                    pass
-
-            if ph2 is not None:
-                try:
-                    ph2.purge(force=always_purge)
-                except OSError:
-                    pass
-
-            # we only need the SFR fields at previous redshifts for XraySourceBox
-            if hb is not None:
-                try:
-                    hb.prepare(
-                        keep=[
-                            "halo_sfr",
-                            "halo_sfr_mini",
-                            "halo_xray",
-                            "log10_Mcrit_MCG_ave",
-                        ],
-                        force=always_purge,
-                    )
-                except OSError:
-                    pass
-
-            if z in redshift:
-                logger.debug(f"PID={os.getpid()} doing brightness temp for z={z}")
-                ib_tracker[redshift.index(z)] = ib2
-                st_tracker[redshift.index(z)] = (
-                    st2 if flag_options.USE_TS_FLUCT else None
-                )
-
-                hb_tracker[redshift.index(z)] = (
-                    hb2 if flag_options.USE_HALO_FIELD else None
-                )
-
-                _bt = sf.brightness_temperature(
-                    ionized_box=ib2,
-                    perturbed_field=pf2,
-                    spin_temp=st2 if flag_options.USE_TS_FLUCT else None,
-                    **iokw,
-                )
-
-                bt[redshift.index(z)] = _bt
-
-            else:
-                ib = ib2
-                pf = pf2
-                _bt = None
-                hb = hb2
-
-            perturb_files.append((z, os.path.join(direc, pf2.filename)))
+        if flag_options.USE_TS_FLUCT:
+            # append the halo redshift array so we have all halo boxes [z,zmax]
+            z_halos += [z]
+            hbox_arr += [hb2]
             if flag_options.USE_HALO_FIELD:
-                hbox_files.append((z, os.path.join(direc, hb2.filename)))
-                pth_files.append((z, os.path.join(direc, ph2.filename)))
-            if flag_options.USE_TS_FLUCT:
-                spin_temp_files.append((z, os.path.join(direc, st2.filename)))
-            ionize_files.append((z, os.path.join(direc, ib2.filename)))
+                xray_source_box = sf.compute_xray_source_field(
+                    redshift=z,
+                    z_halos=z_halos,
+                    hboxes=hbox_arr,
+                    **kw,
+                )
 
-            if _bt is not None:
-                brightness_files.append((z, os.path.join(direc, _bt.filename)))
-
-        if flag_options.PHOTON_CONS_TYPE == 1:
-            photon_nonconservation_data = _get_photon_nonconservation_data()
-
-        if lib.photon_cons_allocated:
-            lib.FreePhotonConsMemory()
-
-        coevals = [
-            Coeval(
+            st2 = sf.spin_temperature(
                 redshift=z,
-                initial_conditions=init_box,
-                perturbed_field=perturb[redshifts.index(z)],
-                ionized_box=ib,
-                brightness_temp=_bt,
-                ts_box=st,
-                halobox=hb if flag_options.USE_HALO_FIELD else None,
-                photon_nonconservation_data=photon_nonconservation_data,
-                cache_files={
-                    "init": [(0, os.path.join(direc, init_box.filename))],
-                    "perturb_field": perturb_files,
-                    "halobox": hbox_files,
-                    "ionized_box": ionize_files,
-                    "brightness_temp": brightness_files,
-                    "spin_temp": spin_temp_files,
-                    "pt_halos": pth_files,
-                },
+                previous_spin_temp=st,
+                perturbed_field=pf2,
+                xray_source_box=(
+                    xray_source_box if inputs.flag_options.USE_HALO_FIELD else None
+                ),
+                **kw,
+                cleanup=(cleanup and z == redshifts[-1]),
             )
-            for z, ib, _bt, st, hb in zip(
-                redshift, ib_tracker, bt, st_tracker, hb_tracker
+
+            if z not in redshift:
+                st = st2
+
+        ib2 = sf.compute_ionization_field(
+            redshift=z,
+            previous_ionize_box=ib,
+            perturbed_field=pf2,
+            # perturb field *not* interpolated here.
+            previous_perturbed_field=pf,
+            halobox=hb2,
+            spin_temp=st2 if inputs.flag_options.USE_TS_FLUCT else None,
+            z_heat_max=global_params.Z_HEAT_MAX,
+            # cleanup if its the last time through
+            cleanup=cleanup and z == redshifts[-1],
+            **kw,
+        )
+
+        if pf is not None:
+            try:
+                pf.purge(force=always_purge)
+            except OSError:
+                pass
+
+        if ph2 is not None:
+            try:
+                ph2.purge(force=always_purge)
+            except OSError:
+                pass
+
+        # we only need the SFR fields at previous redshifts for XraySourceBox
+        if hb is not None:
+            try:
+                hb.prepare(
+                    keep=[
+                        "halo_sfr",
+                        "halo_sfr_mini",
+                        "halo_xray",
+                        "log10_Mcrit_MCG_ave",
+                    ],
+                    force=always_purge,
+                )
+            except OSError:
+                pass
+
+        if z in redshift:
+            logger.debug(f"PID={os.getpid()} doing brightness temp for z={z}")
+            ib_tracker[redshift.index(z)] = ib2
+            st_tracker[redshift.index(z)] = (
+                st2 if inputs.flag_options.USE_TS_FLUCT else None
             )
-        ]
 
-        # If a single redshift was passed, then pass back singletons.
-        if singleton:
-            coevals = coevals[0]
+            hb_tracker[redshift.index(z)] = (
+                hb2 if inputs.flag_options.USE_HALO_FIELD else None
+            )
 
-        logger.debug("Returning from Coeval")
+            _bt = sf.brightness_temperature(
+                ionized_box=ib2,
+                perturbed_field=pf2,
+                spin_temp=st2 if inputs.flag_options.USE_TS_FLUCT else None,
+                **iokw,
+            )
 
-        return coevals
+            bt[redshift.index(z)] = _bt
+
+        else:
+            ib = ib2
+            pf = pf2
+            _bt = None
+            hb = hb2
+
+        perturb_files.append((z, os.path.join(direc, pf2.filename)))
+        if inputs.flag_options.USE_HALO_FIELD:
+            hbox_files.append((z, os.path.join(direc, hb2.filename)))
+            pth_files.append((z, os.path.join(direc, ph2.filename)))
+        if inputs.flag_options.USE_TS_FLUCT:
+            spin_temp_files.append((z, os.path.join(direc, st2.filename)))
+        ionize_files.append((z, os.path.join(direc, ib2.filename)))
+
+        if _bt is not None:
+            brightness_files.append((z, os.path.join(direc, _bt.filename)))
+
+    if inputs.flag_options.PHOTON_CONS_TYPE == 1:
+        photon_nonconservation_data = _get_photon_nonconservation_data()
+
+    if lib.photon_cons_allocated:
+        lib.FreePhotonConsMemory()
+
+    coevals = [
+        Coeval(
+            redshift=z,
+            initial_conditions=initial_conditions,
+            perturbed_field=perturbed_field[redshifts.index(z)],
+            ionized_box=ib,
+            brightness_temp=_bt,
+            ts_box=st,
+            halobox=hb if flag_options.USE_HALO_FIELD else None,
+            photon_nonconservation_data=photon_nonconservation_data,
+            cache_files={
+                "init": [(0, os.path.join(direc, initial_conditions.filename))],
+                "perturb_field": perturb_files,
+                "halobox": hbox_files,
+                "ionized_box": ionize_files,
+                "brightness_temp": brightness_files,
+                "spin_temp": spin_temp_files,
+                "pt_halos": pth_files,
+            },
+        )
+        for z, ib, _bt, st, hb in zip(redshift, ib_tracker, bt, st_tracker, hb_tracker)
+    ]
+
+    # If a single redshift was passed, then pass back singletons.
+    if singleton:
+        coevals = coevals[0]
+
+    logger.debug("Returning from Coeval")
+
+    return coevals
 
 
 def _get_required_redshifts_coeval(flag_options, redshift) -> list[float]:

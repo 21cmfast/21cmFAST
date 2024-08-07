@@ -41,6 +41,7 @@ from ..wrapper.outputs import (
     TsBox,
     XraySourceBox,
 )
+from .param_config import InputParameters
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +63,8 @@ def set_globals(func: callable):
 @set_globals
 def initial_conditions(
     *,
-    user_params: UserParams | dict | None = None,
-    cosmo_params: CosmoParams | dict | None = None,
+    user_params: UserParams | dict = UserParams(),
+    cosmo_params: CosmoParams | dict = CosmoParams(),
     random_seed: int | None = None,
     regenerate: bool | None = None,
     write: bool | None = None,
@@ -113,14 +114,10 @@ def initial_conditions(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
-    user_params, cosmo_params = _setup_inputs(
-        {"user_params": user_params, "cosmo_params": cosmo_params}
-    )
+    inputs = InputParameters(user_params, cosmo_params)
 
     # Initialize memory for the boxes that will be returned.
-    ics = InitialConditions(
-        user_params=user_params, cosmo_params=cosmo_params, random_seed=random_seed
-    )
+    ics = InitialConditions(inputs=inputs, random_seed=random_seed)
 
     # Construct FFTW wisdoms. Only if required
     construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
@@ -182,15 +179,10 @@ def perturb_field(
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
     random_seed = initial_conditions.random_seed
-    user_params = initial_conditions.user_params
-    cosmo_params = initial_conditions.cosmo_params
 
     # Initialize perturbed boxes.
     fields = PerturbedField(
-        redshift=redshift,
-        user_params=user_params,
-        cosmo_params=cosmo_params,
-        random_seed=random_seed,
+        redshift=redshift, random_seed=random_seed, inputs=initial_conditions.inputs
     )
 
     # Check whether the boxes already exist
@@ -204,7 +196,7 @@ def perturb_field(
             return fields
 
     # Construct FFTW wisdoms. Only if required
-    construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+    construct_fftw_wisdoms(**initial_conditions.inputs)
 
     # Run the C Code
     return fields.compute(ics=initial_conditions, hooks=hooks)
@@ -262,44 +254,33 @@ def determine_halo_list(
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
     # Configure and check input/output parameters/structs
-    user_params = initial_conditions.user_params
-    cosmo_params = initial_conditions.cosmo_params
+    inputs = InputParameters.from_output_structs(
+        initial_conditions, astro_params=astro_params, flag_options=flag_options
+    )
     random_seed = initial_conditions.random_seed
 
-    (
-        astro_params,
-        flag_options,
-        redshift,
-    ) = _setup_inputs(
-        {
-            "astro_params": astro_params,
-            "flag_options": flag_options,
-        },
-        {"init_boxes": initial_conditions, "prev_halo_field": descendant_halos},
-        redshift=redshift,
-    )
-
-    if user_params.HMF != 1:
+    if inputs.user_params.HMF != 1:
         warnings.warn(
             "DexM Halofinder sses a fit to the Sheth-Tormen mass function."
             "With HMF!=1 the Halos from DexM will not be from the same mass function",
         )
 
-    hbuffer_size = get_halo_list_buffer_size(redshift, user_params, cosmo_params)
+    hbuffer_size = get_halo_list_buffer_size(
+        redshift, inputs.user_params, inputs.cosmo_params
+    )
 
     # Initialize halo list boxes.
     fields = HaloField(
         desc_redshift=desc_z,
         buffer_size=hbuffer_size,
         redshift=redshift,
-        user_params=user_params,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        flag_options=flag_options,
         random_seed=random_seed,
+        inputs=inputs,
     )
     # Construct FFTW wisdoms. Only if required
-    construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+    construct_fftw_wisdoms(
+        user_params=inputs.user_params, cosmo_params=inputs.cosmo_params
+    )
 
     if not regenerate:
         with contextlib.suppress(OSError):
@@ -313,11 +294,8 @@ def determine_halo_list(
     if descendant_halos is None:
         descendant_halos = HaloField(
             redshift=0,
-            user_params=user_params,
-            cosmo_params=cosmo_params,
-            astro_params=astro_params,
-            flag_options=flag_options,
             dummy=True,
+            inputs=inputs,
         )
 
     # Run the C Code
@@ -385,10 +363,7 @@ def perturb_halo_list(
     fields = PerturbHaloField(
         redshift=redshift,
         buffer_size=hbuffer_size,
-        user_params=halo_field.user_params,
-        cosmo_params=halo_field.cosmo_params,
-        astro_params=halo_field.astro_params,
-        flag_options=halo_field.flag_options,
+        inputs=halo_field.inputs,
         random_seed=halo_field.random_seed,
     )
 
@@ -451,21 +426,19 @@ def compute_halo_grid(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
+    inputs = InputParameters.from_output_structs(
+        (
+            initial_conditions,
+            perturbed_halo_list,
+            perturbed_field,
+            previous_spin_temp,
+            previous_ionize_box,
+        )
+    )
     random_seed = previous_spin_temp.random_seed
-    user_params = initial_conditions.user_params
-    cosmo_params = initial_conditions.cosmo_params
-    astro_params = previous_spin_temp.astro_params
-    flag_options = initial_conditions.flag_options
 
     # Initialize halo list boxes.
-    box = HaloBox(
-        redshift=redshift,
-        random_seed=random_seed,
-        user_params=user_params,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        flag_options=flag_options,
-    )
+    box = HaloBox(redshift=redshift, random_seed=random_seed, inputs=inputs)
 
     # Check whether the boxes already exist
     if not regenerate:
@@ -482,30 +455,27 @@ def compute_halo_grid(
             "Either perturbed_field or perturbed_halo_list are required (or both)."
         )
     elif perturbed_field is None:
-        if flag_options.FIXED_HALO_GRIDS or user_params.AVG_BELOW_SAMPLER:
+        if inputs.flag_options.FIXED_HALO_GRIDS or inputs.user_params.AVG_BELOW_SAMPLER:
             raise ValueError(
                 "You must provide the perturbed field if FIXED_HALO_GRIDS is True or AVG_BELOW_SAMPLER is True"
             )
         else:
             perturbed_field = PerturbedField(
                 redshift=0,
-                user_params=user_params,
-                cosmo_params=cosmo_params,
+                user_params=inputs.user_params,
+                cosmo_params=inputs.cosmo_params,
                 dummy=True,
             )
     elif perturbed_halo_list is None:
-        if not flag_options.FIXED_HALO_GRIDS:
+        if not inputs.flag_options.FIXED_HALO_GRIDS:
             raise ValueError(
                 "You must provide the perturbed halo list if FIXED_HALO_GRIDS is False"
             )
         else:
             perturbed_halo_list = PerturbHaloField(
                 redshift=0,
-                user_params=user_params,
-                cosmo_params=cosmo_params,
-                astro_params=astro_params,
-                flag_options=flag_options,
                 dummy=True,
+                inputs=inputs,
             )
 
     # NOTE: due to the order, we use the previous spin temp here, like spin_temperature,
@@ -513,30 +483,26 @@ def compute_halo_grid(
     # TODO: think about the inconsistency here
     # NOTE: if USE_MINI_HALOS is TRUE, so is USE_TS_FLUCT and INHOMO_RECO
     if previous_spin_temp is None:
-        if redshift >= global_params.Z_HEAT_MAX or not flag_options.USE_MINI_HALOS:
+        if (
+            redshift >= global_params.Z_HEAT_MAX
+            or not inputs.flag_options.USE_MINI_HALOS
+        ):
             # Dummy spin temp is OK since we're above Z_HEAT_MAX
             previous_spin_temp = TsBox(
                 redshift=0,
-                user_params=user_params,
-                cosmo_params=cosmo_params,
-                astro_params=astro_params,
-                flag_options=flag_options,
                 dummy=True,
+                inputs=inputs,
             )
         else:
             raise ValueError("Below Z_HEAT_MAX you must specify the previous_spin_temp")
 
     if previous_ionize_box is None:
-        if redshift >= global_params.Z_HEAT_MAX or not flag_options.USE_MINI_HALOS:
+        if (
+            redshift >= global_params.Z_HEAT_MAX
+            or not inputs.flag_options.USE_MINI_HALOS
+        ):
             # Dummy ionize box is OK since we're above Z_HEAT_MAX
-            previous_ionize_box = IonizedBox(
-                redshift=0,
-                user_params=user_params,
-                cosmo_params=cosmo_params,
-                astro_params=astro_params,
-                flag_options=flag_options,
-                dummy=True,
-            )
+            previous_ionize_box = IonizedBox(redshift=0, dummy=True, inputs=inputs)
         else:
             raise ValueError(
                 "Below Z_HEAT_MAX you must specify the previous_ionize_box"
@@ -602,10 +568,7 @@ def interp_halo_boxes(
     hbox_out = HaloBox(
         redshift=redshift,
         random_seed=halo_boxes[0].random_seed,
-        user_params=halo_boxes[0].user_params,
-        cosmo_params=halo_boxes[0].cosmo_params,
-        astro_params=halo_boxes[0].astro_params,
-        flag_options=halo_boxes[0].flag_options,
+        inputs=halo_boxes[0].inputs,
     )
     # initialise hbox memory
     hbox_out()
@@ -689,24 +652,16 @@ def compute_xray_source_field(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
+    inputs = InputParameters.from_output_structs(hboxes + [initial_conditions])
     random_seed = initial_conditions.random_seed
-    user_params = initial_conditions.user_params
-    cosmo_params = initial_conditions.cosmo_params
-    astro_params = hboxes[0].astro_params
-    flag_options = hboxes[0].flag_options
 
     # Initialize halo list boxes.
-    box = XraySourceBox(
-        redshift=redshift,
-        random_seed=random_seed,
-        user_params=user_params,
-        cosmo_params=cosmo_params,
-        astro_params=astro_params,
-        flag_options=flag_options,
-    )
+    box = XraySourceBox(redshift=redshift, random_seed=random_seed, inputs=inputs)
 
     # Construct FFTW wisdoms. Only if required
-    construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+    construct_fftw_wisdoms(
+        user_params=inputs.user_params, cosmo_params=inputs.cosmo_params
+    )
 
     # Check whether the boxes already exist
     if not regenerate:
@@ -720,11 +675,11 @@ def compute_xray_source_field(
 
     # set minimum R at cell size
     l_factor = (4 * np.pi / 3.0) ** (-1 / 3)
-    R_min = user_params.BOX_LEN / user_params.HII_DIM * l_factor
+    R_min = inputs.user_params.BOX_LEN / inputs.user_params.HII_DIM * l_factor
     z_max = min(max(z_halos), global_params.Z_HEAT_MAX)
 
     # now we need to find the closest halo box to the redshift of the shell
-    cosmo_ap = cosmo_params.cosmo
+    cosmo_ap = inputs.cosmo_params.cosmo
     cmd_zp = cosmo_ap.comoving_distance(redshift)
     R_steps = np.arange(0, global_params.NUM_FILTER_STEPS_FOR_Ts)
     R_factor = (global_params.R_XLy_MAX / R_min) ** (
@@ -933,27 +888,20 @@ def compute_ionization_field(
 
     # Configure and check input/output parameters/structs
     redshift = perturbed_field.redshift
-    (
-        random_seed,
-        user_params,
-        cosmo_params,
-        astro_params,
-        flag_options,
-    ) = _setup_inputs(
-        {
-            "astro_params": astro_params,
-            "flag_options": flag_options,
-        },
-        {
-            "initial_conditions": initial_conditions,
-            "perturbed_field": perturbed_field,
-            "previous_ionized_box": previous_ionized_box,
-            "spin_temp": spin_temp,
-            "halobox": halobox,
-        },
+    random_seed = initial_conditions.random_seed
+
+    inputs = InputParameters.from_output_structs(
+        (
+            initial_conditions,
+            perturbed_field,
+            previous_perturbed_field,
+            previous_ionized_box,
+            spin_temp,
+            halobox,
+        )
     )
 
-    if spin_temp is not None and not flag_options.USE_TS_FLUCT:
+    if spin_temp is not None and not inputs.flag_options.USE_TS_FLUCT:
         logger.warning(
             "Changing flag_options.USE_TS_FLUCT to True since spin_temp was passed."
         )
@@ -969,8 +917,8 @@ def compute_ionization_field(
                 "Previous ionized box must have a higher redshift than that being evaluated."
             )
     elif (
-        flag_options.INHOMO_RECO
-        or flag_options.USE_TS_FLUCT
+        inputs.flag_options.INHOMO_RECO
+        or inputs.flag_options.USE_TS_FLUCT
         and redshift >= global_params.Z_HEAT_MAX
     ):
         prev_z = 0  # signal value for first box
@@ -980,17 +928,16 @@ def compute_ionization_field(
         )
 
     box = IonizedBox(
-        user_params=user_params,
-        cosmo_params=cosmo_params,
         redshift=redshift,
-        astro_params=astro_params,
-        flag_options=flag_options,
         random_seed=random_seed,
+        inputs=inputs,
         prev_ionize_redshift=prev_z,
     )
 
     # Construct FFTW wisdoms. Only if required
-    construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+    construct_fftw_wisdoms(
+        user_params=inputs.user_params, cosmo_params=inputs.cosmo_params
+    )
 
     # Check whether the boxes already exist
     if not regenerate:
@@ -1007,14 +954,14 @@ def compute_ionization_field(
     # Get appropriate previous ionization box
     if previous_ionized_box is None:
         previous_ionized_box = IonizedBox(
-            redshift=0, flag_options=flag_options, initial=True
+            redshift=0, flag_options=inputs.flag_options, initial=True
         )
 
     if previous_perturbed_field is None:
         # If we are beyond Z_HEAT_MAX, just make an empty box
         if prev_z == 0:
             previous_perturbed_field = PerturbedField(
-                redshift=0, user_params=user_params, initial=True
+                redshift=0, user_params=inputs.user_params, initial=True
             )
         else:
             raise ValueError("No previous perturbed field given, but one is required.")
@@ -1023,10 +970,7 @@ def compute_ionization_field(
         # Construct an empty halo field to pass in to the function.
         halobox = HaloBox(
             redshift=0,
-            user_params=user_params,
-            cosmo_params=cosmo_params,
-            astro_params=astro_params,
-            flag_options=flag_options,
+            inputs=inputs,
             dummy=True,
         )
     elif halobox is None:
@@ -1036,10 +980,7 @@ def compute_ionization_field(
     if not flag_options.USE_TS_FLUCT:
         spin_temp = TsBox(
             redshift=0,
-            user_params=user_params,
-            cosmo_params=cosmo_params,
-            astro_params=astro_params,
-            flag_options=flag_options,
+            inputs=inputs,
             dummy=True,
         )
     elif spin_temp is None:
@@ -1175,28 +1116,13 @@ def spin_temperature(
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
     # Configure and check input/output parameters/structs
-    (
-        random_seed,
-        user_params,
-        cosmo_params,
-        astro_params,
-        flag_options,
-    ) = _setup_inputs(
-        {
-            "astro_params": astro_params,
-            "flag_options": flag_options,
-        },
-        {
-            "init_boxes": initial_conditions,
-            "perturbed_field": perturbed_field,
-            "previous_spin_temp": previous_spin_temp,
-            "xray_source_box": xray_source_box,
-        },
+    random_seed = initial_conditions.random_seed
+    inputs = InputParameters.from_output_structs(
+        (initial_conditions, perturbed_field, previous_spin_temp, xray_source_box),
+        astro_params=astro_params,
+        flag_options=flag_options,
     )
     redshift = perturbed_field.redshift
-
-    # Explicitly set this flag to True, though it shouldn't be required!
-    flag_options.update(USE_TS_FLUCT=True)
 
     # Get the previous redshift
     if previous_spin_temp is not None:
@@ -1216,22 +1142,21 @@ def spin_temperature(
             "that being evaluated."
         )
 
-    if flag_options.USE_HALO_FIELD and xray_source_box is None:
+    if inputs.flag_options.USE_HALO_FIELD and xray_source_box is None:
         raise ValueError("xray_source_box is required when USE_HALO_FIELD is True")
 
     # Set up the box without computing anything.
     box = TsBox(
-        user_params=user_params,
-        cosmo_params=cosmo_params,
         redshift=redshift,
-        astro_params=astro_params,
-        flag_options=flag_options,
+        inputs=inputs,
         random_seed=random_seed,
         prev_spin_redshift=prev_z,
     )
 
     # Construct FFTW wisdoms. Only if required
-    construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
+    construct_fftw_wisdoms(
+        user_params=inputs.user_params, cosmo_params=inputs.cosmo_params
+    )
 
     # Check whether the boxes already exist on disk.
     if not regenerate:
@@ -1250,10 +1175,7 @@ def spin_temperature(
         # unallocated to be able to send into the C code.
         previous_spin_temp = TsBox(
             redshift=prev_z,  # redshift here is ignored
-            user_params=initial_conditions.user_params,
-            cosmo_params=initial_conditions.cosmo_params,
-            astro_params=astro_params,
-            flag_options=flag_options,
+            inputs=inputs,
             dummy=True,
         )
 
@@ -1302,36 +1224,30 @@ def brightness_temperature(
     """
     direc, regenerate, hooks = _get_config_options(direc, regenerate, write, hooks)
 
-    _verify_types(
-        perturbed_field=perturbed_field,
-        spin_temp=spin_temp,
-        ionized_box=ionized_box,
+    inputs = InputParameters.from_output_structs(
+        (ionized_box, perturbed_field, spin_temp)
     )
 
     # don't ignore redshift here
     _check_compatible_inputs(ionized_box, perturbed_field, spin_temp, ignore=[])
 
-    if spin_temp is None:
-        if ionized_box.flag_options.USE_TS_FLUCT:
-            raise ValueError(
-                "You have USE_TS_FLUCT=True, but have not provided a spin_temp!"
-            )
+    if not ionized_box.redshift == perturbed_field.redshift == spin_temp.redshift:
+        raise ValueError("All input boxes must have the same redshift.")
 
-        # Make an unused dummy box.
-        spin_temp = TsBox(redshift=0, dummy=True)
+    if spin_temp is None and inputs.flag_options.USE_TS_FLUCT:
+        raise ValueError(
+            "You have USE_TS_FLUCT=True, but have not provided a spin_temp!"
+        )
 
     box = BrightnessTemp(
-        user_params=ionized_box.user_params,
-        cosmo_params=ionized_box.cosmo_params,
-        astro_params=ionized_box.astro_params,
-        flag_options=ionized_box.flag_options,
+        inputs=inputs,
         redshift=ionized_box.redshift,
         random_seed=ionized_box.random_seed,
     )
 
     # Construct FFTW wisdoms. Only if required
     construct_fftw_wisdoms(
-        user_params=ionized_box.user_params, cosmo_params=ionized_box.cosmo_params
+        user_params=inputs.user_params, cosmo_params=inputs.cosmo_params
     )
 
     # Check whether the boxes already exist on disk.

@@ -25,7 +25,6 @@ from attrs import validators
 
 from .._cfg import config
 from .._data import DATA_PATH
-from ._utils import StructInstanceWrapper, StructWithDefaults
 from .c_21cmfast import ffi, lib
 from .globals import global_params
 from .structs import InputStruct
@@ -375,7 +374,7 @@ class UserParams(InputStruct):
 
 
 @define(frozen=True, kw_only=True)
-class FlagOptions(StructWithDefaults):
+class FlagOptions(InputStruct):
     """
     Flag-style options for the ionization routines.
 
@@ -530,7 +529,7 @@ class FlagOptions(StructWithDefaults):
 
 
 @define(frozen=True, kw_only=True)
-class AstroParams(StructWithDefaults):
+class AstroParams(InputStruct):
     """
     Astrophysical parameters.
 
@@ -797,115 +796,3 @@ class AstroParams(StructWithDefaults):
                 NU_X_MAX
                 """
             )
-
-
-class InputCrossValidationError(ValueError):
-    """Error when two parameters from different structs aren't consistent."""
-
-    pass
-
-
-def convert_input_dicts(
-    user_params: dict | UserParams | None = None,
-    cosmo_params: dict | CosmoParams | None = None,
-    astro_params: dict | UserParams | None = None,
-    flag_options: dict | FlagOptions | None = None,
-    *,
-    defaults: bool = False,
-):
-    """Convert a full set of input params structs/dicts into their actual classes.
-
-    The 4 parameters can be provided as either positional or keyword arguments. They
-    can be passed as a dict (which will be converted to the appropriate class), a
-    StructWithDefaults instance (in which case it will be left alone), or None (in
-    which case *either* the default struct will be returned, or None).
-
-    Returns
-    -------
-    user_params, cosmo_params, astro_params, flag_options : UserParams, CosmoParams, AstroParams, FlagOptions
-        The validated and converted input parameters.
-    """
-    if defaults:
-        user_params = UserParams(user_params)
-        cosmo_params = CosmoParams(cosmo_params)
-        flag_options = FlagOptions(flag_options)
-        astro_params = AstroParams(
-            astro_params,
-            INHOMO_RECO=flag_options.INHOMO_RECO,
-            USE_MINI_HALOS=flag_options.USE_MINI_HALOS,
-        )
-    else:
-        user_params = UserParams(user_params) if user_params else None
-        cosmo_params = CosmoParams(cosmo_params) if cosmo_params else None
-        flag_options = FlagOptions(flag_options) if flag_options else None
-        inhomo_reco = (
-            flag_options.INHOMO_RECO
-            if flag_options is not None
-            else FlagOptions().INHOMO_RECO
-        )
-        minihalos = (
-            flag_options.USE_MINI_HALOS
-            if flag_options is not None
-            else FlagOptions().USE_MINI_HALOS
-        )
-        astro_params = (
-            AstroParams(astro_params, INHOMO_RECO=inhomo_reco, USE_MINI_HALOS=minihalos)
-            if astro_params
-            else None
-        )
-
-    return user_params, cosmo_params, astro_params, flag_options
-
-
-def validate_all_inputs(
-    user_params: UserParams,
-    cosmo_params: CosmoParams,
-    astro_params: AstroParams | None = None,
-    flag_options: FlagOptions | None = None,
-):
-    """Cross-validate input parameters from different structs.
-
-    The input params may be modified in-place in this function, but if so, a warning
-    should be emitted.
-    """
-    if astro_params is not None:
-        if astro_params.R_BUBBLE_MAX > user_params.BOX_LEN:
-            astro_params.update(R_BUBBLE_MAX=user_params.BOX_LEN)
-            warnings.warn(
-                f"Setting R_BUBBLE_MAX to BOX_LEN (={user_params.BOX_LEN} as it doesn't make sense for it to be larger."
-            )
-
-        if (
-            global_params.HII_FILTER == 1
-            and astro_params.R_BUBBLE_MAX > user_params.BOX_LEN / 3
-        ):
-            msg = (
-                "Your R_BUBBLE_MAX is > BOX_LEN/3 "
-                f"({astro_params.R_BUBBLE_MAX} > {user_params.BOX_LEN / 3})."
-            )
-
-            if config["ignore_R_BUBBLE_MAX_error"]:
-                logger.warn(msg)
-            else:
-                raise ValueError(msg)
-
-    if flag_options is not None:
-        if (
-            flag_options.USE_MINI_HALOS
-            and not user_params.USE_RELATIVE_VELOCITIES
-            and not flag_options.FIX_VCB_AVG
-        ):
-            warnings.warn(
-                "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!"
-            )
-
-        if flag_options.HALO_STOCHASTICITY and user_params.PERTURB_ON_HIGH_RES:
-            msg = (
-                "Since the lowres density fields are required for the halo sampler"
-                "We are currently unable to use PERTURB_ON_HIGH_RES and HALO_STOCHASTICITY"
-                "Simultaneously."
-            )
-            raise NotImplementedError(msg)
-
-        if flag_options.USE_EXP_FILTER and not flag_options.USE_HALO_FIELD:
-            warnings.warn("USE_EXP_FILTER has no effect unless USE_HALO_FIELD is true")
