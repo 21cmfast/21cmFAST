@@ -677,7 +677,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
                 }while((status == GSL_CONTINUE) && (iter < MAX_ITER_RF));
                 if(status!=GSL_SUCCESS) {
                     LOG_ERROR("gsl RF error occured! %d",status);
-                    GSL_ERROR(status);
+                    CATCH_GSL_ERROR(status);
                 }
             }
         }
@@ -712,7 +712,7 @@ double integrate_J(double u_res, double gamma1){
     if(status!=0) {
         LOG_ERROR("gsl integration error occured!");
         LOG_ERROR("J: gamma1 = %.4e u_res = %.4e",gamma1,u_res);
-        GSL_ERROR(status);
+        CATCH_GSL_ERROR(status);
     }
 
     gsl_integration_workspace_free (w);

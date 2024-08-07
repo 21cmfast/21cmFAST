@@ -16,6 +16,7 @@
 #include "cosmology.h"
 #include "indexing.h"
 #include "subcell_rsds.h"
+#include "dft.h"
 
 #include "BrightnessTemperatureBox.h"
 
@@ -74,7 +75,7 @@ int ComputeBrightnessTemp(float redshift, UserParams *user_params, CosmoParams *
     Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
 
     char wisdom_filename[500];
-    int i, ii, j, k, n_x, n_y, n_z;
+    int i, j, k;
     float k_x, k_y, k_z;
     double ave;
 

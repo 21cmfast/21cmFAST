@@ -43,7 +43,7 @@ except ValueError:
 # =================================================================
 # Set compilation arguments dependent on environment... a bit buggy
 # =================================================================
-extra_compile_args = ["-fopenmp", "-w", "--verbose", f"-DLOG_LEVEL={log_level:d}"]
+extra_compile_args = ["-fopenmp", "-Wall", "--verbose", f"-DLOG_LEVEL={log_level:d}"]
 if "DEBUG" in os.environ:
     extra_compile_args += ["-g", "-O0"]
 else:
@@ -66,6 +66,15 @@ for k, v in os.environ.items():
 
 
 # =================================================================
+# NOTES FOR DEVELOPERS:
+#   The CFFI implementation works as follows:
+#       - All function prototypes, global variables and type definitions *directly* used
+#           in the python wrapper must be declared via ffi.cdef("""C CODE""").
+#           There must be no compiler directives in this code (#include, #define, etc)
+#       - All implementations of global variables and types present in the cdef() calls
+#           must also be present in the second argument of set_source.
+#           This is passed to the compiler.
+#       - The `sources` kwarg then contains all the .c files in the library which are to be compiled
 
 # This is the overall C code.
 ffi.set_source(

@@ -256,7 +256,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
 
     gsl_set_error_handler_off();
     gsl_status = gsl_spline_init(Q_at_z_spline, z_Q, Q_value, nbin);
-    GSL_ERROR(gsl_status);
+    CATCH_GSL_ERROR(gsl_status);
 
     Zmin = z_Q[0];
     Zmax = z_Q[nbin-1];
@@ -275,7 +275,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
     }
 
     gsl_status = gsl_spline_init(z_at_Q_spline, Q_z, z_value, nbin);
-    GSL_ERROR(gsl_status);
+    CATCH_GSL_ERROR(gsl_status);
 
     free(z_arr);
     free(Q_arr);
@@ -436,7 +436,7 @@ void determine_deltaz_for_photoncons() {
                 LOG_ERROR("NF %.3f dz %.3f",NeutralFractions[i],deltaz[i]);
             }
         }
-        GSL_ERROR(gsl_status);
+        CATCH_GSL_ERROR(gsl_status);
         return;
     }
 
@@ -646,7 +646,7 @@ void determine_deltaz_for_photoncons() {
     gsl_set_error_handler_off();
     int gsl_status;
     gsl_status = gsl_spline_init(deltaz_spline_for_photoncons, NeutralFractions, deltaz, N_NFsamples + N_extrapolated + 1);
-    GSL_ERROR(gsl_status);
+    CATCH_GSL_ERROR(gsl_status);
 
 }
 
@@ -911,14 +911,14 @@ void initialise_NFHistory_spline(double *redshifts, double *NF_estimate, int NSp
     gsl_set_error_handler_off();
     int gsl_status;
     gsl_status = gsl_spline_init(NFHistory_spline, nf_vals, z_vals, (counter+1));
-    GSL_ERROR(gsl_status);
+    CATCH_GSL_ERROR(gsl_status);
 
     z_NFHistory_spline_acc = gsl_interp_accel_alloc ();
 //    z_NFHistory_spline = gsl_spline_alloc (gsl_interp_cspline, (counter+1));
     z_NFHistory_spline = gsl_spline_alloc (gsl_interp_linear, (counter+1));
 
     gsl_status = gsl_spline_init(z_NFHistory_spline, z_vals, nf_vals, (counter+1));
-    GSL_ERROR(gsl_status);
+    CATCH_GSL_ERROR(gsl_status);
 }
 
 

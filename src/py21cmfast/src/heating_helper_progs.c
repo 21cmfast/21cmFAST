@@ -722,7 +722,7 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
     if(status!=0){
         LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_int_limit,global_params.NU_X_MAX*NU_over_EV,rel_tol,result,error);
         LOG_ERROR("data: zp=%e local_x_e=%e FLAG=%d",zp,local_x_e,FLAG);
-        GSL_ERROR(status);
+        CATCH_GSL_ERROR(status);
     }
 
     gsl_integration_workspace_free (w);
@@ -846,7 +846,7 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, d
         LOG_ERROR("(function argument): zp=%e zpp=%e rel_tol=%e result=%e error=%e",zp,zpp,rel_tol,result,error);
         LOG_ERROR("data: nu=%e nu_0=%e x_e=%e x_e_ave=%e",nu,p.nu_0,p.x_e,p.x_e_ave);
         LOG_ERROR("data: ion_eff=%e ion_eff_MINI=%e log10_Mturn_MINI=%e",p.ion_eff,p.ion_eff_MINI,p.log10_Mturn_MINI);
-        GSL_ERROR(status);
+        CATCH_GSL_ERROR(status);
     }
 
     gsl_integration_workspace_free (w);
@@ -892,7 +892,7 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
     if(status!=0){
         LOG_ERROR("(function argument): zp=%e zpp=%e rel_tol=%e result=%e error=%e",zp,zpp,rel_tol,result,error);
         LOG_ERROR("data: nu=%e nu_0=%e x_e=%e x_e_ave=%e ion_eff=%e",nu,nu/(1+zp),x_e,x_e_ave,p.ion_eff);
-        GSL_ERROR(status);
+        CATCH_GSL_ERROR(status);
     }
     gsl_integration_workspace_free (w);
 

@@ -2,8 +2,10 @@
  * source properties, either from integrating the conditional mass functions in a cell or from the halo sampler */
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include <omp.h>
 #include <stdbool.h>
+#include <gsl/gsl_sf_gamma.h>
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
@@ -14,6 +16,8 @@
 #include "cosmology.h"
 #include "indexing.h"
 #include "interp_tables.h"
+#include "thermochem.h"
+#include "hmf.h"
 
 #include "HaloBox.h"
 //Parameters for the halo box calculations
@@ -419,7 +423,7 @@ void mean_fix_grids(double M_min, double M_max, HaloBox *grids, struct HaloPrope
     double M_turn_m_global = averages_box->m_turn_mcg;
     get_box_averages(M_min, M_max, M_turn_a_global, M_turn_m_global, consts, &averages_global);
 
-    int idx;
+    unsigned long long int idx;
     #pragma omp parallel for num_threads(user_params_global->N_THREADS) private(idx)
     for(idx=0;idx<HII_TOT_NUM_PIXELS;idx++){
         grids->halo_mass[idx] *= averages_global.halo_mass/averages_box->halo_mass;
@@ -475,10 +479,10 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
     float *mturn_m_grid = calloc(HII_TOT_NUM_PIXELS,sizeof(float));
     #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
-        int i;
+        unsigned long long int i;
         double dens;
         double J21_val, Gamma12_val, zre_val;
-        double M_turn_r;
+        double M_turn_r = 0.;
         double M_turn_m = consts->mturn_m_nofb;
         double M_turn_a = consts->mturn_a_nofb;
         double curr_vcb = consts->vcb_norel;
@@ -559,7 +563,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
 
 #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
-        int i;
+        unsigned long long int i;
         double dens;
         double l10_mturn_a,l10_mturn_m;
         double mass_intgrl, h_count;
@@ -657,7 +661,7 @@ void halobox_debug_print_avg(struct HaloProperties *averages_box, struct HaloPro
                 averages_box->sfr_mini,averages_box->halo_xray,averages_box->n_ion);
 
     if(!flag_options_global->FIXED_HALO_GRIDS && user_params_global->AVG_BELOW_SAMPLER && M_min < user_params_global->SAMPLER_MIN_MASS){
-        LOG_DEBUG("SUB-SAMPLER",consts->redshift);
+        LOG_DEBUG("SUB-SAMPLER");
         LOG_DEBUG("Exp. averages: (HM %11.3e, SM %11.3e SM_MINI %11.3e SFR %11.3e, SFR_MINI %11.3e, XRAY %11.3e, NION %11.3e)",
                     averages_sub_expected.halo_mass,averages_sub_expected.stellar_mass, averages_sub_expected.stellar_mass_mini, averages_sub_expected.halo_sfr,
                     averages_sub_expected.sfr_mini,averages_sub_expected.halo_xray,averages_sub_expected.n_ion);
@@ -682,7 +686,7 @@ void get_mean_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin
 
     #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
-        int i;
+        unsigned long long int i;
         double dens;
         double J21_val, Gamma12_val, zre_val;
         double curr_vcb = consts->vcb_norel;
@@ -851,7 +855,7 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
         }
     }
     total_n_halos = halos->n_halos - n_halos_cut;
-    LOG_SUPER_DEBUG("Cell 0 Halo %d: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e ct : %d",grids->halo_mass[HII_R_INDEX(0,0,0)],
+    LOG_SUPER_DEBUG("Cell 0 Halo: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e ct : %d",grids->halo_mass[HII_R_INDEX(0,0,0)],
                         grids->halo_stars[HII_R_INDEX(0,0,0)],grids->halo_stars_mini[HII_R_INDEX(0,0,0)],
                         grids->halo_sfr[HII_R_INDEX(0,0,0)],grids->halo_sfr_mini[HII_R_INDEX(0,0,0)],
                         grids->halo_xray[HII_R_INDEX(0,0,0)],grids->n_ion[HII_R_INDEX(0,0,0)],
@@ -924,7 +928,6 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
         double M_max = global_params.M_MAX_INTEGRAL;
         double cell_volume = VOLUME/HII_TOT_NUM_PIXELS;
 
-        double M_turn_a_global, M_turn_m_global;
         double turnovers[3];
 
         struct HaloProperties averages_box, averages_subsampler;
@@ -977,9 +980,9 @@ int ComputeHaloBox(double redshift, UserParams *user_params, CosmoParams *cosmo_
         //NOTE: the density-grid based calculations (!USE_HALO_FIELD)
         // use the cell-weighted average of the log10(Mturn) (see issue #369)
         LOG_SUPER_DEBUG("log10 Mutrn ACG: log10 cell-weighted %.6e Halo-weighted %.6e",
-                    pow(10,grids->log10_Mcrit_ACG_ave),averages_box->m_turn_acg);
+                    pow(10,grids->log10_Mcrit_ACG_ave),averages_box.m_turn_acg);
         LOG_SUPER_DEBUG("log10 Mutrn MCG: log10 cell-weighted %.6e Halo-weighted %.6e",
-                    pow(10,grids->log10_Mcrit_MCG_ave),averages_box->m_turn_mcg);
+                    pow(10,grids->log10_Mcrit_MCG_ave),averages_box.m_turn_mcg);
 
         if(user_params->USE_INTERPOLATION_TABLES){
                 freeSigmaMInterpTable();
@@ -1010,7 +1013,7 @@ int test_halo_props(double redshift, UserParams *user_params, CosmoParams *cosmo
         {
             int x,y,z;
             unsigned long long int i_halo, i_cell;
-            double m,nion,sfr,wsfr,sfr_mini,stars_mini,stars,xray;
+            double m;
             double J21_val, Gamma12_val, zre_val;
 
             double curr_vcb = hbox_consts.vcb_norel;

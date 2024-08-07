@@ -27,5 +27,6 @@ int ObtainPhotonConsData(double *z_at_Q_data, double *Q_data, int *Ndata_analyti
 
 //alpha photoncons functions
 void set_alphacons_params(double norm, double slope);
+double get_fesc_fit(double redshift);
 
 #endif

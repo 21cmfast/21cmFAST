@@ -1,8 +1,11 @@
 // Re-write of perturb_field.c for being accessible within the MCMC
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include <complex.h>
+#include <omp.h>
 #include <fftw3.h>
+
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
@@ -10,6 +13,8 @@
 #include "indexing.h"
 #include "InputParameters.h"
 #include "OutputStructs.h"
+#include "cosmology.h"
+#include "dft.h"
 
 #include "PerturbField.h"
 

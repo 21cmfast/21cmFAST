@@ -222,7 +222,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
                 LOG_ERROR("gsl integration error occured!");
                 LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",global_params.Zreion_HeII,zstart,rel_tol,prehelium,error);
                 LOG_ERROR("data: zstart=%e zend=%e",zstart,zend);
-                GSL_ERROR(status);
+                CATCH_GSL_ERROR(status);
             }
 
             status = gsl_integration_qag (&F, zend, global_params.Zreion_HeII, 0, rel_tol,
@@ -232,7 +232,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
                 LOG_ERROR("gsl integration error occured!");
                 LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,global_params.Zreion_HeII,rel_tol,posthelium,error);
                 LOG_ERROR("data: zstart=%e zend=%e",zstart,zend);
-                GSL_ERROR(status);
+                CATCH_GSL_ERROR(status);
             }
         }
         else{
@@ -243,7 +243,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
             if(status!=0) {
                 LOG_ERROR("gsl integration error occured!");
                 LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,zstart,rel_tol,posthelium,error);
-                GSL_ERROR(status);
+                CATCH_GSL_ERROR(status);
             }
         }
     }
@@ -255,7 +255,7 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
         if(status!=0) {
             LOG_ERROR("gsl integration error occured!");
             LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",zend,zstart,rel_tol,prehelium,error);
-            GSL_ERROR(status);
+            CATCH_GSL_ERROR(status);
         }
     }
     gsl_integration_workspace_free (w);

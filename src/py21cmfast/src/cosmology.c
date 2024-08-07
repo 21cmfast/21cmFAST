@@ -89,7 +89,7 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
         acc_density   = gsl_interp_accel_alloc ();
         spline_density  = gsl_spline_alloc (gsl_interp_cspline, CLASS_LENGTH);
         gsl_status = gsl_spline_init(spline_density, kclass, Tmclass, CLASS_LENGTH);
-        GSL_ERROR(gsl_status);
+        CATCH_GSL_ERROR(gsl_status);
 
         LOG_SUPER_DEBUG("Generated CLASS Density Spline.");
 
@@ -97,7 +97,7 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
         acc_vcb   = gsl_interp_accel_alloc ();
         spline_vcb  = gsl_spline_alloc (gsl_interp_cspline, CLASS_LENGTH);
         gsl_status = gsl_spline_init(spline_vcb, kclass, Tvclass_vcb, CLASS_LENGTH);
-        GSL_ERROR(gsl_status);
+        CATCH_GSL_ERROR(gsl_status);
 
         LOG_SUPER_DEBUG("Generated CLASS velocity Spline.");
         return 0;
@@ -256,7 +256,7 @@ double sigma_z0(double M){
         LOG_ERROR("gsl integration error occured!");
         LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
         LOG_ERROR("data: M=%e",M);
-        GSL_ERROR(status);
+        CATCH_GSL_ERROR(status);
     }
 
     gsl_integration_workspace_free (w);
@@ -437,7 +437,7 @@ double init_ps(){
     if(status!=0) {
         LOG_ERROR("gsl integration error occured!");
         LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
-        GSL_ERROR(status);
+        CATCH_GSL_ERROR(status);
     }
 
     gsl_integration_workspace_free (w);
@@ -594,7 +594,7 @@ double dsigmasqdm_z0(double M){
         LOG_ERROR("gsl integration error occured!");
         LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
         LOG_ERROR("data: M=%e",M);
-        GSL_ERROR(status);
+        CATCH_GSL_ERROR(status);
     }
 
     gsl_integration_workspace_free (w);

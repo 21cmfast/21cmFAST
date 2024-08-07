@@ -24,4 +24,8 @@ double dtdz(float z);
 double ddickedt(double z);
 double drdz(float z); /* comoving distance, (1+z)*C*dtdz(in cm) per unit z */
 
+double hubble(float z);
+double t_hubble(float z);
+double M_J_WDM();
+
 #endif

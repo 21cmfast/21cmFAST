@@ -145,7 +145,7 @@ int ComputeLF(int nbins, UserParams *user_params, CosmoParams *cosmo_params, Ast
         }
 
         gsl_status = gsl_spline_init(LF_spline, lnMhalo_param, Muv_param, nbins);
-        GSL_ERROR(gsl_status);
+        CATCH_GSL_ERROR(gsl_status);
 
         lnMhalo_lo = log(Mhalo_min);
         lnMhalo_hi = log(Mhalo_max);
@@ -228,7 +228,7 @@ int ComputeLF(int nbins, UserParams *user_params, CosmoParams *cosmo_params, Ast
             deriv_temp[6] = deriv[i_unity + 12];
 
             gsl_status = gsl_spline_init(deriv_spline, lnM_temp, deriv_temp, nbins_smth);
-            GSL_ERROR(gsl_status);
+            CATCH_GSL_ERROR(gsl_status);
 
             for (i=0;i<9;i++){
                 deriv[i_unity + i - 1] = gsl_spline_eval(deriv_spline, lnMhalo_param[i_unity + i - 1], deriv_spline_acc);

@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <omp.h>
 #include <fftw3.h>
+#include <math.h>
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
@@ -22,6 +23,11 @@
 #include "indexing.h"
 #include "hmf.h"
 #include "interp_tables.h"
+#include "dft.h"
+#include "filtering.h"
+#include "debugging.h"
+#include "hmf.h"
+#include "Stochasticity.h"
 
 #include "HaloField.h"
 
@@ -43,7 +49,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
     if(flag_options->HALO_STOCHASTICITY && redshift_desc > 0){
         LOG_DEBUG("Halo sampling switched on, bypassing halo finder to update %d halos...",halos_desc->n_halos);
         //this would hold the two boxes used in the halo sampler, but here we are taking the sample from a catalogue so we define a dummy here
-        float *dummy_box;
+        float *dummy_box = NULL;
         stochastic_halofield(user_params, cosmo_params, astro_params, flag_options, random_seed, redshift_desc,
                             redshift, dummy_box, dummy_box, halos_desc, halos);
         return 0;
@@ -107,6 +113,7 @@ LOG_DEBUG("redshift=%f", redshift);
             forbidden = (char *) malloc(sizeof(char)*TOT_NUM_PIXELS);
         }
 
+        //Unused variables, for future threading
         unsigned long long int nhalo_threads[user_params->N_THREADS];
         unsigned long long int istart_threads[user_params->N_THREADS];
         //expected TOTAL halos in box from minimum source mass
@@ -191,7 +198,7 @@ LOG_DEBUG("redshift=%f", redshift);
             //         delta_crit = DELTAC_DELOS;
             //     }
             //     else if(user_params->HMF!=0){
-            //         LOG_WARNING("Halo Finder: You have selected DELTA_CRIT_MODE==1 with HMF %d which does not have a barrier\
+            //         LOG_WARNING("Halo Finder: You have selected DELTA_CRIT_MODE==1 with HMF %d which does not have a barrier
             //                         , using EPS deltacrit = 1.68",user_params->HMF);
             //     }
             // }
@@ -289,7 +296,7 @@ LOG_DEBUG("redshift=%f", redshift);
             R /= global_params.DELTA_R_FACTOR;
         }
 
-        LOG_DEBUG("Obtained %d halo masses and positions, now saving to HaloField struct.",total_halo_num);
+        LOG_DEBUG("Obtained %llu halo masses and positions, now saving to HaloField struct.",total_halo_num);
 
         //Allocate the Halo Mass and Coordinate Fields (non-wrapper structure)
         if(flag_options->HALO_STOCHASTICITY)
@@ -319,7 +326,7 @@ LOG_DEBUG("redshift=%f", redshift);
         }
 
         add_properties_cat(random_seed, redshift, halos_dexm);
-        LOG_DEBUG("Found %d DexM halos",halos_dexm->n_halos);
+        LOG_DEBUG("Found %llu DexM halos",halos_dexm->n_halos);
 
         if(flag_options->HALO_STOCHASTICITY){
             LOG_DEBUG("Finding halos below grid resolution %.3e",M_MIN);

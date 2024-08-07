@@ -1,9 +1,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
+#include <math.h>
+#include <complex.h>
 #include <omp.h>
 #include <gsl/gsl_rng.h>
-#include <complex.h>
+#include <gsl/gsl_randist.h>
 #include <fftw3.h>
 #include "cexcept.h"
 #include "exceptions.h"
@@ -13,7 +15,10 @@
 #include "InputParameters.h"
 #include "OutputStructs.h"
 #include "cosmology.h"
+#include "debugging.h"
 #include "indexing.h"
+#include "dft.h"
+#include "filtering.h"
 
 #include "InitialConditions.h"
 

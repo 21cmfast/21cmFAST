@@ -7,6 +7,7 @@
 #include <complex.h>
 #include <fftw3.h>
 #include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
@@ -19,6 +20,13 @@
 #include "indexing.h"
 #include "dft.h"
 #include "recombinations.h"
+#include "debugging.h"
+#include "heating_helper_progs.h"
+#include "photoncons.h"
+#include "thermochem.h"
+#include "interp_tables.h"
+#include "filtering.h"
+#include "bubble_helper_progs.h"
 
 #include "IonisationBox.h"
 
@@ -976,9 +984,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                                                     astro_params->F_ESC7_MINI,Mlim_Fstar_MINI, Mlim_Fesc_MINI,
                                                     user_params->INTEGRATION_METHOD_ATOMIC, user_params->INTEGRATION_METHOD_MINI,
                                                     flag_options->USE_MINI_HALOS,true);
-                            LOG_SUPER_DEBUG("Tb midpoints %.4e %.4e %.4e %.4e",Nion_conditional_table2D.z_arr[NDELTA/2][NMTURN/2],
-                                            Nion_conditional_table_MINI.z_arr[NDELTA/2][NMTURN/2],Nion_conditional_table_prev.z_arr[NDELTA/2][NMTURN/2],
-                                            Nion_conditional_table_MINI_prev.z_arr[NDELTA/2][NMTURN/2]);
                         }
                     }
                 }
