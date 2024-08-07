@@ -4,6 +4,11 @@ Changelog
 dev-version
 -----------
 
+Performance
+~~~~~~~~~~~
+
+* When reading in data from cache, only read the necessary fields.
+*
 Deprecations
 ~~~~~~~~~~~~
 
@@ -13,6 +18,9 @@ Fixed
 ~~~~~
 
 * Fixed small issue in ``Lightcone.lightcone_coords``.
+* Bug when setting ``NON_CUBIC_FACTOR != 1``.
+* Using new ``matplotlib`` versions and registering ``cmap``.
+* Small bug in lightcone interpolation.
 
 Added
 ~~~~~
@@ -44,6 +52,10 @@ Fixed
 ~~~~~
 
 * Incorrect sign on adiabatic fluctuations.
+* Spurious warnings about boxes being read.
+* Spurious warnings about configuration files being out of date.
+* Compilation for ``clang`` and newer ``gcc`` versions.
+
 
 v3.3.1 [24 May 2023]
 ----------------------
