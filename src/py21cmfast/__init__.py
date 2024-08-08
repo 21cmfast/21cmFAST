@@ -1,4 +1,5 @@
 """The py21cmfast package."""
+
 try:
     from importlib.metadata import PackageNotFoundError, version
 except ImportError:
@@ -17,10 +18,11 @@ except ModuleNotFoundError:  # pragma: no cover
 from os import mkdir as _mkdir
 from os import path
 
-from . import cache_tools, inputs, outputs, plotting, wrapper
+from . import cache_tools, inputs, lightcones, outputs, plotting, wrapper
 from ._cfg import config
 from ._logging import configure_logging
 from .cache_tools import query_cache
+from .lightcones import AngularLightconer, RectilinearLightconer
 from .outputs import (
     Coeval,
     InitialConditions,

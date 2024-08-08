@@ -1,4 +1,5 @@
 """Module that contains the command line app."""
+
 import builtins
 import click
 import inspect
@@ -7,11 +8,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 import yaml
+from astropy import units as un
 from os import path, remove
 from pathlib import Path
 
 from . import _cfg, cache_tools, global_params, plotting
 from . import wrapper as lib
+from .lightcones import RectilinearLightconer
 
 
 def _get_config(config=None):
@@ -271,9 +274,7 @@ def spin(ctx, redshift, prev_z, config, regen, direc, seed):
     # Set user/cosmo params from config.
     user_params = lib.UserParams(**cfg.get("user_params", {}))
     cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-    flag_options = lib.FlagOptions(
-        **cfg.get("flag_options", {}), USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
-    )
+    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
     astro_params = lib.AstroParams(
         **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
     )
@@ -358,7 +359,7 @@ def ionize(ctx, redshift, prev_z, config, regen, direc, seed):
     user_params = lib.UserParams(**cfg.get("user_params", {}))
     cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
     flag_options = lib.FlagOptions(
-        **cfg.get("flag_options", {}), USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
+        **cfg.get("flag_options", {}),
     )
     astro_params = lib.AstroParams(
         **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
@@ -452,9 +453,7 @@ def coeval(ctx, redshift, config, out, regen, direc, seed):
     # Set user/cosmo params from config.
     user_params = lib.UserParams(**cfg.get("user_params", {}))
     cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-    flag_options = lib.FlagOptions(
-        **cfg.get("flag_options", {}), USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
-    )
+    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
     astro_params = lib.AstroParams(
         **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
     )
@@ -529,8 +528,15 @@ def coeval(ctx, redshift, config, out, regen, direc, seed):
     default=None,
     help="specify a random seed for the initial conditions",
 )
+@click.option(
+    "--lq",
+    type=str,
+    multiple=True,
+    default=("brightness_temp",),
+    help="quantities to make lightcones out of",
+)
 @click.pass_context
-def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed):
+def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed, lq):
     """Efficiently generate coeval cubes at a given redshift.
 
     Parameters
@@ -562,18 +568,24 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed):
     # Set user/cosmo params from config.
     user_params = lib.UserParams(**cfg.get("user_params", {}))
     cosmo_params = lib.CosmoParams(**cfg.get("cosmo_params", {}))
-    flag_options = lib.FlagOptions(
-        **cfg.get("flag_options", {}), USE_VELS_AUX=user_params.USE_RELATIVE_VELOCITIES
-    )
+    flag_options = lib.FlagOptions(**cfg.get("flag_options", {}))
     astro_params = lib.AstroParams(
         **cfg.get("astro_params", {}), INHOMO_RECO=flag_options.INHOMO_RECO
     )
 
     _override(ctx, user_params, cosmo_params, astro_params, flag_options)
 
-    lc = lib.run_lightcone(
-        redshift=redshift,
+    # For now, always use the old default lightconing algorithm
+    lcn = RectilinearLightconer.with_equal_cdist_slices(
+        min_redshift=redshift,
         max_redshift=max_z,
+        resolution=user_params.cell_size,
+        cosmo=cosmo_params.cosmo,
+        quantities=lq,
+    )
+
+    lc = lib.run_lightcone(
+        lightconer=lcn,
         astro_params=astro_params,
         flag_options=flag_options,
         user_params=user_params,
@@ -591,22 +603,41 @@ def lightcone(ctx, redshift, config, out, regen, direc, max_z, seed):
         print(f"Saved Lightcone to {fname}.")
 
 
-def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
-    cls = list(
+def _query(
+    direc=None,
+    kind=None,
+    md5=None,
+    seed=None,
+    clear=False,
+    sort_by=("kind", "redshift"),
+    show=None,
+):
+    objects = list(
         cache_tools.query_cache(direc=direc, kind=kind, hsh=md5, seed=seed, show=False)
     )
 
     if not clear:
-        print("%s Data Sets Found:" % len(cls))
+        print(f"{len(objects)} Data Sets Found:")
         print("------------------")
     else:
-        print("Removing %s data sets..." % len(cls))
+        print(f"Removing {len(objects)} data sets...")
 
-    for file, c in cls:
+    for sorter in sort_by[::-1]:
+        if sorter == "kind":
+            objects = sorted(objects, key=lambda x: x[1].__class__.__name__)
+        elif sorter == "filename":
+            objects = sorted(objects, key=lambda x: x[0])
+        else:
+            objects = sorted(objects, key=lambda x: getattr(x[1], sorter, 0.0))
+
+    for file, c in objects:
         if not clear:
-            print("  @ {%s}:" % file)
-            print("  %s" % str(c))
-
+            print(f"  @ {file}:")
+            if not show:
+                print(f"  {c}")
+            else:
+                for s in show:
+                    print(f"  {s}: {getattr(c, s, None)}")
             print()
 
         else:
@@ -630,7 +661,9 @@ def _query(direc=None, kind=None, md5=None, seed=None, clear=False):
     default=False,
     help="remove all data sets returned by this query.",
 )
-def query(direc, kind, md5, seed, clear):
+@click.option("--fields", type=str, multiple=True, default=None)
+@click.option("--sort", type=str, multiple=True, default=["kind", "redshift"])
+def query(direc, kind, md5, seed, clear, fields, sort):
     """Query the cache database.
 
     Parameters
@@ -646,7 +679,7 @@ def query(direc, kind, md5, seed, clear):
     clear : bool
         Remove all data sets returned by the query.
     """
-    _query(direc, kind, md5, seed, clear)
+    _query(direc, kind, md5, seed, clear, show=fields, sort_by=tuple(sort))
 
 
 @main.command()

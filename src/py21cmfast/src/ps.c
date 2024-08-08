@@ -84,7 +84,7 @@ float **log10_SFRD_z_low_table_MINI, **SFRD_z_high_table_MINI;
 double *lnMhalo_param, *Muv_param, *Mhalo_param;
 double *log10phi, *M_uv_z, *M_h_z;
 double *lnMhalo_param_MINI, *Muv_param_MINI, *Mhalo_param_MINI;
-double *log10phi_MINI; *M_uv_z_MINI, *M_h_z_MINI;
+double *log10phi_MINI, *M_uv_z_MINI, *M_h_z_MINI;
 double *deriv, *lnM_temp, *deriv_temp;
 
 double *z_val, *z_X_val, *Nion_z_val, *SFRD_val;
@@ -142,6 +142,11 @@ void NFHist_at_z(double z, double *splined_value);
 //double *z_Q, *Q_value, *Q_z, *z_value;
 
 double FinalNF_Estimate, FirstNF_Estimate;
+
+// Parameters that indicate the Mmin/Mmax to which the SigmaM interpolation table
+// has been initialized. Allows the initialization to be cached.
+float SigmaM_init_Mmin = 0.0;
+float SigmaM_init_Mmax = 0.0;
 
 struct parameters_gsl_FgtrM_int_{
     double z_obs;
@@ -1465,6 +1470,12 @@ void initialiseSigmaMInterpTable(float M_Min, float M_Max)
     int i;
     float Mass;
 
+    if (fabs(SigmaM_init_Mmax - M_Max) < 1e-3 && fabs(SigmaM_init_Mmin - M_Min) < 1e-3){
+        // Then we've already initialized, so just return.
+        // We check the input mass parameters are "equal" up to a 1e-3 difference.
+        return;
+    }
+
     if (Mass_InterpTable == NULL){
       Mass_InterpTable = calloc(NMass,sizeof(float));
       Sigma_InterpTable = calloc(NMass,sizeof(float));
@@ -1492,6 +1503,10 @@ void initialiseSigmaMInterpTable(float M_Min, float M_Max)
     MinMass = log(M_Min);
     mass_bin_width = 1./(NMass-1)*( log(M_Max) - log(M_Min) );
     inv_mass_bin_width = 1./mass_bin_width;
+
+    SigmaM_init_Mmin = M_Min;
+    SigmaM_init_Mmax = M_Max;
+    LOG_DEBUG("Initialised SigmaM interpolation table with M_Min=%e M_Max=%e",M_Min,M_Max);
 }
 
 void freeSigmaMInterpTable()
@@ -1500,6 +1515,8 @@ void freeSigmaMInterpTable()
     free(Sigma_InterpTable);
     free(dSigmadm_InterpTable);
     Mass_InterpTable = NULL;
+    SigmaM_init_Mmax = 0.;
+    SigmaM_init_Mmin = 0.;
 }
 
 

@@ -2,9 +2,11 @@ import pytest
 
 import logging
 import os
+from astropy import units as un
 
 from py21cmfast import UserParams, config, global_params, run_lightcone, wrapper
 from py21cmfast.cache_tools import clear_cache
+from py21cmfast.lightcones import RectilinearLightconer
 
 
 def pytest_addoption(parser):
@@ -87,6 +89,7 @@ def setup_and_teardown_package(tmpdirec, request):
 
     log_level = request.config.getoption("--log-level-21") or logging.INFO
     logging.getLogger("py21cmfast").setLevel(log_level)
+    logging.getLogger("21cmFAST").setLevel(log_level)
 
     yield
 
@@ -103,7 +106,7 @@ def setup_and_teardown_package(tmpdirec, request):
 
 @pytest.fixture(scope="session")
 def default_user_params():
-    return UserParams(HII_DIM=35, DIM=70, BOX_LEN=50)
+    return UserParams(HII_DIM=35, DIM=70, BOX_LEN=50, KEEP_3D_VELOCITIES=True)
 
 
 @pytest.fixture(scope="session")
@@ -132,11 +135,21 @@ def low_redshift():
 
 
 @pytest.fixture(scope="session")
-def perturb_field(ic, redshift):
+def perturbed_field(ic, redshift):
     """A default perturb_field"""
     return wrapper.perturb_field(redshift=redshift, init_boxes=ic, write=True)
 
 
 @pytest.fixture(scope="session")
-def lc(perturb_field, max_redshift):
-    return run_lightcone(perturb=perturb_field, max_redshift=max_redshift)
+def rectlcn(perturbed_field, max_redshift) -> RectilinearLightconer:
+    return RectilinearLightconer.with_equal_cdist_slices(
+        min_redshift=perturbed_field.redshift,
+        max_redshift=max_redshift,
+        resolution=perturbed_field.user_params.cell_size,
+        cosmo=perturbed_field.cosmo_params.cosmo,
+    )
+
+
+@pytest.fixture(scope="session")
+def lc(perturbed_field, rectlcn):
+    return run_lightcone(lightconer=rectlcn, perturb=perturbed_field)

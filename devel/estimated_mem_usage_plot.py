@@ -1,4 +1,5 @@
 """Simple example script for plotting estimated memory usage."""
+
 import matplotlib.pyplot as plt
 import numpy as np
 

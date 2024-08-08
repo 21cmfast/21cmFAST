@@ -5,6 +5,7 @@ Unit tests for input structures
 import pytest
 
 import pickle
+import warnings
 
 from py21cmfast import AstroParams  # An example of a struct with defaults
 from py21cmfast import CosmoParams, FlagOptions, UserParams, __version__, global_params
@@ -171,9 +172,9 @@ def test_interpolation_table_warning():
     with pytest.warns(UserWarning, match="setting has changed in v3.1.2"):
         UserParams().USE_INTERPOLATION_TABLES
 
-    with pytest.warns(None) as record:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         UserParams(USE_INTERPOLATION_TABLES=True).USE_INTERPOLATION_TABLES
-    assert not record
 
 
 def test_validation():
@@ -212,3 +213,18 @@ def test_user_params():
     ):
         up = UserParams(NON_CUBIC_FACTOR=1.1047642)
         up.NON_CUBIC_FACTOR
+
+    assert up.cell_size / up.cell_size_hires == up.DIM / up.HII_DIM
+
+
+def test_flag_options(caplog):
+    flg = FlagOptions(USE_HALO_FIELD=True, USE_MINI_HALOS=True)
+    assert not flg.USE_HALO_FIELD
+    assert (
+        "You have set USE_MINI_HALOS to True but USE_HALO_FIELD is also True"
+        in caplog.text
+    )
+
+    flg = FlagOptions(PHOTON_CONS=True, USE_MINI_HALOS=True)
+    assert not flg.PHOTON_CONS
+    assert "USE_MINI_HALOS is not compatible with PHOTON_CONS" in caplog.text

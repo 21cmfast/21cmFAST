@@ -613,7 +613,7 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
             }
         }
 
-        LOG_SUPER_DEBUG("%sCorners: %f %f %f %f %f %f %f %f",
+        LOG_SUPER_DEBUG("%sCorners: %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
             indent,
             corners[0], corners[1], corners[2], corners[3],
             corners[4], corners[5], corners[6], corners[7]
@@ -631,7 +631,61 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
         }
         mean=sum/(size*size*((int)(size*ncf)));
 
-        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %f, %f, %f, %f", indent, sum, mean, mn, mx);
+        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
+    }
+}
+
+void debugSummarizeBoxComplex(fftwf_complex *box, int size, float ncf, char *indent){
+    if(LOG_LEVEL >= SUPER_DEBUG_LEVEL){
+
+        float corners_real[8];
+        float corners_imag[8];
+
+        int i,j,k, counter;
+        int s = size-1;
+        int s_ncf = size*ncf-1;
+
+        counter = 0;
+        for(i=0;i<size;i=i+s){
+            for(j=0;j<size;j=j+s){
+                for(k=0;k<(int)(size*ncf);k=k+s_ncf){
+                    corners_real[counter] =  creal(box[k + (int)(size*ncf)*(j + size*i)]);
+                    corners_imag[counter] =  cimag(box[k + (int)(size*ncf)*(j + size*i)]);
+
+                    counter++;
+                }
+            }
+        }
+
+        LOG_SUPER_DEBUG("%sCorners (Real Part): %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
+            indent,
+            corners_real[0], corners_real[1], corners_real[2], corners_real[3],
+            corners_real[4], corners_real[5], corners_real[6], corners_real[7]
+        );
+
+        LOG_SUPER_DEBUG("%sCorners (Imag Part): %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
+            indent,
+            corners_imag[0], corners_imag[1], corners_imag[2], corners_imag[3],
+            corners_imag[4], corners_imag[5], corners_imag[6], corners_imag[7]
+        );
+
+
+        complex sum, mean, mn, mx;
+        sum=0+I;
+        mn=box[0];
+        mx=box[0];
+
+        for (i=0; i<size*size*((int)(size*ncf)); i++){
+            sum+=box[i];
+            mn=fminf(mn, box[i]);
+            mx = fmaxf(mx, box[i]);
+        }
+        mean=sum/(size*size*((int)(size*ncf)));
+
+        LOG_SUPER_DEBUG(
+            "%sSum/Mean/Min/Max: %.4e+%.4ei, %.4e+%.4ei, %.4e+%.4ei, %.4e+%.4ei",
+            indent, creal(sum), cimag(sum), creal(mean), cimag(mean), creal(mn), cimag(mn),
+            creal(mx), cimag(mx));
     }
 }
 
@@ -654,7 +708,7 @@ void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
             }
         }
 
-        LOG_SUPER_DEBUG("%sCorners: %lf %lf %lf %lf %lf %lf %lf %lf",
+        LOG_SUPER_DEBUG("%sCorners: %.4e %.4e %.4e %.4e %.4e %.4e %.4e %.4e",
             indent,
             corners[0], corners[1], corners[2], corners[3],
             corners[4], corners[5], corners[6], corners[7]
@@ -672,7 +726,7 @@ void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
         }
         mean=sum/(size*size*((int)(size*ncf)));
 
-        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %lf, %lf, %lf, %lf", indent, sum, mean, mn, mx);
+        LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
     }
 }
 
@@ -694,8 +748,13 @@ void debugSummarizePerturbField(struct PerturbedField *x, int HII_DIM, float NCF
     LOG_SUPER_DEBUG("Summary of PerturbedField:");
     LOG_SUPER_DEBUG("  density: ");
     debugSummarizeBox(x->density, HII_DIM, NCF, "    ");
-    LOG_SUPER_DEBUG("  velocity: ");
-    debugSummarizeBox(x->velocity, HII_DIM, NCF, "    ");
+    LOG_SUPER_DEBUG("  velocity_x: ");
+    debugSummarizeBox(x->velocity_x, HII_DIM, NCF, "    ");
+    LOG_SUPER_DEBUG("  velocity_y: ");
+    debugSummarizeBox(x->velocity_y, HII_DIM, NCF, "    ");
+    LOG_SUPER_DEBUG("  velocity_z: ");
+    debugSummarizeBox(x->velocity_z, HII_DIM, NCF, "    ");
+
 }
 void inspectInitialConditions(struct InitialConditions *x, int print_pid, int print_corners, int print_first,
                               int HII_DIM, float NCF){
@@ -755,7 +814,19 @@ void inspectPerturbedField(struct PerturbedField *x, int print_pid, int print_co
 
         printf("%s\t\tvelocity: ", pid);
         for(i=0;i<10;i++){
-            printf("%f, ", x->velocity[i]);
+            printf("%f, ", x->velocity_x[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tvelocity: ", pid);
+        for(i=0;i<10;i++){
+            printf("%f, ", x->velocity_y[i]);
+        }
+        printf("\n");
+
+        printf("%s\t\tvelocity: ", pid);
+        for(i=0;i<10;i++){
+            printf("%f, ", x->velocity_z[i]);
         }
         printf("\n");
 
@@ -768,7 +839,13 @@ void inspectPerturbedField(struct PerturbedField *x, int print_pid, int print_co
         print_corners_real(x->density, HII_DIM, NCF);
 
         printf("%s\t\tvelocity: ", pid);
-        print_corners_real(x->velocity, HII_DIM, NCF);
+        print_corners_real(x->velocity_x, HII_DIM, NCF);
+
+        printf("%s\t\tvelocity: ", pid);
+        print_corners_real(x->velocity_y, HII_DIM, NCF);
+
+        printf("%s\t\tvelocity: ", pid);
+        print_corners_real(x->velocity_z, HII_DIM, NCF);
     }
 
 }
@@ -950,4 +1027,10 @@ int FunctionThatCatches(bool sub_func, bool pass, double *result){
     }
     *result = 5.0;
     return 0;
+}
+
+float clip(float x, float min, float max){
+    if(x<min) return min;
+    if(x>max) return max;
+    return x;
 }

@@ -465,9 +465,9 @@ LOG_SUPER_DEBUG("Initialised heat");
     // if(initialization_required) {
 
         if(user_params->USE_INTERPOLATION_TABLES) {
-          if(user_params->FAST_FCOLL_TABLES){
-            initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
-          }
+            if(user_params->FAST_FCOLL_TABLES){
+                initialiseSigmaMInterpTable(fmin(MMIN_FAST,M_MIN),1e20);
+            }
           else{
             if(flag_options->M_MIN_in_Mass || flag_options->USE_MASS_DEPENDENT_ZETA) {
                 if (flag_options->USE_MINI_HALOS){
@@ -492,7 +492,7 @@ LOG_SUPER_DEBUG("Initialised heat");
         growthfac = growth_factor_zp * inverse_growth_factor_z;
         // read file
         #pragma omp parallel shared(this_spin_temp,xe,TK,redshift,perturbed_field, \
-                                    inverse_growth_factor_z,growth_factor_zp,cT_ad) \
+                                    growthfac,cT_ad) \
                              private(i,j,k,ct,curr_xalpha,gdens) \
                              num_threads(user_params->N_THREADS)
         {
@@ -1962,7 +1962,7 @@ LOG_SUPER_DEBUG("Initialised heat");
                     }
                 }
 
-#pragma omp parallel shared(dxheat_dt_box,dxion_source_dt_box,dxlya_dt_box,dstarlya_dt_box,dfcoll_dz_val,del_fcoll_Rct,freq_int_heat_tbl_diff,\
+                #pragma omp parallel shared(dxheat_dt_box,dxion_source_dt_box,dxlya_dt_box,dstarlya_dt_box,dfcoll_dz_val,del_fcoll_Rct,freq_int_heat_tbl_diff,\
                             m_xHII_low_box,inverse_val_box,freq_int_heat_tbl,freq_int_ion_tbl_diff,freq_int_ion_tbl,freq_int_lya_tbl_diff,\
                             freq_int_lya_tbl,dstarlya_dt_prefactor,R_ct,previous_spin_temp,this_spin_temp,const_zp_prefactor,prefactor_1,\
                             prefactor_2,delNL0,growth_factor_zp,dt_dzp,zp,dgrowth_factor_dzp,dcomp_dzp_prefactor,Trad_fast,dzp,TS_prefactor,\
@@ -2174,6 +2174,13 @@ LOG_SUPER_DEBUG("Initialised heat");
                                     T += ( dxheat_dzp + dcomp_dzp + dspec_dzp + dadia_dzp + dCMBheat_dzp + eps_Lya_cont + eps_Lya_inj) * dzp;
                                 }
 
+                            }
+
+                            if (isfinite(T) == 0) {
+                                LOG_ERROR(
+                                    "For box_ct=%d, got infinite value for Tk. dxheat_dzp=%g, dcomp_dzp=%g, dspec_dzp=%g, dadia_dzp=%g, dzp=%g, dxheat_dt_box=%g, dt_dzp=%g, dxe_dzp=%g, ",
+                                    box_ct, dxheat_dzp, dcomp_dzp, dspec_dzp, dadia_dzp, dzp, dxheat_dt_box[box_ct], dt_dzp, dxe_dzp);
+                                Throw(InfinityorNaNError);
                             }
 
                             if (T<0){ // spurious bahaviour of the trapazoidalintegrator. generally overcooling in underdensities
