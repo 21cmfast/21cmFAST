@@ -27,7 +27,7 @@ int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
             sprintf(wisdom_filename,"%s/c2r_DIM%d_DIM%d_NTHREADS%d",global_params.wisdoms_path, dim, dim_los, n_threads);
 
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                unsigned flag = FFTW_WISDOM_ONLY;
+                flag = FFTW_WISDOM_ONLY;
             }
             else {
                 LOG_WARNING("Cannot locate FFTW Wisdom: %s file not found. Reverting to FFTW_ESTIMATE.", wisdom_filename);
@@ -55,7 +55,7 @@ int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
             sprintf(wisdom_filename,"%s/r2c_DIM%d_DIM%d_NTHREADS%d", global_params.wisdoms_path, dim, dim_los, n_threads);
 
             if(fftwf_import_wisdom_from_filename(wisdom_filename)!=0) {
-                unsigned flag = FFTW_WISDOM_ONLY;
+                flag = FFTW_WISDOM_ONLY;
             }
             else {
                 LOG_WARNING("Cannot locate FFTW Wisdom: %s file not found. Reverting to FFTW_ESTIMATE.", wisdom_filename);

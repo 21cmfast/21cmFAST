@@ -70,31 +70,26 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     omp_set_num_threads(user_params->N_THREADS);
 
     // Other parameters used in the code
-    int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R, short_completely_ionised,i_halo;
+    int i,j,k,x,y,z, LAST_FILTER_STEP, first_step_R;
     int counter, N_halos_in_cell;
     unsigned long long ct;
 
     float growth_factor, pixel_mass, cell_length_factor, M_MIN, prev_growth_factor;
-    float erfc_denom, erfc_denom_cell, res_xH, Splined_Fcoll, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR, growth_factor_dz;
+    float erfc_denom, res_xH, Splined_Fcoll, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR;
     float Splined_Fcoll_MINI, prev_dens, ION_EFF_FACTOR_MINI, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI;
-    float ave_M_coll_cell, ave_N_min_cell, pixel_volume, density_over_mean;
+    float ave_M_coll_cell, ave_N_min_cell;
     double lnMmin,lnMmax,lnM_cond;
 
     float curr_vcb;
 
-    double global_xH, ST_over_PS, f_coll, R, stored_R, f_coll_min, f_total;
+    double global_xH, ST_over_PS, f_coll, R, stored_R, f_coll_min;
     double ST_over_PS_MINI, f_coll_MINI, f_coll_min_MINI;
 
     double t_ast,  Gamma_R_prefactor, rec, dNrec, sigmaMmax;
     double Gamma_R_prefactor_MINI;
     float fabs_dtdz, ZSTEP, z_eff;
-    const float dz = 0.01;
 
-    float dens_val, prev_dens_val;
-
-    int overdense_int,status_int;
     int something_finite_or_infinite = 0;
-    int log10_Mturnover_MINI_int, log10_Mturnover_int;
     int *overdense_int_boundexceeded_threaded = calloc(user_params->N_THREADS,sizeof(int));
 
     double ave_log10_Mturnover, ave_log10_Mturnover_MINI;
@@ -109,12 +104,11 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 
     float min_density, max_density;
     float prev_min_density, prev_max_density;
-    double density_bin_width, prev_density_bin_width;
 
     float stored_redshift, adjustment_factor;
 
-    float log10Mturn_min, log10Mturn_max, log10Mturn_bin_width, log10Mturn_bin_width_inv;
-    float log10Mturn_min_MINI, log10Mturn_max_MINI, log10Mturn_bin_width_MINI, log10Mturn_bin_width_inv_MINI;
+    float log10Mturn_min, log10Mturn_max;
+    float log10Mturn_min_MINI, log10Mturn_max_MINI;
 
     gsl_rng * r[user_params->N_THREADS];
 
@@ -129,8 +123,6 @@ LOG_SUPER_DEBUG("inited heat");
     init_ps();
 
 LOG_SUPER_DEBUG("defined parameters");
-
-    pixel_volume = pow(user_params->BOX_LEN/((float)(user_params->HII_DIM)), 3);
 
     double alpha_esc_var = astro_params->ALPHA_ESC;
     double norm_esc_var = astro_params->F_ESC10;
@@ -206,7 +198,6 @@ LOG_SUPER_DEBUG("defined parameters");
 
     fabs_dtdz = fabs(dtdz(redshift))/1e15; //reduce to have good precision
     t_ast = astro_params->t_STAR * t_hubble(redshift);
-    growth_factor_dz = dicke(redshift-dz);
 
     // Modify the current sampled redshift to a redshift which matches the expected filling factor given our astrophysical parameterisation.
     // This is the photon non-conservation correction
@@ -746,11 +737,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
         // ************************************************************************************* //
         // set the max radius we will use, making sure we are always sampling the same values of radius
         // (this avoids aliasing differences w redshift)
-
-        short_completely_ionised = 0;
-        // loop through the filter radii (in Mpc)
-        erfc_denom_cell = 1; //dummy value
-
         R=fmax(global_params.R_BUBBLE_MIN, (cell_length_factor*user_params->BOX_LEN/(float)user_params->HII_DIM));
 
         while ((R - fmin(astro_params->R_BUBBLE_MAX, L_FACTOR * user_params->BOX_LEN)) <= FRACT_FLOAT_ERR) {
@@ -767,8 +753,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
         LAST_FILTER_STEP = 0;
 
         first_step_R = 1;
-
-        double R_temp = (double) (astro_params->R_BUBBLE_MAX);
 
         counter = 0;
 
@@ -1009,11 +993,10 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
 #pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,overdense_int_boundexceeded_threaded,erfc_denom,erfc_arg_min,\
                             erfc_arg_max,InvArgBinWidth,ArgBinWidth,ERFC_VALS_DIFF,ERFC_VALS,log10_Mturnover_filtered,log10Mturn_min, \
                             log10_Mturnover_MINI_filtered,prev_deltax_filtered,previous_ionize_box,ION_EFF_FACTOR,\
-                            box,counter,stars_filtered,massofscaleR,pixel_volume,sigmaMmax,\
+                            box,counter,stars_filtered,massofscaleR,sigmaMmax,\
                             M_MIN,growth_factor,Mlim_Fstar,Mlim_Fesc,Mcrit_atom,Mlim_Fstar_MINI,Mlim_Fesc_MINI,prev_growth_factor) \
-                    private(x,y,z,curr_dens,Splined_Fcoll,Splined_Fcoll_MINI,dens_val,overdense_int,erfc_arg_val,erfc_arg_val_index,log10_Mturnover,\
-                            log10_Mturnover_int,log10_Mturnover_MINI,log10_Mturnover_MINI_int,prev_dens,prev_Splined_Fcoll,prev_Splined_Fcoll_MINI,\
-                            prev_dens_val,density_over_mean,status_int) \
+                    private(x,y,z,curr_dens,Splined_Fcoll,Splined_Fcoll_MINI,erfc_arg_val,erfc_arg_val_index,log10_Mturnover,\
+                            log10_Mturnover_MINI,prev_dens,prev_Splined_Fcoll,prev_Splined_Fcoll_MINI) \
                     num_threads(user_params->N_THREADS)
             {
 #pragma omp for reduction(+:f_coll,f_coll_MINI)
@@ -1189,8 +1172,6 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                 LOG_SUPER_DEBUG("global mean fcoll %.4e box mean fcoll %.4e ratio %.4e",box->mean_f_coll,f_coll,ST_over_PS);
                 LOG_SUPER_DEBUG("MINI: global mean fcoll %.4e box mean fcoll %.4e ratio %.4e",box->mean_f_coll_MINI,f_coll_MINI,ST_over_PS_MINI);
             }
-            //saved for debug
-            f_total = f_coll;
 
             Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
             Gamma_R_prefactor_MINI = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR_MINI / 1.0e-12;

@@ -163,7 +163,7 @@ double MHR_rr (double lnD, void *params){
 // temeperature T4 (in 1e4 K), and usecaseB rate coefficient
 // Assumes self-shielding according to Rahmati+ 2013
 double recombination_rate(double z, double gamma12_bg, double T4, int usecaseB){
-  double result, error, lower_limit, upper_limit, A, C_0, beta, avenH;
+  double result, error, lower_limit, upper_limit;
   gsl_function F;
   double rel_tol  = 0.01; //<- relative tolerance
   gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);

@@ -421,7 +421,7 @@ int check_halo(char * in_halo, UserParams *user_params, float R, int x, int y, i
     //          which fall within radius R of (x,y,z).
 
     int x_curr, y_curr, z_curr, x_min, x_max, y_min, y_max, z_min, z_max, R_index;
-    float Rsq_curr_index, xsq, xplussq, xminsq, ysq, yplussq, yminsq, zsq, zplussq, zminsq;
+    float Rsq_curr_index;
     int x_index, y_index, z_index;
     long long unsigned int curr_index;
 

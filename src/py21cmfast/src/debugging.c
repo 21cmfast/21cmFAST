@@ -123,7 +123,7 @@ void writeFlagOptions(FlagOptions *p){
 }
 
 void debugSummarizeBox(float *box, int size, float ncf, char *indent){
-    if(LOG_LEVEL >= SUPER_DEBUG_LEVEL){
+#if LOG_LEVEL >= SUPER_DEBUG_LEVEL
 
         float corners[8];
 
@@ -160,11 +160,11 @@ void debugSummarizeBox(float *box, int size, float ncf, char *indent){
         mean=sum/(size*size*((int)(size*ncf)));
 
         LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
-    }
+#endif
 }
 
 void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
-    if(LOG_LEVEL >= SUPER_DEBUG_LEVEL){
+#if LOG_LEVEL >= SUPER_DEBUG_LEVEL
 
         double corners[8];
 
@@ -201,7 +201,7 @@ void debugSummarizeBoxDouble(double *box, int size, float ncf, char *indent){
         mean=sum/(size*size*((int)(size*ncf)));
 
         LOG_SUPER_DEBUG("%sSum/Mean/Min/Max: %.4e, %.4e, %.4e, %.4e", indent, sum, mean, mn, mx);
-    }
+#endif
 }
 
 void debugSummarizeIC(InitialConditions *x, int HII_DIM, int DIM, float NCF){

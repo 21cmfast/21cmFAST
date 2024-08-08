@@ -312,7 +312,6 @@ void setup_z_edges(double zp){
     double R, R_factor;
     double zpp, prev_zpp, prev_R;
     double dzpp_for_evolve;
-    double determine_zpp_max; //this is not global like the minimum
     int R_ct;
     LOG_DEBUG("Starting z edges");
 
@@ -355,7 +354,7 @@ void setup_z_edges(double zp){
 void calculate_spectral_factors(double zp){
     double nuprime;
     bool first_radii=true, first_zero=true;
-    double trial_zpp_max,trial_zpp_min,trial_zpp;
+    double trial_zpp;
     int counter,ii;
     int n_pts_radii=1000;
     double weight=0.;
@@ -552,7 +551,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
 //fill a box[R_ct][box_ct] array for use in TS by filtering on different scales and storing results
 void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double * R_array, int n_R, double min_value, double const_factor, double *min_arr, double *average_arr, double *max_arr){
         //allocate table/grid memory
-        int i,j,k,ct,R_ct;
+        int i,j,k,R_ct;
         double R;
         double ave_buffer, min_out_R, max_out_R;
 
@@ -842,7 +841,7 @@ void init_first_Ts(TsBox * box, float *dens, float z, float zp, double *x_e_ave,
 //  used for filling factor, ST_OVER_PS, and NO_LIGHT
 int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_ave, double *mean_sfr_zpp, double *mean_sfr_zpp_mini, double *Q_HI){
     int R_ct;
-    double sum_nion=0,sum_sfr=0,sum_mass=0,sum_nion_mini=0;
+    double sum_nion=0,sum_nion_mini=0;
     double zpp;
 
     //For a lot of global evolution, this code uses Nion_general. We can replace this with the halo field
@@ -852,7 +851,7 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     double determine_zpp_max, determine_zpp_min;
 
     if(user_params_global->USE_INTERPOLATION_TABLES){
-        determine_zpp_min = zp*0.999; //global
+        determine_zpp_min = zp*0.999;
         //NOTE: must be called after setup_z_edges for this line
         determine_zpp_max = zpp_for_evolve_list[global_params.NUM_FILTER_STEPS_FOR_Ts-1]*1.001;
 
@@ -1217,7 +1216,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
                   AstroParams *astro_params, FlagOptions *flag_options, float perturbed_field_redshift, short cleanup,
                   PerturbedField *perturbed_field, XraySourceBox *source_box, TsBox *previous_spin_temp,
                   InitialConditions *ini_boxes, TsBox *this_spin_temp){
-    int R_ct, i, j, k;
+    int R_ct;
     unsigned long long int box_ct;
     double x_e_ave_p, Tk_ave_p;
     double growth_factor_z, growth_factor_zp;
@@ -1280,11 +1279,9 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     double min_log10_MturnLW[global_params.NUM_FILTER_STEPS_FOR_Ts];
     double max_log10_MturnLW[global_params.NUM_FILTER_STEPS_FOR_Ts];
     double ave_dens[global_params.NUM_FILTER_STEPS_FOR_Ts];
-    fftwf_complex *log10_Mcrit_LW_unfiltered;
-    fftwf_complex *delta_unfiltered;
-    double log10_Mcrit_limit, curr_vcb;
-    double max_buf=-1e20, min_buf=1e20, curr_dens;
-    curr_vcb = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
+    fftwf_complex *log10_Mcrit_LW_unfiltered = NULL;
+    fftwf_complex *delta_unfiltered = NULL;
+    double log10_Mcrit_limit;
 
     if(!flag_options->USE_HALO_FIELD){
         //copy over to FFTW, do the forward FFTs and apply constants
@@ -1335,8 +1332,8 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
         }
     }
     else{
-        for(i=0;i<global_params.NUM_FILTER_STEPS_FOR_Ts;i++){
-            ave_log10_MturnLW[i] = source_box->mean_log10_Mcrit_LW[i];
+        for(R_ct=0;R_ct<global_params.NUM_FILTER_STEPS_FOR_Ts;R_ct++){
+            ave_log10_MturnLW[R_ct] = source_box->mean_log10_Mcrit_LW[R_ct];
         }
     }
     //set the constants calculated once per snapshot
@@ -1406,10 +1403,9 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
     double ave_fcoll,ave_fcoll_MINI;
     double avg_fix_term=1.;
     double avg_fix_term_MINI=1.;
-    double min_d_buf,ave_d_buf,max_d_buf;
     int R_index;
     float *delta_box_input;
-    float *Mcrit_box_input;
+    float *Mcrit_box_input = NULL; //may be unused
 
     //if we have stars, fill in the heating term boxes
     if(!NO_LIGHT) {
@@ -1488,7 +1484,7 @@ void ts_main(float redshift, float prev_redshift, UserParams *user_params, Cosmo
             {
                 //private variables
                 int xidx;
-                double ival, sfr_term, xray_sfr, x_e, T;
+                double ival, sfr_term, xray_sfr;
                 double sfr_term_mini=0;
                 #pragma omp for
                 for(box_ct=0; box_ct<HII_TOT_NUM_PIXELS; box_ct++){

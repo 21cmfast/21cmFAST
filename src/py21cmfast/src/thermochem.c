@@ -96,7 +96,7 @@ double neutral_fraction(double density, double T4, double gamma, int usecaseB){
 /* function HeI_ion_crosssec returns the HI ionization cross section at parameter frequency
  (taken from Verner et al (1996) */
 double HeI_ion_crosssec(double nu){
-    double x,y,Fy;
+    double x,y;
 
     if (nu < HeI_NUIONIZATION)
         return 0;
@@ -258,15 +258,9 @@ double tau_e(float zstart, float zend, float *zarry, float *xHarry, int len){
 }
 
 float ComputeTau(UserParams *user_params, CosmoParams *cosmo_params, int NPoints, float *redshifts, float *global_xHI) {
-
-    int i;
-    float tau;
-
     Broadcast_struct_global_noastro(user_params,cosmo_params);
 
-    tau = tau_e(0, redshifts[NPoints-1], redshifts, global_xHI, NPoints);
-
-    return tau;
+    return tau_e(0, redshifts[NPoints-1], redshifts, global_xHI, NPoints);
 }
 
 double atomic_cooling_threshold(float z){

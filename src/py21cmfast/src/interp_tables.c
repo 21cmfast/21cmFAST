@@ -76,7 +76,8 @@ static RGTable1D_f dSigmasqdm_InterpTable = {.allocated = false,};
 void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI,
                              float mturn_a_const, bool minihalos){
     int i,j;
-    float Mlim_Fstar, Mlim_Fstar_MINI;
+    float Mlim_Fstar;
+    float Mlim_Fstar_MINI=0.;
     double Mmin = global_params.M_MIN_INTEGRAL;
     double Mmax = global_params.M_MAX_INTEGRAL;
     double lnMmax = log(Mmax);
@@ -145,7 +146,8 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
 void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10,
                                 float Fesc10, float Fstar7_MINI, float Fesc7_MINI, float mturn_a_const, bool minihalos){
     int i,j;
-    float Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI;
+    float Mlim_Fstar, Mlim_Fesc;
+    float Mlim_Fstar_MINI=0., Mlim_Fesc_MINI=0.;
     LOG_DEBUG("initing Nion spline from %.2f to %.2f",zmin,zmax);
     double Mmin = global_params.M_MIN_INTEGRAL;
     double Mmax = global_params.M_MAX_INTEGRAL;
@@ -214,7 +216,7 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
 }
 
 void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, double growth_zpp, double smin_zpp, double smax_zpp){
-    int i,j;
+    int i;
     double dens;
 
     LOG_SUPER_DEBUG("Initialising FgtrM table between delta %.3e and %.3e, sigma %.3e and %.3e",min_dens,max_dens,smin_zpp,smax_zpp);
@@ -231,10 +233,10 @@ void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, 
     dfcoll_conditional_table.x_width = fcoll_conditional_table.x_width;
 
     //dens_Ninterp is a global define, probably shouldn't be
-    for(j=0;j<dens_Ninterp;j++){
-        dens = fcoll_conditional_table.x_min + j*fcoll_conditional_table.x_width;
-        fcoll_conditional_table.y_arr[j] = FgtrM_bias_fast(growth_zpp, dens, smin_zpp, smax_zpp);
-        dfcoll_conditional_table.y_arr[j] = dfcoll_dz(zpp, smin_zpp, dens, smax_zpp);
+    for(i=0;i<dens_Ninterp;i++){
+        dens = fcoll_conditional_table.x_min + i*fcoll_conditional_table.x_width;
+        fcoll_conditional_table.y_arr[i] = FgtrM_bias_fast(growth_zpp, dens, smin_zpp, smax_zpp);
+        dfcoll_conditional_table.y_arr[i] = dfcoll_dz(zpp, smin_zpp, dens, smax_zpp);
     }
 }
 
@@ -401,8 +403,9 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
 void initialise_SFRD_Conditional_table(double min_density, double max_density, double growthf,
                                     float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
                                     float Fstar10, float Fstar7_MINI, int method, int method_mini, bool minihalos){
-    float Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
-    int i,j,k,i_tot;
+    float Mlim_Fstar,sigma2;
+    float Mlim_Fstar_MINI=0.;
+    int i,k;
 
     LOG_SUPER_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
 
@@ -478,8 +481,8 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
 
 void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth_out, double param, bool from_catalog){
     int nx;
-    double lnM_cond;
-    double sigma_cond;
+    double lnM_cond=0.;
+    double sigma_cond=0.;
     LOG_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Limits %.2e %.2e)",xmin,xmax,ymin,ymax);
     LOG_DEBUG("D_out %.2e P %.2e from_cat %d",growth_out,param,from_catalog);
 
@@ -570,15 +573,15 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
     double rf_tol_abs = 1e-4;
     double rf_tol_rel = 0.;
 
-    double lnM_cond;
-    double sigma_cond;
+    double lnM_cond=0.;
+    double sigma_cond=0.;
     double min_lp = user_params_global->MIN_LOGPROB;
     if(!from_catalog){
         lnM_cond = param;
         sigma_cond = EvaluateSigma(lnM_cond);
     }
 
-    int i,j,k;
+    int i,k;
     //set up coordinate grids
     for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*((double)i)/((double)nx-1);
     xa[nx-1] = xmax; //avoiding floating point errors in final bin due to the hard boundary at Deltac
@@ -594,7 +597,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
     Nhalo_inv_table.y_min = pa[0];
     Nhalo_inv_table.y_width = pa[1] - pa[0];
 
-    #pragma omp parallel num_threads(user_params_global->N_THREADS) private(i,j,k) firstprivate(sigma_cond,lnM_cond)
+    #pragma omp parallel num_threads(user_params_global->N_THREADS) private(i,k) firstprivate(sigma_cond,lnM_cond)
     {
         double x;
         double norm;

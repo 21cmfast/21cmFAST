@@ -84,7 +84,7 @@ int InitialisePhotonCons(UserParams *user_params, CosmoParams *cosmo_params,
     double a_start = 0.03, a_end = 1./(1. + global_params.PhotonConsEndCalibz); // Scale factors of 0.03 and 0.17 correspond to redshifts of ~32 and ~5.0, respectively.
     double C_HII = 3., T_0 = 2e4;
     double reduce_ratio = 1.003;
-    double Q0,Q1,Nion0,Nion1,Trec,da,a,z0,z1,zi,dadt,ans,delta_a,zi_prev,Q1_prev;
+    double Q0,Q1,Nion0,Nion1,Trec,da,a,z0,z1,zi,dadt,delta_a,zi_prev,Q1_prev;
     double *z_arr,*Q_arr;
     int Nmax = 2000; // This is the number of step, enough with 'da = 2e-3'. If 'da' is reduced, this number should be checked.
     int cnt, nbin, i, istart;
@@ -345,7 +345,7 @@ void determine_deltaz_for_photoncons() {
 
     int i, j, increasing_val, counter, smoothing_int;
     double temp;
-    float z_cal, z_analytic, NF_sample, returned_value, NF_sample_min, gradient_analytic, z_analytic_at_endpoint, const_offset, z_analytic_2, smoothing_width;
+    float z_cal, z_analytic, NF_sample, NF_sample_min, gradient_analytic, z_analytic_at_endpoint, const_offset, z_analytic_2, smoothing_width;
     float bin_width, delta_NF, val1, val2, extrapolated_value;
 
     LOG_DEBUG("Determining deltaz for photon cons.");
@@ -661,9 +661,9 @@ void adjust_redshifts_for_photoncons(
     float *stored_redshift, float *absolute_delta_z
 ) {
 
-    int i, new_counter;
+    int new_counter;
     double temp;
-    float required_NF, adjusted_redshift, future_z, gradient_extrapolation, const_extrapolation, temp_redshift, check_required_NF;
+    float required_NF, adjusted_redshift, temp_redshift, check_required_NF;
 
     LOG_DEBUG("Adjusting redshifts for photon cons.");
 

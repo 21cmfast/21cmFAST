@@ -24,9 +24,7 @@ double apply_subcell_rsds(
     float *v,
     float H){
 
-    char wisdom_filename[500];
-    int i, ii, j, k, n_x, n_y, n_z;
-    float k_x, k_y, k_z;
+    int i, ii, j, k;
     double ave;
 
     ave = 0.;
@@ -40,7 +38,6 @@ double apply_subcell_rsds(
         delta_T_RSD_LOS[i] = (float *)calloc(user_params->HII_DIM,sizeof(float));
     }
 
-    float gradient_component, min_gradient_component;
     float d1_low, d1_high, d2_low, d2_high;
     float x_val1, x_val2, subcell_displacement;
     float RSD_pos_new, RSD_pos_new_boundary_low,RSD_pos_new_boundary_high;

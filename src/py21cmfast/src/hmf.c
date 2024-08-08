@@ -89,7 +89,7 @@ double dNdlnM_Delos(double growthf, double lnM){
 }
 
 double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, double sigma_cond){
-    double result,dfdnu,dsigmadm,sigma,sigdiff_inv,dfdM,sigma_inv;
+    double dfdnu,dsigmadm,sigma,sigdiff_inv,dfdM;
     double nu;
     //hardcoded for now
     const double coeff_nu = 0.519;
@@ -176,10 +176,6 @@ double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double
  */
 double dNdlnM_st(double growthf, double lnM){
     double sigma, dsigmadm, nuhat;
-
-    float MassBinLow;
-    int MassBin;
-
     sigma = EvaluateSigma(lnM);
     dsigmadm = EvaluatedSigmasqdm(lnM);
 
@@ -389,7 +385,6 @@ double unconditional_mf(double growthf, double lnM, double z, int HMF){
 
 double u_mf_integrand(double lnM, void *param_struct){
     struct parameters_gsl_MF_integrals params = *(struct parameters_gsl_MF_integrals *)param_struct;
-    double mf, m_factor;
     double growthf = params.growthf;
     double z = params.redshift;
     int HMF = params.HMF;
@@ -595,8 +590,6 @@ double Fcollapprox_condition(double numin, double nucondition, double beta){
 //Originally written by JBM within the GL integration before it was separated here and generalised to the other integrals
 double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_integrals params, int type){
     //variables used in the calculation
-    double lnM_higher, lnM_lower;
-
     double delta,sigma_c;
     double index_base;
 
@@ -769,24 +762,18 @@ double FgtrM_wsigma(double z, double sig){
 }
 
 double Nhalo_General(double z, double lnM_min, double lnM_max){
-    double lower_limit, upper_limit, growthf;
-
-    growthf = dicke(z);
     struct parameters_gsl_MF_integrals integral_params = {
                 .redshift = z,
-                .growthf = growthf,
+                .growthf = dicke(z),
                 .HMF = user_params_global->HMF,
     };
     return IntegratedNdM(lnM_min, lnM_max, integral_params, 1, 0);
 }
 
 double Fcoll_General(double z, double lnM_min, double lnM_max){
-    double lower_limit, upper_limit, growthf;
-
-    growthf = dicke(z);
     struct parameters_gsl_MF_integrals integral_params = {
                 .redshift = z,
-                .growthf = growthf,
+                .growthf = dicke(z),
                 .HMF = user_params_global->HMF,
     };
     return IntegratedNdM(lnM_min, lnM_max, integral_params, 2, 0);
@@ -1025,7 +1012,7 @@ void bisection(float *x, float xlow, float xup, int *iter){
 }
 
 float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC){
-    int i, iter, max_iter=200;
+    int iter, max_iter=200;
     float rel_tol=0.001;
     float logMlow, logMupper, x, x1;
     iter = 0;

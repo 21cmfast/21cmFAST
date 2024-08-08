@@ -89,7 +89,7 @@ double expected_nhalo(double redshift, UserParams *user_params, CosmoParams *cos
 }
 
 double sample_dndM_inverse(double condition, struct HaloSamplingConstants * hs_constants, gsl_rng * rng){
-    double p_in, min_prob, result;
+    double p_in, result;
     p_in = gsl_rng_uniform(rng);
     result = EvaluateNhaloInv(condition,p_in);
     result = fmin(1,fmax(0,result)); //clip in case of extrapolation
@@ -284,8 +284,6 @@ int add_properties_cat(unsigned long long int seed, float redshift, HaloField *h
  * conditional property PDFs, the number of halos is poisson sampled from the integrated CMF*/
 int stoc_halo_sample(struct HaloSamplingConstants *hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
     double exp_N = hs_constants->expected_N;
-
-    double hm_sample;
     int ii, nh;
     int halo_count=0;
 
@@ -334,10 +332,10 @@ void fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_
         }
     }
     else{
-        while(*M_tot_pt > exp_M){
+        do{
             //here we remove by setting halo mass to zero, skipping it during the consolidation
             last_M_del = remove_random_halo(rng,*n_halo_pt,&random_idx,M_tot_pt,M_out);
-        }
+        }while(*M_tot_pt > exp_M);
 
         // if the sample with the last subtracted halo is closer to the expected mass, keep it
         // LOG_ULTRA_DEBUG("Deciding to keep last halo M %.3e tot %.3e exp %.3e",last_M_del,*M_tot_pt,exp_M);
@@ -414,8 +412,6 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
     int n_halo_sampled;
     double nu_sample, sigma_sample, M_sample, M_remaining, delta_current;
     double lnM_remaining, sigma_r, del_term;
-
-    double tbl_arg = hs_constants->cond_val;
     n_halo_sampled = 0;
     double nu_fudge_factor = user_params_global->HALOMASS_CORRECTION;
 
@@ -673,11 +669,9 @@ int stoc_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int 
 // will have to add properties here and output grids, instead of in perturbed
 int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, float *halo_overlap_box, HaloField *halofield_large, HaloField *halofield_out, struct HaloSamplingConstants *hs_constants){
     int lo_dim = user_params_global->HII_DIM;
-    double boxlen = user_params_global->BOX_LEN;
 
     double Mcell = hs_constants->M_cond;
     double Mmin = hs_constants->M_min;
-    double lnMmin = hs_constants->lnM_min;
     double growthf = hs_constants->growth_out;
 
     unsigned long long int nhalo_in = halofield_large->n_halos;
@@ -830,17 +824,9 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, HaloF
         LOG_ERROR("halo progenitors must go backwards in time!!! z_in = %.1f, z_out = %.1f",z_in,z_out);
         Throw(ValueError);
     }
-
-    double growth_in = hs_constants->growth_in;
-    double growth_out = hs_constants->growth_out;
-    int lo_dim = user_params_global->HII_DIM;
-    int hi_dim = user_params_global->DIM;
-    double boxlen = user_params_global->BOX_LEN;
     //cell size for smoothing / CMF calculation
-    double lnMmax_tb = hs_constants->lnM_max_tb;
     double Mmax_tb = hs_constants->M_max_tables;
     double Mmin = hs_constants->M_min;
-    double lnMmin = hs_constants->lnM_min;
     double delta = hs_constants->delta;
 
     unsigned long long int nhalo_in = halofield_in->n_halos;
@@ -922,15 +908,17 @@ int sample_halo_progenitors(gsl_rng ** rng_arr, double z_in, double z_out, HaloF
 
                 if(ii==0){
                     M_prog += prog_buf[jj];
-                    LOG_ULTRA_DEBUG("First Halo Prog %d: Mass %.2e Stellar %.2e SFR %.2e e_d %.3f",jj,prog_buf[jj],propbuf_out[0],propbuf_out[1],Deltac*growth_out/growth_in);
+                    LOG_ULTRA_DEBUG("First Halo Prog %d: Mass %.2e Stellar %.2e SFR %.2e e_d %.3f",
+                            jj,prog_buf[jj],propbuf_out[0],propbuf_out[1],Deltac*hs_constants->growth_out/hs_constants->growth_in);
                 }
             }
             if(ii==0){
                 LOG_ULTRA_DEBUG(" HMF %d delta %.3f delta_coll %.3f delta_desc %.3f adjusted %.3f",user_params_global->HMF,
                                                                                 hs_constants_priv.delta,
-                                                                                get_delta_crit(user_params_global->HMF,hs_constants_priv.sigma_cond,growth_out),
-                                                                                get_delta_crit(user_params_global->HMF,hs_constants_priv.sigma_cond,growth_in),
-                                                                                get_delta_crit(user_params_global->HMF,hs_constants_priv.sigma_cond,growth_in)*growth_out/growth_in);
+                                                                                get_delta_crit(user_params_global->HMF,hs_constants_priv.sigma_cond,hs_constants->growth_out),
+                                                                                get_delta_crit(user_params_global->HMF,hs_constants_priv.sigma_cond,hs_constants->growth_in),
+                                                                                get_delta_crit(user_params_global->HMF,hs_constants_priv.sigma_cond,hs_constants->growth_in)
+                                                                                *hs_constants->growth_out/hs_constants->growth_in);
                 print_hs_consts(&hs_constants_priv);
                 LOG_SUPER_DEBUG("First Halo: Mass %.2f | N %d (exp. %.2e) | Total M %.2e (exp. %.2e)",
                                         M2,n_prog,hs_constants_priv.expected_N,M_prog,hs_constants_priv.expected_M);
@@ -967,10 +955,6 @@ int stochastic_halofield(UserParams *user_params, CosmoParams *cosmo_params,
                          unsigned long long int seed, float redshift_desc, float redshift,
                          float *dens_field, float *halo_overlap_box, HaloField *halos_desc, HaloField *halos){
     Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
-
-    int n_halo_stoc;
-    int i_start,i;
-
     if(redshift_desc > 0 && halos_desc->n_halos == 0){
         LOG_DEBUG("No halos to sample from redshifts %.2f to %.2f, continuing...",redshift_desc,redshift);
         return 0;

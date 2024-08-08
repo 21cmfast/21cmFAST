@@ -31,6 +31,10 @@ void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_oute
             dimension = user_params_global->HII_DIM;
             midpoint = HII_MIDDLE;
             break;
+        default:
+            LOG_ERROR("Resolution for filter functions must be 0(DIM) or 1(HII_DIM)");
+            Throw(ValueError);
+            break;
     }
     // loop through k-box
 
@@ -79,6 +83,10 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
         case 1:
             dimension = user_params_global->HII_DIM;
             midpoint = HII_MIDDLE;
+            break;
+        default:
+            LOG_ERROR("Resolution for filter functions must be 0(DIM) or 1(HII_DIM)");
+            Throw(ValueError);
             break;
     }
 
@@ -158,6 +166,10 @@ void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
         case 1:
             dimension = user_params_global->HII_DIM;
             midpoint = HII_MIDDLE;
+            break;
+        default:
+            LOG_ERROR("Resolution for filter functions must be 0(DIM) or 1(HII_DIM)");
+            Throw(ValueError);
             break;
     }
     // loop through k-box

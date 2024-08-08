@@ -184,9 +184,8 @@ int ComputePerturbField(
     float growth_factor, displacement_factor_2LPT, init_growth_factor, init_displacement_factor_2LPT;
     double xf, yf, zf;
     float mass_factor, dDdt, f_pixel_factor, velocity_displacement_factor, velocity_displacement_factor_2LPT;
-    unsigned long long ct, HII_i, HII_j, HII_k;
+    unsigned long long HII_i, HII_j, HII_k;
     int i,j,k,xi, yi, zi, dimension, switch_mid;
-    double ave_delta, new_ave_delta;
 
     // Variables to perform cloud in cell re-distribution of mass for the perturbed field
     int xp1,yp1,zp1;

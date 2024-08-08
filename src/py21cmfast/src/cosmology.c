@@ -18,7 +18,7 @@
 #include "cosmology.h"
 
 //These globals hold values initialised in init_ps() and used throughout the rest of the file
-static double sigma_norm, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_nu, f_baryon, beta_c, d2fact, R_CUTOFF, DEL_CURR, SIG_CURR;
+static double sigma_norm, theta_cmb, omhh, z_equality, y_d, sound_horizon, alpha_nu, f_nu, f_baryon, beta_c, d2fact, R_CUTOFF;
 
 /*
   this function reads the z=0 matter (CDM+baryons)  and relative velocity transfer functions from CLASS (from a file)
@@ -48,7 +48,7 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
     static double kclass[CLASS_LENGTH], Tmclass[CLASS_LENGTH], Tvclass_vcb[CLASS_LENGTH];
     static gsl_interp_accel *acc_density, *acc_vcb;
     static gsl_spline *spline_density, *spline_vcb;
-    float trash, currk, currTm, currTv;
+    float currk, currTm, currTv;
     double ans;
     int i;
     int gsl_status;
@@ -119,6 +119,10 @@ double TF_CLASS(double k, int flag_int, int flag_dv)
         else if(flag_dv == 1){ // output is rel velocity
             return (Tvclass_vcb[CLASS_LENGTH]/kclass[CLASS_LENGTH-1]/kclass[CLASS_LENGTH-1]);
         }    //we just set it to the last value, since sometimes it wants large k for R<<cell_size, which does not matter much.
+        else{
+            LOG_ERROR("Invalid flag_dv %d passed to TF_CLASS",flag_dv);
+            Throw(ValueError);
+        }
     }
     else { // Do spline
         if(flag_dv == 0){ // output is density
@@ -362,7 +366,7 @@ double power_in_k(double k){
 */
 double power_in_vcb(double k){
 
-    double p, T, gamma, q, aa, bb, cc;
+    double p, T;
 
     //only works if using CLASS
     if (user_params_global->POWER_SPECTRUM == 5){ // CLASS
@@ -617,8 +621,7 @@ double M_J_WDM(){
 /* redshift derivative of the growth function at z */
 double ddicke_dz(double z){
     float dz = 1e-10;
-    double omegaM_z, ddickdz, dick_0, x, x_0, domegaMdz;
-
+    //NOTE: this isnt called a lot, I'm not sure why we don't use a similar method to ddicke_dt
     return (dicke(z+dz)-dicke(z))/dz;
 }
 
@@ -743,7 +746,7 @@ double dtdz(float z){
 /* Time derivative of the growth function at z */
 double ddickedt(double z){
     float dz = 1e-10;
-    double omegaM_z, ddickdz, dick_0, x, x_0, domegaMdz;
+    double omegaM_z, ddickdz, dick_0, domegaMdz;
     double tiny = 1e-4;
 
     return (dicke(z+dz)-dicke(z))/dz/dtdz(z); // lazy non-analytic form getting

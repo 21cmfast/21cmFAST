@@ -44,10 +44,9 @@ LOG_DEBUG("redshift=%f", redshift);
 
         omp_set_num_threads(user_params->N_THREADS);
 
-        float growth_factor, displacement_factor_2LPT, mass, xf, yf, zf, z, growth_factor_over_BOX_LEN,displacement_factor_2LPT_over_BOX_LEN;
+        float growth_factor, displacement_factor_2LPT, xf, yf, zf, growth_factor_over_BOX_LEN,displacement_factor_2LPT_over_BOX_LEN;
         unsigned long long int i, j, k, DI, dimension;
-        unsigned long long ct, i_halo;
-        float dz = 1e-10;
+        unsigned long long i_halo;
 
 LOG_DEBUG("Begin Initialisation");
 
@@ -128,15 +127,9 @@ LOG_DEBUG("Begin Initialisation");
         // ************************************************************************* //
         //                            END 2LPT PART                                  //
         // ************************************************************************* //
-
-        unsigned long long n_halos;
-
         halos_perturbed->n_halos = halos->n_halos;
 
         // ******************   END INITIALIZATION     ******************************** //
-
-        float mean_correction = 0.0, mean_correction_2LPT = 0.0, mean_ratio = 0.0;
-        float max_correction = 1e-10, max_correction_2LPT = 1e-10, max_ratio = 1e-10;
 
 #pragma omp parallel shared(boxes,halos,halos_perturbed) \
                     private(i_halo,i,j,k,xf,yf,zf) num_threads(user_params->N_THREADS)

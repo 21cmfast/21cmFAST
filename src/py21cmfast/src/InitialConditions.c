@@ -159,10 +159,8 @@ int ComputeInitialConditions(
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_noastro(user_params,cosmo_params);
 
-    unsigned long long ct;
-    int n_x, n_y, n_z, i, j, k, ii, thread_num, dimension;
+    int n_x, n_y, n_z, i, j, k, ii, dimension;
     float k_x, k_y, k_z, k_mag, p, a, b, k_sq;
-    double pixel_deltax;
     float p_vcb, vcb_i;
 
     float f_pixel_factor;
@@ -186,11 +184,6 @@ int ComputeInitialConditions(
     fftwf_complex *HIRES_box = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
     fftwf_complex *HIRES_box_saved = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
 
-    // allocate array for the k-space and real-space boxes for vcb
-    fftwf_complex *HIRES_box_vcb_saved;
-    // HIRES_box_vcb_saved may be needed if FFTW_Wisdom doesn't exist -- currently unused
-    // but I am not going to allocate it until I am certain I needed it.
-
     // find factor of HII pixel size / deltax pixel size
     f_pixel_factor = user_params->DIM/(float)user_params->HII_DIM;
 
@@ -203,6 +196,7 @@ int ComputeInitialConditions(
 #pragma omp parallel shared(HIRES_box,r) \
                     private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,p,a,b,p_vcb) num_threads(user_params->N_THREADS)
     {
+        int thread_num = omp_get_thread_num();
 #pragma omp for
         for (n_x=0; n_x<user_params->DIM; n_x++){
             // convert index to numerical value for this component of the k-mode: k = (2*pi/L) * n
@@ -235,8 +229,8 @@ int ComputeInitialConditions(
                         b = -1.0;
                     }
                     else {
-                        a = gsl_ran_ugaussian(r[omp_get_thread_num()]);
-                        b = gsl_ran_ugaussian(r[omp_get_thread_num()]);
+                        a = gsl_ran_ugaussian(r[thread_num]);
+                        b = gsl_ran_ugaussian(r[thread_num]);
                     }
 
                     HIRES_box[C_INDEX(n_x, n_y, n_z)] = sqrt(VOLUME*p/2.0) * (a + b*I);
@@ -301,101 +295,88 @@ int ComputeInitialConditions(
 
 
     // ******* Relative Velocity part ******* //
-  if(user_params->USE_RELATIVE_VELOCITIES){
+    if(user_params->USE_RELATIVE_VELOCITIES){
     //JBM: We use the memory allocated to HIRES_box as it's free.
-
-      for(ii=0;ii<3;ii++) {
-
-        memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
-
-#pragma omp parallel shared(HIRES_box,ii) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,p,p_vcb) num_threads(user_params->N_THREADS)
-        {
-#pragma omp for
-            for (n_x=0; n_x<user_params->DIM; n_x++){
-                if (n_x>MIDDLE)
-                    k_x =(n_x-user_params->DIM) * DELTA_K;  // wrap around for FFT convention
-                else
-                    k_x = n_x * DELTA_K;
-
-                for (n_y=0; n_y<user_params->DIM; n_y++){
-                    if (n_y>MIDDLE)
-                        k_y =(n_y-user_params->DIM) * DELTA_K;
+        for(ii=0;ii<3;ii++) {
+            memcpy(HIRES_box, HIRES_box_saved, sizeof(fftwf_complex)*KSPACE_NUM_PIXELS);
+            #pragma omp parallel shared(HIRES_box,ii) private(n_x,n_y,n_z,k_x,k_y,k_z,k_mag,p,p_vcb) num_threads(user_params->N_THREADS)
+            {
+                #pragma omp for
+                for (n_x=0; n_x<user_params->DIM; n_x++){
+                    if (n_x>MIDDLE)
+                        k_x =(n_x-user_params->DIM) * DELTA_K;  // wrap around for FFT convention
                     else
-                        k_y = n_y * DELTA_K;
+                        k_x = n_x * DELTA_K;
 
-                    for (n_z=0; n_z<=MIDDLE_PARA; n_z++){
-                        k_z = n_z * DELTA_K_PARA;
+                    for (n_y=0; n_y<user_params->DIM; n_y++){
+                        if (n_y>MIDDLE)
+                            k_y =(n_y-user_params->DIM) * DELTA_K;
+                        else
+                            k_y = n_y * DELTA_K;
 
-                        k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
-                        p = power_in_k(k_mag);
-                        p_vcb = power_in_vcb(k_mag);
+                        for (n_z=0; n_z<=MIDDLE_PARA; n_z++){
+                            k_z = n_z * DELTA_K_PARA;
 
+                            k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
+                            p = power_in_k(k_mag);
+                            p_vcb = power_in_vcb(k_mag);
 
-                        // now set the velocities
-                        if ((n_x==0) && (n_y==0) && (n_z==0)){ // DC mode
-                            HIRES_box[0] = 0;
-                        }
-                        else{
-                            if(ii==0) {
-                                HIRES_box[C_INDEX(n_x,n_y,n_z)] *= I * k_x/k_mag * sqrt(p_vcb/p) * C_KMS;
+                            // now set the velocities
+                            if ((n_x==0) && (n_y==0) && (n_z==0)){ // DC mode
+                                HIRES_box[0] = 0;
                             }
-                            if(ii==1) {
-                                HIRES_box[C_INDEX(n_x,n_y,n_z)] *= I * k_y/k_mag * sqrt(p_vcb/p) * C_KMS;
-                            }
-                            if(ii==2) {
-                                HIRES_box[C_INDEX(n_x,n_y,n_z)] *= I * k_z/k_mag * sqrt(p_vcb/p) * C_KMS;
+                            else{
+                                if(ii==0) {
+                                    HIRES_box[C_INDEX(n_x,n_y,n_z)] *= I * k_x/k_mag * sqrt(p_vcb/p) * C_KMS;
+                                }
+                                if(ii==1) {
+                                    HIRES_box[C_INDEX(n_x,n_y,n_z)] *= I * k_y/k_mag * sqrt(p_vcb/p) * C_KMS;
+                                }
+                                if(ii==2) {
+                                    HIRES_box[C_INDEX(n_x,n_y,n_z)] *= I * k_z/k_mag * sqrt(p_vcb/p) * C_KMS;
+                                }
                             }
                         }
                     }
                 }
             }
-        }
 
 
-//we only care about the lowres vcb box, so we filter it directly.
-      if (user_params->DIM != user_params->HII_DIM) {
-          filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
-      }
+            //we only care about the lowres vcb box, so we filter it directly.
+            if (user_params->DIM != user_params->HII_DIM) {
+                filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            }
 
-//fft each velocity component back to real space
-      dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_box);
+            //fft each velocity component back to real space
+            dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_box);
 
-
-
-      #pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor,ii) private(i,j,k,vcb_i) num_threads(user_params->N_THREADS)
-              {
-      #pragma omp for
-                  for (i=0; i<user_params->HII_DIM; i++){
-                      for (j=0; j<user_params->HII_DIM; j++){
-                          for (k=0; k<HII_D_PARA; k++){
-                            vcb_i = *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
-                                                             (unsigned long long)(j*f_pixel_factor+0.5),
-                                                             (unsigned long long)(k*f_pixel_factor+0.5)));
-                            boxes->lowres_vcb[HII_R_INDEX(i,j,k)] += vcb_i*vcb_i;
-                          }
-                      }
-                  }
-              }
-
-
-    }
-
-
-//now we take the sqrt of that and normalize the FFT
-    for (i=0; i<user_params->HII_DIM; i++){
-        for (j=0; j<user_params->HII_DIM; j++){
-            for (k=0; k<HII_D_PARA; k++){
-              boxes->lowres_vcb[HII_R_INDEX(i,j,k)] = sqrt(boxes->lowres_vcb[HII_R_INDEX(i,j,k)])/VOLUME;
+            #pragma omp parallel shared(boxes,HIRES_box,f_pixel_factor,ii) private(i,j,k,vcb_i) num_threads(user_params->N_THREADS)
+            {
+            #pragma omp for
+                for (i=0; i<user_params->HII_DIM; i++){
+                    for (j=0; j<user_params->HII_DIM; j++){
+                        for (k=0; k<HII_D_PARA; k++){
+                        vcb_i = *((float *)HIRES_box + R_FFT_INDEX((unsigned long long)(i*f_pixel_factor+0.5),
+                                                            (unsigned long long)(j*f_pixel_factor+0.5),
+                                                            (unsigned long long)(k*f_pixel_factor+0.5)));
+                        boxes->lowres_vcb[HII_R_INDEX(i,j,k)] += vcb_i*vcb_i;
+                        }
+                    }
+                }
             }
         }
-    }
+        //now we take the sqrt of that and normalize the FFT
+        for (i=0; i<user_params->HII_DIM; i++){
+            for (j=0; j<user_params->HII_DIM; j++){
+                for (k=0; k<HII_D_PARA; k++){
+                boxes->lowres_vcb[HII_R_INDEX(i,j,k)] = sqrt(boxes->lowres_vcb[HII_R_INDEX(i,j,k)])/VOLUME;
+                }
+            }
+        }
 
-  }
+    }
     LOG_DEBUG("Completed Relative velocities.");
     // ******* End of Relative Velocity part ******* //
-
-
-
 
     // Now look at the velocities
 
@@ -687,19 +668,23 @@ int ComputeInitialConditions(
                                                                               (unsigned long long)(j),
                                                                               (unsigned long long)(k)));
                             }
-                            if(phi_component==1) {
+                            else if(phi_component==1) {
                                 component_ii = boxes->hires_vx_2LPT[R_INDEX(i,j,k)];
                                 component_jj = boxes->hires_vz_2LPT[R_INDEX(i,j,k)];
                                 component_ij = *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
                                                                               (unsigned long long)(j),
                                                                               (unsigned long long)(k)));
                             }
-                            if(phi_component==2) {
+                            else if(phi_component==2) {
                                 component_ii = boxes->hires_vy_2LPT[R_INDEX(i,j,k)];
                                 component_jj = boxes->hires_vz_2LPT[R_INDEX(i,j,k)];
                                 component_ij = *((float *)phi_1 + R_FFT_INDEX((unsigned long long)(i),
                                                                               (unsigned long long)(j),
                                                                               (unsigned long long)(k)));
+                            }
+                            else{
+                                LOG_ERROR("Invalid phi component?");
+                                Throw(ValueError);
                             }
 
                             // Kept in this form to maintain similar (possible) rounding errors

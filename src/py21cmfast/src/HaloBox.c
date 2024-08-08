@@ -381,7 +381,7 @@ int get_box_averages(double M_min, double M_max, double M_turn_a, double M_turn_
     double prefactor_xray = prefactor_sfr * consts->l_x * SperYR;
     double prefactor_xray_mini = prefactor_sfr_mini * consts->l_x_mini * SperYR;
 
-    double mass_intgrl, h_count;
+    double mass_intgrl;
     double intgrl_fesc_weighted, intgrl_stars_only;
     double intgrl_fesc_weighted_mini=0., intgrl_stars_only_mini=0.;
 
@@ -688,7 +688,6 @@ void get_mean_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin
     #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
         unsigned long long int i;
-        double dens;
         double J21_val, Gamma12_val, zre_val;
         double curr_vcb = consts->vcb_norel;
         double M_turn_m = consts->mturn_m_nofb;
@@ -697,7 +696,6 @@ void get_mean_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin
 
     #pragma omp for reduction(+:l10_mturn_m_avg,l10_mturn_a_avg,l10_mturn_r_avg)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
-            dens = perturbed_field->density[i];
             if(!flag_options_global->FIX_VCB_AVG && user_params_global->USE_RELATIVE_VELOCITIES){
                 curr_vcb = ini_boxes->lowres_vcb[i];
             }

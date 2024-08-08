@@ -608,7 +608,7 @@ double Tc_eff(double TK, double TS)
 
 float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float * curr_xalpha){
     double Trad,xc,xa_tilde;
-    double TS,TSold,TSinv;
+    double TS,TSold;
     double Tceff;
 
     Trad = T_cmb*(1.0+z);
@@ -616,12 +616,14 @@ float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float * cur
     if (Jalpha > 1.0e-20) { // * Must use WF effect * //
         TS = Trad;
         TSold = 0.0;
-        while (fabs(TS-TSold)/TS > 1.0e-3) {
+        //TODO: changed to do-while so we never use uninitialised variables
+        //      Make sure it didn't effect anything
+        do{
             TSold = TS;
             xa_tilde = xalpha_tilde(z,Jalpha,TK,TS,delta,xe);
             Tceff = Tc_eff(1./TK,1./TS);
             TS = (1.0+xa_tilde+xc)/(1.0/Trad+xa_tilde/Tceff + xc/TK);
-        }
+        }while(fabs(TS-TSold)/TS > 1.0e-3);
         *curr_xalpha = xa_tilde;
     } else { // * Collisions only * //
         TS = (1.0 + xc)/(1.0/Trad + xc/TK);
@@ -1122,12 +1124,10 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
         taugp = taugp_max;
     }
 
-    int itk, its, itaugp, idec;
+    int itk, its, itaugp;
     itk = find_nearest_point(Tk_min, Tk_max, nT, tk);
     its = find_nearest_point(Ts_min, Ts_max, nT, ts);
     itaugp = find_nearest_point(taugp_min, taugp_max, ngp, taugp);
-
-    idec = find_xyz_pos(itk, its, itaugp, nT, ngp);
 
     double x0,x1,y0,y1,z0,z1,xd, yd, zd;
     double c000, c100, c001, c101, c010, c110,c011,c111;
@@ -1173,7 +1173,6 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
     double ans;
     static double dEC[nT * nT * ngp];
     static double dEI[nT * nT * ngp];
-    double dummy_heat;
     int ii, jj, kk, index;
     FILE *F;
 
@@ -1192,7 +1191,6 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
             for (jj=0;jj<nT;jj++){
                 for (kk=0;kk<ngp;kk++){
                     index = ii*nT*ngp + jj*ngp + kk;
-                    //fscanf(F,"%lf %lf %lf %lf %lf",&dummy_heat,&dummy_heat,&dummy_heat,&dEC[index],&dEI[index]);
                     fscanf(F,"%lf %lf",&dEC[index],&dEI[index]);
                 }
             }
@@ -1205,8 +1203,12 @@ double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
     if (flag == 2) {
       ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEC); //For Continuum Flux
     }
-    if (flag == 3) {
+    else if (flag == 3) {
       ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEI); //For Injected Flux
+    }
+    else{
+        LOG_ERROR("invalid flag passed to Energy_Lya_heating");
+        Throw(ValueError);
     }
     return ans;
 }
