@@ -51,6 +51,7 @@ setup(
         ),
         re.sub(":[a-z]+:`~?(.*?)`", r"``\1``", _read("CHANGELOG.rst")),
     ),
+    long_description_content_type="text/x-rst",
     author="The 21cmFAST coredev team",
     author_email="21cmfast.coredev@gmail.com",
     url="https://github.com/21cmFAST/21cmFAST",
