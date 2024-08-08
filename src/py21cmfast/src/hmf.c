@@ -85,7 +85,7 @@ double dNdlnM_Delos(double growthf, double lnM){
     dfdM = dfdnu * fabs(dsigmadm) * sigma_inv;
 
     //NOTE: dfdM == constants*dNdlnM
-    return dfdM*cosmo_params_global->OMm*RHOcrit;
+    return dfdM;
 }
 
 double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, double sigma_cond){
@@ -106,8 +106,6 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
     dfdnu = coeff_nu*pow(nu,index_nu)*exp(exp_factor*nu*nu);
     dfdM = dfdnu * fabs(dsigmadm) * sigdiff_inv;
 
-    //NOTE: like the other CMFs this is dNdlogM and leaves out
-    //   the (cosmo_params_global->OMm)*RHOcrit
     //NOTE: dfdM == constants*dNdlnM
     return dfdM;
 }
@@ -190,7 +188,7 @@ double dNdlnM_st(double growthf, double lnM){
 
     nuhat = sqrt(SHETH_a) * Deltac / sigma;
 
-    return (-(cosmo_params_global->OMm)*RHOcrit) * (dsigmadm/sigma) * sqrt(2./PI)*SHETH_A * (1+ pow(nuhat, -2*SHETH_p)) * nuhat * pow(E, -nuhat*nuhat/2.0);
+    return -(dsigmadm/sigma) * sqrt(2./PI)*SHETH_A * (1+ pow(nuhat, -2*SHETH_p)) * nuhat * pow(E, -nuhat*nuhat/2.0);
 }
 
 //Conditional Extended Press-Schechter Mass function, with constant barrier delta=1.682 and sharp-k window function
@@ -228,7 +226,7 @@ double dNdlnM_PS(double growthf, double lnM){
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf*growthf/(2.*sigma));
-    return (-(cosmo_params_global->OMm)*RHOcrit) * sqrt(2/PI) * (Deltac/(sigma*sigma)) * dsigmadm * exp(-(Deltac*Deltac)/(2*sigma*sigma));
+    return -sqrt(2/PI) * (Deltac/(sigma*sigma)) * dsigmadm * exp(-(Deltac*Deltac)/(2*sigma*sigma));
 }
 
 //The below mass functions do not have a CMF given
@@ -256,7 +254,7 @@ double dNdlnM_WatsonFOF(double growthf, double lnM){
 
     f_sigma = Watson_A * ( pow( Watson_beta/sigma, Watson_alpha) + 1. ) * exp( - Watson_gamma/(sigma*sigma) );
 
-    return (-(cosmo_params_global->OMm)*RHOcrit) * (dsigmadm/sigma) * f_sigma;
+    return -(dsigmadm/sigma) * f_sigma;
 }
 
 /*
@@ -288,7 +286,7 @@ double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM){
 
     f_sigma = A_z * ( pow(beta_z/sigma, alpha_z) + 1. ) * exp( - Watson_gamma_z/(sigma*sigma) );
 
-    return (-(cosmo_params_global->OMm)*RHOcrit) * (dsigmadm/sigma) * f_sigma;
+    return -(dsigmadm/sigma) * f_sigma;
 }
 
 double nion_fraction(double M, void *param_struct){
@@ -779,7 +777,7 @@ double Nhalo_General(double z, double lnM_min, double lnM_max){
                 .growthf = growthf,
                 .HMF = user_params_global->HMF,
     };
-    return IntegratedNdM(lnM_min, lnM_max, integral_params, 1, 0) / (cosmo_params_global->OMm*RHOcrit);
+    return IntegratedNdM(lnM_min, lnM_max, integral_params, 1, 0);
 }
 
 double Fcoll_General(double z, double lnM_min, double lnM_max){
@@ -791,7 +789,7 @@ double Fcoll_General(double z, double lnM_min, double lnM_max){
                 .growthf = growthf,
                 .HMF = user_params_global->HMF,
     };
-    return IntegratedNdM(lnM_min, lnM_max, integral_params, 2, 0) / (cosmo_params_global->OMm*RHOcrit);
+    return IntegratedNdM(lnM_min, lnM_max, integral_params, 2, 0);
 }
 
 double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover, double Alpha_star, double Alpha_esc, double Fstar10,
@@ -808,7 +806,7 @@ double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnove
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_global->HMF,
     };
-    return IntegratedNdM(lnM_Min,lnM_Max,params,3,0) / ((cosmo_params_global->OMm)*RHOcrit);
+    return IntegratedNdM(lnM_Min,lnM_Max,params,3,0);
 }
 
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover, double MassTurnover_upper, double Alpha_star,
@@ -826,7 +824,7 @@ double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTu
         .Mlim_esc = Mlim_Fesc,
         .HMF = user_params_global->HMF,
     };
-    return IntegratedNdM(lnM_Min,lnM_Max,params,4,0) / ((cosmo_params_global->OMm)*RHOcrit);
+    return IntegratedNdM(lnM_Min,lnM_Max,params,4,0);
 }
 
 double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double M_cond, double sigma, double delta, int method){

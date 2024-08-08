@@ -185,7 +185,9 @@ int ComputeLF(int nbins, UserParams *user_params, CosmoParams *cosmo_params, Ast
                 else
                     f_duty_upper = exp(-(Mhalo_param[i]/Mcrit_atom));
 
-                log10phi[i + i_z*nbins] = log10( unconditional_mf(growthf,lnMhalo_i,z_LF[i_z],mf) * exp(-(M_TURNs[i_z]/Mhalo_param[i])) * f_duty_upper / fabs(dMuvdMhalo) );
+                log10phi[i + i_z*nbins] = log10( unconditional_mf(growthf,lnMhalo_i,z_LF[i_z],mf)
+                                        * exp(-(M_TURNs[i_z]/Mhalo_param[i]) * (cosmo_params->OMm*RHOcrit))
+                                        * f_duty_upper / fabs(dMuvdMhalo) );
 
                 if (isinf(log10phi[i + i_z*nbins]) || isnan(log10phi[i + i_z*nbins]) || log10phi[i + i_z*nbins] < -30.)
                     log10phi[i + i_z*nbins] = -30.;

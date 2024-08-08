@@ -73,14 +73,13 @@ double expected_nhalo(double redshift, UserParams *user_params, CosmoParams *cos
     double M_min = user_params->SAMPLER_MIN_MASS;
     //maximum sampled mass
     double M_max = RHOcrit * cosmo_params->OMm * VOLUME / HII_TOT_NUM_PIXELS;
-    double growthf = dicke(redshift);
     double result;
 
     init_ps();
     if(user_params->USE_INTERPOLATION_TABLES)
         initialiseSigmaMInterpTable(M_min,M_max);
 
-    result = Nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME;
+    result = Nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME * cosmo_params->OMm * RHOcrit;
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f",result,M_min,M_max,redshift);
 
     if(user_params->USE_INTERPOLATION_TABLES)
@@ -732,7 +731,7 @@ int sample_halo_grids(gsl_rng **rng_arr, double redshift, float *dens_field, flo
             halofield_out->halo_coords[1 + 3*(istart+count)] = halofield_large->halo_coords[1 + 3*halo_idx];
             halofield_out->halo_coords[2 + 3*(istart+count)] = halofield_large->halo_coords[2 + 3*halo_idx];
 
-            total_volume_dexm += halofield_large->halo_masses[halo_idx] / (RHOcrit * cosmo_params_global->OMm) / cell_volume;
+            total_volume_dexm += halofield_large->halo_masses[halo_idx] / (RHOcrit * cosmo_params_global->OMm * cell_volume);
             count++;
         }
 
