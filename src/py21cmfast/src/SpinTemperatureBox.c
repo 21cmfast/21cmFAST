@@ -553,8 +553,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                                                                                   perturbed_field->density[HII_R_INDEX(i, j, k)] * inverse_growth_factor_z * growth_factor_zp,
                                                                                   TK, xe, 0, &curr_xalpha);
                             // this_spin_temp->Trad_box[HII_R_INDEX(i, j, k)] = 0.0; // Initialize to 0
-                            // this_spin_temp->SFRD_box[HII_R_INDEX(i, j, k)] = 0.0;
-                            // this_spin_temp->SFRD_MINI_box[HII_R_INDEX(i, j, k)] = 0.0;
+                            this_spin_temp->SFRD_box[HII_R_INDEX(i, j, k)] = 0.0;
+                            this_spin_temp->SFRD_MINI_box[HII_R_INDEX(i, j, k)] = 0.0;
                             // this_spin_temp->History_box[HII_R_INDEX(i, j, k)] = 0.0;
                         }
                     }
@@ -2680,8 +2680,8 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                     Phi_ave += Phi / ((double)HII_TOT_NUM_PIXELS);
                 }
 
-                // this_spin_temp->SFRD_box[box_ct] = Phi_2_SFRD(Phi, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 0);
-                // this_spin_temp->SFRD_MINI_box[box_ct] = Phi_2_SFRD(Phi_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
+                this_spin_temp->SFRD_box[box_ct] = Phi_2_SFRD(Phi, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 0);
+                this_spin_temp->SFRD_MINI_box[box_ct] = Phi_2_SFRD(Phi_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
 
                 if (!this_spin_temp->first_box)
                 {
@@ -2727,13 +2727,13 @@ int ComputeTsBox(float redshift, float prev_redshift, struct UserParams *user_pa
                 // Tr_EoR = Get_EoR_Radio_mini(this_spin_temp, astro_params, cosmo_params, flag_options, redshift, Radio_Temp_ave, x_e_ave / (double)HII_TOT_NUM_PIXELS);
                 Tr_EoR = Get_EoR_Radio_mini_v2(this_spin_temp, astro_params, cosmo_params, redshift);
                 // SFRD_EoR_MINI = Get_SFRD_EoR_MINI(previous_spin_temp, this_spin_temp, astro_params, cosmo_params, x_e_ave / (double)HII_TOT_NUM_PIXELS, zpp_Rct0);
-                // SFRD_MINI_ave = Phi_2_SFRD(Phi_ave_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
-                // SFRD_MINI_ave = SFRD_MINI_ave > 1e-200 ? SFRD_MINI_ave : 1e-200; // avoid nan in divide
+                SFRD_MINI_ave = Phi_2_SFRD(Phi_ave_mini, zpp_Rct0, H_Rct0, astro_params, cosmo_params, 1);
+                SFRD_MINI_ave = SFRD_MINI_ave > 1e-200 ? SFRD_MINI_ave : 1e-200; // avoid nan in divide
 
                 for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++)
                 {
                     this_spin_temp->Trad_box[box_ct] = Tr_EoR * this_spin_temp->Trad_box[box_ct] / Radio_Temp_ave;
-                    // this_spin_temp->SFRD_MINI_box[box_ct] = SFRD_EoR_MINI * this_spin_temp->SFRD_MINI_box[box_ct] / SFRD_MINI_ave;
+                    this_spin_temp->SFRD_MINI_box[box_ct] = SFRD_EoR_MINI * this_spin_temp->SFRD_MINI_box[box_ct] / SFRD_MINI_ave;
                 }
             }
 

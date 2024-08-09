@@ -24,8 +24,10 @@ eor_colour = colors.LinearSegmentedColormap.from_list(
         (1, "cyan"),
     ],
 )
-plt.register_cmap(cmap=eor_colour)
-
+try:
+    plt.register_cmap(cmap=eor_colour)
+except:
+    pass
 
 def _imshow_slice(
     cube,
