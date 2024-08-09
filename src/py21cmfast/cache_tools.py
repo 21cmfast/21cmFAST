@@ -181,10 +181,16 @@ def query_cache(
     for file in list_datasets(
         direc=direc, kind=kind, hsh=hsh, seed=seed, redshift=redshift
     ):
-        cls = readbox(direc=direc, fname=file, load_data=False)
+        try:
+            kls = readbox(direc=direc, fname=file, load_data=False)
+        except OSError as e:
+            warnings.warn(f"Failed to read {file}: {e}")
+            continue
+
         if show:
-            print(file + ": " + str(cls))  # noqa: T
-        yield file, cls
+            print(f"{file}: {str(kls)}")  # noqa: T201
+
+        yield file, kls
 
 
 def get_boxes_at_redshift(
@@ -200,7 +206,6 @@ def get_boxes_at_redshift(
             obj = readbox(direc=direc, fname=file, load_data=False)
         except OSError:
             warnings.warn(f"Failed to read {file}")
-            pass
 
         if not hasattr(obj, "redshift"):
             logger.debug(f"{file} has no redshift")
