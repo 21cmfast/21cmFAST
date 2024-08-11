@@ -7,10 +7,10 @@
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 #include <fftw3.h>
+
 #include "cexcept.h"
 #include "exceptions.h"
 #include "logger.h"
-
 #include "Constants.h"
 #include "InputParameters.h"
 #include "OutputStructs.h"

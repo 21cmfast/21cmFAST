@@ -238,7 +238,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     else{
         fstar_mean = pow(halo_mass/1e10,f_a); //PL term
     }
-    f_sample = f_10 * fstar_mean * exp(-mturn_acg/halo_mass + star_rng*sigma_star); //1e10 normalisation of stellar mass
+    f_sample = f_10 * fstar_mean * exp(-mturn_acg/halo_mass + star_rng*sigma_star - stoc_adjustment_term); //1e10 normalisation of stellar mass
     if(f_sample > 1.) f_sample = 1.;
 
     sm_sample = f_sample * halo_mass * baryon_ratio;

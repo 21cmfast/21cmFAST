@@ -18,7 +18,7 @@
 #include "dft.h"
 
 void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_outer){
-    unsigned long long int n_x, n_z, n_y, dimension, midpoint;
+    int n_x, n_z, n_y, dimension, midpoint;
     float k_x, k_y, k_z, k_mag, kRinner, kRouter;
     float f_inner, f_outer;
 
@@ -49,7 +49,7 @@ void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_oute
                 if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
                 else {k_y = n_y * DELTA_K;}
 
-                for (n_z=0; n_z<=(unsigned long long)(user_params_global->NON_CUBIC_FACTOR*midpoint); n_z++){
+                for (n_z=0; n_z<=(int)(user_params_global->NON_CUBIC_FACTOR*midpoint); n_z++){
                     k_z = n_z * DELTA_K_PARA;
 
                     k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
@@ -72,7 +72,7 @@ void filter_box_annulus(fftwf_complex *box, int RES, float R_inner, float R_oute
 }
 
 void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
-    unsigned long long int n_x, n_z, n_y, dimension,midpoint;
+    int n_x, n_z, n_y, dimension, midpoint; //TODO: figure out why defining as ULL breaks this
     float k_x, k_y, k_z, k_mag, kR;
 
     switch(RES) {
@@ -102,7 +102,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
             for (n_y=0; n_y<dimension; n_y++){
                 if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
                 else {k_y = n_y * DELTA_K;}
-                for (n_z=0; n_z<=(unsigned long long)(user_params_global->NON_CUBIC_FACTOR*midpoint); n_z++){
+                for (n_z=0; n_z<=(int)(user_params_global->NON_CUBIC_FACTOR*midpoint); n_z++){
                     k_z = n_z * DELTA_K_PARA;
 
                     if (filter_type == 0){ // real space top-hat
@@ -152,7 +152,7 @@ void filter_box(fftwf_complex *box, int RES, int filter_type, float R){
 }
 
 void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
-    unsigned long long int n_x, n_z, n_y, dimension, midpoint;
+    int n_x, n_z, n_y, dimension, midpoint;
     float k_x, k_y, k_z, k_mag, f, kR, kl;
     float const1;
     const1 = exp(-R/mfp); //independent of k, move it out of the loop
@@ -184,7 +184,7 @@ void filter_box_mfp(fftwf_complex *box, int RES, float R, float mfp){
             for (n_y=0; n_y<dimension; n_y++){
                 if (n_y>midpoint) {k_y =(n_y-dimension) * DELTA_K;}
                 else {k_y = n_y * DELTA_K;}
-                for (n_z=0; n_z<=(unsigned long long)(user_params_global->NON_CUBIC_FACTOR*midpoint); n_z++){
+                for (n_z=0; n_z<=(int)(user_params_global->NON_CUBIC_FACTOR*midpoint); n_z++){
                     k_z = n_z * DELTA_K_PARA;
 
                     k_mag = sqrt(k_x*k_x + k_y*k_y + k_z*k_z);
