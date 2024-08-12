@@ -78,17 +78,15 @@ if "PROFILE" in os.environ:
     # we need this even if DEBUG is off
     extra_compile_args += ["-g"]
 
+if compiler == "clang":
+    libraries += ["omp"]
+
 library_dirs = []
 for k, v in os.environ.items():
     if "inc" in k.lower():
         include_dirs += [v]
     elif "lib" in k.lower():
         library_dirs += [v]
-
-libraries = ["m", "gsl", "gslcblas", "fftw3f_omp", "fftw3f"]
-
-if compiler == "clang":
-    libraries += ["omp"]
 
 # =================================================================
 # NOTES FOR DEVELOPERS:
