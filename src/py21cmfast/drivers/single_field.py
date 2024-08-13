@@ -771,7 +771,6 @@ def compute_ionization_field(
     regenerate=None,
     write=None,
     direc=None,
-    cleanup=True,
     hooks=None,
     **global_kwargs,
 ) -> IonizedBox:
@@ -898,7 +897,9 @@ def compute_ionization_field(
             previous_ionized_box,
             spin_temp,
             halobox,
-        )
+        ),
+        astro_params=astro_params,
+        flag_options=flag_options,
     )
 
     if spin_temp is not None and not inputs.flag_options.USE_TS_FLUCT:
