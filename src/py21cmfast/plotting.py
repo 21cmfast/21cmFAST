@@ -26,9 +26,8 @@ eor_colour = colors.LinearSegmentedColormap.from_list(
         (1, "cyan"),
     ],
 )
-
-colormaps.register(cmap=eor_colour)
 logger = logging.getLogger(__name__)
+colormaps.register(cmap=eor_colour)
 
 
 def _imshow_slice(

@@ -1166,19 +1166,6 @@ def determine_halo_list(
             # Need to update fields to have the same seed as init_boxes
             fields._random_seed = init_boxes.random_seed
 
-        # Check whether the boxes already exist
-        logger.debug(f"z:{redshift:.2f} regen {regenerate}")
-        if not regenerate:
-            try:
-                fields.read(direc)
-                logger.info(
-                    f"Existing z={redshift} determine_halo_list boxes found and read in "
-                    f"(seed={fields.random_seed})."
-                )
-                return fields
-            except OSError:
-                pass
-
         if need_desc_box:
             halos_desc = determine_halo_list(
                 redshift=desc_z,
