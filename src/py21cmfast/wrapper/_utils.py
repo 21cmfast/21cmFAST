@@ -5,7 +5,7 @@ import numpy as np
 from cffi import FFI
 
 from .. import __version__
-from .c_21cmfast import ffi, lib
+from ..c_21cmfast import ffi, lib
 from .exceptions import _process_exitcode
 
 _ffi = FFI()

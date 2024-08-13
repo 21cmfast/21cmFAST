@@ -289,7 +289,7 @@ int test_halo_props(double redshift, struct UserParams *user_params, struct Cosm
                     struct PerturbHaloField *halos, float *halo_props_out);
 
 //This function, designed to be used in the wrapper to estimate Halo catalogue size, takes the parameters and returns average number of halos within the box
-double expected_nhalo(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions * flag_options);
+double expected_nhalo(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params);
 
 //these two functions compute the new classes HaloBox and XraySourceBox, and need to be visible
 int ComputeHaloBox(double redshift, struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params
