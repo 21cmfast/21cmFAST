@@ -495,8 +495,8 @@ def produce_power_spectra_for_tests(name, redshift, force, direc, **kwargs):
         k_l, p_l, lc = produce_lc_power_spectra(redshift, **kwargs)
 
     with h5py.File(fname, "w") as fl:
-        for k, v in kwargs.items():
-            fl.attrs[k] = v
+        for key, v in kwargs.items():
+            fl.attrs[key] = v
 
         fl.attrs["HII_DIM"] = coeval.user_params.HII_DIM
         fl.attrs["DIM"] = coeval.user_params.DIM

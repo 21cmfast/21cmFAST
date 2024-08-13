@@ -800,7 +800,7 @@ class OutputStruct(StructWrapper, metaclass=ABCMeta):
 
             # Need to make sure that the seed is set to the one that's read in.
             seed = fl.attrs["random_seed"]
-            self._random_seed = seed
+            self._random_seed = int(seed)
         finally:
             self.__expose()
             if isinstance(fl, h5py.File):

@@ -72,7 +72,7 @@ float GL_limit[2] = {0};
 double *lnMhalo_param, *Muv_param, *Mhalo_param;
 double *log10phi, *M_uv_z, *M_h_z;
 double *lnMhalo_param_MINI, *Muv_param_MINI, *Mhalo_param_MINI;
-double *log10phi_MINI; *M_uv_z_MINI, *M_h_z_MINI;
+double *log10phi_MINI, *M_uv_z_MINI, *M_h_z_MINI;
 double *deriv, *lnM_temp, *deriv_temp;
 
 void initialiseSigmaMInterpTable(float M_Min, float M_Max);
