@@ -871,7 +871,7 @@ def initial_conditions(
         # First check whether the boxes already exist.
         if not regenerate:
             try:
-                boxes.read(direc)
+                boxes.read(direc, keys=())
                 logger.info(
                     f"Existing init_boxes found and read in (seed={boxes.random_seed})."
                 )
@@ -975,7 +975,7 @@ def perturb_field(
         # Check whether the boxes already exist
         if not regenerate:
             try:
-                fields.read(direc)
+                fields.read(direc, keys=())
                 logger.info(
                     f"Existing z={redshift} perturb_field boxes found and read in "
                     f"(seed={fields.random_seed})."
@@ -1136,6 +1136,18 @@ def determine_halo_list(
             flag_options=flag_options,
             random_seed=random_seed,
         )
+        # Check whether the boxes already exist
+        if not regenerate:
+            try:
+                fields.read(direc, keys=())
+                logger.info(
+                    f"Existing z={redshift} determine_halo_list boxes found and read in "
+                    f"(seed={fields.random_seed})."
+                )
+                return fields
+            except OSError:
+                pass
+
         # Construct FFTW wisdoms. Only if required
         construct_fftw_wisdoms(user_params=user_params, cosmo_params=cosmo_params)
 
@@ -1153,19 +1165,6 @@ def determine_halo_list(
 
             # Need to update fields to have the same seed as init_boxes
             fields._random_seed = init_boxes.random_seed
-
-        # Check whether the boxes already exist
-        logger.debug(f"z:{redshift:.2f} regen {regenerate}")
-        if not regenerate:
-            try:
-                fields.read(direc)
-                logger.info(
-                    f"Existing z={redshift} determine_halo_list boxes found and read in "
-                    f"(seed={fields.random_seed})."
-                )
-                return fields
-            except OSError:
-                pass
 
         if need_desc_box:
             halos_desc = determine_halo_list(
@@ -1293,7 +1292,7 @@ def perturb_halo_list(
         # Check whether the boxes already exist
         if not regenerate:
             try:
-                fields.read(direc)
+                fields.read(direc, keys=())
                 logger.info(
                     "Existing z=%s perturb_halo_list boxes found and read in (seed=%s)."
                     % (redshift, fields.random_seed)
@@ -2065,7 +2064,7 @@ def ionize_box(
         # Check whether the boxes already exist
         if not regenerate:
             try:
-                box.read(direc)
+                box.read(direc, keys=())
                 logger.info(
                     "Existing z=%s ionized boxes found and read in (seed=%s)."
                     % (redshift, box.random_seed)
@@ -2410,7 +2409,7 @@ def spin_temperature(
         # Check whether the boxes already exist on disk.
         if not regenerate:
             try:
-                box.read(direc)
+                box.read(direc, keys=())
                 logger.info(
                     f"Existing z={redshift} spin_temp boxes found and read in "
                     f"(seed={box.random_seed})."
@@ -2574,7 +2573,7 @@ def brightness_temperature(
         # Check whether the boxes already exist on disk.
         if not regenerate:
             try:
-                box.read(direc)
+                box.read(direc, keys=())
                 logger.info(
                     f"Existing brightness_temp box found and read in (seed={box.random_seed})."
                 )
