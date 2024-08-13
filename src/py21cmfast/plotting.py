@@ -26,6 +26,7 @@ eor_colour = colors.LinearSegmentedColormap.from_list(
         (1, "cyan"),
     ],
 )
+logger = logging.getLogger(__name__)
 colormaps.register(cmap=eor_colour)
 
 

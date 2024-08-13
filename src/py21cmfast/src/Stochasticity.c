@@ -120,6 +120,9 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
             initialiseSigmaMInterpTable(const_struct->M_min/2,const_struct->M_max_tables); //the binary split needs to go below the resolution
         else
             initialiseSigmaMInterpTable(const_struct->M_min,const_struct->M_max_tables);
+
+        if(user_params_stoc->SAMPLE_METHOD == 2)
+            InitialiseSigmaInverseTable();
     }
 
     const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min);
@@ -233,7 +236,7 @@ void place_on_hires_grid(int x, int y, int z, int *crd_hi, gsl_rng * rng){
 }
 
 //This function adds stochastic halo properties to an existing halo
-int set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, float * input, float * output){
+void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, float * input, float * output){
     double rng_star,rng_sfr,rng_xray;
 
     //Correlate properties by interpolating between the sampled and descendant gaussians
@@ -308,7 +311,6 @@ double remove_random_halo(gsl_rng * rng, int n_halo, int *idx, double *M_prog, f
     int random_idx;
     do {
         random_idx = gsl_rng_uniform_int(rng,n_halo);
-        //LOG_ULTRA_DEBUG("Want to remove halo %d of %d Mass %.3e",random_idx,M_out[random_idx],n_halo);
     } while(M_out[random_idx] == 0);
     last_M_del = M_out[random_idx];
     *M_prog -= last_M_del;
@@ -331,9 +333,7 @@ void fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_
     bool sel = gsl_rng_uniform_int(rng,2);
     // int sel = 1;
     if(sel){
-        //LOG_ULTRA_DEBUG("Deciding to keep last halo M %.3e tot %.3e exp %.3e",M_out[*n_halo_pt-1],*M_tot_pt,exp_M);
         if(fabs(*M_tot_pt - M_out[*n_halo_pt-1] - exp_M) < fabs(*M_tot_pt - exp_M)){
-            //LOG_ULTRA_DEBUG("removed");
             *M_tot_pt -= M_out[*n_halo_pt-1];
             //here we remove by setting the counter one lower so it isn't read
             (*n_halo_pt)--; //increment has preference over dereference
@@ -343,14 +343,12 @@ void fix_mass_sample(gsl_rng * rng, double exp_M, int *n_halo_pt, double *M_tot_
         while(*M_tot_pt > exp_M){
             //here we remove by setting halo mass to zero, skipping it during the consolidation
             last_M_del = remove_random_halo(rng,*n_halo_pt,&random_idx,M_tot_pt,M_out);
-            //LOG_ULTRA_DEBUG("Removed halo %d M %.3e tot %.3e",random_idx,last_M_del,*M_tot_pt);
         }
 
         // if the sample with the last subtracted halo is closer to the expected mass, keep it
         // LOG_ULTRA_DEBUG("Deciding to keep last halo M %.3e tot %.3e exp %.3e",last_M_del,*M_tot_pt,exp_M);
         if(fabs(*M_tot_pt + last_M_del - exp_M) < fabs(*M_tot_pt - exp_M)){
             M_out[random_idx] = last_M_del;
-            // LOG_ULTRA_DEBUG("kept.");
             *M_tot_pt += last_M_del;
         }
     }
@@ -378,17 +376,30 @@ int stoc_mass_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng,
 
         M_prog += M_sample;
         M_out[n_halo_sampled++] = M_sample;
-        // LOG_ULTRA_DEBUG("Sampled %.3e | %.3e %d",M_sample,M_prog,n_halo_sampled);
     }
-    // LOG_ULTRA_DEBUG("Before fix: %d %.3e",n_halo_sampled,M_prog);
     //The above sample is above the expected mass, by up to 100%. I wish to make the average mass equal to exp_M
     fix_mass_sample(rng,exp_M,&n_halo_sampled,&M_prog,M_out);
-    // LOG_ULTRA_DEBUG("After fix: %d %.3e",n_halo_sampled,M_prog);
 
-    // LOG_ULTRA_DEBUG("Got %d (exp.%.2e) halos mass %.2e (exp. %.2e) %.2f",
-    //                 n_halo_sampled,hs_constants->expected_N,M_prog,exp_M,M_prog/exp_M - 1);
     *n_halo_out = n_halo_sampled;
     return 0;
+}
+
+bool partition_rejection(double sigma_m, double sigma_min, double sigma_cond, double del_c, double growthf, gsl_rng * rng){
+    //no rejection in EPS
+    double test1,test2,randval;
+    if(user_params_stoc->HMF == 0){
+        return false;
+    }
+    else if(user_params_stoc->HMF == 1){
+        test1 = st_taylor_factor(sigma_m,sigma_cond,growthf,NULL) - del_c; //maximum barrier term in mass range
+        test2 = st_taylor_factor(sigma_min,sigma_cond,growthf,NULL) - del_c;
+        randval = gsl_rng_uniform(rng);
+        return randval > (test2/test1);
+    }
+    else{
+        LOG_ERROR("Partition sampling currently only works using EPS or SMT CMF");
+        Throw(ValueError);
+    }
 }
 
 //Sheth & Lemson 1999 partition model, Changes delta,M in the CMF as you sample
@@ -412,11 +423,11 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
 
     double tbl_arg = hs_constants->cond_val;
     n_halo_sampled = 0;
-    LOG_ULTRA_DEBUG("Start: M %.2e (%.2e) d %.2e",M_cond,exp_M,d_cond);
-    double sigma_fudge_factor = user_params_stoc->HALOMASS_CORRECTION;
+    double nu_fudge_factor = user_params_stoc->HALOMASS_CORRECTION;
 
-    //set initial amount (subtracted unresolved Mass)
-    M_remaining = M_cond;
+    //set initial amount
+    // M_remaining = M_cond; // full condition
+    M_remaining = exp_M; //subtract unresolved mass
     lnM_remaining = log(M_remaining);
 
     double nu_min;
@@ -428,16 +439,15 @@ int stoc_partition_sample(struct HaloSamplingConstants * hs_constants, gsl_rng *
 
         nu_min = sqrt(del_term/(sigma_min*sigma_min - sigma_r*sigma_r)); //nu at minimum progenitor
 
-        LOG_ULTRA_DEBUG("M_rem %.2e d %.2e sigma %.2e min %.2e numin %.2e",M_remaining,delta_current,sigma_r,sigma_min,nu_min);
-
         //we use the gaussian tail distribution to enforce our Mmin limit from the sigma tables
-        nu_sample = gsl_ran_ugaussian_tail(rng,nu_min)/sigma_fudge_factor;
-        sigma_sample = sqrt(del_term/(nu_sample*nu_sample) + sigma_r*sigma_r);
-        // sigma_sample *= sigma_fudge_factor;
+        do{
+            nu_sample = gsl_ran_ugaussian_tail(rng,nu_min)*nu_fudge_factor;
+            sigma_sample = sqrt(del_term/(nu_sample*nu_sample) + sigma_r*sigma_r);
+        } while(partition_rejection(sigma_sample,sigma_min,sigma_r,delta_current/growthf,growthf,rng));
+
         M_sample = EvaluateSigmaInverse(sigma_sample);
         M_sample = exp(M_sample);
 
-        LOG_ULTRA_DEBUG("found Mass %d %.2e sigma %.2e nu %.2e dt %.2e",n_halo_sampled,M_sample,sigma_sample,nu_sample,del_term);
         M_out[n_halo_sampled++] = M_sample;
         M_remaining -= M_sample;
         lnM_remaining = log(M_remaining);
@@ -452,25 +462,22 @@ double ComputeFraction_split(
     double G1, double dd, double gamma1
 ) {
     double u_res = sigma_start*pow(sigmasq_res - sigmasq_start, -.5);
-    // LOG_ULTRA_DEBUG("Frac: u_res = %.2e, dd=%.2e, J=%.2e",u_res,dd,EvaluateJ(u_res,gamma1));
     return sqrt(2./PI)*EvaluateJ(u_res,gamma1)*G1/sigma_start*dd;
 }
 
 //binary splitting with small internal steps based on Parkinson+08, Bensen+16, Qiu+20 (Darkforest)
-//This code was mostly taken from Darkforest (Qiu+20)
-//NOTE: some unused variables here
-//Only works with adjusted EPS
+//This code was modified from the tree generation function in Darkforest (Qiu et al 2020. ArXiv: 2007.14624)
 int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng, int *n_halo_out, float *M_out){
-    double G0 = 1;
-    double gamma1 = 0.4;
-    double gamma2 = -0.2;
+    //define constants
+    double G0 = user_params_stoc->PARKINSON_G0;
+    double gamma1 = user_params_stoc->PARKINSON_y1;
+    double gamma2 = user_params_stoc->PARKINSON_y2;
     double m_res = hs_constants->M_min;
     double lnm_res = hs_constants->lnM_min;
     double eps1 = 0.1;
     double eps2 = 0.1;
-    // Load interpolation tables for sigma_m
-    // Initialise the binary tree
-    // Plant tree
+
+    //declare intermediate variables
     double mu, G1, G2;
     double d_start, d_target;
     double q_res;
@@ -484,43 +491,45 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
     double q, m_q, sigma_q, sigmasq_q, R_q, factor1, factor2;
     double m_prog1, m_prog2;
     int save;
-    int n_out = 0;
-    int idx = 0;
 
     float d_points[MAX_HALO_CELL], m_points[MAX_HALO_CELL];
-    int n_points;
+
     //set initial points
     d_points[0] = Deltac / hs_constants->growth_in;
     m_points[0] = hs_constants->M_cond;
     d_target = Deltac / hs_constants->growth_out;
-    n_points = 1;
+
+    //counters for total mass, number at target z, active index, and total number in sub-tree
     double M_total = 0;
+    int n_out = 0;
+    int idx = 0;
+    int n_points = 1;
 
     sigma_res = EvaluateSigma(lnm_res);
     sigmasq_res = sigma_res*sigma_res;
-
-    while(idx < n_points) {
+    while(idx < n_points){
+        //define the starting condition
         d_start = d_points[idx];
         m_start = m_points[idx];
         lnm_start = log(m_start);
         dd_target = d_target - d_start;
         save = 0;
+
         // Compute useful quantites
         m_half = 0.5*m_start;
         lnm_half = log(m_half);
         sigma_start = EvaluateSigma(lnm_start);
         sigmasq_start = sigma_start*sigma_start;
         sigma_half = EvaluateSigma(lnm_half);
-        alpha_half = EvaluatedSigmasqdm(lnm_half);
-        //convert from d(sigma^2)/dm to -d(lnsigma)/d(lnm)
-        alpha_half = -m_half/(2*sigma_half*sigma_half)*alpha_half;
         sigmasq_half = sigma_half*sigma_half;
+
         G1 = G0*pow(d_start/sigma_start, gamma2);
-        //
-        q = 0.;
         q_res = m_res/m_start;
-        if (q_res >= 0.5) {
-            // No split
+        q = 0.;
+        if (q_res >= 0.5){
+            //No split is possible within our resolution,
+            //  so we only consider the timestep restriction to make the EPS limit valid
+            //  and take away the average mass below the resolution
             dd = eps1*sqrt(2)*sqrt(sigmasq_half - sigmasq_start);
             if(dd >= dd_target){
                 dd = dd_target;
@@ -528,30 +537,33 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
             }
             F = ComputeFraction_split(sigma_start, sigmasq_start, sigmasq_res, G1, dd, gamma1);
         }
-        else {
+        else{
+            alpha_half = EvaluatedSigmasqdm(lnm_half); //d(sigma^2)/dm
+            alpha_half = -m_half/(2*sigma_half*sigma_half)*alpha_half; //-d(lnsigma)/d(lnm)
             // Compute B and beta
             V_res = sigmasq_res*pow(sigmasq_res - sigmasq_start, -1.5);
             V_half = sigmasq_half*pow(sigmasq_half - sigmasq_start, -1.5);
             beta = log(V_res/V_half)/log(2.*q_res);
             B = pow(2., beta)*V_half;
-            // Compute ddelta1
+
+            // Compute ddelta1, the timestep limit ensuring the exponent in the EPS MF is small (limit as time -> 0 is valid)
             dd1 = eps1*sqrt(2)*sqrt(sigmasq_half - sigmasq_start);
-            // Compute ddelta2
+
+            // Compute ddelta2, the timestep limit ensuring the assumption of maximum 1 split is valid
             mu = gamma1 < 0. ? -log(sigma_res/sigma_half)/log(2.*q_res) : alpha_half;
             eta = beta - 1 - gamma1*mu;
             pow_diff = pow(.5, eta) - pow(q_res, eta);
             G2 = G1*pow(sigma_half/sigma_start, gamma1)*pow(0.5, mu*gamma1);
-            dN_dd = sqrt(2./PI)*B*pow_diff/eta*alpha_half*G2;
-            dd2 = eps2/dN_dd;
-            // Choose
-            if (dd1 < dd2)
-                dd = dd1;
-            else
-                dd = dd2;
+            dN_dd = sqrt(2./PI)*B*pow_diff/eta*alpha_half*G2; //this is the number of progenitors expected per unit increase in the barrier
+            dd2 = eps2/dN_dd; //barrier change which results in average of at most eps2 progenitors
+
+            // Choose the minimum of the two timestep limits
+            dd = fmin(dd1,dd2);
             if(dd >= dd_target){
                 dd = dd_target;
                 save = 1;
             }
+
             N_upper = dN_dd*dd;
             // Compute F
             F = ComputeFraction_split(sigma_start, sigmasq_start, sigmasq_res, G1, dd, gamma1);
@@ -560,10 +572,10 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
                 q = pow(pow(q_res, eta) + pow_diff*gsl_rng_uniform(rng), 1./eta);
                 m_q = q*m_start;
                 sigma_q = EvaluateSigma(log(m_q));
-                alpha_q = EvaluatedSigmasqdm(log(m_q));
-                //convert from d(sigma^2)/dm to -d(lnsigma)/d(lnm)
-                alpha_q = -m_q/(2*sigma_q*sigma_q)*alpha_q;
+                alpha_q = EvaluatedSigmasqdm(log(m_q)); //d(sigma^2)/dm
+                alpha_q = -m_q/(2*sigma_q*sigma_q)*alpha_q; //-d(lnsigma)/d(lnm)
                 sigmasq_q = sigma_q*sigma_q;
+
                 factor1 = alpha_q/alpha_half;
                 factor2 = sigmasq_q*pow(sigmasq_q - sigmasq_start, -1.5)/(B*pow(q, beta));
                 R_q = factor1*factor2;
@@ -574,7 +586,8 @@ int stoc_split_sample(struct HaloSamplingConstants * hs_constants, gsl_rng * rng
         // LOG_ULTRA_DEBUG("split i %d n %d m %.2e d %.2e",idx,n_points,m_start,d_start);
         // LOG_ULTRA_DEBUG("q %.2e F %.2e dd %.2e (%.2e %.2e) of %.2e",q,F,dd,dd1,dd2,dd_target);
         // LOG_ULTRA_DEBUG("dNdd %.2e B %.2e pow %.2e eta %.2e ah %.2e G2 %.2e b %.2e",dN_dd,B,pow_diff,eta,alpha_half,G2,beta);
-        // Compute progenitor mass
+
+        // Compute progenitor mass from fraction q, always subtract the below-resolution mass from the largest
         m_prog1 = (1 - F - q)*m_start;
         m_prog2 = q*m_start;
         //if this branch is finished, add to the output array

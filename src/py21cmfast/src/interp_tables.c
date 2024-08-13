@@ -49,6 +49,8 @@ struct RGTable1D_f dfcoll_conditional_table = {.allocated = false,};
 
 //J table for binary split algorithm
 struct RGTable1D J_split_table = {.allocated = false};
+//Sigma inverse table for partition algorithm
+struct RGTable1D Sigma_inv_table = {.allocated = false};
 
 //NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to assign ST_over_PS in Spintemp.
 //  It may be better to just do the integrals at each R
@@ -240,7 +242,7 @@ void init_FcollTable(double zmin, double zmax, bool x_ray){
         if(user_params_it->HMF == 0)
             fcoll_z_table.y_arr[i] = FgtrM(z_val, M_min);
         else{
-            if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || user_params_it->INTEGRATION_METHOD_MINI == 1)
+            if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_it->USE_MINI_HALOS && user_params_it->INTEGRATION_METHOD_MINI == 1))
                 initialise_GL(NGL_INT,lnMmin,lnMmax);
             fcoll_z_table.y_arr[i] = Fcoll_General(z_val, lnMmin, lnMmax);
         }
@@ -421,7 +423,6 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
 #pragma omp for
         for (i=0; i<NDELTA; i++){
             curr_dens = min_density + (float)i/((float)NDELTA-1.)*(max_density - min_density);
-
             SFRD_conditional_table.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,curr_dens,\
                                             Mcrit_atom,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., user_params_it->INTEGRATION_METHOD_ATOMIC));
 
@@ -718,6 +719,7 @@ void free_dNdM_tables(){
     free_RGTable1D(&Nhalo_table);
     free_RGTable1D(&Mcoll_table);
     free_RGTable1D(&J_split_table);
+    free_RGTable1D(&Sigma_inv_table);
 }
 
 void free_conditional_tables(){
@@ -927,27 +929,32 @@ double EvaluateJ(double u_res,double gamma1){
     return EvaluateRGTable1D(u_res,&J_split_table);
 }
 
-//The sigma interp table is regular in log mass, not sigma so we need to loop ONLY FOR SAMPLE_METHOD==2
-//NOTE: This should be improved with its own RGTable but we do not often use this method
+void InitialiseSigmaInverseTable(){
+    if(!Sigma_InterpTable.allocated){
+        LOG_ERROR("Must construct the sigma table before the inverse table");
+        Throw(TableGenerationError);
+    }
+    int i;
+
+    int n_bin = Sigma_InterpTable.n_bin;
+    double sigma_min = Sigma_InterpTable.y_arr[n_bin-1];
+    double sigma_max = Sigma_InterpTable.y_arr[0];
+
+    if(!Sigma_inv_table.allocated)
+        allocate_RGTable1D(n_bin,&Sigma_inv_table);
+
+    Sigma_inv_table.x_min = sigma_min;
+    Sigma_inv_table.x_width = (sigma_max-sigma_min)/((double)n_bin-1);
+
+    for(i=0;i<n_bin;i++){
+        Sigma_inv_table.y_arr[i] = Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width;
+    }
+}
+
 double EvaluateSigmaInverse(double sigma){
     if(!user_params_it->USE_INTERPOLATION_TABLES){
         LOG_ERROR("Cannot currently do sigma inverse without USE_INTERPOLATION_TABLES");
         Throw(ValueError);
     }
-    int idx;
-    for(idx=0;idx<NMass;idx++){
-        if(sigma > Sigma_InterpTable.y_arr[idx]) break;
-    }
-    if(idx == NMass){
-        LOG_ERROR("sigma inverse out of bounds.");
-        Throw(TableEvaluationError);
-    }
-    double sigma_left = Sigma_InterpTable.y_arr[idx-1];
-    double sigma_right = Sigma_InterpTable.y_arr[idx];
-    double table_val_left = Sigma_InterpTable.x_min + (idx-1)*Sigma_InterpTable.x_width; //upper lnM
-    double table_val_right = Sigma_InterpTable.x_min + (idx)*Sigma_InterpTable.x_width; //upper lnM
-
-    double interp_point = (sigma - sigma_left)/(sigma_right - sigma_left);
-
-    return table_val_left*(1-interp_point) + table_val_right*(interp_point);
+    return EvaluateRGTable1D(sigma,&Sigma_inv_table);
 }
