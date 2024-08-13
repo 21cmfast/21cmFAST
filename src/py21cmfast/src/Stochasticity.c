@@ -236,7 +236,7 @@ void place_on_hires_grid(int x, int y, int z, int *crd_hi, gsl_rng * rng){
 }
 
 //This function adds stochastic halo properties to an existing halo
-int set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, float * input, float * output){
+void set_prop_rng(gsl_rng *rng, bool from_catalog, double *interp, float * input, float * output){
     double rng_star,rng_sfr,rng_xray;
 
     //Correlate properties by interpolating between the sampled and descendant gaussians
