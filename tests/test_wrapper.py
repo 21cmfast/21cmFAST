@@ -299,7 +299,11 @@ def test_run_lf():
         redshifts=[7, 8, 9],
         nbins=100,
         component=0,
-        flag_options={"USE_MINI_HALOS": True},
+        flag_options={
+            "USE_MINI_HALOS": True,
+            "INHOMO_RECO": True,
+            "USE_TS_FLUCT": True,
+        },
         mturnovers=[7.0, 7.0, 7.0],
         mturnovers_mini=[5.0, 5.0, 5.0],
     )
@@ -465,7 +469,11 @@ def test_run_coeval_bad_inputs():
     ):
         wrapper.run_coeval(
             redshift=6.0,
-            flag_options={"USE_MINI_HALOS": True},
+            flag_options={
+                "USE_MINI_HALOS": True,
+                "INHOMO_RECO": True,
+                "USE_TS_FLUCT": True,
+            },
             use_interp_perturb_field=True,
         )
 
@@ -588,12 +596,24 @@ def test_lc_pass_redshift_deprecation(rectlcn, ic):
 def test_coeval_lowerz_than_photon_cons(ic):
     with pytest.raises(ValueError, match="You have passed a redshift"):
         wrapper.run_coeval(
-            init_box=ic, redshift=2.0, flag_options={"PHOTON_CONS_TYPE": 1}
+            init_box=ic,
+            redshift=2.0,
+            flag_options={
+                "PHOTON_CONS_TYPE": 1,
+                "USE_HALO_FIELD": False,
+                "HALO_STOCHASTICITY": False,
+            },
         )
 
 
 def test_lc_lowerz_than_photon_cons(rectlcn, ic):
     with pytest.raises(ValueError, match="You have passed a redshift"):
         wrapper.run_lightcone(
-            init_box=ic, redshift=2.0, flag_options={"PHOTON_CONS_TYPE": 1}
+            init_box=ic,
+            redshift=2.0,
+            flag_options={
+                "PHOTON_CONS_TYPE": 1,
+                "USE_HALO_FIELD": False,
+                "HALO_STOCHASTICITY": False,
+            },
         )

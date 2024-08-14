@@ -600,7 +600,7 @@ def test_SFRD_z_tables(name, plt):
     lib.init_ps()
 
     if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
-        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+        lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
     Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
@@ -732,7 +732,7 @@ def test_Nion_z_tables(name, plt):
     lib.init_ps()
 
     if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
-        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+        lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
     Mlim_Fesc = 1e10 * (10**ap.F_ESC10) ** (-1.0 / ap.ALPHA_ESC)
@@ -881,7 +881,7 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
     lib.init_ps()
 
     if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
-        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+        lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     growth_out = lib.dicke(redshift)
     cond_mass = (
@@ -1067,7 +1067,7 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
     lib.init_ps()
 
     if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
-        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+        lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     growth_out = lib.dicke(redshift)
     cond_mass = (
@@ -1230,7 +1230,7 @@ def test_conditional_integral_methods(R, name, integrand, plt):
     lib.init_ps()
 
     if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
-        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+        lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     growth_out = lib.dicke(redshift)
     cond_mass = (

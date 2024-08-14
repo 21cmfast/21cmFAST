@@ -285,6 +285,8 @@ def test_halo_scaling_relations():
     # NOTE: Not using upper turnover, this test should be extended
     fo = FlagOptions(
         USE_MINI_HALOS=True,
+        INHOMO_RECO=True,
+        USE_TS_FLUCT=True,
         USE_HALO_FIELD=True,
         FIXED_HALO_GRIDS=False,
         HALO_STOCHASTICITY=True,
