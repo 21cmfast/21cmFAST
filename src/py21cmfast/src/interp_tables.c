@@ -1,63 +1,83 @@
 /* This file defines specific interpolation table initialisation functions, kept separate from the general interpolation table routines
    In order to allow them to use calculations based on other interpolation tables. Most importantly these fucntions require those from ps.c
    which requires the sigma(M) interpolation tables */
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <math.h>
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_roots.h>
+#include <gsl/gsl_interp.h>
+#include <gsl/gsl_spline.h>
 
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+#include "Constants.h"
+#include "cosmology.h"
+#include "InputParameters.h"
+#include "hmf.h"
+#include "interpolation.h"
+
+#include "interp_tables.h"
+
+//fixed limits and bin numbers for tables
 #define NDELTA 400
 #define NMTURN 50//100
 #define LOG10_MTURN_MAX ((double)(10))
 #define LOG10_MTURN_MIN ((double)(5.-9e-8))
 #define MAX_ITER_RF 200
+#define N_MASS_INTERP 300
 
 //we need to define a density minimum for the tables, since we are in lagrangian density / linear growth it's possible to go below -1
 //so we explicitly set a minimum here which sets table limits and puts no halos in cells below that (Lagrangian) density
-#define DELTA_MIN -1
-
-static struct UserParams * user_params_it;
-static struct CosmoParams * cosmo_params_it;
-static struct AstroParams * astro_params_it;
-static struct FlagOptions * flag_options_it;
-
-void Broadcast_struct_global_IT(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options){
-    user_params_it = user_params;
-    cosmo_params_it = cosmo_params;
-    astro_params_it = astro_params;
-    flag_options_it = flag_options;
-}
 
 //Tables for the grids
-struct RGTable1D SFRD_z_table = {.allocated = false};
-struct RGTable1D Nion_z_table = {.allocated = false};
-struct RGTable2D SFRD_z_table_MINI = {.allocated = false};
-struct RGTable2D Nion_z_table_MINI = {.allocated = false};
-struct RGTable1D_f Nion_conditional_table1D = {.allocated = false};
-struct RGTable1D_f SFRD_conditional_table = {.allocated = false};
-struct RGTable2D_f Nion_conditional_table2D = {.allocated = false};
-struct RGTable2D_f Nion_conditional_table_MINI = {.allocated = false};
-struct RGTable2D_f SFRD_conditional_table_MINI = {.allocated = false};
-struct RGTable2D_f Nion_conditional_table_prev = {.allocated = false};
-struct RGTable2D_f Nion_conditional_table_MINI_prev = {.allocated = false};
+static RGTable1D SFRD_z_table = {.allocated = false};
+static RGTable1D Nion_z_table = {.allocated = false};
+static RGTable2D SFRD_z_table_MINI = {.allocated = false};
+static RGTable2D Nion_z_table_MINI = {.allocated = false};
+static RGTable1D_f Nion_conditional_table1D = {.allocated = false};
+static RGTable1D_f SFRD_conditional_table = {.allocated = false};
+static RGTable2D_f Nion_conditional_table2D = {.allocated = false};
+static RGTable2D_f Nion_conditional_table_MINI = {.allocated = false};
+static RGTable2D_f SFRD_conditional_table_MINI = {.allocated = false};
+static RGTable2D_f Nion_conditional_table_prev = {.allocated = false};
+static RGTable2D_f Nion_conditional_table_MINI_prev = {.allocated = false};
 
 //Tables for the catalogues
-struct RGTable1D Nhalo_table = {.allocated = false};
-struct RGTable1D Mcoll_table = {.allocated = false};
-struct RGTable2D Nhalo_inv_table = {.allocated = false};
+static RGTable1D Nhalo_table = {.allocated = false};
+static RGTable1D Mcoll_table = {.allocated = false};
+static RGTable2D Nhalo_inv_table = {.allocated = false};
 
 //Tables for the old parametrization
-struct RGTable1D fcoll_z_table = {.allocated = false};
-struct RGTable1D_f fcoll_conditional_table = {.allocated = false,};
-struct RGTable1D_f dfcoll_conditional_table = {.allocated = false,};
+static RGTable1D fcoll_z_table = {.allocated = false};
+static RGTable1D_f fcoll_conditional_table = {.allocated = false,};
+static RGTable1D_f dfcoll_conditional_table = {.allocated = false,};
 
 //J table for binary split algorithm
-struct RGTable1D J_split_table = {.allocated = false};
+static RGTable1D J_split_table = {.allocated = false};
+
 //Sigma inverse table for partition algorithm
-struct RGTable1D Sigma_inv_table = {.allocated = false};
+//Since we want to easily construct it from the sigma table, it won't be uniform so use GSL
+//TODO: Consider a rootfind on the integrals for accuracy and speed if we want an RGTable
+//      It should only need one calculation per run
+static gsl_spline *Sigma_inv_table;
+static gsl_interp_accel *Sigma_inv_table_acc;
+#pragma omp threadprivate(Sigma_inv_table_acc)
+
+//Sigma interpolation tables
+static RGTable1D_f Sigma_InterpTable = {.allocated = false,};
+static RGTable1D_f dSigmasqdm_InterpTable = {.allocated = false,};
 
 //NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to assign ST_over_PS in Spintemp.
 //  It may be better to just do the integrals at each R
 void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Fstar10, float Fstar7_MINI,
                              float mturn_a_const, bool minihalos){
     int i,j;
-    float Mlim_Fstar, Mlim_Fstar_MINI;
+    float Mlim_Fstar;
+    float Mlim_Fstar_MINI=0.;
     double Mmin = global_params.M_MIN_INTEGRAL;
     double Mmax = global_params.M_MAX_INTEGRAL;
     double lnMmax = log(Mmax);
@@ -83,7 +103,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
         Mlim_Fstar_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_star_mini, Fstar7_MINI * pow(1e3, Alpha_star_mini));
     }
 
-    #pragma omp parallel private(i,j) num_threads(user_params_it->N_THREADS)
+    #pragma omp parallel private(i,j) num_threads(user_params_global->N_THREADS)
     {
         double Mcrit_atom_val = mturn_a_const;
         double mturn_val;
@@ -92,7 +112,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
         #pragma omp for
         for (i=0; i<Nbin; i++){
             z_val = SFRD_z_table.x_min + i*SFRD_z_table.x_width; //both tables will have the same values here
-            lnMmin = log(minimum_source_mass(z_val,true,astro_params_it,flag_options_it));
+            lnMmin = log(minimum_source_mass(z_val,true,astro_params_global,flag_options_global));
             if(minihalos) Mcrit_atom_val = atomic_cooling_threshold(z_val);
 
             SFRD_z_table.y_arr[i] = Nion_General(z_val, lnMmin, lnMmax, Mcrit_atom_val, Alpha_star, 0., Fstar10, 1.,Mlim_Fstar,0.);
@@ -126,7 +146,8 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, float Alpha_star, 
 void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_star, float Alpha_star_mini, float Alpha_esc, float Fstar10,
                                 float Fesc10, float Fstar7_MINI, float Fesc7_MINI, float mturn_a_const, bool minihalos){
     int i,j;
-    float Mlim_Fstar, Mlim_Fesc, Mlim_Fstar_MINI, Mlim_Fesc_MINI;
+    float Mlim_Fstar, Mlim_Fesc;
+    float Mlim_Fstar_MINI=0., Mlim_Fesc_MINI=0.;
     LOG_DEBUG("initing Nion spline from %.2f to %.2f",zmin,zmax);
     double Mmin = global_params.M_MIN_INTEGRAL;
     double Mmax = global_params.M_MAX_INTEGRAL;
@@ -152,7 +173,7 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
         Mlim_Fesc_MINI = Mass_limit_bisection(Mmin, Mmax, Alpha_esc, Fesc7_MINI * pow(1e3, Alpha_esc));
     }
 
-#pragma omp parallel private(i,j) num_threads(user_params_it->N_THREADS)
+#pragma omp parallel private(i,j) num_threads(user_params_global->N_THREADS)
     {
         double Mcrit_atom_val = mturn_a_const;
         double mturn_val;
@@ -162,7 +183,7 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
         for (i=0; i<Nbin; i++){
             z_val = Nion_z_table.x_min + i*Nion_z_table.x_width; //both tables will have the same values here
             //Minor note: while this is called in xray, we use it to estimate ionised fraction, do we use ION_Tvir_MIN if applicable?
-            lnMmin = log(minimum_source_mass(z_val,true,astro_params_it,flag_options_it));
+            lnMmin = log(minimum_source_mass(z_val,true,astro_params_global,flag_options_global));
             if(minihalos) Mcrit_atom_val = atomic_cooling_threshold(z_val);
 
             Nion_z_table.y_arr[i] = Nion_General(z_val, lnMmin, lnMmax, Mcrit_atom_val, Alpha_star, Alpha_esc, Fstar10, Fesc10,
@@ -195,34 +216,33 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, float Alpha_sta
 }
 
 void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, double growth_zpp, double smin_zpp, double smax_zpp){
-    int i,j;
+    int i;
     double dens;
 
     LOG_SUPER_DEBUG("Initialising FgtrM table between delta %.3e and %.3e, sigma %.3e and %.3e",min_dens,max_dens,smin_zpp,smax_zpp);
 
     if(!fcoll_conditional_table.allocated){
-        allocate_RGTable1D(dens_Ninterp,&fcoll_conditional_table);
+        allocate_RGTable1D_f(dens_Ninterp,&fcoll_conditional_table);
     }
     fcoll_conditional_table.x_min = min_dens;
     fcoll_conditional_table.x_width = (max_dens - min_dens)/(dens_Ninterp - 1.);
     if(!dfcoll_conditional_table.allocated){
-        allocate_RGTable1D(dens_Ninterp,&dfcoll_conditional_table);
+        allocate_RGTable1D_f(dens_Ninterp,&dfcoll_conditional_table);
     }
     dfcoll_conditional_table.x_min = fcoll_conditional_table.x_min;
     dfcoll_conditional_table.x_width = fcoll_conditional_table.x_width;
 
     //dens_Ninterp is a global define, probably shouldn't be
-    for(j=0;j<dens_Ninterp;j++){
-        dens = fcoll_conditional_table.x_min + j*fcoll_conditional_table.x_width;
-        fcoll_conditional_table.y_arr[j] = FgtrM_bias_fast(growth_zpp, dens, smin_zpp, smax_zpp);
-        dfcoll_conditional_table.y_arr[j] = dfcoll_dz(zpp, smin_zpp, dens, smax_zpp);
+    for(i=0;i<dens_Ninterp;i++){
+        dens = fcoll_conditional_table.x_min + i*fcoll_conditional_table.x_width;
+        fcoll_conditional_table.y_arr[i] = FgtrM_bias_fast(growth_zpp, dens, smin_zpp, smax_zpp);
+        dfcoll_conditional_table.y_arr[i] = dfcoll_dz(zpp, smin_zpp, dens, smax_zpp);
     }
 }
 
 void init_FcollTable(double zmin, double zmax, bool x_ray){
     int i;
-    double z_val, M_min, lnMmin;
-    double lnMmax = log(fmax(global_params.M_MAX_INTEGRAL, M_min*100));
+    double z_val, M_min, lnMmin, lnMmax;
 
     fcoll_z_table.x_min = zmin;
     fcoll_z_table.x_width = 0.1;
@@ -235,15 +255,16 @@ void init_FcollTable(double zmin, double zmax, bool x_ray){
 
     for(i=0;i<n_z;i++){
         z_val = fcoll_z_table.x_min + i*fcoll_z_table.x_width;
-        M_min = minimum_source_mass(z_val,x_ray,astro_params_it,flag_options_it);
+        M_min = minimum_source_mass(z_val,x_ray,astro_params_global,flag_options_global);
         lnMmin = log(M_min);
+        lnMmax = log(fmax(global_params.M_MAX_INTEGRAL, M_min*100));
 
         //if we are press-schechter we can save time by calling the erfc
-        if(user_params_it->HMF == 0)
+        if(user_params_global->HMF == 0)
             fcoll_z_table.y_arr[i] = FgtrM(z_val, M_min);
         else{
-            if(user_params_it->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_it->USE_MINI_HALOS && user_params_it->INTEGRATION_METHOD_MINI == 1))
-                initialise_GL(NGL_INT,lnMmin,lnMmax);
+            if(user_params_global->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_global->USE_MINI_HALOS && user_params_global->INTEGRATION_METHOD_MINI == 1))
+                initialise_GL(lnMmin,lnMmax);
             fcoll_z_table.y_arr[i] = Fcoll_General(z_val, lnMmin, lnMmax);
         }
     }
@@ -265,7 +286,7 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
     int i,j;
     double overdense_table[NDELTA];
     double mturns[NMTURN], mturns_MINI[NMTURN];
-    struct RGTable2D_f *table_2d, *table_mini;
+    RGTable2D_f *table_2d, *table_mini;
 
     LOG_SUPER_DEBUG("Initialising Nion conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
 
@@ -321,7 +342,7 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
         }
     }
 
-#pragma omp parallel private(i,j) num_threads(user_params_it->N_THREADS)
+#pragma omp parallel private(i,j) num_threads(user_params_global->N_THREADS)
     {
 #pragma omp for
         for(i=0;i<NDELTA;i++){
@@ -329,7 +350,7 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
                 //pass constant M_turn as minimum
                 Nion_conditional_table1D.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,
                                                 overdense_table[i],Mcrit_atom,Alpha_star,Alpha_esc,
-                                                Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC));
+                                                Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,user_params_global->INTEGRATION_METHOD_ATOMIC));
                 if(Nion_conditional_table1D.y_arr[i] < -40.)
                     Nion_conditional_table1D.y_arr[i] = -40.;
 
@@ -338,14 +359,14 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
             for (j=0; j<NMTURN; j++){
                 table_2d->z_arr[i][j] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,
                                                 overdense_table[i],mturns[j],Alpha_star,Alpha_esc,
-                                                Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC));
+                                                Fstar10,Fesc10,Mlim_Fstar,Mlim_Fesc,user_params_global->INTEGRATION_METHOD_ATOMIC));
 
                 if(table_2d->z_arr[i][j] < -40.)
                     table_2d->z_arr[i][j] = -40.;
 
                 table_mini->z_arr[i][j] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,Mcond,sigma2,overdense_table[i],
                                                     mturns_MINI[j],Mcrit_atom,Alpha_star_mini,Alpha_esc,Fstar7_MINI,Fesc7_MINI,
-                                                    Mlim_Fstar_MINI,Mlim_Fesc_MINI,user_params_it->INTEGRATION_METHOD_MINI));
+                                                    Mlim_Fstar_MINI,Mlim_Fesc_MINI,user_params_global->INTEGRATION_METHOD_MINI));
 
                 if(table_mini->z_arr[i][j] < -40.)
                     table_mini->z_arr[i][j] = -40.;
@@ -382,8 +403,9 @@ void initialise_Nion_Conditional_spline(float z, float Mcrit_atom, float min_den
 void initialise_SFRD_Conditional_table(double min_density, double max_density, double growthf,
                                     float Mcrit_atom, double Mmin, double Mmax, double Mcond, float Alpha_star, float Alpha_star_mini,
                                     float Fstar10, float Fstar7_MINI, int method, int method_mini, bool minihalos){
-    float Mlim_Fstar,sigma2,Mlim_Fstar_MINI;
-    int i,j,k,i_tot;
+    float Mlim_Fstar,sigma2;
+    float Mlim_Fstar_MINI=0.;
+    int i,k;
 
     LOG_SUPER_DEBUG("Initialising SFRD conditional table at mass %.2e from delta %.2e to %.2e",Mcond,min_density,max_density);
 
@@ -417,14 +439,14 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
     double lnMmax = log(Mmax);
     sigma2 = EvaluateSigma(lnM_condition); //sigma is always the condition, whereas lnMmax is just the integral limit
 
-#pragma omp parallel private(i,k) num_threads(user_params_it->N_THREADS)
+#pragma omp parallel private(i,k) num_threads(user_params_global->N_THREADS)
     {
         double curr_dens;
 #pragma omp for
         for (i=0; i<NDELTA; i++){
             curr_dens = min_density + (float)i/((float)NDELTA-1.)*(max_density - min_density);
             SFRD_conditional_table.y_arr[i] = log(Nion_ConditionalM(growthf,lnMmin,lnMmax,Mcond,sigma2,curr_dens,\
-                                            Mcrit_atom,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., user_params_it->INTEGRATION_METHOD_ATOMIC));
+                                            Mcrit_atom,Alpha_star,0.,Fstar10,1.,Mlim_Fstar,0., user_params_global->INTEGRATION_METHOD_ATOMIC));
 
             if(SFRD_conditional_table.y_arr[i] < -50.)
                 SFRD_conditional_table.y_arr[i] = -50.;
@@ -434,7 +456,7 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
             for (k=0; k<NMTURN; k++){
                 SFRD_conditional_table_MINI.z_arr[i][k] = log(Nion_ConditionalM_MINI(growthf,lnMmin,lnMmax,Mcond,sigma2,\
                                             curr_dens,MassTurnover[k],Mcrit_atom,\
-                                            Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., user_params_it->INTEGRATION_METHOD_MINI));
+                                            Alpha_star_mini,0.,Fstar7_MINI,1.,Mlim_Fstar_MINI, 0., user_params_global->INTEGRATION_METHOD_MINI));
 
                 if(SFRD_conditional_table_MINI.z_arr[i][k] < -50.)
                     SFRD_conditional_table_MINI.z_arr[i][k] = -50.;
@@ -459,8 +481,8 @@ void initialise_SFRD_Conditional_table(double min_density, double max_density, d
 
 void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth_out, double param, bool from_catalog){
     int nx;
-    double lnM_cond;
-    double sigma_cond;
+    double lnM_cond=0.;
+    double sigma_cond=0.;
     LOG_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Limits %.2e %.2e)",xmin,xmax,ymin,ymax);
     LOG_DEBUG("D_out %.2e P %.2e from_cat %d",growth_out,param,from_catalog);
 
@@ -469,7 +491,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
         sigma_cond = EvaluateSigma(lnM_cond);
     }
 
-    nx = user_params_it->N_COND_INTERP;
+    nx = user_params_global->N_COND_INTERP;
 
     double xa[nx];
     int i;
@@ -489,7 +511,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     Mcoll_table.x_min = xmin;
     Mcoll_table.x_width = (xmax - xmin)/((double)nx-1);
 
-    #pragma omp parallel num_threads(user_params_it->N_THREADS) private(i) firstprivate(sigma_cond,lnM_cond)
+    #pragma omp parallel num_threads(user_params_global->N_THREADS) private(i) firstprivate(sigma_cond,lnM_cond)
     {
         double x;
         double delta;
@@ -503,7 +525,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
                 lnM_cond = x;
                 sigma_cond = EvaluateSigma(lnM_cond);
                 //barrier at descendant mass
-                delta = get_delta_crit(user_params_it->HMF,sigma_cond,param)/param*growth_out;
+                delta = get_delta_crit(user_params_global->HMF,sigma_cond,param)/param*growth_out;
             }
             else{
                 delta = x;
@@ -533,7 +555,7 @@ double dndm_inv_f(double lnM_min, void * params){
     struct rf_inv_params *p = (struct rf_inv_params *)params;
     double integral = Nhalo_Conditional(p->growthf,lnM_min,p->lnM_cond,p->M_cond,p->sigma,p->delta,0);
     //This ensures that we never find the root if the ratio is zero, since that will set to M_cond
-    double result = integral == 0 ? 2*user_params_it->MIN_LOGPROB : log(integral / p->rf_norm);
+    double result = integral == 0 ? 2*user_params_global->MIN_LOGPROB : log(integral / p->rf_norm);
 
     return result - p->rf_target;
 }
@@ -545,21 +567,21 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
     LOG_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Min. %.2e)",xmin,xmax,lnM_min);
     LOG_DEBUG("D_out %.2e P %.2e up %d",growth_out,param,from_catalog);
 
-    int nx = user_params_it->N_COND_INTERP;
-    int np = user_params_it->N_PROB_INTERP;
+    int nx = user_params_global->N_COND_INTERP;
+    int np = user_params_global->N_PROB_INTERP;
     double xa[nx], pa[np];
     double rf_tol_abs = 1e-4;
     double rf_tol_rel = 0.;
 
-    double lnM_cond;
-    double sigma_cond;
-    double min_lp = user_params_it->MIN_LOGPROB;
+    double lnM_cond=0.;
+    double sigma_cond=0.;
+    double min_lp = user_params_global->MIN_LOGPROB;
     if(!from_catalog){
         lnM_cond = param;
         sigma_cond = EvaluateSigma(lnM_cond);
     }
 
-    int i,j,k;
+    int i,k;
     //set up coordinate grids
     for(i=0;i<nx;i++) xa[i] = xmin + (xmax - xmin)*((double)i)/((double)nx-1);
     xa[nx-1] = xmax; //avoiding floating point errors in final bin due to the hard boundary at Deltac
@@ -575,7 +597,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
     Nhalo_inv_table.y_min = pa[0];
     Nhalo_inv_table.y_width = pa[1] - pa[0];
 
-    #pragma omp parallel num_threads(user_params_it->N_THREADS) private(i,j,k) firstprivate(sigma_cond,lnM_cond)
+    #pragma omp parallel num_threads(user_params_global->N_THREADS) private(i,k) firstprivate(sigma_cond,lnM_cond)
     {
         double x;
         double norm;
@@ -606,7 +628,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
                 lnM_cond = x;
                 sigma_cond = EvaluateSigma(lnM_cond);
                 //Barrier at descendant mass scaled to progenitor redshift
-                delta = get_delta_crit(user_params_it->HMF,sigma_cond,param)/param*growth_out;
+                delta = get_delta_crit(user_params_global->HMF,sigma_cond,param)/param*growth_out;
             }
             else{
                 delta = x;
@@ -658,7 +680,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
                 }while((status == GSL_CONTINUE) && (iter < MAX_ITER_RF));
                 if(status!=GSL_SUCCESS) {
                     LOG_ERROR("gsl RF error occured! %d",status);
-                    GSL_ERROR(status);
+                    CATCH_GSL_ERROR(status);
                 }
             }
         }
@@ -693,7 +715,7 @@ double integrate_J(double u_res, double gamma1){
     if(status!=0) {
         LOG_ERROR("gsl integration error occured!");
         LOG_ERROR("J: gamma1 = %.4e u_res = %.4e",gamma1,u_res);
-        GSL_ERROR(status);
+        CATCH_GSL_ERROR(status);
     }
 
     gsl_integration_workspace_free (w);
@@ -719,7 +741,13 @@ void free_dNdM_tables(){
     free_RGTable1D(&Nhalo_table);
     free_RGTable1D(&Mcoll_table);
     free_RGTable1D(&J_split_table);
-    free_RGTable1D(&Sigma_inv_table);
+    if(user_params_global->SAMPLE_METHOD == 2){
+        gsl_spline_free(Sigma_inv_table);
+        #pragma omp parallel num_threads(user_params_global->N_THREADS)
+        {
+            gsl_interp_accel_free(Sigma_inv_table_acc);
+        }
+    }
 }
 
 void free_conditional_tables(){
@@ -734,34 +762,42 @@ void free_conditional_tables(){
     free_RGTable2D_f(&Nion_conditional_table_MINI_prev);
 }
 
+void free_global_tables(){
+    free_RGTable1D(&SFRD_z_table);
+    free_RGTable2D(&SFRD_z_table_MINI);
+    free_RGTable1D(&Nion_z_table);
+    free_RGTable2D(&Nion_z_table_MINI);
+    free_RGTable1D(&fcoll_z_table);
+}
+
 //JD: moving the interp table evaluations here since some of them are needed in nu_tau_one
 //NOTE: with !USE_MASS_DEPENDENT_ZETA both EvaluateNionTs and EvaluateSFRD return Fcoll
 double EvaluateNionTs(double redshift, double Mlim_Fstar, double Mlim_Fesc){
     //differences in turnover are handled by table setup
-    if(user_params_it->USE_INTERPOLATION_TABLES){
-        if(flag_options_it->USE_MASS_DEPENDENT_ZETA)
+    if(user_params_global->USE_INTERPOLATION_TABLES){
+        if(flag_options_global->USE_MASS_DEPENDENT_ZETA)
             return EvaluateRGTable1D(redshift,&Nion_z_table); //the correct table should be passed
         return EvaluateRGTable1D(redshift,&fcoll_z_table);
     }
 
     //Currently assuming this is only called in the X-ray/spintemp calculation, this will only affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass
     //      and only if the minimum virial temperatures ION_Tvir_min and X_RAY_Tvir_min are different
-    double lnMmin = log(minimum_source_mass(redshift,true,astro_params_it,flag_options_it));
+    double lnMmin = log(minimum_source_mass(redshift,true,astro_params_global,flag_options_global));
     double lnMmax = log(global_params.M_MAX_INTEGRAL);
 
     //minihalos uses a different turnover mass
-    if(flag_options_it->USE_MINI_HALOS)
-        return Nion_General(redshift, lnMmin, lnMmax, atomic_cooling_threshold(redshift), astro_params_it->ALPHA_STAR, astro_params_it->ALPHA_ESC,
-                            astro_params_it->F_STAR10, astro_params_it->F_ESC10, Mlim_Fstar, Mlim_Fesc);
-    if(flag_options_it->USE_MASS_DEPENDENT_ZETA)
-        return Nion_General(redshift, lnMmin, lnMmax, astro_params_it->M_TURN, astro_params_it->ALPHA_STAR, astro_params_it->ALPHA_ESC,
-                            astro_params_it->F_STAR10, astro_params_it->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+    if(flag_options_global->USE_MINI_HALOS)
+        return Nion_General(redshift, lnMmin, lnMmax, atomic_cooling_threshold(redshift), astro_params_global->ALPHA_STAR, astro_params_global->ALPHA_ESC,
+                            astro_params_global->F_STAR10, astro_params_global->F_ESC10, Mlim_Fstar, Mlim_Fesc);
+    if(flag_options_global->USE_MASS_DEPENDENT_ZETA)
+        return Nion_General(redshift, lnMmin, lnMmax, astro_params_global->M_TURN, astro_params_global->ALPHA_STAR, astro_params_global->ALPHA_ESC,
+                            astro_params_global->F_STAR10, astro_params_global->F_ESC10, Mlim_Fstar, Mlim_Fesc);
 
     return Fcoll_General(redshift, lnMmin, lnMmax);
 }
 
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI, double Mlim_Fesc_MINI){
-    if(user_params_it->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES){
         // LOG_SUPER_DEBUG("z %.3f l10M %.3e result %.3e",redshift,log10_Mturn_LW_ave,EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,&Nion_z_table_MINI));
         // LOG_SUPER_DEBUG("Table N (%d,%d) min (%.2e %.2e) width (%.2e %.2e) max (%.2e %.2e)",Nion_z_table.nx_bin,Nion_z_table.ny_bin,
         //                 Nion_z_table.x_min,Nion_z_table.y_min,
@@ -772,30 +808,30 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_LW_ave, double Ml
     }
 
     return Nion_General_MINI(redshift, log(global_params.M_MIN_INTEGRAL), log(global_params.M_MAX_INTEGRAL), pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
-                            astro_params_it->ALPHA_STAR_MINI, astro_params_it->ALPHA_ESC, astro_params_it->F_STAR7_MINI,
-                            astro_params_it->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
+                            astro_params_global->ALPHA_STAR_MINI, astro_params_global->ALPHA_ESC, astro_params_global->F_STAR7_MINI,
+                            astro_params_global->F_ESC7_MINI, Mlim_Fstar_MINI, Mlim_Fesc_MINI);
 }
 
 double EvaluateSFRD(double redshift, double Mlim_Fstar){
-    if(user_params_it->USE_INTERPOLATION_TABLES){
-        if(flag_options_it->USE_MASS_DEPENDENT_ZETA)
+    if(user_params_global->USE_INTERPOLATION_TABLES){
+        if(flag_options_global->USE_MASS_DEPENDENT_ZETA)
             return EvaluateRGTable1D(redshift,&SFRD_z_table);
         return EvaluateRGTable1D(redshift,&fcoll_z_table);
     }
 
     //Currently assuming this is only called in the X-ray/spintemp calculation, this will only affect !USE_MASS_DEPENDENT_ZETA and !M_MIN_in_mass
     //      and only if the minimum virial temperatures ION_Tvir_min and X_RAY_Tvir_min are different
-    double lnMmin = log(minimum_source_mass(redshift,true,astro_params_it,flag_options_it));
+    double lnMmin = log(minimum_source_mass(redshift,true,astro_params_global,flag_options_global));
     double lnMmax = log(global_params.M_MAX_INTEGRAL);
 
     //minihalos uses a different turnover mass
-    if(flag_options_it->USE_MINI_HALOS)
-        return Nion_General(redshift, lnMmin, lnMmax, atomic_cooling_threshold(redshift), astro_params_it->ALPHA_STAR, 0.,
-                            astro_params_it->F_STAR10, 1., Mlim_Fstar, 0.);
+    if(flag_options_global->USE_MINI_HALOS)
+        return Nion_General(redshift, lnMmin, lnMmax, atomic_cooling_threshold(redshift), astro_params_global->ALPHA_STAR, 0.,
+                            astro_params_global->F_STAR10, 1., Mlim_Fstar, 0.);
 
-    if(flag_options_it->USE_MASS_DEPENDENT_ZETA)
-        return Nion_General(redshift, lnMmin, lnMmax, astro_params_it->M_TURN, astro_params_it->ALPHA_STAR, 0.,
-                            astro_params_it->F_STAR10, 1., Mlim_Fstar, 0.);
+    if(flag_options_global->USE_MASS_DEPENDENT_ZETA)
+        return Nion_General(redshift, lnMmin, lnMmax, astro_params_global->M_TURN, astro_params_global->ALPHA_STAR, 0.,
+                            astro_params_global->F_STAR10, 1., Mlim_Fstar, 0.);
 
     //NOTE: Previously, with M_MIN_IN_MASS, the FgtrM function used M_turn/50, which seems like a bug
     // since it goes against the assumption of sharp cutoff
@@ -806,79 +842,79 @@ double EvaluateSFRD(double redshift, double Mlim_Fstar){
 }
 
 double EvaluateSFRD_MINI(double redshift, double log10_Mturn_LW_ave, double Mlim_Fstar_MINI){
-    if(user_params_it->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES){
         return EvaluateRGTable2D(redshift,log10_Mturn_LW_ave,&SFRD_z_table_MINI);
     }
     return Nion_General_MINI(redshift, log(global_params.M_MIN_INTEGRAL), log(global_params.M_MAX_INTEGRAL), pow(10.,log10_Mturn_LW_ave), atomic_cooling_threshold(redshift),
-                            astro_params_it->ALPHA_STAR_MINI, 0., astro_params_it->F_STAR7_MINI,
+                            astro_params_global->ALPHA_STAR_MINI, 0., astro_params_global->F_STAR7_MINI,
                             1., Mlim_Fstar_MINI, 0.);
 }
 
 double EvaluateSFRD_Conditional(double delta, double growthf, double M_min, double M_max, double M_cond, double sigma_max, double Mturn_a, double Mlim_Fstar){
-    if(user_params_it->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable1D_f(delta,&SFRD_conditional_table));
     }
     return Nion_ConditionalM(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,Mturn_a,
-                                astro_params_it->ALPHA_STAR,0.,astro_params_it->F_STAR10,1.,Mlim_Fstar,0., user_params_it->INTEGRATION_METHOD_ATOMIC);
+                                astro_params_global->ALPHA_STAR,0.,astro_params_global->F_STAR10,1.,Mlim_Fstar,0., user_params_global->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max, double Mturn_a, double Mlim_Fstar){
-    if(user_params_it->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,&SFRD_conditional_table_MINI));
     }
 
-    return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_it->ALPHA_STAR_MINI,
-                                0.,astro_params_it->F_STAR7_MINI,1.,Mlim_Fstar, 0., user_params_it->INTEGRATION_METHOD_MINI);
+    return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_global->ALPHA_STAR_MINI,
+                                0.,astro_params_global->F_STAR7_MINI,1.,Mlim_Fstar, 0., user_params_global->INTEGRATION_METHOD_MINI);
 }
 
 double EvaluateNion_Conditional(double delta, double log10Mturn, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                 double Mlim_Fstar, double Mlim_Fesc, bool prev){
-    struct RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
-    if(user_params_it->USE_INTERPOLATION_TABLES){
-        if(flag_options_it->USE_MINI_HALOS)
+    RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
+    if(user_params_global->USE_INTERPOLATION_TABLES){
+        if(flag_options_global->USE_MINI_HALOS)
             return exp(EvaluateRGTable2D_f(delta, log10Mturn, table));
         return exp(EvaluateRGTable1D_f(delta, &Nion_conditional_table1D));
     }
 
     return Nion_ConditionalM(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,pow(10,log10Mturn),
-                                astro_params_it->ALPHA_STAR,astro_params_it->ALPHA_ESC,astro_params_it->F_STAR10,
-                                astro_params_it->F_ESC10,Mlim_Fstar,Mlim_Fesc,user_params_it->INTEGRATION_METHOD_ATOMIC);
+                                astro_params_global->ALPHA_STAR,astro_params_global->ALPHA_ESC,astro_params_global->F_STAR10,
+                                astro_params_global->F_ESC10,Mlim_Fstar,Mlim_Fesc,user_params_global->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_m, double growthf, double M_min, double M_max, double M_cond, double sigma_max,
                                     double Mturn_a, double Mlim_Fstar, double Mlim_Fesc, bool prev){
-    struct RGTable2D_f *table = prev ? &Nion_conditional_table_MINI_prev : &Nion_conditional_table_MINI;
-    if(user_params_it->USE_INTERPOLATION_TABLES){
+    RGTable2D_f *table = prev ? &Nion_conditional_table_MINI_prev : &Nion_conditional_table_MINI;
+    if(user_params_global->USE_INTERPOLATION_TABLES){
         return exp(EvaluateRGTable2D_f(delta,log10Mturn_m,table));
     }
 
-    return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_it->ALPHA_STAR_MINI,
-                                astro_params_it->ALPHA_ESC,astro_params_it->F_STAR7_MINI,astro_params_it->F_ESC7_MINI,Mlim_Fstar,
-                                Mlim_Fesc,user_params_it->INTEGRATION_METHOD_MINI);
+    return Nion_ConditionalM_MINI(growthf,log(M_min),log(M_max),M_cond,sigma_max,delta,pow(10,log10Mturn_m),Mturn_a,astro_params_global->ALPHA_STAR_MINI,
+                                astro_params_global->ALPHA_ESC,astro_params_global->F_STAR7_MINI,astro_params_global->F_ESC7_MINI,Mlim_Fstar,
+                                Mlim_Fesc,user_params_global->INTEGRATION_METHOD_MINI);
 }
 
 double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max){
-    if(user_params_it->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES){
         return EvaluateRGTable1D_f(delta,&fcoll_conditional_table);
     }
 
     return FgtrM_bias_fast(growthf,delta,sigma_min,sigma_max);
 }
 double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double sigma_max){
-    if(user_params_it->USE_INTERPOLATION_TABLES){
+    if(user_params_global->USE_INTERPOLATION_TABLES){
         return EvaluateRGTable1D_f(delta,&dfcoll_conditional_table);
     }
     return dfcoll_dz(redshift,sigma_min,delta,sigma_max);
 }
 
 double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta){
-    if(user_params_it->USE_INTERPOLATION_TABLES)
+    if(user_params_global->USE_INTERPOLATION_TABLES)
         return EvaluateRGTable1D(condition,&Nhalo_table);
     return Nhalo_Conditional(growthf, lnMmin, lnMmax, M_cond, sigma, delta, 0);
 }
 
 double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond, double sigma, double delta){
-    if(user_params_it->USE_INTERPOLATION_TABLES)
+    if(user_params_global->USE_INTERPOLATION_TABLES)
         return EvaluateRGTable1D(condition,&Mcoll_table);
     return Mcoll_Conditional(growthf, lnMmin, lnMmax, M_cond, sigma, delta, 0);
 }
@@ -893,7 +929,7 @@ double extrapolate_dNdM_inverse(double condition, double lnp){
     double x_table = x_min + x_idx*x_width;
     double interp_point_x = (condition - x_table)/x_width;
 
-    double extrap_point_y = (lnp - user_params_it->MIN_LOGPROB)/Nhalo_inv_table.y_width;
+    double extrap_point_y = (lnp - user_params_global->MIN_LOGPROB)/Nhalo_inv_table.y_width;
 
     //find the log-mass at the edge of the table for this condition
     double xlimit = Nhalo_inv_table.z_arr[x_idx][0]*(interp_point_x)
@@ -911,7 +947,7 @@ double EvaluateNhaloInv(double condition, double prob){
     if(prob == 0.)
         return 1.; //q == 1 -> condition mass
     double lnp = log(prob);
-    if(lnp < user_params_it->MIN_LOGPROB)
+    if(lnp < user_params_global->MIN_LOGPROB)
         return extrapolate_dNdM_inverse(condition,lnp);
     return EvaluateRGTable2D(condition,lnp,&Nhalo_inv_table);
 }
@@ -935,26 +971,78 @@ void InitialiseSigmaInverseTable(){
         Throw(TableGenerationError);
     }
     int i;
-
     int n_bin = Sigma_InterpTable.n_bin;
-    double sigma_min = Sigma_InterpTable.y_arr[n_bin-1];
-    double sigma_max = Sigma_InterpTable.y_arr[0];
 
-    if(!Sigma_inv_table.allocated)
-        allocate_RGTable1D(n_bin,&Sigma_inv_table);
+    double xa[n_bin], ya[n_bin];
 
-    Sigma_inv_table.x_min = sigma_min;
-    Sigma_inv_table.x_width = (sigma_max-sigma_min)/((double)n_bin-1);
+    Sigma_inv_table = gsl_spline_alloc(gsl_interp_linear,n_bin);
+    Sigma_inv_table_acc = gsl_interp_accel_alloc();
 
     for(i=0;i<n_bin;i++){
-        Sigma_inv_table.y_arr[i] = Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width;
+        xa[i] = Sigma_InterpTable.y_arr[n_bin-i-1];
+        ya[i] = Sigma_InterpTable.x_min + (n_bin-i-1)*Sigma_InterpTable.x_width;
     }
+
+    gsl_spline_init(Sigma_inv_table,xa,ya,n_bin);
 }
 
 double EvaluateSigmaInverse(double sigma){
-    if(!user_params_it->USE_INTERPOLATION_TABLES){
+    if(!user_params_global->USE_INTERPOLATION_TABLES){
         LOG_ERROR("Cannot currently do sigma inverse without USE_INTERPOLATION_TABLES");
         Throw(ValueError);
     }
-    return EvaluateRGTable1D(sigma,&Sigma_inv_table);
+    return gsl_spline_eval(Sigma_inv_table,sigma,Sigma_inv_table_acc);
+}
+
+void initialiseSigmaMInterpTable(float M_min, float M_max){
+    int i;
+
+    if(!Sigma_InterpTable.allocated)
+        allocate_RGTable1D_f(N_MASS_INTERP,&Sigma_InterpTable);
+    if(!dSigmasqdm_InterpTable.allocated)
+        allocate_RGTable1D_f(N_MASS_INTERP,&dSigmasqdm_InterpTable);
+
+    Sigma_InterpTable.x_min = log(M_min);
+    Sigma_InterpTable.x_width = (log(M_max) - log(M_min))/(N_MASS_INTERP-1.);
+    dSigmasqdm_InterpTable.x_min = log(M_min);
+    dSigmasqdm_InterpTable.x_width = (log(M_max) - log(M_min))/(N_MASS_INTERP-1.);
+
+#pragma omp parallel private(i) num_threads(user_params_global->N_THREADS)
+    {
+        float Mass;
+#pragma omp for
+        for(i=0;i<N_MASS_INTERP;i++) {
+            Mass = exp(Sigma_InterpTable.x_min + i*Sigma_InterpTable.x_width);
+            Sigma_InterpTable.y_arr[i] = sigma_z0(Mass);
+            dSigmasqdm_InterpTable.y_arr[i] = log10(-dsigmasqdm_z0(Mass));
+        }
+    }
+
+    for(i=0;i<N_MASS_INTERP;i++) {
+        if(isfinite(Sigma_InterpTable.y_arr[i]) == 0 || isfinite(dSigmasqdm_InterpTable.y_arr[i]) == 0){
+            LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
+            Throw(TableGenerationError);
+        }
+    }
+}
+
+void freeSigmaMInterpTable(){
+    free_RGTable1D_f(&Sigma_InterpTable);
+    free_RGTable1D_f(&dSigmasqdm_InterpTable);
+}
+
+double EvaluateSigma(double lnM){
+    //using log units to make the fast option faster and the slow option slower
+    if(user_params_global->USE_INTERPOLATION_TABLES) {
+        return EvaluateRGTable1D_f(lnM, &Sigma_InterpTable);
+    }
+    return sigma_z0(exp(lnM));
+}
+
+double EvaluatedSigmasqdm(double lnM){
+    //this may be slow, figure out why the dsigmadm table is in log10
+    if(user_params_global->USE_INTERPOLATION_TABLES){
+        return -pow(10., EvaluateRGTable1D_f(lnM, &dSigmasqdm_InterpTable));
+    }
+    return dsigmasqdm_z0(exp(lnM));
 }

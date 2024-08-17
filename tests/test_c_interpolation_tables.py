@@ -67,8 +67,7 @@ def test_sigma_table(name, plt):
     up = UserParams(opts["user_params"])
     cp = CosmoParams(opts["cosmo_params"])
     up.update(USE_INTERPOLATION_TABLES=True)
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
+    lib.Broadcast_struct_global_noastro(up(), cp())
 
     lib.init_ps()
     lib.initialiseSigmaMInterpTable(
@@ -115,9 +114,7 @@ def test_inverse_cmf_tables(name, plt):
     edges = np.logspace(7, 12, num=hist_size).astype("f4")
     edges_ln = np.log(edges)
 
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
     lib.init_ps()
     lib.initialiseSigmaMInterpTable(
@@ -283,9 +280,7 @@ def test_Massfunc_conditional_tables(name, plt):
     edges = np.logspace(7, 12, num=hist_size).astype("f4")
     edges_ln = np.log(edges)
 
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
     lib.init_ps()
     lib.initialiseSigmaMInterpTable(
@@ -487,9 +482,7 @@ def test_FgtrM_conditional_tables(name, R, plt):
     fo = FlagOptions(opts["flag_options"])
 
     up.update(USE_INTERPOLATION_TABLES=True)
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
@@ -526,9 +519,7 @@ def test_FgtrM_conditional_tables(name, R, plt):
     )
 
     up.update(USE_INTERPOLATION_TABLES=False)
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
     fcoll_integrals = np.vectorize(lib.EvaluateFcoll_delta)(
         edges_d[:-1], growth_out, sigma_min, sigma_cond
@@ -596,9 +587,7 @@ def test_SFRD_z_tables(name, plt):
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
@@ -611,7 +600,7 @@ def test_SFRD_z_tables(name, plt):
     lib.init_ps()
 
     if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
-        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+        lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
     Mlim_Fstar_MINI = 1e7 * (10**ap.F_STAR7_MINI) ** (-1.0 / ap.ALPHA_STAR_MINI)
@@ -727,9 +716,7 @@ def test_Nion_z_tables(name, plt):
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
     f10s = 10**ap.F_STAR10
     f7s = 10**ap.F_STAR7_MINI
@@ -745,7 +732,7 @@ def test_Nion_z_tables(name, plt):
     lib.init_ps()
 
     if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
-        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+        lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     Mlim_Fstar = 1e10 * (10**ap.F_STAR10) ** (-1.0 / ap.ALPHA_STAR)
     Mlim_Fesc = 1e10 * (10**ap.F_ESC10) ** (-1.0 / ap.ALPHA_ESC)
@@ -885,9 +872,7 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
@@ -896,7 +881,7 @@ def test_Nion_conditional_tables(name, R, mini, intmethod, plt):
     lib.init_ps()
 
     if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
-        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+        lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     growth_out = lib.dicke(redshift)
     cond_mass = (
@@ -1073,9 +1058,7 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
         INHOMO_RECO=True,
         USE_TS_FLUCT=True,
     )
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
@@ -1084,7 +1067,7 @@ def test_SFRD_conditional_table(name, R, intmethod, plt):
     lib.init_ps()
 
     if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
-        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+        lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     growth_out = lib.dicke(redshift)
     cond_mass = (
@@ -1238,9 +1221,7 @@ def test_conditional_integral_methods(R, name, integrand, plt):
     if "sfr" in integrand:
         ap.update(F_ESC10=0.0, F_ESC7_MINI=0.0, ALPHA_ESC=0.0)  # F_ESCX is in log10
 
-    lib.Broadcast_struct_global_PS(up(), cp())
-    lib.Broadcast_struct_global_UF(up(), cp())
-    lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+    lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
     hist_size = 1000
     M_min = global_params.M_MIN_INTEGRAL
@@ -1249,7 +1230,7 @@ def test_conditional_integral_methods(R, name, integrand, plt):
     lib.init_ps()
 
     if up.INTEGRATION_METHOD_ATOMIC == 1 or up.INTEGRATION_METHOD_MINI == 1:
-        lib.initialise_GL(100, np.log(M_min), np.log(M_max))
+        lib.initialise_GL(np.log(M_min), np.log(M_max))
 
     growth_out = lib.dicke(redshift)
     cond_mass = (
@@ -1282,9 +1263,7 @@ def test_conditional_integral_methods(R, name, integrand, plt):
             continue
         up.update(INTEGRATION_METHOD_ATOMIC=method, INTEGRATION_METHOD_MINI=method)
 
-        lib.Broadcast_struct_global_PS(up(), cp())
-        lib.Broadcast_struct_global_UF(up(), cp())
-        lib.Broadcast_struct_global_IT(up(), cp(), ap(), fo())
+        lib.Broadcast_struct_global_all(up(), cp(), ap(), fo())
 
         integrals.append(
             np.vectorize(lib.Nion_ConditionalM)(

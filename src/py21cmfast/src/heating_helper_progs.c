@@ -1,72 +1,27 @@
 
-struct UserParams *user_params_hf;
-struct CosmoParams *cosmo_params_hf;
-struct AstroParams *astro_params_hf;
-struct FlagOptions *flag_options_hf;
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_roots.h>
+#include <gsl/gsl_interp.h>
+#include <gsl/gsl_spline.h>
+#include <gsl/gsl_errno.h>
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
 
-float determine_zpp_min, zpp_bin_width;
+#include "Constants.h"
+#include "InputParameters.h"
+#include "indexing.h"
+#include "elec_interp.h"
+#include "cosmology.h"
+#include "thermochem.h"
+#include "interp_tables.h"
 
-double BinWidth_pH,inv_BinWidth_pH,BinWidth_elec,inv_BinWidth_elec,BinWidth_10,inv_BinWidth_10,PS_ION_EFF;
+#include "heating_helper_progs.h"
 
-void Broadcast_struct_global_HF(struct UserParams *user_params, struct CosmoParams *cosmo_params, struct AstroParams *astro_params, struct FlagOptions *flag_options){
-
-    user_params_hf = user_params;
-    cosmo_params_hf = cosmo_params;
-    astro_params_hf = astro_params;
-    flag_options_hf = flag_options;
-}
-
-// * initialization routine * //
-// int init_heat();
-
-/* destruction/deallocation routine */
-void destruct_heat();
-
-// * returns the spectral emissity * //
-double spectral_emissivity(double nu_norm, int flag, int Population);
-
-// * Ionization fraction from RECFAST. * //
-double xion_RECFAST(float z, int flag);
-
-// * IGM temperature from RECFAST; includes Compton heating and adiabatic expansion only. * //
-double T_RECFAST(float z, int flag);
-
-// approximation for the adiabatic index at z=6-50 from 2302.08506
-float cT_approx(float z);
-
-// * returns the spin temperature * //
-float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float * curr_xalpha);
-
-//* Returns recycling fraction (=fraction of photons converted into Lyalpha for Ly-n resonance * //
-double frecycle(int n);
-
-// * Returns frequency of Lyman-n, in units of Lyman-alpha * //
-double nu_n(int n);
-
-double kappa_10_pH(double T, int flag);
-double kappa_10_elec(double T, int flag);
-double kappa_10(double TK, int flag);
-
-double xcoll(double z, double TK, double delta, double xe);
-double xcoll_HI(double z, double TK, double delta, double xe);
-double xcoll_elec(double z, double TK, double delta, double xe);
-double xcoll_prot(double z, double TK, double delta, double xe);
-
-double xalpha_tilde(double z, double Jalpha, double TK, double TS, double delta, double xe);
-double Tc_eff(double TK, double TS);
-double Salpha_tilde(double TK, double TS, double tauGP);
-double taugp(double z, double delta, double xe);
-
-double species_weighted_x_ray_cross_section(double nu, double x_e);
-
-// * Returns the maximum redshift at which a Lyn transition contributes to Lya flux at z * //
-float zmax(float z, int n);
-
-//Lyman-Alpha heating functions
-int find_nearest_point(double min, double max, int n, double value);
-int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr);
-double interpolate_heating_efficiencies(double tk, double ts, double taugp, double *arrE);
-double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag);
+static double BinWidth_pH,inv_BinWidth_pH,BinWidth_elec,inv_BinWidth_elec,BinWidth_10,inv_BinWidth_10,PS_ION_EFF;
 
 int init_heat()
 {
@@ -102,31 +57,6 @@ void destruct_heat()
 {
   T_RECFAST(100.0,2);
   xion_RECFAST(100.0,2);
-}
-
-float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float * curr_xalpha){
-    double Trad,xc,xa_tilde;
-    double TS,TSold,TSinv;
-    double Tceff;
-
-    Trad = T_cmb*(1.0+z);
-    xc = xcoll(z,TK,delta,xe);
-    if (Jalpha > 1.0e-20) { // * Must use WF effect * //
-        TS = Trad;
-        TSold = 0.0;
-        while (fabs(TS-TSold)/TS > 1.0e-3) {
-            TSold = TS;
-            xa_tilde = xalpha_tilde(z,Jalpha,TK,TS,delta,xe);
-            Tceff = Tc_eff(1./TK,1./TS);
-            TS = (1.0+xa_tilde+xc)/(1.0/Trad+xa_tilde/Tceff + xc/TK);
-        }
-        *curr_xalpha = xa_tilde;
-    } else { // * Collisions only * //
-        TS = (1.0 + xc)/(1.0/Trad + xc/TK);
-        *curr_xalpha = 0;
-    }
-
-    return TS;
 }
 
 // ******************************************************************** //
@@ -401,59 +331,6 @@ double spectral_emissivity(double nu_norm, int flag, int Population)
     }
 }
 
-
-double xcoll(double z, double TK, double delta, double xe){
-    return xcoll_HI(z,TK,delta,xe) + xcoll_elec(z,TK,delta,xe) + xcoll_prot(z,TK,delta,xe);
-}
-
-double xcoll_HI(double z, double TK, double delta, double xe)
-{
-    double krate,nH,Trad;
-    double xcoll;
-
-    Trad = T_cmb*(1.0+z);
-    nH = (1.0-xe)*No*pow(1.0+z,3.0)*(1.0+delta);
-    krate = kappa_10(TK,0);
-    xcoll = T21/Trad*nH*krate/A10_HYPERFINE;
-    return xcoll;
-}
-
-// Note that this assumes Helium ionized same as Hydrogen //
-double xcoll_elec(double z, double TK, double delta, double xe)
-{
-    double krate,ne,Trad;
-    double xcoll;
-
-    Trad = T_cmb*(1.0+z);
-    ne = xe*N_b0*pow(1.0+z,3.0)*(1.0+delta);
-    krate = kappa_10_elec(TK,0);
-    xcoll = T21/Trad*ne*krate/A10_HYPERFINE;
-    return xcoll;
-}
-
-double xcoll_prot(double z, double TK, double delta, double xe)
-{
-    double krate,np,Trad;
-    double xcoll;
-
-    Trad = T_cmb*(1.0+z);
-    np = xe*No*pow(1.0+z,3.0)*(1.0+delta);
-    krate = kappa_10_pH(TK,0);
-    xcoll = T21/Trad*np*krate/A10_HYPERFINE;
-    return xcoll;
-}
-
-double Salpha_tilde(double TK, double TS, double tauGP)
-{
-    double xi;
-    double ans;
-
-    xi = pow(1.0e-7*tauGP*TK*TK, 1.0/3.0);
-    ans = (1.0 - 0.0631789*TK + 0.115995*TK*TK - 0.401403*TS*TK + 0.336463*TS*TK*TK)/(1.0 + 2.98394*xi + 1.53583*xi*xi + 3.85289*xi*xi*xi);
-    return ans;
-}
-
-
 // * Returns frequency of Lyman-n, in units of Lyman-alpha * //
 double nu_n(int n)
 {
@@ -654,6 +531,21 @@ double kappa_10_elec(double T, int flag)
 // ********************* Wouthuysen-Field Coupling ******************** //
 // ******************************************************************** //
 
+// Compute the Gunn-Peterson optical depth.
+double taugp(double z, double delta, double xe){
+    return 1.342881e-7 / hubble(z)*No*pow(1+z,3) * (1.0+delta)*(1.0-xe);
+}
+
+double Salpha_tilde(double TK, double TS, double tauGP)
+{
+    double xi;
+    double ans;
+
+    xi = pow(1.0e-7*tauGP*TK*TK, 1.0/3.0);
+    ans = (1.0 - 0.0631789*TK + 0.115995*TK*TK - 0.401403*TS*TK + 0.336463*TS*TK*TK)/(1.0 + 2.98394*xi + 1.53583*xi*xi + 3.85289*xi*xi*xi);
+    return ans;
+}
+
 // NOTE Jalpha is by number //
 double xalpha_tilde(double z, double Jalpha, double TK, double TS,
                     double delta, double xe){
@@ -665,9 +557,45 @@ double xalpha_tilde(double z, double Jalpha, double TK, double TS,
     return x;
 }
 
-// Compute the Gunn-Peterson optical depth.
-double taugp(double z, double delta, double xe){
-    return 1.342881e-7 / hubble(z)*No*pow(1+z,3) * (1.0+delta)*(1.0-xe);
+double xcoll_HI(double z, double TK, double delta, double xe)
+{
+    double krate,nH,Trad;
+    double xcoll;
+
+    Trad = T_cmb*(1.0+z);
+    nH = (1.0-xe)*No*pow(1.0+z,3.0)*(1.0+delta);
+    krate = kappa_10(TK,0);
+    xcoll = T21/Trad*nH*krate/A10_HYPERFINE;
+    return xcoll;
+}
+
+// Note that this assumes Helium ionized same as Hydrogen //
+double xcoll_elec(double z, double TK, double delta, double xe)
+{
+    double krate,ne,Trad;
+    double xcoll;
+
+    Trad = T_cmb*(1.0+z);
+    ne = xe*N_b0*pow(1.0+z,3.0)*(1.0+delta);
+    krate = kappa_10_elec(TK,0);
+    xcoll = T21/Trad*ne*krate/A10_HYPERFINE;
+    return xcoll;
+}
+
+double xcoll_prot(double z, double TK, double delta, double xe)
+{
+    double krate,np,Trad;
+    double xcoll;
+
+    Trad = T_cmb*(1.0+z);
+    np = xe*No*pow(1.0+z,3.0)*(1.0+delta);
+    krate = kappa_10_pH(TK,0);
+    xcoll = T21/Trad*np*krate/A10_HYPERFINE;
+    return xcoll;
+}
+
+double xcoll(double z, double TK, double delta, double xe){
+    return xcoll_HI(z,TK,delta,xe) + xcoll_elec(z,TK,delta,xe) + xcoll_prot(z,TK,delta,xe);
 }
 
 double Tc_eff(double TK, double TS)
@@ -676,6 +604,33 @@ double Tc_eff(double TK, double TS)
 
     ans = 1.0/(TK + 0.405535*TK*(TS - TK));
     return ans;
+}
+
+float get_Ts(float z, float delta, float TK, float xe, float Jalpha, float * curr_xalpha){
+    double Trad,xc,xa_tilde;
+    double TS,TSold;
+    double Tceff;
+
+    Trad = T_cmb*(1.0+z);
+    xc = xcoll(z,TK,delta,xe);
+    if (Jalpha > 1.0e-20) { // * Must use WF effect * //
+        TS = Trad;
+        TSold = 0.0;
+        //TODO: changed to do-while so we never use uninitialised variables
+        //      Make sure it didn't effect anything
+        do{
+            TSold = TS;
+            xa_tilde = xalpha_tilde(z,Jalpha,TK,TS,delta,xe);
+            Tceff = Tc_eff(1./TK,1./TS);
+            TS = (1.0+xa_tilde+xc)/(1.0/Trad+xa_tilde/Tceff + xc/TK);
+        }while(fabs(TS-TSold)/TS > 1.0e-3);
+        *curr_xalpha = xa_tilde;
+    } else { // * Collisions only * //
+        TS = (1.0 + xc)/(1.0/Trad + xc/TK);
+        *curr_xalpha = 0;
+    }
+
+    return TS;
 }
 
 //
@@ -703,7 +658,7 @@ double integrand_in_nu_heat_integral(double nu, void * params){
     species_sum += interp_fheat((nu - HeII_NUIONIZATION)/NU_over_EV, x_e)
     * hplank*(nu - HeII_NUIONIZATION) * f_He * x_e * HeII_ion_crosssec(nu);
 
-    return species_sum * pow(nu/((astro_params_hf->NU_X_THRESH)*NU_over_EV), -(astro_params_hf->X_RAY_SPEC_INDEX)-1);
+    return species_sum * pow(nu/((astro_params_global->NU_X_THRESH)*NU_over_EV), -(astro_params_global->X_RAY_SPEC_INDEX)-1);
 }
 
 double integrand_in_nu_ion_integral(double nu, void * params){
@@ -728,7 +683,7 @@ double integrand_in_nu_ion_integral(double nu, void * params){
     interp_nion_HeII((nu - HeII_NUIONIZATION)/NU_over_EV, x_e) + 1;
     species_sum += F_i * f_He * x_e * HeII_ion_crosssec(nu);
 
-    return species_sum * pow(nu/((astro_params_hf->NU_X_THRESH)*NU_over_EV), -(astro_params_hf->X_RAY_SPEC_INDEX)-1);
+    return species_sum * pow(nu/((astro_params_global->NU_X_THRESH)*NU_over_EV), -(astro_params_global->X_RAY_SPEC_INDEX)-1);
 }
 
 double integrand_in_nu_lya_integral(double nu, void * params){
@@ -747,7 +702,7 @@ double integrand_in_nu_lya_integral(double nu, void * params){
     species_sum += interp_n_Lya((nu - HeII_NUIONIZATION)/NU_over_EV, x_e)
     * f_He * (double)x_e * HeII_ion_crosssec(nu);
 
-    return species_sum * pow(nu/((astro_params_hf->NU_X_THRESH)*NU_over_EV), -(astro_params_hf->X_RAY_SPEC_INDEX)-1);
+    return species_sum * pow(nu/((astro_params_global->NU_X_THRESH)*NU_over_EV), -(astro_params_global->X_RAY_SPEC_INDEX)-1);
 }
 
 double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, int FLAG){
@@ -773,7 +728,7 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
     if(status!=0){
         LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_int_limit,global_params.NU_X_MAX*NU_over_EV,rel_tol,result,error);
         LOG_ERROR("data: zp=%e local_x_e=%e FLAG=%d",zp,local_x_e,FLAG);
-        GSL_ERROR(status);
+        CATCH_GSL_ERROR(status);
     }
 
     gsl_integration_workspace_free (w);
@@ -786,6 +741,20 @@ double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, in
     //     fprintf(stderr, "We have a NaN in the intergrator with calling params: %g,%g,%g,%i\n", zp, local_x_e, lower_int_limit, FLAG);
 
     return result;
+}
+
+//  The total weighted HI + HeI + HeII  cross-section in pcm^-2
+//  technically, the x_e should be local, line of sight (not global) here,
+//  but that would be very slow...
+
+double species_weighted_x_ray_cross_section(double nu, double x_e){
+    double HI_factor, HeI_factor, HeII_factor;
+
+    HI_factor = f_H * (1-x_e) * HI_ion_crosssec(nu);
+    HeI_factor = f_He * (1-x_e) * HeI_ion_crosssec(nu);
+    HeII_factor = f_He * x_e * HeII_ion_crosssec(nu);
+
+    return HI_factor + HeI_factor + HeII_factor;
 }
 
 // Calculates the optical depth for a photon arriving at z = zp with frequency nu,
@@ -863,8 +832,8 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, d
     p.nu_0 = nu/(1+zp);
     p.x_e = x_e;
     p.x_e_ave = x_e_ave;
-    p.ion_eff = global_params.Pop2_ion*astro_params_hf->F_STAR10*astro_params_hf->F_ESC10;
-    p.ion_eff_MINI = global_params.Pop3_ion*astro_params_hf->F_STAR7_MINI*astro_params_hf->F_ESC7_MINI;
+    p.ion_eff = global_params.Pop2_ion*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
+    p.ion_eff_MINI = global_params.Pop3_ion*astro_params_global->F_STAR7_MINI*astro_params_global->F_ESC7_MINI;
     p.log10_Mturn_MINI = log10_Mturn_MINI;
     p.Mlim_Fstar = Mlim_Fstar;
     p.Mlim_Fesc = Mlim_Fesc;
@@ -883,7 +852,7 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp, d
         LOG_ERROR("(function argument): zp=%e zpp=%e rel_tol=%e result=%e error=%e",zp,zpp,rel_tol,result,error);
         LOG_ERROR("data: nu=%e nu_0=%e x_e=%e x_e_ave=%e",nu,p.nu_0,p.x_e,p.x_e_ave);
         LOG_ERROR("data: ion_eff=%e ion_eff_MINI=%e log10_Mturn_MINI=%e",p.ion_eff,p.ion_eff_MINI,p.log10_Mturn_MINI);
-        GSL_ERROR(status);
+        CATCH_GSL_ERROR(status);
     }
 
     gsl_integration_workspace_free (w);
@@ -906,8 +875,8 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
     p.Mlim_Fstar = Mlim_Fstar;
     p.Mlim_Fesc = Mlim_Fesc;
 
-    if(flag_options_hf->USE_MASS_DEPENDENT_ZETA) {
-        p.ion_eff = global_params.Pop2_ion*astro_params_hf->F_STAR10*astro_params_hf->F_ESC10;
+    if(flag_options_global->USE_MASS_DEPENDENT_ZETA) {
+        p.ion_eff = global_params.Pop2_ion*astro_params_global->F_STAR10*astro_params_global->F_ESC10;
     }
     else {
         //if we don't have an explicit ionising efficiency, we estimate one by using the values at zp
@@ -929,7 +898,7 @@ double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double
     if(status!=0){
         LOG_ERROR("(function argument): zp=%e zpp=%e rel_tol=%e result=%e error=%e",zp,zpp,rel_tol,result,error);
         LOG_ERROR("data: nu=%e nu_0=%e x_e=%e x_e_ave=%e ion_eff=%e",nu,nu/(1+zp),x_e,x_e_ave,p.ion_eff);
-        GSL_ERROR(status);
+        CATCH_GSL_ERROR(status);
     }
     gsl_integration_workspace_free (w);
 
@@ -974,7 +943,7 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_fact
     // check if too ionized
     if (x_e > 0.9999){
 //        LOG_ERROR("x_e value is too close to 1 for convergence.");
-        return astro_params_hf->NU_X_THRESH;
+        return astro_params_global->NU_X_THRESH;
     }
 
     // select solver and allocate memory
@@ -1047,7 +1016,7 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
     // check if too ionized
     if (x_e > 0.9999){
 //        LOG_ERROR("x_e value is too close to 1 for convergence.");
-        return astro_params_hf->NU_X_THRESH;
+        return astro_params_global->NU_X_THRESH;
     }
 
     // select solver and allocate memory
@@ -1102,72 +1071,12 @@ double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp
     return r;
 }
 
-
-//  The total weighted HI + HeI + HeII  cross-section in pcm^-2
-//  technically, the x_e should be local, line of sight (not global) here,
-//  but that would be very slow...
-
-double species_weighted_x_ray_cross_section(double nu, double x_e){
-    double HI_factor, HeI_factor, HeII_factor;
-
-    HI_factor = f_H * (1-x_e) * HI_ion_crosssec(nu);
-    HeI_factor = f_He * (1-x_e) * HeI_ion_crosssec(nu);
-    HeII_factor = f_He * x_e * HeII_ion_crosssec(nu);
-
-    return HI_factor + HeI_factor + HeII_factor;
-}
-
-
 // * Returns the maximum redshift at which a Lyn transition contributes to Lya flux at z * //
 float zmax(float z, int n){
     double num, denom;
     num = 1 - pow(n+1, -2);
     denom = 1 - pow(n, -2);
     return (1+z)*num/denom - 1;
-}
-
-//Function to read \deltaE
-double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
-{
-    double ans;
-    static double dEC[nT * nT * ngp];
-    static double dEI[nT * nT * ngp];
-    double dummy_heat;
-    int ii, jj, kk, index;
-    FILE *F;
-
-    char filename[500];
-
-    if (flag == 1) {
-        //Read in the Lya heating table
-        sprintf(filename,"%s/%s",global_params.external_table_path,LYA_HEATING_FILENAME);
-
-        if ( !(F=fopen(filename, "r")) ){
-            LOG_ERROR("Energy_Lya_heating: Unable to open file: %s for reading.", filename);
-            Throw(IOError);
-        }
-
-        for (ii=0;ii<nT;ii++){
-            for (jj=0;jj<nT;jj++){
-                for (kk=0;kk<ngp;kk++){
-                    index = ii*nT*ngp + jj*ngp + kk;
-                    //fscanf(F,"%lf %lf %lf %lf %lf",&dummy_heat,&dummy_heat,&dummy_heat,&dEC[index],&dEI[index]);
-                    fscanf(F,"%lf %lf",&dEC[index],&dEI[index]);
-                }
-            }
-        }
-
-        fclose(F);
-        return 0;
-    }
-
-    if (flag == 2) {
-      ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEC); //For Continuum Flux
-    }
-    if (flag == 3) {
-      ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEI); //For Injected Flux
-    }
-    return ans;
 }
 
 // Useful functions for effeciently navigating through the heating interpolation tables
@@ -1187,7 +1096,6 @@ int find_xyz_pos(int xpos, int ypos, int zpos, int len_yarr, int len_zarr){
     int pxyz = xpos*len_yarr*len_zarr + ypos*len_zarr + zpos;
     return pxyz;
 }
-
 
 //Tri-linear interpolation function for Lyman-alpha heating efficiencies
 double interpolate_heating_efficiencies(double tk, double ts, double taugp, double *arrE) {
@@ -1216,12 +1124,10 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
         taugp = taugp_max;
     }
 
-    int itk, its, itaugp, idec;
+    int itk, its, itaugp;
     itk = find_nearest_point(Tk_min, Tk_max, nT, tk);
     its = find_nearest_point(Ts_min, Ts_max, nT, ts);
     itaugp = find_nearest_point(taugp_min, taugp_max, ngp, taugp);
-
-    idec = find_xyz_pos(itk, its, itaugp, nT, ngp);
 
     double x0,x1,y0,y1,z0,z1,xd, yd, zd;
     double c000, c100, c001, c101, c010, c110,c011,c111;
@@ -1259,4 +1165,50 @@ double interpolate_heating_efficiencies(double tk, double ts, double taugp, doub
 
     c = c0*(1.-zd) + c1*zd;
     return c;
+}
+
+//Function to read \deltaE
+double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag)
+{
+    double ans;
+    static double dEC[nT * nT * ngp];
+    static double dEI[nT * nT * ngp];
+    int ii, jj, kk, index;
+    FILE *F;
+
+    char filename[500];
+
+    if (flag == 1) {
+        //Read in the Lya heating table
+        sprintf(filename,"%s/%s",global_params.external_table_path,LYA_HEATING_FILENAME);
+
+        if ( !(F=fopen(filename, "r")) ){
+            LOG_ERROR("Energy_Lya_heating: Unable to open file: %s for reading.", filename);
+            Throw(IOError);
+        }
+
+        for (ii=0;ii<nT;ii++){
+            for (jj=0;jj<nT;jj++){
+                for (kk=0;kk<ngp;kk++){
+                    index = ii*nT*ngp + jj*ngp + kk;
+                    fscanf(F,"%lf %lf",&dEC[index],&dEI[index]);
+                }
+            }
+        }
+
+        fclose(F);
+        return 0;
+    }
+
+    if (flag == 2) {
+      ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEC); //For Continuum Flux
+    }
+    else if (flag == 3) {
+      ans = interpolate_heating_efficiencies(Tk, Ts, tau_gp, dEI); //For Injected Flux
+    }
+    else{
+        LOG_ERROR("invalid flag passed to Energy_Lya_heating");
+        Throw(ValueError);
+    }
+    return ans;
 }

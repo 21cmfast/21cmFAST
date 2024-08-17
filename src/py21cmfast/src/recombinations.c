@@ -1,3 +1,19 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_interp.h>
+#include <gsl/gsl_spline.h>
+
+#include "cexcept.h"
+#include "exceptions.h"
+#include "logger.h"
+#include "Constants.h"
+#include "InputParameters.h"
+#include "thermochem.h"
+
+#include "recombinations.h"
+
 
 #define A_NPTS (int) (60) /*Warning: the calculation of the MHR model parameters is valid only from redshift 2 to A_NPTS+2*/
 static double A_table[A_NPTS], A_params[A_NPTS];
@@ -23,12 +39,7 @@ static double RR_table[RR_Z_NPTS][RR_lnGamma_NPTS], lnGamma_values[RR_lnGamma_NP
 static gsl_interp_accel *RR_acc[RR_Z_NPTS];
 static gsl_spline *RR_spline[RR_Z_NPTS];
 
-
-/***  FUNCTION PROTOTYPES ***/
-double splined_recombination_rate(double z_eff, double gamma12_bg); // assumes T=1e4 and case B
-
 double recombination_rate(double z_eff, double gamma12_bg, double T4, int usecaseB);
-void init_MHR(); /*initializes the lookup table for the PDF density integral in MHR00 model at redshift z*/
 void free_MHR(); /* deallocates the gsl structures from init_MHR */
 double Gamma_SS(double Gamma_bg, double Delta, double T_4, double z);//ionization rate w. self shielding
 double MHR_rr (double del, void *params);
@@ -44,7 +55,6 @@ void free_beta_MHR(); /* deallocates the gsl structures from init_beta */
 void init_A_MHR(); /*initializes the lookup table for the A paremeter in MHR00 model*/
 void init_C_MHR(); /*initializes the lookup table for the C paremeter in MHR00 model*/
 void init_beta_MHR(); /*initializes the lookup table for the beta paremeter in MHR00 model*/
-
 
 double splined_recombination_rate(double z_eff, double gamma12_bg){
   int z_ct = (int) (z_eff / RR_DEL_Z + 0.5); // round to nearest int
@@ -153,7 +163,7 @@ double MHR_rr (double lnD, void *params){
 // temeperature T4 (in 1e4 K), and usecaseB rate coefficient
 // Assumes self-shielding according to Rahmati+ 2013
 double recombination_rate(double z, double gamma12_bg, double T4, int usecaseB){
-  double result, error, lower_limit, upper_limit, A, C_0, beta, avenH;
+  double result, error, lower_limit, upper_limit;
   gsl_function F;
   double rel_tol  = 0.01; //<- relative tolerance
   gsl_integration_workspace * w = gsl_integration_workspace_alloc (1000);
@@ -176,7 +186,7 @@ double recombination_rate(double z, double gamma12_bg, double T4, int usecaseB){
       LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
       LOG_ERROR("data: z=%e gamma12_bg=%e T4=%e A_MHR(z)=%e",z,gamma12_bg,T4,A_MHR(z));
       LOG_ERROR("data: C_MHR(z)=%e beta_MHR(z)=%e nH=%e usecaseB=%d\n",C_MHR(z),beta_MHR(z),No*pow( 1+z, 3),usecaseB);
-      GSL_ERROR(status);
+      CATCH_GSL_ERROR(status);
   }
 
   gsl_integration_workspace_free (w);
@@ -215,7 +225,7 @@ double A_aux_integral(double z){
       LOG_ERROR("gsl integration error occured!");
       LOG_ERROR("(function argument): lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e",lower_limit,upper_limit,rel_tol,result,error);
       LOG_ERROR("data: z=%e",z);
-      GSL_ERROR(status);
+      CATCH_GSL_ERROR(status);
   }
 
   gsl_integration_workspace_free (w);

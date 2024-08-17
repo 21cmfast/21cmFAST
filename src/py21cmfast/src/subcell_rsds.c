@@ -1,20 +1,30 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
+#include <omp.h>
+
+#include "Constants.h"
+
+#include "InputParameters.h"
+#include "OutputStructs.h"
+#include "indexing.h"
+
+#include "subcell_rsds.h"
+
 double apply_subcell_rsds(
-    struct UserParams *user_params,
-    struct CosmoParams *cosmo_params,
-    struct FlagOptions *flag_options,
-    struct AstroParams *astro_params,
-    struct IonizedBox *ionized_box,
-    struct BrightnessTemp *box,
+    UserParams *user_params,
+    CosmoParams *cosmo_params,
+    FlagOptions *flag_options,
+    AstroParams *astro_params,
+    IonizedBox *ionized_box,
+    BrightnessTemp *box,
     float redshift,
-    struct TsBox *spin_temp,
+    TsBox *spin_temp,
     float T_rad,
     float *v,
-    float H
-) {
+    float H){
 
-    char wisdom_filename[500];
-    int i, ii, j, k, n_x, n_y, n_z;
-    float k_x, k_y, k_z;
+    int i, ii, j, k;
     double ave;
 
     ave = 0.;
@@ -28,7 +38,6 @@ double apply_subcell_rsds(
         delta_T_RSD_LOS[i] = (float *)calloc(user_params->HII_DIM,sizeof(float));
     }
 
-    float gradient_component, min_gradient_component;
     float d1_low, d1_high, d2_low, d2_high;
     float x_val1, x_val2, subcell_displacement;
     float RSD_pos_new, RSD_pos_new_boundary_low,RSD_pos_new_boundary_high;
