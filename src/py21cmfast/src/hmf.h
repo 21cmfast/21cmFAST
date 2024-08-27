@@ -65,5 +65,6 @@ double atomic_cooling_threshold(float z);
 double minimum_source_mass(double redshift, bool xray, AstroParams *astro_params, FlagOptions *flag_options);
 double sheth_delc_dexm(double del, double sig);
 float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC);
+double euler_to_lagrangian_delta(double delta);
 
 #endif

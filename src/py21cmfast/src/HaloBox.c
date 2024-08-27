@@ -21,6 +21,7 @@
 #include "photoncons.h"
 
 #include "HaloBox.h"
+
 //Parameters for the halo box calculations
 //  These are just the values which are calculated at the beginning of ComputeHaloBox and don't change
 //  using this reduces the use of the global parameter structs and allows fewer exp/log unit changes
@@ -206,6 +207,7 @@ double get_lx_on_sfr(double sfr, double metallicity, double lx_constant){
     // return lx_on_sfr_Schechter(metallicity, lx_constant);
     // return lx_on_sfr_PL_Kaur(sfr,metallicity, lx_constant);
     return lx_on_sfr_doublePL(metallicity, lx_constant);
+    // return lx_constant;
 }
 
 void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
@@ -491,7 +493,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
             reduction(max:max_density,max_log10_mturn_a,max_log10_mturn_m)\
             reduction(+:l10_mlim_m_sum,l10_mlim_a_sum,l10_mlim_r_sum)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
-            dens = perturbed_field->density[i];
+            dens = euler_to_lagrangian_delta(perturbed_field->density[i]);
             if(dens > max_density) max_density = dens;
             if(dens < min_density) min_density = dens;
 
@@ -573,7 +575,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
 
 #pragma omp for reduction(+:hm_sum,sm_sum,sm_sum_mini,sfr_sum,sfr_sum_mini,xray_sum,nion_sum,wsfr_sum)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
-            dens = perturbed_field->density[i];
+            dens = euler_to_lagrangian_delta(perturbed_field->density[i]);
             l10_mturn_a = mturn_a_grid[i];
             l10_mturn_m = mturn_m_grid[i];
 
@@ -803,8 +805,16 @@ void sum_halos_onto_grid(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 
             #if LOG_LEVEL >= ULTRA_DEBUG_LEVEL
             if(x+y+z == 0){
-                LOG_ULTRA_DEBUG("Cell 0 Halo %d: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e Z %.2e",i_halo,hmass,stars,stars_mini,sfr,sfr_mini,xray,nion,wsfr,out_props.metallicity);
-                LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e",M_turn_a,M_turn_m);
+                LOG_ULTRA_DEBUG("Cell 0 Halo: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e Z : %.2e ct : %llu",
+                                    hmass,stars,stars_mini,sfr,sfr_mini,xray,nion,wsfr,out_props.metallicity,i_halo);
+
+                LOG_ULTRA_DEBUG("Cell 0 Sums: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: %.2e Z : %.2e ct : %d",
+                        grids->halo_mass[HII_R_INDEX(0,0,0)],
+                        grids->halo_stars[HII_R_INDEX(0,0,0)],grids->halo_stars_mini[HII_R_INDEX(0,0,0)],
+                        grids->halo_sfr[HII_R_INDEX(0,0,0)],grids->halo_sfr_mini[HII_R_INDEX(0,0,0)],
+                        grids->halo_xray[HII_R_INDEX(0,0,0)],grids->n_ion[HII_R_INDEX(0,0,0)],
+                        grids->whalo_sfr[HII_R_INDEX(0,0,0)],grids->count[HII_R_INDEX(0,0,0)]);
+                LOG_ULTRA_DEBUG("Mturn_a %.2e Mturn_m %.2e RNG %.3f %.3f %.3f",M_turn_a,M_turn_m,in_props[0],in_props[1],in_props[2]);
             }
             #endif
 

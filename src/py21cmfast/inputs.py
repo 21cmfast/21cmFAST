@@ -1130,7 +1130,7 @@ class AstroParams(StructWithDefaults):
             "UPPER_STELLAR_TURNOVER_MASS",
         ]:
             return 10**val  # log10 to linear conversion
-        if key in ["SIMGA_STAR" "SIGMA_SFR_LIM" "SIGMA_LX"]:
+        if key in ["SIGMA_STAR", "SIGMA_SFR_LIM", "SIGMA_LX"]:
             return 2.3025851 * val  # dex to base e conversion
         else:
             return val

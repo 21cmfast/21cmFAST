@@ -61,6 +61,12 @@ double get_delta_crit(int HMF, double sigma, double growthf){
     return Deltac;
 }
 
+//Mo & White 1996 fit
+double euler_to_lagrangian_delta(double delta){
+    double dp1 = delta + 1;
+    return -1.35*pow(dp1,-2./3.) + 0.78785*pow(dp1,-0.58661) - 1.12431*pow(dp1,-0.5) + 1.68647;
+}
+
 /*
 Unconditional Mass function from Delos 2023 (https://arxiv.org/pdf/2311.17986.pdf)
 Matches well with N-bodies (M200), has a corresponding Conditional Mass Function (below) and

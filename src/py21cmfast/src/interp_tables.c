@@ -483,8 +483,8 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     int nx;
     double lnM_cond=0.;
     double sigma_cond=0.;
-    LOG_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Limits %.2e %.2e)",xmin,xmax,ymin,ymax);
-    LOG_DEBUG("D_out %.2e P %.2e from_cat %d",growth_out,param,from_catalog);
+    LOG_SUPER_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Limits %.2e %.2e)",xmin,xmax,ymin,ymax);
+    LOG_SUPER_DEBUG("D_out %.2e P %.2e from_cat %d",growth_out,param,from_catalog);
 
     if(!from_catalog){
         lnM_cond = param;
