@@ -493,6 +493,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
             reduction(max:max_density,max_log10_mturn_a,max_log10_mturn_m)\
             reduction(+:l10_mlim_m_sum,l10_mlim_a_sum,l10_mlim_r_sum)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
+            // dens = perturbed_field->density[i];
             dens = euler_to_lagrangian_delta(perturbed_field->density[i]);
             if(dens > max_density) max_density = dens;
             if(dens < min_density) min_density = dens;
@@ -575,6 +576,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
 
 #pragma omp for reduction(+:hm_sum,sm_sum,sm_sum_mini,sfr_sum,sfr_sum_mini,xray_sum,nion_sum,wsfr_sum)
         for(i=0;i<HII_TOT_NUM_PIXELS;i++){
+            // dens = perturbed_field->density[i];
             dens = euler_to_lagrangian_delta(perturbed_field->density[i]);
             l10_mturn_a = mturn_a_grid[i];
             l10_mturn_m = mturn_m_grid[i];

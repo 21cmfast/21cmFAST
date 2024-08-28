@@ -1185,7 +1185,7 @@ class Coeval(_HighLevelOutput):
         ionized_box: IonizedBox,
         brightness_temp: BrightnessTemp,
         ts_box: TsBox | None = None,
-        halobox: HaloBox | None = None,
+        halo_box: HaloBox | None = None,
         cache_files: dict | None = None,
         photon_nonconservation_data=None,
         _globals=None,
@@ -1193,7 +1193,7 @@ class Coeval(_HighLevelOutput):
         _check_compatible_inputs(
             initial_conditions,
             perturbed_field,
-            halobox,
+            halo_box,
             ionized_box,
             brightness_temp,
             ts_box,
@@ -1205,7 +1205,7 @@ class Coeval(_HighLevelOutput):
         self.perturb_struct = perturbed_field
         self.ionization_struct = ionized_box
         self.brightness_temp_struct = brightness_temp
-        self.halobox_struct = halobox
+        self.halo_box_struct = halo_box
         self.spin_temp_struct = ts_box
 
         self.cache_files = cache_files
@@ -1218,7 +1218,7 @@ class Coeval(_HighLevelOutput):
         for box in [
             initial_conditions,
             perturbed_field,
-            halobox,
+            halo_box,
             ionized_box,
             brightness_temp,
             ts_box,
@@ -1276,7 +1276,14 @@ class Coeval(_HighLevelOutput):
         return ""
 
     def _write_particulars(self, fname):
-        for name in ["init", "perturb", "ionization", "brightness_temp", "spin_temp"]:
+        for name in [
+            "init",
+            "perturb",
+            "ionization",
+            "brightness_temp",
+            "spin_temp",
+            "halo_box",
+        ]:
             struct = getattr(self, name + "_struct")
             if struct is not None:
                 struct.write(fname=fname, write_inputs=False)

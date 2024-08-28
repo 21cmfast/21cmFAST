@@ -1333,7 +1333,7 @@ def perturb_halo_list(
         return fields.compute(ics=init_boxes, halo_field=halo_field, hooks=hooks)
 
 
-def halo_box(
+def make_halo_box(
     *,
     redshift,
     astro_params=None,
@@ -1433,7 +1433,7 @@ def halo_box(
             try:
                 box.read(direc)
                 logger.info(
-                    "Existing z=%s halo_box boxes found and read in (seed=%s)."
+                    "Existing z=%s HaloBox boxes found and read in (seed=%s)."
                     % (redshift, box.random_seed)
                 )
                 return box
@@ -2854,7 +2854,7 @@ def run_coeval(
                     ph2 = pt_halos[iz]
                     ph2.load_all()
 
-                hb2 = halo_box(
+                hb2 = make_halo_box(
                     redshift=z,
                     pt_halos=ph2,
                     perturbed_field=pf2,
@@ -2959,7 +2959,8 @@ def run_coeval(
             perturb_files.append((z, os.path.join(direc, pf2.filename)))
             if flag_options.USE_HALO_FIELD:
                 hbox_files.append((z, os.path.join(direc, hb2.filename)))
-                pth_files.append((z, os.path.join(direc, ph2.filename)))
+                if not flag_options.FIXED_HALO_GRIDS:
+                    pth_files.append((z, os.path.join(direc, ph2.filename)))
             if flag_options.USE_TS_FLUCT:
                 spin_temp_files.append((z, os.path.join(direc, st2.filename)))
             ionize_files.append((z, os.path.join(direc, ib2.filename)))
@@ -2981,7 +2982,7 @@ def run_coeval(
                 ionized_box=ib,
                 brightness_temp=_bt,
                 ts_box=st,
-                halobox=hb if flag_options.USE_HALO_FIELD else None,
+                halo_box=hb,
                 photon_nonconservation_data=photon_nonconservation_data,
                 cache_files={
                     "init": [(0, os.path.join(direc, init_box.filename))],
@@ -3480,7 +3481,7 @@ def run_lightcone(
                     ph = pt_halos[iz]
                     ph.load_all()
 
-                hbox2 = halo_box(
+                hbox2 = make_halo_box(
                     redshift=z,
                     pt_halos=ph,
                     previous_ionize_box=ib,
@@ -3538,7 +3539,7 @@ def run_lightcone(
                 ionized_box=ib2,
                 brightness_temp=bt2,
                 ts_box=st2,
-                halobox=hbox2,
+                halo_box=hbox2,
                 photon_nonconservation_data=photon_nonconservation_data,
                 _globals=None,
             )
