@@ -1792,8 +1792,19 @@ def xray_source(
             R_outer = R_range[i].to("Mpc").value
 
             if zpp_avg[i] >= z_max:
+                box.filtered_sfr[i, ...] = 0.0
+                box.filtered_sfr_mini[i, ...] = 0.0
+                box.filtered_xray[i, ...] = 0.0
+
+                # this is the turnover mass w/o any radiation or velocity,
+                # (see thermochem.c:lyman_werner_threshold@274) or Visbal+15
+                # since we have no HaloBoxes here, we need to assign a value
+                # We *should* calculate it using the real VCB over the whole grid
+                # but this won't matter much without any sources anyway
+                box.mean_log10_Mcrit_LW[i] = np.log10(
+                    3.314e7 * (1.0 + zpp_avg[i]) ** (-1.5)
+                )
                 logger.debug(f"ignoring Radius {i} which is above Z_HEAT_MAX")
-                box.filtered_sfr[i, ...] = 0
                 continue
 
             hbox_interp, idx_desc, interp_param = interp_haloboxes(
@@ -1808,6 +1819,7 @@ def xray_source(
                 box.filtered_sfr[i, ...] = 0
                 box.filtered_sfr_mini[i, ...] = 0
                 box.filtered_xray[i, ...] = 0
+                box.mean_log10_Mcrit_LW[i] = hbox_interp.log10_Mcrit_MCG_ave
                 logger.debug(f"ignoring Radius {i} due to no stars")
                 continue
 
