@@ -569,7 +569,7 @@ class UserParams(StructWithDefaults):
         "STOC_MINIMUM_Z": None,
         "KEEP_3D_VELOCITIES": False,
         "SAMPLER_MIN_MASS": 1e8,
-        "SAMPLER_BUFFER_FACTOR": 1.2,
+        "SAMPLER_BUFFER_FACTOR": 2.0,
         "MAXHALO_FACTOR": 2.0,
         "N_COND_INTERP": 200,
         "N_PROB_INTERP": 400,
