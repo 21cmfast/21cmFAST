@@ -29,9 +29,10 @@ from . import _utils as _ut
 from ._cfg import config
 from ._utils import OutputStruct as _BaseOutputStruct
 from ._utils import _check_compatible_inputs
+
 try:
     from .c_21cmfast import ffi, lib
-except:
+except ImportError:
     pass
 from .inputs import AstroParams, CosmoParams, FlagOptions, UserParams, global_params
 
@@ -1143,14 +1144,15 @@ class LightCone(_HighLevelOutput):
 
         self.Nion_acg = (
             mean_f_colls
-            * 10 ** astro_params.F_STAR10
-            * 10 ** astro_params.F_ESC10 * ( (1.+redshift) / 8 )**astro_params.BETA_ESC
+            * 10**astro_params.F_STAR10
+            * 10**astro_params.F_ESC10
+            * ((1.0 + self.node_redshifts) / 8) ** astro_params.BETA_ESC
             * self.global_params["Pop2_ion"]
         )
         self.Nion_mcg = (
             mean_f_coll_MINIs
-            * 10 ** astro_params.F_STAR7_MINI
-            * 10 ** astro_params.F_ESC7_MINI
+            * 10**astro_params.F_STAR7_MINI
+            * 10**astro_params.F_ESC7_MINI
             * self.global_params["Pop3_ion"]
         )
 
