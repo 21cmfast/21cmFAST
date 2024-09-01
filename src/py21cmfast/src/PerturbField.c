@@ -115,7 +115,7 @@ void compute_perturbed_velocities(
 
         // smooth the high resolution field ready for resampling
         if (user_params->DIM != user_params->HII_DIM)
-            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
 
         dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, HIRES_density_perturb);
 
@@ -592,7 +592,7 @@ int ComputePerturbField(
 
         // Now filter the box
         if (user_params->DIM != user_params->HII_DIM) {
-            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            filter_box(HIRES_density_perturb, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
         }
 
         // FFT back to real space
@@ -647,7 +647,7 @@ int ComputePerturbField(
 
     //smooth the field
     if (!global_params.EVOLVE_DENSITY_LINEARLY && global_params.SMOOTH_EVOLVED_DENSITY_FIELD){
-        filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM);
+        filter_box(LOWRES_density_perturb, 1, 2, global_params.R_smooth_density*user_params->BOX_LEN/(float)user_params->HII_DIM, 0.);
     }
 
     LOG_SUPER_DEBUG("LOWRES_density_perturb after smoothing: ");

@@ -270,7 +270,7 @@ int ComputeInitialConditions(
     // Only filter if we are perturbing on the low-resolution grid
     if(!user_params->PERTURB_ON_HIGH_RES) {
         if (user_params->DIM != user_params->HII_DIM) {
-            filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
         }
 
         // FFT back to real space
@@ -344,7 +344,7 @@ int ComputeInitialConditions(
 
             //we only care about the lowres vcb box, so we filter it directly.
             if (user_params->DIM != user_params->HII_DIM) {
-                filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+                filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
             }
 
             //fft each velocity component back to real space
@@ -428,7 +428,7 @@ int ComputeInitialConditions(
         // Filter only if we require perturbing on the low-res grid
         if(!user_params->PERTURB_ON_HIGH_RES) {
             if (user_params->DIM != user_params->HII_DIM) {
-                filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+                filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
             }
         }
 
@@ -783,7 +783,7 @@ int ComputeInitialConditions(
             // Filter only if we require perturbing on the low-res grid
             if(!user_params->PERTURB_ON_HIGH_RES) {
                 if (user_params->DIM != user_params->HII_DIM) {
-                    filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+                    filter_box(HIRES_box, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
                 }
             }
 

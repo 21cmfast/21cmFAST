@@ -157,6 +157,8 @@ int single_test_sample( UserParams *user_params,  CosmoParams *cosmo_params,  As
 int test_halo_props(double redshift,  UserParams *user_params,  CosmoParams *cosmo_params,  AstroParams *astro_params,
                      FlagOptions * flag_options, float * vcb_grid, float *J21_LW_grid, float *z_re_grid, float *Gamma12_ion_grid,
                      PerturbHaloField *halos, float *halo_props_out);
+int test_filter(UserParams *user_params, CosmoParams *cosmo_params, AstroParams *astro_params, FlagOptions *flag_options
+                    , float *input_box, double R, double R_param, int filter_flag, double *result);
 
 /* Miscellaneous exposed functions for testing */
 double dicke(double z);

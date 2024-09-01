@@ -790,26 +790,21 @@ LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f
                 ((R - cell_length_factor * (user_params->BOX_LEN / (double) (user_params->HII_DIM))) >
                  FRACT_FLOAT_ERR)) {
                 if (flag_options->USE_TS_FLUCT) {
-                    filter_box(xe_filtered, 1, global_params.HII_FILTER, R);
+                    filter_box(xe_filtered, 1, global_params.HII_FILTER, R, 0.);
                 }
                 if (recomb_filter_flag) {
-                    filter_box(N_rec_filtered, 1, global_params.HII_FILTER, R);
+                    filter_box(N_rec_filtered, 1, global_params.HII_FILTER, R, 0.);
                 }
                 if (flag_options->USE_HALO_FIELD) {
-                    if(flag_options->USE_EXP_FILTER){
-                        filter_box_mfp(stars_filtered, 1, R, exp_mfp);
-                        filter_box_mfp(sfr_filtered, 1, R, exp_mfp);
-                    }
-                    else{
-                        filter_box(stars_filtered, 1, global_params.HII_FILTER, R);
-                        filter_box(sfr_filtered, 1, global_params.HII_FILTER, R);
-                    }
+                        int filter_hf = flag_options->USE_EXP_FILTER ? 3 : global_params.HII_FILTER;
+                        filter_box(stars_filtered, 1, filter_hf, R, exp_mfp);
+                        filter_box(sfr_filtered, 1, filter_hf, R, exp_mfp);
                 }
-                filter_box(deltax_filtered, 1, global_params.HII_FILTER, R);
+                filter_box(deltax_filtered, 1, global_params.HII_FILTER, R, 0.);
                 if(flag_options->USE_MINI_HALOS){
-                    filter_box(prev_deltax_filtered, 1, global_params.HII_FILTER, R);
-                    filter_box(log10_Mturnover_MINI_filtered, 1, global_params.HII_FILTER, R);
-                    filter_box(log10_Mturnover_filtered, 1, global_params.HII_FILTER, R);
+                    filter_box(prev_deltax_filtered, 1, global_params.HII_FILTER, R, 0.);
+                    filter_box(log10_Mturnover_MINI_filtered, 1, global_params.HII_FILTER, R, 0.);
+                    filter_box(log10_Mturnover_filtered, 1, global_params.HII_FILTER, R, 0.);
                 }
             }
 
