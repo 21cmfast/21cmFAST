@@ -213,7 +213,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
 
         // now filter the box on scale R
         // 0 = top hat in real space, 1 = top hat in k space
-        filter_box(density_field, 0, global_params.HALO_FILTER, R);
+        filter_box(density_field, 0, global_params.HALO_FILTER, R, 0.);
 
         // do the FFT to get delta_m box
         dft_c2r_cube(user_params->USE_FFTW_WISDOM, grid_dim, z_dim, user_params->N_THREADS, density_field);
@@ -341,7 +341,7 @@ int ComputeHaloField(float redshift_desc, float redshift, UserParams *user_param
         dft_r2c_cube(user_params->USE_FFTW_WISDOM, grid_dim, z_dim, user_params->N_THREADS, density_field);
         if (user_params->DIM != user_params->HII_DIM) {
             //the tophat filter here will smoothe the grid to HII_DIM
-            filter_box(density_field, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0));
+            filter_box(density_field, 0, 0, L_FACTOR*user_params->BOX_LEN/(user_params->HII_DIM+0.0), 0.);
         }
         dft_c2r_cube(user_params->USE_FFTW_WISDOM, user_params->DIM, D_PARA, user_params->N_THREADS, density_field);
 

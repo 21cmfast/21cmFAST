@@ -567,7 +567,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double * R_a
 
             // don't filter on cell size
             if (R > L_FACTOR*(user_params_global->BOX_LEN / user_params_global->HII_DIM)){
-                filter_box(box, 1, global_params.HEAT_FILTER, R);
+                filter_box(box, 1, global_params.HEAT_FILTER, R, 0.);
             }
 
             // now fft back to real space
@@ -608,6 +608,7 @@ void fill_Rbox_table(float **result, fftwf_complex *unfiltered_box, double * R_a
 
 //NOTE: I've moved this to a function to help in simplicity, it is not clear whether it is faster
 //  to do all of one radii at once (more clustered FFT and larger thread blocks) or all of one box (better memory locality)
+//TODO: filter speed tests
 void one_annular_filter(float *input_box, float *output_box, double R_inner, double R_outer, double *u_avg, double *f_avg){
     int i,j,k;
     unsigned long long int ct;
@@ -652,7 +653,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
 
     // Don't filter on the cell scale
     if(R_inner > 0){
-        filter_box_annulus(filtered_box, 1, R_inner, R_outer);
+        filter_box(filtered_box, 1, 4, R_inner, R_outer);
     }
 
     // now fft back to real space
