@@ -368,10 +368,11 @@ def lightcone_sliceplot(
         else:
             cbar_label = kind
 
-    if cbar_horizontal:
-        cbar.ax.set_xlabel(cbar_label)
-    else:
-        cbar.ax.set_ylabel(cbar_label)
+    if cbar is not None:
+        if cbar_horizontal:
+            cbar.ax.set_xlabel(cbar_label)
+        else:
+            cbar.ax.set_ylabel(cbar_label)
 
     return fig, ax
 
