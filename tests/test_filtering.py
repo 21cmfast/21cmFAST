@@ -21,9 +21,13 @@ from . import produce_integration_test_data as prd
 RELATIVE_TOLERANCE = 1e-1
 
 options_filter = [0, 1, 2, 3, 4]  # cell densities to draw samples from
-R_PARAM_LIST = [1.5, 5, 10, 30, 60]
+R_PARAM_LIST = [1.5, 5, 10, 25]  # default test HII_DIM = 50
 
 
+# NOTE: These don't directly test against the expected FFT of these filters applied
+#   to a central cell, but the continuous FT filters applied to a delta function.
+#   this makes it a test of both the filter construction, as well as the aliasing.
+# NOTE: These do not include the periodic boundary conditions, so face issues with R ~> HII_DIM/2.
 def get_expected_output_centre(r_in, R_filter, R_param, filter_flag):
     # single pixel boxes have a specific shape based on the filter
     R_ratio = r_in / R_filter
@@ -32,17 +36,20 @@ def get_expected_output_centre(r_in, R_filter, R_param, filter_flag):
         exp_vol = 4 / 3 * np.pi * R_filter**3
         return (R_ratio < 1) / exp_vol
     elif filter_flag == 1:
-        # output is sinc function
-        R_ratio /= 0.413566994
-        R_filter /= 0.413566994
-        exp_vol = R_filter**3 / 3.0
-        return (np.sin(R_ratio) / R_ratio) / exp_vol
+        # output is the tophat FFT
+        R_ratio *= 1 / 0.413566994  # == this is the 2*pi*k factor for equating volumes
+        result = (np.sin(R_ratio) - R_ratio * np.cos(R_ratio)) / (
+            2 * np.pi**2 * r_in**3
+        )
+        result[r_in == 0] = (
+            1 / 6 / np.pi**2 * (0.413566994 * R_filter) ** 3
+        )  # r->0 limit
+        return result
     elif filter_flag == 2:
         # output is Gaussian
-        R_ratio /= 0.643
-        R_filter /= 0.643
-        exp_vol = (2 * np.pi) ** (3 / 2) * R_filter**3
-        return np.exp(-(R_ratio**2) / 2) / exp_vol
+        const = (0.643 * R_filter) ** 2
+        exp_vol = (2 * np.pi * const) ** (3.0 / 2.0)
+        return np.exp(-((r_in) ** 2 / const / 2)) / exp_vol
     elif filter_flag == 3:
         # output is sphere with exponential damping
         exp_vol = 4 / 3 * np.pi * R_filter**3
@@ -51,17 +58,6 @@ def get_expected_output_centre(r_in, R_filter, R_param, filter_flag):
         # output is spherical shell
         exp_vol = 4 / 3 * np.pi * (R_filter**3 - R_param**3)
         return (R_ratio < 1) * (R_param <= r_in) / exp_vol
-
-
-def get_expected_output_uniform(in_box, R_filter, R_param, filter_flag):
-    # uniform boxes should come out uniform, the exp filter will be
-    if filter_flag == 3:
-        norm_factor = (
-            R_param - R_param * np.exp(-R_filter / R_param)
-        ) / R_filter  # TODO: this is wrong, change it
-    else:
-        norm_factor = 1
-    return in_box * norm_factor
 
 
 # return binned mean & 1-2 sigma quantiles
@@ -102,13 +98,7 @@ def test_filters(filter_flag, R, plt):
     # testing a single pixel source
     input_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f4")
     input_box_centre[up.HII_DIM // 2, up.HII_DIM // 2, up.HII_DIM // 2] = 1.0
-
-    # testing a uniform grid
-    input_box_uniform = np.full((up.HII_DIM,) * 3, 1.0, dtype="f4")
-
     output_box_centre = np.zeros((up.HII_DIM,) * 3, dtype="f8")
-    output_box_uniform = np.zeros((up.HII_DIM,) * 3, dtype="f8")
-
     # use MFP=20 for the exp filter, use a 3 cell shell for the annular filter
     if filter_flag == 3:
         R_param = 20
@@ -129,18 +119,7 @@ def test_filters(filter_flag, R, plt):
         ffi.cast("double *", output_box_centre.ctypes.data),
     )
 
-    lib.test_filter(
-        up(),
-        cp(),
-        ap(),
-        fo(),
-        ffi.cast("float *", input_box_uniform.ctypes.data),
-        R,
-        R_param,
-        filter_flag,
-        ffi.cast("double *", output_box_uniform.ctypes.data),
-    )
-
+    # expected outputs given in cell units
     R_cells = R / up.BOX_LEN * up.HII_DIM
     Rp_cells = R_param / up.BOX_LEN * up.HII_DIM
     r_from_centre = np.linalg.norm(
@@ -154,27 +133,33 @@ def test_filters(filter_flag, R, plt):
         )[:, None, None, None],
         axis=0,
     )
+    # average value of R in a sphere with same volume of the cell
+    r_from_centre[up.HII_DIM // 2, up.HII_DIM // 2, up.HII_DIM // 2] = (
+        np.pi * (0.62035) ** 4
+    )
     exp_output_centre = get_expected_output_centre(
         r_from_centre, R_cells, Rp_cells, filter_flag
-    )
-    exp_output_uniform = get_expected_output_uniform(
-        input_box_uniform, R_cells, Rp_cells, filter_flag
     )
 
     if plt == mpl.pyplot:
         r_bins = np.linspace(0, (up.HII_DIM / 2 * np.sqrt(3)), num=32)
-        uniform_bin = np.ones_like(r_bins)
+        r_cen = (r_bins[1:] + r_bins[:-1]) / 2
         binned_truth_centre = get_expected_output_centre(
-            r_bins, R_cells, Rp_cells, filter_flag
-        )
-        binned_truth_uniform = get_expected_output_uniform(
-            uniform_bin, R_cells, Rp_cells, filter_flag
+            r_cen, R_cells, Rp_cells, filter_flag
         )
         filter_plot(
-            inputs=[input_box_centre, input_box_uniform],
-            outputs=[output_box_centre, output_box_uniform],
-            binned_truths=[binned_truth_centre, binned_truth_uniform],
-            truths=[exp_output_centre, exp_output_uniform],
+            inputs=[
+                input_box_centre,
+            ],
+            outputs=[
+                output_box_centre,
+            ],
+            binned_truths=[
+                binned_truth_centre,
+            ],
+            truths=[
+                exp_output_centre,
+            ],
             r_bins=r_bins,
             r_grid=r_from_centre,
             slice_index=up.HII_DIM // 2,
@@ -182,13 +167,25 @@ def test_filters(filter_flag, R, plt):
             plt=plt,
         )
 
+    # All filters should be normalised aside from the exp filter
+    if filter_flag == 3:
+        norm_factor = (
+            R_param - R_param * np.exp(-R / R_param)
+        ) / R  # TODO: this is wrong, change it
+    else:
+        norm_factor = 1
+    # firstly, make sure the filters are normalised
     np.testing.assert_allclose(
-        input_box_centre, exp_output_centre, rtol=RELATIVE_TOLERANCE
+        input_box_centre.sum() * norm_factor, output_box_centre.sum(), rtol=1e-4
     )
+    print("SUMS:")
+    print(f"INPUT:    {input_box_centre.sum()}")
+    print(f"OUTPUT:   {output_box_centre.sum()}")
+    print(f"EXPECTED: {exp_output_centre.sum()}")
+
+    # then make sure we get the right shapes (more lenient for aliasing)
     np.testing.assert_allclose(
-        input_box_uniform,
-        exp_output_uniform,
-        rtol=RELATIVE_TOLERANCE,
+        output_box_centre, exp_output_centre, rtol=RELATIVE_TOLERANCE
     )
 
 
@@ -204,7 +201,11 @@ def filter_plot(
 
     n_plots = len(inputs)
     fig, axs = plt.subplots(
-        n_plots, 4, figsize=(16.0, 12.0 * n_plots / 4.0), layout="constrained"
+        n_plots,
+        4,
+        figsize=(16.0, 12.0 * n_plots / 4.0),
+        layout="constrained",
+        squeeze=False,
     )
     fig.get_layout_engine().set(w_pad=2 / 72, h_pad=2 / 72, hspace=0.0, wspace=0.0)
 
@@ -241,7 +242,13 @@ def filter_plot(
             yerr=[stats_o["err1l"], stats_o["err1u"]],
             label="filtered grid",
         )
-        axs[idx, 3].plot(r_bins, t, "m:", label="Expected")
+        axs[idx, 3].plot(r_cen, t, "m:", label="Expected")
         axs[idx, 3].grid()
         axs[idx, 3].set_xlabel("dist from centre")
         axs[idx, 3].set_ylabel("cell value")
+
+        axst = axs[idx, 3].twinx()
+        axst.plot(r_cen, stats_o["mean"] / t - 1, "r-")
+        axst.set_ylim(-10, 10)
+        axst.set_ylabel("out-truth/truth")
+        # axst.set_yscale('log')
