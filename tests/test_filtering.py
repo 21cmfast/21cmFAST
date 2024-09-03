@@ -169,19 +169,17 @@ def test_filters(filter_flag, R, plt):
 
     # All filters should be normalised aside from the exp filter
     if filter_flag == 3:
+        # ratio of exponential and sphere volume integrals
         norm_factor = (
-            R_param - R_param * np.exp(-R / R_param)
-        ) / R  # TODO: this is wrong, change it
+            2 * R_param**3
+            - R_param * np.exp(-R / R_param) * (2 * R_param**2 + 2 * R_param * R + R**2)
+        ) / (3 * R**3)
     else:
         norm_factor = 1
     # firstly, make sure the filters are normalised
     np.testing.assert_allclose(
         input_box_centre.sum() * norm_factor, output_box_centre.sum(), rtol=1e-4
     )
-    print("SUMS:")
-    print(f"INPUT:    {input_box_centre.sum()}")
-    print(f"OUTPUT:   {output_box_centre.sum()}")
-    print(f"EXPECTED: {exp_output_centre.sum()}")
 
     # then make sure we get the right shapes (more lenient for aliasing)
     np.testing.assert_allclose(
@@ -251,4 +249,3 @@ def filter_plot(
         axst.plot(r_cen, stats_o["mean"] / t - 1, "r-")
         axst.set_ylim(-10, 10)
         axst.set_ylabel("out-truth/truth")
-        # axst.set_yscale('log')

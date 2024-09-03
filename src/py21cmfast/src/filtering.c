@@ -47,7 +47,7 @@ double exp_mfp_filter(double k, double R, double mfp, double R_constant, double 
     //Davies & Furlanetto MFP-eps(r) window function
     //The filter no longer approaches 1 at k->0, so we can't use the limit
     f = (kR2*kR2*R + 2*mfp + R)*kR2*cos(kR);
-    f += (-kR2*kR2*mfp + kR2*kR2*R + limit + R)*sin(kR);
+    f += (-kR2*kR2*mfp + kR2*kR2*R + mfp + R)*sin(kR);
     f *= R_constant;
     f -= 2*kR2*mfp;
     f *= -3.0*mfp/(kR*R*R*(kR2*kR2+1)*(kR2*kR2+1));
