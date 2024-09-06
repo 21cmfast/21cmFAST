@@ -37,57 +37,81 @@ int INIT_RECOMBINATIONS = 1;
 
 //Parameters for the ionisation box calculations
 struct IonBoxConstants{
+    //redshift constants
     double redshift;
+    double stored_redshift;
     double prev_redshift;
     double growth_factor;
     double prev_growth_factor;
+    double photoncons_adjustment_factor;
     double dz;
+    double fabs_dtdz;
+
+    //compound/alternate flags
     bool fix_mean;
     bool filter_recombinations;
 
+    //astro parameters
     double fstar_10;
     double alpha_star;
-
     double fstar_7;
     double alpha_star_mini;
-
     double t_h;
-    double t_star;
-
+    double t_star_sec;
     double fesc_10;
     double alpha_esc;
     double fesc_7;
 
+    //astro calculated values
     double vcb_norel;
     double mturn_a_nofb;
     double mturn_m_nofb;
+    double ion_eff_factor;
+    double ion_eff_factor_mini;
+    double ion_eff_factor_gl;
+    double ion_eff_factor_mini_gl;
+    double mfp_meandens;
+    double gamma_prefactor;
+    double gamma_prefactor_mini;
 
+    double TK_nofluct;
+    double adia_TK_term;
+
+    //power-law limits
     double Mlim_Fstar;
     double Mlim_Fesc;
     double Mlim_Fstar_mini;
     double Mlim_Fesc_mini;
 
-    double ion_eff_factor;
-    double ion_eff_factor_mini;
-
-    double mfp_meandens;
-
+    //HMF limits
     double M_min;
     double lnMmin;
     double M_max_gl;
     double lnMmax_gl;
-
     double sigma_minmass;
 
-    double TK_nofluct;
-    double adia_TK_term;
+    //dimensions
+    double pixel_length;
+    double pixel_mass;
 };
 
+//TODO: Something like these structs should also replace the globals in SpinTemperature.c
+
+//TODO: consider the case of having Radiusspec as array of structs (current)
+//  vs struct of arrays. The former allows you to pass a single struct into each function
+//  without an index so they don't need to know about other radii.
+//  The second is simpler to understand/work with in terms of allocation/scoping
 struct RadiusSpec{
+    //calculated and stored at the beginning
     double R;
     double M_max_R;
     double ln_M_max_R;
     double sigma_maxmass;
+    int R_index;
+
+    //calculated within the loop
+    double f_coll_grid_mean;
+    double f_coll_grid_mean_MINI;
 };
 
 //this struct should hold all the pointers to grids which need to be filtered
@@ -114,6 +138,9 @@ struct FilteredGrids{
 void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *cosmo_params, AstroParams *astro_params,
                          FlagOptions *flag_options, struct IonBoxConstants *consts){
     consts->redshift = redshift;
+    //defaults for no photoncons
+    consts->stored_redshift = redshift;
+    consts->photoncons_adjustment_factor = 1.;
 
     //dz is only used if inhomo_reco
     if (prev_redshift < 1)
@@ -121,11 +148,14 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     else
         consts->dz = redshift - prev_redshift;
 
+    //TODO: Figure out why we have the 1e15 here
+    consts->fabs_dtdz = fabs(dtdz(redshift))/1e15; //reduce to have good precision
+
     consts->growth_factor = dicke(redshift);
     consts->prev_growth_factor = dicke(prev_redshift);
     //whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     //  constant for now, to be a flag later
-    consts->fix_mean = true;
+    consts->fix_mean = !flag_options->USE_HALO_FIELD;
     consts->filter_recombinations = flag_options->INHOMO_RECO && !flag_options->CELL_RECOMB;
 
     consts->fstar_10 = astro_params->F_STAR10;
@@ -135,7 +165,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     consts->alpha_star_mini = astro_params->ALPHA_STAR_MINI;
 
     consts->t_h = t_hubble(redshift);
-    consts->t_star = astro_params->t_STAR;
+    consts->t_star_sec = astro_params->t_STAR * consts->t_h;
 
     consts->alpha_esc = astro_params->ALPHA_ESC;
     consts->fesc_10= astro_params->F_ESC10;
@@ -170,12 +200,22 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
     }
 
     if(flag_options->USE_MASS_DEPENDENT_ZETA) {
-        consts->ion_eff_factor = global_params.Pop2_ion * astro_params->F_STAR10 * consts->fesc_10;
-        consts->ion_eff_factor_mini = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
+        consts->ion_eff_factor_gl = global_params.Pop2_ion * astro_params->F_STAR10 * consts->fesc_10;
+        consts->ion_eff_factor_mini_gl = global_params.Pop3_ion * astro_params->F_STAR7_MINI * astro_params->F_ESC7_MINI;
     }
     else {
-        consts->ion_eff_factor = astro_params->HII_EFF_FACTOR;
-        consts->ion_eff_factor_mini = 0.;
+        consts->ion_eff_factor_gl = astro_params->HII_EFF_FACTOR;
+        consts->ion_eff_factor_mini_gl = 0.;
+    }
+
+    //The halo fields already have Fstar,Fesc,nion taken into account, so their global factor differs from the local one
+    if(flag_options->USE_HALO_FIELD) {
+        consts->ion_eff_factor = 1.;
+        consts->ion_eff_factor_mini = 1.;
+    }
+    else{
+        consts->ion_eff_factor = consts->ion_eff_factor_gl;
+        consts->ion_eff_factor_mini = consts->ion_eff_factor_mini_gl;
     }
 
     //Yuxiang's evolving Rmax for MFP in ionised regions
@@ -199,6 +239,18 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
         //finding the adiabatic index at the initial redshift from 2302.08506 to fix adiabatic fluctuations.
         consts->adia_TK_term = cT_approx(redshift);
     }
+    consts->pixel_length = user_params_global->BOX_LEN/(double)user_params_global->HII_DIM;
+    consts->pixel_mass = cosmo_params_global->OMm * RHOcrit * pow(consts->pixel_length,3);
+
+    consts->gamma_prefactor = pow(1+redshift,2) * CMperMPC * SIGMA_HI * global_params.ALPHA_UVB \
+                                 / (global_params.ALPHA_UVB+2.75) * N_b0 * consts->ion_eff_factor / 1.0e-12;
+    if(flag_options->USE_HALO_FIELD)
+        consts->gamma_prefactor /= RHOcrit * cosmo_params->OMb; //TODO: double-check these unit differences, HaloBox.halo_wsfr vs Nion_General units
+    else
+        consts->gamma_prefactor /= consts->t_star_sec;
+    consts->gamma_prefactor_mini = consts->gamma_prefactor * consts->ion_eff_factor_mini / consts->ion_eff_factor;
+
+
 }
 
 
@@ -310,7 +362,7 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
 
     //z_re_box is used in all cases
     previous_ionize_box->z_re_box    = (float *) calloc(HII_TOT_NUM_PIXELS, sizeof(float));
-    #pragma omp parallel shared(previous_ionize_box) private(i,j,k) num_threads(user_params->N_THREADS)
+    #pragma omp parallel shared(previous_ionize_box) private(i,j,k) num_threads(user_params_global->N_THREADS)
     {
         #pragma omp for
         for (i=0; i<user_params_global->HII_DIM; i++){
@@ -336,7 +388,7 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
         previous_ionize_box->mean_f_coll_MINI = 0.0;
 
         previous_perturb->density = (float *) calloc(HII_TOT_NUM_PIXELS*n_radii, sizeof(float));
-        #pragma omp parallel private(ct) num_threads(user_params->N_THREADS)
+        #pragma omp parallel private(ct) num_threads(user_params_global->N_THREADS)
         {
             #pragma omp for
             for(ct=0;ct<HII_TOT_NUM_PIXELS;ct++){
@@ -348,10 +400,10 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
 
 void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialConditions *ini_boxes, struct IonBoxConstants *consts,
                             fftwf_complex *log10_mcrit_acg, fftwf_complex *log10_mcrit_mcg, double *avg_mturn_acg, double *avg_mturn_mcg){
-    double tot_log10_Mturnover = 0.;
-    double tot_log10_Mturnover_MINI = 0.;
+    double ave_log10_Mturnover = 0.;
+    double ave_log10_Mturnover_MINI = 0.;
 
-    #pragma omp parallel num_threads(user_params->N_THREADS)
+    #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
         int x,y,z;
         double Mcrit_RE, Mcrit_LW;
@@ -381,14 +433,14 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
                     *((float *)log10_mcrit_acg      + HII_R_FFT_INDEX(x,y,z)) = curr_Mt;
                     *((float *)log10_mcrit_mcg + HII_R_FFT_INDEX(x,y,z)) = curr_Mt_MINI;
 
-                    tot_log10_Mturnover      += curr_Mt;
-                    tot_log10_Mturnover_MINI += curr_Mt_MINI;
+                    ave_log10_Mturnover      += curr_Mt;
+                    ave_log10_Mturnover_MINI += curr_Mt_MINI;
                 }
             }
         }
     }
-    *avg_mturn_acg = tot_log10_Mturnover/HII_TOT_NUM_PIXELS;
-    *avg_mturn_mcg = tot_log10_Mturnover_MINI/HII_TOT_NUM_PIXELS;
+    *avg_mturn_acg = ave_log10_Mturnover/HII_TOT_NUM_PIXELS;
+    *avg_mturn_mcg = ave_log10_Mturnover_MINI/HII_TOT_NUM_PIXELS;
 }
 
 // Determine the normalisation for the excursion set algorithm
@@ -406,7 +458,7 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
                                     c->fstar_10,c->fesc_10,c->Mlim_Fstar,c->Mlim_Fesc);
 
         if (flag_options_global->USE_MINI_HALOS){
-            if (prev_box->mean_f_coll * c->ion_eff_factor < 1e-4){
+            if (prev_box->mean_f_coll * c->ion_eff_factor_gl < 1e-4){
                 //we don't have enough ionising radiation in the previous snapshot, just take the current value
                 curr_box->mean_f_coll = f_coll_curr;
             }
@@ -417,7 +469,7 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
             }
             f_coll_curr_mini = Nion_General_MINI(c->redshift,c->lnMmin,c->lnMmax_gl,mturn_mcg,mturn_acg,c->alpha_star_mini,
                                                           c->alpha_esc,c->fstar_7,c->fesc_7,c->Mlim_Fstar_mini,c->Mlim_Fesc_mini);
-            if (prev_box->mean_f_coll_MINI * c->ion_eff_factor < 1e-4){
+            if (prev_box->mean_f_coll_MINI * c->ion_eff_factor_gl < 1e-4){
                 curr_box->mean_f_coll_MINI = f_coll_curr_mini;
             }
             else{
@@ -443,14 +495,14 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
         LOG_ERROR("Mean collapse fraction is either infinite or NaN!");
         Throw(InfinityorNaNError);
     }
-    LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %e", box->mean_f_coll);
+    LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll: %e", curr_box->mean_f_coll);
 
     if (flag_options_global->USE_MINI_HALOS){
         if(isfinite(curr_box->mean_f_coll_MINI)==0){
             LOG_ERROR("Mean collapse fraction of MINI is either infinite or NaN!");
             Throw(InfinityorNaNError);
         }
-        LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", box->mean_f_coll_MINI);
+        LOG_SUPER_DEBUG("excursion set normalisation, mean_f_coll_MINI: %e", curr_box->mean_f_coll_MINI);
     }
 }
 
@@ -458,7 +510,7 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
     double global_xH;
     unsigned long long int ct;
     if(flag_options_global->USE_TS_FLUCT) {
-        #pragma omp parallel private(ct) num_threads(user_params->N_THREADS)
+        #pragma omp parallel private(ct) num_threads(user_params_global->N_THREADS)
         {
             #pragma omp for reduction(+:global_xH)
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
@@ -471,7 +523,7 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
     }
     else {
         global_xH = 1. - xion_RECFAST(consts->redshift, 0);
-        #pragma omp parallel private(ct) num_threads(user_params->N_THREADS)
+        #pragma omp parallel private(ct) num_threads(user_params_global->N_THREADS)
         {
             #pragma omp for
             for (ct=0; ct<HII_TOT_NUM_PIXELS; ct++){
@@ -488,7 +540,7 @@ double set_fully_neutral_box(IonizedBox *box, TsBox *spin_temp, PerturbedField *
 // (copy,filter,transform), (copy,filter,transform), (copy,filter,transform)...
 //  if the first is faster, consider reordering prepare_filter_grids() in the same way
 //  if the second is faster, make a function to do this for one grid
-void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstants *consts, struct RadiusSpec rspec, bool last_step){
+void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstants *consts, struct RadiusSpec rspec){
     memcpy(fg_struct->deltax_filtered, fg_struct->deltax_unfiltered, sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     if(flag_options_global->USE_TS_FLUCT){
         memcpy(fg_struct->xe_filtered, fg_struct->xe_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
@@ -508,7 +560,7 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
         }
     }
 
-    if(!last_step){
+    if(rspec.R_index > 0){
         double R = rspec.R;
         filter_box(fg_struct->deltax_filtered, 1, global_params.HII_FILTER, R, 0.);
         if (flag_options_global->USE_TS_FLUCT) {
@@ -555,13 +607,14 @@ void copy_filter_transform(struct FilteredGrids *fg_struct, struct IonBoxConstan
 //After filtering the grids, we need to clip them to physical values and take the extrema for some interpolation tables
 void clip_and_get_extrema(fftwf_complex * grid, double lower_limit, double upper_limit, double *grid_min, double *grid_max){
     double min_buf,max_buf;
+    //setting the extrema to the first cell to guarantee it's in the range
     min_buf = *((float *) grid + HII_R_FFT_INDEX(0, 0, 0));
     max_buf = *((float *) grid + HII_R_FFT_INDEX(0, 0, 0));
-    #pragma omp parallel num_threads(user_params->N_THREADS)
+    #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
         int x,y,z;
         float curr;
-        #pragma omp for reduction(max:max_density) reduction(min:min_density)
+        #pragma omp for reduction(max:max_buf) reduction(min:min_buf)
         for (x = 0; x < user_params_global->HII_DIM; x++) {
             for (y = 0; y < user_params_global->HII_DIM; y++) {
                 for (z = 0; z < HII_D_PARA; z++) {
@@ -596,7 +649,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
         }
 
         LOG_ULTRA_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e) t (%.2e,%.2e) tm (%.2e,%.2e)",
-                        min_density,max_density,M_MIN,massofscaleR,log10Mturn_min,log10Mturn_max,
+                        min_density,max_density,consts->M_min,rspec.M_max_R,log10Mturn_min,log10Mturn_max,
                         log10Mturn_min_MINI,log10Mturn_max_MINI);
         if(user_params_global->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options_global->USE_MINI_HALOS && user_params_global->INTEGRATION_METHOD_MINI == 1))
             initialise_GL(consts->lnMmin, rspec.ln_M_max_R);
@@ -644,9 +697,12 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
 //TODO: We should speed test different configurations, separating grids, parallel sections etc.
 //  See the note above copy_filter_transform() for the general idea
 //  If we separate by grid we can reuse the clipping function above
-void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, struct FilteredGrids *fg_struct, struct IonBoxConstants *consts, struct RadiusSpec rspec){
+void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, struct FilteredGrids *fg_struct, struct IonBoxConstants *consts,
+                             struct RadiusSpec *rspec){
     double f_coll_total,f_coll_MINI_total;
-    #pragma omp parallel num_threads(user_params->N_THREADS)
+    //TODO: make proper error tracking through the parallel region
+    bool error_flag;
+    #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
         int x,y,z;
         double curr_dens;
@@ -695,23 +751,23 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                     else {
                         curr_dens = *((float *) fg_struct->deltax_filtered + HII_R_FFT_INDEX(x, y, z));
                         if (flag_options_global->USE_MASS_DEPENDENT_ZETA){
-                            if (flag_options->USE_MINI_HALOS){
+                            if (flag_options_global->USE_MINI_HALOS){
                                 log10_Mturnover = *((float *)fg_struct->log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z));
                                 log10_Mturnover_MINI = *((float *)fg_struct->log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z));
 
                                 Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(curr_dens,log10_Mturnover_MINI,consts->growth_factor,consts->M_min,
-                                                                                    rspec.M_max_R,rspec.M_max_R,rspec.sigma_maxmass,consts->mturn_a_nofb,
+                                                                                    rspec->M_max_R,rspec->M_max_R,rspec->sigma_maxmass,consts->mturn_a_nofb,
                                                                                     consts->Mlim_Fstar_mini,consts->Mlim_Fesc,false);
 
 
-                                if (previous_ionize_box->mean_f_coll_MINI * consts->ion_eff_factor_mini +
-                                        previous_ionize_box->mean_f_coll * consts->ion_eff_factor > 1e-4){
+                                if (previous_ionize_box->mean_f_coll_MINI * consts->ion_eff_factor_mini_gl +
+                                        previous_ionize_box->mean_f_coll * consts->ion_eff_factor_gl > 1e-4){
                                     prev_dens = *((float *)fg_struct->prev_deltax_filtered + HII_R_FFT_INDEX(x,y,z));
                                     prev_Splined_Fcoll = EvaluateNion_Conditional(prev_dens,log10_Mturnover,consts->prev_growth_factor,
-                                                                                        consts->M_min,rspec.M_max_R,rspec.M_max_R,
-                                                                                        rspec.sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,true);
+                                                                                        consts->M_min,rspec->M_max_R,rspec->M_max_R,
+                                                                                        rspec->sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,true);
                                     prev_Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(prev_dens,log10_Mturnover_MINI,consts->prev_growth_factor,consts->M_min,
-                                                                                    rspec.M_max_R,rspec.M_max_R,rspec.sigma_maxmass,consts->mturn_a_nofb,
+                                                                                    rspec->M_max_R,rspec->M_max_R,rspec->sigma_maxmass,consts->mturn_a_nofb,
                                                                                     consts->Mlim_Fstar_mini,consts->Mlim_Fesc_mini,true);
                                 }
                                 else{
@@ -723,32 +779,35 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                                 log10_Mturnover = log10(astro_params_global->M_TURN);
                             }
                             Splined_Fcoll = EvaluateNion_Conditional(curr_dens,log10_Mturnover,consts->growth_factor,
-                                                                    consts->M_min,rspec.M_max_R,rspec.M_max_R,
-                                                                    rspec.sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,true);
+                                                                    consts->M_min,rspec->M_max_R,rspec->M_max_R,
+                                                                    rspec->sigma_maxmass,consts->Mlim_Fstar,consts->Mlim_Fesc,true);
                         }
                         else{
-                            Splined_Fcoll = EvaluateFcoll_delta(curr_dens,consts->growth_factor,consts->sigma_minmass,rspec.sigma_maxmass)
+                            Splined_Fcoll = EvaluateFcoll_delta(curr_dens,consts->growth_factor,consts->sigma_minmass,rspec->sigma_maxmass);
                         }
                     }
                     // save the value of the collasped fraction into the Fcoll array
-                    if (flag_options->USE_MINI_HALOS && !flag_options->USE_HALO_FIELD){
+                    //TODO: each of these grids are clipped before filtering, after filtering,
+                    //  after the Fcoll integration, and after trapezoidal integration here
+                    //  we should figure which of these clips are necessary/useful
+                    if (flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD){
                         if (Splined_Fcoll > 1.) Splined_Fcoll = 1.;
-                        if (Splined_Fcoll < 0.) Splined_Fcoll = 1e-40;ADWBAIUDVBWUIADGuiwGd
+                        if (Splined_Fcoll < 0.) Splined_Fcoll = 1e-40;
                         if (prev_Splined_Fcoll > 1.) prev_Splined_Fcoll = 1.;
                         if (prev_Splined_Fcoll < 0.) prev_Splined_Fcoll = 1e-40;
-                        box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = \
-                                previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll - prev_Splined_Fcoll;
+                        box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = \
+                                previous_ionize_box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll - prev_Splined_Fcoll;
 
-                        if (box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] > 1.) box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1.;
+                        if (box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] > 1.) box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1.;
                         //if (box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] <0.) box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1e-40;
                         //if (box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] < previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)])
                         //    box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
-                        f_coll += box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
-                        if(isfinite(f_coll)==0) {
+                        f_coll_total += box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
+                        if(isfinite(f_coll_total)==0) {
                             LOG_ERROR("f_coll is either infinite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g,%g,%g",\
-                                    x,y,z,curr_dens,prev_dens,previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
-                                    Splined_Fcoll, prev_Splined_Fcoll, curr_dens, prev_dens, \
-                                    log10_Mturnover, *((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)));
+                                    x,y,z,curr_dens,prev_dens,previous_ionize_box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
+                                    Splined_Fcoll, prev_Splined_Fcoll, curr_dens, prev_dens, log10_Mturnover,
+                                    *((float *)fg_struct->log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)));
                             Throw(InfinityorNaNError);
                         }
 
@@ -756,40 +815,46 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                         if (Splined_Fcoll_MINI < 0.) Splined_Fcoll_MINI = 1e-40;
                         if (prev_Splined_Fcoll_MINI > 1.) prev_Splined_Fcoll_MINI = 1.;
                         if (prev_Splined_Fcoll_MINI < 0.) prev_Splined_Fcoll_MINI = 1e-40;
-                        box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = \
-                                    previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll_MINI - prev_Splined_Fcoll_MINI;
+                        box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = \
+                                    previous_ionize_box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll_MINI - prev_Splined_Fcoll_MINI;
 
-                        if (box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] >1.) box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1.;
+                        if (box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] >1.) box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1.;
                         //if (box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] <0.) box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1e-40;
                         //if (box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] < previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)])
                         //    box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
-                        f_coll_MINI += box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
-                        if(isfinite(f_coll_MINI)==0) {
+                        f_coll_MINI_total += box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
+                        if(isfinite(f_coll_MINI_total)==0) {
                             LOG_ERROR("f_coll_MINI is either infinite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g",\
-                                        x,y,z,curr_dens, prev_dens, previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
+                                        x,y,z,curr_dens, prev_dens, previous_ionize_box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
                                         Splined_Fcoll_MINI, prev_Splined_Fcoll_MINI, log10_Mturnover_MINI,\
-                                        *((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)));
-                            LOG_DEBUG("%g,%g",previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
-                                        previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)]);
+                                        *((float *)fg_struct->log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)));
+                            LOG_DEBUG("%g,%g",previous_ionize_box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
+                                        previous_ionize_box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)]);
                             Throw(InfinityorNaNError);
                         }
                     }
                     else{
-                        box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = Splined_Fcoll;
-                        f_coll += Splined_Fcoll;
+                        box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = Splined_Fcoll;
+                        f_coll_total += Splined_Fcoll;
                     }
                 }
             }
         }
     } //  end loop through Fcoll box
-
+    rspec->f_coll_grid_mean = f_coll_total / HII_TOT_NUM_PIXELS;
+    rspec->f_coll_grid_mean_MINI = f_coll_MINI_total / HII_TOT_NUM_PIXELS;
 }
 
-int setup_radii(struct RadiusSpec **rspec_array){
+int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts){
     double maximum_radius = fmin(astro_params_global->R_BUBBLE_MAX,
                                     L_FACTOR*user_params_global->BOX_LEN);
-    double minimum_radius = fmax(global_params.R_BUBBLE_MIN,
-                        (cell_length_factor*user_params->BOX_LEN/(double)user_params->HII_DIM));
+
+    double cell_length_factor = L_FACTOR;
+    //TODO: figure out why this is used in such a specific case
+    if(flag_options_global->USE_HALO_FIELD && (global_params.FIND_BUBBLE_ALGORITHM == 2) && (consts->pixel_length < 1))
+        cell_length_factor = 1.;
+
+    double minimum_radius = fmax(global_params.R_BUBBLE_MIN,cell_length_factor*consts->pixel_length);
 
     //minimum number such that min_R*delta^N > max_R
     int n_radii = ceil(log(maximum_radius/minimum_radius)/log(global_params.DELTA_R_HII_FACTOR)) + 1;
@@ -804,6 +869,7 @@ int setup_radii(struct RadiusSpec **rspec_array){
     //  finding the other radii by stepping *up* from the minimum
     int i;
     for(i=0;i<n_radii;i++){
+        (*rspec_array)[i].R_index = i;
         (*rspec_array)[i].R = minimum_radius * pow(global_params.DELTA_R_HII_FACTOR,i);
         //TODO: is this necessary? prevents the last step being small, but could hide some
         // unexpected behaviour/bugs if it finishes earlier than n_radii-2
@@ -817,6 +883,291 @@ int setup_radii(struct RadiusSpec **rspec_array){
     }
     LOG_DEBUG("set max radius: %f", (*rspec_array)[n_radii-1].R);
     return n_radii;
+}
+
+void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, PerturbedField *perturbed_field, TsBox *spin_temp, struct RadiusSpec rspec,
+                            struct IonBoxConstants *consts, struct FilteredGrids *fg_struct,
+                            double f_limit_acg, double f_limit_mcg){
+    double mean_fix_term_acg = 1.;
+    double mean_fix_term_mcg = 1.;
+    if(consts->fix_mean){
+        mean_fix_term_acg = box->mean_f_coll/rspec.f_coll_grid_mean;
+        mean_fix_term_mcg = box->mean_f_coll_MINI/rspec.f_coll_grid_mean_MINI;
+        LOG_SUPER_DEBUG("global mean fcoll %.4e box mean fcoll %.4e ratio %.4e",box->mean_f_coll,rspec.f_coll_grid_mean,mean_fix_term_acg);
+        LOG_SUPER_DEBUG("MINI: global mean fcoll %.4e box mean fcoll %.4e ratio %.4e",box->mean_f_coll_MINI,rspec.f_coll_grid_mean_MINI,mean_fix_term_acg);
+    }
+    else{
+        //if we don't fix the mean, make the mean_f_coll in the output reflect the box
+        //since currently is is the global expected mean from the Unconditional MF
+        box->mean_f_coll = rspec.f_coll_grid_mean;
+        box->mean_f_coll_MINI = rspec.f_coll_grid_mean_MINI;
+    }
+
+    int i;
+    gsl_rng * r[user_params_global->N_THREADS];
+    //TODO: proper seed
+    seed_rng_threads(r,0);
+
+    #pragma omp parallel num_threads(user_params_global->N_THREADS)
+    {
+        int x,y,z;
+        double curr_dens;
+        double curr_fcoll;
+        double curr_fcoll_mini;
+        double rec,xHII_from_xrays;
+        double res_xH;
+
+        double ave_M_coll_cell;
+        double ave_N_min_cell;
+        int N_halos_in_cell;
+        #pragma omp for
+        for(x = 0; x < user_params_global->HII_DIM; x++) {
+            for(y = 0; y < user_params_global->HII_DIM; y++) {
+                for(z = 0; z < HII_D_PARA; z++) {
+                    //Use unfiltered density for CELL_RECOMB case, since the "Fcoll" represents photons
+                    //  reaching the central cell rather than photons in the entire sphere
+                    //TODO: if we don't filter on the last step either, should we use the original field to prevent aliasing?
+                    //TODO: test using the filtered density here with CELL_RECOMB, since it's what Davies+22 does,
+                    //  It's not clear how the MFP filter should count recombinations/local density.
+                    if(flag_options_global->CELL_RECOMB)
+                        curr_dens = perturbed_field->density[HII_R_INDEX(x,y,z)]*consts->photoncons_adjustment_factor;
+                    else
+                        curr_dens = *((float *)fg_struct->deltax_filtered + HII_R_FFT_INDEX(x,y,z));
+
+                    curr_fcoll = box->Fcoll[rspec.R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
+                    curr_fcoll = mean_fix_term_acg * curr_fcoll;
+
+                    //Since the halo boxes give ionising photon output, this term accounts for the local density of absorbers
+                    //  We have separated the source/absorber filtering in the halo model so this is necessary
+                    if(flag_options_global->USE_HALO_FIELD)
+                        curr_fcoll *= 1 / (RHOcrit*cosmo_params_global->OMb*(1+curr_dens));
+
+                    //MINIHALOS are already included in the halo model
+                    curr_fcoll_mini = 0.;
+                    if (flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD){
+                        curr_fcoll_mini = box->Fcoll_MINI[rspec.R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
+                        curr_fcoll_mini = mean_fix_term_mcg * curr_fcoll_mini;
+                    }
+
+                    if (flag_options_global->USE_MASS_DEPENDENT_ZETA) {
+                        if (curr_fcoll < f_limit_acg) curr_fcoll = f_limit_acg;
+                        if (flag_options_global->USE_MINI_HALOS){
+                            if (curr_fcoll_mini < f_limit_mcg) curr_fcoll_mini = f_limit_mcg;
+                        }
+                    }
+
+                    if (flag_options_global->INHOMO_RECO) {
+                        if(flag_options_global->CELL_RECOMB)
+                            rec = previous_ionize_box->dNrec_box[HII_R_INDEX(x,y,z)];
+                        else
+                            rec = (*((float *) fg_struct->N_rec_filtered + HII_R_FFT_INDEX(x, y, z))); // number of recombinations per mean baryon
+
+                        rec /= (1. + curr_dens); // number of recombinations per baryon inside cell/filter
+                    }
+                    else {
+                        rec = 0.;
+                    }
+
+                    // adjust the denominator of the collapse fraction for the residual electron fraction in the neutral medium
+                    if (flag_options_global->USE_TS_FLUCT){
+                        xHII_from_xrays = *((float *)fg_struct->xe_filtered + HII_R_FFT_INDEX(x,y,z));
+                    } else {
+                        xHII_from_xrays = 0.;
+                    }
+
+#if LOG_LEVEL > SUPER_DEBUG_LEVEL
+                    if(x+y+z == 0 && !flag_options_global->USE_HALO_FIELD){
+                        LOG_SUPER_DEBUG("Cell 0: R=%.1f | d %.4e | fcoll %.4e | rec %.4e | X %.4e",
+                                            rspec.R,curr_dens,curr_fcoll,rec,xHII_from_xrays);
+                        if(flag_options_global->USE_MINI_HALOS){
+                            LOG_SUPER_DEBUG("Mini %.4e",curr_fcoll_mini);
+                        }
+                    }
+#endif
+
+                    // check if fully ionized!
+                    if ( (curr_fcoll * consts->ion_eff_factor + curr_fcoll_mini * consts->ion_eff_factor_mini > (1. - xHII_from_xrays)*(1.0+rec)) ){ //IONIZED!!
+                        // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
+                        // this assumes photon-starved growth of HII regions...  breaks down post EoR
+                        if (flag_options_global->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR)){
+                            if(flag_options_global->USE_HALO_FIELD){
+                                //since ION_EFF_FACTOR==1 here, gamma_prefactor is the same for ACG and MCG
+                                box->Gamma12_box[HII_R_INDEX(x,y,z)] = rspec.R * consts->gamma_prefactor / (1+curr_dens) \
+                                                                    * (*((float *)fg_struct->sfr_filtered + HII_R_FFT_INDEX(x,y,z)));
+                            }
+                            else{
+                                box->Gamma12_box[HII_R_INDEX(x,y,z)] = rspec.R * consts->gamma_prefactor * curr_fcoll + consts->gamma_prefactor_mini * curr_fcoll_mini;
+                            }
+                            box->MFP_box[HII_R_INDEX(x,y,z)] = rspec.R;
+                        }
+
+                        // keep track of the first time this cell is ionized (earliest time)
+                        if (previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)] < 0){
+                            box->z_re_box[HII_R_INDEX(x,y,z)] = consts->redshift; //TODO: stored_redshift???
+                        } else{
+                            box->z_re_box[HII_R_INDEX(x,y,z)] = previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)];
+                        }
+
+                        // FLAG CELL(S) AS IONIZED
+                        if (global_params.FIND_BUBBLE_ALGORITHM == 2) // center method
+                            box->xH_box[HII_R_INDEX(x,y,z)] = 0;
+                        if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
+                            update_in_sphere(box->xH_box, user_params_global->HII_DIM, HII_D_PARA, rspec.R/(user_params_global->BOX_LEN), \
+                                                x/(user_params_global->HII_DIM+0.0), y/(user_params_global->HII_DIM+0.0), z/(HII_D_PARA+0.0));
+                    } // end ionized
+                        // If not fully ionized, then assign partial ionizations
+                    else if (rspec.R_index==0 && (box->xH_box[HII_R_INDEX(x, y, z)] > TINY)) {
+                        //TODO: figure out why this model exists
+                        //This places some RNG at the cell-scale on the last filter step for partial reionisations
+                        //  This is done by sampling from the Poisson distribution, in units of the *total halo mass in the cell*
+                        //  with an average value of (default)5.
+                        //With NO_RNG, this means that all non-ionised cells have 1/5 of their previous collapsed fraction?
+                        if (!flag_options_global->USE_HALO_FIELD){
+                            //TODO: the N_halos.. was previously in the above loop, but was only used for partial ionisations anyway
+                            ave_M_coll_cell = (curr_fcoll + curr_fcoll_mini) * consts->pixel_mass * (1. + curr_dens);
+                            ave_N_min_cell = ave_M_coll_cell / consts->M_min; // ave # of M_MIN halos in cell
+                            if(user_params_global->NO_RNG) {
+                                N_halos_in_cell = 1.;
+                            }
+                            else {
+                                N_halos_in_cell = (int)gsl_ran_poisson(r[omp_get_thread_num()],
+                                                                        global_params.N_POISSON);
+                            }
+
+                            if (curr_fcoll>1) curr_fcoll=1;
+                            if (curr_fcoll_mini>1) curr_fcoll_mini=1;
+                            if(ave_N_min_cell < global_params.N_POISSON) {
+                                curr_fcoll = N_halos_in_cell * ( ave_M_coll_cell / (float)global_params.N_POISSON ) / (consts->pixel_mass*(1. + curr_dens));
+                                if (flag_options_global->USE_MINI_HALOS){
+                                    curr_fcoll_mini = curr_fcoll * (curr_fcoll_mini * consts->ion_eff_factor) \
+                                                     / (curr_fcoll * consts->ion_eff_factor + curr_fcoll_mini * consts->ion_eff_factor_mini);
+                                    curr_fcoll = curr_fcoll - curr_fcoll_mini;
+                                }
+                                else{
+                                    curr_fcoll_mini = 0.;
+                                }
+                            }
+
+                            if (ave_M_coll_cell < (consts->M_min / 5.)) {
+                                curr_fcoll = 0.;
+                                curr_fcoll_mini = 0.;
+                            }
+
+                            if (curr_fcoll>1) curr_fcoll=1;
+                            if (curr_fcoll_mini>1) curr_fcoll_mini=1;
+                        }
+
+                        res_xH = 1. - curr_fcoll * consts->ion_eff_factor - curr_fcoll_mini * consts->ion_eff_factor_mini;
+                        // put the partial ionization here because we need to exclude xHII_from_xrays...
+                        if (flag_options_global->USE_TS_FLUCT){
+                            box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH);
+                        }
+                        else{
+                            box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(
+                                    consts->TK_nofluct*(1 + consts->adia_TK_term*perturbed_field->density[HII_R_INDEX(x,y,z)]), res_xH);
+                        }
+                        res_xH -= xHII_from_xrays;
+
+                        // and make sure fraction doesn't blow up for underdense pixels
+                        if (res_xH < 0)
+                            res_xH = 0;
+                        else if (res_xH > 1)
+                            res_xH = 1;
+
+                        box->xH_box[HII_R_INDEX(x, y, z)] = res_xH;
+
+                    } // end partial ionizations at last filtering step
+                } // k
+            } // j
+        } // i
+    }
+
+    for (i=0; i<user_params_global->N_THREADS; i++) {
+        gsl_rng_free(r[i]);
+    }
+}
+
+void set_ionized_temperatures(IonizedBox *box, PerturbedField *perturbed_field, TsBox *spin_temp, struct IonBoxConstants *consts){
+    int x,y,z;
+    #pragma omp parallel private(x,y,z) num_threads(user_params_global->N_THREADS)
+    {
+        float thistk;
+        #pragma omp for
+        for (x=0; x<user_params_global->HII_DIM; x++){
+            for (y=0; y<user_params_global->HII_DIM; y++){
+                for (z=0; z<HII_D_PARA; z++){
+                    if ((box->z_re_box[HII_R_INDEX(x,y,z)]>0) && (box->xH_box[HII_R_INDEX(x,y,z)] < TINY)){
+                        //TODO: do we want to use the photoncons redshift here or the original one?
+                        box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], \
+                                                                    consts->stored_redshift, perturbed_field->density[HII_R_INDEX(x,y,z)]);
+                        // Below sometimes (very rare though) can happen when the density drops too fast and to below T_HI
+                        if (flag_options_global->USE_TS_FLUCT){
+                            if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < spin_temp->Tk_box[HII_R_INDEX(x,y,z)])
+                                box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = spin_temp->Tk_box[HII_R_INDEX(x,y,z)];
+                            }
+                        else{
+                            thistk = consts->TK_nofluct*(1 + consts->adia_TK_term * \
+                                        perturbed_field->density[HII_R_INDEX(x,y,z)]);
+                            if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < thistk)
+                                box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = thistk;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (x=0; x<user_params_global->HII_DIM; x++){
+        for (y=0; y<user_params_global->HII_DIM; y++){
+            for (z=0; z<HII_D_PARA; z++){
+                if(isfinite(box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)])==0){
+                    LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong "\
+                                "in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], consts->stored_redshift,
+                                perturbed_field->density[HII_R_INDEX(x,y,z)]);
+                    Throw(InfinityorNaNError);
+                }
+            }
+        }
+    }
+}
+
+void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box, PerturbedField *perturbed_field, struct IonBoxConstants *consts){
+    bool finite_error;
+    #pragma omp parallel num_threads(user_params_global->N_THREADS)
+    {
+        int x,y,z;
+        double curr_dens,dNrec;
+        double z_eff;
+        #pragma omp for
+        for(x = 0; x < user_params_global->HII_DIM; x++) {
+            for(y = 0; y < user_params_global->HII_DIM; y++) {
+                for(z = 0; z < HII_D_PARA; z++) {
+                    // use the original density and redshift for the snapshot (not the adjusted redshift)
+                    // Only want to use the adjusted redshift for the ionisation field
+                    //NOTE: but the structure field wasn't adjusted, this seems wrong
+                    // curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x, y, z)]) / adjustment_factor;
+                    curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x, y, z)]);
+                    z_eff = pow(curr_dens, 1.0 / 3.0);
+                    z_eff *= (1 + consts->stored_redshift);
+
+                    dNrec = splined_recombination_rate(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]) *
+                            consts->fabs_dtdz * consts->dz * (1. - box->xH_box[HII_R_INDEX(x, y, z)]);
+
+                    if (isfinite(dNrec) == 0) {
+                        finite_error = true;
+                    }
+
+                    box->dNrec_box[HII_R_INDEX(x, y, z)] =
+                            previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)] + dNrec;
+                }
+            }
+        }
+    }
+
+    if(finite_error) {
+        LOG_ERROR("Recombinations have returned either an infinite or NaN value.");
+        Throw(InfinityorNaNError);
+    }
 }
 
 int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_params, CosmoParams *cosmo_params,
@@ -841,47 +1192,22 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         writeFlagOptions(flag_options);
     #endif
 
+    //TODO: moved from inside the R loop, either place verification in python wrapper or write a function to verify backend parameters
+    if (global_params.FIND_BUBBLE_ALGORITHM != 2 && global_params.FIND_BUBBLE_ALGORITHM != 1){ // center method
+        LOG_ERROR("Incorrect choice of find bubble algorithm: %i",
+                    global_params.FIND_BUBBLE_ALGORITHM);
+        Throw(ValueError);
+    }
+
     // Makes the parameter structs visible to a variety of functions/macros
     // Do each time to avoid Python garbage collection issues
     Broadcast_struct_global_all(user_params,cosmo_params,astro_params,flag_options);
 
     omp_set_num_threads(user_params->N_THREADS);
 
-    // Other parameters used in the code
-    int i,j,k,x,y,z;
-    int counter, N_halos_in_cell;
     unsigned long long ct;
 
-    float pixel_mass, cell_length_factor;
-    float erfc_denom, res_xH, Splined_Fcoll, xHII_from_xrays, curr_dens, massofscaleR, ION_EFF_FACTOR;
-    float Splined_Fcoll_MINI, prev_dens, ION_EFF_FACTOR_MINI, prev_Splined_Fcoll, prev_Splined_Fcoll_MINI;
-    float ave_M_coll_cell, ave_N_min_cell;
-    double lnM_cond;
-
-    float curr_vcb;
-
-    double global_xH, ST_over_PS, f_coll, R, stored_R, f_coll_min;
-    double ST_over_PS_MINI, f_coll_MINI, f_coll_min_MINI;
-
-    double t_ast,  Gamma_R_prefactor, rec, dNrec, sigmaMmax;
-    double Gamma_R_prefactor_MINI;
-    float fabs_dtdz, ZSTEP, z_eff;
-
-    int something_finite_or_infinite = 0;
-    int *overdense_int_boundexceeded_threaded = calloc(user_params->N_THREADS,sizeof(int));
-
-    //z photoncons model
-    float stored_redshift, adjustment_factor;
-
-    //grid limits
-    float min_density, max_density;
-    float prev_min_density, prev_max_density;
-    float log10Mturn_min, log10Mturn_max;
-    float log10Mturn_min_MINI, log10Mturn_max_MINI;
-
-    gsl_rng * r[user_params->N_THREADS];
-    //TODO: proper seed
-    seed_rng_threads(r,0);
+    double global_xH;
 
     //TODO: check if this is used in this file with TS fluctuations
     init_heat();
@@ -891,6 +1217,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     set_ionbox_constants(redshift,prev_redshift,cosmo_params,astro_params,flag_options,&ionbox_constants);
 
     //boxes which aren't guaranteed to have every element assigned to need to be initialised
+    //TODO: they should be zero'd in the wrapper, right?
     if(flag_options->INHOMO_RECO) {
         if(INIT_RECOMBINATIONS) {
             init_MHR();
@@ -919,54 +1246,38 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     debugSummarizeBox(box->z_re_box, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
 
     //These are intentionally done before any photoncons redshift adjustment
-    //TODO: move to IonBoxConstants
-    fabs_dtdz = fabs(dtdz(redshift))/1e15; //reduce to have good precision
-    t_ast = astro_params->t_STAR * t_hubble(redshift);
-    pixel_mass = RtoM(L_FACTOR*user_params->BOX_LEN/(float)(user_params->HII_DIM));
-    cell_length_factor = L_FACTOR;
-
-    //TODO: figure out why this is used in such a specific case
-    if(flag_options->USE_HALO_FIELD && (global_params.FIND_BUBBLE_ALGORITHM == 2) && ((user_params->BOX_LEN/(float)(user_params->HII_DIM) < 1))) {
-        cell_length_factor = 1.;
-    }
 
     // Modify the current sampled redshift to a redshift which matches the expected filling factor given our astrophysical parameterisation.
     // This is the photon non-conservation correction
     float absolute_delta_z = 0.;
+    float redshift_pc, stored_redshift_pc;
     if(flag_options->PHOTON_CONS_TYPE == 1) {
-        adjust_redshifts_for_photoncons(astro_params,flag_options,&redshift,&stored_redshift,&absolute_delta_z);
+        redshift_pc = redshift;
+        adjust_redshifts_for_photoncons(astro_params,flag_options,&redshift_pc,&stored_redshift_pc,&absolute_delta_z);
+        ionbox_constants.redshift = redshift_pc;
+        ionbox_constants.stored_redshift = stored_redshift_pc;
+        ionbox_constants.photoncons_adjustment_factor = dicke(redshift_pc)/dicke(stored_redshift_pc);
+        //TODO: if we want this to work with minihalos we need to change prev_redshift too
         LOG_DEBUG("PhotonCons data:");
-        LOG_DEBUG("original redshift=%f, updated redshift=%f delta-z = %f", stored_redshift, redshift, absolute_delta_z);
-        if(isfinite(redshift)==0 || isfinite(absolute_delta_z)==0) {
+        LOG_DEBUG("original redshift=%f, updated redshift=%f delta-z = %f", stored_redshift_pc, redshift_pc, absolute_delta_z);
+        if(isfinite(redshift_pc)==0 || isfinite(absolute_delta_z)==0) {
             LOG_ERROR("Updated photon non-conservation redshift is either infinite or NaN!");
             LOG_ERROR("This can sometimes occur when reionisation stalls (i.e. extremely low"\
                       "F_ESC or F_STAR or not enough sources)");
             Throw(PhotonConsError);
         }
     }
-
-    Splined_Fcoll = 0.;
-    Splined_Fcoll_MINI = 0.;
-
     /////////////////////////////////   BEGIN INITIALIZATION   //////////////////////////////////
 
     // perform a very rudimentary check to see if we are underresolved and not using the linear approx
     if ((user_params->BOX_LEN > user_params->DIM) && !(global_params.EVOLVE_DENSITY_LINEARLY)){
         LOG_WARNING("Resolution is likely too low for accurate evolved density fields\n It Is recommended \
-                    that you either increase the resolution (DIM/Box_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
-    }
-
-    // Calculate the density field for this redshift if the initial conditions/cosmology are changing
-    if(flag_options->PHOTON_CONS_TYPE == 1) {
-        adjustment_factor = dicke(redshift)/dicke(stored_redshift);
-    }
-    else {
-        adjustment_factor = 1.;
+                    that you either increase the resolution (DIM/BOX_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to 1\n");
     }
 
     struct RadiusSpec *radii_spec;
     int n_radii;
-    n_radii = setup_radii(&radii_spec);
+    n_radii = setup_radii(&radii_spec,&ionbox_constants);
 
     //CONSTRUCT GRIDS OUTSIDE R LOOP HERE
     //if we don't have a previous ionised box, make a fake one here
@@ -977,7 +1288,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     allocate_fftw_grids(grid_struct);
 
     //Find the mass limits and average turnovers
-    double ave_log10_Mturnover, ave_log10_Mturnover_MINI;
     double Mturnover_global_avg, Mturnover_global_avg_MINI;
     if (flag_options->USE_MASS_DEPENDENT_ZETA){
         if (flag_options->USE_MINI_HALOS){
@@ -1016,16 +1326,18 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     if(user_params->INTEGRATION_METHOD_ATOMIC == 1 || (flag_options->USE_MINI_HALOS && user_params->INTEGRATION_METHOD_MINI == 1))
         initialise_GL(ionbox_constants.lnMmin, ionbox_constants.lnMmax_gl);
 
-    set_mean_fcoll(&ionbox_constants,previous_ionize_box,box,Mturnover_global_avg,Mturnover_global_avg_MINI,&box->mean_f_coll,&box->mean_f_coll_MINI);
+    double f_limit_acg;
+    double f_limit_mcg;
+    set_mean_fcoll(&ionbox_constants,previous_ionize_box,box,Mturnover_global_avg,Mturnover_global_avg_MINI,&f_limit_acg,&f_limit_mcg);
 
-    if (box->mean_f_coll * ION_EFF_FACTOR + box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI< global_params.HII_ROUND_ERR){ // way too small to ionize anything...
+    if (box->mean_f_coll * ionbox_constants.ion_eff_factor_gl + box->mean_f_coll_MINI * ionbox_constants.ion_eff_factor_mini_gl < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
         global_xH = set_fully_neutral_box(box,spin_temp,perturbed_field,&ionbox_constants);
     }
     else {
         //DO THE R2C TRANSFORMS
         //TODO: add debug average printing to these boxes
         //TODO: put a flag for to turn off clipping instead of putting the wide limits
-        prepare_box_for_filtering(perturbed_field->density,grid_struct->deltax_unfiltered,adjustment_factor,-1.,1e6);
+        prepare_box_for_filtering(perturbed_field->density,grid_struct->deltax_unfiltered,ionbox_constants.photoncons_adjustment_factor,-1.,1e6);
         if(flag_options->USE_HALO_FIELD) {
             prepare_box_for_filtering(halos->n_ion,grid_struct->stars_unfiltered,1.,0.,1e20);
             prepare_box_for_filtering(halos->whalo_sfr,grid_struct->sfr_unfiltered,1.,0.,1e20);
@@ -1056,363 +1368,69 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         // (this avoids aliasing differences w redshift)
 
         int R_ct;
-        bool LAST_FILTER_STEP;
         struct RadiusSpec curr_radius;
         for(R_ct=n_radii;R_ct--;){
+            curr_radius = radii_spec[R_ct];
+
             //TODO: As far as I can tell, This was the previous behaviour with the while loop
             //  So if the cell size is smaller than the minimum mass (rare) we still filter the last step
             //  and don't assign any partial ionisaitons
-            curr_radius = radii_spec[R_ct];
-            if(ionbox_constants.M_min < RtoM(R)){
+            if(ionbox_constants.M_min < RtoM(curr_radius.R)){
                 LOG_DEBUG("Radius %.2e Mass %.2e smaller than minimum %.2e, stopping...",
                             radii_spec[R_ct].R,radii_spec[R_ct].M_max_R,ionbox_constants.M_min);
                 break;
             }
-            LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(R), M_MIN);
+            LOG_ULTRA_DEBUG("while loop for until RtoM(R)=%f reaches M_MIN=%f", RtoM(curr_radius.R), ionbox_constants.M_min);
 
             //do all the filtering and inverse transform
-            copy_filter_transform(grid_struct,&ionbox_constants,LAST_FILTER_STEP);
+            copy_filter_transform(grid_struct,&ionbox_constants,curr_radius);
 
-            // Check if this is the last filtering scale.  If so, we don't need deltax_unfiltered anymore.
-            // We will re-read it to get the real-space field, which we will use to set the residual neutral fraction
-            ST_over_PS = 0;
-            ST_over_PS_MINI = 0;
-            f_coll = 0;
-            f_coll_MINI = 0;
+            bool need_prev_ion = previous_ionize_box->mean_f_coll_MINI * ionbox_constants.ion_eff_factor_mini_gl + \
+                            previous_ionize_box->mean_f_coll * ionbox_constants.ion_eff_factor_gl > 1e-4;
 
-            bool need_prev_ion = previous_ionize_box->mean_f_coll_MINI * ION_EFF_FACTOR_MINI + \
-                            previous_ionize_box->mean_f_coll * ION_EFF_FACTOR > 1e-4;
             if (!flag_options->USE_HALO_FIELD) {
                 setup_integration_tables(grid_struct,&ionbox_constants,curr_radius,need_prev_ion);
                 LOG_SUPER_DEBUG("Initialised tables");
             }
-            // Reset value of int check to see if we are over-stepping our interpolation table
-            for (i = 0; i < user_params->N_THREADS; i++) {
-                overdense_int_boundexceeded_threaded[i] = 0;
-            }
 
-            calculate_fcoll_grid(box,previous_ionize_box,grid_struct,&ionbox_constants,curr_radius);
-
-            for (i = 0; i < user_params->N_THREADS; i++) {
-                if (overdense_int_boundexceeded_threaded[i] == 1) {
-                    LOG_ERROR("I have overstepped my allocated memory for one of the interpolation tables for the nion_splines");
-                    Throw(TableEvaluationError);
-                }
-            }
-            if(isfinite(f_coll)==0) {
-                LOG_ERROR("f_coll is either infinite or NaN!");
-                Throw(InfinityorNaNError);
-            }
-            f_coll /= (double) HII_TOT_NUM_PIXELS;
-
-            if(isfinite(f_coll_MINI)==0) {
-                LOG_ERROR("f_coll_MINI is either infinite or NaN!");
-                Throw(InfinityorNaNError);
-            }
-
-            f_coll_MINI /= (double) HII_TOT_NUM_PIXELS;
-
+            calculate_fcoll_grid(box,previous_ionize_box,grid_struct,&ionbox_constants,&curr_radius);
             // To avoid ST_over_PS becoming nan when f_coll = 0, I set f_coll = FRACT_FLOAT_ERR.
-            if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-                if (f_coll <= f_coll_min) f_coll = f_coll_min;
+            // TODO: This was the previous behaviour, but is this right?
+            // setting the *total* to the minimum for the adjustment factor,
+            // then clipping the grid in the loop below?
+            if (flag_options_global->USE_MASS_DEPENDENT_ZETA) {
+                if (curr_radius.f_coll_grid_mean <= f_limit_acg) curr_radius.f_coll_grid_mean = f_limit_acg;
                 if (flag_options->USE_MINI_HALOS){
-                    if (f_coll_MINI <= f_coll_min_MINI) f_coll_MINI = f_coll_min_MINI;
+                    if (curr_radius.f_coll_grid_mean_MINI <= f_limit_mcg) curr_radius.f_coll_grid_mean_MINI = f_limit_mcg;
                 }
             }
             else {
-                if (f_coll <= FRACT_FLOAT_ERR) f_coll = FRACT_FLOAT_ERR;
+                if (curr_radius.f_coll_grid_mean <= FRACT_FLOAT_ERR) curr_radius.f_coll_grid_mean = FRACT_FLOAT_ERR;
             }
 
-            if(flag_options->USE_HALO_FIELD){
-                ST_over_PS = 1.;
-                ST_over_PS_MINI = 1.;
-            }
-            else{
-                ST_over_PS = box->mean_f_coll/f_coll;
-                ST_over_PS_MINI = box->mean_f_coll_MINI/f_coll_MINI;
-                LOG_SUPER_DEBUG("global mean fcoll %.4e box mean fcoll %.4e ratio %.4e",box->mean_f_coll,f_coll,ST_over_PS);
-                LOG_SUPER_DEBUG("MINI: global mean fcoll %.4e box mean fcoll %.4e ratio %.4e",box->mean_f_coll_MINI,f_coll_MINI,ST_over_PS_MINI);
-            }
+            find_ionised_regions(box,previous_ionize_box,perturbed_field,spin_temp,curr_radius,&ionbox_constants,grid_struct,f_limit_acg,f_limit_mcg);
 
-            Gamma_R_prefactor = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR / 1.0e-12;
-            Gamma_R_prefactor_MINI = (R*CMperMPC) * SIGMA_HI * global_params.ALPHA_UVB / (global_params.ALPHA_UVB+2.75) * N_b0 * ION_EFF_FACTOR_MINI / 1.0e-12;
-            if(flag_options->PHOTON_CONS_TYPE == 1) {
-                // Used for recombinations, which means we want to use the original redshift not the adjusted redshift
-                Gamma_R_prefactor *= pow(1+stored_redshift, 2);
-                Gamma_R_prefactor_MINI *= pow(1+stored_redshift, 2);
-            }
-            else {
-                Gamma_R_prefactor *= pow(1+redshift, 2);
-                Gamma_R_prefactor_MINI *= pow(1+redshift, 2);
-            }
-
-            //With the halo field, we use the filtered, f_esc and N_ion weighted star formation rate, which should be equivalent to
-            // `Fcoll` * OMb * RHOcrit * (1+delta) in the no halo field case. we also need a factor of 1/(1+delta) later on
-            // to match that in the recombination (`Fcoll` is effectively fesc*star per baryon, whereas the filtered grids are fesc*SFRD)
-            //So the halo option needs an extra density term and the nonhalo option needs the SFR term
-            if(flag_options->USE_HALO_FIELD){
-                Gamma_R_prefactor /= RHOcrit * cosmo_params->OMb;
-                Gamma_R_prefactor_MINI /= RHOcrit * cosmo_params->OMb;
-            }
-            else{
-                //Minihalos already included
-                Gamma_R_prefactor /= t_ast;
-                Gamma_R_prefactor_MINI /= t_ast;
-            }
-
-            if (global_params.FIND_BUBBLE_ALGORITHM != 2 && global_params.FIND_BUBBLE_ALGORITHM != 1){ // center method
-                LOG_ERROR("Incorrect choice of find bubble algorithm: %i",
-                          global_params.FIND_BUBBLE_ALGORITHM);
-                Throw(ValueError);
-            }
-
-            #pragma omp parallel shared(deltax_filtered,N_rec_filtered,xe_filtered,box,ST_over_PS,pixel_mass,M_MIN,r,f_coll_min,Gamma_R_prefactor,\
-                            ION_EFF_FACTOR,ION_EFF_FACTOR_MINI,LAST_FILTER_STEP,counter,ST_over_PS_MINI,f_coll_min_MINI,Gamma_R_prefactor_MINI,perturbed_field) \
-                    private(x,y,z,curr_dens,Splined_Fcoll,f_coll,ave_M_coll_cell,ave_N_min_cell,N_halos_in_cell,rec,xHII_from_xrays,\
-                            Splined_Fcoll_MINI,f_coll_MINI, res_xH) \
-                    num_threads(user_params->N_THREADS)
-            {
-            #pragma omp for
-                for (x = 0; x < user_params->HII_DIM; x++) {
-                    for (y = 0; y < user_params->HII_DIM; y++) {
-                        for (z = 0; z < HII_D_PARA; z++) {
-
-                            //Use unfiltered density for CELL_RECOMB case, since the "Fcoll" represents photons
-                            //  reaching the central cell rather than photons in the entire sphere
-                            if(flag_options->CELL_RECOMB)
-                                curr_dens = perturbed_field->density[HII_R_INDEX(x,y,z)];
-                            else
-                                curr_dens = *((float *)deltax_filtered + HII_R_FFT_INDEX(x,y,z));
-
-                            Splined_Fcoll = box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
-
-                            //Since the halo boxes give ionising photon output, this term accounts for the local density of absorbers
-                            //  We have separated the source/absorber filtering in the halo model so this is necessary
-                            if(flag_options->USE_HALO_FIELD){
-                                Splined_Fcoll *= 1 / (RHOcrit*cosmo_params->OMb*(1+curr_dens));
-                            }
-
-                            f_coll = ST_over_PS * Splined_Fcoll;
-
-                            //MINIHALOS are already included in the halo model
-                            if (flag_options->USE_MINI_HALOS && !flag_options->USE_HALO_FIELD){
-                                Splined_Fcoll_MINI = box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
-                                f_coll_MINI = ST_over_PS_MINI * Splined_Fcoll_MINI;
-                            }
-                            else{
-                                f_coll_MINI = 0.;
-                            }
-
-                            if (LAST_FILTER_STEP){
-                                ave_M_coll_cell = (f_coll + f_coll_MINI) * pixel_mass * (1. + curr_dens);
-                                ave_N_min_cell = ave_M_coll_cell / M_MIN; // ave # of M_MIN halos in cell
-                                if(user_params->NO_RNG) {
-                                    N_halos_in_cell = 1.;
-                                }
-                                else {
-                                    N_halos_in_cell = (int) gsl_ran_poisson(r[omp_get_thread_num()],
-                                                                            global_params.N_POISSON);
-                                }
-                            }
-
-                            if (flag_options->USE_MASS_DEPENDENT_ZETA) {
-                                if (f_coll <= f_coll_min) f_coll = f_coll_min;
-                                if (flag_options->USE_MINI_HALOS){
-                                    if (f_coll_MINI <= f_coll_min_MINI) f_coll_MINI = f_coll_min_MINI;
-                                }
-                            }
-
-                            if (flag_options->INHOMO_RECO) {
-                                if(flag_options->CELL_RECOMB)
-                                    rec = previous_ionize_box->dNrec_box[HII_R_INDEX(x,y,z)];
-                                else
-                                    rec = (*((float *) N_rec_filtered + HII_R_FFT_INDEX(x, y, z))); // number of recombinations per mean baryon
-
-                                rec /= (1. + curr_dens); // number of recombinations per baryon inside cell/filter
-                            }
-                            else {
-                                rec = 0.;
-                            }
-
-                            // adjust the denominator of the collapse fraction for the residual electron fraction in the neutral medium
-                            if (flag_options->USE_TS_FLUCT){
-                                xHII_from_xrays = *((float *)xe_filtered + HII_R_FFT_INDEX(x,y,z));
-                            } else {
-                                xHII_from_xrays = 0.;
-                            }
-
-                            if(x+y+z == 0 && !flag_options->USE_HALO_FIELD){
-                                //reusing variables (i know its not log10)
-                                if(flag_options->USE_MINI_HALOS){
-                                    log10_Mturnover = pow(10,*((float *)log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)));
-                                    log10_Mturnover_MINI = pow(10,*((float *)log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)));
-                                }
-                                else{
-                                    log10_Mturnover = astro_params->M_TURN;
-                                }
-                                LOG_SUPER_DEBUG("Cell 0: R=%.1f | d %.4e | fcoll (s %.4e f %.4e i %.4e) | rec %.4e | X %.4e",
-                                                    R,curr_dens,Splined_Fcoll,f_coll,\
-                                                    Nion_ConditionalM(growth_factor,lnMmin,lnM_cond,massofscaleR,sigmaMmax,curr_dens,
-                                                        log10_Mturnover,
-                                                        astro_params->ALPHA_STAR,astro_params->ALPHA_ESC,astro_params->F_STAR10,
-                                                        astro_params->F_ESC10,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_ATOMIC),rec,xHII_from_xrays);
-                                if(flag_options->USE_MINI_HALOS){
-                                    LOG_SUPER_DEBUG("Mini (s %.4e f %.4e i %.4e)",Splined_Fcoll_MINI,f_coll_MINI,\
-                                                    Nion_ConditionalM_MINI(growth_factor,lnMmin,lnM_cond,massofscaleR,sigmaMmax,curr_dens,
-                                                        log10_Mturnover_MINI,Mcrit_atom,
-                                                        astro_params->ALPHA_STAR_MINI,astro_params->ALPHA_ESC,astro_params->F_STAR7_MINI,
-                                                        astro_params->F_ESC7_MINI,Mlim_Fstar,Mlim_Fesc,user_params->INTEGRATION_METHOD_MINI));
-                                }
-                            }
-
-                            // check if fully ionized!
-                            if ( (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI > (1. - xHII_from_xrays)*(1.0+rec)) ){ //IONIZED!!
-                                // if this is the first crossing of the ionization barrier for this cell (largest R), record the gamma
-                                // this assumes photon-starved growth of HII regions...  breaks down post EoR
-                                if (flag_options->INHOMO_RECO && (box->xH_box[HII_R_INDEX(x,y,z)] > FRACT_FLOAT_ERR) ){
-                                    if(flag_options->USE_HALO_FIELD){
-                                        box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor / (1+curr_dens) * (*((float *)sfr_filtered + HII_R_FFT_INDEX(x,y,z)));
-                                    }
-                                    else{
-                                        box->Gamma12_box[HII_R_INDEX(x,y,z)] = Gamma_R_prefactor * f_coll + Gamma_R_prefactor_MINI * f_coll_MINI;
-                                    }
-                                    box->MFP_box[HII_R_INDEX(x,y,z)] = R;
-                                }
-
-                                // keep track of the first time this cell is ionized (earliest time)
-                                if (previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)] < 0){
-                                    box->z_re_box[HII_R_INDEX(x,y,z)] = redshift;
-                                } else{
-                                    box->z_re_box[HII_R_INDEX(x,y,z)] = previous_ionize_box->z_re_box[HII_R_INDEX(x,y,z)];
-                                }
-
-                                // FLAG CELL(S) AS IONIZED
-                                if (global_params.FIND_BUBBLE_ALGORITHM == 2) // center method
-                                    box->xH_box[HII_R_INDEX(x,y,z)] = 0;
-                                if (global_params.FIND_BUBBLE_ALGORITHM == 1) // sphere method
-                                    update_in_sphere(box->xH_box, user_params->HII_DIM, HII_D_PARA, R/(user_params->BOX_LEN), \
-                                                     x/(user_params->HII_DIM+0.0), y/(user_params->HII_DIM+0.0), z/(HII_D_PARA+0.0));
-                            } // end ionized
-                                // If not fully ionized, then assign partial ionizations
-                            else if (LAST_FILTER_STEP && (box->xH_box[HII_R_INDEX(x, y, z)] > TINY)) {
-
-                                if (f_coll>1) f_coll=1;
-                                if (f_coll_MINI>1) f_coll_MINI=1;
-
-                                if (!flag_options->USE_HALO_FIELD){
-                                    if(ave_N_min_cell < global_params.N_POISSON) {
-                                        f_coll = N_halos_in_cell * ( ave_M_coll_cell / (float)global_params.N_POISSON ) / (pixel_mass*(1. + curr_dens));
-                                        if (flag_options->USE_MINI_HALOS){
-                                            f_coll_MINI = f_coll * (f_coll_MINI * ION_EFF_FACTOR_MINI) / (f_coll * ION_EFF_FACTOR + f_coll_MINI * ION_EFF_FACTOR_MINI);
-                                            f_coll = f_coll - f_coll_MINI;
-                                        }
-                                        else{
-                                            f_coll_MINI = 0.;
-                                        }
-                                    }
-
-                                    if (ave_M_coll_cell < (M_MIN / 5.)) {
-                                        f_coll = 0.;
-                                        f_coll_MINI = 0.;
-                                    }
-                                }
-
-                                if (f_coll>1) f_coll=1;
-                                if (f_coll_MINI>1) f_coll_MINI=1;
-                                res_xH = 1. - f_coll * ION_EFF_FACTOR - f_coll_MINI * ION_EFF_FACTOR_MINI;
-                                // put the partial ionization here because we need to exclude xHII_from_xrays...
-                                if (flag_options->USE_TS_FLUCT){
-                                    box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(spin_temp->Tk_box[HII_R_INDEX(x,y,z)], res_xH);
-                                }
-                                else{
-                                    box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputePartiallyIoinizedTemperature(
-                                            consts->TK_nofluct*(1 + consts->adia_TK_term*perturbed_field->density[HII_R_INDEX(x,y,z)]), res_xH);
-                                }
-                                res_xH -= xHII_from_xrays;
-
-                                // and make sure fraction doesn't blow up for underdense pixels
-                                if (res_xH < 0)
-                                    res_xH = 0;
-                                else if (res_xH > 1)
-                                    res_xH = 1;
-
-                                box->xH_box[HII_R_INDEX(x, y, z)] = res_xH;
-
-                            } // end partial ionizations at last filtering step
-                        } // k
-                    } // j
-                } // i
-            }
-
-            LOG_SUPER_DEBUG("z_re_box after R=%f: ", R);
+            LOG_SUPER_DEBUG("z_re_box after R=%f: ", curr_radius.R);
             debugSummarizeBox(box->z_re_box, user_params->HII_DIM, user_params->NON_CUBIC_FACTOR, "  ");
-
-
-            if (first_step_R) {
-                R = stored_R;
-                first_step_R = 0;
-            } else {
-                R /= (global_params.DELTA_R_HII_FACTOR);
-            }
-            if (flag_options->USE_MINI_HALOS)
-                counter += 1;
         }
 
-
-        #pragma omp parallel shared(box,spin_temp,redshift,deltax_unfiltered_original,TK) private(x,y,z) num_threads(user_params->N_THREADS)
-        {
-            float thistk;
-            #pragma omp for
-            for (x=0; x<user_params->HII_DIM; x++){
-                for (y=0; y<user_params->HII_DIM; y++){
-                    for (z=0; z<HII_D_PARA; z++){
-                        if ((box->z_re_box[HII_R_INDEX(x,y,z)]>0) && (box->xH_box[HII_R_INDEX(x,y,z)] < TINY)){
-                            box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = ComputeFullyIoinizedTemperature(box->z_re_box[HII_R_INDEX(x,y,z)], \
-                                                                        redshift, *((float *)deltax_unfiltered_original + HII_R_FFT_INDEX(x,y,z)));
-                            // Below sometimes (very rare though) can happen when the density drops too fast and to below T_HI
-                            if (flag_options->USE_TS_FLUCT){
-                                if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < spin_temp->Tk_box[HII_R_INDEX(x,y,z)])
-                                    box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = spin_temp->Tk_box[HII_R_INDEX(x,y,z)];
-                                }
-                            else{
-
-                                thistk = consts->TK_nofluct*(1 + consts->adia_TK_term*perturbed_field->density[HII_R_INDEX(x,y,z)]);
-                                if (box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] < thistk)
-                                    box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)] = thistk;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        for (x=0; x<user_params->HII_DIM; x++){
-            for (y=0; y<user_params->HII_DIM; y++){
-                for (z=0; z<HII_D_PARA; z++){
-                    if(isfinite(box->temp_kinetic_all_gas[HII_R_INDEX(x,y,z)])==0){
-                        LOG_ERROR("Tk after fully ioinzation is either infinite or a Nan. Something has gone wrong "\
-                                  "in the temperature calculation: z_re=%.4f, redshift=%.4f, curr_dens=%.4e", box->z_re_box[HII_R_INDEX(x,y,z)], redshift, curr_dens);
-                        Throw(InfinityorNaNError);
-                    }
-                }
-            }
-        }
+        set_ionized_temperatures(box,perturbed_field,spin_temp,&ionbox_constants);
 
         // find the neutral fraction
-        if (LOG_LEVEL >= DEBUG_LEVEL) {
-            global_xH = 0;
+#if LOG_LEVEL >= DEBUG_LEVEL
+        global_xH = 0;
 
-#pragma omp parallel shared(box) private(ct) num_threads(user_params->N_THREADS)
-            {
-#pragma omp for reduction(+:global_xH)
-                for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
-                    global_xH += box->xH_box[ct];
-                }
+        #pragma omp parallel shared(box) private(ct) num_threads(user_params->N_THREADS)
+        {
+        #pragma omp for reduction(+:global_xH)
+            for (ct = 0; ct < HII_TOT_NUM_PIXELS; ct++) {
+                global_xH += box->xH_box[ct];
             }
-            global_xH /= (float) HII_TOT_NUM_PIXELS;
         }
+        global_xH /= (float) HII_TOT_NUM_PIXELS;
+#endif
 
-        if (isfinite(global_xH) == 0) {
+        if(isfinite(global_xH) == 0) {
             LOG_ERROR(
                     "Neutral fraction is either infinite or a Nan. Something has gone wrong in the ionisation calculation!");
             Throw(InfinityorNaNError);
@@ -1420,47 +1438,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 
         // update the N_rec field
         if (flag_options->INHOMO_RECO) {
-
-#pragma omp parallel shared(perturbed_field, adjustment_factor, stored_redshift, redshift, box, previous_ionize_box, \
-                            fabs_dtdz, ZSTEP, something_finite_or_infinite) \
-                    private(x, y, z, curr_dens, z_eff, dNrec) num_threads(user_params->N_THREADS)
-            {
-#pragma omp for
-                for (x = 0; x < user_params->HII_DIM; x++) {
-                    for (y = 0; y < user_params->HII_DIM; y++) {
-                        for (z = 0; z < HII_D_PARA; z++) {
-
-                            // use the original density and redshift for the snapshot (not the adjusted redshift)
-                            // Only want to use the adjusted redshift for the ionisation field
-                            //NOTE: but the structure field wasn't adjusted, this seems wrong
-                            // curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x, y, z)]) / adjustment_factor;
-                            curr_dens = 1.0 + (perturbed_field->density[HII_R_INDEX(x, y, z)]);
-                            z_eff = pow(curr_dens, 1.0 / 3.0);
-
-                            if (flag_options->PHOTON_CONS_TYPE == 1) {
-                                z_eff *= (1 + stored_redshift);
-                            } else {
-                                z_eff *= (1 + redshift);
-                            }
-
-                            dNrec = splined_recombination_rate(z_eff - 1., box->Gamma12_box[HII_R_INDEX(x, y, z)]) *
-                                    fabs_dtdz * ZSTEP * (1. - box->xH_box[HII_R_INDEX(x, y, z)]);
-
-                            if (isfinite(dNrec) == 0) {
-                                something_finite_or_infinite = 1;
-                            }
-
-                            box->dNrec_box[HII_R_INDEX(x, y, z)] =
-                                    previous_ionize_box->dNrec_box[HII_R_INDEX(x, y, z)] + dNrec;
-                        }
-                    }
-                }
-            }
-
-            if (something_finite_or_infinite) {
-                LOG_ERROR("Recombinations have returned either an infinite or NaN value.");
-                Throw(InfinityorNaNError);
-            }
+            set_recombination_rates(box,previous_ionize_box,perturbed_field,&ionbox_constants);
         }
 
         fftwf_cleanup_threads();
@@ -1470,12 +1448,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
 
     destruct_heat();
 
-    for (i=0; i<user_params->N_THREADS; i++) {
-        gsl_rng_free(r[i]);
-    }
-
     LOG_DEBUG("global_xH = %e",global_xH);
-    free_fftw_boxes(&fg_struct);
+    free_fftw_grids(&grid_struct);
     LOG_SUPER_DEBUG("freed fftw boxes");
     if (prev_redshift < 1){
         free(previous_ionize_box->z_re_box);
@@ -1491,10 +1465,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             freeSigmaMInterpTable();
     }
 
-    //These functions check for allocation
+    //This function checks for allocation
     free_conditional_tables();
 
-    free(overdense_int_boundexceeded_threaded);
     free(radii_spec);
 
     LOG_DEBUG("finished!\n");
