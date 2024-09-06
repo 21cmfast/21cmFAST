@@ -120,8 +120,8 @@ void set_hbox_constants(double redshift, AstroParams *astro_params, FlagOptions 
 
     consts->mturn_m_nofb = 0.;
     if(flag_options->USE_MINI_HALOS){
-        consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel, astro_params);
         consts->vcb_norel = flag_options->FIX_VCB_AVG ? global_params.VAVG : 0;
+        consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel, astro_params);
     }
 
     if(flag_options->FIXED_HALO_GRIDS || user_params_global->AVG_BELOW_SAMPLER){
