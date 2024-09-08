@@ -254,40 +254,40 @@ void set_ionbox_constants(double redshift, double prev_redshift, CosmoParams *co
 }
 
 
-void allocate_fftw_grids(struct FilteredGrids *fg_struct){
+void allocate_fftw_grids(struct FilteredGrids **fg_struct){
     //NOTE FOR REFACTOR: These don't need to be allocated/filtered if (USE_HALO FIELD && CELL_RECOMB)
     // Also, I don't think deltax_unfiltered_original is useful at all since we have the PerturbedField
-    fg_struct = malloc(sizeof(*fg_struct));
+    *fg_struct = malloc(sizeof(**fg_struct));
 
-    fg_struct->deltax_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-    fg_struct->deltax_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    (*fg_struct)->deltax_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+    (*fg_struct)->deltax_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
     if(flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD){
-        fg_struct->prev_deltax_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        fg_struct->prev_deltax_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->prev_deltax_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->prev_deltax_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
-        fg_struct->log10_Mturnover_unfiltered      = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        fg_struct->log10_Mturnover_filtered        = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        fg_struct->log10_Mturnover_MINI_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        fg_struct->log10_Mturnover_MINI_filtered   = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->log10_Mturnover_unfiltered      = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->log10_Mturnover_filtered        = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->log10_Mturnover_MINI_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->log10_Mturnover_MINI_filtered   = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     }
 
     if(flag_options_global->USE_TS_FLUCT){
-        fg_struct->xe_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        fg_struct->xe_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->xe_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->xe_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     }
 
     if(flag_options_global->INHOMO_RECO && !flag_options_global->CELL_RECOMB){
-        fg_struct->N_rec_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS); // cumulative number of recombinations
-        fg_struct->N_rec_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->N_rec_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS); // cumulative number of recombinations
+        (*fg_struct)->N_rec_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     }
 
     if(flag_options_global->USE_HALO_FIELD){
-        fg_struct->stars_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        fg_struct->stars_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->stars_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->stars_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
 
-        fg_struct->sfr_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
-        fg_struct->sfr_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->sfr_unfiltered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
+        (*fg_struct)->sfr_filtered = (fftwf_complex *) fftwf_malloc(sizeof(fftwf_complex)*HII_KSPACE_NUM_PIXELS);
     }
     //TODO: check for null pointers and throw errors
 }
@@ -331,10 +331,11 @@ void prepare_box_for_filtering(float *input_box, fftwf_complex *output_c_box, do
     unsigned long long int ct;
     double curr_cell;
 
+    LOG_ULTRA_DEBUG("Starting one grid...");
     //NOTE: Meraxes just applies a pointer cast box = (fftwf_complex *) input. Figure out why this works,
     //      They pad the input by a factor of 2 to cover the complex part, but from the type I thought it would be stored [(r,c),(r,c)...]
     //      Not [(r,r,r,r....),(c,c,c....)] so the alignment should be wrong, right?
-    #pragma omp parallel for private(i,j,k) num_threads(user_params_global->N_THREADS) collapse(3)
+    #pragma omp parallel for private(i,j,k,curr_cell) num_threads(user_params_global->N_THREADS) collapse(3)
     for(i=0;i<user_params_global->HII_DIM;i++){
         for(j=0;j<user_params_global->HII_DIM;j++){
             for(k=0;k<HII_D_PARA;k++){
@@ -348,7 +349,7 @@ void prepare_box_for_filtering(float *input_box, fftwf_complex *output_c_box, do
     dft_r2c_cube(user_params_global->USE_FFTW_WISDOM, user_params_global->HII_DIM, HII_D_PARA, user_params_global->N_THREADS, output_c_box);
 
     //divide by pixel number in preparation for later inverse transform
-    #pragma omp parallel for num_threads(user_params_global->N_THREADS)
+    #pragma omp parallel for private(ct) num_threads(user_params_global->N_THREADS)
     for (ct=0; ct<HII_KSPACE_NUM_PIXELS; ct++){
         output_c_box[ct] /= (float)HII_TOT_NUM_PIXELS;
     }
@@ -702,6 +703,9 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
     double f_coll_total,f_coll_MINI_total;
     //TODO: make proper error tracking through the parallel region
     bool error_flag;
+
+    int fc_r_idx;
+    fc_r_idx = flag_options_global->USE_MINI_HALOS ? rspec->R_index : 0;
     #pragma omp parallel num_threads(user_params_global->N_THREADS)
     {
         int x,y,z;
@@ -795,17 +799,17 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                         if (Splined_Fcoll < 0.) Splined_Fcoll = 1e-40;
                         if (prev_Splined_Fcoll > 1.) prev_Splined_Fcoll = 1.;
                         if (prev_Splined_Fcoll < 0.) prev_Splined_Fcoll = 1e-40;
-                        box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = \
-                                previous_ionize_box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll - prev_Splined_Fcoll;
+                        box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = \
+                                previous_ionize_box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll - prev_Splined_Fcoll;
 
-                        if (box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] > 1.) box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1.;
+                        if (box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] > 1.) box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1.;
                         //if (box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] <0.) box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1e-40;
                         //if (box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] < previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)])
                         //    box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
-                        f_coll_total += box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
+                        f_coll_total += box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                         if(isfinite(f_coll_total)==0) {
                             LOG_ERROR("f_coll is either infinite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g,%g,%g",\
-                                    x,y,z,curr_dens,prev_dens,previous_ionize_box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
+                                    x,y,z,curr_dens,prev_dens,previous_ionize_box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
                                     Splined_Fcoll, prev_Splined_Fcoll, curr_dens, prev_dens, log10_Mturnover,
                                     *((float *)fg_struct->log10_Mturnover_filtered + HII_R_FFT_INDEX(x,y,z)));
                             Throw(InfinityorNaNError);
@@ -815,26 +819,26 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box, stru
                         if (Splined_Fcoll_MINI < 0.) Splined_Fcoll_MINI = 1e-40;
                         if (prev_Splined_Fcoll_MINI > 1.) prev_Splined_Fcoll_MINI = 1.;
                         if (prev_Splined_Fcoll_MINI < 0.) prev_Splined_Fcoll_MINI = 1e-40;
-                        box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = \
-                                    previous_ionize_box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll_MINI - prev_Splined_Fcoll_MINI;
+                        box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = \
+                                    previous_ionize_box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] + Splined_Fcoll_MINI - prev_Splined_Fcoll_MINI;
 
-                        if (box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] >1.) box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1.;
+                        if (box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] >1.) box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1.;
                         //if (box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] <0.) box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = 1e-40;
                         //if (box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] < previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)])
                         //    box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = previous_ionize_box->Fcoll_MINI[counter * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
-                        f_coll_MINI_total += box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
+                        f_coll_MINI_total += box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                         if(isfinite(f_coll_MINI_total)==0) {
                             LOG_ERROR("f_coll_MINI is either infinite or NaN!(%d,%d,%d)%g,%g,%g,%g,%g,%g,%g",\
-                                        x,y,z,curr_dens, prev_dens, previous_ionize_box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
+                                        x,y,z,curr_dens, prev_dens, previous_ionize_box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
                                         Splined_Fcoll_MINI, prev_Splined_Fcoll_MINI, log10_Mturnover_MINI,\
                                         *((float *)fg_struct->log10_Mturnover_MINI_filtered + HII_R_FFT_INDEX(x,y,z)));
-                            LOG_DEBUG("%g,%g",previous_ionize_box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
-                                        previous_ionize_box->Fcoll_MINI[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)]);
+                            LOG_DEBUG("%g,%g",previous_ionize_box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)],\
+                                        previous_ionize_box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)]);
                             Throw(InfinityorNaNError);
                         }
                     }
                     else{
-                        box->Fcoll[rspec->R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = Splined_Fcoll;
+                        box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)] = Splined_Fcoll;
                         f_coll_total += Splined_Fcoll;
                     }
                 }
@@ -890,6 +894,8 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                             double f_limit_acg, double f_limit_mcg){
     double mean_fix_term_acg = 1.;
     double mean_fix_term_mcg = 1.;
+    int fc_r_idx;
+    fc_r_idx = flag_options_global->USE_MINI_HALOS ? rspec.R_index : 0;
     if(consts->fix_mean){
         mean_fix_term_acg = box->mean_f_coll/rspec.f_coll_grid_mean;
         mean_fix_term_mcg = box->mean_f_coll_MINI/rspec.f_coll_grid_mean_MINI;
@@ -934,7 +940,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                     else
                         curr_dens = *((float *)fg_struct->deltax_filtered + HII_R_FFT_INDEX(x,y,z));
 
-                    curr_fcoll = box->Fcoll[rspec.R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
+                    curr_fcoll = box->Fcoll[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                     curr_fcoll = mean_fix_term_acg * curr_fcoll;
 
                     //Since the halo boxes give ionising photon output, this term accounts for the local density of absorbers
@@ -945,7 +951,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box, Pert
                     //MINIHALOS are already included in the halo model
                     curr_fcoll_mini = 0.;
                     if (flag_options_global->USE_MINI_HALOS && !flag_options_global->USE_HALO_FIELD){
-                        curr_fcoll_mini = box->Fcoll_MINI[rspec.R_index * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
+                        curr_fcoll_mini = box->Fcoll_MINI[fc_r_idx * HII_TOT_NUM_PIXELS + HII_R_INDEX(x,y,z)];
                         curr_fcoll_mini = mean_fix_term_mcg * curr_fcoll_mini;
                     }
 
@@ -1285,7 +1291,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
         setup_first_z_prevbox(previous_ionize_box,previous_perturbed_field,n_radii);
 
     struct FilteredGrids *grid_struct;
-    allocate_fftw_grids(grid_struct);
+    allocate_fftw_grids(&grid_struct);
 
     //Find the mass limits and average turnovers
     double Mturnover_global_avg, Mturnover_global_avg_MINI;
@@ -1329,11 +1335,15 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     double f_limit_acg;
     double f_limit_mcg;
     set_mean_fcoll(&ionbox_constants,previous_ionize_box,box,Mturnover_global_avg,Mturnover_global_avg_MINI,&f_limit_acg,&f_limit_mcg);
+    double exp_global_hii = box->mean_f_coll * ionbox_constants.ion_eff_factor_gl \
+                            + box->mean_f_coll_MINI * ionbox_constants.ion_eff_factor_mini_gl;
 
-    if (box->mean_f_coll * ionbox_constants.ion_eff_factor_gl + box->mean_f_coll_MINI * ionbox_constants.ion_eff_factor_mini_gl < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
+    if(exp_global_hii < global_params.HII_ROUND_ERR){ // way too small to ionize anything...
+        LOG_DEBUG("Mean collapsed fraciton %.3e too small to ionize, stopping early",exp_global_hii);
         global_xH = set_fully_neutral_box(box,spin_temp,perturbed_field,&ionbox_constants);
     }
-    else {
+    else{
+        LOG_SUPER_DEBUG("Starting FFTs");
         //DO THE R2C TRANSFORMS
         //TODO: add debug average printing to these boxes
         //TODO: put a flag for to turn off clipping instead of putting the wide limits
@@ -1375,7 +1385,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
             //TODO: As far as I can tell, This was the previous behaviour with the while loop
             //  So if the cell size is smaller than the minimum mass (rare) we still filter the last step
             //  and don't assign any partial ionisaitons
-            if(ionbox_constants.M_min < RtoM(curr_radius.R)){
+            if(ionbox_constants.M_min > RtoM(curr_radius.R)){
                 LOG_DEBUG("Radius %.2e Mass %.2e smaller than minimum %.2e, stopping...",
                             radii_spec[R_ct].R,radii_spec[R_ct].M_max_R,ionbox_constants.M_min);
                 break;
@@ -1449,7 +1459,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, UserParams *user_para
     destruct_heat();
 
     LOG_DEBUG("global_xH = %e",global_xH);
-    free_fftw_grids(&grid_struct);
+    free_fftw_grids(grid_struct);
     LOG_SUPER_DEBUG("freed fftw boxes");
     if (prev_redshift < 1){
         free(previous_ionize_box->z_re_box);
